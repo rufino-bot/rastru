@@ -4,13 +4,12 @@ USING (VALUES ('Operador'),('Almoxarifado'),('PCP'),('Qualidade'),('Gestao'),('A
 ON alvo.Nome = origem.Nome
 WHEN NOT MATCHED THEN INSERT (Nome) VALUES (origem.Nome);
 
--- PLACEHOLDER: hash BCrypt (custo 11) correspondente, em tese, à senha 'Admin@123'.
--- NÃO há garantia de que valide contra 'Admin@123' nesta versão do BCrypt.
--- A Task 4 gera o hash real com BCryptPasswordHasher e reaplica este seed.
+-- Hash BCrypt real (custo 11), gerado com BCryptPasswordHasher (Task 4), válido para a
+-- senha 'Admin@123'. Ver tests/Rastreamento.Infrastructure.Tests/Security/SeedAdminSenhaTests.cs.
 IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'admin')
 INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
 SELECT 'admin',
-       '$2a$11$Q7Yd0m1s9k8N0oS0nF0mUe0m6mQ2m3bqk8y3Y0m0nJ8x5uV5mB3rS',
+       '$2a$11$XdGh9XVWVeYjBsgH0t4xPOh8Sh3T/qHH.7ZC6eEO6CwO9jsTICQaC',
        'Administrador do Sistema',
        (SELECT Id FROM dbo.Perfil WHERE Nome = 'Administrador'),
        1;
