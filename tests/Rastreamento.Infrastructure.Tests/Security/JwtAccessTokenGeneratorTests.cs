@@ -1,3 +1,4 @@
+using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using Microsoft.Extensions.Options;
@@ -38,6 +39,11 @@ public class JwtAccessTokenGeneratorTests
         Assert.Equal("42", jwt.Claims.Single(c => c.Type == "sub").Value);
         Assert.Equal("admin", jwt.Claims.Single(c => c.Type == "unique_name").Value);
         Assert.Equal("Administrador", jwt.Claims.Single(c => c.Type == "role").Value);
-        Assert.True(expiraEm > System.DateTime.UtcNow);
+        Assert.Equal("Administrador do Sistema", jwt.Claims.Single(c => c.Type == "nome_completo").Value);
+
+        var esperadoAprox = DateTime.UtcNow.AddMinutes(15);
+        Assert.True(
+            Math.Abs((expiraEm - esperadoAprox).TotalMinutes) < 1,
+            $"expiraEm ({expiraEm:o}) deveria estar a ~15 minutos de UtcNow ({DateTime.UtcNow:o}), com tolerancia de 1 minuto.");
     }
 }
