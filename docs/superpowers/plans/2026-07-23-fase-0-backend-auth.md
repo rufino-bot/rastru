@@ -443,9 +443,10 @@ git commit -m "feat(infra): entidades + EF Core Database First (Usuario/Perfil/R
 ### Task 4: Hash de senha (BCrypt)
 
 **Files:**
+- Create: `src/Rastreamento.Infrastructure.Tests/` — **já existe** (criado na emenda pós-Task 3); os testes de classes de Infrastructure vivem aqui, não em `Domain.Tests`.
 - Create: `src/Rastreamento.Domain/Abstractions/IPasswordHasher.cs`
 - Create: `src/Rastreamento.Infrastructure/Security/BCryptPasswordHasher.cs`
-- Test: `tests/Rastreamento.Domain.Tests/Security/BCryptPasswordHasherTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Security/BCryptPasswordHasherTests.cs`
 
 **Interfaces:**
 - Consumes: nada.
@@ -459,13 +460,13 @@ dotnet add src/Rastreamento.Infrastructure package BCrypt.Net-Next
 
 - [ ] **Step 2: Escrever o teste (falha)**
 
-`tests/Rastreamento.Domain.Tests/Security/BCryptPasswordHasherTests.cs`:
+`tests/Rastreamento.Infrastructure.Tests/Security/BCryptPasswordHasherTests.cs`:
 
 ```csharp
 using Rastreamento.Infrastructure.Security;
 using Xunit;
 
-namespace Rastreamento.Domain.Tests.Security;
+namespace Rastreamento.Infrastructure.Tests.Security;
 
 public class BCryptPasswordHasherTests
 {
@@ -497,7 +498,7 @@ public class BCryptPasswordHasherTests
 
 - [ ] **Step 3: Rodar e ver falhar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: FAIL na compilação — `BCryptPasswordHasher` não existe.
 
 - [ ] **Step 4: Criar a interface e a implementação**
@@ -535,23 +536,91 @@ public class BCryptPasswordHasher : IPasswordHasher
 
 - [ ] **Step 5: Rodar e ver passar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: PASS (3 testes).
 
-- [ ] **Step 6: (Opcional) Gerar o hash real do admin**
+- [ ] **Step 6: Gerar o hash REAL do admin e corrigir o seed (obrigatório)**
 
-Se o hash do seed (Task 2, Step 6) não validar, gere um novo:
+O `SenhaHash` gravado na Task 2 é um placeholder que **não valida** contra `Admin@123`. Sem
+este passo, o teste de login da Task 8 falha. Atenção: `db/seed.sql` insere o admin com
+`IF NOT EXISTS`, então **re-rodar o seed não corrige o hash** de um admin que já existe — é
+preciso um `UPDATE` explícito.
 
-```bash
-dotnet run --project src/Rastreamento.Api -- --gerar-hash "Admin@123"   # só se você adicionar esse atalho; alternativamente use um teste temporário imprimindo _hasher.Hash("Admin@123")
+6a. Gere um hash real com a implementação recém-criada, via um teste temporário que o imprime:
+
+```csharp
+// tests/Rastreamento.Infrastructure.Tests/Security/GerarHashAdminTemp.cs  (APAGAR depois)
+using Rastreamento.Infrastructure.Security;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Rastreamento.Infrastructure.Tests.Security;
+
+public class GerarHashAdminTemp
+{
+    private readonly ITestOutputHelper _out;
+    public GerarHashAdminTemp(ITestOutputHelper output) => _out = output;
+
+    [Fact]
+    public void Imprime_hash_de_Admin123()
+    {
+        var hash = new BCryptPasswordHasher().Hash("Admin@123");
+        Assert.True(new BCryptPasswordHasher().Verificar("Admin@123", hash));
+        _out.WriteLine($"HASH_ADMIN={hash}");
+    }
+}
 ```
 
-Copie o valor `$2a$11$...` para `db/seed.sql` e reaplique o seed (Task 2, Step 7).
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests --filter "FullyQualifiedName~GerarHashAdminTemp" --logger "console;verbosity=detailed"`
+Copie o valor após `HASH_ADMIN=` (formato `$2a$11$...`), depois **apague o arquivo**
+`GerarHashAdminTemp.cs`.
+
+6b. Substitua o literal do `SenhaHash` em `db/seed.sql` pelo hash gerado (mantendo o comentário
+que explica a origem, agora dizendo que é um hash real válido de `Admin@123`).
+
+6c. Aplique no banco existente com um `UPDATE` explícito (o `INSERT` do seed não roda de novo):
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "UPDATE dbo.Usuario SET SenhaHash = '<HASH_GERADO>' WHERE NomeUsuario = 'admin';"
+```
+
+6d. Adicione um teste **permanente** que trava essa garantia (o seed e o código não podem
+divergir de novo):
+
+```csharp
+// tests/Rastreamento.Infrastructure.Tests/Security/SeedAdminSenhaTests.cs
+using Microsoft.EntityFrameworkCore;
+using Rastreamento.Infrastructure.Persistence;
+using Rastreamento.Infrastructure.Security;
+using Xunit;
+
+namespace Rastreamento.Infrastructure.Tests.Security;
+
+public class SeedAdminSenhaTests
+{
+    private const string Conn =
+        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
+
+    [Fact]
+    public async Task Senha_do_admin_seedado_valida_contra_Admin123()
+    {
+        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
+        await using var db = new RastreamentoDbContext(options);
+        var admin = await db.Usuarios.SingleAsync(u => u.NomeUsuario == "admin");
+        Assert.True(new BCryptPasswordHasher().Verificar("Admin@123", admin.SenhaHash));
+    }
+}
+```
+
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
+Expected: PASS — incluindo `Senha_do_admin_seedado_valida_contra_Admin123`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/Rastreamento.Domain/Abstractions/IPasswordHasher.cs src/Rastreamento.Infrastructure/Security/BCryptPasswordHasher.cs tests/Rastreamento.Domain.Tests/Security
+git add src/Rastreamento.Domain/Abstractions/IPasswordHasher.cs src/Rastreamento.Infrastructure/Security/BCryptPasswordHasher.cs tests/Rastreamento.Infrastructure.Tests/Security
 git commit -m "feat(security): hash de senha com BCrypt"
 ```
 
@@ -563,10 +632,10 @@ git commit -m "feat(security): hash de senha com BCrypt"
 - Create: `src/Rastreamento.Domain/Abstractions/ITokenHasher.cs`
 - Create: `src/Rastreamento.Infrastructure/Security/Sha256TokenHasher.cs`
 - Create: `src/Rastreamento.Application/Auth/IAccessTokenGenerator.cs`
-- Create: `src/Rastreamento.Infrastructure/Security/JwtOptions.cs`
+- Create: `src/Rastreamento.Application/Auth/JwtOptions.cs` — **fica na camada Application, não na Infrastructure.** O grafo de referências é `Infrastructure → Application`; como `AutenticarUsuarioUseCase` (Application, Task 6) consome `IOptions<JwtOptions>`, colocá-lo na Infrastructure criaria referência circular e não compilaria.
 - Create: `src/Rastreamento.Infrastructure/Security/JwtAccessTokenGenerator.cs`
-- Test: `tests/Rastreamento.Domain.Tests/Security/Sha256TokenHasherTests.cs`
-- Test: `tests/Rastreamento.Domain.Tests/Security/JwtAccessTokenGeneratorTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Security/Sha256TokenHasherTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Security/JwtAccessTokenGeneratorTests.cs`
 
 **Interfaces:**
 - Consumes: `Usuario` (Task 3).
@@ -576,17 +645,19 @@ git commit -m "feat(security): hash de senha com BCrypt"
 
 ```bash
 dotnet add src/Rastreamento.Infrastructure package System.IdentityModel.Tokens.Jwt
+# Application passa a expor JwtOptions e consumir IOptions<T>, então precisa do pacote de Options:
+dotnet add src/Rastreamento.Application package Microsoft.Extensions.Options
 ```
 
 - [ ] **Step 2: Escrever o teste do SHA-256 (falha)**
 
-`tests/Rastreamento.Domain.Tests/Security/Sha256TokenHasherTests.cs`:
+`tests/Rastreamento.Infrastructure.Tests/Security/Sha256TokenHasherTests.cs`:
 
 ```csharp
 using Rastreamento.Infrastructure.Security;
 using Xunit;
 
-namespace Rastreamento.Domain.Tests.Security;
+namespace Rastreamento.Infrastructure.Tests.Security;
 
 public class Sha256TokenHasherTests
 {
@@ -608,17 +679,18 @@ public class Sha256TokenHasherTests
 
 - [ ] **Step 3: Escrever o teste do JWT (falha)**
 
-`tests/Rastreamento.Domain.Tests/Security/JwtAccessTokenGeneratorTests.cs`:
+`tests/Rastreamento.Infrastructure.Tests/Security/JwtAccessTokenGeneratorTests.cs`:
 
 ```csharp
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using Microsoft.Extensions.Options;
+using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Security;
 using Xunit;
 
-namespace Rastreamento.Domain.Tests.Security;
+namespace Rastreamento.Infrastructure.Tests.Security;
 
 public class JwtAccessTokenGeneratorTests
 {
@@ -657,7 +729,7 @@ public class JwtAccessTokenGeneratorTests
 
 - [ ] **Step 4: Rodar e ver falhar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: FAIL na compilação — tipos não existem.
 
 - [ ] **Step 5: Criar `ITokenHasher` e `Sha256TokenHasher`**
@@ -694,10 +766,10 @@ public class Sha256TokenHasher : ITokenHasher
 
 - [ ] **Step 6: Criar `JwtOptions`, `IAccessTokenGenerator` e `JwtAccessTokenGenerator`**
 
-`src/Rastreamento.Infrastructure/Security/JwtOptions.cs`:
+`src/Rastreamento.Application/Auth/JwtOptions.cs`:
 
 ```csharp
-namespace Rastreamento.Infrastructure.Security;
+namespace Rastreamento.Application.Auth;
 
 public class JwtOptions
 {
@@ -766,13 +838,13 @@ public class JwtAccessTokenGenerator : IAccessTokenGenerator
 
 - [ ] **Step 7: Rodar e ver passar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: PASS (SHA-256 + JWT + BCrypt da Task 4).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/Rastreamento.Domain/Abstractions/ITokenHasher.cs src/Rastreamento.Infrastructure/Security tests/Rastreamento.Domain.Tests/Security src/Rastreamento.Application/Auth/IAccessTokenGenerator.cs
+git add src/Rastreamento.Domain/Abstractions/ITokenHasher.cs src/Rastreamento.Infrastructure/Security tests/Rastreamento.Infrastructure.Tests/Security src/Rastreamento.Application/Auth/IAccessTokenGenerator.cs
 git commit -m "feat(security): SHA-256 do refresh token + emissao de JWT"
 ```
 
@@ -880,7 +952,6 @@ using Microsoft.Extensions.Options;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
-using Rastreamento.Infrastructure.Security;
 
 namespace Rastreamento.Application.Tests.Auth;
 
@@ -1026,7 +1097,6 @@ using Microsoft.Extensions.Options;
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
-using Rastreamento.Infrastructure.Security;
 
 namespace Rastreamento.Application.Auth;
 
@@ -1468,9 +1538,7 @@ public partial class Program { } // expõe Program p/ WebApplicationFactory
 ```csharp
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Rastreamento.Application.Auth;
-using Rastreamento.Infrastructure.Security;
 
 namespace Rastreamento.Api.Controllers;
 
@@ -1484,12 +1552,11 @@ public class AuthController : ControllerBase
     private readonly IAutenticarUsuarioUseCase _login;
     private readonly IRenovarTokenUseCase _renovar;
     private readonly IRevogarTokenUseCase _revogar;
-    private readonly JwtOptions _jwt;
 
     public AuthController(IAutenticarUsuarioUseCase login, IRenovarTokenUseCase renovar,
-        IRevogarTokenUseCase revogar, IOptions<JwtOptions> jwt)
+        IRevogarTokenUseCase revogar)
     {
-        _login = login; _renovar = renovar; _revogar = revogar; _jwt = jwt.Value;
+        _login = login; _renovar = renovar; _revogar = revogar;
     }
 
     public record LoginBody(string NomeUsuario, string Senha);
@@ -1637,7 +1704,7 @@ Expected inicial: FAIL (controller/rotas ainda não expostos ou cookie ausente);
 - [ ] **Step 8: Rodar a suíte completa**
 
 Run: `dotnet test`
-Expected: PASS em `Rastreamento.Domain.Tests` e `Rastreamento.Application.Tests`.
+Expected: PASS em `Rastreamento.Infrastructure.Tests` e `Rastreamento.Application.Tests` (e em `Rastreamento.Domain.Tests`, que fica sem testes próprios nesta fase).
 
 - [ ] **Step 9: Commit**
 
