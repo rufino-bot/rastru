@@ -52,6 +52,23 @@ CREATE TABLE dbo.Usuario (
 );
 GO
 
+CREATE TABLE dbo.RefreshToken (
+    Id                      INT IDENTITY(1,1)  NOT NULL,
+    UsuarioId               INT                 NOT NULL,
+    TokenHash               NVARCHAR(200)       NOT NULL,   -- SHA-256 do refresh token (nunca em claro)
+    ExpiraEm                DATETIME2           NOT NULL,
+    CriadoEm                DATETIME2           NOT NULL CONSTRAINT DF_RefreshToken_CriadoEm DEFAULT (SYSUTCDATETIME()),
+    RevogadoEm              DATETIME2           NULL,       -- NULL = ativo; preenchido no logout ou na rotação
+    SubstituidoPorTokenHash NVARCHAR(200)       NULL,       -- rastro de rotação (auditoria)
+    CONSTRAINT PK_RefreshToken PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_RefreshToken_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT UQ_RefreshToken_TokenHash UNIQUE (TokenHash),
+    CONSTRAINT CK_RefreshToken_ExpiraAposCriado CHECK (ExpiraEm > CriadoEm)
+);
+GO
+CREATE INDEX IX_RefreshToken_Usuario ON dbo.RefreshToken (UsuarioId);
+GO
+
 /* ---------------------------------------------------------------------
    CATÁLOGO (receita padrão / template reutilizável entre pedidos)
    --------------------------------------------------------------------- */
