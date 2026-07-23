@@ -1286,7 +1286,9 @@ public class RenovarTokenUseCaseTests
         Id = 5, UsuarioId = 1, TokenHash = "sha:plano-antigo",
         CriadoEm = System.DateTime.UtcNow.AddMinutes(-1),
         ExpiraEm = System.DateTime.UtcNow.AddDays(7), RevogadoEm = null,
-        Usuario = new Usuario { Id = 1, NomeUsuario = "admin", NomeCompleto = "Admin", Perfil = new Perfil { Nome = "Administrador" } }
+        // Ativo = true e OBRIGATORIO: bool default e false, e RenovarTokenUseCase checa
+        // !atual.Usuario.Ativo. Sem isso, todo teste de caminho feliz falha.
+        Usuario = new Usuario { Id = 1, NomeUsuario = "admin", NomeCompleto = "Admin", Ativo = true, Perfil = new Perfil { Nome = "Administrador" } }
     };
 
     [Fact]
@@ -1319,6 +1321,22 @@ public class RenovarTokenUseCaseTests
 
         Assert.False(r.Sucesso);
         Assert.Empty(repo.Adicionados);
+    }
+
+    [Fact]
+    public async Task Refresh_de_usuario_desativado_falha_e_nao_emite()
+    {
+        // Desativar um usuario tem que expulsa-lo do sistema. Sem esta checagem ele
+        // continuaria renovando a sessao ate o refresh expirar sozinho (ate 7 dias).
+        var token = TokenAtivo();
+        token.Usuario.Ativo = false;
+        var (uc, repo) = Montar(token);
+
+        var r = await uc.ExecutarAsync("plano-antigo", default);
+
+        Assert.False(r.Sucesso);
+        Assert.Empty(repo.Adicionados);
+        Assert.Null(repo.Ativo!.RevogadoEm);   // nao rotaciona
     }
 
     [Fact]
@@ -1413,7 +1431,12 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
 
         var hash = _tokenHasher.Hash(refreshTokenPlano);
         var atual = await _refreshTokens.ObterAtivoPorHashAsync(hash, ct);
-        if (atual is null || atual.RevogadoEm is not null || atual.ExpiraEm <= DateTime.UtcNow)
+
+        // `!atual.Usuario.Ativo`: sem isso, desativar um usuario nao o expulsa — ele
+        // continuaria rotacionando o refresh ate a expiracao natural (ate 7 dias).
+        // O login checa Ativo; o refresh TEM que checar tambem.
+        if (atual is null || atual.RevogadoEm is not null
+            || atual.ExpiraEm <= DateTime.UtcNow || !atual.Usuario.Ativo)
             return Result<LoginResult>.Falha("Refresh token inválido ou expirado.");
 
         // Revogação do antigo + emissão do novo num único save (ver T6.1).
@@ -1458,7 +1481,10 @@ public class RevogarTokenUseCase : IRevogarTokenUseCase
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: `dotnet test tests/Rastreamento.Application.Tests`
-Expected: PASS (refresh 3 + logout 2 + login 4 + mapeamento 2).
+Expected: PASS. Os testes de mapeamento **não** estão aqui (foram para
+`Rastreamento.Infrastructure.Tests` — ver Emendas). Espere os testes de refresh + logout +
+os 4 de login + os de `EmissorDeSessao` da T6.1; confirme o número real observado em vez de
+assumir o do plano.
 
 - [ ] **Step 6: Commit**
 
@@ -1470,6 +1496,16 @@ git commit -m "feat(auth): refresh com rotacao + logout com revogacao"
 ---
 
 ### Task 8: Repositórios EF, controller de auth, wiring e integração
+
+> **Pré-requisito de DI vindo da review da T6.1 — não pular.** A atomicidade da rotação
+> (um único `SaveChanges` cobrindo a revogação do token antigo e a inserção do novo) só vale
+> em produção se `RenovarTokenUseCase` e `EmissorDeSessao` compartilharem a **mesma instância**
+> de `IRefreshTokenRepository`/`DbContext`. `RotacionarAsync` muta `atual` e confia no change
+> tracking do EF — não existe `AtualizarAsync` explícito. Portanto: registrar
+> `IRefreshTokenRepository`, `IUsuarioRepository`, `EmissorDeSessao` e os use cases como
+> **`Scoped`** (nunca `Transient`, nunca `Singleton`). Com `Transient` a mutação em `atual`
+> aconteceria num contexto e o `SaveChanges` em outro, e a revogação **se perderia
+> silenciosamente** — o teste de unidade com fakes continuaria verde.
 
 **Files:**
 - Create: `src/Rastreamento.Infrastructure/Persistence/UsuarioRepository.cs`
