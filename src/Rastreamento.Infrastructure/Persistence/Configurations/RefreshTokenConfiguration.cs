@@ -13,6 +13,7 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
         b.Property(t => t.TokenHash).HasMaxLength(200).IsRequired();
         b.Property(t => t.SubstituidoPorTokenHash).HasMaxLength(200);
         b.Property(t => t.CriadoEm).HasDefaultValueSql("SYSUTCDATETIME()");
-        b.HasOne(t => t.Usuario).WithMany().HasForeignKey(t => t.UsuarioId);
+        b.HasOne(t => t.Usuario).WithMany().HasForeignKey(t => t.UsuarioId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

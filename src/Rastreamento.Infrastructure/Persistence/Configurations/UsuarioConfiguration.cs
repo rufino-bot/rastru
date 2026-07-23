@@ -13,6 +13,7 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
         b.Property(u => u.NomeUsuario).HasMaxLength(50).IsRequired();
         b.Property(u => u.SenhaHash).HasMaxLength(200).IsRequired();
         b.Property(u => u.NomeCompleto).HasMaxLength(200).IsRequired();
-        b.HasOne(u => u.Perfil).WithMany().HasForeignKey(u => u.PerfilId);
+        b.HasOne(u => u.Perfil).WithMany().HasForeignKey(u => u.PerfilId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }
