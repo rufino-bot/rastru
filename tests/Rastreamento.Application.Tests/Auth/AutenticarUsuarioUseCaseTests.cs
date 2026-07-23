@@ -26,13 +26,12 @@ public class AutenticarUsuarioUseCaseTests
     private static AutenticarUsuarioUseCase NovoUseCase(Usuario? usuario, out FakeRefreshTokenRepo refreshRepo)
     {
         refreshRepo = new FakeRefreshTokenRepo();
-        return new AutenticarUsuarioUseCase(
-            new FakeUsuarioRepo(usuario),
+        var emissor = new EmissorDeSessao(
             refreshRepo,
-            Hasher,
             new FakeTokenHasher(),
             new FakeAccessTokenGenerator(),
             FakeJwtOptions.Instance);
+        return new AutenticarUsuarioUseCase(new FakeUsuarioRepo(usuario), Hasher, emissor);
     }
 
     [Fact]

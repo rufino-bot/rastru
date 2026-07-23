@@ -40,6 +40,9 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     public List<RefreshToken> Adicionados { get; } = new();
     public RefreshToken? Ativo { get; set; }
 
+    /// <summary>Quantos commits o repositorio recebeu — permite provar "um unico save".</summary>
+    public int Saves { get; private set; }
+
     public Task AdicionarAsync(RefreshToken token, CancellationToken ct)
     {
         Adicionados.Add(token);
@@ -49,7 +52,11 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     public Task<RefreshToken?> ObterAtivoPorHashAsync(string tokenHash, CancellationToken ct) =>
         Task.FromResult(Ativo is not null && Ativo.TokenHash == tokenHash && Ativo.RevogadoEm is null ? Ativo : null);
 
-    public Task SalvarAlteracoesAsync(CancellationToken ct) => Task.CompletedTask;
+    public Task SalvarAlteracoesAsync(CancellationToken ct)
+    {
+        Saves++;
+        return Task.CompletedTask;
+    }
 }
 
 public static class FakeJwtOptions
