@@ -3,7 +3,7 @@ using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 using Xunit;
 
-namespace Rastreamento.Application.Tests.Persistence;
+namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 public class DbContextMappingTests
 {
