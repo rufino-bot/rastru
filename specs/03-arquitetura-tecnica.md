@@ -1,0 +1,92 @@
+# 03 - Arquitetura Técnica
+
+## Backend — .NET (C#)
+
+Estrutura recomendada em camadas (Clean Architecture simplificada), para manter regras de
+negócio (recursão, indivisibilidade de lote, transição de status) isoladas de EF Core e
+da API:
+
+```
+src/
+  Rastreamento.Domain/          # Entidades, regras de negócio, interfaces de repositório
+  Rastreamento.Application/     # Casos de uso (ex.: AbrirPedido, RegistrarEntradaSetor,
+                                 # RegistrarSaidaSetor, AvaliarDimensional, AbrirRetrabalho)
+  Rastreamento.Infrastructure/  # EF Core, repositórios, DbContext, migrations
+  Rastreamento.Api/             # Controllers ASP.NET Core, DTOs, validação de entrada
+tests/
+  Rastreamento.Domain.Tests/
+  Rastreamento.Application.Tests/
+```
+
+- **EF Core**: usar *Database First* neste projeto — o DDL (`02-modelo-de-dados.sql`) já
+  é a fonte de verdade do schema; gerar/mapear as entidades a partir dele em vez de deixar
+  o EF criar o banco via migrations do zero. Isso evita divergência com as constraints e
+  índices já definidos (ex.: índice filtrado que garante lote indivisível).
+- Regras que hoje estão como `CHECK` no banco (ex.: Peça sem pai, Retrabalho exige
+  PedidoOrigemId) devem **também** ser validadas na camada `Application`, retornando erro
+  de negócio claro em vez de deixar a exceção de banco estourar até a API.
+- Transição de status do Pedido/Kit (ex.: fechar Kit → verificar se é o último → fechar
+  Pedido) deve ser um caso de uso explícito (`ConcluirKitUseCase`), não um trigger de
+  banco — mais fácil de testar e de auditar.
+- `AbrirRetrabalhoUseCase` recebe `MotivoRetrabalho` (obrigatório, um dos valores
+  `ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`) e, opcionalmente, o
+  `RelatorioDimensionalId` que motivou a abertura — reprovação não gera retrabalho
+  automaticamente, é uma ação separada do usuário.
+
+## Autenticação e Autorização
+
+- **Login próprio** (usuário/senha) com **JWT** — não usar Windows Authentication.
+- Tabelas `Usuario` e `Perfil` já estão no DDL (`02-modelo-de-dados.sql`).
+- Perfis do MVP: Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador (ver
+  `00-visao-geral.md`).
+- **Decidido na Fase 0:** hash de senha com **BCrypt** (`BCrypt.Net-Next`) — não ASP.NET
+  Core Identity (mais enxuto e compatível com o Database First das tabelas `Usuario`/`Perfil`).
+  Emissão de JWT manual contendo `PerfilNome` como claim `role`; autorização por perfil via
+  `[Authorize(Roles = "...")]` nos controllers.
+- **Decidido na Fase 0:** sessão com **access token curto (em memória no front) + refresh
+  token opaco** rotacionado. O refresh token é guardado no front em **cookie httpOnly/Secure**
+  e no backend como **hash SHA-256** numa tabela `RefreshToken` (revogável) — ver
+  `docs/superpowers/specs/2026-07-23-fase-0-walking-skeleton-design.md` e a tabela
+  `RefreshToken` em `02-modelo-de-dados.sql`. Nunca usar `localStorage` para tokens.
+- Frontend esconde/desabilita rotas e ações conforme o perfil do usuário logado.
+
+## Frontend — React + TypeScript
+
+- Mobile-first responsivo: prioridade em telas de operador de setor, que serão usadas
+  majoritariamente em celular Android via navegador.
+- Sugestão de stack: Vite + React + TypeScript, React Query (ou equivalent) para
+  cache/sincronização com a API, biblioteca de componentes leve (ex.: MUI ou
+  Tailwind + componentes próprios) — decisão fina pode ficar para a Fase 0 do roadmap.
+- **Decidido na Fase 0:** biblioteca de UI = **Tailwind CSS + componentes próprios** (não MUI),
+  por controle do visual e bundle leve mobile-first.
+- **PWA/offline: não é necessário no MVP.** Confirmado com o negócio — pode entrar depois
+  se o uso em campo mostrar necessidade real (ex.: instabilidade de wifi na fábrica). Não
+  desenhar a camada de estado pensando nisso agora, para não adicionar complexidade
+  desnecessária cedo.
+
+## Banco de dados
+
+- SQL Server on-premise, conforme `02-modelo-de-dados.sql`.
+- Sugestão: ambiente de desenvolvimento local via Docker (`mcr.microsoft.com/mssql/server`)
+  para os agents/desenvolvedores rodarem o schema sem depender do servidor da empresa
+  durante o desenvolvimento; deploy final aponta para o servidor on-premise real.
+
+## Hospedagem on-premise
+
+- Backend: IIS (hosting model padrão .NET) ou container Docker + reverse proxy
+  (ex.: nginx), a definir conforme o que já existe de infraestrutura na empresa.
+- Frontend: build estático (Vite build) servido pelo próprio IIS/nginx, ou embutido como
+  arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy on-premise
+  com uma única aplicação publicada.
+
+## CI/CD
+
+- **Não existe pipeline hoje.** Deploy inicial será manual — publicar build do backend
+  (IIS ou container) e do frontend direto no servidor on-premise. Automatizar (Azure
+  DevOps, GitHub Actions self-hosted, etc.) fica como melhoria futura, fora do MVP.
+
+## Pontos em aberto
+
+Biblioteca de componentes React e estratégia de auth já resolvidas (ver acima). Resta apenas
+o hosting exato (IIS vs. container), que pode ser decidido no deploy sem bloquear o
+desenvolvimento.
