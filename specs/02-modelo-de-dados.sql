@@ -2,6 +2,11 @@
    MODELO DE RASTREAMENTO DE PEÇAS - SQL Server (T-SQL)
    Camadas: Catálogo (receita padrão) > Pedido/Kit > Estrutura real
             (árvore recursiva) > Execução/rastreamento > Dimensional
+
+   Aplicar via sqlcmd exige a flag -I (SET QUOTED_IDENTIFIER ON), por causa
+   do índice único filtrado UX_EstruturaSetorHistorico_UmaAbertaPorItem
+   (índices filtrados exigem QUOTED_IDENTIFIER ON). Sem -I, o CREATE INDEX
+   falha com o erro 1934.
    ===================================================================== */
 
 /* ---------------------------------------------------------------------

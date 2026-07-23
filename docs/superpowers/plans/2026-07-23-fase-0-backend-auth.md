@@ -159,7 +159,7 @@ Expected: comando retorna sem erro (banco `Rastreamento` existe).
 
 ```bash
 docker cp specs/02-modelo-de-dados.sql "$(docker compose ps -q sqlserver)":/tmp/schema.sql
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento -i /tmp/schema.sql
+docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento -i /tmp/schema.sql
 ```
 
 Expected: execução sem erros de sintaxe/constraint.
@@ -198,7 +198,7 @@ SELECT 'admin',
 
 ```bash
 docker cp db/seed.sql "$(docker compose ps -q sqlserver)":/tmp/seed.sql
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento -i /tmp/seed.sql
+docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento -i /tmp/seed.sql
 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento -Q "SELECT (SELECT COUNT(*) FROM dbo.Perfil) AS Perfis, (SELECT COUNT(*) FROM dbo.Usuario) AS Usuarios;"
 ```
 
