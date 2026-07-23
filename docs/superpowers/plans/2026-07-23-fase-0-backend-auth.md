@@ -1171,6 +1171,81 @@ git commit -m "feat(auth): caso de uso de login com emissao de sessao"
 
 ---
 
+### Task 6.1: Extrair `EmissorDeSessao` (emenda pós-review da T6)
+
+> **Por que esta emenda existe.** O plano original mandou a T7 reusar
+> `AutenticarUsuarioUseCase.EmitirSessaoAsync` (`internal`). O review da T6 confirmou que
+> esse seam não serve à rotação, por três motivos concretos:
+> 1. `EmitirSessaoAsync` devolve só o refresh token **em texto plano**, então a T7 teria que
+>    **re-hashear** para preencher `SubstituidoPorTokenHash` — hash calculado duas vezes,
+>    com risco de divergir se a implementação do hasher mudar.
+> 2. O `SalvarAlteracoesAsync` está **dentro** do método, então revogação e emissão não
+>    commitam atomicamente: sobram dois saves e uma janela em que o token antigo já está
+>    revogado com `SubstituidoPorTokenHash` nulo. É **perda de trilha de auditoria**, não
+>    furo de segurança — mas é evitável.
+> 3. `internal` num método de instância força `RenovarTokenUseCase` a depender da **classe
+>    concreta** `AutenticarUsuarioUseCase` em vez de uma abstração.
+>
+> Decidido pelo usuário: aplicar a extração antes de começar a T7.
+
+**Files:**
+- Create: `src/Rastreamento.Application/Auth/IEmissorDeSessao.cs`
+- Create: `src/Rastreamento.Application/Auth/EmissorDeSessao.cs`
+- Modify: `src/Rastreamento.Application/Auth/AutenticarUsuarioUseCase.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Auth/Fakes.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Auth/AutenticarUsuarioUseCaseTests.cs`
+
+**Interfaces:**
+
+```csharp
+// src/Rastreamento.Application/Auth/IEmissorDeSessao.cs
+public interface IEmissorDeSessao
+{
+    /// <summary>Emite uma sessão nova (login). Persiste o refresh token e salva uma vez.</summary>
+    Task<LoginResult> EmitirAsync(Usuario usuario, CancellationToken ct);
+
+    /// <summary>
+    /// Rotaciona uma sessão existente (refresh): revoga <paramref name="atual"/>, aponta seu
+    /// SubstituidoPorTokenHash para o token novo e persiste o novo — tudo num único save.
+    /// Exige <c>atual.Usuario</c> carregado (com <c>Perfil</c>).
+    /// </summary>
+    Task<LoginResult> RotacionarAsync(RefreshToken atual, CancellationToken ct);
+}
+```
+
+**Desenho de `EmissorDeSessao`:** um método privado `PrepararSessao(Usuario)` monta o par
+(entidade `RefreshToken` já com `TokenHash` calculado, `LoginResult`) **sem persistir nada**.
+`EmitirAsync` e `RotacionarAsync` compartilham esse preparo e cada um faz **exatamente um**
+`SalvarAlteracoesAsync`. `RotacionarAsync` reaproveita `entidade.TokenHash` para preencher
+`atual.SubstituidoPorTokenHash` — **sem re-hashear**, que é o ponto 1 acima.
+
+Regras que se mantêm da T6 (não regredir): um único `DateTime.UtcNow` capturado e reusado
+para `CriadoEm` e para a base de `ExpiraEm`; datas em UTC; token opaco de 32 bytes via
+`RandomNumberGenerator` em base64url.
+
+**Guarda de configuração (resolve um Minor do review da T6):** o construtor de
+`EmissorDeSessao` valida `RefreshTokenDays > 0` e `AccessTokenMinutes > 0`, lançando
+`ArgumentOutOfRangeException`. Assim uma configuração inválida falha na **resolução do DI
+(startup)**, e não lá na frente com uma exceção crua de SQL ao violar
+`CK_RefreshToken_ExpiraAposCriado`.
+
+**Efeito em `AutenticarUsuarioUseCase`:** passa a depender de `IUsuarioRepository`,
+`IPasswordHasher` e `IEmissorDeSessao` — e **perde** `IRefreshTokenRepository`,
+`ITokenHasher`, `IAccessTokenGenerator` e `IOptions<JwtOptions>`, que migram para o emissor.
+`EmitirSessaoAsync` deixa de existir. O comportamento observável do login não muda: os
+quatro testes da T6 devem continuar passando após ajustar apenas a construção do use case.
+
+**Fakes:** adicionar `public int Saves { get; private set; }` a `FakeRefreshTokenRepo`,
+incrementado em `SalvarAlteracoesAsync` — é o que permite provar "um único save" na T7.
+
+**Testes desta emenda:** os 4 testes de login da T6 continuam valendo (só muda a montagem).
+Adicionar testes diretos de `EmissorDeSessao`: `EmitirAsync` persiste 1 token com
+`TokenHash != RefreshTokenPlano` e faz 1 save; construtor rejeita `RefreshTokenDays = 0`.
+
+**Commit:** `refactor(auth): extrai EmissorDeSessao para permitir rotacao atomica`
+
+---
+
 ### Task 7: Refresh (rotação) + logout (revogação)
 
 **Files:**
@@ -1180,7 +1255,7 @@ git commit -m "feat(auth): caso de uso de login com emissao de sessao"
 - Test: `tests/Rastreamento.Application.Tests/Auth/RevogarTokenUseCaseTests.cs`
 
 **Interfaces:**
-- Consumes: `IRefreshTokenRepository`, `ITokenHasher`, `IAccessTokenGenerator`, `AutenticarUsuarioUseCase.EmitirSessaoAsync` (T6), `Usuario`/`RefreshToken`.
+- Consumes: `IRefreshTokenRepository`, `ITokenHasher`, `IEmissorDeSessao` (T6.1), `Usuario`/`RefreshToken`.
 - Produces: `RenovarTokenUseCase : IRenovarTokenUseCase`; `RevogarTokenUseCase : IRevogarTokenUseCase`. Regra: refresh válido → marca o antigo `RevogadoEm=UtcNow` + `SubstituidoPorTokenHash`=hash do novo, emite nova sessão. Expirado/revogado/ausente → `Falha`. Logout é idempotente (não falha se o token não existir).
 
 - [ ] **Step 1: Escrever os testes (falham)**
@@ -1196,18 +1271,15 @@ namespace Rastreamento.Application.Tests.Auth;
 
 public class RenovarTokenUseCaseTests
 {
+    private static readonly FakeTokenHasher Hasher = new();
+
     private static (RenovarTokenUseCase uc, FakeRefreshTokenRepo repo) Montar(RefreshToken? ativo)
     {
         var repo = new FakeRefreshTokenRepo { Ativo = ativo };
-        var hasher = new FakeTokenHasher();
-        var login = new AutenticarUsuarioUseCase(
-            new FakeUsuarioRepo(UsuarioDe(ativo)), repo, new FakePasswordHasher(),
-            hasher, new FakeAccessTokenGenerator(), FakeJwtOptions.Instance);
-        var uc = new RenovarTokenUseCase(repo, hasher, login);
+        var emissor = new EmissorDeSessao(repo, Hasher, new FakeAccessTokenGenerator(), FakeJwtOptions.Instance);
+        var uc = new RenovarTokenUseCase(repo, Hasher, emissor);
         return (uc, repo);
     }
-
-    private static Usuario? UsuarioDe(RefreshToken? t) => t?.Usuario;
 
     private static RefreshToken TokenAtivo() => new()
     {
@@ -1225,8 +1297,28 @@ public class RenovarTokenUseCaseTests
 
         Assert.True(r.Sucesso);
         Assert.NotNull(repo.Ativo!.RevogadoEm);            // antigo revogado
-        Assert.NotNull(repo.Ativo.SubstituidoPorTokenHash); // aponta p/ o novo
         Assert.Single(repo.Adicionados);                    // novo persistido
+
+        // Aponta para o token NOVO — e o hash tem que bater com o do token realmente emitido,
+        // nao um re-hash independente (era o defeito do seam antigo).
+        Assert.Equal(Hasher.Hash(r.Valor!.RefreshTokenPlano), repo.Ativo.SubstituidoPorTokenHash);
+        Assert.Equal(repo.Adicionados[0].TokenHash, repo.Ativo.SubstituidoPorTokenHash);
+
+        // Atomicidade: revogacao + emissao commitam juntas, num unico save.
+        Assert.Equal(1, repo.Saves);
+    }
+
+    [Fact]
+    public async Task Refresh_revogado_falha_e_nao_emite()
+    {
+        var revogado = TokenAtivo();
+        revogado.RevogadoEm = System.DateTime.UtcNow.AddMinutes(-5);
+        var (uc, repo) = Montar(revogado);
+
+        var r = await uc.ExecutarAsync("plano-antigo", default);
+
+        Assert.False(r.Sucesso);
+        Assert.Empty(repo.Adicionados);
     }
 
     [Fact]
@@ -1306,12 +1398,12 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
 {
     private readonly IRefreshTokenRepository _refreshTokens;
     private readonly ITokenHasher _tokenHasher;
-    private readonly AutenticarUsuarioUseCase _login;
+    private readonly IEmissorDeSessao _emissor;
 
     public RenovarTokenUseCase(
-        IRefreshTokenRepository refreshTokens, ITokenHasher tokenHasher, AutenticarUsuarioUseCase login)
+        IRefreshTokenRepository refreshTokens, ITokenHasher tokenHasher, IEmissorDeSessao emissor)
     {
-        _refreshTokens = refreshTokens; _tokenHasher = tokenHasher; _login = login;
+        _refreshTokens = refreshTokens; _tokenHasher = tokenHasher; _emissor = emissor;
     }
 
     public async Task<Result<LoginResult>> ExecutarAsync(string refreshTokenPlano, CancellationToken ct)
@@ -1324,12 +1416,8 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
         if (atual is null || atual.RevogadoEm is not null || atual.ExpiraEm <= DateTime.UtcNow)
             return Result<LoginResult>.Falha("Refresh token inválido ou expirado.");
 
-        var novaSessao = await _login.EmitirSessaoAsync(atual.Usuario, ct);
-
-        atual.RevogadoEm = DateTime.UtcNow;
-        atual.SubstituidoPorTokenHash = _tokenHasher.Hash(novaSessao.RefreshTokenPlano);
-        await _refreshTokens.SalvarAlteracoesAsync(ct);
-
+        // Revogação do antigo + emissão do novo num único save (ver T6.1).
+        var novaSessao = await _emissor.RotacionarAsync(atual, ct);
         return Result<LoginResult>.Ok(novaSessao);
     }
 }
