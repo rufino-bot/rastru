@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Rastreamento.Api/Rastreamento.Api.csproj" />
+    <Project Path="src/Rastreamento.Application/Rastreamento.Application.csproj" />
+    <Project Path="src/Rastreamento.Domain/Rastreamento.Domain.csproj" />
+    <Project Path="src/Rastreamento.Infrastructure/Rastreamento.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Rastreamento.Application.Tests/Rastreamento.Application.Tests.csproj" />
+    <Project Path="tests/Rastreamento.Domain.Tests/Rastreamento.Domain.Tests.csproj" />
+  </Folder>
+</Solution>
