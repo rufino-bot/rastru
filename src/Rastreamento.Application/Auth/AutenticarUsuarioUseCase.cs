@@ -23,9 +23,17 @@ public class AutenticarUsuarioUseCase : IAutenticarUsuarioUseCase
     {
         var usuario = await _usuarios.ObterPorNomeUsuarioAsync(req.NomeUsuario, ct);
 
+        // Trabalho constante: o BCrypt roda SEMPRE, inclusive quando o usuario nao existe ou
+        // esta inativo. Com o curto-circuito do `||` a verificacao era pulada nesses casos e a
+        // resposta voltava ~100ms antes da de "senha errada" — corpo identico, tempo diferente.
+        var hashDeReferencia = usuario is not null && usuario.Ativo
+            ? usuario.SenhaHash
+            : _passwordHasher.HashFicticio;
+        var senhaConfere = _passwordHasher.Verificar(req.Senha, hashDeReferencia);
+
         // Falha unica e generica: usuario inexistente, inativo e senha errada sao
         // indistinguiveis para quem chama (evita enumeracao de usuarios).
-        if (usuario is null || !usuario.Ativo || !_passwordHasher.Verificar(req.Senha, usuario.SenhaHash))
+        if (usuario is null || !usuario.Ativo || !senhaConfere)
             return Result<LoginResult>.Falha("Usuário ou senha inválidos.");
 
         var sessao = await _emissor.EmitirAsync(usuario, ct);

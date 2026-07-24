@@ -11,19 +11,21 @@ public class AutenticarUsuarioUseCaseTests
     // Mensagem generica: falha de login nao pode revelar QUAL condicao falhou.
     private const string ErroGenerico = "Usuário ou senha inválidos.";
 
-    private static readonly FakePasswordHasher Hasher = new();
+    // Instancia por teste (o xUnit cria uma instancia da classe por [Fact]): os contadores do
+    // fake nao vazam de um teste para o outro.
+    private readonly FakePasswordHasher _hasher = new();
 
-    private static Usuario AdminAtivo() => new()
+    private Usuario AdminAtivo() => new()
     {
         Id = 1,
         NomeUsuario = "admin",
         NomeCompleto = "Administrador do Sistema",
         Ativo = true,
-        SenhaHash = Hasher.Hash(SenhaCorreta),
+        SenhaHash = _hasher.Hash(SenhaCorreta),
         Perfil = new Perfil { Nome = "Administrador" }
     };
 
-    private static AutenticarUsuarioUseCase NovoUseCase(Usuario? usuario, out FakeRefreshTokenRepo refreshRepo)
+    private AutenticarUsuarioUseCase NovoUseCase(Usuario? usuario, out FakeRefreshTokenRepo refreshRepo)
     {
         refreshRepo = new FakeRefreshTokenRepo();
         var emissor = new EmissorDeSessao(
@@ -31,7 +33,7 @@ public class AutenticarUsuarioUseCaseTests
             new FakeTokenHasher(),
             new FakeAccessTokenGenerator(),
             FakeJwtOptions.Instance);
-        return new AutenticarUsuarioUseCase(new FakeUsuarioRepo(usuario), Hasher, emissor);
+        return new AutenticarUsuarioUseCase(new FakeUsuarioRepo(usuario), _hasher, emissor);
     }
 
     [Fact]
@@ -103,5 +105,49 @@ public class AutenticarUsuarioUseCaseTests
         Assert.False(r.Sucesso);
         Assert.Equal(ErroGenerico, r.Erro);
         Assert.Empty(refreshRepo.Adicionados);
+    }
+
+    // ----- Trabalho constante (sem oraculo de timing) --------------------------------------
+    //
+    // Comparar os corpos das respostas nao prova nada sobre timing: os corpos ja eram identicos
+    // enquanto o caminho de miss retornava sem passar pelo BCrypt. O que da para checar de forma
+    // deterministica e que a verificacao de senha acontece nos tres caminhos, contra um hash de
+    // mesmo custo — e e isso que estes testes fazem.
+
+    [Fact]
+    public async Task Login_com_usuario_inexistente_ainda_verifica_a_senha()
+    {
+        var uc = NovoUseCase(null, out _);
+
+        await uc.ExecutarAsync(new LoginRequest("ninguem", "x"), default);
+
+        Assert.Equal(1, _hasher.Verificacoes);
+        Assert.Equal(_hasher.HashFicticio, _hasher.UltimoHashVerificado);
+    }
+
+    [Fact]
+    public async Task Login_com_usuario_inativo_ainda_verifica_a_senha()
+    {
+        var inativo = AdminAtivo();
+        inativo.Ativo = false;
+        var uc = NovoUseCase(inativo, out _);
+
+        await uc.ExecutarAsync(new LoginRequest("admin", SenhaCorreta), default);
+
+        Assert.Equal(1, _hasher.Verificacoes);
+        Assert.Equal(_hasher.HashFicticio, _hasher.UltimoHashVerificado);
+    }
+
+    [Fact]
+    public async Task Login_valido_verifica_a_senha_uma_unica_vez_contra_o_hash_do_usuario()
+    {
+        var admin = AdminAtivo();
+        var uc = NovoUseCase(admin, out _);
+
+        await uc.ExecutarAsync(new LoginRequest("admin", SenhaCorreta), default);
+
+        // Mesmo numero de verificacoes dos caminhos de falha: um BCrypt, nem mais nem menos.
+        Assert.Equal(1, _hasher.Verificacoes);
+        Assert.Equal(admin.SenhaHash, _hasher.UltimoHashVerificado);
     }
 }

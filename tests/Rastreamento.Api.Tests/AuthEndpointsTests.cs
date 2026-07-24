@@ -1,9 +1,16 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using Rastreamento.Application.Auth;
+using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
 
@@ -138,6 +145,23 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>,
         Assert.True(Campo(corpo, "id").GetInt32() > 0);
     }
 
+    [Theory]
+    [InlineData("sub")]
+    [InlineData("unique_name")]
+    [InlineData("nome_completo")]
+    [InlineData("role")]
+    public async Task Me_com_token_sem_uma_claim_retorna_401(string claimOmitida)
+    {
+        // Token assinado por nos mas incompleto e falha de autenticacao, nao erro do servidor:
+        // ler a claim com `!` dava NullReferenceException e o cliente via 500.
+        var cliente = NovoCliente();
+        cliente.DefaultRequestHeaders.Authorization = new("Bearer", TokenSemAClaim(claimOmitida));
+
+        var resposta = await cliente.GetAsync("/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
+    }
+
     // ----- Refresh -----------------------------------------------------------------------
 
     [Fact]
@@ -184,6 +208,35 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>,
         var cliente = NovoClienteComRefresh("token-que-nunca-existiu");
 
         var resposta = await cliente.PostAsync("/auth/refresh", null);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
+    }
+
+    [Fact]
+    public async Task Refresh_com_token_expirado_retorna_401()
+    {
+        // O repositorio, de proposito, NAO filtra por expiracao (so por RevogadoEm): a unica
+        // guarda em producao e o RenovarTokenUseCase. Este teste exercita a linha real no banco —
+        // com fake, um repositorio futuro que passasse a filtrar (ou parasse de filtrar) nao
+        // apareceria aqui.
+        const string refreshPlano = "refresh-expirado-de-teste";
+        var agora = DateTime.UtcNow;
+
+        await ComBancoAsync(async db =>
+        {
+            var admin = await db.Usuarios.SingleAsync(u => u.NomeUsuario == "admin");
+            db.RefreshTokens.Add(new RefreshToken
+            {
+                UsuarioId = admin.Id,
+                TokenHash = _hasher.Hash(refreshPlano),
+                // CriadoEm antes de ExpiraEm: CK_RefreshToken_ExpiraAposCriado exige.
+                CriadoEm = agora.AddDays(-8),
+                ExpiraEm = agora.AddDays(-1),
+            });
+            return await db.SaveChangesAsync();
+        });
+
+        var resposta = await NovoClienteComRefresh(refreshPlano).PostAsync("/auth/refresh", null);
 
         Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
     }
@@ -252,6 +305,37 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>,
         });
         cliente.DefaultRequestHeaders.Add("Cookie", $"{NomeDoCookie}={refreshPlano}");
         return cliente;
+    }
+
+    /// <summary>
+    /// Access token valido (assinatura, issuer, audience e validade corretos) faltando uma das
+    /// claims que o <c>JwtAccessTokenGenerator</c> emite — o que a autenticacao aceita mas o
+    /// <c>/me</c> nao consegue usar.
+    /// </summary>
+    private string TokenSemAClaim(string claimOmitida)
+    {
+        using var escopo = _factory.Services.CreateScope();
+        var jwt = escopo.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>().Value;
+
+        var claims = new Dictionary<string, string>
+        {
+            ["sub"] = "1",
+            ["unique_name"] = "admin",
+            ["nome_completo"] = "Administrador do Sistema",
+            ["role"] = "Administrador",
+        };
+        claims.Remove(claimOmitida);
+
+        var token = new JwtSecurityToken(
+            issuer: jwt.Issuer,
+            audience: jwt.Audience,
+            claims: claims.Select(c => new Claim(c.Key, c.Value)),
+            expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                SecurityAlgorithms.HmacSha256));
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     private async Task<T> ComBancoAsync<T>(Func<RastreamentoDbContext, Task<T>> consulta)

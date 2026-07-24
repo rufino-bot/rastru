@@ -7,8 +7,23 @@ namespace Rastreamento.Application.Tests.Auth;
 
 public class FakePasswordHasher : IPasswordHasher
 {
+    /// <summary>Quantas vezes <see cref="Verificar"/> foi chamado — permite provar que o
+    /// caminho de miss do login gasta o mesmo trabalho que o caminho de sucesso.</summary>
+    public int Verificacoes { get; private set; }
+
+    /// <summary>Contra qual hash foi a ultima verificacao.</summary>
+    public string? UltimoHashVerificado { get; private set; }
+
+    public string HashFicticio => "hash:<ficticio>";
+
     public string Hash(string senhaPlano) => "hash:" + senhaPlano;
-    public bool Verificar(string senhaPlano, string senhaHash) => senhaHash == "hash:" + senhaPlano;
+
+    public bool Verificar(string senhaPlano, string senhaHash)
+    {
+        Verificacoes++;
+        UltimoHashVerificado = senhaHash;
+        return senhaHash == "hash:" + senhaPlano;
+    }
 }
 
 public class FakeTokenHasher : ITokenHasher

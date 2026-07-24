@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
@@ -10,7 +11,14 @@ using Rastreamento.Infrastructure.Security;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+
+// ValidateOnStart: configuracao de JWT invalida derruba a aplicacao no startup, em vez de deixar
+// a API subir limpa assinando tokens com a chave de exemplo que esta commitada (ver
+// JwtOptionsValidator).
+builder.Services.AddSingleton<IValidateOptions<JwtOptions>, JwtOptionsValidator>();
+builder.Services.AddOptions<JwtOptions>()
+    .Bind(builder.Configuration.GetSection("Jwt"))
+    .ValidateOnStart();
 
 builder.Services.AddDbContext<RastreamentoDbContext>(o =>
     o.UseSqlServer(builder.Configuration.GetConnectionString("Rastreamento")));

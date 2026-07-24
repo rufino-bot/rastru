@@ -16,11 +16,19 @@ public class MeController : ControllerBase
     [HttpGet]
     public IActionResult Get()
     {
-        var id = int.Parse(User.FindFirst("sub")!.Value);
-        var nomeUsuario = User.FindFirst("unique_name")!.Value;
-        var nomeCompleto = User.FindFirst("nome_completo")!.Value;
-        var perfil = User.FindFirst("role")!.Value;
+        var id = User.FindFirst("sub")?.Value;
+        var nomeUsuario = User.FindFirst("unique_name")?.Value;
+        var nomeCompleto = User.FindFirst("nome_completo")?.Value;
+        var perfil = User.FindFirst("role")?.Value;
 
-        return Ok(new UsuarioDto(id, nomeUsuario, nomeCompleto, perfil));
+        // Token assinado por nos mas sem as claims que emitimos e falha de autenticacao (401),
+        // nao erro do servidor: com `!` a claim ausente virava NullReferenceException e 500.
+        if (!int.TryParse(id, out var usuarioId)
+            || string.IsNullOrEmpty(nomeUsuario)
+            || string.IsNullOrEmpty(nomeCompleto)
+            || string.IsNullOrEmpty(perfil))
+            return Unauthorized();
+
+        return Ok(new UsuarioDto(usuarioId, nomeUsuario, nomeCompleto, perfil));
     }
 }
