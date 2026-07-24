@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Rastreamento.Api.Serialization;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
@@ -10,7 +11,10 @@ using Rastreamento.Infrastructure.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+// A conversao de fuso e do serializador, e nao de cada endpoint: registrada uma vez aqui, nenhuma
+// resposta futura pode esquecer de converter e devolver UTC rotulado como local.
+builder.Services.AddControllers()
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new HorarioDeBrasiliaJsonConverter()));
 
 // ValidateOnStart: configuracao de JWT invalida derruba a aplicacao no startup, em vez de deixar
 // a API subir limpa assinando tokens com a chave de exemplo que esta commitada (ver

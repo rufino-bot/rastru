@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,7 +22,7 @@ namespace Rastreamento.Api.Tests;
 /// SQL Server real da Task 2 (docker compose up -d) com o seed aplicado (admin / Admin@123).
 /// Cada teste apaga os RefreshToken que criou (ver <see cref="DisposeAsync"/>).
 /// </summary>
-public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
+public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
 {
     private const string NomeDoCookie = "refreshToken";
     private static readonly object Credenciais = new { nomeUsuario = "admin", senha = "Admin@123" };
@@ -85,6 +86,37 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>,
         var expiraEm = Campo(await resposta.Content.ReadAsStringAsync(), "accessTokenExpiraEm").GetString();
         Assert.EndsWith("-03:00", expiraEm!);
         Assert.Equal(TimeSpan.FromHours(-3), DateTimeOffset.Parse(expiraEm!).Offset);
+    }
+
+    [Fact]
+    public async Task Toda_data_das_respostas_sai_em_GMT_menos_3_e_o_banco_continua_em_UTC()
+    {
+        // Varre o corpo inteiro em vez de checar uma propriedade conhecida: o conversor global
+        // existe justamente para que uma data nova, num endpoint novo, nao passe despercebida.
+        var cliente = NovoCliente();
+        var login = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+        var refresh = await cliente.PostAsync("/auth/refresh", null);
+        cliente.DefaultRequestHeaders.Authorization =
+            new("Bearer", Campo(await refresh.Content.ReadAsStringAsync(), "accessToken").GetString());
+        var me = await cliente.GetAsync("/me");
+
+        var datas = new List<string>();
+        foreach (var resposta in new[] { login, refresh, me })
+            datas.AddRange(DatasNo(await resposta.Content.ReadAsStringAsync()));
+
+        Assert.NotEmpty(datas); // sem isto o teste passaria mesmo sem data nenhuma no corpo
+        Assert.All(datas, data =>
+        {
+            Assert.EndsWith("-03:00", data);
+            Assert.Equal(TimeSpan.FromHours(-3), DateTimeOffset.Parse(data).Offset);
+        });
+
+        // A conversao e so na borda: o que esta gravado continua em UTC.
+        var refreshPlano = ValorDoRefresh(refresh);
+        var hash = _hasher.Hash(refreshPlano);
+        var linha = await ComBancoAsync(db => db.RefreshTokens.AsNoTracking()
+            .SingleAsync(t => t.TokenHash == hash));
+        Assert.Equal(DateTime.UtcNow, linha.CriadoEm, TimeSpan.FromMinutes(1));
     }
 
     [Fact]
@@ -355,4 +387,34 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>,
 
     private static JsonElement Campo(string json, string nome) =>
         JsonDocument.Parse(json).RootElement.GetProperty(nome);
+
+    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")]
+    private static partial Regex InicioDeDataIso8601();
+
+    /// <summary>Toda string do JSON que comeca como uma data ISO 8601, em qualquer profundidade.</summary>
+    private static IEnumerable<string> DatasNo(string json) =>
+        DatasNo(JsonDocument.Parse(json).RootElement);
+
+    private static IEnumerable<string> DatasNo(JsonElement elemento)
+    {
+        switch (elemento.ValueKind)
+        {
+            case JsonValueKind.Object:
+                foreach (var propriedade in elemento.EnumerateObject())
+                    foreach (var data in DatasNo(propriedade.Value))
+                        yield return data;
+                break;
+
+            case JsonValueKind.Array:
+                foreach (var item in elemento.EnumerateArray())
+                    foreach (var data in DatasNo(item))
+                        yield return data;
+                break;
+
+            case JsonValueKind.String:
+                var texto = elemento.GetString()!;
+                if (InicioDeDataIso8601().IsMatch(texto)) yield return texto;
+                break;
+        }
+    }
 }

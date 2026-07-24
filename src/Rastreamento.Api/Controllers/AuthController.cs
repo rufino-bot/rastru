@@ -9,10 +9,6 @@ public class AuthController : ControllerBase
 {
     private const string NomeDoCookieDeRefresh = "refreshToken";
 
-    // Borda de fuso: por dentro tudo e UTC; o JSON sai em GMT-3.
-    private static readonly TimeZoneInfo Brasilia =
-        TimeZoneInfo.FindSystemTimeZoneById("America/Sao_Paulo");
-
     private readonly IAutenticarUsuarioUseCase _autenticar;
     private readonly IRenovarTokenUseCase _renovar;
     private readonly IRevogarTokenUseCase _revogar;
@@ -29,9 +25,13 @@ public class AuthController : ControllerBase
 
     public record LoginBody(string NomeUsuario, string Senha);
 
+    /// <remarks>
+    /// <c>AccessTokenExpiraEm</c> sai daqui em UTC; quem converte para GMT-3 e o
+    /// <see cref="Serialization.HorarioDeBrasiliaJsonConverter"/>, na serializacao.
+    /// </remarks>
     public record LoginResponse(
         string AccessToken,
-        DateTimeOffset AccessTokenExpiraEm,
+        DateTime AccessTokenExpiraEm,
         UsuarioDto Usuario);
 
     [HttpPost("login")]
@@ -82,15 +82,11 @@ public class AuthController : ControllerBase
             Secure = true,
             SameSite = SameSiteMode.Strict,
             Path = "/auth",
-            Expires = EmBrasilia(sessao.RefreshTokenExpiraEm),
+            // Em UTC mesmo: o header Set-Cookie sempre serializa a expiracao em GMT, entao
+            // converter aqui seria no-op (e sugeriria, falsamente, que o fuso importa).
+            Expires = sessao.RefreshTokenExpiraEm,
         });
 
-        return new LoginResponse(
-            sessao.AccessToken,
-            EmBrasilia(sessao.AccessTokenExpiraEm),
-            sessao.Usuario);
+        return new LoginResponse(sessao.AccessToken, sessao.AccessTokenExpiraEm, sessao.Usuario);
     }
-
-    private static DateTimeOffset EmBrasilia(DateTime instanteUtc) =>
-        TimeZoneInfo.ConvertTime(new DateTimeOffset(instanteUtc, TimeSpan.Zero), Brasilia);
 }
