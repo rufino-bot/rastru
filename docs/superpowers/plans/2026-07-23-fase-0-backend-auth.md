@@ -1526,7 +1526,16 @@ git commit -m "feat(auth): refresh com rotacao + logout com revogacao"
 - Create: `src/Rastreamento.Api/Controllers/AuthController.cs`
 - Modify: `src/Rastreamento.Api/Program.cs`
 - Modify: `src/Rastreamento.Api/appsettings.json`
-- Test: `tests/Rastreamento.Application.Tests/Api/AuthEndpointsTests.cs`
+- Create: **projeto novo** `tests/Rastreamento.Api.Tests` (xunit), adicionado à solution,
+  referenciando `src/Rastreamento.Api`
+- Test: `tests/Rastreamento.Api.Tests/AuthEndpointsTests.cs`
+
+> **Emenda (decidida pelo usuário).** O plano original punha os testes de endpoint em
+> `Rastreamento.Application.Tests`, o que obrigaria esse projeto a referenciar a Api (e
+> transitivamente a Infrastructure) — a mesma inversão de camada que motivou a criação do
+> `Rastreamento.Infrastructure.Tests`. Cada projeto de teste referencia só a sua camada.
+> Bônus: separa os testes de unidade rápidos (Application.Tests, ~73ms) dos testes de
+> integração lentos que exigem o container.
 
 **Interfaces:**
 - Consumes: todos os use cases (T6/T7), `RastreamentoDbContext` (T3), `IAccessTokenGenerator`/`JwtOptions` (T5).
@@ -1537,8 +1546,17 @@ git commit -m "feat(auth): refresh com rotacao + logout com revogacao"
 ```bash
 dotnet add src/Rastreamento.Api package Microsoft.AspNetCore.Authentication.JwtBearer
 dotnet add src/Rastreamento.Api package Microsoft.EntityFrameworkCore.Design
-dotnet add tests/Rastreamento.Application.Tests package Microsoft.AspNetCore.Mvc.Testing
+
+# Projeto de teste novo, dedicado à camada Api (ver emenda acima).
+dotnet new xunit -o tests/Rastreamento.Api.Tests
+dotnet sln add tests/Rastreamento.Api.Tests
+dotnet add tests/Rastreamento.Api.Tests reference src/Rastreamento.Api
+dotnet add tests/Rastreamento.Api.Tests package Microsoft.AspNetCore.Mvc.Testing
 ```
+
+> Apagar o `UnitTest1.cs` gerado pelo template. Para o `WebApplicationFactory<Program>`
+> enxergar a classe `Program` de um projeto com top-level statements, a Api precisa expor
+> `public partial class Program { }` no fim do `Program.cs` (ou `InternalsVisibleTo`).
 
 - [ ] **Step 2: Criar os repositórios EF**
 
@@ -1758,7 +1776,7 @@ public class MeController : ControllerBase
 
 - [ ] **Step 6: Escrever o teste de integração (falha)**
 
-`tests/Rastreamento.Application.Tests/Api/AuthEndpointsTests.cs`:
+`tests/Rastreamento.Api.Tests/AuthEndpointsTests.cs`:
 
 ```csharp
 using System.Net;
@@ -1766,7 +1784,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
-namespace Rastreamento.Application.Tests.Api;
+namespace Rastreamento.Api.Tests;
 
 // Requer SQL Server da Task 2 no ar com seed (admin / Admin@123).
 public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
@@ -1833,7 +1851,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
 
 - [ ] **Step 7: Rodar e ver falhar, depois passar**
 
-Run: `dotnet test tests/Rastreamento.Application.Tests`
+Run: `dotnet test tests/Rastreamento.Api.Tests`
 Expected inicial: FAIL (controller/rotas ainda não expostos ou cookie ausente); após Steps 2–5 aplicados, PASS em todos.
 
 > Se `Login_valido` falhar por hash, é sinal de que o `SenhaHash` do seed não corresponde a `Admin@123`: gere o hash com a Task 4 e reaplique o seed (Task 2, Step 7).
@@ -1841,12 +1859,14 @@ Expected inicial: FAIL (controller/rotas ainda não expostos ou cookie ausente);
 - [ ] **Step 8: Rodar a suíte completa**
 
 Run: `dotnet test`
-Expected: PASS em `Rastreamento.Infrastructure.Tests` e `Rastreamento.Application.Tests` (e em `Rastreamento.Domain.Tests`, que fica sem testes próprios nesta fase).
+Expected: PASS nos quatro projetos de teste (`Domain.Tests`, `Application.Tests`,
+`Infrastructure.Tests`, `Api.Tests`). Confirme o número real observado — o plano já errou
+contagem antes.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/Rastreamento.Infrastructure/Persistence src/Rastreamento.Api tests/Rastreamento.Application.Tests/Api
+git add src/Rastreamento.Infrastructure/Persistence src/Rastreamento.Api tests/Rastreamento.Api.Tests Rastreamento.slnx
 git commit -m "feat(api): endpoints de auth (login/refresh/logout) + /me + wiring JWT"
 ```
 
