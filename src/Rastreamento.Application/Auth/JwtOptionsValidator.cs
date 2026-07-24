@@ -25,7 +25,10 @@ public class JwtOptionsValidator : IValidateOptions<JwtOptions>
         {
             falhas.Add($"{nameof(JwtOptions.SigningKey)} nao pode ser vazia.");
         }
-        else if (options.SigningKey == JwtOptions.SigningKeyPlaceholder)
+        // Trim() de proposito: a chave de exemplo com um \n ou espaco no fim (copiar/colar, ou um
+        // gerador de template) passaria pela comparacao exata E pelo minimo de bytes, e a aplicacao
+        // subiria com uma chave conhecida. A comparacao tem que ser sobre o valor efetivo.
+        else if (options.SigningKey.Trim() == JwtOptions.SigningKeyPlaceholder.Trim())
         {
             falhas.Add(
                 $"{nameof(JwtOptions.SigningKey)} ainda e a chave de exemplo commitada no " +

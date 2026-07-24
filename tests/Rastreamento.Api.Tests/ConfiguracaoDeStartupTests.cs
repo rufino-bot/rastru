@@ -18,6 +18,10 @@ public class ConfiguracaoDeStartupTests
     [InlineData("")]
     [InlineData("curta-demais")]
     [InlineData(JwtOptions.SigningKeyPlaceholder)]
+    // A chave de exemplo com whitespace no fim passaria pela comparacao exata E pelo minimo
+    // de bytes, e a aplicacao subiria com uma chave publica no repositorio.
+    [InlineData(JwtOptions.SigningKeyPlaceholder + "\n")]
+    [InlineData("  " + JwtOptions.SigningKeyPlaceholder + "  ")]
     public void Aplicacao_nao_sobe_com_SigningKey_invalida(string signingKey)
     {
         var excecao = Record.Exception(() => SubirApi(new() { ["Jwt:SigningKey"] = signingKey }));
