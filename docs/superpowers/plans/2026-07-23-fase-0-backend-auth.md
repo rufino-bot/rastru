@@ -1506,6 +1506,19 @@ git commit -m "feat(auth): refresh com rotacao + logout com revogacao"
 > **`Scoped`** (nunca `Transient`, nunca `Singleton`). Com `Transient` a mutação em `atual`
 > aconteceria num contexto e o `SaveChanges` em outro, e a revogação **se perderia
 > silenciosamente** — o teste de unidade com fakes continuaria verde.
+>
+> **Corolário — teste de integração obrigatório para a rotação.** Como os fakes da T7
+> estruturalmente não conseguem pegar esse erro de DI, a T8 precisa de um teste de rotação
+> contra o **banco real**: fazer login, chamar refresh, e verificar no banco que (a) o token
+> antigo ficou com `RevogadoEm` preenchido, (b) `SubstituidoPorTokenHash` aponta para o hash
+> do token novo, e (c) o token antigo não serve mais para um segundo refresh. É esse teste
+> que prova a atomicidade de verdade.
+>
+> **Logout sempre responde 204.** `RevogarTokenUseCase.ExecutarAsync` retorna `Task` (sem
+> `Result`) e **por design nunca sinaliza falha** — logout é idempotente. O endpoint não deve
+> inventar 404/400 a partir dele: token ausente, desconhecido, expirado ou já revogado, todos
+> respondem `204 No Content` e limpam o cookie. Sinalizar o contrário vazaria a existência
+> de um token, que é exatamente o oráculo que a T7 eliminou das mensagens de erro.
 
 **Files:**
 - Create: `src/Rastreamento.Infrastructure/Persistence/UsuarioRepository.cs`
