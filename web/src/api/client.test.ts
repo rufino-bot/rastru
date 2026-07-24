@@ -102,7 +102,7 @@ describe('tentarRestaurarSessao', () => {
     const deps = depsFake()
     client.inicializar(deps)
     vi.stubGlobal('fetch', vi.fn(async () =>
-      resp(200, { accessToken: 't', accessTokenExpiraEm: 'x', usuario: { usuarioId: 1, nomeUsuario: 'admin', nomeCompleto: 'Admin', perfil: 'Administrador' } })))
+      resp(200, { accessToken: 't', accessTokenExpiraEm: 'x', usuario: { id: 1, nomeUsuario: 'admin', nomeCompleto: 'Admin', perfil: 'Administrador' } })))
 
     const u = await client.tentarRestaurarSessao()
     expect(u?.nomeUsuario).toBe('admin')

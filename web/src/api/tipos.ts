@@ -1,5 +1,5 @@
 export interface UsuarioDto {
-  usuarioId: number
+  id: number
   nomeUsuario: string
   nomeCompleto: string
   perfil: string
