@@ -14,8 +14,4 @@ public class UsuarioRepository : IUsuarioRepository
     public Task<Usuario?> ObterPorNomeUsuarioAsync(string nomeUsuario, CancellationToken ct) =>
         _db.Usuarios.Include(u => u.Perfil)
             .SingleOrDefaultAsync(u => u.NomeUsuario == nomeUsuario, ct);
-
-    public Task<Usuario?> ObterPorIdAsync(int id, CancellationToken ct) =>
-        _db.Usuarios.Include(u => u.Perfil)
-            .SingleOrDefaultAsync(u => u.Id == id, ct);
 }

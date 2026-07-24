@@ -45,9 +45,6 @@ public class FakeUsuarioRepo : IUsuarioRepository
 
     public Task<Usuario?> ObterPorNomeUsuarioAsync(string nomeUsuario, CancellationToken ct) =>
         Task.FromResult(_usuario is not null && _usuario.NomeUsuario == nomeUsuario ? _usuario : null);
-
-    public Task<Usuario?> ObterPorIdAsync(int id, CancellationToken ct) =>
-        Task.FromResult(_usuario is not null && _usuario.Id == id ? _usuario : null);
 }
 
 public class FakeRefreshTokenRepo : IRefreshTokenRepository

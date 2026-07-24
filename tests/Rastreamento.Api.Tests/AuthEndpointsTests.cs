@@ -285,7 +285,14 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         var resposta = await cliente.PostAsync("/auth/logout", null);
 
         Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
-        Assert.Contains("path=/auth", CookieDeRefresh(resposta), StringComparison.OrdinalIgnoreCase);
+
+        // A remocao tem que repetir os atributos da emissao: o navegador so casa o Set-Cookie de
+        // remocao com o cookie existente se Path, Secure, SameSite e HttpOnly baterem.
+        var cookieDeRemocao = CookieDeRefresh(resposta);
+        Assert.Contains("path=/auth", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("httponly", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("secure", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=strict", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
 
         var hash = _hasher.Hash(refreshPlano);
         var noBanco = await ComBancoAsync(db => db.RefreshTokens.AsNoTracking()

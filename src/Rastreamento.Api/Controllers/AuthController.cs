@@ -73,7 +73,9 @@ public class AuthController : ControllerBase
         // Resultado ignorado de proposito: a resposta e 204 em qualquer cenario.
         _ = await _revogar.ExecutarAsync(refreshPlano, ct);
 
-        Response.Cookies.Delete(NomeDoCookieDeRefresh, new CookieOptions { Path = "/auth" });
+        // Os mesmos atributos do cookie original: o navegador so casa a instrucao de remocao com
+        // o cookie existente se Path, Secure, SameSite e HttpOnly baterem.
+        Response.Cookies.Delete(NomeDoCookieDeRefresh, AtributosDoCookieDeRefresh());
         return NoContent();
     }
 
@@ -83,17 +85,25 @@ public class AuthController : ControllerBase
     /// </summary>
     private LoginResponse EntregarSessao(LoginResult sessao)
     {
-        Response.Cookies.Append(NomeDoCookieDeRefresh, sessao.RefreshTokenPlano, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
-            Path = "/auth",
-            // Em UTC mesmo: o header Set-Cookie sempre serializa a expiracao em GMT, entao
-            // converter aqui seria no-op (e sugeriria, falsamente, que o fuso importa).
-            Expires = sessao.RefreshTokenExpiraEm,
-        });
+        var cookie = AtributosDoCookieDeRefresh();
+        // Em UTC mesmo: o header Set-Cookie sempre serializa a expiracao em GMT, entao converter
+        // aqui seria no-op (e sugeriria, falsamente, que o fuso importa).
+        cookie.Expires = sessao.RefreshTokenExpiraEm;
+        Response.Cookies.Append(NomeDoCookieDeRefresh, sessao.RefreshTokenPlano, cookie);
 
         return new LoginResponse(sessao.AccessToken, sessao.AccessTokenExpiraEm, sessao.Usuario);
     }
+
+    /// <summary>
+    /// Atributos do cookie de refresh, num lugar so: <c>Path=/auth</c> mantem o cookie fora das
+    /// demais rotas, e httpOnly + Secure + SameSite=Strict sao o que impede JavaScript e
+    /// requisicao cross-site de alcanca-lo. Emissao e remocao usam exatamente os mesmos valores.
+    /// </summary>
+    private static CookieOptions AtributosDoCookieDeRefresh() => new()
+    {
+        HttpOnly = true,
+        Secure = true,
+        SameSite = SameSiteMode.Strict,
+        Path = "/auth",
+    };
 }

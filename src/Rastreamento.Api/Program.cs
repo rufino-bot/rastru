@@ -42,14 +42,20 @@ builder.Services.AddScoped<IAutenticarUsuarioUseCase, AutenticarUsuarioUseCase>(
 builder.Services.AddScoped<IRenovarTokenUseCase, RenovarTokenUseCase>();
 builder.Services.AddScoped<IRevogarTokenUseCase, RevogarTokenUseCase>();
 
-var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()!;
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(o =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+
+// A validacao do bearer le o MESMO JwtOptions do resto da aplicacao (um unico bind da secao
+// "Jwt"): um segundo `Get<JwtOptions>()` aqui leria a configuracao por fora do IOptions e
+// escaparia do JwtOptionsValidator.
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((bearer, jwtOptions) =>
     {
+        var jwt = jwtOptions.Value;
+
         // Sem o mapeamento legado de claims: `sub`, `role` e afins chegam com o nome que o
         // JwtAccessTokenGenerator emitiu, e nao traduzidos para as URIs do WS-Federation.
-        o.MapInboundClaims = false;
-        o.TokenValidationParameters = new TokenValidationParameters
+        bearer.MapInboundClaims = false;
+        bearer.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidIssuer = jwt.Issuer,
