@@ -6,6 +6,7 @@
     <Project Path="src/Rastreamento.Infrastructure/Rastreamento.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Rastreamento.Api.Tests/Rastreamento.Api.Tests.csproj" />
     <Project Path="tests/Rastreamento.Application.Tests/Rastreamento.Application.Tests.csproj" />
     <Project Path="tests/Rastreamento.Domain.Tests/Rastreamento.Domain.Tests.csproj" />
     <Project Path="tests/Rastreamento.Infrastructure.Tests/Rastreamento.Infrastructure.Tests.csproj" />
