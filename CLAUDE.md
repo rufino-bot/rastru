@@ -91,6 +91,47 @@ partir do zero.
 
 ## Comandos
 
-Ainda não definidos — este projeto está na Fase 0 (`06-roadmap-mvp.md`). Atualizar esta
-seção com os comandos reais (`dotnet build`, `dotnet test`, `npm run dev`, etc.) assim
-que a solution e o projeto frontend forem criados.
+Backend (solution `Rastreamento.slnx`, na raiz):
+
+```bash
+docker compose up -d          # PRÉ-REQUISITO dos testes de integração (ver abaixo)
+dotnet build Rastreamento.slnx -warnaserror    # o build tem que ficar em 0 warnings
+dotnet test  Rastreamento.slnx                 # suíte inteira
+```
+
+Um projeto de teste por vez, enquanto se itera:
+
+```bash
+dotnet test tests/Rastreamento.Domain.Tests           # (vazio por enquanto)
+dotnet test tests/Rastreamento.Application.Tests      # casos de uso, com fakes — não precisa de banco
+dotnet test tests/Rastreamento.Infrastructure.Tests   # hashers + mapeamento EF (parte precisa de banco)
+dotnet test tests/Rastreamento.Api.Tests              # ponta a ponta (a maior parte precisa de banco)
+```
+
+Frontend: ainda não criado (Fase 1 em diante).
+
+### Pré-requisito externo dos testes
+
+Parte da suíte roda contra o **SQL Server real**, não contra banco em memória — é o que
+prova o mapeamento EF, os lifetimes do DI e a atomicidade da rotação de refresh token.
+Hoje são **23 dos 91 testes** (4 em `Infrastructure.Tests`, 19 em `Api.Tests`). Sem o
+banco no ar eles falham com erro de conexão, não com mensagem útil.
+
+```bash
+docker compose up -d
+# aplicar, uma vez, no banco `Rastreamento` de localhost:1433 (sa / Your_strong_Pass123):
+#   specs/02-modelo-de-dados.sql   (schema — fonte de verdade)
+#   db/seed.sql                    (perfis + usuário admin / Admin@123)
+```
+
+O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
+First, o `.sql` é a fonte de verdade.
+
+### Trade-off conhecido de autenticação
+
+**Logout não invalida o access token.** O logout revoga o refresh token no banco, mas o
+access token é JWT stateless e o `/me` responde só a partir das claims, sem ida ao banco.
+Ou seja: depois do logout — ou de desativar um usuário — a sessão ainda funciona até o
+access token expirar (`Jwt:AccessTokenMinutes`, hoje 15 min). É o comportamento padrão de
+JWT stateless e está aceito no MVP; se um dia precisar ser imediato, a saída é uma
+denylist de tokens ou validação por requisição, não um remendo no logout.

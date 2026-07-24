@@ -2,6 +2,11 @@
    MODELO DE RASTREAMENTO DE PEÇAS - SQL Server (T-SQL)
    Camadas: Catálogo (receita padrão) > Pedido/Kit > Estrutura real
             (árvore recursiva) > Execução/rastreamento > Dimensional
+
+   Aplicar via sqlcmd exige a flag -I (SET QUOTED_IDENTIFIER ON), por causa
+   do índice único filtrado UX_EstruturaSetorHistorico_UmaAbertaPorItem
+   (índices filtrados exigem QUOTED_IDENTIFIER ON). Sem -I, o CREATE INDEX
+   falha com o erro 1934.
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
@@ -50,6 +55,23 @@ CREATE TABLE dbo.Usuario (
     CONSTRAINT UQ_Usuario_NomeUsuario UNIQUE (NomeUsuario),
     CONSTRAINT FK_Usuario_Perfil FOREIGN KEY (PerfilId) REFERENCES dbo.Perfil (Id)
 );
+GO
+
+CREATE TABLE dbo.RefreshToken (
+    Id                      INT IDENTITY(1,1)  NOT NULL,
+    UsuarioId               INT                 NOT NULL,
+    TokenHash               NVARCHAR(200)       NOT NULL,   -- SHA-256 do refresh token (nunca em claro)
+    ExpiraEm                DATETIME2           NOT NULL,
+    CriadoEm                DATETIME2           NOT NULL CONSTRAINT DF_RefreshToken_CriadoEm DEFAULT (SYSUTCDATETIME()),
+    RevogadoEm              DATETIME2           NULL,       -- NULL = ativo; preenchido no logout ou na rotação
+    SubstituidoPorTokenHash NVARCHAR(200)       NULL,       -- rastro de rotação (auditoria)
+    CONSTRAINT PK_RefreshToken PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_RefreshToken_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT UQ_RefreshToken_TokenHash UNIQUE (TokenHash),
+    CONSTRAINT CK_RefreshToken_ExpiraAposCriado CHECK (ExpiraEm > CriadoEm)
+);
+GO
+CREATE INDEX IX_RefreshToken_Usuario ON dbo.RefreshToken (UsuarioId);
 GO
 
 /* ---------------------------------------------------------------------

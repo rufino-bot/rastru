@@ -159,7 +159,7 @@ Expected: comando retorna sem erro (banco `Rastreamento` existe).
 
 ```bash
 docker cp specs/02-modelo-de-dados.sql "$(docker compose ps -q sqlserver)":/tmp/schema.sql
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento -i /tmp/schema.sql
+docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento -i /tmp/schema.sql
 ```
 
 Expected: execução sem erros de sintaxe/constraint.
@@ -198,7 +198,7 @@ SELECT 'admin',
 
 ```bash
 docker cp db/seed.sql "$(docker compose ps -q sqlserver)":/tmp/seed.sql
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento -i /tmp/seed.sql
+docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento -i /tmp/seed.sql
 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento -Q "SELECT (SELECT COUNT(*) FROM dbo.Perfil) AS Perfis, (SELECT COUNT(*) FROM dbo.Usuario) AS Usuarios;"
 ```
 
@@ -443,9 +443,10 @@ git commit -m "feat(infra): entidades + EF Core Database First (Usuario/Perfil/R
 ### Task 4: Hash de senha (BCrypt)
 
 **Files:**
+- Create: `src/Rastreamento.Infrastructure.Tests/` — **já existe** (criado na emenda pós-Task 3); os testes de classes de Infrastructure vivem aqui, não em `Domain.Tests`.
 - Create: `src/Rastreamento.Domain/Abstractions/IPasswordHasher.cs`
 - Create: `src/Rastreamento.Infrastructure/Security/BCryptPasswordHasher.cs`
-- Test: `tests/Rastreamento.Domain.Tests/Security/BCryptPasswordHasherTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Security/BCryptPasswordHasherTests.cs`
 
 **Interfaces:**
 - Consumes: nada.
@@ -459,13 +460,13 @@ dotnet add src/Rastreamento.Infrastructure package BCrypt.Net-Next
 
 - [ ] **Step 2: Escrever o teste (falha)**
 
-`tests/Rastreamento.Domain.Tests/Security/BCryptPasswordHasherTests.cs`:
+`tests/Rastreamento.Infrastructure.Tests/Security/BCryptPasswordHasherTests.cs`:
 
 ```csharp
 using Rastreamento.Infrastructure.Security;
 using Xunit;
 
-namespace Rastreamento.Domain.Tests.Security;
+namespace Rastreamento.Infrastructure.Tests.Security;
 
 public class BCryptPasswordHasherTests
 {
@@ -497,7 +498,7 @@ public class BCryptPasswordHasherTests
 
 - [ ] **Step 3: Rodar e ver falhar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: FAIL na compilação — `BCryptPasswordHasher` não existe.
 
 - [ ] **Step 4: Criar a interface e a implementação**
@@ -535,23 +536,91 @@ public class BCryptPasswordHasher : IPasswordHasher
 
 - [ ] **Step 5: Rodar e ver passar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: PASS (3 testes).
 
-- [ ] **Step 6: (Opcional) Gerar o hash real do admin**
+- [ ] **Step 6: Gerar o hash REAL do admin e corrigir o seed (obrigatório)**
 
-Se o hash do seed (Task 2, Step 6) não validar, gere um novo:
+O `SenhaHash` gravado na Task 2 é um placeholder que **não valida** contra `Admin@123`. Sem
+este passo, o teste de login da Task 8 falha. Atenção: `db/seed.sql` insere o admin com
+`IF NOT EXISTS`, então **re-rodar o seed não corrige o hash** de um admin que já existe — é
+preciso um `UPDATE` explícito.
 
-```bash
-dotnet run --project src/Rastreamento.Api -- --gerar-hash "Admin@123"   # só se você adicionar esse atalho; alternativamente use um teste temporário imprimindo _hasher.Hash("Admin@123")
+6a. Gere um hash real com a implementação recém-criada, via um teste temporário que o imprime:
+
+```csharp
+// tests/Rastreamento.Infrastructure.Tests/Security/GerarHashAdminTemp.cs  (APAGAR depois)
+using Rastreamento.Infrastructure.Security;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Rastreamento.Infrastructure.Tests.Security;
+
+public class GerarHashAdminTemp
+{
+    private readonly ITestOutputHelper _out;
+    public GerarHashAdminTemp(ITestOutputHelper output) => _out = output;
+
+    [Fact]
+    public void Imprime_hash_de_Admin123()
+    {
+        var hash = new BCryptPasswordHasher().Hash("Admin@123");
+        Assert.True(new BCryptPasswordHasher().Verificar("Admin@123", hash));
+        _out.WriteLine($"HASH_ADMIN={hash}");
+    }
+}
 ```
 
-Copie o valor `$2a$11$...` para `db/seed.sql` e reaplique o seed (Task 2, Step 7).
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests --filter "FullyQualifiedName~GerarHashAdminTemp" --logger "console;verbosity=detailed"`
+Copie o valor após `HASH_ADMIN=` (formato `$2a$11$...`), depois **apague o arquivo**
+`GerarHashAdminTemp.cs`.
+
+6b. Substitua o literal do `SenhaHash` em `db/seed.sql` pelo hash gerado (mantendo o comentário
+que explica a origem, agora dizendo que é um hash real válido de `Admin@123`).
+
+6c. Aplique no banco existente com um `UPDATE` explícito (o `INSERT` do seed não roda de novo):
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "UPDATE dbo.Usuario SET SenhaHash = '<HASH_GERADO>' WHERE NomeUsuario = 'admin';"
+```
+
+6d. Adicione um teste **permanente** que trava essa garantia (o seed e o código não podem
+divergir de novo):
+
+```csharp
+// tests/Rastreamento.Infrastructure.Tests/Security/SeedAdminSenhaTests.cs
+using Microsoft.EntityFrameworkCore;
+using Rastreamento.Infrastructure.Persistence;
+using Rastreamento.Infrastructure.Security;
+using Xunit;
+
+namespace Rastreamento.Infrastructure.Tests.Security;
+
+public class SeedAdminSenhaTests
+{
+    private const string Conn =
+        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
+
+    [Fact]
+    public async Task Senha_do_admin_seedado_valida_contra_Admin123()
+    {
+        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
+        await using var db = new RastreamentoDbContext(options);
+        var admin = await db.Usuarios.SingleAsync(u => u.NomeUsuario == "admin");
+        Assert.True(new BCryptPasswordHasher().Verificar("Admin@123", admin.SenhaHash));
+    }
+}
+```
+
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
+Expected: PASS — incluindo `Senha_do_admin_seedado_valida_contra_Admin123`.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/Rastreamento.Domain/Abstractions/IPasswordHasher.cs src/Rastreamento.Infrastructure/Security/BCryptPasswordHasher.cs tests/Rastreamento.Domain.Tests/Security
+git add src/Rastreamento.Domain/Abstractions/IPasswordHasher.cs src/Rastreamento.Infrastructure/Security/BCryptPasswordHasher.cs tests/Rastreamento.Infrastructure.Tests/Security
 git commit -m "feat(security): hash de senha com BCrypt"
 ```
 
@@ -563,10 +632,10 @@ git commit -m "feat(security): hash de senha com BCrypt"
 - Create: `src/Rastreamento.Domain/Abstractions/ITokenHasher.cs`
 - Create: `src/Rastreamento.Infrastructure/Security/Sha256TokenHasher.cs`
 - Create: `src/Rastreamento.Application/Auth/IAccessTokenGenerator.cs`
-- Create: `src/Rastreamento.Infrastructure/Security/JwtOptions.cs`
+- Create: `src/Rastreamento.Application/Auth/JwtOptions.cs` — **fica na camada Application, não na Infrastructure.** O grafo de referências é `Infrastructure → Application`; como `AutenticarUsuarioUseCase` (Application, Task 6) consome `IOptions<JwtOptions>`, colocá-lo na Infrastructure criaria referência circular e não compilaria.
 - Create: `src/Rastreamento.Infrastructure/Security/JwtAccessTokenGenerator.cs`
-- Test: `tests/Rastreamento.Domain.Tests/Security/Sha256TokenHasherTests.cs`
-- Test: `tests/Rastreamento.Domain.Tests/Security/JwtAccessTokenGeneratorTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Security/Sha256TokenHasherTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Security/JwtAccessTokenGeneratorTests.cs`
 
 **Interfaces:**
 - Consumes: `Usuario` (Task 3).
@@ -576,17 +645,19 @@ git commit -m "feat(security): hash de senha com BCrypt"
 
 ```bash
 dotnet add src/Rastreamento.Infrastructure package System.IdentityModel.Tokens.Jwt
+# Application passa a expor JwtOptions e consumir IOptions<T>, então precisa do pacote de Options:
+dotnet add src/Rastreamento.Application package Microsoft.Extensions.Options
 ```
 
 - [ ] **Step 2: Escrever o teste do SHA-256 (falha)**
 
-`tests/Rastreamento.Domain.Tests/Security/Sha256TokenHasherTests.cs`:
+`tests/Rastreamento.Infrastructure.Tests/Security/Sha256TokenHasherTests.cs`:
 
 ```csharp
 using Rastreamento.Infrastructure.Security;
 using Xunit;
 
-namespace Rastreamento.Domain.Tests.Security;
+namespace Rastreamento.Infrastructure.Tests.Security;
 
 public class Sha256TokenHasherTests
 {
@@ -608,17 +679,18 @@ public class Sha256TokenHasherTests
 
 - [ ] **Step 3: Escrever o teste do JWT (falha)**
 
-`tests/Rastreamento.Domain.Tests/Security/JwtAccessTokenGeneratorTests.cs`:
+`tests/Rastreamento.Infrastructure.Tests/Security/JwtAccessTokenGeneratorTests.cs`:
 
 ```csharp
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using Microsoft.Extensions.Options;
+using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Security;
 using Xunit;
 
-namespace Rastreamento.Domain.Tests.Security;
+namespace Rastreamento.Infrastructure.Tests.Security;
 
 public class JwtAccessTokenGeneratorTests
 {
@@ -657,7 +729,7 @@ public class JwtAccessTokenGeneratorTests
 
 - [ ] **Step 4: Rodar e ver falhar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: FAIL na compilação — tipos não existem.
 
 - [ ] **Step 5: Criar `ITokenHasher` e `Sha256TokenHasher`**
@@ -694,10 +766,10 @@ public class Sha256TokenHasher : ITokenHasher
 
 - [ ] **Step 6: Criar `JwtOptions`, `IAccessTokenGenerator` e `JwtAccessTokenGenerator`**
 
-`src/Rastreamento.Infrastructure/Security/JwtOptions.cs`:
+`src/Rastreamento.Application/Auth/JwtOptions.cs`:
 
 ```csharp
-namespace Rastreamento.Infrastructure.Security;
+namespace Rastreamento.Application.Auth;
 
 public class JwtOptions
 {
@@ -766,13 +838,13 @@ public class JwtAccessTokenGenerator : IAccessTokenGenerator
 
 - [ ] **Step 7: Rodar e ver passar**
 
-Run: `dotnet test tests/Rastreamento.Domain.Tests`
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
 Expected: PASS (SHA-256 + JWT + BCrypt da Task 4).
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/Rastreamento.Domain/Abstractions/ITokenHasher.cs src/Rastreamento.Infrastructure/Security tests/Rastreamento.Domain.Tests/Security src/Rastreamento.Application/Auth/IAccessTokenGenerator.cs
+git add src/Rastreamento.Domain/Abstractions/ITokenHasher.cs src/Rastreamento.Infrastructure/Security tests/Rastreamento.Infrastructure.Tests/Security src/Rastreamento.Application/Auth/IAccessTokenGenerator.cs
 git commit -m "feat(security): SHA-256 do refresh token + emissao de JWT"
 ```
 
@@ -880,7 +952,6 @@ using Microsoft.Extensions.Options;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
-using Rastreamento.Infrastructure.Security;
 
 namespace Rastreamento.Application.Tests.Auth;
 
@@ -1026,7 +1097,6 @@ using Microsoft.Extensions.Options;
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
-using Rastreamento.Infrastructure.Security;
 
 namespace Rastreamento.Application.Auth;
 
@@ -1101,6 +1171,81 @@ git commit -m "feat(auth): caso de uso de login com emissao de sessao"
 
 ---
 
+### Task 6.1: Extrair `EmissorDeSessao` (emenda pós-review da T6)
+
+> **Por que esta emenda existe.** O plano original mandou a T7 reusar
+> `AutenticarUsuarioUseCase.EmitirSessaoAsync` (`internal`). O review da T6 confirmou que
+> esse seam não serve à rotação, por três motivos concretos:
+> 1. `EmitirSessaoAsync` devolve só o refresh token **em texto plano**, então a T7 teria que
+>    **re-hashear** para preencher `SubstituidoPorTokenHash` — hash calculado duas vezes,
+>    com risco de divergir se a implementação do hasher mudar.
+> 2. O `SalvarAlteracoesAsync` está **dentro** do método, então revogação e emissão não
+>    commitam atomicamente: sobram dois saves e uma janela em que o token antigo já está
+>    revogado com `SubstituidoPorTokenHash` nulo. É **perda de trilha de auditoria**, não
+>    furo de segurança — mas é evitável.
+> 3. `internal` num método de instância força `RenovarTokenUseCase` a depender da **classe
+>    concreta** `AutenticarUsuarioUseCase` em vez de uma abstração.
+>
+> Decidido pelo usuário: aplicar a extração antes de começar a T7.
+
+**Files:**
+- Create: `src/Rastreamento.Application/Auth/IEmissorDeSessao.cs`
+- Create: `src/Rastreamento.Application/Auth/EmissorDeSessao.cs`
+- Modify: `src/Rastreamento.Application/Auth/AutenticarUsuarioUseCase.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Auth/Fakes.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Auth/AutenticarUsuarioUseCaseTests.cs`
+
+**Interfaces:**
+
+```csharp
+// src/Rastreamento.Application/Auth/IEmissorDeSessao.cs
+public interface IEmissorDeSessao
+{
+    /// <summary>Emite uma sessão nova (login). Persiste o refresh token e salva uma vez.</summary>
+    Task<LoginResult> EmitirAsync(Usuario usuario, CancellationToken ct);
+
+    /// <summary>
+    /// Rotaciona uma sessão existente (refresh): revoga <paramref name="atual"/>, aponta seu
+    /// SubstituidoPorTokenHash para o token novo e persiste o novo — tudo num único save.
+    /// Exige <c>atual.Usuario</c> carregado (com <c>Perfil</c>).
+    /// </summary>
+    Task<LoginResult> RotacionarAsync(RefreshToken atual, CancellationToken ct);
+}
+```
+
+**Desenho de `EmissorDeSessao`:** um método privado `PrepararSessao(Usuario)` monta o par
+(entidade `RefreshToken` já com `TokenHash` calculado, `LoginResult`) **sem persistir nada**.
+`EmitirAsync` e `RotacionarAsync` compartilham esse preparo e cada um faz **exatamente um**
+`SalvarAlteracoesAsync`. `RotacionarAsync` reaproveita `entidade.TokenHash` para preencher
+`atual.SubstituidoPorTokenHash` — **sem re-hashear**, que é o ponto 1 acima.
+
+Regras que se mantêm da T6 (não regredir): um único `DateTime.UtcNow` capturado e reusado
+para `CriadoEm` e para a base de `ExpiraEm`; datas em UTC; token opaco de 32 bytes via
+`RandomNumberGenerator` em base64url.
+
+**Guarda de configuração (resolve um Minor do review da T6):** o construtor de
+`EmissorDeSessao` valida `RefreshTokenDays > 0` e `AccessTokenMinutes > 0`, lançando
+`ArgumentOutOfRangeException`. Assim uma configuração inválida falha na **resolução do DI
+(startup)**, e não lá na frente com uma exceção crua de SQL ao violar
+`CK_RefreshToken_ExpiraAposCriado`.
+
+**Efeito em `AutenticarUsuarioUseCase`:** passa a depender de `IUsuarioRepository`,
+`IPasswordHasher` e `IEmissorDeSessao` — e **perde** `IRefreshTokenRepository`,
+`ITokenHasher`, `IAccessTokenGenerator` e `IOptions<JwtOptions>`, que migram para o emissor.
+`EmitirSessaoAsync` deixa de existir. O comportamento observável do login não muda: os
+quatro testes da T6 devem continuar passando após ajustar apenas a construção do use case.
+
+**Fakes:** adicionar `public int Saves { get; private set; }` a `FakeRefreshTokenRepo`,
+incrementado em `SalvarAlteracoesAsync` — é o que permite provar "um único save" na T7.
+
+**Testes desta emenda:** os 4 testes de login da T6 continuam valendo (só muda a montagem).
+Adicionar testes diretos de `EmissorDeSessao`: `EmitirAsync` persiste 1 token com
+`TokenHash != RefreshTokenPlano` e faz 1 save; construtor rejeita `RefreshTokenDays = 0`.
+
+**Commit:** `refactor(auth): extrai EmissorDeSessao para permitir rotacao atomica`
+
+---
+
 ### Task 7: Refresh (rotação) + logout (revogação)
 
 **Files:**
@@ -1110,7 +1255,7 @@ git commit -m "feat(auth): caso de uso de login com emissao de sessao"
 - Test: `tests/Rastreamento.Application.Tests/Auth/RevogarTokenUseCaseTests.cs`
 
 **Interfaces:**
-- Consumes: `IRefreshTokenRepository`, `ITokenHasher`, `IAccessTokenGenerator`, `AutenticarUsuarioUseCase.EmitirSessaoAsync` (T6), `Usuario`/`RefreshToken`.
+- Consumes: `IRefreshTokenRepository`, `ITokenHasher`, `IEmissorDeSessao` (T6.1), `Usuario`/`RefreshToken`.
 - Produces: `RenovarTokenUseCase : IRenovarTokenUseCase`; `RevogarTokenUseCase : IRevogarTokenUseCase`. Regra: refresh válido → marca o antigo `RevogadoEm=UtcNow` + `SubstituidoPorTokenHash`=hash do novo, emite nova sessão. Expirado/revogado/ausente → `Falha`. Logout é idempotente (não falha se o token não existir).
 
 - [ ] **Step 1: Escrever os testes (falham)**
@@ -1126,25 +1271,24 @@ namespace Rastreamento.Application.Tests.Auth;
 
 public class RenovarTokenUseCaseTests
 {
+    private static readonly FakeTokenHasher Hasher = new();
+
     private static (RenovarTokenUseCase uc, FakeRefreshTokenRepo repo) Montar(RefreshToken? ativo)
     {
         var repo = new FakeRefreshTokenRepo { Ativo = ativo };
-        var hasher = new FakeTokenHasher();
-        var login = new AutenticarUsuarioUseCase(
-            new FakeUsuarioRepo(UsuarioDe(ativo)), repo, new FakePasswordHasher(),
-            hasher, new FakeAccessTokenGenerator(), FakeJwtOptions.Instance);
-        var uc = new RenovarTokenUseCase(repo, hasher, login);
+        var emissor = new EmissorDeSessao(repo, Hasher, new FakeAccessTokenGenerator(), FakeJwtOptions.Instance);
+        var uc = new RenovarTokenUseCase(repo, Hasher, emissor);
         return (uc, repo);
     }
-
-    private static Usuario? UsuarioDe(RefreshToken? t) => t?.Usuario;
 
     private static RefreshToken TokenAtivo() => new()
     {
         Id = 5, UsuarioId = 1, TokenHash = "sha:plano-antigo",
         CriadoEm = System.DateTime.UtcNow.AddMinutes(-1),
         ExpiraEm = System.DateTime.UtcNow.AddDays(7), RevogadoEm = null,
-        Usuario = new Usuario { Id = 1, NomeUsuario = "admin", NomeCompleto = "Admin", Perfil = new Perfil { Nome = "Administrador" } }
+        // Ativo = true e OBRIGATORIO: bool default e false, e RenovarTokenUseCase checa
+        // !atual.Usuario.Ativo. Sem isso, todo teste de caminho feliz falha.
+        Usuario = new Usuario { Id = 1, NomeUsuario = "admin", NomeCompleto = "Admin", Ativo = true, Perfil = new Perfil { Nome = "Administrador" } }
     };
 
     [Fact]
@@ -1155,8 +1299,44 @@ public class RenovarTokenUseCaseTests
 
         Assert.True(r.Sucesso);
         Assert.NotNull(repo.Ativo!.RevogadoEm);            // antigo revogado
-        Assert.NotNull(repo.Ativo.SubstituidoPorTokenHash); // aponta p/ o novo
         Assert.Single(repo.Adicionados);                    // novo persistido
+
+        // Aponta para o token NOVO — e o hash tem que bater com o do token realmente emitido,
+        // nao um re-hash independente (era o defeito do seam antigo).
+        Assert.Equal(Hasher.Hash(r.Valor!.RefreshTokenPlano), repo.Ativo.SubstituidoPorTokenHash);
+        Assert.Equal(repo.Adicionados[0].TokenHash, repo.Ativo.SubstituidoPorTokenHash);
+
+        // Atomicidade: revogacao + emissao commitam juntas, num unico save.
+        Assert.Equal(1, repo.Saves);
+    }
+
+    [Fact]
+    public async Task Refresh_revogado_falha_e_nao_emite()
+    {
+        var revogado = TokenAtivo();
+        revogado.RevogadoEm = System.DateTime.UtcNow.AddMinutes(-5);
+        var (uc, repo) = Montar(revogado);
+
+        var r = await uc.ExecutarAsync("plano-antigo", default);
+
+        Assert.False(r.Sucesso);
+        Assert.Empty(repo.Adicionados);
+    }
+
+    [Fact]
+    public async Task Refresh_de_usuario_desativado_falha_e_nao_emite()
+    {
+        // Desativar um usuario tem que expulsa-lo do sistema. Sem esta checagem ele
+        // continuaria renovando a sessao ate o refresh expirar sozinho (ate 7 dias).
+        var token = TokenAtivo();
+        token.Usuario.Ativo = false;
+        var (uc, repo) = Montar(token);
+
+        var r = await uc.ExecutarAsync("plano-antigo", default);
+
+        Assert.False(r.Sucesso);
+        Assert.Empty(repo.Adicionados);
+        Assert.Null(repo.Ativo!.RevogadoEm);   // nao rotaciona
     }
 
     [Fact]
@@ -1236,12 +1416,12 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
 {
     private readonly IRefreshTokenRepository _refreshTokens;
     private readonly ITokenHasher _tokenHasher;
-    private readonly AutenticarUsuarioUseCase _login;
+    private readonly IEmissorDeSessao _emissor;
 
     public RenovarTokenUseCase(
-        IRefreshTokenRepository refreshTokens, ITokenHasher tokenHasher, AutenticarUsuarioUseCase login)
+        IRefreshTokenRepository refreshTokens, ITokenHasher tokenHasher, IEmissorDeSessao emissor)
     {
-        _refreshTokens = refreshTokens; _tokenHasher = tokenHasher; _login = login;
+        _refreshTokens = refreshTokens; _tokenHasher = tokenHasher; _emissor = emissor;
     }
 
     public async Task<Result<LoginResult>> ExecutarAsync(string refreshTokenPlano, CancellationToken ct)
@@ -1251,15 +1431,16 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
 
         var hash = _tokenHasher.Hash(refreshTokenPlano);
         var atual = await _refreshTokens.ObterAtivoPorHashAsync(hash, ct);
-        if (atual is null || atual.RevogadoEm is not null || atual.ExpiraEm <= DateTime.UtcNow)
+
+        // `!atual.Usuario.Ativo`: sem isso, desativar um usuario nao o expulsa — ele
+        // continuaria rotacionando o refresh ate a expiracao natural (ate 7 dias).
+        // O login checa Ativo; o refresh TEM que checar tambem.
+        if (atual is null || atual.RevogadoEm is not null
+            || atual.ExpiraEm <= DateTime.UtcNow || !atual.Usuario.Ativo)
             return Result<LoginResult>.Falha("Refresh token inválido ou expirado.");
 
-        var novaSessao = await _login.EmitirSessaoAsync(atual.Usuario, ct);
-
-        atual.RevogadoEm = DateTime.UtcNow;
-        atual.SubstituidoPorTokenHash = _tokenHasher.Hash(novaSessao.RefreshTokenPlano);
-        await _refreshTokens.SalvarAlteracoesAsync(ct);
-
+        // Revogação do antigo + emissão do novo num único save (ver T6.1).
+        var novaSessao = await _emissor.RotacionarAsync(atual, ct);
         return Result<LoginResult>.Ok(novaSessao);
     }
 }
@@ -1300,7 +1481,10 @@ public class RevogarTokenUseCase : IRevogarTokenUseCase
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: `dotnet test tests/Rastreamento.Application.Tests`
-Expected: PASS (refresh 3 + logout 2 + login 4 + mapeamento 2).
+Expected: PASS. Os testes de mapeamento **não** estão aqui (foram para
+`Rastreamento.Infrastructure.Tests` — ver Emendas). Espere os testes de refresh + logout +
+os 4 de login + os de `EmissorDeSessao` da T6.1; confirme o número real observado em vez de
+assumir o do plano.
 
 - [ ] **Step 6: Commit**
 
@@ -1313,13 +1497,45 @@ git commit -m "feat(auth): refresh com rotacao + logout com revogacao"
 
 ### Task 8: Repositórios EF, controller de auth, wiring e integração
 
+> **Pré-requisito de DI vindo da review da T6.1 — não pular.** A atomicidade da rotação
+> (um único `SaveChanges` cobrindo a revogação do token antigo e a inserção do novo) só vale
+> em produção se `RenovarTokenUseCase` e `EmissorDeSessao` compartilharem a **mesma instância**
+> de `IRefreshTokenRepository`/`DbContext`. `RotacionarAsync` muta `atual` e confia no change
+> tracking do EF — não existe `AtualizarAsync` explícito. Portanto: registrar
+> `IRefreshTokenRepository`, `IUsuarioRepository`, `EmissorDeSessao` e os use cases como
+> **`Scoped`** (nunca `Transient`, nunca `Singleton`). Com `Transient` a mutação em `atual`
+> aconteceria num contexto e o `SaveChanges` em outro, e a revogação **se perderia
+> silenciosamente** — o teste de unidade com fakes continuaria verde.
+>
+> **Corolário — teste de integração obrigatório para a rotação.** Como os fakes da T7
+> estruturalmente não conseguem pegar esse erro de DI, a T8 precisa de um teste de rotação
+> contra o **banco real**: fazer login, chamar refresh, e verificar no banco que (a) o token
+> antigo ficou com `RevogadoEm` preenchido, (b) `SubstituidoPorTokenHash` aponta para o hash
+> do token novo, e (c) o token antigo não serve mais para um segundo refresh. É esse teste
+> que prova a atomicidade de verdade.
+>
+> **Logout sempre responde 204.** `RevogarTokenUseCase.ExecutarAsync` retorna `Task` (sem
+> `Result`) e **por design nunca sinaliza falha** — logout é idempotente. O endpoint não deve
+> inventar 404/400 a partir dele: token ausente, desconhecido, expirado ou já revogado, todos
+> respondem `204 No Content` e limpam o cookie. Sinalizar o contrário vazaria a existência
+> de um token, que é exatamente o oráculo que a T7 eliminou das mensagens de erro.
+
 **Files:**
 - Create: `src/Rastreamento.Infrastructure/Persistence/UsuarioRepository.cs`
 - Create: `src/Rastreamento.Infrastructure/Persistence/RefreshTokenRepository.cs`
 - Create: `src/Rastreamento.Api/Controllers/AuthController.cs`
 - Modify: `src/Rastreamento.Api/Program.cs`
 - Modify: `src/Rastreamento.Api/appsettings.json`
-- Test: `tests/Rastreamento.Application.Tests/Api/AuthEndpointsTests.cs`
+- Create: **projeto novo** `tests/Rastreamento.Api.Tests` (xunit), adicionado à solution,
+  referenciando `src/Rastreamento.Api`
+- Test: `tests/Rastreamento.Api.Tests/AuthEndpointsTests.cs`
+
+> **Emenda (decidida pelo usuário).** O plano original punha os testes de endpoint em
+> `Rastreamento.Application.Tests`, o que obrigaria esse projeto a referenciar a Api (e
+> transitivamente a Infrastructure) — a mesma inversão de camada que motivou a criação do
+> `Rastreamento.Infrastructure.Tests`. Cada projeto de teste referencia só a sua camada.
+> Bônus: separa os testes de unidade rápidos (Application.Tests, ~73ms) dos testes de
+> integração lentos que exigem o container.
 
 **Interfaces:**
 - Consumes: todos os use cases (T6/T7), `RastreamentoDbContext` (T3), `IAccessTokenGenerator`/`JwtOptions` (T5).
@@ -1330,8 +1546,17 @@ git commit -m "feat(auth): refresh com rotacao + logout com revogacao"
 ```bash
 dotnet add src/Rastreamento.Api package Microsoft.AspNetCore.Authentication.JwtBearer
 dotnet add src/Rastreamento.Api package Microsoft.EntityFrameworkCore.Design
-dotnet add tests/Rastreamento.Application.Tests package Microsoft.AspNetCore.Mvc.Testing
+
+# Projeto de teste novo, dedicado à camada Api (ver emenda acima).
+dotnet new xunit -o tests/Rastreamento.Api.Tests
+dotnet sln add tests/Rastreamento.Api.Tests
+dotnet add tests/Rastreamento.Api.Tests reference src/Rastreamento.Api
+dotnet add tests/Rastreamento.Api.Tests package Microsoft.AspNetCore.Mvc.Testing
 ```
+
+> Apagar o `UnitTest1.cs` gerado pelo template. Para o `WebApplicationFactory<Program>`
+> enxergar a classe `Program` de um projeto com top-level statements, a Api precisa expor
+> `public partial class Program { }` no fim do `Program.cs` (ou `InternalsVisibleTo`).
 
 - [ ] **Step 2: Criar os repositórios EF**
 
@@ -1468,9 +1693,7 @@ public partial class Program { } // expõe Program p/ WebApplicationFactory
 ```csharp
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Rastreamento.Application.Auth;
-using Rastreamento.Infrastructure.Security;
 
 namespace Rastreamento.Api.Controllers;
 
@@ -1484,12 +1707,11 @@ public class AuthController : ControllerBase
     private readonly IAutenticarUsuarioUseCase _login;
     private readonly IRenovarTokenUseCase _renovar;
     private readonly IRevogarTokenUseCase _revogar;
-    private readonly JwtOptions _jwt;
 
     public AuthController(IAutenticarUsuarioUseCase login, IRenovarTokenUseCase renovar,
-        IRevogarTokenUseCase revogar, IOptions<JwtOptions> jwt)
+        IRevogarTokenUseCase revogar)
     {
-        _login = login; _renovar = renovar; _revogar = revogar; _jwt = jwt.Value;
+        _login = login; _renovar = renovar; _revogar = revogar;
     }
 
     public record LoginBody(string NomeUsuario, string Senha);
@@ -1554,7 +1776,7 @@ public class MeController : ControllerBase
 
 - [ ] **Step 6: Escrever o teste de integração (falha)**
 
-`tests/Rastreamento.Application.Tests/Api/AuthEndpointsTests.cs`:
+`tests/Rastreamento.Api.Tests/AuthEndpointsTests.cs`:
 
 ```csharp
 using System.Net;
@@ -1562,7 +1784,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
-namespace Rastreamento.Application.Tests.Api;
+namespace Rastreamento.Api.Tests;
 
 // Requer SQL Server da Task 2 no ar com seed (admin / Admin@123).
 public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
@@ -1629,7 +1851,7 @@ public class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
 
 - [ ] **Step 7: Rodar e ver falhar, depois passar**
 
-Run: `dotnet test tests/Rastreamento.Application.Tests`
+Run: `dotnet test tests/Rastreamento.Api.Tests`
 Expected inicial: FAIL (controller/rotas ainda não expostos ou cookie ausente); após Steps 2–5 aplicados, PASS em todos.
 
 > Se `Login_valido` falhar por hash, é sinal de que o `SenhaHash` do seed não corresponde a `Admin@123`: gere o hash com a Task 4 e reaplique o seed (Task 2, Step 7).
@@ -1637,12 +1859,14 @@ Expected inicial: FAIL (controller/rotas ainda não expostos ou cookie ausente);
 - [ ] **Step 8: Rodar a suíte completa**
 
 Run: `dotnet test`
-Expected: PASS em `Rastreamento.Domain.Tests` e `Rastreamento.Application.Tests`.
+Expected: PASS nos quatro projetos de teste (`Domain.Tests`, `Application.Tests`,
+`Infrastructure.Tests`, `Api.Tests`). Confirme o número real observado — o plano já errou
+contagem antes.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/Rastreamento.Infrastructure/Persistence src/Rastreamento.Api tests/Rastreamento.Application.Tests/Api
+git add src/Rastreamento.Infrastructure/Persistence src/Rastreamento.Api tests/Rastreamento.Api.Tests Rastreamento.slnx
 git commit -m "feat(api): endpoints de auth (login/refresh/logout) + /me + wiring JWT"
 ```
 
