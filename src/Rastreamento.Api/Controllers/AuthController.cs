@@ -34,6 +34,11 @@ public class AuthController : ControllerBase
         DateTime AccessTokenExpiraEm,
         UsuarioDto Usuario);
 
+    /// <remarks>
+    /// Falha sempre vira 401, sem consultar <c>TipoDoErro</c>: aqui toda falha e de autenticacao
+    /// e responder qualquer outra coisa distinguiria os casos (usuario inexistente, inativo,
+    /// senha errada) para quem chama.
+    /// </remarks>
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginBody body, CancellationToken ct)
     {
@@ -64,7 +69,9 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
         var refreshPlano = Request.Cookies[NomeDoCookieDeRefresh] ?? string.Empty;
-        await _revogar.ExecutarAsync(refreshPlano, ct);
+
+        // Resultado ignorado de proposito: a resposta e 204 em qualquer cenario.
+        _ = await _revogar.ExecutarAsync(refreshPlano, ct);
 
         Response.Cookies.Delete(NomeDoCookieDeRefresh, new CookieOptions { Path = "/auth" });
         return NoContent();

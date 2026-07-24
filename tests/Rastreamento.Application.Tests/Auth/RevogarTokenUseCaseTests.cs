@@ -24,22 +24,26 @@ public class RevogarTokenUseCaseTests
         var repo = new FakeRefreshTokenRepo { Ativo = TokenAtivo() };
         var uc = new RevogarTokenUseCase(repo, Hasher);
 
-        await uc.ExecutarAsync("plano", default);
+        var r = await uc.ExecutarAsync("plano", default);
 
+        Assert.True(r.Sucesso);
         Assert.NotNull(repo.Ativo!.RevogadoEm);
         Assert.Equal(DateTimeKind.Utc, repo.Ativo.RevogadoEm!.Value.Kind);
         Assert.Equal(1, repo.Saves);
     }
 
     [Fact]
-    public async Task Logout_token_inexistente_nao_lanca()
+    public async Task Logout_token_inexistente_e_sucesso_sem_salvar()
     {
+        // "Nao havia nada para revogar" e sucesso: sinalizar falha aqui vazaria a existencia
+        // do token e quebraria a idempotencia que o endpoint de logout promete.
         var repo = new FakeRefreshTokenRepo { Ativo = null };
         var uc = new RevogarTokenUseCase(repo, Hasher);
 
-        var ex = await Record.ExceptionAsync(() => uc.ExecutarAsync("nada", default));
+        var r = await uc.ExecutarAsync("nada", default);
 
-        Assert.Null(ex);
+        Assert.True(r.Sucesso);
+        Assert.Null(r.Erro);
         Assert.Equal(0, repo.Saves);
     }
 

@@ -1,4 +1,5 @@
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Common;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -45,6 +46,7 @@ public class AutenticarUsuarioUseCaseTests
 
         Assert.True(r.Sucesso);
         Assert.Null(r.Erro);
+        Assert.Null(r.TipoDoErro);
         Assert.Equal("access-admin", r.Valor!.AccessToken);
         Assert.Equal(1, r.Valor.Usuario.Id);
         Assert.Equal("admin", r.Valor.Usuario.NomeUsuario);
@@ -78,6 +80,7 @@ public class AutenticarUsuarioUseCaseTests
         Assert.False(r.Sucesso);
         Assert.Null(r.Valor);
         Assert.Equal(ErroGenerico, r.Erro);
+        Assert.Equal(TipoDeErro.NaoAutorizado, r.TipoDoErro);
         Assert.Empty(refreshRepo.Adicionados);
     }
 
@@ -90,6 +93,7 @@ public class AutenticarUsuarioUseCaseTests
 
         Assert.False(r.Sucesso);
         Assert.Equal(ErroGenerico, r.Erro);
+        Assert.Equal(TipoDeErro.NaoAutorizado, r.TipoDoErro);
         Assert.Empty(refreshRepo.Adicionados);
     }
 
@@ -104,6 +108,7 @@ public class AutenticarUsuarioUseCaseTests
 
         Assert.False(r.Sucesso);
         Assert.Equal(ErroGenerico, r.Erro);
+        Assert.Equal(TipoDeErro.NaoAutorizado, r.TipoDoErro);
         Assert.Empty(refreshRepo.Adicionados);
     }
 

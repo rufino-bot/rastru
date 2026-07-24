@@ -1,4 +1,5 @@
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Common;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -135,17 +136,21 @@ public class RenovarTokenUseCaseTests
         var desativado = TokenAtivo();
         desativado.Usuario.Ativo = false;
 
-        var erros = new List<string?>();
+        var falhas = new List<Result<LoginResult>>();
         foreach (var cenario in new RefreshToken?[] { null, expirado, desativado })
         {
             var (uc, _) = Montar(cenario);
-            erros.Add((await uc.ExecutarAsync("plano-antigo", default)).Erro);
+            falhas.Add(await uc.ExecutarAsync("plano-antigo", default));
         }
 
         // Token vazio tambem nao pode se distinguir dos demais.
         var (ucVazio, _) = Montar(TokenAtivo());
-        erros.Add((await ucVazio.ExecutarAsync("", default)).Erro);
+        falhas.Add(await ucVazio.ExecutarAsync("", default));
 
-        Assert.Single(erros.Distinct());
+        Assert.Single(falhas.Select(f => f.Erro).Distinct());
+        // O tipo do erro tambem e unico: e ele que decide o status HTTP, entao variar aqui
+        // vazaria a condicao que falhou pelo codigo de resposta.
+        Assert.Single(falhas.Select(f => f.TipoDoErro).Distinct());
+        Assert.All(falhas, f => Assert.Equal(TipoDeErro.NaoAutorizado, f.TipoDoErro));
     }
 }

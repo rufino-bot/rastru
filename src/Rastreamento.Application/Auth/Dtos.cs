@@ -26,5 +26,10 @@ public interface IRenovarTokenUseCase
 
 public interface IRevogarTokenUseCase
 {
-    Task ExecutarAsync(string refreshTokenPlano, CancellationToken ct);
+    /// <summary>
+    /// Sempre bem-sucedido: logout e idempotente por design (ver <c>RevogarTokenUseCase</c>).
+    /// Devolve <see cref="Result"/> em vez de <c>Task</c> pelado so para nao ser a excecao da
+    /// convencao dos casos de uso — o endpoint de logout ignora o resultado de proposito.
+    /// </summary>
+    Task<Result> ExecutarAsync(string refreshTokenPlano, CancellationToken ct);
 }

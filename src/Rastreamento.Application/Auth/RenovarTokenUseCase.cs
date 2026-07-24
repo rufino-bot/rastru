@@ -22,7 +22,7 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
     public async Task<Result<LoginResult>> ExecutarAsync(string refreshTokenPlano, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(refreshTokenPlano))
-            return Result<LoginResult>.Falha("Refresh token inválido ou expirado.");
+            return Result<LoginResult>.Falha("Refresh token inválido ou expirado.", TipoDeErro.NaoAutorizado);
 
         var hash = _tokenHasher.Hash(refreshTokenPlano);
         var atual = await _refreshTokens.ObterAtivoPorHashAsync(hash, ct);
@@ -38,7 +38,7 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
             || atual.RevogadoEm is not null
             || atual.ExpiraEm <= DateTime.UtcNow
             || !atual.Usuario.Ativo)
-            return Result<LoginResult>.Falha("Refresh token inválido ou expirado.");
+            return Result<LoginResult>.Falha("Refresh token inválido ou expirado.", TipoDeErro.NaoAutorizado);
 
         // Revogação do antigo + emissão do novo num único save (ver EmissorDeSessao).
         var novaSessao = await _emissor.RotacionarAsync(atual, ct);

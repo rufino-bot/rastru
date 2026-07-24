@@ -34,7 +34,7 @@ public class AutenticarUsuarioUseCase : IAutenticarUsuarioUseCase
         // Falha unica e generica: usuario inexistente, inativo e senha errada sao
         // indistinguiveis para quem chama (evita enumeracao de usuarios).
         if (usuario is null || !usuario.Ativo || !senhaConfere)
-            return Result<LoginResult>.Falha("Usuário ou senha inválidos.");
+            return Result<LoginResult>.Falha("Usuário ou senha inválidos.", TipoDeErro.NaoAutorizado);
 
         var sessao = await _emissor.EmitirAsync(usuario, ct);
         return Result<LoginResult>.Ok(sessao);
