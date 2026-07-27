@@ -1,12 +1,10 @@
 /* =====================================================================
    MODELO DE RASTREAMENTO DE PEÇAS - SQL Server (T-SQL)
-   Camadas: Catálogo (receita padrão) > Pedido/Kit > Estrutura real
+   Camadas: Catálogo (receita padrão) > Pedido/Agrupamento > Estrutura real
             (árvore recursiva) > Execução/rastreamento > Dimensional
 
-   Aplicar via sqlcmd exige a flag -I (SET QUOTED_IDENTIFIER ON), por causa
-   do índice único filtrado UX_EstruturaSetorHistorico_UmaAbertaPorItem
-   (índices filtrados exigem QUOTED_IDENTIFIER ON). Sem -I, o CREATE INDEX
-   falha com o erro 1934.
+   Observação: o schema não usa mais índices filtrados; a flag -I do sqlcmd
+   deixou de ser obrigatória (é inofensiva se mantida).
    ===================================================================== */
 
 /* ---------------------------------------------------------------------
@@ -132,7 +130,7 @@ CREATE TABLE dbo.ComponenteRoteiroPadrao (
 );
 
 /* ---------------------------------------------------------------------
-   PEDIDO / KIT
+   PEDIDO / AGRUPAMENTO
    --------------------------------------------------------------------- */
 
 CREATE TABLE dbo.Pedido (
@@ -156,43 +154,47 @@ CREATE TABLE dbo.Pedido (
         CHECK (Tipo <> 'Retrabalho' OR PedidoOrigemId IS NOT NULL),
     CONSTRAINT CK_Pedido_MotivoRetrabalho
         CHECK (MotivoRetrabalho IS NULL
-            OR MotivoRetrabalho IN ('ReprovacaoDimensional', 'ErroInterno', 'SolicitacaoCliente')),
+            OR MotivoRetrabalho IN ('ReprovacaoDimensional', 'ErroInterno', 'SolicitacaoCliente', 'Perda')),
     CONSTRAINT CK_Pedido_MotivoSoSeRetrabalho
         CHECK (Tipo = 'Retrabalho' OR MotivoRetrabalho IS NULL),
     CONSTRAINT CK_Pedido_ConclusaoAposAbertura
         CHECK (DataConclusao IS NULL OR DataConclusao >= DataAbertura)
 );
 
-CREATE TABLE dbo.Kit (
+CREATE TABLE dbo.Agrupamento (
     Id              INT IDENTITY(1,1)  NOT NULL,
     PedidoId        INT                 NOT NULL,
     Codigo          NVARCHAR(50)        NOT NULL,
     Quantidade      DECIMAL(18,4)       NOT NULL,
-    DataConclusao   DATETIME2           NULL, -- preenchida na expedição/aprovação do kit
-    CONSTRAINT PK_Kit PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_Kit_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
-    CONSTRAINT UQ_Kit_PedidoCodigo UNIQUE (PedidoId, Codigo)
+    Tipo            NVARCHAR(20)        NOT NULL, -- Kit (vai para solda) | Avulso (não passa por solda); descritivo
+    DataConclusao   DATETIME2           NULL, -- preenchida quando todas as Peças do agrupamento fecham
+    CONSTRAINT PK_Agrupamento PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Agrupamento_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT UQ_Agrupamento_PedidoCodigo UNIQUE (PedidoId, Codigo),
+    CONSTRAINT CK_Agrupamento_Tipo CHECK (Tipo IN ('Kit', 'Avulso'))
 );
 
 /* ---------------------------------------------------------------------
-   ESTRUTURA REAL (árvore recursiva efetivamente usada no Pedido/Kit;
+   ESTRUTURA REAL (árvore recursiva efetivamente usada no Pedido/Agrupamento;
    pode ter sido copiada do catálogo e depois customizada)
    --------------------------------------------------------------------- */
 
 CREATE TABLE dbo.EstruturaItem (
-    Id                  INT IDENTITY(1,1)  NOT NULL,
-    KitId               INT                 NOT NULL,
-    ComponenteId        INT                 NULL,       -- nullable: item 100% ad-hoc, sem base no catálogo
-    EstruturaPaiId      INT                 NULL,       -- self-FK: recursão Peça -> Item -> ... -> Item
-    NivelHierarquico    NVARCHAR(10)        NOT NULL,   -- Peca | Item (denormalizado p/ consulta rápida)
-    Quantidade          DECIMAL(18,4)       NOT NULL,   -- lote agregado, indivisível
+    Id                          INT IDENTITY(1,1)  NOT NULL,
+    AgrupamentoId               INT                 NOT NULL,
+    ComponenteId                INT                 NULL,       -- nullable: item 100% ad-hoc, sem base no catálogo
+    EstruturaPaiId              INT                 NULL,       -- self-FK: recursão Peça -> Item -> ... -> Item
+    NivelHierarquico            NVARCHAR(10)        NOT NULL,   -- Peca | Item (denormalizado p/ consulta rápida)
+    Quantidade                  DECIMAL(18,4)       NOT NULL,   -- lote agregado (divisível por quantidades livres)
+    RequerRelatorioDimensional  BIT                 NOT NULL
+        CONSTRAINT DF_EstruturaItem_RequerRelatorio DEFAULT (0), -- vale p/ Peça (topo); cliente exige no cadastro
     CONSTRAINT PK_EstruturaItem PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_EstruturaItem_Kit FOREIGN KEY (KitId) REFERENCES dbo.Kit (Id),
+    CONSTRAINT FK_EstruturaItem_Agrupamento FOREIGN KEY (AgrupamentoId) REFERENCES dbo.Agrupamento (Id),
     CONSTRAINT FK_EstruturaItem_Componente FOREIGN KEY (ComponenteId) REFERENCES dbo.Componente (Id),
     CONSTRAINT FK_EstruturaItem_Pai FOREIGN KEY (EstruturaPaiId) REFERENCES dbo.EstruturaItem (Id),
     CONSTRAINT CK_EstruturaItem_NaoAutoReferencia CHECK (EstruturaPaiId <> Id),
     CONSTRAINT CK_EstruturaItem_NivelHierarquico CHECK (NivelHierarquico IN ('Peca', 'Item')),
-    -- Peça = topo da árvore dentro do Kit (sem pai); Item = tem pai
+    -- Peça = topo da árvore dentro do Agrupamento (sem pai); Item = tem pai
     CONSTRAINT CK_EstruturaItem_PecaSemPai
         CHECK ((NivelHierarquico = 'Peca' AND EstruturaPaiId IS NULL)
             OR (NivelHierarquico = 'Item' AND EstruturaPaiId IS NOT NULL))
@@ -235,7 +237,7 @@ CREATE TABLE dbo.EstruturaSetorHistorico (
     QuantidadeMovimentada DECIMAL(18,4)     NOT NULL,
     DataEntrada         DATETIME2           NOT NULL,   -- chegada no setor (pode ficar em fila)
     DataInicioExecucao  DATETIME2           NULL,       -- início real do trabalho (opcional, p/ KPI de fila x capacidade)
-    DataSaida           DATETIME2           NULL,       -- NULL = ainda está nesse setor
+    DataSaida           DATETIME2           NULL,       -- NULL = ainda está nesse setor (várias passagens abertas por item são permitidas: lote divisível)
     CONSTRAINT PK_EstruturaSetorHistorico PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_EstruturaSetorHistorico_EstruturaItem
         FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
@@ -246,12 +248,6 @@ CREATE TABLE dbo.EstruturaSetorHistorico (
     CONSTRAINT CK_EstruturaSetorHistorico_SaidaAposEntrada
         CHECK (DataSaida IS NULL OR DataSaida >= DataEntrada)
 );
-GO
-
--- Lote é indivisível: garante no máx. 1 passagem "aberta" (sem saída) por item
-CREATE UNIQUE INDEX UX_EstruturaSetorHistorico_UmaAbertaPorItem
-    ON dbo.EstruturaSetorHistorico (EstruturaItemId)
-    WHERE DataSaida IS NULL;
 GO
 
 CREATE TABLE dbo.MaterialSeparacao (
@@ -268,26 +264,80 @@ CREATE TABLE dbo.MaterialSeparacao (
         FOREIGN KEY (MaterialId) REFERENCES dbo.Material (Id)
 );
 
+-- Remessa de expedição. Expedição parcial = várias linhas cuja soma <= Quantidade da Peça
+-- (a validação "soma <= total" é feita na camada de aplicação, não como constraint).
+CREATE TABLE dbo.Expedicao (
+    Id              INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId INT                 NOT NULL, -- Peça expedida (NivelHierarquico = 'Peca')
+    Quantidade      DECIMAL(18,4)       NOT NULL,
+    DataExpedicao   DATETIME2           NOT NULL CONSTRAINT DF_Expedicao_Data DEFAULT (SYSUTCDATETIME()),
+    Responsavel     NVARCHAR(100)       NOT NULL,
+    CONSTRAINT PK_Expedicao PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Expedicao_EstruturaItem
+        FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT CK_Expedicao_QuantidadePositiva CHECK (Quantidade > 0)
+);
+GO
+
 /* ---------------------------------------------------------------------
    DIMENSIONAL / QUALIDADE
    --------------------------------------------------------------------- */
 
+-- Header: no máx. um Relatório Dimensional por Peça (opcional; só quando o cliente exige,
+-- flag EstruturaItem.RequerRelatorioDimensional). Acumulativo via RelatorioDimensionalAvaliacao.
 CREATE TABLE dbo.RelatorioDimensional (
     Id                      INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId         INT                 NOT NULL, -- peça avaliada (NivelHierarquico = 'Peca')
-    DentroTolerancia        BIT                 NOT NULL,
-    Medidas                 NVARCHAR(MAX)       NULL,      -- detalhes/medições informadas
-    InformadoPor            NVARCHAR(200)       NOT NULL,  -- contato do cliente que informou
-    DataAvaliacao           DATETIME2           NOT NULL CONSTRAINT DF_RelatorioDimensional_Data DEFAULT (SYSUTCDATETIME()),
-    PedidoRetrabalhoId      INT                 NULL,      -- retrabalho aberto por causa desta reprovação
+    CriadoEm                DATETIME2           NOT NULL CONSTRAINT DF_RelatorioDimensional_CriadoEm DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT PK_RelatorioDimensional PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_RelatorioDimensional_EstruturaItem
         FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
-    CONSTRAINT FK_RelatorioDimensional_PedidoRetrabalho
-        FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id)
-    -- Confirmado com o negócio: reprovação pode ficar registrada sem retrabalho
-    -- imediato. PedidoRetrabalhoId fica NULL até que (e se) um retrabalho seja
-    -- aberto depois, via update nesta linha.
+    CONSTRAINT UQ_RelatorioDimensional_EstruturaItem UNIQUE (EstruturaItemId)
+);
+GO
+
+-- Detalhe: uma avaliação por remessa avaliada pelo cliente (chega conforme a expedição parcial).
+-- Aprovação/reprovação é por quantidade; retrabalho (opcional) fica vinculado à avaliação.
+CREATE TABLE dbo.RelatorioDimensionalAvaliacao (
+    Id                     INT IDENTITY(1,1) NOT NULL,
+    RelatorioDimensionalId INT               NOT NULL,
+    QuantidadeAvaliada     DECIMAL(18,4)      NOT NULL,
+    QuantidadeAprovada     DECIMAL(18,4)      NOT NULL,
+    QuantidadeReprovada    DECIMAL(18,4)      NOT NULL,
+    Medidas                NVARCHAR(MAX)      NULL,
+    InformadoPor           NVARCHAR(200)      NOT NULL, -- contato do cliente que informou
+    DataAvaliacao          DATETIME2          NOT NULL CONSTRAINT DF_RDA_Data DEFAULT (SYSUTCDATETIME()),
+    PedidoRetrabalhoId     INT               NULL,      -- retrabalho aberto por causa desta avaliação (opcional)
+    CONSTRAINT PK_RelatorioDimensionalAvaliacao PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_RDA_Relatorio
+        FOREIGN KEY (RelatorioDimensionalId) REFERENCES dbo.RelatorioDimensional (Id),
+    CONSTRAINT FK_RDA_PedidoRetrabalho
+        FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT CK_RDA_Quantidades
+        CHECK (QuantidadeAprovada + QuantidadeReprovada = QuantidadeAvaliada
+           AND QuantidadeAprovada >= 0 AND QuantidadeReprovada >= 0)
+);
+GO
+
+-- Baixa de quantidade perdida em produção (some no armazém ou morre após processo).
+-- Bucket terminal: em setores + expedido + perdido = total da Peça.
+-- Reposição = Pedido de Retrabalho separado (MotivoRetrabalho='Perda'), manual/opcional.
+CREATE TABLE dbo.Perda (
+    Id                 INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId    INT                 NOT NULL, -- Peça que sofreu a perda
+    Quantidade         DECIMAL(18,4)       NOT NULL,
+    MotivoPerda        NVARCHAR(20)        NOT NULL, -- PerdaArmazem | MortaEmProcesso
+    Observacao         NVARCHAR(MAX)       NULL,     -- detalhe livre opcional
+    SetorId            INT                 NULL,     -- onde estava quando se perdeu (opcional)
+    DataPerda          DATETIME2           NOT NULL CONSTRAINT DF_Perda_Data DEFAULT (SYSUTCDATETIME()),
+    Responsavel        NVARCHAR(100)       NOT NULL,
+    PedidoRetrabalhoId INT                 NULL,     -- retrabalho aberto p/ repor (opcional)
+    CONSTRAINT PK_Perda PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Perda_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_Perda_Setor FOREIGN KEY (SetorId) REFERENCES dbo.Setor (Id),
+    CONSTRAINT FK_Perda_PedidoRetrabalho FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT CK_Perda_QuantidadePositiva CHECK (Quantidade > 0),
+    CONSTRAINT CK_Perda_Motivo CHECK (MotivoPerda IN ('PerdaArmazem', 'MortaEmProcesso'))
 );
 GO
 
@@ -295,12 +345,14 @@ GO
    ÍNDICES DE APOIO (consultas de rastreamento e KPI mais comuns)
    --------------------------------------------------------------------- */
 
-CREATE INDEX IX_EstruturaItem_Kit ON dbo.EstruturaItem (KitId);
+CREATE INDEX IX_EstruturaItem_Agrupamento ON dbo.EstruturaItem (AgrupamentoId);
 CREATE INDEX IX_EstruturaItem_Pai ON dbo.EstruturaItem (EstruturaPaiId);
 CREATE INDEX IX_EstruturaSetorHistorico_Item ON dbo.EstruturaSetorHistorico (EstruturaItemId, DataEntrada);
 CREATE INDEX IX_EstruturaSetorHistorico_Setor ON dbo.EstruturaSetorHistorico (SetorId, DataEntrada);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
-CREATE INDEX IX_RelatorioDimensional_EstruturaItem ON dbo.RelatorioDimensional (EstruturaItemId);
+CREATE INDEX IX_Expedicao_EstruturaItem ON dbo.Expedicao (EstruturaItemId);
+CREATE INDEX IX_RDA_Relatorio ON dbo.RelatorioDimensionalAvaliacao (RelatorioDimensionalId);
+CREATE INDEX IX_Perda_EstruturaItem ON dbo.Perda (EstruturaItemId);
 GO
 
 /* =====================================================================
@@ -327,7 +379,7 @@ GO
 --     SELECT MIN(esh.DataEntrada) AS InicioReal
 --     FROM dbo.EstruturaSetorHistorico esh
 --     JOIN dbo.EstruturaItem ei ON ei.Id = esh.EstruturaItemId
---     JOIN dbo.Kit k ON k.Id = ei.KitId
---     WHERE k.PedidoId = p.Id
+--     JOIN dbo.Agrupamento a ON a.Id = ei.AgrupamentoId
+--     WHERE a.PedidoId = p.Id
 -- ) inicio_producao
 -- WHERE p.DataConclusao IS NOT NULL;
