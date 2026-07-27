@@ -56,7 +56,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    conclui quando todas as suas Peças concluem; se for o último Agrupamento em aberto do
    Pedido → Pedido.DataConclusao é preenchida.
 
-## 5. Retrabalho por Reprovação
+## 5. Retrabalho (Reprovação ou Perda)
 
 *Perfil: Qualidade*
 

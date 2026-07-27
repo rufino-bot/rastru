@@ -9,7 +9,7 @@ cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
 - Rastreamento da passagem de cada componente pelos Setores de produção
 - Separação e entrega de Materiais de estoque para fabricação
 - Relatório Dimensional opcional por Peça (quando o cliente exige), com aprovação/reprovação por quantidade
-- Abertura de Pedidos de Retrabalho vinculados ao Pedido original, quando houver reprovação
+- Abertura de Pedidos de Retrabalho vinculados ao Pedido original, quando houver reprovação ou perda
 - KPIs de tempo (tempo por setor, tempo total de fila x produção por pedido)
 
 ## Fora de escopo (por ora)

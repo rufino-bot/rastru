@@ -32,8 +32,8 @@ resolvidos (ou conscientemente adiados).
 ## Fase 3 — Rastreamento de setor
 
 - Apontamento de entrada/saída de `EstruturaItem` em `Setor`.
-- Validação de conservação de quantidade (soma em setores + expedido + perdido = total;
-  na aplicação, não por índice filtrado).
+- Validação de conservação de quantidade (soma em setores + expedido + perdido = total
+  da Peça; na aplicação, não por índice filtrado).
 - Tela de "fila do setor" para o operador.
 - Critério de pronto: dá para acompanhar, item por item, em qual setor cada peça está.
 

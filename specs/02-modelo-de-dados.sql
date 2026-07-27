@@ -315,6 +315,7 @@ CREATE TABLE dbo.RelatorioDimensionalAvaliacao (
         FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
     CONSTRAINT CK_RDA_Quantidades
         CHECK (QuantidadeAprovada + QuantidadeReprovada = QuantidadeAvaliada
+           AND QuantidadeAvaliada > 0
            AND QuantidadeAprovada >= 0 AND QuantidadeReprovada >= 0)
 );
 GO

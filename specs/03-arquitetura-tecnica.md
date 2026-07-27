@@ -31,8 +31,9 @@ tests/
   auditar.
 - `AbrirRetrabalhoUseCase` recebe `MotivoRetrabalho` (obrigatório, um dos valores
   `ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`) e, opcionalmente, o
-  `RelatorioDimensionalAvaliacaoId` que motivou a abertura — reprovação não gera
-  retrabalho automaticamente, é uma ação separada do usuário.
+  `RelatorioDimensionalAvaliacaoId` (reprovação) **ou** o `PerdaId` (perda) que motivou a
+  abertura — reprovação não gera retrabalho automaticamente, é uma ação separada do
+  usuário.
 
 ## Autenticação e Autorização
 
