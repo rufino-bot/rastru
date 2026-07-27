@@ -55,6 +55,13 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     /// <summary>Quantos commits o repositorio recebeu — permite provar "um unico save".</summary>
     public int Saves { get; private set; }
 
+    /// <summary>Ids de usuario cuja familia de tokens foi queimada, na ordem das chamadas.</summary>
+    public List<int> RevogacoesEmMassa { get; } = new();
+
+    /// <summary>Tudo que o fake "conhece": o token de partida mais os emitidos durante o teste.</summary>
+    private IEnumerable<RefreshToken> Todos =>
+        Ativo is null ? Adicionados : Adicionados.Append(Ativo);
+
     public Task AdicionarAsync(RefreshToken token, CancellationToken ct)
     {
         Adicionados.Add(token);
@@ -63,6 +70,30 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
 
     public Task<RefreshToken?> ObterAtivoPorHashAsync(string tokenHash, CancellationToken ct) =>
         Task.FromResult(Ativo is not null && Ativo.TokenHash == tokenHash && Ativo.RevogadoEm is null ? Ativo : null);
+
+    /// <summary>Sem filtro de estado: e o que permite ao caso de uso ver um token ja revogado.</summary>
+    public Task<RefreshToken?> ObterPorHashAsync(string tokenHash, CancellationToken ct) =>
+        Task.FromResult(Ativo is not null && Ativo.TokenHash == tokenHash ? Ativo : null);
+
+    /// <summary>
+    /// Revoga de verdade os tokens conhecidos do usuario (nao so registra a chamada): e assim que
+    /// o teste consegue provar que a sessao emitida ao ladrao tambem cai.
+    /// </summary>
+    public Task<int> RevogarTodosAtivosDoUsuarioAsync(
+        int usuarioId, DateTime revogadoEm, CancellationToken ct)
+    {
+        RevogacoesEmMassa.Add(usuarioId);
+        var revogados = 0;
+        foreach (var token in Todos.Where(t => t.UsuarioId == usuarioId && t.RevogadoEm is null))
+        {
+            token.RevogadoEm = revogadoEm;
+            revogados++;
+        }
+
+        // O metodo real persiste sozinho — o fake conta o save para nao mascarar isso.
+        Saves++;
+        return Task.FromResult(revogados);
+    }
 
     public Task SalvarAlteracoesAsync(CancellationToken ct)
     {
