@@ -18,19 +18,19 @@ de time, se houver uma já estabelecida.
 - `GET/POST /componentes/{id}/materiais-padrao`
 - `GET/POST /componentes/{id}/roteiro-padrao`
 
-## Pedido / Kit
+## Pedido / Agrupamento
 
 - `GET/POST /pedidos`
 - `GET /pedidos/{id}`
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
-  Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente', relatorioDimensionalId?: number }`
-- `GET/POST /pedidos/{id}/kits`
-- `GET /kits/{id}`
+  Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`
+- `GET/POST /pedidos/{id}/agrupamentos`
+- `GET /agrupamentos/{id}`
 
 ## Estrutura
 
-- `GET /kits/{id}/estrutura` — árvore completa de `EstruturaItem` do Kit
-- `POST /kits/{id}/estrutura` — cria Peça (nó de topo), com opção de copiar de um
+- `GET /agrupamentos/{id}/estrutura` — árvore completa de `EstruturaItem` do Agrupamento
+- `POST /agrupamentos/{id}/estrutura` — cria Peça (nó de topo), com opção de copiar de um
   `Componente` padrão
 - `POST /estrutura-itens/{id}/itens` — adiciona Item filho a um `EstruturaItem`
 - `GET/POST /estrutura-itens/{id}/materiais`
@@ -44,10 +44,34 @@ de time, se houver uma já estabelecida.
 - `POST /estrutura-itens/{id}/separacoes-material`
 - `GET /setores/{id}/fila` — itens aguardando/em execução naquele setor
 
+## Expedição
+
+*(Rotas em nível de Peça, `estruturaItemId`; nomes definitivos podem ser afinados na
+fase de implementação da API.)*
+
+- `POST /pecas/{estruturaItemId}/expedicoes` — registra uma remessa parcial.
+  Body: `{ quantidade, responsavel }`
+- `GET /pecas/{estruturaItemId}/expedicoes`
+
 ## Dimensional
 
-- `GET/POST /estrutura-itens/{id}/relatorios-dimensionais`
-- `GET /kits/{id}/relatorios-dimensionais`
+*(Modelo header + detalhe por quantidade. Rotas em nível de Peça, `estruturaItemId`;
+nomes definitivos podem ser afinados na fase de implementação da API.)*
+
+- `GET /pecas/{estruturaItemId}/relatorio-dimensional` — header do `RelatorioDimensional`
+  da Peça, com as `RelatorioDimensionalAvaliacao` (uma por remessa avaliada)
+- `POST /pecas/{estruturaItemId}/relatorio-dimensional/avaliacoes` — registra uma
+  avaliação por quantidade.
+  Body: `{ quantidadeAvaliada, quantidadeAprovada, quantidadeReprovada, medidas?, informadoPor }`
+
+## Perdas
+
+*(Rotas em nível de Peça, `estruturaItemId`; nomes definitivos podem ser afinados na
+fase de implementação da API.)*
+
+- `POST /pecas/{estruturaItemId}/perdas` — registra uma Perda.
+  Body: `{ quantidade, motivoPerda: 'PerdaArmazem' | 'MortaEmProcesso', setorId?, observacao?, responsavel }`
+- `GET /pecas/{estruturaItemId}/perdas`
 
 ## KPIs
 

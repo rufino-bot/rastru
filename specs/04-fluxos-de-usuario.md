@@ -8,12 +8,13 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 *Perfil: PCP*
 
 1. PCP cadastra Pedido (`Tipo = Fabricacao`), com Cliente e Número.
-2. PCP cadastra N Kits para o Pedido.
-3. Para cada Kit, PCP monta a estrutura (`EstruturaItem`):
+2. PCP cadastra N Agrupamentos para o Pedido (cada um com Tipo `'Kit'` ou `'Avulso'`).
+3. Para cada Agrupamento, PCP monta a estrutura (`EstruturaItem`):
    - Pode puxar de um `Componente` padrão do catálogo (copia `ComponenteFilhoPadrao`,
      `ComponenteMaterialPadrao` e `ComponenteRoteiroPadrao` para dentro da estrutura
-     real do Kit, como ponto de partida editável).
+     real do Agrupamento, como ponto de partida editável).
    - Pode criar itens 100% customizados (sem `ComponenteId`), específicos deste Pedido.
+   - Para cada Peça (nó de topo do `EstruturaItem`), marca se ela `RequerRelatorioDimensional`.
 4. Pedido fica com `Status = Aberto` até o primeiro apontamento de setor
    (`Status = EmProducao`).
 
@@ -24,8 +25,9 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 1. Operador do setor abre a tela do seu Setor e vê os itens aguardando entrada.
 2. Ao iniciar o trabalho em um `EstruturaItem`, registra entrada
    (`EstruturaSetorHistorico.DataEntrada`).
-3. Ao concluir, registra saída (`DataSaida`) — sistema valida que não existe outra
-   passagem aberta para o mesmo item (lote indivisível).
+3. Ao concluir, registra saída (`DataSaida`) de uma quantidade; o sistema permite que a
+   Peça tenha quantidades em setores diferentes ao mesmo tempo (lote divisível). O que se
+   valida é a conservação de quantidade (nunca movimentar mais do que existe naquele ponto).
 4. Sistema direciona o item para o próximo Setor do roteiro (`EstruturaRoteiro`), ou
    marca como pronto para virar parte da Peça-pai / seguir para Expedição, se for o
    último passo.
@@ -40,32 +42,48 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 3. Regra a validar: sistema pode alertar (não necessariamente bloquear) se a
    quantidade separada for menor que a quantidade planejada em `EstruturaMaterial`.
 
-## 4. Relatório Dimensional (Expedição)
+## 4. Expedição e Relatório Dimensional
 
 *Perfil: Qualidade*
 
-1. Quando todas as Peças de um Kit chegam à Expedição, Qualidade registra, para
-   **cada Peça** (`EstruturaItem` com `NivelHierarquico = Peca`), um
-   `RelatorioDimensional` com `DentroTolerancia = true/false`.
-2. Se todas as Peças do Kit estiverem aprovadas → `Kit.DataConclusao` é preenchida.
-3. Se o Kit concluído for o último Kit em aberto do Pedido → `Pedido.DataConclusao`
-   é preenchida e `Status = Concluido`.
+1. A expedição pode ser **parcial**: o cliente aceita uma quantidade vital agora
+   (uma remessa = uma linha em Expedicao) e o restante depois.
+2. Se a Peça foi marcada com RequerRelatorioDimensional, a Qualidade registra, para cada
+   remessa avaliada pelo cliente, uma RelatorioDimensionalAvaliacao com a quantidade
+   avaliada/aprovada/reprovada (acumulando no relatório único da Peça). Sem essa marca,
+   não há relatório.
+3. Uma Peça conclui quando toda a sua quantidade virou expedido ou perdido. O Agrupamento
+   conclui quando todas as suas Peças concluem; se for o último Agrupamento em aberto do
+   Pedido → Pedido.DataConclusao é preenchida.
 
-## 5. Retrabalho por Reprovação
+## 5. Retrabalho (Reprovação ou Perda)
 
 *Perfil: Qualidade*
 
-1. Se uma Peça é reprovada no Relatório Dimensional, o registro fica salvo normalmente
-   — **não** abre retrabalho automaticamente.
+1. Se uma Peça (ou parte de sua quantidade) é reprovada no Relatório Dimensional, o
+   registro fica salvo normalmente — **não** abre retrabalho automaticamente.
 2. Quando (e se) Qualidade decidir abrir o retrabalho, cria um novo Pedido
    (`Tipo = Retrabalho`, `PedidoOrigemId` = Pedido original, `MotivoRetrabalho` =
-   `ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`).
-3. Se a abertura partiu de uma reprovação específica, o `RelatorioDimensional`
-   correspondente é vinculado (`PedidoRetrabalhoId`).
-4. O novo Pedido de Retrabalho segue o mesmo fluxo 1-4 normalmente (cadastro de Kit/
-   estrutura, apontamento de setor, separação de material, novo dimensional).
+   `ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`), para a
+   quantidade reprovada (ou perdida).
+3. Se a abertura partiu de uma reprovação específica, a `RelatorioDimensionalAvaliacao`
+   correspondente é vinculada (`PedidoRetrabalhoId`). Se partiu de uma perda, é a
+   `Perda` correspondente que é vinculada (`Perda.PedidoRetrabalhoId`).
+4. O novo Pedido de Retrabalho segue o mesmo fluxo 1-4 normalmente (cadastro de
+   Agrupamento/estrutura, apontamento de setor, separação de material, novo dimensional).
 
-## 6. Consulta de KPIs (gestão)
+## 6. Perda de peças
+
+*Perfil: Qualidade / PCP*
+
+1. Quando uma quantidade se perde em produção (some no armazém = PerdaArmazem, ou morre
+   após um processo = MortaEmProcesso), registra-se uma Perda (Peça, quantidade, motivo,
+   opcionalmente o Setor onde estava, responsável, observação).
+2. A quantidade perdida sai da produção (bucket terminal), contando para a conclusão da Peça.
+3. Para repor, a Qualidade/PCP pode (opcional) abrir um Pedido de Retrabalho para aquela
+   quantidade, com MotivoRetrabalho='Perda', vinculado via Perda.PedidoRetrabalhoId.
+
+## 7. Consulta de KPIs (gestão)
 
 *Perfil: Gestão*
 

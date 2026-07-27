@@ -19,21 +19,21 @@ resolvidos (ou conscientemente adiados).
 ## Fase 1 — Cadastros básicos (CRUD)
 
 - Setor, Material, Componente (catálogo) — CRUD simples.
-- Pedido, Kit — criação e listagem (sem regra de conclusão ainda).
-- Critério de pronto: dá para cadastrar um Pedido com Kits vazios via tela.
+- Pedido, Agrupamento — criação e listagem (sem regra de conclusão ainda).
+- Critério de pronto: dá para cadastrar um Pedido com Agrupamentos vazios via tela.
 
 ## Fase 2 — Estrutura recursiva
 
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero
   (customizado).
-- Visualização em árvore da estrutura de um Kit (Peça → Itens → sub-Itens).
+- Visualização em árvore da estrutura de um Agrupamento (Peça → Itens → sub-Itens).
 - Critério de pronto: dá para montar visualmente a árvore completa de uma Peça complexa.
 
 ## Fase 3 — Rastreamento de setor
 
 - Apontamento de entrada/saída de `EstruturaItem` em `Setor`.
-- Validação de lote indivisível (reaproveitar o índice filtrado do banco + validação
-  na Application).
+- Validação de conservação de quantidade (soma em setores + expedido + perdido = total
+  da Peça; na aplicação, não por índice filtrado).
 - Tela de "fila do setor" para o operador.
 - Critério de pronto: dá para acompanhar, item por item, em qual setor cada peça está.
 
@@ -45,14 +45,16 @@ resolvidos (ou conscientemente adiados).
 
 ## Fase 5 — Dimensional e fechamento
 
-- Registro de `RelatorioDimensional` por Peça (perfil Qualidade).
-- Regra de fechamento de Kit (todas as Peças aprovadas) e de Pedido (último Kit
-  concluído).
+- Registro opcional de `RelatorioDimensional` por Peça (perfil Qualidade), avaliado por
+  quantidade (`RelatorioDimensionalAvaliacao`).
+- Registro de `Expedicao` (remessas parciais) e de `Perda` por Peça.
+- Regra de fechamento de Agrupamento (todas as Peças concluídas — expedidas ou
+  perdidas) e de Pedido (último Agrupamento concluído).
 - Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
   de uma reprovação, com `MotivoRetrabalho` obrigatório
-  (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`).
+  (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`).
 - Critério de pronto: fluxo ponta a ponta funcionando — cadastro → produção →
-  expedição → aprovação/reprovação → (se aplicável, e só quando o usuário decidir)
+  expedição/perda → aprovação/reprovação → (se aplicável, e só quando o usuário decidir)
   retrabalho.
 
 ## Fase 6 — KPIs

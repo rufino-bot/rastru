@@ -57,10 +57,11 @@ partir do zero.
 
 ## Convenções de nomenclatura
 
-- **Nomes de domínio em português**, espelhando exatamente o DDL: `Pedido`, `Kit`,
+- **Nomes de domínio em português**, espelhando exatamente o DDL: `Pedido`, `Agrupamento`,
   `EstruturaItem`, `Componente`, `Material`, `Setor`, `Usuario`, `Perfil`,
-  `RelatorioDimensional`, etc. Não traduza entidades de negócio para inglês — isso cria
-  divergência entre código, banco e as specs.
+  `RelatorioDimensional`, `RelatorioDimensionalAvaliacao`, `Expedicao`, `Perda`, etc. Não
+  traduza entidades de negócio para inglês — isso cria divergência entre código, banco e
+  as specs.
 - **Nomes técnicos/padrões de projeto em inglês**: `Repository`, `UseCase`, `DTO`,
   `Controller` (ex.: `PedidoRepository`, `AbrirRetrabalhoUseCase`).
 - Siga a estrutura de camadas descrita em `03-arquitetura-tecnica.md`
@@ -70,15 +71,18 @@ partir do zero.
 
 (resumo — ver `01-dominio-e-regras-de-negocio.md` para a lista completa)
 
-- Um `EstruturaItem` (lote) nunca pode estar em dois Setores ao mesmo tempo — o lote é
-  indivisível. Há um índice filtrado único no banco garantindo isso; não contorne essa
-  regra na camada de aplicação.
+- Um `EstruturaItem` (lote) é **divisível por quantidades livres**: pode ter quantidades em
+  Setores diferentes ao mesmo tempo. Não há identidade de sub-lote (sem serial). O
+  invariante a preservar é **conservação de quantidade**: soma em Setores + expedido
+  (`Expedicao`) + perdido (`Perda`) = quantidade total da Peça (validado na aplicação).
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma
   ação separada e opcional do usuário (perfil Qualidade), com `MotivoRetrabalho`
-  obrigatório quando aplicada.
-- Um Pedido só é concluído quando o **último** Kit dele é concluído.
+  obrigatório quando aplicada. O mesmo vale para **perda**: registrar a perda não abre
+  Retrabalho sozinho.
+- Um Pedido só é concluído quando o **último** Agrupamento dele é concluído (e um Agrupamento,
+  quando todas as suas Peças concluem — toda a quantidade expedida ou perdida).
 - Rastreamento é por **lote agregado**, nunca por unidade física individual (serial).
 
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
@@ -87,7 +91,7 @@ partir do zero.
 - PWA/offline no MVP (decidido: não necessário agora)
 - Rastreamento por serial individual (decidido: lote agregado)
 - Criar Peça e Item como tabelas separadas (decidido: tabela recursiva única)
-- Roteiro de setores fixo por tipo de peça (decidido: pode variar por pedido/kit)
+- Roteiro de setores fixo por tipo de peça (decidido: pode variar por pedido/agrupamento)
 
 ## Comandos
 

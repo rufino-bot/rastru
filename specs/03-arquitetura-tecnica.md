@@ -3,7 +3,7 @@
 ## Backend — .NET (C#)
 
 Estrutura recomendada em camadas (Clean Architecture simplificada), para manter regras de
-negócio (recursão, indivisibilidade de lote, transição de status) isoladas de EF Core e
+negócio (recursão, conservação de quantidade do lote, transição de status) isoladas de EF Core e
 da API:
 
 ```
@@ -21,17 +21,19 @@ tests/
 - **EF Core**: usar *Database First* neste projeto — o DDL (`02-modelo-de-dados.sql`) já
   é a fonte de verdade do schema; gerar/mapear as entidades a partir dele em vez de deixar
   o EF criar o banco via migrations do zero. Isso evita divergência com as constraints e
-  índices já definidos (ex.: índice filtrado que garante lote indivisível).
+  índices já definidos (o índice filtrado de indivisibilidade foi removido — o lote é divisível).
 - Regras que hoje estão como `CHECK` no banco (ex.: Peça sem pai, Retrabalho exige
   PedidoOrigemId) devem **também** ser validadas na camada `Application`, retornando erro
   de negócio claro em vez de deixar a exceção de banco estourar até a API.
-- Transição de status do Pedido/Kit (ex.: fechar Kit → verificar se é o último → fechar
-  Pedido) deve ser um caso de uso explícito (`ConcluirKitUseCase`), não um trigger de
-  banco — mais fácil de testar e de auditar.
+- Transição de status do Pedido/Agrupamento (ex.: fechar Agrupamento → verificar se é o
+  último → fechar Pedido) deve ser um caso de uso explícito
+  (`ConcluirAgrupamentoUseCase`), não um trigger de banco — mais fácil de testar e de
+  auditar.
 - `AbrirRetrabalhoUseCase` recebe `MotivoRetrabalho` (obrigatório, um dos valores
-  `ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`) e, opcionalmente, o
-  `RelatorioDimensionalId` que motivou a abertura — reprovação não gera retrabalho
-  automaticamente, é uma ação separada do usuário.
+  `ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`) e, opcionalmente, o
+  `RelatorioDimensionalAvaliacaoId` (reprovação) **ou** o `PerdaId` (perda) que motivou a
+  abertura — reprovação não gera retrabalho automaticamente, é uma ação separada do
+  usuário.
 
 ## Autenticação e Autorização
 
