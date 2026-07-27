@@ -8,10 +8,14 @@ sejam implementados e cada mudança vire refação de várias camadas.
 
 ## Contexto
 
-Duas regras hoje marcadas como "decididas e fechadas" no CLAUDE.md serão revertidas:
+Três mudanças de domínio, duas delas revertendo regras hoje marcadas como "decididas e
+fechadas" no CLAUDE.md:
 
-- **Lote indivisível** → lote passa a ser **divisível por quantidades livres**.
-- **Kit obrigatório** → **Agrupamento** com tipo (`Kit` | `Avulso`).
+- **#1 — Lote indivisível** → lote passa a ser **divisível por quantidades livres** (com
+  expedição parcial e Relatório Dimensional opcional/por quantidade).
+- **#2 — Kit obrigatório** → **Agrupamento** com tipo (`Kit` | `Avulso`).
+- **#3 — Perda de peças** (novo) → baixa de quantidade em produção como bucket terminal
+  "perdido", com Pedido de Retrabalho separado para reposição.
 
 Confirmado por grep: nenhum arquivo em `src/` referencia `Kit`, `EstruturaItem`,
 `EstruturaSetorHistorico` ou `RelatorioDimensional`. O backend é só auth (Fase 0). Logo o
@@ -33,7 +37,7 @@ Nada de `Add-Migration` (decisão reconfirmada nesta conversa).
   *quantos* estão *onde*.
 - **Invariante nova:** conservação de quantidade — soma das unidades em todos os setores +
   expedido = quantidade total da Peça. (Substitui o invariante "uma passagem aberta por
-  item".)
+  item". A Mudança #3 estende isso somando o bucket "perdido".)
 - **Expedição parcial:** o cliente aceita uma parte vital agora; o resto vai depois. Cada
   remessa é registrada com sua quantidade e data.
 - **Relatório Dimensional opcional:** o cliente exige em Peças específicas (primeira
@@ -166,6 +170,59 @@ Nada de `Add-Migration` (decisão reconfirmada nesta conversa).
 
 ---
 
+## Mudança #3 — Perda de peças (bucket terminal) + retrabalho de reposição
+
+### Decidido
+
+- Peças às vezes se **perdem** durante a produção: some no armazém (`PerdaArmazem`) ou "morre"
+  após um processo que deu errado (`MortaEmProcesso`). Diferente de reprovação (que é
+  pós-expedição, informada pelo cliente), a perda acontece **em produção**.
+- A quantidade perdida vai para um **bucket terminal "perdido"** — igual a "expedido". Sai da
+  produção e não volta para a Peça original.
+- Para repor, abre-se um **Pedido de Retrabalho separado** (`MotivoRetrabalho = 'Perda'`).
+  **Nunca reabre a Peça original.** É ação **manual/opcional** do usuário (não dispara
+  automático ao registrar a perda) — mesmo padrão da reprovação.
+
+### Schema (`02-modelo-de-dados.sql`)
+
+1. Nova tabela **`Perda`**:
+   ```sql
+   CREATE TABLE dbo.Perda (
+       Id                 INT IDENTITY(1,1)  NOT NULL,
+       EstruturaItemId    INT                 NOT NULL, -- Peça que sofreu a perda
+       Quantidade         DECIMAL(18,4)       NOT NULL,
+       MotivoPerda        NVARCHAR(20)        NOT NULL, -- PerdaArmazem | MortaEmProcesso
+       Observacao         NVARCHAR(MAX)       NULL,     -- detalhe livre opcional
+       SetorId            INT                 NULL,     -- onde estava quando se perdeu (opcional)
+       DataPerda          DATETIME2           NOT NULL CONSTRAINT DF_Perda_Data DEFAULT (SYSUTCDATETIME()),
+       Responsavel        NVARCHAR(100)       NOT NULL,
+       PedidoRetrabalhoId INT                 NULL,     -- retrabalho aberto p/ repor (opcional)
+       CONSTRAINT PK_Perda PRIMARY KEY CLUSTERED (Id),
+       CONSTRAINT FK_Perda_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+       CONSTRAINT FK_Perda_Setor          FOREIGN KEY (SetorId)         REFERENCES dbo.Setor (Id),
+       CONSTRAINT FK_Perda_PedidoRetrabalho FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
+       CONSTRAINT CK_Perda_QuantidadePositiva CHECK (Quantidade > 0),
+       CONSTRAINT CK_Perda_Motivo CHECK (MotivoPerda IN ('PerdaArmazem','MortaEmProcesso'))
+   );
+   -- + IX_Perda_EstruturaItem ON (EstruturaItemId)
+   ```
+   `MotivoPerda` nasce com dois valores e cresce depois via edit no CHECK (mesmo padrão
+   string+CHECK do resto do schema); `Observacao` livre para detalhe.
+2. `Pedido.MotivoRetrabalho` — o CHECK ganha `'Perda'`:
+   `IN ('ReprovacaoDimensional','ErroInterno','SolicitacaoCliente','Perda')`.
+
+### Regras de negócio (`01`)
+
+- **Conservação de quantidade — atualizada:** `em setores + expedido + perdido = total da
+  Peça`. "Perdido" é terminal, igual "expedido". (Estende o invariante da Mudança #1.)
+- **Nova regra — perda:** registra baixa de quantidade em produção (armazém / morta em
+  processo); para repor, abre-se um Pedido Retrabalho separado (`MotivoRetrabalho='Perda'`),
+  manual/opcional — nunca reabre a Peça.
+- **Regra 13 — conclusão:** Peça fecha quando nada mais está em produção (tudo virou expedido
+  **ou** perdido); Pedido conclui quando todas as Peças fecham.
+
+---
+
 ## Raio de impacto
 
 ### Código
@@ -175,12 +232,12 @@ EF" é no-op por ora.
 ### Specs a editar
 | Arquivo | O que muda |
 |---|---|
-| `02-modelo-de-dados.sql` | Núcleo do schema: drop do índice, `Expedicao`, remodelagem do dimensional, flag por Peça, rename `Kit→Agrupamento` + `Tipo`. |
-| `01-dominio-e-regras-de-negocio.md` | Regras 9-13, glossário `Kit`/`EstruturaItem`/`Relatório Dimensional`, nova regra de expedição parcial. |
+| `02-modelo-de-dados.sql` | Núcleo do schema: drop do índice, `Expedicao`, remodelagem do dimensional, flag por Peça, rename `Kit→Agrupamento` + `Tipo`, tabela `Perda` + `'Perda'` no CHECK de `MotivoRetrabalho`. |
+| `01-dominio-e-regras-de-negocio.md` | Regras 9-13, glossário `Kit`/`EstruturaItem`/`Relatório Dimensional`, nova regra de expedição parcial e nova regra de perda; conservação de quantidade com bucket "perdido". |
 | `00-visao-geral.md` | Nomenclatura Kit→Agrupamento; menção a lote/expedição se houver. |
 | `03-arquitetura-tecnica.md` | Menções a Kit/lote indivisível, se houver. |
-| `04-fluxos-de-usuario.md` | Fluxo de Expedição (parcial/remessas) e de Qualidade (dimensional opcional, por quantidade); nomenclatura. |
-| `05-api-endpoints.md` | Endpoints de Kit→Agrupamento; endpoints de expedição (remessa) e dimensional por quantidade. |
+| `04-fluxos-de-usuario.md` | Fluxo de Expedição (parcial/remessas), de Qualidade (dimensional opcional, por quantidade) e de perda/baixa; nomenclatura. |
+| `05-api-endpoints.md` | Endpoints de Kit→Agrupamento; endpoints de expedição (remessa), dimensional por quantidade e registro de perda. |
 | `06-roadmap-mvp.md` | Nomenclatura; conferir se alguma fase descreve indivisibilidade/expedição total. |
 | `CLAUDE.md` | Invariantes (remover "lote indivisível / índice filtrado"; ajustar conclusão "último Kit→Agrupamento"); convenções (`Kit`→`Agrupamento`); decisões descartadas (remover "lote indivisível"; **manter** "sem serial"). |
 
@@ -188,8 +245,9 @@ EF" é no-op por ora.
 - Rastreamento por **lote agregado, nunca serial** — quantidade livre não é serial.
 - Peça e Item continuam numa única tabela recursiva (`EstruturaItem`).
 - Database First; sem `Add-Migration`.
-- Reprovação **não** gera retrabalho automático — segue ação opcional da Qualidade.
+- Reprovação **não** gera retrabalho automático — segue ação opcional da Qualidade. O mesmo
+  vale para perda: registrar a perda **não** abre retrabalho sozinho.
 
 ## Pontos em aberto
-Nenhum. As duas mudanças estão fechadas e prontas para virar plano de implementação
+Nenhum. As três mudanças estão fechadas e prontas para virar plano de implementação
 (editar `.sql` + specs, à mão, Database First).
