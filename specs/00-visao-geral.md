@@ -5,10 +5,10 @@
 Sistema de rastreamento de peças dentro da fábrica, cobrindo o ciclo completo desde o
 cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
 
-- Cadastro de Pedidos, Kits e da estrutura recursiva de Peças/Itens
+- Cadastro de Pedidos, Agrupamentos e da estrutura recursiva de Peças/Itens
 - Rastreamento da passagem de cada componente pelos Setores de produção
 - Separação e entrega de Materiais de estoque para fabricação
-- Relatório Dimensional por peça na Expedição, com aprovação/reprovação
+- Relatório Dimensional opcional por Peça (quando o cliente exige), com aprovação/reprovação por quantidade
 - Abertura de Pedidos de Retrabalho vinculados ao Pedido original, quando houver reprovação
 - KPIs de tempo (tempo por setor, tempo total de fila x produção por pedido)
 
@@ -18,7 +18,7 @@ cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
 - Controle do processo de pintura terceirizada (controlado por etiqueta no ERP das
   empresas de pintura, fora do nosso sistema)
 - Rastreamento por unidade física individual (serial) — o rastreamento é por lote agregado
-- Amostragem no relatório dimensional — hoje é feito em 100% das peças (pode mudar no futuro)
+- O Relatório Dimensional é opcional (exigido pelo cliente em Peças específicas), não amostragem sobre 100%.
 
 ## Usuários / Perfis
 
@@ -27,7 +27,7 @@ perfil (não é "todo usuário vê tudo").
 
 - **Operador** de setor (registra entrada/saída de componentes no seu setor)
 - **Almoxarifado** / Separação (registra separação de materiais)
-- **PCP** / Planejamento (cadastra Pedidos, Kits, estrutura)
+- **PCP** / Planejamento (cadastra Pedidos, Agrupamentos, estrutura)
 - **Qualidade** (preenche relatório dimensional, aprova/reprova, abre retrabalho)
 - **Gestão** (consulta KPIs)
 - **Administrador** (cadastros de catálogo, usuários e perfis)
