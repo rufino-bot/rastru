@@ -1157,9 +1157,12 @@ GO
 O `.sql` é um script de criação: no banco que já existe, a mudança entra por `ALTER TABLE`.
 É idempotente (`IF COL_LENGTH(...) IS NULL`), então rodar duas vezes não quebra.
 
+`MSYS_NO_PATHCONV=1` é obrigatório no Git Bash: sem ele o shell traduz `/opt/mssql-tools18/...`
+para um caminho Windows e o `exec` falha com `stat C:/Program Files/Git/opt/...: no such file`.
+
 ```bash
 docker compose up -d
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF COL_LENGTH('dbo.Usuario','FalhasConsecutivas') IS NULL ALTER TABLE dbo.Usuario ADD FalhasConsecutivas INT NOT NULL CONSTRAINT DF_Usuario_FalhasConsecutivas DEFAULT (0), BloqueadoAte DATETIME2 NULL;"
 ```
@@ -1167,7 +1170,7 @@ docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
 Verificar:
 
 ```bash
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -d Rastreamento \
   -Q "SELECT name FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Usuario') ORDER BY column_id;"
 ```
@@ -2534,10 +2537,11 @@ docker compose up -d
 ```
 
 Num banco que já existia antes do hardening de auth, as colunas de lockout entram por `ALTER`
-(o `.sql` é script de criação). É idempotente:
+(o `.sql` é script de criação). É idempotente — e o `MSYS_NO_PATHCONV=1` é o que impede o Git Bash
+de traduzir o caminho do `sqlcmd` dentro do container:
 
 ```bash
-docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF COL_LENGTH('dbo.Usuario','FalhasConsecutivas') IS NULL ALTER TABLE dbo.Usuario ADD FalhasConsecutivas INT NOT NULL CONSTRAINT DF_Usuario_FalhasConsecutivas DEFAULT (0), BloqueadoAte DATETIME2 NULL;"
 ```
