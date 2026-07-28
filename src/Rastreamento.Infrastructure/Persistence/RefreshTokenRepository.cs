@@ -48,5 +48,20 @@ public class RefreshTokenRepository : IRefreshTokenRepository
             .Where(t => t.UsuarioId == usuarioId && t.RevogadoEm == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevogadoEm, revogadoEm), ct);
 
-    public Task SalvarAlteracoesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
+    /// <summary>
+    /// Traduz <see cref="DbUpdateConcurrencyException"/> (RowVersion obsoleto — outra requisicao
+    /// alterou a linha entre a leitura e este save) para <see cref="ConflitoDeConcorrenciaException"/>,
+    /// que a Application pode capturar sem referenciar o EF Core.
+    /// </summary>
+    public async Task SalvarAlteracoesAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ConflitoDeConcorrenciaException(ex);
+        }
+    }
 }

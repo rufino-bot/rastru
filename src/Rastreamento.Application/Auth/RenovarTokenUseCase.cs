@@ -61,8 +61,18 @@ public class RenovarTokenUseCase : IRenovarTokenUseCase
         if (atual.ExpiraEm <= DateTime.UtcNow || !atual.Usuario.Ativo) return Falha();
 
         // Revogação do antigo + emissão do novo num único save (ver EmissorDeSessao).
-        var novaSessao = await _emissor.RotacionarAsync(atual, ct);
-        return Result<LoginResult>.Ok(novaSessao);
+        try
+        {
+            var novaSessao = await _emissor.RotacionarAsync(atual, ct);
+            return Result<LoginResult>.Ok(novaSessao);
+        }
+        catch (ConflitoDeConcorrenciaException)
+        {
+            // A familia foi queimada entre a leitura e o save: o UPDATE do token antigo pegou
+            // versao obsoleta, entao o SaveChanges inteiro reverteu e o token novo nunca existiu.
+            // Mesmo 401 generico — quem chama nao distingue isto de "token invalido".
+            return Falha();
+        }
     }
 
     /// <summary>

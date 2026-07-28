@@ -68,6 +68,7 @@ CREATE TABLE dbo.RefreshToken (
     CriadoEm                DATETIME2           NOT NULL CONSTRAINT DF_RefreshToken_CriadoEm DEFAULT (SYSUTCDATETIME()),
     RevogadoEm              DATETIME2           NULL,       -- NULL = ativo; preenchido no logout ou na rotação
     SubstituidoPorTokenHash NVARCHAR(200)       NULL,       -- rastro de rotação (auditoria)
+    RowVersion              ROWVERSION          NOT NULL,   -- token de concorrência otimista
     CONSTRAINT PK_RefreshToken PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_RefreshToken_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT UQ_RefreshToken_TokenHash UNIQUE (TokenHash),

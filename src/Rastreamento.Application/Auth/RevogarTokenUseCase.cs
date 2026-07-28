@@ -30,7 +30,18 @@ public class RevogarTokenUseCase : IRevogarTokenUseCase
         // Nao checa ExpiraEm: revogar um token ja expirado e inofensivo e evita
         // deixar linha "ativa" no banco por conta de uma corrida com o relogio.
         atual.RevogadoEm = DateTime.UtcNow;
-        await _refreshTokens.SalvarAlteracoesAsync(ct);
+
+        try
+        {
+            await _refreshTokens.SalvarAlteracoesAsync(ct);
+        }
+        catch (ConflitoDeConcorrenciaException)
+        {
+            // Outra requisicao (rotacao ou outro logout) ja revogou este token entre a leitura e
+            // este save. O logout e idempotente por contrato: "ja estava revogado" e sucesso, nao
+            // erro — devolver 500 aqui trocaria um bug de seguranca por um de disponibilidade.
+        }
+
         return Result.Ok();
     }
 }
