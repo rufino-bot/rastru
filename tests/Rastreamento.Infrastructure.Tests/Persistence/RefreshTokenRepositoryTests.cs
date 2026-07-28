@@ -7,9 +7,11 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>
 /// Requer o SQL Server no ar (docker compose up -d) com schema e seed aplicados.
-/// Usa um usuario proprio, criado e removido pelo teste: `RevogarTodosAtivosDoUsuarioAsync` queima
-/// TODOS os tokens ativos de um usuario, entao roda-lo contra o `admin` do seed derrubaria os
-/// tokens de outros testes rodando em paralelo — e a contagem devolvida ficaria nao-deterministica.
+/// Usa dois usuarios proprios, criados e removidos pelo teste: `RevogarTodosAtivosDoUsuarioAsync`
+/// queima TODOS os tokens ativos de um usuario, entao roda-lo contra o `admin` do seed derrubaria
+/// os tokens de outros testes rodando em paralelo (AuthEndpointsTests tambem autentica como
+/// `admin`, inclusive em outro processo quando `dotnet test` roda os projetos concorrentemente) —
+/// e a contagem devolvida ficaria nao-deterministica.
 /// </summary>
 public class RefreshTokenRepositoryTests : IAsyncLifetime
 {
@@ -17,6 +19,7 @@ public class RefreshTokenRepositoryTests : IAsyncLifetime
         "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
 
     private int _usuarioId;
+    private int _usuarioVizinhoId;
 
     private static RastreamentoDbContext NovoContexto()
     {
@@ -29,27 +32,38 @@ public class RefreshTokenRepositoryTests : IAsyncLifetime
         await using var db = NovoContexto();
         var perfil = await db.Perfis.SingleAsync(p => p.Nome == "Administrador");
 
+        // Nome unico por execucao: UQ_Usuario_NomeUsuario nao perdoa sobra de uma execucao
+        // anterior que tenha morrido antes da limpeza.
         var usuario = new Usuario
         {
-            // Nome unico por execucao: UQ_Usuario_NomeUsuario nao perdoa sobra de uma execucao
-            // anterior que tenha morrido antes da limpeza.
             NomeUsuario = $"repo-{Guid.NewGuid():N}",
             SenhaHash = "nao-usado-neste-teste",
             NomeCompleto = "Usuario de Teste do Repositorio",
             PerfilId = perfil.Id,
             Ativo = true,
         };
-        db.Usuarios.Add(usuario);
+        var vizinho = new Usuario
+        {
+            NomeUsuario = $"repo-viz-{Guid.NewGuid():N}",
+            SenhaHash = "nao-usado-neste-teste",
+            NomeCompleto = "Vizinho de Teste do Repositorio",
+            PerfilId = perfil.Id,
+            Ativo = true,
+        };
+        db.Usuarios.AddRange(usuario, vizinho);
         await db.SaveChangesAsync();
         _usuarioId = usuario.Id;
+        _usuarioVizinhoId = vizinho.Id;
     }
 
     public async Task DisposeAsync()
     {
         await using var db = NovoContexto();
         // RefreshToken tem FK para Usuario: as linhas filhas saem primeiro.
-        db.RefreshTokens.RemoveRange(await db.RefreshTokens.Where(t => t.UsuarioId == _usuarioId).ToListAsync());
-        db.Usuarios.RemoveRange(await db.Usuarios.Where(u => u.Id == _usuarioId).ToListAsync());
+        db.RefreshTokens.RemoveRange(await db.RefreshTokens
+            .Where(t => t.UsuarioId == _usuarioId || t.UsuarioId == _usuarioVizinhoId).ToListAsync());
+        db.Usuarios.RemoveRange(await db.Usuarios
+            .Where(u => u.Id == _usuarioId || u.Id == _usuarioVizinhoId).ToListAsync());
         await db.SaveChangesAsync();
     }
 
@@ -108,17 +122,15 @@ public class RefreshTokenRepositoryTests : IAsyncLifetime
     {
         var meu = await CriarTokenAsync(revogadoEm: null);
 
-        // O `admin` do seed serve de vizinho: o filtro por UsuarioId tem que isolar a queima.
-        string hashDoVizinho;
-        int idDoVizinho;
+        // O segundo usuario da classe serve de vizinho: o filtro por UsuarioId tem que isolar a
+        // queima. DisposeAsync remove os tokens de ambos os usuarios, entao nao precisa de
+        // try/finally aqui.
+        var hashDoVizinho = $"vizinho-{Guid.NewGuid():N}";
         await using (var db = NovoContexto())
         {
-            var admin = await db.Usuarios.SingleAsync(u => u.NomeUsuario == "admin");
-            idDoVizinho = admin.Id;
-            hashDoVizinho = $"vizinho-{Guid.NewGuid():N}";
             db.RefreshTokens.Add(new RefreshToken
             {
-                UsuarioId = idDoVizinho,
+                UsuarioId = _usuarioVizinhoId,
                 TokenHash = hashDoVizinho,
                 CriadoEm = DateTime.UtcNow,
                 ExpiraEm = DateTime.UtcNow.AddDays(7),
@@ -126,25 +138,15 @@ public class RefreshTokenRepositoryTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        try
-        {
-            await using (var db = NovoContexto())
-                await new RefreshTokenRepository(db)
-                    .RevogarTodosAtivosDoUsuarioAsync(_usuarioId, DateTime.UtcNow, default);
+        await using (var db = NovoContexto())
+            await new RefreshTokenRepository(db)
+                .RevogarTodosAtivosDoUsuarioAsync(_usuarioId, DateTime.UtcNow, default);
 
-            await using var leitura = NovoContexto();
-            Assert.NotNull((await leitura.RefreshTokens.AsNoTracking()
-                .SingleAsync(t => t.TokenHash == meu)).RevogadoEm);
-            Assert.Null((await leitura.RefreshTokens.AsNoTracking()
-                .SingleAsync(t => t.TokenHash == hashDoVizinho)).RevogadoEm);
-        }
-        finally
-        {
-            await using var limpeza = NovoContexto();
-            limpeza.RefreshTokens.RemoveRange(
-                await limpeza.RefreshTokens.Where(t => t.TokenHash == hashDoVizinho).ToListAsync());
-            await limpeza.SaveChangesAsync();
-        }
+        await using var leitura = NovoContexto();
+        Assert.NotNull((await leitura.RefreshTokens.AsNoTracking()
+            .SingleAsync(t => t.TokenHash == meu)).RevogadoEm);
+        Assert.Null((await leitura.RefreshTokens.AsNoTracking()
+            .SingleAsync(t => t.TokenHash == hashDoVizinho)).RevogadoEm);
     }
 
     /// <summary>Insere um refresh token do usuario do teste e devolve o hash usado.</summary>

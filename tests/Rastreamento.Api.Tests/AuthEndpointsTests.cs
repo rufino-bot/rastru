@@ -20,7 +20,7 @@ namespace Rastreamento.Api.Tests;
 /// <summary>
 /// Testes de ponta a ponta dos endpoints de autenticacao. Sobem a API em memoria contra o
 /// SQL Server real da Task 2 (docker compose up -d) com o seed aplicado (admin / Admin@123).
-/// Cada teste apaga os RefreshToken que criou (ver <see cref="DisposeAsync"/>).
+/// Cada teste apaga so os RefreshToken de `admin` criados por ele (ver <see cref="DisposeAsync"/>).
 /// </summary>
 public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Program>>, IAsyncLifetime
 {
@@ -29,18 +29,29 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
 
     private readonly WebApplicationFactory<Program> _factory;
     private readonly Sha256TokenHasher _hasher = new();
+    private int _idDoAdmin;
     private int _ultimoIdAntesDoTeste;
 
     public AuthEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
-    public async Task InitializeAsync() =>
-        _ultimoIdAntesDoTeste = await ComBancoAsync(db => db.RefreshTokens.MaxAsync(t => (int?)t.Id)) ?? 0;
+    public async Task InitializeAsync()
+    {
+        _idDoAdmin = await ComBancoAsync(db => db.Usuarios
+            .Where(u => u.NomeUsuario == "admin").Select(u => u.Id).SingleAsync());
+        // Escopado por UsuarioId, nao so por Id: sem isto a limpeza apaga qualquer RefreshToken
+        // criado por outra classe enquanto este teste roda — o xUnit executa as classes em
+        // paralelo, e ReusoDeRefreshTokenTests usa usuarios proprios que caem nesse intervalo.
+        _ultimoIdAntesDoTeste = await ComBancoAsync(db => db.RefreshTokens
+            .Where(t => t.UsuarioId == _idDoAdmin).MaxAsync(t => (int?)t.Id)) ?? 0;
+    }
 
     public async Task DisposeAsync()
     {
         using var escopo = _factory.Services.CreateScope();
         var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-        var criados = await db.RefreshTokens.Where(t => t.Id > _ultimoIdAntesDoTeste).ToListAsync();
+        var criados = await db.RefreshTokens
+            .Where(t => t.UsuarioId == _idDoAdmin && t.Id > _ultimoIdAntesDoTeste)
+            .ToListAsync();
         db.RefreshTokens.RemoveRange(criados);
         await db.SaveChangesAsync();
     }
