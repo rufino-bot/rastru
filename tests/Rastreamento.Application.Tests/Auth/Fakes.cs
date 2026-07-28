@@ -44,8 +44,18 @@ public class FakeUsuarioRepo : IUsuarioRepository
 
     public FakeUsuarioRepo(Usuario? usuario) => _usuario = usuario;
 
+    /// <summary>Quantos commits o repositorio recebeu — permite provar que o contador de falhas
+    /// realmente foi persistido (e que o caminho de miss nao escreve nada).</summary>
+    public int Saves { get; private set; }
+
     public Task<Usuario?> ObterPorNomeUsuarioAsync(string nomeUsuario, CancellationToken ct) =>
         Task.FromResult(_usuario is not null && _usuario.NomeUsuario == nomeUsuario ? _usuario : null);
+
+    public Task SalvarAlteracoesAsync(CancellationToken ct)
+    {
+        Saves++;
+        return Task.CompletedTask;
+    }
 }
 
 public class FakeRefreshTokenRepo : IRefreshTokenRepository

@@ -36,6 +36,84 @@ public class DbContextMappingTests
     }
 
     [Fact]
+    public async Task Mapeia_as_colunas_de_lockout_do_usuario_com_round_trip()
+    {
+        await using var db = NovoContexto();
+        var perfil = await db.Perfis.SingleAsync(p => p.Nome == "Administrador");
+
+        var bloqueadoAte = DateTime.UtcNow.AddMinutes(15);
+        var usuario = new Usuario
+        {
+            NomeUsuario = $"lockout-{Guid.NewGuid():N}",
+            SenhaHash = "nao-usado-neste-teste",
+            NomeCompleto = "Usuario de Teste de Lockout",
+            PerfilId = perfil.Id,
+            Ativo = true,
+            FalhasConsecutivas = 3,
+            BloqueadoAte = bloqueadoAte,
+        };
+
+        db.Usuarios.Add(usuario);
+        await db.SaveChangesAsync();
+        var id = usuario.Id;
+
+        try
+        {
+            await using var dbLeitura = NovoContexto();
+            var carregado = await dbLeitura.Usuarios.SingleAsync(u => u.Id == id);
+
+            Assert.Equal(3, carregado.FalhasConsecutivas);
+            Assert.Equal(bloqueadoAte, carregado.BloqueadoAte!.Value, TimeSpan.FromSeconds(1));
+        }
+        finally
+        {
+            await using var dbLimpeza = NovoContexto();
+            dbLimpeza.Usuarios.RemoveRange(await dbLimpeza.Usuarios.Where(u => u.Id == id).ToListAsync());
+            await dbLimpeza.SaveChangesAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Usuario_novo_nasce_destrancado()
+    {
+        // O default da coluna (0 falhas, BloqueadoAte NULL) e o que garante que o seed e qualquer
+        // usuario inserido sem mencionar essas colunas nao nasca trancado.
+        // Usuario proprio, e nao o `admin` do seed: o contador do admin e estado mutavel que
+        // outros testes (login com senha errada) tocam, entao afirmar sobre ele seria flaky.
+        await using var db = NovoContexto();
+        var perfil = await db.Perfis.SingleAsync(p => p.Nome == "Administrador");
+
+        var usuario = new Usuario
+        {
+            NomeUsuario = $"novo-{Guid.NewGuid():N}",
+            SenhaHash = "nao-usado-neste-teste",
+            NomeCompleto = "Usuario Recem-Criado",
+            PerfilId = perfil.Id,
+            Ativo = true,
+            // FalhasConsecutivas e BloqueadoAte NAO sao informados de proposito.
+        };
+
+        db.Usuarios.Add(usuario);
+        await db.SaveChangesAsync();
+        var id = usuario.Id;
+
+        try
+        {
+            await using var dbLeitura = NovoContexto();
+            var carregado = await dbLeitura.Usuarios.AsNoTracking().SingleAsync(u => u.Id == id);
+
+            Assert.Equal(0, carregado.FalhasConsecutivas);
+            Assert.Null(carregado.BloqueadoAte);
+        }
+        finally
+        {
+            await using var dbLimpeza = NovoContexto();
+            dbLimpeza.Usuarios.RemoveRange(await dbLimpeza.Usuarios.Where(u => u.Id == id).ToListAsync());
+            await dbLimpeza.SaveChangesAsync();
+        }
+    }
+
+    [Fact]
     public async Task Mapeia_refresh_token_com_round_trip_e_navegacao_usuario()
     {
         await using var db = NovoContexto();
