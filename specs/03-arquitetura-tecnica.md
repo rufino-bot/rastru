@@ -56,7 +56,18 @@ tests/
   (`Usuario.FalhasConsecutivas` / `Usuario.BloqueadoAte`, configurável em `Lockout`); rate limit
   por IP no `/auth/login` (middleware nativo do ASP.NET Core, configurável em `RateLimit`); logging
   dos eventos de auth via `ILogger`. Todas as falhas continuam com resposta única e genérica —
-  nenhuma dessas defesas pode ser observada pelo corpo ou pelo status da resposta.
+  nenhuma dessas defesas pode ser observada pelo corpo ou pelo status da resposta. `RefreshToken`
+  tem `RowVersion` (`ROWVERSION`/token de concorrência otimista) para fechar a corrida entre a
+  queima de família e uma rotação já em voo — ver `CLAUDE.md` para os gatilhos benignos que também
+  disparam a queima.
+- **Requisito vinculante do cliente HTTP do frontend:** `/auth/refresh` **deve** ser single-flight
+  — no máximo uma chamada em voo por vez. Qualquer código que tome 401 durante uma renovação em
+  andamento **deve** esperar o resultado dela em vez de disparar um segundo refresh (fila/promise
+  compartilhada, não uma segunda chamada). Consequência de não seguir isto: dois `/auth/refresh`
+  concorrentes com o mesmo cookie fazem o segundo apresentar um token que o primeiro já rotacionou
+  — a API detecta como reuso e queima a família inteira, deslogando o usuário de todos os
+  dispositivos por um bug do próprio cliente, não por um ataque. Registrado agora porque o
+  frontend só nasce na Fase 1 e este requisito tem que valer desde o primeiro cliente HTTP escrito.
 
 ## Frontend — React + TypeScript
 

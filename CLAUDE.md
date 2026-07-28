@@ -196,6 +196,26 @@ reuso — a sessão ainda funciona até o access token expirar (`Jwt:AccessToken
 É o comportamento padrão de JWT stateless e está aceito no MVP; se um dia precisar ser imediato, a
 saída é uma denylist de tokens ou validação por requisição, não um remendo no logout.
 
+**Queima de família por gatilho benigno (custo aceito, não é bug).** A detecção de reuso
+(reapresentar um refresh já rotacionado queima toda a família de sessões do usuário) reage do
+mesmo jeito a um roubo de verdade e a três cenários legítimos — não há como distinguir os dois
+casos pelo request isolado, e não se quer distinguir (ver `ConflitoDeConcorrenciaException` e o
+`RowVersion` em `RefreshToken`, que fecham a corrida entre a queima e uma rotação em voo):
+
+- **Retry com resposta perdida** — o mais provável no wifi da fábrica: o cliente rotaciona,
+  o servidor processa e revoga o token antigo, mas a resposta (com o token novo) se perde na
+  rede; o cliente reenvia o mesmo request com o token antigo, que agora já está rotacionado.
+- **Duplo refresh concorrente** — duas chamadas a `/auth/refresh` com o mesmo cookie saem
+  antes que a primeira rotacione; a segunda apresenta um token que a primeira já rotacionou.
+  É exatamente por isto que o cliente HTTP do frontend **deve** fazer single-flight do refresh
+  (ver `03-arquitetura-tecnica.md`).
+- **Replay pós-logout com 204 perdido** — o cliente desloga, a revogação é aplicada no banco,
+  mas a resposta 204 se perde; o cliente (ou uma aba antiga) reapresenta o mesmo refresh token.
+
+Nos três casos o usuário é deslogado de todos os dispositivos e precisa logar de novo. É o custo
+aceito da detecção de reuso no MVP — não existe janela de graça (ex.: permitir o token antigo por
+alguns segundos após a rotação) porque isso reabriria a mesma corrida que o `RowVersion` fecha.
+
 **Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
 frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
 o limite vira global por acidente. Flag de deploy, ainda não necessária (deploy manual, sem proxy).
