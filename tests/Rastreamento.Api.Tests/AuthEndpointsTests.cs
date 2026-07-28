@@ -133,10 +133,14 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     [Fact]
     public async Task Login_com_senha_errada_retorna_401()
     {
+        // Usuario proprio, e nao o `admin` do seed: uma senha errada incrementa
+        // FalhasConsecutivas, e admin e estado mutavel compartilhado com o resto da suite (ver
+        // UsuarioDeTeste).
+        await using var usuario = await UsuarioDeTeste.CriarAsync(_factory.Services, "login");
         var cliente = NovoCliente();
 
         var resposta = await cliente.PostAsJsonAsync("/auth/login",
-            new { nomeUsuario = "admin", senha = "errada" });
+            new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
         Assert.DoesNotContain("Set-Cookie", resposta.Headers.Select(h => h.Key));
@@ -146,10 +150,13 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     public async Task Login_com_usuario_inexistente_responde_igual_a_senha_errada()
     {
         // Sem oraculo: quem chama nao consegue distinguir "usuario nao existe" de "senha errada".
+        // Usuario proprio na perna de senha errada, e nao o `admin` do seed: ver comentario em
+        // Login_com_senha_errada_retorna_401.
+        await using var usuario = await UsuarioDeTeste.CriarAsync(_factory.Services, "login");
         var cliente = NovoCliente();
 
         var senhaErrada = await cliente.PostAsJsonAsync("/auth/login",
-            new { nomeUsuario = "admin", senha = "errada" });
+            new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
         var usuarioInexistente = await cliente.PostAsJsonAsync("/auth/login",
             new { nomeUsuario = "ninguem", senha = "Admin@123" });
 
