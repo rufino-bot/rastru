@@ -117,15 +117,31 @@ public class DbContextMappingTests
     public async Task Mapeia_refresh_token_com_round_trip_e_navegacao_usuario()
     {
         await using var db = NovoContexto();
-        var admin = await db.Usuarios.SingleAsync(u => u.NomeUsuario == "admin");
+        var perfil = await db.Perfis.SingleAsync(p => p.Nome == "Administrador");
+
+        // Usuario proprio, e nao o `admin` do seed: a limpeza do AuthEndpointsTests e escopada
+        // as linhas do admin, entao um RefreshToken do admin criado aqui ficaria no raio dela
+        // quando este projeto roda em paralelo com o Api.Tests.
+        var usuario = new Usuario
+        {
+            NomeUsuario = $"refresh-{Guid.NewGuid():N}",
+            SenhaHash = "nao-usado-neste-teste",
+            NomeCompleto = "Usuario de Teste de Refresh Token",
+            PerfilId = perfil.Id,
+            Ativo = true,
+        };
+
+        db.Usuarios.Add(usuario);
+        await db.SaveChangesAsync();
+        var usuarioId = usuario.Id;
 
         var tokenHash = $"teste-{Guid.NewGuid():N}";
-        var expiraEm = DateTime.UtcNow.AddDays(7);
         var criadoEm = DateTime.UtcNow;
+        var expiraEm = criadoEm.AddDays(7);
 
         var refreshToken = new RefreshToken
         {
-            UsuarioId = admin.Id,
+            UsuarioId = usuarioId,
             TokenHash = tokenHash,
             ExpiraEm = expiraEm,
             CriadoEm = criadoEm,
@@ -143,19 +159,22 @@ public class DbContextMappingTests
             var carregado = await dbLeitura.RefreshTokens.Include(t => t.Usuario)
                 .SingleAsync(t => t.Id == idInserido);
 
-            Assert.Equal(admin.Id, carregado.UsuarioId);
+            Assert.Equal(usuarioId, carregado.UsuarioId);
             Assert.Equal(tokenHash, carregado.TokenHash);
             Assert.Equal(expiraEm, carregado.ExpiraEm, TimeSpan.FromSeconds(1));
             Assert.Equal(criadoEm, carregado.CriadoEm, TimeSpan.FromSeconds(1));
             Assert.Null(carregado.RevogadoEm);
             Assert.Null(carregado.SubstituidoPorTokenHash);
-            Assert.Equal("admin", carregado.Usuario.NomeUsuario);
+            Assert.Equal(usuario.NomeUsuario, carregado.Usuario.NomeUsuario);
         }
         finally
         {
             await using var dbLimpeza = NovoContexto();
             var paraRemover = await dbLimpeza.RefreshTokens.SingleAsync(t => t.Id == idInserido);
             dbLimpeza.RefreshTokens.Remove(paraRemover);
+            await dbLimpeza.SaveChangesAsync();
+
+            dbLimpeza.Usuarios.RemoveRange(await dbLimpeza.Usuarios.Where(u => u.Id == usuarioId).ToListAsync());
             await dbLimpeza.SaveChangesAsync();
         }
     }
