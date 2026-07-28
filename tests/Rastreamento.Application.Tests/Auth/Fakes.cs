@@ -69,6 +69,13 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     /// <summary>Ids de usuario cuja familia de tokens foi queimada, na ordem das chamadas.</summary>
     public List<int> RevogacoesEmMassa { get; } = new();
 
+    /// <summary>
+    /// Quando true, <see cref="SalvarAlteracoesAsync"/> lanca <see cref="ConflitoDeConcorrenciaException"/>
+    /// em vez de commitar — simula uma rotacao ou outro logout concorrente que ja alterou a mesma
+    /// linha (RowVersion obsoleto) entre a leitura e este save.
+    /// </summary>
+    public bool LancarConflitoAoSalvar { get; set; }
+
     /// <summary>Tudo que o fake "conhece": o token de partida mais os emitidos durante o teste.</summary>
     private IEnumerable<RefreshToken> Todos =>
         Ativo is null ? Adicionados : Adicionados.Append(Ativo);
@@ -109,6 +116,8 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     public Task SalvarAlteracoesAsync(CancellationToken ct)
     {
         Saves++;
+        if (LancarConflitoAoSalvar)
+            throw new ConflitoDeConcorrenciaException(new InvalidOperationException("conflito simulado"));
         return Task.CompletedTask;
     }
 }

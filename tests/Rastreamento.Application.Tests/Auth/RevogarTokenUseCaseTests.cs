@@ -1,4 +1,5 @@
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Common;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -94,5 +95,25 @@ public class RevogarTokenUseCaseTests
         Assert.Null(ex);
         Assert.Null(repo.Ativo!.RevogadoEm);
         Assert.Equal(0, repo.Saves);
+    }
+
+    [Fact]
+    public async Task Logout_engole_conflito_de_concorrencia_e_continua_sucesso()
+    {
+        // Corrida legitima: uma rotacao ou outro logout concorrente ja revogou este token entre a
+        // leitura e este save (RowVersion obsoleto -> ConflitoDeConcorrenciaException no
+        // SaveChanges). Logout e idempotente por contrato: "ja foi revogado por outra requisicao"
+        // e sucesso, nao um 500 — o catch em RevogarTokenUseCase.ExecutarAsync existe exatamente
+        // para engolir isto. Sem ele a excecao escaparia e o Record.ExceptionAsync abaixo a
+        // capturaria, derrubando o Assert.Null(ex).
+        var repo = new FakeRefreshTokenRepo { Ativo = TokenAtivo(), LancarConflitoAoSalvar = true };
+        var uc = new RevogarTokenUseCase(repo, Hasher);
+
+        Result r = null!;
+        var ex = await Record.ExceptionAsync(async () => r = await uc.ExecutarAsync("plano", default));
+
+        Assert.Null(ex);
+        Assert.True(r.Sucesso);
+        Assert.Null(r.Erro);
     }
 }
