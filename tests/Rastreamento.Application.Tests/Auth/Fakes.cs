@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
@@ -106,4 +107,27 @@ public static class FakeJwtOptions
 {
     public static IOptions<JwtOptions> Instance =>
         Options.Create(new JwtOptions { AccessTokenMinutes = 15, RefreshTokenDays = 7 });
+}
+
+/// <summary>
+/// Captura o que foi logado para que os testes possam provar duas coisas: que o evento de
+/// seguranca sai no nivel certo e que a mensagem nao carrega segredo (token, hash, senha).
+/// </summary>
+public class FakeLogger<T> : ILogger<T>
+{
+    public record Entrada(LogLevel Nivel, string Mensagem);
+
+    public List<Entrada> Entradas { get; } = new();
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter) =>
+        Entradas.Add(new Entrada(logLevel, formatter(state, exception)));
 }

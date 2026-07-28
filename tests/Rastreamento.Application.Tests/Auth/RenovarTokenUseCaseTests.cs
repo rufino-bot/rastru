@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Rastreamento.Application.Auth;
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Entities;
@@ -9,11 +10,13 @@ public class RenovarTokenUseCaseTests
 {
     private static readonly FakeTokenHasher Hasher = new();
 
-    private static (RenovarTokenUseCase uc, FakeRefreshTokenRepo repo) Montar(RefreshToken? ativo)
+    private readonly FakeLogger<RenovarTokenUseCase> _logger = new();
+
+    private (RenovarTokenUseCase uc, FakeRefreshTokenRepo repo) Montar(RefreshToken? ativo)
     {
         var repo = new FakeRefreshTokenRepo { Ativo = ativo };
         var emissor = new EmissorDeSessao(repo, Hasher, new FakeAccessTokenGenerator(), FakeJwtOptions.Instance);
-        var uc = new RenovarTokenUseCase(repo, Hasher, emissor);
+        var uc = new RenovarTokenUseCase(repo, Hasher, emissor, _logger);
         return (uc, repo);
     }
 
@@ -58,16 +61,82 @@ public class RenovarTokenUseCaseTests
     }
 
     [Fact]
-    public async Task Refresh_revogado_falha_e_nao_emite()
+    public async Task Refresh_de_token_revogado_e_reuso_queima_a_familia_do_usuario()
     {
-        var revogado = TokenAtivo();
-        revogado.RevogadoEm = DateTime.UtcNow.AddMinutes(-5);
-        var (uc, repo) = Montar(revogado);
+        // Cenario de roubo: o ladrao usou o token A primeiro e recebeu o B. Quando o legitimo
+        // reapresenta o A, o refresh vazou — e derrubar so o A deixaria a sessao B do ladrao viva.
+        var reapresentado = TokenAtivo();
+        reapresentado.RevogadoEm = DateTime.UtcNow.AddMinutes(-5);
+
+        var (uc, repo) = Montar(reapresentado);
+        var doLadrao = new RefreshToken
+        {
+            Id = 6,
+            UsuarioId = 1,
+            TokenHash = Hasher.Hash("plano-do-ladrao"),
+            CriadoEm = DateTime.UtcNow.AddMinutes(-5),
+            ExpiraEm = DateTime.UtcNow.AddDays(7),
+        };
+        repo.Adicionados.Add(doLadrao);
 
         var r = await uc.ExecutarAsync("plano-antigo", default);
 
         Assert.False(r.Sucesso);
-        Assert.Empty(repo.Adicionados);
+        Assert.Equal(new[] { 1 }, repo.RevogacoesEmMassa);
+        Assert.NotNull(doLadrao.RevogadoEm);   // a sessao do ladrao cai junto
+        // Nao emite sessao nova: o unico "Adicionados" e o token do ladrao que o teste plantou.
+        Assert.Single(repo.Adicionados);
+        Assert.Null(r.Valor);
+    }
+
+    [Fact]
+    public async Task Reuso_loga_warning_sem_expor_o_token()
+    {
+        var reapresentado = TokenAtivo();
+        reapresentado.RevogadoEm = DateTime.UtcNow.AddMinutes(-5);
+        var (uc, _) = Montar(reapresentado);
+
+        await uc.ExecutarAsync("plano-antigo", default);
+
+        var entrada = Assert.Single(_logger.Entradas);
+        Assert.Equal(LogLevel.Warning, entrada.Nivel);
+        Assert.Contains("euso", entrada.Mensagem);  // "Reuso"/"reuso", sem depender da caixa
+        // Nunca logar segredo: nem o token em texto plano, nem o hash dele.
+        Assert.DoesNotContain("plano-antigo", entrada.Mensagem);
+        Assert.DoesNotContain(Hasher.Hash("plano-antigo"), entrada.Mensagem);
+    }
+
+    [Fact]
+    public async Task Refresh_expirado_ou_de_usuario_desativado_nao_queima_a_familia()
+    {
+        // Expiracao e desativacao nao sao sinal de roubo: queimar a familia ali transformaria
+        // um refresh atrasado numa deslogada geral.
+        var expirado = TokenAtivo();
+        expirado.ExpiraEm = DateTime.UtcNow.AddMinutes(-1);
+        var (ucExpirado, repoExpirado) = Montar(expirado);
+
+        var desativado = TokenAtivo();
+        desativado.Usuario.Ativo = false;
+        var (ucDesativado, repoDesativado) = Montar(desativado);
+
+        Assert.False((await ucExpirado.ExecutarAsync("plano-antigo", default)).Sucesso);
+        Assert.False((await ucDesativado.ExecutarAsync("plano-antigo", default)).Sucesso);
+
+        Assert.Empty(repoExpirado.RevogacoesEmMassa);
+        Assert.Empty(repoDesativado.RevogacoesEmMassa);
+        Assert.Equal(0, repoExpirado.Saves);
+        Assert.Equal(0, repoDesativado.Saves);
+    }
+
+    [Fact]
+    public async Task Token_desconhecido_nao_queima_nada()
+    {
+        var (uc, repo) = Montar(null);
+
+        var r = await uc.ExecutarAsync("qualquer", default);
+
+        Assert.False(r.Sucesso);
+        Assert.Empty(repo.RevogacoesEmMassa);
         Assert.Equal(0, repo.Saves);
     }
 
@@ -136,8 +205,11 @@ public class RenovarTokenUseCaseTests
         var desativado = TokenAtivo();
         desativado.Usuario.Ativo = false;
 
+        var reusado = TokenAtivo();
+        reusado.RevogadoEm = DateTime.UtcNow.AddMinutes(-5);
+
         var falhas = new List<Result<LoginResult>>();
-        foreach (var cenario in new RefreshToken?[] { null, expirado, desativado })
+        foreach (var cenario in new RefreshToken?[] { null, expirado, desativado, reusado })
         {
             var (uc, _) = Montar(cenario);
             falhas.Add(await uc.ExecutarAsync("plano-antigo", default));
