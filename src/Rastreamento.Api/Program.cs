@@ -24,6 +24,11 @@ builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection("Jwt"))
     .ValidateOnStart();
 
+builder.Services.AddSingleton<IValidateOptions<LockoutOptions>, LockoutOptionsValidator>();
+builder.Services.AddOptions<LockoutOptions>()
+    .Bind(builder.Configuration.GetSection("Lockout"))
+    .ValidateOnStart();
+
 builder.Services.AddDbContext<RastreamentoDbContext>(o =>
     o.UseSqlServer(builder.Configuration.GetConnectionString("Rastreamento")));
 
