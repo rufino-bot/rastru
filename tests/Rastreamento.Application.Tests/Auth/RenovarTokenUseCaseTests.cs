@@ -107,59 +107,10 @@ public class RenovarTokenUseCaseTests
     }
 
     [Fact]
-    public async Task Refresh_expirado_ou_de_usuario_desativado_nao_queima_a_familia()
+    public async Task Refresh_expirado_falha_e_nao_queima_a_familia()
     {
-        // Expiracao e desativacao nao sao sinal de roubo: queimar a familia ali transformaria
-        // um refresh atrasado numa deslogada geral.
-        var expirado = TokenAtivo();
-        expirado.ExpiraEm = DateTime.UtcNow.AddMinutes(-1);
-        var (ucExpirado, repoExpirado) = Montar(expirado);
-
-        var desativado = TokenAtivo();
-        desativado.Usuario.Ativo = false;
-        var (ucDesativado, repoDesativado) = Montar(desativado);
-
-        Assert.False((await ucExpirado.ExecutarAsync("plano-antigo", default)).Sucesso);
-        Assert.False((await ucDesativado.ExecutarAsync("plano-antigo", default)).Sucesso);
-
-        Assert.Empty(repoExpirado.RevogacoesEmMassa);
-        Assert.Empty(repoDesativado.RevogacoesEmMassa);
-        Assert.Equal(0, repoExpirado.Saves);
-        Assert.Equal(0, repoDesativado.Saves);
-    }
-
-    [Fact]
-    public async Task Token_desconhecido_nao_queima_nada()
-    {
-        var (uc, repo) = Montar(null);
-
-        var r = await uc.ExecutarAsync("qualquer", default);
-
-        Assert.False(r.Sucesso);
-        Assert.Empty(repo.RevogacoesEmMassa);
-        Assert.Equal(0, repo.Saves);
-    }
-
-    [Fact]
-    public async Task Refresh_de_usuario_desativado_falha_e_nao_emite()
-    {
-        // Desativar um usuario tem que expulsa-lo do sistema. Sem esta checagem ele
-        // continuaria renovando a sessao ate o refresh expirar sozinho (ate 7 dias).
-        var token = TokenAtivo();
-        token.Usuario.Ativo = false;
-        var (uc, repo) = Montar(token);
-
-        var r = await uc.ExecutarAsync("plano-antigo", default);
-
-        Assert.False(r.Sucesso);
-        Assert.Empty(repo.Adicionados);
-        Assert.Null(repo.Ativo!.RevogadoEm);   // nao rotaciona
-        Assert.Equal(0, repo.Saves);
-    }
-
-    [Fact]
-    public async Task Refresh_expirado_falha()
-    {
+        // Expiracao nao e sinal de roubo: queimar a familia ali transformaria um refresh
+        // atrasado numa deslogada geral.
         var expirado = TokenAtivo();
         expirado.ExpiraEm = DateTime.UtcNow.AddMinutes(-1);
         var (uc, repo) = Montar(expirado);
@@ -169,10 +120,32 @@ public class RenovarTokenUseCaseTests
         Assert.False(r.Sucesso);
         Assert.Empty(repo.Adicionados);
         Assert.Null(repo.Ativo!.RevogadoEm);
+        Assert.Empty(repo.RevogacoesEmMassa);
+        Assert.Equal(0, repo.Saves);
     }
 
     [Fact]
-    public async Task Refresh_inexistente_falha()
+    public async Task Refresh_de_usuario_desativado_falha_e_nao_queima_a_familia()
+    {
+        // Desativacao tambem nao e sinal de roubo — mesma razao do teste acima — mas
+        // `!atual.Usuario.Ativo` tem que ser checado mesmo assim: desativar um usuario tem que
+        // expulsa-lo do sistema. Sem esta checagem ele continuaria renovando a sessao ate o
+        // refresh expirar sozinho (ate 7 dias).
+        var desativado = TokenAtivo();
+        desativado.Usuario.Ativo = false;
+        var (uc, repo) = Montar(desativado);
+
+        var r = await uc.ExecutarAsync("plano-antigo", default);
+
+        Assert.False(r.Sucesso);
+        Assert.Empty(repo.Adicionados);
+        Assert.Null(repo.Ativo!.RevogadoEm);   // nao rotaciona
+        Assert.Empty(repo.RevogacoesEmMassa);
+        Assert.Equal(0, repo.Saves);
+    }
+
+    [Fact]
+    public async Task Refresh_inexistente_falha_e_nao_queima_nada()
     {
         var (uc, repo) = Montar(null);
 
@@ -180,6 +153,8 @@ public class RenovarTokenUseCaseTests
 
         Assert.False(r.Sucesso);
         Assert.Empty(repo.Adicionados);
+        Assert.Empty(repo.RevogacoesEmMassa);
+        Assert.Equal(0, repo.Saves);
     }
 
     [Theory]
