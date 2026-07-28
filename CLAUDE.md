@@ -150,19 +150,39 @@ First, o `.sql` é a fonte de verdade.
 
 ### Defesas de autenticação em vigor
 
-- **Trabalho constante + 401 genérico** no login e no refresh (sem oráculo de timing nem de corpo).
+- **Trabalho constante + 401 genérico** no login e no refresh: nos três caminhos de falha do login
+  (usuário inexistente, inativo/trancado, senha errada) o BCrypt roda sempre, contra um hash de
+  mesmo custo, e o corpo da resposta é idêntico. Residual aceito, e **não corrigível em
+  princípio**: a escrita no banco não é uniforme — só senha errada numa conta existente, ativa e
+  destrancada faz `UPDATE` (`Senha_errada_incrementa_o_contador_e_persiste` afirma `Saves == 1`;
+  `Usuario_inexistente_nao_escreve_nada` e `Tentativa_em_conta_trancada_nao_estende_a_trava`
+  afirmam `Saves == 0`). A banda é baixa (~1–3 ms de `UPDATE` contra ~100–150 ms de BCrypt fator
+  11) e não tem correção possível: não há como escrever uma linha de contador para um usuário que
+  não tem linha.
 - **Reuso de refresh token detectado:** reapresentar um token já rotacionado revoga **todos** os
   refresh tokens ativos daquele usuário e responde o mesmo 401 genérico. Limite inerente: só
   detecta quando o token **antigo** reaparece — se o atacante roubar o token atual e o legítimo
   nunca replayar o anterior, a defesa é a expiração natural do refresh.
 - **Lockout de conta:** `Lockout:MaxFalhas` (5) falhas consecutivas trancam por
-  `Lockout:DuracaoMinutos` (15). A trava expira sozinha — não existe lockout permanente que exija
-  admin, e por isso o lockout-DoS fica limitado a atrasar o operador por esse tempo. Concorrência:
-  duas tentativas simultâneas podem competir pelo contador (off-by-one no pior caso), aceito no MVP.
+  `Lockout:DuracaoMinutos` (15). Cada trava expira sozinha, mas **retrancar não tem limite**: quem
+  sabe o nome de usuário (inclusive `admin`) manda 5 senhas erradas a cada 15 min — 20
+  requisições/hora contra um orçamento de rate limit de 600/hora (10 por minuto, ~3% dele) — e
+  segura a conta trancada indefinidamente, de um único IP. O rate limit não cobre esse padrão
+  porque a janela dele é curta (segundos), não de ciclos de 15 minutos; hoje não existe caminho de
+  desbloqueio administrativo. Isso é inerente a lockout por contador (a própria OWASP registra o
+  trade-off) — o desenho está certo, o que estava documentado errado aqui era o limite do dano.
+  Concorrência: com N tentativas simultâneas o contador pode sub-contar em até N−1 (proporcional à
+  concorrência, não um simples off-by-one), e existe a race reversa — um login concorrente
+  bem-sucedido que leu a linha antes de uma falha travá-la grava `BloqueadoAte = null` depois,
+  apagando uma trava recém-criada; benigno, porque quem venceu a race provou a senha certa. O que
+  **não** acontece: uma trava que nunca libera. O timestamp da trava é capturado antes do BCrypt
+  rodar, então uma requisição atrasada só consegue estender a trava pela duração dela mesma, nunca
+  travar por mais tempo que isso.
 - **Rate limit por IP no `/auth/login`:** `RateLimit:PermitLimit` (10) por
   `RateLimit:WindowSeconds` (60), janela fixa, 429 com `Retry-After`. O `/auth/refresh` fica de
-  fora de propósito. Em `appsettings.Development.json` o limite é folgado — no `TestServer` o IP é
-  nulo e toda a suíte cairia numa partição só.
+  fora de propósito — ver `specs/05-api-endpoints.md`, que registra a isenção e a consequência dela
+  (achado ainda em aberto, pendente de decisão). Em `appsettings.Development.json` o limite é
+  folgado — no `TestServer` o IP é nulo e toda a suíte cairia numa partição só.
 - **Logging de auth via `ILogger`** (não há tabela de auditoria persistente): login ok/falha e
   refresh ok/falha com IP no `AuthController`; trava de conta e reuso de refresh nos casos de uso;
   429 no `OnRejected`. **Nunca** se loga senha, refresh token (plano ou hash) nem access token.
