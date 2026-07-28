@@ -84,6 +84,12 @@ partir do zero.
 - Um Pedido só é concluído quando o **último** Agrupamento dele é concluído (e um Agrupamento,
   quando todas as suas Peças concluem — toda a quantidade expedida ou perdida).
 - Rastreamento é por **lote agregado**, nunca por unidade física individual (serial).
+- **Falha de autenticação é sempre genérica.** Login responde `"Usuário ou senha inválidos."` e
+  refresh responde `"Refresh token inválido ou expirado."` — em **todos** os caminhos de falha,
+  inclusive conta trancada (mesmo com a senha certa) e reuso de refresh token detectado. Variar
+  corpo, status ou tipo de erro por condição vira oráculo de enumeração.
+- **O BCrypt roda sempre no login**, inclusive para usuário inexistente, inativo ou trancado
+  (`IPasswordHasher.HashFicticio`). Nenhum `return` antecipado antes da verificação de senha.
 
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
@@ -117,8 +123,9 @@ Frontend: ainda não criado (Fase 1 em diante).
 ### Pré-requisito externo dos testes
 
 Parte da suíte roda contra o **SQL Server real**, não contra banco em memória — é o que
-prova o mapeamento EF, os lifetimes do DI e a atomicidade da rotação de refresh token.
-Hoje são **23 dos 91 testes** (4 em `Infrastructure.Tests`, 19 em `Api.Tests`). Sem o
+prova o mapeamento EF, os lifetimes do DI, a atomicidade da rotação de refresh token, a
+queima da família de tokens no reuso e o lockout de conta ponta a ponta.
+Hoje são **41 dos 123 testes** (8 em `Infrastructure.Tests`, 33 em `Api.Tests`). Sem o
 banco no ar eles falham com erro de conexão, não com mensagem útil.
 
 ```bash
@@ -128,14 +135,51 @@ docker compose up -d
 #   db/seed.sql                    (perfis + usuário admin / Admin@123)
 ```
 
+Num banco que já existia antes do hardening de auth, as colunas de lockout entram por `ALTER`
+(o `.sql` é script de criação). É idempotente — e o `MSYS_NO_PATHCONV=1` é o que impede o Git Bash
+de traduzir o caminho do `sqlcmd` dentro do container:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Usuario','FalhasConsecutivas') IS NULL ALTER TABLE dbo.Usuario ADD FalhasConsecutivas INT NOT NULL CONSTRAINT DF_Usuario_FalhasConsecutivas DEFAULT (0), BloqueadoAte DATETIME2 NULL;"
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
-### Trade-off conhecido de autenticação
+### Defesas de autenticação em vigor
+
+- **Trabalho constante + 401 genérico** no login e no refresh (sem oráculo de timing nem de corpo).
+- **Reuso de refresh token detectado:** reapresentar um token já rotacionado revoga **todos** os
+  refresh tokens ativos daquele usuário e responde o mesmo 401 genérico. Limite inerente: só
+  detecta quando o token **antigo** reaparece — se o atacante roubar o token atual e o legítimo
+  nunca replayar o anterior, a defesa é a expiração natural do refresh.
+- **Lockout de conta:** `Lockout:MaxFalhas` (5) falhas consecutivas trancam por
+  `Lockout:DuracaoMinutos` (15). A trava expira sozinha — não existe lockout permanente que exija
+  admin, e por isso o lockout-DoS fica limitado a atrasar o operador por esse tempo. Concorrência:
+  duas tentativas simultâneas podem competir pelo contador (off-by-one no pior caso), aceito no MVP.
+- **Rate limit por IP no `/auth/login`:** `RateLimit:PermitLimit` (10) por
+  `RateLimit:WindowSeconds` (60), janela fixa, 429 com `Retry-After`. O `/auth/refresh` fica de
+  fora de propósito. Em `appsettings.Development.json` o limite é folgado — no `TestServer` o IP é
+  nulo e toda a suíte cairia numa partição só.
+- **Logging de auth via `ILogger`** (não há tabela de auditoria persistente): login ok/falha e
+  refresh ok/falha com IP no `AuthController`; trava de conta e reuso de refresh nos casos de uso;
+  429 no `OnRejected`. **Nunca** se loga senha, refresh token (plano ou hash) nem access token.
+
+### Trade-offs conhecidos de autenticação
 
 **Logout não invalida o access token.** O logout revoga o refresh token no banco, mas o
 access token é JWT stateless e o `/me` responde só a partir das claims, sem ida ao banco.
-Ou seja: depois do logout — ou de desativar um usuário — a sessão ainda funciona até o
-access token expirar (`Jwt:AccessTokenMinutes`, hoje 15 min). É o comportamento padrão de
-JWT stateless e está aceito no MVP; se um dia precisar ser imediato, a saída é uma
-denylist de tokens ou validação por requisição, não um remendo no logout.
+Ou seja: depois do logout — ou de desativar um usuário, ou de a família de tokens ser queimada por
+reuso — a sessão ainda funciona até o access token expirar (`Jwt:AccessTokenMinutes`, hoje 15 min).
+É o comportamento padrão de JWT stateless e está aceito no MVP; se um dia precisar ser imediato, a
+saída é uma denylist de tokens ou validação por requisição, não um remendo no logout.
+
+**Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
+frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
+o limite vira global por acidente. Flag de deploy, ainda não necessária (deploy manual, sem proxy).
+
+**Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
+`RefreshToken` expiradas; `SigningKey` como segredo de ambiente e `UseHttpsRedirection`; mensagem
+dedicada de 429 no front (hoje cai no erro genérico de auth — só dispara sob abuso).

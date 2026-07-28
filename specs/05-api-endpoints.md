@@ -5,7 +5,9 @@ de time, se houver uma já estabelecida.
 
 ## Autenticação e Usuários
 
-- `POST /auth/login` — usuário/senha → retorna JWT
+- `POST /auth/login` — usuário/senha → retorna JWT. Falha sempre em **401** genérico (usuário
+  inexistente, inativo, senha errada e conta trancada são indistinguíveis). Excesso de tentativas
+  do mesmo IP → **429** com `Retry-After`.
 - `GET/POST /usuarios` *(Administrador)*
 - `GET/POST /perfis` *(Administrador)*
 

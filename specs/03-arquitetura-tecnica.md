@@ -51,6 +51,12 @@ tests/
   `docs/superpowers/specs/2026-07-23-fase-0-walking-skeleton-design.md` e a tabela
   `RefreshToken` em `02-modelo-de-dados.sql`. Nunca usar `localStorage` para tokens.
 - Frontend esconde/desabilita rotas e ações conforme o perfil do usuário logado.
+- **Hardening da Fase 0 (implementado):** detecção de reuso de refresh token (reapresentar um token
+  já rotacionado revoga toda a família de tokens ativos do usuário); lockout temporário de conta
+  (`Usuario.FalhasConsecutivas` / `Usuario.BloqueadoAte`, configurável em `Lockout`); rate limit
+  por IP no `/auth/login` (middleware nativo do ASP.NET Core, configurável em `RateLimit`); logging
+  dos eventos de auth via `ILogger`. Todas as falhas continuam com resposta única e genérica —
+  nenhuma dessas defesas pode ser observada pelo corpo ou pelo status da resposta.
 
 ## Frontend — React + TypeScript
 
