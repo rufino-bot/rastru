@@ -76,26 +76,24 @@ public class DbContextMappingTests
     [Fact]
     public async Task Usuario_novo_nasce_destrancado()
     {
-        // O default da coluna (0 falhas, BloqueadoAte NULL) e o que garante que o seed e qualquer
-        // usuario inserido sem mencionar essas colunas nao nasca trancado.
-        // Usuario proprio, e nao o `admin` do seed: o contador do admin e estado mutavel que
-        // outros testes (login com senha errada) tocam, entao afirmar sobre ele seria flaky.
+        // INSERT em SQL cru, omitindo as duas colunas de lockout de proposito: e o unico jeito de
+        // provar o DEFAULT da coluna (DF_Usuario_FalhasConsecutivas / BloqueadoAte NULL por
+        // ausencia de default proprio). UsuarioConfiguration nao declara HasDefaultValue nem
+        // ValueGeneratedOnAdd para essas colunas (Database First: o default vive so no .sql, nunca
+        // duplicado no mapeamento EF) — e por isso mesmo um INSERT feito pelo EF sempre manda as
+        // duas colunas explicitamente e nunca exercitaria o DEFAULT do banco. So o SQL cru prova
+        // que o seed e qualquer INSERT que nao mencione essas colunas nasce destrancado.
         await using var db = NovoContexto();
         var perfil = await db.Perfis.SingleAsync(p => p.Nome == "Administrador");
+        var nomeUsuario = $"novo-{Guid.NewGuid():N}";
 
-        var usuario = new Usuario
-        {
-            NomeUsuario = $"novo-{Guid.NewGuid():N}",
-            SenhaHash = "nao-usado-neste-teste",
-            NomeCompleto = "Usuario Recem-Criado",
-            PerfilId = perfil.Id,
-            Ativo = true,
-            // FalhasConsecutivas e BloqueadoAte NAO sao informados de proposito.
-        };
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
+            VALUES ({nomeUsuario}, 'nao-usado-neste-teste', 'Usuario Recem-Criado', {perfil.Id}, 1)");
 
-        db.Usuarios.Add(usuario);
-        await db.SaveChangesAsync();
-        var id = usuario.Id;
+        var id = await db.Database
+            .SqlQuery<int>($"SELECT Id AS [Value] FROM dbo.Usuario WHERE NomeUsuario = {nomeUsuario}")
+            .SingleAsync();
 
         try
         {
