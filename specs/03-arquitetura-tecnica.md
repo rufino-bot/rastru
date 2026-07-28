@@ -69,6 +69,35 @@ tests/
   dispositivos por um bug do próprio cliente, não por um ataque. Registrado agora porque o
   frontend só nasce na Fase 1 e este requisito tem que valer desde o primeiro cliente HTTP escrito.
 
+### Queima de família — o que single-flight resolve e o que não resolve
+
+Contexto para quem for investigar um deslogamento inexplicado, ou avaliar afrouxar a detecção.
+
+**Single-flight cobre só um dos três gatilhos benignos.** Os outros dois são de rede e nenhum
+código de cliente elimina:
+
+| Gatilho | Origem | Single-flight resolve? |
+|---|---|---|
+| Duplo-refresh concorrente | corrida no cliente | **sim** |
+| Resposta perdida no retry (rotaciona A→B, o 200 se perde, o cliente repete A) | rede | não |
+| Replay pós-logout (o 204 se perde, o cookie sobrevive) | rede | não |
+
+O segundo é o mais provável neste deploy — navegador Android no WiFi de fábrica.
+
+**O sintoma engana de propósito.** Quando um desses gatilhos dispara, o log grava
+`"Reuso de refresh token detectado"` e todas as sessões do usuário caem. Quem investigar vai
+procurar invasor, não corrida de cliente ou pacote perdido. Antes de tratar como incidente de
+segurança, verificar se houve **um** usuário afetado logo após instabilidade de rede (benigno) ou
+se há padrão de repetição por conta/IP (aí sim, suspeito).
+
+**A saída avaliada e deliberadamente NÃO escolhida** (decisão de 2026-07-28, hardening de auth):
+janela de graça no backend — aceitar um token revogado há menos de N segundos **cuja cadeia
+`SubstituidoPorTokenHash` esteja íntegra**, rejeitando-o com o 401 genérico sem queimar a família.
+A coluna já existe e é populada na rotação, então o custo é baixo. Foi descartada porque afrouxa a
+detecção: o ladrão ganha N segundos de reuso impune. Se os falsos positivos incomodarem em produção,
+**este é o caminho já analisado** — não precisa ser redescoberto do zero, só re-decidido com dados
+reais de frequência.
+
 ## Frontend — React + TypeScript
 
 - Mobile-first responsivo: prioridade em telas de operador de setor, que serão usadas
