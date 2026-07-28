@@ -14,15 +14,18 @@ public class AuthController : ControllerBase
     private readonly IAutenticarUsuarioUseCase _autenticar;
     private readonly IRenovarTokenUseCase _renovar;
     private readonly IRevogarTokenUseCase _revogar;
+    private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IAutenticarUsuarioUseCase autenticar,
         IRenovarTokenUseCase renovar,
-        IRevogarTokenUseCase revogar)
+        IRevogarTokenUseCase revogar,
+        ILogger<AuthController> logger)
     {
         _autenticar = autenticar;
         _renovar = renovar;
         _revogar = revogar;
+        _logger = logger;
     }
 
     public record LoginBody(string NomeUsuario, string Senha);
@@ -48,9 +51,20 @@ public class AuthController : ControllerBase
         var resultado = await _autenticar.ExecutarAsync(
             new LoginRequest(body.NomeUsuario, body.Senha), ct);
 
-        if (!resultado.Sucesso) return Unauthorized(new { erro = resultado.Erro });
+        if (!resultado.Sucesso)
+        {
+            // O usuario TENTADO, nunca a senha. E o desfecho grosso: por que falhou (inexistente,
+            // inativo, trancado, senha errada) fica de fora de proposito — o log espelha o 401
+            // generico, e o evento de seguranca que importa (a trava) sai do caso de uso.
+            _logger.LogWarning("Falha de login para {NomeUsuario}, origem {Ip}.",
+                body.NomeUsuario, HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized(new { erro = resultado.Erro });
+        }
 
-        return Ok(EntregarSessao(resultado.Valor!));
+        _logger.LogInformation("Login de {NomeUsuario}, origem {Ip}.",
+            resultado.Valor!.Usuario.NomeUsuario, HttpContext.Connection.RemoteIpAddress);
+
+        return Ok(EntregarSessao(resultado.Valor));
     }
 
     [HttpPost("refresh")]
@@ -59,9 +73,19 @@ public class AuthController : ControllerBase
         var refreshPlano = Request.Cookies[NomeDoCookieDeRefresh] ?? string.Empty;
         var resultado = await _renovar.ExecutarAsync(refreshPlano, ct);
 
-        if (!resultado.Sucesso) return Unauthorized(new { erro = resultado.Erro });
+        if (!resultado.Sucesso)
+        {
+            // Sem o token (nem plano nem hash) na mensagem: e segredo, e o log nao e cofre.
+            // Quando a causa for reuso, o RenovarTokenUseCase ja registrou o Warning especifico.
+            _logger.LogWarning("Falha ao renovar sessao, origem {Ip}.",
+                HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized(new { erro = resultado.Erro });
+        }
 
-        return Ok(EntregarSessao(resultado.Valor!));
+        _logger.LogInformation("Sessao renovada para {NomeUsuario}, origem {Ip}.",
+            resultado.Valor!.Usuario.NomeUsuario, HttpContext.Connection.RemoteIpAddress);
+
+        return Ok(EntregarSessao(resultado.Valor));
     }
 
     /// <summary>
