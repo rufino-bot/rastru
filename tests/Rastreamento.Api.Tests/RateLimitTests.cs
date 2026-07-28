@@ -16,13 +16,14 @@ namespace Rastreamento.Api.Tests;
 public class RateLimitTests
 {
     private const int Limite = 3;
+    private const int JanelaSegundos = 60;
 
     private static WebApplicationFactory<Program> NovaFabrica() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
             b.ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["RateLimit:PermitLimit"] = Limite.ToString(),
-                ["RateLimit:WindowSeconds"] = "60",
+                ["RateLimit:WindowSeconds"] = JanelaSegundos.ToString(),
             })));
 
     private static HttpClient NovoCliente(WebApplicationFactory<Program> fabrica) =>
@@ -50,6 +51,11 @@ public class RateLimitTests
         // Sem Retry-After o cliente so pode adivinhar quando voltar — e adivinhar em loop.
         Assert.True(barrada.Headers.RetryAfter is not null,
             "resposta 429 deveria trazer o header Retry-After");
+        // Nao basta existir: um valor fora da janela configurada (0, negativo ou maior que
+        // JanelaSegundos) orientaria o cliente a esperar tempo demais ou de menos.
+        var segundosParaEsperar = barrada.Headers.RetryAfter!.Delta!.Value.TotalSeconds;
+        Assert.True(segundosParaEsperar > 0 && segundosParaEsperar <= JanelaSegundos,
+            $"Retry-After deveria estar em (0, {JanelaSegundos}], veio {segundosParaEsperar}");
     }
 
     [Fact]
