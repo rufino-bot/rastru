@@ -1,8 +1,12 @@
+using System.Globalization;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
@@ -28,6 +32,57 @@ builder.Services.AddSingleton<IValidateOptions<LockoutOptions>, LockoutOptionsVa
 builder.Services.AddOptions<LockoutOptions>()
     .Bind(builder.Configuration.GetSection("Lockout"))
     .ValidateOnStart();
+
+builder.Services.AddSingleton<IValidateOptions<RateLimitOptions>, RateLimitOptionsValidator>();
+builder.Services.AddOptions<RateLimitOptions>()
+    .Bind(builder.Configuration.GetSection("RateLimit"))
+    .ValidateOnStart();
+
+// Teto grosso POR IP contra forca bruta de login. Complementa o lockout (trava fina, por conta):
+// um barra o flood de uma origem, o outro protege a conta especifica; nenhum substitui o outro.
+// Escopo deliberado: so o /auth/login. O /auth/refresh fica de fora — e legitimo e frequente, e o
+// refresh token e opaco de 256 bits (forca bruta inviavel), entao throttlar so puniria o operador.
+builder.Services.AddRateLimiter(rateLimiter =>
+{
+    rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    rateLimiter.AddPolicy(RateLimitOptions.NomeDaPoliticaDeLogin, http =>
+    {
+        var politica = http.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+
+        // Particao por IP. Atras de proxy reverso isto vira o IP do proxy e o limite passa a ser
+        // global — quando houver proxy, configurar ForwardedHeaders (anotado no CLAUDE.md).
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "sem-ip",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = politica.PermitLimit,
+                Window = TimeSpan.FromSeconds(politica.WindowSeconds),
+                // Sem fila: excedeu, recusa na hora. Enfileirar seguraria conexao a toa e daria ao
+                // atacante um jeito de consumir recurso do servidor sem levar 429.
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
+
+    rateLimiter.OnRejected = (contexto, _) =>
+    {
+        // Sem Retry-After o cliente so pode adivinhar quando voltar — e adivinhar em loop.
+        if (contexto.Lease.TryGetMetadata(MetadataName.RetryAfter, out var esperar))
+            contexto.HttpContext.Response.Headers.RetryAfter =
+                ((int)esperar.TotalSeconds).ToString(NumberFormatInfo.InvariantInfo);
+
+        contexto.HttpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Rastreamento.Api.RateLimit")
+            .LogWarning(
+                "Requisicao barrada por rate limit em {Caminho}, origem {Ip}.",
+                contexto.HttpContext.Request.Path,
+                contexto.HttpContext.Connection.RemoteIpAddress);
+
+        return ValueTask.CompletedTask;
+    };
+});
 
 builder.Services.AddDbContext<RastreamentoDbContext>(o =>
     o.UseSqlServer(builder.Configuration.GetConnectionString("Rastreamento")));
@@ -77,6 +132,8 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Antes da autenticacao: barrar o flood nao deve custar nem a validacao do token.
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

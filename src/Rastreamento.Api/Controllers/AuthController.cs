@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Rastreamento.Api.Configuration;
 using Rastreamento.Application.Auth;
 
 namespace Rastreamento.Api.Controllers;
@@ -40,6 +42,7 @@ public class AuthController : ControllerBase
     /// senha errada) para quem chama.
     /// </remarks>
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitOptions.NomeDaPoliticaDeLogin)]
     public async Task<IActionResult> Login([FromBody] LoginBody body, CancellationToken ct)
     {
         var resultado = await _autenticar.ExecutarAsync(
