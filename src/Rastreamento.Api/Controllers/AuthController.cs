@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Rastreamento.Api.Configuration;
@@ -28,7 +29,15 @@ public class AuthController : ControllerBase
         _logger = logger;
     }
 
-    public record LoginBody(string NomeUsuario, string Senha);
+    /// <remarks>
+    /// <c>MaxLength</c> casa com o <c>NVARCHAR(50)</c> de <c>UQ_Usuario_NomeUsuario</c>
+    /// (<c>specs/02-modelo-de-dados.sql</c>): nenhuma conta pode ter nome maior que isso, entao um
+    /// 400 aqui nao revela nada sobre contas existentes — so rejeita um formato que nao pode casar
+    /// com ninguem. O conteudo (caracteres de controle) e tratado na hora de logar, nao aqui: um
+    /// username com caractere estranho simplesmente nao existe, sem precisar de um caminho de
+    /// rejeicao proprio que arriscasse abrir uma distincao nova de resposta.
+    /// </remarks>
+    public record LoginBody([MaxLength(50)] string NomeUsuario, string Senha);
 
     /// <remarks>
     /// <c>AccessTokenExpiraEm</c> sai daqui em UTC; quem converte para GMT-3 e o
@@ -57,7 +66,7 @@ public class AuthController : ControllerBase
             // inativo, trancado, senha errada) fica de fora de proposito — o log espelha o 401
             // generico, e o evento de seguranca que importa (a trava) sai do caso de uso.
             _logger.LogWarning("Falha de login para {NomeUsuario}, origem {Ip}.",
-                body.NomeUsuario, HttpContext.Connection.RemoteIpAddress);
+                SemCaracteresDeControle(body.NomeUsuario), HttpContext.Connection.RemoteIpAddress);
             return Unauthorized(new { erro = resultado.Erro });
         }
 
@@ -133,4 +142,20 @@ public class AuthController : ControllerBase
         SameSite = SameSiteMode.Strict,
         Path = "/auth",
     };
+
+    /// <summary>
+    /// Troca caracteres de controle (CR, LF, tab etc.) por espaco antes de logar. O
+    /// <c>NomeUsuario</c> vem do corpo da requisicao sem essa garantia, e o logger de texto
+    /// default do ASP.NET Core nao escapa nada: uma quebra de linha no valor forjaria uma linha de
+    /// log inteira (ex.: um "Login de admin, origem ..." falso, de sucesso, dentro do log de uma
+    /// falha). O tamanho ja fica coberto pelo <c>MaxLength(50)</c> em <see cref="LoginBody"/>; isto
+    /// cobre o conteudo.
+    /// </summary>
+    private static string SemCaracteresDeControle(string valor)
+    {
+        var destino = new char[valor.Length];
+        for (var i = 0; i < valor.Length; i++)
+            destino[i] = char.IsControl(valor[i]) ? ' ' : valor[i];
+        return new string(destino);
+    }
 }
