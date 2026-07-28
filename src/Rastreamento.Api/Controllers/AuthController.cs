@@ -1,4 +1,7 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Rastreamento.Api.Configuration;
 using Rastreamento.Application.Auth;
 
 namespace Rastreamento.Api.Controllers;
@@ -12,18 +15,29 @@ public class AuthController : ControllerBase
     private readonly IAutenticarUsuarioUseCase _autenticar;
     private readonly IRenovarTokenUseCase _renovar;
     private readonly IRevogarTokenUseCase _revogar;
+    private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IAutenticarUsuarioUseCase autenticar,
         IRenovarTokenUseCase renovar,
-        IRevogarTokenUseCase revogar)
+        IRevogarTokenUseCase revogar,
+        ILogger<AuthController> logger)
     {
         _autenticar = autenticar;
         _renovar = renovar;
         _revogar = revogar;
+        _logger = logger;
     }
 
-    public record LoginBody(string NomeUsuario, string Senha);
+    /// <remarks>
+    /// <c>MaxLength</c> casa com o <c>NVARCHAR(50)</c> de <c>UQ_Usuario_NomeUsuario</c>
+    /// (<c>specs/02-modelo-de-dados.sql</c>): nenhuma conta pode ter nome maior que isso, entao um
+    /// 400 aqui nao revela nada sobre contas existentes — so rejeita um formato que nao pode casar
+    /// com ninguem. O conteudo (caracteres de controle) e tratado na hora de logar, nao aqui: um
+    /// username com caractere estranho simplesmente nao existe, sem precisar de um caminho de
+    /// rejeicao proprio que arriscasse abrir uma distincao nova de resposta.
+    /// </remarks>
+    public record LoginBody([MaxLength(50)] string NomeUsuario, string Senha);
 
     /// <remarks>
     /// <c>AccessTokenExpiraEm</c> sai daqui em UTC; quem converte para GMT-3 e o
@@ -40,14 +54,26 @@ public class AuthController : ControllerBase
     /// senha errada) para quem chama.
     /// </remarks>
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitOptions.NomeDaPoliticaDeLogin)]
     public async Task<IActionResult> Login([FromBody] LoginBody body, CancellationToken ct)
     {
         var resultado = await _autenticar.ExecutarAsync(
             new LoginRequest(body.NomeUsuario, body.Senha), ct);
 
-        if (!resultado.Sucesso) return Unauthorized(new { erro = resultado.Erro });
+        if (!resultado.Sucesso)
+        {
+            // O usuario TENTADO, nunca a senha. E o desfecho grosso: por que falhou (inexistente,
+            // inativo, trancado, senha errada) fica de fora de proposito — o log espelha o 401
+            // generico, e o evento de seguranca que importa (a trava) sai do caso de uso.
+            _logger.LogWarning("Falha de login para {NomeUsuario}, origem {Ip}.",
+                SemCaracteresDeControle(body.NomeUsuario), HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized(new { erro = resultado.Erro });
+        }
 
-        return Ok(EntregarSessao(resultado.Valor!));
+        _logger.LogInformation("Login de {NomeUsuario}, origem {Ip}.",
+            resultado.Valor!.Usuario.NomeUsuario, HttpContext.Connection.RemoteIpAddress);
+
+        return Ok(EntregarSessao(resultado.Valor));
     }
 
     [HttpPost("refresh")]
@@ -56,9 +82,19 @@ public class AuthController : ControllerBase
         var refreshPlano = Request.Cookies[NomeDoCookieDeRefresh] ?? string.Empty;
         var resultado = await _renovar.ExecutarAsync(refreshPlano, ct);
 
-        if (!resultado.Sucesso) return Unauthorized(new { erro = resultado.Erro });
+        if (!resultado.Sucesso)
+        {
+            // Sem o token (nem plano nem hash) na mensagem: e segredo, e o log nao e cofre.
+            // Quando a causa for reuso, o RenovarTokenUseCase ja registrou o Warning especifico.
+            _logger.LogWarning("Falha ao renovar sessao, origem {Ip}.",
+                HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized(new { erro = resultado.Erro });
+        }
 
-        return Ok(EntregarSessao(resultado.Valor!));
+        _logger.LogInformation("Sessao renovada para {NomeUsuario}, origem {Ip}.",
+            resultado.Valor!.Usuario.NomeUsuario, HttpContext.Connection.RemoteIpAddress);
+
+        return Ok(EntregarSessao(resultado.Valor));
     }
 
     /// <summary>
@@ -106,4 +142,20 @@ public class AuthController : ControllerBase
         SameSite = SameSiteMode.Strict,
         Path = "/auth",
     };
+
+    /// <summary>
+    /// Troca caracteres de controle (CR, LF, tab etc.) por espaco antes de logar. O
+    /// <c>NomeUsuario</c> vem do corpo da requisicao sem essa garantia, e o logger de texto
+    /// default do ASP.NET Core nao escapa nada: uma quebra de linha no valor forjaria uma linha de
+    /// log inteira (ex.: um "Login de admin, origem ..." falso, de sucesso, dentro do log de uma
+    /// falha). O tamanho ja fica coberto pelo <c>MaxLength(50)</c> em <see cref="LoginBody"/>; isto
+    /// cobre o conteudo.
+    /// </summary>
+    private static string SemCaracteresDeControle(string valor)
+    {
+        var destino = new char[valor.Length];
+        for (var i = 0; i < valor.Length; i++)
+            destino[i] = char.IsControl(valor[i]) ? ' ' : valor[i];
+        return new string(destino);
+    }
 }

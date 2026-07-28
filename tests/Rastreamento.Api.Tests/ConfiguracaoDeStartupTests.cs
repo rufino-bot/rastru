@@ -50,6 +50,32 @@ public class ConfiguracaoDeStartupTests
         Assert.IsType<OptionsValidationException>(excecao);
     }
 
+    [Theory]
+    [InlineData("Lockout:MaxFalhas")]
+    [InlineData("Lockout:DuracaoMinutos")]
+    public void Aplicacao_nao_sobe_com_lockout_nao_positivo(string chave)
+    {
+        // MaxFalhas=0 trancaria toda conta no primeiro erro de digitacao; DuracaoMinutos=0 seria
+        // uma trava que ja nasce expirada — nos dois casos a defesa vira outra coisa em silencio.
+        var excecao = Record.Exception(() => SubirApi(new() { [chave] = "0" }));
+
+        var validacao = Assert.IsType<OptionsValidationException>(excecao);
+        Assert.Contains("Lockout", validacao.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("RateLimit:PermitLimit")]
+    [InlineData("RateLimit:WindowSeconds")]
+    public void Aplicacao_nao_sobe_com_rate_limit_nao_positivo(string chave)
+    {
+        // PermitLimit=0 barraria todo login; WindowSeconds=0 e uma janela sem duracao. Nos dois
+        // casos o /auth/login para de funcionar — melhor nao subir do que subir quebrado.
+        var excecao = Record.Exception(() => SubirApi(new() { [chave] = "0" }));
+
+        var validacao = Assert.IsType<OptionsValidationException>(excecao);
+        Assert.Contains("RateLimit", validacao.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void Aplicacao_sobe_com_a_configuracao_do_repositorio()
     {

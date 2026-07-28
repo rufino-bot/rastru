@@ -49,6 +49,11 @@ CREATE TABLE dbo.Usuario (
     NomeCompleto    NVARCHAR(200)       NOT NULL,
     PerfilId        INT                 NOT NULL,
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Usuario_Ativo DEFAULT (1),
+    -- Lockout de conta (anti brute-force): falhas de senha em sequência e até quando a conta
+    -- está trancada. BloqueadoAte NULL = destrancada; a trava expira sozinha, sem ação de admin.
+    -- O contador zera no login bem-sucedido e também no momento em que a trava é aplicada.
+    FalhasConsecutivas INT              NOT NULL CONSTRAINT DF_Usuario_FalhasConsecutivas DEFAULT (0),
+    BloqueadoAte    DATETIME2           NULL,
     CONSTRAINT PK_Usuario PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Usuario_NomeUsuario UNIQUE (NomeUsuario),
     CONSTRAINT FK_Usuario_Perfil FOREIGN KEY (PerfilId) REFERENCES dbo.Perfil (Id)
@@ -63,6 +68,7 @@ CREATE TABLE dbo.RefreshToken (
     CriadoEm                DATETIME2           NOT NULL CONSTRAINT DF_RefreshToken_CriadoEm DEFAULT (SYSUTCDATETIME()),
     RevogadoEm              DATETIME2           NULL,       -- NULL = ativo; preenchido no logout ou na rotação
     SubstituidoPorTokenHash NVARCHAR(200)       NULL,       -- rastro de rotação (auditoria)
+    RowVersion              ROWVERSION          NOT NULL,   -- token de concorrência otimista
     CONSTRAINT PK_RefreshToken PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_RefreshToken_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT UQ_RefreshToken_TokenHash UNIQUE (TokenHash),

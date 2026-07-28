@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Abstractions;
@@ -43,8 +44,18 @@ public class FakeUsuarioRepo : IUsuarioRepository
 
     public FakeUsuarioRepo(Usuario? usuario) => _usuario = usuario;
 
+    /// <summary>Quantos commits o repositorio recebeu — permite provar que o contador de falhas
+    /// realmente foi persistido (e que o caminho de miss nao escreve nada).</summary>
+    public int Saves { get; private set; }
+
     public Task<Usuario?> ObterPorNomeUsuarioAsync(string nomeUsuario, CancellationToken ct) =>
         Task.FromResult(_usuario is not null && _usuario.NomeUsuario == nomeUsuario ? _usuario : null);
+
+    public Task SalvarAlteracoesAsync(CancellationToken ct)
+    {
+        Saves++;
+        return Task.CompletedTask;
+    }
 }
 
 public class FakeRefreshTokenRepo : IRefreshTokenRepository
@@ -55,6 +66,20 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     /// <summary>Quantos commits o repositorio recebeu — permite provar "um unico save".</summary>
     public int Saves { get; private set; }
 
+    /// <summary>Ids de usuario cuja familia de tokens foi queimada, na ordem das chamadas.</summary>
+    public List<int> RevogacoesEmMassa { get; } = new();
+
+    /// <summary>
+    /// Quando true, <see cref="SalvarAlteracoesAsync"/> lanca <see cref="ConflitoDeConcorrenciaException"/>
+    /// em vez de commitar — simula uma rotacao ou outro logout concorrente que ja alterou a mesma
+    /// linha (RowVersion obsoleto) entre a leitura e este save.
+    /// </summary>
+    public bool LancarConflitoAoSalvar { get; set; }
+
+    /// <summary>Tudo que o fake "conhece": o token de partida mais os emitidos durante o teste.</summary>
+    private IEnumerable<RefreshToken> Todos =>
+        Ativo is null ? Adicionados : Adicionados.Append(Ativo);
+
     public Task AdicionarAsync(RefreshToken token, CancellationToken ct)
     {
         Adicionados.Add(token);
@@ -64,9 +89,35 @@ public class FakeRefreshTokenRepo : IRefreshTokenRepository
     public Task<RefreshToken?> ObterAtivoPorHashAsync(string tokenHash, CancellationToken ct) =>
         Task.FromResult(Ativo is not null && Ativo.TokenHash == tokenHash && Ativo.RevogadoEm is null ? Ativo : null);
 
+    /// <summary>Sem filtro de estado: e o que permite ao caso de uso ver um token ja revogado.</summary>
+    public Task<RefreshToken?> ObterPorHashAsync(string tokenHash, CancellationToken ct) =>
+        Task.FromResult(Ativo is not null && Ativo.TokenHash == tokenHash ? Ativo : null);
+
+    /// <summary>
+    /// Revoga de verdade os tokens conhecidos do usuario (nao so registra a chamada): e assim que
+    /// o teste consegue provar que a sessao emitida ao ladrao tambem cai.
+    /// </summary>
+    public Task<int> RevogarTodosAtivosDoUsuarioAsync(
+        int usuarioId, DateTime revogadoEm, CancellationToken ct)
+    {
+        RevogacoesEmMassa.Add(usuarioId);
+        var revogados = 0;
+        foreach (var token in Todos.Where(t => t.UsuarioId == usuarioId && t.RevogadoEm is null))
+        {
+            token.RevogadoEm = revogadoEm;
+            revogados++;
+        }
+
+        // O metodo real persiste sozinho — o fake conta o save para nao mascarar isso.
+        Saves++;
+        return Task.FromResult(revogados);
+    }
+
     public Task SalvarAlteracoesAsync(CancellationToken ct)
     {
         Saves++;
+        if (LancarConflitoAoSalvar)
+            throw new ConflitoDeConcorrenciaException(new InvalidOperationException("conflito simulado"));
         return Task.CompletedTask;
     }
 }
@@ -75,4 +126,27 @@ public static class FakeJwtOptions
 {
     public static IOptions<JwtOptions> Instance =>
         Options.Create(new JwtOptions { AccessTokenMinutes = 15, RefreshTokenDays = 7 });
+}
+
+/// <summary>
+/// Captura o que foi logado para que os testes possam provar duas coisas: que o evento de
+/// seguranca sai no nivel certo e que a mensagem nao carrega segredo (token, hash, senha).
+/// </summary>
+public class FakeLogger<T> : ILogger<T>
+{
+    public record Entrada(LogLevel Nivel, string Mensagem);
+
+    public List<Entrada> Entradas { get; } = new();
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter) =>
+        Entradas.Add(new Entrada(logLevel, formatter(state, exception)));
 }

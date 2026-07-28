@@ -9,5 +9,6 @@ public class RefreshToken
     public DateTime CriadoEm { get; set; }
     public DateTime? RevogadoEm { get; set; }
     public string? SubstituidoPorTokenHash { get; set; }
+    public byte[] RowVersion { get; set; } = [];
     public Usuario Usuario { get; set; } = null!;
 }

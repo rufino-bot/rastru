@@ -5,7 +5,15 @@ de time, se houver uma já estabelecida.
 
 ## Autenticação e Usuários
 
-- `POST /auth/login` — usuário/senha → retorna JWT
+- `POST /auth/login` — usuário/senha → retorna JWT. Falha sempre em **401** genérico (usuário
+  inexistente, inativo, senha errada e conta trancada são indistinguíveis). Excesso de tentativas
+  do mesmo IP → **429** com `Retry-After`.
+- `POST /auth/refresh` — troca o refresh token (cookie httpOnly) por um par novo de tokens.
+  Deliberadamente **fora** do rate limit do login: é legítimo e frequente (a cada ~15 min por
+  usuário, mais retries), e o refresh token é opaco de 256 bits, então força bruta nele é inviável
+  (ver `CLAUDE.md`, seção de defesas de autenticação). Consequência que essa isenção carrega, ainda
+  **em aberto e pendente de decisão** (não resolvida por este documento): é a premissa que
+  permitiria a quem roubasse um refresh token válido rodar a rotação em loop sem limite de taxa.
 - `GET/POST /usuarios` *(Administrador)*
 - `GET/POST /perfis` *(Administrador)*
 
