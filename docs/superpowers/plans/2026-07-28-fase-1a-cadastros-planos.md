@@ -149,17 +149,72 @@ git commit -m "feat(schema): autoria em Pedido e Agrupamento"
 - Create: `src/Rastreamento.Infrastructure/Persistence/Configurations/SetorConfiguration.cs`
 - Create: `src/Rastreamento.Infrastructure/Persistence/SetorRepository.cs`
 - Modify: `src/Rastreamento.Infrastructure/Persistence/RastreamentoDbContext.cs`
+- Create: `tests/Rastreamento.Infrastructure.Tests/TesteComBanco.cs`
+- Modify: `tests/Rastreamento.Infrastructure.Tests/Persistence/DbContextMappingTests.cs`
+- Modify: `tests/Rastreamento.Infrastructure.Tests/Persistence/RefreshTokenRepositoryTests.cs`
+- Modify: `tests/Rastreamento.Infrastructure.Tests/Security/SeedAdminSenhaTests.cs`
 - Test: `tests/Rastreamento.Infrastructure.Tests/Persistence/SetorMappingTests.cs`
 
 **Interfaces:**
 - Produces:
+  - `TesteComBanco` — base dos testes que exigem SQL Server: `protected const string Conn` e `protected static RastreamentoDbContext NovoContexto()`. Herdada pelos `*MappingTests` das Tasks 6, 8 e 10
   - `Rastreamento.Domain.Entities.Setor` — `int Id`, `string Nome`, `bool Ativo`
   - `ISetorRepository` — `Task<Setor?> ObterPorIdAsync(int id, CancellationToken ct)`, `Task<Setor?> ObterPorNomeAsync(string nome, CancellationToken ct)`, `Task<IReadOnlyList<Setor>> ListarAsync(bool incluirInativos, CancellationToken ct)`, `Task AdicionarAsync(Setor setor, CancellationToken ct)`, `Task SalvarAlteracoesAsync(CancellationToken ct)`
   - `RastreamentoDbContext.Setores`
 
 **Contexto:** `ObterPorNomeAsync` existe porque a duplicidade é checada no use case **antes** do insert (`specs/03-arquitetura-tecnica.md:25-27`: regra de `CHECK`/`UNIQUE` também validada na aplicação, com erro de negócio claro). Os `Obter*` retornam entidade **rastreada** (sem `AsNoTracking`) porque `Editar` e `DefinirAtivo` mutam a entidade e contam com o change tracking — mesmo contrato de `IUsuarioRepository`.
 
-- [ ] **Step 1: Escrever o teste de mapeamento (vai falhar)**
+- [ ] **Step 1: Extrair a base dos testes que exigem banco**
+
+Hoje a mesma connection string está copiada em **três** classes da Fase 0
+(`DbContextMappingTests`, `RefreshTokenRepositoryTests`, `SeedAdminSenhaTests`) — Minor já
+registrado no ledger da Fase 0. Esta fase acrescentaria mais quatro. A base fecha em uma.
+
+Create `tests/Rastreamento.Infrastructure.Tests/TesteComBanco.cs`:
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Rastreamento.Infrastructure.Persistence;
+
+namespace Rastreamento.Infrastructure.Tests;
+
+/// <summary>
+/// Base dos testes que rodam contra o SQL Server real (docker compose up -d, com
+/// specs/02-modelo-de-dados.sql e db/seed.sql aplicados). Existe para a connection string do
+/// container de dev viver num lugar so — ela ja estava copiada em tres classes da Fase 0.
+/// </summary>
+/// <remarks>
+/// Fica no namespace raiz do projeto de teste de proposito: namespaces filhos (`.Persistence`,
+/// `.Security`) enxergam o pai sem `using`.
+/// </remarks>
+public abstract class TesteComBanco
+{
+    protected const string Conn =
+        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
+
+    protected static RastreamentoDbContext NovoContexto()
+    {
+        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
+        return new RastreamentoDbContext(options);
+    }
+}
+```
+
+Depois, nas **três classes existentes**, apagar o `private const string Conn = …` e o
+`private static RastreamentoDbContext NovoContexto()` e herdar da base:
+
+- `tests/Rastreamento.Infrastructure.Tests/Persistence/DbContextMappingTests.cs` →
+  `public class DbContextMappingTests : TesteComBanco`
+- `tests/Rastreamento.Infrastructure.Tests/Persistence/RefreshTokenRepositoryTests.cs` →
+  `public class RefreshTokenRepositoryTests : TesteComBanco, IAsyncLifetime`
+- `tests/Rastreamento.Infrastructure.Tests/Security/SeedAdminSenhaTests.cs` →
+  `public class SeedAdminSenhaTests : TesteComBanco` (esta usa só a `Conn`; se não tiver
+  `NovoContexto`, apagar apenas a constante)
+
+Run: `dotnet test tests/Rastreamento.Infrastructure.Tests`
+Expected: os testes da Fase 0 continuam **todos verdes** — é refatoração de teste, nenhum comportamento muda. Se algum ficar vermelho, a migração comeu algo a mais: reverter e refazer classe por classe.
+
+- [ ] **Step 2: Escrever o teste de mapeamento (vai falhar)**
 
 Create `tests/Rastreamento.Infrastructure.Tests/Persistence/SetorMappingTests.cs`:
 
@@ -172,17 +227,8 @@ using Xunit;
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>Requer o SQL Server no ar (docker compose up -d) com o schema aplicado.</summary>
-public class SetorMappingTests
+public class SetorMappingTests : TesteComBanco
 {
-    private const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
-
-    private static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
-
     [Fact]
     public async Task Mapeia_setor_com_round_trip()
     {
@@ -240,12 +286,12 @@ public class SetorMappingTests
 }
 ```
 
-- [ ] **Step 2: Rodar o teste e ver falhar**
+- [ ] **Step 3: Rodar o teste e ver falhar**
 
 Run: `dotnet test tests/Rastreamento.Infrastructure.Tests --filter FullyQualifiedName~SetorMappingTests`
 Expected: FALHA de compilação — `Setor` e `RastreamentoDbContext.Setores` não existem.
 
-- [ ] **Step 3: Criar a entidade**
+- [ ] **Step 4: Criar a entidade**
 
 Create `src/Rastreamento.Domain/Entities/Setor.cs`:
 
@@ -262,7 +308,7 @@ public class Setor
 }
 ```
 
-- [ ] **Step 4: Criar o contrato do repositório**
+- [ ] **Step 5: Criar o contrato do repositório**
 
 Create `src/Rastreamento.Domain/Abstractions/ISetorRepository.cs`:
 
@@ -290,7 +336,7 @@ public interface ISetorRepository
 }
 ```
 
-- [ ] **Step 5: Criar o mapeamento EF**
+- [ ] **Step 6: Criar o mapeamento EF**
 
 Create `src/Rastreamento.Infrastructure/Persistence/Configurations/SetorConfiguration.cs`:
 
@@ -313,7 +359,7 @@ public class SetorConfiguration : IEntityTypeConfiguration<Setor>
 }
 ```
 
-- [ ] **Step 6: Criar o repositório**
+- [ ] **Step 7: Criar o repositório**
 
 Create `src/Rastreamento.Infrastructure/Persistence/SetorRepository.cs`:
 
@@ -349,7 +395,7 @@ public class SetorRepository : ISetorRepository
 }
 ```
 
-- [ ] **Step 7: Registrar o `DbSet`**
+- [ ] **Step 8: Registrar o `DbSet`**
 
 Modify `src/Rastreamento.Infrastructure/Persistence/RastreamentoDbContext.cs` — após a linha `public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();`:
 
@@ -357,17 +403,17 @@ Modify `src/Rastreamento.Infrastructure/Persistence/RastreamentoDbContext.cs` �
     public DbSet<Setor> Setores => Set<Setor>();
 ```
 
-- [ ] **Step 8: Rodar o teste e ver passar**
+- [ ] **Step 9: Rodar o teste e ver passar**
 
 Run: `dotnet test tests/Rastreamento.Infrastructure.Tests --filter FullyQualifiedName~SetorMappingTests`
 Expected: PASS — 2 testes.
 
-- [ ] **Step 9: Verificar o build sem warnings**
+- [ ] **Step 10: Verificar o build sem warnings**
 
 Run: `dotnet build Rastreamento.slnx -warnaserror`
 Expected: `Build succeeded`, 0 warnings.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add src/Rastreamento.Domain/Entities/Setor.cs src/Rastreamento.Domain/Abstractions/ISetorRepository.cs src/Rastreamento.Infrastructure/Persistence/Configurations/SetorConfiguration.cs src/Rastreamento.Infrastructure/Persistence/SetorRepository.cs src/Rastreamento.Infrastructure/Persistence/RastreamentoDbContext.cs tests/Rastreamento.Infrastructure.Tests/Persistence/SetorMappingTests.cs
@@ -1167,7 +1213,6 @@ git commit -m "feat(setor): endpoints com autorizacao por perfil e 409 reativave
 - Produces:
   - `listarSetores(incluirInativos: boolean): Promise<SetorDto[]>`
   - `criarSetor(nome: string): Promise<SetorDto | ConflitoDeCadastro>`
-  - `editarSetor(id: number, nome: string): Promise<SetorDto | ConflitoDeCadastro>`
   - `definirAtivoSetor(id: number, ativo: boolean): Promise<void>`
   - tipos `SetorDto`, `ConflitoDeCadastro`
 
@@ -1201,7 +1246,7 @@ describe('cadastros', () => {
 
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('lista setores ativos por padrão', async () => {
+  it('lista setores ativos por padrao', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify([{ id: 1, nome: 'Solda', ativo: true }]), { status: 200 }),
     )
@@ -1213,7 +1258,7 @@ describe('cadastros', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/setores?incluirInativos=false')
   })
 
-  it('devolve o conflito quando o nome já existe inativo', async () => {
+  it('devolve o conflito quando o nome ja existe inativo', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 7 }),
@@ -1228,7 +1273,7 @@ describe('cadastros', () => {
     expect(ehConflito(resultado) && resultado.idExistente).toBe(7)
   })
 
-  it('lança quando a resposta é erro não tratado', async () => {
+  it('lanca quando a resposta e erro nao tratado', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })))
 
     await expect(criarSetor('Solda')).rejects.toThrow()
@@ -1281,14 +1326,6 @@ export async function listarSetores(incluirInativos: boolean): Promise<SetorDto[
 export function criarSetor(nome: string): Promise<SetorDto | ConflitoDeCadastro> {
   return apiFetch('/setores', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome }),
-  }).then(lerOuFalhar<SetorDto>)
-}
-
-export function editarSetor(id: number, nome: string): Promise<SetorDto | ConflitoDeCadastro> {
-  return apiFetch(`/setores/${id}`, {
-    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nome }),
   }).then(lerOuFalhar<SetorDto>)
@@ -1894,17 +1931,8 @@ using Xunit;
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>Requer o SQL Server no ar (docker compose up -d) com o schema aplicado.</summary>
-public class MaterialMappingTests
+public class MaterialMappingTests : TesteComBanco
 {
-    private const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
-
-    private static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
-
     [Fact]
     public async Task Mapeia_material_com_round_trip()
     {
@@ -2297,7 +2325,6 @@ git commit -m "feat(material): cadastro completo com 409 reativavel por codigo"
   - `MaterialDto { id: number; codigo: string; descricao: string; unidadeMedida: string; ativo: boolean }`
   - `listarMateriais(incluirInativos: boolean): Promise<MaterialDto[]>`
   - `criarMaterial(m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro>`
-  - `editarMaterial(id: number, m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro>`
   - `definirAtivoMaterial(id: number, ativo: boolean): Promise<void>`
   - `NovoMaterial { codigo: string; descricao: string; unidadeMedida: string }`
 
@@ -2308,7 +2335,7 @@ git commit -m "feat(material): cadastro completo com 409 reativavel por codigo"
 Modify `web/src/api/cadastros.test.ts` — acrescentar o import de `listarMateriais` e `criarMaterial` na primeira linha de import (`import { listarSetores, criarSetor, ehConflito, listarMateriais, criarMaterial } from './cadastros'`) e o bloco abaixo, dentro do `describe('cadastros', ...)`:
 
 ```ts
-  it('lista materiais ativos por padrão', async () => {
+  it('lista materiais ativos por padrao', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify([
@@ -2326,7 +2353,7 @@ Modify `web/src/api/cadastros.test.ts` — acrescentar o import de `listarMateri
     expect(fetchMock.mock.calls[0][0]).toBe('/materiais?incluirInativos=false')
   })
 
-  it('manda os três campos do material no corpo do POST', async () => {
+  it('manda os tres campos do material no corpo do POST', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ id: 5, codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG', ativo: true }),
@@ -2341,7 +2368,7 @@ Modify `web/src/api/cadastros.test.ts` — acrescentar o import de `listarMateri
     expect(corpo).toEqual({ codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG' })
   })
 
-  it('devolve o conflito quando o código do material já existe', async () => {
+  it('devolve o conflito quando o codigo do material ja existe', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 4 }),
@@ -2389,17 +2416,6 @@ export async function listarMateriais(incluirInativos: boolean): Promise<Materia
 export function criarMaterial(m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro> {
   return apiFetch('/materiais', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(m),
-  }).then(lerOuFalhar<MaterialDto>)
-}
-
-export function editarMaterial(
-  id: number,
-  m: NovoMaterial,
-): Promise<MaterialDto | ConflitoDeCadastro> {
-  return apiFetch(`/materiais/${id}`, {
-    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(m),
   }).then(lerOuFalhar<MaterialDto>)
@@ -3126,17 +3142,8 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// Requer o SQL Server no ar (docker compose up -d) com o schema e o db/seed.sql aplicados —
 /// e o unico lugar que prova as colunas de autoria da Task 1 contra o DDL de verdade.
 /// </summary>
-public class PedidoMappingTests
+public class PedidoMappingTests : TesteComBanco
 {
-    private const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
-
-    private static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
-
     /// <summary>FK_Pedido_CriadoPorUsuario nao aceita autor inventado: o Id sai do banco.</summary>
     private static async Task<int> IdDoAdmin(RastreamentoDbContext db) =>
         (await db.Usuarios.AsNoTracking().SingleAsync(u => u.NomeUsuario == "admin")).Id;
@@ -3533,7 +3540,7 @@ Modify `web/src/api/cadastros.test.ts` — acrescentar `listarPedidos`, `criarPe
     expect(fetchMock.mock.calls[0][0]).toBe('/pedidos')
   })
 
-  it('devolve o conflito quando o número do pedido já existe', async () => {
+  it('devolve o conflito quando o numero do pedido ja existe', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ erro: 'ValorDuplicado', campo: 'numero', existeInativo: false, idExistente: 3 }),
@@ -3608,18 +3615,11 @@ export function criarPedido(p: NovoPedido): Promise<PedidoDto | ConflitoDeCadast
     body: JSON.stringify(p),
   }).then(lerOuFalhar<PedidoDto>)
 }
-
-export function editarPedido(
-  id: number,
-  p: NovoPedido,
-): Promise<PedidoDto | ConflitoDeCadastro> {
-  return apiFetch(`/pedidos/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(p),
-  }).then(lerOuFalhar<PedidoDto>)
-}
 ```
+
+> **Sem `editarPedido` aqui, de propósito.** O `PUT /pedidos/{id}` existe e está testado no
+> backend (Task 8), mas nenhuma tela de 1A tem UI de edição — exportar a função sem chamador
+> seria código morto. Ela nasce junto com a tela que a usar.
 
 - [ ] **Step 4: Rodar e ver passar**
 
@@ -4420,17 +4420,8 @@ using Xunit;
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>Requer o SQL Server no ar (docker compose up -d) com o schema e o db/seed.sql aplicados.</summary>
-public class AgrupamentoMappingTests
+public class AgrupamentoMappingTests : TesteComBanco
 {
-    private const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
-
-    private static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
-
     /// <summary>Abre um Pedido real: FK_Agrupamento_Pedido nao aceita PedidoId inventado.</summary>
     private static async Task<(int PedidoId, int Autor)> NovoPedido(RastreamentoDbContext db)
     {
@@ -4936,7 +4927,7 @@ Modify `web/src/api/cadastros.test.ts` — acrescentar `listarAgrupamentos`, `cr
     expect(fetchMock.mock.calls[0][0]).toBe('/pedidos/4/agrupamentos')
   })
 
-  it('traduz o 409 da exclusão no código que a tela precisa mostrar', async () => {
+  it('traduz o 409 da exclusao no codigo que a tela precisa mostrar', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ erro: 'AgrupamentoNaoVazio' }), { status: 409 }),
     ))
@@ -4944,7 +4935,7 @@ Modify `web/src/api/cadastros.test.ts` — acrescentar `listarAgrupamentos`, `cr
     expect(await excluirAgrupamento(7)).toBe('AgrupamentoNaoVazio')
   })
 
-  it('trata 204 e 404 da exclusão', async () => {
+  it('trata 204 e 404 da exclusao', async () => {
     vi.stubGlobal('fetch', vi.fn()
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(new Response(null, { status: 404 })))
@@ -5376,6 +5367,18 @@ resolve isso — cada controller fecha sobre os valores que já tem (`nome`, `co
 molde, com todos os métodos `virtual`, e os quatro controllers herdam dela. Ganho colateral: a
 tradução de `PATCH /{id}/ativo` e a do `DELETE /agrupamentos/{id}` viraram o mesmo
 `TraduzirResultado`, e a leitura da claim `sub` deixou de existir em duas cópias.
+
+**O que o pre-flight da execução pegou (3 pontos, aprovados pelo usuário):**
+
+- **Nomes de teste do front com acento** contradiziam a própria Global Constraint deste plano
+  ("nomes de teste em português sem acentos, como o código já existente" — `client.test.ts` usa
+  `'disparam UM unico /auth/refresh'`). 9 nomes corrigidos.
+- **`editarSetor` / `editarMaterial` / `editarPedido`** eram exportados sem nenhum chamador —
+  nenhuma tela de 1A tem UI de edição, e `editarAgrupamento` nem existia. Removidos; os `PUT`
+  do backend seguem implementados e testados.
+- **Connection string duplicada** nos `*MappingTests`. O ledger da Fase 0 já registrava esse
+  Minor em 3 classes; o plano somaria mais 4. Extraída para `TesteComBanco` (Task 2, Step 1),
+  que também migra as 3 classes antigas — fecha o Minor em vez de multiplicá-lo.
 
 **O que o self-review pegou e foi corrigido inline:** faltavam os testes de mapeamento EF de
 `Pedido` e `Agrupamento` — justamente as entidades onde as colunas novas da Task 1 moram. Sem
