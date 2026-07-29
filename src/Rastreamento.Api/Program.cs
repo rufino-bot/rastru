@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Cadastros;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
@@ -101,6 +102,11 @@ builder.Services.AddScoped<IEmissorDeSessao, EmissorDeSessao>();
 builder.Services.AddScoped<IAutenticarUsuarioUseCase, AutenticarUsuarioUseCase>();
 builder.Services.AddScoped<IRenovarTokenUseCase, RenovarTokenUseCase>();
 builder.Services.AddScoped<IRevogarTokenUseCase, RevogarTokenUseCase>();
+
+// Cadastros (Fase 1A). Sem interface de use case de proposito: nada os substitui por fake — os
+// testes de Application fakeiam o repositorio. Ver a decisao registrada no plano da Fase 1A.
+builder.Services.AddScoped<ISetorRepository, SetorRepository>();
+builder.Services.AddScoped<CadastroDeSetorUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

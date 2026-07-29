@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Cadastros;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
 
@@ -12,6 +13,12 @@ namespace Rastreamento.Api.Tests;
 /// antigo e a insercao do novo. Isso so vale se caso de uso, emissor e repositorio compartilharem
 /// a mesma instancia de <see cref="RastreamentoDbContext"/> — ou seja, se tudo for
 /// <c>Scoped</c>. Com <c>Transient</c> a revogacao se perderia em silencio.
+/// <para>
+/// Os cadastros da Fase 1A entram pelo mesmo motivo: <c>Editar</c> e <c>DefinirAtivo</c> mutam a
+/// entidade que o repositorio carregou e dependem de <c>SalvarAlteracoesAsync</c> enxergar a
+/// mudanca no MESMO <see cref="RastreamentoDbContext"/>. Cada entidade nova acrescenta aqui o par
+/// repositorio + caso de uso.
+/// </para>
 /// </summary>
 public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -27,6 +34,8 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
     [InlineData(typeof(IAutenticarUsuarioUseCase))]
     [InlineData(typeof(IRenovarTokenUseCase))]
     [InlineData(typeof(IRevogarTokenUseCase))]
+    [InlineData(typeof(ISetorRepository))]
+    [InlineData(typeof(CadastroDeSetorUseCase))]
     public void Servico_e_registrado_como_Scoped(Type servico)
     {
         using var escopo = _factory.Services.CreateScope();
