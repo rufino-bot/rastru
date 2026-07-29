@@ -4,3 +4,6 @@ node_modules/
 .env
 *.user
 .superpowers/
+
+# Worktrees criados pelo Claude Code: sao checkouts do proprio repo, nunca conteudo versionado.
+.claude/worktrees/
