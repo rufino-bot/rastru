@@ -43,7 +43,8 @@ Os use cases de auth são registrados por interface (`IAutenticarUsuarioUseCase`
 | `src/Rastreamento.Application/Cadastros/CadastroDe{Setor,Material,Pedido,Agrupamento}UseCase.cs` | Regras: duplicidade antes do insert, autoria, guarda do delete |
 | `src/Rastreamento.Infrastructure/Persistence/Configurations/*Configuration.cs` | Mapeamento EF contra o DDL |
 | `src/Rastreamento.Infrastructure/Persistence/*Repository.cs` | Implementações EF |
-| `src/Rastreamento.Api/Controllers/{Setores,Materiais,Pedidos,Agrupamentos}Controller.cs` | Rotas, autorização, tradução `Result` → status HTTP |
+| `src/Rastreamento.Api/Controllers/CadastroControllerBase.cs` | O que os quatro controllers fazem igual: `Result` → status HTTP, corpo do 409 de duplicidade, leitura da claim `sub`. Métodos `virtual` |
+| `src/Rastreamento.Api/Controllers/{Setores,Materiais,Pedidos,Agrupamentos}Controller.cs` | Rotas, autorização e o que é específico de cada recurso; herdam de `CadastroControllerBase` |
 | `web/src/api/cadastros.ts` | Funções de acesso aos endpoints novos |
 | `web/src/pages/{Setores,Materiais,Pedidos,PedidoDetalhe}Page.tsx` | Telas de lista + formulário |
 | `web/vite.config.ts` | **Modificar** — proxy das rotas novas |
@@ -711,6 +712,7 @@ git commit -m "feat(setor): CadastroDeSetorUseCase com deteccao de duplicidade"
 ## Task 4: `SetoresController` — rotas, autorização e contrato de erro
 
 **Files:**
+- Create: `src/Rastreamento.Api/Controllers/CadastroControllerBase.cs`
 - Create: `src/Rastreamento.Api/Controllers/SetoresController.cs`
 - Modify: `src/Rastreamento.Api/Program.cs`
 - Test: `tests/Rastreamento.Api.Tests/SetoresEndpointsTests.cs`
@@ -719,10 +721,18 @@ git commit -m "feat(setor): CadastroDeSetorUseCase com deteccao de duplicidade"
 **Interfaces:**
 - Consumes: `CadastroDeSetorUseCase` (Task 3)
 - Produces:
-  - `TokenDeTeste.Emitir(WebApplicationFactory<Program>, string perfil)` → `string` — access token assinado com a chave da configuração de teste, usado por todos os testes de autorização das Tasks 4, 7, 9 e 11
+  - `TokenDeTeste.Emitir(WebApplicationFactory<Program>, string perfil, int usuarioId = 1)` → `string` — access token assinado com a chave da configuração de teste, usado por todos os testes de autorização das Tasks 4, 6, 8 e 10
+  - `CadastroControllerBase` — base dos quatro controllers de cadastro, com os membros `protected virtual`:
+    - `delegate Task<ValorDuplicadoDto?> LocalizadorDeDuplicado(CancellationToken ct)`
+    - `Task<IActionResult> TraduzirFalha(TipoDeErro? tipo, string? erro, LocalizadorDeDuplicado localizar, CancellationToken ct)`
+    - `Task<object> MontarConflito(LocalizadorDeDuplicado localizar, string? erro, CancellationToken ct)`
+    - `IActionResult TraduzirResultado(Result resultado)`
+    - `int? UsuarioDaSessao()`
   - Rotas `GET/POST /setores`, `PUT /setores/{id}`, `PATCH /setores/{id}/ativo`
 
 **Contexto:** o helper de token existe porque os testes precisam de um usuário de cada perfil sem criar 6 linhas em `Usuario` por teste. Ele assina um JWT com as mesmas `JwtOptions` que a API valida, com a claim `role` do perfil desejado.
+
+**Por que a base usa delegate e não método abstrato:** a pergunta "existe duplicado?" muda de forma por entidade — `Setor` procura por nome, `Material` por código, `Agrupamento` por `(PedidoId, Codigo)`. Um método abstrato de assinatura fixa não cobriria os três; o delegate deixa cada controller **fechar sobre** os valores que já tem em mãos e a base só precisa saber que dá para perguntar. Tudo é `virtual`: quem precisar de um desfecho diferente sobrescreve um método sem tocar nos outros.
 
 - [ ] **Step 1: Escrever o helper de token**
 
@@ -950,7 +960,95 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
 Run: `dotnet test tests/Rastreamento.Api.Tests --filter FullyQualifiedName~SetoresEndpointsTests`
 Expected: FALHA — 404 em todas as rotas (o controller não existe).
 
-- [ ] **Step 4: Criar o controller**
+- [ ] **Step 4: Criar a base dos controllers de cadastro**
+
+Create `src/Rastreamento.Api/Controllers/CadastroControllerBase.cs`:
+
+```csharp
+using Microsoft.AspNetCore.Mvc;
+using Rastreamento.Application.Cadastros;
+using Rastreamento.Application.Common;
+
+namespace Rastreamento.Api.Controllers;
+
+/// <summary>
+/// O que os quatro controllers de cadastro fazem igual: traduzir <see cref="Result"/> em status
+/// HTTP, montar o corpo do 409 de duplicidade e ler o usuario da sessao. Tudo <c>virtual</c> —
+/// quem precisar de um desfecho diferente sobrescreve um metodo sem reescrever os outros.
+/// </summary>
+/// <remarks>
+/// Classe abstrata nao entra na descoberta de controllers do ASP.NET, entao ela nao carrega
+/// <c>[ApiController]</c> nem <c>[Route]</c>: rota e autorizacao continuam declaradas por recurso.
+/// </remarks>
+public abstract class CadastroControllerBase : ControllerBase
+{
+    /// <summary>
+    /// Como ESTE recurso pergunta pelo detalhe da duplicidade. E um delegate, e nao um metodo
+    /// abstrato, porque a pergunta muda de forma por entidade: `Setor` procura por nome, `Material`
+    /// por codigo, `Agrupamento` por (PedidoId, Codigo). Assim cada controller fecha sobre os
+    /// valores que ja tem em maos, e a base so precisa saber que da para perguntar.
+    /// </summary>
+    protected delegate Task<ValorDuplicadoDto?> LocalizadorDeDuplicado(CancellationToken ct);
+
+    /// <summary>
+    /// Falha de operacao que devolve valor (POST/PUT). Conflito vira 409 COM o detalhe de
+    /// duplicidade — e o que permite a tela oferecer "reativar o existente" em vez de so dizer
+    /// "nome em uso", ja que os indices UNIQUE nao sao filtrados por `Ativo`.
+    /// </summary>
+    protected virtual async Task<IActionResult> TraduzirFalha(
+        TipoDeErro? tipo, string? erro, LocalizadorDeDuplicado localizar, CancellationToken ct) =>
+        tipo switch
+        {
+            TipoDeErro.NaoEncontrado => NotFound(),
+            TipoDeErro.Conflito => Conflict(await MontarConflito(localizar, erro, ct)),
+            _ => BadRequest(new { erro }),
+        };
+
+    /// <summary>
+    /// Corpo do 409 de duplicidade. A busca pelo duplicado acontece so aqui, no caminho de erro:
+    /// o custo da segunda leitura nunca entra no caminho feliz.
+    /// </summary>
+    protected virtual async Task<object> MontarConflito(
+        LocalizadorDeDuplicado localizar, string? erro, CancellationToken ct)
+    {
+        var duplicado = await localizar(ct);
+        return duplicado is null
+            ? new { erro }
+            : new
+            {
+                erro = "ValorDuplicado",
+                campo = duplicado.Campo,
+                existeInativo = duplicado.ExisteInativo,
+                idExistente = duplicado.IdExistente,
+            };
+    }
+
+    /// <summary>
+    /// Operacao sem valor de retorno (`PATCH /{id}/ativo`, `DELETE /agrupamentos/{id}`): 204 no
+    /// sucesso. No conflito o `Erro` e repassado como veio — no DELETE de Agrupamento ele e um
+    /// CODIGO ("AgrupamentoNaoVazio" / "PedidoNaoAberto"), que e o que o contrato da spec define.
+    /// </summary>
+    protected virtual IActionResult TraduzirResultado(Result resultado)
+    {
+        if (resultado.Sucesso) return NoContent();
+
+        return resultado.TipoDoErro switch
+        {
+            TipoDeErro.NaoEncontrado => NotFound(),
+            TipoDeErro.Conflito => Conflict(new { erro = resultado.Erro }),
+            _ => BadRequest(new { erro = resultado.Erro }),
+        };
+    }
+
+    /// <summary>
+    /// Id do usuario da sessao, a partir da claim `sub` — a fronteira onde `HttpContext` para.
+    /// `Application` recebe o valor por parametro e nunca conhece o ASP.NET. Token assinado por
+    /// nos mas sem a claim e falha de autenticacao (401), nao 500 — mesmo criterio do MeController.
+    /// </summary>
+    protected virtual int? UsuarioDaSessao() =>
+        int.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
+}
+```
 
 Create `src/Rastreamento.Api/Controllers/SetoresController.cs`:
 
@@ -958,14 +1056,13 @@ Create `src/Rastreamento.Api/Controllers/SetoresController.cs`:
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rastreamento.Application.Cadastros;
-using Rastreamento.Application.Common;
 
 namespace Rastreamento.Api.Controllers;
 
 [ApiController]
 [Route("setores")]
 [Authorize]
-public class SetoresController : ControllerBase
+public class SetoresController : CadastroControllerBase
 {
     private readonly CadastroDeSetorUseCase _cadastro;
 
@@ -984,7 +1081,7 @@ public class SetoresController : ControllerBase
         if (resultado.Sucesso)
             return CreatedAtAction(nameof(Listar), new { id = resultado.Valor!.Id }, resultado.Valor);
 
-        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, novo.Nome, ct);
+        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, Duplicado(novo.Nome), ct);
     }
 
     [HttpPut("{id:int}")]
@@ -995,47 +1092,18 @@ public class SetoresController : ControllerBase
         var resultado = await _cadastro.Editar(id, alterado, ct);
         return resultado.Sucesso
             ? Ok(resultado.Valor)
-            : await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, alterado.Nome, ct);
+            : await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, Duplicado(alterado.Nome), ct);
     }
 
     [HttpPatch("{id:int}/ativo")]
     [Authorize(Roles = "Administrador")]
     public async Task<IActionResult> DefinirAtivo(
-        int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct)
-    {
-        var resultado = await _cadastro.DefinirAtivo(id, corpo.Ativo, ct);
-        if (resultado.Sucesso) return NoContent();
+        int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct) =>
+        TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo, ct));
 
-        return resultado.TipoDoErro == TipoDeErro.NaoEncontrado
-            ? NotFound()
-            : BadRequest(new { erro = resultado.Erro });
-    }
-
-    /// <summary>
-    /// Conflito vira 409 COM o detalhe de duplicidade — e o que permite a tela oferecer "reativar
-    /// o existente" em vez de so dizer "nome em uso" (UQ_Setor_Nome nao e filtrado por Ativo).
-    /// </summary>
-    private async Task<IActionResult> TraduzirFalha(
-        TipoDeErro? tipo, string? erro, string nome, CancellationToken ct) => tipo switch
-    {
-        TipoDeErro.NaoEncontrado => NotFound(),
-        TipoDeErro.Conflito => Conflict(await MontarConflito(nome, erro, ct)),
-        _ => BadRequest(new { erro }),
-    };
-
-    private async Task<object> MontarConflito(string nome, string? erro, CancellationToken ct)
-    {
-        var duplicado = await _cadastro.LocalizarDuplicado(nome, ct);
-        return duplicado is null
-            ? new { erro }
-            : new
-            {
-                erro = "ValorDuplicado",
-                campo = duplicado.Campo,
-                existeInativo = duplicado.ExisteInativo,
-                idExistente = duplicado.IdExistente,
-            };
-    }
+    /// <summary>Como Setor pergunta pelo duplicado: por nome (UQ_Setor_Nome).</summary>
+    private LocalizadorDeDuplicado Duplicado(string nome) =>
+        ct => _cadastro.LocalizarDuplicado(nome, ct);
 }
 ```
 
@@ -1078,7 +1146,7 @@ Expected: build com 0 warnings; todos os testes passando (123 anteriores + os no
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/Rastreamento.Api/Controllers/SetoresController.cs src/Rastreamento.Api/Program.cs src/Rastreamento.Application/Cadastros/Dtos.cs tests/Rastreamento.Api.Tests/SetoresEndpointsTests.cs tests/Rastreamento.Api.Tests/TokenDeTeste.cs
+git add src/Rastreamento.Api/Controllers/CadastroControllerBase.cs src/Rastreamento.Api/Controllers/SetoresController.cs src/Rastreamento.Api/Program.cs src/Rastreamento.Application/Cadastros/Dtos.cs tests/Rastreamento.Api.Tests/SetoresEndpointsTests.cs tests/Rastreamento.Api.Tests/TokenDeTeste.cs
 git commit -m "feat(setor): endpoints com autorizacao por perfil e 409 reativavel"
 ```
 
@@ -1419,7 +1487,7 @@ git commit -m "feat(setor): tela de cadastro com reativacao de inativo"
 - Test: `tests/Rastreamento.Api.Tests/MateriaisEndpointsTests.cs`
 
 **Interfaces:**
-- Consumes: `Result` / `Result<T>` / `TipoDeErro` (Fase 0), `ValorDuplicadoDto` e `DefinirAtivoDto` (Tasks 3 e 4), `TokenDeTeste.Emitir` (Task 4)
+- Consumes: `Result` / `Result<T>` / `TipoDeErro` (Fase 0), `ValorDuplicadoDto` e `DefinirAtivoDto` (Tasks 3 e 4), `CadastroControllerBase` e `TokenDeTeste.Emitir` (Task 4)
 - Produces:
   - `Rastreamento.Domain.Entities.Material` — `int Id`, `string Codigo`, `string Descricao`, `string UnidadeMedida`, `bool Ativo`
   - `IMaterialRepository` — `Task<Material?> ObterPorIdAsync(int id, CancellationToken ct)`, `Task<Material?> ObterPorCodigoAsync(string codigo, CancellationToken ct)`, `Task<IReadOnlyList<Material>> ListarAsync(bool incluirInativos, CancellationToken ct)`, `Task AdicionarAsync(Material material, CancellationToken ct)`, `Task SalvarAlteracoesAsync(CancellationToken ct)`
@@ -2141,14 +2209,13 @@ Create `src/Rastreamento.Api/Controllers/MateriaisController.cs`:
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rastreamento.Application.Cadastros;
-using Rastreamento.Application.Common;
 
 namespace Rastreamento.Api.Controllers;
 
 [ApiController]
 [Route("materiais")]
 [Authorize]
-public class MateriaisController : ControllerBase
+public class MateriaisController : CadastroControllerBase
 {
     private readonly CadastroDeMaterialUseCase _cadastro;
 
@@ -2167,7 +2234,7 @@ public class MateriaisController : ControllerBase
         if (resultado.Sucesso)
             return CreatedAtAction(nameof(Listar), new { id = resultado.Valor!.Id }, resultado.Valor);
 
-        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, novo.Codigo, ct);
+        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, Duplicado(novo.Codigo), ct);
     }
 
     [HttpPut("{id:int}")]
@@ -2178,47 +2245,19 @@ public class MateriaisController : ControllerBase
         var resultado = await _cadastro.Editar(id, alterado, ct);
         return resultado.Sucesso
             ? Ok(resultado.Valor)
-            : await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, alterado.Codigo, ct);
+            : await TraduzirFalha(
+                resultado.TipoDoErro, resultado.Erro, Duplicado(alterado.Codigo), ct);
     }
 
     [HttpPatch("{id:int}/ativo")]
     [Authorize(Roles = "Administrador")]
     public async Task<IActionResult> DefinirAtivo(
-        int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct)
-    {
-        var resultado = await _cadastro.DefinirAtivo(id, corpo.Ativo, ct);
-        if (resultado.Sucesso) return NoContent();
+        int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct) =>
+        TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo, ct));
 
-        return resultado.TipoDoErro == TipoDeErro.NaoEncontrado
-            ? NotFound()
-            : BadRequest(new { erro = resultado.Erro });
-    }
-
-    /// <summary>
-    /// Conflito vira 409 COM o detalhe de duplicidade — e o que permite a tela oferecer "reativar
-    /// o existente" (UQ_Material_Codigo nao e filtrado por Ativo).
-    /// </summary>
-    private async Task<IActionResult> TraduzirFalha(
-        TipoDeErro? tipo, string? erro, string codigo, CancellationToken ct) => tipo switch
-    {
-        TipoDeErro.NaoEncontrado => NotFound(),
-        TipoDeErro.Conflito => Conflict(await MontarConflito(codigo, erro, ct)),
-        _ => BadRequest(new { erro }),
-    };
-
-    private async Task<object> MontarConflito(string codigo, string? erro, CancellationToken ct)
-    {
-        var duplicado = await _cadastro.LocalizarDuplicado(codigo, ct);
-        return duplicado is null
-            ? new { erro }
-            : new
-            {
-                erro = "ValorDuplicado",
-                campo = duplicado.Campo,
-                existeInativo = duplicado.ExisteInativo,
-                idExistente = duplicado.IdExistente,
-            };
-    }
+    /// <summary>Como Material pergunta pelo duplicado: por codigo (UQ_Material_Codigo).</summary>
+    private LocalizadorDeDuplicado Duplicado(string codigo) =>
+        ct => _cadastro.LocalizarDuplicado(codigo, ct);
 }
 ```
 
@@ -2563,7 +2602,7 @@ git commit -m "feat(material): tela de cadastro com reativacao de inativo"
 - Test: `tests/Rastreamento.Api.Tests/PedidosEndpointsTests.cs`
 
 **Interfaces:**
-- Consumes: colunas de autoria da Task 1; `ValorDuplicadoDto` (Task 3); `TokenDeTeste.Emitir` (Task 4)
+- Consumes: colunas de autoria da Task 1; `ValorDuplicadoDto` (Task 3); `CadastroControllerBase` e `TokenDeTeste.Emitir` (Task 4)
 - Produces:
   - `Rastreamento.Domain.Entities.Pedido` — `int Id`, `string Numero`, `string Cliente`, `string Tipo`, `int? PedidoOrigemId`, `string? MotivoRetrabalho`, `string Status`, `DateTime DataAbertura`, `DateTime? DataConclusao`, `int CriadoPorUsuarioId`
   - `IPedidoRepository` — `Task<Pedido?> ObterPorIdAsync(int id, CancellationToken ct)`, `Task<Pedido?> ObterPorNumeroAsync(string numero, CancellationToken ct)`, `Task<IReadOnlyList<Pedido>> ListarAsync(CancellationToken ct)`, `Task AdicionarAsync(Pedido pedido, CancellationToken ct)`, `Task SalvarAlteracoesAsync(CancellationToken ct)`
@@ -2572,7 +2611,6 @@ git commit -m "feat(material): tela de cadastro com reativacao de inativo"
   - `CadastroDePedidoUseCase` — `Task<Result<PedidoDto>> Cadastrar(NovoPedidoDto novo, int usuarioId, CancellationToken ct)`, `Task<Result<PedidoDto>> Editar(int id, NovoPedidoDto alterado, CancellationToken ct)`, `Task<IReadOnlyList<PedidoDto>> Listar(CancellationToken ct)`, `Task<Result<PedidoDto>> Obter(int id, CancellationToken ct)`, `Task<ValorDuplicadoDto?> LocalizarDuplicado(string numero, CancellationToken ct)`
   - Rotas `GET/POST /pedidos`, `GET /pedidos/{id}`, `PUT /pedidos/{id}`
   - `RastreamentoDbContext.Pedidos`
-  - `PedidosController.UsuarioDaSessao()` — o padrão de leitura da claim `sub`, repetido na Task 10
 
 **Contexto — três coisas que mudam em relação ao molde do catálogo:**
 
@@ -3371,14 +3409,13 @@ Create `src/Rastreamento.Api/Controllers/PedidosController.cs`:
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rastreamento.Application.Cadastros;
-using Rastreamento.Application.Common;
 
 namespace Rastreamento.Api.Controllers;
 
 [ApiController]
 [Route("pedidos")]
 [Authorize]
-public class PedidosController : ControllerBase
+public class PedidosController : CadastroControllerBase
 {
     private readonly CadastroDePedidoUseCase _cadastro;
 
@@ -3399,6 +3436,7 @@ public class PedidosController : ControllerBase
     [Authorize(Roles = "PCP,Administrador")]
     public async Task<IActionResult> Cadastrar([FromBody] NovoPedidoDto novo, CancellationToken ct)
     {
+        // UsuarioDaSessao vem da base: e a unica leitura de HttpContext do cadastro de Pedido.
         var usuarioId = UsuarioDaSessao();
         if (usuarioId is null) return Unauthorized();
 
@@ -3406,7 +3444,7 @@ public class PedidosController : ControllerBase
         if (resultado.Sucesso)
             return CreatedAtAction(nameof(Obter), new { id = resultado.Valor!.Id }, resultado.Valor);
 
-        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, novo.Numero, ct);
+        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, Duplicado(novo.Numero), ct);
     }
 
     [HttpPut("{id:int}")]
@@ -3417,39 +3455,16 @@ public class PedidosController : ControllerBase
         var resultado = await _cadastro.Editar(id, alterado, ct);
         return resultado.Sucesso
             ? Ok(resultado.Valor)
-            : await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, alterado.Numero, ct);
+            : await TraduzirFalha(
+                resultado.TipoDoErro, resultado.Erro, Duplicado(alterado.Numero), ct);
     }
 
     /// <summary>
-    /// Id do usuario da sessao, a partir da claim `sub` — a fronteira onde `HttpContext` para.
-    /// `Application` recebe o valor por parametro e nunca conhece o ASP.NET.
-    /// Token assinado por nos mas sem a claim e falha de autenticacao (401), nao 500.
+    /// Como Pedido pergunta pelo duplicado: por numero (UQ_Pedido_Numero). O `existeInativo` que
+    /// volta e sempre false — Pedido nao tem coluna `Ativo`, entao a tela nao oferece reativacao.
     /// </summary>
-    private int? UsuarioDaSessao() =>
-        int.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
-
-    private async Task<IActionResult> TraduzirFalha(
-        TipoDeErro? tipo, string? erro, string numero, CancellationToken ct) => tipo switch
-    {
-        TipoDeErro.NaoEncontrado => NotFound(),
-        TipoDeErro.Conflito => Conflict(await MontarConflito(numero, erro, ct)),
-        _ => BadRequest(new { erro }),
-    };
-
-    private async Task<object> MontarConflito(string numero, string? erro, CancellationToken ct)
-    {
-        var duplicado = await _cadastro.LocalizarDuplicado(numero, ct);
-        return duplicado is null
-            ? new { erro }
-            : new
-            {
-                erro = "ValorDuplicado",
-                campo = duplicado.Campo,
-                // Sempre false em Pedido (nao ha coluna Ativo): a tela nao oferece reativacao aqui.
-                existeInativo = duplicado.ExisteInativo,
-                idExistente = duplicado.IdExistente,
-            };
-    }
+    private LocalizadorDeDuplicado Duplicado(string numero) =>
+        ct => _cadastro.LocalizarDuplicado(numero, ct);
 }
 ```
 
@@ -3757,7 +3772,7 @@ git commit -m "feat(pedido): tela de abertura e listagem"
 - Test: `tests/Rastreamento.Api.Tests/AgrupamentosEndpointsTests.cs`
 
 **Interfaces:**
-- Consumes: `IPedidoRepository` e `PedidosController.UsuarioDaSessao()` (Task 8); colunas de autoria (Task 1)
+- Consumes: `IPedidoRepository` (Task 8); `CadastroControllerBase` (Task 4); colunas de autoria (Task 1)
 - Produces:
   - `Rastreamento.Domain.Entities.Agrupamento` — `int Id`, `int PedidoId`, `string Codigo`, `decimal Quantidade`, `string Tipo`, `DateTime? DataConclusao`, `int CriadoPorUsuarioId`, `DateTime CriadoEm`
   - `IAgrupamentoRepository` — `Task<Agrupamento?> ObterPorIdAsync(int id, CancellationToken ct)`, `Task<Agrupamento?> ObterPorPedidoECodigoAsync(int pedidoId, string codigo, CancellationToken ct)`, `Task<IReadOnlyList<Agrupamento>> ListarPorPedidoAsync(int pedidoId, CancellationToken ct)`, `Task AdicionarAsync(Agrupamento agrupamento, CancellationToken ct)`, `Task RemoverAsync(Agrupamento agrupamento, CancellationToken ct)`, `Task<bool> TemEstruturaAsync(int agrupamentoId, CancellationToken ct)`, `Task SalvarAlteracoesAsync(CancellationToken ct)`
@@ -4764,7 +4779,6 @@ Create `src/Rastreamento.Api/Controllers/AgrupamentosController.cs`:
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rastreamento.Application.Cadastros;
-using Rastreamento.Application.Common;
 
 namespace Rastreamento.Api.Controllers;
 
@@ -4775,7 +4789,7 @@ namespace Rastreamento.Api.Controllers;
 /// </remarks>
 [ApiController]
 [Authorize]
-public class AgrupamentosController : ControllerBase
+public class AgrupamentosController : CadastroControllerBase
 {
     private readonly CadastroDeAgrupamentoUseCase _cadastro;
 
@@ -4804,7 +4818,8 @@ public class AgrupamentosController : ControllerBase
         if (resultado.Sucesso)
             return CreatedAtAction(nameof(Obter), new { id = resultado.Valor!.Id }, resultado.Valor);
 
-        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, pedidoId, novo.Codigo, ct);
+        return await TraduzirFalha(
+            resultado.TipoDoErro, resultado.Erro, Duplicado(pedidoId, novo.Codigo), ct);
     }
 
     [HttpPut("agrupamentos/{id:int}")]
@@ -4813,60 +4828,41 @@ public class AgrupamentosController : ControllerBase
         int id, [FromBody] NovoAgrupamentoDto alterado, CancellationToken ct)
     {
         var resultado = await _cadastro.Editar(id, alterado, ct);
-        if (resultado.Sucesso) return Ok(resultado.Valor);
-
-        // No caminho de conflito da edicao o Pedido e o do proprio Agrupamento, e nao vem da rota.
-        var atual = await _cadastro.Obter(id, ct);
-        var pedidoId = atual.Sucesso ? atual.Valor!.PedidoId : 0;
-        return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, pedidoId, alterado.Codigo, ct);
+        return resultado.Sucesso
+            ? Ok(resultado.Valor)
+            : await TraduzirFalha(
+                resultado.TipoDoErro, resultado.Erro, DuplicadoNoPedidoDe(id, alterado.Codigo), ct);
     }
 
     /// <summary>
     /// Unica exclusao fisica do sistema, e guardada pelo use case: 409 com codigo
-    /// (`AgrupamentoNaoVazio` / `PedidoNaoAberto`) quando a guarda barra. O corpo repassa o codigo
-    /// como veio — quem traduz para texto e a tela.
+    /// (`AgrupamentoNaoVazio` / `PedidoNaoAberto`) quando a guarda barra. `TraduzirResultado`
+    /// repassa o codigo como veio — quem traduz para texto e a tela.
     /// </summary>
     [HttpDelete("agrupamentos/{id:int}")]
     [Authorize(Roles = "PCP,Administrador")]
-    public async Task<IActionResult> Excluir(int id, CancellationToken ct)
-    {
-        var resultado = await _cadastro.Excluir(id, ct);
-        if (resultado.Sucesso) return NoContent();
+    public async Task<IActionResult> Excluir(int id, CancellationToken ct) =>
+        TraduzirResultado(await _cadastro.Excluir(id, ct));
 
-        return resultado.TipoDoErro switch
+    /// <summary>
+    /// Como Agrupamento pergunta pelo duplicado: por (PedidoId, Codigo) — UQ_Agrupamento_PedidoCodigo
+    /// e composta. E o caso que faz a base receber um delegate em vez de um metodo de assinatura fixa.
+    /// </summary>
+    private LocalizadorDeDuplicado Duplicado(int pedidoId, string codigo) =>
+        ct => _cadastro.LocalizarDuplicado(pedidoId, codigo, ct);
+
+    /// <summary>
+    /// Na edicao o Pedido e o do proprio Agrupamento, e nao vem da rota — daí a busca extra. Ela
+    /// so acontece se houver conflito: o delegate e invocado unicamente no caminho de erro.
+    /// </summary>
+    private LocalizadorDeDuplicado DuplicadoNoPedidoDe(int agrupamentoId, string codigo) =>
+        async ct =>
         {
-            TipoDeErro.NaoEncontrado => NotFound(),
-            TipoDeErro.Conflito => Conflict(new { erro = resultado.Erro }),
-            _ => BadRequest(new { erro = resultado.Erro }),
+            var atual = await _cadastro.Obter(agrupamentoId, ct);
+            return atual.Sucesso
+                ? await _cadastro.LocalizarDuplicado(atual.Valor!.PedidoId, codigo, ct)
+                : null;
         };
-    }
-
-    /// <summary>Mesmo padrao do PedidosController: a claim `sub` para na borda.</summary>
-    private int? UsuarioDaSessao() =>
-        int.TryParse(User.FindFirst("sub")?.Value, out var id) ? id : null;
-
-    private async Task<IActionResult> TraduzirFalha(
-        TipoDeErro? tipo, string? erro, int pedidoId, string codigo, CancellationToken ct) => tipo switch
-    {
-        TipoDeErro.NaoEncontrado => NotFound(),
-        TipoDeErro.Conflito => Conflict(await MontarConflito(pedidoId, codigo, erro, ct)),
-        _ => BadRequest(new { erro }),
-    };
-
-    private async Task<object> MontarConflito(
-        int pedidoId, string codigo, string? erro, CancellationToken ct)
-    {
-        var duplicado = await _cadastro.LocalizarDuplicado(pedidoId, codigo, ct);
-        return duplicado is null
-            ? new { erro }
-            : new
-            {
-                erro = "ValorDuplicado",
-                campo = duplicado.Campo,
-                existeInativo = duplicado.ExisteInativo,
-                idExistente = duplicado.IdExistente,
-            };
-    }
 }
 ```
 
@@ -5370,12 +5366,16 @@ task correspondente:
 | Task 10 | Os dois 409 de regra viajam como **código** no `Result.Erro` | É o que o contrato de 409 da spec define no corpo. O controller repassa e não deriva comportamento da string — o que `Result.cs` proíbe é *comparar* |
 | Task 9 | `formatarDataHora` lê o ISO direto, sem `Date` | A API já entrega GMT-3; `toLocaleString` reconverteria pelo fuso do aparelho e deslocaria o horário num tablet mal configurado |
 
-**Duplicação aceita de propósito (não é esquecimento):** os quatro controllers repetem o par
-`TraduzirFalha` / `MontarConflito`, ~15 linhas cada. Extrair para uma classe base exigiria um
-`LocalizarDuplicado` uniforme, e o de `Agrupamento` tem assinatura diferente (recebe `pedidoId`,
-porque a unicidade é composta). A indireção custaria mais leitura do que a repetição custa
-manutenção neste tamanho. **Se o revisor discordar, esta é a decisão a reverter — e é barata**,
-igual à de não criar interface para os use cases de cadastro.
+**`CadastroControllerBase` (decisão do usuário, revisada):** a primeira versão do plano repetia
+`TraduzirFalha` / `MontarConflito` nos quatro controllers e aceitava a duplicação, com o argumento
+de que uma base exigiria um `LocalizarDuplicado` de assinatura uniforme — que `Agrupamento` não
+tem, porque a unicidade dele é composta. O argumento estava errado: o que a base precisa não é da
+*assinatura* da busca, e sim de **poder disparar a busca**. Um `delegate LocalizadorDeDuplicado`
+resolve isso — cada controller fecha sobre os valores que já tem (`nome`, `codigo`, ou
+`pedidoId + codigo`) e entrega uma função de um argumento só. A base nasce na Task 4, junto com o
+molde, com todos os métodos `virtual`, e os quatro controllers herdam dela. Ganho colateral: a
+tradução de `PATCH /{id}/ativo` e a do `DELETE /agrupamentos/{id}` viraram o mesmo
+`TraduzirResultado`, e a leitura da claim `sub` deixou de existir em duas cópias.
 
 **O que o self-review pegou e foi corrigido inline:** faltavam os testes de mapeamento EF de
 `Pedido` e `Agrupamento` — justamente as entidades onde as colunas novas da Task 1 moram. Sem
