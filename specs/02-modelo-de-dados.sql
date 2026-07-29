@@ -149,10 +149,13 @@ CREATE TABLE dbo.Pedido (
     Status              NVARCHAR(20)        NOT NULL CONSTRAINT DF_Pedido_Status DEFAULT ('Aberto'),
     DataAbertura        DATETIME2           NOT NULL CONSTRAINT DF_Pedido_DataAbertura DEFAULT (SYSUTCDATETIME()),
     DataConclusao       DATETIME2           NULL,
+    CriadoPorUsuarioId  INT                 NOT NULL,  -- autoria: responde "quem abriu este pedido"
     CONSTRAINT PK_Pedido PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Pedido_Numero UNIQUE (Numero),
     CONSTRAINT FK_Pedido_PedidoOrigem
         FOREIGN KEY (PedidoOrigemId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_Pedido_CriadoPorUsuario
+        FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT CK_Pedido_Tipo CHECK (Tipo IN ('Fabricacao', 'Retrabalho')),
     CONSTRAINT CK_Pedido_Status
         CHECK (Status IN ('Aberto', 'EmProducao', 'AguardandoExpedicao', 'Concluido', 'Cancelado')),
@@ -174,8 +177,13 @@ CREATE TABLE dbo.Agrupamento (
     Quantidade      DECIMAL(18,4)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Kit (vai para solda) | Avulso (não passa por solda); descritivo
     DataConclusao   DATETIME2           NULL, -- preenchida quando todas as Peças do agrupamento fecham
+    CriadoPorUsuarioId INT                 NOT NULL,
+    CriadoEm        DATETIME2           NOT NULL
+        CONSTRAINT DF_Agrupamento_CriadoEm DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT PK_Agrupamento PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_Agrupamento_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_Agrupamento_CriadoPorUsuario
+        FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT UQ_Agrupamento_PedidoCodigo UNIQUE (PedidoId, Codigo),
     CONSTRAINT CK_Agrupamento_Tipo CHECK (Tipo IN ('Kit', 'Avulso'))
 );

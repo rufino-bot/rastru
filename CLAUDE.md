@@ -145,6 +145,16 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF COL_LENGTH('dbo.Usuario','FalhasConsecutivas') IS NULL ALTER TABLE dbo.Usuario ADD FalhasConsecutivas INT NOT NULL CONSTRAINT DF_Usuario_FalhasConsecutivas DEFAULT (0), BloqueadoAte DATETIME2 NULL;"
 ```
 
+Na Fase 1A entram as colunas de autoria, também por `ALTER` idempotente em banco pré-existente
+(cobre as duas tabelas — `Pedido` e `Agrupamento` — porque é isso que o script de Task 1
+efetivamente aplica):
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Pedido','CriadoPorUsuarioId') IS NULL ALTER TABLE dbo.Pedido ADD CriadoPorUsuarioId INT NOT NULL CONSTRAINT FK_Pedido_CriadoPorUsuario FOREIGN KEY REFERENCES dbo.Usuario(Id); IF COL_LENGTH('dbo.Agrupamento','CriadoPorUsuarioId') IS NULL ALTER TABLE dbo.Agrupamento ADD CriadoPorUsuarioId INT NOT NULL CONSTRAINT FK_Agrupamento_CriadoPorUsuario FOREIGN KEY REFERENCES dbo.Usuario(Id), CriadoEm DATETIME2 NOT NULL CONSTRAINT DF_Agrupamento_CriadoEm DEFAULT (SYSUTCDATETIME());"
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
