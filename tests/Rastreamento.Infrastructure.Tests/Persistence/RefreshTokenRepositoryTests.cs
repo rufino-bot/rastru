@@ -13,19 +13,10 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// `admin`, inclusive em outro processo quando `dotnet test` roda os projetos concorrentemente) —
 /// e a contagem devolvida ficaria nao-deterministica.
 /// </summary>
-public class RefreshTokenRepositoryTests : IAsyncLifetime
+public class RefreshTokenRepositoryTests : TesteComBanco, IAsyncLifetime
 {
-    private const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
-
     private int _usuarioId;
     private int _usuarioVizinhoId;
-
-    private static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
 
     public async Task InitializeAsync()
     {

@@ -1,23 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Entities;
-using Rastreamento.Infrastructure.Persistence;
 using Xunit;
 
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
-public class DbContextMappingTests
+/// <summary>Requer o SQL Server no ar (docker compose up -d) com schema e seed aplicados.</summary>
+public class DbContextMappingTests : TesteComBanco
 {
-    // Requer o SQL Server da Task 2 no ar (docker compose up -d) com seed aplicado.
-    private const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
-
-    private static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>()
-            .UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
-
     [Fact]
     public async Task Mapeia_seis_perfis_seedados()
     {
