@@ -114,6 +114,32 @@ public class CadastroDeSetorUseCaseTests
     }
 
     [Fact]
+    public async Task Definir_ativo_true_reativa_e_persiste()
+    {
+        var repo = new FakeSetorRepo(new Setor { Id = 1, Nome = "Solda", Ativo = false });
+        var useCase = new CadastroDeSetorUseCase(repo);
+
+        var resultado = await useCase.DefinirAtivo(1, true, CancellationToken.None);
+
+        Assert.True(resultado.Sucesso);
+        Assert.Equal(1, repo.Saves);
+        Assert.Single(await useCase.Listar(incluirInativos: false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Definir_ativo_em_setor_inexistente_e_nao_encontrado()
+    {
+        var repo = new FakeSetorRepo();
+        var useCase = new CadastroDeSetorUseCase(repo);
+
+        var resultado = await useCase.DefinirAtivo(99, true, CancellationToken.None);
+
+        Assert.False(resultado.Sucesso);
+        Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
+        Assert.Equal(0, repo.Saves);
+    }
+
+    [Fact]
     public async Task Nome_em_branco_e_erro_de_validacao()
     {
         var repo = new FakeSetorRepo();

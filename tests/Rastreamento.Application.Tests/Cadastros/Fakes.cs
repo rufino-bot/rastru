@@ -20,6 +20,11 @@ public class FakeSetorRepo : ISetorRepository
     public Task<Setor?> ObterPorIdAsync(int id, CancellationToken ct) =>
         Task.FromResult(_linhas.SingleOrDefault(s => s.Id == id));
 
+    /// <summary>
+    /// Comparacao case-sensitive (`==`), diferente da collation case-insensitive do SQL Server em
+    /// producao (`SetorRepository` real, `WHERE Nome = @p`). Duplicado-por-caixa (ex.: "solda" vs
+    /// "Solda") nao e coberto neste nivel — precisa de um teste ponta a ponta contra o banco real.
+    /// </summary>
     public Task<Setor?> ObterPorNomeAsync(string nome, CancellationToken ct) =>
         Task.FromResult(_linhas.SingleOrDefault(s => s.Nome == nome));
 
