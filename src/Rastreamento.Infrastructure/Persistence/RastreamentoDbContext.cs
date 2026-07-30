@@ -12,6 +12,7 @@ public class RastreamentoDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Setor> Setores => Set<Setor>();
     public DbSet<Material> Materiais => Set<Material>();
+    public DbSet<Pedido> Pedidos => Set<Pedido>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

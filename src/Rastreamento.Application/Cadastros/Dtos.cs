@@ -52,3 +52,28 @@ public sealed record NovoMaterialDto(
     [MaxLength(50)] string Codigo,
     [MaxLength(200)] string Descricao,
     [MaxLength(10)] string UnidadeMedida);
+
+// ---------------------------------------------------------------------------
+// Pedido
+// ---------------------------------------------------------------------------
+
+/// <remarks>
+/// `DataAbertura` sai daqui em UTC; quem converte para GMT-3 e o HorarioDeBrasiliaJsonConverter,
+/// registrado uma vez em Program.cs — nenhum endpoint precisa converter na mao.
+/// </remarks>
+public sealed record PedidoDto(
+    int Id,
+    string Numero,
+    string Cliente,
+    string Tipo,
+    string Status,
+    DateTime DataAbertura,
+    int CriadoPorUsuarioId);
+
+/// <remarks>
+/// So `Numero` e `Cliente`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem da claim
+/// da sessao. Nenhum dos tres se aceita do cliente. Os `MaxLength` espelham `dbo.Pedido`.
+/// </remarks>
+public sealed record NovoPedidoDto(
+    [MaxLength(30)] string Numero,
+    [MaxLength(200)] string Cliente);

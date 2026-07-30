@@ -1,16 +1,10 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Json;
-using System.Security.Claims;
-using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using Rastreamento.Application.Auth;
 using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
@@ -205,7 +199,8 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         // Token assinado por nos mas incompleto e falha de autenticacao, nao erro do servidor:
         // ler a claim com `!` dava NullReferenceException e o cliente via 500.
         var cliente = NovoCliente();
-        cliente.DefaultRequestHeaders.Authorization = new("Bearer", TokenSemAClaim(claimOmitida));
+        cliente.DefaultRequestHeaders.Authorization =
+            new("Bearer", TokenDeTeste.TokenSemAClaim(_factory, claimOmitida));
 
         var resposta = await cliente.GetAsync("/me");
 
@@ -362,37 +357,6 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         });
         cliente.DefaultRequestHeaders.Add("Cookie", $"{NomeDoCookie}={refreshPlano}");
         return cliente;
-    }
-
-    /// <summary>
-    /// Access token valido (assinatura, issuer, audience e validade corretos) faltando uma das
-    /// claims que o <c>JwtAccessTokenGenerator</c> emite — o que a autenticacao aceita mas o
-    /// <c>/me</c> nao consegue usar.
-    /// </summary>
-    private string TokenSemAClaim(string claimOmitida)
-    {
-        using var escopo = _factory.Services.CreateScope();
-        var jwt = escopo.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>().Value;
-
-        var claims = new Dictionary<string, string>
-        {
-            ["sub"] = "1",
-            ["unique_name"] = "admin",
-            ["nome_completo"] = "Administrador do Sistema",
-            ["role"] = "Administrador",
-        };
-        claims.Remove(claimOmitida);
-
-        var token = new JwtSecurityToken(
-            issuer: jwt.Issuer,
-            audience: jwt.Audience,
-            claims: claims.Select(c => new Claim(c.Key, c.Value)),
-            expires: DateTime.UtcNow.AddMinutes(5),
-            signingCredentials: new SigningCredentials(
-                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
-                SecurityAlgorithms.HmacSha256));
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     private async Task<T> ComBancoAsync<T>(Func<RastreamentoDbContext, Task<T>> consulta)

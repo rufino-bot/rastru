@@ -109,6 +109,8 @@ builder.Services.AddScoped<ISetorRepository, SetorRepository>();
 builder.Services.AddScoped<CadastroDeSetorUseCase>();
 builder.Services.AddScoped<IMaterialRepository, MaterialRepository>();
 builder.Services.AddScoped<CadastroDeMaterialUseCase>();
+builder.Services.AddScoped<IPedidoRepository, PedidoRepository>();
+builder.Services.AddScoped<CadastroDePedidoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

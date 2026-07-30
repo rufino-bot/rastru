@@ -90,3 +90,48 @@ public class FakeMaterialRepo : IMaterialRepository
         return Task.CompletedTask;
     }
 }
+
+public class FakePedidoRepo : IPedidoRepository
+{
+    private readonly List<Pedido> _linhas;
+    private int _proximoId;
+
+    public FakePedidoRepo(params Pedido[] existentes)
+    {
+        _linhas = existentes.ToList();
+        _proximoId = _linhas.Count == 0 ? 1 : _linhas.Max(p => p.Id) + 1;
+    }
+
+    /// <summary>Quantos commits o repositorio recebeu — prova que o caminho de erro nao escreve.</summary>
+    public int Saves { get; private set; }
+
+    public Task<Pedido?> ObterPorIdAsync(int id, CancellationToken ct) =>
+        Task.FromResult(_linhas.SingleOrDefault(p => p.Id == id));
+
+    /// <summary>
+    /// Comparacao case-sensitive (`==`), diferente da collation case-insensitive do SQL Server em
+    /// producao (`PedidoRepository` real, `WHERE Numero = @p`) e de `UQ_Pedido_Numero`.
+    /// Duplicado-por-caixa (ex.: "ped-001" vs "PED-001") nao e coberto neste nivel — precisa de um
+    /// teste ponta a ponta contra o banco real. NAO torne o fake case-insensitive: isso simularia
+    /// o banco e esconderia a lacuna.
+    /// </summary>
+    public Task<Pedido?> ObterPorNumeroAsync(string numero, CancellationToken ct) =>
+        Task.FromResult(_linhas.SingleOrDefault(p => p.Numero == numero));
+
+    public Task<IReadOnlyList<Pedido>> ListarAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Pedido>>(
+            _linhas.OrderByDescending(p => p.DataAbertura).ToList());
+
+    public Task AdicionarAsync(Pedido pedido, CancellationToken ct)
+    {
+        pedido.Id = _proximoId++;
+        _linhas.Add(pedido);
+        return Task.CompletedTask;
+    }
+
+    public Task SalvarAlteracoesAsync(CancellationToken ct)
+    {
+        Saves++;
+        return Task.CompletedTask;
+    }
+}
