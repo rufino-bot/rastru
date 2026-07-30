@@ -5,10 +5,11 @@ qualquer task ser executada. Cada review acha defeitos que custam fix pass — e
 anterior a todas elas, carrega os **mesmos** buracos nas tasks seguintes. Não é descuido do plano:
 é cronologia.
 
-Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 8 a 11
-(as 6 e 7 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
-B7–B8 vieram da review da Task 6; F4 da review da Task 7. **Se a sua review achar algo novo, o lugar
-de registrar é aqui, não só no relatório.**
+Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 9 a 11
+(as 6, 7 e 8 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
+B7–B8 e F5 vieram da review da Task 6; F4 da review da Task 7; **B9–B10 da Task 8** (B9 do revisor,
+B10 do implementador). **Se a sua review achar algo novo, o lugar de registrar é aqui, não só no
+relatório.**
 
 ---
 
@@ -72,6 +73,47 @@ alegando que ele colidiria com o problema do alvo do atributo (`[property:]`). N
 escreveu o teste e ele passou de primeira. Provar que o **alvo** do atributo está certo (pôr
 `[property:]` e ver POSTs virarem 500) é uma propriedade **diferente** de provar que o **limite**
 funciona. As duas precisam de teste; uma não substitui a outra.
+
+### B9. A guarda de nulidade de `LocalizarDuplicado` tem que ser provada, não só escrita
+Hoje ela **não é**, em nenhuma das três entidades. O revisor da Task 8 trocou o `Normalizar(numero)`
+por um `.Trim()` pelado em `CadastroDePedidoUseCase` e **os 26 testes de Pedido seguiram verdes**.
+Medido depois nos outros dois: os 5 call sites de `LocalizarDuplicado` na suíte passam literais
+(`"Solda"`, `"CH-001"`, `"PED-001"`) — nenhum passa `null`.
+
+Ou seja: a proteção que o XML doc de `Normalizar` descreve ("o desserializador de JSON entrega `null`
+mesmo em propriedade não-anulável") existe por **disciplina de código**, e some no dia em que alguém
+a remover. É exatamente a classe de defeito que este adendo inteiro existe para pegar.
+
+Não é alcançável em produção hoje — o único call site, o delegate `Duplicado()` do controller, só
+dispara depois de o use case já ter rejeitado nulo/vazio na checagem de campo obrigatório. Por isso
+não bloqueou a Task 8. Mas a Task 10 copia esta mesma forma de método para `Agrupamento`, e seria a
+quarta cópia sem prova.
+
+**Faça:** um teste direto, `await useCase.LocalizarDuplicado(null!, ct)`, afirmando que não lança.
+Na Task 10, escreva para `Agrupamento` **e** feche retroativamente para Setor, Material e Pedido —
+é uma linha por entidade, e fechar a fonte comum é mais barato que pagar o mesmo achado quatro vezes
+(mesma lição do `[..40]` e do próprio nascimento deste adendo).
+
+### B10. Mutar `[Authorize(Roles = ...)]` num verbo de escrita MEXE NO BANCO — limpe depois
+Achado do implementador da Task 8, e é aviso de segurança, não estilo. Removendo o atributo de role
+de um `POST`, **sobra o `[Authorize]` de classe**: o request passa a autenticação, a action roda e a
+escrita **acontece de verdade** (201 + linha criada). O teste morre por "403 esperado vs 201", não
+por um flip inofensivo de status. Ele produziu uma linha órfã em `dbo.Pedido` e teve que apagar na mão.
+
+**Na Task 10 isso é pior:** `Agrupamento` tem **três** verbos de escrita, e um é `DELETE`. A mesma
+mutação apagaria dado real em vez de criar.
+
+Confira o banco antes e depois de qualquer mutação de autorização, e deixe-o como encontrou:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM dbo.Pedido; SELECT COUNT(*) FROM dbo.Agrupamento;"
+```
+
+Nem toda mutação de escrita suja o banco — depende de onde o request morre. Medido na Task 8: a do
+`PUT` não sujou (a rota usa id inexistente, e o `NotFound` corta antes da escrita) e a do `[MaxLength]`
+também não (o SQL Server rejeitou o INSERT de 31 chars). A do `POST` sujou. Confira, não deduza.
 
 ---
 
@@ -138,9 +180,10 @@ Se você encontrar alguma delas, é bug — não "conserte de volta":
 Rode a suíte **antes** de tocar em nada e confirme o número. Se divergir, pare e reporte em vez de
 assumir — contagem de brief desatualizada já apareceu em três tasks.
 
-- Backend: **182 testes** (72 Application + 23 Infrastructure + 87 Api) ao fim da Task 6 e do fix pass
-  dela. `-warnaserror` sempre em 0 warnings.
-- Frontend: **14 testes** / 3 arquivos ao fim da Task 5. O `npm run lint` tem **1 warning pré-existente
+- Backend: **212 testes** (83 Application + 25 Infrastructure + 104 Api) ao fim da Task 8, medidos e
+  conferidos pelo controlador e pelo revisor de forma independente. `-warnaserror` sempre em 0 warnings.
+  (Era 182 = 72 + 23 + 87 ao fim da Task 6; a Task 8 somou +30.)
+- Frontend: **21 testes** ao fim da Task 7 e do fix pass dela. O `npm run lint` tem **1 warning pré-existente
   e alheio** (`web/src/auth/AuthContext.tsx:48`, `react/only-export-components`, da Fase 0) — não é seu,
   não tente corrigir.
 - `git status` tem três sujeiras **alheias e permanentes**: `.claude/settings.local.json` modificado, e
