@@ -107,6 +107,8 @@ builder.Services.AddScoped<IRevogarTokenUseCase, RevogarTokenUseCase>();
 // testes de Application fakeiam o repositorio. Ver a decisao registrada no plano da Fase 1A.
 builder.Services.AddScoped<ISetorRepository, SetorRepository>();
 builder.Services.AddScoped<CadastroDeSetorUseCase>();
+builder.Services.AddScoped<IMaterialRepository, MaterialRepository>();
+builder.Services.AddScoped<CadastroDeMaterialUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

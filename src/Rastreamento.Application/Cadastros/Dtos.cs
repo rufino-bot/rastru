@@ -32,3 +32,23 @@ public sealed record SetorDto(int Id, string Nome, bool Ativo);
 /// use case: o atributo nao enxerga isso.
 /// </remarks>
 public sealed record NovoSetorDto([MaxLength(100)] string Nome);
+
+// ---------------------------------------------------------------------------
+// Material
+// ---------------------------------------------------------------------------
+
+public sealed record MaterialDto(
+    int Id, string Codigo, string Descricao, string UnidadeMedida, bool Ativo);
+
+/// <remarks>
+/// Os `MaxLength` espelham `dbo.Material`: NVARCHAR(50), (200) e (10). Mesma regra de alvo do
+/// `NovoSetorDto` — atributo SEM `[property:]`, no parametro do construtor primario, que e onde a
+/// validacao de modelo do MVC le em record posicional. `UnidadeMedida` NAO ganha lista fechada
+/// (enum / `[RegularExpression]`): o DDL cita `UN, M, KG, M2` como comentario, sem `CHECK`, e a
+/// aplicacao nao inventa restricao que o schema nao tem. Campo so de espacos continua sendo regra
+/// do use case: o atributo nao enxerga isso.
+/// </remarks>
+public sealed record NovoMaterialDto(
+    [MaxLength(50)] string Codigo,
+    [MaxLength(200)] string Descricao,
+    [MaxLength(10)] string UnidadeMedida);
