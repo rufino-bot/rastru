@@ -2,6 +2,12 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> ⚠️ **LEIA `docs/superpowers/plans/2026-07-28-fase-1a-convencoes-obrigatorias.md` ANTES de executar qualquer task de 6 a 11.**
+> Este plano foi escrito **antes** de qualquer task rodar. As reviews das Tasks 3, 4 e 5 acharam
+> defeitos que custaram fix pass, e as tasks seguintes carregam os mesmos buracos — verificado por
+> grep: 6, 8 e 10 falham nos quatro pontos de backend do adendo; a 7 falha nos dois de frontend.
+> O adendo é **complementar ao texto das tasks e ganha dele em caso de conflito**.
+
 **Goal:** Sair de um sistema que só autentica para um onde o Administrador cadastra Setor e Material e o PCP abre Pedido com Agrupamentos, via tela.
 
 **Architecture:** Continuação da Clean Architecture da Fase 0 (`Domain` / `Application` / `Infrastructure` / `Api`), Database First. A Task 2–5 estabelece o molde de vertical slice em `Setor`; as entidades seguintes o repetem. Front React + TypeScript, telas de lista + formulário, sem gating de navegação por perfil (fora de escopo).
