@@ -151,4 +151,17 @@ public class CadastroDeSetorUseCaseTests
         Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
         Assert.Equal(0, repo.Saves);
     }
+
+    [Fact]
+    public async Task Localiza_duplicado_com_nome_nulo_nao_lanca()
+    {
+        // O `?? string.Empty` de `Normalizar` existe porque o desserializador de JSON entrega null
+        // mesmo em propriedade nao-anulavel. Sem esta assercao a guarda vira disciplina de codigo:
+        // trocar `Normalizar(nome)` por `nome.Trim()` pelado nao quebraria nada (adendo B9).
+        var useCase = new CadastroDeSetorUseCase(new FakeSetorRepo());
+
+        var duplicado = await useCase.LocalizarDuplicado(null!, CancellationToken.None);
+
+        Assert.Null(duplicado);
+    }
 }

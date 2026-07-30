@@ -13,6 +13,7 @@ public class RastreamentoDbContext : DbContext
     public DbSet<Setor> Setores => Set<Setor>();
     public DbSet<Material> Materiais => Set<Material>();
     public DbSet<Pedido> Pedidos => Set<Pedido>();
+    public DbSet<Agrupamento> Agrupamentos => Set<Agrupamento>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

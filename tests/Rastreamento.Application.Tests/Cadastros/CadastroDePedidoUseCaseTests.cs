@@ -157,4 +157,18 @@ public class CadastroDePedidoUseCaseTests
         Assert.False(resultado.Sucesso);
         Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
     }
+
+    [Fact]
+    public async Task Localiza_duplicado_com_numero_nulo_nao_lanca()
+    {
+        // O `?? string.Empty` de `Normalizar` existe porque o desserializador de JSON entrega null
+        // mesmo em propriedade nao-anulavel. Sem esta assercao a guarda vira disciplina de codigo:
+        // trocar `Normalizar(numero)` por `numero.Trim()` pelado nao quebraria nada (adendo B9) —
+        // foi exatamente a mutacao que o revisor da Task 8 fez sem matar nenhum teste.
+        var useCase = new CadastroDePedidoUseCase(new FakePedidoRepo());
+
+        var duplicado = await useCase.LocalizarDuplicado(null!, CancellationToken.None);
+
+        Assert.Null(duplicado);
+    }
 }

@@ -111,6 +111,8 @@ builder.Services.AddScoped<IMaterialRepository, MaterialRepository>();
 builder.Services.AddScoped<CadastroDeMaterialUseCase>();
 builder.Services.AddScoped<IPedidoRepository, PedidoRepository>();
 builder.Services.AddScoped<CadastroDePedidoUseCase>();
+builder.Services.AddScoped<IAgrupamentoRepository, AgrupamentoRepository>();
+builder.Services.AddScoped<CadastroDeAgrupamentoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

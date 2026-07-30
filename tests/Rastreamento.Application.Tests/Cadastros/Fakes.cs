@@ -135,3 +135,62 @@ public class FakePedidoRepo : IPedidoRepository
         return Task.CompletedTask;
     }
 }
+
+public class FakeAgrupamentoRepo : IAgrupamentoRepository
+{
+    private readonly List<Agrupamento> _linhas;
+    private int _proximoId;
+
+    public FakeAgrupamentoRepo(params Agrupamento[] existentes)
+    {
+        _linhas = existentes.ToList();
+        _proximoId = _linhas.Count == 0 ? 1 : _linhas.Max(a => a.Id) + 1;
+    }
+
+    /// <summary>Quantos commits o repositorio recebeu — prova que o caminho de erro nao escreve.</summary>
+    public int Saves { get; private set; }
+
+    /// <summary>Ids que o teste quer fazer passar por "tem EstruturaItem" (tabela da Fase 2).</summary>
+    public HashSet<int> ComEstrutura { get; } = [];
+
+    public Task<Agrupamento?> ObterPorIdAsync(int id, CancellationToken ct) =>
+        Task.FromResult(_linhas.SingleOrDefault(a => a.Id == id));
+
+    /// <summary>
+    /// Comparacao case-sensitive (`==`), diferente da collation case-insensitive do SQL Server em
+    /// producao (`AgrupamentoRepository` real, `WHERE PedidoId = @p0 AND Codigo = @p1`) e de
+    /// `UQ_Agrupamento_PedidoCodigo`. Duplicado-por-caixa (ex.: "ag-01" vs "AG-01") nao e coberto
+    /// neste nivel — precisa de um teste ponta a ponta contra o banco real. NAO torne o fake
+    /// case-insensitive: isso simularia o banco e esconderia a lacuna. (`PedidoId` e int, entao a
+    /// divergencia e so na parte textual da chave composta.)
+    /// </summary>
+    public Task<Agrupamento?> ObterPorPedidoECodigoAsync(
+        int pedidoId, string codigo, CancellationToken ct) =>
+        Task.FromResult(_linhas.SingleOrDefault(a => a.PedidoId == pedidoId && a.Codigo == codigo));
+
+    public Task<IReadOnlyList<Agrupamento>> ListarPorPedidoAsync(int pedidoId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Agrupamento>>(
+            _linhas.Where(a => a.PedidoId == pedidoId).OrderBy(a => a.Codigo).ToList());
+
+    public Task AdicionarAsync(Agrupamento agrupamento, CancellationToken ct)
+    {
+        agrupamento.Id = _proximoId++;
+        _linhas.Add(agrupamento);
+        return Task.CompletedTask;
+    }
+
+    public Task RemoverAsync(Agrupamento agrupamento, CancellationToken ct)
+    {
+        _linhas.Remove(agrupamento);
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> TemEstruturaAsync(int agrupamentoId, CancellationToken ct) =>
+        Task.FromResult(ComEstrutura.Contains(agrupamentoId));
+
+    public Task SalvarAlteracoesAsync(CancellationToken ct)
+    {
+        Saves++;
+        return Task.CompletedTask;
+    }
+}

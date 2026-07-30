@@ -192,4 +192,17 @@ public class CadastroDeMaterialUseCaseTests
         Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
         Assert.Equal(0, repo.Saves);
     }
+
+    [Fact]
+    public async Task Localiza_duplicado_com_codigo_nulo_nao_lanca()
+    {
+        // O `?? string.Empty` de `Normalizar` existe porque o desserializador de JSON entrega null
+        // mesmo em propriedade nao-anulavel. Sem esta assercao a guarda vira disciplina de codigo:
+        // trocar `Normalizar(codigo)` por `codigo.Trim()` pelado nao quebraria nada (adendo B9).
+        var useCase = new CadastroDeMaterialUseCase(new FakeMaterialRepo());
+
+        var duplicado = await useCase.LocalizarDuplicado(null!, CancellationToken.None);
+
+        Assert.Null(duplicado);
+    }
 }

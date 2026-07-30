@@ -77,3 +77,31 @@ public sealed record PedidoDto(
 public sealed record NovoPedidoDto(
     [MaxLength(30)] string Numero,
     [MaxLength(200)] string Cliente);
+
+// ---------------------------------------------------------------------------
+// Agrupamento
+// ---------------------------------------------------------------------------
+
+public sealed record AgrupamentoDto(
+    int Id,
+    int PedidoId,
+    string Codigo,
+    decimal Quantidade,
+    string Tipo,
+    DateTime CriadoEm,
+    int CriadoPorUsuarioId);
+
+/// <remarks>
+/// Sem `PedidoId`: ele vem da rota (`POST /pedidos/{pedidoId}/agrupamentos`), nao do corpo — assim
+/// nao existe a possibilidade de os dois discordarem. Os `MaxLength` espelham `dbo.Agrupamento`:
+/// NVARCHAR(50) e (20). Mesma regra de alvo do `NovoSetorDto` — atributo SEM `[property:]`, no
+/// parametro do construtor primario, que e onde a validacao de modelo do MVC le em record
+/// posicional. `Tipo` NAO ganha `[RegularExpression]`: a lista fechada (Kit | Avulso) e regra do
+/// use case, porque o CK_Agrupamento_Tipo do banco subiria como 500 em vez de 400. `Quantidade`
+/// tambem: `<= 0` e barrado no use case, e nao por `[Range]`, para a mensagem sair no mesmo
+/// formato dos outros erros de negocio.
+/// </remarks>
+public sealed record NovoAgrupamentoDto(
+    [MaxLength(50)] string Codigo,
+    decimal Quantidade,
+    [MaxLength(20)] string Tipo);
