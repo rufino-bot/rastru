@@ -233,7 +233,7 @@ public class SetorMappingTests : TesteComBanco
     public async Task Mapeia_setor_com_round_trip()
     {
         await using var db = NovoContexto();
-        var setor = new Setor { Nome = $"setor-{Guid.NewGuid():N}"[..40], Ativo = true };
+        var setor = new Setor { Nome = $"setor-{Guid.NewGuid():N}", Ativo = true };
 
         db.Setores.Add(setor);
         await db.SaveChangesAsync();
@@ -262,7 +262,7 @@ public class SetorMappingTests : TesteComBanco
         // SetorConfiguration nao declara HasDefaultValue (Database First: o default vive so no
         // .sql), entao um INSERT feito pelo EF sempre manda a coluna e nunca exercitaria o DEFAULT.
         await using var db = NovoContexto();
-        var nome = $"default-{Guid.NewGuid():N}"[..40];
+        var nome = $"default-{Guid.NewGuid():N}";
 
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO dbo.Setor (Nome) VALUES ({nome})");
@@ -635,11 +635,13 @@ public sealed record SetorDto(int Id, string Nome, bool Ativo);
 /// <remarks>
 /// `MaxLength` espelha o NVARCHAR(100) de `dbo.Setor.Nome`: nome longo demais vira 400 do proprio
 /// ASP.NET (ValidationProblemDetails, por causa do [ApiController]), em vez de SqlException virando
-/// 500. O alvo `property:` e obrigatorio — em record posicional um atributo sem alvo pousa no
-/// parametro, e a validacao de modelo le os atributos da PROPRIEDADE. Nome so de espacos continua
-/// sendo regra do use case: o atributo nao enxerga isso.
+/// 500. O atributo fica SEM alvo, ou seja, no parametro do construtor primario — e onde a validacao
+/// de modelo do MVC le em record posicional. Com `[property:]` o MVC nem valida: ele lanca
+/// InvalidOperationException ("validation metadata ... that will be ignored") e a requisicao vira
+/// 500. Mesmo formato do `LoginBody` do AuthController. Nome so de espacos continua sendo regra do
+/// use case: o atributo nao enxerga isso.
 /// </remarks>
-public sealed record NovoSetorDto([property: MaxLength(100)] string Nome);
+public sealed record NovoSetorDto([MaxLength(100)] string Nome);
 
 /// <summary>
 /// Detalhe do 409 de duplicidade. `ExisteInativo` e o que permite a tela oferecer "reativar o
@@ -869,7 +871,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
 
     private string NomeUnico()
     {
-        var nome = $"setor-{Guid.NewGuid():N}"[..40];
+        var nome = $"setor-{Guid.NewGuid():N}";
         _nomesCriados.Add(nome);
         return nome;
     }
@@ -990,7 +992,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
     [Fact]
     public async Task Nome_maior_que_a_coluna_responde_400_e_nao_500()
     {
-        // 101 caracteres contra o NVARCHAR(100) de UQ_Setor_Nome. Prova que o [property: MaxLength]
+        // 101 caracteres contra o NVARCHAR(100) de UQ_Setor_Nome. Prova que o [MaxLength]
         // de NovoSetorDto pega ANTES de o insert estourar SqlException — e o unico teste que
         // exercita o atributo, e vale para o molde inteiro (Material, Pedido, Agrupamento o copiam).
         var resposta = await ClienteComo("Administrador")
@@ -1351,7 +1353,7 @@ Expected: PASS — 3 testes novos, mais os que já existiam.
 Create `web/src/pages/SetoresPage.tsx`:
 
 ```tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarSetores, criarSetor, definirAtivoSetor, ehConflito, type SetorDto,
@@ -1378,7 +1380,7 @@ export function SetoresPage() {
 
   useEffect(() => { carregar(incluirInativos) }, [incluirInativos])
 
-  async function salvar(e: React.FormEvent) {
+  async function salvar(e: FormEvent) {
     e.preventDefault()
     setErro(null)
     setIdReativavel(null)
@@ -1798,9 +1800,9 @@ public sealed record MaterialDto(
 
 /// <remarks>Os `MaxLength` espelham `dbo.Material`: NVARCHAR(50), (200) e (10).</remarks>
 public sealed record NovoMaterialDto(
-    [property: MaxLength(50)] string Codigo,
-    [property: MaxLength(200)] string Descricao,
-    [property: MaxLength(10)] string UnidadeMedida);
+    [MaxLength(50)] string Codigo,
+    [MaxLength(200)] string Descricao,
+    [MaxLength(10)] string UnidadeMedida);
 ```
 
 - [ ] **Step 6: Implementar o use case**
@@ -1939,7 +1941,7 @@ public class MaterialMappingTests : TesteComBanco
         await using var db = NovoContexto();
         var material = new Material
         {
-            Codigo = $"mat-{Guid.NewGuid():N}"[..40],
+            Codigo = $"mat-{Guid.NewGuid():N}",
             Descricao = "Chapa de aco 3mm",
             UnidadeMedida = "KG",
             Ativo = true,
@@ -1975,7 +1977,7 @@ public class MaterialMappingTests : TesteComBanco
         // porque um INSERT feito pelo EF sempre manda a coluna (Database First: o default so vive
         // no .sql, MaterialConfiguration nao declara HasDefaultValue).
         await using var db = NovoContexto();
-        var codigo = $"def-{Guid.NewGuid():N}"[..40];
+        var codigo = $"def-{Guid.NewGuid():N}";
 
         await db.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO dbo.Material (Codigo, Descricao, UnidadeMedida) VALUES ({codigo}, 'Teste', 'UN')");
@@ -2113,7 +2115,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     private string CodigoUnico()
     {
-        var codigo = $"mat-{Guid.NewGuid():N}"[..40];
+        var codigo = $"mat-{Guid.NewGuid():N}";
         _codigosCriados.Add(codigo);
         return codigo;
     }
@@ -2441,7 +2443,7 @@ Expected: PASS — 3 testes novos, mais os que já existiam.
 Create `web/src/pages/MateriaisPage.tsx`:
 
 ```tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarMateriais, criarMaterial, definirAtivoMaterial, ehConflito,
@@ -2471,7 +2473,7 @@ export function MateriaisPage() {
 
   useEffect(() => { carregar(incluirInativos) }, [incluirInativos])
 
-  async function salvar(e: React.FormEvent) {
+  async function salvar(e: FormEvent) {
     e.preventDefault()
     setErro(null)
     setIdReativavel(null)
@@ -2935,8 +2937,8 @@ public sealed record PedidoDto(
 /// da sessao. Nenhum dos tres se aceita do cliente. Os `MaxLength` espelham `dbo.Pedido`.
 /// </remarks>
 public sealed record NovoPedidoDto(
-    [property: MaxLength(30)] string Numero,
-    [property: MaxLength(200)] string Cliente);
+    [MaxLength(30)] string Numero,
+    [MaxLength(200)] string Cliente);
 ```
 
 - [ ] **Step 6: Implementar o use case**
@@ -3631,7 +3633,7 @@ Expected: PASS — 3 testes novos, mais os que já existiam.
 Create `web/src/pages/PedidosPage.tsx`:
 
 ```tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarPedidos, criarPedido, ehConflito, formatarDataHora,
@@ -3659,7 +3661,7 @@ export function PedidosPage() {
 
   useEffect(() => { carregar() }, [])
 
-  async function salvar(e: React.FormEvent) {
+  async function salvar(e: FormEvent) {
     e.preventDefault()
     setErro(null)
     try {
@@ -4151,9 +4153,9 @@ public sealed record AgrupamentoDto(
 /// nao existe a possibilidade de os dois discordarem. `MaxLength` espelha `dbo.Agrupamento`.
 /// </remarks>
 public sealed record NovoAgrupamentoDto(
-    [property: MaxLength(50)] string Codigo,
+    [MaxLength(50)] string Codigo,
     decimal Quantidade,
-    [property: MaxLength(20)] string Tipo);
+    [MaxLength(20)] string Tipo);
 ```
 
 - [ ] **Step 6: Implementar o use case**
@@ -5014,7 +5016,7 @@ Expected: PASS — 4 testes novos, mais os que já existiam.
 Create `web/src/pages/PedidoDetalhePage.tsx`:
 
 ```tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, ehConflito,
@@ -5055,7 +5057,7 @@ export function PedidoDetalhePage() {
 
   useEffect(() => { carregar() }, [pedidoId])
 
-  async function salvar(e: React.FormEvent) {
+  async function salvar(e: FormEvent) {
     e.preventDefault()
     setErro(null)
     try {
@@ -5351,7 +5353,7 @@ task correspondente:
 
 | Onde | Decisão | Motivo |
 |---|---|---|
-| Tasks 3–10 | `[property: MaxLength]` nos DTOs de entrada | Sem isso, texto maior que a coluna vira `SqlException` → 500 em vez de 400. Um teste no molde (Task 4) prova o comportamento |
+| Tasks 3–10 | `[MaxLength]` **sem alvo** nos DTOs de entrada (no parâmetro do construtor primário, como o `LoginBody` do `AuthController`) | Sem isso, texto maior que a coluna vira `SqlException` → 500 em vez de 400. Com `[property:]` é pior ainda: o MVC lança `InvalidOperationException` e **todo** POST/PUT vira 500, inclusive o caminho feliz — defeito real do plano, pego pelos testes de endpoint da Task 4. Um teste no molde (Task 4) prova o comportamento |
 | Task 8 | `GET /pedidos` sem contagem e `GET /pedidos/{id}` sem os Agrupamentos embutidos | Contar/embutir exigiria mapear `Agrupamento` antes da hora ou escrever SQL cru que a Task 10 substituiria. Os Agrupamentos saem por sub-recurso, e a tela de detalhe faz as duas chamadas |
 | Task 10 | `TemEstruturaAsync` por SQL direto, sem mapear `EstruturaItem` | Resolve o ponto que a spec deixou explicitamente em aberto. Mantém 1A fechada no seu escopo; quando a Fase 2 mapear a entidade, o método vira LINQ e o contrato não muda |
 | Task 10 | Os dois 409 de regra viajam como **código** no `Result.Erro` | É o que o contrato de 409 da spec define no corpo. O controller repassa e não deriva comportamento da string — o que `Result.cs` proíbe é *comparar* |
