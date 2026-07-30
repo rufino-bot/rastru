@@ -72,4 +72,26 @@ describe('cadastros', () => {
 
     await expect(criarSetor('Solda')).rejects.toThrow()
   })
+
+  it('lista setores incluindo inativos quando pedido', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([{ id: 1, nome: 'Solda', ativo: false }]), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarSetores(true)
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/setores?incluirInativos=true')
+  })
+
+  // TraduzirResultado (ex.: futuro DELETE /agrupamentos/{id}) devolve 409 num formato pelado
+  // (so { erro: "<codigo>" }, sem campo/existeInativo/idExistente) que nao e ConflitoDeCadastro.
+  // lerOuFalhar precisa lancar nesse caso, nao devolver o corpo como se fosse um DTO criado.
+  it('lanca quando o 409 nao esta no formato ValorDuplicado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'AgrupamentoNaoVazio' }), { status: 409 }),
+    ))
+
+    await expect(criarSetor('Solda')).rejects.toThrow()
+  })
 })

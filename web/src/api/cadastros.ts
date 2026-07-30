@@ -18,8 +18,19 @@ export function ehConflito(r: unknown): r is ConflitoDeCadastro {
   return typeof r === 'object' && r !== null && (r as ConflitoDeCadastro).erro === 'ValorDuplicado'
 }
 
+/**
+ * Só serve para endpoints `MontarConflito`/`TraduzirFalha`-backed (ex.: `POST /setores`), cujo
+ * único 409 possível é o formato `ValorDuplicado`. Endpoints `TraduzirResultado`-backed (ex.:
+ * `PATCH /{id}/ativo`) devolvem 409 num formato pelado (`{ erro: "<código>" }`) que não é
+ * `ConflitoDeCadastro` — para esses, trate a resposta com `if (!resp.ok) throw`, como
+ * `definirAtivoSetor` já faz.
+ */
 async function lerOuFalhar<T>(resp: Response): Promise<T | ConflitoDeCadastro> {
-  if (resp.status === 409) return (await resp.json()) as ConflitoDeCadastro
+  if (resp.status === 409) {
+    const corpo = await resp.json()
+    if (ehConflito(corpo)) return corpo
+    throw new Error('Falha na requisição (409): formato de conflito inesperado.')
+  }
   if (!resp.ok) throw new Error(`Falha na requisição (${resp.status}).`)
   return (await resp.json()) as T
 }
