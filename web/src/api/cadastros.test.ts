@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   listarSetores, criarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
+  listarPedidos, criarPedido, obterPedido, formatarDataHora,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
 
@@ -195,5 +196,115 @@ describe('cadastros', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
 
     await expect(definirAtivoMaterial(4, false)).rejects.toThrow()
+  })
+
+  it('lista pedidos', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([{
+          id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+        }]),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pedidos = await listarPedidos()
+
+    expect(pedidos[0].numero).toBe('PED-001')
+    expect(fetchMock.mock.calls[0][0]).toBe('/pedidos')
+  })
+
+  // GET /pedidos e so [Authorize] (nao role-protected), mas o par URL/erro e o molde do F4 mesmo
+  // assim: uma resposta nao-ok tem que lancar, nao devolver undefined/array vazio em silencio.
+  it('lanca quando listar pedidos falha', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })))
+
+    await expect(listarPedidos()).rejects.toThrow()
+  })
+
+  it('devolve o conflito quando o numero do pedido ja existe', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ erro: 'ValorDuplicado', campo: 'numero', existeInativo: false, idExistente: 3 }),
+        { status: 409 },
+      ),
+    ))
+
+    const resultado = await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
+
+    expect(ehConflito(resultado)).toBe(true)
+    expect(ehConflito(resultado) && resultado.existeInativo).toBe(false)
+  })
+
+  // Molde de 'manda os tres campos do material no corpo do POST' (linha 146): sem isto, um POST
+  // na URL errada, com metodo errado ou com corpo errado passaria verde so com o teste de 409
+  // acima, que devolve 409 independente dos argumentos da chamada.
+  it('manda os dois campos do pedido no corpo do POST', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+        }),
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/pedidos')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X' }))
+  })
+
+  // POST /pedidos e [Authorize(Roles = "PCP,Administrador")] e o link aparece para todos os
+  // perfis: o 403 e caminho esperado, e precisa LANCAR para a tela poder mostrar o erro (senao o
+  // catch do salvar() vira decorativo).
+  it('criarPedido lanca quando o backend responde 403', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
+
+    await expect(criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })).rejects.toThrow()
+  })
+
+  // obterPedido nasce nesta task sem chamador (a tela de detalhe e da Task 11), mas ainda precisa
+  // dos dois testes do F4 como qualquer funcao nova do modulo.
+  it('obterPedido busca a rota do id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 9, numero: 'PED-009', cliente: 'Cliente Y', tipo: 'Fabricacao',
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+        }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const pedido = await obterPedido(9)
+
+    expect(pedido.numero).toBe('PED-009')
+    expect(fetchMock.mock.calls[0][0]).toBe('/pedidos/9')
+  })
+
+  it('obterPedido lanca quando a resposta nao e ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })))
+
+    await expect(obterPedido(999)).rejects.toThrow()
+  })
+
+  it('formata a data no fuso que a API entregou, sem reconverter pelo aparelho', () => {
+    expect(formatarDataHora('2026-07-28T09:30:00-03:00')).toBe('28/07/2026 09:30')
+  })
+
+  // O wire real do HorarioDeBrasiliaJsonConverter: um DateTimeOffset serializado pelo
+  // System.Text.Json sai COM fracoes de segundo (DataAbertura nasce de UtcNow/SYSUTCDATETIME(),
+  // ambos com 7 digitos fracionarios). O caso acima sozinho nao prova que a funcao aguenta o
+  // formato de verdade.
+  it('formata a data mesmo com fracoes de segundo no ISO', () => {
+    expect(formatarDataHora('2026-07-28T09:30:00.1234567-03:00')).toBe('28/07/2026 09:30')
   })
 })

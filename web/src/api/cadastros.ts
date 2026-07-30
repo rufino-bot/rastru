@@ -99,3 +99,54 @@ export async function definirAtivoMaterial(id: number, ativo: boolean): Promise<
   })
   if (!resp.ok) throw new Error(`Falha ao alterar o material (${resp.status}).`)
 }
+
+export interface PedidoDto {
+  id: number
+  numero: string
+  cliente: string
+  tipo: string
+  status: string
+  /** ISO 8601 com offset -03:00 — a API ja converteu (HorarioDeBrasiliaJsonConverter). */
+  dataAbertura: string
+  criadoPorUsuarioId: number
+}
+
+export interface NovoPedido {
+  numero: string
+  cliente: string
+}
+
+/**
+ * Formata o ISO que a API mandou SEM passar por `Date`: a data ja vem em GMT-3, e
+ * `new Date(x).toLocaleString()` a reconverteria para o fuso do aparelho — num tablet fora do
+ * fuso da fabrica o horario apareceria deslocado.
+ */
+export function formatarDataHora(isoComOffset: string): string {
+  const [data, hora] = isoComOffset.split('T')
+  const [ano, mes, dia] = data.split('-')
+  return `${dia}/${mes}/${ano} ${hora.slice(0, 5)}`
+}
+
+export async function listarPedidos(): Promise<PedidoDto[]> {
+  const resp = await apiFetch('/pedidos')
+  if (!resp.ok) throw new Error(`Falha ao listar pedidos (${resp.status}).`)
+  return (await resp.json()) as PedidoDto[]
+}
+
+export async function obterPedido(id: number): Promise<PedidoDto> {
+  const resp = await apiFetch(`/pedidos/${id}`)
+  if (!resp.ok) throw new Error(`Falha ao carregar o pedido (${resp.status}).`)
+  return (await resp.json()) as PedidoDto
+}
+
+export function criarPedido(p: NovoPedido): Promise<PedidoDto | ConflitoDeCadastro> {
+  return apiFetch('/pedidos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(p),
+  }).then(lerOuFalhar<PedidoDto>)
+}
+
+// Sem editarPedido aqui, de proposito: o PUT /pedidos/{id} existe e esta testado no backend
+// (Task 8), mas nenhuma tela de 1A tem UI de edicao — exportar a funcao sem chamador seria
+// codigo morto. Ela nasce junto com a tela que a usar.

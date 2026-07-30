@@ -47,6 +47,7 @@ export function HomePage() {
       <div className="flex gap-3 mt-4">
         <Link to="/setores" className="border rounded px-3 py-2">Setores</Link>
         <Link to="/materiais" className="border rounded px-3 py-2">Materiais</Link>
+        <Link to="/pedidos" className="border rounded px-3 py-2">Pedidos</Link>
         <button onClick={carregarMe} className="border rounded px-3 py-2">Recarregar</button>
         <button onClick={logout} className="border rounded px-3 py-2">Sair</button>
       </div>
