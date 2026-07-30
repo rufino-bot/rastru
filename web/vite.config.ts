@@ -11,6 +11,10 @@ export default defineConfig({
     proxy: {
       '/auth': { target: 'http://localhost:5169', changeOrigin: true },
       '/me': { target: 'http://localhost:5169', changeOrigin: true },
+      '/setores': { target: 'http://localhost:5169', changeOrigin: true },
+      '/materiais': { target: 'http://localhost:5169', changeOrigin: true },
+      '/pedidos': { target: 'http://localhost:5169', changeOrigin: true },
+      '/agrupamentos': { target: 'http://localhost:5169', changeOrigin: true },
     },
   },
 })

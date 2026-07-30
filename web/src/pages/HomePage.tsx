@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import type { UsuarioDto } from '../api/tipos'
@@ -44,6 +45,7 @@ export function HomePage() {
       )}
 
       <div className="flex gap-3 mt-4">
+        <Link to="/setores" className="border rounded px-3 py-2">Setores</Link>
         <button onClick={carregarMe} className="border rounded px-3 py-2">Recarregar</button>
         <button onClick={logout} className="border rounded px-3 py-2">Sair</button>
       </div>
