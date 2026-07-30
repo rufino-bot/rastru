@@ -5,11 +5,17 @@ qualquer task ser executada. Cada review acha defeitos que custam fix pass — e
 anterior a todas elas, carrega os **mesmos** buracos nas tasks seguintes. Não é descuido do plano:
 é cronologia.
 
-Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 9 a 11
-(as 6, 7 e 8 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
+Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 10 e 11
+(as 6 a 9 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
 B7–B8 e F5 vieram da review da Task 6; F4 da review da Task 7; **B9–B10 da Task 8** (B9 do revisor,
-B10 do implementador). **Se a sua review achar algo novo, o lugar de registrar é aqui, não só no
-relatório.**
+B10 do implementador); **F6 e a nota do F1, da Task 9** (as duas do revisor). **Se a sua review achar
+algo novo, o lugar de registrar é aqui, não só no relatório.**
+
+**Aviso para quem for executar a Task 10:** a auditoria dela contra este arquivo já foi feita, e ela
+falha em **B1, B2, B4, B5, B6, B7, B8, B9 e B10** — todos menos o B3, que não se aplica (Agrupamento
+não tem coluna `Ativo`). Isso não é descuido do plano, é a mesma cronologia do parágrafo acima. No
+**domínio** ela é a task mais cuidadosa do plano (valida `Quantidade <= 0`, o CHECK do `Tipo`, os três
+ramos do `Excluir`, o `TemEstruturaAsync` parametrizado); é nas convenções que ela está descoberta.
 
 ---
 
@@ -223,7 +229,8 @@ assumir — contagem de brief desatualizada já apareceu em três tasks.
 - Backend: **212 testes** (83 Application + 25 Infrastructure + 104 Api) ao fim da Task 8, medidos e
   conferidos pelo controlador e pelo revisor de forma independente. `-warnaserror` sempre em 0 warnings.
   (Era 182 = 72 + 23 + 87 ao fim da Task 6; a Task 8 somou +30.)
-- Frontend: **21 testes** ao fim da Task 7 e do fix pass dela. O `npm run lint` tem **1 warning pré-existente
+- Frontend: **32 testes** / 3 arquivos ao fim da Task 9 e do fix retroativo do F6. (Era 21 ao fim da
+  Task 7; a Task 9 somou +9 e o fix do F6 somou +2.) O `npm run lint` tem **1 warning pré-existente
   e alheio** (`web/src/auth/AuthContext.tsx:48`, `react/only-export-components`, da Fase 0) — não é seu,
   não tente corrigir.
 - `git status` tem três sujeiras **alheias e permanentes**: `.claude/settings.local.json` modificado, e
