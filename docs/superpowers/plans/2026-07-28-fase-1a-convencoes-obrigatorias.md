@@ -50,6 +50,26 @@ fidelidade de teste, e a camada Application não consegue provar essa propriedad
 num comentário XML no fake, como `FakeSetorRepo` já faz. **Não** torne o fake case-insensitive: isso
 simularia o banco e esconderia a lacuna.
 
+### B7. O ramo de FALHA do `PUT` tem teste via HTTP
+Um `PUT /<recurso>/999999` esperando **404**. Sem ele, nada exercita o
+`resultado.Sucesso ? Ok(...) : TraduzirFalha(...)` do controller: o revisor da Task 6 trocou o corpo do
+`Editar` por `return Ok(resultado.Valor);` — ignorando `resultado.Sucesso` por completo — e os 178
+testes seguiram verdes. O molde de Setor tem (`Editar_setor_inexistente_responde_404`); Material saiu
+sem, e foi fechado no fix pass. Teste de use case **não** cobre isso: o buraco é na tradução do
+`Result` em status HTTP, que só existe no controller.
+
+### B8. CADA `[MaxLength(n)]` do DTO tem teste que morre se o atributo sair
+Um request com `n+1` caracteres no campo deve responder **400**, não estourar `SqlException` → **500**.
+Provado por mutação na Task 6: removendo `[MaxLength(50)]` do `Codigo`, os 178 testes seguiam verdes —
+os três campos de `NovoMaterialDto` estavam descobertos. Um `[Theory]` sobre `(campo, tamanho)` cobre o
+DTO inteiro de uma vez.
+
+**Cuidado com o argumento que já falhou uma vez:** o implementador da Task 6 dispensou esse teste
+alegando que ele colidiria com o problema do alvo do atributo (`[property:]`). Não procede — o revisor
+escreveu o teste e ele passou de primeira. Provar que o **alvo** do atributo está certo (pôr
+`[property:]` e ver POSTs virarem 500) é uma propriedade **diferente** de provar que o **limite**
+funciona. As duas precisam de teste; uma não substitui a outra.
+
 ---
 
 ## Frontend (Tasks 7, 9, 11)
@@ -93,7 +113,19 @@ Se você encontrar alguma delas, é bug — não "conserte de volta":
 | `React.FormEvent` | Com `jsx: "react-jsx"` + `verbatimModuleSyntax` e sem `import React`, o `tsc -b` falha com "Cannot find name 'React'" | `import { ..., type FormEvent } from 'react'` — `LoginPage.tsx:1` |
 
 ## Baselines (confira antes de mexer, para poder dizer "N antes, N+k depois")
-- Backend: **150 testes** (58 Application + 21 Infrastructure + 71 Api), `-warnaserror` em 0 warnings.
-- Frontend: **14 testes** / 3 arquivos. O `npm run lint` tem **1 warning pré-existente e alheio**
-  (`web/src/auth/AuthContext.tsx:48`, `react/only-export-components`, da Fase 0) — não é seu, não
-  tente corrigir.
+Rode a suíte **antes** de tocar em nada e confirme o número. Se divergir, pare e reporte em vez de
+assumir — contagem de brief desatualizada já apareceu em três tasks.
+
+- Backend: **182 testes** (72 Application + 23 Infrastructure + 87 Api) ao fim da Task 6 e do fix pass
+  dela. `-warnaserror` sempre em 0 warnings.
+- Frontend: **14 testes** / 3 arquivos ao fim da Task 5. O `npm run lint` tem **1 warning pré-existente
+  e alheio** (`web/src/auth/AuthContext.tsx:48`, `react/only-export-components`, da Fase 0) — não é seu,
+  não tente corrigir.
+- `git status` tem três sujeiras **alheias e permanentes**: `.claude/settings.local.json` modificado, e
+  `.github/`/`.vs/` untracked (o usuário abriu a solution no Visual Studio). **Não commite nenhuma delas.**
+
+## Como esta lista foi construída
+Cada item aqui custou um fix pass ou uma review. Nenhum saiu de opinião: **B1–B6** vieram das reviews
+das Tasks 3, 4 e 5; **B7–B8** e a nota do baseline vieram da review da Task 6. O padrão que os une é
+que **quase todos foram achados por mutação, não por leitura** — apagar uma guarda e ver a suíte seguir
+verde. Se você for revisar uma task desta fase, mutar é o que encontra o que ler não encontra.
