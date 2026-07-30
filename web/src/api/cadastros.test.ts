@@ -79,8 +79,11 @@ describe('cadastros', () => {
     await expect(definirAtivoSetor(4, false)).rejects.toThrow()
   })
 
+  // Corpo tem que ser JSON valido e nao-vazio: um corpo vazio faria o .json() de lerOuFalhar
+  // lancar por conta propria (SyntaxError de parse), e o teste passaria mesmo sem a guarda
+  // `if (!resp.ok) throw` — provado por mutacao na review da Task 9. Ver F6 no adendo.
   it('lanca quando a resposta e erro nao tratado', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
 
     await expect(criarSetor('Solda')).rejects.toThrow()
   })
@@ -94,6 +97,15 @@ describe('cadastros', () => {
     await listarSetores(true)
 
     expect(fetchMock.mock.calls[0][0]).toBe('/setores?incluirInativos=true')
+  })
+
+  // Lacuna do F4 herdada da Task 5: listarSetores tem `if (!resp.ok) throw` (cadastros.ts:40) mas
+  // nunca teve teste de throw. Corpo JSON nao-vazio: ver nota em 'lanca quando a resposta e erro
+  // nao tratado'.
+  it('lanca quando listar setores falha', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(listarSetores(false)).rejects.toThrow()
   })
 
   // TraduzirResultado (ex.: futuro DELETE /agrupamentos/{id}) devolve 409 num formato pelado
@@ -142,6 +154,15 @@ describe('cadastros', () => {
     await listarMateriais(true)
 
     expect(fetchMock.mock.calls[0][0]).toBe('/materiais?incluirInativos=true')
+  })
+
+  // Lacuna do F4 herdada da Task 7: listarMateriais tem `if (!resp.ok) throw` (cadastros.ts:81) mas
+  // nunca teve teste de throw. Corpo JSON nao-vazio: ver nota em 'lanca quando a resposta e erro
+  // nao tratado'.
+  it('lanca quando listar materiais falha', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(listarMateriais(false)).rejects.toThrow()
   })
 
   it('manda os tres campos do material no corpo do POST', async () => {
@@ -218,8 +239,9 @@ describe('cadastros', () => {
 
   // GET /pedidos e so [Authorize] (nao role-protected), mas o par URL/erro e o molde do F4 mesmo
   // assim: uma resposta nao-ok tem que lancar, nao devolver undefined/array vazio em silencio.
+  // Corpo JSON nao-vazio (nao ''): ver nota em 'lanca quando a resposta e erro nao tratado'.
   it('lanca quando listar pedidos falha', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
 
     await expect(listarPedidos()).rejects.toThrow()
   })
@@ -264,8 +286,9 @@ describe('cadastros', () => {
   // POST /pedidos e [Authorize(Roles = "PCP,Administrador")] e o link aparece para todos os
   // perfis: o 403 e caminho esperado, e precisa LANCAR para a tela poder mostrar o erro (senao o
   // catch do salvar() vira decorativo).
+  // Corpo JSON nao-vazio (nao ''): ver nota em 'lanca quando a resposta e erro nao tratado'.
   it('criarPedido lanca quando o backend responde 403', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 403 })))
 
     await expect(criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })).rejects.toThrow()
   })
@@ -290,8 +313,9 @@ describe('cadastros', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/pedidos/9')
   })
 
+  // Corpo JSON nao-vazio (nao ''): ver nota em 'lanca quando a resposta e erro nao tratado'.
   it('obterPedido lanca quando a resposta nao e ok', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })))
 
     await expect(obterPedido(999)).rejects.toThrow()
   })
