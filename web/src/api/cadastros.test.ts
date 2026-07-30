@@ -70,6 +70,14 @@ describe('cadastros', () => {
     expect(init.body).toBe(JSON.stringify({ ativo: false }))
   })
 
+  // PATCH /setores/{id}/ativo e [Authorize(Roles = "Administrador")] e o link aparece para todos
+  // os perfis: o 403 e caminho esperado, e precisa LANCAR para a tela poder mostrar o erro.
+  it('definirAtivoSetor lanca quando o backend responde 403', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
+
+    await expect(definirAtivoSetor(4, false)).rejects.toThrow()
+  })
+
   it('lanca quando a resposta e erro nao tratado', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })))
 
