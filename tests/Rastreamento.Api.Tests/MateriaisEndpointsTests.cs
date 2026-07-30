@@ -158,10 +158,40 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     }
 
     [Fact]
+    public async Task Editar_material_inexistente_responde_404()
+    {
+        var resposta = await ClienteComo("Administrador")
+            .PutAsJsonAsync("/materiais/999999", CorpoValido(CodigoUnico()));
+
+        Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+    }
+
+    [Fact]
     public async Task Unidade_de_medida_em_branco_responde_400()
     {
         var resposta = await ClienteComo("Administrador").PostAsJsonAsync(
             "/materiais", new { codigo = CodigoUnico(), descricao = "Chapa", unidadeMedida = " " });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("codigo", 51)]
+    [InlineData("descricao", 201)]
+    [InlineData("unidadeMedida", 11)]
+    public async Task Campo_maior_que_a_coluna_responde_400_e_nao_500(string campo, int tamanho)
+    {
+        // Um caractere alem de NVARCHAR(50)/(200)/(10) de dbo.Material, respectivamente. Prova que
+        // o [MaxLength] de cada parametro de NovoMaterialDto pega ANTES de o insert estourar
+        // SqlException — o mesmo papel de Nome_maior_que_a_coluna_responde_400_e_nao_500 em
+        // SetoresEndpointsTests, um por campo porque o DTO tem tres campos de texto em vez de um.
+        var valores = new Dictionary<string, object>
+        {
+            ["codigo"] = CodigoUnico(), ["descricao"] = "Chapa de aco 3mm", ["unidadeMedida"] = "KG",
+        };
+        valores[campo] = new string('x', tamanho);
+
+        var resposta = await ClienteComo("Administrador").PostAsJsonAsync("/materiais", valores);
 
         Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
     }

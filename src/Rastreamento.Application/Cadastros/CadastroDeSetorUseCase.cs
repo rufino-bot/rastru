@@ -10,6 +10,10 @@ namespace Rastreamento.Application.Cadastros;
 /// </summary>
 public sealed class CadastroDeSetorUseCase
 {
+    private const string ErroDeCampoObrigatorio = "Nome e obrigatorio.";
+
+    private const string ErroDeNomeDuplicado = "Ja existe um Setor com este nome.";
+
     private readonly ISetorRepository _repositorio;
 
     public CadastroDeSetorUseCase(ISetorRepository repositorio) => _repositorio = repositorio;
@@ -18,12 +22,12 @@ public sealed class CadastroDeSetorUseCase
     {
         var nome = Normalizar(novo.Nome);
         if (nome.Length == 0)
-            return Result<SetorDto>.Falha("Nome e obrigatorio.", TipoDeErro.Validacao);
+            return Result<SetorDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
         // Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Setor_Nome
         // vazando ate a API. O indice segue como rede de seguranca para a corrida entre as duas.
         if (await _repositorio.ObterPorNomeAsync(nome, ct) is not null)
-            return Result<SetorDto>.Falha("Ja existe um Setor com este nome.", TipoDeErro.Conflito);
+            return Result<SetorDto>.Falha(ErroDeNomeDuplicado, TipoDeErro.Conflito);
 
         var setor = new Setor { Nome = nome, Ativo = true };
         await _repositorio.AdicionarAsync(setor, ct);
@@ -36,7 +40,7 @@ public sealed class CadastroDeSetorUseCase
     {
         var nome = Normalizar(alterado.Nome);
         if (nome.Length == 0)
-            return Result<SetorDto>.Falha("Nome e obrigatorio.", TipoDeErro.Validacao);
+            return Result<SetorDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
         var setor = await _repositorio.ObterPorIdAsync(id, ct);
         if (setor is null)
@@ -45,7 +49,7 @@ public sealed class CadastroDeSetorUseCase
         // So e conflito se o nome pertencer a OUTRA linha: renomear para o proprio nome e no-op.
         var homonimo = await _repositorio.ObterPorNomeAsync(nome, ct);
         if (homonimo is not null && homonimo.Id != id)
-            return Result<SetorDto>.Falha("Ja existe um Setor com este nome.", TipoDeErro.Conflito);
+            return Result<SetorDto>.Falha(ErroDeNomeDuplicado, TipoDeErro.Conflito);
 
         setor.Nome = nome;
         await _repositorio.SalvarAlteracoesAsync(ct);
