@@ -74,6 +74,16 @@ Provado por mutação na Task 6: removendo `[MaxLength(50)]` do `Codigo`, os 178
 os três campos de `NovoMaterialDto` estavam descobertos. Um `[Theory]` sobre `(campo, tamanho)` cobre o
 DTO inteiro de uma vez.
 
+**Achado da Task 10 — cuidado com a prova FALSA em campo de lista fechada.** Um `[MaxLength(n)]`
+sobre um campo que o use case já valida contra uma lista fechada **não é testável neste nível**: um
+valor com `n+1` caracteres também está fora da lista, então o 400 chega pelo outro caminho e o teste
+passa com o atributo removido. Medido em `NovoAgrupamentoDto`: removendo os **dois** `[MaxLength]`,
+só o caso de `Codigo` morre — o de `Tipo` (validado contra `Kit | Avulso`) seguia verde. Escrever o
+`[InlineData]` de `Tipo` seria pior que não escrever: daria ao revisor a impressão de que o atributo
+está coberto. **Faça:** cubra só os campos de texto livre e registre no comentário do teste, com a
+medição, por que os de lista fechada ficaram de fora. O atributo continua no DTO (defesa em
+profundidade e espelho da coluna), mas sem teste que o falsifique.
+
 **Cuidado com o argumento que já falhou uma vez:** o implementador da Task 6 dispensou esse teste
 alegando que ele colidiria com o problema do alvo do atributo (`[property:]`). Não procede — o revisor
 escreveu o teste e ele passou de primeira. Provar que o **alvo** do atributo está certo (pôr
