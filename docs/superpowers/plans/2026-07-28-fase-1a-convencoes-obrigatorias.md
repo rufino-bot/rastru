@@ -124,6 +124,12 @@ Sem ele, submeter vazio manda a requisição, o backend responde 400 e a tela mo
 genérica de falha ("Não foi possível salvar…") — mensagem errada para campo em branco. Precedente:
 `web/src/pages/LoginPage.tsx:49,61`. O plano não tem `required` em nenhuma tela.
 
+**Nota da review da Task 9:** `required` **não é provável neste nível de teste**. O revisor removeu o
+atributo dos dois inputs de `PedidosPage.tsx` e a suíte seguiu 30/30 — sem `@testing-library/react`
+não há como simular submit de formulário e observar o bloqueio do navegador. A convenção continua
+obrigatória, mas quem a mantém é disciplina de código, não teste. Mesma classe do B9: a proteção existe
+porque foi escrita certo, não porque algo quebraria se sumisse.
+
 ### F2. `try/catch` em todo handler que chama endpoint `[Authorize(Roles = ...)]`
 O gating do link por perfil foi cortado de propósito: o link aparece para todos e o 403 do backend é a
 fronteira real. Consequência: um Operador clicando "Inativar" pega 403 → `throw` → **promise rejeitada
@@ -164,6 +170,40 @@ devolver. Motivo: `CadastroControllerBase.TraduzirResultado` produz um 409 pelad
 (`{ erro: "<codigo>" }`) — caminho do `PATCH /{id}/ativo` e do `DELETE /agrupamentos/{id}` —, e com o
 código antigo `ehConflito` devolvia `false` e o chamador tratava o conflito como sucesso: campo limpo,
 lista recarregada, **nenhum erro visível**. Use a versão que está em `web/src/api/cadastros.ts`.
+
+### F6. Mock de erro no teste de throw precisa de corpo JSON não-vazio, não `''`
+Um mock como `new Response('', { status: 500 })` parece provar a guarda `if (!resp.ok) throw`, mas
+**não prova nada** quando a função chega a chamar `.json()` depois da guarda: corpo vazio faz o
+`.json()` lançar sozinho (`SyntaxError: Unexpected end of JSON input`), e `rejects.toThrow()` sem
+argumento passa de qualquer jeito — pelo parse falho, não pela guarda. Se a guarda sumir, o teste
+continua verde.
+
+**A evidência (mutação da review da Task 9):** removendo `if (!resp.ok) throw` de `lerOuFalhar`
+(cobre `criarSetor` e `criarPedido`), de `listarPedidos` e de `obterPedido` — três mutações
+separadas, cada uma revertida em seguida — a suíte seguia **30/30 verde** nos quatro testes que
+deveriam ter morrido. Contraprova: trocando o corpo do mock de `''` para `'{}'` com a guarda ainda
+removida, o teste morre — o corpo não-vazio é o que destrava a prova. Controle de escopo: a mesma
+mutação em `definirAtivoSetor` (que **não** chama `.json()`, é `void`) matou 1 teste normalmente — a
+lacuna é específica de quem lê o corpo.
+
+**Exceção:** funções que retornam `void` e nunca chamam `.json()` — `definirAtivoSetor` e
+`definirAtivoMaterial` — não têm esse problema. Corpo vazio ali é inofensivo porque nada tenta
+fazer parse dele; **não** troque esses dois mocks, seria ruído.
+
+**Regra:** todo teste de `rejects.toThrow()` sobre uma função que chama `.json()` no caminho de
+sucesso — o que hoje inclui toda função `lerOuFalhar`-backed e todo `listar*`/`obter*` — usa corpo
+de mock JSON válido e não-vazio (`'{}'` basta). Antes de aceitar um teste desses como prova, remova
+a guarda correspondente e confirme que ele morre; se não morrer, o mock está mascarando.
+
+**Na Task 11:** as três funções novas do módulo de `Agrupamento` —
+`listarAgrupamentos`/`criarAgrupamento`/`excluirAgrupamento` — precisam do par do F4, e o teste de
+throw de cada uma já nasce no formato certo (corpo JSON não-vazio, não `''`). `excluirAgrupamento` é
+o caso mais delicado: `DELETE /agrupamentos/{id}` responde 409 num formato pelado (`{ erro:
+"<codigo>" }`, via `TraduzirResultado` — ver F5), que **não** é `ConflitoDeCadastro`. Se
+`excluirAgrupamento` usar `lerOuFalhar`, esse 409 já lança pela guarda de formato inesperado (linha
+32); se usar um `if (!resp.ok) throw` próprio como `definirAtivoSetor`, confirme que o 409 pelado
+também cai nesse caminho — não assuma, os dois formatos de tradução (`TraduzirFalha` vs
+`TraduzirResultado`) não são intercambiáveis.
 
 ---
 
