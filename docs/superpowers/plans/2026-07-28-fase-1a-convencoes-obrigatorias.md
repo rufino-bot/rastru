@@ -1,11 +1,14 @@
 # Convenções obrigatórias da Fase 1A — o que o plano NÃO diz e o implementador precisa fazer
 
 O plano `docs/superpowers/plans/2026-07-28-fase-1a-cadastros-planos.md` foi escrito **antes** de
-qualquer task ser executada. As reviews das Tasks 3, 4 e 5 acharam defeitos que custaram fix pass —
-e o plano, por ser anterior, carrega os **mesmos** buracos nas tasks seguintes. Verificado por grep:
-Tasks 6, 8 e 10 falham nos quatro pontos de backend abaixo; a Task 7 falha nos dois de frontend.
+qualquer task ser executada. Cada review acha defeitos que custam fix pass — e o plano, por ser
+anterior a todas elas, carrega os **mesmos** buracos nas tasks seguintes. Não é descuido do plano:
+é cronologia.
 
-Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 6 a 11.
+Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 8 a 11
+(as 6 e 7 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
+B7–B8 vieram da review da Task 6; F4 da review da Task 7. **Se a sua review achar algo novo, o lugar
+de registrar é aqui, não só no relatório.**
 
 ---
 
@@ -94,7 +97,26 @@ Achado por mutação na review da Task 5: hardcodar `incluirInativos=false` na U
 verdes, porque o único teste chamava sempre com `false`. Quebraria o checkbox "Mostrar inativos" em
 silêncio. Cubra os dois valores e assere a **URL**, não só o retorno.
 
-### F4. Não copie a versão antiga de `lerOuFalhar`
+### F4. Toda função nova do módulo de API tem DOIS testes, não um
+1. **URL, método e corpo** — asserindo `fetchMock.mock.calls[0][0]` e o `init`, não só o retorno;
+2. **`rejects.toThrow()` em resposta não-ok** — obrigatório quando a função bate em endpoint
+   `[Authorize(Roles = ...)]`, o que hoje vale para todo `PATCH /{id}/ativo` e para o
+   `DELETE /agrupamentos/{id}` da Task 10.
+
+O segundo é o que impede o `try/catch` do F2 de ser **decorativo**. Sem `@testing-library/react` não há
+teste de componente, então nada prova que a tela exibe o erro — mas dá para provar que a função **lança**,
+e se ela não lançar o `catch` nunca dispara e o F2 não vale nada. É a metade da propriedade que este
+nível de teste alcança; escreva essa metade.
+
+Como isso apareceu: o brief da Task 7 não pedia teste nenhum para `definirAtivoMaterial` — método
+trocado (`POST` por `PATCH`), URL errada, corpo errado ou `throw` ausente passariam **todos** verdes. O
+implementador achou e escreveu os dois. Então o revisor aplicou a mesma mutação **na direção contrária**,
+em `definirAtivoSetor` (Task 5), e a suíte seguiu 20/20 — o `try/catch` de `SetoresPage.tsx` estava tão
+decorativo quanto. Fechado por fix pass.
+Cuidado com a confusão que já aconteceu: um teste de URL/método/corpo **não** cobre comportamento em
+erro. São os dois, não um.
+
+### F5. Não copie a versão antiga de `lerOuFalhar`
 Ela foi endurecida depois da Task 5: um 409 fora do formato `ValorDuplicado` agora **lança** em vez de
 devolver. Motivo: `CadastroControllerBase.TraduzirResultado` produz um 409 pelado
 (`{ erro: "<codigo>" }`) — caminho do `PATCH /{id}/ativo` e do `DELETE /agrupamentos/{id}` —, e com o
