@@ -57,3 +57,45 @@ export async function definirAtivoSetor(id: number, ativo: boolean): Promise<voi
   })
   if (!resp.ok) throw new Error(`Falha ao alterar o setor (${resp.status}).`)
 }
+
+export interface MaterialDto {
+  id: number
+  codigo: string
+  descricao: string
+  unidadeMedida: string
+  ativo: boolean
+}
+
+/**
+ * `unidadeMedida` e texto livre: `dbo.Material.UnidadeMedida` e NVARCHAR(10) sem `CHECK`, e o
+ * backend nao impoe lista fechada. Nada de enum aqui — seria restricao que o schema nao tem.
+ */
+export interface NovoMaterial {
+  codigo: string
+  descricao: string
+  unidadeMedida: string
+}
+
+export async function listarMateriais(incluirInativos: boolean): Promise<MaterialDto[]> {
+  const resp = await apiFetch(`/materiais?incluirInativos=${incluirInativos}`)
+  if (!resp.ok) throw new Error(`Falha ao listar materiais (${resp.status}).`)
+  return (await resp.json()) as MaterialDto[]
+}
+
+/** O unico 409 possivel aqui e `ValorDuplicado` sobre `codigo` (UQ_Material_Codigo). */
+export function criarMaterial(m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro> {
+  return apiFetch('/materiais', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(m),
+  }).then(lerOuFalhar<MaterialDto>)
+}
+
+export async function definirAtivoMaterial(id: number, ativo: boolean): Promise<void> {
+  const resp = await apiFetch(`/materiais/${id}/ativo`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ativo }),
+  })
+  if (!resp.ok) throw new Error(`Falha ao alterar o material (${resp.status}).`)
+}

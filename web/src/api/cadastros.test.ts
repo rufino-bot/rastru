@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { listarSetores, criarSetor, definirAtivoSetor, ehConflito } from './cadastros'
+import {
+  listarSetores, criarSetor, definirAtivoSetor, ehConflito,
+  listarMateriais, criarMaterial, definirAtivoMaterial,
+} from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
 
 describe('cadastros', () => {
@@ -93,5 +96,96 @@ describe('cadastros', () => {
     ))
 
     await expect(criarSetor('Solda')).rejects.toThrow()
+  })
+
+  it('lista materiais ativos por padrao', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { id: 1, codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG', ativo: true },
+        ]),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const materiais = await listarMateriais(false)
+
+    expect(materiais).toHaveLength(1)
+    expect(materiais[0].unidadeMedida).toBe('KG')
+    expect(fetchMock.mock.calls[0][0]).toBe('/materiais?incluirInativos=false')
+  })
+
+  // Par obrigatorio do teste acima: hardcodar `incluirInativos=false` na URL passaria com so o
+  // caso `false`, e o checkbox "Mostrar inativos" quebraria em silencio. Assere a URL, nao o
+  // retorno — o retorno vem do stub e nao prova nada sobre o que foi pedido.
+  it('lista materiais incluindo inativos quando pedido', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { id: 1, codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG', ativo: false },
+        ]),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarMateriais(true)
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/materiais?incluirInativos=true')
+  })
+
+  it('manda os tres campos do material no corpo do POST', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: 5, codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG', ativo: true }),
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await criarMaterial({ codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG' })
+
+    const corpo = JSON.parse(fetchMock.mock.calls[0][1].body as string)
+    expect(corpo).toEqual({ codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG' })
+  })
+
+  // UQ_Material_Codigo e sobre Codigo, entao o 409 vem com campo "codigo" — e e pelo codigo que a
+  // tela oferece reativar o inativo. Descricao duplicada nao e conflito.
+  it('devolve o conflito quando o codigo do material ja existe', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 4 }),
+        { status: 409 },
+      ),
+    ))
+
+    const resultado = await criarMaterial({ codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG' })
+
+    expect(ehConflito(resultado)).toBe(true)
+    expect(ehConflito(resultado) && resultado.campo).toBe('codigo')
+    expect(ehConflito(resultado) && resultado.idExistente).toBe(4)
+  })
+
+  // Mesma razao do par de definirAtivoSetor: a tela chama isto em dois lugares (inativar e
+  // reativar) e "nao lancou" nao provaria URL nem corpo.
+  it('definirAtivoMaterial manda PATCH na rota do id com o corpo do ativo', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await definirAtivoMaterial(4, true)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/materiais/4/ativo')
+    expect(init.method).toBe('PATCH')
+    expect(init.body).toBe(JSON.stringify({ ativo: true }))
+  })
+
+  // PATCH /materiais/{id}/ativo e [Authorize(Roles = "Administrador")] e o link aparece para todos
+  // os perfis: o 403 e caminho esperado, e precisa LANCAR para a tela poder mostrar o erro.
+  it('definirAtivoMaterial lanca quando o backend responde 403', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
+
+    await expect(definirAtivoMaterial(4, false)).rejects.toThrow()
   })
 })

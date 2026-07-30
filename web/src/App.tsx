@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { SetoresPage } from './pages/SetoresPage'
+import { MateriaisPage } from './pages/MateriaisPage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 
 export default function App() {
@@ -10,6 +11,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
       <Route path="/setores" element={<ProtectedRoute><SetoresPage /></ProtectedRoute>} />
+      <Route path="/materiais" element={<ProtectedRoute><MateriaisPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
