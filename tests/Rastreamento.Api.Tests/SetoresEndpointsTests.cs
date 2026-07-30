@@ -54,11 +54,25 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
     }
 
-    [Fact]
-    public async Task Operador_nao_cadastra_setor()
+    [Theory]
+    [InlineData("POST", "/setores")]
+    [InlineData("PUT", "/setores/999999")]
+    [InlineData("PATCH", "/setores/999999/ativo")]
+    public async Task Operador_nao_escreve_em_setor(string metodo, string rota)
     {
-        var resposta = await ClienteComo("Operador")
-            .PostAsJsonAsync("/setores", new { nome = NomeUnico() });
+        // O [Authorize(Roles = "Administrador")] roda antes do model binding e da action, entao
+        // um id inexistente (999999) ainda responde 403 aqui, nunca 404 — e por isso o Theory nao
+        // precisa cadastrar Setor nenhum para provar autorizacao: PUT e PATCH batem em rota que
+        // nunca existiu e o 403 chega do mesmo jeito.
+        // Nome literal fixo (nao NomeUnico()): como nada e criado num 403, registrar o nome na
+        // lista de limpeza do DisposeAsync seria inofensivo mas deselegante.
+        object corpo = metodo == "PATCH" ? new { ativo = false } : new { nome = "operador-nao-pode" };
+        var requisicao = new HttpRequestMessage(new HttpMethod(metodo), rota)
+        {
+            Content = JsonContent.Create(corpo)
+        };
+
+        var resposta = await ClienteComo("Operador").SendAsync(requisicao);
 
         Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
     }
