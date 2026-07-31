@@ -5,17 +5,19 @@ qualquer task ser executada. Cada review acha defeitos que custam fix pass — e
 anterior a todas elas, carrega os **mesmos** buracos nas tasks seguintes. Não é descuido do plano:
 é cronologia.
 
-Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 10 e 11
-(as 6 a 9 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
+Este arquivo é **complementar ao brief**, e ganha dele em caso de conflito. Vale para as Tasks 11 e 12
+(as 6 a 10 já rodaram com ele). Ele cresce a cada review: nasceu com B1–B6 e F1–F3, das Tasks 3–5;
 B7–B8 e F5 vieram da review da Task 6; F4 da review da Task 7; **B9–B10 da Task 8** (B9 do revisor,
-B10 do implementador); **F6 e a nota do F1, da Task 9** (as duas do revisor). **Se a sua review achar
-algo novo, o lugar de registrar é aqui, não só no relatório.**
+B10 do implementador); **F6 e a nota do F1, da Task 9** (as duas do revisor); **a nota da prova falsa
+no B8, do implementador da Task 10**, e **B11–B14 mais a nota nova do B10, do revisor dela**. **Se a
+sua review achar algo novo, o lugar de registrar é aqui, não só no relatório.**
 
-**Aviso para quem for executar a Task 10:** a auditoria dela contra este arquivo já foi feita, e ela
-falha em **B1, B2, B4, B5, B6, B7, B8, B9 e B10** — todos menos o B3, que não se aplica (Agrupamento
-não tem coluna `Ativo`). Isso não é descuido do plano, é a mesma cronologia do parágrafo acima. No
-**domínio** ela é a task mais cuidadosa do plano (valida `Quantidade <= 0`, o CHECK do `Tipo`, os três
-ramos do `Excluir`, o `TemEstruturaAsync` parametrizado); é nas convenções que ela está descoberta.
+**Estado da Task 10 (fechada):** a auditoria dela contra este arquivo apontava falha em **B1, B2, B4,
+B5, B6, B7, B8, B9 e B10** — todos menos o B3, que não se aplica (Agrupamento não tem coluna `Ativo`).
+O commit `e69014a` fechou **as nove**, medidas uma a uma por mutação na review. No **domínio** ela é a
+task mais cuidadosa do plano (valida `Quantidade <= 0`, o CHECK do `Tipo`, os três ramos do `Excluir`,
+o `TemEstruturaAsync` parametrizado); era nas convenções que estava descoberta. **B11–B14 nasceram da
+review dela** e nenhum é regressão da própria task: são buracos do molde que só ficaram visíveis ali.
 
 ---
 
@@ -131,6 +133,74 @@ Nem toda mutação de escrita suja o banco — depende de onde o request morre. 
 `PUT` não sujou (a rota usa id inexistente, e o `NotFound` corta antes da escrita) e a do `[MaxLength]`
 também não (o SQL Server rejeitou o INSERT de 31 chars). A do `POST` sujou. Confira, não deduza.
 
+**Medido de novo na Task 10, e o mecanismo é outro:** nenhuma das três mutações de autorização sujou,
+e não foi sorte. O `[Theory]` usa `999999`, e no `POST` a rota é **aninhada**
+(`/pedidos/999999/agrupamentos`) — o use case corta em "Pedido não encontrado" antes de escrever.
+Com um `pedidoId` real, a mutação do `POST` teria criado linha, igual à Task 8. A rota aninhada é o que
+protege ali; a regra "confira, não deduza" continua valendo, o que muda é o motivo.
+
+### B11. Prova de autoria com **um** usuário no seed é degenerada
+Achado da review da Task 10, e é molde-wide, não regressão de uma task. Trocar `usuarioId.Value` por
+um literal `1` no `AgrupamentosController` deixa **124/124 verdes**. O mesmo em `PedidosController.cs:35`
+também sobrevive — é o molde da Task 8.
+
+O motivo não é o teste estar mal escrito: ele faz a coisa certa, lê o Id real do banco via
+`IdDeUsuarioReal()` em vez de hardcodar. É que `db/seed.sql` cria **um** usuário (`admin`) e o Id dele
+é `1` — então qualquer constante `1` coincide com o Id real e passa. A prova sólida da autoria vive na
+camada Application (`UsuarioDaSessao = 42`), e essa mata a mutação.
+
+**Faça:** um segundo usuário no `db/seed.sql` com `Id != 1`, e emita o token dos testes de autoria com
+ele. Aí o Id real e o literal deixam de coincidir e o nível HTTP passa a provar alguma coisa. Vale para
+`Pedido` **e** `Agrupamento` — fix de molde, candidato à Task 12.
+
+### B12. `LocalizadorDeDuplicado` exclusiva de um verbo precisa do teste de conflito **naquele** verbo
+Achado da review da Task 10 — e mostra o limite do B7. Substituir o corpo inteiro de
+`DuplicadoNoPedidoDe` (`AgrupamentosController.cs:80-87`) por `ct => Task.FromResult<ValorDuplicadoDto?>(null)`
+deixa **254 verdes**: não existe teste que faça `PUT /agrupamentos/{id}` responder 409 de duplicado.
+
+Por que só aparece em `Agrupamento`: Setor, Material e Pedido usam o **mesmo** `Duplicado(...)` no POST
+e no PUT, então o teste de POST-409 já exercita o corpo do delegate. `Agrupamento` é o único com um
+delegate **exclusivo do PUT** — na edição o `PedidoId` não vem da rota, daí a busca extra — e nada o
+executa.
+
+O B7 pede "o ramo de falha do `PUT`", e foi entregue como 404. **404 e 409 são ramos diferentes**, e o
+409 é o único que executa o código novo. **Faça:** quando o localizador de duplicado não for
+compartilhado com o POST, escreva o teste de conflito no próprio verbo.
+
+### B13. A guarda de claim `sub` ausente precisa do teste em **cada** controller que a copia
+Mesma família do B9: guarda escrita certo que sobrevive por disciplina, não por teste. Trocar
+`if (usuarioId is null) return Unauthorized();` por `usuarioId ?? 0` no `AgrupamentosController.cs:37`
+deixa **254 verdes**.
+
+Não é buraco de segurança — o `[Authorize]` e o filtro de role já rodaram. É que a regressão daria
+**500** (violação de `FK_Agrupamento_CriadoPorUsuario` com `usuarioId = 0`) onde deveria dar **401**,
+que é a mesma classe de defeito do B8.
+
+O molde já tem o teste: `PedidosEndpointsTests.Cadastrar_com_token_sem_a_claim_sub_responde_401`, com
+`TokenDeTeste.TokenSemAClaim`. A Task 10 copiou a guarda e não copiou o teste. **Faça:** uma linha por
+entidade que use `UsuarioDaSessao()`.
+
+**Nota do fix pass — em rota aninhada a mutação é detectada por 404, não por 500.** Achado não previsto,
+e importa para quem copiar este teste. Em `Agrupamento` a rota é `/pedidos/{pedidoId}/agrupamentos`, e o
+teste usa `999999` (o padrão do arquivo, para não sujar o banco): sem a guarda, o use case corta em
+"Pedido não encontrado" **antes** de tocar a FK, então a mutação aparece como `404 ≠ 401`. O teste mata
+a mutação certa e só ela — é válido —, mas o 500 do parágrafo acima só se manifesta com um `pedidoId`
+**real**. Em rota não-aninhada (`POST /pedidos`, o molde original) a violação de FK acontece de verdade.
+Ou seja: a cópia é mais fraca que o molde, e sabê-lo é o que evita concluir "provei o 500" quando não se
+provou. Se quiser a prova forte, crie o Pedido antes e aceite a linha no banco (o `DisposeAsync` limpa).
+
+### B14. Validação de domínio **sem** CHECK correspondente no DDL merece teste no nível HTTP
+Achado da review da Task 10. Removendo `if (quantidade <= 0)` do `CadastroDeAgrupamentoUseCase.cs:148`
+morrem só os 2 `[InlineData]` de Application — os 124 testes de Api seguem verdes.
+
+A assimetria a corrigir não é de estilo, é de risco. `Tipo` tem teste HTTP (`Tipo_invalido_responde_400`)
+**e** `CK_Agrupamento_Tipo` como rede no DDL: o pior caso de uma regressão ali é um 500. `Quantidade` é
+`DECIMAL(18,4)` **sem CHECK nenhum** — a guarda da aplicação é a única defesa, e o pior caso de uma
+regressão é **dado inválido persistido em silêncio**, que é estritamente pior.
+
+**Faça:** onde o banco não tem rede de segurança, a validação merece a prova mais forte (HTTP), não a
+mais fraca. Onde tem, o teste de Application basta.
+
 ---
 
 ## Frontend (Tasks 7, 9, 11)
@@ -236,9 +306,10 @@ Se você encontrar alguma delas, é bug — não "conserte de volta":
 Rode a suíte **antes** de tocar em nada e confirme o número. Se divergir, pare e reporte em vez de
 assumir — contagem de brief desatualizada já apareceu em três tasks.
 
-- Backend: **212 testes** (83 Application + 25 Infrastructure + 104 Api) ao fim da Task 8, medidos e
-  conferidos pelo controlador e pelo revisor de forma independente. `-warnaserror` sempre em 0 warnings.
-  (Era 182 = 72 + 23 + 87 ao fim da Task 6; a Task 8 somou +30.)
+- Backend: **258 testes** (103 Application + 27 Infrastructure + 128 Api) ao fim da Task 10 **com o fix
+  pass de B12/B13/B14**, medidos pelo controlador e pelo revisor de forma independente. `-warnaserror`
+  sempre em 0 warnings. (Era 254 = 103 + 27 + 124 no commit `e69014a`, 212 = 83 + 25 + 104 ao fim da
+  Task 8, e 182 = 72 + 23 + 87 ao fim da Task 6; a Task 10 somou +42 e o fix pass dela +4.)
 - Frontend: **32 testes** / 3 arquivos ao fim da Task 9 e do fix retroativo do F6. (Era 21 ao fim da
   Task 7; a Task 9 somou +9 e o fix do F6 somou +2.) O `npm run lint` tem **1 warning pré-existente
   e alheio** (`web/src/auth/AuthContext.tsx:48`, `react/only-export-components`, da Fase 0) — não é seu,
@@ -248,6 +319,13 @@ assumir — contagem de brief desatualizada já apareceu em três tasks.
 
 ## Como esta lista foi construída
 Cada item aqui custou um fix pass ou uma review. Nenhum saiu de opinião: **B1–B6** vieram das reviews
-das Tasks 3, 4 e 5; **B7–B8** e a nota do baseline vieram da review da Task 6. O padrão que os une é
-que **quase todos foram achados por mutação, não por leitura** — apagar uma guarda e ver a suíte seguir
-verde. Se você for revisar uma task desta fase, mutar é o que encontra o que ler não encontra.
+das Tasks 3, 4 e 5; **B7–B8** e a nota do baseline vieram da review da Task 6; **B9–B10** da Task 8;
+**B11–B14** da Task 10. O padrão que os une é que **quase todos foram achados por mutação, não por
+leitura** — apagar uma guarda e ver a suíte seguir verde. Se você for revisar uma task desta fase,
+mutar é o que encontra o que ler não encontra.
+
+Vale notar o que a Task 10 acrescentou ao padrão: os quatro achados novos são de **código que a suíte
+nunca executa** (um delegate inteiro, uma guarda de claim) ou de **prova que coincide por acidente**
+(o autor `1` que bate com o único usuário do seed). Nenhum deles é código errado — todos passam na
+leitura. É a diferença entre "o código está certo" e "o teste travaria o código se ele deixasse de
+estar".
