@@ -14,6 +14,8 @@ public sealed class CadastroDePedidoUseCase
 
     private const string ErroDeNumeroDuplicado = "Ja existe um Pedido com este numero.";
 
+    private const string ErroDePedidoNaoEncontrado = "Pedido nao encontrado.";
+
     /// <summary>Fase 1 so abre Pedido de fabricacao; Retrabalho e Fase 5.</summary>
     private const string TipoFabricacao = "Fabricacao";
 
@@ -69,7 +71,7 @@ public sealed class CadastroDePedidoUseCase
 
         var pedido = await _repositorio.ObterPorIdAsync(id, ct);
         if (pedido is null)
-            return Result<PedidoDto>.Falha("Pedido nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         // So e conflito se o numero pertencer a OUTRO pedido: manter o proprio numero e no-op.
         var homonimo = await _repositorio.ObterPorNumeroAsync(numero, ct);
@@ -93,7 +95,7 @@ public sealed class CadastroDePedidoUseCase
     {
         var pedido = await _repositorio.ObterPorIdAsync(id, ct);
         return pedido is null
-            ? Result<PedidoDto>.Falha("Pedido nao encontrado.", TipoDeErro.NaoEncontrado)
+            ? Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado)
             : Result<PedidoDto>.Ok(Projetar(pedido));
     }
 

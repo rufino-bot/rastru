@@ -14,6 +14,8 @@ public sealed class CadastroDeSetorUseCase
 
     private const string ErroDeNomeDuplicado = "Ja existe um Setor com este nome.";
 
+    private const string ErroDeSetorNaoEncontrado = "Setor nao encontrado.";
+
     private readonly ISetorRepository _repositorio;
 
     public CadastroDeSetorUseCase(ISetorRepository repositorio) => _repositorio = repositorio;
@@ -44,7 +46,7 @@ public sealed class CadastroDeSetorUseCase
 
         var setor = await _repositorio.ObterPorIdAsync(id, ct);
         if (setor is null)
-            return Result<SetorDto>.Falha("Setor nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result<SetorDto>.Falha(ErroDeSetorNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         // So e conflito se o nome pertencer a OUTRA linha: renomear para o proprio nome e no-op.
         var homonimo = await _repositorio.ObterPorNomeAsync(nome, ct);
@@ -68,7 +70,7 @@ public sealed class CadastroDeSetorUseCase
     {
         var setor = await _repositorio.ObterPorIdAsync(id, ct);
         if (setor is null)
-            return Result.Falha("Setor nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result.Falha(ErroDeSetorNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         setor.Ativo = ativo;
         await _repositorio.SalvarAlteracoesAsync(ct);

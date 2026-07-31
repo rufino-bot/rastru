@@ -13,6 +13,12 @@ public sealed class CadastroDeAgrupamentoUseCase
     private const string ErroDeCodigoDuplicado =
         "Ja existe um Agrupamento com este codigo neste Pedido.";
 
+    // Nomes prefixados com a entidade (nao so "ErroDeNaoEncontrado"): o arquivo tem duas buscas
+    // que podem falhar — a do Pedido pai e a do proprio Agrupamento — e um nome generico seria
+    // ambiguo entre as duas.
+    private const string ErroDePedidoNaoEncontrado = "Pedido nao encontrado.";
+    private const string ErroDeAgrupamentoNaoEncontrado = "Agrupamento nao encontrado.";
+
     private static readonly string[] TiposValidos = ["Kit", "Avulso"];
     private const string StatusAberto = "Aberto";
 
@@ -36,7 +42,7 @@ public sealed class CadastroDeAgrupamentoUseCase
         if (invalido is not null) return Result<AgrupamentoDto>.Falha(invalido, TipoDeErro.Validacao);
 
         if (await _pedidos.ObterPorIdAsync(pedidoId, ct) is null)
-            return Result<AgrupamentoDto>.Falha("Pedido nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result<AgrupamentoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         // Checagem ANTES do insert: erro de negocio claro em vez de excecao de
         // UQ_Agrupamento_PedidoCodigo vazando ate a API. O indice segue como rede de seguranca
@@ -76,7 +82,7 @@ public sealed class CadastroDeAgrupamentoUseCase
 
         var agrupamento = await _repositorio.ObterPorIdAsync(id, ct);
         if (agrupamento is null)
-            return Result<AgrupamentoDto>.Falha("Agrupamento nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result<AgrupamentoDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         // So e conflito se o codigo pertencer a OUTRO agrupamento do mesmo Pedido: manter o
         // proprio codigo e no-op.
@@ -103,7 +109,7 @@ public sealed class CadastroDeAgrupamentoUseCase
     {
         var agrupamento = await _repositorio.ObterPorIdAsync(id, ct);
         return agrupamento is null
-            ? Result<AgrupamentoDto>.Falha("Agrupamento nao encontrado.", TipoDeErro.NaoEncontrado)
+            ? Result<AgrupamentoDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado)
             : Result<AgrupamentoDto>.Ok(Projetar(agrupamento));
     }
 
@@ -116,7 +122,7 @@ public sealed class CadastroDeAgrupamentoUseCase
     {
         var agrupamento = await _repositorio.ObterPorIdAsync(id, ct);
         if (agrupamento is null)
-            return Result.Falha("Agrupamento nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         var pedido = await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
         if (pedido is null || pedido.Status != StatusAberto)

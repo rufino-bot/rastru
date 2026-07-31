@@ -42,11 +42,17 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Id de um Usuario que EXISTE (o `pcp` do db/seed.sql, nao o `admin`). Deliberadamente nao e o
+    /// `admin`: o Id dele e 1, e um `usuarioId.Value` trocado por um literal `1` no
+    /// AgrupamentosController coincidiria com ele e a prova de autoria (adendo B11) ficaria
+    /// degenerada.
+    /// </summary>
     private int IdDeUsuarioReal()
     {
         using var escopo = _factory.Services.CreateScope();
         var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-        return db.Usuarios.Single(u => u.NomeUsuario == "admin").Id;
+        return db.Usuarios.Single(u => u.NomeUsuario == "pcp").Id;
     }
 
     private HttpClient ClienteComo(string perfil)

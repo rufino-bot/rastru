@@ -16,6 +16,8 @@ public sealed class CadastroDeMaterialUseCase
 
     private const string ErroDeCodigoDuplicado = "Ja existe um Material com este codigo.";
 
+    private const string ErroDeMaterialNaoEncontrado = "Material nao encontrado.";
+
     private readonly IMaterialRepository _repositorio;
 
     public CadastroDeMaterialUseCase(IMaterialRepository repositorio) => _repositorio = repositorio;
@@ -50,7 +52,7 @@ public sealed class CadastroDeMaterialUseCase
 
         var material = await _repositorio.ObterPorIdAsync(id, ct);
         if (material is null)
-            return Result<MaterialDto>.Falha("Material nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result<MaterialDto>.Falha(ErroDeMaterialNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         // So e conflito se o codigo pertencer a OUTRA linha: manter o proprio codigo e no-op.
         var homonimo = await _repositorio.ObterPorCodigoAsync(codigo, ct);
@@ -76,7 +78,7 @@ public sealed class CadastroDeMaterialUseCase
     {
         var material = await _repositorio.ObterPorIdAsync(id, ct);
         if (material is null)
-            return Result.Falha("Material nao encontrado.", TipoDeErro.NaoEncontrado);
+            return Result.Falha(ErroDeMaterialNaoEncontrado, TipoDeErro.NaoEncontrado);
 
         material.Ativo = ativo;
         await _repositorio.SalvarAlteracoesAsync(ct);

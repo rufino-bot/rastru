@@ -3,11 +3,15 @@ import { Link, useParams } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, ehConflito,
   formatarDataHora, type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
+  type ResultadoExclusao,
 } from '../api/cadastros'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', quantidade: 1, tipo: 'Kit' }
 
-const MOTIVO_DA_RECUSA: Record<string, string> = {
+// Tipado contra a uniao, e nao `Record<string, string>`: com o tipo frouxo, renomear ou perder uma
+// chave compila, passa os testes e passa o lint — e em runtime `MOTIVO_DA_RECUSA[desfecho]` vira
+// undefined e a tela fica MUDA no caso que mais acontece. O tipo forte faz o tsc cobrar o mapa.
+const MOTIVO_DA_RECUSA: Record<Exclude<ResultadoExclusao, 'ok'>, string> = {
   AgrupamentoNaoVazio: 'Este agrupamento já tem estrutura e não pode mais ser excluído.',
   PedidoNaoAberto: 'O pedido não está mais aberto: não dá para excluir agrupamentos dele.',
   NaoEncontrado: 'Este agrupamento já não existe mais.',

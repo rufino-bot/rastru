@@ -26,8 +26,18 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     {
         using var escopo = _factory.Services.CreateScope();
         var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-        db.Pedidos.RemoveRange(
-            await db.Pedidos.Where(p => _numerosCriados.Contains(p.Numero)).ToListAsync());
+
+        var pedidos = await db.Pedidos.Where(p => _numerosCriados.Contains(p.Numero)).ToListAsync();
+        var ids = pedidos.Select(p => p.Id).ToList();
+
+        // Defensivo: esta classe nunca cria Agrupamento hoje, entao a linha abaixo remove sempre
+        // zero registros. Mas apagar Pedido primeiro travaria em FK_Agrupamento_Pedido no dia em
+        // que um teste passar a criar Agrupamento aqui — a ordem certa e a mesma que
+        // AgrupamentosEndpointsTests.DisposeAsync ja usa.
+        db.Agrupamentos.RemoveRange(await db.Agrupamentos.Where(a => ids.Contains(a.PedidoId)).ToListAsync());
+        await db.SaveChangesAsync();
+
+        db.Pedidos.RemoveRange(pedidos);
         await db.SaveChangesAsync();
     }
 
@@ -39,15 +49,17 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     }
 
     /// <summary>
-    /// Id de um Usuario que EXISTE (o `admin` do db/seed.sql). O token precisa apontar para uma
-    /// linha real porque FK_Pedido_CriadoPorUsuario nao aceita autor inventado — nos testes de
-    /// catalogo isso nao importava, aqui importa. O perfil vem do parametro; o Id, do banco.
+    /// Id de um Usuario que EXISTE (o `pcp` do db/seed.sql, nao o `admin`). O token precisa apontar
+    /// para uma linha real porque FK_Pedido_CriadoPorUsuario nao aceita autor inventado — nos
+    /// testes de catalogo isso nao importava, aqui importa. O perfil vem do parametro; o Id, do
+    /// banco. Deliberadamente NAO e o `admin`: o Id dele e 1, e um `usuarioId.Value` trocado por um
+    /// literal `1` no controller coincidiria e a prova de autoria (adendo B11) ficaria degenerada.
     /// </summary>
     private int IdDeUsuarioReal()
     {
         using var escopo = _factory.Services.CreateScope();
         var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-        return db.Usuarios.Single(u => u.NomeUsuario == "admin").Id;
+        return db.Usuarios.Single(u => u.NomeUsuario == "pcp").Id;
     }
 
     private HttpClient ClienteComo(string perfil)
