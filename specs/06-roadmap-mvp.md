@@ -22,6 +22,12 @@ resolvidos (ou conscientemente adiados).
 - Pedido, Agrupamento — criação e listagem (sem regra de conclusão ainda).
 - Critério de pronto: dá para cadastrar um Pedido com Agrupamentos vazios via tela.
 
+> **1A concluída** (`Setor`, `Material`, `Pedido`, `Agrupamento` — CRUD pela tela, com
+> autorização por perfil no backend). Falta **1B**: `Componente` + receita padrão
+> (`ComponenteFilhoPadrao`, `ComponenteMaterialPadrao`, `ComponenteRoteiroPadrao`), que recebe
+> plano próprio. Dívidas rastreadas de 1A: camada global de erro de API no front e gating de
+> navegação por perfil.
+
 ## Fase 2 — Estrutura recursiva
 
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero

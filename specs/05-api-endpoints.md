@@ -19,8 +19,16 @@ de time, se houver uma já estabelecida.
 
 ## Catálogo
 
-- `GET/POST /setores`
-- `GET/POST /materiais`
+- `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*
+- `POST /setores` *(Administrador)* — `{ nome }`
+- `PUT /setores/{id}` *(Administrador)* — `{ nome }`
+- `PATCH /setores/{id}/ativo` *(Administrador)* — `{ ativo }`; cobre inativar **e** reativar.
+  Não existe `DELETE`: catálogo se inativa, não se exclui (ver a política de exclusão na spec da
+  Fase 1)
+- `GET /materiais` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*
+- `POST /materiais` *(Administrador)* — `{ codigo, descricao, unidadeMedida }`
+- `PUT /materiais/{id}` *(Administrador)* — idem
+- `PATCH /materiais/{id}/ativo` *(Administrador)* — `{ ativo }`
 - `GET/POST /componentes`
 - `GET/POST /componentes/{id}/filhos-padrao`
 - `GET/POST /componentes/{id}/materiais-padrao`
@@ -28,12 +36,47 @@ de time, se houver uma já estabelecida.
 
 ## Pedido / Agrupamento
 
-- `GET/POST /pedidos`
-- `GET /pedidos/{id}`
+- `GET /pedidos` *(qualquer perfil autenticado)*
+- `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente }`. `Tipo` nasce `Fabricacao`,
+  `Status` nasce `Aberto` e o autor vem da claim `sub` da sessão — nenhum dos três se aceita do
+  cliente
+- `GET /pedidos/{id}` — só o cabeçalho; os Agrupamentos saem pelo sub-recurso abaixo
+- `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente }`. Não existe `DELETE`:
+  Pedido é documento e se corrige por edição
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
   Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`
-- `GET/POST /pedidos/{id}/agrupamentos`
+- `GET /pedidos/{id}/agrupamentos` *(qualquer perfil autenticado)*
+- `POST /pedidos/{id}/agrupamentos` *(PCP, Administrador)* — `{ codigo, quantidade, tipo }`,
+  `tipo ∈ Kit | Avulso`
 - `GET /agrupamentos/{id}`
+- `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, quantidade, tipo }`
+- `DELETE /agrupamentos/{id}` *(PCP, Administrador)* — 204. **A única exclusão física do
+  sistema**, e é guardada: 409 `{ "erro": "AgrupamentoNaoVazio" }` se já houver `EstruturaItem`,
+  409 `{ "erro": "PedidoNaoAberto" }` se o Pedido não estiver `Aberto`.
+  A ordem de verificação é **existe → Pedido `Aberto` → vazio**, então quando as duas recusas
+  valem ao mesmo tempo a resposta é sempre `PedidoNaoAberto`. Um Agrupamento com estrutura num
+  Pedido não `Aberto` **nunca** responde `AgrupamentoNaoVazio` — o cliente não pode assumir que
+  recebe o código mais específico
+
+## Contrato de erro dos cadastros (Fase 1A)
+
+- **400** — validação de formato (`MaxLength` do DTO) ou de regra simples (campo em branco,
+  quantidade não positiva, `tipo` fora do domínio). Formato do ASP.NET.
+- **403** — perfil sem permissão, do `[Authorize(Roles)]`.
+- **404** — id inexistente.
+- **409 duplicidade** — viola `UQ_Setor_Nome`, `UQ_Material_Codigo`, `UQ_Pedido_Numero` ou
+  `UQ_Agrupamento_PedidoCodigo`:
+  ```json
+  { "erro": "ValorDuplicado", "campo": "nome", "existeInativo": true, "idExistente": 12 }
+  ```
+  `existeInativo: true` só acontece em catálogo (`Setor`, `Material`) e é o que permite a tela
+  oferecer "reativar o existente" — os índices `UNIQUE` não são filtrados por `Ativo`, então um
+  nome ocupado por linha inativa continua ocupado. Em `Pedido` e `Agrupamento` é sempre `false`.
+- **409 regra de negócio** — só no `DELETE /agrupamentos/{id}`:
+  `{ "erro": "AgrupamentoNaoVazio" }` ou `{ "erro": "PedidoNaoAberto" }`.
+
+A duplicidade é verificada **no use case, antes do insert**; o índice `UNIQUE` permanece como rede
+de segurança para a corrida entre a verificação e a escrita.
 
 ## Estrutura
 
