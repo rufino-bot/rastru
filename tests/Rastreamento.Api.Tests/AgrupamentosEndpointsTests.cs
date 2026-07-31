@@ -170,6 +170,26 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Quantidade_invalida_responde_400_e_nao_cria_linha(decimal quantidade)
+    {
+        // `Quantidade` e DECIMAL(18,4) sem CHECK no DDL (diferente de `Tipo`, que tem
+        // CK_Agrupamento_Tipo como rede) — a guarda `if (quantidade <= 0)` do use case e a UNICA
+        // defesa. Removendo-a, o pior caso nao e 500: e dado invalido persistido em silencio, daí
+        // o teste tambem confirmar que nada foi criado (adendo B14), nao so o status.
+        var cliente = ClienteComo("PCP");
+        var pedidoId = await NovoPedido(cliente);
+
+        var resposta = await cliente.PostAsJsonAsync(
+            $"/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", quantidade, tipo = "Kit" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        var lista = await cliente.GetStringAsync($"/pedidos/{pedidoId}/agrupamentos");
+        Assert.DoesNotContain("AG-01", lista);
+    }
+
     [Fact]
     public async Task Codigo_maior_que_a_coluna_responde_400_e_nao_500()
     {
@@ -240,6 +260,30 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
             "/agrupamentos/999999", new { codigo = "AG-01", quantidade = 10, tipo = "Kit" });
 
         Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+    }
+
+    [Fact]
+    public async Task Editar_para_codigo_repetido_no_mesmo_pedido_responde_409()
+    {
+        // Unico teste que exercita `DuplicadoNoPedidoDe`: no PUT o PedidoId nao vem da rota (o
+        // Agrupamento e identificado so por `id`), entao o delegate precisa buscar o Agrupamento
+        // atual para descobrir em qual Pedido procurar o duplicado. Substituir o corpo dele por
+        // `ct => Task.FromResult<ValorDuplicadoDto?>(null)` deixava a suite inteira verde antes
+        // deste caso (adendo B12) — nenhum outro teste chega no ramo de erro do PUT com um
+        // conflito de verdade. O corpo do 409 aqui e o formato `ValorDuplicado`, diferente do 409
+        // pelado do DELETE (AgrupamentoNaoVazio/PedidoNaoAberto).
+        var cliente = ClienteComo("PCP");
+        var pedidoId = await NovoPedido(cliente);
+        await NovoAgrupamento(cliente, pedidoId, "AG-01");
+        var segundo = await NovoAgrupamento(cliente, pedidoId, "AG-02");
+
+        var resposta = await cliente.PutAsJsonAsync(
+            $"/agrupamentos/{segundo}", new { codigo = "AG-01", quantidade = 10, tipo = "Kit" });
+
+        Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+        var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+        Assert.Equal("ValorDuplicado", corpo.GetProperty("erro").GetString());
+        Assert.Equal("codigo", corpo.GetProperty("campo").GetString());
     }
 
     [Fact]
@@ -323,5 +367,25 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
 
         Assert.Contains("AG-01", lista);
         Assert.Contains("AG-02", lista);
+    }
+
+    [Fact]
+    public async Task Cadastrar_com_token_sem_a_claim_sub_responde_401()
+    {
+        // Molde de PedidosEndpointsTests.Cadastrar_com_token_sem_a_claim_sub_responde_401. A
+        // guarda `if (usuarioId is null) return Unauthorized();` (AgrupamentosController.cs:37)
+        // roda ANTES de qualquer acesso ao Pedido da rota — troca-la por `usuarioId ?? 0` nao
+        // gera 401, gera 500 (violacao de FK_Agrupamento_CriadoPorUsuario com id 0), que e a
+        // classe de defeito do adendo B13. Por rodar antes do use case, nem precisa de um Pedido
+        // real: 999999 nunca e tocado. Role Administrador (o default de TokenSemAClaim) para o
+        // filtro [Authorize(Roles = "PCP,Administrador")] deixar a requisicao chegar na action —
+        // senao o teste provaria 403, nao 401.
+        var cliente = _factory.CreateClient();
+        cliente.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", TokenDeTeste.TokenSemAClaim(_factory, "sub"));
+
+        var resposta = await cliente.PostAsJsonAsync("/pedidos/999999/agrupamentos", Kit());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
     }
 }
