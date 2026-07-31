@@ -4,6 +4,7 @@ import { HomePage } from './pages/HomePage'
 import { SetoresPage } from './pages/SetoresPage'
 import { MateriaisPage } from './pages/MateriaisPage'
 import { PedidosPage } from './pages/PedidosPage'
+import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 
 export default function App() {
@@ -14,6 +15,10 @@ export default function App() {
       <Route path="/setores" element={<ProtectedRoute><SetoresPage /></ProtectedRoute>} />
       <Route path="/materiais" element={<ProtectedRoute><MateriaisPage /></ProtectedRoute>} />
       <Route path="/pedidos" element={<ProtectedRoute><PedidosPage /></ProtectedRoute>} />
+      <Route
+        path="/pedidos/:id"
+        element={<ProtectedRoute><PedidoDetalhePage /></ProtectedRoute>}
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -3,6 +3,7 @@ import {
   listarSetores, criarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, obterPedido, formatarDataHora,
+  listarAgrupamentos, criarAgrupamento, excluirAgrupamento,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
 
@@ -330,5 +331,100 @@ describe('cadastros', () => {
   // formato de verdade.
   it('formata a data mesmo com fracoes de segundo no ISO', () => {
     expect(formatarDataHora('2026-07-28T09:30:00.1234567-03:00')).toBe('28/07/2026 09:30')
+  })
+
+  // Corrigido do plano (F4 / G2): o teste do brief so conferia a URL — metodo errado ou corpo
+  // errado passariam verdes do mesmo jeito. Molde: 'manda os dois campos do pedido no corpo do
+  // POST' (linha ~266). Prova por mutacao: 'POST' -> 'PUT' so mata este teste.
+  it('manda os tres campos do agrupamento no corpo do POST, na rota aninhada do pedido', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 1, pedidoId: 4, codigo: 'AG-01', quantidade: 10, tipo: 'Kit',
+          criadoEm: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+        }),
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await criarAgrupamento(4, { codigo: 'AG-01', quantidade: 10, tipo: 'Kit' })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/pedidos/4/agrupamentos')
+    expect(init.method).toBe('POST')
+    expect((init.headers as Headers).get('Content-Type')).toBe('application/json')
+    expect(init.body).toBe(JSON.stringify({ codigo: 'AG-01', quantidade: 10, tipo: 'Kit' }))
+  })
+
+  // POST /pedidos/{pedidoId}/agrupamentos e [Authorize(Roles = "PCP,Administrador")] (G3): sem
+  // este teste, se lerOuFalhar parasse de lancar, o catch da tela viraria decorativo — o mesmo
+  // defeito ja achado em Setor (Task 7), Material (Task 6) e Pedido (Task 9).
+  // Corpo JSON nao-vazio (nao ''): ver nota em 'lanca quando a resposta e erro nao tratado'.
+  it('criarAgrupamento lanca quando o backend responde 403', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 403 })))
+
+    await expect(criarAgrupamento(4, { codigo: 'AG-01', quantidade: 10, tipo: 'Kit' }))
+      .rejects.toThrow()
+  })
+
+  it('lista os agrupamentos do pedido', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('[]', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    expect(await listarAgrupamentos(4)).toEqual([])
+    expect(fetchMock.mock.calls[0][0]).toBe('/pedidos/4/agrupamentos')
+  })
+
+  // G4: a guarda `if (!resp.ok) throw` de listarAgrupamentos nao tinha teste. Corpo JSON
+  // nao-vazio (nao ''): listarAgrupamentos chama .json(), entao um corpo vazio faria o proprio
+  // .json() lancar SyntaxError e o rejects.toThrow() passaria pelo motivo errado — ver F6.
+  it('lanca quando listar agrupamentos falha', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(listarAgrupamentos(4)).rejects.toThrow()
+  })
+
+  // Ramo else/fallback de excluirAgrupamento: o 409 mais especifico (AgrupamentoNaoVazio).
+  it('traduz o 409 de estrutura no codigo que a tela precisa mostrar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'AgrupamentoNaoVazio' }), { status: 409 }),
+    ))
+
+    expect(await excluirAgrupamento(7)).toBe('AgrupamentoNaoVazio')
+  })
+
+  // G1 — o achado principal: sem este teste, trocar o ternario inteiro por
+  // `return 'AgrupamentoNaoVazio'` deixava a suite verde. A ordem de guarda do Excluir no
+  // backend e existe -> Pedido Aberto -> vazio, entao PedidoNaoAberto e o codigo que chega
+  // PRIMEIRO na pratica: um Agrupamento com estrutura num Pedido nao Aberto responde
+  // PedidoNaoAberto, nunca AgrupamentoNaoVazio. Prova por mutacao: reverter o ternario para
+  // `return 'AgrupamentoNaoVazio'` mata SO este teste.
+  it('traduz o 409 de pedido nao aberto no codigo que a tela precisa mostrar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'PedidoNaoAberto' }), { status: 409 }),
+    ))
+
+    expect(await excluirAgrupamento(7)).toBe('PedidoNaoAberto')
+  })
+
+  it('trata 204 e 404 da exclusao', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 })))
+
+    expect(await excluirAgrupamento(7)).toBe('ok')
+    expect(await excluirAgrupamento(7)).toBe('NaoEncontrado')
+  })
+
+  // G5: o throw final de excluirAgrupamento (status fora de 204/404/409) tambem nao tinha teste.
+  // Um Operador clicando "Excluir" toma 403 e cai neste caminho. Ao contrario do teste de
+  // listarAgrupamentos acima, este ramo NAO chama .json() — corpo vazio e inofensivo aqui, e
+  // "corrigir" o mock para ter corpo seria ruido (mesmo caso de definirAtivoSetor). Prova por
+  // mutacao: remover este `throw` mata so este teste.
+  it('excluirAgrupamento lanca quando o backend responde um status nao tratado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
+
+    await expect(excluirAgrupamento(7)).rejects.toThrow()
   })
 })

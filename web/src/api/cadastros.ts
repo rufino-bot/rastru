@@ -150,3 +150,58 @@ export function criarPedido(p: NovoPedido): Promise<PedidoDto | ConflitoDeCadast
 // Sem editarPedido aqui, de proposito: o PUT /pedidos/{id} existe e esta testado no backend
 // (Task 8), mas nenhuma tela de 1A tem UI de edicao — exportar a funcao sem chamador seria
 // codigo morto. Ela nasce junto com a tela que a usar.
+
+export interface AgrupamentoDto {
+  id: number
+  pedidoId: number
+  codigo: string
+  quantidade: number
+  tipo: string
+  /** ISO 8601 com offset -03:00, como `PedidoDto.dataAbertura`. */
+  criadoEm: string
+  criadoPorUsuarioId: number
+}
+
+export interface NovoAgrupamento {
+  codigo: string
+  quantidade: number
+  tipo: 'Kit' | 'Avulso'
+}
+
+/** Desfechos do DELETE. A tela precisa distinguir os dois 409 para explicar o que houve. */
+export type ResultadoExclusao = 'ok' | 'AgrupamentoNaoVazio' | 'PedidoNaoAberto' | 'NaoEncontrado'
+
+export async function listarAgrupamentos(pedidoId: number): Promise<AgrupamentoDto[]> {
+  const resp = await apiFetch(`/pedidos/${pedidoId}/agrupamentos`)
+  if (!resp.ok) throw new Error(`Falha ao listar agrupamentos (${resp.status}).`)
+  return (await resp.json()) as AgrupamentoDto[]
+}
+
+export function criarAgrupamento(
+  pedidoId: number,
+  a: NovoAgrupamento,
+): Promise<AgrupamentoDto | ConflitoDeCadastro> {
+  return apiFetch(`/pedidos/${pedidoId}/agrupamentos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(a),
+  }).then(lerOuFalhar<AgrupamentoDto>)
+}
+
+/**
+ * DELETE /agrupamentos/{id} e TraduzirResultado-backed: o 409 chega pelado (`{ erro: "<codigo>" }`,
+ * ver F5), nao no formato ConflitoDeCadastro — por isso a traducao e feita aqui, nao via
+ * lerOuFalhar. A ordem das guardas do Excluir no backend e existe -> Pedido Aberto -> vazio, entao
+ * PedidoNaoAberto e o codigo que chega primeiro na pratica: um Agrupamento com estrutura num
+ * Pedido nao Aberto responde PedidoNaoAberto, nunca AgrupamentoNaoVazio.
+ */
+export async function excluirAgrupamento(id: number): Promise<ResultadoExclusao> {
+  const resp = await apiFetch(`/agrupamentos/${id}`, { method: 'DELETE' })
+  if (resp.status === 204) return 'ok'
+  if (resp.status === 404) return 'NaoEncontrado'
+  if (resp.status === 409) {
+    const corpo = (await resp.json()) as { erro?: string }
+    return corpo.erro === 'PedidoNaoAberto' ? 'PedidoNaoAberto' : 'AgrupamentoNaoVazio'
+  }
+  throw new Error(`Falha ao excluir o agrupamento (${resp.status}).`)
+}
