@@ -22,6 +22,7 @@ export function PedidoDetalhePage() {
   const [form, setForm] = useState<NovoAgrupamento>(FORMULARIO_VAZIO)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
+  const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
 
   // Recebe o id como argumento (em vez de fechar sobre `pedidoId` de fora) para casar com o
   // padrao de SetoresPage/MateriaisPage: a dependencia do useEffect precisa aparecer usada
@@ -74,6 +75,13 @@ export function PedidoDetalhePage() {
     } catch {
       setErro('Não foi possível excluir o agrupamento.')
     }
+  }
+
+  function confirmarExclusao() {
+    if (!pendenteExclusao) return
+    const agrupamentoId = pendenteExclusao.id
+    setPendenteExclusao(null)
+    excluir(agrupamentoId)
   }
 
   if (carregando) return <p className="p-6 text-gray-600">Carregando…</p>
@@ -131,12 +139,31 @@ export function PedidoDetalhePage() {
             <span>
               <strong>{a.codigo}</strong> — {a.quantidade} ({a.tipo})
             </span>
-            <button onClick={() => excluir(a.id)} className="text-sm border rounded px-2 py-1">
+            <button onClick={() => setPendenteExclusao(a)} className="text-sm border rounded px-2 py-1">
               Excluir
             </button>
           </li>
         ))}
       </ul>
+
+      {pendenteExclusao && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
+          <div role="dialog" aria-modal="true" className="bg-white rounded p-4 flex flex-col gap-3 max-w-sm w-full">
+            <p>
+              Excluir o agrupamento <strong>{pendenteExclusao.codigo}</strong>? Esta ação não pode
+              ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setPendenteExclusao(null)} className="border rounded px-3 py-2">
+                Cancelar
+              </button>
+              <button onClick={confirmarExclusao} className="border rounded px-3 py-2">
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
