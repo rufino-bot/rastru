@@ -91,6 +91,30 @@ partir do zero.
 - **O BCrypt roda sempre no login**, inclusive para usuário inexistente, inativo ou trancado
   (`IPasswordHasher.HashFicticio`). Nenhum `return` antecipado antes da verificação de senha.
 
+## Prefixo `/api` — em transição, e a metade que falta é obrigatória antes do deploy
+
+A API é servida sob `/api` (`app.UsePathBase("/api")` em `Program.cs`). O front nunca escreve o
+prefixo à mão: quem o aplica é o `rota()` de `web/src/api/client.ts`, e chamada nova passa o
+caminho **sem** prefixo (`/setores`) — escrever `/api/...` no call site duplicaria.
+
+Existe por uma colisão real: as rotas do SPA (`/setores`, `/materiais`, `/pedidos`, `/pedidos/:id`)
+têm os mesmos caminhos dos endpoints, e sem prefixo dar F5 numa dessas telas faz o navegador pedir
+o **documento** à API, que responde 401 (navegação não carrega `Authorization: Bearer`). Aconteceu
+no e2e da Fase 1A.
+
+**O que ainda NÃO está feito:** `UsePathBase` não é branch — ele tira o prefixo quando existe e
+deixa passar quando não existe, então a API responde nos **dois** caminhos hoje. Isso é deliberado
+(deixou o front migrar sem reescrever ~129 URLs literais dos testes de endpoint), mas **enquanto os
+caminhos nus responderem a colisão de produção continua de pé**. Fechar = fazer os caminhos nus
+pararem de responder, e aí sim reescrever aquelas URLs. Passo próprio, obrigatório antes de
+qualquer deploy com SPA e API na mesma origem — que é o caso provável, porque o cookie de refresh
+é `SameSite=Strict` e inviabiliza cross-site.
+
+O `Path` do cookie de refresh **acompanha o `PathBase`** (`/auth` sem prefixo, `/api/auth` com), em
+vez de ser literal: um valor fixo só serviria a um dos dois prefixos e a sessão morreria no
+primeiro refresh do perdedor. Coberto por `AuthEndpointsTests.PrefixoDeApi.cs` — 5 testes, os
+únicos que exercitam `/api`, já que todo o resto da suíte bate nos caminhos nus.
+
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
 - Windows Authentication (decidido: login próprio + JWT)

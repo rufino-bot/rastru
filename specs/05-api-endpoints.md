@@ -3,6 +3,28 @@
 Convenção: recursos no plural, verbos HTTP padrão. Ajustar nomes conforme convenção
 de time, se houver uma já estabelecida.
 
+## Prefixo: todas as rotas abaixo são servidas sob `/api`
+
+Os caminhos deste documento são escritos **sem** o prefixo por legibilidade, mas a URL real é
+`/api` + o caminho listado — `POST /pedidos` é `POST /api/pedidos`. O front nunca escreve o
+prefixo à mão: quem o aplica é o `rota()` de `web/src/api/client.ts`, num lugar só.
+
+**Por que existe:** as rotas do SPA (`/setores`, `/materiais`, `/pedidos`, `/pedidos/:id`) têm os
+mesmos caminhos dos endpoints. Sem prefixo, dar F5 numa dessas telas faz o navegador pedir o
+**documento** naquela URL e a API responde 401, porque navegação de documento não carrega
+`Authorization: Bearer`. Isso aconteceu de verdade no e2e da Fase 1A. Mesma origem, aliás, não é
+escolha livre: o cookie de refresh é `SameSite=Strict`, que bloqueia cross-site.
+
+**Estado de transição (não é o destino).** O prefixo entrou por `UsePathBase`, que retira `/api`
+quando presente e deixa passar quando ausente — então a API hoje responde nos **dois** caminhos
+(`/api/setores` e `/setores`). Isso é deliberado, para o front migrar sem reescrever as ~129 URLs
+literais dos testes de endpoint de uma vez. **Enquanto os caminhos nus responderem, a colisão de
+produção continua de pé**; quem a fecha é remover o serviço duplo, em passo próprio.
+
+O `Path` do cookie de refresh acompanha o prefixo que atendeu a requisição (`/auth` sem prefixo,
+`/api/auth` com) — um valor fixo só poderia servir a um dos dois, e a sessão morreria no primeiro
+refresh do prefixo perdedor.
+
 ## Autenticação e Usuários
 
 - `POST /auth/login` — usuário/senha → retorna JWT. Falha sempre em **401** genérico (usuário
