@@ -26,7 +26,7 @@ afterEach(() => {
 })
 
 describe('apiFetch — refresh single-flight', () => {
-  it('dois 401 concorrentes disparam UM unico /auth/refresh', async () => {
+  it('dois 401 concorrentes disparam UM unico /api/auth/refresh', async () => {
     const deps = depsFake()
     client.inicializar(deps)
 
@@ -35,7 +35,7 @@ describe('apiFetch — refresh single-flight', () => {
     const refreshPendente = new Promise<void>((r) => { liberarRefresh = r })
 
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/auth/refresh') {
+      if (url === '/api/auth/refresh') {
         refreshCount++
         await refreshPendente // segura o refresh ate os dois chamarem
         return resp(200, { accessToken: 'novo', accessTokenExpiraEm: 'x', usuario: {} })
@@ -66,7 +66,7 @@ describe('apiFetch — 401 -> refresh -> retry', () => {
     client.inicializar(deps)
 
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/auth/refresh') return resp(200, { accessToken: 'novo', accessTokenExpiraEm: 'x', usuario: {} })
+      if (url === '/api/auth/refresh') return resp(200, { accessToken: 'novo', accessTokenExpiraEm: 'x', usuario: {} })
       return deps.token === 'novo' ? resp(200, { dado: 1 }) : resp(401, { erro: 'x' })
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -84,7 +84,7 @@ describe('apiFetch — retry ainda falha -> desiste', () => {
 
     let meCount = 0
     const fetchMock = vi.fn(async (url: string) => {
-      if (url === '/auth/refresh') return resp(401, { erro: 'x' })
+      if (url === '/api/auth/refresh') return resp(401, { erro: 'x' })
       meCount++
       return resp(401, { erro: 'x' })
     })

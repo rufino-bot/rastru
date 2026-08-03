@@ -24,7 +24,7 @@ describe('cadastros', () => {
     const setores = await listarSetores(false)
 
     expect(setores).toEqual([{ id: 1, nome: 'Solda', ativo: true }])
-    expect(fetchMock.mock.calls[0][0]).toBe('/setores?incluirInativos=false')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/setores?incluirInativos=false')
   })
 
   it('devolve o conflito quando o nome ja existe inativo', async () => {
@@ -67,7 +67,7 @@ describe('cadastros', () => {
     await definirAtivoSetor(7, false)
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/setores/7/ativo')
+    expect(url).toBe('/api/setores/7/ativo')
     expect(init.method).toBe('PATCH')
     expect(init.body).toBe(JSON.stringify({ ativo: false }))
   })
@@ -97,7 +97,7 @@ describe('cadastros', () => {
 
     await listarSetores(true)
 
-    expect(fetchMock.mock.calls[0][0]).toBe('/setores?incluirInativos=true')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/setores?incluirInativos=true')
   })
 
   // Lacuna do F4 herdada da Task 5: listarSetores tem `if (!resp.ok) throw` (cadastros.ts:40) mas
@@ -135,7 +135,7 @@ describe('cadastros', () => {
 
     expect(materiais).toHaveLength(1)
     expect(materiais[0].unidadeMedida).toBe('KG')
-    expect(fetchMock.mock.calls[0][0]).toBe('/materiais?incluirInativos=false')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/materiais?incluirInativos=false')
   })
 
   // Par obrigatorio do teste acima: hardcodar `incluirInativos=false` na URL passaria com so o
@@ -154,7 +154,7 @@ describe('cadastros', () => {
 
     await listarMateriais(true)
 
-    expect(fetchMock.mock.calls[0][0]).toBe('/materiais?incluirInativos=true')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/materiais?incluirInativos=true')
   })
 
   // Lacuna do F4 herdada da Task 7: listarMateriais tem `if (!resp.ok) throw` (cadastros.ts:81) mas
@@ -207,7 +207,7 @@ describe('cadastros', () => {
     await definirAtivoMaterial(4, true)
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/materiais/4/ativo')
+    expect(url).toBe('/api/materiais/4/ativo')
     expect(init.method).toBe('PATCH')
     expect(init.body).toBe(JSON.stringify({ ativo: true }))
   })
@@ -235,7 +235,7 @@ describe('cadastros', () => {
     const pedidos = await listarPedidos()
 
     expect(pedidos[0].numero).toBe('PED-001')
-    expect(fetchMock.mock.calls[0][0]).toBe('/pedidos')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos')
   })
 
   // GET /pedidos e so [Authorize] (nao role-protected), mas o par URL/erro e o molde do F4 mesmo
@@ -279,7 +279,7 @@ describe('cadastros', () => {
     await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/pedidos')
+    expect(url).toBe('/api/pedidos')
     expect(init.method).toBe('POST')
     expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X' }))
   })
@@ -311,7 +311,7 @@ describe('cadastros', () => {
     const pedido = await obterPedido(9)
 
     expect(pedido.numero).toBe('PED-009')
-    expect(fetchMock.mock.calls[0][0]).toBe('/pedidos/9')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos/9')
   })
 
   // Corpo JSON nao-vazio (nao ''): ver nota em 'lanca quando a resposta e erro nao tratado'.
@@ -351,7 +351,7 @@ describe('cadastros', () => {
     await criarAgrupamento(4, { codigo: 'AG-01', tipo: 'Kit' })
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('/pedidos/4/agrupamentos')
+    expect(url).toBe('/api/pedidos/4/agrupamentos')
     expect(init.method).toBe('POST')
     expect((init.headers as Headers).get('Content-Type')).toBe('application/json')
     expect(init.body).toBe(JSON.stringify({ codigo: 'AG-01', tipo: 'Kit' }))
@@ -373,7 +373,7 @@ describe('cadastros', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     expect(await listarAgrupamentos(4)).toEqual([])
-    expect(fetchMock.mock.calls[0][0]).toBe('/pedidos/4/agrupamentos')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos/4/agrupamentos')
   })
 
   // G4: a guarda `if (!resp.ok) throw` de listarAgrupamentos nao tinha teste. Corpo JSON

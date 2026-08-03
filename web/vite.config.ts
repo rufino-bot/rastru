@@ -2,33 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-// Proxy: front (localhost:5173) e API (localhost:5169) na mesma origem do ponto de vista
-// do navegador. O cookie de refresh e Secure, mas navegadores tratam localhost como
-// contexto seguro mesmo em http, entao o cookie e aceito em dev.
-//
-// COLISAO DE CAMINHO, e por que existe o `bypass` abaixo:
-// as rotas do SPA (/setores, /materiais, /pedidos, /pedidos/:id) tem os MESMOS caminhos dos
-// endpoints da API. Sem o bypass, dar F5 em /pedidos/5 faz o navegador pedir o DOCUMENTO
-// nessa URL, o Vite proxia para a API, e a API responde 401 — porque navegacao de documento
-// nao carrega `Authorization: Bearer`. O sintoma parece bug de autenticacao e NAO e: o
-// AuthContext, o ProtectedRoute e o single-flight do client estao corretos. `/` funcionava
-// justamente por nao estar nesta lista.
-//
-// O discriminador e o `Accept`: navegacao de documento manda `text/html,...`; o fetch do app
-// manda `*/*` (nunca text/html). Entao HTML cai no index.html e o SPA faz o roteamento; XHR
-// segue para a API.
-//
-// LIMITE: isto conserta o DEV SERVER. Em producao, se o SPA e a API forem servidos na mesma
-// origem sob esses mesmos prefixos, a colisao volta — e la nao ha Vite para interceptar. A
-// solucao estrutural e prefixar a API com /api. Decisao ainda nao tomada; ver o ledger.
-const paraApi = {
-  target: 'http://localhost:5169',
-  changeOrigin: true,
-  bypass(req: { headers: { accept?: string } }) {
-    if (req.headers.accept?.includes('text/html')) return '/index.html'
-  },
-}
-
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
@@ -43,15 +16,21 @@ export default defineConfig({
     // permite testar num tablet Android de verdade (o alvo declarado em CLAUDE.md).
     host: true,
     proxy: {
-      // `/auth` e `/me` NAO tem rota de SPA equivalente, mas levam o mesmo tratamento para o
-      // dia em que tiverem (ex.: uma tela /me de perfil) — o bypass e inofensivo onde nao ha
-      // colisao, ja que o app nunca pede esses caminhos com Accept: text/html.
-      '/auth': paraApi,
-      '/me': paraApi,
-      '/setores': paraApi,
-      '/materiais': paraApi,
-      '/pedidos': paraApi,
-      '/agrupamentos': paraApi,
+      // Front (5173) e API (5169) na mesma origem do ponto de vista do navegador. O cookie de
+      // refresh e Secure, mas navegadores tratam localhost como contexto seguro mesmo em http,
+      // entao o cookie e aceito em dev.
+      //
+      // UMA entrada, e nenhum tratamento especial. Antes eram cinco (/auth, /me, /setores,
+      // /materiais, /pedidos, /agrupamentos) mais um `bypass` que discriminava navegacao de
+      // documento por `Accept: text/html` — necessario porque aquelas rotas eram, ao mesmo tempo,
+      // rotas do SPA: dar F5 em /pedidos/5 fazia o navegador pedir o DOCUMENTO a API, que
+      // respondia 401 por navegacao nao carregar `Authorization: Bearer`. Com a API sob /api a
+      // colisao deixa de existir na origem — nenhuma rota do SPA comeca com /api — e o contorno
+      // sai junto. Ver `UsePathBase` em `src/Rastreamento.Api/Program.cs`.
+      '/api': {
+        target: 'http://localhost:5169',
+        changeOrigin: true,
+      },
     },
   },
 })
