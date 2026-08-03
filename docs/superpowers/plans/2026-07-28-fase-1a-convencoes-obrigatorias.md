@@ -291,6 +291,30 @@ o caso mais delicado: `DELETE /agrupamentos/{id}` responde 409 num formato pelad
 também cai nesse caminho — não assuma, os dois formatos de tradução (`TraduzirFalha` vs
 `TraduzirResultado`) não são intercambiáveis.
 
+**Achados do fix pass da review de branch inteira (Tasks 1-12), itens A1-A3:**
+
+- **O F4 vale também para `DELETE`.** `excluirAgrupamento` (Task 11, `cadastros.ts:197`) tinha os 5
+  testes de tradução de status (204/404/409/403 → resultado) mas nenhum provava URL nem método:
+  trocar a rota ou trocar `'DELETE'` por `'POST'` matava **0 dos 40**. Grave em especial aqui porque
+  a URL errada leva a 404, que `excluirAgrupamento` traduz em `'NaoEncontrado'` — a tela mostra "já
+  não existe mais", recarrega a lista, e o registro **continua no banco**: falha silenciosa que
+  mente para o usuário, na única exclusão física do sistema. E note que isso escapou **mesmo sendo
+  posterior** ao nascimento do F4 na Task 7 — o molde existir não basta, é preciso aplicá-lo a toda
+  função nova, `DELETE` incluído.
+- **O F4 vale também para as chamadas de auth em `client.ts`, não só as de `cadastros.ts`.**
+  `login`, `logout` e `tentarRestaurarSessao` chamam `fetch(rota(...))` diretamente (não passam por
+  `apiFetch`) e nenhum tinha teste algum — nem de tradução, nem de URL. Apagar o prefixo `/api` de
+  cada um desses três call sites, individualmente, matava **0 dos 40**. Urgente na prática porque a
+  API responde hoje nos dois caminhos (`/api/...` e o caminho nu) como transição deliberada: no dia
+  em que os caminhos nus forem fechados, um call site que escape do prefixo vira 404 em produção
+  com a suíte inteira verde.
+- **As funções anteriores à Task 7 nunca foram auditadas contra o F4.** `criarSetor` (Task 5) e
+  `criarMaterial` (Task 6) — ambas anteriores ao F4 nascer na review da Task 7 — tinham testes que
+  chamavam a função, mas nenhum asseria URL/método/corpo. Não é descuido de quem escreveu: é
+  cronologia, a mesma lição do parágrafo de abertura deste arquivo. **Toda vez que o F4 (ou
+  qualquer convenção nova) nascer, o passo seguinte obrigatório é varrer as funções anteriores
+  contra ele** — não assumir que só o código novo precisa da prova.
+
 ---
 
 ## Formas que o plano escrevia erradas e já foram corrigidas no arquivo (commit `6e9029a`)

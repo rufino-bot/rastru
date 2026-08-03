@@ -27,19 +27,30 @@ describe('cadastros', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/setores?incluirInativos=false')
   })
 
+  // Elevado ao molde do F4 (fix pass da review de branch, item A2): criarSetor e da Task 5,
+  // anterior ao nascimento do F4 na Task 7, e ninguem varreu para tras — nenhum dos testes desta
+  // funcao asseria URL/metodo/corpo. Prova por mutacao (antes deste teste): URL errada
+  // ('/setores-mutado'), metodo errado ('PUT') e corpo errado ('nomeErrado' no lugar de 'nome')
+  // cada uma matava 0/41. Elevado este teste em vez de criar um novo redundante, porque ja
+  // exercitava criarSetor de ponta a ponta.
   it('devolve o conflito quando o nome ja existe inativo', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+    const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 7 }),
         { status: 409 },
       ),
-    ))
+    )
+    vi.stubGlobal('fetch', fetchMock)
 
     const resultado = await criarSetor('Solda')
 
     expect(ehConflito(resultado)).toBe(true)
     expect(ehConflito(resultado) && resultado.existeInativo).toBe(true)
     expect(ehConflito(resultado) && resultado.idExistente).toBe(7)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/setores')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBe(JSON.stringify({ nome: 'Solda' }))
   })
 
   // O ramo que decide NAO oferecer "Reativar o existente": o homonimo esta ativo, entao
@@ -183,19 +194,29 @@ describe('cadastros', () => {
 
   // UQ_Material_Codigo e sobre Codigo, entao o 409 vem com campo "codigo" — e e pelo codigo que a
   // tela oferece reativar o inativo. Descricao duplicada nao e conflito.
+  //
+  // Elevado ao molde do F4 (fix pass da review de branch, item A2): criarMaterial e da Task 6,
+  // anterior ao nascimento do F4 na Task 7, e ninguem varreu para tras — nenhum teste desta
+  // funcao asseria URL/metodo (o corpo ja esta coberto por 'manda os tres campos do material no
+  // corpo do POST', acima). Prova por mutacao (antes deste teste): URL errada
+  // ('/materiais-mutado') e metodo errado ('PUT') cada uma matava 0/41.
   it('devolve o conflito quando o codigo do material ja existe', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+    const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 4 }),
         { status: 409 },
       ),
-    ))
+    )
+    vi.stubGlobal('fetch', fetchMock)
 
     const resultado = await criarMaterial({ codigo: 'CH-001', descricao: 'Chapa', unidadeMedida: 'KG' })
 
     expect(ehConflito(resultado)).toBe(true)
     expect(ehConflito(resultado) && resultado.campo).toBe('codigo')
     expect(ehConflito(resultado) && resultado.idExistente).toBe(4)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/materiais')
+    expect(init.method).toBe('POST')
   })
 
   // Mesma razao do par de definirAtivoSetor: a tela chama isto em dois lugares (inativar e
@@ -383,6 +404,24 @@ describe('cadastros', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
 
     await expect(listarAgrupamentos(4)).rejects.toThrow()
+  })
+
+  // A1 do fix pass da review de branch: os 5 testes abaixo cobrem so a TRADUCAO dos status
+  // (204/404/409/403 -> resultado) e nenhum assere para onde a chamada vai. URL errada leva a
+  // 404, e excluirAgrupamento traduz 404 em 'NaoEncontrado' — a tela mostra "Este agrupamento ja
+  // nao existe mais.", recarrega a lista, e o agrupamento CONTINUA la: falha silenciosa que MENTE
+  // para o usuario, na unica exclusao fisica do sistema. Nao ha corpo num DELETE, entao so
+  // URL + metodo. Prova por mutacao: URL errada (`/agrupamentos-mutado/${id}`) ou metodo errado
+  // ('POST' no lugar de 'DELETE') cada uma matava 0/40 antes deste teste.
+  it('excluirAgrupamento manda DELETE na rota do id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await excluirAgrupamento(7)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/agrupamentos/7')
+    expect(init.method).toBe('DELETE')
   })
 
   // Ramo else/fallback de excluirAgrupamento: o 409 mais especifico (AgrupamentoNaoVazio).
