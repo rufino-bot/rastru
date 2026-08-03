@@ -55,7 +55,7 @@ export function PedidosPage() {
         <input
           value={form.numero}
           onChange={(e) => setForm({ ...form, numero: e.target.value })}
-          placeholder="Número do pedido"
+          placeholder="Código do pedido"
           required
           className="border rounded px-3 py-2"
         />
