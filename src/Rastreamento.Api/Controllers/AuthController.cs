@@ -131,16 +131,22 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Atributos do cookie de refresh, num lugar so: <c>Path=/auth</c> mantem o cookie fora das
+    /// Atributos do cookie de refresh, num lugar so: o <c>Path</c> mantem o cookie fora das
     /// demais rotas, e httpOnly + Secure + SameSite=Strict sao o que impede JavaScript e
     /// requisicao cross-site de alcanca-lo. Emissao e remocao usam exatamente os mesmos valores.
     /// </summary>
-    private static CookieOptions AtributosDoCookieDeRefresh() => new()
+    private CookieOptions AtributosDoCookieDeRefresh() => new()
     {
         HttpOnly = true,
         Secure = true,
         SameSite = SameSiteMode.Strict,
-        Path = "/auth",
+        // Derivado do PathBase, e nao literal "/auth", porque a API responde sob dois prefixos
+        // durante a transicao para /api (ver UsePathBase em Program.cs). Um valor fixo so poderia
+        // servir a UM deles: cookie gravado em /auth nao volta para /api/auth/refresh, e vice-versa
+        // — a sessao morreria no primeiro refresh do prefixo perdedor. Assim o cookie acompanha o
+        // prefixo que atendeu a requisicao ("/auth" sem PathBase, "/api/auth" com), e continua
+        // correto depois que o servico duplo acabar.
+        Path = Request.PathBase.Add("/auth").Value,
     };
 
     /// <summary>

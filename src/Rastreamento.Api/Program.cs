@@ -144,6 +144,22 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Prefixo /api. Existe por causa de uma COLISAO DE CAMINHO: as rotas do SPA (/setores,
+// /materiais, /pedidos, /pedidos/:id) tem os mesmos caminhos dos endpoints da API. Em dev isso
+// se manifestou como "401 ao dar F5" e foi contornado no vite.config.ts; em producao, com SPA e
+// API na mesma origem, nao haveria Vite para interceptar. Mesma origem, alias, nao e escolha
+// livre: o cookie de refresh e SameSite=Strict, que bloqueia cross-site.
+//
+// UsePathBase nao e branch: ele TIRA o prefixo quando existe e deixa passar quando nao existe.
+// Entao a API responde nos DOIS caminhos (/api/setores e /setores) — de proposito, para o front
+// migrar sem que os testes de endpoint, que ainda batem nos caminhos nus, precisem mudar junto.
+// MEDIDO: /api/setores e /setores devolvem ambos 401 (rota casou, faltou token), nao 404.
+//
+// ISTO E ESTADO DE TRANSICAO, NAO DESTINO. Enquanto os caminhos nus responderem, a colisao de
+// producao continua de pe — quem a fecha e remover o servico duplo, e o custo disso sao ~129
+// URLs literais nos testes de endpoint. Passo seguinte, em commit proprio.
+app.UsePathBase("/api");
+
 // Antes da autenticacao: barrar o flood nao deve custar nem a validacao do token.
 app.UseRateLimiter();
 app.UseAuthentication();
