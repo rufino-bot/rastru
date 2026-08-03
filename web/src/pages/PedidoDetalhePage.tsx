@@ -168,9 +168,16 @@ export function PedidoDetalhePage() {
               >
                 Excluir
               </button>
+              {/*
+                autoFocus: mesma intencao do comentario acima, aplicada ao teclado. No DOM
+                "Excluir" vem antes de "Cancelar" (ordem visual decidida, nao mexer) — sem foco
+                explicito, quem navega por teclado sem ler tabularia direto para o botao
+                destrutivo. NAO adicionar Esc / clique-fora / focus-trap: fora de escopo.
+              */}
               <button
                 onClick={() => setPendenteExclusao(null)}
                 className="border-2 border-gray-800 rounded px-3 py-2 font-medium"
+                autoFocus
               >
                 Cancelar
               </button>
