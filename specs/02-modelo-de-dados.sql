@@ -21,7 +21,7 @@ CREATE TABLE dbo.Setor (
 
 CREATE TABLE dbo.Material (
     Id              INT IDENTITY(1,1)   NOT NULL,
-    Codigo          NVARCHAR(50)        NOT NULL,
+    Codigo          NVARCHAR(50)        NOT NULL, -- identificador unico do material NESTE sistema; alfanumerico, atribuido por quem cadastra. Numeracao de fornecedor nao e modelada aqui (ver glossario em 01)
     Descricao       NVARCHAR(200)       NOT NULL,
     UnidadeMedida   NVARCHAR(10)        NOT NULL, -- ex: UN, M, KG, M2
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Material_Ativo DEFAULT (1),
@@ -84,7 +84,7 @@ GO
 
 CREATE TABLE dbo.Componente (
     Id              INT IDENTITY(1,1)   NOT NULL,
-    Codigo          NVARCHAR(50)        NOT NULL,
+    Codigo          NVARCHAR(50)        NOT NULL, -- identificador unico da peca de catalogo NESTE sistema; alfanumerico. O sistema nao modela a numeracao do cliente (nem toda peca chega com codigo, e varia por cliente) -- ver glossario em 01
     Descricao       NVARCHAR(200)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Bruto | Fabricado | Montagem
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Componente_Ativo DEFAULT (1),
