@@ -46,10 +46,10 @@ de time, se houver uma já estabelecida.
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
   Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`
 - `GET /pedidos/{id}/agrupamentos` *(qualquer perfil autenticado)*
-- `POST /pedidos/{id}/agrupamentos` *(PCP, Administrador)* — `{ codigo, quantidade, tipo }`,
+- `POST /pedidos/{id}/agrupamentos` *(PCP, Administrador)* — `{ codigo, tipo }`,
   `tipo ∈ Kit | Avulso`
 - `GET /agrupamentos/{id}`
-- `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, quantidade, tipo }`
+- `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, tipo }`
 - `DELETE /agrupamentos/{id}` *(PCP, Administrador)* — 204. **A única exclusão física do
   sistema**, e é guardada: 409 `{ "erro": "AgrupamentoNaoVazio" }` se já houver `EstruturaItem`,
   409 `{ "erro": "PedidoNaoAberto" }` se o Pedido não estiver `Aberto`.
@@ -61,7 +61,7 @@ de time, se houver uma já estabelecida.
 ## Contrato de erro dos cadastros (Fase 1A)
 
 - **400** — validação de formato (`MaxLength` do DTO) ou de regra simples (campo em branco,
-  quantidade não positiva, `tipo` fora do domínio). Formato do ASP.NET.
+  `tipo` fora do domínio). Formato do ASP.NET.
 - **403** — perfil sem permissão, do `[Authorize(Roles)]`.
 - **404** — id inexistente.
 - **409 duplicidade** — viola `UQ_Setor_Nome`, `UQ_Material_Codigo`, `UQ_Pedido_Numero` ou

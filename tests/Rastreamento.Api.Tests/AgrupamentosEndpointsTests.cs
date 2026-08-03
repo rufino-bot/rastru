@@ -74,7 +74,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     private static object Kit(string codigo = "AG-01") =>
-        new { codigo, quantidade = 10, tipo = "Kit" };
+        new { codigo, tipo = "Kit" };
 
     /// <summary>Cria um Agrupamento pela API e devolve o Id — usado pelos casos de PUT e DELETE.</summary>
     private static async Task<int> NovoAgrupamento(HttpClient cliente, int pedidoId, string codigo = "AG-01")
@@ -171,29 +171,9 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         var pedidoId = await NovoPedido(cliente);
 
         var resposta = await cliente.PostAsJsonAsync(
-            $"/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", quantidade = 10, tipo = "Conjunto" });
+            $"/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Conjunto" });
 
         Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public async Task Quantidade_invalida_responde_400_e_nao_cria_linha(decimal quantidade)
-    {
-        // `Quantidade` e DECIMAL(18,4) sem CHECK no DDL (diferente de `Tipo`, que tem
-        // CK_Agrupamento_Tipo como rede) — a guarda `if (quantidade <= 0)` do use case e a UNICA
-        // defesa. Removendo-a, o pior caso nao e 500: e dado invalido persistido em silencio, daí
-        // o teste tambem confirmar que nada foi criado (adendo B14), nao so o status.
-        var cliente = ClienteComo("PCP");
-        var pedidoId = await NovoPedido(cliente);
-
-        var resposta = await cliente.PostAsJsonAsync(
-            $"/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", quantidade, tipo = "Kit" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
-        var lista = await cliente.GetStringAsync($"/pedidos/{pedidoId}/agrupamentos");
-        Assert.DoesNotContain("AG-01", lista);
     }
 
     [Fact]
@@ -216,7 +196,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
 
         var resposta = await cliente.PostAsJsonAsync(
             $"/pedidos/{pedidoId}/agrupamentos",
-            new { codigo = new string('x', 51), quantidade = 10, tipo = "Kit" });
+            new { codigo = new string('x', 51), tipo = "Kit" });
 
         Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
     }
@@ -231,7 +211,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     }
 
     [Fact]
-    public async Task Editar_agrupamento_troca_quantidade_e_tipo_sem_mexer_no_pedido_nem_na_autoria()
+    public async Task Editar_agrupamento_troca_tipo_sem_mexer_no_pedido_nem_na_autoria()
     {
         var cliente = ClienteComo("PCP");
         var pedidoId = await NovoPedido(cliente);
@@ -240,11 +220,10 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         var criadoEm = original.GetProperty("criadoEm").GetString();
 
         var resposta = await cliente.PutAsJsonAsync(
-            $"/agrupamentos/{id}", new { codigo = "AG-01", quantidade = 25, tipo = "Avulso" });
+            $"/agrupamentos/{id}", new { codigo = "AG-01", tipo = "Avulso" });
 
         Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
         var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
-        Assert.Equal(25m, corpo.GetProperty("quantidade").GetDecimal());
         Assert.Equal("Avulso", corpo.GetProperty("tipo").GetString());
         Assert.Equal(pedidoId, corpo.GetProperty("pedidoId").GetInt32());
         Assert.Equal(IdDeUsuarioReal(), corpo.GetProperty("criadoPorUsuarioId").GetInt32());
@@ -253,7 +232,6 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         // Releitura: sem o SaveChanges o corpo acima ainda viria certo (e a projecao em memoria),
         // mas o GET seguinte devolveria o valor antigo.
         var relido = JsonDocument.Parse(await cliente.GetStringAsync($"/agrupamentos/{id}")).RootElement;
-        Assert.Equal(25m, relido.GetProperty("quantidade").GetDecimal());
         Assert.Equal("Avulso", relido.GetProperty("tipo").GetString());
     }
 
@@ -263,7 +241,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         // Sem este caso nada exercita o `resultado.Sucesso ? Ok(...) : TraduzirFalha(...)` do PUT:
         // trocar o corpo da action por `return Ok(resultado.Valor);` passaria batido (adendo B7).
         var resposta = await ClienteComo("PCP").PutAsJsonAsync(
-            "/agrupamentos/999999", new { codigo = "AG-01", quantidade = 10, tipo = "Kit" });
+            "/agrupamentos/999999", new { codigo = "AG-01", tipo = "Kit" });
 
         Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
     }
@@ -284,7 +262,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         var segundo = await NovoAgrupamento(cliente, pedidoId, "AG-02");
 
         var resposta = await cliente.PutAsJsonAsync(
-            $"/agrupamentos/{segundo}", new { codigo = "AG-01", quantidade = 10, tipo = "Kit" });
+            $"/agrupamentos/{segundo}", new { codigo = "AG-01", tipo = "Kit" });
 
         Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
         var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;

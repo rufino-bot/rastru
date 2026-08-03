@@ -174,7 +174,6 @@ CREATE TABLE dbo.Agrupamento (
     Id              INT IDENTITY(1,1)  NOT NULL,
     PedidoId        INT                 NOT NULL,
     Codigo          NVARCHAR(50)        NOT NULL,
-    Quantidade      DECIMAL(18,4)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Kit (vai para solda) | Avulso (não passa por solda); descritivo
     DataConclusao   DATETIME2           NULL, -- preenchida quando todas as Peças do agrupamento fecham
     CriadoPorUsuarioId INT                 NOT NULL,

@@ -155,7 +155,6 @@ export interface AgrupamentoDto {
   id: number
   pedidoId: number
   codigo: string
-  quantidade: number
   tipo: string
   /** ISO 8601 com offset -03:00, como `PedidoDto.dataAbertura`. */
   criadoEm: string
@@ -164,7 +163,6 @@ export interface AgrupamentoDto {
 
 export interface NovoAgrupamento {
   codigo: string
-  quantidade: number
   tipo: 'Kit' | 'Avulso'
 }
 

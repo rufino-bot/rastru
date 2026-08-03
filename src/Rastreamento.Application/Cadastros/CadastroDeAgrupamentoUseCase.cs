@@ -38,7 +38,7 @@ public sealed class CadastroDeAgrupamentoUseCase
         var codigo = Normalizar(novo.Codigo);
         var tipo = Normalizar(novo.Tipo);
 
-        var invalido = Validar(codigo, novo.Quantidade, tipo);
+        var invalido = Validar(codigo, tipo);
         if (invalido is not null) return Result<AgrupamentoDto>.Falha(invalido, TipoDeErro.Validacao);
 
         if (await _pedidos.ObterPorIdAsync(pedidoId, ct) is null)
@@ -54,7 +54,6 @@ public sealed class CadastroDeAgrupamentoUseCase
         {
             PedidoId = pedidoId,
             Codigo = codigo,
-            Quantidade = novo.Quantidade,
             Tipo = tipo,
             CriadoPorUsuarioId = usuarioId,
             CriadoEm = DateTime.UtcNow,
@@ -68,8 +67,7 @@ public sealed class CadastroDeAgrupamentoUseCase
 
     /// <remarks>
     /// Nao troca `PedidoId` (mover Agrupamento de Pedido nao e operacao de cadastro), nem autoria,
-    /// nem `CriadoEm`. Editar `Quantidade` e inocuo na Fase 1; a partir da Fase 3 ela conversa com
-    /// a conservacao de quantidade, e a guarda correspondente pertence aquela fase.
+    /// nem `CriadoEm`.
     /// </remarks>
     public async Task<Result<AgrupamentoDto>> Editar(
         int id, NovoAgrupamentoDto alterado, CancellationToken ct)
@@ -77,7 +75,7 @@ public sealed class CadastroDeAgrupamentoUseCase
         var codigo = Normalizar(alterado.Codigo);
         var tipo = Normalizar(alterado.Tipo);
 
-        var invalido = Validar(codigo, alterado.Quantidade, tipo);
+        var invalido = Validar(codigo, tipo);
         if (invalido is not null) return Result<AgrupamentoDto>.Falha(invalido, TipoDeErro.Validacao);
 
         var agrupamento = await _repositorio.ObterPorIdAsync(id, ct);
@@ -91,7 +89,6 @@ public sealed class CadastroDeAgrupamentoUseCase
             return Result<AgrupamentoDto>.Falha(ErroDeCodigoDuplicado, TipoDeErro.Conflito);
 
         agrupamento.Codigo = codigo;
-        agrupamento.Quantidade = alterado.Quantidade;
         agrupamento.Tipo = tipo;
         await _repositorio.SalvarAlteracoesAsync(ct);
 
@@ -148,10 +145,9 @@ public sealed class CadastroDeAgrupamentoUseCase
     /// Devolve a mensagem do primeiro problema, ou null se estiver tudo certo. `Tipo` e validado
     /// aqui, e nao pelo CK_Agrupamento_Tipo: excecao de CHECK subiria como 500 em vez de 400.
     /// </summary>
-    private static string? Validar(string codigo, decimal quantidade, string tipo)
+    private static string? Validar(string codigo, string tipo)
     {
         if (codigo.Length == 0) return "Codigo e obrigatorio.";
-        if (quantidade <= 0) return "Quantidade deve ser maior que zero.";
         if (!TiposValidos.Contains(tipo)) return "Tipo deve ser Kit ou Avulso.";
         return null;
     }
@@ -165,5 +161,5 @@ public sealed class CadastroDeAgrupamentoUseCase
     private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
     private static AgrupamentoDto Projetar(Agrupamento a) =>
-        new(a.Id, a.PedidoId, a.Codigo, a.Quantidade, a.Tipo, a.CriadoEm, a.CriadoPorUsuarioId);
+        new(a.Id, a.PedidoId, a.Codigo, a.Tipo, a.CriadoEm, a.CriadoPorUsuarioId);
 }

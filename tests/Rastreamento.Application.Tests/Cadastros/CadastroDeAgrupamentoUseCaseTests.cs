@@ -12,7 +12,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     private static Pedido PedidoAberto(int id = 1) =>
         new() { Id = id, Numero = $"PED-{id:000}", Cliente = "X", Tipo = "Fabricacao", Status = "Aberto" };
 
-    private static NovoAgrupamentoDto Kit(string codigo = "AG-01") => new(codigo, 10m, "Kit");
+    private static NovoAgrupamentoDto Kit(string codigo = "AG-01") => new(codigo, "Kit");
 
     [Fact]
     public async Task Cadastra_agrupamento_no_pedido_com_autoria_e_timestamp()
@@ -25,7 +25,6 @@ public class CadastroDeAgrupamentoUseCaseTests
 
         Assert.True(resultado.Sucesso);
         Assert.Equal(1, resultado.Valor!.PedidoId);
-        Assert.Equal(10m, resultado.Valor.Quantidade);
         Assert.Equal(UsuarioDaSessao, resultado.Valor.CriadoPorUsuarioId);
         Assert.InRange(resultado.Valor.CriadoEm, antes, DateTime.UtcNow.AddSeconds(1));
         Assert.Equal(1, repo.Saves);
@@ -49,7 +48,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     {
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit",
         });
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 
@@ -66,7 +65,7 @@ public class CadastroDeAgrupamentoUseCaseTests
         // UQ_Agrupamento_PedidoCodigo e composta: "AG-01" pode existir uma vez por Pedido.
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 2, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 2, Codigo = "AG-01", Tipo = "Kit",
         });
         var useCase = new CadastroDeAgrupamentoUseCase(
             repo, new FakePedidoRepo(PedidoAberto(), PedidoAberto(2)));
@@ -77,11 +76,9 @@ public class CadastroDeAgrupamentoUseCaseTests
     }
 
     [Theory]
-    [InlineData("", 10, "Kit")]
-    [InlineData("AG-01", 0, "Kit")]
-    [InlineData("AG-01", -1, "Kit")]
-    [InlineData("AG-01", 10, "Conjunto")]
-    public async Task Entrada_invalida_e_erro_de_validacao(string codigo, decimal qtd, string tipo)
+    [InlineData("", "Kit")]
+    [InlineData("AG-01", "Conjunto")]
+    public async Task Entrada_invalida_e_erro_de_validacao(string codigo, string tipo)
     {
         // Tipo fora de Kit|Avulso e barrado aqui, e nao pelo CK_Agrupamento_Tipo: excecao de CHECK
         // subiria como 500 em vez de 400 (specs/03-arquitetura-tecnica.md:25-27).
@@ -89,7 +86,7 @@ public class CadastroDeAgrupamentoUseCaseTests
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 
         var resultado = await useCase.Cadastrar(
-            1, new NovoAgrupamentoDto(codigo, qtd, tipo), UsuarioDaSessao, CancellationToken.None);
+            1, new NovoAgrupamentoDto(codigo, tipo), UsuarioDaSessao, CancellationToken.None);
 
         Assert.False(resultado.Sucesso);
         Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -101,7 +98,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     {
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit",
         });
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 
@@ -117,7 +114,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     {
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit",
         });
         repo.ComEstrutura.Add(5);
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
@@ -137,7 +134,7 @@ public class CadastroDeAgrupamentoUseCaseTests
         pedido.Status = "EmProducao";
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit",
         });
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(pedido));
 
@@ -167,17 +164,16 @@ public class CadastroDeAgrupamentoUseCaseTests
     {
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit",
             CriadoPorUsuarioId = 7, CriadoEm = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
         });
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 
         var resultado = await useCase.Editar(
-            5, new NovoAgrupamentoDto("AG-01", 20m, "Avulso"), CancellationToken.None);
+            5, new NovoAgrupamentoDto("AG-01", "Avulso"), CancellationToken.None);
 
         Assert.True(resultado.Sucesso);
-        Assert.Equal(20m, resultado.Valor!.Quantidade);
-        Assert.Equal("Avulso", resultado.Valor.Tipo);
+        Assert.Equal("Avulso", resultado.Valor!.Tipo);
         Assert.Equal(1, resultado.Valor.PedidoId);
         Assert.Equal(7, resultado.Valor.CriadoPorUsuarioId);
         Assert.Equal(new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), resultado.Valor.CriadoEm);
@@ -193,7 +189,7 @@ public class CadastroDeAgrupamentoUseCaseTests
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 
         var resultado = await useCase.Editar(
-            99, new NovoAgrupamentoDto("AG-99", 5m, "Kit"), CancellationToken.None);
+            99, new NovoAgrupamentoDto("AG-99", "Kit"), CancellationToken.None);
 
         Assert.False(resultado.Sucesso);
         Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
@@ -204,12 +200,12 @@ public class CadastroDeAgrupamentoUseCaseTests
     public async Task Editar_para_codigo_de_OUTRO_agrupamento_do_mesmo_pedido_e_conflito()
     {
         var repo = new FakeAgrupamentoRepo(
-            new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit" },
-            new Agrupamento { Id = 6, PedidoId = 1, Codigo = "AG-02", Quantidade = 3m, Tipo = "Kit" });
+            new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" },
+            new Agrupamento { Id = 6, PedidoId = 1, Codigo = "AG-02", Tipo = "Kit" });
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 
         var resultado = await useCase.Editar(
-            6, new NovoAgrupamentoDto("AG-01", 3m, "Kit"), CancellationToken.None);
+            6, new NovoAgrupamentoDto("AG-01", "Kit"), CancellationToken.None);
 
         Assert.False(resultado.Sucesso);
         Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
@@ -221,7 +217,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     {
         var repo = new FakeAgrupamentoRepo(new Agrupamento
         {
-            Id = 5, PedidoId = 1, Codigo = "AG-01", Quantidade = 3m, Tipo = "Kit",
+            Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit",
         });
         var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
 

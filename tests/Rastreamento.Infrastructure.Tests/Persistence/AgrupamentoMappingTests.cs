@@ -37,7 +37,7 @@ public class AgrupamentoMappingTests : TesteComBanco
     }
 
     [Fact]
-    public async Task Mapeia_agrupamento_com_autoria_e_quatro_casas_decimais()
+    public async Task Mapeia_agrupamento_com_autoria()
     {
         await using var db = NovoContexto();
         var (pedidoId, autor) = await NovoPedido(db);
@@ -48,9 +48,6 @@ public class AgrupamentoMappingTests : TesteComBanco
             {
                 PedidoId = pedidoId,
                 Codigo = "AG-01",
-                // 4 casas de proposito: se AgrupamentoConfiguration esquecesse HasPrecision(18,4),
-                // o EF assumiria decimal(18,2) e este valor voltaria truncado, em silencio.
-                Quantidade = 10.1234m,
                 Tipo = "Kit",
                 CriadoPorUsuarioId = autor,
                 CriadoEm = DateTime.UtcNow,
@@ -64,7 +61,6 @@ public class AgrupamentoMappingTests : TesteComBanco
 
             Assert.Equal(pedidoId, carregado.PedidoId);
             Assert.Equal("AG-01", carregado.Codigo);
-            Assert.Equal(10.1234m, carregado.Quantidade);
             Assert.Equal("Kit", carregado.Tipo);
             Assert.Equal(autor, carregado.CriadoPorUsuarioId);
             Assert.Null(carregado.DataConclusao);
@@ -86,7 +82,7 @@ public class AgrupamentoMappingTests : TesteComBanco
         try
         {
             await db.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO dbo.Agrupamento (PedidoId, Codigo, Quantidade, Tipo, CriadoPorUsuarioId) VALUES ({pedidoId}, 'AG-DEF', 1, 'Kit', {autor})");
+                $"INSERT INTO dbo.Agrupamento (PedidoId, Codigo, Tipo, CriadoPorUsuarioId) VALUES ({pedidoId}, 'AG-DEF', 'Kit', {autor})");
 
             await using var dbLeitura = NovoContexto();
             var carregado = await dbLeitura.Agrupamentos.AsNoTracking()

@@ -336,11 +336,11 @@ describe('cadastros', () => {
   // Corrigido do plano (F4 / G2): o teste do brief so conferia a URL — metodo errado ou corpo
   // errado passariam verdes do mesmo jeito. Molde: 'manda os dois campos do pedido no corpo do
   // POST' (linha ~266). Prova por mutacao: 'POST' -> 'PUT' so mata este teste.
-  it('manda os tres campos do agrupamento no corpo do POST, na rota aninhada do pedido', async () => {
+  it('manda os dois campos do agrupamento no corpo do POST, na rota aninhada do pedido', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
-          id: 1, pedidoId: 4, codigo: 'AG-01', quantidade: 10, tipo: 'Kit',
+          id: 1, pedidoId: 4, codigo: 'AG-01', tipo: 'Kit',
           criadoEm: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
         }),
         { status: 201 },
@@ -348,13 +348,13 @@ describe('cadastros', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await criarAgrupamento(4, { codigo: 'AG-01', quantidade: 10, tipo: 'Kit' })
+    await criarAgrupamento(4, { codigo: 'AG-01', tipo: 'Kit' })
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/pedidos/4/agrupamentos')
     expect(init.method).toBe('POST')
     expect((init.headers as Headers).get('Content-Type')).toBe('application/json')
-    expect(init.body).toBe(JSON.stringify({ codigo: 'AG-01', quantidade: 10, tipo: 'Kit' }))
+    expect(init.body).toBe(JSON.stringify({ codigo: 'AG-01', tipo: 'Kit' }))
   })
 
   // POST /pedidos/{pedidoId}/agrupamentos e [Authorize(Roles = "PCP,Administrador")] (G3): sem
@@ -364,7 +364,7 @@ describe('cadastros', () => {
   it('criarAgrupamento lanca quando o backend responde 403', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 403 })))
 
-    await expect(criarAgrupamento(4, { codigo: 'AG-01', quantidade: 10, tipo: 'Kit' }))
+    await expect(criarAgrupamento(4, { codigo: 'AG-01', tipo: 'Kit' }))
       .rejects.toThrow()
   })
 

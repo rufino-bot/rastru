@@ -166,6 +166,17 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
 ```
 
+Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
+composto por N Peças, e a contagem de Peças já responde "quantas são"; indicar uma quantidade no
+Agrupamento era redundante. A quantidade com significado no domínio é `EstruturaItem.Quantidade`
+("lote agregado, divisível por quantidades livres", Fase 2, intocada). `DROP COLUMN` idempotente:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Agrupamento','Quantidade') IS NOT NULL ALTER TABLE dbo.Agrupamento DROP COLUMN Quantidade;"
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
