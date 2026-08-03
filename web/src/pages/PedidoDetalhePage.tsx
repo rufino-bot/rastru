@@ -6,7 +6,7 @@ import {
   type ResultadoExclusao,
 } from '../api/cadastros'
 
-const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', quantidade: 1, tipo: 'Kit' }
+const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
 
 // Tipado contra a uniao, e nao `Record<string, string>`: com o tipo frouxo, renomear ou perder uma
 // chave compila, passa os testes e passa o lint — e em runtime `MOTIVO_DA_RECUSA[desfecho]` vira
@@ -88,8 +88,13 @@ export function PedidoDetalhePage() {
     excluir(agrupamentoId)
   }
 
-  if (carregando) return <p className="p-6 text-gray-600">Carregando…</p>
-
+  // Sem early return de pagina inteira aqui, de proposito — ele existia e causava DOIS defeitos.
+  // `carregar()` roda apos CADA cadastro e exclusao, entao um `if (carregando) return <p>…</p>`
+  // demolia e remontava a tela toda a cada acao: e isso que se sente como "lentidao", nao a rede
+  // (o hop do proxy do Vite foi medido em ~5-15ms). E, pior, o early return ficava ANTES do bloco
+  // `{erro && …}`, entao a mensagem de recusa da exclusao era escrita e imediatamente escondida
+  // atras do "Carregando…" — o "erro que pisca" que a review da Task 11 levantou.
+  // O estado de carregamento fica ESCOPADO a lista, como em SetoresPage:107 e PedidosPage:74.
   return (
     <div className="min-h-screen p-6 max-w-md mx-auto flex flex-col gap-4">
       <Link to="/pedidos" className="text-sm text-gray-500">&larr; Pedidos</Link>
@@ -114,16 +119,6 @@ export function PedidoDetalhePage() {
           required
           className="border rounded px-3 py-2"
         />
-        <input
-          type="number"
-          min="0.0001"
-          step="0.0001"
-          value={form.quantidade}
-          onChange={(e) => setForm({ ...form, quantidade: Number(e.target.value) })}
-          placeholder="Quantidade"
-          required
-          className="border rounded px-3 py-2"
-        />
         <select
           value={form.tipo}
           onChange={(e) => setForm({ ...form, tipo: e.target.value as NovoAgrupamento['tipo'] })}
@@ -137,18 +132,20 @@ export function PedidoDetalhePage() {
 
       {erro && <p className="text-red-600 text-sm">{erro}</p>}
 
-      <ul className="flex flex-col gap-2">
-        {agrupamentos.map((a) => (
-          <li key={a.id} className="flex items-center justify-between border rounded px-3 py-2">
-            <span>
-              <strong>{a.codigo}</strong> — {a.quantidade} ({a.tipo})
-            </span>
-            <button onClick={() => setPendenteExclusao(a)} className="text-sm border rounded px-2 py-1">
-              Excluir
-            </button>
-          </li>
-        ))}
-      </ul>
+      {carregando ? <p className="text-gray-600">Carregando…</p> : (
+        <ul className="flex flex-col gap-2">
+          {agrupamentos.map((a) => (
+            <li key={a.id} className="flex items-center justify-between border rounded px-3 py-2">
+              <span>
+                <strong>{a.codigo}</strong> ({a.tipo})
+              </span>
+              <button onClick={() => setPendenteExclusao(a)} className="text-sm border rounded px-2 py-1">
+                Excluir
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {pendenteExclusao && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
@@ -157,12 +154,25 @@ export function PedidoDetalhePage() {
               Excluir o agrupamento <strong>{pendenteExclusao.codigo}</strong>? Esta ação não pode
               ser desfeita.
             </p>
+            {/*
+              Ordem e peso visual sao deliberados, nao estetica. Esta e a unica exclusao fisica do
+              sistema, e ate aqui os dois botoes tinham a MESMA classe — um modal de confirmacao com
+              dois botoes identicos troca a pausa deliberada por um sorteio. Excluir vem em vermelho
+              solido (convencao de acao destrutiva) e Cancelar fica a DIREITA, onde cai o polegar num
+              tablet, e com mais peso: quem clicar sem ler tem que acertar o caminho seguro.
+            */}
             <div className="flex justify-end gap-2">
-              <button onClick={() => setPendenteExclusao(null)} className="border rounded px-3 py-2">
-                Cancelar
-              </button>
-              <button onClick={confirmarExclusao} className="border rounded px-3 py-2">
+              <button
+                onClick={confirmarExclusao}
+                className="bg-red-600 text-white rounded px-3 py-2 hover:bg-red-700"
+              >
                 Excluir
+              </button>
+              <button
+                onClick={() => setPendenteExclusao(null)}
+                className="border-2 border-gray-800 rounded px-3 py-2 font-medium"
+              >
+                Cancelar
               </button>
             </div>
           </div>
