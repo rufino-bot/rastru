@@ -1,0 +1,46 @@
+# Formatacao do repositorio. Vale para IDEs (VS, VS Code, Rider), para `dotnet format` e
+# para qualquer agente que edite arquivo aqui.
+#
+# Preferencia do dono do projeto (2026-07-31): indentacao de 2 espacos em tudo, com ESPACOS
+# de verdade, nunca tab — e o que ele usa nas IDEs dele para ler/estudar o codigo.
+#
+# NOTA sobre C#: 2 espacos contraria a convencao padrao do .NET (4). E deliberado. A
+# consequencia pratica a esperar: codigo copiado de documentacao da Microsoft, de outros
+# projetos .NET ou do StackOverflow vem em 4 e precisa ser reindentado ao colar. O
+# `dotnet format` reindenta o repositorio inteiro a partir deste arquivo se algo escapar.
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+charset = utf-8
+# `end_of_line` fica DE FORA de proposito: a arvore de trabalho esta em LF e o git converte via
+# autocrlf. Fixar `crlf` aqui faria o editor reescrever arquivos inteiros ao salvar, gerando diff
+# de arquivo todo por causa de fim de linha — ruido que nao tem nada a ver com indentacao.
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Markdown: dois espacos no fim da linha sao quebra de linha significativa.
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{cs,csx}]
+indent_size = 2
+# Sem estes, o VS/Rider reindentam blocos colados de volta para o padrao deles.
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_indent_labels = one_less_than_current
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+[*.{ts,tsx,js,jsx,json,css,html,yml,yaml}]
+indent_size = 2
+
+[*.sql]
+indent_size = 2
+
+[*.{slnx,csproj,props,targets}]
+indent_size = 2
