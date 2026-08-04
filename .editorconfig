@@ -15,9 +15,11 @@ root = true
 indent_style = space
 indent_size = 2
 charset = utf-8
-# `end_of_line` fica DE FORA de proposito: a arvore de trabalho esta em LF e o git converte via
-# autocrlf. Fixar `crlf` aqui faria o editor reescrever arquivos inteiros ao salvar, gerando diff
-# de arquivo todo por causa de fim de linha — ruido que nao tem nada a ver com indentacao.
+# `end_of_line` fica DE FORA de proposito. Quem cuida disso e o git: o REPOSITORIO guarda LF e
+# `core.autocrlf=true` converte no checkout, entao a arvore de trabalho no Windows esta em CRLF
+# (conferido em 2026-08-04). Declarar `end_of_line` aqui poria o editor para disputar essa
+# conversao com o git, e o resultado seria diff de arquivo inteiro por fim de linha — ruido que
+# nao tem nada a ver com indentacao. Se um dia entrar `.gitattributes`, a decisao vive la.
 trim_trailing_whitespace = true
 insert_final_newline = true
 
