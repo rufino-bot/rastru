@@ -1,12 +1,16 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Rastreamento.Api.Tests;
 
 /// <summary>
-/// Guardas do prefixo <c>/api</c> (<c>UsePathBase</c> + a recusa de <c>PathBase</c> vazio, em
-/// Program.cs). Vivem aqui, e nao numa classe propria, porque o <c>DisposeAsync</c> de
+/// Guardas do prefixo <c>/api</c> (a recusa de caminho fora de <c>/api</c> + o
+/// <c>UsePathBase</c>, em Program.cs). Vivem aqui, e nao numa classe propria, porque o
+/// <c>DisposeAsync</c> de
 /// <see cref="AuthEndpointsTests"/> ja limpa os <c>RefreshToken</c> de <c>admin</c> — uma classe
 /// nova deixaria linha orfa no banco.
 ///
@@ -34,8 +38,60 @@ public partial class AuthEndpointsTests
   }
 
   /// <summary>
-  /// O par do teste acima: sem ele, apagar o <c>UsePathBase</c> inteiro deixaria a suite verde
-  /// (tudo 404) e o 404 pareceria sucesso.
+  /// O POST nu, que o <c>[Theory]</c> acima nao prova: la o caso <c>/auth/login</c> vai por GET,
+  /// e GET nem casaria a rota. O verbo perigoso e este — e o POST que queimaria BCrypt e gravaria
+  /// cookie de refresh sob <c>Path=/auth</c>, fora do alcance de <c>/api/auth/refresh</c>.
+  /// </summary>
+  [Fact]
+  public async Task Post_de_login_sem_o_prefixo_nao_responde()
+  {
+    var resposta = await _factory.CreateClient().PostAsJsonAsync("/auth/login", Credenciais);
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  /// <summary>
+  /// O caso IIS: sob virtual directory / sub-application (deploy on-premise em
+  /// <c>https://servidor/rastreamento</c>) toda requisicao chega com <c>PathBase</c> ja
+  /// preenchido. Um predicado escrito sobre <c>PathBase.HasValue</c> passaria a liberar o caminho
+  /// nu justamente ali, e o <c>TestServer</c> nunca acusaria — nele o <c>PathBase</c> do host e
+  /// sempre vazio. O <c>IStartupFilter</c> abaixo injeta o <c>PathBase</c> da sub-aplicacao antes
+  /// do pipeline da aplicacao para reproduzir esse cenario.
+  /// </summary>
+  [Fact]
+  public async Task Caminho_sem_o_prefixo_nao_responde_sob_sub_aplicacao()
+  {
+    var fabrica = _factory.WithWebHostBuilder(host => host.ConfigureServices(
+        servicos => servicos.AddSingleton<IStartupFilter, PathBaseDeSubAplicacao>()));
+
+    var resposta = await fabrica.CreateClient().GetAsync("/setores");
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  /// <summary>
+  /// Simula o que o modulo do IIS faz numa sub-application: seta o <c>PathBase</c> da requisicao
+  /// antes de qualquer middleware da aplicacao, sem mexer no <c>Path</c>.
+  /// </summary>
+  private sealed class PathBaseDeSubAplicacao : IStartupFilter
+  {
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> proximoFiltro) =>
+        app =>
+        {
+          app.Use(async (contexto, proximo) =>
+          {
+            contexto.Request.PathBase = "/subapp";
+            await proximo();
+          });
+
+          proximoFiltro(app);
+        };
+  }
+
+  /// <summary>
+  /// Testemunho local e rapido de que 404 nao e a resposta universal: sem ele, o par 404/401 que
+  /// este arquivo documenta ficaria so metade, e um 404 vindo de rota quebrada (e nao da guarda)
+  /// pareceria sucesso aqui dentro. 401, e nao 404, significa que a rota casou e so faltou token.
   /// </summary>
   [Fact]
   public async Task Caminho_sob_o_prefixo_responde()

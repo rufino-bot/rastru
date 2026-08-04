@@ -144,25 +144,20 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Prefixo /api. Existe por causa de uma COLISAO DE CAMINHO: as rotas do SPA (/setores,
-// /materiais, /pedidos, /pedidos/:id) tem os mesmos caminhos dos endpoints da API. Em dev isso
-// se manifestou como "401 ao dar F5" e foi contornado no vite.config.ts; em producao, com SPA e
-// API na mesma origem, nao haveria Vite para interceptar. Mesma origem, alias, nao e escolha
-// livre: o cookie de refresh e SameSite=Strict, que bloqueia cross-site.
-//
-// UsePathBase, sozinho, nao e branch: ele TIRA o prefixo quando existe e deixa passar quando nao
-// existe — entao por si so a API responderia nos DOIS caminhos (/api/setores e /setores). Isso
-// foi estado de transicao deliberado enquanto a suite de testes de endpoint ainda batia nos
-// caminhos nus; a guarda logo abaixo fecha essa transicao: caminho sem PathBase agora e 404.
-app.UsePathBase("/api");
+const string PrefixoDaApi = "/api";
 
-// UsePathBase sozinho nao fecha nada: ele TIRA o prefixo quando existe e deixa passar quando nao
-// existe, entao sem esta guarda a API responderia tambem em /setores, /auth/login, /me — os mesmos
-// caminhos das rotas do SPA. Requisicao sem PathBase e requisicao que nao passou por /api.
-// Vem antes do rate limiter de proposito: recusar o caminho errado nao deve custar nem particao.
+// A guarda que faz o prefixo valer: sem ela a API atenderia tambem nos caminhos nus, e esses sao
+// exatamente os das rotas do SPA. Vem ANTES do UsePathBase de proposito, e testa o Path — nao o
+// PathBase. Testar PathBase seria so um proxy: ele e vazio "quando nao veio de /api" apenas se o
+// PathBase original for vazio, e nao e sob virtual directory / sub-application do IIS (deploy
+// on-premise em https://servidor/rastreamento chega com PathBase=/rastreamento em TODA
+// requisicao) nem sob X-Forwarded-Prefix com ForwardedHeaders ligado — nesses casos /setores
+// passaria pela guarda. Ler o Path antes de o prefixo ser retirado nao depende de nada disso.
+// Vem antes do rate limiter tambem de proposito: recusar o caminho errado nao deve custar nem
+// particao de rate limit.
 app.Use(async (contexto, proximo) =>
 {
-  if (!contexto.Request.PathBase.HasValue)
+  if (!contexto.Request.Path.StartsWithSegments(PrefixoDaApi))
   {
     contexto.Response.StatusCode = StatusCodes.Status404NotFound;
     return;
@@ -170,6 +165,13 @@ app.Use(async (contexto, proximo) =>
 
   await proximo();
 });
+
+// Prefixo /api. Existe por causa de uma COLISAO DE CAMINHO: as rotas do SPA (/setores,
+// /materiais, /pedidos, /pedidos/:id) tem os mesmos caminhos dos endpoints da API. Em dev isso
+// se manifestou como "401 ao dar F5" e foi contornado no vite.config.ts; em producao, com SPA e
+// API na mesma origem, nao haveria Vite para interceptar. Mesma origem, alias, nao e escolha
+// livre: o cookie de refresh e SameSite=Strict, que bloqueia cross-site.
+app.UsePathBase(PrefixoDaApi);
 
 // Antes da autenticacao: barrar o flood nao deve custar nem a validacao do token.
 app.UseRateLimiter();
