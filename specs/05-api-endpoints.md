@@ -15,15 +15,15 @@ mesmos caminhos dos endpoints. Sem prefixo, dar F5 numa dessas telas faz o naveg
 `Authorization: Bearer`. Isso aconteceu de verdade no e2e da Fase 1A. Mesma origem, aliás, não é
 escolha livre: o cookie de refresh é `SameSite=Strict`, que bloqueia cross-site.
 
-**Estado de transição (não é o destino).** O prefixo entrou por `UsePathBase`, que retira `/api`
-quando presente e deixa passar quando ausente — então a API hoje responde nos **dois** caminhos
-(`/api/setores` e `/setores`). Isso é deliberado, para o front migrar sem reescrever as ~129 URLs
-literais dos testes de endpoint de uma vez. **Enquanto os caminhos nus responderem, a colisão de
-produção continua de pé**; quem a fecha é remover o serviço duplo, em passo próprio.
+**Fechado em 2026-08-04.** O prefixo entra por `UsePathBase`, que retira `/api` quando presente e
+deixaria passar quando ausente — sozinho ele faria a API responder também nos caminhos nus. Por
+isso há uma guarda logo depois dele: requisição sem `PathBase` recebe **404**. Os caminhos nus
+(`/setores`, `/auth/login`, `/me`) **não respondem**, e é isso que fecha a colisão com as rotas do
+SPA. Provado por `AuthEndpointsTests.PrefixoDeApi.cs`.
 
-O `Path` do cookie de refresh acompanha o prefixo que atendeu a requisição (`/auth` sem prefixo,
-`/api/auth` com) — um valor fixo só poderia servir a um dos dois, e a sessão morreria no primeiro
-refresh do prefixo perdedor.
+O `Path` do cookie de refresh é derivado do `PathBase` (`/api/auth`), e não literal: o cookie
+precisa ser gravado sob o mesmo prefixo em que `/auth/refresh` atende, senão o navegador não o
+reenvia e a sessão morre no primeiro refresh.
 
 ## Autenticação e Usuários
 
