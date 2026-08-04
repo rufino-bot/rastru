@@ -144,21 +144,48 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+const string PrefixoDaApi = "/api";
+
+// A guarda que faz o prefixo valer: sem ela a API atenderia tambem nos caminhos nus, e esses sao
+// exatamente os das rotas do SPA. Vem ANTES do UsePathBase de proposito, e testa o Path — nao o
+// PathBase. Testar PathBase seria so um proxy: ele e vazio "quando nao veio de /api" apenas se o
+// PathBase original for vazio, e nao e sob virtual directory / sub-application do IIS (deploy
+// on-premise em https://servidor/rastreamento chega com PathBase=/rastreamento em TODA
+// requisicao) nem sob X-Forwarded-Prefix com ForwardedHeaders ligado — nesses casos /setores
+// passaria pela guarda. Ler o Path antes de o prefixo ser retirado nao depende de nada disso.
+// A posicao em relacao ao rate limiter (antes ou depois) e indiferente hoje: nao ha
+// GlobalLimiter, a policy e aplicada por metadata de endpoint ([EnableRateLimiting] em
+// AuthController.cs), e requisicao fora de /api nao casa endpoint nenhum, entao nao consome
+// particao de qualquer forma. Fica antes so porque ja precisa vir antes do UsePathBase.
+//
+// StringComparison.Ordinal, e nao o default (OrdinalIgnoreCase): sem ele /API/setores tambem
+// casaria, o UsePathBaseMiddleware gravaria PathBase="/API" (o segmento como chegou), e um login
+// em /API/auth/login gravaria o cookie de refresh com Path=/API/auth — que nao bate com
+// /api/auth/refresh em minuscula, porque matching de Path de cookie e case-sensitive (RFC 6265
+// Sec5.1.4). A sessao morreria no primeiro refresh, em silencio. Preferimos o 404 alto.
+//
+// Restricao de ordem de pipeline: esta guarda e um 404 cego para tudo que nao comeca com /api. Se
+// o SPA vier a ser servido como estaticos pela propria API (UseStaticFiles / MapFallbackToFile —
+// ver hospedagem em specs/03-arquitetura-tecnica.md), o registro deles tem que vir ANTES desta
+// guarda, senao ela devolve 404 para index.html, os assets e toda rota do SPA. Hoje nao se
+// aplica: nao ha UseStaticFiles neste projeto.
+app.Use(async (contexto, proximo) =>
+{
+  if (!contexto.Request.Path.StartsWithSegments(PrefixoDaApi, StringComparison.Ordinal))
+  {
+    contexto.Response.StatusCode = StatusCodes.Status404NotFound;
+    return;
+  }
+
+  await proximo();
+});
+
 // Prefixo /api. Existe por causa de uma COLISAO DE CAMINHO: as rotas do SPA (/setores,
 // /materiais, /pedidos, /pedidos/:id) tem os mesmos caminhos dos endpoints da API. Em dev isso
 // se manifestou como "401 ao dar F5" e foi contornado no vite.config.ts; em producao, com SPA e
 // API na mesma origem, nao haveria Vite para interceptar. Mesma origem, alias, nao e escolha
 // livre: o cookie de refresh e SameSite=Strict, que bloqueia cross-site.
-//
-// UsePathBase nao e branch: ele TIRA o prefixo quando existe e deixa passar quando nao existe.
-// Entao a API responde nos DOIS caminhos (/api/setores e /setores) — de proposito, para o front
-// migrar sem que os testes de endpoint, que ainda batem nos caminhos nus, precisem mudar junto.
-// MEDIDO: /api/setores e /setores devolvem ambos 401 (rota casou, faltou token), nao 404.
-//
-// ISTO E ESTADO DE TRANSICAO, NAO DESTINO. Enquanto os caminhos nus responderem, a colisao de
-// producao continua de pe — quem a fecha e remover o servico duplo, e o custo disso sao ~129
-// URLs literais nos testes de endpoint. Passo seguinte, em commit proprio.
-app.UsePathBase("/api");
+app.UsePathBase(PrefixoDaApi);
 
 // Antes da autenticacao: barrar o flood nao deve custar nem a validacao do token.
 app.UseRateLimiter();

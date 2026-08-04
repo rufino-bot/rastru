@@ -33,7 +33,7 @@ public class RateLimitTests
       });
 
   private static Task<HttpResponseMessage> TentarLoginAsync(HttpClient cliente) =>
-      cliente.PostAsJsonAsync("/auth/login",
+      cliente.PostAsJsonAsync("/api/auth/login",
           new { nomeUsuario = $"ninguem-{Guid.NewGuid():N}", senha = "errada" });
 
   [Fact]
@@ -69,7 +69,7 @@ public class RateLimitTests
 
     for (var i = 0; i < Limite + 3; i++)
     {
-      var resposta = await cliente.PostAsync("/auth/refresh", null);
+      var resposta = await cliente.PostAsync("/api/auth/refresh", null);
       Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
     }
   }

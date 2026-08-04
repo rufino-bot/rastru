@@ -49,15 +49,15 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Administrador_cadastra_setor()
   {
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/setores", new { nome = NomeUnico() });
+        .PostAsJsonAsync("/api/setores", new { nome = NomeUnico() });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
 
   [Theory]
-  [InlineData("POST", "/setores")]
-  [InlineData("PUT", "/setores/999999")]
-  [InlineData("PATCH", "/setores/999999/ativo")]
+  [InlineData("POST", "/api/setores")]
+  [InlineData("PUT", "/api/setores/999999")]
+  [InlineData("PATCH", "/api/setores/999999/ativo")]
   public async Task Operador_nao_escreve_em_setor(string metodo, string rota)
   {
     // O [Authorize(Roles = "Administrador")] roda antes do model binding e da action, entao
@@ -80,7 +80,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   [Fact]
   public async Task Operador_le_a_lista_de_setores()
   {
-    var resposta = await ClienteComo("Operador").GetAsync("/setores");
+    var resposta = await ClienteComo("Operador").GetAsync("/api/setores");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
   }
@@ -88,7 +88,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   [Fact]
   public async Task Sem_token_nao_le_a_lista()
   {
-    var resposta = await _factory.CreateClient().GetAsync("/setores");
+    var resposta = await _factory.CreateClient().GetAsync("/api/setores");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -98,9 +98,9 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("Administrador");
     var nome = NomeUnico();
-    await cliente.PostAsJsonAsync("/setores", new { nome });
+    await cliente.PostAsJsonAsync("/api/setores", new { nome });
 
-    var resposta = await cliente.PostAsJsonAsync("/setores", new { nome });
+    var resposta = await cliente.PostAsJsonAsync("/api/setores", new { nome });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -114,13 +114,13 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("Administrador");
     var nome = NomeUnico();
-    var criado = await cliente.PostAsJsonAsync("/setores", new { nome });
+    var criado = await cliente.PostAsJsonAsync("/api/setores", new { nome });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
-    await cliente.PatchAsJsonAsync($"/setores/{id}/ativo", new { ativo = false });
+    await cliente.PatchAsJsonAsync($"/api/setores/{id}/ativo", new { ativo = false });
 
-    var resposta = await cliente.PostAsJsonAsync("/setores", new { nome });
+    var resposta = await cliente.PostAsJsonAsync("/api/setores", new { nome });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -133,14 +133,14 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("Administrador");
     var nome = NomeUnico();
-    var criado = await cliente.PostAsJsonAsync("/setores", new { nome });
+    var criado = await cliente.PostAsJsonAsync("/api/setores", new { nome });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
-    await cliente.PatchAsJsonAsync($"/setores/{id}/ativo", new { ativo = false });
+    await cliente.PatchAsJsonAsync($"/api/setores/{id}/ativo", new { ativo = false });
 
-    var padrao = await cliente.GetStringAsync("/setores");
-    var comInativos = await cliente.GetStringAsync("/setores?incluirInativos=true");
+    var padrao = await cliente.GetStringAsync("/api/setores");
+    var comInativos = await cliente.GetStringAsync("/api/setores?incluirInativos=true");
 
     Assert.DoesNotContain(nome, padrao);
     Assert.Contains(nome, comInativos);
@@ -150,7 +150,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Editar_setor_inexistente_responde_404()
   {
     var resposta = await ClienteComo("Administrador")
-        .PutAsJsonAsync("/setores/999999", new { nome = NomeUnico() });
+        .PutAsJsonAsync("/api/setores/999999", new { nome = NomeUnico() });
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -159,7 +159,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Nome_em_branco_responde_400()
   {
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/setores", new { nome = "   " });
+        .PostAsJsonAsync("/api/setores", new { nome = "   " });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -173,7 +173,7 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
     // Tambem e o teste que pegou o alvo errado do atributo: com `[property: MaxLength]` o MVC
     // recusa a validacao inteira e o POST responde 500 (ver o remarks de NovoSetorDto).
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/setores", new { nome = new string('x', 101) });
+        .PostAsJsonAsync("/api/setores", new { nome = new string('x', 101) });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }

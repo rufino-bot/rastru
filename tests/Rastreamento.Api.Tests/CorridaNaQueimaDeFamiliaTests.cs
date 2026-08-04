@@ -56,7 +56,7 @@ public class CorridaNaQueimaDeFamiliaTests : IClassFixture<WebApplicationFactory
       HandleCookies = true,
       BaseAddress = new Uri("https://localhost"),
     });
-    var login = await cliente.PostAsJsonAsync("/auth/login",
+    var login = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = UsuarioDeTeste.Senha });
     Assert.Equal(HttpStatusCode.OK, login.StatusCode);
     var refreshPlanoA = ValorDoRefresh(login);

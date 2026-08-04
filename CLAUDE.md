@@ -91,29 +91,35 @@ partir do zero.
 - **O BCrypt roda sempre no login**, inclusive para usuário inexistente, inativo ou trancado
   (`IPasswordHasher.HashFicticio`). Nenhum `return` antecipado antes da verificação de senha.
 
-## Prefixo `/api` — em transição, e a metade que falta é obrigatória antes do deploy
+## Prefixo `/api`
 
-A API é servida sob `/api` (`app.UsePathBase("/api")` em `Program.cs`). O front nunca escreve o
-prefixo à mão: quem o aplica é o `rota()` de `web/src/api/client.ts`, e chamada nova passa o
-caminho **sem** prefixo (`/setores`) — escrever `/api/...` no call site duplicaria.
+A API é servida **somente** sob `/api`: uma guarda em `Program.cs`, **logo acima** do
+`app.UsePathBase("/api")`, devolve 404 quando `Request.Path` não começa por `/api` (comparação
+ordinal — `/API/setores` também recebe 404, para não gravar o cookie de refresh sob um `Path` de
+casing diferente). A guarda testa `Path`, não `PathBase`: sob sub-application/virtual directory do
+IIS o host já entrega `PathBase` preenchido em toda requisição, e um predicado sobre `PathBase`
+deixaria `/setores` passar sem prefixo nenhum — só ler o `Path`, antes do `UsePathBase` tirar o
+prefixo dele, cobre esse caso. O front nunca escreve o prefixo à mão: quem o aplica é o `rota()` de
+`web/src/api/client.ts`, e chamada nova passa o caminho **sem** prefixo (`/setores`) — escrever
+`/api/...` no call site duplicaria.
 
 Existe por uma colisão real: as rotas do SPA (`/setores`, `/materiais`, `/pedidos`, `/pedidos/:id`)
-têm os mesmos caminhos dos endpoints, e sem prefixo dar F5 numa dessas telas faz o navegador pedir
-o **documento** à API, que responde 401 (navegação não carrega `Authorization: Bearer`). Aconteceu
-no e2e da Fase 1A.
+têm os mesmos caminhos dos endpoints, e sem prefixo dar F5 numa dessas telas faz o navegador pedir o
+**documento** à API, que responde 401 (navegação não carrega `Authorization: Bearer`). Aconteceu no
+e2e da Fase 1A.
 
-**O que ainda NÃO está feito:** `UsePathBase` não é branch — ele tira o prefixo quando existe e
-deixa passar quando não existe, então a API responde nos **dois** caminhos hoje. Isso é deliberado
-(deixou o front migrar sem reescrever ~129 URLs literais dos testes de endpoint), mas **enquanto os
-caminhos nus responderem a colisão de produção continua de pé**. Fechar = fazer os caminhos nus
-pararem de responder, e aí sim reescrever aquelas URLs. Passo próprio, obrigatório antes de
-qualquer deploy com SPA e API na mesma origem — que é o caso provável, porque o cookie de refresh
-é `SameSite=Strict` e inviabiliza cross-site.
+**Fechado em 2026-08-04.** Até então `UsePathBase` respondia nos dois caminhos — ele não é branch,
+tira o prefixo quando existe e deixa passar quando não existe — e enquanto os caminhos nus
+respondessem a colisão de produção continuava de pé. A guarda fechou isso e as 125 URLs literais dos
+testes de endpoint foram reescritas junto. O `Path` do cookie de refresh acompanha o `PathBase`
+(`/api/auth`) em vez de ser literal, para o cookie ser gravado sob o mesmo prefixo em que o refresh
+atende. Coberto por `AuthEndpointsTests.PrefixoDeApi.cs`.
 
-O `Path` do cookie de refresh **acompanha o `PathBase`** (`/auth` sem prefixo, `/api/auth` com), em
-vez de ser literal: um valor fixo só serviria a um dos dois prefixos e a sessão morreria no
-primeiro refresh do perdedor. Coberto por `AuthEndpointsTests.PrefixoDeApi.cs` — 5 testes, os
-únicos que exercitam `/api`, já que todo o resto da suíte bate nos caminhos nus.
+**Restrição de ordem de pipeline:** a guarda é um 404 cego para tudo que não começa com `/api`. Se
+o SPA vier a ser servido como estáticos pela própria API (`UseStaticFiles` / `MapFallbackToFile` —
+ver hospedagem em `specs/03-arquitetura-tecnica.md`), o registro deles tem que vir **antes** da
+guarda, senão ela devolve 404 para `index.html`, os assets e toda rota do SPA, com sintoma de "o
+build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `src/`.
 
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
@@ -149,8 +155,10 @@ Frontend: ainda não criado (Fase 1 em diante).
 Parte da suíte roda contra o **SQL Server real**, não contra banco em memória — é o que
 prova o mapeamento EF, os lifetimes do DI, a atomicidade da rotação de refresh token, a
 queima da família de tokens no reuso e o lockout de conta ponta a ponta.
-Hoje são **41 dos 123 testes** (8 em `Infrastructure.Tests`, 33 em `Api.Tests`). Sem o
-banco no ar eles falham com erro de conexão, não com mensagem útil.
+Quantos exatamente não está medido de novo desde que a suíte cresceu (era 41 dos 123 testes, mas
+esse número está velho e não foi reconferido — reconferir exigiria derrubar o SQL Server, o que
+este fix pass foi instruído a não fazer). Sem o banco no ar esses testes falham com erro de
+conexão, não com mensagem útil.
 
 ```bash
 docker compose up -d

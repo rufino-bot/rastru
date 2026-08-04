@@ -74,7 +74,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Pcp_cadastra_pedido_aberto_de_fabricacao_com_autor()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -87,14 +87,14 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Administrador_tambem_cadastra_pedido()
   {
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
 
   [Theory]
-  [InlineData("POST", "/pedidos")]
-  [InlineData("PUT", "/pedidos/999999")]
+  [InlineData("POST", "/api/pedidos")]
+  [InlineData("PUT", "/api/pedidos/999999")]
   public async Task Qualidade_nao_escreve_em_pedido(string metodo, string rota)
   {
     // So dois verbos: Pedido nao tem PATCH (sem coluna Ativo) nem DELETE (documento, ver a
@@ -120,8 +120,8 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     var cliente = ClienteComo("Qualidade");
 
     var escrita = await cliente.PostAsJsonAsync(
-        "/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
-    var leitura = await cliente.GetAsync("/pedidos");
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+    var leitura = await cliente.GetAsync("/api/pedidos");
 
     Assert.Equal(HttpStatusCode.Forbidden, escrita.StatusCode);
     Assert.Equal(HttpStatusCode.OK, leitura.StatusCode);
@@ -132,9 +132,9 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    await cliente.PostAsJsonAsync("/pedidos", new { numero, cliente = "Cliente X" });
+    await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
 
-    var resposta = await cliente.PostAsJsonAsync("/pedidos", new { numero, cliente = "Cliente Y" });
+    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente Y" });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -148,11 +148,11 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/pedidos", new { numero, cliente = "Cliente X" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
-    var resposta = await cliente.GetAsync($"/pedidos/{id}");
+    var resposta = await cliente.GetAsync($"/api/pedidos/{id}");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -163,7 +163,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   [Fact]
   public async Task Obter_pedido_inexistente_responde_404()
   {
-    var resposta = await ClienteComo("PCP").GetAsync("/pedidos/999999");
+    var resposta = await ClienteComo("PCP").GetAsync("/api/pedidos/999999");
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -173,13 +173,13 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/pedidos", new { numero, cliente = "Cliente X" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
     var corpoCriado = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement;
     var id = corpoCriado.GetProperty("id").GetInt32();
     var autor = corpoCriado.GetProperty("criadoPorUsuarioId").GetInt32();
 
     var resposta = await cliente.PutAsJsonAsync(
-        $"/pedidos/{id}", new { numero, cliente = "Cliente Z" });
+        $"/api/pedidos/{id}", new { numero, cliente = "Cliente Z" });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -191,7 +191,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Editar_pedido_inexistente_responde_404()
   {
     var resposta = await ClienteComo("PCP")
-        .PutAsJsonAsync("/pedidos/999999", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        .PutAsJsonAsync("/api/pedidos/999999", new { numero = NumeroUnico(), cliente = "Cliente X" });
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -200,7 +200,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Cliente_em_branco_responde_400()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/pedidos", new { numero = NumeroUnico(), cliente = "  " });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "  " });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -221,7 +221,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     };
     valores[campo] = new string('x', tamanho);
 
-    var resposta = await ClienteComo("PCP").PostAsJsonAsync("/pedidos", valores);
+    var resposta = await ClienteComo("PCP").PostAsJsonAsync("/api/pedidos", valores);
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -229,7 +229,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   [Fact]
   public async Task Sem_token_nao_le_a_lista()
   {
-    var resposta = await _factory.CreateClient().GetAsync("/pedidos");
+    var resposta = await _factory.CreateClient().GetAsync("/api/pedidos");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -249,7 +249,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
         new AuthenticationHeaderValue("Bearer", TokenDeTeste.TokenSemAClaim(_factory, "sub"));
 
     var resposta = await cliente.PostAsJsonAsync(
-        "/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }

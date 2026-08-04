@@ -140,12 +140,14 @@ public class AuthController : ControllerBase
     HttpOnly = true,
     Secure = true,
     SameSite = SameSiteMode.Strict,
-    // Derivado do PathBase, e nao literal "/auth", porque a API responde sob dois prefixos
-    // durante a transicao para /api (ver UsePathBase em Program.cs). Um valor fixo so poderia
-    // servir a UM deles: cookie gravado em /auth nao volta para /api/auth/refresh, e vice-versa
-    // — a sessao morreria no primeiro refresh do prefixo perdedor. Assim o cookie acompanha o
-    // prefixo que atendeu a requisicao ("/auth" sem PathBase, "/api/auth" com), e continua
-    // correto depois que o servico duplo acabar.
+    // Derivado do PathBase, e nao literal, porque o cookie precisa ser gravado sob o MESMO
+    // prefixo em que /auth/refresh atende: se o Path do cookie nao cobrir o caminho do refresh,
+    // o navegador nao o reenvia e a sessao morre no primeiro refresh. Com o prefixo unico de
+    // hoje (ver UsePathBase em Program.cs) isso da sempre "/api/auth" — trocar pela literal
+    // "/api/auth" seria equivalente e nenhum teste acusaria. A derivacao sobrevive por acompanhar
+    // o PathBase caso ele mude no deploy (ex.: sub-application do IIS), e nao por estar sendo
+    // discriminada por teste. Ja a literal "/auth" quebra, essa sim,
+    // Refresh_sob_o_prefixo_novo_recebe_o_cookie_de_volta.
     Path = Request.PathBase.Add("/auth").Value,
   };
 

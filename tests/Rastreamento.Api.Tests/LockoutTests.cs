@@ -33,12 +33,12 @@ public class LockoutTests
 
     for (var i = 0; i < 3; i++)
     {
-      var errada = await cliente.PostAsJsonAsync("/auth/login",
+      var errada = await cliente.PostAsJsonAsync("/api/auth/login",
           new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
       Assert.Equal(HttpStatusCode.Unauthorized, errada.StatusCode);
     }
 
-    var comSenhaCerta = await cliente.PostAsJsonAsync("/auth/login",
+    var comSenhaCerta = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = UsuarioDeTeste.Senha });
 
     Assert.Equal(HttpStatusCode.Unauthorized, comSenhaCerta.StatusCode);
@@ -61,12 +61,12 @@ public class LockoutTests
     var cliente = NovoCliente(fabrica);
 
     for (var i = 0; i < 3; i++)
-      await cliente.PostAsJsonAsync("/auth/login",
+      await cliente.PostAsJsonAsync("/api/auth/login",
           new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
 
-    var trancada = await cliente.PostAsJsonAsync("/auth/login",
+    var trancada = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = UsuarioDeTeste.Senha });
-    var inexistente = await cliente.PostAsJsonAsync("/auth/login",
+    var inexistente = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = $"ninguem-{Guid.NewGuid():N}", senha = "errada" });
 
     Assert.Equal(inexistente.StatusCode, trancada.StatusCode);
@@ -82,7 +82,7 @@ public class LockoutTests
     var cliente = NovoCliente(fabrica);
 
     for (var i = 0; i < 3; i++)
-      await cliente.PostAsJsonAsync("/auth/login",
+      await cliente.PostAsJsonAsync("/api/auth/login",
           new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
 
     // Empurra a trava para o passado em vez de esperar 15 minutos: o que se quer exercitar e
@@ -94,7 +94,7 @@ public class LockoutTests
       return await db.SaveChangesAsync();
     });
 
-    var resposta = await cliente.PostAsJsonAsync("/auth/login",
+    var resposta = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = UsuarioDeTeste.Senha });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);

@@ -69,7 +69,7 @@ dotnet test Rastreamento.slnx
 ```bash
 cd web
 npm install
-npm run dev          # http://localhost:5173, com proxy de /auth e /me para a API
+npm run dev          # http://localhost:5173, com proxy de /api para a API
 npm run test         # testes Vitest da lógica de auth
 ```
 
