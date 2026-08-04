@@ -7,3 +7,13 @@ node_modules/
 
 # Worktrees criados pelo Claude Code: sao checkouts do proprio repo, nunca conteudo versionado.
 .claude/worktrees/
+
+# Cache local do Visual Studio (indices, config de janela, .suo). Por maquina, nunca versionado.
+.vs/
+
+# Gerado sozinho pela extensao do Copilot quando se abre a pasta `web` no VS Code. O conteudo e
+# boilerplate do Azure ("use o azmcp_bestpractices_get"), que nao tem nada a ver com este projeto
+# -- e um arquivo de INSTRUCAO para agente, entao versiona-lo poria uma regra alheia valendo para
+# quem clonar. Ignorado por arquivo, e nao a pasta `.github/` inteira, de proposito: quando entrar
+# CI de verdade (`.github/workflows/`), ela precisa poder ser versionada sem mexer neste arquivo.
+.github/copilot-instructions.md
