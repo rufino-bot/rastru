@@ -309,10 +309,15 @@ git commit -m "feat(api): caminho sem o prefixo /api deixa de responder"
 ### Task 3: O registro — comentários e specs deixam de descrever uma transição que acabou
 
 **Files:**
-- Modify: `src/Rastreamento.Api/Program.cs:147-160` (bloco de comentário acima do `UsePathBase`)
-- Modify: `src/Rastreamento.Api/Controllers/AuthController.cs:143-149` (comentário do `Path`)
 - Modify: `specs/05-api-endpoints.md:18-26`
 - Modify: `CLAUDE.md` (seção "Prefixo `/api` — em transição…")
+
+**Escopo reduzido durante a execução, e o motivo importa:** esta task originalmente incluía os
+comentários de `Program.cs` e de `AuthController.cs`. Os dois já foram reescritos antes de ela
+começar — o do `Program.cs` pela própria Task 2 (o texto que ela tornou falso estava no arquivo que
+ela editava, e deixá-lo seria commitar uma mentira dentro do commit que a desfaz) e o do
+`AuthController.cs` pelo fix pass da review da Task 2, que o pegou como comentário órfão. **Os
+Steps 1 e 2 abaixo estão CUMPRIDOS; ficam registrados para o histórico, não para reexecução.**
 
 **Interfaces:**
 - Consumes: o comportamento fechado pela Task 2.
@@ -321,7 +326,7 @@ git commit -m "feat(api): caminho sem o prefixo /api deixa de responder"
 Sem esta task, três documentos passam a mentir — e este projeto já foi mordido três vezes por
 divergência entre registro e disco. É task de valor próprio, não "limpeza".
 
-- [ ] **Step 1: `Program.cs` — o comentário acima do `UsePathBase`**
+- [x] **Step 1 (JÁ CUMPRIDO pela Task 2): `Program.cs` — o comentário acima do `UsePathBase`**
 
 Substituir os parágrafos que descrevem o serviço duplo (hoje linhas 153-160, do "UsePathBase nao e
 branch" até "Passo seguinte, em commit proprio.") por:
@@ -334,7 +339,7 @@ branch" até "Passo seguinte, em commit proprio.") por:
 
 Os parágrafos anteriores (a colisão de caminho, o `SameSite=Strict`) continuam válidos e ficam.
 
-- [ ] **Step 2: `AuthController.cs` — a justificativa da derivação do `Path`**
+- [x] **Step 2 (JÁ CUMPRIDO pelo fix pass da Task 2): `AuthController.cs` — a justificativa da derivação do `Path`**
 
 Substituir o comentário de `Path = Request.PathBase.Add("/auth").Value` por:
 
