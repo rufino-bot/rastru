@@ -91,6 +91,30 @@ partir do zero.
 - **O BCrypt roda sempre no login**, inclusive para usuário inexistente, inativo ou trancado
   (`IPasswordHasher.HashFicticio`). Nenhum `return` antecipado antes da verificação de senha.
 
+## Prefixo `/api` — em transição, e a metade que falta é obrigatória antes do deploy
+
+A API é servida sob `/api` (`app.UsePathBase("/api")` em `Program.cs`). O front nunca escreve o
+prefixo à mão: quem o aplica é o `rota()` de `web/src/api/client.ts`, e chamada nova passa o
+caminho **sem** prefixo (`/setores`) — escrever `/api/...` no call site duplicaria.
+
+Existe por uma colisão real: as rotas do SPA (`/setores`, `/materiais`, `/pedidos`, `/pedidos/:id`)
+têm os mesmos caminhos dos endpoints, e sem prefixo dar F5 numa dessas telas faz o navegador pedir
+o **documento** à API, que responde 401 (navegação não carrega `Authorization: Bearer`). Aconteceu
+no e2e da Fase 1A.
+
+**O que ainda NÃO está feito:** `UsePathBase` não é branch — ele tira o prefixo quando existe e
+deixa passar quando não existe, então a API responde nos **dois** caminhos hoje. Isso é deliberado
+(deixou o front migrar sem reescrever ~129 URLs literais dos testes de endpoint), mas **enquanto os
+caminhos nus responderem a colisão de produção continua de pé**. Fechar = fazer os caminhos nus
+pararem de responder, e aí sim reescrever aquelas URLs. Passo próprio, obrigatório antes de
+qualquer deploy com SPA e API na mesma origem — que é o caso provável, porque o cookie de refresh
+é `SameSite=Strict` e inviabiliza cross-site.
+
+O `Path` do cookie de refresh **acompanha o `PathBase`** (`/auth` sem prefixo, `/api/auth` com), em
+vez de ser literal: um valor fixo só serviria a um dos dois prefixos e a sessão morreria no
+primeiro refresh do perdedor. Coberto por `AuthEndpointsTests.PrefixoDeApi.cs` — 5 testes, os
+únicos que exercitam `/api`, já que todo o resto da suíte bate nos caminhos nus.
+
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
 - Windows Authentication (decidido: login próprio + JWT)
@@ -143,6 +167,38 @@ de traduzir o caminho do `sqlcmd` dentro do container:
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF COL_LENGTH('dbo.Usuario','FalhasConsecutivas') IS NULL ALTER TABLE dbo.Usuario ADD FalhasConsecutivas INT NOT NULL CONSTRAINT DF_Usuario_FalhasConsecutivas DEFAULT (0), BloqueadoAte DATETIME2 NULL;"
+```
+
+Na Fase 1A entram as colunas de autoria, também por `ALTER` idempotente em banco pré-existente
+(cobre as duas tabelas — `Pedido` e `Agrupamento` — porque é isso que o script de Task 1
+efetivamente aplica):
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Pedido','CriadoPorUsuarioId') IS NULL ALTER TABLE dbo.Pedido ADD CriadoPorUsuarioId INT NOT NULL CONSTRAINT FK_Pedido_CriadoPorUsuario FOREIGN KEY REFERENCES dbo.Usuario(Id); IF COL_LENGTH('dbo.Agrupamento','CriadoPorUsuarioId') IS NULL ALTER TABLE dbo.Agrupamento ADD CriadoPorUsuarioId INT NOT NULL CONSTRAINT FK_Agrupamento_CriadoPorUsuario FOREIGN KEY REFERENCES dbo.Usuario(Id), CriadoEm DATETIME2 NOT NULL CONSTRAINT DF_Agrupamento_CriadoEm DEFAULT (SYSUTCDATETIME());"
+```
+
+Ainda na Fase 1A, o fix pass da Task 12 acrescenta um segundo usuário ao seed (achado B11: com
+um único usuário no banco, a prova de autoria no nível HTTP era degenerada — um literal `1` no
+lugar de `usuarioId.Value` coincidia com o Id do único usuário e passava). Também idempotente,
+mesmo padrão do `IF NOT EXISTS` do `admin` em `db/seed.sql`:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
+```
+
+Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
+composto por N Peças, e a contagem de Peças já responde "quantas são"; indicar uma quantidade no
+Agrupamento era redundante. A quantidade com significado no domínio é `EstruturaItem.Quantidade`
+("lote agregado, divisível por quantidades livres", Fase 2, intocada). `DROP COLUMN` idempotente:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Agrupamento','Quantidade') IS NOT NULL ALTER TABLE dbo.Agrupamento DROP COLUMN Quantidade;"
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

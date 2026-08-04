@@ -16,6 +16,15 @@ export class ErroDeLogin extends Error {
 let deps: DependenciasDoClient | null = null
 let refreshEmVoo: Promise<string | null> | null = null
 
+// Prefixo de TODA chamada de API, aplicado num lugar so. Existe porque as rotas do SPA
+// (/setores, /pedidos, /pedidos/:id, /materiais) tem os mesmos caminhos dos endpoints — sem
+// prefixo, dar F5 numa dessas telas em producao faz o navegador pedir o documento a API.
+// Consequencia para quem escreve chamada nova: passe o caminho SEM o prefixo (`/setores`), como
+// esta em `05-api-endpoints.md`. Quem prefixa e o `rota()`; escrever `/api/...` no call site
+// duplicaria o prefixo.
+const BASE_DA_API = '/api'
+const rota = (caminho: string): string => `${BASE_DA_API}${caminho}`
+
 export function inicializar(d: DependenciasDoClient): void {
   deps = d
 }
@@ -34,11 +43,11 @@ function exigirDeps(): DependenciasDoClient {
 function fetchComToken(path: string, init: RequestInit, token: string | null): Promise<Response> {
   const headers = new Headers(init.headers)
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  return fetch(path, { ...init, headers, credentials: 'include' })
+  return fetch(rota(path), { ...init, headers, credentials: 'include' })
 }
 
 async function fazerRefresh(): Promise<string | null> {
-  const resp = await fetch('/auth/refresh', { method: 'POST', credentials: 'include' })
+  const resp = await fetch(rota('/auth/refresh'), { method: 'POST', credentials: 'include' })
   if (!resp.ok) return null
   const corpo = (await resp.json()) as LoginResponse
   return corpo.accessToken
@@ -72,7 +81,7 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
 export async function login(nomeUsuario: string, senha: string): Promise<UsuarioDto> {
   const d = exigirDeps()
-  const resp = await fetch('/auth/login', {
+  const resp = await fetch(rota('/auth/login'), {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -87,7 +96,7 @@ export async function login(nomeUsuario: string, senha: string): Promise<Usuario
 export async function logout(): Promise<void> {
   const d = exigirDeps()
   try {
-    await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+    await fetch(rota('/auth/logout'), { method: 'POST', credentials: 'include' })
   } catch {
     // Rede caiu: o logout local acontece de qualquer jeito (o estado vira anonimo).
   }
@@ -96,7 +105,7 @@ export async function logout(): Promise<void> {
 
 export async function tentarRestaurarSessao(): Promise<UsuarioDto | null> {
   const d = exigirDeps()
-  const resp = await fetch('/auth/refresh', { method: 'POST', credentials: 'include' })
+  const resp = await fetch(rota('/auth/refresh'), { method: 'POST', credentials: 'include' })
   if (!resp.ok) return null
   const corpo = (await resp.json()) as LoginResponse
   d.setToken(corpo.accessToken)

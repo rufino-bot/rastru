@@ -107,6 +107,10 @@ reais de frequência.
   Tailwind + componentes próprios) — decisão fina pode ficar para a Fase 0 do roadmap.
 - **Decidido na Fase 0:** biblioteca de UI = **Tailwind CSS + componentes próprios** (não MUI),
   por controle do visual e bundle leve mobile-first.
+- **Toda chamada de API leva o prefixo `/api`, aplicado num lugar só** — o `rota()` de
+  `web/src/api/client.ts`. Quem escreve chamada nova passa o caminho **sem** o prefixo
+  (`/setores`), como está em `05-api-endpoints.md`; escrever `/api/...` no call site duplicaria.
+  O motivo, e o estado de transição em que isso está, estão em `05-api-endpoints.md`.
 - **PWA/offline: não é necessário no MVP.** Confirmado com o negócio — pode entrar depois
   se o uso em campo mostrar necessidade real (ex.: instabilidade de wifi na fábrica). Não
   desenhar a camada de estado pensando nisso agora, para não adicionar complexidade
@@ -126,6 +130,12 @@ reais de frequência.
 - Frontend: build estático (Vite build) servido pelo próprio IIS/nginx, ou embutido como
   arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy on-premise
   com uma única aplicação publicada.
+- **Se o SPA e a API ficarem na mesma origem** (o segundo caso acima, e o mais provável: o cookie
+  de refresh é `SameSite=Strict`, que inviabiliza cross-site), **é obrigatório que os caminhos nus
+  da API tenham parado de responder** antes do deploy — hoje ainda respondem, junto com `/api`.
+  Senão a colisão entre rota de SPA e rota de API volta, e em produção não há dev server para
+  interceptar: `GET /pedidos` como navegação de documento cai na API e responde 401.
+  Ver a seção de prefixo em `05-api-endpoints.md`.
 
 ## CI/CD
 

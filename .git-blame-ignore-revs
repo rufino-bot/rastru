@@ -1,0 +1,13 @@
+# Commits puramente mecanicos, que o `git blame` deve pular para nao esconder o autor real
+# da linha atras de uma reindentacao.
+#
+# Para ativar (uma vez por clone -- o arquivo sozinho nao faz efeito):
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# O GitHub le este arquivo automaticamente, sem configuracao.
+#
+# So entra aqui commit que nao muda comportamento. Se um commit misturar formatacao com
+# mudanca de logica, ele NAO pode ser listado -- esconderia a mudanca de logica do blame.
+
+# style: dotnet format whitespace -- reindentacao mecanica para 2 espacos (2026-08-04)
+88fa64c9ae15520bbc02948bce67ca34529e0522

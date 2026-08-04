@@ -4,5 +4,5 @@ namespace Rastreamento.Application.Auth;
 
 public interface IAccessTokenGenerator
 {
-    (string token, DateTime expiraEm) Gerar(Usuario usuario);
+  (string token, DateTime expiraEm) Gerar(Usuario usuario);
 }

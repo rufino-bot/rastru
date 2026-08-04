@@ -5,10 +5,15 @@
 | Termo | Definição |
 |---|---|
 | **Pedido** | Unidade máxima de trabalho, cadastrada no sistema. Tipo `Fabricacao` ou `Retrabalho`. Um Retrabalho referencia obrigatoriamente o Pedido original. |
+| **Pedido.Numero** | O **código identificador do Pedido**, e o campo pelo qual as pessoas se referem a ele. **Não é gerado por este sistema**: vem de um sistema externo, que o cria sequencialmente. Aqui ele é apenas registrado. Por isso é **único global** (`UQ_Pedido_Numero`) — a sequência é controlada na origem e não se repete. É texto (`NVARCHAR(30)`), não número: aceita prefixos e separadores, e o sistema não valida formato nem gera valor. Consequência prática: se a origem emitir um código já cadastrado, o cadastro é recusado com 409 — e isso é o comportamento desejado, não um defeito. |
 | **Agrupamento** | Agrupamento de Peças dentro de um Pedido. Um Pedido tem N Agrupamentos. Tem um **Tipo**: 'Kit' (peças que vão para a solda, juntas) ou 'Avulso' (peças que não passam por solda). O Tipo é descritivo — não impõe roteiro. |
 | **Componente** | Registro de **catálogo** (receita padrão/template), reutilizável entre Pedidos. Não é a instância física — é a definição. |
+| **Componente.Codigo** | O **identificador único da peça de catálogo** dentro deste sistema. É **alfanumérico** (`NVARCHAR(50)`) e **único global** (`UQ_Componente_Codigo`). Decisão do dono do projeto (2026-08-03): **o sistema não modela a numeração do cliente.** Nem toda peça chega com código definido pelo cliente, e o critério varia de cliente para cliente — essa regra **não é absorvida aqui**. O que vale é que toda peça de catálogo tenha um identificador único neste sistema, o que é o que permite reconhecê-la quando ela é pedida **várias vezes ao longo do ano**. Quem cadastra atribui o valor (reaproveitando o código do cliente quando existir); o sistema não gera nem valida formato. Consequência operacional a vigiar: o ganho depende de a peça repetida ser **encontrada e reutilizada**, não recadastrada sob um código novo — cadastro duplicado sob códigos diferentes não viola nenhuma constraint e passa despercebido. |
+| **Componente.ArquivoSolido** | Referência ao arquivo de **sólido 3D** (CAD) da peça de catálogo — STEP ou STL. É obrigação de negócio para toda Peça de Pedido, mas coluna **nullable** por não valer para todo Componente; ver regra 18. `Componente.ArquivoFoto`, ao lado, é uma foto de referência **opcional**. |
 | **EstruturaItem** | A árvore **real** usada em um Agrupamento específico, podendo ter sido copiada do catálogo (`Componente`) e customizada. É recursiva: um `EstruturaItem` pode ter `EstruturaItem` filhos. O nó de topo (sem pai) é chamado de **Peça**; os nós com pai são chamados de **Item**. Representa um **lote agregado** (quantidade), não uma unidade física individual — e esse lote é divisível por quantidades livres (ver regra 9). |
+| **EstruturaItem.Descricao** | Nome próprio do nó dentro do Agrupamento. NULL = usa a descrição do `Componente` de origem. Serve ao item **ad-hoc** (`ComponenteId` NULL), que sem ela chega sem nome nenhum à tela do operador; ver regra 19. |
 | **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
+| **Material.Codigo** | O **identificador único do material** dentro deste sistema. **Mesma regra do `Componente.Codigo`**, por decisão explícita: alfanumérico (`NVARCHAR(50)`), **único global** (`UQ_Material_Codigo`), atribuído por quem cadastra, sem geração nem validação de formato pelo sistema. A numeração de fornecedor **não** é modelada aqui. |
 | **Setor** | Departamento de produção (ex.: Corte e Dobra, Usinagem) pelo qual um `EstruturaItem` pode passar. |
 | **Roteiro** | Sequência de Setores que um `EstruturaItem` percorre. Pode ser padrão (catálogo) ou específico daquele Pedido/Agrupamento. |
 | **Relatório Dimensional** | Avaliação de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado no cadastro via EstruturaItem.RequerRelatorioDimensional). Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada gera uma RelatorioDimensionalAvaliacao com quantidade aprovada/reprovada. Aprovação/reprovação é por quantidade. Reprovação não exige retrabalho imediato. |
@@ -73,7 +78,61 @@
     um Pedido de Retrabalho separado (`MotivoRetrabalho='Perda'`) — **nunca** reabre a Peça
     original. Como na reprovação, registrar a perda **não** abre retrabalho automaticamente.
 
+18. **Toda Peça que um Pedido precisa tem um sólido 3D** — é obrigação do negócio, anterior a
+    este sistema: a peça não entra em produção sem o arquivo de CAD. O sistema guarda a
+    referência em `Componente.ArquivoSolido` (STEP ou STL — `.SLDPRT` é proprietário e não é
+    lido). **A coluna é nullable e isso é deliberado**: a obrigatoriedade vale para *Peça de
+    Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
+    e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
+    Fase 2 (onde a Peça nasce), não constraint de schema. `Componente.ArquivoFoto` é **opcional**
+    e serve só para o operador reconhecer a peça; não substitui o sólido.
+
+    **Decidido em 2026-08-04, a aplicar na Fase 2 (não implementado ainda):** uma **Peça**
+    (`EstruturaItem` sem pai) **sempre** referencia um `Componente`; só um **Item** (nó com pai)
+    pode ser ad-hoc (`ComponenteId` NULL). Fecha com
+    `CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)`.
+
+    O furo que isso tapa: o sólido mora em `Componente`, a obrigação vale em `EstruturaItem`, e a
+    ponte entre os dois é nullable — quando é NULL não existe linha de `Componente`, então não é
+    campo vazio, é **campo inexistente**. Hoje o schema aceita uma Peça ad-hoc (nenhuma constraint
+    impede), e para ela a regra 18 é literalmente inexprimível.
+
+    Precisão que importa: a constraint garante que existe **onde** pendurar o sólido. Que ele
+    esteja *preenchido* continua regra de aplicação — um `CHECK` não alcança outra tabela, e
+    `ArquivoSolido` segue nullable por causa do `Bruto`.
+
+    Motivação registrada, porque é o que sustenta o custo de "peça de uma vez só vira linha de
+    catálogo":
+    - uma peça ad-hoc já precisa de `Codigo` (senão o operador não a acha), descrição e sólido —
+      isso **já é** uma linha de catálogo, só sem o nome;
+    - no cadastro não dá para saber se vai repetir, e `Componente.Ativo` já tira da lista o que
+      não repetiu;
+    - **a peça ad-hoc que a fábrica decide promover a catálogo não exige migração nenhuma**: sob
+      esta regra a linha já existe desde o começo, então promover é decisão de uso, não mudança de
+      dado. Sem ela, promover seria criar o `Componente` e ainda decidir se os `EstruturaItem`
+      antigos passam a apontar para ele;
+    - o ad-hoc não morre, só recua para onde é de fato usado — **sub-Itens abaixo da Peça**;
+    - custo real, e ele já tem dono: o catálogo acumula linhas que nunca se repetem, e o risco
+      recai sobre a mesma disciplina registrada em `Componente.Codigo` — o ganho depende de a peça
+      repetida ser **encontrada e reutilizada**, não recadastrada sob código novo.
+
+    Alternativas descartadas: repetir `ArquivoSolido` em `EstruturaItem` (dois lugares para olhar,
+    e abre override de geometria — se a geometria mudou não é mais a mesma peça; nota que em
+    `Descricao` o override é útil, em geometria é perigoso, por isso a mesma forma dá respostas
+    diferentes nos dois campos); e aceitar Peça sem sólido (a regra 18 viraria "quase toda peça",
+    e a busca por foto nasceria cega justamente na peça de uma vez só — a que o operador **menos**
+    reconhece, já que a de catálogo volta várias vezes por ano).
+
+19. **`EstruturaItem.Descricao` nomeia o nó**; quando NULL, o nome exibido é o do `Componente`
+    de origem. Existe porque um item ad-hoc (`ComponenteId` NULL) não tinha **nenhum** texto
+    próprio: numa consulta de "o que está no meu setor" ele chegava anônimo à tela do operador —
+    exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
+    contra dados semeados (2026-08-03).
+
 ## Pontos ainda em aberto
 
-Nenhum ponto crítico de domínio em aberto no momento. Itens de infraestrutura (CI/CD,
-detalhes de deploy) estão em `03-arquitetura-tecnica.md`.
+- **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
+  Não é decisão de domínio ainda: depende de um spike medir a taxa de acerto. Ver
+  `06-roadmap-mvp.md`.
+
+Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.

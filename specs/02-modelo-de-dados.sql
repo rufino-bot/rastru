@@ -21,7 +21,7 @@ CREATE TABLE dbo.Setor (
 
 CREATE TABLE dbo.Material (
     Id              INT IDENTITY(1,1)   NOT NULL,
-    Codigo          NVARCHAR(50)        NOT NULL,
+    Codigo          NVARCHAR(50)        NOT NULL, -- identificador unico do material NESTE sistema; alfanumerico, atribuido por quem cadastra. Numeracao de fornecedor nao e modelada aqui (ver glossario em 01)
     Descricao       NVARCHAR(200)       NOT NULL,
     UnidadeMedida   NVARCHAR(10)        NOT NULL, -- ex: UN, M, KG, M2
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Material_Ativo DEFAULT (1),
@@ -84,9 +84,19 @@ GO
 
 CREATE TABLE dbo.Componente (
     Id              INT IDENTITY(1,1)   NOT NULL,
-    Codigo          NVARCHAR(50)        NOT NULL,
+    Codigo          NVARCHAR(50)        NOT NULL, -- identificador unico da peca de catalogo NESTE sistema; alfanumerico. O sistema nao modela a numeracao do cliente (nem toda peca chega com codigo, e varia por cliente) -- ver glossario em 01
     Descricao       NVARCHAR(200)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Bruto | Fabricado | Montagem
+    -- Referencia (caminho relativo) ao arquivo do solido 3D exportado do CAD -- STEP ou STL, nao
+    -- .SLDPRT (formato proprietario). NULLABLE de proposito: a obrigatoriedade e de negocio e vale
+    -- para Peca de Pedido, nao para toda linha de catalogo (um Componente 'Bruto' nao tem solido),
+    -- e o banco nao consegue distinguir os dois casos aqui -- ver regra 18 em 01.
+    -- Por que caminho e nao VARBINARY(MAX): arquivo de CAD e da ordem de MB, o pipeline de
+    -- silhuetas precisa do arquivo em disco para alimentar a ferramenta CAD, e a API de upload
+    -- fica mais simples. Custo aceito e nomeado: backup deixa de ser atomico e arquivo orfao
+    -- vira possivel. Decisao reversivel enquanto ninguem gravar dado de verdade.
+    ArquivoSolido   NVARCHAR(260)       NULL,
+    ArquivoFoto     NVARCHAR(260)       NULL,     -- foto de referencia, OPCIONAL: ajuda o operador a reconhecer a peca. Nao substitui o solido
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Componente_Ativo DEFAULT (1),
     CONSTRAINT PK_Componente PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Componente_Codigo UNIQUE (Codigo),
@@ -149,10 +159,13 @@ CREATE TABLE dbo.Pedido (
     Status              NVARCHAR(20)        NOT NULL CONSTRAINT DF_Pedido_Status DEFAULT ('Aberto'),
     DataAbertura        DATETIME2           NOT NULL CONSTRAINT DF_Pedido_DataAbertura DEFAULT (SYSUTCDATETIME()),
     DataConclusao       DATETIME2           NULL,
+    CriadoPorUsuarioId  INT                 NOT NULL,  -- autoria: responde "quem abriu este pedido"
     CONSTRAINT PK_Pedido PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Pedido_Numero UNIQUE (Numero),
     CONSTRAINT FK_Pedido_PedidoOrigem
         FOREIGN KEY (PedidoOrigemId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_Pedido_CriadoPorUsuario
+        FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT CK_Pedido_Tipo CHECK (Tipo IN ('Fabricacao', 'Retrabalho')),
     CONSTRAINT CK_Pedido_Status
         CHECK (Status IN ('Aberto', 'EmProducao', 'AguardandoExpedicao', 'Concluido', 'Cancelado')),
@@ -171,11 +184,15 @@ CREATE TABLE dbo.Agrupamento (
     Id              INT IDENTITY(1,1)  NOT NULL,
     PedidoId        INT                 NOT NULL,
     Codigo          NVARCHAR(50)        NOT NULL,
-    Quantidade      DECIMAL(18,4)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Kit (vai para solda) | Avulso (não passa por solda); descritivo
     DataConclusao   DATETIME2           NULL, -- preenchida quando todas as Peças do agrupamento fecham
+    CriadoPorUsuarioId INT                 NOT NULL,
+    CriadoEm        DATETIME2           NOT NULL
+        CONSTRAINT DF_Agrupamento_CriadoEm DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT PK_Agrupamento PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_Agrupamento_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_Agrupamento_CriadoPorUsuario
+        FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT UQ_Agrupamento_PedidoCodigo UNIQUE (PedidoId, Codigo),
     CONSTRAINT CK_Agrupamento_Tipo CHECK (Tipo IN ('Kit', 'Avulso'))
 );
@@ -188,7 +205,17 @@ CREATE TABLE dbo.Agrupamento (
 CREATE TABLE dbo.EstruturaItem (
     Id                          INT IDENTITY(1,1)  NOT NULL,
     AgrupamentoId               INT                 NOT NULL,
-    ComponenteId                INT                 NULL,       -- nullable: item 100% ad-hoc, sem base no catálogo
+    -- Nullable: item 100% ad-hoc, sem base no catálogo.
+    -- PENDENTE (Fase 2, decidido em 2026-08-04 -- ver regra 18 em 01): so um Item (no com pai)
+    -- pode ser ad-hoc. Uma Peca sempre referencia um Componente, senao o solido -- que mora em
+    -- Componente -- nao tem onde ser pendurado. Constraint a acrescentar nesta tabela:
+    --   CONSTRAINT CK_EstruturaItem_PecaTemComponente
+    --       CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
+    ComponenteId                INT                 NULL,
+    -- Nome proprio do no. NULL = herda a descricao do Componente. Existe porque, com ComponenteId
+    -- NULL (item ad-hoc), o no nao tinha NENHUM texto proprio: a consulta de "o que esta no meu
+    -- setor" devolvia esse item anonimo para o operador. Ver regra 19 em 01.
+    Descricao                   NVARCHAR(200)       NULL,
     EstruturaPaiId              INT                 NULL,       -- self-FK: recursão Peça -> Item -> ... -> Item
     NivelHierarquico            NVARCHAR(10)        NOT NULL,   -- Peca | Item (denormalizado p/ consulta rápida)
     Quantidade                  DECIMAL(18,4)       NOT NULL,   -- lote agregado (divisível por quantidades livres)

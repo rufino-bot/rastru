@@ -22,11 +22,33 @@ resolvidos (ou conscientemente adiados).
 - Pedido, Agrupamento — criação e listagem (sem regra de conclusão ainda).
 - Critério de pronto: dá para cadastrar um Pedido com Agrupamentos vazios via tela.
 
+> **1A concluída** (`Setor`, `Material`, `Pedido`, `Agrupamento` — CRUD pela tela, com
+> autorização por perfil no backend). Falta **1B**: `Componente` + receita padrão
+> (`ComponenteFilhoPadrao`, `ComponenteMaterialPadrao`, `ComponenteRoteiroPadrao`), que recebe
+> plano próprio. Dívidas rastreadas de 1A: camada global de erro de API no front e gating de
+> navegação por perfil.
+
 ## Fase 2 — Estrutura recursiva
 
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero
   (customizado).
 - Visualização em árvore da estrutura de um Agrupamento (Peça → Itens → sub-Itens).
+- Upload e exibição de `Componente.ArquivoSolido` (sólido 3D) e da regra de negócio que o
+  exige por Peça de Pedido — regra 18 de `01`. Inclui `EstruturaItem.Descricao` (regra 19).
+- **Peça sempre referencia um `Componente`** — decidido em 2026-08-04, adiado de propósito
+  para esta fase, que é onde o `EstruturaItem` nasce de fato. Acrescentar ao DDL:
+  ```sql
+  CONSTRAINT CK_EstruturaItem_PecaTemComponente
+      CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
+  ```
+  Só um **Item** (nó com pai) pode ser ad-hoc. Sem isso, o sólido — que mora em `Componente` —
+  não tem onde ser pendurado numa Peça ad-hoc, e a regra 18 fica inexprimível para ela. A
+  motivação completa e as alternativas descartadas estão na regra 18 de `01`; não re-decidir
+  a partir do zero. A constraint garante o **gancho**; exigir o arquivo preenchido continua
+  sendo validação de aplicação (um `CHECK` não alcança outra tabela).
+- Como as colunas nasceram depois do banco de dev, aplicar os `ALTER` idempotentes de
+  `ArquivoSolido`/`ArquivoFoto`/`Descricao` ao iniciar a fase, no mesmo padrão dos demais
+  em `CLAUDE.md`.
 - Critério de pronto: dá para montar visualmente a árvore completa de uma Peça complexa.
 
 ## Fase 3 — Rastreamento de setor
@@ -64,3 +86,34 @@ resolvidos (ou conscientemente adiados).
   adotado depois, sem migração, caso o negócio queira decompor fila x execução.
 - Endpoint e tela de tempo total/fila/produção por pedido.
 - Perfil Gestão tem acesso a essas telas; demais perfis não.
+
+## Fora das fases — decidir por spike: busca de peça por foto
+
+**Problema real que motiva:** a fábrica não etiqueta peça. O operador tem a peça na mão e
+não sabe qual é nem de que Pedido — e o `Codigo` é obrigatório só do lado do sistema.
+
+**O que torna isso viável e não era verdade antes:** o sólido 3D é obrigatório (regra 18),
+então a geometria de referência já existe, é exata e não precisa ser fotografada por
+ninguém. A comparação é silhueta contra silhueta, não aprendizado de máquina — descritores
+de forma clássicos (momentos de Hu/Zernike, descritores de Fourier), sem treino.
+
+**Forma proposta:** o custo fica no cadastro (renderizar N silhuetas do sólido e guardar um
+descritor por vista); na consulta é só comparar números. Nenhuma biblioteca de CAD em
+produção.
+
+**Escopo proposto — ordenador, não identificador.** A foto **reordena a lista curta do
+setor do operador** (a consulta da Fase 3), não busca no catálogo inteiro. Isso troca um
+problema de 1-em-milhares por um de 1-em-dez, e o Pedido vem da lista, não da foto.
+Não exibir "% de certeza": o score é *ranking*, não confiança, e exibido como confiança
+convida o operador a não conferir.
+
+**Limites que sobrevivem, mesmo dando certo:**
+- escala é ambígua entre variantes dimensionais proporcionais, sem referência de tamanho na foto;
+- peça espelhada (suporte esquerdo/direito) tem a mesma silhueta;
+- a peça muda de forma ao longo do processo (blank plano → dobrado → soldado);
+- geometria **não** identifica o Pedido — essa informação não está na peça.
+
+**Critério para virar fase:** um spike de 1–2 dias sobre ~20 peças reais com seus sólidos,
+fotografadas na condição de captura pretendida (fundo claro, maior superfície de contato à
+mostra), medindo a **taxa de acerto no top-3 dentro de uma lista de setor**. É resultado
+empírico — nenhuma análise substitui esse número. Só entra no roadmap depois dele.
