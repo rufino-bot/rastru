@@ -34,8 +34,18 @@ resolvidos (ou conscientemente adiados).
   (customizado).
 - Visualização em árvore da estrutura de um Agrupamento (Peça → Itens → sub-Itens).
 - Upload e exibição de `Componente.ArquivoSolido` (sólido 3D) e da regra de negócio que o
-  exige por Peça de Pedido — regra 18 de `01`. Inclui `EstruturaItem.Descricao` (regra 19)
-  e decidir onde fica o sólido de um item ad-hoc (ponto em aberto da regra 18).
+  exige por Peça de Pedido — regra 18 de `01`. Inclui `EstruturaItem.Descricao` (regra 19).
+- **Peça sempre referencia um `Componente`** — decidido em 2026-08-04, adiado de propósito
+  para esta fase, que é onde o `EstruturaItem` nasce de fato. Acrescentar ao DDL:
+  ```sql
+  CONSTRAINT CK_EstruturaItem_PecaTemComponente
+      CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
+  ```
+  Só um **Item** (nó com pai) pode ser ad-hoc. Sem isso, o sólido — que mora em `Componente` —
+  não tem onde ser pendurado numa Peça ad-hoc, e a regra 18 fica inexprimível para ela. A
+  motivação completa e as alternativas descartadas estão na regra 18 de `01`; não re-decidir
+  a partir do zero. A constraint garante o **gancho**; exigir o arquivo preenchido continua
+  sendo validação de aplicação (um `CHECK` não alcança outra tabela).
 - Como as colunas nasceram depois do banco de dev, aplicar os `ALTER` idempotentes de
   `ArquivoSolido`/`ArquivoFoto`/`Descricao` ao iniciar a fase, no mesmo padrão dos demais
   em `CLAUDE.md`.

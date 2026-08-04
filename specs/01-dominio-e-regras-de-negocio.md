@@ -85,10 +85,43 @@
     Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
     e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
     Fase 2 (onde a Peça nasce), não constraint de schema. `Componente.ArquivoFoto` é **opcional**
-    e serve só para o operador reconhecer a peça; não substitui o sólido. **Ponto em aberto,
-    registrado e não decidido:** um `EstruturaItem` ad-hoc (`ComponenteId` NULL) não tem onde
-    pendurar sólido — ou ele passa a exigir um `Componente`, ou a coluna se repete em
-    `EstruturaItem`. Decidir na Fase 2, quando o item ad-hoc for implementado de fato.
+    e serve só para o operador reconhecer a peça; não substitui o sólido.
+
+    **Decidido em 2026-08-04, a aplicar na Fase 2 (não implementado ainda):** uma **Peça**
+    (`EstruturaItem` sem pai) **sempre** referencia um `Componente`; só um **Item** (nó com pai)
+    pode ser ad-hoc (`ComponenteId` NULL). Fecha com
+    `CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)`.
+
+    O furo que isso tapa: o sólido mora em `Componente`, a obrigação vale em `EstruturaItem`, e a
+    ponte entre os dois é nullable — quando é NULL não existe linha de `Componente`, então não é
+    campo vazio, é **campo inexistente**. Hoje o schema aceita uma Peça ad-hoc (nenhuma constraint
+    impede), e para ela a regra 18 é literalmente inexprimível.
+
+    Precisão que importa: a constraint garante que existe **onde** pendurar o sólido. Que ele
+    esteja *preenchido* continua regra de aplicação — um `CHECK` não alcança outra tabela, e
+    `ArquivoSolido` segue nullable por causa do `Bruto`.
+
+    Motivação registrada, porque é o que sustenta o custo de "peça de uma vez só vira linha de
+    catálogo":
+    - uma peça ad-hoc já precisa de `Codigo` (senão o operador não a acha), descrição e sólido —
+      isso **já é** uma linha de catálogo, só sem o nome;
+    - no cadastro não dá para saber se vai repetir, e `Componente.Ativo` já tira da lista o que
+      não repetiu;
+    - **a peça ad-hoc que a fábrica decide promover a catálogo não exige migração nenhuma**: sob
+      esta regra a linha já existe desde o começo, então promover é decisão de uso, não mudança de
+      dado. Sem ela, promover seria criar o `Componente` e ainda decidir se os `EstruturaItem`
+      antigos passam a apontar para ele;
+    - o ad-hoc não morre, só recua para onde é de fato usado — **sub-Itens abaixo da Peça**;
+    - custo real, e ele já tem dono: o catálogo acumula linhas que nunca se repetem, e o risco
+      recai sobre a mesma disciplina registrada em `Componente.Codigo` — o ganho depende de a peça
+      repetida ser **encontrada e reutilizada**, não recadastrada sob código novo.
+
+    Alternativas descartadas: repetir `ArquivoSolido` em `EstruturaItem` (dois lugares para olhar,
+    e abre override de geometria — se a geometria mudou não é mais a mesma peça; nota que em
+    `Descricao` o override é útil, em geometria é perigoso, por isso a mesma forma dá respostas
+    diferentes nos dois campos); e aceitar Peça sem sólido (a regra 18 viraria "quase toda peça",
+    e a busca por foto nasceria cega justamente na peça de uma vez só — a que o operador **menos**
+    reconhece, já que a de catálogo volta várias vezes por ano).
 
 19. **`EstruturaItem.Descricao` nomeia o nó**; quando NULL, o nome exibido é o do `Componente`
     de origem. Existe porque um item ad-hoc (`ComponenteId` NULL) não tinha **nenhum** texto
@@ -98,7 +131,6 @@
 
 ## Pontos ainda em aberto
 
-- **Onde fica o sólido de um `EstruturaItem` ad-hoc** — ver regra 18. Decisão da Fase 2.
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
   Não é decisão de domínio ainda: depende de um spike medir a taxa de acerto. Ver
   `06-roadmap-mvp.md`.

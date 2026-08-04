@@ -205,7 +205,13 @@ CREATE TABLE dbo.Agrupamento (
 CREATE TABLE dbo.EstruturaItem (
     Id                          INT IDENTITY(1,1)  NOT NULL,
     AgrupamentoId               INT                 NOT NULL,
-    ComponenteId                INT                 NULL,       -- nullable: item 100% ad-hoc, sem base no catálogo
+    -- Nullable: item 100% ad-hoc, sem base no catálogo.
+    -- PENDENTE (Fase 2, decidido em 2026-08-04 -- ver regra 18 em 01): so um Item (no com pai)
+    -- pode ser ad-hoc. Uma Peca sempre referencia um Componente, senao o solido -- que mora em
+    -- Componente -- nao tem onde ser pendurado. Constraint a acrescentar nesta tabela:
+    --   CONSTRAINT CK_EstruturaItem_PecaTemComponente
+    --       CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
+    ComponenteId                INT                 NULL,
     -- Nome proprio do no. NULL = herda a descricao do Componente. Existe porque, com ComponenteId
     -- NULL (item ad-hoc), o no nao tinha NENHUM texto proprio: a consulta de "o que esta no meu
     -- setor" devolvia esse item anonimo para o operador. Ver regra 19 em 01.
