@@ -93,11 +93,15 @@ for f in AgrupamentosEndpointsTests.cs AuthEndpointsTests.cs SetoresEndpointsTes
          PedidosEndpointsTests.cs MateriaisEndpointsTests.cs ReusoDeRefreshTokenTests.cs \
          LockoutTests.cs RateLimitTests.cs CorridaNaQueimaDeFamiliaTests.cs; do
   sed -i \
-    -e 's|"/\(auth\|setores\|materiais\|pedidos\|agrupamentos\|usuarios\)|"/api/\1|g' \
-    -e 's|"/me"|"/api/me"|g' \
+    -e 's#"/\(auth\|setores\|materiais\|pedidos\|agrupamentos\|usuarios\)#"/api/\1#g' \
+    -e 's#"/me"#"/api/me"#g' \
     "$f"
 done
 ```
+
+**O delimitador tem que ser `#`, não `|`.** Escrito como `s|…\|…|`, o GNU sed lê o `\|` da
+alternação como delimitador literal escapado em vez de operador — a expressão não casa nada e falha
+**em silêncio**, sem erro e sem substituição. Custou uma correção na execução real desta task.
 
 Por que é seguro: o padrão exige a **aspa** antes da barra, então `"path=/auth"` (que não começa
 com `"/`) não é tocado, e `$"/pedidos/{id}"` é, porque a aspa vem logo antes da barra. Nenhum
@@ -110,9 +114,13 @@ cd ../..
 grep -rhoE '"\$?/[a-zA-Z][^"]*"|\$"/[^"]*"' tests/ --include=*.cs | grep -vc '"/api'
 ```
 
-Esperado: **4** — e são exatamente as 4 URLs nuas de `AuthEndpointsTests.PrefixoDeApi.cs`
-(`"/setores"`, `"/auth/login"` e as duas de `path=`), que a Task 2 resolve. Qualquer número maior
-significa URL que o `sed` não pegou.
+Esperado: **2** — e são exatamente as duas URLs nuas de `AuthEndpointsTests.PrefixoDeApi.cs`
+(`"/setores"` e `"/auth/login"`), que a Task 2 resolve. Qualquer número maior significa URL que o
+`sed` não pegou.
+
+Cuidado com uma conta errada fácil de fazer: os dois `"path=/auth"` de `AuthEndpointsTests.cs`
+**não** entram neste número. Eles são asserção de atributo de cookie, não URL, e por isso este
+comando não os enumera — quem cuida deles é o Step 4.
 
 - [ ] **Step 4: Corrigir os dois asserts de `Path` do cookie**
 
