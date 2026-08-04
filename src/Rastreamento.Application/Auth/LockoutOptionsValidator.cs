@@ -10,18 +10,18 @@ namespace Rastreamento.Application.Auth;
 /// </summary>
 public class LockoutOptionsValidator : IValidateOptions<LockoutOptions>
 {
-    public ValidateOptionsResult Validate(string? name, LockoutOptions options)
-    {
-        var falhas = new List<string>();
+  public ValidateOptionsResult Validate(string? name, LockoutOptions options)
+  {
+    var falhas = new List<string>();
 
-        if (options.MaxFalhas <= 0)
-            falhas.Add($"Lockout:{nameof(LockoutOptions.MaxFalhas)} deve ser maior que zero.");
+    if (options.MaxFalhas <= 0)
+      falhas.Add($"Lockout:{nameof(LockoutOptions.MaxFalhas)} deve ser maior que zero.");
 
-        if (options.DuracaoMinutos <= 0)
-            falhas.Add($"Lockout:{nameof(LockoutOptions.DuracaoMinutos)} deve ser maior que zero.");
+    if (options.DuracaoMinutos <= 0)
+      falhas.Add($"Lockout:{nameof(LockoutOptions.DuracaoMinutos)} deve ser maior que zero.");
 
-        return falhas.Count == 0
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(falhas);
-    }
+    return falhas.Count == 0
+        ? ValidateOptionsResult.Success
+        : ValidateOptionsResult.Fail(falhas);
+  }
 }

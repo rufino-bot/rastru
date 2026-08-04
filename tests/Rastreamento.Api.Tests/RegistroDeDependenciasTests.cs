@@ -22,36 +22,36 @@ namespace Rastreamento.Api.Tests;
 /// </summary>
 public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+  private readonly WebApplicationFactory<Program> _factory;
 
-    public RegistroDeDependenciasTests(WebApplicationFactory<Program> factory) => _factory = factory;
+  public RegistroDeDependenciasTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
-    [Theory]
-    [InlineData(typeof(RastreamentoDbContext))]
-    [InlineData(typeof(IUsuarioRepository))]
-    [InlineData(typeof(IRefreshTokenRepository))]
-    [InlineData(typeof(IEmissorDeSessao))]
-    [InlineData(typeof(IAutenticarUsuarioUseCase))]
-    [InlineData(typeof(IRenovarTokenUseCase))]
-    [InlineData(typeof(IRevogarTokenUseCase))]
-    [InlineData(typeof(ISetorRepository))]
-    [InlineData(typeof(CadastroDeSetorUseCase))]
-    [InlineData(typeof(IMaterialRepository))]
-    [InlineData(typeof(CadastroDeMaterialUseCase))]
-    [InlineData(typeof(IPedidoRepository))]
-    [InlineData(typeof(CadastroDePedidoUseCase))]
-    [InlineData(typeof(IAgrupamentoRepository))]
-    [InlineData(typeof(CadastroDeAgrupamentoUseCase))]
-    public void Servico_e_registrado_como_Scoped(Type servico)
-    {
-        using var escopo = _factory.Services.CreateScope();
-        using var outroEscopo = _factory.Services.CreateScope();
+  [Theory]
+  [InlineData(typeof(RastreamentoDbContext))]
+  [InlineData(typeof(IUsuarioRepository))]
+  [InlineData(typeof(IRefreshTokenRepository))]
+  [InlineData(typeof(IEmissorDeSessao))]
+  [InlineData(typeof(IAutenticarUsuarioUseCase))]
+  [InlineData(typeof(IRenovarTokenUseCase))]
+  [InlineData(typeof(IRevogarTokenUseCase))]
+  [InlineData(typeof(ISetorRepository))]
+  [InlineData(typeof(CadastroDeSetorUseCase))]
+  [InlineData(typeof(IMaterialRepository))]
+  [InlineData(typeof(CadastroDeMaterialUseCase))]
+  [InlineData(typeof(IPedidoRepository))]
+  [InlineData(typeof(CadastroDePedidoUseCase))]
+  [InlineData(typeof(IAgrupamentoRepository))]
+  [InlineData(typeof(CadastroDeAgrupamentoUseCase))]
+  public void Servico_e_registrado_como_Scoped(Type servico)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    using var outroEscopo = _factory.Services.CreateScope();
 
-        var instancia = escopo.ServiceProvider.GetRequiredService(servico);
-        var mesmaInstancia = escopo.ServiceProvider.GetRequiredService(servico);
-        var deOutroEscopo = outroEscopo.ServiceProvider.GetRequiredService(servico);
+    var instancia = escopo.ServiceProvider.GetRequiredService(servico);
+    var mesmaInstancia = escopo.ServiceProvider.GetRequiredService(servico);
+    var deOutroEscopo = outroEscopo.ServiceProvider.GetRequiredService(servico);
 
-        Assert.Same(instancia, mesmaInstancia); // Transient falharia aqui
-        Assert.NotSame(instancia, deOutroEscopo); // Singleton falharia aqui
-    }
+    Assert.Same(instancia, mesmaInstancia); // Transient falharia aqui
+    Assert.NotSame(instancia, deOutroEscopo); // Singleton falharia aqui
+  }
 }

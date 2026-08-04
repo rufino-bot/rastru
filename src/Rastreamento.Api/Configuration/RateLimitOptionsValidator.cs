@@ -10,18 +10,18 @@ namespace Rastreamento.Api.Configuration;
 /// </summary>
 public class RateLimitOptionsValidator : IValidateOptions<RateLimitOptions>
 {
-    public ValidateOptionsResult Validate(string? name, RateLimitOptions options)
-    {
-        var falhas = new List<string>();
+  public ValidateOptionsResult Validate(string? name, RateLimitOptions options)
+  {
+    var falhas = new List<string>();
 
-        if (options.PermitLimit <= 0)
-            falhas.Add($"RateLimit:{nameof(RateLimitOptions.PermitLimit)} deve ser maior que zero.");
+    if (options.PermitLimit <= 0)
+      falhas.Add($"RateLimit:{nameof(RateLimitOptions.PermitLimit)} deve ser maior que zero.");
 
-        if (options.WindowSeconds <= 0)
-            falhas.Add($"RateLimit:{nameof(RateLimitOptions.WindowSeconds)} deve ser maior que zero.");
+    if (options.WindowSeconds <= 0)
+      falhas.Add($"RateLimit:{nameof(RateLimitOptions.WindowSeconds)} deve ser maior que zero.");
 
-        return falhas.Count == 0
-            ? ValidateOptionsResult.Success
-            : ValidateOptionsResult.Fail(falhas);
-    }
+    return falhas.Count == 0
+        ? ValidateOptionsResult.Success
+        : ValidateOptionsResult.Fail(falhas);
+  }
 }

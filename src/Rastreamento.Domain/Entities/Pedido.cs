@@ -7,16 +7,16 @@ namespace Rastreamento.Domain.Entities;
 /// </summary>
 public class Pedido
 {
-    public int Id { get; set; }
-    public string Numero { get; set; } = string.Empty;
-    public string Cliente { get; set; } = string.Empty;
-    public string Tipo { get; set; } = string.Empty;
-    public int? PedidoOrigemId { get; set; }
-    public string? MotivoRetrabalho { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime DataAbertura { get; set; }
-    public DateTime? DataConclusao { get; set; }
+  public int Id { get; set; }
+  public string Numero { get; set; } = string.Empty;
+  public string Cliente { get; set; } = string.Empty;
+  public string Tipo { get; set; } = string.Empty;
+  public int? PedidoOrigemId { get; set; }
+  public string? MotivoRetrabalho { get; set; }
+  public string Status { get; set; } = string.Empty;
+  public DateTime DataAbertura { get; set; }
+  public DateTime? DataConclusao { get; set; }
 
-    /// <summary>Autoria: responde "quem abriu este pedido". FK para dbo.Usuario.</summary>
-    public int CriadoPorUsuarioId { get; set; }
+  /// <summary>Autoria: responde "quem abriu este pedido". FK para dbo.Usuario.</summary>
+  public int CriadoPorUsuarioId { get; set; }
 }

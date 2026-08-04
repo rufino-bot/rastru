@@ -24,31 +24,31 @@ namespace Rastreamento.Api.Serialization;
 /// </remarks>
 public sealed class HorarioDeBrasiliaJsonConverter : JsonConverter<DateTime>
 {
-    private static readonly TimeSpan OffsetDeBrasilia = TimeSpan.FromHours(-3);
+  private static readonly TimeSpan OffsetDeBrasilia = TimeSpan.FromHours(-3);
 
-    public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-    {
-        var texto = reader.GetString();
+  public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+  {
+    var texto = reader.GetString();
 
-        if (!DateTime.TryParse(texto, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var lido))
-            throw new JsonException($"Data em formato invalido: '{texto}'.");
+    if (!DateTime.TryParse(texto, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var lido))
+      throw new JsonException($"Data em formato invalido: '{texto}'.");
 
-        // Simetrico com o Write: entrada sem offset explicito e lida como horario de Brasilia
-        // (Unspecified), entrada com offset ou com 'Z' e respeitada. Nos dois casos o que chega
-        // na aplicacao e UTC.
-        return lido.Kind == DateTimeKind.Unspecified
-            ? new DateTimeOffset(lido, OffsetDeBrasilia).UtcDateTime
-            : lido.ToUniversalTime();
-    }
+    // Simetrico com o Write: entrada sem offset explicito e lida como horario de Brasilia
+    // (Unspecified), entrada com offset ou com 'Z' e respeitada. Nos dois casos o que chega
+    // na aplicacao e UTC.
+    return lido.Kind == DateTimeKind.Unspecified
+        ? new DateTimeOffset(lido, OffsetDeBrasilia).UtcDateTime
+        : lido.ToUniversalTime();
+  }
 
-    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
-    {
-        // Kind.Unspecified so aparece se alguem perder o Kind no caminho; tratar como UTC mantem
-        // a convencao da aplicacao em vez de herdar o fuso do servidor.
-        var utc = value.Kind == DateTimeKind.Unspecified
-            ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
-            : value.ToUniversalTime();
+  public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
+  {
+    // Kind.Unspecified so aparece se alguem perder o Kind no caminho; tratar como UTC mantem
+    // a convencao da aplicacao em vez de herdar o fuso do servidor.
+    var utc = value.Kind == DateTimeKind.Unspecified
+        ? DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        : value.ToUniversalTime();
 
-        writer.WriteStringValue(new DateTimeOffset(utc).ToOffset(OffsetDeBrasilia));
-    }
+    writer.WriteStringValue(new DateTimeOffset(utc).ToOffset(OffsetDeBrasilia));
+  }
 }

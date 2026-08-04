@@ -7,6 +7,6 @@ namespace Rastreamento.Domain.Abstractions;
 /// </summary>
 public class ConflitoDeConcorrenciaException : Exception
 {
-    public ConflitoDeConcorrenciaException(Exception interna)
-        : base("A linha foi alterada por outra requisicao.", interna) { }
+  public ConflitoDeConcorrenciaException(Exception interna)
+      : base("A linha foi alterada por outra requisicao.", interna) { }
 }

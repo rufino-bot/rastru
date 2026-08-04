@@ -7,17 +7,17 @@ namespace Rastreamento.Domain.Entities;
 /// </summary>
 public class Agrupamento
 {
-    public int Id { get; set; }
-    public int PedidoId { get; set; }
-    public string Codigo { get; set; } = string.Empty;
+  public int Id { get; set; }
+  public int PedidoId { get; set; }
+  public string Codigo { get; set; } = string.Empty;
 
-    /// <summary>Kit | Avulso — descritivo (Kit vai para solda; Avulso nao).</summary>
-    public string Tipo { get; set; } = string.Empty;
+  /// <summary>Kit | Avulso — descritivo (Kit vai para solda; Avulso nao).</summary>
+  public string Tipo { get; set; } = string.Empty;
 
-    public DateTime? DataConclusao { get; set; }
+  public DateTime? DataConclusao { get; set; }
 
-    /// <summary>Autoria: responde "quem criou este agrupamento". FK para dbo.Usuario.</summary>
-    public int CriadoPorUsuarioId { get; set; }
+  /// <summary>Autoria: responde "quem criou este agrupamento". FK para dbo.Usuario.</summary>
+  public int CriadoPorUsuarioId { get; set; }
 
-    public DateTime CriadoEm { get; set; }
+  public DateTime CriadoEm { get; set; }
 }

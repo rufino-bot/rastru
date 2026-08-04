@@ -45,44 +45,44 @@ builder.Services.AddOptions<RateLimitOptions>()
 // refresh token e opaco de 256 bits (forca bruta inviavel), entao throttlar so puniria o operador.
 builder.Services.AddRateLimiter(rateLimiter =>
 {
-    rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+  rateLimiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    rateLimiter.AddPolicy(RateLimitOptions.NomeDaPoliticaDeLogin, http =>
-    {
-        var politica = http.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+  rateLimiter.AddPolicy(RateLimitOptions.NomeDaPoliticaDeLogin, http =>
+  {
+    var politica = http.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
 
-        // Particao por IP. Atras de proxy reverso isto vira o IP do proxy e o limite passa a ser
-        // global — quando houver proxy, configurar ForwardedHeaders (anotado no CLAUDE.md).
-        return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "sem-ip",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = politica.PermitLimit,
-                Window = TimeSpan.FromSeconds(politica.WindowSeconds),
-                // Sem fila: excedeu, recusa na hora. Enfileirar seguraria conexao a toa e daria ao
-                // atacante um jeito de consumir recurso do servidor sem levar 429.
-                QueueLimit = 0,
-                AutoReplenishment = true,
-            });
-    });
+    // Particao por IP. Atras de proxy reverso isto vira o IP do proxy e o limite passa a ser
+    // global — quando houver proxy, configurar ForwardedHeaders (anotado no CLAUDE.md).
+    return RateLimitPartition.GetFixedWindowLimiter(
+          partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "sem-ip",
+          factory: _ => new FixedWindowRateLimiterOptions
+          {
+            PermitLimit = politica.PermitLimit,
+            Window = TimeSpan.FromSeconds(politica.WindowSeconds),
+            // Sem fila: excedeu, recusa na hora. Enfileirar seguraria conexao a toa e daria ao
+            // atacante um jeito de consumir recurso do servidor sem levar 429.
+            QueueLimit = 0,
+            AutoReplenishment = true,
+          });
+  });
 
-    rateLimiter.OnRejected = (contexto, _) =>
-    {
-        // Sem Retry-After o cliente so pode adivinhar quando voltar — e adivinhar em loop.
-        if (contexto.Lease.TryGetMetadata(MetadataName.RetryAfter, out var esperar))
-            contexto.HttpContext.Response.Headers.RetryAfter =
-                ((int)esperar.TotalSeconds).ToString(NumberFormatInfo.InvariantInfo);
+  rateLimiter.OnRejected = (contexto, _) =>
+  {
+    // Sem Retry-After o cliente so pode adivinhar quando voltar — e adivinhar em loop.
+    if (contexto.Lease.TryGetMetadata(MetadataName.RetryAfter, out var esperar))
+      contexto.HttpContext.Response.Headers.RetryAfter =
+            ((int)esperar.TotalSeconds).ToString(NumberFormatInfo.InvariantInfo);
 
-        contexto.HttpContext.RequestServices
-            .GetRequiredService<ILoggerFactory>()
-            .CreateLogger("Rastreamento.Api.RateLimit")
-            .LogWarning(
-                "Requisicao barrada por rate limit em {Caminho}, origem {Ip}.",
-                contexto.HttpContext.Request.Path,
-                contexto.HttpContext.Connection.RemoteIpAddress);
+    contexto.HttpContext.RequestServices
+          .GetRequiredService<ILoggerFactory>()
+          .CreateLogger("Rastreamento.Api.RateLimit")
+          .LogWarning(
+              "Requisicao barrada por rate limit em {Caminho}, origem {Ip}.",
+              contexto.HttpContext.Request.Path,
+              contexto.HttpContext.Connection.RemoteIpAddress);
 
-        return ValueTask.CompletedTask;
-    };
+    return ValueTask.CompletedTask;
+  };
 });
 
 builder.Services.AddDbContext<RastreamentoDbContext>(o =>
@@ -122,23 +122,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<IOptions<JwtOptions>>((bearer, jwtOptions) =>
     {
-        var jwt = jwtOptions.Value;
+      var jwt = jwtOptions.Value;
 
-        // Sem o mapeamento legado de claims: `sub`, `role` e afins chegam com o nome que o
-        // JwtAccessTokenGenerator emitiu, e nao traduzidos para as URIs do WS-Federation.
-        bearer.MapInboundClaims = false;
-        bearer.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidIssuer = jwt.Issuer,
-            ValidateAudience = true,
-            ValidAudience = jwt.Audience,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
-            RoleClaimType = "role",
-            NameClaimType = "unique_name",
-        };
+      // Sem o mapeamento legado de claims: `sub`, `role` e afins chegam com o nome que o
+      // JwtAccessTokenGenerator emitiu, e nao traduzidos para as URIs do WS-Federation.
+      bearer.MapInboundClaims = false;
+      bearer.TokenValidationParameters = new TokenValidationParameters
+      {
+        ValidateIssuer = true,
+        ValidIssuer = jwt.Issuer,
+        ValidateAudience = true,
+        ValidAudience = jwt.Audience,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+        RoleClaimType = "role",
+        NameClaimType = "unique_name",
+      };
     });
 builder.Services.AddAuthorization();
 

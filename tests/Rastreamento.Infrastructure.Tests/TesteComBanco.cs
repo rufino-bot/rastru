@@ -14,12 +14,12 @@ namespace Rastreamento.Infrastructure.Tests;
 /// </remarks>
 public abstract class TesteComBanco
 {
-    protected const string Conn =
-        "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
+  protected const string Conn =
+      "Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True";
 
-    protected static RastreamentoDbContext NovoContexto()
-    {
-        var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
-        return new RastreamentoDbContext(options);
-    }
+  protected static RastreamentoDbContext NovoContexto()
+  {
+    var options = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).Options;
+    return new RastreamentoDbContext(options);
+  }
 }
