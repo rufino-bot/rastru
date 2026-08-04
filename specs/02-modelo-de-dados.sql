@@ -87,6 +87,16 @@ CREATE TABLE dbo.Componente (
     Codigo          NVARCHAR(50)        NOT NULL, -- identificador unico da peca de catalogo NESTE sistema; alfanumerico. O sistema nao modela a numeracao do cliente (nem toda peca chega com codigo, e varia por cliente) -- ver glossario em 01
     Descricao       NVARCHAR(200)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Bruto | Fabricado | Montagem
+    -- Referencia (caminho relativo) ao arquivo do solido 3D exportado do CAD -- STEP ou STL, nao
+    -- .SLDPRT (formato proprietario). NULLABLE de proposito: a obrigatoriedade e de negocio e vale
+    -- para Peca de Pedido, nao para toda linha de catalogo (um Componente 'Bruto' nao tem solido),
+    -- e o banco nao consegue distinguir os dois casos aqui -- ver regra 18 em 01.
+    -- Por que caminho e nao VARBINARY(MAX): arquivo de CAD e da ordem de MB, o pipeline de
+    -- silhuetas precisa do arquivo em disco para alimentar a ferramenta CAD, e a API de upload
+    -- fica mais simples. Custo aceito e nomeado: backup deixa de ser atomico e arquivo orfao
+    -- vira possivel. Decisao reversivel enquanto ninguem gravar dado de verdade.
+    ArquivoSolido   NVARCHAR(260)       NULL,
+    ArquivoFoto     NVARCHAR(260)       NULL,     -- foto de referencia, OPCIONAL: ajuda o operador a reconhecer a peca. Nao substitui o solido
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Componente_Ativo DEFAULT (1),
     CONSTRAINT PK_Componente PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Componente_Codigo UNIQUE (Codigo),
@@ -196,6 +206,10 @@ CREATE TABLE dbo.EstruturaItem (
     Id                          INT IDENTITY(1,1)  NOT NULL,
     AgrupamentoId               INT                 NOT NULL,
     ComponenteId                INT                 NULL,       -- nullable: item 100% ad-hoc, sem base no catálogo
+    -- Nome proprio do no. NULL = herda a descricao do Componente. Existe porque, com ComponenteId
+    -- NULL (item ad-hoc), o no nao tinha NENHUM texto proprio: a consulta de "o que esta no meu
+    -- setor" devolvia esse item anonimo para o operador. Ver regra 19 em 01.
+    Descricao                   NVARCHAR(200)       NULL,
     EstruturaPaiId              INT                 NULL,       -- self-FK: recursão Peça -> Item -> ... -> Item
     NivelHierarquico            NVARCHAR(10)        NOT NULL,   -- Peca | Item (denormalizado p/ consulta rápida)
     Quantidade                  DECIMAL(18,4)       NOT NULL,   -- lote agregado (divisível por quantidades livres)

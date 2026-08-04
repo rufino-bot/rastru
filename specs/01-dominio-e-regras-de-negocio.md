@@ -9,7 +9,9 @@
 | **Agrupamento** | Agrupamento de Peças dentro de um Pedido. Um Pedido tem N Agrupamentos. Tem um **Tipo**: 'Kit' (peças que vão para a solda, juntas) ou 'Avulso' (peças que não passam por solda). O Tipo é descritivo — não impõe roteiro. |
 | **Componente** | Registro de **catálogo** (receita padrão/template), reutilizável entre Pedidos. Não é a instância física — é a definição. |
 | **Componente.Codigo** | O **identificador único da peça de catálogo** dentro deste sistema. É **alfanumérico** (`NVARCHAR(50)`) e **único global** (`UQ_Componente_Codigo`). Decisão do dono do projeto (2026-08-03): **o sistema não modela a numeração do cliente.** Nem toda peça chega com código definido pelo cliente, e o critério varia de cliente para cliente — essa regra **não é absorvida aqui**. O que vale é que toda peça de catálogo tenha um identificador único neste sistema, o que é o que permite reconhecê-la quando ela é pedida **várias vezes ao longo do ano**. Quem cadastra atribui o valor (reaproveitando o código do cliente quando existir); o sistema não gera nem valida formato. Consequência operacional a vigiar: o ganho depende de a peça repetida ser **encontrada e reutilizada**, não recadastrada sob um código novo — cadastro duplicado sob códigos diferentes não viola nenhuma constraint e passa despercebido. |
+| **Componente.ArquivoSolido** | Referência ao arquivo de **sólido 3D** (CAD) da peça de catálogo — STEP ou STL. É obrigação de negócio para toda Peça de Pedido, mas coluna **nullable** por não valer para todo Componente; ver regra 18. `Componente.ArquivoFoto`, ao lado, é uma foto de referência **opcional**. |
 | **EstruturaItem** | A árvore **real** usada em um Agrupamento específico, podendo ter sido copiada do catálogo (`Componente`) e customizada. É recursiva: um `EstruturaItem` pode ter `EstruturaItem` filhos. O nó de topo (sem pai) é chamado de **Peça**; os nós com pai são chamados de **Item**. Representa um **lote agregado** (quantidade), não uma unidade física individual — e esse lote é divisível por quantidades livres (ver regra 9). |
+| **EstruturaItem.Descricao** | Nome próprio do nó dentro do Agrupamento. NULL = usa a descrição do `Componente` de origem. Serve ao item **ad-hoc** (`ComponenteId` NULL), que sem ela chega sem nome nenhum à tela do operador; ver regra 19. |
 | **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
 | **Material.Codigo** | O **identificador único do material** dentro deste sistema. **Mesma regra do `Componente.Codigo`**, por decisão explícita: alfanumérico (`NVARCHAR(50)`), **único global** (`UQ_Material_Codigo`), atribuído por quem cadastra, sem geração nem validação de formato pelo sistema. A numeração de fornecedor **não** é modelada aqui. |
 | **Setor** | Departamento de produção (ex.: Corte e Dobra, Usinagem) pelo qual um `EstruturaItem` pode passar. |
@@ -76,7 +78,29 @@
     um Pedido de Retrabalho separado (`MotivoRetrabalho='Perda'`) — **nunca** reabre a Peça
     original. Como na reprovação, registrar a perda **não** abre retrabalho automaticamente.
 
+18. **Toda Peça que um Pedido precisa tem um sólido 3D** — é obrigação do negócio, anterior a
+    este sistema: a peça não entra em produção sem o arquivo de CAD. O sistema guarda a
+    referência em `Componente.ArquivoSolido` (STEP ou STL — `.SLDPRT` é proprietário e não é
+    lido). **A coluna é nullable e isso é deliberado**: a obrigatoriedade vale para *Peça de
+    Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
+    e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
+    Fase 2 (onde a Peça nasce), não constraint de schema. `Componente.ArquivoFoto` é **opcional**
+    e serve só para o operador reconhecer a peça; não substitui o sólido. **Ponto em aberto,
+    registrado e não decidido:** um `EstruturaItem` ad-hoc (`ComponenteId` NULL) não tem onde
+    pendurar sólido — ou ele passa a exigir um `Componente`, ou a coluna se repete em
+    `EstruturaItem`. Decidir na Fase 2, quando o item ad-hoc for implementado de fato.
+
+19. **`EstruturaItem.Descricao` nomeia o nó**; quando NULL, o nome exibido é o do `Componente`
+    de origem. Existe porque um item ad-hoc (`ComponenteId` NULL) não tinha **nenhum** texto
+    próprio: numa consulta de "o que está no meu setor" ele chegava anônimo à tela do operador —
+    exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
+    contra dados semeados (2026-08-03).
+
 ## Pontos ainda em aberto
 
-Nenhum ponto crítico de domínio em aberto no momento. Itens de infraestrutura (CI/CD,
-detalhes de deploy) estão em `03-arquitetura-tecnica.md`.
+- **Onde fica o sólido de um `EstruturaItem` ad-hoc** — ver regra 18. Decisão da Fase 2.
+- **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
+  Não é decisão de domínio ainda: depende de um spike medir a taxa de acerto. Ver
+  `06-roadmap-mvp.md`.
+
+Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.
