@@ -153,11 +153,25 @@ const string PrefixoDaApi = "/api";
 // on-premise em https://servidor/rastreamento chega com PathBase=/rastreamento em TODA
 // requisicao) nem sob X-Forwarded-Prefix com ForwardedHeaders ligado — nesses casos /setores
 // passaria pela guarda. Ler o Path antes de o prefixo ser retirado nao depende de nada disso.
-// Vem antes do rate limiter tambem de proposito: recusar o caminho errado nao deve custar nem
-// particao de rate limit.
+// A posicao em relacao ao rate limiter (antes ou depois) e indiferente hoje: nao ha
+// GlobalLimiter, a policy e aplicada por metadata de endpoint ([EnableRateLimiting] em
+// AuthController.cs), e requisicao fora de /api nao casa endpoint nenhum, entao nao consome
+// particao de qualquer forma. Fica antes so porque ja precisa vir antes do UsePathBase.
+//
+// StringComparison.Ordinal, e nao o default (OrdinalIgnoreCase): sem ele /API/setores tambem
+// casaria, o UsePathBaseMiddleware gravaria PathBase="/API" (o segmento como chegou), e um login
+// em /API/auth/login gravaria o cookie de refresh com Path=/API/auth — que nao bate com
+// /api/auth/refresh em minuscula, porque matching de Path de cookie e case-sensitive (RFC 6265
+// Sec5.1.4). A sessao morreria no primeiro refresh, em silencio. Preferimos o 404 alto.
+//
+// Restricao de ordem de pipeline: esta guarda e um 404 cego para tudo que nao comeca com /api. Se
+// o SPA vier a ser servido como estaticos pela propria API (UseStaticFiles / MapFallbackToFile —
+// ver hospedagem em specs/03-arquitetura-tecnica.md), o registro deles tem que vir ANTES desta
+// guarda, senao ela devolve 404 para index.html, os assets e toda rota do SPA. Hoje nao se
+// aplica: nao ha UseStaticFiles neste projeto.
 app.Use(async (contexto, proximo) =>
 {
-  if (!contexto.Request.Path.StartsWithSegments(PrefixoDaApi))
+  if (!contexto.Request.Path.StartsWithSegments(PrefixoDaApi, StringComparison.Ordinal))
   {
     contexto.Response.StatusCode = StatusCodes.Status404NotFound;
     return;

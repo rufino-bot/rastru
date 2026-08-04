@@ -12,6 +12,20 @@ pipeline intacto, e diretamente matável por mutação. A alternativa (`app.Map(
 remontar rate limiter, autenticação, autorização e roteamento dentro do branch: mais peça móvel
 para o mesmo efeito. **Decisão do usuário em 2026-08-04.**
 
+> **Nota do fix pass da review final (2026-08-04):** o predicado descrito acima
+> (`!Request.PathBase.HasValue`, testado **depois** do `UsePathBase`) foi trocado por
+> `!Request.Path.StartsWithSegments("/api", StringComparison.Ordinal)`, testado **antes** do
+> `UsePathBase`. Motivo: sob sub-application/virtual directory do IIS o host já entrega
+> `PathBase` preenchido em toda requisição (`https://servidor/rastreamento` chega com
+> `PathBase=/rastreamento`), então um predicado sobre `PathBase` deixaria o caminho nu passar
+> exatamente nesse cenário — provado por
+> `Caminho_sem_o_prefixo_nao_responde_sob_sub_aplicacao`. O `StringComparison.Ordinal` veio depois,
+> num segundo fix pass, para não deixar `/API/setores` (maiúsculo) casar por
+> `OrdinalIgnoreCase` e gravar o cookie de refresh sob um `Path` de casing diferente. Ver o
+> comentário da guarda em `Program.cs` e `AuthEndpointsTests.PrefixoDeApi.cs` para o texto e os
+> testes finais — o resto deste plano é registro histórico da primeira versão, não o estado atual
+> do código.
+
 **Tech Stack:** ASP.NET Core (.NET 10), xUnit + `WebApplicationFactory`, SQL Server em Docker.
 
 ## Global Constraints
@@ -273,6 +287,14 @@ app.Use(async (contexto, proximo) =>
   await proximo();
 });
 ```
+
+> **Nota do fix pass da review final (2026-08-04):** este predicado foi substituído. O código
+> entregue testa `Request.Path.StartsWithSegments("/api", StringComparison.Ordinal)` **antes** do
+> `app.UsePathBase("/api")`, não `Request.PathBase.HasValue` depois dele. Razão: sob
+> sub-application do IIS o `PathBase` já vem preenchido pelo host em toda requisição, então testar
+> `PathBase` deixaria o caminho nu passar exatamente nesse deploy — o cenário que
+> `Caminho_sem_o_prefixo_nao_responde_sob_sub_aplicacao` prova. Ver `Program.cs` para o texto e o
+> comentário finais.
 
 - [ ] **Step 4: Rodar a suíte inteira**
 

@@ -17,9 +17,16 @@ escolha livre: o cookie de refresh é `SameSite=Strict`, que bloqueia cross-site
 
 **Fechado em 2026-08-04.** O prefixo entra por `UsePathBase`, que retira `/api` quando presente e
 deixaria passar quando ausente — sozinho ele faria a API responder também nos caminhos nus. Por
-isso há uma guarda logo depois dele: requisição sem `PathBase` recebe **404**. Os caminhos nus
-(`/setores`, `/auth/login`, `/me`) **não respondem**, e é isso que fecha a colisão com as rotas do
-SPA. Provado por `AuthEndpointsTests.PrefixoDeApi.cs`.
+isso há uma guarda **logo antes** dele: requisição cujo `Request.Path` não começa por `/api`
+(comparação ordinal) recebe **404**. A guarda testa `Path`, não `PathBase` — sob sub-application
+do IIS o host já entrega `PathBase` preenchido em toda requisição, e testar `PathBase` deixaria
+`/setores` passar sem prefixo nenhum; ler o `Path` antes do `UsePathBase` tirar o prefixo dele
+cobre esse caso. Os caminhos nus (`/setores`, `/auth/login`, `/me`) **não respondem**, e é isso que
+fecha a colisão com as rotas do SPA. Provado por `AuthEndpointsTests.PrefixoDeApi.cs`.
+
+Restrição de ordem que decorre disso: se o SPA vier a ser servido como estáticos pela própria API
+(`UseStaticFiles` / `MapFallbackToFile` — ver hospedagem, abaixo), o registro deles precisa vir
+**antes** da guarda, senão ela devolve 404 para `index.html`, os assets e toda rota do SPA.
 
 O `Path` do cookie de refresh é derivado do `PathBase` (`/api/auth`), e não literal: o cookie
 precisa ser gravado sob o mesmo prefixo em que `/auth/refresh` atende, senão o navegador não o

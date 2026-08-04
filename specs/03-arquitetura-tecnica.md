@@ -110,7 +110,7 @@ reais de frequência.
 - **Toda chamada de API leva o prefixo `/api`, aplicado num lugar só** — o `rota()` de
   `web/src/api/client.ts`. Quem escreve chamada nova passa o caminho **sem** o prefixo
   (`/setores`), como está em `05-api-endpoints.md`; escrever `/api/...` no call site duplicaria.
-  O motivo, e o estado de transição em que isso está, estão em `05-api-endpoints.md`.
+  O motivo, e o fechamento do prefixo, estão em `05-api-endpoints.md`.
 - **PWA/offline: não é necessário no MVP.** Confirmado com o negócio — pode entrar depois
   se o uso em campo mostrar necessidade real (ex.: instabilidade de wifi na fábrica). Não
   desenhar a camada de estado pensando nisso agora, para não adicionar complexidade
@@ -129,12 +129,17 @@ reais de frequência.
   (ex.: nginx), a definir conforme o que já existe de infraestrutura na empresa.
 - Frontend: build estático (Vite build) servido pelo próprio IIS/nginx, ou embutido como
   arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy on-premise
-  com uma única aplicação publicada.
+  com uma única aplicação publicada. **Atenção de ordem de pipeline se for este o caminho:**
+  `UseStaticFiles` / `MapFallbackToFile` precisam ser registrados **antes** da guarda do prefixo
+  `/api` (ver abaixo e `Program.cs`) — ela é um 404 cego para tudo que não começa com `/api`, e
+  registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA. Hoje não se
+  aplica: não há `UseStaticFiles` em `src/`.
 - **Se o SPA e a API ficarem na mesma origem** (o segundo caso acima, e o mais provável: o cookie
-  de refresh é `SameSite=Strict`, que inviabiliza cross-site), **é obrigatório que os caminhos nus
-  da API tenham parado de responder** antes do deploy — hoje ainda respondem, junto com `/api`.
-  Senão a colisão entre rota de SPA e rota de API volta, e em produção não há dev server para
-  interceptar: `GET /pedidos` como navegação de documento cai na API e responde 401.
+  de refresh é `SameSite=Strict`, que inviabiliza cross-site), era obrigatório que os caminhos nus
+  da API tivessem parado de responder antes do deploy — senão a colisão entre rota de SPA e rota
+  de API voltaria, e em produção não há dev server para interceptar: `GET /pedidos` como
+  navegação de documento cairia na API e responderia 401. **Feito:** desde o fechamento do
+  prefixo (2026-08-04), só `/api` responde; os caminhos nus devolvem 404.
   Ver a seção de prefixo em `05-api-endpoints.md`.
 
 ## CI/CD

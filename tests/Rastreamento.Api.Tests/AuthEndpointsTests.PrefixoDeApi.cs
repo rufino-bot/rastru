@@ -89,6 +89,31 @@ public partial class AuthEndpointsTests
   }
 
   /// <summary>
+  /// Casing. <c>PathString.StartsWithSegments</c> e <c>OrdinalIgnoreCase</c> por padrao, entao sem
+  /// <c>StringComparison.Ordinal</c> explicito no predicado <c>/API/setores</c> tambem casaria a
+  /// guarda e a API responderia. Isso nao reabre a colisao com o SPA (que usa caminhos nus, sem
+  /// prefixo algum), mas o <c>UsePathBaseMiddleware</c> grava em <c>PathBase</c> o segmento como
+  /// chegou na requisicao — entao um login em <c>/API/auth/login</c> gravaria o cookie de refresh
+  /// com <c>Path=/API/auth</c>, e matching de <c>Path</c> de cookie e case-SENSITIVE (RFC 6265
+  /// Sec5.1.4): esse cookie nunca voltaria para <c>/api/auth/refresh</c> em minuscula, e a sessao
+  /// morreria no primeiro refresh, sem erro nenhum na hora do login. Por isso maiuscula e
+  /// recusada (404 alto, imediato) em vez de aceita: e preferivel a sessao que morre calada.
+  ///
+  /// Prova por mutacao (fix pass, 2026-08-04): revertendo o predicado para a sobrecarga sem
+  /// <c>StringComparison</c> (equivalente a <c>OrdinalIgnoreCase</c>), este teste passou a falhar
+  /// recebendo <c>401 Unauthorized</c> em vez do <c>404</c> esperado — a guarda deixou
+  /// <c>/API/setores</c> passar e a rota casou normalmente, so faltando token. Restaurado o
+  /// <c>StringComparison.Ordinal</c> em seguida.
+  /// </summary>
+  [Fact]
+  public async Task Caminho_com_prefixo_em_maiuscula_nao_responde()
+  {
+    var resposta = await _factory.CreateClient().GetAsync("/API/setores");
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  /// <summary>
   /// Testemunho local e rapido de que 404 nao e a resposta universal: sem ele, o par 404/401 que
   /// este arquivo documenta ficaria so metade, e um 404 vindo de rota quebrada (e nao da guarda)
   /// pareceria sucesso aqui dentro. 401, e nao 404, significa que a rota casou e so faltou token.
