@@ -57,14 +57,14 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoCliente();
 
-    var resposta = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+    var resposta = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var cookie = CookieDeRefresh(resposta);
     Assert.Contains("httponly", cookie, StringComparison.OrdinalIgnoreCase);
     Assert.Contains("secure", cookie, StringComparison.OrdinalIgnoreCase);
     Assert.Contains("samesite=strict", cookie, StringComparison.OrdinalIgnoreCase);
-    Assert.Contains("path=/auth", cookie, StringComparison.OrdinalIgnoreCase);
+    Assert.Contains("path=/api/auth", cookie, StringComparison.OrdinalIgnoreCase);
   }
 
   [Fact]
@@ -72,7 +72,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoCliente();
 
-    var resposta = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+    var resposta = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
 
     var refreshPlano = ValorDoRefresh(resposta);
     var corpo = await resposta.Content.ReadAsStringAsync();
@@ -85,7 +85,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoCliente();
 
-    var resposta = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+    var resposta = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
 
     // A borda de fuso e a API: por dentro tudo e UTC, no JSON sai ISO 8601 com offset -03:00.
     var expiraEm = Campo(await resposta.Content.ReadAsStringAsync(), "accessTokenExpiraEm").GetString();
@@ -99,11 +99,11 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     // Varre o corpo inteiro em vez de checar uma propriedade conhecida: o conversor global
     // existe justamente para que uma data nova, num endpoint novo, nao passe despercebida.
     var cliente = NovoCliente();
-    var login = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
-    var refresh = await cliente.PostAsync("/auth/refresh", null);
+    var login = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
+    var refresh = await cliente.PostAsync("/api/auth/refresh", null);
     cliente.DefaultRequestHeaders.Authorization =
         new("Bearer", Campo(await refresh.Content.ReadAsStringAsync(), "accessToken").GetString());
-    var me = await cliente.GetAsync("/me");
+    var me = await cliente.GetAsync("/api/me");
 
     var datas = new List<string>();
     foreach (var resposta in new[] { login, refresh, me })
@@ -133,7 +133,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     await using var usuario = await UsuarioDeTeste.CriarAsync(_factory.Services, "login");
     var cliente = NovoCliente();
 
-    var resposta = await cliente.PostAsJsonAsync("/auth/login",
+    var resposta = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
@@ -149,9 +149,9 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     await using var usuario = await UsuarioDeTeste.CriarAsync(_factory.Services, "login");
     var cliente = NovoCliente();
 
-    var senhaErrada = await cliente.PostAsJsonAsync("/auth/login",
+    var senhaErrada = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = "errada" });
-    var usuarioInexistente = await cliente.PostAsJsonAsync("/auth/login",
+    var usuarioInexistente = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = "ninguem", senha = "Admin@123" });
 
     Assert.Equal(senhaErrada.StatusCode, usuarioInexistente.StatusCode);
@@ -166,7 +166,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoCliente();
 
-    var resposta = await cliente.GetAsync("/me");
+    var resposta = await cliente.GetAsync("/api/me");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -175,12 +175,12 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   public async Task Me_com_access_token_retorna_o_usuario_autenticado()
   {
     var cliente = NovoCliente();
-    var login = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+    var login = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
     var corpoLogin = await login.Content.ReadAsStringAsync();
     cliente.DefaultRequestHeaders.Authorization =
         new("Bearer", Campo(corpoLogin, "accessToken").GetString());
 
-    var resposta = await cliente.GetAsync("/me");
+    var resposta = await cliente.GetAsync("/api/me");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = await resposta.Content.ReadAsStringAsync();
@@ -202,7 +202,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     cliente.DefaultRequestHeaders.Authorization =
         new("Bearer", TokenDeTeste.TokenSemAClaim(_factory, claimOmitida));
 
-    var resposta = await cliente.GetAsync("/me");
+    var resposta = await cliente.GetAsync("/api/me");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -216,10 +216,10 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     // Application nao pegam um registro de DI errado (Transient faria a revogacao do token
     // antigo cair num DbContext diferente do SaveChanges e se perder em silencio).
     var cliente = NovoCliente();
-    var login = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+    var login = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
     var refreshAntigo = ValorDoRefresh(login);
 
-    var renovacao = await cliente.PostAsync("/auth/refresh", null);
+    var renovacao = await cliente.PostAsync("/api/auth/refresh", null);
 
     Assert.Equal(HttpStatusCode.OK, renovacao.StatusCode);
     var refreshNovo = ValorDoRefresh(renovacao);
@@ -233,7 +233,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     Assert.Equal(_hasher.Hash(refreshNovo), antigoNoBanco.SubstituidoPorTokenHash);
 
     var comTokenAntigo = NovoClienteComRefresh(refreshAntigo);
-    var segundaRenovacao = await comTokenAntigo.PostAsync("/auth/refresh", null);
+    var segundaRenovacao = await comTokenAntigo.PostAsync("/api/auth/refresh", null);
     Assert.Equal(HttpStatusCode.Unauthorized, segundaRenovacao.StatusCode);
   }
 
@@ -242,7 +242,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoCliente();
 
-    var resposta = await cliente.PostAsync("/auth/refresh", null);
+    var resposta = await cliente.PostAsync("/api/auth/refresh", null);
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -252,7 +252,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoClienteComRefresh("token-que-nunca-existiu");
 
-    var resposta = await cliente.PostAsync("/auth/refresh", null);
+    var resposta = await cliente.PostAsync("/api/auth/refresh", null);
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -281,7 +281,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
       return await db.SaveChangesAsync();
     });
 
-    var resposta = await NovoClienteComRefresh(refreshPlano).PostAsync("/auth/refresh", null);
+    var resposta = await NovoClienteComRefresh(refreshPlano).PostAsync("/api/auth/refresh", null);
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -292,17 +292,17 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   public async Task Logout_revoga_o_token_no_banco_e_limpa_o_cookie()
   {
     var cliente = NovoCliente();
-    var login = await cliente.PostAsJsonAsync("/auth/login", Credenciais);
+    var login = await cliente.PostAsJsonAsync("/api/auth/login", Credenciais);
     var refreshPlano = ValorDoRefresh(login);
 
-    var resposta = await cliente.PostAsync("/auth/logout", null);
+    var resposta = await cliente.PostAsync("/api/auth/logout", null);
 
     Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
 
     // A remocao tem que repetir os atributos da emissao: o navegador so casa o Set-Cookie de
     // remocao com o cookie existente se Path, Secure, SameSite e HttpOnly baterem.
     var cookieDeRemocao = CookieDeRefresh(resposta);
-    Assert.Contains("path=/auth", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
+    Assert.Contains("path=/api/auth", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
     Assert.Contains("httponly", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
     Assert.Contains("secure", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
     Assert.Contains("samesite=strict", cookieDeRemocao, StringComparison.OrdinalIgnoreCase);
@@ -312,7 +312,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
         .SingleAsync(t => t.TokenHash == hash));
     Assert.NotNull(noBanco.RevogadoEm);
 
-    var aposLogout = await NovoClienteComRefresh(refreshPlano).PostAsync("/auth/refresh", null);
+    var aposLogout = await NovoClienteComRefresh(refreshPlano).PostAsync("/api/auth/refresh", null);
     Assert.Equal(HttpStatusCode.Unauthorized, aposLogout.StatusCode);
   }
 
@@ -322,7 +322,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     // Logout e idempotente por design: nunca sinaliza falha, nem vaza a existencia do token.
     var cliente = NovoCliente();
 
-    var resposta = await cliente.PostAsync("/auth/logout", null);
+    var resposta = await cliente.PostAsync("/api/auth/logout", null);
 
     Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
   }
@@ -332,7 +332,7 @@ public partial class AuthEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = NovoClienteComRefresh("token-que-nunca-existiu");
 
-    var resposta = await cliente.PostAsync("/auth/logout", null);
+    var resposta = await cliente.PostAsync("/api/auth/logout", null);
 
     Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
   }

@@ -68,7 +68,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var numero = $"ped-{Guid.NewGuid():N}"[..25];
     _numerosCriados.Add(numero);
-    var resposta = await cliente.PostAsJsonAsync("/pedidos", new { numero, cliente = "Cliente X" });
+    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
     return JsonDocument.Parse(await resposta.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
   }
@@ -79,7 +79,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   /// <summary>Cria um Agrupamento pela API e devolve o Id — usado pelos casos de PUT e DELETE.</summary>
   private static async Task<int> NovoAgrupamento(HttpClient cliente, int pedidoId, string codigo = "AG-01")
   {
-    var criado = await cliente.PostAsJsonAsync($"/pedidos/{pedidoId}/agrupamentos", Kit(codigo));
+    var criado = await cliente.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", Kit(codigo));
     return JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
   }
@@ -90,7 +90,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var cliente = ClienteComo("PCP");
     var pedidoId = await NovoPedido(cliente);
 
-    var resposta = await cliente.PostAsJsonAsync($"/pedidos/{pedidoId}/agrupamentos", Kit());
+    var resposta = await cliente.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", Kit());
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -100,9 +100,9 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   }
 
   [Theory]
-  [InlineData("POST", "/pedidos/999999/agrupamentos")]
-  [InlineData("PUT", "/agrupamentos/999999")]
-  [InlineData("DELETE", "/agrupamentos/999999")]
+  [InlineData("POST", "/api/pedidos/999999/agrupamentos")]
+  [InlineData("PUT", "/api/agrupamentos/999999")]
+  [InlineData("DELETE", "/api/agrupamentos/999999")]
   public async Task Operador_nao_escreve_em_agrupamento(string metodo, string rota)
   {
     // O [Authorize(Roles = "PCP,Administrador")] roda antes do model binding e da action, entao
@@ -123,7 +123,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var pedidoId = await NovoPedido(ClienteComo("PCP"));
 
-    var leitura = await ClienteComo("Operador").GetAsync($"/pedidos/{pedidoId}/agrupamentos");
+    var leitura = await ClienteComo("Operador").GetAsync($"/api/pedidos/{pedidoId}/agrupamentos");
 
     Assert.Equal(HttpStatusCode.OK, leitura.StatusCode);
   }
@@ -131,7 +131,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   [Fact]
   public async Task Sem_token_nao_le_a_lista()
   {
-    var resposta = await _factory.CreateClient().GetAsync("/pedidos/999999/agrupamentos");
+    var resposta = await _factory.CreateClient().GetAsync("/api/pedidos/999999/agrupamentos");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -141,9 +141,9 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = ClienteComo("PCP");
     var pedidoId = await NovoPedido(cliente);
-    await cliente.PostAsJsonAsync($"/pedidos/{pedidoId}/agrupamentos", Kit());
+    await cliente.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", Kit());
 
-    var resposta = await cliente.PostAsJsonAsync($"/pedidos/{pedidoId}/agrupamentos", Kit());
+    var resposta = await cliente.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", Kit());
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -157,9 +157,9 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var cliente = ClienteComo("PCP");
     var primeiro = await NovoPedido(cliente);
     var segundo = await NovoPedido(cliente);
-    await cliente.PostAsJsonAsync($"/pedidos/{primeiro}/agrupamentos", Kit());
+    await cliente.PostAsJsonAsync($"/api/pedidos/{primeiro}/agrupamentos", Kit());
 
-    var resposta = await cliente.PostAsJsonAsync($"/pedidos/{segundo}/agrupamentos", Kit());
+    var resposta = await cliente.PostAsJsonAsync($"/api/pedidos/{segundo}/agrupamentos", Kit());
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
@@ -171,7 +171,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var pedidoId = await NovoPedido(cliente);
 
     var resposta = await cliente.PostAsJsonAsync(
-        $"/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Conjunto" });
+        $"/api/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Conjunto" });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -195,7 +195,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var pedidoId = await NovoPedido(cliente);
 
     var resposta = await cliente.PostAsJsonAsync(
-        $"/pedidos/{pedidoId}/agrupamentos",
+        $"/api/pedidos/{pedidoId}/agrupamentos",
         new { codigo = new string('x', 51), tipo = "Kit" });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
@@ -205,7 +205,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   public async Task Criar_agrupamento_em_pedido_inexistente_responde_404()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/pedidos/999999/agrupamentos", Kit());
+        .PostAsJsonAsync("/api/pedidos/999999/agrupamentos", Kit());
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -216,11 +216,11 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var cliente = ClienteComo("PCP");
     var pedidoId = await NovoPedido(cliente);
     var id = await NovoAgrupamento(cliente, pedidoId);
-    var original = JsonDocument.Parse(await cliente.GetStringAsync($"/agrupamentos/{id}")).RootElement;
+    var original = JsonDocument.Parse(await cliente.GetStringAsync($"/api/agrupamentos/{id}")).RootElement;
     var criadoEm = original.GetProperty("criadoEm").GetString();
 
     var resposta = await cliente.PutAsJsonAsync(
-        $"/agrupamentos/{id}", new { codigo = "AG-01", tipo = "Avulso" });
+        $"/api/agrupamentos/{id}", new { codigo = "AG-01", tipo = "Avulso" });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -231,7 +231,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
 
     // Releitura: sem o SaveChanges o corpo acima ainda viria certo (e a projecao em memoria),
     // mas o GET seguinte devolveria o valor antigo.
-    var relido = JsonDocument.Parse(await cliente.GetStringAsync($"/agrupamentos/{id}")).RootElement;
+    var relido = JsonDocument.Parse(await cliente.GetStringAsync($"/api/agrupamentos/{id}")).RootElement;
     Assert.Equal("Avulso", relido.GetProperty("tipo").GetString());
   }
 
@@ -241,7 +241,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     // Sem este caso nada exercita o `resultado.Sucesso ? Ok(...) : TraduzirFalha(...)` do PUT:
     // trocar o corpo da action por `return Ok(resultado.Valor);` passaria batido (adendo B7).
     var resposta = await ClienteComo("PCP").PutAsJsonAsync(
-        "/agrupamentos/999999", new { codigo = "AG-01", tipo = "Kit" });
+        "/api/agrupamentos/999999", new { codigo = "AG-01", tipo = "Kit" });
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -262,7 +262,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var segundo = await NovoAgrupamento(cliente, pedidoId, "AG-02");
 
     var resposta = await cliente.PutAsJsonAsync(
-        $"/agrupamentos/{segundo}", new { codigo = "AG-01", tipo = "Kit" });
+        $"/api/agrupamentos/{segundo}", new { codigo = "AG-01", tipo = "Kit" });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -273,7 +273,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   [Fact]
   public async Task Obter_agrupamento_inexistente_responde_404()
   {
-    var resposta = await ClienteComo("PCP").GetAsync("/agrupamentos/999999");
+    var resposta = await ClienteComo("PCP").GetAsync("/api/agrupamentos/999999");
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -285,8 +285,8 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var pedidoId = await NovoPedido(cliente);
     var id = await NovoAgrupamento(cliente, pedidoId);
 
-    var primeira = await cliente.DeleteAsync($"/agrupamentos/{id}");
-    var segunda = await cliente.DeleteAsync($"/agrupamentos/{id}");
+    var primeira = await cliente.DeleteAsync($"/api/agrupamentos/{id}");
+    var segunda = await cliente.DeleteAsync($"/api/agrupamentos/{id}");
 
     Assert.Equal(HttpStatusCode.NoContent, primeira.StatusCode);
     Assert.Equal(HttpStatusCode.NotFound, segunda.StatusCode);
@@ -308,7 +308,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
           $"INSERT INTO dbo.EstruturaItem (AgrupamentoId, NivelHierarquico, Quantidade) VALUES ({id}, 'Peca', 1)");
     }
 
-    var resposta = await cliente.DeleteAsync($"/agrupamentos/{id}");
+    var resposta = await cliente.DeleteAsync($"/api/agrupamentos/{id}");
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -332,7 +332,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
       await db.SaveChangesAsync();
     }
 
-    var resposta = await cliente.DeleteAsync($"/agrupamentos/{id}");
+    var resposta = await cliente.DeleteAsync($"/api/agrupamentos/{id}");
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -344,10 +344,10 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   {
     var cliente = ClienteComo("PCP");
     var pedidoId = await NovoPedido(cliente);
-    await cliente.PostAsJsonAsync($"/pedidos/{pedidoId}/agrupamentos", Kit("AG-01"));
-    await cliente.PostAsJsonAsync($"/pedidos/{pedidoId}/agrupamentos", Kit("AG-02"));
+    await cliente.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", Kit("AG-01"));
+    await cliente.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", Kit("AG-02"));
 
-    var lista = await cliente.GetStringAsync($"/pedidos/{pedidoId}/agrupamentos");
+    var lista = await cliente.GetStringAsync($"/api/pedidos/{pedidoId}/agrupamentos");
 
     Assert.Contains("AG-01", lista);
     Assert.Contains("AG-02", lista);
@@ -368,7 +368,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     cliente.DefaultRequestHeaders.Authorization =
         new AuthenticationHeaderValue("Bearer", TokenDeTeste.TokenSemAClaim(_factory, "sub"));
 
-    var resposta = await cliente.PostAsJsonAsync("/pedidos/999999/agrupamentos", Kit());
+    var resposta = await cliente.PostAsJsonAsync("/api/pedidos/999999/agrupamentos", Kit());
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }

@@ -25,21 +25,21 @@ public class ReusoDeRefreshTokenTests : IClassFixture<WebApplicationFactory<Prog
 
     // O legitimo faz login (token A) e renova uma vez (token B).
     var cliente = NovoCliente();
-    var login = await cliente.PostAsJsonAsync("/auth/login",
+    var login = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = UsuarioDeTeste.Senha });
     Assert.Equal(HttpStatusCode.OK, login.StatusCode);
     var tokenA = ValorDoRefresh(login);
 
-    var renovacao = await ComRefresh(tokenA).PostAsync("/auth/refresh", null);
+    var renovacao = await ComRefresh(tokenA).PostAsync("/api/auth/refresh", null);
     Assert.Equal(HttpStatusCode.OK, renovacao.StatusCode);
     var tokenB = ValorDoRefresh(renovacao);
 
     // Alguem reapresenta o A (ja rotacionado): sinal de que o refresh vazou.
-    var replay = await ComRefresh(tokenA).PostAsync("/auth/refresh", null);
+    var replay = await ComRefresh(tokenA).PostAsync("/api/auth/refresh", null);
     Assert.Equal(HttpStatusCode.Unauthorized, replay.StatusCode);
 
     // O ponto da defesa: o B — que estava valido ate agora — cai junto.
-    var aposQueima = await ComRefresh(tokenB).PostAsync("/auth/refresh", null);
+    var aposQueima = await ComRefresh(tokenB).PostAsync("/api/auth/refresh", null);
     Assert.Equal(HttpStatusCode.Unauthorized, aposQueima.StatusCode);
 
     using var escopo = _factory.Services.CreateScope();
@@ -58,13 +58,13 @@ public class ReusoDeRefreshTokenTests : IClassFixture<WebApplicationFactory<Prog
     await using var usuario = await UsuarioDeTeste.CriarAsync(_factory.Services, "reuso");
 
     var cliente = NovoCliente();
-    var login = await cliente.PostAsJsonAsync("/auth/login",
+    var login = await cliente.PostAsJsonAsync("/api/auth/login",
         new { nomeUsuario = usuario.NomeUsuario, senha = UsuarioDeTeste.Senha });
     var tokenA = ValorDoRefresh(login);
-    await ComRefresh(tokenA).PostAsync("/auth/refresh", null);
+    await ComRefresh(tokenA).PostAsync("/api/auth/refresh", null);
 
-    var reuso = await ComRefresh(tokenA).PostAsync("/auth/refresh", null);
-    var desconhecido = await ComRefresh("token-que-nunca-existiu").PostAsync("/auth/refresh", null);
+    var reuso = await ComRefresh(tokenA).PostAsync("/api/auth/refresh", null);
+    var desconhecido = await ComRefresh("token-que-nunca-existiu").PostAsync("/api/auth/refresh", null);
 
     Assert.Equal(desconhecido.StatusCode, reuso.StatusCode);
     Assert.Equal(await desconhecido.Content.ReadAsStringAsync(),

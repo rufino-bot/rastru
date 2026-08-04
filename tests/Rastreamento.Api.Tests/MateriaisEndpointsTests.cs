@@ -53,15 +53,15 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   public async Task Administrador_cadastra_material()
   {
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/materiais", CorpoValido(CodigoUnico()));
+        .PostAsJsonAsync("/api/materiais", CorpoValido(CodigoUnico()));
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
 
   [Theory]
-  [InlineData("POST", "/materiais")]
-  [InlineData("PUT", "/materiais/999999")]
-  [InlineData("PATCH", "/materiais/999999/ativo")]
+  [InlineData("POST", "/api/materiais")]
+  [InlineData("PUT", "/api/materiais/999999")]
+  [InlineData("PATCH", "/api/materiais/999999/ativo")]
   public async Task Almoxarifado_nao_escreve_em_material(string metodo, string rota)
   {
     // Almoxarifado e o perfil que MAIS mexe com material no dia a dia e mesmo assim nao escreve
@@ -87,7 +87,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   [Fact]
   public async Task Almoxarifado_le_a_lista_de_materiais()
   {
-    var resposta = await ClienteComo("Almoxarifado").GetAsync("/materiais");
+    var resposta = await ClienteComo("Almoxarifado").GetAsync("/api/materiais");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
   }
@@ -95,7 +95,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   [Fact]
   public async Task Sem_token_nao_le_a_lista()
   {
-    var resposta = await _factory.CreateClient().GetAsync("/materiais");
+    var resposta = await _factory.CreateClient().GetAsync("/api/materiais");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
@@ -105,13 +105,13 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   {
     var cliente = ClienteComo("Administrador");
     var codigo = CodigoUnico();
-    var criado = await cliente.PostAsJsonAsync("/materiais", CorpoValido(codigo));
+    var criado = await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
-    await cliente.PatchAsJsonAsync($"/materiais/{id}/ativo", new { ativo = false });
+    await cliente.PatchAsJsonAsync($"/api/materiais/{id}/ativo", new { ativo = false });
 
-    var resposta = await cliente.PostAsJsonAsync("/materiais", CorpoValido(codigo));
+    var resposta = await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -126,14 +126,14 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   {
     var cliente = ClienteComo("Administrador");
     var codigo = CodigoUnico();
-    var criado = await cliente.PostAsJsonAsync("/materiais", CorpoValido(codigo));
+    var criado = await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
-    await cliente.PatchAsJsonAsync($"/materiais/{id}/ativo", new { ativo = false });
+    await cliente.PatchAsJsonAsync($"/api/materiais/{id}/ativo", new { ativo = false });
 
-    var padrao = await cliente.GetStringAsync("/materiais");
-    var comInativos = await cliente.GetStringAsync("/materiais?incluirInativos=true");
+    var padrao = await cliente.GetStringAsync("/api/materiais");
+    var comInativos = await cliente.GetStringAsync("/api/materiais?incluirInativos=true");
 
     Assert.DoesNotContain(codigo, padrao);
     Assert.Contains(codigo, comInativos);
@@ -144,12 +144,12 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   {
     var cliente = ClienteComo("Administrador");
     var codigo = CodigoUnico();
-    var criado = await cliente.PostAsJsonAsync("/materiais", CorpoValido(codigo));
+    var criado = await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
     var resposta = await cliente.PutAsJsonAsync(
-        $"/materiais/{id}", new { codigo, descricao = "Chapa de aco 5mm", unidadeMedida = "UN" });
+        $"/api/materiais/{id}", new { codigo, descricao = "Chapa de aco 5mm", unidadeMedida = "UN" });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -161,7 +161,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   public async Task Editar_material_inexistente_responde_404()
   {
     var resposta = await ClienteComo("Administrador")
-        .PutAsJsonAsync("/materiais/999999", CorpoValido(CodigoUnico()));
+        .PutAsJsonAsync("/api/materiais/999999", CorpoValido(CodigoUnico()));
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -170,7 +170,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   public async Task Unidade_de_medida_em_branco_responde_400()
   {
     var resposta = await ClienteComo("Administrador").PostAsJsonAsync(
-        "/materiais", new { codigo = CodigoUnico(), descricao = "Chapa", unidadeMedida = " " });
+        "/api/materiais", new { codigo = CodigoUnico(), descricao = "Chapa", unidadeMedida = " " });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -193,7 +193,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     };
     valores[campo] = new string('x', tamanho);
 
-    var resposta = await ClienteComo("Administrador").PostAsJsonAsync("/materiais", valores);
+    var resposta = await ClienteComo("Administrador").PostAsJsonAsync("/api/materiais", valores);
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
