@@ -153,7 +153,7 @@ Mesmo caminho de `Material`; o único arquivo sem análogo é o `PaginaDto<T>`.
 | `Application/Cadastros/Dtos.cs` | `ComponenteDto`, `NovoComponenteDto` (acrescentar) |
 | `Application/Cadastros/CadastroDeComponenteUseCase.cs` | validação, duplicidade, faixa |
 | `Api/Controllers/ComponentesController.cs` | herda `CadastroControllerBase` |
-| `web/src/api/cadastros.ts` | `listarComponentes`, `criarComponente`, `editarComponente`, `definirAtivoComponente` |
+| `web/src/api/cadastros.ts` | `listarComponentes`, `criarComponente`, `definirAtivoComponente` |
 | `web/src/pages/ComponentesPage.tsx` | tela |
 | `web/src/App.tsx` (rota) + navegação | entrada da tela |
 
@@ -169,6 +169,11 @@ Task<(IReadOnlyList<Componente> Itens, int Total)> ListarAsync(FiltroDeComponent
 
 O repositório vive em `Domain` e por isso devolve **tupla de entidades**, não `PaginaDto<T>` — DTO é
 camada de `Application`. Quem monta o `PaginaDto` é o caso de uso.
+
+**Sem `editarComponente` no front.** O `PUT /componentes/{id}` existe e fica provado no backend, mas
+a tela não tem UI de edição (mesmo molde de `MateriaisPage`). Exportar a função sem chamador seria
+código morto — é a mesma decisão, com o mesmo motivo, que `cadastros.ts` já registra para
+`editarPedido`. Ela nasce junto com a tela que a usar.
 
 A validação da faixa fica **no caso de uso**, não no controller: é regra, e regra mora em
 `Application` neste projeto.
