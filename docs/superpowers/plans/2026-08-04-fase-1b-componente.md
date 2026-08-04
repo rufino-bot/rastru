@@ -2453,6 +2453,10 @@ divergência é o achado mais importante do relatório.
 
 - [ ] **Step 2: Atualizar `specs/06-roadmap-mvp.md`**
 
+**Não mexa na seção "Fora das fases — importar a estrutura a partir do CAD"**, no fim do arquivo:
+ela já foi escrita em 2026-08-04, registra decisão do usuário, e não é trabalho desta fase. Os dois
+trechos abaixo são os únicos a mudar.
+
 Substitua o bloco de citação da Fase 1 (linhas 25–29) por:
 
 ```markdown

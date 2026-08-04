@@ -117,3 +117,47 @@ convida o operador a não conferir.
 fotografadas na condição de captura pretendida (fundo claro, maior superfície de contato à
 mostra), medindo a **taxa de acerto no top-3 dentro de uma lista de setor**. É resultado
 empírico — nenhuma análise substitui esse número. Só entra no roadmap depois dele.
+
+## Fora das fases — importar a estrutura a partir do CAD (decidido em 2026-08-04)
+
+**Problema que motiva:** hoje a árvore de uma Peça é digitada à mão, item por item — e ela já
+existe, pronta e correta, dentro do arquivo de montagem do CAD.
+
+**Decidido: o insumo é o BOM indentado exportado (CSV/XLSX), não o `.SLDASM`.** Palavras do
+usuário: *"se o Solid consegue exportar o BOM, já nos atende"*.
+
+Por que **não** ler `.SLDASM` direto: é formato proprietário e não documentado da Dassault (OLE
+compound file com estruturas fechadas), sem biblioteca aberta confiável. As únicas saídas seriam a
+**SolidWorks Document Manager API** (exige chave de licença da Dassault) ou a **API COM do
+SolidWorks** (exige SolidWorks instalado e licenciado na máquina do servidor — inviável para uma API
+web on-premise). É a mesma razão pela qual `Componente.ArquivoSolido` já é **STEP ou STL, não
+`.SLDPRT`** (ver `02-modelo-de-dados.sql`); a regra vale um nível acima, para a montagem.
+
+O BOM indentado carrega **nível de indentação, part number, descrição e quantidade** — que é
+literalmente a forma de `ComponenteFilhoPadrao` (pai → filho + `QuantidadePadrao`) e de
+`EstruturaItem` (árvore recursiva com quantidade). Parser trivial em C#, sem dependência
+proprietária.
+
+Alternativa descartada por agora, não por ser ruim: **STEP AP242/AP214 da montagem** — formato ISO
+aberto, seria o mesmo arquivo que já serve ao sólido, mas o parser é bem mais pesado e o STEP
+costuma trazer **nome de arquivo** em vez de part number, o que piora a conferência.
+
+**Conciliação part number ↔ `Componente.Codigo`: resolvida como regra de negócio.** O sistema não
+modela a numeração do cliente (ver glossário em `01`), então o código do CAD pode não ser o `Codigo`
+do catálogo. **Quem importa confere as peças depois — código e quantidade.** O usuário assumiu
+explicitamente que isso exige uma disciplina de cadastro que a empresa hoje não tem por padrão, e
+que parte do esforço precisa partir do lado do cliente: é **pré-requisito declarado de uso da
+ferramenta**, não um risco em aberto.
+
+**Consequência que barateia a fase:** como a conferência humana é obrigatória de qualquer modo, o
+import **não precisa acertar tudo**. Ele é pré-preenchimento, não automação — casamento parcial já
+entrega valor, e a fase não carrega o requisito de resolver o caso ambíguo.
+
+**Forma:** o import gera uma **proposta** que um humano confere e confirma; nunca gravação direta.
+
+**Não muda o schema.** As tabelas de `Componente`/receita padrão (Fases 1B e 1C) e `EstruturaItem`
+(Fase 2) já são o destino do import.
+
+**Efeito único sobre a Fase 1C:** o caso de uso que grava a receita padrão deve aceitar **uma lista
+de linhas de uma vez**, e não só uma linha por chamada. É quase de graça agora e evita reescrever o
+caso de uso quando o import chegar; a tela continua digitando linha a linha.

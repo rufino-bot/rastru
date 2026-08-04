@@ -288,8 +288,9 @@ Distribuição por projeto:
 
 ## Apêndice — viabilidade de importar a estrutura do CAD
 
-Levantado pelo usuário nesta sessão e respondido aqui para não se perder. **Não é trabalho da 1B nem
-da 1C**; deve migrar para `specs/06` quando a fase de import for planejada.
+Levantado pelo usuário nesta sessão, respondido e **decidido** aqui. **Não é trabalho da 1B nem da
+1C.** A decisão está registrada em `specs/06-roadmap-mvp.md`, que é a fonte de verdade do roadmap;
+este apêndice guarda o raciocínio que levou a ela.
 
 A pergunta era se dá para ler o **arquivo de montagem** (`.SLDASM`) e gerar automaticamente os
 componentes, quantidades e `EstruturaItem`.
@@ -315,14 +316,24 @@ Isso é coerente com decisão já tomada: `specs/02` define `ArquivoSolido` como
    não part number — a conciliação piora.
 3. **Document Manager API** — só se a empresa já tiver a licença. Não depender disso.
 
-**O problema real não é o parser, é a conciliação.** `specs/01` registra que o sistema não modela a
-numeração do cliente e que `Componente.Codigo` é atribuído por quem cadastra. Se o part number do CAD
-não for o mesmo `Codigo` do catálogo, o import não casa nada e vira "criar tudo de novo a cada
-montagem" — pior que digitar. É decisão de disciplina de cadastro, não de código.
+**Caminho escolhido pelo usuário em 2026-08-04: o BOM indentado (opção 1).** "Se o Solid consegue
+exportar o BOM, já nos atende."
 
-**Forma recomendada quando virar fase:** o import gera uma **proposta** que um humano confere e
-confirma, nunca gravação direta — "importar do CAD e conferir". **Nada disso muda o schema**: as
-tabelas da 1B e da 1C já são o destino do import.
+**A conciliação part number ↔ `Componente.Codigo` foi resolvida como decisão de negócio, não de
+código.** Eu havia levantado que, se o part number do CAD não for o mesmo `Codigo` do catálogo, o
+import não casa nada e vira "criar tudo de novo a cada montagem". O usuário fechou a questão: **quem
+importa confere depois as peças, código e quantidade** — e assumiu explicitamente que isso exige
+disciplina de cadastro que a empresa hoje não tem por padrão, com parte do esforço partindo do lado
+do cliente. É pré-requisito de uso da ferramenta, declarado, não um risco pendente.
+
+**Consequência que essa decisão traz, e que vale a favor:** se um humano confere código e quantidade
+de qualquer modo, **o import não precisa acertar tudo**. Ele é pré-preenchimento, não automação — um
+casamento parcial já entrega valor, e a fase não carrega o requisito de resolver o caso ambíguo.
+Isso baixa a barra técnica de forma significativa e é o que torna a opção 1 suficiente.
+
+**Forma quando virar fase:** o import gera uma **proposta** que um humano confere e confirma, nunca
+gravação direta — "importar do CAD e conferir". **Nada disso muda o schema**: as tabelas da 1B e da
+1C já são o destino do import. Registrado em `specs/06-roadmap-mvp.md`.
 
 **Efeito único sobre a 1C:** o caso de uso que grava a receita deve aceitar **uma lista de linhas de
 uma vez**, não só uma linha por chamada. É quase de graça e evita reescrever o caso de uso depois; a
