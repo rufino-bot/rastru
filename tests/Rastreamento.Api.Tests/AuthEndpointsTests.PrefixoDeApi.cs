@@ -5,46 +5,59 @@ using Microsoft.AspNetCore.Mvc.Testing;
 namespace Rastreamento.Api.Tests;
 
 /// <summary>
-/// Guardas do prefixo <c>/api</c> (<c>UsePathBase</c> em Program.cs). Vivem aqui, e nao numa classe
-/// propria, porque o <c>DisposeAsync</c> de <see cref="AuthEndpointsTests"/> ja limpa os
-/// <c>RefreshToken</c> de <c>admin</c> — uma classe nova deixaria linha orfa no banco.
+/// Guardas do prefixo <c>/api</c> (<c>UsePathBase</c> + a recusa de <c>PathBase</c> vazio, em
+/// Program.cs). Vivem aqui, e nao numa classe propria, porque o <c>DisposeAsync</c> de
+/// <see cref="AuthEndpointsTests"/> ja limpa os <c>RefreshToken</c> de <c>admin</c> — uma classe
+/// nova deixaria linha orfa no banco.
 ///
-/// Por que estes testes existem: o resto da suite de endpoints bate nos caminhos NUS
-/// (<c>/setores</c>, <c>/auth/login</c>), entao apagar o <c>UsePathBase</c> deixaria os 254 verdes.
-/// Sem estas guardas, o prefixo seria uma linha que ninguem percebe sumir.
+/// Por que estes testes existem: o resto da suite exercita URLs sob <c>/api</c> e ficaria verde
+/// mesmo que o caminho nu voltasse a responder. Sem estas guardas, a colisao com as rotas do SPA
+/// poderia ser reaberta sem que nada acusasse.
 /// </summary>
 public partial class AuthEndpointsTests
 {
   /// <summary>
-  /// Servico duplo, e de proposito: enquanto os testes de endpoint baterem nos caminhos nus, a API
-  /// tem que responder nos dois. 401 (e nao 404) e o discriminador — prova que a ROTA casou e so
-  /// faltou token; 404 significaria que o caminho nao existe.
+  /// O fechamento da transicao. <c>UsePathBase</c> sozinho NAO ramifica — ele tira o prefixo
+  /// quando existe e deixa passar quando nao existe, entao ate aqui a API respondia nos DOIS
+  /// caminhos e a colisao com as rotas do SPA (/setores, /pedidos, /pedidos/:id) continuava de pe.
+  /// 404, e nao 401, e o discriminador: 401 significaria que a rota casou e so faltou token.
   /// </summary>
   [Theory]
-  [InlineData("/api/setores")]
   [InlineData("/setores")]
-  public async Task Os_dois_prefixos_respondem_enquanto_durar_a_transicao(string caminho)
+  [InlineData("/auth/login")]
+  [InlineData("/me")]
+  public async Task Caminho_sem_o_prefixo_nao_responde(string caminho)
   {
     var resposta = await _factory.CreateClient().GetAsync(caminho);
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  /// <summary>
+  /// O par do teste acima: sem ele, apagar o <c>UsePathBase</c> inteiro deixaria a suite verde
+  /// (tudo 404) e o 404 pareceria sucesso.
+  /// </summary>
+  [Fact]
+  public async Task Caminho_sob_o_prefixo_responde()
+  {
+    var resposta = await _factory.CreateClient().GetAsync("/api/setores");
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
 
   /// <summary>
-  /// O <c>Path</c> do cookie de refresh acompanha o prefixo que atendeu a requisicao. Um valor
-  /// fixo so serviria a UM dos dois: cookie gravado em <c>/auth</c> nao volta para
-  /// <c>/api/auth/refresh</c>, e a sessao morreria no primeiro refresh — que e exatamente o
-  /// sintoma "401 ao dar F5" que o prefixo veio resolver.
+  /// O <c>Path</c> do cookie de refresh acompanha o <c>PathBase</c>. Com prefixo unico isso da
+  /// sempre <c>/api/auth</c>, mas a derivacao continua sendo o que impede o cookie de ser gravado
+  /// fora do alcance do <c>/api/auth/refresh</c> — trocar por <c>"/auth"</c> literal quebra o
+  /// teste seguinte.
   /// </summary>
-  [Theory]
-  [InlineData("/api/auth/login", "path=/api/auth")]
-  [InlineData("/auth/login", "path=/auth")]
-  public async Task Cookie_de_refresh_acompanha_o_prefixo_que_atendeu(string rota, string pathEsperado)
+  [Fact]
+  public async Task Cookie_de_refresh_acompanha_o_prefixo()
   {
-    var resposta = await NovoCliente().PostAsJsonAsync(rota, Credenciais);
+    var resposta = await NovoCliente().PostAsJsonAsync("/api/auth/login", Credenciais);
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
-    Assert.Contains(pathEsperado, CookieDeRefresh(resposta), StringComparison.OrdinalIgnoreCase);
+    Assert.Contains("path=/api/auth", CookieDeRefresh(resposta), StringComparison.OrdinalIgnoreCase);
   }
 
   /// <summary>

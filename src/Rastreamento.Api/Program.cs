@@ -150,15 +150,26 @@ var app = builder.Build();
 // API na mesma origem, nao haveria Vite para interceptar. Mesma origem, alias, nao e escolha
 // livre: o cookie de refresh e SameSite=Strict, que bloqueia cross-site.
 //
-// UsePathBase nao e branch: ele TIRA o prefixo quando existe e deixa passar quando nao existe.
-// Entao a API responde nos DOIS caminhos (/api/setores e /setores) — de proposito, para o front
-// migrar sem que os testes de endpoint, que ainda batem nos caminhos nus, precisem mudar junto.
-// MEDIDO: /api/setores e /setores devolvem ambos 401 (rota casou, faltou token), nao 404.
-//
-// ISTO E ESTADO DE TRANSICAO, NAO DESTINO. Enquanto os caminhos nus responderem, a colisao de
-// producao continua de pe — quem a fecha e remover o servico duplo, e o custo disso sao ~129
-// URLs literais nos testes de endpoint. Passo seguinte, em commit proprio.
+// UsePathBase, sozinho, nao e branch: ele TIRA o prefixo quando existe e deixa passar quando nao
+// existe — entao por si so a API responderia nos DOIS caminhos (/api/setores e /setores). Isso
+// foi estado de transicao deliberado enquanto a suite de testes de endpoint ainda batia nos
+// caminhos nus; a guarda logo abaixo fecha essa transicao: caminho sem PathBase agora e 404.
 app.UsePathBase("/api");
+
+// UsePathBase sozinho nao fecha nada: ele TIRA o prefixo quando existe e deixa passar quando nao
+// existe, entao sem esta guarda a API responderia tambem em /setores, /auth/login, /me — os mesmos
+// caminhos das rotas do SPA. Requisicao sem PathBase e requisicao que nao passou por /api.
+// Vem antes do rate limiter de proposito: recusar o caminho errado nao deve custar nem particao.
+app.Use(async (contexto, proximo) =>
+{
+  if (!contexto.Request.PathBase.HasValue)
+  {
+    contexto.Response.StatusCode = StatusCodes.Status404NotFound;
+    return;
+  }
+
+  await proximo();
+});
 
 // Antes da autenticacao: barrar o flood nao deve custar nem a validacao do token.
 app.UseRateLimiter();
