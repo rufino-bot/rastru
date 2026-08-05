@@ -101,3 +101,26 @@ public sealed record AgrupamentoDto(
 public sealed record NovoAgrupamentoDto(
     [MaxLength(50)] string Codigo,
     [MaxLength(20)] string Tipo);
+
+// ---------------------------------------------------------------------------
+// Componente
+// ---------------------------------------------------------------------------
+
+/// <remarks>
+/// Sem `ArquivoSolido`/`ArquivoFoto`: as colunas existem em `dbo.Componente`, mas upload e a
+/// regra 18 sao trabalho da Fase 2, e a entidade da 1B nao as mapeia.
+/// </remarks>
+public sealed record ComponenteDto(
+    int Id, string Codigo, string Descricao, string Tipo, bool Ativo);
+
+/// <remarks>
+/// Os `MaxLength` espelham `dbo.Componente`: NVARCHAR(50), (200) e (20). Mesma regra de alvo do
+/// `NovoSetorDto` — atributo SEM `[property:]`, no parametro do construtor primario, que e onde a
+/// validacao de modelo do MVC le em record posicional. `Tipo` NAO ganha `[RegularExpression]`: a
+/// lista fechada (Bruto | Fabricado | Montagem) e regra do use case, porque o CK_Componente_Tipo
+/// do banco subiria como 500 em vez de 400. Campo so de espacos continua sendo regra do use case.
+/// </remarks>
+public sealed record NovoComponenteDto(
+    [MaxLength(50)] string Codigo,
+    [MaxLength(200)] string Descricao,
+    [MaxLength(20)] string Tipo);

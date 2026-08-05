@@ -136,6 +136,75 @@ public class FakePedidoRepo : IPedidoRepository
   }
 }
 
+public class FakeComponenteRepo : IComponenteRepository
+{
+  private readonly List<Componente> _linhas;
+  private int _proximoId;
+
+  public FakeComponenteRepo(params Componente[] existentes)
+  {
+    _linhas = existentes.ToList();
+    _proximoId = _linhas.Count == 0 ? 1 : _linhas.Max(c => c.Id) + 1;
+  }
+
+  /// <summary>Quantos commits o repositorio recebeu — prova que o caminho de erro nao escreve.</summary>
+  public int Saves { get; private set; }
+
+  /// <summary>O ultimo filtro que o caso de uso mandou — prova o que ele TRADUZIU, nao o retorno.</summary>
+  public FiltroDeComponente? UltimoFiltro { get; private set; }
+
+  public Task<Componente?> ObterPorIdAsync(int id, CancellationToken ct) =>
+      Task.FromResult(_linhas.SingleOrDefault(c => c.Id == id));
+
+  /// <summary>
+  /// Comparacao case-sensitive (`==`), diferente da collation case-insensitive do SQL Server em
+  /// producao (`ComponenteRepository` real, `WHERE Codigo = @p`) e de `UQ_Componente_Codigo`.
+  /// Duplicado-por-caixa (ex.: "sup-01" vs "SUP-01") nao e coberto neste nivel — precisa de um
+  /// teste ponta a ponta contra o banco real. NAO torne o fake case-insensitive: isso simularia
+  /// o banco e esconderia a lacuna.
+  /// </summary>
+  public Task<Componente?> ObterPorCodigoAsync(string codigo, CancellationToken ct) =>
+      Task.FromResult(_linhas.SingleOrDefault(c => c.Codigo == codigo));
+
+  /// <summary>
+  /// Espelha o repositorio real o suficiente para o caso de uso ser testavel, mas a fidelidade
+  /// para aqui: a prova de que a paginacao acontece no SQL vive em `ComponenteMappingTests`.
+  /// </summary>
+  public Task<(IReadOnlyList<Componente> Itens, int Total)> ListarAsync(
+      FiltroDeComponente filtro, CancellationToken ct)
+  {
+    UltimoFiltro = filtro;
+
+    var consulta = _linhas.Where(c => filtro.IncluirInativos || c.Ativo);
+    if (!string.IsNullOrWhiteSpace(filtro.Busca))
+    {
+      var busca = filtro.Busca.Trim();
+      consulta = consulta.Where(c => c.Codigo.Contains(busca) || c.Descricao.Contains(busca));
+    }
+
+    var filtradas = consulta.OrderBy(c => c.Codigo).ToList();
+    var pagina = filtradas
+        .Skip((filtro.Pagina - 1) * filtro.Tamanho)
+        .Take(filtro.Tamanho)
+        .ToList();
+
+    return Task.FromResult<(IReadOnlyList<Componente>, int)>((pagina, filtradas.Count));
+  }
+
+  public Task AdicionarAsync(Componente componente, CancellationToken ct)
+  {
+    componente.Id = _proximoId++;
+    _linhas.Add(componente);
+    return Task.CompletedTask;
+  }
+
+  public Task SalvarAlteracoesAsync(CancellationToken ct)
+  {
+    Saves++;
+    return Task.CompletedTask;
+  }
+}
+
 public class FakeAgrupamentoRepo : IAgrupamentoRepository
 {
   private readonly List<Agrupamento> _linhas;
