@@ -23,10 +23,20 @@ resolvidos (ou conscientemente adiados).
 - Critério de pronto: dá para cadastrar um Pedido com Agrupamentos vazios via tela.
 
 > **1A concluída** (`Setor`, `Material`, `Pedido`, `Agrupamento` — CRUD pela tela, com
-> autorização por perfil no backend). Falta **1B**: `Componente` + receita padrão
-> (`ComponenteFilhoPadrao`, `ComponenteMaterialPadrao`, `ComponenteRoteiroPadrao`), que recebe
-> plano próprio. Dívidas rastreadas de 1A: camada global de erro de API no front e gating de
-> navegação por perfil.
+> autorização por perfil no backend).
+>
+> **1B concluída**: `Componente` (catálogo) — CRUD pela tela, escrita para Administrador e PCP,
+> com **busca e paginação no servidor** (`?busca=`, `?pagina=`, `?tamanho=`, teto 100). Primeira
+> listagem paginada do sistema; o contrato é o `PaginaDto<T>` genérico de
+> `Application/Common`. `Setor` e `Material` **não** foram migrados para ele — dívida rastreada,
+> e não item esquecido: eles não têm o volume que motivou a paginação.
+>
+> **Falta 1C**: a receita padrão (`ComponenteFilhoPadrao`, `ComponenteMaterialPadrao`,
+> `ComponenteRoteiroPadrao`), que recebe plano próprio. **A Fase 2 depende dela** — "criar
+> `EstruturaItem` copiando a receita" não tem o que copiar enquanto a 1C não existir.
+>
+> Dívidas rastreadas de 1A: camada global de erro de API no front e gating de navegação por
+> perfil.
 
 ## Fase 2 — Estrutura recursiva
 
@@ -49,6 +59,9 @@ resolvidos (ou conscientemente adiados).
 - Como as colunas nasceram depois do banco de dev, aplicar os `ALTER` idempotentes de
   `ArquivoSolido`/`ArquivoFoto`/`Descricao` ao iniciar a fase, no mesmo padrão dos demais
   em `CLAUDE.md`.
+  **Não se aplica a um banco regenerado:** o banco de dev foi recriado em 2026-08-04 a partir
+  deste `.sql`, então as colunas já vieram no `CREATE`. Vale só para instalação anterior a essa
+  data.
 - Critério de pronto: dá para montar visualmente a árvore completa de uma Peça complexa.
 
 ## Fase 3 — Rastreamento de setor
