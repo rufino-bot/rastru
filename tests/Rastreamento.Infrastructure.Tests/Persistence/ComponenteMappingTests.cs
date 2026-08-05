@@ -271,6 +271,45 @@ public class ComponenteMappingTests : TesteComBanco
   }
 
   [Fact]
+  public async Task Busca_com_espacos_ao_redor_acha_o_mesmo_que_a_busca_sem_espacos()
+  {
+    // Mata a mutacao "var busca = filtro.Busca.Trim() -> var busca = filtro.Busca": sem o Trim(),
+    // Contains("  marcador  ") com os espacos literais nao acha um Componente cuja Descricao
+    // contem so "marcador", sem espaco ao redor. Nenhum teste ja existente cobre isso —
+    // Busca_em_branco_nao_filtra_nada usa uma busca 100% de espacos, que a guarda
+    // IsNullOrWhiteSpace pula ANTES de chegar no Trim(), e Busca_casa_no_codigo_e_na_descricao
+    // nunca cerca o termo de espaco.
+    var prefixo = NovoPrefixo();
+    var marcador = $"m{Guid.NewGuid():N}"[..10];
+    await using (var db = NovoContexto())
+    {
+      db.Componentes.Add(Peca($"{prefixo}-a", $"Descricao com {marcador} dentro"));
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      await using var db = NovoContexto();
+      var repo = new ComponenteRepository(db);
+
+      var semEspacos = await repo.ListarAsync(
+          new FiltroDeComponente(marcador, false, 1, 20), CancellationToken.None);
+      var comEspacos = await repo.ListarAsync(
+          new FiltroDeComponente($"  {marcador}  ", false, 1, 20), CancellationToken.None);
+
+      Assert.Equal(1, semEspacos.Total);
+      Assert.Equal(semEspacos.Total, comEspacos.Total);
+      Assert.Equal(
+          semEspacos.Itens.Select(c => c.Codigo).ToArray(),
+          comEspacos.Itens.Select(c => c.Codigo).ToArray());
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
   public async Task Total_respeita_o_filtro_de_inativos()
   {
     // Mata a mutacao "contar o total sem os filtros": com 1 de 3 ativo, o total padrao e 1, nao 3.
