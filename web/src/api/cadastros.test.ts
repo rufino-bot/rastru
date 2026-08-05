@@ -85,6 +85,22 @@ describe('cadastros', () => {
     expect(init.body).toBe(JSON.stringify({ ativo: false }))
   })
 
+  // D1/retroativo da review da Task 4: a mesma mutacao de C1 (`{ ativo }` -> `{ ativo: false }`)
+  // aplicada aqui tambem sobrevivia — o unico teste desta funcao usava sempre `false`. Par
+  // obrigatorio com valor OPOSTO, id diferente. A tela de Setores ja tem botao de reativar HOJE
+  // (nao e so risco futuro da Task 6): sem isto, "Reativar" mandaria `{ativo:false}` e o
+  // componente continuaria inativo apos o 204.
+  it('definirAtivoSetor manda ativo=true quando reativando', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await definirAtivoSetor(9, true)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/setores/9/ativo')
+    expect(init.body).toBe(JSON.stringify({ ativo: true }))
+  })
+
   // PATCH /setores/{id}/ativo e [Authorize(Roles = "Administrador")] e o link aparece para todos
   // os perfis: o 403 e caminho esperado, e precisa LANCAR para a tela poder mostrar o erro.
   it('definirAtivoSetor lanca quando o backend responde 403', async () => {
@@ -233,6 +249,19 @@ describe('cadastros', () => {
     expect(url).toBe('/api/materiais/4/ativo')
     expect(init.method).toBe('PATCH')
     expect(init.body).toBe(JSON.stringify({ ativo: true }))
+  })
+
+  // D1/retroativo da review da Task 4: mesma lacuna de definirAtivoSetor, so que aqui o unico
+  // teste existente usava sempre `true` — par obrigatorio com `false`, id diferente.
+  it('definirAtivoMaterial manda ativo=false quando inativando', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await definirAtivoMaterial(11, false)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/materiais/11/ativo')
+    expect(init.body).toBe(JSON.stringify({ ativo: false }))
   })
 
   // PATCH /materiais/{id}/ativo e [Authorize(Roles = "Administrador")] e o link aparece para todos
@@ -500,10 +529,35 @@ describe('cadastros', () => {
     )
   })
 
+  // I4 da review da Task 4: os dois testes acima usam 'sup' e '', ambos invariantes a encoding —
+  // nenhum prova a ESCOLHA de `URLSearchParams` em vez de concatenacao crua. `busca` e input de
+  // texto livre do usuario (casa em codigo ou descricao); sem escape, `&` injeta um parametro
+  // falso e trunca a busca, `%` vira escape invalido (400 do ASP.NET) e `+` decodifica como
+  // espaco no servidor — devolvendo o conjunto errado de resultados, sem erro nenhum.
+  it('codifica caracteres especiais da busca na URL', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarComponentes({ busca: 'A&B 100%', incluirInativos: false, pagina: 1, tamanho: 20 })
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/componentes?busca=A%26B+100%25&incluirInativos=false&pagina=1&tamanho=20',
+    )
+  })
+
+  // I3 da review da Task 4: a fixture original tinha `total: 1` com exatamente 1 item, entao
+  // `total` era indistinguivel de `itens.length` — trocar o retorno por
+  // `{ ...corpo, total: corpo.itens.length }` sobrevivia. `total` agora e DIFERENTE do tamanho de
+  // `itens` (o invariante do doc comment de `PaginaDe<T>`: "total e sob o mesmo filtro, nao o
+  // tamanho de itens"), entao so pode vir do corpo da resposta. Consequencia real se isto
+  // regredir: a Task 6 calcula `Math.ceil(total / tamanho)` para a paginacao — com total
+  // colapsado, o paginador mostraria "1 de 1" para sempre.
   it('devolve a pagina de componentes', async () => {
     const pagina = {
       itens: [{ id: 1, codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Fabricado', ativo: true }],
-      total: 1,
+      total: 37,
       pagina: 1,
       tamanho: 20,
     }
@@ -515,7 +569,7 @@ describe('cadastros', () => {
       { busca: '', incluirInativos: false, pagina: 1, tamanho: 20 },
     )
 
-    expect(resultado.total).toBe(1)
+    expect(resultado.total).toBe(37)
     expect(resultado.itens[0].tipo).toBe('Fabricado')
   })
 
@@ -529,7 +583,12 @@ describe('cadastros', () => {
     ).rejects.toThrow()
   })
 
-  it('cria componente com metodo, URL e corpo corretos', async () => {
+  // I2 da review da Task 4: o estilo solto (`fetchMock.mock.calls[0][1].method`) nao dava o
+  // `init` tipado na mao e nao provava Content-Type — sem ele o ASP.NET responde 415 e o botao
+  // "Salvar" da tela de Componentes fica inerte. Convertido para o estilo desestruturado que o
+  // resto do arquivo usa (linhas 52, 82, 219, 232, 304, 376, 424), molde de Content-Type copiado
+  // de 'manda os dois campos do agrupamento...' (linha ~379).
+  it('cria componente com metodo, URL, corpo e Content-Type corretos', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({ id: 1, codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto', ativo: true }),
@@ -540,11 +599,11 @@ describe('cadastros', () => {
 
     await criarComponente({ codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto' })
 
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/componentes')
-    expect(fetchMock.mock.calls[0][1].method).toBe('POST')
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
-      codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto',
-    })
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/componentes')
+    expect(init.method).toBe('POST')
+    expect((init.headers as Headers).get('Content-Type')).toBe('application/json')
+    expect(init.body).toBe(JSON.stringify({ codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto' }))
   })
 
   // Lacuna do brief (achada por mutacao): faltava o par obrigatorio do F4 — o brief so tinha o
@@ -587,6 +646,26 @@ describe('cadastros', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/componentes/4/ativo')
     expect(fetchMock.mock.calls[0][1].method).toBe('PATCH')
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ ativo: false })
+  })
+
+  // C1/I1/I2-H da review da Task 4: o teste acima so usa id=4 e ativo=false, entao um `ativo`
+  // preso em `false` ou um id preso em `4` passariam verdes do mesmo jeito. Par obrigatorio com
+  // id e valor DIFERENTES, mais o Content-Type que nenhum dos dois testes desta funcao provava —
+  // molde do Content-Type copiado de 'manda os dois campos do agrupamento...' (linha ~379).
+  // Consequencia real se isto regredir: o botao "Reativar" da Task 6 manda `true` — com o valor
+  // preso em `false`, o backend gravaria Ativo=false, devolveria 204 e a tela mentiria para o
+  // usuario dizendo que reativou.
+  it('define ativo do componente com id e valor diferentes, e Content-Type', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await definirAtivoComponente(7, true)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/componentes/7/ativo')
+    expect(init.method).toBe('PATCH')
+    expect((init.headers as Headers).get('Content-Type')).toBe('application/json')
+    expect(init.body).toBe(JSON.stringify({ ativo: true }))
   })
 
   // `definirAtivoComponente` bate num endpoint [Authorize(Roles)] e nao chama `.json()`, entao o
