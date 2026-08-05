@@ -1399,12 +1399,17 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
     var id = await IdDaResposta(criado);
 
+    // Codigo NOVO, nao o mesmo do cadastro (adendo B15/review Task 2, achado I3): reenviar o
+    // mesmo codigo deixa a atribuicao `componente.Codigo = codigo;` sem prova tambem no nivel
+    // HTTP — sem isto, apagar aquela linha no use case ainda passaria em toda a suite.
+    var codigoNovo = $"{codigo}-novo";
     var resposta = await cliente.PutAsJsonAsync(
         $"/api/componentes/{id}",
-        new { codigo, descricao = "Suporte reforcado", tipo = "Montagem" });
+        new { codigo = codigoNovo, descricao = "Suporte reforcado", tipo = "Montagem" });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal(codigoNovo, corpo.GetProperty("codigo").GetString());
     Assert.Equal("Suporte reforcado", corpo.GetProperty("descricao").GetString());
     Assert.Equal("Montagem", corpo.GetProperty("tipo").GetString());
   }

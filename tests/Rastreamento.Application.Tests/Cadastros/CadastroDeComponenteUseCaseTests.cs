@@ -27,6 +27,11 @@ public class CadastroDeComponenteUseCaseTests
     Assert.Equal("Fabricado", resultado.Valor.Tipo);
     Assert.True(resultado.Valor.Ativo);
     Assert.Equal(1, repo.Saves);
+    // Adendo B15: Saves==1 sozinho nao prova que a linha chegou ao repositorio (o commit
+    // acontece mesmo se o AdicionarAsync sumir). Id>0 e a releitura via Listar fecham o round-trip.
+    Assert.True(resultado.Valor.Id > 0);
+    var lista = await useCase.Listar(null, false, 1, 20, CancellationToken.None);
+    Assert.Single(lista.Valor!.Itens);
   }
 
   [Theory]
@@ -121,6 +126,23 @@ public class CadastroDeComponenteUseCaseTests
     Assert.Equal("Montagem", resultado.Valor.Tipo);
     // Unico teste que prova a escrita do Editar (adendo B2): sem isto, um Editar que muta a
     // entidade e esquece o SalvarAlteracoesAsync passa em todos os outros.
+    Assert.Equal(1, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Editar_para_codigo_livre_troca_o_codigo_e_persiste()
+  {
+    // Adendo B15: o teste acima mantem o mesmo codigo ("SUP-001" -> "SUP-001"), entao nao prova
+    // a atribuicao `componente.Codigo = codigo;`. Este troca para um codigo LIVRE e assere que o
+    // codigo novo persistiu — sem isto, apagar aquela linha ainda passa em 128/128.
+    var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
+    var useCase = new CadastroDeComponenteUseCase(repo);
+
+    var resultado = await useCase.Editar(
+        1, new NovoComponenteDto("SUP-009", "Suporte lateral", "Fabricado"), CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal("SUP-009", resultado.Valor!.Codigo);
     Assert.Equal(1, repo.Saves);
   }
 
@@ -234,18 +256,20 @@ public class CadastroDeComponenteUseCaseTests
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"), Linha(2, "SUP-002"), Linha(3, "SUP-003"));
     var useCase = new CadastroDeComponenteUseCase(repo);
 
-    var resultado = await useCase.Listar("SUP", true, 2, 2, CancellationToken.None);
+    // Pagina e tamanho DIFERENTES de proposito (adendo B15): com o mesmo numero nos dois, uma
+    // transposicao de `pagina`/`tamanho` na montagem do FiltroDeComponente fica invisivel aqui.
+    var resultado = await useCase.Listar("SUP", true, 2, 1, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal("SUP", repo.UltimoFiltro!.Busca);
     Assert.True(repo.UltimoFiltro.IncluirInativos);
     Assert.Equal(2, repo.UltimoFiltro.Pagina);
-    Assert.Equal(2, repo.UltimoFiltro.Tamanho);
+    Assert.Equal(1, repo.UltimoFiltro.Tamanho);
     Assert.Equal(2, resultado.Valor!.Pagina);
-    Assert.Equal(2, resultado.Valor.Tamanho);
+    Assert.Equal(1, resultado.Valor.Tamanho);
     Assert.Equal(3, resultado.Valor.Total);
     Assert.Single(resultado.Valor.Itens);
-    Assert.Equal("SUP-003", resultado.Valor.Itens[0].Codigo);
+    Assert.Equal("SUP-002", resultado.Valor.Itens[0].Codigo);
   }
 
   [Fact]

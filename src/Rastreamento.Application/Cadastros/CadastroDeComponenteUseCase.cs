@@ -22,7 +22,7 @@ public sealed class CadastroDeComponenteUseCase
 
   private static readonly string[] TiposValidos = ["Bruto", "Fabricado", "Montagem"];
 
-  private const string ErroDeCampoObrigatorio = "Codigo, descricao e tipo sao obrigatorios.";
+  private const string ErroDeCampoObrigatorio = "Codigo e descricao sao obrigatorios.";
 
   private const string ErroDeTipoInvalido = "Tipo deve ser Bruto, Fabricado ou Montagem.";
 
@@ -135,7 +135,7 @@ public sealed class CadastroDeComponenteUseCase
   /// </summary>
   private static string? Validar(string codigo, string descricao, string tipo)
   {
-    if (codigo.Length == 0 || descricao.Length == 0 || tipo.Length == 0)
+    if (codigo.Length == 0 || descricao.Length == 0)
       return ErroDeCampoObrigatorio;
     if (!TiposValidos.Contains(tipo)) return ErroDeTipoInvalido;
     return null;
