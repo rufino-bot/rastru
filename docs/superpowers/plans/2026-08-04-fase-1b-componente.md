@@ -1399,7 +1399,7 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
     var id = await IdDaResposta(criado);
 
-    // Codigo NOVO, nao o mesmo do cadastro (adendo B15/review Task 2, achado I3): reenviar o
+    // Codigo NOVO, nao o mesmo do cadastro (review da Task 2, achado I3): reenviar o
     // mesmo codigo deixa a atribuicao `componente.Codigo = codigo;` sem prova tambem no nivel
     // HTTP — sem isto, apagar aquela linha no use case ainda passaria em toda a suite.
     var codigoNovo = $"{codigo}-novo";
