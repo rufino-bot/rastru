@@ -42,6 +42,8 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
   [InlineData(typeof(CadastroDePedidoUseCase))]
   [InlineData(typeof(IAgrupamentoRepository))]
   [InlineData(typeof(CadastroDeAgrupamentoUseCase))]
+  [InlineData(typeof(IComponenteRepository))]
+  [InlineData(typeof(CadastroDeComponenteUseCase))]
   public void Servico_e_registrado_como_Scoped(Type servico)
   {
     using var escopo = _factory.Services.CreateScope();

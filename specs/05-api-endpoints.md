@@ -58,10 +58,18 @@ reenvia e a sessão morre no primeiro refresh.
 - `POST /materiais` *(Administrador)* — `{ codigo, descricao, unidadeMedida }`
 - `PUT /materiais/{id}` *(Administrador)* — idem
 - `PATCH /materiais/{id}/ativo` *(Administrador)* — `{ ativo }`
-- `GET/POST /componentes`
-- `GET/POST /componentes/{id}/filhos-padrao`
-- `GET/POST /componentes/{id}/materiais-padrao`
-- `GET/POST /componentes/{id}/roteiro-padrao`
+- `GET /componentes` — `?busca=` (casa em código **ou** descrição), `?incluirInativos=false`,
+  `?pagina=1`, `?tamanho=20` (teto 100) *(qualquer perfil autenticado)*. Responde
+  `{ itens, total, pagina, tamanho }`; `total` é contado com os mesmos filtros da página.
+  Faixa fora do permitido responde 400; página além do fim responde 200 com `itens` vazio.
+- `POST /componentes` *(Administrador, PCP)* — `{ codigo, descricao, tipo }`, `tipo` em
+  `Bruto | Fabricado | Montagem`
+- `PUT /componentes/{id}` *(Administrador, PCP)* — idem
+- `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
+  Não existe `DELETE`: catálogo se inativa, não se exclui.
+- `GET/POST /componentes/{id}/filhos-padrao` — **Fase 1C**, não implementado
+- `GET/POST /componentes/{id}/materiais-padrao` — **Fase 1C**, não implementado
+- `GET/POST /componentes/{id}/roteiro-padrao` — **Fase 1C**, não implementado
 
 ## Pedido / Agrupamento
 
