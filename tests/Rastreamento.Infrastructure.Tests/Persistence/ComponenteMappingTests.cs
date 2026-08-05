@@ -79,6 +79,125 @@ public class ComponenteMappingTests : TesteComBanco
   }
 
   [Fact]
+  public async Task ObterPorIdAsync_devolve_entidade_rastreada_que_persiste_sem_update_explicito()
+  {
+    // Mata a mutacao "acrescentar .AsNoTracking() em ObterPorIdAsync": Editar/DefinirAtivo (Tasks
+    // 2/3) mutam a entidade devolvida por ObterPorIdAsync e chamam SalvarAlteracoesAsync SEM
+    // nenhum Update/Attach explicito, contando com o change tracking do EF. Com AsNoTracking o
+    // SaveChangesAsync vira no-op e a mutacao some em silencio — e exatamente essa cadeia
+    // (Adicionar -> Obter -> mutar -> Salvar sem Update -> reler) que este teste reproduz.
+    var prefixo = NovoPrefixo();
+    var codigo = $"{prefixo}-a";
+    int id;
+
+    await using (var db = NovoContexto())
+    {
+      var repo = new ComponenteRepository(db);
+      var componente = Peca(codigo);
+      await repo.AdicionarAsync(componente, CancellationToken.None);
+      await repo.SalvarAlteracoesAsync(CancellationToken.None);
+      id = componente.Id;
+    }
+
+    try
+    {
+      await using (var db = NovoContexto())
+      {
+        var repo = new ComponenteRepository(db);
+        var carregado = await repo.ObterPorIdAsync(id, CancellationToken.None);
+        carregado!.Descricao = "Descricao alterada via change tracking";
+        carregado.Ativo = false;
+        // Sem Update/Attach aqui de proposito: e o que faz a asserção depender do tracking.
+        await repo.SalvarAlteracoesAsync(CancellationToken.None);
+      }
+
+      await using (var db = NovoContexto())
+      {
+        var repo = new ComponenteRepository(db);
+        var releitura = await repo.ObterPorIdAsync(id, CancellationToken.None);
+        Assert.Equal("Descricao alterada via change tracking", releitura!.Descricao);
+        Assert.False(releitura.Ativo);
+      }
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
+  public async Task ObterPorCodigoAsync_devolve_entidade_rastreada_que_persiste_sem_update_explicito()
+  {
+    // Mesma prova do teste acima, mas passando por ObterPorCodigoAsync: e um mutante DISTINTO
+    // (.AsNoTracking() acrescentado especificamente nesse metodo) que o teste por Id nao mata,
+    // porque ele nunca chama ObterPorCodigoAsync.
+    var prefixo = NovoPrefixo();
+    var codigo = $"{prefixo}-a";
+
+    await using (var db = NovoContexto())
+    {
+      var repo = new ComponenteRepository(db);
+      await repo.AdicionarAsync(Peca(codigo), CancellationToken.None);
+      await repo.SalvarAlteracoesAsync(CancellationToken.None);
+    }
+
+    try
+    {
+      await using (var db = NovoContexto())
+      {
+        var repo = new ComponenteRepository(db);
+        var carregado = await repo.ObterPorCodigoAsync(codigo, CancellationToken.None);
+        carregado!.Descricao = "Descricao alterada via codigo";
+        carregado.Ativo = false;
+        await repo.SalvarAlteracoesAsync(CancellationToken.None);
+      }
+
+      await using (var db = NovoContexto())
+      {
+        var repo = new ComponenteRepository(db);
+        var releitura = await repo.ObterPorCodigoAsync(codigo, CancellationToken.None);
+        Assert.Equal("Descricao alterada via codigo", releitura!.Descricao);
+        Assert.False(releitura.Ativo);
+      }
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
+  public async Task ObterPorCodigoAsync_ignora_caixa()
+  {
+    // A insensibilidade a caixa vem da COLLATION da coluna Codigo, nao de codigo C# (nao ha
+    // ToUpper/ToLower em ComponenteRepository) — nenhum fake de repositorio prova essa
+    // propriedade, so o banco real. Insere com um casing e busca com outro.
+    var prefixo = NovoPrefixo();
+    var codigoInserido = $"{prefixo}-MIX";
+
+    await using (var db = NovoContexto())
+    {
+      db.Componentes.Add(Peca(codigoInserido));
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      await using var db = NovoContexto();
+      var repo = new ComponenteRepository(db);
+
+      var achado = await repo.ObterPorCodigoAsync(codigoInserido.ToLowerInvariant(), CancellationToken.None);
+
+      Assert.NotNull(achado);
+      Assert.Equal(codigoInserido, achado!.Codigo);
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
   public async Task Pagina_em_ordem_de_codigo_independente_da_ordem_de_insercao()
   {
     // A mutacao que este teste existe para matar: apagar o OrderBy(c => c.Codigo) do repositorio.
@@ -221,8 +340,15 @@ public class ComponenteMappingTests : TesteComBanco
   [Fact]
   public async Task Busca_em_branco_nao_filtra_nada()
   {
-    // Prova que `string.IsNullOrWhiteSpace` cobre tambem a string so de espacos: se o repositorio
-    // testasse apenas `!= null`, um `busca: "   "` viraria `Contains("   ")` e devolveria zero.
+    // O comentario antigo aqui afirmava que, se o repositorio testasse so `!= null`, um
+    // `busca: "   "` viraria `Contains("   ")` e devolveria zero. A medicao por mutacao
+    // desmentiu isso (Task 1, mutacao 5): o Trim() roda incondicionalmente DENTRO do if, entao
+    // "   ".Trim() vira "" de qualquer jeito, e Contains("") traduzido pro SQL Server vira
+    // `LIKE '%%'`, que casa com tudo — mesmo efeito observavel de nao filtrar. Ou seja essa troca
+    // de guarda especifica e mutante EQUIVALENTE: nenhum teste de caixa-preta sobre o resultado
+    // de ListarAsync discrimina essa mutacao sem mudar a estrutura do codigo de producao (ex.:
+    // tirar o Trim() de dentro do if, o que so pioraria o codigo). O que este teste prova, em vez
+    // disso, e o comportamento OBSERVAVEL: busca so de espacos se comporta como busca ausente.
     var prefixo = NovoPrefixo();
     await using (var db = NovoContexto())
     {
@@ -235,11 +361,19 @@ public class ComponenteMappingTests : TesteComBanco
       await using var db = NovoContexto();
       var repo = new ComponenteRepository(db);
 
-      var todos = await repo.ListarAsync(
-          new FiltroDeComponente("   ", false, 1, 500), CancellationToken.None);
+      // Comparado por Total, SEM escopar por prefixo e SEM olhar Itens de proposito: e o que
+      // torna a assercao independente do tamanho da tabela. Escopar por prefixo (como antes, com
+      // Contains sobre Itens de uma pagina de 500) quebraria assim que a Task 3 somar testes de
+      // endpoint contra o mesmo banco e a linha do prefixo deixar de caber nas primeiras 500 por
+      // OrderBy(Codigo). Comparando os dois Totais na mesma janela, a prova nao depende de qual
+      // linha cai em qual pagina.
+      var semBusca = await repo.ListarAsync(
+          new FiltroDeComponente(null, false, 1, 20), CancellationToken.None);
+      var comEspacos = await repo.ListarAsync(
+          new FiltroDeComponente("   ", false, 1, 20), CancellationToken.None);
 
-      Assert.True(todos.Total >= 2);
-      Assert.Contains(todos.Itens, c => c.Codigo == $"{prefixo}-a");
+      Assert.True(semBusca.Total >= 2);
+      Assert.Equal(semBusca.Total, comEspacos.Total);
     }
     finally
     {
