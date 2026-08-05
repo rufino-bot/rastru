@@ -76,6 +76,14 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
         .PostAsJsonAsync("/api/componentes", CorpoValido($"{NovoPrefixo()}-a"));
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    // O 201 tem que vir com `Location`, e sob o prefixo `/api` — sem esta assercao nada na suite
+    // inteira le o header, e um 201 mudo passava. NAO se afirma o caminho exato de proposito: a 1B
+    // nao tem `GET /componentes/{id}`, entao o `CreatedAtAction(nameof(Listar), new { id })` aponta
+    // para a LISTA com o id virando query string ignorada (`/api/componentes?id=123`). Isso e
+    // molde-wide (MateriaisController faz igual) e deliberado na forma; o teste ancora so o que
+    // existe hoje. Quando a 1C criar `GET /componentes/{id}`, e aqui que a assercao aperta.
+    Assert.NotNull(resposta.Headers.Location);
+    Assert.StartsWith("/api/componentes", resposta.Headers.Location!.AbsolutePath);
   }
 
   [Theory]
@@ -137,12 +145,29 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     await CriarAsync(cliente, $"{prefixo}-c");
     await CriarAsync(cliente, $"{prefixo}-a");
     await CriarAsync(cliente, $"{prefixo}-b");
+    // LINHA DE CONTROLE, prefixo DIFERENTE: nao casa com o `?busca=` deste teste. Sem ela, `dbo`
+    // vazia fora do teste faz "filtrado" e "sem filtro nenhum" devolverem o mesmo conjunto, e o
+    // controller podia descartar o `busca` inteiro com a suite verde (mesma classe do achado B11,
+    // o literal `1` que coincidia com o id do unico usuario). Molde copiado de
+    // ComponenteMappingTests.Busca_casa_no_codigo_e_na_descricao.
+    var controle = $"{NovoPrefixo()}-z";
+    await CriarAsync(cliente, controle);
 
     var pagina1 = JsonDocument.Parse(
         await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&pagina=1&tamanho=2")).RootElement;
     var pagina2 = JsonDocument.Parse(
         await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&pagina=2&tamanho=2")).RootElement;
+    var semPaginar = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}")).RootElement;
 
+    // A afirmacao que discrimina e sobre os CODIGOS devolvidos, e nao so sobre `total`: contagem
+    // exata fica refem de linha residual de outro teste. A consulta sem paginar e que da a prova
+    // deterministica — com `tamanho=2` a linha de controle poderia cair fora da pagina lida por
+    // ordenacao, e a ausencia dela seria acidente em vez de filtro.
+    Assert.DoesNotContain(
+        controle,
+        semPaginar.GetProperty("itens").EnumerateArray()
+            .Select(item => item.GetProperty("codigo").GetString()!));
     Assert.Equal(3, pagina1.GetProperty("total").GetInt32());
     Assert.Equal(2, pagina1.GetProperty("itens").GetArrayLength());
     Assert.Equal($"{prefixo}-a", pagina1.GetProperty("itens")[0].GetProperty("codigo").GetString());
@@ -160,10 +185,19 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     await cliente.PostAsJsonAsync(
         "/api/componentes",
         new { codigo = $"{prefixo}-a", descricao = $"Peca {marcador} especial", tipo = "Bruto" });
+    // LINHA DE CONTROLE: mesmo prefixo (a limpeza do DisposeAsync cobre), mas SEM o marcador na
+    // descricao — logo nao casa com `?busca={marcador}`. Sem ela o teste afirmava sobre uma tabela
+    // em que TODA linha casava, e "filtrado" era indistinguivel de "sem filtro".
+    var controle = $"{prefixo}-b";
+    await CriarAsync(cliente, controle);
 
     var corpo = JsonDocument.Parse(
         await cliente.GetStringAsync($"/api/componentes?busca={marcador}")).RootElement;
 
+    Assert.DoesNotContain(
+        controle,
+        corpo.GetProperty("itens").EnumerateArray()
+            .Select(item => item.GetProperty("codigo").GetString()!));
     Assert.Equal(1, corpo.GetProperty("total").GetInt32());
     Assert.Equal($"{prefixo}-a", corpo.GetProperty("itens")[0].GetProperty("codigo").GetString());
   }
@@ -214,6 +248,35 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
   }
 
   [Fact]
+  public async Task Editar_para_codigo_de_outro_componente_responde_409()
+  {
+    // Refinamento do adendo B12: ele dispensa o teste de 409-no-PUT quando o localizador de
+    // duplicado e COMPARTILHADO com o POST — mas compartilhar o delegate prova o CORPO dele, nao o
+    // CALL SITE. O argumento `Duplicado(alterado.Codigo)` do `Editar` e o ramo `Conflito` do
+    // `TraduzirFalha` dele ficavam sem execucao nenhuma. Consequencia real: uma regressao ali
+    // devolve 409 sem `campo`/`existeInativo`, e o `lerOuFalhar` do front (adendo F5) lanca erro
+    // generico em vez de oferecer a reativacao.
+    var cliente = ClienteComo("Administrador");
+    var prefixo = NovoPrefixo();
+    var criadoA = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido($"{prefixo}-a"));
+    var idDoA = await IdDaResposta(criadoA);
+    var criadoB = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido($"{prefixo}-b"));
+    var idDoB = await IdDaResposta(criadoB);
+
+    var resposta = await cliente.PutAsJsonAsync(
+        $"/api/componentes/{idDoB}", CorpoValido($"{prefixo}-a"));
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("ValorDuplicado", corpo.GetProperty("erro").GetString());
+    Assert.Equal("codigo", corpo.GetProperty("campo").GetString());
+    Assert.False(corpo.GetProperty("existeInativo").GetBoolean());
+    // O id do OUTRO componente, nao o da rota: e o que prova que o argumento do localizador e o
+    // codigo enviado no corpo do PUT, e nao qualquer outro valor a mao.
+    Assert.Equal(idDoA, corpo.GetProperty("idExistente").GetInt32());
+  }
+
+  [Fact]
   public async Task Componente_inativado_some_da_lista_padrao_e_volta_com_incluirInativos()
   {
     var cliente = ClienteComo("Administrador");
@@ -222,8 +285,12 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
     var id = await IdDaResposta(criado);
 
-    await cliente.PatchAsJsonAsync($"/api/componentes/{id}/ativo", new { ativo = false });
+    var patch = await cliente.PatchAsJsonAsync($"/api/componentes/{id}/ativo", new { ativo = false });
 
+    // O 204 do PATCH de sucesso nao era afirmado em nenhum *EndpointsTests de cadastro: os dois
+    // testes que usam o verbo olhavam so o EFEITO, entao trocar o sucesso por `Ok(qualquer coisa)`
+    // ficava verde.
+    Assert.Equal(HttpStatusCode.NoContent, patch.StatusCode);
     var padrao = await cliente.GetStringAsync($"/api/componentes?busca={prefixo}");
     var comInativos = await cliente.GetStringAsync(
         $"/api/componentes?busca={prefixo}&incluirInativos=true");
@@ -273,6 +340,29 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
         .PatchAsJsonAsync("/api/componentes/999999/ativo", new { ativo = false });
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Patch_ativo_sem_o_campo_responde_400()
+  {
+    // `DefinirAtivoDto.Ativo` era `bool` nao-anulavel e sem `[Required]`: corpo `{}` vinculava
+    // `false` sem o validador do [ApiController] reclamar, e o PATCH respondia 204 INATIVANDO o
+    // componente — inativacao silenciosa a partir de um corpo que nao pediu nada. Como "catalogo se
+    // inativa, nao se exclui", `ativo` e o mais proximo de exclusao que o cadastro tem, e o default
+    // silencioso e o lado errado do trade-off. Vale para /setores e /materiais pelo mesmo DTO.
+    var cliente = ClienteComo("Administrador");
+    var codigo = $"{NovoPrefixo()}-a";
+    var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
+    var id = await IdDaResposta(criado);
+
+    var resposta = await cliente.PatchAsJsonAsync($"/api/componentes/{id}/ativo", new { });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    // O 400 nao basta: o que se quer provar e que a linha NAO foi mexida. Sem esta segunda
+    // assercao, um 400 vindo de qualquer outro lugar depois de a linha ja ter sido inativada
+    // passaria.
+    var lista = await cliente.GetStringAsync($"/api/componentes?busca={codigo}");
+    Assert.Contains(codigo, lista);
   }
 
   [Fact]

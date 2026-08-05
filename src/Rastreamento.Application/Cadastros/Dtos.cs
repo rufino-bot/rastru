@@ -14,7 +14,19 @@ namespace Rastreamento.Application.Cadastros;
 public sealed record ValorDuplicadoDto(string Campo, bool ExisteInativo, int IdExistente);
 
 /// <summary>Corpo de `PATCH /{recurso}/{id}/ativo`. Cobre inativar e reativar.</summary>
-public sealed record DefinirAtivoDto(bool Ativo);
+/// <remarks>
+/// `bool?` + `[Required]`, e nao `bool`: value type nao-anulavel sempre tem valor depois do model
+/// binding, entao o validador do [ApiController] nunca acusaria a AUSENCIA do campo e um corpo `{}`
+/// vincularia `false` — o PATCH respondia 204 e inativava a linha em silencio. Como catalogo se
+/// inativa em vez de se excluir, esse era o lado errado do trade-off. Com `bool?` o campo ausente
+/// vira `null`, o `[Required]` transforma isso em 400 e o `corpo.Ativo!.Value` dos controllers so
+/// roda depois de a validacao ter passado. Mesma regra de alvo do `NovoSetorDto`: atributo SEM
+/// `[property:]`, no parametro do construtor primario — com `[property:]` o MVC nem valida, lanca
+/// InvalidOperationException ("validation metadata ... that will be ignored") e a requisicao vira
+/// 500. Um record so, compartilhado por Setor, Material e Componente: a correcao e molde-wide por
+/// construcao.
+/// </remarks>
+public sealed record DefinirAtivoDto([Required] bool? Ativo);
 
 // ---------------------------------------------------------------------------
 // Setor

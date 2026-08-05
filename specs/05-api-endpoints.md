@@ -53,7 +53,12 @@ reenvia e a sessão morre no primeiro refresh.
 - `PUT /setores/{id}` *(Administrador)* — `{ nome }`
 - `PATCH /setores/{id}/ativo` *(Administrador)* — `{ ativo }`; cobre inativar **e** reativar.
   Não existe `DELETE`: catálogo se inativa, não se exclui (ver a política de exclusão na spec da
-  Fase 1)
+  Fase 1).
+  **`ativo` é obrigatório nos três `PATCH /{recurso}/{id}/ativo`** (`Setor`, `Material`,
+  `Componente` — os três compartilham o mesmo `DefinirAtivoDto`): corpo `{}` responde **400**, não
+  204. Até 2026-08-05 o campo era `bool` não-anulável sem `[Required]`, então corpo sem `ativo`
+  vinculava `false` e **inativava a linha em silêncio** — o oposto de "catálogo se inativa, não se
+  exclui", que só faz sentido se a inativação for sempre pedida explicitamente
 - `GET /materiais` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*
 - `POST /materiais` *(Administrador)* — `{ codigo, descricao, unidadeMedida }`
 - `PUT /materiais/{id}` *(Administrador)* — idem
@@ -95,20 +100,25 @@ reenvia e a sessão morre no primeiro refresh.
   Pedido não `Aberto` **nunca** responde `AgrupamentoNaoVazio` — o cliente não pode assumir que
   recebe o código mais específico
 
-## Contrato de erro dos cadastros (Fase 1A)
+## Contrato de erro dos cadastros
 
-- **400** — validação de formato (`MaxLength` do DTO) ou de regra simples (campo em branco,
-  `tipo` fora do domínio). Formato do ASP.NET.
+*(Nasceu na Fase 1A com `Setor`, `Material`, `Pedido` e `Agrupamento`; a Fase 1B trouxe
+`Componente` para o mesmo contrato, sem alterá-lo.)*
+
+- **400** — validação de formato (`MaxLength` do DTO, campo obrigatório ausente — inclusive o
+  `ativo` do `PATCH /{recurso}/{id}/ativo`) ou de regra simples (campo em branco, `tipo` fora do
+  domínio). Formato do ASP.NET.
 - **403** — perfil sem permissão, do `[Authorize(Roles)]`.
 - **404** — id inexistente.
-- **409 duplicidade** — viola `UQ_Setor_Nome`, `UQ_Material_Codigo`, `UQ_Pedido_Numero` ou
-  `UQ_Agrupamento_PedidoCodigo`:
+- **409 duplicidade** — viola `UQ_Setor_Nome`, `UQ_Material_Codigo`, `UQ_Componente_Codigo`,
+  `UQ_Pedido_Numero` ou `UQ_Agrupamento_PedidoCodigo`:
   ```json
   { "erro": "ValorDuplicado", "campo": "nome", "existeInativo": true, "idExistente": 12 }
   ```
-  `existeInativo: true` só acontece em catálogo (`Setor`, `Material`) e é o que permite a tela
-  oferecer "reativar o existente" — os índices `UNIQUE` não são filtrados por `Ativo`, então um
-  nome ocupado por linha inativa continua ocupado. Em `Pedido` e `Agrupamento` é sempre `false`.
+  `existeInativo: true` só acontece em catálogo (`Setor`, `Material`, `Componente`) e é o que
+  permite a tela oferecer "reativar o existente" — os índices `UNIQUE` não são filtrados por
+  `Ativo`, então um nome ocupado por linha inativa continua ocupado. Em `Pedido` e `Agrupamento` é
+  sempre `false`.
 - **409 regra de negócio** — só no `DELETE /agrupamentos/{id}`:
   `{ "erro": "AgrupamentoNaoVazio" }` ou `{ "erro": "PedidoNaoAberto" }`.
 

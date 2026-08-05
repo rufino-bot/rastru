@@ -156,6 +156,23 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
   }
 
   [Fact]
+  public async Task Patch_ativo_sem_o_campo_responde_400()
+  {
+    // O `DefinirAtivoDto` e UM record so, compartilhado por Setor, Material e Componente: quando ele
+    // era `bool` nao-anulavel sem `[Required]`, corpo `{}` vinculava `false` e o PATCH INATIVAVA a
+    // linha em silencio, com 204. O achado veio da review de Componente (Fase 1B), mas a correcao e
+    // molde-wide — e sem este teste aqui, so `/componentes` teria prova.
+    //
+    // Id inexistente de proposito: a validacao de modelo do [ApiController] roda ANTES da acao,
+    // entao o 400 chega sem consultar o banco e sem escrever nada. Se o `[Required]` cair, a
+    // resposta vira 404 (o `bool?` chegaria `null` e o use case cortaria no id) ou 500 — nunca 400.
+    var resposta = await ClienteComo("Administrador")
+        .PatchAsJsonAsync("/api/setores/999999/ativo", new { });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+  }
+
+  [Fact]
   public async Task Nome_em_branco_responde_400()
   {
     var resposta = await ClienteComo("Administrador")

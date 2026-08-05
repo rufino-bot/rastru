@@ -167,6 +167,18 @@ O B7 pede "o ramo de falha do `PUT`", e foi entregue como 404. **404 e 409 são 
 409 é o único que executa o código novo. **Faça:** quando o localizador de duplicado não for
 compartilhado com o POST, escreva o teste de conflito no próprio verbo.
 
+**Refinamento obrigatório (review da Task 3 da Fase 1B, 2026-08-05): a dispensa acima estava larga
+demais — escreva o teste de 409-no-`PUT` SEMPRE, mesmo com localizador compartilhado.** Compartilhar
+o delegate prova o **corpo** dele, não o **call site**. Medido em `ComponentesController.cs:64`, que
+compartilha `Duplicado(...)` com o POST e por isso passou nesta convenção: substituir
+`Duplicado(alterado.Codigo)` por `_ => Task.FromResult<ValorDuplicadoDto?>(null)` deixava **22/22
+verdes** — o argumento passado no `Editar` e o ramo `Conflito` do `TraduzirFalha` **dele** não eram
+executados por teste nenhum. Depois de `Editar_para_codigo_de_outro_componente_responde_409`
+(`ComponentesEndpointsTests`), a mesma mutação mata **1**. Consequência prática de deixar em aberto:
+uma regressão ali devolve 409 **sem** `campo`/`existeInativo`/`idExistente`, e o `lerOuFalhar` do
+front (adendo F5) lança erro genérico em vez de oferecer a reativação. Vale igual para `Setor`,
+`Material` e `Pedido` — é molde-wide, e nesses três **o teste ainda não existe**.
+
 ### B13. A guarda de claim `sub` ausente precisa do teste em **cada** controller que a copia
 Mesma família do B9: guarda escrita certo que sobrevive por disciplina, não por teste. Trocar
 `if (usuarioId is null) return Unauthorized();` por `usuarioId ?? 0` no `AgrupamentosController.cs:37`

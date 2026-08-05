@@ -167,6 +167,19 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   [Fact]
+  public async Task Patch_ativo_sem_o_campo_responde_400()
+  {
+    // Mesmo teste de SetoresEndpointsTests, pelo mesmo motivo: `DefinirAtivoDto` e um record UNICO
+    // compartilhado pelos tres cadastros, e antes do `[Required] bool?` um corpo `{}` respondia 204
+    // INATIVANDO a linha. Id inexistente de proposito — a validacao de modelo roda antes da acao,
+    // entao o 400 nao consulta nem escreve no banco.
+    var resposta = await ClienteComo("Administrador")
+        .PatchAsJsonAsync("/api/materiais/999999/ativo", new { });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+  }
+
+  [Fact]
   public async Task Unidade_de_medida_em_branco_responde_400()
   {
     var resposta = await ClienteComo("Administrador").PostAsJsonAsync(

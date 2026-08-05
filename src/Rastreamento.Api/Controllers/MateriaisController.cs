@@ -45,7 +45,7 @@ public class MateriaisController : CadastroControllerBase
   [Authorize(Roles = "Administrador")]
   public async Task<IActionResult> DefinirAtivo(
       int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct) =>
-      TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo, ct));
+      TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo!.Value, ct));
 
   /// <summary>Como Material pergunta pelo duplicado: por codigo (UQ_Material_Codigo).</summary>
   private LocalizadorDeDuplicado Duplicado(string codigo) =>

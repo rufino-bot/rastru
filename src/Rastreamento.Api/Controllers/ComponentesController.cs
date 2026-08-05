@@ -68,7 +68,7 @@ public class ComponentesController : CadastroControllerBase
   [Authorize(Roles = PerfisDeEscrita)]
   public async Task<IActionResult> DefinirAtivo(
       int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct) =>
-      TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo, ct));
+      TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo!.Value, ct));
 
   /// <summary>Como Componente pergunta pelo duplicado: por codigo (UQ_Componente_Codigo).</summary>
   private LocalizadorDeDuplicado Duplicado(string codigo) =>
