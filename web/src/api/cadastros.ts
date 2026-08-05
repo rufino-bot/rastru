@@ -203,3 +203,79 @@ export async function excluirAgrupamento(id: number): Promise<ResultadoExclusao>
   }
   throw new Error(`Falha ao excluir o agrupamento (${resp.status}).`)
 }
+
+export interface ComponenteDto {
+  id: number
+  codigo: string
+  descricao: string
+  tipo: string
+  ativo: boolean
+}
+
+/** Lista fechada de `CK_Componente_Tipo` — diferente de `unidadeMedida`, que é texto livre. */
+export type TipoDeComponente = 'Bruto' | 'Fabricado' | 'Montagem'
+
+export interface NovoComponente {
+  codigo: string
+  descricao: string
+  tipo: TipoDeComponente
+}
+
+/** Espelha o `PaginaDto<T>` do backend. `total` é sob o mesmo filtro, não o tamanho de `itens`. */
+export interface PaginaDe<T> {
+  itens: T[]
+  total: number
+  pagina: number
+  tamanho: number
+}
+
+export interface FiltroDeComponentes {
+  busca: string
+  incluirInativos: boolean
+  pagina: number
+  tamanho: number
+}
+
+/**
+ * A montagem da URL mora aqui, e não no componente, porque é isto que a torna provável em teste
+ * (adendo F4 — a lição de `criarSetor`/`criarMaterial`, que ficaram 5 tasks sem prova de URL).
+ * `URLSearchParams` preserva a ordem de inserção, então a URL é determinística e asserível.
+ */
+export async function listarComponentes(
+  f: FiltroDeComponentes,
+): Promise<PaginaDe<ComponenteDto>> {
+  const params = new URLSearchParams({
+    busca: f.busca,
+    incluirInativos: String(f.incluirInativos),
+    pagina: String(f.pagina),
+    tamanho: String(f.tamanho),
+  })
+  const resp = await apiFetch(`/componentes?${params}`)
+  if (!resp.ok) throw new Error(`Falha ao listar componentes (${resp.status}).`)
+  return (await resp.json()) as PaginaDe<ComponenteDto>
+}
+
+/** O único 409 possível aqui é `ValorDuplicado` sobre `codigo` (UQ_Componente_Codigo). */
+export function criarComponente(
+  c: NovoComponente,
+): Promise<ComponenteDto | ConflitoDeCadastro> {
+  return apiFetch('/componentes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(c),
+  }).then(lerOuFalhar<ComponenteDto>)
+}
+
+export async function definirAtivoComponente(id: number, ativo: boolean): Promise<void> {
+  const resp = await apiFetch(`/componentes/${id}/ativo`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ativo }),
+  })
+  if (!resp.ok) throw new Error(`Falha ao alterar o componente (${resp.status}).`)
+}
+
+// Sem editarComponente aqui, de proposito, pelo mesmo motivo do editarPedido acima: o
+// PUT /componentes/{id} existe e esta testado no backend (Task 3), mas a tela de Componentes nao
+// tem UI de edicao — exportar a funcao sem chamador seria codigo morto. Ela nasce junto com a
+// tela que a usar.

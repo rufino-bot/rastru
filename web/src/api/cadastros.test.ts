@@ -4,6 +4,8 @@ import {
   listarMateriais, criarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, obterPedido, formatarDataHora,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento,
+  listarComponentes, criarComponente, definirAtivoComponente,
+  type ConflitoDeCadastro,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
 
@@ -465,5 +467,134 @@ describe('cadastros', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 403 })))
 
     await expect(excluirAgrupamento(7)).rejects.toThrow()
+  })
+
+  // Adendo F4: toda funcao nova do modulo tem DOIS testes — URL/metodo/corpo e comportamento em
+  // erro. O primeiro assere `fetchMock.mock.calls[0][0]`, nao o retorno: o retorno vem do stub e
+  // nao prova nada sobre o que foi pedido.
+  it('monta a URL de componentes com os quatro parametros', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarComponentes({ busca: 'sup', incluirInativos: false, pagina: 2, tamanho: 50 })
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/componentes?busca=sup&incluirInativos=false&pagina=2&tamanho=50',
+    )
+  })
+
+  // Par obrigatorio do teste acima (adendo F3): hardcodar `incluirInativos=false` na URL passaria
+  // com so o caso `false`, e o checkbox "Mostrar inativos" quebraria em silencio.
+  it('monta a URL de componentes incluindo inativos quando pedido', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarComponentes({ busca: '', incluirInativos: true, pagina: 1, tamanho: 20 })
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/componentes?busca=&incluirInativos=true&pagina=1&tamanho=20',
+    )
+  })
+
+  it('devolve a pagina de componentes', async () => {
+    const pagina = {
+      itens: [{ id: 1, codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Fabricado', ativo: true }],
+      total: 1,
+      pagina: 1,
+      tamanho: 20,
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(pagina), { status: 200 }),
+    ))
+
+    const resultado = await listarComponentes(
+      { busca: '', incluirInativos: false, pagina: 1, tamanho: 20 },
+    )
+
+    expect(resultado.total).toBe(1)
+    expect(resultado.itens[0].tipo).toBe('Fabricado')
+  })
+
+  // Corpo JSON nao-vazio de proposito (adendo F6): com `''` o `.json()` lancaria sozinho e o
+  // teste passaria mesmo com a guarda `if (!resp.ok) throw` removida.
+  it('lanca quando listar componentes falha', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(
+      listarComponentes({ busca: '', incluirInativos: false, pagina: 1, tamanho: 20 }),
+    ).rejects.toThrow()
+  })
+
+  it('cria componente com metodo, URL e corpo corretos', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: 1, codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto', ativo: true }),
+        { status: 201 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await criarComponente({ codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/componentes')
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST')
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto',
+    })
+  })
+
+  // Lacuna do brief (achada por mutacao): faltava o par obrigatorio do F4 — o brief so tinha o
+  // teste de URL/metodo/corpo e o de conflito, nenhum provando que um erro NAO-409 (ex.: 403 de
+  // Operador batendo em POST /componentes, que e [Authorize(Roles = "Administrador,PCP")]) faz
+  // criarComponente lancar. Prova por mutacao: substituir `.then(lerOuFalhar<ComponenteDto>)` por
+  // `.then(r => r.json())` deixava os 53 testes verdes — nada detectava a perda do `if (!resp.ok)
+  // throw` dentro de lerOuFalhar no call site de Componente. Corpo JSON nao-vazio (nao ''): ver
+  // nota em 'lanca quando a resposta e erro nao tratado' (F6).
+  it('criarComponente lanca quando o backend responde erro nao tratado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(
+      criarComponente({ codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto' }),
+    ).rejects.toThrow()
+  })
+
+  it('devolve o conflito quando o codigo do componente ja existe inativo', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+        { status: 409 },
+      ),
+    ))
+
+    const resultado = await criarComponente(
+      { codigo: 'SUP-001', descricao: 'Suporte', tipo: 'Bruto' },
+    )
+
+    expect(ehConflito(resultado)).toBe(true)
+    expect((resultado as ConflitoDeCadastro).idExistente).toBe(7)
+  })
+
+  it('define ativo do componente com metodo, URL e corpo corretos', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await definirAtivoComponente(4, false)
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/componentes/4/ativo')
+    expect(fetchMock.mock.calls[0][1].method).toBe('PATCH')
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ ativo: false })
+  })
+
+  // `definirAtivoComponente` bate num endpoint [Authorize(Roles)] e nao chama `.json()`, entao o
+  // corpo vazio aqui e inofensivo (excecao registrada no F6). O teste existe para o `try/catch`
+  // da tela (F2) nao ser decorativo: se a funcao nao lancasse, o catch nunca dispararia.
+  it('lanca quando definir ativo do componente falha', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })))
+
+    await expect(definirAtivoComponente(4, false)).rejects.toThrow()
   })
 })
