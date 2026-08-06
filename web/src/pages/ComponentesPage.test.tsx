@@ -204,6 +204,36 @@ describe('ComponentesPage', () => {
     })
   })
 
+  // V3 (achado do coordenador, varredura das recargas): o teste acima para em asserir o `PATCH` e
+  // nunca olha o que vem DEPOIS dele — a mesma metade que faltava no `salvar` antes do teste de
+  // 201 (C2). Sem o `await carregar(...)` de `alternarAtivo`, o backend inativa de verdade mas a
+  // lista nunca recarrega: o item continua na tela como se nada tivesse acontecido. A prova tem
+  // que discriminar de a carga inicial (que tambem e um GET) do reload — por isso confere que ha
+  // um GET DEPOIS do indice do PATCH na lista de chamadas do mock, nao so que "houve algum GET".
+  it('recarrega a lista depois de alternar o ativo com sucesso', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(paginaComTotal(1))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
+
+    await waitFor(() => {
+      const indicePatch = fetchMock.mock.calls.findIndex(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
+      )
+      expect(indicePatch).toBeGreaterThanOrEqual(0)
+      const houveGetDepoisDoPatch = fetchMock.mock.calls
+        .slice(indicePatch + 1)
+        .some(([, init]) => (init as RequestInit | undefined)?.method === undefined)
+      expect(houveGetDepoisDoPatch).toBe(true)
+    })
+  })
+
   // Contraparte do teste acima: "Reativar o existente" (o botao que aparece apos o 409 de
   // conflito) manda o literal true, chamada distinta de "Inativar". Se o valor deste call site
   // fosse trocado por false, o backend responderia 204 e a tela recarregaria mostrando o
@@ -277,6 +307,107 @@ describe('ComponentesPage', () => {
     await waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
     })
+  })
+
+  // V4 (achado do coordenador, varredura das recargas): mesma lacuna do V3, no outro call site de
+  // `carregar`. Sem o `await carregar(...)` de `reativar`, o PATCH tem sucesso, o formulario limpa
+  // e o botao some — mas o componente reativado nunca aparece na lista, porque ela nao recarregou.
+  // Mesma discriminacao do V3: GET DEPOIS do indice do PATCH, nao so "algum GET".
+  it('recarrega a lista depois de reativar com sucesso', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      const indicePatch = fetchMock.mock.calls.findIndex(
+        ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
+      )
+      expect(indicePatch).toBeGreaterThanOrEqual(0)
+      const houveGetDepoisDoPatch = fetchMock.mock.calls
+        .slice(indicePatch + 1)
+        .some(([, init]) => (init as RequestInit | undefined)?.method === undefined)
+      expect(houveGetDepoisDoPatch).toBe(true)
+    })
+  })
+
+  // Achado proprio da varredura final (pos-await ainda sem prova): o `try/catch` de `reativar` e
+  // um TERCEIRO call site da familia do F2/I6 — distinto do de `alternarAtivo` (ja fechado) e do
+  // de `carregar` (ja fechado) — e nao tinha teste nenhum. `PATCH /componentes/{id}/ativo` e
+  // `[Authorize(Roles = "Administrador,PCP")]` tambem no caminho de reativar; sem esta prova, um
+  // 403 ali (ou uma queda de rede) deixaria a promise rejeitada sem tratamento, e clicar em
+  // "Reativar o existente" nao diria nada ao usuario. Esvaziar o `catch` (`grep -c "Não foi
+  // possível reativar o componente"` 1→0) deixava a suite 31/31 verde antes deste teste.
+  it('mostra mensagem de erro quando reativar falha', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      if (init?.method === 'PATCH') return Promise.resolve(new Response('{}', { status: 403 }))
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    expect(await screen.findByText('Não foi possível reativar o componente.')).toBeTruthy()
+  })
+
+  // Achado proprio da varredura final (pos-await ainda sem prova): o `try/catch` de `salvar`
+  // (linhas 93-94) e o QUARTO call site desta familia — distinto do 409 de conflito (que e um
+  // retorno tratado, nao uma excecao) e dos try/catch de `alternarAtivo`/`reativar`/`carregar` (ja
+  // fechados). Nao tinha teste nenhum: os unicos dois testes que submetem o formulario mockavam
+  // 409 (que NAO lanca) ou 201 (sucesso). Um 500 de verdade em `POST /componentes` faz
+  // `criarComponente` lancar (via `lerOuFalhar`), e sem este catch a promise ficaria rejeitada sem
+  // tratamento. Esvaziar o `catch` (`grep -c "Não foi possível salvar o componente"` 1→0) deixava
+  // a suite 32/32 verde antes deste teste.
+  it('mostra mensagem de erro quando salvar falha com um erro que nao e conflito', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return Promise.resolve(new Response('{}', { status: 500 }))
+      return Promise.resolve(paginaComTotal(1))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'NOV-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Novo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    expect(await screen.findByText('Não foi possível salvar o componente.')).toBeTruthy()
   })
 
   // Mata a mutacao de trocar `incluirInativos` pelo literal oposto (ex.: sempre false): sem este
