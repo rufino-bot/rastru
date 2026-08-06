@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarComponentes, criarComponente, definirAtivoComponente, ehConflito,
@@ -25,18 +25,29 @@ export function ComponentesPage() {
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [carregando, setCarregando] = useState(true)
 
+  // Guarda de sequência da corrida de resposta fora de ordem (I3 da review): quem ganha não pode
+  // ser a última requisição a RESPONDER, e sim a última a ser ENVIADA. `sequenciaRef` é
+  // incrementado a cada chamada de `carregar`; cada chamada captura o próprio número antes do
+  // `await` e só aplica os efeitos pós-`await` se ainda for a mais recente emitida. Não é
+  // `AbortController` de propósito — isso exigiria `listarComponentes` aceitar um `AbortSignal`,
+  // ou seja, mudar `cadastros.ts`, fora do escopo desta task.
+  const sequenciaRef = useRef(0)
+
   const totalDePaginas = Math.max(1, Math.ceil(total / tamanho))
 
   async function carregar(b: string, inc: boolean, p: number, t: number) {
+    const minhaSequencia = ++sequenciaRef.current
     setCarregando(true)
     try {
       const resposta = await listarComponentes({ busca: b, incluirInativos: inc, pagina: p, tamanho: t })
+      if (minhaSequencia !== sequenciaRef.current) return
       setComponentes(resposta.itens)
       setTotal(resposta.total)
     } catch {
+      if (minhaSequencia !== sequenciaRef.current) return
       setErro('Não foi possível carregar os componentes.')
     } finally {
-      setCarregando(false)
+      if (minhaSequencia === sequenciaRef.current) setCarregando(false)
     }
   }
 
