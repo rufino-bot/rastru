@@ -242,6 +242,43 @@ describe('ComponentesPage', () => {
     })
   })
 
+  // V2 (achado da varredura do controlador, fora da lista original): o `setIdReativavel(null)` de
+  // DENTRO de `reativar` (linha 116) nao tinha prova — diferente do `setIdReativavel(null)` do
+  // INICIO de `salvar`, que ja tem teste proprio ("cadastro com sucesso apos um conflito anterior
+  // esconde o botao Reativar o existente", chamado quando o usuario troca de codigo e cadastra de
+  // novo). Este cobre o OUTRO call site: clicar no proprio botao "Reativar o existente" e ver o
+  // PATCH suceder. Sem o reset, o botao continua na tela apontando para o mesmo idExistente, e o
+  // usuario nao sabe se a acao funcionou.
+  it('reativar com sucesso esconde o botao Reativar o existente', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
+    })
+  })
+
   // Mata a mutacao de trocar `incluirInativos` pelo literal oposto (ex.: sempre false): sem este
   // teste, o checkbox "Mostrar inativos" poderia parar de afetar a URL em silencio.
   it('inclui incluirInativos=true na URL quando o checkbox e marcado', async () => {
@@ -512,6 +549,45 @@ describe('ComponentesPage', () => {
     expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
   })
 
+  // V1 (achado da varredura do controlador, fora da lista original): o `return` que fecha o ramo
+  // de conflito em `salvar` nao tinha prova. Sem ele, um 409 cai direto no ramo de SUCESSO logo
+  // abaixo: o formulario e limpo e a lista recarrega por cima da mensagem de erro — o usuario ve o
+  // erro e perde tudo que digitou. O teste de sucesso (201) prova o lado de dentro do ramo de
+  // sucesso; os testes de 409 provam a mensagem; nenhum, ate aqui, provava que os dois ramos NAO se
+  // misturam.
+  it('conflito no cadastro nao limpa o formulario nem recarrega a lista', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const chamadasAntesDoEnvio = fetchMock.mock.calls.length
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    await screen.findByText('Já existe um componente com este código.')
+
+    // o formulario continua com o que foi digitado — nao foi limpo pelo ramo de sucesso
+    expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('SUP-001')
+    expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('Suporte')
+
+    // so o POST foi disparado depois da carga inicial — nenhum GET extra (a lista nao recarregou)
+    expect(fetchMock.mock.calls.length).toBe(chamadasAntesDoEnvio + 1)
+  })
+
   // I6, metade 1: falha no PATCH de alternarAtivo. Sem o try/catch a promise rejeitada nao teria
   // tratamento e a tela nao diria nada (o bug que o F2 existe para impedir — ex.: 403 de um
   // Operador sem permissao).
@@ -643,6 +719,114 @@ describe('ComponentesPage', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Não foi possível alterar o componente.')).toBeNull()
+    })
+  })
+
+  // Sweep A (varredura pedida pelo coordenador apos V1/V2): o `setErro(null)` do INICIO de
+  // `salvar` (linha 77) e distinto do `setIdReativavel(null)` vizinho (esse ja tinha teste, ver o
+  // Minor "cadastro com sucesso apos um conflito anterior..." acima) — mutando so este,
+  // isoladamente, a suite seguia 26/26 verde. Sem ele, uma mensagem de erro de uma acao ANTERIOR
+  // (ex.: um "Inativar" que deu 403) continua na tela por cima de um cadastro que acabou de dar
+  // certo.
+  it('cadastro com sucesso limpa uma mensagem de erro anterior de outra acao', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return Promise.resolve(new Response('{}', { status: 403 }))
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ id: 9, codigo: 'NOV-001', descricao: 'Novo', tipo: 'Fabricado', ativo: true }),
+          { status: 201 },
+        ))
+      }
+      return Promise.resolve(paginaComTotal(1))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
+    await screen.findByText('Não foi possível alterar o componente.')
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'NOV-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Novo' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Não foi possível alterar o componente.')).toBeNull()
+    })
+  })
+
+  // Sweep C (mesma varredura): o `setErro(null)` de DENTRO de `reativar` (linha 115) e distinto do
+  // `setErro(null)` de `alternarAtivo` (ja fechado como achado proprio) e do `setIdReativavel(null)`
+  // vizinho (V2, acima) — mutando so este, isoladamente, a suite seguia 26/26 verde. Sem ele, a
+  // mensagem de conflito ("Já existe um componente com o código... inativo.") continua na tela
+  // depois de o usuario clicar "Reativar o existente" e a acao dar certo.
+  it('reativar com sucesso limpa a mensagem de conflito', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    await screen.findByText('Já existe um componente com o código "SUP-001" inativo.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('Já existe um componente com o código "SUP-001" inativo.')).toBeNull()
+    })
+  })
+
+  // Sweep D (mesma varredura): o `setForm(FORMULARIO_VAZIO)` de DENTRO de `reativar` (linha 117) e
+  // distinto do `setForm(FORMULARIO_VAZIO)` do sucesso de `salvar` (ja provado pelo teste de
+  // cadastro 201) — mutando so este, isoladamente, a suite seguia 26/26 verde. Sem ele, depois de
+  // "Reativar o existente" dar certo o formulario continua com o que foi digitado para o cadastro
+  // que colidiu — campos preenchidos com um codigo que nao tem nada a ver com o componente que
+  // acabou de ser reativado.
+  it('reativar com sucesso limpa o formulario', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    await screen.findByRole('button', { name: 'Reativar o existente' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('')
     })
   })
 })
