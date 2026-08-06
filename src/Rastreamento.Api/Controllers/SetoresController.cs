@@ -44,7 +44,7 @@ public class SetoresController : CadastroControllerBase
   [Authorize(Roles = "Administrador")]
   public async Task<IActionResult> DefinirAtivo(
       int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct) =>
-      TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo, ct));
+      TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo!.Value, ct));
 
   /// <summary>Como Setor pergunta pelo duplicado: por nome (UQ_Setor_Nome).</summary>
   private LocalizadorDeDuplicado Duplicado(string nome) =>

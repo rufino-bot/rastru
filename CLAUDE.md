@@ -167,6 +167,13 @@ docker compose up -d
 #   db/seed.sql                    (perfis + usuário admin / Admin@123)
 ```
 
+**Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
+`specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
+verdade: `dbo.Componente` não tinha `ArquivoSolido`/`ArquivoFoto`, que nasceram no schema depois
+de o banco ter sido criado. Consequência: **os quatro blocos de `ALTER` idempotente abaixo viraram
+no-op nesta máquina.** Eles continuam corretos, e necessários, para quem tiver banco anterior a
+essa data — não os remova.
+
 Num banco que já existia antes do hardening de auth, as colunas de lockout entram por `ALTER`
 (o `.sql` é script de criação). É idempotente — e o `MSYS_NO_PATHCONV=1` é o que impede o Git Bash
 de traduzir o caminho do `sqlcmd` dentro do container:

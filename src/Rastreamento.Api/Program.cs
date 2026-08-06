@@ -103,8 +103,9 @@ builder.Services.AddScoped<IAutenticarUsuarioUseCase, AutenticarUsuarioUseCase>(
 builder.Services.AddScoped<IRenovarTokenUseCase, RenovarTokenUseCase>();
 builder.Services.AddScoped<IRevogarTokenUseCase, RevogarTokenUseCase>();
 
-// Cadastros (Fase 1A). Sem interface de use case de proposito: nada os substitui por fake — os
-// testes de Application fakeiam o repositorio. Ver a decisao registrada no plano da Fase 1A.
+// Cadastros (Fases 1A e 1B — Componente entrou na 1B). Sem interface de use case de proposito:
+// nada os substitui por fake — os testes de Application fakeiam o repositorio. Ver a decisao
+// registrada no plano da Fase 1A.
 builder.Services.AddScoped<ISetorRepository, SetorRepository>();
 builder.Services.AddScoped<CadastroDeSetorUseCase>();
 builder.Services.AddScoped<IMaterialRepository, MaterialRepository>();
@@ -113,6 +114,8 @@ builder.Services.AddScoped<IPedidoRepository, PedidoRepository>();
 builder.Services.AddScoped<CadastroDePedidoUseCase>();
 builder.Services.AddScoped<IAgrupamentoRepository, AgrupamentoRepository>();
 builder.Services.AddScoped<CadastroDeAgrupamentoUseCase>();
+builder.Services.AddScoped<IComponenteRepository, ComponenteRepository>();
+builder.Services.AddScoped<CadastroDeComponenteUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

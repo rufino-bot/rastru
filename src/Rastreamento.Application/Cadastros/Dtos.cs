@@ -14,7 +14,19 @@ namespace Rastreamento.Application.Cadastros;
 public sealed record ValorDuplicadoDto(string Campo, bool ExisteInativo, int IdExistente);
 
 /// <summary>Corpo de `PATCH /{recurso}/{id}/ativo`. Cobre inativar e reativar.</summary>
-public sealed record DefinirAtivoDto(bool Ativo);
+/// <remarks>
+/// `bool?` + `[Required]`, e nao `bool`: value type nao-anulavel sempre tem valor depois do model
+/// binding, entao o validador do [ApiController] nunca acusaria a AUSENCIA do campo e um corpo `{}`
+/// vincularia `false` — o PATCH respondia 204 e inativava a linha em silencio. Como catalogo se
+/// inativa em vez de se excluir, esse era o lado errado do trade-off. Com `bool?` o campo ausente
+/// vira `null`, o `[Required]` transforma isso em 400 e o `corpo.Ativo!.Value` dos controllers so
+/// roda depois de a validacao ter passado. Mesma regra de alvo do `NovoSetorDto`: atributo SEM
+/// `[property:]`, no parametro do construtor primario — com `[property:]` o MVC nem valida, lanca
+/// InvalidOperationException ("validation metadata ... that will be ignored") e a requisicao vira
+/// 500. Um record so, compartilhado por Setor, Material e Componente: a correcao e molde-wide por
+/// construcao.
+/// </remarks>
+public sealed record DefinirAtivoDto([Required] bool? Ativo);
 
 // ---------------------------------------------------------------------------
 // Setor
@@ -100,4 +112,27 @@ public sealed record AgrupamentoDto(
 /// </remarks>
 public sealed record NovoAgrupamentoDto(
     [MaxLength(50)] string Codigo,
+    [MaxLength(20)] string Tipo);
+
+// ---------------------------------------------------------------------------
+// Componente
+// ---------------------------------------------------------------------------
+
+/// <remarks>
+/// Sem `ArquivoSolido`/`ArquivoFoto`: as colunas existem em `dbo.Componente`, mas upload e a
+/// regra 18 sao trabalho da Fase 2, e a entidade da 1B nao as mapeia.
+/// </remarks>
+public sealed record ComponenteDto(
+    int Id, string Codigo, string Descricao, string Tipo, bool Ativo);
+
+/// <remarks>
+/// Os `MaxLength` espelham `dbo.Componente`: NVARCHAR(50), (200) e (20). Mesma regra de alvo do
+/// `NovoSetorDto` — atributo SEM `[property:]`, no parametro do construtor primario, que e onde a
+/// validacao de modelo do MVC le em record posicional. `Tipo` NAO ganha `[RegularExpression]`: a
+/// lista fechada (Bruto | Fabricado | Montagem) e regra do use case, porque o CK_Componente_Tipo
+/// do banco subiria como 500 em vez de 400. Campo so de espacos continua sendo regra do use case.
+/// </remarks>
+public sealed record NovoComponenteDto(
+    [MaxLength(50)] string Codigo,
+    [MaxLength(200)] string Descricao,
     [MaxLength(20)] string Tipo);
