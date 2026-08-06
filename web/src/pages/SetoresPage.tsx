@@ -16,6 +16,7 @@ export function SetoresPage() {
     setCarregando(true)
     try {
       setSetores(await listarSetores(comInativos))
+      setErro(null)
     } catch {
       setErro('Não foi possível carregar os setores.')
     } finally {

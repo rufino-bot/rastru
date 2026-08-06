@@ -19,6 +19,7 @@ export function MateriaisPage() {
     setCarregando(true)
     try {
       setMateriais(await listarMateriais(comInativos))
+      setErro(null)
     } catch {
       setErro('Não foi possível carregar os materiais.')
     } finally {

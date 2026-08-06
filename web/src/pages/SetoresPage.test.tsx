@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { MateriaisPage } from './MateriaisPage'
+import { SetoresPage } from './SetoresPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 
 // O auto-cleanup do RTL depende de um `afterEach` GLOBAL, que so existe com `globals: true` no
@@ -16,7 +16,7 @@ import { inicializar, _resetParaTeste } from '../api/client'
 // com "found multiple elements".
 afterEach(cleanup)
 
-describe('MateriaisPage', () => {
+describe('SetoresPage', () => {
   beforeEach(() => {
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
@@ -24,19 +24,19 @@ describe('MateriaisPage', () => {
 
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('mostra os materiais que a API devolveu', async () => {
+  it('mostra os setores que a API devolveu', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify([
-          { id: 1, codigo: 'CH-001', descricao: 'Chapa de aco 3mm', unidadeMedida: 'KG', ativo: true },
+          { id: 1, nome: 'Corte', ativo: true },
         ]),
         { status: 200 },
       ),
     ))
 
-    render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
 
-    expect(await screen.findByText('CH-001')).toBeTruthy()
+    expect(await screen.findByText('Corte')).toBeTruthy()
   })
 
   // I1 (achado da review de branch): `carregar` escreve `erro` no `catch` mas nunca o limpa no
@@ -49,19 +49,19 @@ describe('MateriaisPage', () => {
       if (chamadas === 1) return Promise.reject(new Error('rede caiu'))
       return Promise.resolve(new Response(
         JSON.stringify([
-          { id: 1, codigo: 'CH-001', descricao: 'Chapa de aco 3mm', unidadeMedida: 'KG', ativo: true },
+          { id: 1, nome: 'Corte', ativo: true },
         ]),
         { status: 200 },
       ))
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
-    await screen.findByText('Não foi possível carregar os materiais.')
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await screen.findByText('Não foi possível carregar os setores.')
 
     fireEvent.click(screen.getByLabelText('Mostrar inativos'))
 
-    await screen.findByText('CH-001')
-    expect(screen.queryByText('Não foi possível carregar os materiais.')).toBeNull()
+    await screen.findByText('Corte')
+    expect(screen.queryByText('Não foi possível carregar os setores.')).toBeNull()
   })
 })

@@ -923,6 +923,30 @@ describe('ComponentesPage', () => {
     })
   })
 
+  // I1 (achado da review de branch): `carregar` escreve `erro` no `catch` mas nunca o limpa no
+  // caminho de sucesso. A carga inicial falha (mensagem na tela); a busca dispara uma recarga que
+  // da certo — a lista nova tem que aparecer E a mensagem de erro tem que sumir. As outras funcoes
+  // da tela (salvar/alternarAtivo/reativar) ja fazem isso; carregar era a unica que faltava.
+  it('limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso', async () => {
+    let chamadas = 0
+    const fetchMock = vi.fn().mockImplementation(() => {
+      chamadas += 1
+      if (chamadas === 1) return Promise.reject(new Error('rede caiu'))
+      return Promise.resolve(paginaComTotal(1))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('Não foi possível carregar os componentes.')
+
+    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+      target: { value: 'sup' },
+    })
+
+    await screen.findByText('SUP-001')
+    expect(screen.queryByText('Não foi possível carregar os componentes.')).toBeNull()
+  })
+
   // Sweep D (mesma varredura): o `setForm(FORMULARIO_VAZIO)` de DENTRO de `reativar` (linha 117) e
   // distinto do `setForm(FORMULARIO_VAZIO)` do sucesso de `salvar` (ja provado pelo teste de
   // cadastro 201) — mutando so este, isoladamente, a suite seguia 26/26 verde. Sem ele, depois de

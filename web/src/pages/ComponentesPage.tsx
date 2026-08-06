@@ -43,6 +43,7 @@ export function ComponentesPage() {
       if (minhaSequencia !== sequenciaRef.current) return
       setComponentes(resposta.itens)
       setTotal(resposta.total)
+      setErro(null)
     } catch {
       if (minhaSequencia !== sequenciaRef.current) return
       setErro('Não foi possível carregar os componentes.')
