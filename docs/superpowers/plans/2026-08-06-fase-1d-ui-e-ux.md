@@ -884,7 +884,7 @@ Expected: `Tests  124 passed (124)` (115 + 9). **Se algum teste de `cadastros.te
 
 - [ ] **Step 8: Acrescentar a prova de que o status viaja**
 
-No **fim** de `web/src/api/cadastros.test.ts`, depois do último `describe` existente:
+**DENTRO** de `describe('cadastros')`, como último bloco dele — **não** depois do `})` que o fecha. Os hooks `beforeEach` (`_resetParaTeste()` + `inicializar({...})`) e `afterEach` (`vi.unstubAllGlobals()`) estão registrados **dentro** desse `describe`, e um bloco irmão não os herda: sem `inicializar()`, `apiFetch` lança `'client nao inicializado'` (`client.ts:38-40`) e os três testes falham. *(Esta instrução dizia "no fim do arquivo, depois do último `describe`" e estava errada — os três testes passavam só porque o `describe` vizinho tinha deixado `deps` preenchido. Achado da review da Task 2, provado rodando o bloco isolado.)*
 
 ```ts
 describe('status nas falhas de API', () => {
@@ -934,7 +934,7 @@ Expected: `Tests  127 passed (127)` · build limpo · lint só com o warning alh
 | M1 | `erros.ts` — `e.status >= 500` → `e.status === 500` | ≥ 1 (o teste do 503) |
 | M2 | `erros.ts` — remover o ramo `if (e.status === 403)` | ≥ 1 |
 | M3 | `erros.ts` — `e instanceof TypeError` → `false` | ≥ 1 |
-| M4 | `erros.ts` — remover o `return fallback` de dentro do bloco `ErroDeApi` | ≥ 1 |
+| M4 | `erros.ts` — `if (e instanceof ErroDeApi)` → `false` | ≥ 1 (mata vários) |
 | M5 | `cadastros.ts:40` — `resp.status` → `500` no `ErroDeApi` de `listarSetores` | ≥ 1 |
 | M6 | `cadastros.ts:34` — `resp.status` → `400` no `lerOuFalhar` | ≥ 1 |
 
