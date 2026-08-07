@@ -673,17 +673,23 @@ describe('cadastros', () => {
   // da tela (F2) nao ser decorativo: se a funcao nao lancasse, o catch nunca dispararia.
   it('lanca quando definir ativo do componente falha', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })))
-
     await expect(definirAtivoComponente(4, false)).rejects.toMatchObject({ name: 'ErroDeApi', status: 403 })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })))
+    await expect(definirAtivoComponente(4, false)).rejects.toMatchObject({ name: 'ErroDeApi', status: 500 })
   })
 
   describe('status nas falhas de API', () => {
-    // Sem estes testes, trocar `resp.status` por um literal (`403`, `500`) em qualquer um dos três
-    // `throw` pinados aqui passaria verde: os `rejects.toThrow()` que já existem não olham o
-    // status, só o fato de ter lançado. E é o status que a tela usa para escolher a mensagem. Três
-    // call sites, escolhidos por representar os três formatos: `lerOuFalhar` (criarSetor, abaixo),
-    // um GET que faz `.json()` (listarSetores, abaixo) e um PATCH que não faz
-    // (definirAtivoComponente, coberto acima em 'lanca quando definir ativo do componente falha').
+    // Sem estes testes, trocar `resp.status` por um literal (ex.: `404`, `500`, `403`) em qualquer
+    // um dos três `throw` pinados aqui passaria verde: os `rejects.toThrow()` que já existem não
+    // olham o status, só o fato de ter lançado. E é o status que a tela usa para escolher a
+    // mensagem. Três call sites — não três formatos de `throw`: a linha
+    // `if (!resp.ok) throw new ErroDeApi(resp.status, ...)` é byte-a-byte a mesma em 10 dos 12
+    // sites do arquivo, incluindo `listarSetores` (abaixo) e `definirAtivoComponente` (acima, em
+    // 'lanca quando definir ativo do componente falha'); `lerOuFalhar` (criarSetor, abaixo) chega
+    // nessa mesma linha, só que depois de tratar 409 à parte. A variedade real dos três sites é de
+    // função: helper compartilhado com desvio de 409 (`lerOuFalhar`), GET que desserializa o corpo
+    // (`listarSetores`) e PATCH que não desserializa (`definirAtivoComponente`).
     it('listarSetores propaga o status da resposta', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ erro: 'x' }), { status: 404 }),
@@ -700,8 +706,12 @@ describe('cadastros', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ erro: 'x' }), { status: 500 }),
       ))
-
       await expect(criarSetor('Solda')).rejects.toMatchObject({ name: 'ErroDeApi', status: 500 })
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: 'x' }), { status: 502 }),
+      ))
+      await expect(criarSetor('Solda')).rejects.toMatchObject({ name: 'ErroDeApi', status: 502 })
     })
   })
 })
