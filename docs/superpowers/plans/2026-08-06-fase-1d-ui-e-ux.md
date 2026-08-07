@@ -20,6 +20,7 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   - `cd web && npm run lint` → **1 warning, e ele é alheio**: `src/auth/AuthContext.tsx:48 react(only-export-components)`. Não conserte — não é desta fase.
   - Backend: **não re-medido de propósito**. Esta fase não toca em `src/` nem em `tests/`; `dotnet test` não faz parte do ciclo de nenhuma task aqui. Se você mudou algo em `src/`, você saiu do escopo.
   - **Se a sua contagem inicial divergir de 96, pare e reporte.** Contagem de brief desatualizada já mordeu três tasks neste projeto.
+- **Os totais absolutos de teste que aparecem daqui para baixo são ESTIMATIVAS, calculadas sem executar nada — e a Task 1 já provou que erram.** O plano previa 111 ao fim dela; o real é **110**, porque a aritmética somou 4 testes de `LoginPage` onde o código do próprio plano define 3. O que **vincula** é: (a) a baseline que você mede no início da sua task tem de bater com o número que a task anterior **reportou** — não com o número escrito aqui; e (b) o **delta** que a sua task acrescenta. Se o total divergir da estimativa e o delta estiver certo, **reporte o número real e siga** — não invente teste nem apague teste para fechar a conta. Números conhecidos e medidos: **início da fase 96 · fim da Task 1 110**.
 - **`dotnet test` NÃO roda o front.** A suíte desta fase é `cd web && npm test` (= `vitest run`, não é watch).
 - **Rode `npm run build` além de `npm test`.** Erro de tipo em `.test.tsx` quebra o build **sem** quebrar o `npm test` — o Vitest não faz typecheck e o `tsconfig.app.json` inclui `src` inteiro. Uma task não está pronta com build vermelho.
 - **Ordem obrigatória da fase (spec §10): rede antes do markup.** As Tasks 1–3 são rede e comportamento; a primeira linha de markup novo só aparece na Task 4. Não antecipe.
@@ -651,7 +652,8 @@ describe('LoginPage', () => {
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: **96 + 15 = 111 testes**, 10 arquivos, todos verdes · build limpo · lint com **só** o warning alheio de `AuthContext.tsx:48`.
+Expected: **110 testes / 10 arquivos**, todos verdes · build limpo · lint com **só** o warning alheio de `AuthContext.tsx:48`.
+*(96 + 14: PedidosPage 4, PedidoDetalhePage 4, HomePage 3, LoginPage 3. Medido em 2026-08-06 — a estimativa original dizia 111 e estava errada por um teste de LoginPage que a aritmética contou e o código não define.)*
 
 - [ ] **Step 16: Provar que a rede morde — mutação na `HomePage` e na `LoginPage`**
 
@@ -669,7 +671,7 @@ git add web/src/pages/HomePage.test.tsx web/src/pages/LoginPage.test.tsx
 git commit -m "test(web): rede de fumaca da HomePage e da LoginPage"
 ```
 
-**Definition of done da Task 1:** as **7** telas têm arquivo de teste; suíte em **111**; build e lint limpos; as 13 mutações medidas, cada uma com ≥ 1 morte, e o número reportado.
+**Definition of done da Task 1:** as **7** telas têm arquivo de teste; suíte em **110** (medido); build e lint limpos; as 13 mutações medidas, cada uma com ≥ 1 morte, e o número reportado.
 
 ---
 
@@ -695,7 +697,7 @@ git commit -m "test(web): rede de fumaca da HomePage e da LoginPage"
 cd web && npm test
 ```
 
-Expected: `Tests  111 passed (111)`. Se divergir, pare e reporte.
+Expected: `Tests  110 passed (110)` — número **medido** ao fim da Task 1, não estimado. Se divergir, pare e reporte.
 
 - [ ] **Step 2: Escrever o teste de `mensagemDeErro`, que ainda não existe**
 
@@ -876,7 +878,7 @@ Expected: `0`.
 cd web && npm test
 ```
 
-Expected: `Tests  120 passed (120)` (111 + 9). **Se algum teste de `cadastros.test.ts` quebrar, você mudou uma mensagem.** Confira com `git diff` e restaure o texto exato.
+Expected: `Tests  119 passed (119)` (110 + 9). **Se algum teste de `cadastros.test.ts` quebrar, você mudou uma mensagem.** Confira com `git diff` e restaure o texto exato.
 
 - [ ] **Step 8: Acrescentar a prova de que o status viaja**
 
@@ -3315,6 +3317,20 @@ git commit -m "feat(web): shell de navegacao com gaveta e tabela de permissoes"
 - Produces: nada de novo. **É consumo puro** — se você precisou criar uma primitiva aqui, ela faltou nas Tasks 5–6 e isso é achado a reportar.
 
 **As três não recebem redesenho** (spec §7): são formulário + lista, e o container novo mais as primitivas as resolvem por inteiro. **Se durante a execução alguma destoar de fato ao lado das novas, absorva na própria fase** — são as telas mais simples do sistema — e não abra fase nova.
+
+> **A duplicação do ciclo de CRUD entre as telas é DELIBERADA e já foi adjudicada — não é achado.**
+> Decisão do usuário no pre-flight de 2026-08-06, com a análise medida antes de perguntar.
+>
+> A review de branch da 1B registrou que "a duplicação deixou de ser barata", e o defeito I1
+> apareceu nas três telas ao mesmo tempo — o argumento a favor de extrair um `useCadastroSimples`
+> é real. O que decide contra é o **alcance**: o hook serviria **só `SetoresPage` e
+> `MateriaisPage`**. `PedidosPage` não tem `ativo`/`reativar` (não há coluna `Ativo` em `Pedido`),
+> e `ComponentesPage` carrega pelo `useBuscaPaginada` — o `carregar` dela é outro. Extrair uma
+> abstração para **dois** consumidores é o mesmo problema que a spec §5 nomeia no critério das
+> primitivas, invertido.
+>
+> **Se a review levantar isto, a resposta é este bloco.** Reabrir exige medição nova — por exemplo,
+> um terceiro consumidor real aparecendo.
 
 **Quatro mudanças de comportamento entram junto do markup**, e são as que a spec §9 pede:
 1. `mensagemDeErro` no lugar do texto fixo em todo `catch`;
