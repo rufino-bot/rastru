@@ -923,7 +923,9 @@ describe('status nas falhas de API', () => {
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  123 passed (123)` · build limpo · lint só com o warning alheio de `AuthContext.tsx:48`.
+Expected: `Tests  127 passed (127)` · build limpo · lint só com o warning alheio de `AuthContext.tsx:48`.
+
+*(127 = 115 medidos ao fim da Task 1 + 9 de `erros.test.ts` + 3 do Step 8. **O que vincula é o delta `+12`, não o absoluto** — se a baseline que você mediu no Step 1 for outra, reporte o número real e siga, conforme a constraint global. Este é um total derivado por soma, e soma feita de cabeça já errou duas vezes neste plano.)*
 
 - [ ] **Step 10: Medir as mutações**
 
@@ -943,7 +945,7 @@ git add web/src/api/erros.ts web/src/api/erros.test.ts web/src/api/cadastros.ts 
 git commit -m "feat(web): ErroDeApi com status e mensagens amigaveis de falha"
 ```
 
-**Definition of done da Task 2:** suíte em **123**; `grep -c "throw new Error" src/api/cadastros.ts` = 0; as 6 mutações medidas com ≥ 1 morte; **nenhuma tela modificada** — as telas passam a chamar `mensagemDeErro` nas Tasks 8–11.
+**Definition of done da Task 2:** suíte em **127** (= baseline medida + 12); `grep -c "throw new Error" src/api/cadastros.ts` = 0; as 6 mutações medidas com ≥ 1 morte; **nenhuma tela modificada** — as telas passam a chamar `mensagemDeErro` nas Tasks 8–11.
 
 ---
 
@@ -989,7 +991,7 @@ export function useBuscaPaginada<T>(opcoes: OpcoesDeBuscaPaginada<T>): BuscaPagi
 cd web && npm test
 ```
 
-Expected: `Tests  123 passed (123)`.
+Expected: **o número que a Task 2 reportou ao fechar** (estimado em 127, mas o que vale é o medido). Se divergir do relatório da Task 2, pare e reporte.
 
 - [ ] **Step 2: Escrever o teste do hook, que ainda não existe**
 
