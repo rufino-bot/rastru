@@ -20,7 +20,9 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   - `cd web && npm run lint` → **1 warning, e ele é alheio**: `src/auth/AuthContext.tsx:48 react(only-export-components)`. Não conserte — não é desta fase.
   - Backend: **não re-medido de propósito**. Esta fase não toca em `src/` nem em `tests/`; `dotnet test` não faz parte do ciclo de nenhuma task aqui. Se você mudou algo em `src/`, você saiu do escopo.
   - **Se a sua contagem inicial divergir de 96, pare e reporte.** Contagem de brief desatualizada já mordeu três tasks neste projeto.
-- **Os totais absolutos de teste que aparecem daqui para baixo são ESTIMATIVAS, calculadas sem executar nada — e a Task 1 já provou que erram.** O plano previa 111 ao fim dela; o real é **110**, porque a aritmética somou 4 testes de `LoginPage` onde o código do próprio plano define 3. O que **vincula** é: (a) a baseline que você mede no início da sua task tem de bater com o número que a task anterior **reportou** — não com o número escrito aqui; e (b) o **delta** que a sua task acrescenta. Se o total divergir da estimativa e o delta estiver certo, **reporte o número real e siga** — não invente teste nem apague teste para fechar a conta. Números conhecidos e medidos: **início da fase 96 · fim da Task 1 110**.
+- **Os totais absolutos de teste que aparecem daqui para baixo são ESTIMATIVAS, calculadas sem executar nada — e a Task 1 já provou que erram.** O plano previa 111 ao fim dela; a implementação mediu **110**, porque a aritmética somou 4 testes de `LoginPage` onde o código do próprio plano define 3. O que **vincula** é: (a) a baseline que você mede no início da sua task tem de bater com o número que a task anterior **reportou** — não com o número escrito aqui; e (b) o **delta** que a sua task acrescenta. Se o total divergir da estimativa e o delta estiver certo, **reporte o número real e siga** — não invente teste nem apague teste para fechar a conta. Números conhecidos e medidos: **início da fase 96 · fim da Task 1 111**.
+
+> **Sobre o 111 desta linha — leia antes de "corrigir" de volta para 110.** Ele NÃO é a estimativa velha ressuscitada; é medição, e os dois números coincidirem é acidente. A ordem dos fatos foi: estimativa 111 → implementação mediu **110** (a estimativa estava errada) → o fix pass da review acrescentou **um** teste (`PedidoDetalhePage`, desfecho `NaoEncontrado`, achado M1) → medição final **111** (`npx vitest run`, 10 arquivos, saída limpa, commit `2a8a02e`). Quem trocar isto por 110 vai desfazer o conserto.
 - **`dotnet test` NÃO roda o front.** A suíte desta fase é `cd web && npm test` (= `vitest run`, não é watch).
 - **Rode `npm run build` além de `npm test`.** Erro de tipo em `.test.tsx` quebra o build **sem** quebrar o `npm test` — o Vitest não faz typecheck e o `tsconfig.app.json` inclui `src` inteiro. Uma task não está pronta com build vermelho.
 - **Ordem obrigatória da fase (spec §10): rede antes do markup.** As Tasks 1–3 são rede e comportamento; a primeira linha de markup novo só aparece na Task 4. Não antecipe.
@@ -652,8 +654,8 @@ describe('LoginPage', () => {
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: **110 testes / 10 arquivos**, todos verdes · build limpo · lint com **só** o warning alheio de `AuthContext.tsx:48`.
-*(96 + 14: PedidosPage 4, PedidoDetalhePage 4, HomePage 3, LoginPage 3. Medido em 2026-08-06 — a estimativa original dizia 111 e estava errada por um teste de LoginPage que a aritmética contou e o código não define.)*
+Expected: **111 testes / 10 arquivos**, todos verdes · build limpo · lint com **só** o warning alheio de `AuthContext.tsx:48`.
+*(96 + 15: PedidosPage 4, PedidoDetalhePage **5**, HomePage 3, LoginPage 3. Medido em 2026-08-06. A implementação fechou em 110 — a estimativa original de 111 estava errada por um teste de LoginPage que a aritmética contou e o código não define — e o fix pass da review acrescentou o 5º teste de `PedidoDetalhePage` (desfecho `NaoEncontrado`, achado M1), fechando em 111 medidos.)*
 
 - [ ] **Step 16: Provar que a rede morde — mutação na `HomePage` e na `LoginPage`**
 
@@ -671,7 +673,7 @@ git add web/src/pages/HomePage.test.tsx web/src/pages/LoginPage.test.tsx
 git commit -m "test(web): rede de fumaca da HomePage e da LoginPage"
 ```
 
-**Definition of done da Task 1:** as **7** telas têm arquivo de teste; suíte em **110** (medido); build e lint limpos; as 13 mutações medidas, cada uma com ≥ 1 morte, e o número reportado.
+**Definition of done da Task 1:** as **7** telas têm arquivo de teste; suíte em **111** (medido, pós-fix pass); build e lint limpos; as 13 mutações medidas, cada uma com ≥ 1 morte, e o número reportado.
 
 ---
 
@@ -697,7 +699,7 @@ git commit -m "test(web): rede de fumaca da HomePage e da LoginPage"
 cd web && npm test
 ```
 
-Expected: `Tests  110 passed (110)` — número **medido** ao fim da Task 1, não estimado. Se divergir, pare e reporte.
+Expected: `Tests  111 passed (111)` — número **medido** ao fim da Task 1 (commit `2a8a02e`, já com o fix pass da review), não estimado. Se divergir, pare e reporte.
 
 - [ ] **Step 2: Escrever o teste de `mensagemDeErro`, que ainda não existe**
 
@@ -878,7 +880,7 @@ Expected: `0`.
 cd web && npm test
 ```
 
-Expected: `Tests  119 passed (119)` (110 + 9). **Se algum teste de `cadastros.test.ts` quebrar, você mudou uma mensagem.** Confira com `git diff` e restaure o texto exato.
+Expected: `Tests  120 passed (120)` (111 + 9). **Se algum teste de `cadastros.test.ts` quebrar, você mudou uma mensagem.** Confira com `git diff` e restaure o texto exato.
 
 - [ ] **Step 8: Acrescentar a prova de que o status viaja**
 
