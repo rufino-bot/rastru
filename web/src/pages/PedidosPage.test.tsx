@@ -51,11 +51,13 @@ describe('PedidosPage', () => {
   })
 
   it('mostra a data de abertura no fuso que a API mandou, sem reconverter', async () => {
-    // Offset +05:30 (não coincide com nenhum fuso plausível de execução desta suíte, que roda em
-    // -03:00): se alguém trocar `formatarDataHora` por `new Date(...).toLocaleString()`, o horário
-    // reconverte para o fuso da máquina e deixa de bater com 09:30 em QUALQUER máquina — ao
-    // contrário de um offset -03:00 na fixture, que coincidiria com o fuso local por acidente e
-    // deixaria a mutação sobreviver aqui sem provar nada.
+    // Offset +05:30 (Asia/Kolkata, fuso real — não um valor arbitrário): esta suíte roda em
+    // -03:00, e é isso que fica provado aqui. Se alguém trocar `formatarDataHora` por
+    // `new Date(...).toLocaleString()`, o horário reconverte para o fuso da máquina e deixa de
+    // bater com 09:30 em qualquer máquina cujo fuso local não seja +05:30 — o que cobre esta
+    // suíte, mas não é um absoluto universal (numa máquina em IST a mutação sobreviveria). Um
+    // offset -03:00 na fixture coincidiria com o fuso local por acidente e deixaria a mutação
+    // sobreviver aqui sem provar nada.
     const pedidoComFusoDistinto = { ...PEDIDO, dataAbertura: '2026-08-06T09:30:00+05:30' }
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos': () => respostaJson([pedidoComFusoDistinto]),

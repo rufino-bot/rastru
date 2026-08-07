@@ -81,4 +81,31 @@ describe('LoginPage', () => {
 
     expect(await screen.findByText('Sessão expirada. Entre novamente.')).toBeTruthy()
   })
+
+  it('sai do formulário quando o login dá certo', async () => {
+    // A3.2: até aqui só o caminho de falha tinha teste. `/api/auth/refresh` responde 401 (sem
+    // sessão restaurada) para o init-refresh do mount não pré-autenticar o teste; o corpo de
+    // sucesso do `/api/auth/login` reaproveita o formato do teste acima (linhas 64-68).
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/auth/refresh': () => respostaJson({ erro: 'sem sessão' }, 401),
+      '/api/auth/login': () => respostaJson({
+        accessToken: 't',
+        accessTokenExpiraEm: '2026-08-06T10:00:00-03:00',
+        usuario: { id: 1, nomeUsuario: 'admin', nomeCompleto: 'Admin', perfil: 'Administrador' },
+      }),
+    }))
+
+    renderizarLogin()
+    fireEvent.change(await screen.findByLabelText('Usuário'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Admin@123' } })
+    fireEvent.click(screen.getByText('Entrar'))
+
+    // NÃO usa 'Entrar' sumir como sinal aqui (diferente do I1 na linha 79): o próprio botão troca
+    // o texto para 'Entrando…' enquanto `enviando` está true, então 'Entrar' fica ausente por um
+    // instante mesmo SE o `<Navigate>` nunca disparar — um teste que espere por isso passaria com
+    // a guarda de LoginPage.tsx:12 quebrada (falso-positivo pego medindo a mutação). O rótulo
+    // 'Usuário' não muda com `enviando`; ele só some quando o componente desmonta de verdade
+    // porque `estado.status` virou 'autenticado' e a página devolveu `<Navigate>`.
+    await waitFor(() => expect(screen.queryByLabelText('Usuário')).toBeNull())
+  })
 })

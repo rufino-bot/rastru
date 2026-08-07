@@ -143,4 +143,85 @@ describe('PedidoDetalhePage', () => {
 
     expect(await screen.findByText('Este agrupamento já não existe mais.')).toBeTruthy()
   })
+
+  it('explica o motivo quando a exclusão é recusada porque o pedido não está mais aberto', async () => {
+    // Terceiro desfecho do mapa (A2 do segundo fix pass): segundo o comentário de
+    // cadastros.ts:192-194, PedidoNaoAberto é o código que MAIS chega na prática (a ordem das
+    // guardas no backend é existe -> Pedido Aberto -> vazio). O 409 é discriminado pelo campo
+    // `erro` do corpo — sem este teste, mutar PedidoDetalhePage.tsx:16 matava 0.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      '/api/agrupamentos/21': () => respostaJson({ erro: 'PedidoNaoAberto' }, 409),
+    }))
+
+    renderizarDetalhe()
+    fireEvent.click(await screen.findByText('Excluir'))
+    const dialogo = screen.getByRole('dialog')
+    fireEvent.click(Array.from(dialogo.querySelectorAll('button')).find((b) => b.textContent === 'Excluir')!)
+
+    expect(
+      await screen.findByText('O pedido não está mais aberto: não dá para excluir agrupamentos dele.'),
+    ).toBeTruthy()
+  })
+
+  it('cadastra o agrupamento, limpa o formulário e recarrega a lista quando o salvar dá certo', async () => {
+    // A3.1: nenhum dos testes acima exercita o formulário — só a exclusão. POST e GET caem na
+    // MESMA rota (`/pedidos/7/agrupamentos`), então o contador precisa distinguir as TRÊS
+    // chamadas na ordem em que acontecem: 1) GET no mount (lista vazia), 2) POST do submit
+    // (sucesso, sem `erro`), 3) GET do `carregar(pedidoId)` pós-salvar (lista com o novo item).
+    // 'AGR-01' aparecer só depois do submit é o que torna o recarregamento observável (padrão
+    // M2/M6, como no teste de exclusão acima).
+    let chamadas = 0
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => {
+        chamadas += 1
+        if (chamadas === 1) return respostaJson([])
+        if (chamadas === 2) return respostaJson(AGRUPAMENTO)
+        return respostaJson([AGRUPAMENTO])
+      },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('PED-001')
+    expect(screen.queryByText('AGR-01')).toBeNull()
+
+    fireEvent.change(screen.getByPlaceholderText('Código do agrupamento'), { target: { value: 'AGR-01' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    // Prova o `await carregar(pedidoId)`: se ele for apagado de PedidoDetalhePage.tsx:64, a
+    // terceira chamada nunca acontece, a lista fica vazia para sempre e este findByText estoura
+    // por timeout, não por falso-positivo.
+    expect(await screen.findByText('AGR-01')).toBeTruthy()
+    // Prova o `setForm(FORMULARIO_VAZIO)`: se ele for apagado da linha 63, o campo continuaria
+    // com 'AGR-01' digitado.
+    expect((screen.getByPlaceholderText('Código do agrupamento') as HTMLInputElement).value).toBe('')
+  })
+
+  it('mostra o erro de duplicidade e mantém o formulário preenchido quando o salvar é recusado', async () => {
+    // A3.1, ramo de conflito: o `return` de PedidoDetalhePage.tsx:61 acontece ANTES do
+    // `setForm(FORMULARIO_VAZIO)` — só a mensagem de erro não provaria isso (sobreviveria à
+    // mutação "apagar o return"), por isso a asserção do valor do campo é obrigatória aqui.
+    let chamadas = 0
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => {
+        chamadas += 1
+        if (chamadas === 1) return respostaJson([])
+        return respostaJson({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 1 }, 409)
+      },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('PED-001')
+
+    fireEvent.change(screen.getByPlaceholderText('Código do agrupamento'), { target: { value: 'AGR-01' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    expect(
+      await screen.findByText('Já existe um agrupamento com este código neste pedido.'),
+    ).toBeTruthy()
+    expect((screen.getByPlaceholderText('Código do agrupamento') as HTMLInputElement).value).toBe('AGR-01')
+  })
 })
