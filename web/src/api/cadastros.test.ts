@@ -677,3 +677,30 @@ describe('cadastros', () => {
     await expect(definirAtivoComponente(4, false)).rejects.toThrow()
   })
 })
+
+describe('status nas falhas de API', () => {
+  // Sem estes testes, trocar `resp.status` por um literal (`403`, `500`) em qualquer um dos 12
+  // `throw` passaria verde: os `rejects.toThrow()` que já existem não olham o status, só o fato de
+  // ter lançado. E é o status que a tela usa para escolher a mensagem.
+  it('listarSetores propaga o status da resposta', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'x' }), { status: 403 }),
+    ))
+
+    await expect(listarSetores(false)).rejects.toMatchObject({ name: 'ErroDeApi', status: 403 })
+  })
+
+  it('lerOuFalhar propaga o status da resposta', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'x' }), { status: 500 }),
+    ))
+
+    await expect(criarSetor('Solda')).rejects.toMatchObject({ name: 'ErroDeApi', status: 500 })
+  })
+
+  it('definirAtivoComponente propaga o status da resposta', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })))
+
+    await expect(definirAtivoComponente(4, false)).rejects.toMatchObject({ name: 'ErroDeApi', status: 403 })
+  })
+})
