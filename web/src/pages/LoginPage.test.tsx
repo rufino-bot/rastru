@@ -86,14 +86,15 @@ describe('LoginPage', () => {
     // A3.2: até aqui só o caminho de falha tinha teste. `/api/auth/refresh` responde 401 (sem
     // sessão restaurada) para o init-refresh do mount não pré-autenticar o teste; o corpo de
     // sucesso do `/api/auth/login` reaproveita o formato do teste acima (linhas 64-68).
-    vi.stubGlobal('fetch', fetchPorRota({
+    const fetchMock = fetchPorRota({
       '/api/auth/refresh': () => respostaJson({ erro: 'sem sessão' }, 401),
       '/api/auth/login': () => respostaJson({
         accessToken: 't',
         accessTokenExpiraEm: '2026-08-06T10:00:00-03:00',
         usuario: { id: 1, nomeUsuario: 'admin', nomeCompleto: 'Admin', perfil: 'Administrador' },
       }),
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
 
     renderizarLogin()
     fireEvent.change(await screen.findByLabelText('Usuário'), { target: { value: 'admin' } })
@@ -107,5 +108,15 @@ describe('LoginPage', () => {
     // 'Usuário' não muda com `enviando`; ele só some quando o componente desmonta de verdade
     // porque `estado.status` virou 'autenticado' e a página devolveu `<Navigate>`.
     await waitFor(() => expect(screen.queryByLabelText('Usuário')).toBeNull())
+
+    // B3: o mock responde 200 pra qualquer corpo — sem esta asserção, trocar
+    // `login(nomeUsuario, senha)` por `login('', '')` em LoginPage.tsx:23 sobreviveria.
+    // `login()` (client.ts:82-94) monta `body: JSON.stringify({ nomeUsuario, senha })`.
+    const chamadaLogin = fetchMock.mock.calls.find((c) => String(c[0]).includes('/auth/login'))
+    expect(chamadaLogin).toBeTruthy()
+    expect(JSON.parse((chamadaLogin![1] as RequestInit).body as string)).toEqual({
+      nomeUsuario: 'admin',
+      senha: 'Admin@123',
+    })
   })
 })

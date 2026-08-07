@@ -173,15 +173,16 @@ describe('PedidoDetalhePage', () => {
     // 'AGR-01' aparecer só depois do submit é o que torna o recarregamento observável (padrão
     // M2/M6, como no teste de exclusão acima).
     let chamadas = 0
-    vi.stubGlobal('fetch', fetchPorRota({
+    const fetchMock = fetchPorRota({
       '/api/pedidos/7': () => respostaJson(PEDIDO),
       '/api/pedidos/7/agrupamentos': () => {
         chamadas += 1
         if (chamadas === 1) return respostaJson([])
-        if (chamadas === 2) return respostaJson(AGRUPAMENTO)
+        if (chamadas === 2) return respostaJson(AGRUPAMENTO, 201)
         return respostaJson([AGRUPAMENTO])
       },
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
 
     renderizarDetalhe()
     await screen.findByText('PED-001')
@@ -197,19 +198,33 @@ describe('PedidoDetalhePage', () => {
     // Prova o `setForm(FORMULARIO_VAZIO)`: se ele for apagado da linha 63, o campo continuaria
     // com 'AGR-01' digitado.
     expect((screen.getByPlaceholderText('Código do agrupamento') as HTMLInputElement).value).toBe('')
+
+    // B2: fetchPorRota (testes/api.ts:29-36) casa só por caminho — ignora método e corpo. Sem
+    // esta asserção, trocar o POST de criarAgrupamento por GET, ou deixar de enviar o `form` no
+    // corpo, sobrevive ao teste. `init` é o segundo argumento passado ao fetch global, montado
+    // por fetchComToken (client.ts:43-47): `{ ...init, headers: Headers, credentials: 'include' }`.
+    const chamadaPost = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'POST')
+    expect(chamadaPost).toBeTruthy()
+    expect(JSON.parse((chamadaPost![1] as RequestInit).body as string)).toEqual({ codigo: 'AGR-01', tipo: 'Kit' })
   })
 
   it('mostra o erro de duplicidade e mantém o formulário preenchido quando o salvar é recusado', async () => {
     // A3.1, ramo de conflito: o `return` de PedidoDetalhePage.tsx:61 acontece ANTES do
-    // `setForm(FORMULARIO_VAZIO)` — só a mensagem de erro não provaria isso (sobreviveria à
-    // mutação "apagar o return"), por isso a asserção do valor do campo é obrigatória aqui.
+    // `setForm(FORMULARIO_VAZIO)` — sem ele, o fluxo continua para `setForm` e `carregar()`. A
+    // mensagem de erro sozinha SOBREVIVE a essa mutação (nada a apaga depois dela), por isso é a
+    // asserção do valor do campo que pega essa mutação. Para a asserção ser alcançada, o 409 vale
+    // só na SEGUNDA chamada da rota (o POST); da terceira chamada em diante ela devolve lista
+    // vazia com sucesso — senão a terceira chamada (a de `carregar()`, que só acontece sob a
+    // mutação) bateria de novo no 409, `listarAgrupamentos` lançaria (cadastros.ts:174) e o catch
+    // de PedidoDetalhePage.tsx:43 sobrescreveria a mensagem de conflito por 'Não foi possível
+    // carregar o pedido.' antes da asserção do campo rodar.
     let chamadas = 0
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos/7': () => respostaJson(PEDIDO),
       '/api/pedidos/7/agrupamentos': () => {
         chamadas += 1
-        if (chamadas === 1) return respostaJson([])
-        return respostaJson({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 1 }, 409)
+        if (chamadas === 2) return respostaJson({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 1 }, 409)
+        return respostaJson([])
       },
     }))
 
