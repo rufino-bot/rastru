@@ -32,6 +32,7 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 - **`git status` tem sujeira alheia e permanente:** `.claude/settings.local.json` modificado e `.claude/settings.json` untracked. **Não commite nenhuma das duas.**
 - **Não edite fonte com `Set-Content` do PowerShell 5.1** — ele corrompe UTF-8 (acentuação) e a suíte fica verde mesmo assim. Use as ferramentas de edição de arquivo.
 - **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`). Varredura de segredo antes de qualquer push é passo obrigatório.
+- **⚠️ TODOS os totais absolutos de teste da Task 4 em diante estão DEFASADOS EM +3 — não os use como alvo.** Corrigido em 2026-08-07. A cadeia (156 → 179 → 200 → 214 → 225) foi somada a partir de um `136` que herdava o `123` obsoleto da Task 2; a Task 2 fechou **medida em 126**, e a Task 3 tem alvo **139**. Então: 156→**159**, 179→**182**, 200→**203**, 214→**217**, 225→**228**. **Esses números corrigidos também são estimativa** — não os trate melhor que os anteriores. **O que vincula continua sendo (a) a baseline que você MEDE no Step 1 bater com o total que a task anterior REPORTOU ao fechar, e (b) o delta da sua task.** Se o delta estiver certo e o total divergir, reporte o número real e siga. Foi por não fazer isso que este plano produziu **três** contagens erradas, e uma delas quase travou uma task por alarme falso.
 - **Toda review de task grava ARTEFATO em disco, não só devolve relatório ao controlador.** Decisão do usuário em 2026-08-07. O revisor escreve o relatório completo em `.superpowers/sdd/fase1d-task-N-review.md` (fix pass: `-fix-review.md`; re-review: `-re-review.md`) **e** devolve o mesmo conteúdo como mensagem final. **Motivo, e ele tem caso concreto:** as reviews das Tasks 1 e 2 desta fase não deixaram arquivo — os achados sobreviveram só resumidos no ledger, que é gitignored. Foi exatamente assim que a Fase 1B **perdeu o achado I7** (a review listava 6 Important, o resumo no ledger listava 5, e ainda renumerou os outros, fazendo "I2" significar coisas diferentes nos dois arquivos). Regra derivada, já registrada na 1B e agora executável: **resumir achado de review no ledger perde achado — aponte para o arquivo, não re-narre a lista.**
 - **Texto de interface em português, com acentuação correta.** Nomes de domínio em português (`Componente`, `Agrupamento`); nomes técnicos em inglês só onde já é a convenção do repo (`Repository`, `UseCase`, `DTO`). Nomes de primitiva e de hook: **português** (`Pagina`, `Botao`, `useBuscaPaginada`) — é a convenção que o front já segue (`TelaCarregando`, `estadoDaSessao`, `apiFetch`).
 
@@ -1448,7 +1449,9 @@ Expected: `Tests  13 passed (13)`. Se o teste do clamp falhar por uma renderiza�
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  136 passed (136)` (123 + 13) · build limpo · lint só com o warning alheio.
+Expected: `Tests  139 passed (139)` (**126 medido** ao fim da Task 2 + 13 desta task) · build limpo · lint só com o warning alheio.
+
+*(**Este número foi corrigido em 2026-08-07, e o erro é o terceiro do mesmo tipo neste plano.** Dizia `136 (123 + 13)`: o `123` era a contagem obsoleta da Task 2, já substituída por 127 na estimativa e depois medida em **126**. O delta `+13` é o que vincula — se você medir 139 com o delta certo, está correto; se medir outro total **com o delta certo**, reporte o número real e siga, conforme a constraint global. Não invente nem apague teste para fechar conta.)*
 
 - [ ] **Step 7: Medir as mutações**
 
@@ -1475,7 +1478,7 @@ git add web/src/hooks/useBuscaPaginada.ts web/src/hooks/useBuscaPaginada.test.ts
 git commit -m "feat(web): useBuscaPaginada com debounce, cancelamento, clamp e W3"
 ```
 
-**Definition of done da Task 3:** suíte em **136**; as 11 mutações medidas com ≥ 1 morte cada; **nenhuma tela modificada**; build e lint limpos.
+**Definition of done da Task 3:** suíte em **139** (= baseline 126 medida + **delta 13**, e o delta é o que vincula); as 11 mutações medidas com ≥ 1 morte cada; **nenhuma tela modificada**; build e lint limpos.
 
 ---
 
@@ -1499,7 +1502,7 @@ git commit -m "feat(web): useBuscaPaginada com debounce, cancelamento, clamp e W
 cd web && npm test
 ```
 
-Expected: `Tests  136 passed (136)`.
+Expected: **o número que a Task 3 reportou ao fechar** (estimado em 139; o que vale é o medido). Se divergir do relatório da Task 3, pare e reporte.
 
 - [ ] **Step 2: Escrever as funções de contraste, que ainda não existem**
 
@@ -1765,7 +1768,7 @@ Expected: ≥ `1`. **Este é o passo que prova que o `@theme` está ligado ao Ta
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  156 passed (156)` (136 + 20) · build limpo · lint só com o warning alheio.
+Expected: **a baseline que você mediu no Step 1 desta task + 20** (estimado em 156 quando a conta partia de 136, mas esse 136 herdava um total obsoleto — ver a caixa do Step 9 da Task 3). **O que vincula é o delta `+20`**, não o absoluto: reporte o total real medido e siga.
 
 - [ ] **Step 11: Medir as mutações**
 
