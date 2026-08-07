@@ -32,6 +32,7 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 - **`git status` tem sujeira alheia e permanente:** `.claude/settings.local.json` modificado e `.claude/settings.json` untracked. **Não commite nenhuma das duas.**
 - **Não edite fonte com `Set-Content` do PowerShell 5.1** — ele corrompe UTF-8 (acentuação) e a suíte fica verde mesmo assim. Use as ferramentas de edição de arquivo.
 - **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`). Varredura de segredo antes de qualquer push é passo obrigatório.
+- **Toda review de task grava ARTEFATO em disco, não só devolve relatório ao controlador.** Decisão do usuário em 2026-08-07. O revisor escreve o relatório completo em `.superpowers/sdd/fase1d-task-N-review.md` (fix pass: `-fix-review.md`; re-review: `-re-review.md`) **e** devolve o mesmo conteúdo como mensagem final. **Motivo, e ele tem caso concreto:** as reviews das Tasks 1 e 2 desta fase não deixaram arquivo — os achados sobreviveram só resumidos no ledger, que é gitignored. Foi exatamente assim que a Fase 1B **perdeu o achado I7** (a review listava 6 Important, o resumo no ledger listava 5, e ainda renumerou os outros, fazendo "I2" significar coisas diferentes nos dois arquivos). Regra derivada, já registrada na 1B e agora executável: **resumir achado de review no ledger perde achado — aponte para o arquivo, não re-narre a lista.**
 - **Texto de interface em português, com acentuação correta.** Nomes de domínio em português (`Componente`, `Agrupamento`); nomes técnicos em inglês só onde já é a convenção do repo (`Repository`, `UseCase`, `DTO`). Nomes de primitiva e de hook: **português** (`Pagina`, `Botao`, `useBuscaPaginada`) — é a convenção que o front já segue (`TelaCarregando`, `estadoDaSessao`, `apiFetch`).
 
 ### Decisões desta fase que **não** se re-decidem
@@ -927,6 +928,8 @@ Expected: `Tests  127 passed (127)` · build limpo · lint só com o warning alh
 
 *(127 = 115 medidos ao fim da Task 1 + 9 de `erros.test.ts` + 3 do Step 8. **O que vincula é o delta `+12`, não o absoluto** — se a baseline que você mediu no Step 1 for outra, reporte o número real e siga, conforme a constraint global. Este é um total derivado por soma, e soma feita de cabeça já errou duas vezes neste plano.)*
 
+> **FECHAMENTO MEDIDO: a Task 2 fechou em 126, não 127.** A implementação bateu os 127 previstos; o **fix pass** (`e451730`) consolidou dois testes de `definirAtivoComponente` num só — o novo era clone verbatim do existente, com asserção mais forte, então o antigo virara subconjunto dele (achado C3 da review). **Não é teste perdido:** a asserção forte migrou para o teste que sobreviveu (`cadastros.test.ts:677`), e a re-review confirmou a consolidação como a escolha certa. Medição final: `npm test` = **126 em 11 arquivos**, verde, HEAD `e451730`.
+
 - [ ] **Step 10: Medir as mutações**
 
 | # | Mutação | Mortes esperadas |
@@ -946,6 +949,8 @@ git commit -m "feat(web): ErroDeApi com status e mensagens amigaveis de falha"
 ```
 
 **Definition of done da Task 2:** suíte em **127** (= baseline medida + 12); `grep -c "throw new Error" src/api/cadastros.ts` = 0; as 6 mutações medidas com ≥ 1 morte; **nenhuma tela modificada** — as telas passam a chamar `mensagemDeErro` nas Tasks 8–11.
+
+**CUMPRIDA em 2026-08-07, e o número final é 126** (ver a caixa do Step 9). `grep -c "throw new Error"` = 0 e `grep -c "new ErroDeApi("` = 12, conferidos no disco pela re-review. Nenhuma tela tocada. Review + fix pass + re-review: **Aprovado, sem Critical nem Important**; relatório em `.superpowers/sdd/fase1d-task-2-re-review.md`.
 
 ---
 
@@ -991,7 +996,7 @@ export function useBuscaPaginada<T>(opcoes: OpcoesDeBuscaPaginada<T>): BuscaPagi
 cd web && npm test
 ```
 
-Expected: **o número que a Task 2 reportou ao fechar** (estimado em 127, mas o que vale é o medido). Se divergir do relatório da Task 2, pare e reporte.
+Expected: **126 testes / 11 arquivos** — número **medido** ao fechar a Task 2 (a estimativa deste plano dizia 127; o fix pass consolidou dois testes, ver a caixa do Step 9 da Task 2). Se divergir de 126, pare e reporte.
 
 - [ ] **Step 2: Escrever o teste do hook, que ainda não existe**
 
