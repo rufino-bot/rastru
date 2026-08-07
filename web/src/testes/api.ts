@@ -27,7 +27,11 @@ export function respostaJson(corpo: unknown, status = 200): Response {
  * aponta a rota que faltou declarar, em vez de um `undefined` genérico rio abaixo.
  */
 export function fetchPorRota(mapa: Record<string, () => Response | Promise<Response>>) {
-  return vi.fn((url: string | URL) => {
+  // O `init` é declarado mas não usado: o roteamento é só por caminho. Ele existe na assinatura
+  // porque é o 2º argumento do `fetch` real, e é nele que teste de prova de método/corpo olha
+  // (`fetchMock.mock.calls[n][1]`). Sem declará-lo, `mock.calls` vira tupla de UM elemento e o
+  // acesso ao índice 1 não compila — `tsc -b` reprova, embora a suíte passe.
+  return vi.fn((url: string | URL, _init?: RequestInit) => {
     const caminho = String(url).split('?')[0]
     const entrada = mapa[caminho]
     if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
