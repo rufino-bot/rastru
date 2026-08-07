@@ -23,9 +23,8 @@ export function respostaJson(corpo: unknown, status = 200): Response {
  * `/api/componentes?busca=&pagina=1&tamanho=20`. Quando a URL completa importa (prova de filtro),
  * asserte sobre `fetchMock.mock.calls[n][0]`, que guarda a URL inteira.
  *
- * Rota não declarada REJEITA com mensagem nomeando a URL, em vez de devolver `undefined` — sem
- * isso o teste morre dez linhas adiante em "cannot read property 'ok' of undefined", e o que se
- * lê no relatório não tem relação com a causa.
+ * Rota não declarada REJEITA com mensagem nomeando a URL, em vez de devolver `undefined` — o erro
+ * aponta a rota que faltou declarar, em vez de um `undefined` genérico rio abaixo.
  */
 export function fetchPorRota(mapa: Record<string, () => Response | Promise<Response>>) {
   return vi.fn((url: string | URL) => {

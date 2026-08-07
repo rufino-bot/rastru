@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { LoginPage } from './LoginPage'
 import { AuthProvider } from '../auth/AuthContext'
-import { _resetParaTeste } from '../api/client'
+import { _resetParaTeste, apiFetch } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
 
 afterEach(cleanup)
@@ -71,10 +71,12 @@ describe('LoginPage', () => {
       '/api/me': () => respostaJson({ erro: 'nao autorizado' }, 401),
     }))
 
-    const { apiFetch } = await import('../api/client')
     renderizarLogin()
-    // Espera o provider terminar o init-refresh antes de forçar a perda de sessão.
-    await screen.findByText('Entrar')
+    // O init-refresh #1 responde 200 -> status vira 'autenticado' -> LoginPage devolve <Navigate>
+    // e 'Entrar' SAI da tela. É a saída dele, não a presença, que prova que o init terminou:
+    // 'Entrar' está na tela desde o primeiro paint (status inicial 'carregando'), então esperar
+    // pela presença não espera nada.
+    await waitFor(() => expect(screen.queryByText('Entrar')).toBeNull())
     await apiFetch('/me')
 
     expect(await screen.findByText('Sessão expirada. Entre novamente.')).toBeTruthy()

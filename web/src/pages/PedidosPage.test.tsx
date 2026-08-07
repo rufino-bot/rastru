@@ -42,20 +42,27 @@ describe('PedidosPage', () => {
 
     // Texto exato, número antes do cliente: um `getByText(/PED-001/)` sozinho passaria mesmo com a
     // ordem trocada, porque casa por substring dentro do mesmo nó — ele já matou 0 mutações contra
-    // a troca de ordem. A string inteira é o que prova a ordem.
+    // a troca de ordem. A string inteira é o que prova a ordem. Acoplado ao markup de nó único de
+    // propósito: a Task 8 deste plano re-diagrama esta tela para `ItemDeCadastro`, o que deve
+    // separar número e cliente em nós distintos e quebrar esta asserção literal por mudança de
+    // layout, não por regressão — quando isso acontecer, a propriedade a preservar é a ordem
+    // (número antes do cliente), não esta string exata.
     expect(await screen.findByText('PED-001 — Fábrica Alfa')).toBeTruthy()
   })
 
   it('mostra a data de abertura no fuso que a API mandou, sem reconverter', async () => {
+    // Offset +05:30 (não coincide com nenhum fuso plausível de execução desta suíte, que roda em
+    // -03:00): se alguém trocar `formatarDataHora` por `new Date(...).toLocaleString()`, o horário
+    // reconverte para o fuso da máquina e deixa de bater com 09:30 em QUALQUER máquina — ao
+    // contrário de um offset -03:00 na fixture, que coincidiria com o fuso local por acidente e
+    // deixaria a mutação sobreviver aqui sem provar nada.
+    const pedidoComFusoDistinto = { ...PEDIDO, dataAbertura: '2026-08-06T09:30:00+05:30' }
     vi.stubGlobal('fetch', fetchPorRota({
-      '/api/pedidos': () => respostaJson([PEDIDO]),
+      '/api/pedidos': () => respostaJson([pedidoComFusoDistinto]),
     }))
 
     render(<MemoryRouter><PedidosPage /></MemoryRouter>)
 
-    // 06/08/2026 09:30 — se alguém trocar `formatarDataHora` por `new Date(...).toLocaleString()`,
-    // o horário anda com o fuso da máquina e este teste morre. É exatamente o defeito que a função
-    // existe para impedir.
     expect(await screen.findByText(/06\/08\/2026 09:30/)).toBeTruthy()
   })
 
