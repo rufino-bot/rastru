@@ -1514,6 +1514,9 @@ git commit -m "feat(web): useBuscaPaginada com debounce, cancelamento, clamp e W
 - Create: `web/src/tema/contraste.test.ts`
 - Modify: `web/src/index.css` (hoje tem **uma** linha)
 - Modify: `web/src/components/TelaCarregando.tsx` (passa a usar os tokens)
+- Create: `web/tsconfig.test.json` — **acrescentado em 2026-08-08**, ver a caixa do Step 3
+- Modify: `web/tsconfig.app.json` (`exclude` dos arquivos de teste) — idem
+- Modify: `web/tsconfig.json` (referência ao projeto novo) — idem
 
 **Interfaces:**
 - Consumes: nada.
@@ -1671,6 +1674,34 @@ describe('razaoDeContraste', () => {
 })
 ```
 
+> **O `node:fs` acima quebra o Step 7 deste plano — corrigido em 2026-08-08, com medição.**
+>
+> `tsconfig.app.json` tinha `"types": ["vite/client"]` e `"include": ["src"]`, então ele
+> type-checava os arquivos de teste sem os tipos do Node: `npm run build` parava em
+> `src/tema/contraste.test.ts(2,30): error TS2591: Cannot find name 'node:fs'`. **A suíte ficava
+> verde assim mesmo** — o Vitest não usa o `tsc`. Segunda vez nesta fase que verde do Vitest não
+> prova que compila.
+>
+> As três saídas óbvias foram medidas antes de escolher, e **duas delas eram armadilha**:
+>
+> | Saída | Build | Barra Node em código de app? | Teste roda? |
+> |---|---|---|---|
+> | `"types": [..., "node"]` no app | passa | **não** (inferido — mesmo mecanismo da linha abaixo) | sim |
+> | `/// <reference types="node" />` no teste | passa | **não** — sonda com `process.platform` e `import 'node:fs'` num arquivo de app **compilou** | sim |
+> | `import css from '../index.css?raw'` | passa | sim | **não** — o plugin do Tailwind intercepta e o `?raw` devolve **string vazia** |
+> | **`tsconfig.test.json` separado** ← adotada | passa | **sim** — a mesma sonda volta a dar `TS2591` | sim, **166** |
+>
+> O `/// <reference>` parece contido e não é: ele carrega o pacote de tipos no **programa inteiro**,
+> então é o mesmo vazamento do `types`, só que escondido num arquivo de teste em vez de declarado no
+> tsconfig. O `?raw` é pior ainda: passa no build, e falha por **zero silencioso** — a mesma classe
+> do achado M5 desta fase. Aqui só não passou em falso porque o `tokens()` tem `if (!bloco) throw`.
+>
+> A saída adotada exclui `src/**/*.test.ts(x)` e `src/testes` do `tsconfig.app.json` e cria um
+> `tsconfig.test.json` com `"types": ["vite/client", "node"]`, referenciado pelo `tsconfig.json`.
+> **Os testes continuam type-checados** — medido plantando `const x: number = "texto"` no
+> `contraste.test.ts`, e o build pegou (`TS2322`). Isso vale para o projeto inteiro daqui em
+> diante, não só para esta task: teste pode usar Node, código de app não.
+
 - [ ] **Step 4: Rodar para ver falhar**
 
 ```bash
@@ -1823,7 +1854,9 @@ Expected: ≥ `1`. **Este é o passo que prova que o `@theme` está ligado ao Ta
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: **a baseline que você mediu no Step 1 desta task + 20** (estimado em 156 quando a conta partia de 136, mas esse 136 herdava um total obsoleto — ver a caixa do Step 9 da Task 3). **O que vincula é o delta `+20`**, não o absoluto: reporte o total real medido e siga.
+Expected: **a baseline que você mediu no Step 1 desta task + 22** (≈ 166 sobre os 144 da Task 3). **O que vincula é o delta `+22`**, não o absoluto: reporte o total real medido e siga. Se a guarda do M8 entrar, o delta vira `+23`.
+
+*(Este Step dizia `+20` até 2026-08-08 — era o resíduo do quarto erro de contagem do plano, corrigido no pré-flight só no DoD e não aqui. **Medido em 2026-08-08: 166 testes / 13 arquivos**, com os Steps 1 a 7 aplicados.)*
 
 - [ ] **Step 11: Medir as mutações**
 
@@ -1842,7 +1875,8 @@ Expected: **a baseline que você mediu no Step 1 desta task + 20** (estimado em 
 - [ ] **Step 12: Commit**
 
 ```bash
-git add web/src/index.css web/src/tema/contraste.ts web/src/tema/contraste.test.ts web/src/components/TelaCarregando.tsx
+git add web/src/index.css web/src/tema/contraste.ts web/src/tema/contraste.test.ts web/src/components/TelaCarregando.tsx \
+        web/tsconfig.json web/tsconfig.app.json web/tsconfig.test.json
 git commit -m "feat(web): tokens de tema com prova automatizada de contraste AA"
 ```
 
