@@ -1,1 +1,47 @@
 @import "tailwindcss";
+
+/*
+  Tokens da Fase 1D. A paleta e a regra que a sustenta estão em
+  `docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md` §3.
+
+  REGRA: cor de identidade nunca significa estado; cor de estado nunca decora. Verde e vermelho
+  são RESERVADOS — aprovado/ativo e reprovado/perda/erro. É isso que faz a tela de Qualidade da
+  Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
+
+  Todo tom novo aqui precisa de par declarado em `src/tema/contraste.test.ts`, senão a suíte
+  reprova. Não é zelo: os tons claros de verde-água (#0D9488) e âmbar (#D97706) REPROVAM em AA
+  como texto sobre branco apesar de funcionarem como fundo de botão — escolher paleta olhando só
+  o botão é o erro clássico, e o teste existe para que ele não passe.
+*/
+@theme {
+  /* Pilha do sistema: zero asset para baixar no wifi da fábrica, e trocar por fonte própria
+     depois é mudar este token, não reescrever tela. Monoespaçada para código de peça e material —
+     decisão funcional (alinha na coluna, facilita conferir contra o desenho na bancada). */
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, monospace;
+
+  /* Identidade */
+  --color-chrome: #134E4A;       /* barra de navegação e cabeçalho */
+  --color-marca: #5EEAD4;        /* logo, SEMPRE sobre o chrome escuro */
+
+  /* Ação — mesma família do chrome, por escolha explícita do usuário contra a recomendação de
+     dois matizes. O custo é real e a compensação é de FORMA, não de cor: o primário ganha peso
+     por tamanho e densidade tipográfica, e o contorno neutro fica reservado ao secundário.
+     Nenhuma tela deve ter dois botões com o mesmo peso visual. */
+  --color-acao: #3E6E68;
+  --color-acao-forte: #2F544F;   /* hover/active do primário */
+  --color-acao-fundo: #E8F0EF;   /* fundo tingido da pílula; a tinta é a MESMA --color-acao */
+
+  /* Estado — reservados */
+  --color-positivo: #166534;         /* SÓ como fundo, com texto branco (7,13:1) */
+  --color-positivo-texto: #15803D;   /* o tom que passa AA como TEXTO sobre claro */
+  --color-negativo: #DC2626;         /* passa AA nos dois papéis */
+
+  /* Neutros, com viés verde-acinzentado para casarem com o chrome */
+  --color-tinta: #1C2422;
+  --color-tinta-fraca: #55605D;
+  --color-borda: #D3DEDB;        /* separador decorativo */
+  --color-borda-campo: #6B7A77;  /* borda de input/botão secundário — precisa de 3:1 */
+  --color-fundo: #F7FAF9;
+  --color-superficie: #FFFFFF;
+}
