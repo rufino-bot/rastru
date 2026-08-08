@@ -10,11 +10,12 @@ interface Item { id: number; nome: string }
 // Componente-hospedeiro: um hook não renderiza nada, então a prova passa por uma tela mínima que
 // expõe cada saída num nó com texto asserível. Deliberadamente burro — se ele tiver lógica, o
 // teste passa a provar o hospedeiro, não o hook.
-function Hospedeiro({ buscar, atraso = 300 }: {
+function Hospedeiro({ buscar, atraso = 300, tamanhoInicial }: {
   buscar: (f: FiltroDeBusca) => Promise<PaginaDeBusca<Item>>
   atraso?: number
+  tamanhoInicial?: number
 }) {
-  const b = useBuscaPaginada<Item>({ buscar, atrasoDoDebounce: atraso })
+  const b = useBuscaPaginada<Item>({ buscar, atrasoDoDebounce: atraso, tamanhoInicial })
   return (
     <div>
       <input aria-label="busca" value={b.textoDaBusca} onChange={(e) => b.mudarBusca(e.target.value)} />
@@ -75,8 +76,9 @@ describe('useBuscaPaginada', () => {
     fireEvent.change(campo, { target: { value: 'SU' } })
     fireEvent.change(campo, { target: { value: 'SUP' } })
 
-    // Antes de o debounce vencer, nada saiu. Hoje, sem o hook, isto são TRÊS requisições — foi
-    // medido na review da Task 6 da 1B.
+    // Antes de o debounce vencer, nada saiu além da carga da montagem (ainda 1). As TRÊS teclas
+    // digitadas viram UMA única consulta: o total ao fim deste teste (linha abaixo, `:86`) é 2 —
+    // a da montagem mais essa única consulta debounced —, não uma chamada por tecla.
     await avancar(299)
     expect(buscar).toHaveBeenCalledTimes(1)
 
@@ -321,5 +323,57 @@ describe('useBuscaPaginada', () => {
 
     expect(screen.getByText('paginas:1')).toBeTruthy()
     expect(screen.getByText('pagina:1')).toBeTruthy()
+  })
+
+  it('respeita o atrasoDoDebounce passado, não o default de 300ms', async () => {
+    // Hardcodar 300 no corpo do hook (ignorando o parâmetro) passaria se este teste só afirmasse
+    // "disparou em 50ms" — 300 também "dispara" em algum momento. As DUAS pontas (não disparou
+    // antes de 50, disparou aos 50) juntas são o que distingue um atraso de 50 real de um 300
+    // hardcodado ou de um 0 hardcodado.
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    render(<Hospedeiro buscar={buscar} atraso={50} />)
+    await avancar(0)
+    expect(buscar).toHaveBeenCalledTimes(1) // só a carga inicial
+
+    fireEvent.change(screen.getByLabelText('busca'), { target: { value: 'S' } })
+
+    await avancar(49)
+    expect(buscar).toHaveBeenCalledTimes(1) // ainda não venceu o atraso configurado (50)
+
+    await avancar(1)
+    expect(buscar).toHaveBeenCalledTimes(2) // venceu exatamente nos 50ms passados via prop
+  })
+
+  it('usa o tamanhoInicial passado na primeira requisição', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    render(<Hospedeiro buscar={buscar} tamanhoInicial={50} />)
+    await avancar(0)
+
+    expect(buscar).toHaveBeenCalledWith({ busca: '', incluirInativos: false, pagina: 1, tamanho: 50 })
+  })
+
+  it('não reentra em laço de carga quando o chamador passa `buscar` inline (identidade nova a cada render)', async () => {
+    // O consumidor real (Task 9) provavelmente escreve `buscar` como lambda inline no corpo do
+    // componente da tela — uma identidade NOVA a cada render, porque nada a memoiza. Sem o
+    // `buscarRef`, essa identidade nova entraria nas deps de `carregar`: a carga inicial troca
+    // `carregando`/`itens`/`total`, o componente re-renderiza, a lambda é recriada, `carregar`
+    // muda de identidade, o efeito de carga refaz a chamada, e o ciclo não pára sozinho — é o
+    // laço de render infinito descrito no brief deste fix pass.
+    let chamadas = 0
+    function HospedeiroComBuscaInline() {
+      const buscarInline = () => {
+        chamadas += 1
+        return Promise.resolve(pagina([]))
+      }
+      useBuscaPaginada<Item>({ buscar: buscarInline })
+      return null
+    }
+
+    render(<HospedeiroComBuscaInline />)
+    await avancar(0)
+
+    expect(chamadas).toBe(1)
   })
 })
