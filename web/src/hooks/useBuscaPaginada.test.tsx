@@ -326,10 +326,12 @@ describe('useBuscaPaginada', () => {
   })
 
   it('respeita o atrasoDoDebounce passado, não o default de 300ms', async () => {
-    // Hardcodar 300 no corpo do hook (ignorando o parâmetro) passaria se este teste só afirmasse
-    // "disparou em 50ms" — 300 também "dispara" em algum momento. As DUAS pontas (não disparou
-    // antes de 50, disparou aos 50) juntas são o que distingue um atraso de 50 real de um 300
-    // hardcodado ou de um 0 hardcodado.
+    // `avancar(49)` + `expect(1)` (abaixo) mata os hardcodes PEQUENOS (0, e qualquer atraso < 49):
+    // um atraso menor já teria disparado antes dos 49ms, e a chamada extra faria a asserção falhar.
+    // `avancar(1)` + `expect(2)` mata os hardcodes GRANDES (300, e qualquer atraso > 50): aos 50ms
+    // acumulados um debounce de 300 ainda não venceu, e a ausência da chamada faria a asserção
+    // falhar. As DUAS pontas juntas são o que distingue um atraso de 50 real de qualquer valor
+    // hardcodado, pequeno ou grande.
     const buscar = vi.fn().mockResolvedValue(pagina([]))
 
     render(<Hospedeiro buscar={buscar} atraso={50} />)
@@ -354,13 +356,19 @@ describe('useBuscaPaginada', () => {
     expect(buscar).toHaveBeenCalledWith({ busca: '', incluirInativos: false, pagina: 1, tamanho: 50 })
   })
 
-  it('não reentra em laço de carga quando o chamador passa `buscar` inline (identidade nova a cada render)', async () => {
+  it('não reentra em laço de carga quando o chamador passa `buscar` inline (identidade nova a cada render)', { timeout: 1000 }, async () => {
     // O consumidor real (Task 9) provavelmente escreve `buscar` como lambda inline no corpo do
     // componente da tela — uma identidade NOVA a cada render, porque nada a memoiza. Sem o
     // `buscarRef`, essa identidade nova entraria nas deps de `carregar`: a carga inicial troca
     // `carregando`/`itens`/`total`, o componente re-renderiza, a lambda é recriada, `carregar`
     // muda de identidade, o efeito de carga refaz a chamada, e o ciclo não pára sozinho — é o
     // laço de render infinito descrito no brief deste fix pass.
+    //
+    // Assinatura de falha: sob a mutação, este teste NÃO falha por asserção — o laço não termina,
+    // então nenhuma linha depois de `render(...)` é alcançada, `expect(chamadas).toBe(1)` incluída.
+    // Quem o mata é o `{ timeout: 1000 }` acima, explícito para não depender do default de 5000ms
+    // do Vitest (não configurado em nenhum `test:` deste projeto). Um travamento neste `it` É o
+    // sinal projetado, não um teste quebrado.
     let chamadas = 0
     function HospedeiroComBuscaInline() {
       const buscarInline = () => {
@@ -375,5 +383,47 @@ describe('useBuscaPaginada', () => {
     await avancar(0)
 
     expect(chamadas).toBe(1)
+  })
+
+  it('usa o `buscar` do render mais recente ao recarregar, não um closure obsoleto do primeiro render (frescor do buscarRef)', async () => {
+    // O teste de `:359` prova a metade ESTABILIDADE do `buscarRef` (identidade nova não laça).
+    // Este prova a outra metade, FRESCOR: `useBuscaPaginada.ts:82` mantém `buscarRef.current`
+    // sincronizado com o `buscar` do render atual, para o hook nunca consultar um closure obsoleto.
+    //
+    // A sutileza (ver brief deste fix pass): uma lambda inline sozinha não basta — o teste de
+    // `:359` já tem isso e não pega a mutação, porque todas as chamadas ali produzem o mesmo
+    // resultado observável. O que torna o frescor observável é a lambda fechar sobre um valor que
+    // MUDA entre renders, mais um gatilho de recarga que rode DEPOIS da mudança — e o gatilho tem
+    // de ser independente do valor capturado, senão o teste prova outra coisa (o gatilho mudando o
+    // próprio valor, não o mecanismo de frescor).
+    let valorCapturado = ''
+    function HospedeiroComValorExterno({ valorExterno }: { valorExterno: string }) {
+      const buscarInline = () => {
+        valorCapturado = valorExterno
+        return Promise.resolve(pagina([]))
+      }
+      const b = useBuscaPaginada<Item>({ buscar: buscarInline })
+      return <button onClick={() => { void b.recarregar() }}>Recarregar</button>
+    }
+
+    const { rerender } = render(<HospedeiroComValorExterno valorExterno="velho" />)
+    await avancar(0)
+    expect(valorCapturado).toBe('velho')
+
+    // Muda o valor capturado por closure. `carregar` não refaz a chamada sozinho aqui — suas
+    // dependências (`busca`, `incluirInativos`, `pagina`, `tamanho`) não mudaram —, então nada
+    // dispara ainda: é exatamente por isto que o mecanismo do `buscarRef` existe.
+    rerender(<HospedeiroComValorExterno valorExterno="novo" />)
+
+    // Gatilho de recarga, SEPARADO do valor capturado: o clique chama `recarregar()`, que não lê
+    // `valorExterno` nenhuma vez — só invoca `buscarRef.current`.
+    fireEvent.click(screen.getByText('Recarregar'))
+    await avancar(0)
+
+    // Com `useBuscaPaginada.ts:82` presente, `buscarRef.current` foi atualizado pelo efeito do
+    // segundo render e a chamada usa a lambda que fechou sobre "novo". Com `:82` apagado,
+    // `buscarRef.current` fica congelado na lambda do PRIMEIRO render, que fechou sobre "velho" —
+    // esta asserção veria "velho" de novo, e é aí que a mutação tem de morrer.
+    expect(valorCapturado).toBe('novo')
   })
 })
