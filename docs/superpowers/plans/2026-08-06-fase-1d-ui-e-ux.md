@@ -32,7 +32,19 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 - **`git status` tem sujeira alheia e permanente:** `.claude/settings.local.json` modificado e `.claude/settings.json` untracked. **Não commite nenhuma das duas.**
 - **Não edite fonte com `Set-Content` do PowerShell 5.1** — ele corrompe UTF-8 (acentuação) e a suíte fica verde mesmo assim. Use as ferramentas de edição de arquivo.
 - **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`). Varredura de segredo antes de qualquer push é passo obrigatório.
-- **⚠️ TODOS os totais absolutos de teste da Task 4 em diante estão DEFASADOS EM +4 — não os use como alvo.** A cadeia (156 → 179 → 200 → 214 → 225) foi somada a partir de um `136` que herdava o `123` obsoleto da Task 2. Medido de verdade: **Task 2 fechou em 126, Task 3 fechou em 140.** Então: 156→**160**, 179→**183**, 200→**204**, 214→**218**, 225→**229**. *(Esta nota nasceu em 2026-08-07 dizendo +3, calculada quando a Task 3 ainda tinha alvo 139; ela mesma foi corrigida para +4 quando a Task 3 mediu 140 — o que é a demonstração do problema, não uma exceção a ele.)* **Esses números corrigidos também são estimativa** — não os trate melhor que os anteriores. **O que vincula continua sendo (a) a baseline que você MEDE no Step 1 bater com o total que a task anterior REPORTOU ao fechar, e (b) o delta da sua task.** Se o delta estiver certo e o total divergir, reporte o número real e siga. **Nunca invente nem apague teste para fechar conta** — a Task 3 acrescentou um 14º teste onde o plano previa 13 porque um mutante do plano não morria sem ele, e isso é o certo a fazer.
+- **⚠️ NÃO EXISTE MAIS TOTAL ABSOLUTO CONFIÁVEL NESTE PLANO. Use `baseline que você MEDIU no Step 1 + o delta da sua task`.** Os deltas são estáveis e estão abaixo; os totais são derivados e apodrecem a cada fix pass.
+
+  | Task | Delta | Total SE a baseline for a esperada |
+  |---|---|---|
+  | 4 | **+20** | 164 (= 144 + 20) |
+  | 5 | **+23** | 187 |
+  | 6 | **+21** | 208 |
+  | 7 | **+14** | 222 |
+  | 8 | **+11** | 233 |
+
+  **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
+
+  **Regra operacional:** (a) meça a baseline no Step 1; (b) se ela não bater com o total que a task anterior **reportou ao fechar**, pare e reporte — divergência aí é sinal real; (c) se bater, o que você tem de entregar é o **delta**; (d) se o delta estiver certo e o total divergir do derivado, **reporte o número real e siga**. **Nunca invente nem apague teste para fechar conta** — a Task 3 acrescentou um 14º teste onde o plano previa 13 porque um mutante não morria sem ele, e isso é o certo a fazer.
 - **Toda review de task grava ARTEFATO em disco, não só devolve relatório ao controlador.** Decisão do usuário em 2026-08-07. O revisor escreve o relatório completo em `.superpowers/sdd/fase1d-task-N-review.md` (fix pass: `-fix-review.md`; re-review: `-re-review.md`) **e** devolve o mesmo conteúdo como mensagem final. **Motivo, e ele tem caso concreto:** as reviews das Tasks 1 e 2 desta fase não deixaram arquivo — os achados sobreviveram só resumidos no ledger, que é gitignored. Foi exatamente assim que a Fase 1B **perdeu o achado I7** (a review listava 6 Important, o resumo no ledger listava 5, e ainda renumerou os outros, fazendo "I2" significar coisas diferentes nos dois arquivos). Regra derivada, já registrada na 1B e agora executável: **resumir achado de review no ledger perde achado — aponte para o arquivo, não re-narre a lista.**
 - **Texto de interface em português, com acentuação correta.** Nomes de domínio em português (`Componente`, `Agrupamento`); nomes técnicos em inglês só onde já é a convenção do repo (`Repository`, `UseCase`, `DTO`). Nomes de primitiva e de hook: **português** (`Pagina`, `Botao`, `useBuscaPaginada`) — é a convenção que o front já segue (`TelaCarregando`, `estadoDaSessao`, `apiFetch`).
 
@@ -1482,6 +1494,15 @@ git commit -m "feat(web): useBuscaPaginada com debounce, cancelamento, clamp e W
 
 **CUMPRIDA em 2026-08-07, e o número medido é 140 — delta +14, não +13.** O 14º teste não é enfeite nem conta forçada: **três dos onze mutantes sobreviveram** à suíte que este plano especificou, e todos os três eram de comportamento assíncrono. **M11 (guarda do `finally`) sobrevivia porque nenhum teste do plano tinha duas requisições em voo ao mesmo tempo** — o teste que faltava é o 14º. Os outros dois eram testes que mediam a coisa errada: **M2** (guarda de sequência) tinha um teste que *não criava corrida*, porque `avancar(300)` engolia a resposta lenta dentro da própria janela e ela chegava antes, não depois; **M4** (clamp) disparava a recarga pelo checkbox de inativos, e `mudarInativos` já chama `setPagina(1)` sozinho, então media o reset da M6. Nenhuma asserção foi relaxada para fechar nenhum dos três. Detalhe em `.superpowers/sdd/fase1d-task-3-report.md`.
 
+**FECHADA DE VERDADE em 2026-08-08, em 144 — depois de TRÊS fix passes e DUAS re-reviews.** Os 140 acima eram o estado antes de a review ser adjudicada. Trajetória: 140 → fix1 `4cf13f6` (+3, cobertura das opções públicas) → **143** → fix2 `46ba224` (+1, o frescor do `buscarRef`) → **144** → fix3 `5bc6579` (+0, só comentários e uma asserção). **Nenhuma linha de produção foi alterada em nenhum dos três** — `useBuscaPaginada.ts` é hoje byte-idêntico ao de `90ceae4`.
+
+**O que os três fix passes ensinaram, e vale para as tasks 4 a 12:**
+
+1. **Um mecanismo pode ter mais de uma propriedade, e fechar uma não fecha a outra.** O `buscarRef` tem **estabilidade** (não laçar) e **frescor** (não usar closure obsoleto). O fix1 fechou a primeira e ninguém notou que a segunda seguia com cobertura zero — apagar `useBuscaPaginada.ts:82` deixava a suíte inteira verde. Quem achou foi o revisor, **fora do mandato dele**, auditando a outra metade. Ao cobrir um mecanismo, pergunte quantas propriedades ele tem.
+2. **Morte por timeout é morte de baixa especificidade, e pode ser aceitável.** A mutação do laço infinito só pode matar por não-terminação — nenhuma asserção roda. Foi julgado aceitável porque quem morre é o próprio teste do mecanismo, diferente do B1 da Task 1, onde o timeout era colateral. Mas o teto passou a ser explícito (`{ timeout: 1000 }`), medido com folga de ~1000×, para a defesa não depender de config global que ninguém escolheu.
+3. **O vício de comentário que encena precisão chegou a OITO ocorrências nesta fase — e as ocorrências 7 e 8 nasceram dentro da correção da 6ª.** Um fix pass de comentário é um lugar de risco alto, não baixo. O que funcionou foi o brief **entregar os fatos medidos** em vez de mandar o fixer derivá-los, e dizer explicitamente **onde parar de explicar**.
+4. **Correção proposta por revisor read-only também precisa de medição.** A review propôs um texto para o comentário do laço (*"trava no `await avancar(0)`"*) que ela mesma rotulou como inferência. Medido com sondas: **falso** — `render()` retorna, `avancar(0)` retorna, e a asserção é avaliada e falha; o que aflora é o timeout. Aplicar a sugestão teria produzido a nona ocorrência. **Inferência rotulada é honesta e útil; mas se vira texto commitado, mede-se antes.**
+
 ---
 
 ### Task 4: Tokens de tema e a prova automatizada de contraste
@@ -1504,7 +1525,9 @@ git commit -m "feat(web): useBuscaPaginada com debounce, cancelamento, clamp e W
 cd web && npm test
 ```
 
-Expected: **140 testes / 12 arquivos** — número **medido** ao fechar a Task 3 (a estimativa era 139; o delta dela saiu +14 e não +13, porque um mutante do plano exigiu um teste que o plano não previa — ver a caixa da definition of done da Task 3). Se divergir de 140, pare e reporte.
+Expected: **144 testes / 12 arquivos** — número **medido em 2026-08-08** ao fechar a Task 3 de verdade, depois de três fix passes e duas re-reviews. Se divergir de 144, pare e reporte.
+
+*(A estimativa original era 139; a implementação mediu 140, e os fix passes levaram a 143 e depois 144. **O 140 que este Step dizia antes está obsoleto** — era o estado anterior à adjudicação da review. Ver a caixa da definition of done da Task 3 para a trajetória. Nenhuma linha de produção mudou em nenhum dos três fix passes.)*
 
 - [ ] **Step 2: Escrever as funções de contraste, que ainda não existem**
 
@@ -1793,7 +1816,7 @@ git add web/src/index.css web/src/tema/contraste.ts web/src/tema/contraste.test.
 git commit -m "feat(web): tokens de tema com prova automatizada de contraste AA"
 ```
 
-**Definition of done da Task 4:** suíte em **156**; `grep -c "border-t-acao" dist/assets/*.css` ≥ 1; as 7 mutações medidas (M1 com 0 mortes, as outras com ≥ 1); os valores de contraste medidos **reportados um a um** no relatório.
+**Definition of done da Task 4:** suíte em **baseline medida + 20** (≈ **164**, se a baseline for os 144 esperados — **o delta é o que vincula**, não o total); `grep -c "border-t-acao" dist/assets/*.css` ≥ 1; as 7 mutações medidas (M1 com 0 mortes, as outras com ≥ 1); os valores de contraste medidos **reportados um a um** no relatório.
 
 ---
 
@@ -2336,7 +2359,7 @@ git add web/src/components/Pagina.tsx web/src/components/Pagina.test.tsx web/src
 git commit -m "feat(web): primitivas Pagina, Botao, Campo e BannerDeErro"
 ```
 
-**Definition of done da Task 5:** suíte em **179**; as 13 mutações medidas com ≥ 1 morte cada; **nenhuma tela consumindo as primitivas ainda** (isso é das Tasks 8–12); build e lint limpos.
+**Definition of done da Task 5:** suíte em **baseline medida + 23** (≈ **187** — **o delta é o que vincula**); as 13 mutações medidas com ≥ 1 morte cada; **nenhuma tela consumindo as primitivas ainda** (isso é das Tasks 8–12); build e lint limpos.
 
 ---
 
@@ -2816,7 +2839,7 @@ git add web/src/components/ListaDeCadastro.tsx web/src/components/ListaDeCadastr
 git commit -m "feat(web): primitivas de lista, pilula, estado vazio e paginacao"
 ```
 
-**Definition of done da Task 6:** suíte em **200**; as 11 mutações medidas (M11 declarada como sobrevivente conhecido, com o motivo); build e lint limpos; **nenhuma tela modificada ainda**.
+**Definition of done da Task 6:** suíte em **baseline medida + 21** (≈ **208** — **o delta é o que vincula**); as 11 mutações medidas (M11 declarada como sobrevivente conhecido, com o motivo); build e lint limpos; **nenhuma tela modificada ainda**.
 
 ---
 
@@ -3315,7 +3338,7 @@ git add web/src/auth/permissoes.ts web/src/auth/permissoes.test.ts web/src/auth/
 git commit -m "feat(web): shell de navegacao com gaveta e tabela de permissoes"
 ```
 
-**Definition of done da Task 7:** suíte em **214**; as 11 mutações medidas (M11 declarada); a conferência manual do Step 10 **relatada item por item**; build e lint limpos.
+**Definition of done da Task 7:** suíte em **baseline medida + 14** (≈ **222** — **o delta é o que vincula**); as 11 mutações medidas (M11 declarada); a conferência manual do Step 10 **relatada item por item**; build e lint limpos.
 
 ---
 
