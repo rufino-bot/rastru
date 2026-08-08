@@ -36,11 +36,13 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 
   | Task | Delta | Total SE a baseline for a esperada |
   |---|---|---|
-  | 4 | **+20** | 164 (= 144 + 20) |
-  | 5 | **+23** | 187 |
-  | 6 | **+21** | 208 |
-  | 7 | **+14** | 222 |
-  | 8 | **+11** | 233 |
+  | 4 | **+22** | 166 (= 144 + 22) |
+  | 5 | **+23** | 189 |
+  | 6 | **+21** | 210 |
+  | 7 | **+14** | 224 |
+  | 8 | **+11** | 235 |
+
+  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um em vez de somar de cabeça. Os deltas das Tasks 5 a 8 **não foram recontados**: são os do plano original e continuam sendo estimativa. Se você for implementar uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
 
   **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
 
@@ -52,7 +54,7 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 
 Estão fechadas na spec ou foram decididas pelo usuário durante o planejamento. Se você discorda, **reporte — não altere**.
 
-- **Paleta (spec §3):** chrome `#134E4A`, marca `#5EEAD4`, ação `#3E6E68`, fundo de pílula `#E8F0EF`, positivo `#16A34A`, negativo `#DC2626`. A ação ser monocromática com o chrome foi escolha explícita do usuário, contra a recomendação de dois matizes. **Verde e vermelho são reservados a estado; cor de identidade nunca significa estado.**
+- **Paleta (spec §3):** chrome `#134E4A`, marca `#5EEAD4`, ação `#3E6E68`, fundo de pílula `#E8F0EF`, positivo `#166534` (era `#16A34A`; corrigido no pré-flight de 2026-08-08 porque reprovava AA **nos dois papéis** — ver a caixa da Task 4), negativo `#DC2626`. A ação ser monocromática com o chrome foi escolha explícita do usuário, contra a recomendação de dois matizes. **Verde e vermelho são reservados a estado; cor de identidade nunca significa estado.**
 - **Pilha de fonte do sistema** (`ui-sans-serif` / `ui-monospace`). Zero asset para baixar. Código de peça e material em monoespaçada — decisão funcional (alinha na coluna, facilita conferir na bancada), não decorativa.
 - **Sem biblioteca de componentes de terceiros.** Primitivas à mão sobre Tailwind v4.
 - **Sem tema escuro.** Fora de escopo declarado — dobraria os estados a provar em cada primitiva.
@@ -1717,7 +1719,7 @@ Expected: FAIL — `bloco @theme não encontrado em index.css`.
   --color-acao-fundo: #E8F0EF;   /* fundo tingido da pílula; a tinta é a MESMA --color-acao */
 
   /* Estado — reservados */
-  --color-positivo: #16A34A;         /* SÓ como fundo, com texto branco */
+  --color-positivo: #166534;         /* SÓ como fundo, com texto branco (7,13:1) */
   --color-positivo-texto: #15803D;   /* o tom que passa AA como TEXTO sobre claro */
   --color-negativo: #DC2626;         /* passa AA nos dois papéis */
 
@@ -1731,9 +1733,35 @@ Expected: FAIL — `bloco @theme não encontrado em index.css`.
 }
 ```
 
-**Repare no par `positivo` / `positivo-texto`, porque é a armadilha da spec em ato:** `#16A34A` sobre branco fica em torno de **3,3:1** e **reprova** AA como texto, embora branco *sobre* ele passe com folga. Por isso são dois tokens com papéis diferentes, e por isso o teste mede os dois sentidos.
+**Repare no par `positivo` / `positivo-texto`, porque é a armadilha da spec em ato:** o verde vivo `#16A34A` — que era o valor original deste plano — dá **3,30:1** contra branco e **reprova AA nos DOIS papéis**, como texto sobre branco *e* como fundo de selo com texto branco.
 
-**Valores esperados** (aproximados — **quem mede é o teste, não esta tabela**): chrome/branco ≈ 9,5:1 · ação/branco ≈ 5,8:1 · marca/chrome ≈ 6,4:1 · tinta-fraca/branco ≈ 6,5:1 · ação/fundo-de-pílula ≈ 5,0:1 (a menor margem da paleta) · negativo/branco ≈ 4,8:1 · positivo-texto/branco ≈ 5,0:1 · borda-campo/branco ≈ 4,5:1. **Se algum par reprovar, escureça o tom até passar e reporte o valor final** — não relaxe o mínimo, e não remova o par da lista.
+> **CORREÇÃO DE 2026-08-08, feita no pré-flight da task, e a lição é maior que o número.** Este parágrafo dizia que `#16A34A` reprovava como texto "embora branco *sobre* ele passe com folga". **Isso é falso: razão de contraste é simétrica** — e o próprio teste desta task tem um caso (`é simétrica`) que o afirma. O par `superficie / positivo` teria **reprovado na primeira execução**, em 3,30:1, e o implementer bateria de frente com um plano que se contradiz. Medido antes de despachar: dos 15 pares, 14 passavam e **só este falhava**. `--color-positivo` passou a **`#166534`** (branco sobre ele = **7,13:1**), escolha do usuário entre as alternativas medidas, porque preserva a intenção original de dois tons com papéis distintos — `#166534` como fundo de selo, `#15803D` (5,02:1) como verde de texto sobre claro.
+
+Por isso são dois tokens com papéis diferentes, e por isso o teste mede os dois sentidos.
+
+**Valores esperados — os 15 pares, MEDIDOS por mim em 2026-08-08 com a fórmula deste Step, não estimados.** Se você medir algo diferente, foi você que mudou um tom (ou a fórmula está errada, o que é achado):
+
+| par | razão | mínimo |
+|---|---|---|
+| tinta / superficie | 15,85 | 4,5 |
+| tinta / fundo | 15,09 | 4,5 |
+| tinta-fraca / superficie | 6,53 | 4,5 |
+| superficie / chrome | 9,48 | 4,5 |
+| marca / chrome | 6,41 | 4,5 |
+| superficie / acao | 5,78 | 4,5 |
+| superficie / acao-forte | 8,39 | 4,5 |
+| acao / superficie | 5,78 | 4,5 |
+| acao / acao-fundo | **4,99** | 4,5 |
+| negativo / superficie | 4,83 | 4,5 |
+| superficie / negativo | 4,83 | 4,5 |
+| positivo-texto / superficie | 5,02 | 4,5 |
+| superficie / positivo | 7,13 | 4,5 |
+| borda-campo / superficie | 4,49 | 3 |
+| acao / fundo | 5,50 | 3 |
+
+**A menor margem da paleta é `acao / acao-fundo`, em 4,99:1** — 0,49 acima do mínimo. Qualquer clareamento do `--color-acao` ou escurecimento do `--color-acao-fundo` a derruba primeiro.
+
+**Se algum par reprovar, escureça o tom até passar e reporte o valor final** — não relaxe o mínimo, e não remova o par da lista.
 
 - [ ] **Step 6: Rodar para ver passar**
 
@@ -1741,7 +1769,9 @@ Expected: FAIL — `bloco @theme não encontrado em index.css`.
 cd web && npm test -- contraste
 ```
 
-Expected: `Tests  20 passed (20)` (15 pares + 5 dos outros blocos). Se algum par reprovar, ajuste o **tom**, nunca o limite.
+Expected: `Tests  22 passed (22)` — **15** pares (`it.each`) + **3** no bloco da paleta (declara os tokens, não deixa entrar tom novo, mantém verde/vermelho reservados) + **4** no bloco `razaoDeContraste`. Se algum par reprovar, ajuste o **tom**, nunca o limite.
+
+> **Este número era `20 (15 pares + 5 dos outros blocos)` e estava errado — corrigido no pré-flight de 2026-08-08, contando os `it(` do Step 3 um a um.** Os "outros blocos" somam **7**, não 5. **É o quarto erro de contagem deste plano**, e a mesma classe dos outros três: número somado de cabeça em vez de contado. Consequência evitada: o implementer veria 22, leria "esperado 20" e pararia por alarme falso — foi exatamente isso que quase travou a Task 2.
 
 - [ ] **Step 7: Confirmar que o Tailwind gera as classes**
 
@@ -1801,11 +1831,11 @@ Expected: **a baseline que você mediu no Step 1 desta task + 20** (estimado em 
 |---|---|---|
 | M1 | `index.css` — trocar `--color-acao-fundo` por `#F3F7F6` (clarear a pílula, aumentando o contraste) | **0** — é a direção segura; serve de **controle**, para confirmar que o teste não é um carimbo |
 | M2 | `index.css` — trocar `--color-tinta-fraca` por `#8A9693` (clarear até reprovar) | ≥ 1 |
-| M3 | `index.css` — trocar `--color-positivo-texto` por `#16A34A` (o valor do `positivo`) | ≥ 1 — **é a armadilha da spec, encenada** |
+| M3 | `index.css` — trocar `--color-positivo-texto` pelo literal **`#16A34A`** | ≥ 1 — **é a armadilha da spec, encenada.** Morre no par `positivo-texto / superficie` (3,30:1 < 4,5), medido. **⚠️ Use o literal, NÃO "o valor do `positivo`":** desde a correção de 2026-08-08 o `positivo` é `#166534`, que dá **7,13:1** e **sobreviveria** à mutação. O texto antigo desta linha dizia "(o valor do `positivo`)" e teria produzido um mutante equivalente. |
 | M4 | `index.css` — acrescentar `--color-ambar: #D97706;` sem declarar par | ≥ 1 (o teste "não deixa entrar tom novo sem medição") |
 | M5 | `contraste.ts` — trocar `c <= 0.03928 ? c / 12.92 : …` por só a exponencial | ≥ 1 |
 | M6 | `contraste.ts` — trocar os coeficientes `0.2126 / 0.7152 / 0.0722` por `1/3` cada | ≥ 1 |
-| M7 | `index.css` — trocar `--color-marca` por `#16A34A` | ≥ 1 (o teste da regra identidade × estado) |
+| M7 | `index.css` — trocar `--color-marca` por `#16A34A` | ≥ 1, **mas confirme ONDE:** morre no par **`marca / chrome`** (2,87:1 < 4,5), medido em 2026-08-08. **NÃO** morre pelo teste de identidade × estado, como esta linha afirmava antes — aquele teste só compara `chrome` e `acao` contra `positivo` e `negativo`, e **não toca em `marca`**. Se a sua medição matar noutro lugar, reporte. |
 
 **M1 é controle deliberado, e o único da fase cuja resposta certa é zero.** Reporte-a assim — uma mutação que melhora o contraste *deve* passar. Se ela matar alguma coisa, o teste está preso ao valor em vez de à propriedade.
 
@@ -1816,7 +1846,7 @@ git add web/src/index.css web/src/tema/contraste.ts web/src/tema/contraste.test.
 git commit -m "feat(web): tokens de tema com prova automatizada de contraste AA"
 ```
 
-**Definition of done da Task 4:** suíte em **baseline medida + 20** (≈ **164**, se a baseline for os 144 esperados — **o delta é o que vincula**, não o total); `grep -c "border-t-acao" dist/assets/*.css` ≥ 1; as 7 mutações medidas (M1 com 0 mortes, as outras com ≥ 1); os valores de contraste medidos **reportados um a um** no relatório.
+**Definition of done da Task 4:** suíte em **baseline medida + 22** (≈ **166**, se a baseline for os 144 esperados — **o delta é o que vincula**, não o total; o delta era `+20` e foi corrigido no pré-flight de 2026-08-08, contando os `it(` do Step 3); `grep -c "border-t-acao" dist/assets/*.css` ≥ 1; as 7 mutações medidas (M1 com 0 mortes, as outras com ≥ 1); os valores de contraste medidos **reportados um a um** no relatório.
 
 ---
 
