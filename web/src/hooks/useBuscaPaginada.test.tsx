@@ -326,12 +326,15 @@ describe('useBuscaPaginada', () => {
   })
 
   it('respeita o atrasoDoDebounce passado, não o default de 300ms', async () => {
-    // `avancar(49)` + `expect(1)` (abaixo) mata os hardcodes PEQUENOS (0, e qualquer atraso < 49):
-    // um atraso menor já teria disparado antes dos 49ms, e a chamada extra faria a asserção falhar.
+    // `avancar(49)` + `expect(1)` (abaixo) mata os hardcodes PEQUENOS (0, e qualquer atraso ≤ 49):
+    // o relógio falso dispara timers cujo alvo é IGUAL ao tick, então um atraso de exatamente 49
+    // já teria disparado AOS 49ms (não antes), e a chamada extra faria a asserção falhar.
     // `avancar(1)` + `expect(2)` mata os hardcodes GRANDES (300, e qualquer atraso > 50): aos 50ms
     // acumulados um debounce de 300 ainda não venceu, e a ausência da chamada faria a asserção
-    // falhar. As DUAS pontas juntas são o que distingue um atraso de 50 real de qualquer valor
-    // hardcodado, pequeno ou grande.
+    // falhar. As DUAS pontas juntas cobrem tudo exceto exatamente 50 — que é, por construção,
+    // indistinguível deste teste (que passa `atraso={50}`). Quem mata o hardcode de 50 é o teste
+    // de debounce acima: com 50 hardcodado, `avancar(299)` (`:82`) já teria disparado a consulta,
+    // e `expect(buscar).toHaveBeenCalledTimes(1)` (`:83`) falharia.
     const buscar = vi.fn().mockResolvedValue(pagina([]))
 
     render(<Hospedeiro buscar={buscar} atraso={50} />)
@@ -364,8 +367,11 @@ describe('useBuscaPaginada', () => {
     // muda de identidade, o efeito de carga refaz a chamada, e o ciclo não pára sozinho — é o
     // laço de render infinito descrito no brief deste fix pass.
     //
-    // Assinatura de falha: sob a mutação, este teste NÃO falha por asserção — o laço não termina,
-    // então nenhuma linha depois de `render(...)` é alcançada, `expect(chamadas).toBe(1)` incluída.
+    // Assinatura de falha, medida com sondas sob a mutação N3: `render(...)` retorna, e
+    // `await avancar(0)` também retorna — depois de o laço girar dezenas de milhares de vezes
+    // (90.909 numa medição; o número varia por máquina e execução). A asserção
+    // `expect(chamadas).toBe(1)` é alcançada e é avaliada, e falha — mas o que o Vitest reporta
+    // é o timeout, não o erro de asserção.
     // Quem o mata é o `{ timeout: 1000 }` acima, explícito para não depender do default de 5000ms
     // do Vitest (não configurado em nenhum `test:` deste projeto). Um travamento neste `it` É o
     // sinal projetado, não um teste quebrado.
@@ -414,6 +420,7 @@ describe('useBuscaPaginada', () => {
     // dependências (`busca`, `incluirInativos`, `pagina`, `tamanho`) não mudaram —, então nada
     // dispara ainda: é exatamente por isto que o mecanismo do `buscarRef` existe.
     rerender(<HospedeiroComValorExterno valorExterno="novo" />)
+    expect(valorCapturado).toBe('velho')
 
     // Gatilho de recarga, SEPARADO do valor capturado: o clique chama `recarregar()`, que não lê
     // `valorExterno` nenhuma vez — só invoca `buscarRef.current`.
