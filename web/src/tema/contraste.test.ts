@@ -7,15 +7,31 @@ import { razaoDeContraste, luminanciaRelativa } from './contraste'
 // uma cor que já não está na tela.
 const css = readFileSync(new URL('../index.css', import.meta.url), 'utf8')
 
-function blocoTema(): string {
-  const bloco = css.match(/@theme\s*\{([\s\S]*?)\n\}/)
+/**
+ * Remove comentários de bloco antes de qualquer casamento de regex. Sem isto, um `}` em início de
+ * linha dentro de um comentário do `@theme` (ex.: documentando um trecho de CSS) encerra cedo
+ * demais o casamento não-guloso de `blocoTema`, e tudo que vem depois some das duas guardas ao
+ * mesmo tempo — em silêncio, porque o Tailwind lê o `@theme` certo (o parser dele descarta
+ * comentários) e emite a cor na tela mesmo assim. Não-guloso: CSS não tem comentário aninhado, a
+ * primeira marca de fechamento sempre fecha a abertura anterior.
+ *
+ * Aplicada num lugar só, dentro de `blocoTema` — é lá que ela precisa valer, porque é `blocoTema`
+ * que recebe fixture crua nos testes de `fonte`. Limpar também o `css` do módulo seria trabalho
+ * morto: MEDIDO em 2026-08-09, apagar essa segunda limpeza deixava o arquivo 28/28 verde.
+ */
+function semComentarios(fonte: string): string {
+  return fonte.replace(/\/\*[\s\S]*?\*\//g, '')
+}
+
+function blocoTema(fonte: string = css): string {
+  const bloco = semComentarios(fonte).match(/@theme\s*\{([\s\S]*?)\n\}/)
   if (!bloco) throw new Error('bloco @theme não encontrado em index.css')
   return bloco[1]
 }
 
-function tokens(): Record<string, string> {
+function tokens(fonte: string = css): Record<string, string> {
   const mapa: Record<string, string> = {}
-  for (const [, nome, valor] of blocoTema().matchAll(/--color-([\w-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)) {
+  for (const [, nome, valor] of blocoTema(fonte).matchAll(/--color-([\w-]+):\s*(#[0-9a-fA-F]{6})\s*;/g)) {
     mapa[nome] = valor
   }
   return mapa
@@ -26,8 +42,8 @@ function tokens(): Record<string, string> {
  * contrário de `tokens()`, que só casa `#RRGGBB`. A diferença entre as duas listas é exatamente o
  * que a guarda de formato mede.
  */
-function declaracoesDeCor(): string[] {
-  return [...blocoTema().matchAll(/--color-([\w-]+)\s*:/g)].map(([, nome]) => nome)
+function declaracoesDeCor(fonte: string = css): string[] {
+  return [...blocoTema(fonte).matchAll(/--color-([\w-]+)\s*:/g)].map(([, nome]) => nome)
 }
 
 const T = tokens()
@@ -88,6 +104,15 @@ describe('paleta declarada em index.css', () => {
     expect(naoMedidos, `tokens sem par de contraste declarado: ${naoMedidos.join(', ')}`).toEqual([])
   })
 
+  it('toda dispensa em SEM_EXIGENCIA tem motivo não vazio', () => {
+    // A checagem de "não deixa entrar tom novo sem medição" usa `n in SEM_EXIGENCIA`, que é
+    // verdadeira mesmo para motivo `''` — o comentário da constante promete "motivo escrito", mas
+    // nada obrigava a escrita. Honestidade do motivo é inverificável; existência não é.
+    for (const [nome, motivo] of Object.entries(SEM_EXIGENCIA)) {
+      expect(motivo.trim().length, `SEM_EXIGENCIA.${nome} tem motivo vazio`).toBeGreaterThan(0)
+    }
+  })
+
   it('não deixa entrar tom em formato que a medição não lê', () => {
     // Sem esta guarda a anterior tinha um buraco, MEDIDO em 2026-08-08: acrescentar
     // `--color-teste: oklch(0.7 0.15 60);` ao @theme deixava a suíte 166/166 verde, e
@@ -114,6 +139,44 @@ describe('paleta declarada em index.css', () => {
   })
 })
 
+describe('blocoTema / tokens / declaracoesDeCor não truncam no `}` de um comentário (I1)', () => {
+  // Sobre string, não sobre o index.css real: um teste não pode plantar comentário em arquivo de
+  // produção. É por isso que as três funções aceitam `fonte` como parâmetro.
+  it('não trunca: os dois tokens, antes e depois do comentário, aparecem', () => {
+    const fixture = `
+@theme {
+  --color-um: #111111;
+  /* nota de uso, com chave na coluna 0:
+} */
+  --color-dois: #222222;
+}
+`
+    expect(tokens(fixture)).toEqual({ um: '#111111', dois: '#222222' })
+  })
+
+  it('a guarda de formato também enxerga depois do comentário', () => {
+    const fixture = `
+@theme {
+  --color-um: #111111;
+  /* nota de uso, com chave na coluna 0:
+} */
+  --color-oklch: oklch(0.7 0.15 60);
+}
+`
+    expect(declaracoesDeCor(fixture)).toContain('oklch')
+  })
+
+  it('cor cujo único registro está dentro de um comentário não conta como declarada', () => {
+    const fixture = `
+@theme {
+  /* --color-fake: rgb(1,2,3); */
+  --font-sans: sans-serif;
+}
+`
+    expect(declaracoesDeCor(fixture)).toEqual([])
+  })
+})
+
 describe('razaoDeContraste', () => {
   it('dá 21 entre preto e branco', () => {
     expect(razaoDeContraste('#000000', '#ffffff')).toBeCloseTo(21, 1)
@@ -131,5 +194,12 @@ describe('razaoDeContraste', () => {
     // Abaixo de 0.03928 a WCAG usa `c / 12.92`, não a exponencial. Trocar por `** 2.4` em toda a
     // faixa erra justamente nos tons muito escuros — que é onde vive o chrome.
     expect(luminanciaRelativa('#050505')).toBeCloseTo(0.00152, 4)
+  })
+
+  it('atribui o coeficiente do vermelho (0,2126) ao canal certo', () => {
+    // Prova cromática: os quatro testes acima usam só preto, branco e cinza — nenhum distingue a
+    // qual canal cada peso se aplica. Trocar os índices dos canais (R por B, mantendo os pesos nas
+    // posições) passaria por todos eles sem ser notado.
+    expect(luminanciaRelativa('#FF0000')).toBeCloseTo(0.2126, 4)
   })
 })

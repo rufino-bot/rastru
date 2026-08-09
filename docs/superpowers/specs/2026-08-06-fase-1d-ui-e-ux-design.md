@@ -74,9 +74,14 @@ mostraria ~6.
 O valor repetido nas duas últimas linhas **não é engano**: é a mesma tinta em dois contextos — cheia
 sobre fundo claro na ação, e sobre um fundo tingido de baixa saturação na pílula. Um segundo tom
 para a pílula seria uma cor a mais para manter coerente sem ganho nenhum.
-| Estado positivo | `#16A34A` verde | **reservado**: aprovado, ativo |
+| Estado positivo | `#166534` verde-escuro (fundo, com texto branco) e `#15803D` verde (texto sobre claro) | **reservado**: aprovado, ativo |
 | Estado negativo | `#DC2626` vermelho | **reservado**: reprovado, perda, erro |
 | Neutros | escala cinza-esverdeada | texto, bordas, fundos |
+
+**Por que dois tons para o estado positivo:** `#16A34A`, o verde cogitado antes desta medição, dá
+3,30:1 contra branco — abaixo dos 4,5:1 de texto normal — e por isso saiu. O par que entrou separa
+os dois papéis: `#166534` só como fundo (sempre com texto branco), e `#15803D` como o tom que passa
+AA quando é o texto que carrega a cor.
 
 ### A regra que sustenta a paleta
 
@@ -98,9 +103,11 @@ Contra branco: petróleo `#134E4A` ≈ **9,5:1**; água fosco `#3E6E68` ≈ **5,
 AA como texto; o petróleo passa AAA.
 
 **Armadilha registrada:** os tons claros das famílias verde-água e âmbar (`#0D9488`, `#D97706`)
-reprovam em AA como texto sobre branco, apesar de funcionarem como fundo de botão com texto branco.
-Escolher paleta olhando só o botão é o erro clássico. **Todo tom novo que a implementação precisar
-tem de ser medido antes de entrar.**
+reprovam os 4,5:1 de texto normal contra QUALQUER fundo — razão de contraste é simétrica, então
+inverter frente e fundo não salva nada; os dois só alcançam os 3:1 de componente de interface /
+texto grande. Escolher paleta olhando só o botão é o erro clássico, não porque a inversão muda o
+número, mas porque 3:1 não é 4,5:1. **Todo tom novo que a implementação precisar tem de ser medido
+antes de entrar.**
 
 ### A consequência de a ação ser monocromática
 

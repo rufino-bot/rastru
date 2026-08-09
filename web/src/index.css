@@ -9,9 +9,11 @@
   Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
 
   Todo tom novo aqui precisa de par declarado em `src/tema/contraste.test.ts`, senão a suíte
-  reprova. Não é zelo: os tons claros de verde-água (#0D9488) e âmbar (#D97706) REPROVAM em AA
-  como texto sobre branco apesar de funcionarem como fundo de botão — escolher paleta olhando só
-  o botão é o erro clássico, e o teste existe para que ele não passe.
+  reprova. Não é zelo: os tons claros de verde-água (#0D9488) e âmbar (#D97706) reprovam os 4,5:1
+  de texto normal contra QUALQUER fundo — razão de contraste é simétrica, então inverter frente e
+  fundo não salva nada; os dois só alcançam os 3:1 de componente de interface / texto grande.
+  Escolher paleta olhando só o botão é o erro clássico, não porque a inversão muda o número, mas
+  porque 3:1 não é 4,5:1 — e o teste existe para que isso não passe despercebido.
 */
 @theme {
   /* Pilha do sistema: zero asset para baixar no wifi da fábrica, e trocar por fonte própria
