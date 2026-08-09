@@ -42,6 +42,7 @@
      Task 4 corrigiu na spec §3 e que sobreviveu aqui dentro. */
   --color-positivo: #166534;         /* preenchimento cheio, com texto branco */
   --color-positivo-texto: #15803D;   /* rótulo de estado: mais vivo, para ler pequeno */
+  --color-positivo-fundo: #F1F8F3;   /* tinta da pílula positiva; valor FIXO, não composto */
   --color-negativo: #DC2626;         /* passa AA nos dois papéis */
   --color-negativo-texto: #B91C1C;   /* texto sobre a tinta do banner */
   --color-negativo-fundo: #FDF4F4;   /* tinta do banner de erro; valor FIXO, não composto */

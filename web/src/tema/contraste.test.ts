@@ -68,6 +68,8 @@ const PARES: Array<{ frente: string; fundo: string; minimo: number; onde: string
   { frente: 'negativo', fundo: 'negativo-fundo', minimo: INTERFACE, onde: 'borda do banner de erro' },
   { frente: 'positivo-texto', fundo: 'superficie', minimo: TEXTO, onde: 'rótulo de estado aprovado/ativo' },
   { frente: 'superficie', fundo: 'positivo', minimo: TEXTO, onde: 'selo de estado positivo com texto branco' },
+  { frente: 'positivo-texto', fundo: 'positivo-fundo', minimo: TEXTO, onde: 'texto da pílula de estado positivo' },
+  { frente: 'negativo-texto', fundo: 'negativo-fundo', minimo: TEXTO, onde: 'texto da pílula de estado negativo' },
   { frente: 'borda-campo', fundo: 'superficie', minimo: INTERFACE, onde: 'borda de input e de botão secundário' },
   { frente: 'acao', fundo: 'fundo', minimo: INTERFACE, onde: 'anel de foco sobre o fundo da página' },
 ]
