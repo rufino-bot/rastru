@@ -36,13 +36,13 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 
   | Task | Delta | Total SE a baseline for a esperada |
   |---|---|---|
-  | 4 | **+22** | 166 (= 144 + 22) |
-  | 5 | **+23** | 189 |
-  | 6 | **+21** | 210 |
-  | 7 | **+14** | 224 |
-  | 8 | **+11** | 235 |
+  | 4 | **+23** na entrega, **+28** com o fix pass da review | **172 — MEDIDO** (144 + 22 do plano + 1 da guarda do M8 = 167 na entrega; + 5 do fix pass de `3768888`) |
+  | 5 | **+23** (recontado) | 195 (= 172 medidos + 23) |
+  | 6 | **+21** | 216 |
+  | 7 | **+14** | 230 |
+  | 8 | **+11** | 241 |
 
-  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um em vez de somar de cabeça. Os deltas das Tasks 5 a 8 **não foram recontados**: são os do plano original e continuam sendo estimativa. Se você for implementar uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
+  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **Os deltas das Tasks 6 a 8 seguem sem recontagem**: são os do plano original e continuam sendo estimativa. Se você for implementar uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
 
   **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
 
@@ -1903,7 +1903,7 @@ export function Botao(props: ButtonHTMLAttributes<HTMLButtonElement> & {
   carregando?: boolean
   rotuloCarregando?: string
 }): JSX.Element
-export function Campo(props: { rotulo: string; children: (id: string) => ReactNode; dica?: string }): JSX.Element
+export function Campo(props: { rotulo: string; children: (id: string, idDaDica?: string) => ReactNode; dica?: string }): JSX.Element
 export function BannerDeErro(props: { mensagem: string | null }): JSX.Element | null
 ```
 
@@ -1917,7 +1917,7 @@ export function BannerDeErro(props: { mensagem: string | null }): JSX.Element | 
 cd web && npm test
 ```
 
-Expected: `Tests  156 passed (156)`.
+Expected: **`Tests  172 passed (172)`** — a Task 4 fechou aí, e o número foi **medido em 2026-08-09**, depois do fix pass da review dela (`3768888`). Este Step dizia `156`, que era estimativa morta. Se você medir outro número, **pare e reporte**: divergência na baseline é sinal real, ao contrário de divergência no total derivado.
 
 - [ ] **Step 2: Escrever o teste do `Botao`, que ainda não existe**
 
@@ -1987,9 +1987,13 @@ describe('Botao', () => {
         <Botao variante="perigo">X</Botao>
       </div>,
     )
-    const classes = Array.from(container.querySelectorAll('button')).map((b) => b.className)
+    // Classe a classe (`split`), NUNCA `toContain` sobre a string inteira: a classe do secundário
+    // termina em `hover:bg-acao-fundo`, que **contém `bg-acao` como substring**. MEDIDO no
+    // pré-flight de 2026-08-09: um `toContain('bg-acao')` sobre a string casa com o secundário e
+    // não distingue coisa nenhuma. Sobre o array, `toContain` exige o token exato.
+    const classes = Array.from(container.querySelectorAll('button')).map((b) => b.className.split(/\s+/))
 
-    expect(new Set(classes).size).toBe(3)
+    expect(new Set(classes.map((c) => c.join(' '))).size).toBe(3)
     expect(classes[0]).toContain('bg-acao')       // primário: preenchido
     expect(classes[1]).toContain('border')        // secundário: contorno neutro
     expect(classes[2]).toContain('bg-negativo')   // perigo: vermelho reservado a estado
@@ -1998,7 +2002,9 @@ describe('Botao', () => {
   it('usa primário quando a variante não é dita', () => {
     render(<Botao>Adicionar</Botao>)
 
-    expect(screen.getByRole('button').className).toContain('bg-acao')
+    // Mesmo motivo do teste acima, e aqui é o que dá sentido ao M14: sobre a string inteira, trocar
+    // o default para `secundario` PASSARIA, porque `hover:bg-acao-fundo` contém `bg-acao`.
+    expect(screen.getByRole('button').className.split(/\s+/)).toContain('bg-acao')
   })
 
   it('tem indicação de foco visível', () => {
@@ -2006,7 +2012,10 @@ describe('Botao', () => {
     // e não `focus`: o anel não deve aparecer no clique de mouse, só na navegação por teclado.
     render(<Botao>Adicionar</Botao>)
 
-    expect(screen.getByRole('button').className).toContain('focus-visible:outline')
+    // O token EXATO, não o prefixo: `toContain('focus-visible:outline')` sobre a string casava
+    // também com `focus-visible:outline-offset-2` e `focus-visible:outline-acao`, que sobrariam
+    // depois da M5. MEDIDO no pré-flight de 2026-08-09 — a M5 sobrevivia à asserção antiga.
+    expect(screen.getByRole('button').className.split(/\s+/)).toContain('focus-visible:outline-2')
   })
 
   it('é do tipo button por padrão, para não submeter formulário sem querer', () => {
@@ -2090,7 +2099,9 @@ export function Botao({
 }
 ```
 
-**Atenção à ordem de `{...resto}`:** ele vem **depois** de `type="button"` (para o chamador poder pedir `submit`) e **antes** de `disabled`/`className` (para que `carregando` e as classes de variante não sejam sobrescritos por acidente). Trocar essa ordem é um defeito silencioso.
+**Atenção à ordem de `{...resto}`:** ele vem **depois** de `type="button"`, e é isso que deixa o chamador pedir `submit`. Mover o spread para **antes** do `type` faz o literal ganhar e o `type="submit"` do chamador ser ignorado — defeito silencioso, e é o que a M3 mede.
+
+> **Correção do pré-flight de 2026-08-09.** Esta caixa dizia também que o spread tem de vir **antes** de `disabled`/`className` "para que `carregando` e as classes de variante não sejam sobrescritos por acidente". **Esse mecanismo não existe**, e a M3 antiga (mover o spread para depois de `disabled`) era **mutante equivalente**. MEDIDO: `disabled`, `className`, `variante` e `carregando` são **destructurados** na assinatura, então `resto` sai com `['type', 'onClick']` e **nunca** pode conter nenhum deles. A única ordem com consequência observável é a do `type`.
 
 - [ ] **Step 5: Rodar para ver passar**
 
@@ -2396,7 +2407,9 @@ export function Pagina({ titulo, acao, children }: Props) {
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  179 passed (179)` (156 + 10 + 5 + 3 + 5) · build limpo · lint só com o warning alheio.
+Expected: **`Tests  195 passed (195)`** (172 medidos + 10 + 5 + 3 + 5) · build limpo · lint só com o warning alheio.
+
+> **Correção do pré-flight de 2026-08-09 — sexto erro de contagem deste plano, e o primeiro em que o plano se contradizia sozinho.** Este Step dizia `179` (= 156 + 23) e a definition of done dizia `≈ 187` (= 164 + 23): **os dois absolutos estavam mortos E discordavam entre si**. O **delta `+23` está certo** — conferido `it(` a `it(` no pré-flight: `Botao` 10, `Campo` 5, `BannerDeErro` 3, `Pagina` 5. É o delta que vincula; se o seu total divergir com o delta certo, reporte o número real e siga.
 
 - [ ] **Step 12: Medir as mutações**
 
@@ -2404,7 +2417,7 @@ Expected: `Tests  179 passed (179)` (156 + 10 + 5 + 3 + 5) · build limpo · lin
 |---|---|---|
 | M1 | `Botao.tsx` — remover `carregando` de `disabled={disabled \|\| carregando}` | ≥ 1 |
 | M2 | `Botao.tsx` — trocar `type="button"` por `type="submit"` | ≥ 1 |
-| M3 | `Botao.tsx` — mover `{...resto}` para depois de `disabled` | ≥ 1 |
+| M3 | `Botao.tsx` — mover `{...resto}` para **antes** de `type="button"` | ≥ 1 (o teste `aceita type=submit`) |
 | M4 | `Botao.tsx` — dar a mesma string de classe a `primario` e `secundario` | ≥ 1 |
 | M5 | `Botao.tsx` — trocar `focus-visible:outline-2` por nada | ≥ 1 |
 | M6 | `Campo.tsx` — trocar `useId()` por uma constante `'campo'` | ≥ 1 |
@@ -2415,6 +2428,9 @@ Expected: `Tests  179 passed (179)` (156 + 10 + 5 + 3 + 5) · build limpo · lin
 | M11 | `Pagina.tsx` — trocar `<h1>` por `<h2>` | ≥ 1 |
 | M12 | `Pagina.tsx` — trocar `<main>` por `<div>` | ≥ 1 |
 | M13 | `Pagina.tsx` — acrescentar `min-h-screen` às classes | ≥ 1 |
+| M14 | `Botao.tsx` — trocar o default `variante = 'primario'` por `'secundario'` | ≥ 1 |
+
+**M3, M5 e M14 vêm do pré-flight de 2026-08-09, e as três nasceram de medição:** a M3 antiga era equivalente (ver a caixa do Step 4); a M5 **sobrevivia** à asserção antiga, que casava com as sobras `focus-visible:outline-offset-2` e `focus-visible:outline-acao`; e a M14 não existia — o teste `usa primário quando a variante não é dita` passava com o default trocado, porque `hover:bg-acao-fundo` contém `bg-acao` como substring. As três asserções foram reescritas para comparar **token exato** em vez de substring. Se alguma delas sobreviver mesmo assim, **pare e reporte**: é sinal de que a reescrita não fechou o que dizia fechar.
 
 - [ ] **Step 13: Commit**
 
@@ -2423,7 +2439,7 @@ git add web/src/components/Pagina.tsx web/src/components/Pagina.test.tsx web/src
 git commit -m "feat(web): primitivas Pagina, Botao, Campo e BannerDeErro"
 ```
 
-**Definition of done da Task 5:** suíte em **baseline medida + 23** (≈ **187** — **o delta é o que vincula**); as 13 mutações medidas com ≥ 1 morte cada; **nenhuma tela consumindo as primitivas ainda** (isso é das Tasks 8–12); build e lint limpos.
+**Definition of done da Task 5:** suíte em **baseline medida + 23** (**195**, se a baseline for os 172 medidos — **o delta é o que vincula**, e o `≈ 187` que estava aqui era o sexto erro de contagem do plano); as **14** mutações medidas com ≥ 1 morte cada; **nenhuma tela consumindo as primitivas ainda** (isso é das Tasks 8–12); build e lint limpos.
 
 ---
 
