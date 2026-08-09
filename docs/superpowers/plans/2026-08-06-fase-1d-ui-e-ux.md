@@ -3038,9 +3038,15 @@ git commit -m "feat(web): primitivas de lista, pilula, estado vazio e paginacao"
 ```
 
 **Definition of done da Task 6:** suíte em **baseline medida + 23** (**223**, se a baseline ainda for
-os 200 medidos em 2026-08-09 — **o delta é o que vincula**); as **15** mutações medidas (M11 e M13
+os 200 medidos em 2026-08-09 — **o delta é o que vincula**); as **16** mutações medidas (M11 e M13
 declaradas como sobreviventes conhecidos, com o motivo); build e lint limpos; **nenhuma tela
 modificada ainda**.
+
+*(Esta linha dizia **15**. Erro meu no pré-flight: as 11 originais mais as 5 que a correção
+acrescentou — M6b, M6c, M6d, M12, M13 — dão **16**, e a tabela acima sempre teve 16 linhas. O
+implementer da task **sinalizou a divergência em vez de reconciliá-la em silêncio**, que é
+exatamente o comportamento que os briefs pedem: contradição entre dois números meus é motivo de
+parar e reportar, nunca de ajustar um deles para fechar. Contado por mim depois: 16.)*
 
 **Este plano foi corrigido em 2026-08-09, no pré-flight, em 6 pontos** — relatório em
 `.superpowers/sdd/fase1d-task-6-preflight.md`. Os dois que mais custariam: as pílulas replantavam o
