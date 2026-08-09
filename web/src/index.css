@@ -38,6 +38,8 @@
   --color-positivo: #166534;         /* SÓ como fundo, com texto branco (7,13:1) */
   --color-positivo-texto: #15803D;   /* o tom que passa AA como TEXTO sobre claro */
   --color-negativo: #DC2626;         /* passa AA nos dois papéis */
+  --color-negativo-texto: #B91C1C;   /* texto sobre a tinta do banner */
+  --color-negativo-fundo: #FDF4F4;   /* tinta do banner de erro; valor FIXO, não composto */
 
   /* Neutros, com viés verde-acinzentado para casarem com o chrome */
   --color-tinta: #1C2422;

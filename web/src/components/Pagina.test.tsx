@@ -40,4 +40,18 @@ describe('Pagina', () => {
     const { container } = render(<Pagina titulo="Setores"><p>c</p></Pagina>)
     expect(container.querySelector('main')!.className).not.toContain('min-h-screen')
   })
+
+  it('usa a largura larga — a decisão que dá razão de existir ao componente', () => {
+    // I1 da review da Task 5: `max-w-3xl` é a única razão de o `Pagina` substituir as seis cópias
+    // de `max-w-md` (448px) — a spec §7 registra que busca + filtro + seletor de tamanho +
+    // paginação não cabem em 448px. Sem este teste, trocar `max-w-3xl` por `max-w-md` devolvia o
+    // componente ao valor que ele foi criado para substituir e a suíte não notava. Token a token,
+    // não `toContain` sobre a string inteira.
+    const { container } = render(<Pagina titulo="Setores"><p>c</p></Pagina>)
+
+    const classes = container.querySelector('main')!.className.split(/\s+/)
+
+    expect(classes).toContain('max-w-3xl')
+    expect(classes).not.toContain('max-w-md')
+  })
 })

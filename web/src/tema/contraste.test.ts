@@ -64,6 +64,8 @@ const PARES: Array<{ frente: string; fundo: string; minimo: number; onde: string
   { frente: 'acao', fundo: 'acao-fundo', minimo: TEXTO, onde: 'texto da pílula' },
   { frente: 'negativo', fundo: 'superficie', minimo: TEXTO, onde: 'mensagem de erro' },
   { frente: 'superficie', fundo: 'negativo', minimo: TEXTO, onde: 'rótulo do botão de perigo' },
+  { frente: 'negativo-texto', fundo: 'negativo-fundo', minimo: TEXTO, onde: 'mensagem do banner de erro' },
+  { frente: 'negativo', fundo: 'negativo-fundo', minimo: INTERFACE, onde: 'borda do banner de erro' },
   { frente: 'positivo-texto', fundo: 'superficie', minimo: TEXTO, onde: 'rótulo de estado aprovado/ativo' },
   { frente: 'superficie', fundo: 'positivo', minimo: TEXTO, onde: 'selo de estado positivo com texto branco' },
   { frente: 'borda-campo', fundo: 'superficie', minimo: INTERFACE, onde: 'borda de input e de botão secundário' },
@@ -83,7 +85,7 @@ describe('paleta declarada em index.css', () => {
   it('declara todos os tokens que o plano da fase fixou', () => {
     for (const nome of [
       'chrome', 'marca', 'acao', 'acao-forte', 'acao-fundo',
-      'positivo', 'positivo-texto', 'negativo',
+      'positivo', 'positivo-texto', 'negativo', 'negativo-texto', 'negativo-fundo',
       'tinta', 'tinta-fraca', 'borda', 'borda-campo', 'fundo', 'superficie',
     ]) {
       expect(T[nome], `token --color-${nome} ausente em index.css`).toBeTruthy()

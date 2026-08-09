@@ -42,6 +42,18 @@ describe('Botao', () => {
     expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it('mantém o rótulo normal em repouso, mesmo com rotuloCarregando declarado', () => {
+    // I2 da review da Task 5: falta a quarta célula da tabela — `rotuloCarregando` SEM
+    // `carregando`. É exatamente a forma de uso que a spec §9 pede (o rótulo é declarado uma vez,
+    // no JSX, junto com o botão: `<Botao carregando={salvando} rotuloCarregando="Salvando…">`).
+    // Sem a guarda `carregando &&`, o botão exibiria "Salvando…" permanentemente, em repouso.
+    render(<Botao rotuloCarregando="Salvando…">Adicionar</Botao>)
+
+    const botao = screen.getByRole('button') as HTMLButtonElement
+    expect(botao.textContent).toBe('Adicionar')
+    expect(botao.disabled).toBe(false)
+  })
+
   it('respeita o disabled vindo de fora, sem estar carregando', () => {
     const aoClicar = vi.fn()
     render(<Botao disabled onClick={aoClicar}>Anterior</Botao>)

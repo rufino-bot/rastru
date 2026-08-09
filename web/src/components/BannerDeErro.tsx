@@ -9,7 +9,7 @@ export function BannerDeErro({ mensagem }: Props) {
   return (
     <p
       role="alert"
-      className="rounded-lg border border-negativo/30 bg-negativo/5 px-4 py-3 text-negativo"
+      className="rounded-lg border border-negativo bg-negativo-fundo px-4 py-3 text-negativo-texto"
     >
       {mensagem}
     </p>
