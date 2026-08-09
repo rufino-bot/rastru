@@ -37,12 +37,12 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | Task | Delta | Total SE a baseline for a esperada |
   |---|---|---|
   | 4 | **+23** na entrega, **+28** com o fix pass da review | **172 — MEDIDO** (144 + 22 do plano + 1 da guarda do M8 = 167 na entrega; + 5 do fix pass de `3768888`) |
-  | 5 | **+23** (recontado) | 195 (= 172 medidos + 23) |
-  | 6 | **+21** | 216 |
-  | 7 | **+14** | 230 |
-  | 8 | **+11** | 241 |
+  | 5 | **+23** (recontado) | **200 — MEDIDO** (195 na entrega; + 5 do fix pass da review, `8d75c53`) |
+  | 6 | **+23** (recontado) | 223 (= 200 medidos + 23) |
+  | 7 | **+14** | 237 |
+  | 8 | **+11** | 248 |
 
-  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **Os deltas das Tasks 6 a 8 seguem sem recontagem**: são os do plano original e continuam sendo estimativa. Se você for implementar uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
+  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **Os deltas das Tasks 7 e 8 seguem sem recontagem**: são os do plano original e continuam sendo estimativa. Se você for implementar uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
 
   **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
 
@@ -2450,6 +2450,8 @@ git commit -m "feat(web): primitivas Pagina, Botao, Campo e BannerDeErro"
 - Create: `web/src/components/Pilula.tsx` + `Pilula.test.tsx`
 - Create: `web/src/components/EstadoVazio.tsx` + `EstadoVazio.test.tsx`
 - Create: `web/src/components/ControlesDePaginacao.tsx` + `ControlesDePaginacao.test.tsx`
+- Modify: `web/src/index.css` — um token novo (`--color-positivo-fundo`), ver Step 5
+- Modify: `web/src/tema/contraste.test.ts` — dois pares novos e o token novo na lista obrigatória
 
 **Interfaces:**
 - Consumes: `Botao` (Task 5), tokens (Task 4).
@@ -2475,7 +2477,13 @@ export function ControlesDePaginacao(props: {
 cd web && npm test
 ```
 
-Expected: `Tests  179 passed (179)`.
+Expected: `Tests  200 passed (200)`.
+
+**Baseline MEDIDA em 2026-08-09**, no pré-flight desta task, com HEAD em `8d75c53` (183 `it(`
+literais + 17 entradas do `it.each(PARES)`). O plano dizia `179`, e ainda dizia `7` no Step 3, `200`
+no Step 7 e `≈208` na DoD — **quatro baselines mutuamente contraditórias**. A do Step 7 era a pior:
+`200` é exatamente a baseline de hoje, então quem rodasse `npm test` antes de escrever qualquer
+linha veria `200 passed` e concluiria que o step passou. **O que vincula é o delta.**
 
 - [ ] **Step 2: Escrever o teste de `ListaDeCadastro` / `ItemDeCadastro`**
 
@@ -2592,11 +2600,17 @@ export function ItemDeCadastro({
 }) {
   return (
     <li className="flex items-center justify-between gap-3 rounded-lg border border-borda bg-superficie px-4 py-3">
-      <span className={ativo ? 'text-tinta' : 'text-tinta-fraca line-through'}>
-        {children}
+      <span className={ativo ? 'text-tinta' : 'text-tinta-fraca'}>
+        <span className={ativo ? undefined : 'line-through'}>{children}</span>
         {/* O traço é visual e não chega ao leitor de tela; sem este texto, ativo e inativo soam
-            idênticos para quem não vê a lista. */}
-        {!ativo && <span className="ml-2 no-underline">(inativo)</span>}
+            idênticos para quem não vê a lista.
+
+            IRMÃO do nome riscado, e não filho: `text-decoration` de um ancestral é pintada ATRAVÉS
+            dos descendentes em fluxo e um descendente NÃO consegue desligá-la (CSS Text Decoration
+            L3). A primeira versão deste plano punha o rótulo dentro do `line-through` com
+            `no-underline` para tentar salvá-lo — classe que não faz nada e que encena uma decisão.
+            Como irmão, o rótulo nunca é riscado por construção, sem depender de truque de cascata. */}
+        {!ativo && <span className="ml-2">(inativo)</span>}
       </span>
       {acao}
     </li>
@@ -2610,7 +2624,8 @@ export function ItemDeCadastro({
 cd web && npm test -- ListaDeCadastro
 ```
 
-Expected: `Tests  7 passed (7)`.
+Expected: `Tests  6 passed (6)` — **contados no próprio bloco acima**: 2 em `ListaDeCadastro` e 4 em
+`ItemDeCadastro`. O plano dizia `7`, contradizendo o arquivo que ele mesmo especifica.
 
 - [ ] **Step 4: Escrever `EstadoVazio` com seu teste**
 
@@ -2689,7 +2704,54 @@ export function EstadoVazio({
 }
 ```
 
-- [ ] **Step 5: Escrever `Pilula` com seu teste**
+- [ ] **Step 5: Declarar o tom da pílula positiva, e só então escrever `Pilula`**
+
+**Esta ordem não é estética.** A versão original deste plano pintava as pílulas de estado com
+`bg-positivo/10` e `bg-negativo/10` — **modificadores de opacidade**, que o Tailwind emite como
+`color-mix(in oklab, …)`. Tom derivado **não é declaração `--color-*`**, então escapa inteiro das
+duas guardas da Task 4. É exatamente o Critical que a review da Task 5 achou no `BannerDeErro` e
+que o fix `8d75c53` fechou; o plano ia replantá-lo, em dobro.
+
+**Medido no pré-flight de 2026-08-09**, com a fórmula do projeto — as quatro combinações reprovam
+os 4,5 de texto normal (e o limiar não é opinião: a guarda **já** classifica texto de pílula como
+`TEXTO`, em `contraste.test.ts:64`):
+
+| tinta composta | texto | razão |
+|---|---|---|
+| `positivo/10` sobre `superficie` → `#E8F0EB` | `#15803D` | **4,322** |
+| `positivo/10` sobre `fundo` → `#E1EBE5` | `#15803D` | **4,112** |
+| `negativo/10` sobre `superficie` → `#FCE9E9` | `#DC2626` | **4,133** |
+| `negativo/10` sobre `fundo` → `#F4E5E4` | `#DC2626` | **3,950** |
+
+A saída é a mesma do fix do banner: **converter cor derivada em cor declarada**, para o tom viver
+sob a guarda. A pílula negativa **reusa os tokens do banner** (zero token novo); só a positiva
+precisa de um fundo declarado.
+
+**1. Um token novo em `web/src/index.css`**, no bloco "Estado — reservados":
+
+```css
+  --color-positivo-fundo: #F1F8F3;   /* tinta da pílula positiva; valor FIXO, não composto */
+```
+
+**2. Dois pares novos em `PARES`, de `web/src/tema/contraste.test.ts`** (e o token novo na lista de
+tokens obrigatórios logo abaixo):
+
+| frente | fundo | mínimo | onde |
+|---|---|---|---|
+| `positivo-texto` | `positivo-fundo` | `TEXTO` | texto da pílula de estado positivo |
+| `negativo-texto` | `negativo-fundo` | `TEXTO` | texto da pílula de estado negativo |
+
+**Valores medidos por mim no pré-flight — RE-MEDIR antes de escrever qualquer número:**
+`positivo-texto`/`positivo-fundo` = **4,648**; `negativo-texto`/`negativo-fundo` = **5,984** (já
+verde hoje, é o par do banner). Candidatos que descartei: `#EDF6F0` dá 4,548 (margem de 0,048,
+frágil) e `#E8F0EB` dá 4,322 — **este último é exatamente o que o `/10` produzia**, o que é a
+medição que condena a versão antiga.
+
+**Os itens 1 e 2 são um passo só, não dois.** MEDIDO no pré-flight: declarar
+`--color-positivo-fundo` sem acrescentar o par derruba a suíte em
+`não deixa entrar tom novo sem medição`, com `tokens sem par de contraste declarado:
+positivo-fundo`. Não é obstáculo — é a guarda da Task 4 funcionando, e ver essa falha é a
+confirmação barata de que o token novo entrou no lugar certo. Só não se assuste com ela.
 
 `web/src/components/Pilula.test.tsx`:
 
@@ -2711,14 +2773,18 @@ describe('Pilula', () => {
   it('usa a tinta de ação sobre fundo tingido no tom neutro', () => {
     // A mesma `--color-acao` do botão, agora sobre fundo de baixa saturação. Um segundo tom só
     // para a pílula seria uma cor a mais para manter coerente, sem ganho (spec §3).
+    //
+    // TOKEN A TOKEN (`split`), nunca `toContain` sobre a className inteira: com `toContain`, mutar
+    // `text-acao` para `text-acao-forte` SOBREVIVE, porque a segunda string contém a primeira.
+    // Essa armadilha custou três achados na Task 5.
     render(<Pilula>Kit</Pilula>)
 
-    const classes = screen.getByText('Kit').className
+    const classes = screen.getByText('Kit').className.split(/\s+/)
     expect(classes).toContain('bg-acao-fundo')
     expect(classes).toContain('text-acao')
   })
 
-  it('reserva verde e vermelho para estado', () => {
+  it('reserva verde e vermelho para estado, em tons declarados', () => {
     const { container } = render(
       <div>
         <Pilula tom="positivo">Aprovado</Pilula>
@@ -2726,11 +2792,19 @@ describe('Pilula', () => {
       </div>,
     )
     const [positiva, negativa] = Array.from(container.querySelectorAll('span'))
+      .map((s) => s.className.split(/\s+/))
 
-    // `positivo-texto`, não `positivo`: o tom cheio reprova AA como texto sobre claro — é a
-    // armadilha registrada na spec §3, e a razão de os dois tokens existirem separados.
-    expect(positiva.className).toContain('text-positivo-texto')
-    expect(negativa.className).toContain('text-negativo')
+    // `positivo-texto`, não `positivo`: são dois tokens com papéis distintos na paleta.
+    // `text-negativo-texto` e não `text-negativo`, pelo mesmo motivo — e com `split` a distinção
+    // é real: sob `toContain`, `'text-negativo-texto'` satisfaria uma asserção de `'text-negativo'`.
+    expect(positiva).toContain('text-positivo-texto')
+    expect(negativa).toContain('text-negativo-texto')
+
+    // Os fundos são tokens DECLARADOS, medidos pela guarda da Task 4. Nenhum modificador de
+    // opacidade: era por `/NN` que a cor escapava da guarda (Critical da review da Task 5).
+    expect(positiva).toContain('bg-positivo-fundo')
+    expect(negativa).toContain('bg-negativo-fundo')
+    expect([...positiva, ...negativa].some((c) => c.includes('/'))).toBe(false)
   })
 })
 ```
@@ -2742,13 +2816,18 @@ import type { ReactNode } from 'react'
 
 export type TomDePilula = 'neutro' | 'positivo' | 'negativo'
 
-// `positivo-texto` e não `positivo`: o verde cheio reprova AA como texto sobre claro, apesar de
-// funcionar como fundo com texto branco. É a armadilha que a spec §3 registra e que o teste de
-// contraste da Task 4 mede.
+// Os três tons são PARES DECLARADOS, medidos pela guarda da Task 4 — nenhum modificador de
+// opacidade. `bg-positivo/10` e `bg-negativo/10` (a versão anterior) viravam
+// `color-mix(in oklab, …)`, que não é declaração `--color-*` e escapava da guarda inteira; medido,
+// os quatro casos reprovavam AA (4,32 / 4,11 / 4,13 / 3,95 contra os 4,5 exigidos).
+//
+// `positivo-texto` e não `positivo`, e `negativo-texto` e não `negativo`: os pares medidos são
+// esses. NÃO repita aqui a justificativa de que "o verde cheio reprova como texto sobre claro" —
+// ela é falsa: `#166534` sobre branco dá 7,130, MEDIDO. Razão de contraste é simétrica.
 const POR_TOM: Record<TomDePilula, string> = {
   neutro: 'bg-acao-fundo text-acao',
-  positivo: 'bg-positivo/10 text-positivo-texto',
-  negativo: 'bg-negativo/10 text-negativo',
+  positivo: 'bg-positivo-fundo text-positivo-texto',
+  negativo: 'bg-negativo-fundo text-negativo-texto',
 }
 
 /**
@@ -2840,6 +2919,23 @@ describe('ControlesDePaginacao', () => {
 
     expect(screen.getByRole('navigation', { name: 'Paginação' })).toBeTruthy()
   })
+
+  it('não põe peso primário em nenhum dos dois botões', () => {
+    // A spec §3 barra dois botões com o mesmo peso visual na mesma tela, e é por isso que o `Botao`
+    // tem variantes. Sem esta prova, mutar qualquer um dos dois para `primario` deixava a suíte
+    // verde — a decisão que dá sentido às variantes não era tocada por nenhuma mutação do plano.
+    // Token a token: `bg-acao-fundo` (hover do secundário) CONTÉM `bg-acao`, então uma comparação
+    // por substring não discriminaria as duas variantes.
+    const { container } = render(
+      <ControlesDePaginacao pagina={2} totalDePaginas={5} total={97} aoMudarPagina={() => {}} />,
+    )
+
+    for (const botao of Array.from(container.querySelectorAll('button'))) {
+      const classes = botao.className.split(/\s+/)
+      expect(classes).toContain('border-borda-campo')
+      expect(classes).not.toContain('bg-acao')
+    }
+  })
 })
 ```
 
@@ -2892,7 +2988,11 @@ export function ControlesDePaginacao({ pagina, totalDePaginas, total, aoMudarPag
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  200 passed (200)` (179 + 7 + 4 + 3 + 7) · build limpo · lint só com o warning alheio.
+Expected: `Tests  223 passed (223)` · build limpo · lint só com o warning alheio.
+
+Delta **+23** sobre a baseline medida de 200, recontado no pré-flight: `ListaDeCadastro` **6** +
+`EstadoVazio` **4** + `Pilula` **3** + `ControlesDePaginacao` **8** + **2** entradas novas do
+`it.each(PARES)` (os dois pares de pílula do Step 5). **O que vincula é o delta**, não o absoluto.
 
 - [ ] **Step 8: Medir as mutações**
 
@@ -2904,22 +3004,49 @@ Expected: `Tests  200 passed (200)` (179 + 7 + 4 + 3 + 7) · build limpo · lint
 | M4 | `ListaDeCadastro.tsx` — remover o `(inativo)` | ≥ 1 |
 | M5 | `EstadoVazio.tsx` — trocar `role="status"` por `role="alert"` | ≥ 1 |
 | M6 | `Pilula.tsx` — trocar `text-positivo-texto` por `text-positivo` | ≥ 1 |
+| M6b | `Pilula.tsx` — trocar `text-negativo-texto` por `text-negativo` | ≥ 1 — **sob `toContain` ela SOBREVIVERIA**; é a prova de que a comparação token a token vale |
+| M6c | `Pilula.tsx` — trocar `bg-positivo-fundo` por `bg-positivo/10` | ≥ 1 no teste de tons declarados |
+| M6d | `index.css` — trocar `--color-positivo-fundo` para `#E8F0EB` (o valor que o `/10` produzia) | **morrer no PAR DE CONTRASTE** (4,322 < 4,5) — é a que prova que o tom entrou sob a guarda |
 | M7 | `ControlesDePaginacao.tsx` — trocar `aoMudarPagina(pagina - 1)` por `pagina + 1` no "Anterior" | ≥ 1 |
 | M8 | `ControlesDePaginacao.tsx` — trocar `disabled={pagina <= 1}` por `false` | ≥ 1 |
 | M9 | `ControlesDePaginacao.tsx` — trocar `disabled={pagina >= totalDePaginas}` por `false` | ≥ 1 |
 | M10 | `ControlesDePaginacao.tsx` — remover o `if (totalDePaginas <= 1) return null` | ≥ 1 |
+| M12 | `ControlesDePaginacao.tsx` — trocar `variante="secundario"` por `primario` no "Anterior" | ≥ 1 no teste de peso visual |
 | M11 | `ControlesDePaginacao.tsx` — remover `flex-wrap` | **0 esperado** — jsdom não faz layout; **é o buraco desta task, e vai declarado no relatório** |
+| M13 | `ListaDeCadastro.tsx` — pôr o `(inativo)` de volta DENTRO do `<span>` riscado | **0 esperado** — jsdom não resolve cascata de `text-decoration`; ver abaixo |
 
-**M11 é a fronteira honesta da rede:** nenhum teste em jsdom prova que a página não rola na horizontal, porque jsdom não calcula layout. A verificação de viewport de celular é **manual** e acontece na Task 12, com o dev server e o DevTools em 360px de largura. **Declare M11 como sobrevivente conhecido** — não invente asserção de classe para fingir que ela morreu; classe presente não é layout correto.
+**M11 e M13 são a fronteira honesta da rede.** Nenhum teste em jsdom prova que a página não rola na
+horizontal, porque jsdom não calcula layout; e nenhum prova que o "(inativo)" não sai riscado,
+porque jsdom não resolve cascata de `text-decoration`. A verificação de viewport de celular é
+**manual** e acontece na Task 12, com o dev server e o DevTools em 360px de largura; o "(inativo)"
+entra na mesma varredura visual. **Declare as duas como sobreviventes conhecidos** — não invente
+asserção de classe para fingir que morreram; classe presente não é layout correto.
+
+**Por que a M13 existe e por que a estrutura mudou:** a versão anterior deste plano punha o rótulo
+"(inativo)" DENTRO do `<span>` com `line-through` e tentava salvá-lo com `no-underline`. Isso não
+funciona: por CSS Text Decoration L3 a decoração de um ancestral é pintada através dos descendentes
+em fluxo e **um descendente não consegue desligá-la**. Era uma classe que não fazia nada e que
+encenava uma decisão. A correção **não** é outra classe — é estrutural: o rótulo virou **irmão** do
+nome riscado, e aí nunca é riscado por construção. A M13 fica registrada como sobrevivente
+justamente porque a suíte não é capaz de defender isso; o que a defende é a estrutura.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add web/src/components/ListaDeCadastro.tsx web/src/components/ListaDeCadastro.test.tsx web/src/components/Pilula.tsx web/src/components/Pilula.test.tsx web/src/components/EstadoVazio.tsx web/src/components/EstadoVazio.test.tsx web/src/components/ControlesDePaginacao.tsx web/src/components/ControlesDePaginacao.test.tsx
+git add web/src/components/ListaDeCadastro.tsx web/src/components/ListaDeCadastro.test.tsx web/src/components/Pilula.tsx web/src/components/Pilula.test.tsx web/src/components/EstadoVazio.tsx web/src/components/EstadoVazio.test.tsx web/src/components/ControlesDePaginacao.tsx web/src/components/ControlesDePaginacao.test.tsx web/src/index.css web/src/tema/contraste.test.ts
 git commit -m "feat(web): primitivas de lista, pilula, estado vazio e paginacao"
 ```
 
-**Definition of done da Task 6:** suíte em **baseline medida + 21** (≈ **208** — **o delta é o que vincula**); as 11 mutações medidas (M11 declarada como sobrevivente conhecido, com o motivo); build e lint limpos; **nenhuma tela modificada ainda**.
+**Definition of done da Task 6:** suíte em **baseline medida + 23** (**223**, se a baseline ainda for
+os 200 medidos em 2026-08-09 — **o delta é o que vincula**); as **15** mutações medidas (M11 e M13
+declaradas como sobreviventes conhecidos, com o motivo); build e lint limpos; **nenhuma tela
+modificada ainda**.
+
+**Este plano foi corrigido em 2026-08-09, no pré-flight, em 6 pontos** — relatório em
+`.superpowers/sdd/fase1d-task-6-preflight.md`. Os dois que mais custariam: as pílulas replantavam o
+Critical do `BannerDeErro` em dobro (cor derivada por `/NN` fora da guarda, as quatro combinações
+reprovando AA), e as quatro baselines contraditórias incluíam uma — o `200` do Step 7 — que era
+**exatamente a baseline real de hoje**, e portanto indistinguível de sucesso.
 
 ---
 

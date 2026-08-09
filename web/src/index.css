@@ -35,8 +35,13 @@
   --color-acao-fundo: #E8F0EF;   /* fundo tingido da pílula; a tinta é a MESMA --color-acao */
 
   /* Estado — reservados */
-  --color-positivo: #166534;         /* SÓ como fundo, com texto branco (7,13:1) */
-  --color-positivo-texto: #15803D;   /* o tom que passa AA como TEXTO sobre claro */
+  /* Os dois verdes passam AA nos DOIS papéis — o que os separa é peso visual, não conformidade.
+     MEDIDO em 2026-08-09: #166534 sobre branco dá 7,130 e #15803D dá 5,016; razão de contraste é
+     simétrica, então os mesmos números valem com os papéis invertidos. Este comentário dizia que o
+     #166534 servia "SÓ como fundo" — falso, e resíduo do mesmo erro de assimetria que o fix da
+     Task 4 corrigiu na spec §3 e que sobreviveu aqui dentro. */
+  --color-positivo: #166534;         /* preenchimento cheio, com texto branco */
+  --color-positivo-texto: #15803D;   /* rótulo de estado: mais vivo, para ler pequeno */
   --color-negativo: #DC2626;         /* passa AA nos dois papéis */
   --color-negativo-texto: #B91C1C;   /* texto sobre a tinta do banner */
   --color-negativo-fundo: #FDF4F4;   /* tinta do banner de erro; valor FIXO, não composto */
