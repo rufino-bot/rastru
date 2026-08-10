@@ -26,6 +26,16 @@
   --color-chrome: #134E4A;       /* barra de navegação e cabeçalho */
   --color-marca: #5EEAD4;        /* logo, SEMPRE sobre o chrome escuro */
 
+  /* Tons do chrome. Existem DECLARADOS, e não como `bg-superficie/15` e afins, porque
+     modificador de opacidade compõe com `color-mix(in oklab, …)` — que não é declaração
+     `--color-*` e escapa das duas guardas de `contraste.test.ts`. Foi o caminho que sangrou
+     três vezes nesta fase (oklch do M8, `}` em comentário do I1, `/NN` do banner e da pílula). */
+  --color-chrome-tinta-fraca:   #D0DCDB;  /* link inativo da barra */
+  --color-chrome-tinta-apagada: #B7C2C1;  /* identidade do usuário — informa, não convida a clicar */
+  --color-chrome-ativo:         #366965;  /* fundo do item da tela atual; também o separador da gaveta */
+  --color-chrome-hover:         #2B605C;  /* fundo do item sob o ponteiro */
+  --color-chrome-borda:         #7B9C9A;  /* contorno do "Sair" e do botão de menu */
+
   /* Ação — mesma família do chrome, por escolha explícita do usuário contra a recomendação de
      dois matizes. O custo é real e a compensação é de FORMA, não de cor: o primário ganha peso
      por tamanho e densidade tipográfica, e o contorno neutro fica reservado ao secundário.

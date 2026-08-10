@@ -72,6 +72,11 @@ const PARES: Array<{ frente: string; fundo: string; minimo: number; onde: string
   { frente: 'negativo-texto', fundo: 'negativo-fundo', minimo: TEXTO, onde: 'texto da pílula de estado negativo' },
   { frente: 'borda-campo', fundo: 'superficie', minimo: INTERFACE, onde: 'borda de input e de botão secundário' },
   { frente: 'acao', fundo: 'fundo', minimo: INTERFACE, onde: 'anel de foco sobre o fundo da página' },
+  { frente: 'chrome-tinta-fraca', fundo: 'chrome', minimo: TEXTO, onde: 'link inativo da barra de navegação' },
+  { frente: 'chrome-tinta-apagada', fundo: 'chrome', minimo: TEXTO, onde: 'identidade do usuário no shell' },
+  { frente: 'superficie', fundo: 'chrome-ativo', minimo: TEXTO, onde: 'rótulo do item da tela atual' },
+  { frente: 'superficie', fundo: 'chrome-hover', minimo: TEXTO, onde: 'rótulo do item sob o ponteiro' },
+  { frente: 'chrome-borda', fundo: 'chrome', minimo: INTERFACE, onde: 'contorno do Sair e do botão de menu' },
 ]
 
 /**
@@ -89,6 +94,7 @@ describe('paleta declarada em index.css', () => {
       'chrome', 'marca', 'acao', 'acao-forte', 'acao-fundo',
       'positivo', 'positivo-texto', 'negativo', 'negativo-texto', 'negativo-fundo',
       'tinta', 'tinta-fraca', 'borda', 'borda-campo', 'fundo', 'superficie',
+      'chrome-tinta-fraca', 'chrome-tinta-apagada', 'chrome-ativo', 'chrome-hover', 'chrome-borda',
     ]) {
       expect(T[nome], `token --color-${nome} ausente em index.css`).toBeTruthy()
     }
