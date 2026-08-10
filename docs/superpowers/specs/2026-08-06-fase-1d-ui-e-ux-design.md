@@ -74,14 +74,17 @@ mostraria ~6.
 O valor repetido nas duas últimas linhas **não é engano**: é a mesma tinta em dois contextos — cheia
 sobre fundo claro na ação, e sobre um fundo tingido de baixa saturação na pílula. Um segundo tom
 para a pílula seria uma cor a mais para manter coerente sem ganho nenhum.
-| Estado positivo | `#166534` verde-escuro (fundo, com texto branco) e `#15803D` verde (texto sobre claro) | **reservado**: aprovado, ativo |
+| Estado positivo | `#166534` verde-escuro e `#15803D` verde — os dois passam AA nos dois papéis (fundo ou texto); o que separa é peso visual, não conformidade | **reservado**: aprovado, ativo |
 | Estado negativo | `#DC2626` vermelho | **reservado**: reprovado, perda, erro |
 | Neutros | escala cinza-esverdeada | texto, bordas, fundos |
 
 **Por que dois tons para o estado positivo:** `#16A34A`, o verde cogitado antes desta medição, dá
-3,30:1 contra branco — abaixo dos 4,5:1 de texto normal — e por isso saiu. O par que entrou separa
-os dois papéis: `#166534` só como fundo (sempre com texto branco), e `#15803D` como o tom que passa
-AA quando é o texto que carrega a cor.
+3,30:1 contra branco — abaixo dos 4,5:1 de texto normal — e por isso saiu. Os dois tons que entraram
+passam AA nos DOIS papéis: `#166534` sobre branco dá 7,130:1, e `#15803D` sobre branco dá 5,016:1 —
+razão de contraste é simétrica, então o mesmo número vale com os papéis invertidos. O que separa os
+dois não é conformidade — é peso visual: `#166534` é usado como preenchimento cheio (com texto
+branco por cima), e `#15803D` como o tom que carrega a cor quando é ele o texto — mais vivo, para
+ler pequeno.
 
 ### A regra que sustenta a paleta
 

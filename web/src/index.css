@@ -37,9 +37,9 @@
   /* Estado — reservados */
   /* Os dois verdes passam AA nos DOIS papéis — o que os separa é peso visual, não conformidade.
      MEDIDO em 2026-08-09: #166534 sobre branco dá 7,130 e #15803D dá 5,016; razão de contraste é
-     simétrica, então os mesmos números valem com os papéis invertidos. Este comentário dizia que o
-     #166534 servia "SÓ como fundo" — falso, e resíduo do mesmo erro de assimetria que o fix da
-     Task 4 corrigiu na spec §3 e que sobreviveu aqui dentro. */
+     simétrica, então os mesmos números valem com os papéis invertidos. A spec §3 tinha a mesma
+     frase falsa ("#166534 só como fundo") até o fix pass da Task 6 corrigi-la lá — corrigida nos
+     dois lugares agora, não só aqui. */
   --color-positivo: #166534;         /* preenchimento cheio, com texto branco */
   --color-positivo-texto: #15803D;   /* rótulo de estado: mais vivo, para ler pequeno */
   --color-positivo-fundo: #F1F8F3;   /* tinta da pílula positiva; valor FIXO, não composto */

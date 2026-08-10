@@ -51,6 +51,16 @@ describe('ItemDeCadastro', () => {
     expect(itemInativo.textContent).toContain('Inativo')
     expect(itemInativo.innerHTML).toContain('line-through')
     expect(itemAtivo.innerHTML).not.toContain('line-through')
+
+    // A outra metade da distinção (I1 da review): NÃO é só o traço, é também a tinta fraca.
+    // Token a token — `toContain` sobre a string inteira passaria com qualquer classe que
+    // contivesse a substring, inclusive coincidências acidentais.
+    const classesAtivo = itemAtivo.querySelector('span')!.className.split(/\s+/)
+    const classesInativo = itemInativo.querySelector('span')!.className.split(/\s+/)
+    expect(classesAtivo).toContain('text-tinta')
+    expect(classesAtivo).not.toContain('text-tinta-fraca')
+    expect(classesInativo).toContain('text-tinta-fraca')
+    expect(classesInativo).not.toContain('text-tinta')
   })
 
   it('trata item sem a prop ativo como ativo', () => {
@@ -71,5 +81,18 @@ describe('ItemDeCadastro', () => {
     )
 
     expect(screen.getByText('(inativo)')).toBeTruthy()
+  })
+
+  it('o rótulo "(inativo)" fica FORA do span riscado — irmão, não filho (I2 da review)', () => {
+    // A decisão é sobre ancestralidade no DOM, não sobre cascata de `text-decoration` resolvida
+    // (que o jsdom não pinta). Se "(inativo)" fosse movido para DENTRO do `.line-through`
+    // (a M13 do plano) ou se o traço subisse para o span de fora (mutação mais provável, um
+    // "simplificar dois spans em um"), o rótulo sairia riscado por construção — e esta asserção
+    // sobre a subárvore do elemento que carrega a classe discrimina os dois casos.
+    const { container } = render(
+      <ListaDeCadastro><ItemDeCadastro ativo={false}>Corte</ItemDeCadastro></ListaDeCadastro>,
+    )
+
+    expect(container.querySelector('.line-through')!.textContent).not.toContain('(inativo)')
   })
 })
