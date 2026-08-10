@@ -39,10 +39,11 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | 4 | **+23** na entrega, **+28** com o fix pass da review | **172 — MEDIDO** (144 + 22 do plano + 1 da guarda do M8 = 167 na entrega; + 5 do fix pass de `3768888`) |
   | 5 | **+23** (recontado) | **200 — MEDIDO** (195 na entrega; + 5 do fix pass da review, `8d75c53`) |
   | 6 | **+23** (recontado) | 223 (= 200 medidos + 23) |
-  | 7 | **+14** | 237 |
-  | 8 | **+11** | 248 |
+  | 7 | **+29** na entrega | **259 — MEDIDO** (230 medidos ao iniciar a task + 29) |
+  | 7 (fix pass) | **+9** | **268 — MEDIDO** (259 + 9 dos achados da review — I3, I2, I4, m5, m6, m7 × 2, ver `.superpowers/sdd/fase1d-task-7-fix-report.md`) |
+  | 8 | **+11** | 279 (= 268 medidos + 11) |
 
-  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **Os deltas das Tasks 7 e 8 seguem sem recontagem**: são os do plano original e continuam sendo estimativa. Se você for implementar uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
+  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. **O delta da Task 8 segue sem recontagem**: é o do plano original e continua sendo estimativa. Se você for implementá-la, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
 
   **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
 
@@ -3902,9 +3903,9 @@ git commit -m "feat(web): shell de navegacao com gaveta, tabela de permissoes e 
 cd web && npm test
 ```
 
-Expected: **`Tests  259 passed (259)`** — o que a Task 7 deve fechar (230 medidos + 29). Este Step dizia `214`, herdado de uma baseline de duas tasks atrás.
+Expected: **`Tests  268 passed (268)`** — o que o fix pass da Task 7 fechou (259 medidos ao entregar a task + 9 do fix pass dos achados da review, `.superpowers/sdd/fase1d-task-7-fix-report.md`, medido em 2026-08-10). Este Step dizia `259`, que era o número da task ANTES do fix pass — corrigido aqui na mesma passada, como manda a regra em vigor.
 
-**Confira contra o que a Task 7 REALMENTE fechou, não contra este número.** O 259 é previsão do plano corrigido em 2026-08-10; o valor que vincula é o medido no commit da Task 7. Se divergir, **pare e reporte** — e atualize este Step junto, que é a regra em vigor desde 2026-08-10: task fechada com delta ≠ 0 corrige a baseline das seguintes na mesma passada.
+**Confira contra o que o fix pass da Task 7 REALMENTE fechou, não contra este número.** O 268 é o medido no fix pass; se divergir, **pare e reporte** — e atualize este Step junto, que é a regra em vigor desde 2026-08-10: task fechada com delta ≠ 0 corrige a baseline das seguintes na mesma passada.
 
 - [ ] **Step 2: Reescrever a `SetoresPage`**
 
@@ -4595,9 +4596,9 @@ Expected: `Tests  7 passed (7)` em `npm test -- PedidosPage`.
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: **`Tests  270 passed (270)`** (259 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
+Expected: **`Tests  279 passed (279)`** (268 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
 
-**O delta +11 é o que vincula**; o total depende do que a Task 7 fechou. Este Step dizia `225`, derivado da baseline morta de `214`.
+**O delta +11 é o que vincula**; o total depende do que a Task 7 (com o fix pass) fechou. Este Step dizia `270` (= 259 + 11), herdado da baseline pré-fix-pass; a baseline correta é **268**, medida no fix pass de 2026-08-10.
 
 **Se o número divergir, reporte o número real e a composição** — não ajuste o plano; a contagem exata depende de quantos testes antigos você fundiu ou dividiu.
 
