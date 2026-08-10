@@ -3058,14 +3058,24 @@ reprovando AA), e as quatro baselines contraditórias incluíam uma — o `200` 
 
 ### Task 7: Shell de navegação e a tabela de permissões
 
+> **REESCRITA em 2026-08-10 pelo pré-flight** (`.superpowers/sdd/fase1d-task-7-preflight.md`), que
+> achou **7 defeitos, 5 medidos**. O que mudou em relação à versão de 2026-08-06: as três baselines
+> mortas; o `AppShell.tsx` inteiro, que **derrubava a suíte** por violar a guarda de modificador de
+> opacidade instalada na Task 6 (`7f56f39`, posterior a este plano); cinco tokens novos; o teste do
+> `usePodeEscrever`, que não existia; a guarda de espelhamento front/backend; e as quatro decisões
+> visuais que o usuário tomou sobre protótipo medido. **Delta +14 → +29.**
+
 **Files:**
+- Modify: `web/src/index.css` (5 tokens novos do chrome)
+- Modify: `web/src/tema/contraste.test.ts` (5 pares novos + os nomes na lista de tokens exigidos)
 - Create: `web/src/auth/permissoes.ts` + `permissoes.test.ts`
-- Create: `web/src/auth/usePermissao.ts`
+- Create: `web/src/auth/usePermissao.ts` + `usePermissao.test.tsx`
+- Create: `web/src/auth/permissoesEspelhamOBackend.test.ts`
 - Create: `web/src/components/AppShell.tsx` + `AppShell.test.tsx`
 - Modify: `web/src/App.tsx` (as 6 rotas protegidas viram filhas de uma rota de layout)
 
 **Interfaces:**
-- Consumes: `useAuth` (`web/src/auth/AuthContext.tsx`), tokens (Task 4), `Botao` (Task 5).
+- Consumes: `useAuth` (`web/src/auth/AuthContext.tsx`), tokens (Task 4).
 - Produces:
 
 ```ts
@@ -3077,7 +3087,9 @@ export function AppShell(): JSX.Element   // renderiza <Outlet/>
 
 **Hoje não existe shell nenhum.** Conferido no disco: 6 das 7 telas repetem `min-h-screen p-6 max-w-md mx-auto flex flex-col gap-4`, a navegação vive dentro da `HomePage` (`HomePage.tsx:47-54`, uma fileira de `<Link>` com borda), e **nenhuma das seis telas internas tem caminho de volta que não seja o botão do navegador**.
 
-**Gating: na AÇÃO, não no link.** Decisão do usuário em 2026-08-06, e ela **diverge da letra da spec §6** — o motivo está nas Global Constraints e foi medido: os controllers liberam leitura para qualquer usuário autenticado. Aqui a Task entrega a **tabela** e o **hook**; quem os consome são as Tasks 8–10, escondendo formulário e botões de (in)ativar. **O `try/catch` do F2 continua em toda tela** — o 403 do backend é a fronteira real, e esconder o botão não substitui autorização.
+**Gating: na AÇÃO, não no link.** Decisão do usuário em 2026-08-06, e ela **diverge da letra da spec §6** — o motivo está nas Global Constraints e foi medido: os controllers liberam leitura para qualquer usuário autenticado. Aqui a Task entrega a **tabela**, o **hook** e a **guarda que impede a tabela de divergir do backend em silêncio**; quem consome o hook são as Tasks 8–10. **O `try/catch` do F2 continua em toda tela** — o 403 do backend é a fronteira real, e esconder o botão não substitui autorização.
+
+**Dívida registrada ao decidir isto (2026-08-10, fora do escopo desta fase):** os `Roles` são literais de código, então eleger um perfil para uma ação nova — ou criar um perfil — exige **alterar código e refazer o deploy**. Os perfis já vivem no banco; o mapeamento perfil → ação não. O usuário quer revisitar a forma de populá-los. Consequência para esta task: a guarda do Step 8 depende da forma atual, e por isso ela **falha quando não encontra atributo nenhum** em vez de passar com lista vazia.
 
 - [ ] **Step 1: Confirmar a baseline**
 
@@ -3085,9 +3097,72 @@ export function AppShell(): JSX.Element   // renderiza <Outlet/>
 cd web && npm test
 ```
 
-Expected: `Tests  200 passed (200)`.
+Expected: **`Tests  230 passed (230)`** — medido em 2026-08-10 sobre `7f56f39`, depois do fix pass da Task 6. Este Step dizia `200`, que era baseline morta de duas tasks atrás. Se você medir outro número, **pare e reporte**: divergência na baseline é sinal real, ao contrário de divergência num total derivado.
 
-- [ ] **Step 2: Escrever o teste das permissões**
+- [ ] **Step 2: Declarar os cinco tokens do chrome**
+
+O `AppShell` precisa de cinco tons sobre o chrome escuro. A versão anterior deste plano os produzia com modificador de opacidade (`bg-superficie/15`, `text-superficie/80`, `border-superficie/40`…) — **isso derruba a suíte**: a guarda `semModificadorDeOpacidadeEmCor.test.ts`, instalada no fix pass da Task 6, proíbe `/NN` em classe de cor em todo `web/src/`. Medido no pré-flight: **10 violações, 5 classes distintas**.
+
+Os três primeiros valores abaixo são *exatamente* o que o `/NN` produzia, agora declarados; os dois últimos são valores novos, e a razão de cada um está na tabela do Step 3.
+
+Em `web/src/index.css`, dentro do `@theme`, logo abaixo de `--color-marca`:
+
+```css
+  /* Tons do chrome. Existem DECLARADOS, e não como `bg-superficie/15` e afins, porque
+     modificador de opacidade compõe com `color-mix(in oklab, …)` — que não é declaração
+     `--color-*` e escapa das duas guardas de `contraste.test.ts`. Foi o caminho que sangrou
+     três vezes nesta fase (oklch do M8, `}` em comentário do I1, `/NN` do banner e da pílula). */
+  --color-chrome-tinta-fraca:   #D0DCDB;  /* link inativo da barra */
+  --color-chrome-tinta-apagada: #B7C2C1;  /* identidade do usuário — informa, não convida a clicar */
+  --color-chrome-ativo:         #366965;  /* fundo do item da tela atual; também o separador da gaveta */
+  --color-chrome-hover:         #2B605C;  /* fundo do item sob o ponteiro */
+  --color-chrome-borda:         #7B9C9A;  /* contorno do "Sair" e do botão de menu */
+```
+
+Rode agora, **antes** de mexer no `contraste.test.ts`:
+
+```bash
+cd web && npm test -- contraste
+```
+
+Expected: **FALHA**, em `não deixa entrar tom novo sem medição`, nomeando os cinco:
+`tokens sem par de contraste declarado: chrome-tinta-fraca, chrome-tinta-apagada, chrome-ativo, chrome-hover, chrome-borda`.
+
+**Esta falha é o Step funcionando.** Não a contorne; ela é a prova de que a guarda da Task 4 pega tom novo sem medição. (Medida de graça no pré-flight da Task 6, com um token só.)
+
+- [ ] **Step 3: Declarar os cinco pares e ver a falha morrer**
+
+Em `web/src/tema/contraste.test.ts`, acrescente ao fim de `PARES`:
+
+```ts
+  { frente: 'chrome-tinta-fraca', fundo: 'chrome', minimo: TEXTO, onde: 'link inativo da barra de navegação' },
+  { frente: 'chrome-tinta-apagada', fundo: 'chrome', minimo: TEXTO, onde: 'identidade do usuário no shell' },
+  { frente: 'superficie', fundo: 'chrome-ativo', minimo: TEXTO, onde: 'rótulo do item da tela atual' },
+  { frente: 'superficie', fundo: 'chrome-hover', minimo: TEXTO, onde: 'rótulo do item sob o ponteiro' },
+  { frente: 'chrome-borda', fundo: 'chrome', minimo: INTERFACE, onde: 'contorno do Sair e do botão de menu' },
+```
+
+E acrescente os cinco nomes à lista do `it('declara todos os tokens que o plano da fase fixou')` — senão o token pode sumir do `index.css` sem ninguém notar.
+
+**Os valores, medidos no pré-flight com o hex exato** (não com a mistura em float — a diferença já mordeu uma vez nesta conversa: `#769896` dá 3,024, e não os 3,035 do float):
+
+| Par | Razão | Mínimo |
+|---|---|---|
+| `chrome-tinta-fraca` sobre `chrome` | **6,742** | 4,5 |
+| `chrome-tinta-apagada` sobre `chrome` | **5,189** | 4,5 |
+| `superficie` sobre `chrome-ativo` | **6,240** | 4,5 |
+| `superficie` sobre `chrome-hover` | **7,166** | 4,5 |
+| `chrome-borda` sobre `chrome` | **3,187** | 3,0 |
+
+**Por que a borda é `#7B9C9A` (44% de branco) e não `#769896` (42%):** o valor de 42% passa por 0,024, margem que qualquer ajuste futuro no chrome derruba. 44% dá folga de 0,187. **Decisão do usuário em 2026-08-10, sobre protótipo medido.** O valor de 40% do plano original dava **2,895** e reprovava.
+
+```bash
+cd web && npm test -- contraste
+```
+
+Expected: verde, com **5 pares a mais** no `it.each` — de 19 para 24 entradas.
+
+- [ ] **Step 4: Escrever o teste das permissões**
 
 `web/src/auth/permissoes.test.ts`:
 
@@ -3118,6 +3193,7 @@ describe('podeEscrever', () => {
   it('não deixa Operador, Almoxarifado, Qualidade nem Gestao escreverem em nada', () => {
     // `Gestao` sem acento: é o valor que está em `db/seed.sql`, e o perfil chega do backend como
     // claim. Escrever "Gestão" aqui faria a comparação falhar em silêncio.
+    // CONFERIDO no pré-flight de 2026-08-10: `db/seed.sql:3` traz os 6 perfis sem acento.
     for (const p of ['Operador', 'Almoxarifado', 'Qualidade', 'Gestao']) {
       for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
@@ -3139,15 +3215,16 @@ describe('podeEscrever', () => {
 export type Recurso = 'setores' | 'materiais' | 'componentes' | 'pedidos' | 'agrupamentos'
 
 /**
- * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-08-06.
+ * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-08-10.
  *
  * **Isto é conveniência de interface, não segurança.** A autorização real é do backend e continua
  * sendo: esconder um botão não impede requisição nenhuma. O que esta tabela evita é o usuário
  * preencher um formulário inteiro para receber 403 no fim.
  *
- * Se um `[Authorize(Roles)]` mudar em `src/`, esta tabela tem de mudar junto — a divergência é
- * silenciosa nos dois sentidos: liberar demais mostra formulário que o backend recusa; liberar de
- * menos esconde ação que o usuário podia fazer.
+ * A divergência com o backend é silenciosa nos dois sentidos — liberar demais dá 403 no fim do
+ * formulário (chato, visível); liberar de menos some com a ação para quem tinha direito a ela
+ * (invisível, e o suspeito natural vira o backend, que está certo). Por isso ela não é vigiada
+ * por leitura: `permissoesEspelhamOBackend.test.ts` lê os controllers e compara.
  */
 const ESCRITA: Record<Recurso, readonly string[]> = {
   setores: ['Administrador'],
@@ -3160,6 +3237,69 @@ const ESCRITA: Record<Recurso, readonly string[]> = {
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {
   return ESCRITA[recurso].includes(perfil)
 }
+
+/** Exportado só para a guarda de espelhamento. Não use em tela: use `podeEscrever`. */
+export const TABELA_DE_ESCRITA = ESCRITA
+```
+
+- [ ] **Step 5: Rodar e confirmar**
+
+```bash
+cd web && npm test -- permissoes
+```
+
+Expected: `Tests  5 passed (5)`.
+
+- [ ] **Step 6: O hook, com teste — ele NÃO tinha nenhum**
+
+O pré-flight achou que `usePermissao.ts` nasceria como o único arquivo novo da task sem prova, e sem nenhuma mutação tocando nele. Não é acadêmico: é este hook que as Tasks 8–10 consomem para esconder formulário e botões de (in)ativar. **Duas mutações sobreviveriam:** `return true` (a tabela inteira vira decoração) e tirar a guarda de `status === 'autenticado'` (em sessão anônima `estado.usuario` é `undefined` e o acesso a `.perfil` **estoura em runtime**).
+
+`web/src/auth/usePermissao.test.tsx`:
+
+```tsx
+// @vitest-environment jsdom
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { renderHook, cleanup } from '@testing-library/react'
+import type { EstadoSessao } from './estadoDaSessao'
+
+afterEach(cleanup)
+
+let estadoAtual: EstadoSessao = { status: 'anonimo' }
+
+vi.mock('./AuthContext', () => ({
+  useAuth: () => ({ estado: estadoAtual, login: async () => {}, logout: async () => {} }),
+}))
+
+const { usePodeEscrever } = await import('./usePermissao')
+
+describe('usePodeEscrever', () => {
+  it('libera quando o perfil da sessão pode escrever no recurso', () => {
+    estadoAtual = {
+      status: 'autenticado',
+      usuario: { id: 2, nomeUsuario: 'pcp', nomeCompleto: 'Planejamento e Controle', perfil: 'PCP' },
+    }
+
+    expect(renderHook(() => usePodeEscrever('pedidos')).result.current).toBe(true)
+  })
+
+  it('nega quando o perfil da sessão não pode escrever naquele recurso', () => {
+    // O MESMO usuário do caso acima, em OUTRO recurso — é o par que impede `return true` de passar.
+    estadoAtual = {
+      status: 'autenticado',
+      usuario: { id: 2, nomeUsuario: 'pcp', nomeCompleto: 'Planejamento e Controle', perfil: 'PCP' },
+    }
+
+    expect(renderHook(() => usePodeEscrever('setores')).result.current).toBe(false)
+  })
+
+  it('nega em sessão não autenticada, sem estourar', () => {
+    // `estado.usuario` não existe neste ramo da união. Sem a guarda de status, isto não devolve
+    // `false`: lança TypeError ao ler `.perfil` de `undefined`.
+    estadoAtual = { status: 'anonimo' }
+
+    expect(renderHook(() => usePodeEscrever('pedidos')).result.current).toBe(false)
+  })
+})
 ```
 
 `web/src/auth/usePermissao.ts`:
@@ -3170,7 +3310,8 @@ import { podeEscrever, type Recurso } from './permissoes'
 
 /**
  * `podeEscrever` ligado à sessão. Sessão não autenticada devolve `false` — as telas de cadastro só
- * existem dentro do `ProtectedRoute`, então este caso é a montagem de teste, não produção.
+ * existem dentro do `ProtectedRoute`, então na prática este caso é a montagem de teste. A guarda
+ * fica assim mesmo: sem ela, o caminho anônimo lança TypeError em vez de negar.
  */
 export function usePodeEscrever(recurso: Recurso): boolean {
   const { estado } = useAuth()
@@ -3178,15 +3319,106 @@ export function usePodeEscrever(recurso: Recurso): boolean {
 }
 ```
 
-- [ ] **Step 3: Rodar e confirmar**
-
 ```bash
-cd web && npm test -- permissoes
+cd web && npm test -- usePermissao
 ```
 
-Expected: `Tests  5 passed (5)`.
+Expected: `Tests  3 passed (3)`.
 
-- [ ] **Step 4: Escrever o teste do `AppShell`**
+- [ ] **Step 7: A guarda de espelhamento — o que impede a divergência silenciosa**
+
+`web/src/auth/permissoesEspelhamOBackend.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { TABELA_DE_ESCRITA, type Recurso } from './permissoes'
+
+/**
+ * `permissoes.ts` é uma cópia MANUAL dos `[Authorize(Roles = …)]` do backend, e o teste dela é
+ * auto-referente: afirma a tabela contra si mesma. Sem esta guarda, mudar um atributo em `src/`
+ * não quebra nada aqui, e o sentido perigoso da divergência (liberar de MENOS) não produz erro
+ * nenhum em lugar nenhum — a ação some para quem tinha direito a ela.
+ *
+ * Lê o `.cs` como texto de propósito: nada de compilar C# a partir do vitest. O acoplamento é o
+ * caminho do diretório, e ele quebra BARULHENTO se a pasta se mover, o que é o modo de falha certo.
+ */
+const RAIZ = new URL('../../../src/Rastreamento.Api/Controllers/', import.meta.url)
+
+const CONTROLLER_POR_RECURSO: Record<Recurso, string> = {
+  setores: 'SetoresController.cs',
+  materiais: 'MateriaisController.cs',
+  componentes: 'ComponentesController.cs',
+  pedidos: 'PedidosController.cs',
+  agrupamentos: 'AgrupamentosController.cs',
+}
+
+/** `[Authorize(Roles = "A,B")]` e também `[Authorize(Roles = NomeDeConst)]`. */
+const ATRIBUTO = /\[Authorize\(Roles\s*=\s*(?:"([^"]*)"|([A-Za-z_]\w*))\)\]/g
+/** `private const string PerfisDeEscrita = "Administrador,PCP";` — ComponentesController usa isto. */
+const CONSTANTE = /const\s+string\s+([A-Za-z_]\w*)\s*=\s*"([^"]*)"\s*;/g
+
+/** Conjuntos de perfis declarados no arquivo, um por atributo `Roles`, na ordem em que aparecem. */
+function perfisDeclarados(nomeDoArquivo: string): string[][] {
+  const fonte = readFileSync(fileURLToPath(new URL(nomeDoArquivo, RAIZ)), 'utf8')
+
+  const constantes = new Map<string, string>()
+  for (const [, nome, valor] of fonte.matchAll(CONSTANTE)) constantes.set(nome, valor)
+
+  const encontrados: string[][] = []
+  for (const [, literal, identificador] of fonte.matchAll(ATRIBUTO)) {
+    const bruto = literal ?? constantes.get(identificador)
+    // Const declarada em OUTRO arquivo cairia aqui. Hoje não acontece; se acontecer, é para
+    // falhar e ser resolvido, nunca para ser ignorado em silêncio.
+    expect(bruto, `${nomeDoArquivo}: não resolvi os perfis de \`${identificador}\``).toBeTruthy()
+    encontrados.push(bruto!.split(',').map((p) => p.trim()).sort())
+  }
+  return encontrados
+}
+
+describe('a tabela de escrita do front espelha os [Authorize(Roles)] do backend', () => {
+  it.each(Object.keys(CONTROLLER_POR_RECURSO) as Recurso[])(
+    '%s: os perfis da tabela são os mesmos do controller',
+    (recurso) => {
+      const doBackend = perfisDeclarados(CONTROLLER_POR_RECURSO[recurso])
+      const daTabela = [...TABELA_DE_ESCRITA[recurso]].sort()
+
+      // Ordem não importa (o backend escreve "Administrador,PCP" em um e "PCP,Administrador" em
+      // outro), então a comparação é por conjunto ordenado.
+      for (const conjunto of doBackend) {
+        expect(conjunto, `${recurso}: backend ${conjunto} vs tabela ${daTabela}`).toEqual(daTabela)
+      }
+    },
+  )
+
+  it('não passa calada: todo controller tem pelo menos um atributo de perfis', () => {
+    // ESTE é o teste que impede a guarda de virar decoração. Se os `Roles` deixarem de ser
+    // literal no atributo — policy, claims, permissão em banco (dívida registrada em 2026-08-10) —
+    // a varredura passa a não achar nada, e sem esta asserção o `for` acima ficaria VERDE
+    // percorrendo lista vazia, exatamente quando parou de vigiar.
+    for (const [recurso, arquivo] of Object.entries(CONTROLLER_POR_RECURSO)) {
+      expect(perfisDeclarados(arquivo).length, `${recurso}: nenhum [Authorize(Roles)] em ${arquivo}`)
+        .toBeGreaterThan(0)
+    }
+  })
+})
+```
+
+```bash
+cd web && npm test -- permissoesEspelham
+```
+
+Expected: `Tests  6 passed (6)` — 5 casos do `it.each` (um por recurso) + 1. **O delta desta guarda é +6, não +2:** são 2 blocos `it(` no arquivo, mas o vitest conta **casos**, e `it.each` de 5 recursos produz 5. Contar bloco em vez de caso é exatamente como o `≈187` da Task 5 e as quatro baselines da Task 6 nasceram.
+
+**ESTE DESENHO FOI PROVADO NO PRÉ-FLIGHT, contra os controllers reais, antes de virar plano.** Quatro provas rodadas em 2026-08-10 — se a sua implementação divergir de alguma, é a implementação que está errada, não a prova:
+
+1. **Casa com o estado de hoje.** Os 5 controllers, 14 atributos no total (setores 3, materiais 3, componentes 3, pedidos 2, agrupamentos 3), todos batendo com a tabela. A guarda passa hoje.
+2. **A const é resolvida.** `ComponentesController` usa `PerfisDeEscrita`, e a varredura leu `["Administrador","PCP"]` — não vazio, não `undefined`.
+3. **A M16 mata a guarda e NÃO mata o teste auto-referente.** Com `SetoresController` mutado para `"Administrador,PCP"`, o backend passa a declarar `["Administrador","PCP"]` contra a tabela `["Administrador"]`. É a prova de que a guarda lê o que diz ler.
+4. **O "não passa calada" pega a mudança de forma.** Trocando `Roles` por `Policy`, a varredura acha **0** atributos — o `for` de comparação ficaria verde percorrendo lista vazia, e é o segundo `it(` que mata. É o cenário da dívida registrada: se os `Roles` deixarem de ser literais, a guarda **para de vigiar**, e tem de gritar em vez de passar.
+
+- [ ] **Step 8: Escrever o teste do `AppShell`**
 
 `web/src/components/AppShell.test.tsx`:
 
@@ -3198,7 +3430,6 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { AppShell } from './AppShell'
 
 afterEach(cleanup)
-afterEach(() => { vi.resetModules() })
 
 const logout = vi.fn()
 
@@ -3208,7 +3439,7 @@ vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({
     estado: {
       status: 'autenticado',
-      usuario: { id: 1, nomeUsuario: 'pcp', nomeCompleto: 'Planejamento e Controle', perfil: 'PCP' },
+      usuario: { id: 2, nomeUsuario: 'pcp', nomeCompleto: 'Planejamento e Controle', perfil: 'PCP' },
     },
     login: async () => {},
     logout,
@@ -3271,6 +3502,29 @@ describe('AppShell', () => {
     expect(atual?.getAttribute('href')).toBe('/setores')
   })
 
+  it('distingue o item atual por fundo, tinta E peso', () => {
+    // O `aria-current` sozinho não é a distinção VISUAL, e era exatamente ela que nenhuma mutação
+    // tocava (D5 do pré-flight): trocar as classes de ativo e inativo entre si deixava a suíte
+    // verde. Asserção token a token, não `toContain` de string — a lição da Task 5, onde
+    // `toContain('bg-acao')` casava com `hover:bg-acao-fundo`.
+    renderizarShell('/setores')
+
+    const links = screen.getAllByRole('link')
+    const atual = links.find((l) => l.getAttribute('aria-current') === 'page')!
+    const outro = links.find((l) => l.getAttribute('href') === '/pedidos')!
+
+    const classesDoAtual = atual.className.split(/\s+/)
+    const classesDoOutro = outro.className.split(/\s+/)
+
+    expect(classesDoAtual).toContain('bg-chrome-ativo')
+    expect(classesDoAtual).toContain('text-superficie')
+    expect(classesDoAtual).toContain('font-semibold')
+
+    expect(classesDoOutro).not.toContain('bg-chrome-ativo')
+    expect(classesDoOutro).not.toContain('font-semibold')
+    expect(classesDoOutro).toContain('text-chrome-tinta-fraca')
+  })
+
   it('mostra quem está logado e o perfil', () => {
     renderizarShell()
 
@@ -3313,7 +3567,7 @@ describe('AppShell', () => {
 })
 ```
 
-- [ ] **Step 5: Rodar para ver falhar**
+- [ ] **Step 9: Rodar para ver falhar**
 
 ```bash
 cd web && npm test -- AppShell
@@ -3321,7 +3575,7 @@ cd web && npm test -- AppShell
 
 Expected: FAIL — `Failed to resolve import "./AppShell"`.
 
-- [ ] **Step 6: Escrever o `AppShell`**
+- [ ] **Step 10: Escrever o `AppShell`**
 
 `web/src/components/AppShell.tsx`:
 
@@ -3337,7 +3591,7 @@ interface ItemDeNavegacao {
 
 /**
  * Todos os itens aparecem para todos os perfis, de propósito: a leitura de todos estes recursos é
- * liberada para qualquer usuário autenticado no backend (conferido em 2026-08-06). O gating de
+ * liberada para qualquer usuário autenticado no backend (conferido em 2026-08-10). O gating de
  * perfil vive na AÇÃO — formulário e botões de (in)ativar —, não aqui.
  *
  * Com 10+ telas esta barra fica apertada e vai exigir agrupamento (ex.: "Cadastros" com submenu).
@@ -3351,14 +3605,30 @@ const ITENS: ItemDeNavegacao[] = [
   { para: '/setores', rotulo: 'Setores' },
 ]
 
-const LINK_BASE =
-  'rounded-lg px-3 py-2 text-sm font-medium transition-colors ' +
+// Sem `font-medium` aqui: o peso é decidido por estado, mais abaixo. Duas classes de peso no
+// mesmo elemento não se resolvem pela ordem em que você as escreve — quem ganha é a que vier
+// depois no CSS gerado, e isso não é controlável a partir daqui.
+const CONTROLE_BASE =
+  'rounded-lg px-3 py-2 text-sm transition-colors ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca'
 
+// Sobre o chrome escuro o anel de foco é `marca`, não `acao`: MEDIDO em 2026-08-10, `acao` sobre
+// `chrome` dá 1,640 contra os 3,0 exigidos, e o foco sumiria justamente na navegação por teclado.
+// `marca` dá 6,405. É por isto que o `Botao` da Task 5 não serve aqui sem uma variante nova.
+const BOTAO_DO_CHROME =
+  `${CONTROLE_BASE} font-medium border border-chrome-borda text-superficie hover:bg-chrome-hover`
+
 function classesDoLink({ isActive }: { isActive: boolean }): string {
-  // Sobre o chrome escuro o anel de foco é `marca`, não `acao`: o anel em água fosco sobre
-  // petróleo teria contraste insuficiente e o foco sumiria justamente na navegação por teclado.
-  return `${LINK_BASE} ${isActive ? 'bg-superficie/15 text-superficie' : 'text-superficie/80 hover:bg-superficie/10 hover:text-superficie'}`
+  // Três dimensões de distinção: fundo, tinta e PESO. O peso entrou por decisão do usuário em
+  // 2026-08-10, depois de ler o protótipo: o fundo do ativo dá só 1,518 contra o chrome, então
+  // fundo+tinta não bastavam "de bate e pronto". Clarear o fundo era a alternativa, e é troca
+  // ruim — no teto do que ainda passa AA (25% de branco) o destaque sobe para 1,974 e o rótulo
+  // CAI de 6,240 para 4,801. Peso não entra nessa troca: não altera contraste nenhum.
+  return `${CONTROLE_BASE} ${
+    isActive
+      ? 'bg-chrome-ativo font-semibold text-superficie'
+      : 'font-medium text-chrome-tinta-fraca hover:bg-chrome-hover hover:text-superficie'
+  }`
 }
 
 export function AppShell() {
@@ -3369,8 +3639,7 @@ export function AppShell() {
 
   // A gaveta fecha no `onClick` de cada link dela (mais abaixo), e não num efeito sobre a rota:
   // o efeito rodaria também quando a navegação vem de outro lugar (um cartão da Home, o `Navigate`
-  // do login), e fechar algo que já está fechado é render à toa. Sem isto, no celular a gaveta
-  // continua cobrindo a tela que o usuário acabou de abrir e o clique parece não ter funcionado.
+  // do login), e fechar algo que já está fechado é render à toa.
   return (
     <div className="min-h-screen bg-fundo font-sans text-tinta">
       <header className="bg-chrome">
@@ -3388,16 +3657,12 @@ export function AppShell() {
 
           <div className="hidden md:flex md:items-center md:gap-3">
             {usuario && (
-              <span className="text-right text-sm leading-tight text-superficie/80">
+              <span className="text-right text-sm leading-tight text-chrome-tinta-apagada">
                 <span className="block font-medium text-superficie">{usuario.nomeCompleto}</span>
                 <span className="block text-xs">{usuario.perfil}</span>
               </span>
             )}
-            <button
-              type="button"
-              onClick={logout}
-              className={`${LINK_BASE} border border-superficie/40 text-superficie hover:bg-superficie/10`}
-            >
+            <button type="button" onClick={logout} className={BOTAO_DO_CHROME}>
               Sair
             </button>
           </div>
@@ -3407,7 +3672,7 @@ export function AppShell() {
             onClick={() => setGavetaAberta((a) => !a)}
             aria-expanded={gavetaAberta}
             aria-label={gavetaAberta ? 'Fechar menu' : 'Abrir menu'}
-            className={`${LINK_BASE} border border-superficie/40 text-superficie md:hidden`}
+            className={`${BOTAO_DO_CHROME} md:hidden`}
           >
             {gavetaAberta ? '✕' : '☰'}
           </button>
@@ -3416,7 +3681,7 @@ export function AppShell() {
         {/* Gaveta: mesma lista, empilhada, só abaixo de 768px. O celular Android da fábrica é uso
             declarado, não hipótese. */}
         {gavetaAberta && (
-          <nav aria-label="Menu" className="flex flex-col gap-1 border-t border-superficie/15 px-4 pb-4 md:hidden">
+          <nav aria-label="Menu" className="flex flex-col gap-1 border-t border-chrome-ativo px-4 pb-4 md:hidden">
             {ITENS.map((i) => (
               <NavLink
                 key={i.para}
@@ -3428,18 +3693,23 @@ export function AppShell() {
                 {i.rotulo}
               </NavLink>
             ))}
-            {usuario && (
-              <span className="px-3 pt-2 text-sm text-superficie/80">
-                {usuario.nomeCompleto} · {usuario.perfil}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={logout}
-              className={`${LINK_BASE} self-start border border-superficie/40 text-superficie`}
-            >
-              Sair
-            </button>
+
+            {/* Pé da gaveta. O "Sair" ocupa a largura toda (sem `self-start`) por achado do
+                usuário sobre o protótipo: com largura automática, o botão herdava a mesma padding
+                dos links, então o TEXTO dele alinhava com os outros textos enquanto a CAIXA
+                avançava para fora — duas linhas verticais competindo. Em largura total a borda
+                coincide com o fundo do item ativo, e sobra uma linha só. */}
+            <div className="mt-2 flex flex-col gap-2 border-t border-chrome-ativo pt-3">
+              {usuario && (
+                <span className="px-3 text-xs leading-snug text-chrome-tinta-apagada">
+                  <span className="block text-sm font-medium">{usuario.nomeCompleto}</span>
+                  {usuario.perfil}
+                </span>
+              )}
+              <button type="button" onClick={logout} className={`${BOTAO_DO_CHROME} text-left`}>
+                Sair
+              </button>
+            </div>
           </nav>
         )}
       </header>
@@ -3452,15 +3722,15 @@ export function AppShell() {
 
 **Um ponto de atenção no teste, e ele não é contornável:** com a gaveta **aberta**, `Sair` e o nome do usuário existem **duas vezes** no DOM (barra + gaveta), e `getByText('Sair')` falha com *"found multiple elements"*. Na montagem dos testes a gaveta começa fechada, então o teste de logout passa como está; o teste da gaveta usa `getAllByRole` por isso. **Se você mudar a estrutura, ajuste os testes para `getAllBy*` — não remova um dos dois botões.** No celular a barra está escondida por CSS, e é o botão da gaveta que o usuário alcança; remover um deles deixaria um dos dois tamanhos de tela sem saída de sessão.
 
-- [ ] **Step 7: Rodar até ficar verde**
+- [ ] **Step 11: Rodar até ficar verde**
 
 ```bash
 cd web && npm test -- AppShell
 ```
 
-Expected: `Tests  9 passed (9)`.
+Expected: `Tests  10 passed (10)`.
 
-- [ ] **Step 8: Ligar o shell no roteador**
+- [ ] **Step 12: Ligar o shell no roteador**
 
 `web/src/App.tsx`:
 
@@ -3501,32 +3771,50 @@ export default function App() {
 }
 ```
 
-- [ ] **Step 9: Rodar tudo**
+- [ ] **Step 13: Rodar tudo**
 
 ```bash
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  214 passed (214)` (200 + 5 + 9) · build limpo · lint só com o warning alheio.
+Expected: **`Tests  259 passed (259)`** (230 + 29) · build limpo · lint só com o warning alheio de `AuthContext.tsx:48`.
+
+O delta de **+29**, recontado caso a caso (não bloco a bloco):
+
+| Arquivo | Casos |
+|---|---|
+| `contraste.test.ts` — 5 pares novos no `it.each(PARES)` | +5 |
+| `permissoes.test.ts` | +5 |
+| `usePermissao.test.tsx` | +3 |
+| `permissoesEspelhamOBackend.test.ts` — `it.each` de 5 recursos + 1 | +6 |
+| `AppShell.test.tsx` | +10 |
+| **total** | **+29** |
+
+**Confira o número medindo, não somando:** se der diferente, reporte o real e **não** ajuste a conta para bater. (O `+25` que este plano trazia numa versão anterior de hoje era meu erro: contei os dois `it.each` como um caso cada. Corrigido antes do despacho — mas é a prova de que a conta tem de ser conferida contra a medição, nunca o contrário.)
 
 **Se algum teste de tela quebrar aqui, leia com cuidado:** os testes de tela renderizam a tela **direto**, sem o `App`, então o shell não entra em nenhum deles. Uma quebra aqui significa que você mexeu numa tela — o que esta task não faz.
 
-- [ ] **Step 10: Ver no navegador, antes de commitar**
+**Duplicação esperada, NÃO conserte:** a `HomePage` mostra nome, perfil e "Sair" (`HomePage.tsx:39-53`), e o shell também. Da Task 7 até a **Task 11** a Home terá isso em duplicata, e a fileira de `<Link>` de `HomePage.tsx:47-51` fica redundante com a barra. É escopo da Task 11. Mesma coisa com o `min-h-screen` duplicado (shell + as 6 telas antigas), que produz a rolagem vertical de alguns pixels descrita em `Pagina.tsx:14-15` — some tela a tela no retrofit das Tasks 8–11.
+
+- [ ] **Step 14: Ver no navegador — este Step NÃO é executável por subagente**
+
+Ele exige navegador, DevTools e a API de pé. **Quem executa é o usuário**, depois do commit. O implementer **declara o Step como pendente** e não o marca como feito. (Decisão de 2026-08-10; o MCP de Chrome não está configurado nesta máquina — conferido.)
 
 ```bash
 cd web && npm run dev
 ```
 
-Abra `http://localhost:5173`, entre com `admin` / `Admin@123` (a API precisa estar de pé: `dotnet run --project src/Rastreamento.Api`) e confirme, **manualmente**:
+Abra `http://localhost:5173`, entre com `admin` / `Admin@123` (a API precisa estar de pé: `dotnet run --project src/Rastreamento.Api`, com o Docker no ar) e confirme, **manualmente**:
 
 - a barra aparece em todas as telas internas e o item da tela atual está marcado;
 - em 360px de largura (DevTools → Toggle device toolbar) a barra vira o botão de menu e a gaveta abre;
-- **nenhuma tela rola na horizontal** em 360px — este é o critério da spec §11 que nenhum teste em jsdom alcança;
-- `Tab` percorre os links com anel de foco visível sobre o chrome escuro.
+- **nenhuma tela rola na horizontal** em 360px — critério da spec §11 que nenhum teste em jsdom alcança;
+- `Tab` percorre os links com anel de foco visível sobre o chrome escuro;
+- **o deslocamento dos vizinhos ao trocar de tela**: o item ativo é `font-semibold` e o texto em 600 é mais largo que em 500. Previsão registrada em 2026-08-10, **não observada**: como cada clique navega e re-renderiza a barra inteira, não deve aparecer como pulo. Se incomodar, a mitigação é reservar a largura do estado 600, e ela entra depois.
 
 **Reporte o que viu, item por item.** As telas ainda estão com o visual antigo dentro do shell novo — é esperado; o retrofit começa na Task 8.
 
-- [ ] **Step 11: Medir as mutações**
+- [ ] **Step 15: Medir as mutações**
 
 | # | Mutação | Mortes esperadas |
 |---|---|---|
@@ -3540,18 +3828,38 @@ Abra `http://localhost:5173`, entre com `admin` / `Admin@123` (a API precisa est
 | M8 | `AppShell.tsx` — remover `onClick={() => setGavetaAberta(false)}` dos links da gaveta | ≥ 1 |
 | M9 | `AppShell.tsx` — trocar `onClick={logout}` por `onClick={() => {}}` | ≥ 1 |
 | M10 | `AppShell.tsx` — trocar `aria-label` do botão por texto fixo `'Menu'` | ≥ 1 |
-| M11 | `App.tsx` — tirar o `ProtectedRoute` da rota de layout | **0 esperado** — nenhum teste monta o `App`; **declare como sobrevivente conhecido** |
+| M11 | `App.tsx` — tirar o `ProtectedRoute` da rota de layout | **0 esperado** — sobrevivente declarado |
+| M12 | `AppShell.tsx` — trocar as classes de ativo e inativo entre si em `classesDoLink` | ≥ 1, **em `AppShell.test.tsx`, no teste de fundo/tinta/peso** |
+| M13 | `AppShell.tsx` — remover `font-semibold` do ramo ativo | ≥ 1, **no mesmo teste** |
+| M14 | `usePermissao.ts` — trocar o corpo por `return true` | ≥ 1 |
+| M15 | `usePermissao.ts` — remover a guarda `estado.status === 'autenticado' &&` | ≥ 1 (tem de morrer no caso anônimo, por TypeError ou por `false`) |
+| M16 | **`src/Rastreamento.Api/Controllers/SetoresController.cs`** — trocar `Roles = "Administrador"` por `Roles = "Administrador,PCP"` nos três atributos | ≥ 1, e **SÓ** em `permissoesEspelhamOBackend.test.ts` |
+| M17 | `index.css` — `--color-chrome-borda` de volta a `#719592` | ≥ 1, **no par de contraste** (dá 2,895 contra o mínimo 3,0) |
+| M18 | `AppShell.tsx` — remover `hidden md:flex` da barra e `md:hidden` da gaveta | **0 esperado** — sobrevivente declarado |
 
-**M11 é a segunda fronteira honesta da fase** (a primeira foi o `flex-wrap` da Task 6): não há teste de roteamento no projeto, então a proteção das rotas é mantida por leitura de código, não por prova. Não invente um teste de `App` só para fechá-la — **declare** e siga. Se a review de branch quiser fechar, é decisão dela.
+**M16 é a mutação que decide se a guarda do Step 7 vale alguma coisa.** Ela muta o **backend**, não a tabela — e por isso `permissoes.test.ts` tem de continuar VERDE enquanto a guarda morre. Se ela matar os dois, você mutou a tabela por engano; se não matar nada, a guarda não está lendo o que diz ler. **Reverta o `.cs` com cuidado** — é o único momento desta fase em que se toca em `src/`, e a árvore tem de voltar limpa.
 
-- [ ] **Step 12: Commit**
+**M17 tem de morrer no PAR DE CONTRASTE**, não em teste de componente. Se morrer em outro lugar — ou não morrer — o token não está sob a guarda e o Step 2 não fez o que diz.
+
+**Duas fronteiras honestas, para DECLARAR e não encobrir:**
+- **M11** — não há teste de roteamento no projeto (varri `web/src/`: o único lugar que monta o `App` é `main.tsx:12`). A proteção das rotas é mantida por leitura de código. Não invente um teste de `App` só para fechá-la.
+- **M18** — jsdom não aplica media query, e os dois `<nav>` já estão no DOM o tempo todo. Se as classes responsivas sumirem, barra e gaveta aparecem juntas em toda largura e os 10 testes seguem verdes. **É mais grave que o `flex-wrap` da Task 6** e depende inteiramente do Step 14. Declare com essa palavra.
+
+- [ ] **Step 16: Commit**
 
 ```bash
-git add web/src/auth/permissoes.ts web/src/auth/permissoes.test.ts web/src/auth/usePermissao.ts web/src/components/AppShell.tsx web/src/components/AppShell.test.tsx web/src/App.tsx
-git commit -m "feat(web): shell de navegacao com gaveta e tabela de permissoes"
+git add web/src/index.css web/src/tema/contraste.test.ts \
+        web/src/auth/permissoes.ts web/src/auth/permissoes.test.ts \
+        web/src/auth/usePermissao.ts web/src/auth/usePermissao.test.tsx \
+        web/src/auth/permissoesEspelhamOBackend.test.ts \
+        web/src/components/AppShell.tsx web/src/components/AppShell.test.tsx \
+        web/src/App.tsx
+git commit -m "feat(web): shell de navegacao com gaveta, tabela de permissoes e guarda de espelhamento"
 ```
 
-**Definition of done da Task 7:** suíte em **baseline medida + 14** (≈ **222** — **o delta é o que vincula**); as 11 mutações medidas (M11 declarada); a conferência manual do Step 10 **relatada item por item**; build e lint limpos.
+**Varra o diff por segredo antes do commit** — o repositório é PÚBLICO.
+
+**Definition of done da Task 7:** suíte em **baseline medida + 29** (**259**, se a baseline ainda for os 230 medidos em 2026-08-10 — **o delta é o que vincula**); as 18 mutações medidas, com M11 e M18 declaradas e **M16 e M17 mortas no lugar certo, nomeado no relatório**; o Step 14 **declarado pendente** (não é executável por subagente); build e lint limpos; `git status` sem sobra em `src/` depois da M16.
 
 ---
 
@@ -3594,7 +3902,9 @@ git commit -m "feat(web): shell de navegacao com gaveta e tabela de permissoes"
 cd web && npm test
 ```
 
-Expected: `Tests  214 passed (214)`.
+Expected: **`Tests  259 passed (259)`** — o que a Task 7 deve fechar (230 medidos + 29). Este Step dizia `214`, herdado de uma baseline de duas tasks atrás.
+
+**Confira contra o que a Task 7 REALMENTE fechou, não contra este número.** O 259 é previsão do plano corrigido em 2026-08-10; o valor que vincula é o medido no commit da Task 7. Se divergir, **pare e reporte** — e atualize este Step junto, que é a regra em vigor desde 2026-08-10: task fechada com delta ≠ 0 corrige a baseline das seguintes na mesma passada.
 
 - [ ] **Step 2: Reescrever a `SetoresPage`**
 
@@ -4285,7 +4595,9 @@ Expected: `Tests  7 passed (7)` em `npm test -- PedidosPage`.
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  225 passed (225)` (214 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
+Expected: **`Tests  270 passed (270)`** (259 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
+
+**O delta +11 é o que vincula**; o total depende do que a Task 7 fechou. Este Step dizia `225`, derivado da baseline morta de `214`.
 
 **Se o número divergir, reporte o número real e a composição** — não ajuste o plano; a contagem exata depende de quantos testes antigos você fundiu ou dividiu.
 
