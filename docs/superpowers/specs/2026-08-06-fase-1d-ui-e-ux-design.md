@@ -156,6 +156,10 @@ cópia da forma antiga no repositório. Primitiva com um consumidor só é abstr
 Barra superior fixa com os itens principais, que **vira menu-gaveta abaixo de ~768px** (o celular
 Android da fábrica é uso declarado). Entra no `App.tsx` como rota de layout.
 
+A faixa suportada vai de **320px** (mínimo declarado — ver §11) até desktop. Os 768px são o único
+breakpoint do shell, e por isso são também o ponto de maior risco: é a largura em que a barra
+assume com marca, cinco links, nome completo, perfil e "Sair" todos numa linha.
+
 O shell é onde moram três coisas que hoje não têm casa:
 
 1. **O caminho de volta** — hoje as seis telas internas só voltam pelo botão do navegador.
@@ -258,7 +262,42 @@ Verificáveis, um por um. **"Ficou bonito" foi barrado de propósito — não é
   o estado sumir.
 - **Navegação por teclado e foco visível** em todo controle interativo.
 - **Contraste AA** em todo par texto/fundo — tom novo, medição nova.
-- **Viewport de celular real**: a barra vira gaveta, nenhuma tela rola na horizontal.
+- **Viewport de celular real**: a barra vira gaveta, e **nenhuma tela rola na horizontal em nenhuma
+  largura a partir de 320px**.
+
+  **A largura mínima suportada é 320px** (decidida em 2026-08-10; até então esta linha dizia só
+  "viewport de celular real", o que na prática virava a largura do aparelho de quem estivesse
+  testando). 320 e não 360 porque garantir o pior caso é mais barato que discutir depois se alguém
+  usa 320 — e o que passa em 320 passa em 360 e 412.
+
+  **É um range, não um ponto.** Verificar numa largura só prova aquela largura, e o pior caso
+  raramente é onde se testou. Arraste a largura de 320 até ~1280 e observe, registrando três
+  âncoras: **320** (pior caso), **767** (última largura da gaveta) e **768** (estreia da barra —
+  onde marca, cinco links, nome completo, perfil e "Sair" precisam caber numa linha só).
+
+  Melhor que amostrar larguras é achar o culpado, o que independe de qual largura está aberta:
+
+  ```js
+  [...document.querySelectorAll('*')]
+    .filter(e => e.scrollWidth > e.clientWidth + 1
+              && !/auto|scroll/.test(getComputedStyle(e).overflowX))
+    .map(e => ({ quem: e.tagName + '.' + e.className, precisa: e.scrollWidth, tem: e.clientWidth }))
+  ```
+
+  O filtro de `overflowX` evita falso positivo nos containers que rolam de propósito (tabelas
+  largas das Tasks 8–9).
+
+  **Violação conhecida e medida em 2026-08-10, ainda aberta:** a `HomePage` rola na horizontal —
+  `613px` de conteúdo em `412px` de viewport. Causa: `HomePage.tsx:47-54`, um `flex gap-3` **sem
+  `flex-wrap`** com seis controles que somam 589px num container de 400px, e por isso transborda em
+  **qualquer** largura de janela (o container é limitado a `max-w-md`). É anterior ao shell. Fecha
+  na Task 11, que substitui a fileira inteira por cartões de contagem.
+
+  Sintoma que o shell tornou visível: ao rolar, o `bg-chrome` do `AppShell` **não cobre a área
+  rolada** — o `<header>` tem a largura do viewport, não a do conteúdo. Decidido em 2026-08-10 **não
+  mascarar** isso (com `min-w-max` ou equivalente): o branco à direita é o sinal de que a tela não
+  cabe, e sumir com o sinal deixando a causa é o padrão "corrigir a instância e declarar o
+  mecanismo" que esta fase já pagou caro para aprender.
 - **Suíte, build e lint verdes**, com a baseline do início da fase medida e registrada (não herdada
   deste documento — medir na hora).
 

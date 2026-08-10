@@ -3018,7 +3018,7 @@ Delta **+23** sobre a baseline medida de 200, recontado no pré-flight: `ListaDe
 **M11 e M13 são a fronteira honesta da rede.** Nenhum teste em jsdom prova que a página não rola na
 horizontal, porque jsdom não calcula layout; e nenhum prova que o "(inativo)" não sai riscado,
 porque jsdom não resolve cascata de `text-decoration`. A verificação de viewport de celular é
-**manual** e acontece na Task 12, com o dev server e o DevTools em 360px de largura; o "(inativo)"
+**manual** e acontece na Task 12, com o dev server e o DevTools varrendo de 320px para cima; o "(inativo)"
 entra na mesma varredura visual. **Declare as duas como sobreviventes conhecidos** — não invente
 asserção de classe para fingir que morreram; classe presente não é layout correto.
 
@@ -3807,8 +3807,8 @@ cd web && npm run dev
 Abra `http://localhost:5173`, entre com `admin` / `Admin@123` (a API precisa estar de pé: `dotnet run --project src/Rastreamento.Api`, com o Docker no ar) e confirme, **manualmente**:
 
 - a barra aparece em todas as telas internas e o item da tela atual está marcado;
-- em 360px de largura (DevTools → Toggle device toolbar) a barra vira o botão de menu e a gaveta abre;
-- **nenhuma tela rola na horizontal** em 360px — critério da spec §11 que nenhum teste em jsdom alcança;
+- abaixo de 768px (DevTools → Toggle device toolbar) a barra vira o botão de menu e a gaveta abre;
+- **nenhuma tela rola na horizontal em nenhuma largura ≥ 320px** — critério da spec §11 que nenhum teste em jsdom alcança. **É um range, não um ponto:** arraste de 320 a ~1280 e registre 320, 767 e 768, ou use o snippet localizador da spec §11, que acha o elemento culpado sem depender de qual largura está aberta;
 - `Tab` percorre os links com anel de foco visível sobre o chrome escuro;
 - **o deslocamento dos vizinhos ao trocar de tela**: o item ativo é `font-semibold` e o texto em 600 é mais largo que em 500. Previsão registrada em 2026-08-10, **não observada**: como cada clique navega e re-renderiza a barra inteira, não deve aparecer como pulo. Se incomodar, a mitigação é reservar a largura do estado 600, e ela entra depois.
 
@@ -5386,6 +5386,12 @@ git commit -m "feat(web): re-layout do PedidoDetalhePage com as primitivas"
 
 **A Home perde o emprego de menu** (spec §8): a navegação virou o shell na Task 7, e a fileira de `<Link>` com borda de `HomePage.tsx:47-54` fica sem função. No lugar entram **cartões de contagem com números verdadeiros** e atalhos.
 
+**Esta task fecha a única violação medida do critério de viewport da spec §11.** Conferido no navegador em 2026-08-10, durante o Step 14 da Task 7: a Home rola na horizontal — `613px` de conteúdo em `412px` de viewport (`documentElement.clientWidth 412` contra `scrollWidth 613`). A causa é exatamente esta fileira: um `flex gap-3` **sem `flex-wrap`** com seis controles somando **589px** num container de **400px** (`max-w-md` menos `p-6`), o que a faz transbordar em **qualquer** largura de janela — numa tela larga o excesso só vaza para as margens e ninguém nota.
+
+Os cartões resolvem por construção, mas **confirme, não presuma**: rode o snippet localizador da spec §11 na Home depois do re-layout e reporte que ele voltou vazio. Foi a presunção de que "cabe" que deixou isso passar até aqui.
+
+Enquanto esta task não chega, o sintoma visível é o `bg-chrome` do shell não cobrir a área rolada — decidido em 2026-08-10 **não** mascarar isso, porque o branco à direita é o sinal de que a tela não cabe.
+
 **Nada de número fake, e nada de rota crua** — a spec §8 fecha isso com dois motivos concretos: um número inventado é uma afirmação falsa numa tela que vai à banca; e o teste de fumaça **não distingue número fake de número real**, então a suíte ficaria verde provando uma mentira. Mock que precisa ser removido depois é o tipo de coisa que sobrevive até a defesa.
 
 **De onde vêm os números, sem tocar no backend:**
@@ -5843,7 +5849,7 @@ Com `admin` / `Admin@123` (Administrador) e depois `pcp` / a senha do seed (PCP)
 
 | # | O que verificar | Por que nenhum teste pega |
 |---|---|---|
-| V1 | Em **360px** de largura, **nenhuma** das 7 telas rola na horizontal | jsdom não calcula layout |
+| V1 | **Nenhuma** das 7 telas rola na horizontal em **nenhuma largura ≥ 320px** — arraste de 320 a ~1280, registrando 320, 767 e 768; e rode o snippet localizador da spec §11 em cada tela | jsdom não calcula layout |
 | V2 | A barra vira gaveta abaixo de 768px, e a gaveta fecha ao navegar | idem |
 | V3 | `Tab` percorre toda tela com **anel de foco visível**, inclusive sobre o chrome escuro | jsdom não renderiza foco |
 | V4 | No modal de exclusão, o foco começa em **"Cancelar"** e "Excluir" está visivelmente mais pesado | M2/M3 da Task 10, declaradas |
