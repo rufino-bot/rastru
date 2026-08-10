@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { renderHook, cleanup } from '@testing-library/react'
 import type { EstadoSessao } from './estadoDaSessao'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); estadoAtual = { status: 'anonimo' } })
 
 let estadoAtual: EstadoSessao = { status: 'anonimo' }
 
@@ -31,6 +31,13 @@ describe('usePodeEscrever', () => {
     }
 
     expect(renderHook(() => usePodeEscrever('setores')).result.current).toBe(false)
+  })
+
+  it('nega quando ninguém entrou (sem montar sessão)', () => {
+    // Não atribui `estadoAtual` — depende só do reset do `afterEach`. Vem logo depois de um caso
+    // que autenticou como PCP (acima), que escreve em `componentes`: sem o reset, este caso herdaria
+    // aquela sessão e responderia `true`.
+    expect(renderHook(() => usePodeEscrever('componentes')).result.current).toBe(false)
   })
 
   it('nega em sessão não autenticada, sem estourar', () => {

@@ -1,25 +1,31 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
+import { MemoryRouter, Routes, Route, Link } from 'react-router-dom'
 import { AppShell } from './AppShell'
-
-afterEach(cleanup)
+import { useAuth } from '../auth/AuthContext'
 
 const logout = vi.fn()
 
+afterEach(() => { cleanup(); logout.mockClear() })
+
 // O `AuthProvider` de verdade dispara init-refresh no mount; aqui só interessa o que o shell faz
-// com a sessão já resolvida.
+// com a sessão já resolvida. `useAuth` é um mock por si (`vi.fn`), não uma factory fixa, porque o
+// caso "não mostra identidade em sessão anônima" precisa trocar o retorno por teste.
 vi.mock('../auth/AuthContext', () => ({
-  useAuth: () => ({
+  useAuth: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(useAuth).mockReturnValue({
     estado: {
       status: 'autenticado',
       usuario: { id: 2, nomeUsuario: 'pcp', nomeCompleto: 'Planejamento e Controle', perfil: 'PCP' },
     },
     login: async () => {},
     logout,
-  }),
-}))
+  })
+})
 
 function renderizarShell(rotaInicial = '/') {
   return render(
@@ -27,6 +33,15 @@ function renderizarShell(rotaInicial = '/') {
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<p>conteúdo da home</p>} />
+          <Route
+            path="/pedidos"
+            element={
+              <>
+                <p>conteúdo de pedidos</p>
+                <Link to="/setores">link do conteúdo</Link>
+              </>
+            }
+          />
           <Route path="/setores" element={<p>conteúdo de setores</p>} />
         </Route>
       </Routes>
@@ -129,8 +144,9 @@ describe('AppShell', () => {
   })
 
   it('fecha a gaveta ao navegar', () => {
-    // Sem isto, no celular a gaveta continua cobrindo a tela que o usuário acabou de abrir — e ele
-    // acha que o clique não funcionou.
+    // Sem isto, no celular a gaveta continua aberta e empurra o conteúdo para baixo depois da
+    // navegação — o `<nav>` da gaveta está em fluxo normal (sem `absolute`/`fixed`), não sobre a
+    // tela — e o usuário acha que o clique não funcionou.
     renderizarShell()
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
@@ -138,5 +154,88 @@ describe('AppShell', () => {
     fireEvent.click(linkDaGaveta[linkDaGaveta.length - 1])
 
     expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy()
+  })
+
+  it('fecha a gaveta ao navegar por link de dentro da tela', () => {
+    // I3: o fechamento precisa reagir à NAVEGAÇÃO, não só ao clique nos links da própria gaveta —
+    // um link no conteúdo (a HomePage tem quatro) tem de fechar a gaveta também.
+    renderizarShell('/pedidos')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    fireEvent.click(screen.getByText('link do conteúdo'))
+
+    expect(screen.getByText('conteúdo de setores')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy()
+  })
+
+  it('fecha a gaveta ao navegar para a tela em que já está', () => {
+    // O caso que decide a dependência do efeito: clicar, na gaveta, no link da MESMA tela em que o
+    // usuário já está. Com `[location.pathname]` isto não dispararia o efeito (o pathname não
+    // muda) e a gaveta ficaria aberta.
+    renderizarShell('/setores')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    const linkDaGaveta = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/setores')
+    fireEvent.click(linkDaGaveta[linkDaGaveta.length - 1])
+
+    expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy()
+  })
+
+  it('sai da sessão pelo "Sair" da gaveta', () => {
+    // Abaixo de 768px a barra some (`hidden md:flex`); o "Sair" da gaveta é o único logout que o
+    // celular alcança.
+    renderizarShell()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    const gaveta = screen.getByRole('navigation', { name: 'Menu' })
+    fireEvent.click(within(gaveta).getByText('Sair'))
+
+    expect(logout).toHaveBeenCalledTimes(1)
+  })
+
+  it('mostra quem está logado no pé da gaveta', () => {
+    renderizarShell()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    const gaveta = screen.getByRole('navigation', { name: 'Menu' })
+
+    expect(within(gaveta).getByText('Planejamento e Controle')).toBeTruthy()
+    expect(within(gaveta).getByText('PCP')).toBeTruthy()
+  })
+
+  it('a gaveta tem nome acessível', () => {
+    renderizarShell()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    expect(screen.getByRole('navigation', { name: 'Menu' })).toBeTruthy()
+  })
+
+  it('não mostra identidade em sessão anônima', () => {
+    // Ramo inalcançável em produção hoje (atrás do `ProtectedRoute`), coberto do mesmo jeito que o
+    // ramo idêntico do hook (`usePermissao`) já é — a assimetria era o defeito.
+    vi.mocked(useAuth).mockReturnValue({
+      estado: { status: 'anonimo' },
+      login: async () => {},
+      logout,
+    })
+
+    renderizarShell()
+
+    expect(screen.queryByText('Planejamento e Controle')).toBeNull()
+  })
+
+  it('o conteúdo fica dentro de um main', () => {
+    renderizarShell()
+
+    expect(screen.getByRole('main')).toBeTruthy()
+  })
+
+  it('o nome completo carrega title', () => {
+    renderizarShell()
+
+    expect(screen.getByText('Planejamento e Controle').getAttribute('title')).toBe(
+      'Planejamento e Controle',
+    )
   })
 })

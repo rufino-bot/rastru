@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 
 interface ItemDeNavegacao {
@@ -12,8 +12,11 @@ interface ItemDeNavegacao {
  * liberada para qualquer usuário autenticado no backend (conferido em 2026-08-10). O gating de
  * perfil vive na AÇÃO — formulário e botões de (in)ativar —, não aqui.
  *
- * Com 10+ telas esta barra fica apertada e vai exigir agrupamento (ex.: "Cadastros" com submenu).
- * Custo conhecido e aceito na spec §6: o agrupamento entra quando doer, não agora.
+ * Medido em 2026-08-10, Chrome headless contra o CSS do build, em 768px (a âncora que a spec §11
+ * exige): os 5 links de hoje cabem sem estourar; a barra estoura na horizontal a partir do
+ * **sétimo** link (86px de estouro), não de "10+" — Qualidade (Fase 5) e Expedição (Fase 6) são o
+ * sexto e o sétimo link, não uma hipótese distante. O agrupamento (ex.: "Cadastros" com submenu,
+ * spec §6) entra quando o sétimo link chegar, não antes; até lá o custo é conhecido e aceito.
  *
  * **O `end` do item `/` é REDUNDANTE nesta versão, e isso foi medido — não suposto.** Apagar os
  * dois `end={i.para === '/'}` deixa a suíte 10/10 VERDE (mutação M7, medida em 2026-08-10 com
@@ -63,12 +66,23 @@ function classesDoLink({ isActive }: { isActive: boolean }): string {
 export function AppShell() {
   const { estado, logout } = useAuth()
   const [gavetaAberta, setGavetaAberta] = useState(false)
+  const location = useLocation()
 
   const usuario = estado.status === 'autenticado' ? estado.usuario : null
 
-  // A gaveta fecha no `onClick` de cada link dela (mais abaixo), e não num efeito sobre a rota:
-  // o efeito rodaria também quando a navegação vem de outro lugar (um cartão da Home, o `Navigate`
-  // do login), e fechar algo que já está fechado é render à toa.
+  // A gaveta fecha num efeito sobre `location.key`, não no `onClick` de cada link dela: o `onClick`
+  // só reage ao clique NAQUELES links, e deixa aberta a gaveta quando a navegação vem de um link no
+  // CONTEÚDO (a HomePage tem quatro), do botão voltar do navegador, ou de um redirecionamento
+  // programático — é justamente o caso que o efeito serve, não o custo dele. `location.pathname` não
+  // serve de dependência: não muda quando o link clicado é da MESMA tela em que o usuário já está, e
+  // esse caso ficaria sem fechar. `location.key` muda mesmo nesse caso — medido em 2026-08-10 com
+  // react-router 7.18.1 (`fecha a gaveta ao navegar para a tela em que já está`, abaixo): o `Link`
+  // não reaproveita a chave da entrada atual do histórico ao navegar para o mesmo caminho. O efeito
+  // roda uma vez por navegação, não por render.
+  useEffect(() => {
+    setGavetaAberta(false)
+  }, [location.key])
+
   return (
     <div className="min-h-screen bg-fundo font-sans text-tinta">
       <header className="bg-chrome">
@@ -86,8 +100,13 @@ export function AppShell() {
 
           <div className="hidden md:flex md:items-center md:gap-3">
             {usuario && (
-              <span className="text-right text-sm leading-tight text-chrome-tinta-apagada">
-                <span className="block font-medium text-superficie">{usuario.nomeCompleto}</span>
+              <span className="min-w-0 text-right text-sm leading-tight text-chrome-tinta-apagada">
+                <span
+                  className="block truncate font-medium text-superficie"
+                  title={usuario.nomeCompleto}
+                >
+                  {usuario.nomeCompleto}
+                </span>
                 <span className="block text-xs">{usuario.perfil}</span>
               </span>
             )}
@@ -112,13 +131,7 @@ export function AppShell() {
         {gavetaAberta && (
           <nav aria-label="Menu" className="flex flex-col gap-1 border-t border-chrome-ativo px-4 pb-4 md:hidden">
             {ITENS.map((i) => (
-              <NavLink
-                key={i.para}
-                to={i.para}
-                end={i.para === '/'}
-                onClick={() => setGavetaAberta(false)}
-                className={classesDoLink}
-              >
+              <NavLink key={i.para} to={i.para} end={i.para === '/'} className={classesDoLink}>
                 {i.rotulo}
               </NavLink>
             ))}
@@ -143,7 +156,9 @@ export function AppShell() {
         )}
       </header>
 
-      <Outlet />
+      <main>
+        <Outlet />
+      </main>
     </div>
   )
 }

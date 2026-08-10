@@ -9,10 +9,13 @@ export type Recurso = 'setores' | 'materiais' | 'componentes' | 'pedidos' | 'agr
  *
  * A divergência com o backend é silenciosa nos dois sentidos — liberar demais dá 403 no fim do
  * formulário (chato, visível); liberar de menos some com a ação para quem tinha direito a ela
- * (invisível, e o suspeito natural vira o backend, que está certo). Por isso ela não é vigiada
- * por leitura: `permissoesEspelhamOBackend.test.ts` lê os controllers e compara.
+ * (invisível, e o suspeito natural vira o backend, que está certo). `permissoesEspelhamOBackend.test.ts`
+ * lê os controllers e compara os VALORES dos atributos `[Authorize(Roles = …)]` que existem — ela
+ * não vê a REMOÇÃO de um atributo (medido em 2026-08-10: tirando o `[Authorize]` do `POST` de
+ * `SetoresController`, a guarda do front continua 11/11 verde). Quem pega essa remoção é a suíte
+ * .NET (`SetoresEndpointsTests.cs`), não esta guarda.
  */
-const ESCRITA: Record<Recurso, readonly string[]> = {
+const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   setores: ['Administrador'],
   materiais: ['Administrador'],
   componentes: ['Administrador', 'PCP'],
