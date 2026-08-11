@@ -4209,12 +4209,13 @@ cd web && npm test -- SetoresPage
 
 Expected: `Tests  6 passed (6)`.
 
-- [ ] **Step 5: Commit da `SetoresPage`**
+- [ ] **Step 5: Checkpoint — sem commit aqui**
 
-```bash
-git add web/src/pages/SetoresPage.tsx web/src/pages/SetoresPage.test.tsx
-git commit -m "feat(web): retrofit da SetoresPage com as primitivas e gating de acao"
-```
+**Corrigido no pré-flight (`.superpowers/sdd/fase1d-task-8-preflight.md`): este Step mandava
+commitar a `SetoresPage` isolada.** Medido: das 13 tasks deste plano, as outras 12 fazem **um único**
+commit no fim — Task 8 era a única com dois (este Step e o Step 12). Não commite ainda: confirme que
+`npm test -- SetoresPage` está verde (Step 4) e siga para a `MateriaisPage`. O commit único da task
+inteira acontece no Step 12, que já foi atualizado para incluir os arquivos da `SetoresPage`.
 
 - [ ] **Step 6: Reescrever a `MateriaisPage`**
 
@@ -4584,10 +4585,29 @@ O arquivo criado na Task 1 tem 4 testes. Ajuste:
 
 1. acrescente o `vi.mock('../auth/AuthContext', …)` com `perfil` (default `'PCP'`, que **pode** escrever pedidos);
 2. troque `getByPlaceholderText('Código do pedido')` por `getByLabelText('Código do pedido')`, e `'Cliente'` idem;
-3. acrescente três testes:
+3. **`mostra os pedidos que a API devolveu` precisa de novo texto-alvo.** O novo markup separa
+   `p.numero` num `<span className="font-mono">` aninhado dentro do `<span className="font-medium">`
+   — `getNodeText` do Testing Library (`web/node_modules/@testing-library/dom/dist/get-node-text.js`)
+   só concatena os `TEXT_NODE` **diretos** de um elemento, então nenhum nó tem mais o texto completo
+   `'PED-001 — Fábrica Alfa'`; o próprio comentário deste teste (linhas 43–49 do arquivo atual) já
+   previa a quebra e nomeava a saída: assere a **ordem**, não a string inteira — por exemplo,
+   `within(await screen.findByText('PED-001')).getByText(...)` não serve (nós irmãos, não
+   ancestrais); prefira `expect(container.querySelector('li')!.textContent).toMatch(/PED-001.*Fábrica Alfa/)`
+   ou dois `getByText` separados (`'PED-001'` e `/Fábrica Alfa/`) mais uma asserção de ordem no DOM;
+4. **`mostra erro quando a listagem falha` precisa do texto novo.** A resposta mockada é um 500
+   (`respostaJson({ erro: 'Falhou' }, 500)`), e `mensagemDeErro` (`web/src/api/erros.ts:36`) mapeia
+   status ≥ 500 para `'O servidor não respondeu como esperado. Tente de novo em instantes.'` — **não**
+   mais o fallback fixo `'Não foi possível carregar os pedidos.'` que o teste hoje afirma. Troque o
+   texto esperado;
+5. acrescente três testes:
    - **estado vazio**: `'Nenhum pedido aberto'`;
    - **gating**: `perfil = 'Operador'` → `queryByLabelText('Código do pedido')` é `null` e a lista continua visível;
-   - **status como pílula**: um pedido `Concluido` e um `Cancelado` na mesma lista, asserindo que os dois textos aparecem.
+   - **status como pílula**: um pedido `Concluido` e um `Cancelado` na mesma lista. **Não baste
+     asserir que os dois textos aparecem** — `Pilula` renderiza `children` independente de `tom`,
+     então a M8 do Step 11 (`tomDoStatus` sempre `'positivo'`) não muda texto nenhum e sobreviveria a
+     um teste só de texto. Assere também o tom: por exemplo,
+     `screen.getByText('Concluido').className` (ou o `closest` do `<span>` da pílula) contém um token
+     `positivo-*`, e o de `Cancelado` contém `negativo-*`.
 
 Expected: `Tests  7 passed (7)` em `npm test -- PedidosPage`.
 
@@ -4614,15 +4634,15 @@ Expected: **`Tests  283 passed (283)`** (272 + 4 na Setores + 4 na Materiais + 3
 | M5 | `SetoresPage.tsx` — trocar `setores.length === 0` por `false` | ≥ 1 |
 | M6 | `MateriaisPage.tsx` — trocar `podeEscrever` de `'materiais'` por `'componentes'` | ≥ 1 (o PCP ganharia formulário que o backend recusa) |
 | M7 | `MateriaisPage.tsx` — trocar `{m.unidadeMedida}` da pílula por `{m.tipo}` (campo inexistente) | ≥ 1 |
-| M8 | `PedidosPage.tsx` — trocar `tomDoStatus` para devolver `'positivo'` sempre | ≥ 1 |
+| M8 | `PedidosPage.tsx` — trocar `tomDoStatus` para devolver `'positivo'` sempre | ≥ 1 (só morre se o teste de "status como pílula" do Step 9 asserir o tom/classe da `Pilula`, não só o texto — corrigido no pré-flight) |
 | M9 | `PedidosPage.tsx` — trocar `usePodeEscrever('pedidos')` por `('setores')` | ≥ 1 |
 | M10 | `PedidosPage.tsx` — remover `setErro(null)` do sucesso de `carregar` | ≥ 1 |
 
-- [ ] **Step 12: Commit**
+- [ ] **Step 12: Commit (único da task — ver Step 5)**
 
 ```bash
-git add web/src/pages/MateriaisPage.tsx web/src/pages/MateriaisPage.test.tsx web/src/pages/PedidosPage.tsx web/src/pages/PedidosPage.test.tsx web/src/components/ListaDeCadastro.tsx
-git commit -m "feat(web): retrofit de MateriaisPage e PedidosPage com as primitivas"
+git add web/src/pages/SetoresPage.tsx web/src/pages/SetoresPage.test.tsx web/src/pages/MateriaisPage.tsx web/src/pages/MateriaisPage.test.tsx web/src/pages/PedidosPage.tsx web/src/pages/PedidosPage.test.tsx web/src/components/ListaDeCadastro.tsx
+git commit -m "feat(web): retrofit de SetoresPage, MateriaisPage e PedidosPage com as primitivas"
 ```
 
 **Definition of done da Task 8:** as três telas sem nenhuma classe antiga (`max-w-md`, `border rounded px-3 py-2`, `text-gray-*`, `text-red-600`); as 10 mutações medidas com ≥ 1 morte; suíte, build e lint verdes.
