@@ -41,7 +41,8 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | 6 | **+23** (recontado) | 223 (= 200 medidos + 23) |
   | 7 | **+29** na entrega | **259 — MEDIDO** (230 medidos ao iniciar a task + 29) |
   | 7 (fix pass) | **+9** | **268 — MEDIDO** (259 + 9 dos achados da review — I3, I2, I4, m5, m6, m7 × 2, ver `.superpowers/sdd/fase1d-task-7-fix-report.md`) |
-  | 8 | **+11** | 279 (= 268 medidos + 11) |
+  | passe de primitivas (pré-Task 8) | **+4** | **272 — MEDIDO** (268 + 4 — caminho C do usuário: fechar defeitos de `Pagina`/`Botao`/`Campo`/`EstadoVazio` antes da Task 8 consumi-los; ver `.superpowers/sdd/fase1d-passe-primitivas-report.md`) |
+  | 8 | **+11** | 283 (= 272 medidos + 11) |
 
   *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. **O delta da Task 8 segue sem recontagem**: é o do plano original e continua sendo estimativa. Se você for implementá-la, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
 
@@ -3903,9 +3904,9 @@ git commit -m "feat(web): shell de navegacao com gaveta, tabela de permissoes e 
 cd web && npm test
 ```
 
-Expected: **`Tests  268 passed (268)`** — o que o fix pass da Task 7 fechou (259 medidos ao entregar a task + 9 do fix pass dos achados da review, `.superpowers/sdd/fase1d-task-7-fix-report.md`, medido em 2026-08-10). Este Step dizia `259`, que era o número da task ANTES do fix pass — corrigido aqui na mesma passada, como manda a regra em vigor.
+Expected: **`Tests  272 passed (272)`** — o que o passe curto de primitivas (caminho C do usuário, pré-Task 8) fechou: 268 do fix pass da Task 7 + 4 dos nove pontos do brief `.superpowers/sdd/fase1d-passe-primitivas-brief.md` (`Pagina` perde o `main` para o `AppShell`, repasse e afordâncias de `Botao`, o anel de `CLASSES_DE_CONTROLE` preso ao de `Botao`), medido e reportado em `.superpowers/sdd/fase1d-passe-primitivas-report.md`. Este Step dizia `268` — corrigido aqui na mesma passada, como manda a regra em vigor.
 
-**Confira contra o que o fix pass da Task 7 REALMENTE fechou, não contra este número.** O 268 é o medido no fix pass; se divergir, **pare e reporte** — e atualize este Step junto, que é a regra em vigor desde 2026-08-10: task fechada com delta ≠ 0 corrige a baseline das seguintes na mesma passada.
+**Confira contra o que o passe de primitivas REALMENTE fechou, não contra este número.** O 272 é o medido no passe; se divergir, **pare e reporte** — e atualize este Step junto, que é a regra em vigor desde 2026-08-10: task fechada com delta ≠ 0 corrige a baseline das seguintes na mesma passada.
 
 - [ ] **Step 2: Reescrever a `SetoresPage`**
 
@@ -4596,9 +4597,9 @@ Expected: `Tests  7 passed (7)` em `npm test -- PedidosPage`.
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: **`Tests  279 passed (279)`** (268 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
+Expected: **`Tests  283 passed (283)`** (272 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
 
-**O delta +11 é o que vincula**; o total depende do que a Task 7 (com o fix pass) fechou. Este Step dizia `270` (= 259 + 11), herdado da baseline pré-fix-pass; a baseline correta é **268**, medida no fix pass de 2026-08-10.
+**O delta +11 é o que vincula**; o total depende do que fechou antes desta task. Este Step dizia `279` (= 268 + 11), herdado da baseline pré-passe-de-primitivas; a baseline correta é **272**, medida no passe curto de primitivas (`.superpowers/sdd/fase1d-passe-primitivas-report.md`).
 
 **Se o número divergir, reporte o número real e a composição** — não ajuste o plano; a contagem exata depende de quantos testes antigos você fundiu ou dividiu.
 
@@ -4639,6 +4640,22 @@ git commit -m "feat(web): retrofit de MateriaisPage e PedidosPage com as primiti
 - Produces: nada.
 
 **A tela que a spec §7 marca como re-layout obrigatório:** busca + filtro + seletor de tamanho + paginação **não cabem em 448px**. É também a única com busca, e por isso a única consumidora do hook nesta fase.
+
+> **Colisão registrada, não corrigida, pelo passe curto de primitivas pré-Task 8 (P9 do brief
+> `.superpowers/sdd/fase1d-passe-primitivas-brief.md`) — é desta task, não daquela.**
+>
+> `web/src/components/ControlesDePaginacao.tsx:19` faz `if (totalDePaginas <= 1) return null` —
+> com uma página só, o componente não renderiza nada. `web/src/pages/ComponentesPage.test.tsx:132-141`
+> (`desabilita Anterior na primeira pagina e Proxima na ultima`) afirma o **oposto**: com `total: 1`
+> ela busca o botão "Anterior" via `getByRole` e espera `disabled === true` — um botão que, pelo
+> desenho atual de `ControlesDePaginacao`, não existe no DOM nesse cenário.
+>
+> Quem adotar `ControlesDePaginacao` nesta task vai encontrar esse teste verde hoje e vermelho
+> assim que a tela passar a usar a primitiva de verdade — não é regressão desta task, é uma
+> decisão de desenho tomada duas tasks antes (Task 6) que o teste da tela nunca acompanhou. Ajuste
+> `ComponentesPage.test.tsx:132-141` para o comportamento real de `ControlesDePaginacao` (nenhum
+> botão — nenhuma paginação — quando há só uma página) como parte desta task; não é algo a
+> "descobrir do zero" na hora.
 
 **Esta task apaga cerca de 60 linhas de lógica da tela** — a guarda de sequência (`sequenciaRef`), os três `mudar*` com `setPagina(1)`, o `carregar` com quatro parâmetros e o cálculo de `totalDePaginas` **vivem no hook agora**. Apagar sem substituir é o risco: confira que cada propriedade continua provada, ou pela suíte do hook, ou pela da tela.
 
