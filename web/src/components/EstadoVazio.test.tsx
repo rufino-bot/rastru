@@ -25,10 +25,14 @@ describe('EstadoVazio', () => {
     expect(screen.getByText('Cadastrar o primeiro')).toBeTruthy()
   })
 
-  it('é anunciado como região de status, não como erro', () => {
-    // `role="status"` e não `role="alert"`: lista vazia é informação, não falha. Anunciar como
-    // alerta interromperia a leitura para dizer que não há nada — e o usuário que acabou de
-    // filtrar já sabe disso.
+  it('tem o papel status, não alert', () => {
+    // P7: o nome anterior ("é anunciado como região de status") afirmava um comportamento de
+    // leitor de tela que jsdom não pode provar — só a PRESENÇA do papel ARIA. `role="status"` e
+    // não `role="alert"`: lista vazia é informação, não falha; anunciar como alerta interromperia
+    // a leitura para dizer que não há nada, e o usuário que acabou de filtrar já sabe disso.
+    // Desenho intocado (m3 da review da Task 6: a live region provavelmente não anuncia de fato,
+    // porque região e conteúdo entram no DOM no mesmo tick — não há instrumento nesta bancada
+    // (sem Playwright/vitest-browser) para provar isso; é varredura manual da Task 12).
     render(<EstadoVazio titulo="Nenhum resultado" />)
 
     expect(screen.getByRole('status').textContent).toContain('Nenhum resultado')

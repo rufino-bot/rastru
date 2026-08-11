@@ -25,20 +25,26 @@ describe('Pagina', () => {
     expect(screen.getByRole('heading', { level: 1 })).toBeTruthy()
   })
 
-  it('é o landmark main da página', () => {
-    // Um `main` por tela dá ao leitor de tela o atalho "ir para o conteúdo" e separa o conteúdo do
-    // shell de navegação, que envolve todas as telas a partir da Task 7.
+  it('não é landmark main por conta própria — quem é é o AppShell', () => {
+    // A partir da Task 7 toda tela interna renderiza dentro do AppShell, que já é o `main`. Se a
+    // `Pagina` também fosse `main`, a Task 8 aninharia dois — não conforme no HTML, e o leitor de
+    // tela perderia o atalho "ir para o conteúdo". A prova de que o `main` único existe é do
+    // `AppShell.test.tsx`, não daqui.
     render(<Pagina titulo="Setores"><p>c</p></Pagina>)
 
-    expect(screen.getByRole('main')).toBeTruthy()
+    expect(screen.queryByRole('main')).toBeNull()
   })
 
   it('não impõe altura mínima de tela — quem faz isso é o shell', () => {
     // `min-h-screen` DENTRO da página, com o shell também aplicando, produz barra de rolagem
     // permanente de alguns pixels. As 6 telas de hoje têm `min-h-screen`; ele sai daqui.
-    expect(screen.queryByRole('main')).toBeNull()
+    //
+    // A guarda de vazamento de `cleanup` era `expect(screen.queryByRole('main')).toBeNull()` —
+    // deixou de fazer sentido porque `Pagina` não tem mais `main` nenhum (P1). Equivalente: o body
+    // não pode ter sobra de um `render` anterior antes deste rodar.
+    expect(document.body.innerHTML).toBe('')
     const { container } = render(<Pagina titulo="Setores"><p>c</p></Pagina>)
-    expect(container.querySelector('main')!.className).not.toContain('min-h-screen')
+    expect(container.firstElementChild!.className).not.toContain('min-h-screen')
   })
 
   it('usa a largura larga — a decisão que dá razão de existir ao componente', () => {
@@ -49,7 +55,7 @@ describe('Pagina', () => {
     // não `toContain` sobre a string inteira.
     const { container } = render(<Pagina titulo="Setores"><p>c</p></Pagina>)
 
-    const classes = container.querySelector('main')!.className.split(/\s+/)
+    const classes = container.firstElementChild!.className.split(/\s+/)
 
     expect(classes).toContain('max-w-3xl')
     expect(classes).not.toContain('max-w-md')

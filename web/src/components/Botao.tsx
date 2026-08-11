@@ -42,6 +42,14 @@ export function Botao({
       type="button"
       {...resto}
       disabled={disabled || carregando}
+      // `className` do chamador vai por ÚLTIMO no atributo `class`, mas isso NÃO dá a ele a
+      // última palavra: entre regras de mesma especificidade CSS, quem ganha é a ordem de
+      // EMISSÃO no stylesheet, não a ordem no atributo. MEDIDO contra o CSS construído
+      // (`npm run build`, `grep -o` em `dist/assets/*.css`): `.bg-acao{` vem antes de
+      // `.bg-superficie{`, e `.px-2{` antes de `.px-4{` antes de `.px-5{` — nesta ordem de
+      // emissão real do Tailwind v4 aqui. Logo `<Botao className="px-4">` sobre o primário
+      // (`px-5`) PERDE, em silêncio. `className` serve para o que NÃO compete com base/variante
+      // (posicionamento, margem); sobrepor peso visual pede prop nova, não classe concorrente.
       className={`${BASE} ${POR_VARIANTE[variante]} ${className}`}
     >
       {carregando && rotuloCarregando ? rotuloCarregando : children}

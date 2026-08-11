@@ -20,7 +20,8 @@ interface Props {
  * primitiva realmente entrega é a **ligação acessível**, e é isso que ela guarda.
  *
  * Classes do controle ficam com o chamador — via `CLASSES_DE_CONTROLE`, exportada abaixo — para
- * que ele possa acrescentar `font-mono` num campo de código sem lutar contra a primitiva.
+ * que ele possa acrescentar `font-mono` num campo de código sem lutar contra a primitiva. Nasceu
+ * nas Tasks 5/6 sem consumidor: a Task 8 é a primeira a usar `CLASSES_DE_CONTROLE` de verdade.
  */
 export function Campo({ rotulo, children, dica }: Props) {
   const id = useId()

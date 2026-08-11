@@ -101,7 +101,25 @@ describe('Botao', () => {
     // O token EXATO, não o prefixo: `toContain('focus-visible:outline')` sobre a string casava
     // também com `focus-visible:outline-offset-2` e `focus-visible:outline-acao`, que sobrariam
     // depois da M5. MEDIDO no pré-flight de 2026-08-09 — a M5 sobrevivia à asserção antiga.
-    expect(screen.getByRole('button').className.split(/\s+/)).toContain('focus-visible:outline-2')
+    //
+    // P3: o trio inteiro do anel de foco (offset e cor incluídos), não só o `outline-2`. Antes só
+    // um terço do trio tinha prova — `outline-offset-2` e `outline-acao` podiam sumir do `BASE`
+    // sem que nenhuma asserção notasse.
+    const classes = screen.getByRole('button').className.split(/\s+/)
+    expect(classes).toContain('focus-visible:outline-2')
+    expect(classes).toContain('focus-visible:outline-offset-2')
+    expect(classes).toContain('focus-visible:outline-acao')
+  })
+
+  it('tem afordância visual de desabilitado', () => {
+    // A suíte prova fartamente que o atributo `disabled` é setado (várias linhas acima); nenhuma
+    // prova que o usuário VÊ o botão desabilitado. `disabled:` é modificador condicional do
+    // Tailwind — só se aplica quando o atributo `disabled` está presente no elemento.
+    render(<Botao disabled>Adicionar</Botao>)
+
+    const classes = screen.getByRole('button').className.split(/\s+/)
+    expect(classes).toContain('disabled:opacity-50')
+    expect(classes).toContain('disabled:cursor-not-allowed')
   })
 
   it('é do tipo button por padrão, para não submeter formulário sem querer', () => {
@@ -116,5 +134,17 @@ describe('Botao', () => {
     render(<Botao type="submit">Adicionar</Botao>)
 
     expect(screen.getByRole('button').getAttribute('type')).toBe('submit')
+  })
+
+  it('repassa o className do chamador sem perder base nem variante', () => {
+    // P2: 4 dos 7 `<Botao>` da Task 8 passam `className="self-start"`. Sem prova, um refactor que
+    // perca o repasse (F3) ou que perca base/variante ao repassar (F4) desalinha os 4 em silêncio.
+    render(<Botao className="self-start" variante="secundario">Adicionar</Botao>)
+
+    const classes = screen.getByRole('button').className.split(/\s+/)
+
+    expect(classes).toContain('self-start')
+    expect(classes).toContain('inline-flex') // token da BASE
+    expect(classes).toContain('border')      // token da variante secundário
   })
 })

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'
-import { Campo } from './Campo'
+import { Campo, CLASSES_DE_CONTROLE } from './Campo'
+import { Botao } from './Botao'
 
 afterEach(cleanup)
 
@@ -62,5 +63,23 @@ describe('Campo', () => {
     )
 
     expect((screen.getByLabelText('Tipo') as HTMLSelectElement).tagName).toBe('SELECT')
+  })
+
+  it('o anel de foco de CLASSES_DE_CONTROLE é o mesmo do Botao', () => {
+    // P4/I3 da review da Task 5: o trio `focus-visible:outline-2 focus-visible:outline-offset-2
+    // focus-visible:outline-acao` vive em dois lugares (Botao.tsx e Campo.tsx) sem nada prendendo
+    // um ao outro — forma canônica de nascer divergência. Compara os dois LADOS DE VERDADE
+    // (renderiza Botao de verdade e extrai os tokens dele), não uma lista literal copiada aqui:
+    // uma asserção só contra `CLASSES_DE_CONTROLE` não prenderia nada, e F9 sobreviveria.
+    render(<Botao>Adicionar</Botao>)
+    const classesDoBotao = screen.getByRole('button').className.split(/\s+/)
+    const tokensDeFoco = classesDoBotao.filter((c) => c.startsWith('focus-visible:'))
+
+    const classesDoControle = CLASSES_DE_CONTROLE.split(/\s+/)
+
+    expect(tokensDeFoco.length).toBeGreaterThan(0)
+    for (const token of tokensDeFoco) {
+      expect(classesDoControle).toContain(token)
+    }
   })
 })

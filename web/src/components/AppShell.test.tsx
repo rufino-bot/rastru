@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, Link } from 'react-router-dom'
 import { AppShell } from './AppShell'
+import { Pagina } from './Pagina'
 import { useAuth } from '../auth/AuthContext'
 
 const logout = vi.fn()
@@ -229,6 +230,24 @@ describe('AppShell', () => {
     renderizarShell()
 
     expect(screen.getByRole('main')).toBeTruthy()
+  })
+
+  it('uma tela feita de Pagina não aninha um segundo main dentro do shell', () => {
+    // P1: o landmark é só do AppShell — Pagina virou `<div>` (Task "passe curto nas
+    // primitivas"). Renderiza um MemoryRouter próprio (não usa `renderizarShell`, que 12 outros
+    // casos dependem) porque o caso precisa de uma rota cujo elemento é `<Pagina>` de verdade, não
+    // o `<p>` de conteúdo dos outros casos.
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/" element={<Pagina titulo="Setores"><p>conteúdo</p></Pagina>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getAllByRole('main')).toHaveLength(1)
   })
 
   it('o nome completo carrega title', () => {
