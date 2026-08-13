@@ -42,9 +42,10 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | 7 | **+29** na entrega | **259 — MEDIDO** (230 medidos ao iniciar a task + 29) |
   | 7 (fix pass) | **+9** | **268 — MEDIDO** (259 + 9 dos achados da review — I3, I2, I4, m5, m6, m7 × 2, ver `.superpowers/sdd/fase1d-task-7-fix-report.md`) |
   | passe de primitivas (pré-Task 8) | **+4** | **272 — MEDIDO** (268 + 4 — caminho C do usuário: fechar defeitos de `Pagina`/`Botao`/`Campo`/`EstadoVazio` antes da Task 8 consumi-los; ver `.superpowers/sdd/fase1d-passe-primitivas-report.md`) |
-  | 8 | **+11** | 283 (= 272 medidos + 11) |
+  | 8 | **+11** na entrega | **283 — MEDIDO** (272 + 11) |
+  | 8 (fix pass) | **+7** | **290 — MEDIDO** (283 + 7 dos achados da review — C1 ×3, I2, I3 ×2, M10; ver `.superpowers/sdd/fase1d-task-8-fix-report.md`). **290 é a baseline da Task 9.** |
 
-  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. **O delta da Task 8 segue sem recontagem**: é o do plano original e continua sendo estimativa. Se você for implementá-la, **conte os `it(` do seu próprio Step de teste antes de confiar no delta**.)*
+  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. Depois do passe curto de primitivas (**+4**, fechando em **272**), a **Task 8 fechou em `283` (272 + 11), medido**; o fix pass dos achados da review dela (2026-08-12) acrescentou **+7** — não os `+9` que o brief do fix pass previa (a própria previsão já avisava "não medição"; M7 e m3 couberam dentro de casos existentes em vez de virarem `it(` novos) —, fechando em **290**, que passa a ser a baseline da Task 9. Se você for implementar a Task 9, **conte os `it(` do seu próprio Step de teste antes de confiar em qualquer delta deste plano**.)*
 
   **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
 
@@ -4041,9 +4042,11 @@ export function SetoresPage() {
 
       {carregando ? (
         <p className="text-tinta-fraca">Carregando…</p>
-      ) : setores.length === 0 ? (
-        // Estado vazio distinguível do erro: o banner acima já cobre a falha, e aqui só sobra o
-        // caso "não há setores". Antes os dois renderizavam a mesma lista vazia e muda.
+      ) : erro === null && setores.length === 0 ? (
+        // `erro === null` é o que distingue "não há setores" de "a listagem falhou": no `catch`
+        // de `carregar`, `setSetores` nunca é chamado, então a lista fica `[]` e `.length === 0`
+        // sozinho também seria verdade numa falha de rede — mostrando este estado vazio JUNTO do
+        // banner de erro, afirmando "nenhum setor cadastrado" a partir de uma falha de conexão.
         <EstadoVazio
           titulo="Nenhum setor cadastrado"
           descricao={podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined}
@@ -4069,6 +4072,15 @@ export function SetoresPage() {
   )
 }
 ```
+
+**Corrigido no fix pass da review da Task 8 (`.superpowers/sdd/fase1d-task-8-fix-report.md`, C1):**
+o bloco acima transcrevia `setores.length === 0` sozinho, e no `catch` de `carregar` a lista fica
+`[]` sem nunca ter sido preenchida — a condição também era verdadeira numa falha de rede, então o
+`EstadoVazio` ("Nenhum setor cadastrado") aparecia JUNTO do banner de erro, afirmando um fato
+sobre o banco a partir de uma falha de conexão. Corrigido para `erro === null && setores.length
+=== 0`, com o comentário reescrito para não afirmar mais o que era falso (era o achado I1: "aqui
+só sobra o caso 'não há setores'" não estava certo enquanto a condição não checava `erro`). Mesma
+correção nos blocos dos Steps 6 e 8.
 
 - [ ] **Step 3: Atualizar o teste da `SetoresPage`**
 
@@ -4201,13 +4213,39 @@ describe('SetoresPage', () => {
 
 **Sobre o `jaListou` do último teste:** ele distingue GET de POST **contando chamadas**, o que é frágil se a tela passar a fazer uma listagem a mais. Uma alternativa mais robusta é olhar `init.method` — `fetchPorRota` recebe a URL, então isso exige alterar o kit para repassar o segundo argumento. **Não altere o kit por causa deste teste**; se a contagem quebrar numa task futura, aí sim é o momento.
 
+**Corrigido no fix pass da review da Task 8** (C1, I3, M4, m2, m3 — ver
+`.superpowers/sdd/fase1d-task-8-fix-report.md`): a lista de testes acima ficou incompleta e um
+teste tinha desenho que não observava o que afirmava provar.
+- **C1**: acrescente `não mostra o estado vazio quando a listagem falha` (fetch rejeita, espera o
+  banner, e assere `queryByText('Nenhum setor cadastrado')` nulo).
+- **I3**: acrescente `limpa o campo depois de cadastrar com sucesso` — sem isto, ninguém provava
+  que `salvar` limpa `nome` no sucesso (era mutante vivo). O mock precisa de **três** respostas
+  contadas por chamada (GET inicial → array; POST → o setor criado; GET de recarga → array de
+  novo), não duas — `setores.map` quebra se a 3ª chamada devolver o objeto único do POST.
+- **M4**: o teste `desabilita o botão enquanto o cadastro está em voo` precisa virar `desabilita o
+  botão enquanto o cadastro está em voo, e reabilita depois`. O mock de "pendurado para sempre"
+  (`jaListou`) pendurava também a 3ª chamada (o GET de recarga que `carregar` dispara depois do
+  `liberar`), e o teste terminava sem nunca esperar o botão voltar — por isso remover o
+  `finally { setEnviando(false) }` sobrevivia. Troque para um mock que CONTA as chamadas: 1ª (GET)
+  devolve a lista; 2ª (POST) devolve a promise que `liberar` resolve; 3ª (GET de recarga) resolve
+  normal. Depois de `liberar(...)`, espere o botão voltar (`findByText('Adicionar')`) e assere que
+  **não** está mais desabilitado.
+- **m2**: o comentário de `explica o 403 em vez do texto genérico` ("um Operador que tentasse
+  inativar leria…") ficou falso depois do gating — o Operador não vê mais o botão. Reescreva
+  citando o cenário real do 403 (perfil mudado no servidor, tabela do front defasada, chamada por
+  fora da tela).
+- **m3**: acrescente, dentro de `mostra estado vazio quando não há setores`, a asserção do texto
+  da `descricao` (`'Use o formulário acima para criar o primeiro.'`) — prende o ramo positivo do
+  ternário `descricao={podeEscrever ? '…' : undefined}`, que não tinha cobertura em nenhum lado.
+
 - [ ] **Step 4: Rodar até ficar verde**
 
 ```bash
 cd web && npm test -- SetoresPage
 ```
 
-Expected: `Tests  6 passed (6)`.
+Expected: `Tests  6 passed (6)` na entrega original; **`Tests  8 passed (8)` depois do fix pass da
+review** (C1 e I3 acrescentados, ver a caixa acima).
 
 - [ ] **Step 5: Checkpoint — sem commit aqui**
 
@@ -4381,7 +4419,9 @@ export function MateriaisPage() {
 
       {carregando ? (
         <p className="text-tinta-fraca">Carregando…</p>
-      ) : materiais.length === 0 ? (
+      ) : erro === null && materiais.length === 0 ? (
+        // `erro === null` é o que distingue "não há materiais" de "a listagem falhou" — ver a
+        // correção do C1 na `SetoresPage` (Step 2). Mesmo mecanismo.
         <EstadoVazio
           titulo="Nenhum material cadastrado"
           descricao={podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined}
@@ -4425,7 +4465,23 @@ O arquivo atual tem 2 testes que renderizam a tela e batem em `/api/materiais`. 
    - desabilita o botão enquanto o cadastro está em voo (`'Salvando…'`);
    - esconde formulário e ação para quem não pode escrever (`perfil = 'PCP'`).
 
-Expected ao fim: `Tests  6 passed (6)` em `npm test -- MateriaisPage`.
+**Corrigido no fix pass da review da Task 8** (C1, I3, M4, M7, m2 — ver
+`.superpowers/sdd/fase1d-task-8-fix-report.md`), mesmo padrão da `SetoresPage` (Step 3):
+5. acrescente `não mostra o estado vazio quando a listagem falha` (C1);
+6. acrescente `limpa o formulário depois de cadastrar com sucesso` (I3) — mock com três respostas
+   contadas (GET → array; POST → o material criado; GET de recarga → array de novo);
+7. renomeie `desabilita o botão enquanto o cadastro está em voo` para `desabilita o botão enquanto
+   o cadastro está em voo, e reabilita depois` (M4), com o mesmo mock contado por chamada da
+   `SetoresPage` — a versão "pendurado para sempre" nunca prova a reabilitação;
+8. em `mostra os materiais que a API devolveu`, acrescente `expect(await
+   screen.findByText('KG')).toBeTruthy()` (M7) — sem isto, nenhuma asserção da suíte olhava o
+   texto da `Pilula` de unidade, e o `KG` da fixture só aparecia por acidente;
+9. reescreva o comentário de `explica o 403 em vez do texto genérico` (m2), mesmo motivo da
+   `SetoresPage`.
+
+Expected ao fim: `Tests  6 passed (6)` na entrega original; **`Tests  8 passed (8)` depois do fix
+pass da review** (C1 e I3 acrescentados — M4 e M7 mudam o desenho de testes já existentes, sem
+aumentar a contagem), em `npm test -- MateriaisPage`.
 
 - [ ] **Step 8: Reescrever a `PedidosPage`**
 
@@ -4542,7 +4598,9 @@ export function PedidosPage() {
 
       {carregando ? (
         <p className="text-tinta-fraca">Carregando…</p>
-      ) : pedidos.length === 0 ? (
+      ) : erro === null && pedidos.length === 0 ? (
+        // `erro === null` é o que distingue "não há pedidos" de "a listagem falhou" — ver a
+        // correção do C1 na `SetoresPage` (Step 2). Mesmo mecanismo.
         <EstadoVazio
           titulo="Nenhum pedido aberto"
           descricao={podeEscrever ? 'Use o formulário acima para abrir o primeiro.' : undefined}
@@ -4609,7 +4667,31 @@ O arquivo criado na Task 1 tem 4 testes. Ajuste:
      `screen.getByText('Concluido').className` (ou o `closest` do `<span>` da pílula) contém um token
      `positivo-*`, e o de `Cancelado` contém `negativo-*`.
 
-Expected: `Tests  7 passed (7)` em `npm test -- PedidosPage`.
+**Corrigido no fix pass da review da Task 8** (C1, I2, M10 — ver
+`.superpowers/sdd/fase1d-task-8-fix-report.md`):
+6. acrescente `não mostra o estado vazio quando a listagem falha` (C1);
+7. **o teste de gating do item 5 (`Operador`) prova só a metade negativa** — `Operador` não
+   escreve nem `pedidos` nem `setores`, então a M9 (`usePodeEscrever('pedidos')` → `('setores')`)
+   morre por carona num teste de CRUD, não no teste cujo nome é sobre permissão (achado I2).
+   Acrescente a metade positiva: `mostra o formulário para quem pode escrever pedidos mas não
+   setores`, com `perfil = 'PCP'` (escreve `pedidos`, não escreve `setores` —
+   `web/src/auth/permissoes.ts`), asserindo `findByLabelText('Código do pedido')`. **Não troque
+   para `('componentes')`**: é mutante equivalente hoje, `componentes` e `pedidos` têm o mesmo
+   conjunto de perfis;
+8. acrescente `limpa a mensagem de erro da carga inicial quando o cadastro seguinte tem sucesso`
+   (M10, equivalente ao teste que `SetoresPage`/`MateriaisPage` já tinham desde a Task 1 — I1 da
+   review de branch da 1B). **Nota honesta, medida no fix pass**: a mutação M10 (remover
+   `setErro(null)` de dentro de `carregar`) SOBREVIVE a este teste — é mutante equivalente NESTA
+   tela, não falta de cobertura. `salvar` já chama `setErro(null)` no início de si mesma
+   (`PedidosPage.tsx:54`), ANTES de chamar `carregar()`; como o único outro disparo de
+   `carregar()` é o efeito de montagem (onde `erro` já nasce `null`), não existe caminho em que o
+   `setErro(null)` de dentro de `carregar` seja o que limpa um erro visível — ao contrário de
+   `Setores`/`Materiais`, cujo checkbox "Mostrar inativos" dispara uma `carregar` independente de
+   `salvar`. Mantenha o teste mesmo assim: ele prova um comportamento real (o banner da carga
+   inicial não sobrevive a um cadastro bem-sucedido), só não é o que mata M10.
+
+Expected: `Tests  7 passed (7)` na entrega original; **`Tests  10 passed (10)` depois do fix pass
+da review** (C1, I2 e M10 acrescentados).
 
 - [ ] **Step 10: Rodar tudo**
 
@@ -4617,9 +4699,21 @@ Expected: `Tests  7 passed (7)` em `npm test -- PedidosPage`.
 cd web && npm test && npm run build && npm run lint
 ```
 
-Expected: **`Tests  283 passed (283)`** (272 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
+Expected na entrega original: **`Tests  283 passed (283)`** (272 + 4 na Setores + 4 na Materiais + 3 na Pedidos) · build limpo · lint só com o warning alheio.
 
 **O delta +11 é o que vincula**; o total depende do que fechou antes desta task. Este Step dizia `279` (= 268 + 11), herdado da baseline pré-passe-de-primitivas; a baseline correta é **272**, medida no passe curto de primitivas (`.superpowers/sdd/fase1d-passe-primitivas-report.md`).
+
+**Corrigido no fix pass da review da Task 8, MEDIDO** (`.superpowers/sdd/fase1d-task-8-fix-report.md`):
+a review achou 1 Critical (C1), 3 Important (I1, I2, I3) e 6 Minor (m1–m6). O fix pass fechou C1,
+I1, I2, I3, m1, m2, m3, M4, M7 e M10 (m4, m5, m6 ficaram fora por decisão do usuário — pedem
+desenho, não conserto, e vão para a Task 9/review de branch). **Delta real do fix pass: `+7`**, não
+o `+9` que a previsão do brief tinha ("PREVISÃO, não medição" — o próprio brief avisava). A
+composição medida: C1 (3, um teste por tela) + I2 (1) + I3 (2, um por tela gêmea) + M10 (1) = 7. M7
+e m3 caíram para **dentro** de casos já existentes (uma asserção a mais, não um `it(` novo) —
+exatamente o cenário que o brief previa como possível ("o M7 e o m3 podem caber em casos
+existentes, e aí o delta cai"). M4, m1 e m2 são redesenho de mock e correção de comentário, sem
+teste novo (delta 0), como o brief também previa. **Suíte final: `Tests  290 passed (290)`** (283 +
+7) · build limpo · lint só com o warning alheio.
 
 **Se o número divergir, reporte o número real e a composição** — não ajuste o plano; a contagem exata depende de quantos testes antigos você fundiu ou dividiu.
 
@@ -4630,13 +4724,13 @@ Expected: **`Tests  283 passed (283)`** (272 + 4 na Setores + 4 na Materiais + 3
 | M1 | `SetoresPage.tsx` — trocar `mensagemDeErro(e, …)` por só o fallback no `catch` de `alternarAtivo` | ≥ 1 |
 | M2 | `SetoresPage.tsx` — trocar `podeEscrever &&` por `true &&` no formulário | ≥ 1 |
 | M3 | `SetoresPage.tsx` — remover `setEnviando(true)` | ≥ 1 |
-| M4 | `SetoresPage.tsx` — remover o `finally { setEnviando(false) }` | ≥ 1 (o botão nunca voltaria) |
-| M5 | `SetoresPage.tsx` — trocar `setores.length === 0` por `false` | ≥ 1 |
+| M4 | `SetoresPage.tsx` — remover o `finally { setEnviando(false) }` | ≥ 1 (o botão nunca voltaria) — **na entrega original SOBREVIVIA** (0 mortes): o mock "pendurado para sempre" também pendurava a 3ª chamada e o teste terminava antes de observar a reabilitação. **MEDIDO no fix pass da review, morre depois do mock redesenhado** (Step 3/7): `SetoresPage.test.tsx` → `desabilita o botão enquanto o cadastro está em voo, e reabilita depois`; `MateriaisPage.test.tsx`, mesmo nome. |
+| M5 | `SetoresPage.tsx` — trocar `erro === null && setores.length === 0` por `false` | ≥ 1 (a condição mudou no fix pass do C1; a mutação continua matando pelo mesmo teste de estado vazio) |
 | M6 | `MateriaisPage.tsx` — trocar `podeEscrever` de `'materiais'` por `'componentes'` | ≥ 1 (o PCP ganharia formulário que o backend recusa) |
-| M7 | `MateriaisPage.tsx` — trocar `{m.unidadeMedida}` da pílula por `{m.tipo}` (campo inexistente) | ≥ 1 |
+| M7 | `MateriaisPage.tsx` — trocar `{m.unidadeMedida}` da pílula por `{m.tipo}` (campo inexistente) | ≥ 1 — **na entrega original SOBREVIVIA** (0 mortes): nenhuma asserção da suíte olhava o texto da unidade. **MEDIDO no fix pass da review**: morre em `mostra os materiais que a API devolveu` (asserção de `'KG'` acrescentada). |
 | M8 | `PedidosPage.tsx` — trocar `tomDoStatus` para devolver `'positivo'` sempre | ≥ 1 (só morre se o teste de "status como pílula" do Step 9 asserir o tom/classe da `Pilula`, não só o texto — corrigido no pré-flight) |
-| M9 | `PedidosPage.tsx` — trocar `usePodeEscrever('pedidos')` por `('setores')` | ≥ 1 |
-| M10 | `PedidosPage.tsx` — remover `setErro(null)` do sucesso de `carregar` | ≥ 1 |
+| M9 | `PedidosPage.tsx` — trocar `usePodeEscrever('pedidos')` por `('setores')` | ≥ 1 — **na entrega original morria pelo teste ERRADO**: só o de CRUD (`limpa o formulário e recarrega a lista depois de abrir um pedido`), por carona; o teste cujo nome é sobre permissão (`Operador`) passava sob a mutação (achado I2, não escreve nem `pedidos` nem `setores`). **MEDIDO no fix pass**: com `mostra o formulário para quem pode escrever pedidos mas não setores` (`PCP`) acrescentado, morre no teste certo. |
+| M10 | `PedidosPage.tsx` — remover `setErro(null)` do sucesso de `carregar` | ≥ 1 na entrega original (**0 mortes** — não havia teste algum cobrindo). **MEDIDO no fix pass, depois de acrescentar o teste equivalente ao I1 da 1B**: continua **SOBREVIVENDO** (0 mortes) — mutante equivalente NESTA tela. `salvar` já chama `setErro(null)` no início de si mesma antes de chamar `carregar()`, e o único outro disparo de `carregar()` é o efeito de montagem (onde `erro` nasce `null`); não existe caminho em que o `setErro(null)` de dentro de `carregar` seja observável. Diferente de `Setores`/`Materiais`, que têm o checkbox "Mostrar inativos" disparando uma `carregar` independente de `salvar`. Argumentado abrindo a implementação, não pela semântica do nome — ver `.superpowers/sdd/fase1d-task-8-fix-report.md`. |
 
 - [ ] **Step 12: Commit (único da task — ver Step 5)**
 
@@ -4646,6 +4740,16 @@ git commit -m "feat(web): retrofit de SetoresPage, MateriaisPage e PedidosPage c
 ```
 
 **Definition of done da Task 8:** as três telas sem nenhuma classe antiga (`max-w-md`, `border rounded px-3 py-2`, `text-gray-*`, `text-red-600`); as 10 mutações medidas com ≥ 1 morte; suíte, build e lint verdes.
+
+**Nota honesta, corrigida no fix pass da review (regra em vigor desde 2026-08-10 — task que fecha
+com achado corrige a DoD que a causou, na mesma passada):** na entrega original, **3 das 10
+mutações tinham 0 mortes** (M4, M7, M10) e a M9 morria pelo teste errado (I2) — a DoD "as 10
+mutações medidas com ≥ 1 morte" não estava cumprida como escrita, só como intenção. Depois do fix
+pass: **M4, M7 e a versão certa de M9 passam a morrer no lugar certo**; **M10 continua com 0
+mortes, mas agora por mutante equivalente medido e argumentado** (não por falta de teste) — ver a
+nota na tabela do Step 11 e o relatório do fix pass. A DoD real desta task, portanto, é "9 das 10
+mutações com ≥ 1 morte, e a 10ª (M10) documentada como equivalente" — não "as 10 com ≥ 1 morte"
+como o texto original afirmava.
 
 ---
 
