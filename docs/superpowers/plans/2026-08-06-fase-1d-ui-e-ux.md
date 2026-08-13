@@ -43,9 +43,13 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | 7 (fix pass) | **+9** | **268 — MEDIDO** (259 + 9 dos achados da review — I3, I2, I4, m5, m6, m7 × 2, ver `.superpowers/sdd/fase1d-task-7-fix-report.md`) |
   | passe de primitivas (pré-Task 8) | **+4** | **272 — MEDIDO** (268 + 4 — caminho C do usuário: fechar defeitos de `Pagina`/`Botao`/`Campo`/`EstadoVazio` antes da Task 8 consumi-los; ver `.superpowers/sdd/fase1d-passe-primitivas-report.md`) |
   | 8 | **+11** na entrega | **283 — MEDIDO** (272 + 11) |
-  | 8 (fix pass) | **+7** | **290 — MEDIDO** (283 + 7 dos achados da review — C1 ×3, I2, I3 ×2, M10; ver `.superpowers/sdd/fase1d-task-8-fix-report.md`). **290 é a baseline da Task 9.** |
+  | 8 (fix pass) | **+7** | **290 — MEDIDO** (283 + 7 dos achados da review — C1 ×3, I2, I3 ×2, M10; ver `.superpowers/sdd/fase1d-task-8-fix-report.md`). **290 é a baseline da Task 9A**, e foi RE-MEDIDA em 2026-08-13 (`Tests 290 passed (290)` / 26 arquivos). |
+  | **9A** (re-layout) | **+5, −0** (3 `it(` do Step 3 + a sonda do `EstadoVazio` da decisão U1 + o teste de `perfil = 'PCP'` que fecha a M9) | **295 — DERIVADO** (290 + 5). É **só soma**: MEDIDO no pré-flight de 2026-08-13, os 34 testes da tela fecham **34/34 verdes só com adaptação** — **nenhuma remoção é necessária**, aqui ou na 9B. |
+  | **9B** (adoção do hook) | **−8, +3** (saem os 7 da decisão U3 mais o `ComponentesPage.test.tsx:554` da decisão U2; entram o teste da guarda do `catch` em `useBuscaPaginada.test.tsx`, o do debounce na tela e o da sobrevivência do erro de escrita à recarga) | **290 — DERIVADO** (295 − 8 + 3). **A única task desta fase que subtrai.** ⚠️ **O total volta a ser 290 — o MESMO número da baseline da 9A.** Quem rodar `npm test` sem a 9A aplicada vê `290 passed` e não tem como distinguir isso de sucesso, que é exatamente a armadilha do `200` da Task 6. **A prova real é o par por arquivo: `ComponentesPage.test.tsx` = 33 e `useBuscaPaginada.test.tsx` = 19.** |
 
-  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. Depois do passe curto de primitivas (**+4**, fechando em **272**), a **Task 8 fechou em `283` (272 + 11), medido**; o fix pass dos achados da review dela (2026-08-12) acrescentou **+7** — não os `+9` que o brief do fix pass previa (a própria previsão já avisava "não medição"; M7 e m3 couberam dentro de casos existentes em vez de virarem `it(` novos) —, fechando em **290**, que passa a ser a baseline da Task 9. Se você for implementar a Task 9, **conte os `it(` do seu próprio Step de teste antes de confiar em qualquer delta deste plano**.)*
+  **A Task 9 foi PARTIDA em 9A e 9B em 2026-08-13, por decisão do usuário** sobre a recomendação medida do pré-flight (`.superpowers/sdd/fase1d-task-9-preflight.md`; a reescrita está em `.superpowers/sdd/fase1d-task-9-split-report.md`). A linha única que estava aqui dizia "entre 284 e 294, X ainda NÃO decidido" e vinha com a instrução de **não propagar nenhum extremo**: essa instrução perdeu o motivo — o X foi decidido (U3, X = 7, mais o `:554` da U2 = 8 saídas, todas na 9B) e cada uma das duas tasks tem agora um delta próprio e vinculante. **As Tasks 10, 11 e 12 não são afetadas:** os Steps 1 delas medem baseline **por arquivo** (`PedidoDetalhePage` 4, `HomePage` 3, `LoginPage` 5), não o total da suíte — conferido em 2026-08-13.
+
+  *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. Depois do passe curto de primitivas (**+4**, fechando em **272**), a **Task 8 fechou em `283` (272 + 11), medido**; o fix pass dos achados da review dela (2026-08-12) acrescentou **+7** — não os `+9` que o brief do fix pass previa (a própria previsão já avisava "não medição"; M7 e m3 couberam dentro de casos existentes em vez de virarem `it(` novos) —, fechando em **290**, que passa a ser a baseline da Task 9A. **A Task 9 virou 9A + 9B em 2026-08-13** e as duas contagens foram derivadas do zero, teste a teste, no relatório da partida — não herdadas do `X` da task unificada. Se você for implementar qualquer uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar em qualquer delta deste plano**, e lembre que `it.each` conta **casos**, não blocos.)*
 
   **Esta nota já foi corrigida TRÊS vezes** — nasceu em 2026-08-07 dizendo "+3" (quando a Task 3 tinha alvo 139), virou "+4" quando a Task 3 mediu 140, e agora a Task 3 fechou em **144** depois de três fix passes, o que a deixaria "+8". **Essa recorrência é a demonstração do problema, não uma exceção a ele:** enquanto o vinculante for um total somado, cada task que soma em cima herda o erro da anterior, e três contagens erradas deste plano nasceram assim — uma delas quase travou uma task por alarme falso. Por isso a tabela acima dá **delta** como vinculante e marca o total como derivado.
 
@@ -62,7 +66,7 @@ Estão fechadas na spec ou foram decididas pelo usuário durante o planejamento.
 - **Sem biblioteca de componentes de terceiros.** Primitivas à mão sobre Tailwind v4.
 - **Sem tema escuro.** Fora de escopo declarado — dobraria os estados a provar em cada primitiva.
 - **Gating de perfil vai na AÇÃO, não no link** — decisão do usuário em 2026-08-06, e ela **diverge da letra da spec §6**. Motivo medido: os controllers liberam **leitura** para qualquer usuário autenticado; só escrita tem `Roles`. Esconder o link de Materiais do Almoxarifado tiraria dele uma leitura que ele pode (e vai precisar) fazer na Fase 4. Então: o link aparece para todos; o que some para quem não pode escrever é o **formulário de cadastro** e os **botões Inativar/Reativar/Excluir**. O `try/catch` do F2 **continua existindo** — o 403 do backend segue sendo a fronteira real de segurança, e o gating de UI não substitui nada.
-- **`useBuscaPaginada` nasce sem consumidor (Task 3) e é adotado na Task 9.** A spec §9 manda o hook entrar "antes do re-layout das telas"; construí-lo já acoplado à `ComponentesPage` obrigaria a reescrever `ComponentesPage.test.tsx` (987 linhas, 33 testes) **duas** vezes — uma pelo hook, outra pelo re-layout. Existir antes e ser adotado no re-layout satisfaz a ordem da spec com um terço do churn.
+- **`useBuscaPaginada` nasce sem consumidor (Task 3) e é adotado na Task 9B.** A spec §9 manda o hook entrar "antes do re-layout das telas"; construí-lo já acoplado à `ComponentesPage` obrigaria a reescrever `ComponentesPage.test.tsx` (987 linhas, 34 testes) **duas** vezes — uma pelo hook, outra pelo re-layout. Existir antes e ser adotado no re-layout satisfaz a ordem da spec com um terço do churn. **A partida da Task 9 em 9A (re-layout) + 9B (adoção do hook), em 2026-08-13, NÃO reabre essa decisão nem a contradiz:** MEDIDO no pré-flight, o re-layout sozinho fecha 34/34 sem tocar em paginação, e a 9B mexe em ~10 testes — reescrever uma vez e ajustar 10, não reescrever 987 linhas duas vezes.
 - **"Ficou bonito" não é critério de aceite.** Foi barrado de propósito. Os critérios verificáveis estão na spec §11 e viram passos de teste/grep neste plano.
 
 ### Valores fixos desta fase (copie exatamente)
@@ -134,7 +138,9 @@ Mapa do que a fase cria e modifica. Cada arquivo tem uma responsabilidade só.
 | `web/src/api/cadastros.ts` | Os `throw new Error(...)` viram `throw new ErroDeApi(status, ...)` | 2 |
 | `web/src/App.tsx` | As 6 rotas protegidas passam a ser filhas de uma rota de layout com `AppShell` | 7 |
 | `web/src/pages/SetoresPage.tsx` · `MateriaisPage.tsx` · `PedidosPage.tsx` | Retrofit: primitivas, estados, gating de ação | 8 |
-| `web/src/pages/ComponentesPage.tsx` | Re-layout + adoção do `useBuscaPaginada` | 9 |
+| `web/src/pages/ComponentesPage.tsx` | Re-layout com as primitivas (mantendo o estado local de busca/paginação) | 9A |
+| `web/src/pages/ComponentesPage.tsx` | Troca do motor: `useBuscaPaginada` + `ControlesDePaginacao` | 9B |
+| `web/src/hooks/useBuscaPaginada.test.tsx` | Ganha o teste da guarda de sequência do `catch` (decisão U2) | 9B |
 | `web/src/pages/PedidoDetalhePage.tsx` | Re-layout + modal com as primitivas | 10 |
 | `web/src/pages/HomePage.tsx` | Muda de papel: cartões de contagem reais | 11 |
 | `web/src/pages/LoginPage.tsx` | Identidade aplicada | 12 |
@@ -980,7 +986,7 @@ git commit -m "feat(web): ErroDeApi com status e mensagens amigaveis de falha"
 
 **Interfaces:**
 - Consumes: nada.
-- Produces (a Task 9 é quem consome):
+- Produces (a **Task 9B** é quem consome — a 9A faz o re-layout ainda com o estado local da tela):
 
 ```ts
 export interface PaginaDeBusca<T> { itens: T[]; total: number }
@@ -1006,7 +1012,9 @@ export function useBuscaPaginada<T>(opcoes: OpcoesDeBuscaPaginada<T>): BuscaPagi
 
 **As quatro dívidas que ele fecha, e por que juntas:** debounce, cancelamento, clamp de página e reset de filtro são a **mesma** propriedade vista de quatro ângulos — *o que está na tela corresponde ao filtro que o usuário vê*. Resolver três e deixar uma produz a cobertura desigual que a spec §9 nomeia.
 
-**O hook nasce sem consumidor.** Decisão registrada nas Global Constraints: acoplá-lo à `ComponentesPage` aqui obrigaria a reescrever `ComponentesPage.test.tsx` (987 linhas, 33 testes) duas vezes — uma pelo hook, outra pelo re-layout da Task 9.
+**O hook nasce sem consumidor.** Decisão registrada nas Global Constraints: acoplá-lo à `ComponentesPage` aqui obrigaria a reescrever `ComponentesPage.test.tsx` (987 linhas, 34 testes) duas vezes — uma pelo hook, outra pelo re-layout. O consumidor chega na **Task 9B**; o re-layout é a **9A**, e ele não toca neste hook.
+
+**Esta suíte ganha um teste na Task 9B (decisão U2 do usuário, 2026-08-13):** a guarda de sequência do `catch` (`useBuscaPaginada.ts:106`) é a **única das três** que os testes deste arquivo **não** matam — MEDIDO no pré-flight: apagá-la deixa os 18 testes daqui verdes, e o único matador do projeto é `ComponentesPage.test.tsx:554`. Não é dívida desta task (o teste dela nasce junto com o consumidor, onde a corrida tem cenário), mas está registrado aqui para não se perder.
 
 - [ ] **Step 1: Confirmar a baseline**
 
@@ -4706,7 +4714,11 @@ Expected na entrega original: **`Tests  283 passed (283)`** (272 + 4 na Setores 
 **Corrigido no fix pass da review da Task 8, MEDIDO** (`.superpowers/sdd/fase1d-task-8-fix-report.md`):
 a review achou 1 Critical (C1), 3 Important (I1, I2, I3) e 6 Minor (m1–m6). O fix pass fechou C1,
 I1, I2, I3, m1, m2, m3, M4, M7 e M10 (m4, m5, m6 ficaram fora por decisão do usuário — pedem
-desenho, não conserto, e vão para a Task 9/review de branch). **Delta real do fix pass: `+7`**, não
+desenho, não conserto, e vão para a Task 9/review de branch — **e o pré-flight de 2026-08-13 MEDIU
+que "Task 9" é dono errado do m6**: o único `after:inset-0` do projeto está em `PedidosPage.tsx:131`
+num `ItemDeCadastro` **sem** `acao`, e nenhuma task desta fase, nem a 9A, nem a 9B, nem a 10, combina
+overlay e ação; reatribuir é decisão do usuário, ver `.superpowers/sdd/fase1d-task-9-preflight.md`
+§7.3). **Delta real do fix pass: `+7`**, não
 o `+9` que a previsão do brief tinha ("PREVISÃO, não medição" — o próprio brief avisava). A
 composição medida: C1 (3, um teste por tela) + I2 (1) + I3 (2, um por tela gêmea) + M10 (1) = 7. M7
 e m3 caíram para **dentro** de casos já existentes (uma asserção a mais, não um `it(` novo) —
@@ -4753,45 +4765,82 @@ como o texto original afirmava.
 
 ---
 
-### Task 9: Re-layout da `ComponentesPage` e adoção do `useBuscaPaginada`
+### Task 9A: Re-layout da `ComponentesPage`
 
 **Files:**
 - Modify: `web/src/pages/ComponentesPage.tsx` (227 linhas hoje)
-- Modify: `web/src/pages/ComponentesPage.test.tsx` (**987 linhas, 33 testes** — a maior reescrita da fase)
+- Modify: `web/src/pages/ComponentesPage.test.tsx` (**987 linhas, 34 testes** — a maior suíte de tela da fase)
 
 **Interfaces:**
-- Consumes: `useBuscaPaginada` (Task 3), `mensagemDeErro` (Task 2), todas as primitivas (Tasks 5–6), `usePodeEscrever` (Task 7).
+- Consumes: `mensagemDeErro` (Task 2); `Pagina`, `Botao`, `Campo`/`CLASSES_DE_CONTROLE`, `BannerDeErro` (Task 5); `ListaDeCadastro`/`ItemDeCadastro`, `Pilula`, `EstadoVazio` (Task 6); `usePodeEscrever` (Task 7).
 - Produces: nada.
+- **NÃO consome `useBuscaPaginada` (Task 3) nem `ControlesDePaginacao` (Task 6).** Os dois entram na **Task 9B**. A tela continua com o estado local de hoje (`busca`, `pagina`, `tamanho`, `incluirInativos`, `sequenciaRef`, `carregar`, os três `mudar*`, `totalDePaginas`) e com o bloco de paginação escrito à mão — só que vestido com as primitivas.
 
-**A tela que a spec §7 marca como re-layout obrigatório:** busca + filtro + seletor de tamanho + paginação **não cabem em 448px**. É também a única com busca, e por isso a única consumidora do hook nesta fase.
-
-> **Colisão registrada, não corrigida, pelo passe curto de primitivas pré-Task 8 (P9 do brief
-> `.superpowers/sdd/fase1d-passe-primitivas-brief.md`) — é desta task, não daquela.**
+> **Por que 9A e 9B são duas tasks, e não uma (decisão do usuário em 2026-08-13, sobre a
+> recomendação medida do pré-flight — `.superpowers/sdd/fase1d-task-9-preflight.md`).**
 >
-> `web/src/components/ControlesDePaginacao.tsx:19` faz `if (totalDePaginas <= 1) return null` —
-> com uma página só, o componente não renderiza nada. `web/src/pages/ComponentesPage.test.tsx:132-141`
-> (`desabilita Anterior na primeira pagina e Proxima na ultima`) afirma o **oposto**: com `total: 1`
-> ela busca o botão "Anterior" via `getByRole` e espera `disabled === true` — um botão que, pelo
-> desenho atual de `ControlesDePaginacao`, não existe no DOM nesse cenário.
->
-> Quem adotar `ControlesDePaginacao` nesta task vai encontrar esse teste verde hoje e vermelho
-> assim que a tela passar a usar a primitiva de verdade — não é regressão desta task, é uma
-> decisão de desenho tomada duas tasks antes (Task 6) que o teste da tela nunca acompanhou. Ajuste
-> `ComponentesPage.test.tsx:132-141` para o comportamento real de `ControlesDePaginacao` (nenhum
-> botão — nenhuma paginação — quando há só uma página) como parte desta task; não é algo a
-> "descobrir do zero" na hora.
+> 1. **São duas mudanças independentes, com testes independentes.** MEDIDO: das cinco classes de
+>    adaptação da suíte da tela, **quatro vêm do re-layout** ((a) harness, (b) seletores,
+>    (d) mensagens, (e) markup do item) e **só a paginação (b′) vem da adoção do hook**. As 6
+>    quebras de mensagem e a do texto riscado não têm nada com o `useBuscaPaginada`.
+> 2. **A conta deixa de ser subtração e soma ao mesmo tempo.** A 9A é **só soma** (nenhum dos 34
+>    sai); a **9B é a única task desta fase que subtrai**. Foi a mistura das duas direções que
+>    impediu a Task 9 unificada de ter um número único — o defeito D3 do pré-flight.
+> 3. **As lacunas de mutação caem em lados diferentes.** M9 (gating de perfil) e M6 (estado vazio)
+>    são do re-layout → 9A. Debounce e seletor de tamanho são da adoção do hook → 9B. Juntas, uma
+>    task fecharia com quatro buracos de proveniência misturada.
+> 4. **Custo honesto, MEDIDO:** a `ComponentesPage.tsx` é tocada duas vezes e a suíte é adaptada
+>    duas vezes — a segunda só nos de paginação e nos que mudam de dono, ~10 testes. Não é a
+>    "reescrita dupla" que as Global Constraints usaram para justificar o hook nascer sem
+>    consumidor (aquilo era reescrever 987 linhas duas vezes).
 
-**Esta task apaga cerca de 60 linhas de lógica da tela** — a guarda de sequência (`sequenciaRef`), os três `mudar*` com `setPagina(1)`, o `carregar` com quatro parâmetros e o cálculo de `totalDePaginas` **vivem no hook agora**. Apagar sem substituir é o risco: confira que cada propriedade continua provada, ou pela suíte do hook, ou pela da tela.
+**A tela que a spec §7 marca como re-layout obrigatório:** busca + filtro + seletor de tamanho + paginação **não cabem em 448px**. Esta task resolve a largura, as primitivas, as mensagens e o gating; a 9B troca o motor de busca por baixo.
 
-**Aviso sobre a suíte de tela:** os 33 testes de hoje foram escritos contra o comportamento **sem debounce**. Vários assertam "digitou 3 letras → 3 requisições" ou olham `fetchMock.mock.calls[n]` contando chamadas. **Eles vão quebrar, e a quebra é correta.** O que **não** vale é apagar teste para a suíte fechar: cada um que sair tem de sair porque a propriedade dele mudou de dono (foi para `useBuscaPaginada.test.tsx`) ou porque o comportamento mudou de propósito. **Liste no relatório, um a um, os testes removidos e o motivo.**
+**Aviso sobre a suíte de tela — CORRIGIDO pelo pré-flight de 2026-08-12, o texto original estava factualmente errado:** os 34 testes de hoje foram escritos contra o comportamento **sem debounce**, mas **nenhum deles quebra por causa do debounce** — e, de todo modo, **o debounce não entra nesta task**, entra na 9B. MEDIDO (ver `.superpowers/sdd/fase1d-task-9-preflight.md`): **zero** testes deste arquivo digitam três letras, e **zero** assertam uma contagem de requisições por tecla — os três `toHaveBeenCalledTimes` existentes (`:518/:523`, `:569/:574`, `:611/:617` — números **corrigidos** na continuação de 2026-08-13: os `:527/:532`, `:578/:583`, `:620/:626` que este parágrafo trazia antes eram as linhas da árvore de trabalho descartável da primeira passada, com o harness já inserido, e não batiam com o arquivo em disco) contam 1 e 2 depois de **uma** mudança de campo.
+
+**As classes de adaptação desta task são QUATRO — (a) harness, (b) seletores, (d) mensagens, (e) markup do item (MEDIDO na continuação de 2026-08-13).** Aplicando **exatamente** o que o Step 3(a)+(b) manda — harness e a tabela de seletores, nada mais — a suíte fecha em **9 vermelhos | 25 verdes**; **sete** desses nove são desta task, e os outros dois são da 9B (paginação). Os sete:
+
+| # | Teste | Por quê | Classe |
+|---|---|---|---|
+| 1 | `mostra mensagem de erro quando reativar falha` (`:360`) | PATCH 403 → `mensagemDeErro` devolve **"Seu perfil não tem permissão para esta ação."** | **(d) mensagens** |
+| 2 | `mostra mensagem de erro quando alternar o ativo falha` (`:725`) | idem, PATCH 403 | **(d) mensagens** |
+| 3 | `limpa uma mensagem de erro anterior quando alternar o ativo tem sucesso depois de uma falha` (`:831`) | idem, PATCH 403 | **(d) mensagens** |
+| 4 | `cadastro com sucesso limpa uma mensagem de erro anterior de outra acao` (`:862`) | idem, PATCH 403 | **(d) mensagens** |
+| 5 | `mostra mensagem de erro quando salvar falha com um erro que nao e conflito` (`:396`) | POST 500 → **"O servidor não respondeu como esperado. Tente de novo em instantes."** | **(d) mensagens** |
+| 6 | `mostra mensagem de erro quando a carga da lista falha` (`:742`) | GET 500 → mesma mensagem de 500 | **(d) mensagens** |
+| 7 | `exibe um componente inativo com o botao Reativar e o texto riscado` (`:753`) | `getByText('INA-001').closest('span')` passa a devolver o `<span className="font-mono font-semibold">` do código; o `line-through` é do **avô** (`ItemDeCadastro`). Falha MEDIDA: *expected 'font-mono font-semibold' to contain 'line-through'* | **(e) markup do item** |
+
+**Atenção:** os DOIS testes que mantêm a mensagem antiga são os que rejeitam com `new Error('rede caiu')` (`:554` e `:930`) — `Error` puro não é `ErroDeApi` nem `TypeError`, então `mensagemDeErro` cai no *fallback*, que é a frase de hoje. Não os troque junto com os outros.
+
+**Os dois de paginação (`:132` e `:772`) NÃO quebram nesta task — DERIVADO, não medido isoladamente:** eles quebram por causa do `if (totalDePaginas <= 1) return null` de `ControlesDePaginacao`, e a 9A não adota a primitiva; o bloco de paginação à mão continua renderizando "Anterior", "Próxima" e "Página 1 de 1 — 0 no total" com uma página só, como hoje. **Confirme rodando** — se algum deles ficar vermelho aqui, você adotou `ControlesDePaginacao` sem querer, e isso é escopo da 9B.
+
+**NENHUM dos 34 sai nesta task, e nenhum precisa sair.** MEDIDO: com as cinco classes de adaptação aplicadas a suíte fecha **34/34 verde**. **Toda remoção nesta fase é de-duplicação voluntária, não necessidade** — e as remoções decididas pelo usuário (U3) são todas de propriedade que vive no `useBuscaPaginada`, portanto **todas da 9B**. Não apague teste aqui para fechar conta nenhuma.
 
 - [ ] **Step 1: Confirmar a baseline e inventariar a suíte que vai mudar**
 
 ```bash
-cd web && npm test -- ComponentesPage
+cd web && npm test -- ComponentesPage && npm test
 ```
 
-Expected: `Tests  33 passed (33)`.
+Expected: `Tests  34 passed (34)` no arquivo — **34, não 33** (o plano dizia 33 em seis lugares; corrigido no pré-flight de 2026-08-12, MEDIDO por `npm test -- ComponentesPage` e por `grep -c "^\s*it(" src/pages/ComponentesPage.test.tsx`). Suíte inteira: **`Tests  290 passed (290)` / 26 arquivos — MEDIDA em 2026-08-13**, nesta branch, com a árvore de `web/` limpa.
+
+**A conta desta task, com a composição aberta:**
+
+```
+290 (baseline MEDIDA)  −  0 removidos  +  5 novos  =  295 (DERIVADO)
+```
+
+Os 5 novos, um a um — **conte-os no seu próprio Step 3, não confie neste número**:
+
+| # | Teste novo | Onde | Por quê |
+|---|---|---|---|
+| 1 | `manda o formulário inteiro no POST, com o tipo escolhido` | Step 3 | C1 da review da Task 6 encenado; matador da M1/M2 |
+| 2 | `distingue "nada corresponde à busca" de "catálogo vazio"` | Step 3 | único matador da M6 (MEDIDO: contra os 34 adaptados sozinhos, M6 mata **0**) |
+| 3 | `esconde formulário e ação de inativar para quem não pode escrever` | Step 3 | gating de perfil (F2 / spec §6) |
+| 4 | `não afirma "nenhum componente cadastrado" quando a carga da lista falhou` | Step 3 | **decisão U1** — a sonda que prova que o banner de erro e o estado vazio não aparecem juntos |
+| 5 | `mostra o formulário para o perfil PCP…` | Step 3 | **fecha a M9**, que o pré-flight mediu com **0 mortes** |
+
+**Nenhum `it.each` nesta task** (conferido: os dois `it.each` do repositório estão em `permissoesEspelhamOBackend.test.ts:49` e `tema/contraste.test.ts:103`) — se você introduzir um, lembre que **o vitest conta CASOS, não blocos**: um `it.each` de 5 linhas é +5, não +1. Contar bloco em vez de caso é como o `≈187` da Task 5 e as quatro baselines da Task 6 nasceram.
 
 Liste os nomes antes de mexer — é este inventário que o relatório vai comparar no fim:
 
@@ -4799,9 +4848,550 @@ Liste os nomes antes de mexer — é este inventário que o relatório vai compa
 cd web && grep -n "^\s*it(" src/pages/ComponentesPage.test.tsx
 ```
 
-- [ ] **Step 2: Reescrever a `ComponentesPage`**
+- [ ] **Step 2: Re-layout da `ComponentesPage`**
 
-`web/src/pages/ComponentesPage.tsx`:
+**Este Step NÃO é medido** — ao contrário do bloco da 9B, que o pré-flight instalou e compilou. É a
+tela de hoje com as primitivas por cima; escreva-o conferindo cada assinatura no disco.
+
+**O que NÃO muda (mantenha byte a byte, linhas 17–123 de `ComponentesPage.tsx`):** todo o estado
+(`componentes`, `total`, `busca`, `pagina`, `tamanho`, `incluirInativos`, `idReativavel`,
+`carregando`), o `sequenciaRef` **com o comentário dele inteiro**, o `totalDePaginas`, o `carregar`
+de quatro parâmetros, o `useEffect`, os três `mudar*` com `setPagina(1)`, e o corpo de `salvar`,
+`alternarAtivo` e `reativar`. **A Task 9B é quem apaga isso** — apagar aqui é sair de escopo e
+deixar a tela sem busca.
+
+**O que muda, e só isto:**
+
+1. **Imports.** Entram `mensagemDeErro` (`../api/erros`), `usePodeEscrever` (`../auth/usePermissao`)
+   e as sete primitivas. **Sai** `import { Link } from 'react-router-dom'` — o `← Início` do topo
+   some, porque o caminho de volta é o shell da Task 7. É o que a Task 8 fez nas três telas dela.
+2. **`const podeEscrever = usePodeEscrever('componentes')`.**
+3. **`const [enviando, setEnviando] = useState(false)`**, com `setEnviando(true)` no começo de
+   `salvar` e `finally { setEnviando(false) }` — é o que alimenta o `carregando` do `Botao`. Mesmo
+   padrão de `SetoresPage.tsx:21` e `:105`.
+4. **Os quatro `catch` passam a usar `mensagemDeErro`** (é isto que quebra os 6 testes de mensagem,
+   e a quebra é correta). O `catch` de `carregar` precisa passar a capturar: `catch (e) {` … `if
+   (minhaSequencia !== sequenciaRef.current) return; setErro(mensagemDeErro(e, 'Não foi possível
+   carregar os componentes.')) }`. As frases de *fallback* são as de hoje, uma a uma.
+5. **O `return` inteiro**, abaixo.
+
+```tsx
+  const buscando = busca.trim() !== ''
+
+  return (
+    <Pagina titulo="Componentes">
+      {podeEscrever && (
+        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo rotulo="Código">
+              {(id) => (
+                <input
+                  id={id}
+                  value={form.codigo}
+                  onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                  required
+                  className={`${CLASSES_DE_CONTROLE} font-mono`}
+                />
+              )}
+            </Campo>
+            {/* Lista fechada (CK_Componente_Tipo): select, não input livre. */}
+            <Campo rotulo="Tipo">
+              {(id) => (
+                <select
+                  id={id}
+                  value={form.tipo}
+                  onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoDeComponente })}
+                  className={CLASSES_DE_CONTROLE}
+                >
+                  {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              )}
+            </Campo>
+          </div>
+          <Campo rotulo="Descrição">
+            {(id) => (
+              <input
+                id={id}
+                value={form.descricao}
+                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                required
+                className={CLASSES_DE_CONTROLE}
+              />
+            )}
+          </Campo>
+          <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…" className="self-start">
+            Adicionar
+          </Botao>
+        </form>
+      )}
+
+      <BannerDeErro mensagem={erro} />
+
+      {idReativavel !== null && (
+        <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
+          Reativar o existente
+        </Botao>
+      )}
+
+      {/*
+        A barra de filtros é o que não cabia em 448px (spec §7). Em `max-w-3xl` os três controles
+        cabem lado a lado a partir de `sm`, e empilham no celular sem rolagem horizontal.
+      */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <Campo rotulo="Buscar por código ou descrição">
+            {(id) => (
+              <input
+                id={id}
+                value={busca}
+                onChange={(e) => mudarBusca(e.target.value)}
+                className={CLASSES_DE_CONTROLE}
+              />
+            )}
+          </Campo>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-tinta-fraca sm:pb-2.5">
+          <input
+            type="checkbox"
+            checked={incluirInativos}
+            onChange={(e) => mudarInativos(e.target.checked)}
+            className="size-4 accent-acao"
+          />
+          Mostrar inativos
+        </label>
+        <Campo rotulo="Por página">
+          {(id) => (
+            <select
+              id={id}
+              value={tamanho}
+              onChange={(e) => mudarTamanho(Number(e.target.value))}
+              className={CLASSES_DE_CONTROLE}
+            >
+              {TAMANHOS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+        </Campo>
+      </div>
+
+      {carregando ? (
+        <p className="text-tinta-fraca">Carregando…</p>
+      ) : erro === null && componentes.length === 0 ? (
+        // DECISÃO U1 (usuário, 2026-08-13). `erro === null &&` NÃO é enfeite: no `catch` de
+        // `carregar`, `setComponentes` nunca é chamado, então a lista fica `[]` e `.length === 0`
+        // sozinho também é verdade numa falha de rede — mostrando este estado vazio JUNTO do
+        // banner, e afirmando "não há componentes" a partir de uma falha de conexão. É a MESMA
+        // forma do Critical que o fix pass da Task 8 pagou; `SetoresPage.tsx:129` diz o mesmo.
+        // Os três vazios que a spec §9 manda distinguir: busca sem resultado, catálogo vazio e —
+        // acima, no banner — erro de rede. Antes os três renderizavam a mesma lista muda.
+        <EstadoVazio
+          titulo={buscando ? 'Nenhum componente encontrado' : 'Nenhum componente cadastrado'}
+          descricao={
+            buscando
+              ? `Nada corresponde a "${busca}".`
+              : podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined
+          }
+        />
+      ) : (
+        <ListaDeCadastro>
+          {componentes.map((c) => (
+            <ItemDeCadastro
+              key={c.id}
+              ativo={c.ativo}
+              acao={podeEscrever && (
+                <Botao variante="secundario" onClick={() => alternarAtivo(c)}>
+                  {c.ativo ? 'Inativar' : 'Reativar'}
+                </Botao>
+              )}
+            >
+              <span className="font-mono font-semibold">{c.codigo}</span>
+              {' — '}
+              {c.descricao}
+              {' '}
+              <Pilula>{c.tipo}</Pilula>
+            </ItemDeCadastro>
+          ))}
+        </ListaDeCadastro>
+      )}
+
+      {/* PROVISÓRIO — a Task 9B troca este bloco inteiro por `<ControlesDePaginacao>`. Ele está
+          aqui, com as primitivas em vez das classes antigas, só porque a 9A não pode adotar a
+          primitiva de paginação sem adotar o hook junto (o `if (totalDePaginas <= 1) return null`
+          dela quebra dois testes desta suíte, e essa quebra é da 9B). NÃO acrescente o
+          `return null` de uma página só aqui: isso importaria a colisão da 9B para dentro da 9A. */}
+      <nav aria-label="Paginação" className="flex flex-wrap items-center justify-between gap-3">
+        <Botao variante="secundario" disabled={pagina <= 1} onClick={() => setPagina(pagina - 1)}>
+          Anterior
+        </Botao>
+        <span className="text-sm text-tinta-fraca">
+          Página {pagina} de {totalDePaginas} — {total} no total
+        </span>
+        <Botao variante="secundario" disabled={pagina >= totalDePaginas} onClick={() => setPagina(pagina + 1)}>
+          Próxima
+        </Botao>
+      </nav>
+    </Pagina>
+  )
+```
+
+- [ ] **Step 3: Adaptar a suíte da tela e acrescentar os cinco testes**
+
+Trabalhe **em cima** do arquivo existente, não do zero. Quatro classes de mudança — (a) harness, (b) seletores, (d) mensagens, (e) markup do item. **A classe (c), "mudou de dono", NÃO existe nesta task**: ela pressupõe o `useBuscaPaginada`, e é a 9B inteira.
+
+**(a) Harness.** Acrescente no topo, como nas outras telas:
+
+```tsx
+import { respostaJson, fetchPorRota } from '../testes/api'
+
+let perfil = 'Administrador'
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({
+    estado: { status: 'autenticado', usuario: { id: 1, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+    login: async () => {},
+    logout: async () => {},
+  }),
+}))
+```
+
+> **⚠️ DEFEITO MEDIDO no snippet acima (continuação do pré-flight, 2026-08-13): falta o reset de
+> `perfil` no `beforeEach`.** `web/src/pages/SetoresPage.test.tsx:24-27` — o harness que a Task 8
+> entregou e que este snippet copia — tem `beforeEach(() => { perfil = 'Administrador'; … })`, e
+> este não. Consequência MEDIDA: o `perfil = 'Operador'` do terceiro teste novo **vaza para todo
+> teste que rodar depois dele**, e o seguinte falha com *Unable to find a label with the text of:
+> Código* — o formulário não existe para Operador. Acrescente `perfil = 'Administrador'` na
+> primeira linha do `beforeEach` que já existe no arquivo. **Com dois testes de perfil nesta task
+> (Operador e PCP), esse reset deixou de ser higiene e virou pré-requisito.**
+
+**(b) Seletores.** Os campos deixam de ter `placeholder`:
+
+| Antes | Depois |
+|---|---|
+| `getByPlaceholderText('Código')` | `getByLabelText('Código')` |
+| `getByPlaceholderText('Descrição')` | `getByLabelText('Descrição')` |
+| `getByLabelText('Tipo')` | continua (já era `aria-label`, agora é `<label>`) |
+| `getByPlaceholderText('Buscar por código ou descrição')` | `getByLabelText('Buscar por código ou descrição')` |
+| `getByLabelText('Por página')` | continua (era `<label>` embrulhando o `select`, agora é `Campo`) |
+
+**(d) Mensagens.** Os 6 da tabela dos sete, acima: troque a frase esperada pela que `mensagemDeErro` devolve para o status daquele mock. **Não** troque `:554` nem `:930`.
+
+**(e) Markup do item.** `:753` — o `line-through` mudou de nó: é do `<span>` de `ItemDeCadastro`, não do `<span>` do código. Asserte no ancestral certo.
+
+**Acrescente os cinco testes.** Os três primeiros são os que a Task 9 unificada já previa; o quarto e o quinto vêm das decisões U1 e do fechamento da M9 (`≥ 1` morte é DoD, e a M9 hoje mata **zero**).
+
+```tsx
+it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
+  // C1 da review da Task 6: `criarComponente(form)` -> `criarComponente({...form, tipo: 'Bruto'})`
+  // matava ZERO. O usuário escolhia "Montagem" e o sistema gravava "Bruto", em silêncio — e `tipo`
+  // é justamente o campo que governa a Receita Padrão da 1C.
+  const fetchMock = fetchPorRota({
+    '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+  })
+  vi.stubGlobal('fetch', fetchMock)
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+  fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'CMP-1' } })
+  fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
+  fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
+  fireEvent.click(screen.getByText('Adicionar'))
+
+  const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === 'POST')!
+  expect((post[1] as RequestInit).body)
+    .toBe(JSON.stringify({ codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem' }))
+})
+
+it('distingue "nada corresponde à busca" de "catálogo vazio"', async () => {
+  // Sem timers falsos: nesta task a busca ainda dispara a requisição na tecla, sem debounce.
+  // A 9B reescreve este teste — ver o Step 3 dela.
+  vi.stubGlobal('fetch', fetchPorRota({
+    '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+  }))
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+  expect(await screen.findByText('Nenhum componente cadastrado')).toBeTruthy()
+
+  fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
+
+  expect(await screen.findByText('Nenhum componente encontrado')).toBeTruthy()
+  expect(screen.getByText('Nada corresponde a "XPTO".')).toBeTruthy()
+})
+
+it('esconde formulário e ação de inativar para quem não pode escrever', async () => {
+  perfil = 'Operador'
+  vi.stubGlobal('fetch', fetchPorRota({
+    '/api/componentes': () => respostaJson({
+      itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Bruto', ativo: true }],
+      total: 1, pagina: 1, tamanho: 20,
+    }),
+  }))
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+  expect(await screen.findByText('CMP-1')).toBeTruthy()
+  expect(screen.queryByLabelText('Código')).toBeNull()
+  expect(screen.queryByText('Inativar')).toBeNull()
+})
+
+it('não afirma "nenhum componente cadastrado" quando a carga da lista falhou', async () => {
+  // DECISÃO U1. A sonda que o pré-flight de 2026-08-13 rodou contra o bloco original do Step 2 (o
+  // que dizia só `itens.length === 0`): com o GET em 500, `queryByText('Nenhum componente
+  // cadastrado')` NÃO era nulo — a tela mostrava o banner de erro E o estado vazio ao mesmo tempo.
+  // É a mesma forma do Critical que o fix pass da Task 8 pagou. Sem este teste o conserto do
+  // Step 2 entra sem guarda, e a Task 8 já provou que essa forma volta.
+  vi.stubGlobal('fetch', fetchPorRota({
+    '/api/componentes': () => respostaJson({ erro: 'Falha' }, 500),
+  }))
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+  expect(await screen.findByRole('alert')).toBeTruthy()
+  expect(screen.queryByText('Nenhum componente cadastrado')).toBeNull()
+  expect(screen.queryByText('Nenhum componente encontrado')).toBeNull()
+})
+
+it('mostra o formulário para o perfil PCP, que escreve em componentes mas não em setores', async () => {
+  // MATADOR DA M9, e o único possível. MEDIDO no pré-flight: `permissoes.ts:19-23` dá
+  // `componentes: ['Administrador','PCP']` e `setores: ['Administrador']`; a suíte só usava
+  // `Administrador` (escreve nos dois) e `Operador` (não escreve em nenhum), e nenhum dos dois
+  // separa os recursos — por isso trocar `('componentes')` por `('setores')` matava ZERO.
+  perfil = 'PCP'
+  vi.stubGlobal('fetch', fetchPorRota({
+    '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+  }))
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+  expect(await screen.findByLabelText('Código')).toBeTruthy()
+})
+```
+
+- [ ] **Step 4: Rodar até ficar verde**
+
+```bash
+cd web && npm test -- ComponentesPage && npm test && npm run build && npm run lint
+```
+
+Expected: `Tests  39 passed (39)` no arquivo (34 adaptados + 5 novos) e **`Tests  295 passed (295)`** na suíte — **DERIVADO de `290 − 0 + 5`, não medido**. Se o total divergir e o delta `+5` estiver certo, **reporte o número real e siga**; se algum dos 34 tiver saído, você saiu do escopo desta task.
+
+**Verificação de tipo é `npm run build`** (`tsc -b && vite build`), não `tsc --noEmit`.
+
+- [ ] **Step 5: Medir as mutações**
+
+| # | Mutação em `ComponentesPage.tsx` | Mortes esperadas | Matador |
+|---|---|---|---|
+| M1 | `criarComponente(form)` → `criarComponente({ ...form, tipo: 'Bruto' })` | ≥ 1 — **é o C1 da 1B, encenado** | teste novo `manda o formulário inteiro no POST…` |
+| M2 | `criarComponente(form)` → trocar `codigo` por `descricao` no objeto | ≥ 1 (MEDIDO: 2 e 3) | idem + `cadastra com sucesso…` (`:435`); **nomeie o real ao medir** |
+| M3 | remover `setForm(FORMULARIO_VAZIO)` do ramo de sucesso | ≥ 1 (MEDIDO: 3) | **nomeie ao medir** |
+| M4 | remover `await carregar(busca, incluirInativos, pagina, tamanho)` do ramo de sucesso de `salvar` | ≥ 1 (MEDIDO: 2) | **nomeie ao medir** |
+| M6 | trocar `buscando` por `false` | ≥ 1 | **só** o teste novo `distingue "nada corresponde à busca"…` — MEDIDO: contra os 34 adaptados sozinhos são **0**. O teste novo é obrigatório, não opcional. |
+| M7 | trocar `resultado.existeInativo` por `!resultado.existeInativo` | ≥ 1 (MEDIDO: 10) | **nomeie ao medir** |
+| M8 | trocar `!componente.ativo` por `true` em `alternarAtivo` | ≥ 1 — **é o I7 da 1B**: o botão escrito "Inativar" num item já inativo | `Inativar manda ativo=false…` (`:186`) |
+| M9 | trocar `usePodeEscrever('componentes')` por `('setores')` | ≥ 1 | **só** o teste novo `mostra o formulário para o perfil PCP…` |
+| M11 | remover `setEnviando(false)` do `finally` | ≥ 1 (MEDIDO: 1) | **nomeie ao medir** |
+| M12 | **NOVA** — trocar `erro === null && componentes.length === 0` por `componentes.length === 0` | ≥ 1 | teste novo `não afirma "nenhum componente cadastrado"…` (guarda executável da decisão U1) |
+
+> **De onde vêm as "mortes esperadas" MEDIDAS acima:** o pré-flight de 2026-08-13 rodou as 11
+> mutações originais contra duas configurações da suíte — **(A)** os 34 adaptados + os 3 testes
+> novos = 37, e **(B)** o mesmo menos os 10 do Step 3(c) original = 27. Os números da coluna são os
+> de (A). **A configuração desta task (39 testes) é um superconjunto de (A)** — logo nenhuma
+> contagem pode cair. Se cair, você removeu teste; procure o quê.
+>
+> **Mutantes equivalentes, registrados e NÃO listados:** trocar `usePodeEscrever('componentes')`
+> por `('pedidos')` ou `('agrupamentos')` — as listas de perfis são **idênticas** às de
+> `componentes`, e nenhum perfil do sistema as separa (MEDIDO: `('pedidos')` dá 0 mortes). Não
+> tente matá-los; não há teste que possa. Só `('setores')` é distinguível, e é ele que a M9 usa.
+>
+> **M5 e M10 não estão aqui de propósito:** `erroDeEscrita ?? erroDeLeitura` e o
+> `<ControlesDePaginacao>` só existem depois da 9B, e é lá que eles são medidos.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add web/src/pages/ComponentesPage.tsx web/src/pages/ComponentesPage.test.tsx
+git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
+```
+
+**Definition of done da Task 9A:**
+
+- a tela **sem nenhuma classe antiga**: `grep -nE "max-w-md|border rounded px-|text-gray-|text-red-600" src/pages/ComponentesPage.tsx` = vazio;
+- `grep -c "useBuscaPaginada\|ControlesDePaginacao" src/pages/ComponentesPage.tsx` = **0** — o hook e a primitiva de paginação são da 9B;
+- `grep -c "sequenciaRef" src/pages/ComponentesPage.tsx` ≥ 1 — a guarda de sequência **continua na tela** nesta task; ela só muda de casa na 9B;
+- as **10 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador **nomeado** no relatório (nenhuma fica sem matador: a M9 e a M6, que o pré-flight mediu em 0, ganham teste próprio; os dois mutantes equivalentes ficam declarados fora da tabela);
+- a composição **`290 − 0 + 5 = 295`** reportada com os números reais medidos, e **zero** testes removidos — se você removeu algum, saiu do escopo;
+- suíte, `npm run build` e `npm run lint` verdes (o lint tem 1 warning alheio conhecido, `AuthContext.tsx:48`).
+
+---
+
+### Task 9B: Adoção do `useBuscaPaginada` na `ComponentesPage`
+
+**Files:**
+- Modify: `web/src/pages/ComponentesPage.tsx` (como a 9A a deixou)
+- Modify: `web/src/pages/ComponentesPage.test.tsx` (**39 testes**, como a 9A a deixou)
+- Modify: `web/src/hooks/useBuscaPaginada.test.tsx` (**18 testes hoje — MEDIDO**; ganha 1)
+
+**Interfaces:**
+- Consumes: `useBuscaPaginada` (Task 3), `ControlesDePaginacao` (Task 6) — as duas peças que a 9A deliberadamente não tocou; e tudo o que a 9A já consome.
+- Produces: nada.
+
+**Esta é a única task da fase que REMOVE teste, e a única que subtrai na conta.** Leia o parágrafo de composição do Step 1 antes de apagar a primeira linha.
+
+**Esta task apaga cerca de 60 linhas de lógica da tela** — a guarda de sequência (`sequenciaRef`), os três `mudar*` com `setPagina(1)`, o `carregar` com quatro parâmetros e o cálculo de `totalDePaginas` **vivem no hook agora**. Apagar sem substituir é o risco: confira que cada propriedade continua provada, ou pela suíte do hook, ou pela da tela. **Duas das três guardas de sequência estão provadas no hook; a terceira não está — Step 2 do teste, abaixo.**
+
+> **Colisão registrada, não corrigida, pelo passe curto de primitivas pré-Task 8 (P9 do brief
+> `.superpowers/sdd/fase1d-passe-primitivas-brief.md`) — é desta task.**
+>
+> `web/src/components/ControlesDePaginacao.tsx:19` faz `if (totalDePaginas <= 1) return null` —
+> com uma página só, o componente não renderiza nada.
+>
+> **São DOIS testes atingidos pela COLISÃO DA PAGINAÇÃO, não um** (varredura completa dos 34,
+> MEDIDA no pré-flight de 2026-08-12 e RE-MEDIDA na continuação de 2026-08-13, executando a suíte
+> de hoje contra a tela nova. Cuidado com o escopo desta frase: estes são os dois que restam
+> vermelhos **depois** de adaptar harness, seletores, mensagens e o seletor do riscado — e essas
+> quatro adaptações são todas da **Task 9A**, já feitas quando esta task começa):
+>
+> - `web/src/pages/ComponentesPage.test.tsx:132-141` — `desabilita Anterior na primeira pagina e
+>   Proxima na ultima`. Com `total: 1`/`tamanho: 20` → 1 página → `null`; ela busca "Anterior" via
+>   `getByRole` e espera `disabled === true`. Falha MEDIDA: *Unable to find an accessible element
+>   with the role "button" and name "Anterior"*.
+> - `web/src/pages/ComponentesPage.test.tsx:772-781` — `mostra Página 1 de 1 quando o total e zero`.
+>   Com `total: 0` → `useBuscaPaginada.ts:117` faz `Math.max(1, Math.ceil(0/20)) = 1` → `null`; o
+>   texto `Página 1 de 1 — 0 no total` nunca renderiza. Falha MEDIDA: *Unable to find an element
+>   with the text: Página 1 de 1 — 0 no total*.
+>
+> **E são só esses dois.** Os outros dois testes que tocam paginação sobrevivem porque têm mais de
+> uma página: `mostra o total e a contagem de paginas` (`:144`, total 41 → 3 páginas) e `Anterior
+> volta para a pagina anterior quando habilitado` (`:636`, total 100 → 5 páginas) — MEDIDOS verdes,
+> e os dois são matadores da M10. **Não os toque.**
+>
+> Não é regressão desta task: é uma decisão de desenho tomada na Task 6 que os testes da tela nunca
+> acompanharam. A propriedade "não aparece quando há uma página só" **já tem dono próprio**
+> (`ControlesDePaginacao.test.tsx:56`), e o `disabled` dos dois botões também (`:36` e `:46`,
+> MEDIDOS). **Decisão U3 do usuário, 2026-08-13:** `:772` **sai** (MUDA DE DONO — a prova já está em
+> `useBuscaPaginada.test.tsx:318` + `ControlesDePaginacao.test.tsx:56`), e `:132` **fica, adaptado**
+> ao comportamento real da primitiva (nenhum botão quando há só uma página).
+
+**O debounce entra aqui, e o custo de relógio é real.** MEDIDO no pré-flight: os seis testes que digitam na busca passam **sem timers falsos**, custando de 331 a 453 ms de relógio real cada (405 / 343 / 437 / 453 / 453 / 331 ms) em vez de ~20 ms, porque o `waitFor` tem timeout padrão de 1000 ms > 300 ms do debounce. **Cinco desses seis saem nesta task** (`:47`, `:75`, `:505`, `:554`, `:598`); sobra `:930`, que continua passando com relógio real. **Consequência a não perder, e é o D14 do pré-flight: nada prova que o debounce está LIGADO na tela** — MEDIDO, passar `atrasoDoDebounce: 0` deixava a suíte inteira verde, **0 mortes**. O Step 3 fecha isso com um teste.
+
+**Sobre `listarComponentes` (D11, imprecisão de texto do plano original):** a assinatura real é `(f: FiltroDeComponentes) => Promise<PaginaDe<ComponenteDto>>` (`cadastros.ts:233-256`), e a do hook é `(FiltroDeBusca) => Promise<PaginaDeBusca<T>>` — **dois pares de tipos nomeados diferentes, estruturalmente compatíveis**. Compila (MEDIDO, `npm run build` verde com o bloco do Step 2 instalado). Não é erro; está registrado porque "exatamente" é palavra que convida a não conferir.
+
+- [ ] **Step 1: Confirmar a baseline e fechar a conta ANTES de apagar**
+
+```bash
+cd web && npm test -- ComponentesPage && npm test -- useBuscaPaginada && npm test
+```
+
+Expected: **39** no arquivo da tela, **18** no do hook, e **295** na suíte.
+
+> **⚠️ A baseline desta task é DERIVADA, não MEDIDA.** `295 = 290 (medido em 2026-08-13) + 5 (delta
+> da 9A)`. A 9A ainda não rodou quando este texto foi escrito. Vale a regra operacional do topo do
+> plano: (a) meça no Step 1; (b) **se não bater com o total que a 9A reportou ao fechar, pare e
+> reporte** — divergência na baseline é sinal real; (c) se bater, o que vincula é o **delta**;
+> (d) se o delta estiver certo e o total divergir, reporte o número real e siga. **Nunca invente
+> nem apague teste para fechar conta.**
+
+**A conta desta task, com a composição aberta:**
+
+```
+295 (DERIVADO da 9A)  −  8 removidos  +  3 novos  =  290 (DERIVADO)
+```
+
+> **🚨 ARMADILHA DE MEDIÇÃO, e ela é séria: `290` é exatamente a baseline com que a Task 9A
+> começou.** Quem rodar `npm test` **antes** de escrever qualquer linha desta task, num checkout em
+> que a 9A não foi aplicada, vê `290 passed` e não tem como distinguir isso de sucesso. Foi
+> literalmente assim que a Task 6 quase passou com quatro baselines contraditórias (o `200` do Step
+> 7 dela era a baseline real do dia). **A prova de que você está no lugar certo não é o total: é o
+> par por arquivo — `ComponentesPage.test.tsx` fecha em 33 e `useBuscaPaginada.test.tsx` em 19.**
+> Reporte os dois.
+
+**Os 8 que saem — DECISÃO U3 do usuário (X = 7) mais o `:554` da decisão U2.** MEDIDO e vinculante: **nenhum deles precisa sair**; com adaptação, 34/34 ficam verdes. Toda saída aqui é **de-duplicação voluntária de prova que já tem dono medido em outro arquivo** — não apague nenhum outro para fechar conta:
+
+| # | Teste (linha no arquivo de HOJE) | Novo dono, MEDIDO | Mutação que prova o novo dono |
+|---|---|---|---|
+| 1 | `volta para a pagina 1 quando a busca muda` (`:47`) | `useBuscaPaginada.test.tsx:144` | tirar `setPagina(1)` do efeito de debounce → 1 morte |
+| 2 | `atualiza a URL de busca mesmo ja estando na pagina 1` (`:75`) | idem | idem |
+| 3 | `volta para a pagina 1 quando o tamanho da pagina muda` (`:92`) | `useBuscaPaginada.test.tsx:174` | tirar `setPagina(1)` de `mudarTamanho` → 1 morte |
+| 4 | `volta para a pagina 1 quando o filtro de inativos muda` (`:480`) | `useBuscaPaginada.test.tsx:159` | tirar `setPagina(1)` de `mudarInativos` → 1 morte |
+| 5 | `mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem` (`:505`) | `useBuscaPaginada.test.tsx:102` | tirar a guarda antes de `setItens` → **2** mortes |
+| 6 | `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` (`:598`) | `useBuscaPaginada.test.tsx:248` | tirar `setCarregando(true)` de `carregar` (W3) → 2 mortes |
+| 7 | `mostra Página 1 de 1 quando o total e zero` (`:772`) | `useBuscaPaginada.test.tsx:318` + `ControlesDePaginacao.test.tsx:56` | `Math.max(1, …)` → `Math.ceil(…)` → 5 mortes |
+| 8 | `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` (`:554`) | **NÃO TEM DONO AINDA** — ver o Step 2 | tirar a guarda antes de `setErro(e)` → **0 mortes no hook** |
+
+**O nº 8 é condicional e a ordem não é negociável (DECISÃO U2 do usuário, 2026-08-13): ele só sai DEPOIS de o hook ganhar o teste equivalente e de você ter visto esse teste ficar VERMELHO sob a mutação.** Se você apagar `:554` antes disso, a suíte fica verde e o projeto perde a única prova que tem da terceira guarda de sequência — o D5 do pré-flight, o pior defeito possível segundo o próprio brief da task.
+
+**Os que FICAM e por quê** (a lista é tão vinculante quanto a de saída):
+
+- `:117` `atualiza a URL de tamanho mesmo ja estando na pagina 1` — **único ancoradouro do seletor de tamanho na tela**. É ele, e só ele, que mata a M14 (D8 do pré-flight). Se sair, o `<select>` "Por página" pode ficar inerte sem que nada quebre.
+- `:144` `mostra o total e a contagem de paginas` — matador da M10. MEDIDO: dos 5 matadores da M10, 4 estavam na lista de remoção do plano original; este é um dos dois que restam.
+- `:636` `Anterior volta para a pagina anterior quando habilitado` — o outro matador da M10.
+- `:132` `desabilita Anterior na primeira pagina e Proxima na ultima` — **fica adaptado**, não sai.
+
+- [ ] **Step 2: Dar dono ao que ainda não tem — o teste da guarda do `catch` no hook**
+
+**Faça este Step ANTES de tocar na tela.** Ele é o pré-requisito da decisão U2.
+
+> **⚠️ CORREÇÃO MEDIDA (continuação do pré-flight, 2026-08-13).** Cada propriedade da lista "mudou
+> de dono" foi verificada por mutação **contra `useBuscaPaginada.test.tsx` de verdade** (18 testes):
+>
+> | Propriedade | Mutação no hook | Mortes na suíte do hook | Dono real |
+> |---|---|---|---|
+> | reset de página na busca | tirar `setPagina(1)` do efeito de debounce | **1** | hook ✅ |
+> | reset de página em inativos | tirar `setPagina(1)` de `mudarInativos` | **1** | hook ✅ |
+> | reset de página no tamanho | tirar `setPagina(1)` de `mudarTamanho` | **1** | hook ✅ |
+> | guarda de sequência — ramo de **sucesso** | tirar a guarda antes de `setItens` | **2** | hook ✅ |
+> | guarda de sequência — **`finally`** | trocar por `setCarregando(false)` nu | **1** | hook ✅ |
+> | guarda de sequência — **`catch`** | tirar a guarda antes de `setErro(e)` | **0 — SOBREVIVE** | ❌ **só a tela** |
+> | clamp | apagar o `useEffect` do clamp | **1** | hook ✅ |
+> | `totalDePaginas` | `Math.max(1, …)` → `Math.ceil(…)` | **5** | hook ✅ |
+> | W3 | tirar `setCarregando(true)` de `carregar` | **2** | hook ✅ |
+>
+> **"Guarda de sequência da corrida" são TRÊS guardas, e o hook só prova DUAS.** A do `catch`
+> (`useBuscaPaginada.ts:106`) não tem dono no hook: apagá-la deixa os 18 testes do hook **verdes**,
+> e o único matador do projeto inteiro é `ComponentesPage.test.tsx:554`.
+
+Acrescente em `web/src/hooks/useBuscaPaginada.test.tsx`, no molde do vizinho `ignora a resposta de uma busca que já foi superada por outra` (`:102`) — mesmo `Hospedeiro`, mesmo `avancar`, mesma técnica de resposta atrasada:
+
+```tsx
+it('não mostra erro de uma busca superada que FALHA depois de a mais recente ter sucesso', async () => {
+  // Fecha o D5 do pré-flight de 2026-08-13. Das TRÊS guardas de sequência do hook, a do `catch`
+  // (`useBuscaPaginada.ts:106`) era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
+  // e o único matador do projeto era `ComponentesPage.test.tsx:554` — prova de mecanismo do hook
+  // morando na suíte de uma tela. Este teste é o pré-requisito para aquele sair (decisão U2).
+  //
+  // Simétrico ao `:102`, mas pelo ramo de ERRO: lá a resposta obsoleta era um sucesso que não pode
+  // sobrescrever a lista; aqui é uma FALHA que não pode acender o erro de uma consulta que o
+  // usuário já abandonou.
+  const ordemDeResposta: string[] = []
+  const buscar = vi.fn((f: FiltroDeBusca) => {
+    if (f.busca === 'SU') {
+      return new Promise<PaginaDeBusca<Item>>((_resolve, reject) => {
+        setTimeout(() => { ordemDeResposta.push('SU'); reject(new Error('rede caiu')) }, 1000)
+      })
+    }
+    ordemDeResposta.push(f.busca)
+    return Promise.resolve(pagina([{ id: 2, nome: 'RESULTADO DE SUP' }]))
+  })
+
+  render(<Hospedeiro buscar={buscar} />)
+  await avancar(0)
+
+  const campo = screen.getByLabelText('busca')
+  fireEvent.change(campo, { target: { value: 'SU' } })
+  await avancar(300)   // dispara "SU", que só REJEITA em +1000 ms
+  fireEvent.change(campo, { target: { value: 'SUP' } })
+  await avancar(300)   // dispara "SUP", que responde na hora
+  await avancar(2000)  // deixa a rejeição atrasada de "SU" enfim chegar
+
+  // `ordemDeResposta` prova que a falha obsoleta REALMENTE chegou, e por último — sem isso,
+  // "não tem erro na tela" passaria igual num teste em que ela nunca chegou.
+  expect(ordemDeResposta).toEqual(['', 'SUP', 'SU'])
+  expect(screen.getByText('RESULTADO DE SUP')).toBeTruthy()
+  expect(screen.queryByText('erro')).toBeNull()
+})
+```
+
+**Prove que ele vale antes de seguir:** apague a guarda de sequência do `catch` em `useBuscaPaginada.ts:106` e confirme que **este teste fica vermelho** (a mutação M15 do Step 5). Reverta por **edição inversa**, nunca `git checkout` — a árvore tem sujeira alheia permanente. Só depois de ver o vermelho é que `ComponentesPage.test.tsx:554` pode sair.
+
+- [ ] **Step 3: Trocar o motor da `ComponentesPage`**
+
+`web/src/pages/ComponentesPage.tsx` — este é o bloco que o pré-flight **instalou e compilou** (`npm run build` → verde, `✓ built in 288ms`, MEDIDO em 2026-08-13), com a **única** alteração da decisão U1 na condição do `EstadoVazio`. Ele é o alvo final da Task 9 inteira (9A + 9B):
 
 ```tsx
 import { useState, type FormEvent } from 'react'
@@ -4838,14 +5428,17 @@ export function ComponentesPage() {
   const podeEscrever = usePodeEscrever('componentes')
 
   // `listarComponentes` é passada direto por ser estável (função de módulo) e por a assinatura
-  // dela já ser exatamente `(FiltroDeBusca) => Promise<{itens, total, …}>`. Nada de lambda inline
-  // aqui: o hook a guarda num ref justamente para tolerar isso, mas passar a estável é mais claro.
+  // dela ser estruturalmente compatível com a que o hook pede — `FiltroDeComponentes`/`PaginaDe<T>`
+  // de um lado, `FiltroDeBusca`/`PaginaDeBusca<T>` do outro: nomes diferentes, mesma forma
+  // (compila, MEDIDO). Nada de lambda inline aqui: o hook a guarda num ref justamente para tolerar
+  // isso, mas passar a estável é mais claro.
   const lista = useBuscaPaginada<ComponenteDto>({ buscar: listarComponentes })
 
   // Dois erros, e não um: o de LEITURA vem do hook e é apagado pela recarga seguinte; o de
   // ESCRITA (conflito de código, 403) tem de sobreviver à recarga que o próprio salvar dispara.
   // Um estado só faria a mensagem de duplicidade piscar e sumir — o defeito que a review da Task 11
-  // da Fase 1A chamou de "erro que pisca".
+  // da Fase 1A chamou de "erro que pisca". É por causa DESTA divisão que a 9A podia viver com um
+  // `erro` único e a 9B não pode.
   const erroDeLeitura = lista.erro === null
     ? null
     : mensagemDeErro(lista.erro, 'Não foi possível carregar os componentes.')
@@ -4999,7 +5592,15 @@ export function ComponentesPage() {
 
       {lista.carregando ? (
         <p className="text-tinta-fraca">Carregando…</p>
-      ) : lista.itens.length === 0 ? (
+      ) : erroDeLeitura === null && lista.itens.length === 0 ? (
+        // DECISÃO U1 (usuário, 2026-08-13), e ela CORRIGE o que a versão anterior deste bloco
+        // dizia. Sem o `erroDeLeitura === null &&`, a tela mostra o banner de erro E "Nenhum
+        // componente cadastrado" ao mesmo tempo sob GET 500 — MEDIDO por sonda no pré-flight —,
+        // afirmando "não há componentes" a partir de uma falha de rede. É a mesma forma do
+        // Critical que o fix pass da Task 8 pagou (`SetoresPage.tsx:129`). Usa-se o derivado
+        // `erroDeLeitura`, e não `lista.erro`, porque ele é `null` exatamente quando `lista.erro`
+        // é, e lê melhor ao lado do `BannerDeErro` logo acima.
+        //
         // Os três vazios que a spec §9 manda distinguir: busca sem resultado, catálogo vazio e —
         // acima, no banner — erro de rede. Antes os três renderizavam a mesma lista muda.
         <EstadoVazio
@@ -5043,26 +5644,15 @@ export function ComponentesPage() {
 }
 ```
 
-- [ ] **Step 3: Adaptar a suíte da tela**
+- [ ] **Step 4: Adaptar a suíte da tela, remover os 8 e acrescentar os 3**
 
-Trabalhe **em cima** do arquivo existente, não do zero. Três classes de mudança:
+Três classes de mudança nesta task — (b′) paginação, (c) mudança de dono, (f) debounce nos testes que digitam na busca. As quatro classes de adaptação de markup ((a) harness, (b) seletores, (d) mensagens, (e) markup do item) **já foram feitas na 9A**.
 
-**(a) Harness.** Acrescente no topo, como nas outras telas:
+**(b′) Paginação.** Adapte `:132` ao comportamento real de `ControlesDePaginacao` (nenhum botão — nenhuma paginação — quando há só uma página). Não toque em `:144` nem `:636`.
 
-```tsx
-import { respostaJson, fetchPorRota } from '../testes/api'
+**(c) Mudança de dono.** Remova os 8 da tabela do Step 1, **nessa ordem, e o `:554` só depois do Step 2**. **O que NÃO sai:** tudo que prova a integração da tela — corpo do POST, ramo 201, conflito com e sem inativo, alternar ativo, reativar, a montagem da URL, os dois de perfil, a sonda do estado vazio, `:117`, `:144`, `:636` e `:132` adaptado.
 
-let perfil = 'Administrador'
-vi.mock('../auth/AuthContext', () => ({
-  useAuth: () => ({
-    estado: { status: 'autenticado', usuario: { id: 1, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
-    login: async () => {},
-    logout: async () => {},
-  }),
-}))
-```
-
-E, porque a tela agora tem debounce, **todo teste que digita na busca** precisa de timers falsos e do helper de avanço:
+**(f) Debounce.** Agora a busca é debounced, então **todo teste que digita na busca** precisa de timers falsos e do helper de avanço:
 
 ```tsx
 async function avancar(ms: number) {
@@ -5070,130 +5660,116 @@ async function avancar(ms: number) {
 }
 ```
 
-**Use timers falsos só nos testes que tocam a busca.** Ligá-los no arquivo inteiro obrigaria a reescrever os 20 testes que não têm nada com debounce, e o `findBy*` deles passaria a depender de avanço manual. `vi.useFakeTimers()` dentro do `it`, `vi.useRealTimers()` no `afterEach`.
+**Use timers falsos só nos testes que tocam a busca.** Ligá-los no arquivo inteiro obrigaria a reescrever os ~30 que não têm nada com debounce, e o `findBy*` deles passaria a depender de avanço manual. `vi.useFakeTimers()` dentro do `it`, e **`vi.useRealTimers()` no `afterEach` que já existe** (`afterEach(() => { vi.unstubAllGlobals() })`) — senão os timers falsos vazam para o teste seguinte, do mesmo jeito que o `perfil` vazava (defeito MEDIDO no pré-flight).
 
-**(b) Seletores.** Os campos deixam de ter `placeholder`:
-
-| Antes | Depois |
-|---|---|
-| `getByPlaceholderText('Código')` | `getByLabelText('Código')` |
-| `getByPlaceholderText('Descrição')` | `getByLabelText('Descrição')` |
-| `getByLabelText('Tipo')` | continua (já era `aria-label`, agora é `<label>`) |
-| `getByPlaceholderText('Buscar por código ou descrição')` | `getByLabelText('Buscar por código ou descrição')` |
-
-**(c) Testes cuja propriedade mudou de dono.** Estes saem daqui **porque estão provados em `useBuscaPaginada.test.tsx`**, e o relatório tem de nomeá-los: reset de página nos três gatilhos, guarda de sequência da corrida, clamp, `totalDePaginas`, e o W3. **O que NÃO sai:** tudo que prova a integração da tela — corpo do POST, ramo 201, conflito com e sem inativo, alternar ativo, reativar, e a montagem da URL.
-
-**Acrescente três testes que só existem no nível da tela:**
+**Quem digita na busca depois das remoções:** `:930` (`limpa a mensagem de erro da carga inicial…`) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. MEDIDO: `:930` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
 
 ```tsx
-it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
-  // C1 da review da Task 6: `criarComponente(form)` -> `criarComponente({...form, tipo: 'Bruto'})`
-  // matava ZERO. O usuário escolhia "Montagem" e o sistema gravava "Bruto", em silêncio — e `tipo`
-  // é justamente o campo que governa a Receita Padrão da 1C.
+  fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
+  await avancar(300)
+```
+
+**Acrescente os três testes.**
+
+```tsx
+it('agrupa as teclas da busca numa requisição só — o debounce está LIGADO na tela', async () => {
+  // Fecha o D14 do pré-flight: MEDIDO, `useBuscaPaginada({ buscar, atrasoDoDebounce: 0 })` — o
+  // debounce efetivamente desligado — deixava a suíte inteira verde, 0 mortes. O debounce é metade
+  // do título desta task e não tinha prova nenhuma no nível da tela. Molde: o
+  // `useBuscaPaginada.test.tsx:67` ("faz UMA requisição para três teclas digitadas em sequência"),
+  // aplicado à tela em vez de ao Hospedeiro.
+  vi.useFakeTimers()
   const fetchMock = fetchPorRota({
     '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
   })
   vi.stubGlobal('fetch', fetchMock)
 
   render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-  fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'CMP-1' } })
-  fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
-  fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
-  fireEvent.click(screen.getByText('Adicionar'))
-
-  const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === 'POST')!
-  expect((post[1] as RequestInit).body)
-    .toBe(JSON.stringify({ codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem' }))
-})
-
-it('distingue "nada corresponde à busca" de "catálogo vazio"', async () => {
-  vi.useFakeTimers()
-  vi.stubGlobal('fetch', fetchPorRota({
-    '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
-  }))
-
-  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
   await avancar(0)
-  expect(screen.getByText('Nenhum componente cadastrado')).toBeTruthy()
+  expect(fetchMock).toHaveBeenCalledTimes(1)   // só a carga da montagem
 
-  fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
-  await avancar(300)
+  const campo = screen.getByLabelText('Buscar por código ou descrição')
+  fireEvent.change(campo, { target: { value: 'S' } })
+  fireEvent.change(campo, { target: { value: 'SU' } })
+  fireEvent.change(campo, { target: { value: 'SUP' } })
 
-  expect(screen.getByText('Nenhum componente encontrado')).toBeTruthy()
-  expect(screen.getByText('Nada corresponde a "XPTO".')).toBeTruthy()
+  await avancar(299)
+  expect(fetchMock).toHaveBeenCalledTimes(1)   // o debounce ainda não venceu
+
+  await avancar(1)
+  expect(fetchMock).toHaveBeenCalledTimes(2)   // UMA requisição para as TRÊS teclas
 })
 
-it('esconde formulário e ação de inativar para quem não pode escrever', async () => {
-  perfil = 'Operador'
-  vi.stubGlobal('fetch', fetchPorRota({
-    '/api/componentes': () => respostaJson({
-      itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Bruto', ativo: true }],
-      total: 1, pagina: 1, tamanho: 20,
-    }),
-  }))
-
-  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-
-  expect(await screen.findByText('CMP-1')).toBeTruthy()
-  expect(screen.queryByLabelText('Código')).toBeNull()
-  expect(screen.queryByText('Inativar')).toBeNull()
-})
-```
-
-- [ ] **Step 4: Rodar até ficar verde**
-
-```bash
-cd web && npm test -- ComponentesPage
-```
-
-Expected: verde. **Reporte o número final e a conta**: quantos dos 33 sobreviveram, quantos saíram (com o nome e o motivo de cada), quantos entraram.
-
-- [ ] **Step 5: Confirmar que o erro de escrita sobrevive à recarga**
-
-Este é o defeito mais provável desta task — o `erroDeEscrita ?? erroDeLeitura` existe para evitá-lo. Se não houver teste cobrindo, escreva:
-
-```tsx
 it('mantém a mensagem de código duplicado depois da recarga da lista', async () => {
-  vi.stubGlobal('fetch', fetchPorRota({
-    '/api/componentes': () => respostaJson({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 9 }, 409),
-  }))
+  // O defeito mais provável desta task — o `erroDeEscrita ?? erroDeLeitura` existe para evitá-lo.
+  //
+  // O condicional "se não houver teste cobrindo" do plano original está DECIDIDO (pré-flight de
+  // 2026-08-13): não há. MEDIDO: nenhum dos 34 dispara recarga depois de um erro de escrita ficar
+  // na tela — o ramo de conflito de `salvar` faz `return` ANTES do `await lista.recarregar()`.
+  //
+  // E o esboço que o plano original trazia NÃO provava o que o título diz: ele nunca disparava
+  // recarga nenhuma, provava só a PRECEDÊNCIA de `erroDeEscrita` sobre `erroDeLeitura` (já morta 9
+  // vezes pela M5), e o mock devolvia o corpo de conflito também no GET da carga inicial, que não
+  // é cenário real. Para provar o que o Step promete, o teste tem de, DEPOIS de a mensagem de
+  // conflito aparecer, disparar uma recarga de verdade — marcar "Mostrar inativos", ou mudar a
+  // busca e avançar os 300 ms — e só então afirmar que a mensagem continua lá.
+  //
+  // Use `fetchPorRota` com respostas DIFERENTES por método: 409 no POST, 200 no GET.
   // …preenche e submete…
   expect(await screen.findByText('Já existe um componente com este código.')).toBeTruthy()
+  // …dispara a recarga (checkbox "Mostrar inativos")…
+  expect(screen.getByText('Já existe um componente com este código.')).toBeTruthy()
 })
 ```
 
-- [ ] **Step 6: Rodar tudo**
+E o terceiro é o do **Step 2**, em `useBuscaPaginada.test.tsx` — ele conta na suíte inteira, mesmo não estando neste arquivo. **É essa a razão de a conta desta task não fechar olhando só a tela.**
+
+- [ ] **Step 5: Rodar tudo e medir as mutações**
 
 ```bash
-cd web && npm test && npm run build && npm run lint
+cd web && npm test -- ComponentesPage && npm test -- useBuscaPaginada && npm test && npm run build && npm run lint
 ```
 
-Expected: tudo verde. Reporte o total.
+Expected: **33** no arquivo da tela, **19** no do hook, **290** na suíte — e releia a armadilha do Step 1 antes de comemorar o 290.
 
-- [ ] **Step 7: Medir as mutações**
+| # | Mutação | Onde | Mortes esperadas | Matador |
+|---|---|---|---|---|
+| M4′ | remover `await lista.recarregar()` do ramo de sucesso de `salvar` | tela | ≥ 1 (MEDIDO: 2) | **nomeie ao medir** — o call site mudou de `carregar(…)` para `lista.recarregar()`, por isso remede |
+| M5 | trocar `erroDeEscrita ?? erroDeLeitura` por só `erroDeLeitura` | tela | ≥ 1 (MEDIDO: 9) | mata pelas mensagens de escrita, **não** pela "sobrevivência à recarga" que o teste novo promete — não confunda as duas |
+| M6′ | trocar `buscando` por `false` (agora sobre `lista.textoDaBusca`) | tela | ≥ 1 | `distingue "nada corresponde à busca"…` |
+| M10 | remover o `<ControlesDePaginacao>` | tela | ≥ 1 (MEDIDO: 5 antes das remoções) | `mostra o total e a contagem de paginas` (`:144`) **e** `Anterior volta…` (`:636`) — os dois ficam de propósito |
+| M13 | **NOVA** — `useBuscaPaginada({ buscar: listarComponentes, atrasoDoDebounce: 0 })` | tela | ≥ 1 (fecha o **D14**; MEDIDO em 0 antes) | `agrupa as teclas da busca numa requisição só…` |
+| M14 | **NOVA** — `onChange={() => {}}` no `<select>` "Por página" | tela | ≥ 1 (fecha o **D8**; MEDIDO em 0 quando `:117` saía) | `atualiza a URL de tamanho mesmo ja estando na pagina 1` (`:117`) — **é por isto que ele fica** |
+| M15 | **NOVA** — tirar a guarda de sequência antes de `setErro(e)` (`useBuscaPaginada.ts:106`) | **hook** | ≥ 1 (fecha o **D5**; MEDIDO em 0 no hook antes) | o teste do Step 2 |
 
-| # | Mutação em `ComponentesPage.tsx` | Mortes esperadas |
-|---|---|---|
-| M1 | `criarComponente(form)` → `criarComponente({ ...form, tipo: 'Bruto' })` | ≥ 1 — **é o C1 da 1B, encenado** |
-| M2 | `criarComponente(form)` → trocar `codigo` por `descricao` no objeto | ≥ 1 |
-| M3 | remover `setForm(FORMULARIO_VAZIO)` do ramo de sucesso | ≥ 1 |
-| M4 | remover `await lista.recarregar()` do ramo de sucesso | ≥ 1 |
-| M5 | trocar `erroDeEscrita ?? erroDeLeitura` por só `erroDeLeitura` | ≥ 1 |
-| M6 | trocar `buscando` por `false` | ≥ 1 |
-| M7 | trocar `resultado.existeInativo` por `!resultado.existeInativo` | ≥ 1 |
-| M8 | trocar `!componente.ativo` por `true` em `alternarAtivo` | ≥ 1 — **é o I7 da 1B**: o botão escrito "Inativar" num item já inativo |
-| M9 | trocar `usePodeEscrever('componentes')` por `('setores')` | ≥ 1 |
-| M10 | remover o `<ControlesDePaginacao>` | ≥ 1 |
-| M11 | remover `setEnviando(false)` do `finally` | ≥ 1 |
+> **Regressão obrigatória, e não é zelo:** esta suíte de tela perdeu 8 testes. Rode de novo, contra
+> a suíte de 33, as mutações que a **9A** fechou e cujo código esta task **não** alterou — **M1,
+> M2, M3, M7, M8, M9 e M12** — e confirme que cada uma continua com **≥ 1 morte**. MEDIDO no
+> pré-flight, nenhum dos 8 removidos é matador delas; **confirme, não presuma** — foi exatamente
+> assim que a M10 caiu de 5 mortes para 1 sem ninguém perceber (D9).
+>
+> **Mutantes equivalentes, registrados e NÃO listados:** `usePodeEscrever('pedidos')` e
+> `('agrupamentos')` — listas de perfis idênticas às de `componentes`, nenhum perfil as separa
+> (MEDIDO: 0 mortes, e nenhum teste possível). Só `('setores')` é distinguível, e é a M9 da 9A.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add web/src/pages/ComponentesPage.tsx web/src/pages/ComponentesPage.test.tsx
-git commit -m "feat(web): re-layout da ComponentesPage sobre useBuscaPaginada e primitivas"
+git add web/src/pages/ComponentesPage.tsx web/src/pages/ComponentesPage.test.tsx web/src/hooks/useBuscaPaginada.test.tsx
+git commit -m "feat(web): ComponentesPage sobre useBuscaPaginada e ControlesDePaginacao"
 ```
 
-**Definition of done da Task 9:** `grep -c "sequenciaRef" src/pages/ComponentesPage.tsx` = 0 (a guarda vive no hook agora); as 11 mutações medidas com ≥ 1 morte; **a lista de testes removidos, com o motivo de cada, no relatório**; suíte, build e lint verdes.
+**Definition of done da Task 9B:**
+
+- `grep -c "sequenciaRef" src/pages/ComponentesPage.tsx` = **0** — a guarda vive no hook agora;
+- `grep -c "useBuscaPaginada" src/pages/ComponentesPage.tsx` ≥ 1 e `grep -c "ControlesDePaginacao" src/pages/ComponentesPage.tsx` ≥ 1;
+- as **7 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador nomeado, **mais** a re-verificação das 7 herdadas da 9A (M1, M2, M3, M7, M8, M9, M12) — **nenhuma mutação de nenhuma das duas tasks fica sem matador**, e os dois mutantes equivalentes ficam declarados fora das tabelas;
+- **a lista dos 8 testes removidos, um a um, com o nome e o motivo, no relatório** — e a confirmação explícita de que **nenhuma remoção era necessária** (34/34 ficavam verdes só com adaptação): toda saída aqui é de-duplicação decidida pelo usuário em U3/U2;
+- **a prova de ordem da decisão U2 declarada no relatório**: o teste do hook existia e ficou **vermelho** sob a M15 **antes** de `ComponentesPage.test.tsx:554` sair;
+- **a composição `295 − 8 + 3 = 290` reportada com os números reais**, junto com o **par por arquivo (33 / 19)**, que é o que distingue esta entrega da baseline de mesmo valor;
+- suíte, `npm run build` e `npm run lint` verdes.
+
+**Nota honesta, escrita ANTES da entrega:** a DoD da Task 9 unificada era inatingível em dois pontos independentes — "as 11 mutações com ≥ 1 morte" com a M9 medida em 0, e "suíte verde" sem contagem alguma a bater. As duas tasks acima fecham os dois, e fecham também as três lacunas que nenhuma mutação tocava (M9, debounce, seletor de tamanho) e a guarda de sequência sem dono. **O que continua em aberto e NÃO é destas tasks:** o clamp inferior de `irParaPagina` e a validação de `tamanho` em `mudarTamanho` (inalcançáveis pela UI — `ControlesDePaginacao.tsx:23` desabilita "Anterior" com `pagina <= 1`, e `TAMANHOS` é um `<select>` fechado; **vão para a review de branch**); o `recarregar` com filtros capturados (a `ComponentesPage` é a única tela da fase que o expõe, não é regressão — a tela de hoje tem o mesmo defeito —, e adiar é defensável: **decisão do usuário**); e a dívida **m6** (overlay `after:inset-0` × `acao`), cujo dono nomeado era "a Task 9" e **MEDIDO não é**: o único `after:inset-0` do projeto está em `PedidosPage.tsx:131`, num `ItemDeCadastro` **sem** `acao`, e nem a 9A, nem a 9B, nem a Task 10 combinam os dois — **nenhuma task desta fase combina**. Reatribuí-la (à primitiva `ListaDeCadastro` ou à review de branch) é **decisão do usuário**, registrada em `.superpowers/sdd/fase1d-task-9-preflight.md` §7.3.
 
 ---
 
