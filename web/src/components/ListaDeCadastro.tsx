@@ -27,7 +27,7 @@ export function ItemDeCadastro({
   children: ReactNode
 }) {
   return (
-    <li className="flex items-center justify-between gap-3 rounded-lg border border-borda bg-superficie px-4 py-3">
+    <li className="relative flex items-center justify-between gap-3 rounded-lg border border-borda bg-superficie px-4 py-3">
       <span className={ativo ? 'text-tinta' : 'text-tinta-fraca'}>
         <span className={ativo ? undefined : 'line-through'}>{children}</span>
         {/* O traço é visual e não chega ao leitor de tela; sem este texto, ativo e inativo soam
