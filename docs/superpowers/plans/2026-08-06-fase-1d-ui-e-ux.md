@@ -4778,6 +4778,44 @@ como o texto original afirmava.
 - Produces: nada.
 - **NÃO consome `useBuscaPaginada` (Task 3) nem `ControlesDePaginacao` (Task 6).** Os dois entram na **Task 9B**. A tela continua com o estado local de hoje (`busca`, `pagina`, `tamanho`, `incluirInativos`, `sequenciaRef`, `carregar`, os três `mudar*`, `totalDePaginas`) e com o bloco de paginação escrito à mão — só que vestido com as primitivas.
 
+> **⚠️ Nesta task a âncora vinculante é o NOME DO TESTE, não o número da linha** (migração de
+> 2026-08-14, decisão do usuário, no mesmo molde da 9B). Toda citação a `ComponentesPage.test.tsx`
+> identifica o teste pelo **nome**; onde ainda aparecer um número, ele vem na forma "(hoje `:360`)" e
+> é **auxílio de navegação perecível** — linha do arquivo de **HOJE** (HEAD `fd77261`). Se o número
+> não bater com o nome, **o nome ganha e o número está velho**; nunca o contrário.
+>
+> Origem: achado nº 9 do pré-flight da 9A, medido e citado em nota isolada no Step 5. Essa nota foi
+> **substituída** por esta caixa — ver "o que fiz com a nota antiga" no relatório do passe
+> (`.superpowers/sdd/fase1d-ancora-9a-report.md`), para não haver duas notas dizendo coisas
+> parecidas de formas diferentes.
+>
+> **Como localizar, e a prova de que dá:**
+> `grep -n "<nome exato do teste>" web/src/pages/ComponentesPage.test.tsx`. **MEDIDO em 2026-08-14**
+> contra o arquivo real (34 `it(`, extraídos por script): cada nome que esta task cita casa com
+> **exatamente um** `it(`, nenhum é substring de outro, e o arquivo tem **um só** `describe` (não há
+> nome repetido em bloco irmão). **Conferido também:** nenhum dos nomes citados nesta task é um dos
+> dois pares que só o acento separa (`volta para a pagina 1…` × `volta para a página 1…`, do
+> `useBuscaPaginada.test.tsx`) — esta task não cita o hook, então o par não se aplica aqui; ele é
+> problema da 9B.
+>
+> **A diferença desta task para a 9B, e por que ela importa: aqui o número envelhece DURANTE a
+> própria task, não antes dela.** Até o Step 3(a) rodar, o arquivo é o de HOJE e os números da tabela
+> de mutações do Step 5 (`:435`, `:786`, `:186`) apontam certo. **Depois do Step 3(a) — o harness —
+> todos os `it(` somam exatamente +11** (MEDIDO em 2026-08-14, com o reset de `perfil` incluído):
+> `:435` vira `:446`, `:786` vira `:797`, `:186` vira `:197`. O **nome** do teste, ao lado de cada
+> citação, é o que não se move — é ele que você confere, não a aritmética.
+>
+> **O que continua citado por número, de propósito** (conferido em 2026-08-14: nenhuma das tasks que
+> restam — 9B, 10, 11, 12 — lista esses arquivos em `Files`, então as linhas deles não se mexem nesta
+> fase; e arquivo de código não tem nome de teste para servir de âncora):
+> `SetoresPage.tsx:21`/`:105`/`:129`, `AuthContext.tsx:48`, `permissoes.ts:19-23`,
+> `SetoresPage.test.tsx:24-27`, `AppShell.test.tsx:3`, `PedidosPage.test.tsx:62`, `Pagina.test.tsx:9`,
+> `permissoesEspelhamOBackend.test.ts:49`, `tema/contraste.test.ts:103`. **Também fica por número, de
+> propósito:** o trio `:527/:532`/`:578/:583`/`:620/:626` no parágrafo do aviso sobre a suíte, logo
+> abaixo — são números **já marcados como errados** no próprio texto (linhas de uma árvore de
+> trabalho descartável), citados só como evidência forense de um erro passado; não apontam para nada
+> que precise de âncora.
+
 > **Por que 9A e 9B são duas tasks, e não uma (decisão do usuário em 2026-08-13, sobre a
 > recomendação medida do pré-flight — `.superpowers/sdd/fase1d-task-9-preflight.md`).**
 >
@@ -4798,7 +4836,7 @@ como o texto original afirmava.
 
 **A tela que a spec §7 marca como re-layout obrigatório:** busca + filtro + seletor de tamanho + paginação **não cabem em 448px**. Esta task resolve a largura, as primitivas, as mensagens e o gating; a 9B troca o motor de busca por baixo.
 
-**Aviso sobre a suíte de tela — CORRIGIDO pelo pré-flight de 2026-08-12, o texto original estava factualmente errado:** os 34 testes de hoje foram escritos contra o comportamento **sem debounce**, mas **nenhum deles quebra por causa do debounce** — e, de todo modo, **o debounce não entra nesta task**, entra na 9B. MEDIDO (ver `.superpowers/sdd/fase1d-task-9-preflight.md`): **zero** testes deste arquivo digitam três letras, e **zero** assertam uma contagem de requisições por tecla — os três `toHaveBeenCalledTimes` existentes (`:518/:523`, `:569/:574`, `:611/:617` — números **corrigidos** na continuação de 2026-08-13: os `:527/:532`, `:578/:583`, `:620/:626` que este parágrafo trazia antes eram as linhas da árvore de trabalho descartável da primeira passada, com o harness já inserido, e não batiam com o arquivo em disco) contam 1 e 2 depois de **uma** mudança de campo.
+**Aviso sobre a suíte de tela — CORRIGIDO pelo pré-flight de 2026-08-12, o texto original estava factualmente errado:** os 34 testes de hoje foram escritos contra o comportamento **sem debounce**, mas **nenhum deles quebra por causa do debounce** — e, de todo modo, **o debounce não entra nesta task**, entra na 9B. MEDIDO (ver `.superpowers/sdd/fase1d-task-9-preflight.md`): **zero** testes deste arquivo digitam três letras, e **zero** assertam uma contagem de requisições por tecla — os três testes com `toHaveBeenCalledTimes` duplo (`mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem` (hoje `:518`/`:523`), `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` (hoje `:569`/`:574`) e `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` (hoje `:611`/`:617`) — números **corrigidos** na continuação de 2026-08-13: os `:527/:532`, `:578/:583`, `:620/:626` que este parágrafo trazia antes eram as linhas da árvore de trabalho descartável da primeira passada, com o harness já inserido, e não batiam com o arquivo em disco) contam 1 e 2 depois de **uma** mudança de campo.
 
 **As classes de adaptação desta task são QUATRO — (a) harness, (b) seletores, (d) mensagens, (e) markup do item (MEDIDO na continuação de 2026-08-13).** Aplicando **exatamente** o que o Step 3(a)+(b) manda — harness e a tabela de seletores, nada mais — a suíte fecha em **7 vermelhos | 27 verdes**, e os sete são exatamente os da tabela abaixo.
 
@@ -4806,7 +4844,9 @@ como o texto original afirmava.
 > e era da task 9 UNIFICADA.** Naquele Step 2 a tela adotava `ControlesDePaginacao`, cujo
 > `if (totalDePaginas <= 1) return null` derrubava junto os dois testes de paginação. **A 9A não
 > adota a primitiva, então esses dois ficam VERDES aqui** — é exatamente o que o parágrafo "Os dois
-> de paginação (`:132` e `:772`) NÃO quebram nesta task" já afirmava, e o `9 | 25` o contradizia.
+> de paginação (`desabilita Anterior na primeira pagina e Proxima na ultima`, hoje `:132`, e `mostra
+> Página 1 de 1 quando o total e zero`, hoje `:772`) NÃO quebram nesta task" já afirmava, e o
+> `9 | 25` o contradizia.
 > **MEDIDO em 2026-08-14** contra o bloco do Step 2 desta task, com `(a)` e `(b)` aplicados e nada
 > mais: `Tests  7 failed | 27 passed (34)`, e os sete nomes batem um a um com a tabela.
 
@@ -4814,17 +4854,17 @@ Os sete:
 
 | # | Teste | Por quê | Classe |
 |---|---|---|---|
-| 1 | `mostra mensagem de erro quando reativar falha` (`:360`) | PATCH 403 → `mensagemDeErro` devolve **"Seu perfil não tem permissão para esta ação."** | **(d) mensagens** |
-| 2 | `mostra mensagem de erro quando alternar o ativo falha` (`:725`) | idem, PATCH 403 | **(d) mensagens** |
-| 3 | `limpa uma mensagem de erro anterior quando alternar o ativo tem sucesso depois de uma falha` (`:831`) | idem, PATCH 403 | **(d) mensagens** |
-| 4 | `cadastro com sucesso limpa uma mensagem de erro anterior de outra acao` (`:862`) | idem, PATCH 403 | **(d) mensagens** |
-| 5 | `mostra mensagem de erro quando salvar falha com um erro que nao e conflito` (`:396`) | POST 500 → **"O servidor não respondeu como esperado. Tente de novo em instantes."** | **(d) mensagens** |
-| 6 | `mostra mensagem de erro quando a carga da lista falha` (`:742`) | GET 500 → mesma mensagem de 500 | **(d) mensagens** |
-| 7 | `exibe um componente inativo com o botao Reativar e o texto riscado` (`:753`) | `getByText('INA-001').closest('span')` passa a devolver o `<span className="font-mono font-semibold">` do código; o `line-through` é do **avô** (`ItemDeCadastro`). Falha MEDIDA: *expected 'font-mono font-semibold' to contain 'line-through'* | **(e) markup do item** |
+| 1 | `mostra mensagem de erro quando reativar falha` (hoje `:360`) | PATCH 403 → `mensagemDeErro` devolve **"Seu perfil não tem permissão para esta ação."** | **(d) mensagens** |
+| 2 | `mostra mensagem de erro quando alternar o ativo falha` (hoje `:725`) | idem, PATCH 403 | **(d) mensagens** |
+| 3 | `limpa uma mensagem de erro anterior quando alternar o ativo tem sucesso depois de uma falha` (hoje `:831`) | idem, PATCH 403 | **(d) mensagens** |
+| 4 | `cadastro com sucesso limpa uma mensagem de erro anterior de outra acao` (hoje `:862`) | idem, PATCH 403 | **(d) mensagens** |
+| 5 | `mostra mensagem de erro quando salvar falha com um erro que nao e conflito` (hoje `:396`) | POST 500 → **"O servidor não respondeu como esperado. Tente de novo em instantes."** | **(d) mensagens** |
+| 6 | `mostra mensagem de erro quando a carga da lista falha` (hoje `:742`) | GET 500 → mesma mensagem de 500 | **(d) mensagens** |
+| 7 | `exibe um componente inativo com o botao Reativar e o texto riscado` (hoje `:753`) | `getByText('INA-001').closest('span')` passa a devolver o `<span className="font-mono font-semibold">` do código; o `line-through` é do **avô** (`ItemDeCadastro`). Falha MEDIDA: *expected 'font-mono font-semibold' to contain 'line-through'* | **(e) markup do item** |
 
-**Atenção:** os DOIS testes que mantêm a mensagem antiga são os que rejeitam com `new Error('rede caiu')` (`:554` e `:930`) — `Error` puro não é `ErroDeApi` nem `TypeError`, então `mensagemDeErro` cai no *fallback*, que é a frase de hoje. Não os troque junto com os outros.
+**Atenção:** os DOIS testes que mantêm a mensagem antiga são os que rejeitam com `new Error('rede caiu')` — `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` (hoje `:554`) e `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` (hoje `:930`) — `Error` puro não é `ErroDeApi` nem `TypeError`, então `mensagemDeErro` cai no *fallback*, que é a frase de hoje. Não os troque junto com os outros.
 
-**Os dois de paginação (`:132` e `:772`) NÃO quebram nesta task — MEDIDO em 2026-08-14 (era DERIVADO; o pré-flight da 9A rodou e confirmou):** eles quebrariam por causa do `if (totalDePaginas <= 1) return null` de `ControlesDePaginacao`, e a 9A não adota a primitiva; o bloco de paginação à mão continua renderizando "Anterior", "Próxima" e "Página 1 de 1 — 0 no total" com uma página só, como hoje. Nenhum dos dois aparece entre os 7 vermelhos de `(a)+(b)`. **Confirme rodando mesmo assim** — se algum deles ficar vermelho aqui, você adotou `ControlesDePaginacao` sem querer, e isso é escopo da 9B.
+**Os dois de paginação — `desabilita Anterior na primeira pagina e Proxima na ultima` (hoje `:132`) e `mostra Página 1 de 1 quando o total e zero` (hoje `:772`) — NÃO quebram nesta task — MEDIDO em 2026-08-14 (era DERIVADO; o pré-flight da 9A rodou e confirmou):** eles quebrariam por causa do `if (totalDePaginas <= 1) return null` de `ControlesDePaginacao`, e a 9A não adota a primitiva; o bloco de paginação à mão continua renderizando "Anterior", "Próxima" e "Página 1 de 1 — 0 no total" com uma página só, como hoje. Nenhum dos dois aparece entre os 7 vermelhos de `(a)+(b)`. **Confirme rodando mesmo assim** — se algum deles ficar vermelho aqui, você adotou `ControlesDePaginacao` sem querer, e isso é escopo da 9B.
 
 **NENHUM dos 34 sai nesta task, e nenhum precisa sair.** MEDIDO (2026-08-14, pré-flight da 9A): com as **quatro** classes de adaptação desta task aplicadas — `(a)`, `(b)`, `(d)`, `(e)` — a suíte da tela fecha **34/34 verde**, `Tests  34 passed (34)`. **Toda remoção nesta fase é de-duplicação voluntária, não necessidade** — e as remoções decididas pelo usuário (U3) são todas de propriedade que vive no `useBuscaPaginada`, portanto **todas da 9B**. Não apague teste aqui para fechar conta nenhuma.
 
@@ -4857,7 +4897,7 @@ Os 7 novos, um a um — **conte-os no seu próprio Step 3, não confie neste nú
 | 2 | `distingue "nada corresponde à busca" de "catálogo vazio"` | Step 3 | único matador da M6 (MEDIDO: contra os 34 adaptados sozinhos, M6 mata **0**) |
 | 3 | `esconde formulário e ação de inativar para quem não pode escrever` | Step 3 | gating de perfil (F2 / spec §6) |
 | 4 | `não afirma "nenhum componente cadastrado" quando a carga da lista falhou` | Step 3 | **decisão U1** — a sonda que prova que o banner de erro e o estado vazio não aparecem juntos |
-| 5 | `mostra o formulário para o perfil PCP…` | Step 3 | **fecha a M9**, que o pré-flight mediu com **0 mortes** |
+| 5 | `mostra o formulário para o perfil PCP, que escreve em componentes mas não em setores` | Step 3 | **fecha a M9**, que o pré-flight mediu com **0 mortes** |
 | 6 | `mostra o tipo de cada componente na lista` | Step 3 | **DECISÃO DO USUÁRIO, 2026-08-14: fecha o X3.** Matador da **M16** — apagar `<Pilula>{c.tipo}</Pilula>` deixava os 39 verdes e o tipo sumia da lista inteira |
 | 7 | `dá à tela o título "Componentes" no h1` | Step 3 | **DECISÃO DO USUÁRIO, 2026-08-14: fecha o X6.** Matador da **M17** — `titulo="XXX"` deixava os 39 verdes e o `<h1>` podia dizer qualquer coisa |
 
@@ -5100,16 +5140,17 @@ vi.mock('../auth/AuthContext', () => ({
 | `getByPlaceholderText('Buscar por código ou descrição')` | `getByLabelText('Buscar por código ou descrição')` |
 | `getByLabelText('Por página')` | continua (era `<label>` embrulhando o `select`, agora é `Campo`) |
 
-**(d) Mensagens.** Os 6 da tabela dos sete, acima: troque a frase esperada pela que `mensagemDeErro` devolve para o status daquele mock. **Não** troque `:554` nem `:930`.
+**(d) Mensagens.** Os 6 da tabela dos sete, acima: troque a frase esperada pela que `mensagemDeErro` devolve para o status daquele mock. **Não** troque `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` (hoje `:554`) nem `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` (hoje `:930`).
 
-**(e) Markup do item.** `:753` — o `line-through` mudou de nó: é do `<span>` de `ItemDeCadastro`, não do `<span>` do código. Asserte no ancestral certo.
+**(e) Markup do item.** `exibe um componente inativo com o botao Reativar e o texto riscado` (hoje `:753`) — o `line-through` mudou de nó: é do `<span>` de `ItemDeCadastro`, não do `<span>` do código. Asserte no ancestral certo.
 
 **Acrescente os sete testes.** Os três primeiros são os que a Task 9 unificada já previa; o quarto e o quinto vêm das decisões U1 e do fechamento da M9 (`≥ 1` morte é DoD, e a M9 hoje mata **zero**); o sexto e o sétimo fecham o X3 e o X6 por decisão do usuário em 2026-08-14.
 
 > **Duas exigências de forma, e as duas sustentam o `+11` que a 9B depende (ver a abertura da 9B):**
 >
-> 1. **Os sete entram no FIM do `describe`**, depois do último `it(` de hoje (`:956`), imediatamente
->    antes do `})` que fecha o bloco (linha 987). Não os intercale entre os testes existentes:
+> 1. **Os sete entram no FIM do `describe`**, depois do último `it(` de hoje — `reativar com sucesso
+>    limpa o formulario` (hoje `:956`) —, imediatamente antes do `})` que fecha o bloco (linha 987).
+>    Não os intercale entre os testes existentes:
 >    tudo o que a 9B cita por número de linha está **acima** deles, e é isso que faz o deslocamento
 >    do arquivo ser **exatamente +11** (o do harness), e não +11 mais o tamanho dos testes novos.
 > 2. **O sexto teste precisa de `within`**, que este arquivo ainda não importa. Acrescente-o à linha
@@ -5125,15 +5166,19 @@ it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
   // "Bruto", em silêncio — e `tipo` é justamente o campo que governa a Receita Padrão da 1C.
   //
   // ⚠️ CORRIGIDO no pré-flight da 9A (2026-08-14): hoje o C1 JÁ TEM DONO. O teste
-  // `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido)…` (`:435`) foi
-  // escrito exatamente para isso — o comentário dele, em `:433-434`, diz que troca o `<select>` de
-  // Tipo para um valor diferente do default "senao a mutacao … sobreviveria por coincidencia".
-  // MEDIDO: a M1 mata `:435` mesmo SEM este teste, e a M2 mata `:435` e `:786`. Ou seja, este
-  // teste NÃO acrescenta nenhuma morte de mutação — é o achado nº 5 do relatório de pré-flight.
+  // `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e
+  // recarrega a lista` (hoje `:435`) foi escrito exatamente para isso — o comentário dele (hoje
+  // `:433-434`), diz que troca o `<select>` de Tipo para um valor diferente do default "senao a
+  // mutacao … sobreviveria por coincidencia".
+  // MEDIDO: a M1 mata esse mesmo teste acima — o `cadastra com sucesso:` nomeado por extenso quatro
+  // linhas acima, hoje `:435` — mesmo SEM
+  // este teste, e a M2 mata ele e `cadastro com sucesso apos um conflito
+  // anterior esconde o botao Reativar o existente` (hoje `:786`). Ou seja, este teste NÃO acrescenta
+  // nenhuma morte de mutação — é o achado nº 5 do relatório de pré-flight.
   //
   // DECIDIDO pelo usuário em 2026-08-14: ele **FICA**, e a composição não muda por causa dele.
-  // Razão: prova o **corpo exato** do POST (`toBe(JSON.stringify(...))`), o que `:435` faz de forma
-  // mais frouxa; e tirar um teste barato e correto para economizar uma linha de conta custaria
+  // Razão: prova o **corpo exato** do POST (`toBe(JSON.stringify(...))`), o que o teste acima faz
+  // de forma mais frouxa; e tirar um teste barato e correto para economizar uma linha de conta custaria
   // propagar uma baseline nova para a 9B — a dívida que mais caro saiu nesta fase. Não o remova
   // "para limpar duplicação": a redundância aqui é deliberada e está registrada.
   const fetchMock = fetchPorRota({
@@ -5273,16 +5318,16 @@ Expected: `Tests  41 passed (41)` no arquivo (34 adaptados + 7 novos) e **`Tests
 
 | # | Mutação em `ComponentesPage.tsx` | Mortes esperadas | Matador |
 |---|---|---|---|
-| M1 | `criarComponente(form)` → `criarComponente({ ...form, tipo: 'Bruto' })` | ≥ 1 (**MEDIDO na 9A: 2**) | `cadastra com sucesso…` (`:435`) **e** o teste novo `manda o formulário inteiro no POST…`. ⚠️ **O `:435` sozinho já mata** — ver o achado sobre o teste novo nº 1 |
-| M2 | `criarComponente(form)` → trocar `codigo` por `descricao` no objeto | ≥ 1 (**MEDIDO na 9A: 3**) | `cadastra com sucesso…` (`:435`), `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (`:786`) e o teste novo nº 1 |
-| M3 | remover `setForm(FORMULARIO_VAZIO)` do ramo de sucesso | ≥ 1 (**MEDIDO na 9A: 2**) | `cadastra com sucesso…` (`:435`) e `cadastro com sucesso apos um conflito anterior…` (`:786`) |
-| M4 | remover `await carregar(busca, incluirInativos, pagina, tamanho)` do ramo de sucesso de `salvar` | ≥ 1 (**MEDIDO na 9A: 1**) | `cadastra com sucesso…` (`:435`) — **matador único** |
-| M6 | trocar `buscando` por `false` | ≥ 1 | **só** o teste novo `distingue "nada corresponde à busca"…` — MEDIDO: contra os 34 adaptados sozinhos são **0**. O teste novo é obrigatório, não opcional. |
-| M7 | trocar `resultado.existeInativo` por `!resultado.existeInativo` | ≥ 1 (**MEDIDO na 9A: 10**) | os 10 testes da família de conflito/reativar (`:153`, `:241`, `:282`, `:316`, `:360`, `:657`, `:689`, `:786`, `:895`, `:956`) |
-| M8 | trocar `!componente.ativo` por `true` em `alternarAtivo` | ≥ 1 — **é o I7 da 1B**: o botão escrito "Inativar" num item já inativo (**MEDIDO na 9A: 1**) | `Inativar manda ativo=false…` (`:186`) — **matador único** |
-| M9 | trocar `usePodeEscrever('componentes')` por `('setores')` | ≥ 1 (**MEDIDO na 9A: 1**) | **só** o teste novo `mostra o formulário para o perfil PCP…` |
-| M11 | remover `setEnviando(false)` do `finally` | ≥ 1 (**MEDIDO na 9A: 1**) | `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (`:786`) — **matador único**, e ele mata **por acidente**: é o único teste que clica "Adicionar" duas vezes, e com `enviando` travado em `true` o `rotuloCarregando` deixa o botão chamado "Salvando…", então o segundo `getByRole('button', { name: 'Adicionar' })` não acha nada |
-| M12 | **NOVA** — trocar `erro === null && componentes.length === 0` por `componentes.length === 0` | ≥ 1 | teste novo `não afirma "nenhum componente cadastrado"…` (guarda executável da decisão U1) |
+| M1 | `criarComponente(form)` → `criarComponente({ ...form, tipo: 'Bruto' })` | ≥ 1 (**MEDIDO na 9A: 2**) | `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e recarrega a lista` (hoje `:435`) **e** o teste novo `manda o formulário inteiro no POST, com o tipo escolhido`. ⚠️ **O `:435` sozinho já mata** — ver o achado sobre o teste novo nº 1 |
+| M2 | `criarComponente(form)` → trocar `codigo` por `descricao` no objeto | ≥ 1 (**MEDIDO na 9A: 3**) | `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e recarrega a lista` (hoje `:435`), `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (hoje `:786`) e o teste novo nº 1 |
+| M3 | remover `setForm(FORMULARIO_VAZIO)` do ramo de sucesso | ≥ 1 (**MEDIDO na 9A: 2**) | `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e recarrega a lista` (hoje `:435`) e `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (hoje `:786`) |
+| M4 | remover `await carregar(busca, incluirInativos, pagina, tamanho)` do ramo de sucesso de `salvar` | ≥ 1 (**MEDIDO na 9A: 1**) | `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e recarrega a lista` (hoje `:435`) — **matador único** |
+| M6 | trocar `buscando` por `false` | ≥ 1 | **só** o teste novo `distingue "nada corresponde à busca" de "catálogo vazio"` — MEDIDO: contra os 34 adaptados sozinhos são **0**. O teste novo é obrigatório, não opcional. |
+| M7 | trocar `resultado.existeInativo` por `!resultado.existeInativo` | ≥ 1 (**MEDIDO na 9A: 10**) | os 10 testes da família de conflito/reativar: `oferece reativar quando o codigo colide com um componente inativo` (hoje `:153`), `Reativar o existente manda ativo=true` (hoje `:241`), `reativar com sucesso esconde o botao Reativar o existente` (hoje `:282`), `recarrega a lista depois de reativar com sucesso` (hoje `:316`), `mostra mensagem de erro quando reativar falha` (hoje `:360`), `conflito com codigo ja ATIVO mostra mensagem generica e nao oferece reativar` (hoje `:657`), `conflito no cadastro nao limpa o formulario nem recarrega a lista` (hoje `:689`), `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (hoje `:786`), `reativar com sucesso limpa a mensagem de conflito` (hoje `:895`) e `reativar com sucesso limpa o formulario` (hoje `:956`) |
+| M8 | trocar `!componente.ativo` por `true` em `alternarAtivo` | ≥ 1 — **é o I7 da 1B**: o botão escrito "Inativar" num item já inativo (**MEDIDO na 9A: 1**) | `Inativar manda ativo=false para um componente ativo` (hoje `:186`) — **matador único** |
+| M9 | trocar `usePodeEscrever('componentes')` por `('setores')` | ≥ 1 (**MEDIDO na 9A: 1**) | **só** o teste novo `mostra o formulário para o perfil PCP, que escreve em componentes mas não em setores` |
+| M11 | remover `setEnviando(false)` do `finally` | ≥ 1 (**MEDIDO na 9A: 1**) | `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (hoje `:786`) — **matador único**, e ele mata **por acidente**: é o único teste que clica "Adicionar" duas vezes, e com `enviando` travado em `true` o `rotuloCarregando` deixa o botão chamado "Salvando…", então o segundo `getByRole('button', { name: 'Adicionar' })` não acha nada |
+| M12 | **NOVA** — trocar `erro === null && componentes.length === 0` por `componentes.length === 0` | ≥ 1 | teste novo `não afirma "nenhum componente cadastrado" quando a carga da lista falhou` (guarda executável da decisão U1) |
 | M16 | **NOVA** — apagar o `<Pilula>{c.tipo}</Pilula>` do item da lista | ≥ 1 (**MEDIDO em 0 antes**: sobrevivia aos 39) | **só** o teste novo `mostra o tipo de cada componente na lista` — fecha o **X3** |
 | M17 | **NOVA** — trocar `titulo="Componentes"` por `titulo="XXX"` na `Pagina` | ≥ 1 (**MEDIDO em 0 antes**: sobrevivia aos 39) | **só** o teste novo `dá à tela o título "Componentes" no h1` — fecha o **X6** |
 
@@ -5305,11 +5350,11 @@ Expected: `Tests  41 passed (41)` no arquivo (34 adaptados + 7 novos) e **`Tests
 > mexeu no Step 2 sem querer. Contagem de mortes é propriedade do par (código, suíte): crescer a
 > suíte sobre o mesmo código só pode somar.
 >
-> **Convenção de linha desta tabela:** os `:N` dos matadores são linhas do arquivo de **HOJE**
-> (HEAD `0ae67df`) — é onde você os localiza antes de aplicar o Step 3. Depois do harness do Step
-> 3(a) **todos somam +11** (MEDIDO em 2026-08-14, com o reset de `perfil` incluído): `:435` vira
-> `:446`, `:786` vira `:797`, `:186` vira `:197`. **O nome do teste, escrito ao lado de cada
-> citação, é a âncora que não desloca** — use-o para conferir.
+> **Convenção de linha desta tabela:** já explicada por inteiro na caixa de convenção da abertura
+> desta task (regra do nome vinculante, o exemplo do `+11` com `:435`/`:786`/`:186`, HEAD e o que
+> fica por número) — não repetida aqui de propósito, para não haver duas notas dizendo a mesma coisa
+> de formas diferentes. Os `:N` dos matadores desta tabela são "(hoje `:N`)" nesse mesmo sentido:
+> linha do arquivo de HOJE, auxílio perecível, o nome é quem vincula.
 >
 > **⚠️ CORRIGIDO — a afirmação anterior era falsa e mandava procurar um bug que não existe.** O
 > texto dizia que a configuração desta task "é um superconjunto de (A) [os 34 adaptados + 3 novos =
