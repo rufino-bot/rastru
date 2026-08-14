@@ -40,6 +40,26 @@ export function ItemDeCadastro({
             Como irmão, o rótulo nunca é riscado por construção, sem depender de truque de cascata. */}
         {!ativo && <span className="ml-2">(inativo)</span>}
       </span>
+      {/* ⚠️ ARMADILHA CONHECIDA (m6 da review da Task 8): `acao` e overlay de link no MESMO item
+          colidem. Se o `children` trouxer um `<Link>` que estende a área clicável ao cartão com
+          `after:absolute after:inset-0` — o padrão da `PedidosPage` —, esse overlay cobre o `<li>`
+          inteiro e ENGOLE a `acao`: clicar no centro do botão devolve o link, não a ação.
+
+          MEDIDO em Chrome. **jsdom não calcula layout, então nenhum teste desta suíte pega isso** —
+          o dia em que alguém combinar os dois, a suíte fica verde e a tela quebra.
+
+          Hoje nenhuma tela combina (a `PedidosPage` tem o overlay e não tem `acao`; `SetoresPage` e
+          `MateriaisPage` têm `acao` e não têm link), por isso não há conserto aplicado aqui: seria
+          mexer em código sem sintoma e sem prova. Saída, quando precisar: pôr a `acao` num wrapper
+          posicionado com `z-index` positivo, tirando-a de baixo do overlay — e conferir NO
+          NAVEGADOR, não na suíte.
+
+          E note que a classe utilitária NÃO está escrita por extenso acima: o scanner do Tailwind
+          lê o fonte inteiro, comentário incluído. A primeira versão deste comentário citava a
+          classe de empilhamento pelo nome e plantou a regra dela no CSS de produção — regra que
+          elemento nenhum usa (16,80 → 16,82 kB, medido). A segunda versão citava o nome de novo,
+          dentro do próprio aviso, e replantou. Ao editar este bloco: descreva a classe, não a
+          escreva. */}
       {acao}
     </li>
   )
