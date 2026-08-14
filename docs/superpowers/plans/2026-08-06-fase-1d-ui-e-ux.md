@@ -31,7 +31,7 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 - **Reverter mutação com edição inversa, nunca `git checkout`** — a árvore tem sujeira alheia permanente.
 - **`git status` tem sujeira alheia e permanente:** `.claude/settings.local.json` modificado e `.claude/settings.json` untracked. **Não commite nenhuma das duas.**
 - **Não edite fonte com `Set-Content` do PowerShell 5.1** — ele corrompe UTF-8 (acentuação) e a suíte fica verde mesmo assim. Use as ferramentas de edição de arquivo.
-- **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`). Varredura de segredo antes de qualquer push é passo obrigatório.
+- **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`). Varredura de segredo antes de qualquer push é passo obrigatório. **A varredura formal da fase é a Task 13**, e ela é sobre o **histórico** (`git log -p origin/main..HEAD`), não sobre a árvore: a branch é local, nunca foi empurrada, e o push publica os commits todos de uma vez — segredo apagado num commit posterior continua no anterior. Um `git diff` limpo **não** substitui isso.
 - **Política de commit — mudou em 2026-08-14, por decisão do usuário.** *"Os commits na remote podem ser feitos por vocês, só o PR que eu aprovo manualmente, só garanta que nada foi perdido no commit."* Ou seja: **o commit é nosso; abrir ou mesclar PR é dele.** A contrapartida não é opcional — **todo Step de commit deste plano carrega a mesma sub-etapa de verificação pós-commit** (`git status --short` sem sobra; `git show --stat HEAD` batendo com o que a task produziu; nenhum `.claude/settings*.json` no commit; varredura de segredo antes do push). O texto canônico dela está no **Step 6 da Task 9A**, e está repetido nos Steps de commit das Tasks 9B, 10, 11 e 12. **As Tasks 1–8 já estão commitadas e não foram reescritas** — a política nova vale para o que ainda vai ser implementado.
 - **⚠️ NÃO EXISTE MAIS TOTAL ABSOLUTO CONFIÁVEL NESTE PLANO. Use `baseline que você MEDIU no Step 1 + o delta da sua task`.** Os deltas são estáveis e estão abaixo; os totais são derivados e apodrecem a cada fix pass.
 
@@ -46,9 +46,10 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | 8 | **+11** na entrega | **283 — MEDIDO** (272 + 11) |
   | 8 (fix pass) | **+7** | **290 — MEDIDO** (283 + 7 dos achados da review — C1 ×3, I2, I3 ×2, M10; ver `.superpowers/sdd/fase1d-task-8-fix-report.md`). **290 é a baseline da Task 9A**, e foi RE-MEDIDA em 2026-08-13 (`Tests 290 passed (290)` / 26 arquivos). |
   | **9A** (re-layout) | **+7, −0** (3 `it(` do Step 3 + a sonda do `EstadoVazio` da decisão U1 + o teste de `perfil = 'PCP'` que fecha a M9 + **os dois que fecham X3 e X6**, decisão do usuário de 2026-08-14) | **297 — `295 MEDIDO + 2 DERIVADO`** (o pré-flight de 2026-08-14 executou a task com os 5 primeiros e leu `295 passed`; os de X3/X6 entraram depois e nunca rodaram). É **só soma**: MEDIDO, os 34 testes da tela fecham **34/34 verdes só com adaptação** — **nenhuma remoção é necessária**, aqui ou na 9B. |
-  | **9B** (adoção do hook) | **−8, +3** (saem os 7 da decisão U3 mais o `ComponentesPage.test.tsx:554` da decisão U2; entram o teste da guarda do `catch` em `useBuscaPaginada.test.tsx`, o do debounce na tela e o da sobrevivência do erro de escrita à recarga) | **292 — DERIVADO** (297 − 8 + 3). **A única task desta fase que subtrai.** **A colisão `290 == 290` que esta linha registrava ACABOU** com o `+2` da 9A: a fase anda por **290 → 297 → 292**, três números distintos, e um total inesperado volta a ser sinal em vez de ruído. **A prova por arquivo continua exigida assim mesmo — `ComponentesPage.test.tsx` = 35 e `useBuscaPaginada.test.tsx` = 19** —, porque o total é derivado e apodrece, e o par por arquivo é medição direta. |
+  | **9B** (adoção do hook) | **−8, +3** (saem os 7 da decisão U3 mais o `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso`, de `ComponentesPage.test.tsx`, pela decisão U2 — **citação por nome, não por linha: ver a caixa de convenção na abertura da 9B**; entram o teste da guarda do `catch` em `useBuscaPaginada.test.tsx`, o do debounce na tela e o da sobrevivência do erro de escrita à recarga) | **292 — DERIVADO** (297 − 8 + 3). **A única task desta fase que subtrai.** **A colisão `290 == 290` que esta linha registrava ACABOU** com o `+2` da 9A: a fase anda por **290 → 297 → 292**, três números distintos, e um total inesperado volta a ser sinal em vez de ruído. **A prova por arquivo continua exigida assim mesmo — `ComponentesPage.test.tsx` = 35 e `useBuscaPaginada.test.tsx` = 19** —, porque o total é derivado e apodrece, e o par por arquivo é medição direta. |
+  | **13** (varredura de segredo no histórico) | **0** | **inalterado** — a task não escreve código nem teste: lê o histórico do git e devolve um veredito. **Quem somar em cima soma 0.** Está aqui explicitamente para a próxima contagem não herdar um `+?`. |
 
-  **A Task 9 foi PARTIDA em 9A e 9B em 2026-08-13, por decisão do usuário** sobre a recomendação medida do pré-flight (`.superpowers/sdd/fase1d-task-9-preflight.md`; a reescrita está em `.superpowers/sdd/fase1d-task-9-split-report.md`). A linha única que estava aqui dizia "entre 284 e 294, X ainda NÃO decidido" e vinha com a instrução de **não propagar nenhum extremo**: essa instrução perdeu o motivo — o X foi decidido (U3, X = 7, mais o `:554` da U2 = 8 saídas, todas na 9B) e cada uma das duas tasks tem agora um delta próprio e vinculante. **As Tasks 10, 11 e 12 não são afetadas:** os Steps 1 delas medem baseline **por arquivo** (`PedidoDetalhePage` 4, `HomePage` 3, `LoginPage` 5), não o total da suíte — conferido em 2026-08-13.
+  **A Task 9 foi PARTIDA em 9A e 9B em 2026-08-13, por decisão do usuário** sobre a recomendação medida do pré-flight (`.superpowers/sdd/fase1d-task-9-preflight.md`; a reescrita está em `.superpowers/sdd/fase1d-task-9-split-report.md`). A linha única que estava aqui dizia "entre 284 e 294, X ainda NÃO decidido" e vinha com a instrução de **não propagar nenhum extremo**: essa instrução perdeu o motivo — o X foi decidido (U3, X = 7, mais o `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` da U2 = 8 saídas, todas na 9B) e cada uma das duas tasks tem agora um delta próprio e vinculante. **As Tasks 10, 11 e 12 não são afetadas:** os Steps 1 delas medem baseline **por arquivo** (`PedidoDetalhePage` 4, `HomePage` 3, `LoginPage` 5), não o total da suíte — conferido em 2026-08-13.
 
   *(O delta da Task 4 era `+20` e foi corrigido para `+22` no pré-flight de 2026-08-08 — **quarto erro de contagem deste plano** —, contando os `it(` do Step 3 dela um a um. Ao fechar, a task entregou **+23** (a guarda do M8 acrescentou um teste, fechando em 167), e o fix pass da review dela **subiu o total para 172** — 3 testes do furo da regex, 1 da prova cromática e 1 da dispensa com motivo vazio. **O delta da Task 5 foi recontado no pré-flight de 2026-08-09 e está CERTO** (`Botao` 10 + `Campo` 5 + `BannerDeErro` 3 + `Pagina` 5 = 23) — o que estava errado eram os absolutos, que se contradiziam entre o Step 11 e a definition of done. **O delta da Task 6 foi recontado no pré-flight de 2026-08-09 e o `+21` estava ERRADO:** os `it(` do próprio plano somavam **20**, e a correção do pré-flight acrescentou 3 (o teste de peso visual da paginação e os 2 pares novos da guarda), fechando em **+23**. A Task 6 tinha o pior erro de contagem desta fase — **quatro** baselines mutuamente contraditórias no mesmo texto (179 no Step 1, 7 no Step 3, 200 no Step 7, 187 implícito na DoD), e o `200` do Step 7 era **exatamente a baseline real do dia**, portanto indistinguível de sucesso para quem rodasse a suíte antes de escrever qualquer linha. **A Task 7 fechou em `259` (230 + 29), medido**; o fix pass dos achados da review dela (2026-08-10) acrescentou **+9**, fechando em **268** — número que passa a ser a baseline da Task 8. Depois do passe curto de primitivas (**+4**, fechando em **272**), a **Task 8 fechou em `283` (272 + 11), medido**; o fix pass dos achados da review dela (2026-08-12) acrescentou **+7** — não os `+9` que o brief do fix pass previa (a própria previsão já avisava "não medição"; M7 e m3 couberam dentro de casos existentes em vez de virarem `it(` novos) —, fechando em **290**, que passa a ser a baseline da Task 9A. **A Task 9 virou 9A + 9B em 2026-08-13** e as duas contagens foram derivadas do zero, teste a teste, no relatório da partida — não herdadas do `X` da task unificada. Se você for implementar qualquer uma delas, **conte os `it(` do seu próprio Step de teste antes de confiar em qualquer delta deste plano**, e lembre que `it.each` conta **casos**, não blocos.)*
 
@@ -5416,10 +5417,36 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 - Consumes: `useBuscaPaginada` (Task 3), `ControlesDePaginacao` (Task 6) — as duas peças que a 9A deliberadamente não tocou; e tudo o que a 9A já consome.
 - Produces: nada.
 
-> **⚠️ TODA citação `ComponentesPage.test.tsx:N` desta task é linha do arquivo de HOJE (HEAD
-> `0ae67df`). Quando esta task começa, a 9A já rodou e TUDO desceu +11.** Achado nº 9 do pré-flight
-> da 9A, que ele mediu e não corrigiu por estar fora do escopo dele; **corrigido aqui em
-> 2026-08-14.**
+> **⚠️ Nesta task a âncora vinculante é o NOME DO TESTE, não o número da linha** (migração de
+> 2026-08-14, decisão do usuário). Toda citação a `ComponentesPage.test.tsx` e a
+> `useBuscaPaginada.test.tsx` identifica o teste pelo **nome**; onde ainda aparecer um número, ele
+> vem na forma "(hoje `:47`)" e é **auxílio de navegação perecível** — linha do arquivo de HOJE
+> (HEAD `73f721f`), **já errada quando esta task começa**, porque a 9A empurra tudo +11. Se o número
+> não bater com o nome, **o nome ganha e o número está velho**; nunca o contrário.
+>
+> Origem: achado nº 9 do pré-flight da 9A, que ele mediu e não corrigiu por estar fora do escopo
+> dele. Os números foram corrigidos em 2026-08-14 — **a instância** — e substituídos por nomes no
+> mesmo dia — **o mecanismo**. Número de linha em plano vence toda vez que alguém insere uma linha
+> acima, e esta fase já pagou por isso mais de uma vez.
+>
+> **Como localizar, e a prova de que dá:**
+> `grep -n "<nome exato do teste>" web/src/pages/ComponentesPage.test.tsx`. Os **21** nomes que esta
+> task cita foram conferidos contra os dois arquivos reais em 2026-08-14: cada um casa com
+> **exatamente um** `it(`, nenhum é substring de outro, e cada arquivo tem um `describe` só (não há
+> nome repetido em bloco irmão). **Um par que só o nome do arquivo separa:** `volta para a pagina 1
+> quando a busca muda` (tela, **sem** acento) e `volta para a página 1 quando a busca muda` (hook,
+> **com** acento) são testes **diferentes**; idem o par do filtro de inativos. **Cite sempre com o
+> arquivo.**
+>
+> **E não é só a 9A que move linha:** o **Step 2 desta task** insere um teste em
+> `useBuscaPaginada.test.tsx`, então os `hoje :N` daquele arquivo também ficam velhos **dentro da
+> própria task**, a partir do ponto de inserção. Mais uma razão para o nome mandar.
+>
+> **O que continua citado por número, de propósito:** `ControlesDePaginacao.test.tsx` (`:36`, `:46`,
+> `:56`) e os arquivos de código (`useBuscaPaginada.ts:106` e `:117`, `ControlesDePaginacao.tsx:19`
+> e `:23`, `cadastros.ts:233-256`). **Nenhuma das tasks que restam (9A, 9B, 10, 11, 12) lista esses
+> arquivos em `Files`** — conferido em 2026-08-14 —, então as linhas deles não se mexem nesta fase;
+> e código não tem nome de teste para servir de âncora.
 >
 > **O deslocamento é +11, MEDIDO duas vezes e por dois caminhos:** o pré-flight da 9A leu
 > `:36` → `:47` e `:772` → `:783` na árvore descartável em que executou a task; a aplicação das
@@ -5428,11 +5455,16 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 > um — **os 34 deslocam +11, sem exceção**, e o arquivo vai de 987 para 998 linhas.
 >
 > **Os 7 testes que a 9A acrescenta NÃO mudam esse número**, porque entram no fim do `describe`,
-> abaixo de tudo o que esta task cita (a maior citação é `:772`); e o `within` que o teste do X3
+> abaixo de tudo o que esta task cita (o teste citado que fica mais embaixo hoje é o `mostra Página
+> 1 de 1 quando o total e zero`, em `:772`); e o `within` que o teste do X3
 > exige é acrescentado à linha de import que já existe, não numa linha nova. É por isso que o Step 3
 > da 9A exige as duas coisas de forma explícita.
 >
-> | Teste | HOJE | Depois da 9A |
+> **Tabela de NAVEGAÇÃO, não de âncora** (ela nasceu para converter os números e sobrevive só como
+> mapa: depois da migração acima, quem vincula é a coluna da esquerda). Serve para achar o teste
+> rápido num editor e para reconhecer números velhos em relatórios antigos desta fase:
+>
+> | Teste (**a âncora**) | hoje | depois da 9A |
 > |---|---|---|
 > | `volta para a pagina 1 quando a busca muda` | `:47` | **`:58`** |
 > | `atualiza a URL de busca mesmo ja estando na pagina 1` | `:75` | **`:86`** |
@@ -5441,17 +5473,17 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 > | `desabilita Anterior na primeira pagina e Proxima na ultima` | `:132` | **`:143`** |
 > | `mostra o total e a contagem de paginas` | `:144` | **`:155`** |
 > | `volta para a pagina 1 quando o filtro de inativos muda` | `:480` | **`:491`** |
-> | `mantem o resultado da requisicao mais recente…` | `:505` | **`:516`** |
-> | `nao mostra erro de uma requisicao desatualizada…` | `:554` | **`:565`** |
-> | `mantem o indicador de carregando…` | `:598` | **`:609`** |
+> | `mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem` | `:505` | **`:516`** |
+> | `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` | `:554` | **`:565`** |
+> | `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` | `:598` | **`:609`** |
 > | `Anterior volta para a pagina anterior quando habilitado` | `:636` | **`:647`** |
 > | `mostra Página 1 de 1 quando o total e zero` | `:772` | **`:783`** |
-> | `limpa a mensagem de erro da carga inicial…` | `:930` | **`:941`** |
+> | `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` | `:930` | **`:941`** |
 >
-> **Pior caso concreto se você ignorar esta tabela:** depois da 9A, `:47` aponta para `lista os
-> componentes que a API devolveu` — teste **diferente** do que esta task quer remover, e que **não
-> pode sair**. **A âncora vinculante é o NOME do teste**, escrito ao lado de cada citação; o número
-> é conveniência, e é ele que apodrece.
+> **Pior caso concreto de trabalhar pelo número, e é o motivo da migração:** depois da 9A, `:47`
+> aponta para `lista os componentes que a API devolveu` — teste **diferente** do que esta task quer
+> remover, e que **não pode sair**. O número não erra alto: erra apontando para um teste válido, o
+> que faz a remoção errada parecer certa. **Por isso o nome vincula e o número é conveniência.**
 
 **Esta é a única task da fase que REMOVE teste, e a única que subtrai na conta.** Leia o parágrafo de composição do Step 1 antes de apagar a primeira linha.
 
@@ -5469,28 +5501,32 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 > vermelhos **depois** de adaptar harness, seletores, mensagens e o seletor do riscado — e essas
 > quatro adaptações são todas da **Task 9A**, já feitas quando esta task começa):
 >
-> - `web/src/pages/ComponentesPage.test.tsx:132-141` (→ **`:143-152`** depois da 9A) — `desabilita Anterior na primeira pagina e
->   Proxima na ultima`. Com `total: 1`/`tamanho: 20` → 1 página → `null`; ela busca "Anterior" via
+> - `desabilita Anterior na primeira pagina e Proxima na ultima`, em
+>   `web/src/pages/ComponentesPage.test.tsx` (hoje `:132-141`; `:143-152` depois da 9A —
+>   navegação, não âncora). Com `total: 1`/`tamanho: 20` → 1 página → `null`; ela busca "Anterior" via
 >   `getByRole` e espera `disabled === true`. Falha MEDIDA: *Unable to find an accessible element
 >   with the role "button" and name "Anterior"*.
-> - `web/src/pages/ComponentesPage.test.tsx:772-781` (→ **`:783-792`** depois da 9A) — `mostra Página 1 de 1 quando o total e zero`.
+> - `mostra Página 1 de 1 quando o total e zero`, em `web/src/pages/ComponentesPage.test.tsx`
+>   (hoje `:772-781`; `:783-792` depois da 9A — navegação, não âncora).
 >   Com `total: 0` → `useBuscaPaginada.ts:117` faz `Math.max(1, Math.ceil(0/20)) = 1` → `null`; o
 >   texto `Página 1 de 1 — 0 no total` nunca renderiza. Falha MEDIDA: *Unable to find an element
 >   with the text: Página 1 de 1 — 0 no total*.
 >
 > **E são só esses dois.** Os outros dois testes que tocam paginação sobrevivem porque têm mais de
-> uma página: `mostra o total e a contagem de paginas` (`:144`, total 41 → 3 páginas) e `Anterior
-> volta para a pagina anterior quando habilitado` (`:636`, total 100 → 5 páginas) — MEDIDOS verdes,
+> uma página: `mostra o total e a contagem de paginas` (hoje `:144`, total 41 → 3 páginas) e
+> `Anterior volta para a pagina anterior quando habilitado` (hoje `:636`, total 100 → 5 páginas) — MEDIDOS verdes,
 > e os dois são matadores da M10. **Não os toque.**
 >
 > Não é regressão desta task: é uma decisão de desenho tomada na Task 6 que os testes da tela nunca
 > acompanharam. A propriedade "não aparece quando há uma página só" **já tem dono próprio**
 > (`ControlesDePaginacao.test.tsx:56`), e o `disabled` dos dois botões também (`:36` e `:46`,
-> MEDIDOS). **Decisão U3 do usuário, 2026-08-13:** `:772` **sai** (MUDA DE DONO — a prova já está em
-> `useBuscaPaginada.test.tsx:318` + `ControlesDePaginacao.test.tsx:56`), e `:132` **fica, adaptado**
-> ao comportamento real da primitiva (nenhum botão quando há só uma página).
+> MEDIDOS). **Decisão U3 do usuário, 2026-08-13:** `mostra Página 1 de 1 quando o total e zero`
+> **sai** (MUDA DE DONO — a prova já está em `mantém pelo menos uma página quando não há nada`, de
+> `useBuscaPaginada.test.tsx`, + `ControlesDePaginacao.test.tsx:56`), e `desabilita Anterior na
+> primeira pagina e Proxima na ultima` **fica, adaptado** ao comportamento real da primitiva
+> (nenhum botão quando há só uma página).
 
-**O debounce entra aqui, e o custo de relógio é real.** MEDIDO no pré-flight: os seis testes que digitam na busca passam **sem timers falsos**, custando de 331 a 453 ms de relógio real cada (405 / 343 / 437 / 453 / 453 / 331 ms) em vez de ~20 ms, porque o `waitFor` tem timeout padrão de 1000 ms > 300 ms do debounce. **Cinco desses seis saem nesta task** (`:47`, `:75`, `:505`, `:554`, `:598`); sobra `:930`, que continua passando com relógio real. **Consequência a não perder, e é o D14 do pré-flight: nada prova que o debounce está LIGADO na tela** — MEDIDO, passar `atrasoDoDebounce: 0` deixava a suíte inteira verde, **0 mortes**. O Step 3 fecha isso com um teste.
+**O debounce entra aqui, e o custo de relógio é real.** MEDIDO no pré-flight: os seis testes que digitam na busca passam **sem timers falsos**, custando de 331 a 453 ms de relógio real cada (405 / 343 / 437 / 453 / 453 / 331 ms) em vez de ~20 ms, porque o `waitFor` tem timeout padrão de 1000 ms > 300 ms do debounce. **Cinco desses seis saem nesta task** — `volta para a pagina 1 quando a busca muda`, `atualiza a URL de busca mesmo ja estando na pagina 1`, `mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem`, `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` e `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` (hoje `:47`, `:75`, `:505`, `:554`, `:598`); sobra `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` (hoje `:930`), que continua passando com relógio real. **Consequência a não perder, e é o D14 do pré-flight: nada prova que o debounce está LIGADO na tela** — MEDIDO, passar `atrasoDoDebounce: 0` deixava a suíte inteira verde, **0 mortes**. O Step 3 fecha isso com um teste.
 
 **Sobre `listarComponentes` (D11, imprecisão de texto do plano original):** a assinatura real é `(f: FiltroDeComponentes) => Promise<PaginaDe<ComponenteDto>>` (`cadastros.ts:233-256`), e a do hook é `(FiltroDeBusca) => Promise<PaginaDeBusca<T>>` — **dois pares de tipos nomeados diferentes, estruturalmente compatíveis**. Compila (MEDIDO, `npm run build` verde com o bloco do Step 2 instalado). Não é erro; está registrado porque "exatamente" é palavra que convida a não conferir.
 
@@ -5530,27 +5566,29 @@ Expected: **41** no arquivo da tela, **18** no do hook, e **297** na suíte.
 > `useBuscaPaginada.test.tsx` em 19.** Reporte os dois, sempre — não porque o total é ambíguo, mas
 > porque o total sozinho nunca provou de onde veio.
 
-**Os 8 que saem — DECISÃO U3 do usuário (X = 7) mais o `:554` da decisão U2.** MEDIDO e vinculante: **nenhum deles precisa sair**; com adaptação, 34/34 ficam verdes. Toda saída aqui é **de-duplicação voluntária de prova que já tem dono medido em outro arquivo** — não apague nenhum outro para fechar conta:
+**Os 8 que saem — DECISÃO U3 do usuário (X = 7) mais o `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` da decisão U2.** MEDIDO e vinculante: **nenhum deles precisa sair**; com adaptação, 34/34 ficam verdes. Toda saída aqui é **de-duplicação voluntária de prova que já tem dono medido em outro arquivo** — não apague nenhum outro para fechar conta:
 
-| # | Teste (linha no arquivo de HOJE — **+11 depois da 9A**, ver a tabela de conversão na abertura) | Novo dono, MEDIDO | Mutação que prova o novo dono |
+**A âncora de cada linha é o NOME, nas duas colunas** — o que sai é o `it(` com aquele nome exato em `ComponentesPage.test.tsx`, e o novo dono é o `it(` com aquele nome exato em `useBuscaPaginada.test.tsx`. Os `hoje :N` são navegação: os da esquerda somam +11 depois da 9A, e os da direita andam assim que o Step 2 insere o teste novo no arquivo do hook.
+
+| # | Teste que sai de `ComponentesPage.test.tsx` | Novo dono em `useBuscaPaginada.test.tsx`, MEDIDO | Mutação que prova o novo dono |
 |---|---|---|---|
-| 1 | `volta para a pagina 1 quando a busca muda` (`:47`) | `useBuscaPaginada.test.tsx:144` | tirar `setPagina(1)` do efeito de debounce → 1 morte |
-| 2 | `atualiza a URL de busca mesmo ja estando na pagina 1` (`:75`) | idem | idem |
-| 3 | `volta para a pagina 1 quando o tamanho da pagina muda` (`:92`) | `useBuscaPaginada.test.tsx:174` | tirar `setPagina(1)` de `mudarTamanho` → 1 morte |
-| 4 | `volta para a pagina 1 quando o filtro de inativos muda` (`:480`) | `useBuscaPaginada.test.tsx:159` | tirar `setPagina(1)` de `mudarInativos` → 1 morte |
-| 5 | `mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem` (`:505`) | `useBuscaPaginada.test.tsx:102` | tirar a guarda antes de `setItens` → **2** mortes |
-| 6 | `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` (`:598`) | `useBuscaPaginada.test.tsx:248` | tirar `setCarregando(true)` de `carregar` (W3) → 2 mortes |
-| 7 | `mostra Página 1 de 1 quando o total e zero` (`:772`) | `useBuscaPaginada.test.tsx:318` + `ControlesDePaginacao.test.tsx:56` | `Math.max(1, …)` → `Math.ceil(…)` → 5 mortes |
-| 8 | `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` (`:554`) | **NÃO TEM DONO AINDA** — ver o Step 2 | tirar a guarda antes de `setErro(e)` → **0 mortes no hook** |
+| 1 | `volta para a pagina 1 quando a busca muda` (hoje `:47`) | `volta para a página 1 quando a busca muda` (hoje `:144`) — **note o acento: é o teste do hook, não este** | tirar `setPagina(1)` do efeito de debounce → 1 morte |
+| 2 | `atualiza a URL de busca mesmo ja estando na pagina 1` (hoje `:75`) | idem | idem |
+| 3 | `volta para a pagina 1 quando o tamanho da pagina muda` (hoje `:92`) | `volta para a página 1 quando o tamanho de página muda` (hoje `:174`) | tirar `setPagina(1)` de `mudarTamanho` → 1 morte |
+| 4 | `volta para a pagina 1 quando o filtro de inativos muda` (hoje `:480`) | `volta para a página 1 quando o filtro de inativos muda` (hoje `:159`) | tirar `setPagina(1)` de `mudarInativos` → 1 morte |
+| 5 | `mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem` (hoje `:505`) | `ignora a resposta de uma busca que já foi superada por outra` (hoje `:102`) | tirar a guarda antes de `setItens` → **2** mortes |
+| 6 | `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` (hoje `:598`) | `mantém "carregando" quando a resposta obsoleta chega com outra ainda em voo` (hoje `:248`) | tirar `setCarregando(true)` de `carregar` (W3) → 2 mortes |
+| 7 | `mostra Página 1 de 1 quando o total e zero` (hoje `:772`) | `mantém pelo menos uma página quando não há nada` (hoje `:318`) + `ControlesDePaginacao.test.tsx:56` | `Math.max(1, …)` → `Math.ceil(…)` → 5 mortes |
+| 8 | `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` (hoje `:554`) | **NÃO TEM DONO AINDA** — ver o Step 2 | tirar a guarda antes de `setErro(e)` → **0 mortes no hook** |
 
-**O nº 8 é condicional e a ordem não é negociável (DECISÃO U2 do usuário, 2026-08-13): ele só sai DEPOIS de o hook ganhar o teste equivalente e de você ter visto esse teste ficar VERMELHO sob a mutação.** Se você apagar `:554` antes disso, a suíte fica verde e o projeto perde a única prova que tem da terceira guarda de sequência — o D5 do pré-flight, o pior defeito possível segundo o próprio brief da task.
+**O nº 8 é condicional e a ordem não é negociável (DECISÃO U2 do usuário, 2026-08-13): ele só sai DEPOIS de o hook ganhar o teste equivalente e de você ter visto esse teste ficar VERMELHO sob a mutação.** Se você apagar `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` antes disso, a suíte fica verde e o projeto perde a única prova que tem da terceira guarda de sequência — o D5 do pré-flight, o pior defeito possível segundo o próprio brief da task.
 
-**Os que FICAM e por quê** (a lista é tão vinculante quanto a de saída; os números são **linha de HOJE → linha depois da 9A**):
+**Os que FICAM e por quê** (a lista é tão vinculante quanto a de saída; a âncora é o nome, e o `hoje :N → :N depois da 9A` é só navegação):
 
-- `:117` → **`:128`** `atualiza a URL de tamanho mesmo ja estando na pagina 1` — **único ancoradouro do seletor de tamanho na tela**. É ele, e só ele, que mata a M14 (D8 do pré-flight). Se sair, o `<select>` "Por página" pode ficar inerte sem que nada quebre.
-- `:144` → **`:155`** `mostra o total e a contagem de paginas` — matador da M10. MEDIDO: dos 5 matadores da M10, 4 estavam na lista de remoção do plano original; este é um dos dois que restam.
-- `:636` → **`:647`** `Anterior volta para a pagina anterior quando habilitado` — o outro matador da M10.
-- `:132` → **`:143`** `desabilita Anterior na primeira pagina e Proxima na ultima` — **fica adaptado**, não sai.
+- `atualiza a URL de tamanho mesmo ja estando na pagina 1` (hoje `:117` → `:128`) — **único ancoradouro do seletor de tamanho na tela**. É ele, e só ele, que mata a M14 (D8 do pré-flight). Se sair, o `<select>` "Por página" pode ficar inerte sem que nada quebre.
+- `mostra o total e a contagem de paginas` (hoje `:144` → `:155`) — matador da M10. MEDIDO: dos 5 matadores da M10, 4 estavam na lista de remoção do plano original; este é um dos dois que restam.
+- `Anterior volta para a pagina anterior quando habilitado` (hoje `:636` → `:647`) — o outro matador da M10.
+- `desabilita Anterior na primeira pagina e Proxima na ultima` (hoje `:132` → `:143`) — **fica adaptado**, não sai.
 - **Os 7 testes que a 9A acrescentou também ficam, todos** — inclusive os dois que fecham X3 e X6 (`mostra o tipo de cada componente na lista` e `dá à tela o título "Componentes" no h1`), que continuam valendo porque o Step 3 desta task mantém `<Pilula>{c.tipo}</Pilula>` e `<Pagina titulo="Componentes">`. Só um deles é **reescrito** aqui: o `distingue "nada corresponde à busca"…`, que passa a precisar de timers falsos (classe (f), Step 4).
 
 - [ ] **Step 2: Dar dono ao que ainda não tem — o teste da guarda do `catch` no hook**
@@ -5574,18 +5612,21 @@ Expected: **41** no arquivo da tela, **18** no do hook, e **297** na suíte.
 >
 > **"Guarda de sequência da corrida" são TRÊS guardas, e o hook só prova DUAS.** A do `catch`
 > (`useBuscaPaginada.ts:106`) não tem dono no hook: apagá-la deixa os 18 testes do hook **verdes**,
-> e o único matador do projeto inteiro é `ComponentesPage.test.tsx:554`.
+> e o único matador do projeto inteiro é `nao mostra erro de uma requisicao desatualizada que falha
+> depois de uma mais recente ter sucesso`, em `ComponentesPage.test.tsx` (hoje `:554`).
 
-Acrescente em `web/src/hooks/useBuscaPaginada.test.tsx`, no molde do vizinho `ignora a resposta de uma busca que já foi superada por outra` (`:102`) — mesmo `Hospedeiro`, mesmo `avancar`, mesma técnica de resposta atrasada:
+Acrescente em `web/src/hooks/useBuscaPaginada.test.tsx`, no molde do vizinho `ignora a resposta de uma busca que já foi superada por outra` (hoje `:102`) — mesmo `Hospedeiro`, mesmo `avancar`, mesma técnica de resposta atrasada:
 
 ```tsx
 it('não mostra erro de uma busca superada que FALHA depois de a mais recente ter sucesso', async () => {
   // Fecha o D5 do pré-flight de 2026-08-13. Das TRÊS guardas de sequência do hook, a do `catch`
   // (`useBuscaPaginada.ts:106`) era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
-  // e o único matador do projeto era `ComponentesPage.test.tsx:554` — prova de mecanismo do hook
-  // morando na suíte de uma tela. Este teste é o pré-requisito para aquele sair (decisão U2).
+  // e o único matador do projeto era o `nao mostra erro de uma requisicao desatualizada que falha
+  // depois de uma mais recente ter sucesso`, da `ComponentesPage.test.tsx` — prova de mecanismo do
+  // hook morando na suíte de uma tela. Este teste é o pré-requisito para aquele sair (decisão U2).
   //
-  // Simétrico ao `:102`, mas pelo ramo de ERRO: lá a resposta obsoleta era um sucesso que não pode
+  // Simétrico ao `ignora a resposta de uma busca que já foi superada por outra`, deste mesmo
+  // arquivo, mas pelo ramo de ERRO: lá a resposta obsoleta era um sucesso que não pode
   // sobrescrever a lista; aqui é uma FALHA que não pode acender o erro de uma consulta que o
   // usuário já abandonou.
   const ordemDeResposta: string[] = []
@@ -5617,7 +5658,7 @@ it('não mostra erro de uma busca superada que FALHA depois de a mais recente te
 })
 ```
 
-**Prove que ele vale antes de seguir:** apague a guarda de sequência do `catch` em `useBuscaPaginada.ts:106` e confirme que **este teste fica vermelho** (a mutação M15 do Step 5). Reverta por **edição inversa**, nunca `git checkout` — a árvore tem sujeira alheia permanente. Só depois de ver o vermelho é que `ComponentesPage.test.tsx:554` pode sair.
+**Prove que ele vale antes de seguir:** apague a guarda de sequência do `catch` em `useBuscaPaginada.ts:106` e confirme que **este teste fica vermelho** (a mutação M15 do Step 5). Reverta por **edição inversa**, nunca `git checkout` — a árvore tem sujeira alheia permanente. Só depois de ver o vermelho é que o `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso`, da `ComponentesPage.test.tsx`, pode sair.
 
 - [ ] **Step 3: Trocar o motor da `ComponentesPage`**
 
@@ -5878,9 +5919,9 @@ export function ComponentesPage() {
 
 Três classes de mudança nesta task — (b′) paginação, (c) mudança de dono, (f) debounce nos testes que digitam na busca. As quatro classes de adaptação de markup ((a) harness, (b) seletores, (d) mensagens, (e) markup do item) **já foram feitas na 9A**.
 
-**(b′) Paginação.** Adapte `:132` ao comportamento real de `ControlesDePaginacao` (nenhum botão — nenhuma paginação — quando há só uma página). Não toque em `:144` nem `:636`.
+**(b′) Paginação.** Adapte `desabilita Anterior na primeira pagina e Proxima na ultima` ao comportamento real de `ControlesDePaginacao` (nenhum botão — nenhuma paginação — quando há só uma página). Não toque em `mostra o total e a contagem de paginas` nem em `Anterior volta para a pagina anterior quando habilitado`.
 
-**(c) Mudança de dono.** Remova os 8 da tabela do Step 1, **nessa ordem, e o `:554` só depois do Step 2**. **O que NÃO sai:** tudo que prova a integração da tela — corpo do POST, ramo 201, conflito com e sem inativo, alternar ativo, reativar, a montagem da URL, os dois de perfil, a sonda do estado vazio, `:117`, `:144`, `:636` e `:132` adaptado.
+**(c) Mudança de dono.** Remova os 8 da tabela do Step 1, **nessa ordem, e o `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` só depois do Step 2**. **O que NÃO sai:** tudo que prova a integração da tela — corpo do POST, ramo 201, conflito com e sem inativo, alternar ativo, reativar, a montagem da URL, os dois de perfil, a sonda do estado vazio, `atualiza a URL de tamanho mesmo ja estando na pagina 1`, `mostra o total e a contagem de paginas`, `Anterior volta para a pagina anterior quando habilitado` e `desabilita Anterior na primeira pagina e Proxima na ultima` adaptado.
 
 **(f) Debounce.** Agora a busca é debounced, então **todo teste que digita na busca** precisa de timers falsos e do helper de avanço:
 
@@ -5892,7 +5933,7 @@ async function avancar(ms: number) {
 
 **Use timers falsos só nos testes que tocam a busca.** Ligá-los no arquivo inteiro obrigaria a reescrever os ~30 que não têm nada com debounce, e o `findBy*` deles passaria a depender de avanço manual. `vi.useFakeTimers()` dentro do `it`, e **`vi.useRealTimers()` no `afterEach` que já existe** (`afterEach(() => { vi.unstubAllGlobals() })`) — senão os timers falsos vazam para o teste seguinte, do mesmo jeito que o `perfil` vazava (defeito MEDIDO no pré-flight).
 
-**Quem digita na busca depois das remoções:** `:930` → **`:941`** (`limpa a mensagem de erro da carga inicial…`) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. **Os outros seis testes novos da 9A não tocam na busca** — não precisam de timers falsos. MEDIDO: `:930` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
+**Quem digita na busca depois das remoções:** `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` (hoje `:930` → `:941`) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. **Os outros seis testes novos da 9A não tocam na busca** — não precisam de timers falsos. MEDIDO: o `limpa a mensagem de erro da carga inicial…` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
 
 ```tsx
   fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
@@ -5906,7 +5947,7 @@ it('agrupa as teclas da busca numa requisição só — o debounce está LIGADO 
   // Fecha o D14 do pré-flight: MEDIDO, `useBuscaPaginada({ buscar, atrasoDoDebounce: 0 })` — o
   // debounce efetivamente desligado — deixava a suíte inteira verde, 0 mortes. O debounce é metade
   // do título desta task e não tinha prova nenhuma no nível da tela. Molde: o
-  // `useBuscaPaginada.test.tsx:67` ("faz UMA requisição para três teclas digitadas em sequência"),
+  // `faz UMA requisição para três teclas digitadas em sequência`, de `useBuscaPaginada.test.tsx`,
   // aplicado à tela em vez de ao Hospedeiro.
   vi.useFakeTimers()
   const fetchMock = fetchPorRota({
@@ -5967,9 +6008,9 @@ Expected: **35** no arquivo da tela, **19** no do hook, **292** na suíte. O `29
 | M4′ | remover `await lista.recarregar()` do ramo de sucesso de `salvar` | tela | ≥ 1 (MEDIDO: 2) | **nomeie ao medir** — o call site mudou de `carregar(…)` para `lista.recarregar()`, por isso remede |
 | M5 | trocar `erroDeEscrita ?? erroDeLeitura` por só `erroDeLeitura` | tela | ≥ 1 (MEDIDO: 9) | mata pelas mensagens de escrita, **não** pela "sobrevivência à recarga" que o teste novo promete — não confunda as duas |
 | M6′ | trocar `buscando` por `false` (agora sobre `lista.textoDaBusca`) | tela | ≥ 1 | `distingue "nada corresponde à busca"…` |
-| M10 | remover o `<ControlesDePaginacao>` | tela | ≥ 1 (MEDIDO: 5 antes das remoções) | `mostra o total e a contagem de paginas` (`:144`) **e** `Anterior volta…` (`:636`) — os dois ficam de propósito |
+| M10 | remover o `<ControlesDePaginacao>` | tela | ≥ 1 (MEDIDO: 5 antes das remoções) | `mostra o total e a contagem de paginas` **e** `Anterior volta para a pagina anterior quando habilitado` (hoje `:144` e `:636`) — os dois ficam de propósito |
 | M13 | **NOVA** — `useBuscaPaginada({ buscar: listarComponentes, atrasoDoDebounce: 0 })` | tela | ≥ 1 (fecha o **D14**; MEDIDO em 0 antes) | `agrupa as teclas da busca numa requisição só…` |
-| M14 | **NOVA** — `onChange={() => {}}` no `<select>` "Por página" | tela | ≥ 1 (fecha o **D8**; MEDIDO em 0 quando `:117` saía) | `atualiza a URL de tamanho mesmo ja estando na pagina 1` (`:117`) — **é por isto que ele fica** |
+| M14 | **NOVA** — `onChange={() => {}}` no `<select>` "Por página" | tela | ≥ 1 (fecha o **D8**; MEDIDO em 0 quando este teste saía) | `atualiza a URL de tamanho mesmo ja estando na pagina 1` (hoje `:117`) — **é por isto que ele fica** |
 | M15 | **NOVA** — tirar a guarda de sequência antes de `setErro(e)` (`useBuscaPaginada.ts:106`) | **hook** | ≥ 1 (fecha o **D5**; MEDIDO em 0 no hook antes) | o teste do Step 2 |
 
 > **Regressão obrigatória, e não é zelo:** esta suíte de tela perdeu 8 testes. Rode de novo, contra
@@ -6011,7 +6052,7 @@ git commit -m "feat(web): ComponentesPage sobre useBuscaPaginada e ControlesDePa
 - `grep -c "useBuscaPaginada" src/pages/ComponentesPage.tsx` ≥ 1 e `grep -c "ControlesDePaginacao" src/pages/ComponentesPage.tsx` ≥ 1;
 - as **7 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador nomeado, **mais** a re-verificação das **9** herdadas da 9A (M1, M2, M3, M7, M8, M9, M12, **M16 e M17**) — **nenhuma mutação de nenhuma das duas tasks fica sem matador**, e os dois mutantes equivalentes ficam declarados fora das tabelas;
 - **a lista dos 8 testes removidos, um a um, com o nome e o motivo, no relatório** — e a confirmação explícita de que **nenhuma remoção era necessária** (34/34 ficavam verdes só com adaptação): toda saída aqui é de-duplicação decidida pelo usuário em U3/U2;
-- **a prova de ordem da decisão U2 declarada no relatório**: o teste do hook existia e ficou **vermelho** sob a M15 **antes** de `ComponentesPage.test.tsx:554` sair;
+- **a prova de ordem da decisão U2 declarada no relatório**: o teste do hook existia e ficou **vermelho** sob a M15 **antes** de o `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso`, da `ComponentesPage.test.tsx`, sair;
 - **a composição `297 − 8 + 3 = 292` reportada com os números reais**, junto com o **par por arquivo (35 / 19)** — o total já não colide com baseline nenhuma (290 → 297 → 292), mas o par por arquivo continua sendo a prova direta do que esta task fez;
 - a **verificação pós-commit do Step 6** executada e reportada: `git status --short`, `git show --stat HEAD` com os **três** arquivos, nenhum `.claude/settings*.json` no commit, varredura de segredo feita;
 - suíte, `npm run build` e `npm run lint` verdes.
@@ -6793,7 +6834,7 @@ git commit -m "feat(web): identidade visual na LoginPage"
 1. **`git status --short` depois do commit** — nada de `M`/`??` que devesse ter entrado.
 2. **`git show --stat HEAD`** — os arquivos e a contagem batem com o que este Step produziu (aqui: os dois de `LoginPage`, e nada mais). **Este é o primeiro de DOIS commits desta task** — o Step 8 faz o segundo, com as specs e o `CLAUDE.md`; não junte os dois nem deixe o segundo lote entrar aqui por engano.
 3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
-4. **O repositório é PÚBLICO**: varredura de segredo antes do push, passo obrigatório — a varredura formal está no Step 8, e vale para tudo o que for empurrado.
+4. **O repositório é PÚBLICO**: varredura de segredo antes do push, passo obrigatório — a varredura formal, sobre o **histórico** da branch, é a **Task 13**, e é ela que libera o push de tudo o que a fase produziu.
 
 **Abrir ou mesclar PR não é nosso** — aprovação manual do usuário.
 
@@ -6928,9 +6969,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   build sem quebrar a suíte (o Vitest não faz typecheck).
 ```
 
-- [ ] **Step 8: Varredura de segredo e commit final**
+- [ ] **Step 8: Conferência rápida do diff, e o commit final**
 
-O repositório é **público**. Antes de qualquer push:
+O repositório é **público**. Uma conferência barata do que a fase deixou na árvore, antes do commit:
 
 ```bash
 git diff main --stat
@@ -6938,6 +6979,12 @@ git diff main | grep -inE "password|senha|secret|token|api[_-]?key|connectionstr
 ```
 
 Expected: nada além de identificadores de código. **Se aparecer valor literal, pare e reporte.**
+
+> **⚠️ ISTO NÃO É A VARREDURA DE SEGREDO, e não libera o push.** `git diff main` compara **estados
+> de árvore**: mostra só o líquido da fase. Um segredo acrescentado num commit lá atrás e removido
+> depois **não aparece aqui**, e continua no histórico, que é o que o push publica. **A varredura
+> que vale é a Task 13**, sobre `git log -p origin/main..HEAD` — commit a commit. Este Step é
+> triagem barata; a Task 13 é a prova.
 
 ```bash
 git add specs/06-roadmap-mvp.md CLAUDE.md
@@ -6949,7 +6996,7 @@ git commit -m "docs: registra a Fase 1D no roadmap e as convencoes de interface"
 1. **`git status --short` depois do commit** — nada de `M`/`??` sobrando. **Este é o último commit da branch:** o que ficar de fora aqui não entra na fase, e um arquivo de task anterior esquecido no `status` significa que aquela task commitou incompleta.
 2. **`git show --stat HEAD`** — `specs/06-roadmap-mvp.md` e `CLAUDE.md`, e nada mais.
 3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
-4. **A varredura de segredo já é o começo deste Step** — ela é o item 4 da verificação, e aqui está executada, não presumida.
+4. **A conferência de diff é o começo deste Step**, executada e não presumida — **mas ela não é a varredura de segredo.** A varredura que libera o push é a **Task 13**, sobre `git log -p origin/main..HEAD`; ela vem **depois** deste commit, porque só então o histórico da fase está completo.
 
 **Abrir ou mesclar o PR da fase NÃO é nosso** — é aprovação manual do usuário. Pare depois do commit e reporte.
 
@@ -6966,7 +7013,222 @@ Reporte, em números medidos e não estimados:
   (Task 10, M2/M3) — e qualquer outro que tenha aparecido;
 - os **valores de contraste medidos** de cada par (Task 4).
 
-**Definition of done da Task 12:** as 8 varreduras do Step 4 com o resultado esperado; as 8 verificações manuais feitas e relatadas; `specs/06-roadmap-mvp.md` e `CLAUDE.md` atualizados; varredura de segredo limpa; suíte, build e lint verdes.
+**Definition of done da Task 12:** as 8 varreduras do Step 4 com o resultado esperado; as 8 verificações manuais feitas e relatadas; `specs/06-roadmap-mvp.md` e `CLAUDE.md` atualizados; a conferência rápida de diff do Step 8 feita (**a varredura formal é a Task 13, e é ela que libera o push**); suíte, build e lint verdes.
+
+---
+
+### Task 13: Varredura de segredo no HISTÓRICO da branch, antes de montar o PR
+
+**Files:**
+- **Cria: nada. Modifica: nada.** *Não se aplica, porque* esta task não escreve código, teste nem
+  documento: ela **lê o histórico do git** e devolve um veredito. Os arquivos intermediários que ela
+  produz (o patch e a lista de casamentos) vão para **fora da árvore** — o `$TMP` do Step 3, nunca `web/`,
+  `src/`, `docs/` ou a raiz.
+- **Consequência verificável:** se esta task terminar com `git status --short` diferente do estado em
+  que começou, **ela errou**. Isso está na DoD.
+
+**Interfaces:**
+- **Consumes:** o **histórico completo** da branch `fase-1d-ui-e-ux` — todos os commits de
+  `origin/main..HEAD`. Não a árvore de trabalho, não o `git diff`, não o último commit.
+- **Provides:** o **go / no-go do push e do PR** da fase. *Nenhuma interface de código — não se
+  aplica, porque a task não produz símbolo, tipo ou componente que outra task importe.*
+
+**Delta de teste: ZERO — e ela NÃO entra na contagem da suíte.** Esta task não acrescenta nem remove
+`it(`. O total com que a Task 12 fechar continua valendo depois dela; **quem somar em cima soma 0**.
+Se `npm test` mudar de número aqui, aconteceu alguma coisa fora do escopo desta task — pare e
+reporte. (Esta linha existe porque total de teste em plano é dívida composta: uma task sem delta
+declarado vira `+?` na cabeça da próxima pessoa que somar.)
+
+**Por que ela existe, e por que só agora.** O repositório é **PÚBLICO**
+(`github.com/rufino-bot/rastru`) e esta branch é **local**: nunca foi empurrada, não tem upstream.
+Em 2026-08-14 eram **49 commits** à frente de `origin/main` (MEDIDO,
+`git rev-list --count origin/main..HEAD`) — **serão mais quando esta task rodar; meça, não copie o
+49**. O push publica **todos eles de uma vez**, e é o primeiro e único momento em que qualquer coisa
+escrita em qualquer um desses commits deixa de ser privada.
+
+> **🚨 O ERRO QUE ESTA TASK EXISTE PARA NÃO SE COMETER: varrer o ESTADO FINAL.**
+>
+> `git diff`, `git diff origin/main`, `git status`, `grep -r web/src/`, abrir o último commit —
+> **todos comparam ESTADOS de árvore e mostram só o líquido.** Um segredo acrescentado no commit 3 e
+> apagado no commit 40 **não aparece em nenhum deles**, e continua dentro do objeto git do commit 3,
+> que o push publica junto com o resto.
+>
+> **A varredura é sobre `git log -p origin/main..HEAD` — commit a commit, o histórico inteiro.**
+> Se você conseguiu cumprir esta task lendo só o último commit, ou só a árvore de trabalho, **você
+> não a cumpriu** — e o relatório que disser "varredura limpa" a partir disso é pior que nenhum,
+> porque compra uma segurança que não foi verificada.
+
+> **LINHA DE BASE ACEITA — declare-a, não a trate como achado.** Estas três coisas já estão
+> commitadas há muito tempo, são conhecidas e **por desenho**. Uma varredura que acusa a linha de
+> base é uma varredura que as pessoas aprendem a ignorar:
+>
+> | # | O quê | Onde | Por que não é achado |
+> |---|---|---|---|
+> | 1 | `Your_strong_Pass123` | `docker-compose.yml:6` (`MSSQL_SA_PASSWORD`), `src/Rastreamento.Api/appsettings.json:10` (connection string), `CLAUDE.md` — MEDIDO em 2026-08-14 | Senha do `sa` do **SQL Server em container de desenvolvimento local**. Credencial de dev, documentada de propósito; não existe em produção. **É ela que faz o padrão `Password=` casar** — o casamento é esperado, e é por isso que a exclusão é por valor. |
+> | 2 | `$2a$11$XdGh9XVWVeYjBsgH0t4xPO…` (usuário `admin`, senha `Admin@123`) | `db/seed.sql`, `CLAUDE.md` | **Hash BCrypt do seed**, por desenho — é o que faz o ambiente de dev ter um login. |
+> | 3 | `$2a$11$gbL2eZQIk1S1zAYieDUJO…` (usuário `pcp`, senha `Pcp@123`) | `db/seed.sql`, `CLAUDE.md` | Idem — o segundo usuário do seed, que entrou no fix pass da Task 12 da Fase 1A (achado B11). |
+>
+> **Tudo o que aparecer fora desta lista é ACHADO**, mesmo que pareça inofensivo, mesmo que seja de
+> teste, mesmo que já esteja em `main`. Em particular: um `Jwt:SigningKey` com valor literal **é
+> achado** — a dívida de movê-lo para segredo de ambiente está registrada no `CLAUDE.md` como *em
+> aberto*, e "está em aberto" não é o mesmo que "está aceito nesta varredura".
+
+- [ ] **Step 1: Fixar o intervalo e PROVAR qual é**
+
+```bash
+git fetch origin
+git rev-list --count origin/main..HEAD          # N commits — anote o número
+git log --oneline origin/main..HEAD | tail -1   # o PRIMEIRO commit da branch
+git log --oneline -1                            # o ÚLTIMO (HEAD)
+```
+
+Reporte os três. **O intervalo coberto entra no relatório como número e como par de SHAs, não como
+"a branch"** — é isso que torna a DoD verificável sem julgamento: quem ler o relatório consegue
+recontar o intervalo e conferir que ele bate com o que foi empurrado.
+
+`origin/main..HEAD` é "tudo o que HEAD alcança e `origin/main` não" — equivale ao
+`merge-base(origin/main, HEAD)..HEAD` e é o conjunto exato que o push vai publicar. **Se o `fetch`
+mover `origin/main`, o intervalo encolhe corretamente**; por isso o `fetch` vem antes.
+
+- [ ] **Step 2: Preferir ferramenta dedicada — e NÃO presumir que existe**
+
+```bash
+command -v gitleaks trufflehog
+```
+
+- **`gitleaks` disponível:**
+  `gitleaks detect --log-opts="origin/main..HEAD" --redact --report-path="${TMPDIR:-/tmp}/gitleaks-1d.json"`
+  — **repare no `--log-opts`: sem ele o `gitleaks detect` varre o diretório de trabalho**, que é
+  exatamente o erro que esta task proíbe. Com ele, varre commit a commit.
+- **`trufflehog` disponível:**
+  `trufflehog git file://. --since-commit origin/main --results=verified,unknown`
+- **Nenhum dos dois:** foi o caso em **2026-08-14 — MEDIDO** (`command -v` não achou nenhum dos
+  dois nesta máquina). **Siga para o Step 3, que funciona sozinho e é suficiente.** Não instale
+  ferramenta para cumprir esta task: instalar cria dependência nova numa fase que declarou não ter
+  CI, e o `grep` sobre o patch cobre o que precisa ser coberto aqui.
+
+Rodar uma ferramenta dedicada **não dispensa** o Step 4 (arquivos acrescentados): as duas leem
+conteúdo, e conteúdo binário elas também não abrem.
+
+- [ ] **Step 3: A varredura por `grep` sobre o patch do HISTÓRICO (fallback autossuficiente)**
+
+```bash
+TMP="${TMPDIR:-/tmp}"          # no Git Bash do Windows o TMPDIR costuma vir vazio — fixe-o
+git log -p --no-color origin/main..HEAD > "$TMP/historico-1d.patch"
+grep -c '' "$TMP/historico-1d.patch"     # tamanho em linhas — prova que não veio vazio
+```
+
+**`git log -p` percorre TODOS os commits do intervalo**, um a um, com o patch de cada um — é essa a
+diferença que a caixa 🚨 acima descreve. **Grave fora da árvore** (o `$TMP` acima), senão a própria task
+suja o `git status` que ela tem de reportar limpo.
+
+Agora os padrões. Rode assim, em duas etapas, e **reporte as duas contagens**:
+
+```bash
+# (a) casamentos BRUTOS, sem filtro nenhum
+grep -inE "senha|password|secret|api[_-]?key|token *[:=]|Bearer +[A-Za-z0-9._-]{16,}|BEGIN [A-Z ]*PRIVATE KEY|SigningKey|Password=|Pwd=|Data Source=|Server=.*User" \
+  "$TMP/historico-1d.patch" | tee "$TMP/brutos-1d.txt" | wc -l
+
+# (b) o mesmo, tirando a LINHA DE BASE (por valor) e os identificadores de código (por nome)
+grep -v -e 'Your_strong_Pass123' -e 'XdGh9XVWVeYjBsgH0t4xPO' -e 'gbL2eZQIk1S1zAYieDUJO' \
+  "$TMP/brutos-1d.txt" \
+| grep -viE "CancellationToken|accessToken|refreshToken|tokenRef|getToken|setToken|IPasswordHasher|SenhaHash|HashFicticio|type=\"password\"|autoComplete=|name=\"senha\"|rotulo=\"Senha\"" \
+  > "$TMP/achados-1d.txt"
+wc -l < "$TMP/achados-1d.txt"
+cat "$TMP/achados-1d.txt"
+```
+
+**Três coisas sobre esse filtro, e nenhuma é detalhe:**
+
+1. **A linha de base é excluída por VALOR, não por padrão.** `XdGh9XVWVeYjBsgH0t4xPO` e
+   `gbL2eZQIk1S1zAYieDUJO` são trechos dos **dois hashes específicos** do seed. Excluir `\$2a\$11\$`
+   inteiro cegaria a varredura para **qualquer** hash BCrypt novo, inclusive um de produção colado
+   por engano — que é justamente o que se quer pegar.
+2. **A segunda lista exclui IDENTIFICADOR de código, nunca VALOR.** Cada padrão que você
+   acrescentar ali é uma cegueira que você está criando de propósito; se precisar acrescentar,
+   **escreva no relatório qual e por quê**.
+3. **Limite conhecido, e é por isso que as duas contagens são exigidas:** o filtro é **por linha** —
+   uma linha que tenha `accessToken` **e** um valor literal ao lado sai junto. Se (b) derrubou uma
+   ordem de grandeza em relação a (a), **olhe uma amostra de `brutos-1d.txt` com o olho** antes de
+   declarar limpo. "0 achados" com um filtro que comeu 3.000 linhas não é resultado, é anestesia.
+
+- [ ] **Step 4: Os arquivos ACRESCENTADOS em qualquer commit — o que o `-p` não mostra**
+
+```bash
+git log --diff-filter=A --name-only --pretty=format: origin/main..HEAD | sort -u | grep -v '^$'
+```
+
+`git log -p` escreve `Binary files … differ` no lugar do conteúdo: um `.pfx`, um `.p12`, um `.key`,
+um dump `.bak`/`.dump`/`.sqlite` ou um `.zip` **passa pelo Step 3 sem uma linha de saída**. Este
+Step lista todo arquivo que **nasceu** em algum commit do intervalo — **inclusive os que foram
+apagados depois**, que é exatamente o caso perigoso.
+
+Confira a lista inteira e reporte-a. Procure: `.env` (em qualquer variante — `.env.local`,
+`.env.production`), `.pem`, `.key`, `.pfx`, `.p12`, `.crt`, `.bak`, `.dump`, `.sql` que não seja
+`specs/02-modelo-de-dados.sql` nem `db/seed.sql`, `.sqlite`, `.zip`, `.7z`, imagem/PDF inesperado, e
+qualquer coisa que não seja fonte, teste, doc ou config que esta fase declarou tocar.
+
+**Referência do que é esperado nesta fase:** os 49 commits medidos em 2026-08-14 tocavam **só**
+`web/**` e `docs/superpowers/**` (MEDIDO, `git log --name-only`). Um arquivo fora desses dois
+prefixos é, no mínimo, pergunta — e um binário lá dentro é achado até prova em contrário.
+
+- [ ] **Step 5: O que fazer com um achado — e o que NÃO fazer**
+
+> **🚨 UM ACHADO REAL NÃO SE CORRIGE COM UM COMMIT NOVO.** Apagar o segredo num commit posterior
+> deixa o original **intacto no histórico** — e o push publica o histórico. O commit de remoção só
+> faz o `git diff` ficar limpo, que é a ilusão que esta task inteira existe para desmontar.
+>
+> O conserto tem **duas partes, e nenhuma é opcional**:
+>
+> 1. **Reescrever o histórico** — `git rebase -i` (se for um commit só, e a branch não foi
+>    publicada, que é o nosso caso) ou `git filter-repo` (se o valor aparece em vários commits).
+>    Reescrever muda os SHAs de todos os commits a partir dali; como a branch é **local e sem
+>    upstream**, isso é barato **agora** e caro depois do push.
+> 2. **Rotacionar a credencial exposta** — trocá-la no sistema de origem. Uma vez escrita num
+>    objeto git, ela tem de ser considerada **comprometida**, mesmo que o objeto nunca tenha saído
+>    desta máquina: a suposição de que "ninguém viu" não é verificável, e o custo de errar é
+>    assimétrico.
+>
+> **Esta task PARA no achado.** Ela não conserta, não commita, não empurra. Reporte o achado, o
+> commit onde ele nasceu (`git log -S'<valor>' --oneline origin/main..HEAD`) e as duas partes do
+> conserto — **a decisão de reescrever histórico é do usuário**.
+
+- [ ] **Step 6: Relatório e veredito**
+
+Reporte, com os comandos **colados** (não parafraseados) e os números medidos:
+
+- o intervalo: `origin/main..HEAD`, **N** commits, SHA do primeiro e do último;
+- qual caminho foi usado (ferramenta dedicada ou o `grep` do Step 3), e o resultado do
+  `command -v` que decidiu isso;
+- as **duas** contagens do Step 3 — brutos e pós-filtro — e o conteúdo de `achados-1d.txt`;
+- a lista completa do Step 4 (arquivos acrescentados no intervalo), com o veredito de cada item que
+  não seja fonte/teste/doc;
+- a **declaração nominal das três exceções da linha de base**, dizendo explicitamente que **tudo
+  fora delas foi tratado como achado**;
+- se houve achado: o commit de origem e as duas partes do conserto — **e a task para aqui**;
+- `git status --short`, provando que a task não deixou nada na árvore.
+
+**Só depois deste veredito o push da branch é liberado.** E **abrir ou mesclar o PR NÃO é nosso** —
+é aprovação manual do usuário (política de 2026-08-14: *o commit é nosso, o PR é dele*). Pare depois
+do relatório.
+
+**Definition of done da Task 13** — verificável sem julgamento, item por item:
+
+- **o comando exato** da varredura está no relatório, colado, e ele contém `origin/main..HEAD` — se
+  o comando reportado for um `git diff` ou um `grep -r` sobre a árvore, **a DoD não está cumprida**,
+  independentemente do resultado;
+- **o intervalo coberto** está reportado como número de commits **e** como par de SHAs
+  (primeiro/último), conferível por quem ler;
+- as **duas contagens** do Step 3 (brutos e pós-filtro) estão reportadas, e não só a segunda;
+- a **lista de arquivos acrescentados** do Step 4 está reportada inteira;
+- **as três exceções da linha de base estão declaradas nominalmente**, com a frase explícita de que
+  o que está fora delas foi tratado como achado;
+- **resultado:** ou "nenhum achado" com as evidências acima, ou o achado com commit de origem e as
+  duas partes do conserto (reescrita de histórico **+** rotação da credencial) — nunca "resolvido
+  por commit de remoção";
+- **`git status --short` igual ao do início** — esta task não modifica arquivo nenhum do
+  repositório, e os intermediários dela ficam no `$TMP` do Step 3;
+- **delta de teste 0**, declarado no relatório, para a próxima contagem não herdar `+?`.
 
 ---
 
@@ -6975,7 +7237,8 @@ Reporte, em números medidos e não estimados:
 1. **Review de branch inteira** (Opus) — o escopo é a **integração entre tasks**, não repetição das
    reviews individuais: as costuras entre primitivas e telas, o shell atravessando as 7, e a
    coerência entre o que o teste de contraste mede e o que a tela compõe.
-2. `superpowers:finishing-a-development-branch` → **PR**. O projeto retomou o rastro por PR nas
+2. `superpowers:finishing-a-development-branch` → **PR** — **depois da Task 13**, que é o que libera
+   o push. O projeto retomou o rastro por PR nas
    #1/#2/#3/#4/#5; a 1A entrou por push direto e isso foi registrado como perda.
 3. **Fica de fora e tem dono próprio:** as dívidas **I2 e I3** da review de branch da 1B (o `Trim`
    de `LocalizarDuplicado` sem prova; o teste negativo de autorização que fixa um perfil por
