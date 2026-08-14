@@ -4801,9 +4801,20 @@ como o texto original afirmava.
 > **A diferença desta task para a 9B, e por que ela importa: aqui o número envelhece DURANTE a
 > própria task, não antes dela.** Até o Step 3(a) rodar, o arquivo é o de HOJE e os números da tabela
 > de mutações do Step 5 (`:435`, `:786`, `:186`) apontam certo. **Depois do Step 3(a) — o harness —
-> todos os `it(` somam exatamente +11** (MEDIDO em 2026-08-14, com o reset de `perfil` incluído):
-> `:435` vira `:446`, `:786` vira `:797`, `:186` vira `:197`. O **nome** do teste, ao lado de cada
+> os `it(` somam +11** (MEDIDO em 2026-08-14, com o reset de `perfil` incluído):
+> `:435` vira `:446`, `:186` vira `:197`. O **nome** do teste, ao lado de cada
 > citação, é o que não se move — é ele que você confere, não a aritmética.
+>
+> **⚠️ O `+11` NÃO ficou uniforme, e este é o exemplo de por que a âncora textual existe — MEDIDO
+> em 2026-08-14, depois da 9A executada (commit `7e8de1f`).** A adaptação (e) — o `line-through` que
+> mudou de nó — levou junto **duas linhas de comentário** explicando por que a asserção sobe para o
+> nó pai. Elas caem na altura do teste `exibe um componente inativo com o botao Reativar e o texto
+> riscado` (era `:753`), então **tudo abaixo dali soma +13, não +11**: `:786` virou **`:799`**, e não
+> o `:797` que este parágrafo previa. Os que estão acima (`:435`, `:186`, `:117`, `:144`, `:636`,
+> `:132`) somaram +11 como previsto.
+> **A lição, e ela vale para a 9B:** a aritmética de deslocamento só é confiável enquanto ninguém
+> escreve uma linha a mais em nenhum lugar — e adaptar teste **é** escrever linha. O nome do teste
+> não tem esse problema. `[[corrigir-instancia-e-declarar-mecanismo]]`
 >
 > **O que continua citado por número, de propósito** (conferido em 2026-08-14: nenhuma das tasks que
 > restam — 9B, 10, 11, 12 — lista esses arquivos em `Files`, então as linhas deles não se mexem nesta
@@ -5552,7 +5563,10 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 >   `getByRole` e espera `disabled === true`. Falha MEDIDA: *Unable to find an accessible element
 >   with the role "button" and name "Anterior"*.
 > - `mostra Página 1 de 1 quando o total e zero`, em `web/src/pages/ComponentesPage.test.tsx`
->   (hoje `:772-781`; `:783-792` depois da 9A — navegação, não âncora).
+>   (hoje `:772-781`; **`:785-794`** depois da 9A — navegação, não âncora. **MEDIDO em `7e8de1f`, e
+>   corrigido: a previsão aqui era `:783-792`, por `+11`.** Este bloco está ABAIXO da adaptação (e),
+>   que acrescentou 2 linhas de comentário, então o deslocamento dele é **+13**. Ver a caixa do
+>   `+11` na abertura da 9A).
 >   Com `total: 0` → `useBuscaPaginada.ts:117` faz `Math.max(1, Math.ceil(0/20)) = 1` → `null`; o
 >   texto `Página 1 de 1 — 0 no total` nunca renderiza. Falha MEDIDA: *Unable to find an element
 >   with the text: Página 1 de 1 — 0 no total*.
