@@ -32,6 +32,7 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
 - **`git status` tem sujeira alheia e permanente:** `.claude/settings.local.json` modificado e `.claude/settings.json` untracked. **Não commite nenhuma das duas.**
 - **Não edite fonte com `Set-Content` do PowerShell 5.1** — ele corrompe UTF-8 (acentuação) e a suíte fica verde mesmo assim. Use as ferramentas de edição de arquivo.
 - **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`). Varredura de segredo antes de qualquer push é passo obrigatório.
+- **Política de commit — mudou em 2026-08-14, por decisão do usuário.** *"Os commits na remote podem ser feitos por vocês, só o PR que eu aprovo manualmente, só garanta que nada foi perdido no commit."* Ou seja: **o commit é nosso; abrir ou mesclar PR é dele.** A contrapartida não é opcional — **todo Step de commit deste plano carrega a mesma sub-etapa de verificação pós-commit** (`git status --short` sem sobra; `git show --stat HEAD` batendo com o que a task produziu; nenhum `.claude/settings*.json` no commit; varredura de segredo antes do push). O texto canônico dela está no **Step 6 da Task 9A**, e está repetido nos Steps de commit das Tasks 9B, 10, 11 e 12. **As Tasks 1–8 já estão commitadas e não foram reescritas** — a política nova vale para o que ainda vai ser implementado.
 - **⚠️ NÃO EXISTE MAIS TOTAL ABSOLUTO CONFIÁVEL NESTE PLANO. Use `baseline que você MEDIU no Step 1 + o delta da sua task`.** Os deltas são estáveis e estão abaixo; os totais são derivados e apodrecem a cada fix pass.
 
   | Task | Delta | Total SE a baseline for a esperada |
@@ -44,8 +45,8 @@ Valem para **todas** as tasks. Em conflito entre este plano e o adendo `docs/sup
   | passe de primitivas (pré-Task 8) | **+4** | **272 — MEDIDO** (268 + 4 — caminho C do usuário: fechar defeitos de `Pagina`/`Botao`/`Campo`/`EstadoVazio` antes da Task 8 consumi-los; ver `.superpowers/sdd/fase1d-passe-primitivas-report.md`) |
   | 8 | **+11** na entrega | **283 — MEDIDO** (272 + 11) |
   | 8 (fix pass) | **+7** | **290 — MEDIDO** (283 + 7 dos achados da review — C1 ×3, I2, I3 ×2, M10; ver `.superpowers/sdd/fase1d-task-8-fix-report.md`). **290 é a baseline da Task 9A**, e foi RE-MEDIDA em 2026-08-13 (`Tests 290 passed (290)` / 26 arquivos). |
-  | **9A** (re-layout) | **+5, −0** (3 `it(` do Step 3 + a sonda do `EstadoVazio` da decisão U1 + o teste de `perfil = 'PCP'` que fecha a M9) | **295 — DERIVADO** (290 + 5). É **só soma**: MEDIDO no pré-flight de 2026-08-13, os 34 testes da tela fecham **34/34 verdes só com adaptação** — **nenhuma remoção é necessária**, aqui ou na 9B. |
-  | **9B** (adoção do hook) | **−8, +3** (saem os 7 da decisão U3 mais o `ComponentesPage.test.tsx:554` da decisão U2; entram o teste da guarda do `catch` em `useBuscaPaginada.test.tsx`, o do debounce na tela e o da sobrevivência do erro de escrita à recarga) | **290 — DERIVADO** (295 − 8 + 3). **A única task desta fase que subtrai.** ⚠️ **O total volta a ser 290 — o MESMO número da baseline da 9A.** Quem rodar `npm test` sem a 9A aplicada vê `290 passed` e não tem como distinguir isso de sucesso, que é exatamente a armadilha do `200` da Task 6. **A prova real é o par por arquivo: `ComponentesPage.test.tsx` = 33 e `useBuscaPaginada.test.tsx` = 19.** |
+  | **9A** (re-layout) | **+7, −0** (3 `it(` do Step 3 + a sonda do `EstadoVazio` da decisão U1 + o teste de `perfil = 'PCP'` que fecha a M9 + **os dois que fecham X3 e X6**, decisão do usuário de 2026-08-14) | **297 — `295 MEDIDO + 2 DERIVADO`** (o pré-flight de 2026-08-14 executou a task com os 5 primeiros e leu `295 passed`; os de X3/X6 entraram depois e nunca rodaram). É **só soma**: MEDIDO, os 34 testes da tela fecham **34/34 verdes só com adaptação** — **nenhuma remoção é necessária**, aqui ou na 9B. |
+  | **9B** (adoção do hook) | **−8, +3** (saem os 7 da decisão U3 mais o `ComponentesPage.test.tsx:554` da decisão U2; entram o teste da guarda do `catch` em `useBuscaPaginada.test.tsx`, o do debounce na tela e o da sobrevivência do erro de escrita à recarga) | **292 — DERIVADO** (297 − 8 + 3). **A única task desta fase que subtrai.** **A colisão `290 == 290` que esta linha registrava ACABOU** com o `+2` da 9A: a fase anda por **290 → 297 → 292**, três números distintos, e um total inesperado volta a ser sinal em vez de ruído. **A prova por arquivo continua exigida assim mesmo — `ComponentesPage.test.tsx` = 35 e `useBuscaPaginada.test.tsx` = 19** —, porque o total é derivado e apodrece, e o par por arquivo é medição direta. |
 
   **A Task 9 foi PARTIDA em 9A e 9B em 2026-08-13, por decisão do usuário** sobre a recomendação medida do pré-flight (`.superpowers/sdd/fase1d-task-9-preflight.md`; a reescrita está em `.superpowers/sdd/fase1d-task-9-split-report.md`). A linha única que estava aqui dizia "entre 284 e 294, X ainda NÃO decidido" e vinha com a instrução de **não propagar nenhum extremo**: essa instrução perdeu o motivo — o X foi decidido (U3, X = 7, mais o `:554` da U2 = 8 saídas, todas na 9B) e cada uma das duas tasks tem agora um delta próprio e vinculante. **As Tasks 10, 11 e 12 não são afetadas:** os Steps 1 delas medem baseline **por arquivo** (`PedidoDetalhePage` 4, `HomePage` 3, `LoginPage` 5), não o total da suíte — conferido em 2026-08-13.
 
@@ -4798,7 +4799,17 @@ como o texto original afirmava.
 
 **Aviso sobre a suíte de tela — CORRIGIDO pelo pré-flight de 2026-08-12, o texto original estava factualmente errado:** os 34 testes de hoje foram escritos contra o comportamento **sem debounce**, mas **nenhum deles quebra por causa do debounce** — e, de todo modo, **o debounce não entra nesta task**, entra na 9B. MEDIDO (ver `.superpowers/sdd/fase1d-task-9-preflight.md`): **zero** testes deste arquivo digitam três letras, e **zero** assertam uma contagem de requisições por tecla — os três `toHaveBeenCalledTimes` existentes (`:518/:523`, `:569/:574`, `:611/:617` — números **corrigidos** na continuação de 2026-08-13: os `:527/:532`, `:578/:583`, `:620/:626` que este parágrafo trazia antes eram as linhas da árvore de trabalho descartável da primeira passada, com o harness já inserido, e não batiam com o arquivo em disco) contam 1 e 2 depois de **uma** mudança de campo.
 
-**As classes de adaptação desta task são QUATRO — (a) harness, (b) seletores, (d) mensagens, (e) markup do item (MEDIDO na continuação de 2026-08-13).** Aplicando **exatamente** o que o Step 3(a)+(b) manda — harness e a tabela de seletores, nada mais — a suíte fecha em **9 vermelhos | 25 verdes**; **sete** desses nove são desta task, e os outros dois são da 9B (paginação). Os sete:
+**As classes de adaptação desta task são QUATRO — (a) harness, (b) seletores, (d) mensagens, (e) markup do item (MEDIDO na continuação de 2026-08-13).** Aplicando **exatamente** o que o Step 3(a)+(b) manda — harness e a tabela de seletores, nada mais — a suíte fecha em **7 vermelhos | 27 verdes**, e os sete são exatamente os da tabela abaixo.
+
+> **CORRIGIDO pelo pré-flight da 9A (2026-08-14) — o número anterior era `9 vermelhos | 25 verdes`,
+> e era da task 9 UNIFICADA.** Naquele Step 2 a tela adotava `ControlesDePaginacao`, cujo
+> `if (totalDePaginas <= 1) return null` derrubava junto os dois testes de paginação. **A 9A não
+> adota a primitiva, então esses dois ficam VERDES aqui** — é exatamente o que o parágrafo "Os dois
+> de paginação (`:132` e `:772`) NÃO quebram nesta task" já afirmava, e o `9 | 25` o contradizia.
+> **MEDIDO em 2026-08-14** contra o bloco do Step 2 desta task, com `(a)` e `(b)` aplicados e nada
+> mais: `Tests  7 failed | 27 passed (34)`, e os sete nomes batem um a um com a tabela.
+
+Os sete:
 
 | # | Teste | Por quê | Classe |
 |---|---|---|---|
@@ -4812,9 +4823,9 @@ como o texto original afirmava.
 
 **Atenção:** os DOIS testes que mantêm a mensagem antiga são os que rejeitam com `new Error('rede caiu')` (`:554` e `:930`) — `Error` puro não é `ErroDeApi` nem `TypeError`, então `mensagemDeErro` cai no *fallback*, que é a frase de hoje. Não os troque junto com os outros.
 
-**Os dois de paginação (`:132` e `:772`) NÃO quebram nesta task — DERIVADO, não medido isoladamente:** eles quebram por causa do `if (totalDePaginas <= 1) return null` de `ControlesDePaginacao`, e a 9A não adota a primitiva; o bloco de paginação à mão continua renderizando "Anterior", "Próxima" e "Página 1 de 1 — 0 no total" com uma página só, como hoje. **Confirme rodando** — se algum deles ficar vermelho aqui, você adotou `ControlesDePaginacao` sem querer, e isso é escopo da 9B.
+**Os dois de paginação (`:132` e `:772`) NÃO quebram nesta task — MEDIDO em 2026-08-14 (era DERIVADO; o pré-flight da 9A rodou e confirmou):** eles quebrariam por causa do `if (totalDePaginas <= 1) return null` de `ControlesDePaginacao`, e a 9A não adota a primitiva; o bloco de paginação à mão continua renderizando "Anterior", "Próxima" e "Página 1 de 1 — 0 no total" com uma página só, como hoje. Nenhum dos dois aparece entre os 7 vermelhos de `(a)+(b)`. **Confirme rodando mesmo assim** — se algum deles ficar vermelho aqui, você adotou `ControlesDePaginacao` sem querer, e isso é escopo da 9B.
 
-**NENHUM dos 34 sai nesta task, e nenhum precisa sair.** MEDIDO: com as cinco classes de adaptação aplicadas a suíte fecha **34/34 verde**. **Toda remoção nesta fase é de-duplicação voluntária, não necessidade** — e as remoções decididas pelo usuário (U3) são todas de propriedade que vive no `useBuscaPaginada`, portanto **todas da 9B**. Não apague teste aqui para fechar conta nenhuma.
+**NENHUM dos 34 sai nesta task, e nenhum precisa sair.** MEDIDO (2026-08-14, pré-flight da 9A): com as **quatro** classes de adaptação desta task aplicadas — `(a)`, `(b)`, `(d)`, `(e)` — a suíte da tela fecha **34/34 verde**, `Tests  34 passed (34)`. **Toda remoção nesta fase é de-duplicação voluntária, não necessidade** — e as remoções decididas pelo usuário (U3) são todas de propriedade que vive no `useBuscaPaginada`, portanto **todas da 9B**. Não apague teste aqui para fechar conta nenhuma.
 
 - [ ] **Step 1: Confirmar a baseline e inventariar a suíte que vai mudar**
 
@@ -4827,18 +4838,35 @@ Expected: `Tests  34 passed (34)` no arquivo — **34, não 33** (o plano dizia 
 **A conta desta task, com a composição aberta:**
 
 ```
-290 (baseline MEDIDA)  −  0 removidos  +  5 novos  =  295 (DERIVADO)
+290 (baseline MEDIDA)  −  0 removidos  +  7 novos  =  297
+                                        ↑ 5 MEDIDOS (fecham em 295) + 2 DERIVADOS (X3 e X6)
 ```
 
-Os 5 novos, um a um — **conte-os no seu próprio Step 3, não confie neste número**:
+**Leia a marca de evidência, ela não é enfeite:** o pré-flight da 9A executou a task inteira numa
+árvore descartável com **os 5 testes** e leu `Tests  295 passed (295)` / `Test Files  26 passed
+(26)` — o `295` é **MEDIDO**. O `297` é `295 MEDIDO + 2 DERIVADO`: os dois testes que fecham X3 e
+X6 entraram por **decisão do usuário em 2026-08-14** e nunca rodaram. Meça você mesmo — é a guarda
+contra estar num checkout diferente, e agora também contra os dois derivados.
+
+Os 7 novos, um a um — **conte-os no seu próprio Step 3, não confie neste número**:
 
 | # | Teste novo | Onde | Por quê |
 |---|---|---|---|
-| 1 | `manda o formulário inteiro no POST, com o tipo escolhido` | Step 3 | C1 da review da Task 6 encenado; matador da M1/M2 |
+| 1 | `manda o formulário inteiro no POST, com o tipo escolhido` | Step 3 | C1 da review da Task 6 encenado; mata M1/M2, **mas não é o único matador delas** — o usuário decidiu **mantê-lo assim mesmo** (ver o comentário do próprio teste) |
 | 2 | `distingue "nada corresponde à busca" de "catálogo vazio"` | Step 3 | único matador da M6 (MEDIDO: contra os 34 adaptados sozinhos, M6 mata **0**) |
 | 3 | `esconde formulário e ação de inativar para quem não pode escrever` | Step 3 | gating de perfil (F2 / spec §6) |
 | 4 | `não afirma "nenhum componente cadastrado" quando a carga da lista falhou` | Step 3 | **decisão U1** — a sonda que prova que o banner de erro e o estado vazio não aparecem juntos |
 | 5 | `mostra o formulário para o perfil PCP…` | Step 3 | **fecha a M9**, que o pré-flight mediu com **0 mortes** |
+| 6 | `mostra o tipo de cada componente na lista` | Step 3 | **DECISÃO DO USUÁRIO, 2026-08-14: fecha o X3.** Matador da **M16** — apagar `<Pilula>{c.tipo}</Pilula>` deixava os 39 verdes e o tipo sumia da lista inteira |
+| 7 | `dá à tela o título "Componentes" no h1` | Step 3 | **DECISÃO DO USUÁRIO, 2026-08-14: fecha o X6.** Matador da **M17** — `titulo="XXX"` deixava os 39 verdes e o `<h1>` podia dizer qualquer coisa |
+
+> **Por que 7 e não 5 (decisão do usuário, 2026-08-14).** O item 5 do pré-flight da 9A achou **seis**
+> decisões do Step 2 que nenhuma das 10 mutações tocava (X1–X6, todas MEDIDAS sobrevivendo a
+> `39 passed (39)`). O usuário decidiu fechar **duas** — X3 e X6, as únicas que são **conteúdo
+> visível da tela** — e deixar X1, X2, X4 e X5 registradas como achado, para decidir depois. Cada
+> uma que fecha custa **um teste e uma mutação**: fechar com teste e não registrar a mutação
+> fecharia a instância sem deixar guarda executável, e a próxima pessoa apagaria o teste sem que
+> nada acusasse.
 
 **Nenhum `it.each` nesta task** (conferido: os dois `it.each` do repositório estão em `permissoesEspelhamOBackend.test.ts:49` e `tema/contraste.test.ts:103`) — se você introduzir um, lembre que **o vitest conta CASOS, não blocos**: um `it.each` de 5 linhas é +5, não +1. Contar bloco em vez de caso é como o `≈187` da Task 5 e as quatro baselines da Task 6 nasceram.
 
@@ -5075,13 +5103,38 @@ vi.mock('../auth/AuthContext', () => ({
 
 **(e) Markup do item.** `:753` — o `line-through` mudou de nó: é do `<span>` de `ItemDeCadastro`, não do `<span>` do código. Asserte no ancestral certo.
 
-**Acrescente os cinco testes.** Os três primeiros são os que a Task 9 unificada já previa; o quarto e o quinto vêm das decisões U1 e do fechamento da M9 (`≥ 1` morte é DoD, e a M9 hoje mata **zero**).
+**Acrescente os sete testes.** Os três primeiros são os que a Task 9 unificada já previa; o quarto e o quinto vêm das decisões U1 e do fechamento da M9 (`≥ 1` morte é DoD, e a M9 hoje mata **zero**); o sexto e o sétimo fecham o X3 e o X6 por decisão do usuário em 2026-08-14.
+
+> **Duas exigências de forma, e as duas sustentam o `+11` que a 9B depende (ver a abertura da 9B):**
+>
+> 1. **Os sete entram no FIM do `describe`**, depois do último `it(` de hoje (`:956`), imediatamente
+>    antes do `})` que fecha o bloco (linha 987). Não os intercale entre os testes existentes:
+>    tudo o que a 9B cita por número de linha está **acima** deles, e é isso que faz o deslocamento
+>    do arquivo ser **exatamente +11** (o do harness), e não +11 mais o tamanho dos testes novos.
+> 2. **O sexto teste precisa de `within`**, que este arquivo ainda não importa. Acrescente-o à linha
+>    de import que já existe — `import { render, screen, cleanup, fireEvent, waitFor } from
+>    '@testing-library/react'` vira `import { render, screen, within, cleanup, fireEvent, waitFor }
+>    from '@testing-library/react'`. **Edição de linha existente, não linha nova** — o
+>    `AppShell.test.tsx:3` já usa esse import, então é convenção do repo, não invenção.
 
 ```tsx
 it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
   // C1 da review da Task 6: `criarComponente(form)` -> `criarComponente({...form, tipo: 'Bruto'})`
-  // matava ZERO. O usuário escolhia "Montagem" e o sistema gravava "Bruto", em silêncio — e `tipo`
-  // é justamente o campo que governa a Receita Padrão da 1C.
+  // matava ZERO **na época daquela review**. O usuário escolhia "Montagem" e o sistema gravava
+  // "Bruto", em silêncio — e `tipo` é justamente o campo que governa a Receita Padrão da 1C.
+  //
+  // ⚠️ CORRIGIDO no pré-flight da 9A (2026-08-14): hoje o C1 JÁ TEM DONO. O teste
+  // `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido)…` (`:435`) foi
+  // escrito exatamente para isso — o comentário dele, em `:433-434`, diz que troca o `<select>` de
+  // Tipo para um valor diferente do default "senao a mutacao … sobreviveria por coincidencia".
+  // MEDIDO: a M1 mata `:435` mesmo SEM este teste, e a M2 mata `:435` e `:786`. Ou seja, este
+  // teste NÃO acrescenta nenhuma morte de mutação — é o achado nº 5 do relatório de pré-flight.
+  //
+  // DECIDIDO pelo usuário em 2026-08-14: ele **FICA**, e a composição não muda por causa dele.
+  // Razão: prova o **corpo exato** do POST (`toBe(JSON.stringify(...))`), o que `:435` faz de forma
+  // mais frouxa; e tirar um teste barato e correto para economizar uma linha de conta custaria
+  // propagar uma baseline nova para a 9B — a dívida que mais caro saiu nesta fase. Não o remova
+  // "para limpar duplicação": a redundância aqui é deliberada e está registrada.
   const fetchMock = fetchPorRota({
     '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
   })
@@ -5161,6 +5214,46 @@ it('mostra o formulário para o perfil PCP, que escreve em componentes mas não 
 
   expect(await screen.findByLabelText('Código')).toBeTruthy()
 })
+
+it('mostra o tipo de cada componente na lista', async () => {
+  // MATADOR DA M16, e fecha o X3 do pré-flight da 9A (decisão do usuário, 2026-08-14). MEDIDO
+  // naquele passe: apagar `<Pilula>{c.tipo}</Pilula>` do item deixava os 39 testes VERDES — o tipo
+  // do componente sumia da lista inteira, em silêncio, e `tipo` é justamente o campo que governa a
+  // Receita Padrão da 1C. A `Pilula` tem teste próprio (`Pilula.test.tsx`), mas ele prova a
+  // PRIMITIVA; ninguém provava que ESTA tela a usa para mostrar o tipo.
+  //
+  // `within(item)` e não `screen.getByText('Montagem')` direto: com o formulário na tela, o
+  // `<select>` de Tipo também tem uma `<option>Montagem</option>`, e a busca global acharia DUAS
+  // ocorrências e estouraria. O escopo no `<li>` é o que torna a asserção sobre a lista, e não
+  // sobre o formulário — molde de `PedidosPage.test.tsx:62` (`closest('li')!`).
+  vi.stubGlobal('fetch', fetchPorRota({
+    '/api/componentes': () => respostaJson({
+      itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem', ativo: true }],
+      total: 1, pagina: 1, tamanho: 20,
+    }),
+  }))
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+  const item = (await screen.findByText('CMP-1')).closest('li')!
+  expect(within(item).getByText('Montagem')).toBeTruthy()
+})
+
+it('dá à tela o título "Componentes" no h1', async () => {
+  // MATADOR DA M17, e fecha o X6 do pré-flight da 9A (decisão do usuário, 2026-08-14). MEDIDO
+  // naquele passe: trocar `titulo="Componentes"` por `titulo="XXX"` deixava os 39 testes VERDES —
+  // o `<h1>` da tela podia dizer qualquer coisa e nenhum deles lia o título.
+  //
+  // `Pagina.test.tsx:9` prova que a PRIMITIVA põe o título no `<h1>`; este prova que ESTA tela
+  // passa o título certo para ela. São duas propriedades diferentes, e só a segunda é da 9A.
+  vi.stubGlobal('fetch', fetchPorRota({
+    '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+  }))
+
+  render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+  expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Componentes')
+})
 ```
 
 - [ ] **Step 4: Rodar até ficar verde**
@@ -5169,7 +5262,9 @@ it('mostra o formulário para o perfil PCP, que escreve em componentes mas não 
 cd web && npm test -- ComponentesPage && npm test && npm run build && npm run lint
 ```
 
-Expected: `Tests  39 passed (39)` no arquivo (34 adaptados + 5 novos) e **`Tests  295 passed (295)`** na suíte — **DERIVADO de `290 − 0 + 5`, não medido**. Se o total divergir e o delta `+5` estiver certo, **reporte o número real e siga**; se algum dos 34 tiver saído, você saiu do escopo desta task.
+Expected: `Tests  41 passed (41)` no arquivo (34 adaptados + 7 novos) e **`Tests  297 passed (297)`** na suíte / **26 arquivos**.
+
+**A proveniência dos dois números, e ela é mista:** o pré-flight da 9A executou este Step inteiro em 2026-08-14, contra o bloco do Step 2 e os **cinco** testes como estão escritos, e **MEDIU** `Tests  39 passed (39)` no arquivo, `Test Files  26 passed (26)` e `Tests  295 passed (295)` na suíte, `npm run build` verde (`✓ built in 544ms`) e `npm run lint` com **só** o warning alheio conhecido (`AuthContext.tsx:48`). Os testes **6 e 7** (X3 e X6, decisão do usuário de 2026-08-14) entraram **depois** dessa medição e nunca rodaram: `41` e `297` são `39 + 2` e `295 + 2`, **DERIVADOS**. Se o total divergir, **reporte o número real e siga**; se algum dos 34 tiver saído, você saiu do escopo desta task.
 
 **Verificação de tipo é `npm run build`** (`tsc -b && vite build`), não `tsc --noEmit`.
 
@@ -5177,22 +5272,54 @@ Expected: `Tests  39 passed (39)` no arquivo (34 adaptados + 5 novos) e **`Tests
 
 | # | Mutação em `ComponentesPage.tsx` | Mortes esperadas | Matador |
 |---|---|---|---|
-| M1 | `criarComponente(form)` → `criarComponente({ ...form, tipo: 'Bruto' })` | ≥ 1 — **é o C1 da 1B, encenado** | teste novo `manda o formulário inteiro no POST…` |
-| M2 | `criarComponente(form)` → trocar `codigo` por `descricao` no objeto | ≥ 1 (MEDIDO: 2 e 3) | idem + `cadastra com sucesso…` (`:435`); **nomeie o real ao medir** |
-| M3 | remover `setForm(FORMULARIO_VAZIO)` do ramo de sucesso | ≥ 1 (MEDIDO: 3) | **nomeie ao medir** |
-| M4 | remover `await carregar(busca, incluirInativos, pagina, tamanho)` do ramo de sucesso de `salvar` | ≥ 1 (MEDIDO: 2) | **nomeie ao medir** |
+| M1 | `criarComponente(form)` → `criarComponente({ ...form, tipo: 'Bruto' })` | ≥ 1 (**MEDIDO na 9A: 2**) | `cadastra com sucesso…` (`:435`) **e** o teste novo `manda o formulário inteiro no POST…`. ⚠️ **O `:435` sozinho já mata** — ver o achado sobre o teste novo nº 1 |
+| M2 | `criarComponente(form)` → trocar `codigo` por `descricao` no objeto | ≥ 1 (**MEDIDO na 9A: 3**) | `cadastra com sucesso…` (`:435`), `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (`:786`) e o teste novo nº 1 |
+| M3 | remover `setForm(FORMULARIO_VAZIO)` do ramo de sucesso | ≥ 1 (**MEDIDO na 9A: 2**) | `cadastra com sucesso…` (`:435`) e `cadastro com sucesso apos um conflito anterior…` (`:786`) |
+| M4 | remover `await carregar(busca, incluirInativos, pagina, tamanho)` do ramo de sucesso de `salvar` | ≥ 1 (**MEDIDO na 9A: 1**) | `cadastra com sucesso…` (`:435`) — **matador único** |
 | M6 | trocar `buscando` por `false` | ≥ 1 | **só** o teste novo `distingue "nada corresponde à busca"…` — MEDIDO: contra os 34 adaptados sozinhos são **0**. O teste novo é obrigatório, não opcional. |
-| M7 | trocar `resultado.existeInativo` por `!resultado.existeInativo` | ≥ 1 (MEDIDO: 10) | **nomeie ao medir** |
-| M8 | trocar `!componente.ativo` por `true` em `alternarAtivo` | ≥ 1 — **é o I7 da 1B**: o botão escrito "Inativar" num item já inativo | `Inativar manda ativo=false…` (`:186`) |
-| M9 | trocar `usePodeEscrever('componentes')` por `('setores')` | ≥ 1 | **só** o teste novo `mostra o formulário para o perfil PCP…` |
-| M11 | remover `setEnviando(false)` do `finally` | ≥ 1 (MEDIDO: 1) | **nomeie ao medir** |
+| M7 | trocar `resultado.existeInativo` por `!resultado.existeInativo` | ≥ 1 (**MEDIDO na 9A: 10**) | os 10 testes da família de conflito/reativar (`:153`, `:241`, `:282`, `:316`, `:360`, `:657`, `:689`, `:786`, `:895`, `:956`) |
+| M8 | trocar `!componente.ativo` por `true` em `alternarAtivo` | ≥ 1 — **é o I7 da 1B**: o botão escrito "Inativar" num item já inativo (**MEDIDO na 9A: 1**) | `Inativar manda ativo=false…` (`:186`) — **matador único** |
+| M9 | trocar `usePodeEscrever('componentes')` por `('setores')` | ≥ 1 (**MEDIDO na 9A: 1**) | **só** o teste novo `mostra o formulário para o perfil PCP…` |
+| M11 | remover `setEnviando(false)` do `finally` | ≥ 1 (**MEDIDO na 9A: 1**) | `cadastro com sucesso apos um conflito anterior esconde o botao Reativar o existente` (`:786`) — **matador único**, e ele mata **por acidente**: é o único teste que clica "Adicionar" duas vezes, e com `enviando` travado em `true` o `rotuloCarregando` deixa o botão chamado "Salvando…", então o segundo `getByRole('button', { name: 'Adicionar' })` não acha nada |
 | M12 | **NOVA** — trocar `erro === null && componentes.length === 0` por `componentes.length === 0` | ≥ 1 | teste novo `não afirma "nenhum componente cadastrado"…` (guarda executável da decisão U1) |
+| M16 | **NOVA** — apagar o `<Pilula>{c.tipo}</Pilula>` do item da lista | ≥ 1 (**MEDIDO em 0 antes**: sobrevivia aos 39) | **só** o teste novo `mostra o tipo de cada componente na lista` — fecha o **X3** |
+| M17 | **NOVA** — trocar `titulo="Componentes"` por `titulo="XXX"` na `Pagina` | ≥ 1 (**MEDIDO em 0 antes**: sobrevivia aos 39) | **só** o teste novo `dá à tela o título "Componentes" no h1` — fecha o **X6** |
 
-> **De onde vêm as "mortes esperadas" MEDIDAS acima:** o pré-flight de 2026-08-13 rodou as 11
-> mutações originais contra duas configurações da suíte — **(A)** os 34 adaptados + os 3 testes
-> novos = 37, e **(B)** o mesmo menos os 10 do Step 3(c) original = 27. Os números da coluna são os
-> de (A). **A configuração desta task (39 testes) é um superconjunto de (A)** — logo nenhuma
-> contagem pode cair. Se cair, você removeu teste; procure o quê.
+> **Por que M16 e M17, e não M13/M14/M15:** os números não se reaproveitam entre as duas tasks da
+> partida. A **9B** já usa M13 (debounce desligado), M14 (`onChange` inerte no seletor de tamanho) e
+> M15 (guarda do `catch` no hook), além de M5 e M10 — e o Step 5 dela manda **re-verificar** as
+> mutações herdadas da 9A pelo número. Repetir um número faria "M13" significar duas coisas
+> diferentes no mesmo plano, que é exatamente como a Fase 1B perdeu o achado I7.
+
+> **De onde vêm as "mortes esperadas" MEDIDAS acima:** os números da coluna foram **remedidos em
+> 2026-08-14 pelo pré-flight da 9A**, contra a configuração daquele passe — o bloco do Step 2 da
+> 9A + os 34 adaptados + os **5** testes novos de então = **39**, tudo verde antes de mutar. Cada
+> mutação foi aplicada isoladamente e revertida.
+>
+> **⚠️ A sua configuração tem 41, não 39** (os testes 6 e 7 fecham X3 e X6, decisão do usuário de
+> 2026-08-14, e entraram depois daquela medição). **Aqui a monotonia VALE, ao contrário do caso de
+> (A) logo abaixo:** o código mutado é o mesmo — o bloco do Step 2 não mudou uma linha —, e só o
+> conjunto de testes cresceu. Logo os números MEDIDOS acima são **piso**, não igualdade: uma
+> contagem que **sobe** é esperada e não é sinal de nada; uma que **cai** é sinal real, e aí você
+> mexeu no Step 2 sem querer. Contagem de mortes é propriedade do par (código, suíte): crescer a
+> suíte sobre o mesmo código só pode somar.
+>
+> **Convenção de linha desta tabela:** os `:N` dos matadores são linhas do arquivo de **HOJE**
+> (HEAD `0ae67df`) — é onde você os localiza antes de aplicar o Step 3. Depois do harness do Step
+> 3(a) **todos somam +11** (MEDIDO em 2026-08-14, com o reset de `perfil` incluído): `:435` vira
+> `:446`, `:786` vira `:797`, `:186` vira `:197`. **O nome do teste, escrito ao lado de cada
+> citação, é a âncora que não desloca** — use-o para conferir.
+>
+> **⚠️ CORRIGIDO — a afirmação anterior era falsa e mandava procurar um bug que não existe.** O
+> texto dizia que a configuração desta task "é um superconjunto de (A) [os 34 adaptados + 3 novos =
+> 37], logo nenhuma contagem pode cair; se cair, você removeu teste". **Duas contagens caem, e não
+> falta teste nenhum:** M3 de 3 → **2** e M4 de 2 → **1**. O motivo é que (A) foi medida contra o
+> Step 2 da task 9 **unificada**, em que o `carregar` da tela já era o `recarregar()` do
+> `useBuscaPaginada`; o conjunto de TESTES da 9A é superconjunto de (A), mas o **código mutado não é
+> o mesmo**, e contagem de mortes é propriedade do par (código, suíte), não da suíte sozinha.
+> **Superconjunto de testes não implica monotonia de mortes quando o alvo muda.** O que vincula
+> nesta task é a DoD: `≥ 1` morte para cada uma das **12** — as 10 primeiras MEDIDO (as 10 passam),
+> e M16/M17 com o matador escrito no Step 3 e nunca executado.
 >
 > **Mutantes equivalentes, registrados e NÃO listados:** trocar `usePodeEscrever('componentes')`
 > por `('pedidos')` ou `('agrupamentos')` — as listas de perfis são **idênticas** às de
@@ -5201,21 +5328,79 @@ Expected: `Tests  39 passed (39)` no arquivo (34 adaptados + 5 novos) e **`Tests
 >
 > **M5 e M10 não estão aqui de propósito:** `erroDeEscrita ?? erroDeLeitura` e o
 > `<ControlesDePaginacao>` só existem depois da 9B, e é lá que eles são medidos.
+>
+> **SEIS decisões deste Step 2 que NENHUMA das 10 mutações originais tocava — MEDIDO em 2026-08-14,
+> cada uma aplicada sozinha contra os 39 verdes de então, todas SOBREVIVERAM com `Tests  39 passed
+> (39)`.** O usuário **fechou duas** (X3 e X6) em 2026-08-14; as outras quatro continuam
+> **registradas como achado e NÃO viram exigência desta task** — fechar cada uma custa um teste e
+> uma mutação, e mexe na contagem, então é decisão dele, não sua:
+>
+> | # | Decisão | Mutação que sobrevive | O que passa despercebido | Estado |
+> |---|---|---|---|---|
+> | X1 | `descricao` do `EstadoVazio` no caso "catálogo vazio" | apagar o `podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined` | o convite some para quem pode escrever; o vazio vira mudo de novo, que é metade do que a spec §9 pediu | **aberto — achado** |
+> | X2 | o `.trim()` de `const buscando = busca.trim() !== ''` | `busca.trim() !== ''` → `busca !== ''` | busca só com espaços passa a dizer `Nada corresponde a " ".` em vez de "catálogo vazio" | **aberto — achado** |
+> | X3 | `<Pilula>{c.tipo}</Pilula>` no item da lista | apagar a `Pilula` | o **tipo do componente some da lista inteira** e nada quebra | ✅ **FECHADO** (usuário, 2026-08-14) → **M16**, matada pelo teste `mostra o tipo de cada componente na lista` |
+> | X4 | `rotuloCarregando="Salvando…"` no botão de submit | apagar a prop | o feedback de envio em voo some (o `disabled` continua) | **aberto — achado** |
+> | X5 | `aria-label="Paginação"` na `<nav>` | apagar o atributo | `<nav>` sem nome acessível; some do rotor do leitor de tela | **aberto — achado** |
+> | X6 | `titulo="Componentes"` na `Pagina` | `titulo="XXX"` | **o `<h1>` da tela pode dizer qualquer coisa** | ✅ **FECHADO** (usuário, 2026-08-14) → **M17**, matada pelo teste `dá à tela o título "Componentes" no h1` |
+>
+> **As duas fechadas eram as duas mais caras: conteúdo visível da tela, não enfeite.** As quatro
+> abertas são dívida conhecida e declarada — se você as fechar por conta própria, mexeu na contagem
+> desta task e na baseline da 9B sem autorização. As da 9B — debounce e seletor de tamanho — foram
+> achadas pela mesma pergunta no pré-flight anterior.
+>
+> **X4 continua valendo como nota de método:** a M11 mata *por causa* do `rotuloCarregando` (via
+> nome acessível), e mesmo assim apagar o `rotuloCarregando` sozinho não mata nada. Morte por efeito
+> colateral não é cobertura da decisão.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Commit, e a verificação de que nada se perdeu**
 
 ```bash
 git add web/src/pages/ComponentesPage.tsx web/src/pages/ComponentesPage.test.tsx
 git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 ```
 
+> **POLÍTICA DE COMMIT — mudou em 2026-08-14, por decisão do usuário.** *"Os commits na remote podem
+> ser feitos por vocês, só o PR que eu aprovo manualmente, só garanta que nada foi perdido no
+> commit."* Ou seja: **o commit é nosso** (o achado nº 6 do pré-flight da 9A, que mandava não
+> commitar, **caiu** — o Step estava certo; o que faltava era a verificação). **Abrir ou mesclar PR
+> continua sendo aprovação manual do usuário — não é nosso.**
+
+**Verificação pós-commit — obrigatória, e é o que a política nova exige em troca. Execute, não presuma:**
+
+1. **`git status --short` depois do commit** — nenhum `M` nem `??` que devesse ter entrado ficou de
+   fora. Arquivo modificado que sobra no `status` é trabalho perdido: o commit diz uma coisa e a
+   árvore diz outra.
+2. **`git show --stat HEAD`** — os arquivos e a contagem batem com o que esta task produziu (aqui:
+   `ComponentesPage.tsx` e `ComponentesPage.test.tsx`, e mais nada).
+3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — é a sujeira alheia
+   permanente deste repo: **não commite, não reverta, não edite**. Se algum dos dois aparecer no
+   `git show --stat`, o commit está errado.
+4. **O repositório é PÚBLICO** (`github.com/rufino-bot/rastru`): **varredura de segredo antes do
+   push é passo obrigatório**, não zelo. Nada de token, senha, connection string ou hash de senha
+   real no diff.
+
 **Definition of done da Task 9A:**
 
 - a tela **sem nenhuma classe antiga**: `grep -nE "max-w-md|border rounded px-|text-gray-|text-red-600" src/pages/ComponentesPage.tsx` = vazio;
-- `grep -c "useBuscaPaginada\|ControlesDePaginacao" src/pages/ComponentesPage.tsx` = **0** — o hook e a primitiva de paginação são da 9B;
+- `grep -c "from '\.\./hooks/useBuscaPaginada'\|from '\.\./components/ControlesDePaginacao'" src/pages/ComponentesPage.tsx` = **0** — o hook e a primitiva de paginação são da 9B;
+
+  > **CORRIGIDO pelo pré-flight da 9A (2026-08-14): esta linha era `grep -c
+  > "useBuscaPaginada\|ControlesDePaginacao"` = 0, e o próprio plano a fazia falhar.** O comentário
+  > `PROVISÓRIO` que o Step 2 manda escrever cita `<ControlesDePaginacao>` literalmente, então quem
+  > seguisse a task à risca escrevia o comentário e depois reprovava a DoD. **MEDIDO** na árvore com
+  > o bloco do Step 2 instalado: o grep antigo devolvia **1**, e o único casamento era esse
+  > comentário. A forma nova grepa o **caminho do import**, não o token, e por isso ignora
+  > comentário e prosa sem enfraquecer a guarda: **adotar o hook ou a primitiva exige importá-los**,
+  > e é assim que a 9B os importa (`import { useBuscaPaginada } from '../hooks/useBuscaPaginada'`,
+  > `import { ControlesDePaginacao } from '../components/ControlesDePaginacao'` — ver o Step 3 dela).
+  > **Prova de que o conserto ainda pega adoção de verdade, MEDIDA:** com o bloco do Step 2
+  > instalado o grep novo devolve **0**; acrescentando as duas linhas de import da 9B ao mesmo
+  > arquivo, devolve **2**. A guarda continua fechando a fronteira da partida.
 - `grep -c "sequenciaRef" src/pages/ComponentesPage.tsx` ≥ 1 — a guarda de sequência **continua na tela** nesta task; ela só muda de casa na 9B;
-- as **10 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador **nomeado** no relatório (nenhuma fica sem matador: a M9 e a M6, que o pré-flight mediu em 0, ganham teste próprio; os dois mutantes equivalentes ficam declarados fora da tabela);
-- a composição **`290 − 0 + 5 = 295`** reportada com os números reais medidos, e **zero** testes removidos — se você removeu algum, saiu do escopo;
+- as **12 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador **nomeado** no relatório (nenhuma fica sem matador: a M9 e a M6, que o pré-flight mediu em 0, ganham teste próprio; a **M16** e a **M17**, que fecham X3 e X6 por decisão do usuário, também; os dois mutantes equivalentes ficam declarados fora da tabela);
+- a composição **`290 − 0 + 7 = 297`** reportada com os números reais medidos, junto com o **par por arquivo (`ComponentesPage.test.tsx` = 41, `useBuscaPaginada.test.tsx` = 18 intocado)**, e **zero** testes removidos — se você removeu algum, saiu do escopo;
+- a **verificação pós-commit do Step 6** executada e reportada: `git status --short` limpo do que era desta task, `git show --stat HEAD` com os dois arquivos e nada mais, nenhum `.claude/settings*.json` no commit, varredura de segredo feita;
 - suíte, `npm run build` e `npm run lint` verdes (o lint tem 1 warning alheio conhecido, `AuthContext.tsx:48`).
 
 ---
@@ -5224,12 +5409,49 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 
 **Files:**
 - Modify: `web/src/pages/ComponentesPage.tsx` (como a 9A a deixou)
-- Modify: `web/src/pages/ComponentesPage.test.tsx` (**39 testes**, como a 9A a deixou)
+- Modify: `web/src/pages/ComponentesPage.test.tsx` (**41 testes**, como a 9A a deixou)
 - Modify: `web/src/hooks/useBuscaPaginada.test.tsx` (**18 testes hoje — MEDIDO**; ganha 1)
 
 **Interfaces:**
 - Consumes: `useBuscaPaginada` (Task 3), `ControlesDePaginacao` (Task 6) — as duas peças que a 9A deliberadamente não tocou; e tudo o que a 9A já consome.
 - Produces: nada.
+
+> **⚠️ TODA citação `ComponentesPage.test.tsx:N` desta task é linha do arquivo de HOJE (HEAD
+> `0ae67df`). Quando esta task começa, a 9A já rodou e TUDO desceu +11.** Achado nº 9 do pré-flight
+> da 9A, que ele mediu e não corrigiu por estar fora do escopo dele; **corrigido aqui em
+> 2026-08-14.**
+>
+> **O deslocamento é +11, MEDIDO duas vezes e por dois caminhos:** o pré-flight da 9A leu
+> `:36` → `:47` e `:772` → `:783` na árvore descartável em que executou a task; a aplicação das
+> decisões do usuário remontou o arquivo do zero (import de `../testes/api`, bloco `let perfil` +
+> `vi.mock`, e a linha `perfil = 'Administrador'` do `beforeEach`) e conferiu os **34** `it(` um a
+> um — **os 34 deslocam +11, sem exceção**, e o arquivo vai de 987 para 998 linhas.
+>
+> **Os 7 testes que a 9A acrescenta NÃO mudam esse número**, porque entram no fim do `describe`,
+> abaixo de tudo o que esta task cita (a maior citação é `:772`); e o `within` que o teste do X3
+> exige é acrescentado à linha de import que já existe, não numa linha nova. É por isso que o Step 3
+> da 9A exige as duas coisas de forma explícita.
+>
+> | Teste | HOJE | Depois da 9A |
+> |---|---|---|
+> | `volta para a pagina 1 quando a busca muda` | `:47` | **`:58`** |
+> | `atualiza a URL de busca mesmo ja estando na pagina 1` | `:75` | **`:86`** |
+> | `volta para a pagina 1 quando o tamanho da pagina muda` | `:92` | **`:103`** |
+> | `atualiza a URL de tamanho mesmo ja estando na pagina 1` | `:117` | **`:128`** |
+> | `desabilita Anterior na primeira pagina e Proxima na ultima` | `:132` | **`:143`** |
+> | `mostra o total e a contagem de paginas` | `:144` | **`:155`** |
+> | `volta para a pagina 1 quando o filtro de inativos muda` | `:480` | **`:491`** |
+> | `mantem o resultado da requisicao mais recente…` | `:505` | **`:516`** |
+> | `nao mostra erro de uma requisicao desatualizada…` | `:554` | **`:565`** |
+> | `mantem o indicador de carregando…` | `:598` | **`:609`** |
+> | `Anterior volta para a pagina anterior quando habilitado` | `:636` | **`:647`** |
+> | `mostra Página 1 de 1 quando o total e zero` | `:772` | **`:783`** |
+> | `limpa a mensagem de erro da carga inicial…` | `:930` | **`:941`** |
+>
+> **Pior caso concreto se você ignorar esta tabela:** depois da 9A, `:47` aponta para `lista os
+> componentes que a API devolveu` — teste **diferente** do que esta task quer remover, e que **não
+> pode sair**. **A âncora vinculante é o NOME do teste**, escrito ao lado de cada citação; o número
+> é conveniência, e é ele que apodrece.
 
 **Esta é a única task da fase que REMOVE teste, e a única que subtrai na conta.** Leia o parágrafo de composição do Step 1 antes de apagar a primeira linha.
 
@@ -5247,11 +5469,11 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 > vermelhos **depois** de adaptar harness, seletores, mensagens e o seletor do riscado — e essas
 > quatro adaptações são todas da **Task 9A**, já feitas quando esta task começa):
 >
-> - `web/src/pages/ComponentesPage.test.tsx:132-141` — `desabilita Anterior na primeira pagina e
+> - `web/src/pages/ComponentesPage.test.tsx:132-141` (→ **`:143-152`** depois da 9A) — `desabilita Anterior na primeira pagina e
 >   Proxima na ultima`. Com `total: 1`/`tamanho: 20` → 1 página → `null`; ela busca "Anterior" via
 >   `getByRole` e espera `disabled === true`. Falha MEDIDA: *Unable to find an accessible element
 >   with the role "button" and name "Anterior"*.
-> - `web/src/pages/ComponentesPage.test.tsx:772-781` — `mostra Página 1 de 1 quando o total e zero`.
+> - `web/src/pages/ComponentesPage.test.tsx:772-781` (→ **`:783-792`** depois da 9A) — `mostra Página 1 de 1 quando o total e zero`.
 >   Com `total: 0` → `useBuscaPaginada.ts:117` faz `Math.max(1, Math.ceil(0/20)) = 1` → `null`; o
 >   texto `Página 1 de 1 — 0 no total` nunca renderiza. Falha MEDIDA: *Unable to find an element
 >   with the text: Página 1 de 1 — 0 no total*.
@@ -5278,32 +5500,39 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 cd web && npm test -- ComponentesPage && npm test -- useBuscaPaginada && npm test
 ```
 
-Expected: **39** no arquivo da tela, **18** no do hook, e **295** na suíte.
+Expected: **41** no arquivo da tela, **18** no do hook, e **297** na suíte.
 
-> **⚠️ A baseline desta task é DERIVADA, não MEDIDA.** `295 = 290 (medido em 2026-08-13) + 5 (delta
-> da 9A)`. A 9A ainda não rodou quando este texto foi escrito. Vale a regra operacional do topo do
-> plano: (a) meça no Step 1; (b) **se não bater com o total que a 9A reportou ao fechar, pare e
-> reporte** — divergência na baseline é sinal real; (c) se bater, o que vincula é o **delta**;
-> (d) se o delta estiver certo e o total divergir, reporte o número real e siga. **Nunca invente
-> nem apague teste para fechar conta.**
+> **⚠️ A baseline desta task é DERIVADA, não MEDIDA.** `297 = 290 (medido em 2026-08-13) + 7 (delta
+> da 9A)`, e dentro desses 7 só **5** foram executados alguma vez (pelo pré-flight da 9A, que fechou
+> em `295`); os outros 2 são os testes de X3 e X6, decididos pelo usuário em 2026-08-14 e nunca
+> rodados. A 9A ainda não rodou de verdade quando este texto foi escrito. Vale a regra operacional
+> do topo do plano: (a) meça no Step 1; (b) **se não bater com o total que a 9A reportou ao fechar,
+> pare e reporte** — divergência na baseline é sinal real; (c) se bater, o que vincula é o
+> **delta**; (d) se o delta estiver certo e o total divergir, reporte o número real e siga. **Nunca
+> invente nem apague teste para fechar conta.**
 
 **A conta desta task, com a composição aberta:**
 
 ```
-295 (DERIVADO da 9A)  −  8 removidos  +  3 novos  =  290 (DERIVADO)
+297 (DERIVADO da 9A)  −  8 removidos  +  3 novos  =  292 (DERIVADO)
 ```
 
-> **🚨 ARMADILHA DE MEDIÇÃO, e ela é séria: `290` é exatamente a baseline com que a Task 9A
-> começou.** Quem rodar `npm test` **antes** de escrever qualquer linha desta task, num checkout em
-> que a 9A não foi aplicada, vê `290 passed` e não tem como distinguir isso de sucesso. Foi
-> literalmente assim que a Task 6 quase passou com quatro baselines contraditórias (o `200` do Step
-> 7 dela era a baseline real do dia). **A prova de que você está no lugar certo não é o total: é o
-> par por arquivo — `ComponentesPage.test.tsx` fecha em 33 e `useBuscaPaginada.test.tsx` em 19.**
-> Reporte os dois.
+> **A colisão `290 == 290` ACABOU — e o registro dela fica, porque a razão importa.** Até
+> 2026-08-14 esta task fechava em **290**, *exatamente* a baseline com que a 9A começava: quem
+> rodasse `npm test` num checkout sem a 9A aplicada via `290 passed` e não tinha como distinguir
+> isso de sucesso — a mesma armadilha do `200` do Step 7 da Task 6, que era a baseline real do dia.
+> **O fechamento de X3 e X6 (+2 na 9A) desfez a coincidência:** a fase agora anda por **290 → 297 →
+> 292**, três números distintos, e um total inesperado volta a ser sinal.
+>
+> **Isso não dispensa a prova por arquivo, e ela continua exigida:** o total é derivado e apodrece a
+> cada fix pass (foi o que aconteceu com esta task três vezes), enquanto o par por arquivo é
+> medição direta do que ESTA task fez. **`ComponentesPage.test.tsx` fecha em 35 e
+> `useBuscaPaginada.test.tsx` em 19.** Reporte os dois, sempre — não porque o total é ambíguo, mas
+> porque o total sozinho nunca provou de onde veio.
 
 **Os 8 que saem — DECISÃO U3 do usuário (X = 7) mais o `:554` da decisão U2.** MEDIDO e vinculante: **nenhum deles precisa sair**; com adaptação, 34/34 ficam verdes. Toda saída aqui é **de-duplicação voluntária de prova que já tem dono medido em outro arquivo** — não apague nenhum outro para fechar conta:
 
-| # | Teste (linha no arquivo de HOJE) | Novo dono, MEDIDO | Mutação que prova o novo dono |
+| # | Teste (linha no arquivo de HOJE — **+11 depois da 9A**, ver a tabela de conversão na abertura) | Novo dono, MEDIDO | Mutação que prova o novo dono |
 |---|---|---|---|
 | 1 | `volta para a pagina 1 quando a busca muda` (`:47`) | `useBuscaPaginada.test.tsx:144` | tirar `setPagina(1)` do efeito de debounce → 1 morte |
 | 2 | `atualiza a URL de busca mesmo ja estando na pagina 1` (`:75`) | idem | idem |
@@ -5316,12 +5545,13 @@ Expected: **39** no arquivo da tela, **18** no do hook, e **295** na suíte.
 
 **O nº 8 é condicional e a ordem não é negociável (DECISÃO U2 do usuário, 2026-08-13): ele só sai DEPOIS de o hook ganhar o teste equivalente e de você ter visto esse teste ficar VERMELHO sob a mutação.** Se você apagar `:554` antes disso, a suíte fica verde e o projeto perde a única prova que tem da terceira guarda de sequência — o D5 do pré-flight, o pior defeito possível segundo o próprio brief da task.
 
-**Os que FICAM e por quê** (a lista é tão vinculante quanto a de saída):
+**Os que FICAM e por quê** (a lista é tão vinculante quanto a de saída; os números são **linha de HOJE → linha depois da 9A**):
 
-- `:117` `atualiza a URL de tamanho mesmo ja estando na pagina 1` — **único ancoradouro do seletor de tamanho na tela**. É ele, e só ele, que mata a M14 (D8 do pré-flight). Se sair, o `<select>` "Por página" pode ficar inerte sem que nada quebre.
-- `:144` `mostra o total e a contagem de paginas` — matador da M10. MEDIDO: dos 5 matadores da M10, 4 estavam na lista de remoção do plano original; este é um dos dois que restam.
-- `:636` `Anterior volta para a pagina anterior quando habilitado` — o outro matador da M10.
-- `:132` `desabilita Anterior na primeira pagina e Proxima na ultima` — **fica adaptado**, não sai.
+- `:117` → **`:128`** `atualiza a URL de tamanho mesmo ja estando na pagina 1` — **único ancoradouro do seletor de tamanho na tela**. É ele, e só ele, que mata a M14 (D8 do pré-flight). Se sair, o `<select>` "Por página" pode ficar inerte sem que nada quebre.
+- `:144` → **`:155`** `mostra o total e a contagem de paginas` — matador da M10. MEDIDO: dos 5 matadores da M10, 4 estavam na lista de remoção do plano original; este é um dos dois que restam.
+- `:636` → **`:647`** `Anterior volta para a pagina anterior quando habilitado` — o outro matador da M10.
+- `:132` → **`:143`** `desabilita Anterior na primeira pagina e Proxima na ultima` — **fica adaptado**, não sai.
+- **Os 7 testes que a 9A acrescentou também ficam, todos** — inclusive os dois que fecham X3 e X6 (`mostra o tipo de cada componente na lista` e `dá à tela o título "Componentes" no h1`), que continuam valendo porque o Step 3 desta task mantém `<Pilula>{c.tipo}</Pilula>` e `<Pagina titulo="Componentes">`. Só um deles é **reescrito** aqui: o `distingue "nada corresponde à busca"…`, que passa a precisar de timers falsos (classe (f), Step 4).
 
 - [ ] **Step 2: Dar dono ao que ainda não tem — o teste da guarda do `catch` no hook**
 
@@ -5662,7 +5892,7 @@ async function avancar(ms: number) {
 
 **Use timers falsos só nos testes que tocam a busca.** Ligá-los no arquivo inteiro obrigaria a reescrever os ~30 que não têm nada com debounce, e o `findBy*` deles passaria a depender de avanço manual. `vi.useFakeTimers()` dentro do `it`, e **`vi.useRealTimers()` no `afterEach` que já existe** (`afterEach(() => { vi.unstubAllGlobals() })`) — senão os timers falsos vazam para o teste seguinte, do mesmo jeito que o `perfil` vazava (defeito MEDIDO no pré-flight).
 
-**Quem digita na busca depois das remoções:** `:930` (`limpa a mensagem de erro da carga inicial…`) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. MEDIDO: `:930` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
+**Quem digita na busca depois das remoções:** `:930` → **`:941`** (`limpa a mensagem de erro da carga inicial…`) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. **Os outros seis testes novos da 9A não tocam na busca** — não precisam de timers falsos. MEDIDO: `:930` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
 
 ```tsx
   fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
@@ -5730,7 +5960,7 @@ E o terceiro é o do **Step 2**, em `useBuscaPaginada.test.tsx` — ele conta na
 cd web && npm test -- ComponentesPage && npm test -- useBuscaPaginada && npm test && npm run build && npm run lint
 ```
 
-Expected: **33** no arquivo da tela, **19** no do hook, **290** na suíte — e releia a armadilha do Step 1 antes de comemorar o 290.
+Expected: **35** no arquivo da tela, **19** no do hook, **292** na suíte. O `292` não colide mais com nenhuma baseline desta fase (290 → 297 → 292 — ver o Step 1), mas **reporte o par por arquivo assim mesmo**: é ele que prova o que ESTA task fez.
 
 | # | Mutação | Onde | Mortes esperadas | Matador |
 |---|---|---|---|---|
@@ -5743,10 +5973,17 @@ Expected: **33** no arquivo da tela, **19** no do hook, **290** na suíte — e 
 | M15 | **NOVA** — tirar a guarda de sequência antes de `setErro(e)` (`useBuscaPaginada.ts:106`) | **hook** | ≥ 1 (fecha o **D5**; MEDIDO em 0 no hook antes) | o teste do Step 2 |
 
 > **Regressão obrigatória, e não é zelo:** esta suíte de tela perdeu 8 testes. Rode de novo, contra
-> a suíte de 33, as mutações que a **9A** fechou e cujo código esta task **não** alterou — **M1,
-> M2, M3, M7, M8, M9 e M12** — e confirme que cada uma continua com **≥ 1 morte**. MEDIDO no
-> pré-flight, nenhum dos 8 removidos é matador delas; **confirme, não presuma** — foi exatamente
+> a suíte de 35, as mutações que a **9A** fechou e cujo código esta task **não** alterou — **M1,
+> M2, M3, M7, M8, M9, M12, M16 e M17** — e confirme que cada uma continua com **≥ 1 morte**. MEDIDO
+> no pré-flight, nenhum dos 8 removidos é matador delas; **confirme, não presuma** — foi exatamente
 > assim que a M10 caiu de 5 mortes para 1 sem ninguém perceber (D9).
+>
+> **M16 e M17 entraram nesta lista em 2026-08-14, com o fechamento de X3 e X6 na 9A.** Elas mutam
+> código que o Step 3 desta task **reescreve mas preserva** — `<Pilula>{c.tipo}</Pilula>` e
+> `<Pagina titulo="Componentes">` continuam lá —, e os dois matadores delas não estão entre os 8
+> removidos. É por isso que são re-verificação e não mutação nova: se alguma das duas voltar a zero
+> aqui, a reescrita da tela perdeu conteúdo visível em silêncio, que é exatamente o que o X3 e o X6
+> descreviam.
 >
 > **Mutantes equivalentes, registrados e NÃO listados:** `usePodeEscrever('pedidos')` e
 > `('agrupamentos')` — listas de perfis idênticas às de `componentes`, nenhum perfil as separa
@@ -5759,14 +5996,24 @@ git add web/src/pages/ComponentesPage.tsx web/src/pages/ComponentesPage.test.tsx
 git commit -m "feat(web): ComponentesPage sobre useBuscaPaginada e ControlesDePaginacao"
 ```
 
+**Verificação pós-commit — obrigatória (mesma sub-etapa do Step 6 da 9A; política do usuário de 2026-08-14: o commit é nosso, o PR é dele):**
+
+1. **`git status --short` depois do commit** — nada de `M`/`??` que devesse ter entrado. **Aqui o risco é maior que na 9A**: são três arquivos, e o do hook (`useBuscaPaginada.test.tsx`) é o mais fácil de esquecer no `git add` — sem ele o commit fica com a tela nova e sem o teste do Step 2, que é o pré-requisito da decisão U2.
+2. **`git show --stat HEAD`** — os **três** arquivos, e nada mais.
+3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
+4. **O repositório é PÚBLICO**: varredura de segredo antes do push, passo obrigatório.
+
+**Abrir ou mesclar PR não é nosso** — aprovação manual do usuário.
+
 **Definition of done da Task 9B:**
 
 - `grep -c "sequenciaRef" src/pages/ComponentesPage.tsx` = **0** — a guarda vive no hook agora;
 - `grep -c "useBuscaPaginada" src/pages/ComponentesPage.tsx` ≥ 1 e `grep -c "ControlesDePaginacao" src/pages/ComponentesPage.tsx` ≥ 1;
-- as **7 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador nomeado, **mais** a re-verificação das 7 herdadas da 9A (M1, M2, M3, M7, M8, M9, M12) — **nenhuma mutação de nenhuma das duas tasks fica sem matador**, e os dois mutantes equivalentes ficam declarados fora das tabelas;
+- as **7 mutações** do Step 5 medidas com **≥ 1 morte cada**, com o matador nomeado, **mais** a re-verificação das **9** herdadas da 9A (M1, M2, M3, M7, M8, M9, M12, **M16 e M17**) — **nenhuma mutação de nenhuma das duas tasks fica sem matador**, e os dois mutantes equivalentes ficam declarados fora das tabelas;
 - **a lista dos 8 testes removidos, um a um, com o nome e o motivo, no relatório** — e a confirmação explícita de que **nenhuma remoção era necessária** (34/34 ficavam verdes só com adaptação): toda saída aqui é de-duplicação decidida pelo usuário em U3/U2;
 - **a prova de ordem da decisão U2 declarada no relatório**: o teste do hook existia e ficou **vermelho** sob a M15 **antes** de `ComponentesPage.test.tsx:554` sair;
-- **a composição `295 − 8 + 3 = 290` reportada com os números reais**, junto com o **par por arquivo (33 / 19)**, que é o que distingue esta entrega da baseline de mesmo valor;
+- **a composição `297 − 8 + 3 = 292` reportada com os números reais**, junto com o **par por arquivo (35 / 19)** — o total já não colide com baseline nenhuma (290 → 297 → 292), mas o par por arquivo continua sendo a prova direta do que esta task fez;
+- a **verificação pós-commit do Step 6** executada e reportada: `git status --short`, `git show --stat HEAD` com os **três** arquivos, nenhum `.claude/settings*.json` no commit, varredura de segredo feita;
 - suíte, `npm run build` e `npm run lint` verdes.
 
 **Nota honesta, escrita ANTES da entrega:** a DoD da Task 9 unificada era inatingível em dois pontos independentes — "as 11 mutações com ≥ 1 morte" com a M9 medida em 0, e "suíte verde" sem contagem alguma a bater. As duas tasks acima fecham os dois, e fecham também as três lacunas que nenhuma mutação tocava (M9, debounce, seletor de tamanho) e a guarda de sequência sem dono. **O que continua em aberto e NÃO é destas tasks:** o clamp inferior de `irParaPagina` e a validação de `tamanho` em `mudarTamanho` (inalcançáveis pela UI — `ControlesDePaginacao.tsx:23` desabilita "Anterior" com `pagina <= 1`, e `TAMANHOS` é um `<select>` fechado; **vão para a review de branch**); o `recarregar` com filtros capturados (a `ComponentesPage` é a única tela da fase que o expõe, não é regressão — a tela de hoje tem o mesmo defeito —, e adiar é defensável: **decisão do usuário**); e a dívida **m6** (overlay `after:inset-0` × `acao`), cujo dono nomeado era "a Task 9" e **MEDIDO não é**: o único `after:inset-0` do projeto está em `PedidosPage.tsx:131`, num `ItemDeCadastro` **sem** `acao`, e nem a 9A, nem a 9B, nem a Task 10 combinam os dois — **nenhuma task desta fase combina**. Reatribuí-la (à primitiva `ListaDeCadastro` ou à review de branch) é **decisão do usuário**, registrada em `.superpowers/sdd/fase1d-task-9-preflight.md` §7.3.
@@ -6088,7 +6335,16 @@ git add web/src/pages/PedidoDetalhePage.tsx web/src/pages/PedidoDetalhePage.test
 git commit -m "feat(web): re-layout do PedidoDetalhePage com as primitivas"
 ```
 
-**Definition of done da Task 10:** as 7 mutações medidas (M2 e M3 declaradas); as três decisões preservadas (sem early return; ordem e peso do modal; `autoFocus` no Cancelar) — **confirme uma a uma no relatório**; suíte, build e lint verdes.
+**Verificação pós-commit — obrigatória (a mesma do Step 6 da 9A; política do usuário de 2026-08-14: o commit é nosso, o PR é dele). Execute, não presuma:**
+
+1. **`git status --short` depois do commit** — nada de `M`/`??` que devesse ter entrado.
+2. **`git show --stat HEAD`** — os arquivos e a contagem batem com o que esta task produziu (aqui: os dois de `PedidoDetalhePage`, e nada mais).
+3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
+4. **O repositório é PÚBLICO**: varredura de segredo antes do push, passo obrigatório.
+
+**Abrir ou mesclar PR não é nosso** — aprovação manual do usuário.
+
+**Definition of done da Task 10:** as 7 mutações medidas (M2 e M3 declaradas); as três decisões preservadas (sem early return; ordem e peso do modal; `autoFocus` no Cancelar) — **confirme uma a uma no relatório**; a **verificação pós-commit** executada e reportada; suíte, build e lint verdes.
 
 ---
 
@@ -6365,7 +6621,16 @@ git add web/src/pages/HomePage.tsx web/src/pages/HomePage.test.tsx
 git commit -m "feat(web): Home com cartoes de contagem reais, sem numero fake"
 ```
 
-**Definition of done da Task 11:** as 7 mutações medidas com ≥ 1 morte; `grep -c "'/me'" src/pages/HomePage.tsx` = 0 (a identidade vive no shell); **nenhum número constante na tela**; suíte, build e lint verdes.
+**Verificação pós-commit — obrigatória (a mesma do Step 6 da 9A; política do usuário de 2026-08-14: o commit é nosso, o PR é dele). Execute, não presuma:**
+
+1. **`git status --short` depois do commit** — nada de `M`/`??` que devesse ter entrado.
+2. **`git show --stat HEAD`** — os arquivos e a contagem batem com o que esta task produziu (aqui: os dois de `HomePage`, e nada mais).
+3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
+4. **O repositório é PÚBLICO**: varredura de segredo antes do push, passo obrigatório.
+
+**Abrir ou mesclar PR não é nosso** — aprovação manual do usuário.
+
+**Definition of done da Task 11:** as 7 mutações medidas com ≥ 1 morte; `grep -c "'/me'" src/pages/HomePage.tsx` = 0 (a identidade vive no shell); **nenhum número constante na tela**; a **verificação pós-commit** executada e reportada; suíte, build e lint verdes.
 
 ---
 
@@ -6523,6 +6788,15 @@ git add web/src/pages/LoginPage.tsx web/src/pages/LoginPage.test.tsx
 git commit -m "feat(web): identidade visual na LoginPage"
 ```
 
+**Verificação pós-commit — obrigatória (a mesma do Step 6 da 9A; política do usuário de 2026-08-14: o commit é nosso, o PR é dele). Execute, não presuma:**
+
+1. **`git status --short` depois do commit** — nada de `M`/`??` que devesse ter entrado.
+2. **`git show --stat HEAD`** — os arquivos e a contagem batem com o que este Step produziu (aqui: os dois de `LoginPage`, e nada mais). **Este é o primeiro de DOIS commits desta task** — o Step 8 faz o segundo, com as specs e o `CLAUDE.md`; não junte os dois nem deixe o segundo lote entrar aqui por engano.
+3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
+4. **O repositório é PÚBLICO**: varredura de segredo antes do push, passo obrigatório — a varredura formal está no Step 8, e vale para tudo o que for empurrado.
+
+**Abrir ou mesclar PR não é nosso** — aprovação manual do usuário.
+
 - [ ] **Step 4: Varredura de conformidade — o critério de aceite da spec §11**
 
 *"Nenhuma cópia da forma antiga sobrou no repositório"*, verificável por busca. Rode **cada uma** e reporte o número:
@@ -6669,6 +6943,15 @@ Expected: nada além de identificadores de código. **Se aparecer valor literal,
 git add specs/06-roadmap-mvp.md CLAUDE.md
 git commit -m "docs: registra a Fase 1D no roadmap e as convencoes de interface"
 ```
+
+**Verificação pós-commit — obrigatória (a mesma do Step 6 da 9A; política do usuário de 2026-08-14: o commit é nosso, o PR é dele). Este é o commit FINAL da fase, então ela vale dobrado:**
+
+1. **`git status --short` depois do commit** — nada de `M`/`??` sobrando. **Este é o último commit da branch:** o que ficar de fora aqui não entra na fase, e um arquivo de task anterior esquecido no `status` significa que aquela task commitou incompleta.
+2. **`git show --stat HEAD`** — `specs/06-roadmap-mvp.md` e `CLAUDE.md`, e nada mais.
+3. **Nunca entram `.claude/settings.local.json` nem `.claude/settings.json`** — sujeira alheia permanente: não commite, não reverta, não edite.
+4. **A varredura de segredo já é o começo deste Step** — ela é o item 4 da verificação, e aqui está executada, não presumida.
+
+**Abrir ou mesclar o PR da fase NÃO é nosso** — é aprovação manual do usuário. Pare depois do commit e reporte.
 
 - [ ] **Step 9: Relatório de fechamento da fase**
 
