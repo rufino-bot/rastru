@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, within, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ComponentesPage } from './ComponentesPage'
 import { inicializar, _resetParaTeste } from '../api/client'
+import { respostaJson, fetchPorRota } from '../testes/api'
+
+let perfil = 'Administrador'
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({
+    estado: { status: 'autenticado', usuario: { id: 1, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+    login: async () => {},
+    logout: async () => {},
+  }),
+}))
 
 afterEach(cleanup)
 
@@ -27,6 +37,7 @@ function paginaComTotal(total: number, pagina = 1, tamanho = 20) {
 
 describe('ComponentesPage', () => {
   beforeEach(() => {
+    perfil = 'Administrador'
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
@@ -56,7 +67,7 @@ describe('ComponentesPage', () => {
       expect(fetchMock.mock.calls.at(-1)![0]).toContain('pagina=2')
     })
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
 
@@ -79,7 +90,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
 
@@ -171,8 +182,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     expect(await screen.findByRole('button', { name: 'Reativar o existente' })).toBeTruthy()
@@ -257,8 +268,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
@@ -298,8 +309,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
@@ -332,8 +343,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
@@ -376,13 +387,13 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
 
-    expect(await screen.findByText('Não foi possível reativar o componente.')).toBeTruthy()
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
   })
 
   // Achado proprio da varredura final (pos-await ainda sem prova): o `try/catch` de `salvar`
@@ -403,11 +414,11 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'NOV-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Novo' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'NOV-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Novo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
-    expect(await screen.findByText('Não foi possível salvar o componente.')).toBeTruthy()
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
   // Mata a mutacao de trocar `incluirInativos` pelo literal oposto (ex.: sempre false): sem este
@@ -447,8 +458,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'MON-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Montagem X' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'MON-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Montagem X' } })
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
@@ -463,8 +474,8 @@ describe('ComponentesPage', () => {
 
     // formulario voltou ao vazio (o default de Tipo, 'Fabricado', reaparece no select)
     await waitFor(() => {
-      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
-      expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
       expect((screen.getByLabelText('Tipo') as HTMLSelectElement).value).toBe('Fabricado')
     })
 
@@ -517,7 +528,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
@@ -568,7 +579,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
@@ -611,7 +622,7 @@ describe('ComponentesPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(screen.getByText('Carregando…')).toBeTruthy()
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
@@ -672,8 +683,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     expect(await screen.findByText('Já existe um componente com este código.')).toBeTruthy()
@@ -705,15 +716,15 @@ describe('ComponentesPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const chamadasAntesDoEnvio = fetchMock.mock.calls.length
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     await screen.findByText('Já existe um componente com este código.')
 
     // o formulario continua com o que foi digitado — nao foi limpo pelo ramo de sucesso
-    expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('SUP-001')
-    expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('Suporte')
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('SUP-001')
+    expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('Suporte')
 
     // so o POST foi disparado depois da carga inicial — nenhum GET extra (a lista nao recarregou)
     expect(fetchMock.mock.calls.length).toBe(chamadasAntesDoEnvio + 1)
@@ -734,7 +745,7 @@ describe('ComponentesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
 
-    expect(await screen.findByText('Não foi possível alterar o componente.')).toBeTruthy()
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
   })
 
   // I6, metade 2: falha no GET da carga. Sem o setErro do catch, uma queda de wifi durante a carga
@@ -744,7 +755,7 @@ describe('ComponentesPage', () => {
 
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
 
-    expect(await screen.findByText('Não foi possível carregar os componentes.')).toBeTruthy()
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
   // I7: nenhum teste renderizava um componente INATIVO — nem o rotulo condicional do botao
@@ -764,7 +775,9 @@ describe('ComponentesPage', () => {
 
     expect(screen.getByRole('button', { name: 'Reativar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Inativar' })).toBeNull()
-    expect(screen.getByText('INA-001').closest('span')?.className).toContain('line-through')
+    // `closest('span')` devolve o proprio span do codigo (className 'font-mono font-semibold');
+    // o `line-through` mora no span AVO, o wrapper que o ItemDeCadastro poe em volta de children.
+    expect(screen.getByText('INA-001').closest('span')?.parentElement?.className).toContain('line-through')
   })
 
   // Minor: `Math.max(1, …)` sem prova — com total=0 o rodape tem que mostrar "Pagina 1", nao
@@ -808,17 +821,17 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await screen.findByRole('button', { name: 'Reativar o existente' })
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-002' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Outro' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-002' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Outro' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     await waitFor(() => {
-      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
     })
     expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
   })
@@ -844,12 +857,12 @@ describe('ComponentesPage', () => {
     await screen.findByText('SUP-001')
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
-    await screen.findByText('Não foi possível alterar o componente.')
+    await screen.findByText('Seu perfil não tem permissão para esta ação.')
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('Não foi possível alterar o componente.')).toBeNull()
+      expect(screen.queryByText('Seu perfil não tem permissão para esta ação.')).toBeNull()
     })
   })
 
@@ -876,14 +889,14 @@ describe('ComponentesPage', () => {
     await screen.findByText('SUP-001')
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
-    await screen.findByText('Não foi possível alterar o componente.')
+    await screen.findByText('Seu perfil não tem permissão para esta ação.')
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'NOV-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Novo' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'NOV-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Novo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('Não foi possível alterar o componente.')).toBeNull()
+      expect(screen.queryByText('Seu perfil não tem permissão para esta ação.')).toBeNull()
     })
   })
 
@@ -911,8 +924,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await screen.findByText('Já existe um componente com o código "SUP-001" inativo.')
 
@@ -939,7 +952,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('Não foi possível carregar os componentes.')
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
 
@@ -972,16 +985,157 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await screen.findByRole('button', { name: 'Reativar o existente' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Reativar o existente' }))
 
     await waitFor(() => {
-      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
-      expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
     })
+  })
+
+  it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
+    // C1 da review da Task 6: `criarComponente(form)` -> `criarComponente({...form, tipo: 'Bruto'})`
+    // matava ZERO **na época daquela review**. O usuário escolhia "Montagem" e o sistema gravava
+    // "Bruto", em silêncio — e `tipo` é justamente o campo que governa a Receita Padrão da 1C.
+    //
+    // ⚠️ CORRIGIDO no pré-flight da 9A (2026-08-14): hoje o C1 JÁ TEM DONO. O teste
+    // `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e
+    // recarrega a lista` (hoje `:435`) foi escrito exatamente para isso — o comentário dele (hoje
+    // `:433-434`), diz que troca o `<select>` de Tipo para um valor diferente do default "senao a
+    // mutacao … sobreviveria por coincidencia".
+    // MEDIDO: a M1 mata esse mesmo teste acima — o `cadastra com sucesso:` nomeado por extenso quatro
+    // linhas acima, hoje `:435` — mesmo SEM
+    // este teste, e a M2 mata ele e `cadastro com sucesso apos um conflito
+    // anterior esconde o botao Reativar o existente` (hoje `:786`). Ou seja, este teste NÃO acrescenta
+    // nenhuma morte de mutação — é o achado nº 5 do relatório de pré-flight.
+    //
+    // DECIDIDO pelo usuário em 2026-08-14: ele **FICA**, e a composição não muda por causa dele.
+    // Razão: prova o **corpo exato** do POST (`toBe(JSON.stringify(...))`), o que o teste acima faz
+    // de forma mais frouxa; e tirar um teste barato e correto para economizar uma linha de conta custaria
+    // propagar uma baseline nova para a 9B — a dívida que mais caro saiu nesta fase. Não o remova
+    // "para limpar duplicação": a redundância aqui é deliberada e está registrada.
+    const fetchMock = fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'CMP-1' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === 'POST')!
+    expect((post[1] as RequestInit).body)
+      .toBe(JSON.stringify({ codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem' }))
+  })
+
+  it('distingue "nada corresponde à busca" de "catálogo vazio"', async () => {
+    // Sem timers falsos: nesta task a busca ainda dispara a requisição na tecla, sem debounce.
+    // A 9B reescreve este teste — ver o Step 3 dela.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    expect(await screen.findByText('Nenhum componente cadastrado')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
+
+    expect(await screen.findByText('Nenhum componente encontrado')).toBeTruthy()
+    expect(screen.getByText('Nada corresponde a "XPTO".')).toBeTruthy()
+  })
+
+  it('esconde formulário e ação de inativar para quem não pode escrever', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({
+        itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Bruto', ativo: true }],
+        total: 1, pagina: 1, tamanho: 20,
+      }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByText('CMP-1')).toBeTruthy()
+    expect(screen.queryByLabelText('Código')).toBeNull()
+    expect(screen.queryByText('Inativar')).toBeNull()
+  })
+
+  it('não afirma "nenhum componente cadastrado" quando a carga da lista falhou', async () => {
+    // DECISÃO U1. A sonda que o pré-flight de 2026-08-13 rodou contra o bloco original do Step 2 (o
+    // que dizia só `itens.length === 0`): com o GET em 500, `queryByText('Nenhum componente
+    // cadastrado')` NÃO era nulo — a tela mostrava o banner de erro E o estado vazio ao mesmo tempo.
+    // É a mesma forma do Critical que o fix pass da Task 8 pagou. Sem este teste o conserto do
+    // Step 2 entra sem guarda, e a Task 8 já provou que essa forma volta.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ erro: 'Falha' }, 500),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.queryByText('Nenhum componente cadastrado')).toBeNull()
+    expect(screen.queryByText('Nenhum componente encontrado')).toBeNull()
+  })
+
+  it('mostra o formulário para o perfil PCP, que escreve em componentes mas não em setores', async () => {
+    // MATADOR DA M9, e o único possível. MEDIDO no pré-flight: `permissoes.ts:19-23` dá
+    // `componentes: ['Administrador','PCP']` e `setores: ['Administrador']`; a suíte só usava
+    // `Administrador` (escreve nos dois) e `Operador` (não escreve em nenhum), e nenhum dos dois
+    // separa os recursos — por isso trocar `('componentes')` por `('setores')` matava ZERO.
+    perfil = 'PCP'
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByLabelText('Código')).toBeTruthy()
+  })
+
+  it('mostra o tipo de cada componente na lista', async () => {
+    // MATADOR DA M16, e fecha o X3 do pré-flight da 9A (decisão do usuário, 2026-08-14). MEDIDO
+    // naquele passe: apagar `<Pilula>{c.tipo}</Pilula>` do item deixava os 39 testes VERDES — o tipo
+    // do componente sumia da lista inteira, em silêncio, e `tipo` é justamente o campo que governa a
+    // Receita Padrão da 1C. A `Pilula` tem teste próprio (`Pilula.test.tsx`), mas ele prova a
+    // PRIMITIVA; ninguém provava que ESTA tela a usa para mostrar o tipo.
+    //
+    // `within(item)` e não `screen.getByText('Montagem')` direto: com o formulário na tela, o
+    // `<select>` de Tipo também tem uma `<option>Montagem</option>`, e a busca global acharia DUAS
+    // ocorrências e estouraria. O escopo no `<li>` é o que torna a asserção sobre a lista, e não
+    // sobre o formulário — molde de `PedidosPage.test.tsx:62` (`closest('li')!`).
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({
+        itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem', ativo: true }],
+        total: 1, pagina: 1, tamanho: 20,
+      }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    const item = (await screen.findByText('CMP-1')).closest('li')!
+    expect(within(item).getByText('Montagem')).toBeTruthy()
+  })
+
+  it('dá à tela o título "Componentes" no h1', async () => {
+    // MATADOR DA M17, e fecha o X6 do pré-flight da 9A (decisão do usuário, 2026-08-14). MEDIDO
+    // naquele passe: trocar `titulo="Componentes"` por `titulo="XXX"` deixava os 39 testes VERDES —
+    // o `<h1>` da tela podia dizer qualquer coisa e nenhum deles lia o título.
+    //
+    // `Pagina.test.tsx:9` prova que a PRIMITIVA põe o título no `<h1>`; este prova que ESTA tela
+    // passa o título certo para ela. São duas propriedades diferentes, e só a segunda é da 9A.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Componentes')
   })
 })
