@@ -5508,7 +5508,11 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 > `:36` → `:47` e `:772` → `:783` na árvore descartável em que executou a task; a aplicação das
 > decisões do usuário remontou o arquivo do zero (import de `../testes/api`, bloco `let perfil` +
 > `vi.mock`, e a linha `perfil = 'Administrador'` do `beforeEach`) e conferiu os **34** `it(` um a
-> um — **os 34 deslocam +11, sem exceção**, e o arquivo vai de 987 para 998 linhas.
+> um — **27 deslocam +11**, e o arquivo vai de 987 para 998 linhas. **Corrigido pela review da 9A
+> (2026-08-15): não é "sem exceção".** A adaptação (e) do commit executado (`7e8de1f`) levou junto 2
+> linhas de comentário, então **os 7 testes abaixo de `:778` deslocam +13, não +11** — MEDIDO contra
+> o arquivo real: `:772→785`, `:786→799`, `:831→844`, `:862→875`, `:895→908`, `:930→943`,
+> `:956→969`.
 >
 > **Os 7 testes que a 9A acrescenta NÃO mudam esse número**, porque entram no fim do `describe`,
 > abaixo de tudo o que esta task cita (o teste citado que fica mais embaixo hoje é o `mostra Página
@@ -5533,8 +5537,8 @@ git commit -m "feat(web): re-layout da ComponentesPage com as primitivas"
 > | `nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso` | `:554` | **`:565`** |
 > | `mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu` | `:598` | **`:609`** |
 > | `Anterior volta para a pagina anterior quando habilitado` | `:636` | **`:647`** |
-> | `mostra Página 1 de 1 quando o total e zero` | `:772` | **`:783`** |
-> | `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` | `:930` | **`:941`** |
+> | `mostra Página 1 de 1 quando o total e zero` | `:772` | **`:785`** (+13, não +11 — ver correção acima) |
+> | `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` | `:930` | **`:943`** (+13, não +11 — ver correção acima) |
 >
 > **Pior caso concreto de trabalhar pelo número, e é o motivo da migração:** depois da 9A, `:47`
 > aponta para `lista os componentes que a API devolveu` — teste **diferente** do que esta task quer
@@ -5992,7 +5996,7 @@ async function avancar(ms: number) {
 
 **Use timers falsos só nos testes que tocam a busca.** Ligá-los no arquivo inteiro obrigaria a reescrever os ~30 que não têm nada com debounce, e o `findBy*` deles passaria a depender de avanço manual. `vi.useFakeTimers()` dentro do `it`, e **`vi.useRealTimers()` no `afterEach` que já existe** (`afterEach(() => { vi.unstubAllGlobals() })`) — senão os timers falsos vazam para o teste seguinte, do mesmo jeito que o `perfil` vazava (defeito MEDIDO no pré-flight).
 
-**Quem digita na busca depois das remoções:** `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` (hoje `:930` → `:941`) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. **Os outros seis testes novos da 9A não tocam na busca** — não precisam de timers falsos. MEDIDO: o `limpa a mensagem de erro da carga inicial…` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
+**Quem digita na busca depois das remoções:** `limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso` (hoje `:930` → **`:943`**, não `:941` — corrigido pela review da 9A, 2026-08-15: este bloco fica abaixo da adaptação (e), que desloca +13, não +11) e o teste `distingue "nada corresponde à busca"…` que a 9A acrescentou. **Os outros seis testes novos da 9A não tocam na busca** — não precisam de timers falsos. MEDIDO: o `limpa a mensagem de erro da carga inicial…` passa **sem** timers falsos, custando ~330–450 ms de relógio real; o da 9A foi escrito sem timers e **precisa ser reescrito aqui** com `vi.useFakeTimers()` + `avancar(300)`, no molde que a Task 9 unificada já trazia:
 
 ```tsx
   fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })

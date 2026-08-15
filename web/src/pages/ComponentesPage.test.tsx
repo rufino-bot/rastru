@@ -775,8 +775,8 @@ describe('ComponentesPage', () => {
 
     expect(screen.getByRole('button', { name: 'Reativar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Inativar' })).toBeNull()
-    // `closest('span')` devolve o proprio span do codigo (className 'font-mono font-semibold');
-    // o `line-through` mora no span AVO, o wrapper que o ItemDeCadastro poe em volta de children.
+    // `closest('span')` devolve o proprio span do codigo (monoespacado, peso semibold); o
+    // `line-through` mora no span PAI, o wrapper que o ItemDeCadastro poe em volta de children.
     expect(screen.getByText('INA-001').closest('span')?.parentElement?.className).toContain('line-through')
   })
 
