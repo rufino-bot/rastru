@@ -141,6 +141,45 @@ describe('useBuscaPaginada', () => {
     expect(screen.queryByText('RESULTADO DE SU')).toBeNull()
   })
 
+  it('não mostra erro de uma busca superada que FALHA depois de a mais recente ter sucesso', async () => {
+    // Fecha o D5 do pré-flight de 2026-08-13. Das TRÊS guardas de sequência do hook, a do `catch`
+    // (`useBuscaPaginada.ts:106`) era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
+    // e o único matador do projeto era o `nao mostra erro de uma requisicao desatualizada que falha
+    // depois de uma mais recente ter sucesso`, da `ComponentesPage.test.tsx` — prova de mecanismo do
+    // hook morando na suíte de uma tela. Este teste é o pré-requisito para aquele sair (decisão U2).
+    //
+    // Simétrico ao `ignora a resposta de uma busca que já foi superada por outra`, deste mesmo
+    // arquivo, mas pelo ramo de ERRO: lá a resposta obsoleta era um sucesso que não pode
+    // sobrescrever a lista; aqui é uma FALHA que não pode acender o erro de uma consulta que o
+    // usuário já abandonou.
+    const ordemDeResposta: string[] = []
+    const buscar = vi.fn((f: FiltroDeBusca) => {
+      if (f.busca === 'SU') {
+        return new Promise<PaginaDeBusca<Item>>((_resolve, reject) => {
+          setTimeout(() => { ordemDeResposta.push('SU'); reject(new Error('rede caiu')) }, 1000)
+        })
+      }
+      ordemDeResposta.push(f.busca)
+      return Promise.resolve(pagina([{ id: 2, nome: 'RESULTADO DE SUP' }]))
+    })
+
+    render(<Hospedeiro buscar={buscar} />)
+    await avancar(0)
+
+    const campo = screen.getByLabelText('busca')
+    fireEvent.change(campo, { target: { value: 'SU' } })
+    await avancar(300)   // dispara "SU", que só REJEITA em +1000 ms
+    fireEvent.change(campo, { target: { value: 'SUP' } })
+    await avancar(300)   // dispara "SUP", que responde na hora
+    await avancar(2000)  // deixa a rejeição atrasada de "SU" enfim chegar
+
+    // `ordemDeResposta` prova que a falha obsoleta REALMENTE chegou, e por último — sem isso,
+    // "não tem erro na tela" passaria igual num teste em que ela nunca chegou.
+    expect(ordemDeResposta).toEqual(['', 'SUP', 'SU'])
+    expect(screen.getByText('RESULTADO DE SUP')).toBeTruthy()
+    expect(screen.queryByText('erro')).toBeNull()
+  })
+
   it('volta para a página 1 quando a busca muda', async () => {
     const buscar = vi.fn().mockResolvedValue(pagina([], 100))
 
