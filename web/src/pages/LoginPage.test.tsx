@@ -119,4 +119,20 @@ describe('LoginPage', () => {
       senha: 'Admin@123',
     })
   })
+
+  it('desabilita o botão enquanto o login está em voo', async () => {
+    let liberar: (r: Response) => void = () => {}
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/auth/refresh': () => respostaJson({ erro: 'sem sessão' }, 401),
+      '/api/auth/login': () => new Promise<Response>((r) => { liberar = r }),
+    }))
+
+    renderizarLogin()
+    fireEvent.change(await screen.findByLabelText('Usuário'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'Admin@123' } })
+    fireEvent.click(screen.getByText('Entrar'))
+
+    expect((await screen.findByText('Entrando…') as HTMLButtonElement).disabled).toBe(true)
+    liberar(respostaJson({ erro: 'x' }, 401))
+  })
 })

@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { Botao } from '../components/Botao'
+import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
+import { BannerDeErro } from '../components/BannerDeErro'
 
 export function LoginPage() {
   const { estado, login } = useAuth()
@@ -11,8 +14,8 @@ export function LoginPage() {
 
   if (estado.status === 'autenticado') return <Navigate to="/" replace />
 
-  // Aviso discreto quando o usuario chegou aqui por sessao perdida (onSessionLost), nao por
-  // acesso normal. Comunica que foi rotina de autenticacao, nao erro dele.
+  // Aviso discreto quando o usuário chegou aqui por sessão perdida (onSessionLost), não por acesso
+  // normal. Comunica que foi rotina de autenticação, não erro dele.
   const sessaoExpirada = estado.status === 'anonimo' && estado.motivo === 'sessao-expirada'
 
   async function aoEnviar(e: FormEvent) {
@@ -22,7 +25,9 @@ export function LoginPage() {
     try {
       await login(nomeUsuario, senha)
     } catch {
-      // Mensagem unica e generica: honra o nao-oraculo do backend (401 identico para todos os casos).
+      // Mensagem ÚNICA e genérica: honra o não-oráculo do backend, que responde o mesmo 401 para
+      // usuário inexistente, conta trancada e senha errada. Variar a mensagem por caso aqui
+      // desfaria no front a defesa que o backend paga BCrypt para manter.
       setErro('Usuário ou senha inválidos.')
     } finally {
       setEnviando(false)
@@ -30,48 +35,54 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <form onSubmit={aoEnviar} className="w-full max-w-sm flex flex-col gap-4">
-        <h1 className="text-2xl font-semibold text-center">Rastru</h1>
+    // A única tela fora do shell, e por isso a única que ainda carrega `min-h-screen`.
+    <div className="min-h-screen bg-chrome font-sans flex items-center justify-center p-4">
+      <form
+        onSubmit={aoEnviar}
+        className="flex w-full max-w-sm flex-col gap-5 rounded-xl bg-superficie p-6 shadow-lg"
+      >
+        {/* A marca aparece sobre o chrome escuro do fundo, não dentro do cartão claro: o
+            verde-água só tem contraste AA sobre o petróleo. */}
+        <h1 className="text-center text-2xl font-semibold tracking-tight text-chrome">Rastru</h1>
 
         {sessaoExpirada && (
-          <p className="rounded bg-amber-100 text-amber-800 text-sm px-3 py-2 text-center">
+          // Âmbar seria um quinto matiz para manter coerente, e os tons claros dele reprovam AA
+          // como texto (spec §3). Aviso de rotina fica no cinza-esverdeado dos neutros.
+          <p className="rounded-lg border border-borda bg-fundo px-3 py-2 text-center text-sm text-tinta-fraca">
             Sessão expirada. Entre novamente.
           </p>
         )}
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm">Usuário</span>
-          <input
-            className="border rounded px-3 py-2"
-            value={nomeUsuario}
-            onChange={(e) => setNomeUsuario(e.target.value)}
-            required
-            autoComplete="username"
-          />
-        </label>
+        <Campo rotulo="Usuário">
+          {(id) => (
+            <input
+              id={id}
+              value={nomeUsuario}
+              onChange={(e) => setNomeUsuario(e.target.value)}
+              required
+              autoComplete="username"
+              className={CLASSES_DE_CONTROLE}
+            />
+          )}
+        </Campo>
 
-        <label className="flex flex-col gap-1">
-          <span className="text-sm">Senha</span>
-          <input
-            type="password"
-            className="border rounded px-3 py-2"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </label>
+        <Campo rotulo="Senha">
+          {(id) => (
+            <input
+              id={id}
+              type="password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              required
+              autoComplete="current-password"
+              className={CLASSES_DE_CONTROLE}
+            />
+          )}
+        </Campo>
 
-        {erro && <p className="text-red-600 text-sm">{erro}</p>}
+        <BannerDeErro mensagem={erro} />
 
-        <button
-          type="submit"
-          disabled={enviando}
-          className="bg-gray-800 text-white rounded px-3 py-2 disabled:opacity-50"
-        >
-          {enviando ? 'Entrando…' : 'Entrar'}
-        </button>
+        <Botao type="submit" carregando={enviando} rotuloCarregando="Entrando…">Entrar</Botao>
       </form>
     </div>
   )
