@@ -41,8 +41,9 @@ export function LoginPage() {
         onSubmit={aoEnviar}
         className="flex w-full max-w-sm flex-col gap-5 rounded-xl bg-superficie p-6 shadow-lg"
       >
-        {/* A marca aparece sobre o chrome escuro do fundo, não dentro do cartão claro: o
-            verde-água só tem contraste AA sobre o petróleo. */}
+        {/* A marca usa a cor do chrome (petróleo escuro), não o verde-água da identidade: dentro
+            do cartão claro o texto precisa de contraste AA contra fundo branco, e só o petróleo
+            garante isso — o verde-água claro reprova AA como texto (spec §3). */}
         <h1 className="text-center text-2xl font-semibold tracking-tight text-chrome">Rastru</h1>
 
         {sessaoExpirada && (
