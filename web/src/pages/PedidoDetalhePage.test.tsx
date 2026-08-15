@@ -8,6 +8,19 @@ import { respostaJson, fetchPorRota } from '../testes/api'
 
 afterEach(cleanup)
 
+// O perfil da sessão passa a governar o que a tela mostra (Task 10). Default `'PCP'`: pode
+// escrever agrupamentos (`podeEscrever` em `web/src/auth/permissoes.ts` libera `PCP` e
+// `Administrador`), o que preserva o comportamento dos testes existentes (formulário e botão de
+// excluir precisam estar visíveis para eles).
+let perfil = 'PCP'
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({
+    estado: { status: 'autenticado', usuario: { id: 1, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+    login: async () => {},
+    logout: async () => {},
+  }),
+}))
+
 const PEDIDO = {
   id: 7,
   numero: 'PED-001',
@@ -41,6 +54,7 @@ function renderizarDetalhe() {
 
 describe('PedidoDetalhePage', () => {
   beforeEach(() => {
+    perfil = 'PCP'
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
@@ -148,7 +162,7 @@ describe('PedidoDetalhePage', () => {
     // Terceiro desfecho do mapa (A2 do segundo fix pass): segundo o comentário de
     // cadastros.ts:192-194, PedidoNaoAberto é o código que MAIS chega na prática (a ordem das
     // guardas no backend é existe -> Pedido Aberto -> vazio). O 409 é discriminado pelo campo
-    // `erro` do corpo — sem este teste, mutar PedidoDetalhePage.tsx:16 matava 0.
+    // `erro` do corpo — sem este teste, mutar PedidoDetalhePage.tsx:25 matava 0.
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos/7': () => respostaJson(PEDIDO),
       '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
@@ -163,6 +177,30 @@ describe('PedidoDetalhePage', () => {
     expect(
       await screen.findByText('O pedido não está mais aberto: não dá para excluir agrupamentos dele.'),
     ).toBeTruthy()
+  })
+
+  // M5 do Step 4 (fase1d-task-10-brief.md): mover o `<BannerDeErro>` para depois do bloco
+  // `carregando ? …` sobrevive a TODOS os testes acima — RTL não olha ordem de DOM por padrão, só
+  // se o texto existe em algum lugar. Mas é exatamente essa posição relativa que causou o "erro
+  // que pisca" da review da Task 11 no desenho antigo (o early return escondia o banner atrás do
+  // "Carregando…"). Sem early return isso não pode mais acontecer por ESCONDER o banner, mas a
+  // ORDEM ainda importa para quem usa a tela: o aviso de recusa precisa estar ACIMA da lista, não
+  // abaixo dela, onde exigiria rolar para ver. Esta asserção prende a ordem no DOM.
+  it('mostra o banner de erro antes da lista de agrupamentos, não depois', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      '/api/agrupamentos/21': () => respostaJson({ erro: 'AgrupamentoNaoVazio' }, 409),
+    }))
+
+    renderizarDetalhe()
+    fireEvent.click(await screen.findByText('Excluir'))
+    const dialogo = screen.getByRole('dialog')
+    fireEvent.click(Array.from(dialogo.querySelectorAll('button')).find((b) => b.textContent === 'Excluir')!)
+
+    const banner = await screen.findByRole('alert')
+    const lista = screen.getByRole('list', { name: 'Agrupamentos' })
+    expect(banner.compareDocumentPosition(lista) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('cadastra o agrupamento, limpa o formulário e recarrega a lista quando o salvar dá certo', async () => {
@@ -188,16 +226,16 @@ describe('PedidoDetalhePage', () => {
     await screen.findByText('PED-001')
     expect(screen.queryByText('AGR-01')).toBeNull()
 
-    fireEvent.change(screen.getByPlaceholderText('Código do agrupamento'), { target: { value: 'AGR-01' } })
+    fireEvent.change(screen.getByLabelText('Código do agrupamento'), { target: { value: 'AGR-01' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
-    // Prova o `await carregar(pedidoId)`: se ele for apagado de PedidoDetalhePage.tsx:64, a
+    // Prova o `await carregar(pedidoId)`: se ele for apagado de PedidoDetalhePage.tsx:73, a
     // terceira chamada nunca acontece, a lista fica vazia para sempre e este findByText estoura
     // por timeout, não por falso-positivo.
     expect(await screen.findByText('AGR-01')).toBeTruthy()
-    // Prova o `setForm(FORMULARIO_VAZIO)`: se ele for apagado da linha 63, o campo continuaria
+    // Prova o `setForm(FORMULARIO_VAZIO)`: se ele for apagado da linha 72, o campo continuaria
     // com 'AGR-01' digitado.
-    expect((screen.getByPlaceholderText('Código do agrupamento') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Código do agrupamento') as HTMLInputElement).value).toBe('')
 
     // B2: fetchPorRota (testes/api.ts:29-36) casa só por caminho — ignora método e corpo. Sem
     // esta asserção, trocar o POST de criarAgrupamento por GET, ou deixar de enviar o `form` no
@@ -208,15 +246,36 @@ describe('PedidoDetalhePage', () => {
     expect(JSON.parse((chamadaPost![1] as RequestInit).body as string)).toEqual({ codigo: 'AGR-01', tipo: 'Kit' })
   })
 
+  // M7 do Step 4: remover `setEnviando(false)` do `finally` de `salvar` sobrevive ao teste acima
+  // (ele só olha o efeito COLATERAL do submit — a lista recarregada —, nunca o estado do próprio
+  // botão). Sob a mutação, `enviando` fica travado em `true` para sempre e o botão "Adicionar"
+  // nunca reabilita, mesmo depois do cadastro concluir com sucesso.
+  it('reabilita o botão "Adicionar" depois que o cadastro conclui', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('PED-001')
+
+    fireEvent.change(screen.getByLabelText('Código do agrupamento'), { target: { value: 'AGR-01' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await waitFor(() => {
+      expect((screen.getByText('Adicionar') as HTMLButtonElement).disabled).toBe(false)
+    })
+  })
+
   it('mostra o erro de duplicidade e mantém o formulário preenchido quando o salvar é recusado', async () => {
-    // A3.1, ramo de conflito: o `return` de PedidoDetalhePage.tsx:61 acontece ANTES do
+    // A3.1, ramo de conflito: o `return` de PedidoDetalhePage.tsx:70 acontece ANTES do
     // `setForm(FORMULARIO_VAZIO)` — sem ele, o fluxo continua para `setForm` e `carregar()`. A
     // mensagem de erro sozinha SOBREVIVE a essa mutação (nada a apaga depois dela), por isso é a
     // asserção do valor do campo que pega essa mutação. Para a asserção ser alcançada, o 409 vale
     // só na SEGUNDA chamada da rota (o POST); da terceira chamada em diante ela devolve lista
     // vazia com sucesso — senão a terceira chamada (a de `carregar()`, que só acontece sob a
     // mutação) bateria de novo no 409, `listarAgrupamentos` lançaria (cadastros.ts:174) e o catch
-    // de PedidoDetalhePage.tsx:43 sobrescreveria a mensagem de conflito por 'Não foi possível
+    // de PedidoDetalhePage.tsx:74 sobrescreveria a mensagem de conflito por 'Não foi possível
     // carregar o pedido.' antes da asserção do campo rodar.
     let chamadas = 0
     vi.stubGlobal('fetch', fetchPorRota({
@@ -231,12 +290,40 @@ describe('PedidoDetalhePage', () => {
     renderizarDetalhe()
     await screen.findByText('PED-001')
 
-    fireEvent.change(screen.getByPlaceholderText('Código do agrupamento'), { target: { value: 'AGR-01' } })
+    fireEvent.change(screen.getByLabelText('Código do agrupamento'), { target: { value: 'AGR-01' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
     expect(
       await screen.findByText('Já existe um agrupamento com este código neste pedido.'),
     ).toBeTruthy()
-    expect((screen.getByPlaceholderText('Código do agrupamento') as HTMLInputElement).value).toBe('AGR-01')
+    expect((screen.getByLabelText('Código do agrupamento') as HTMLInputElement).value).toBe('AGR-01')
+  })
+
+  // Task 10: o formulário e o botão de excluir passam a existir só para quem tem
+  // `usePodeEscrever('agrupamentos')` — a lista continua visível para todo mundo, porque
+  // `agrupamentos` é recurso de LEITURA aberta e ESCRITA restrita (PCP/Administrador).
+  it('esconde o formulário e o botão de excluir para quem não pode escrever', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+    }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText('AGR-01')).toBeTruthy()
+    expect(screen.queryByLabelText('Código do agrupamento')).toBeNull()
+    expect(screen.queryByText('Excluir')).toBeNull()
+  })
+
+  it('mostra estado vazio quando o pedido não tem agrupamentos', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText('Nenhum agrupamento neste pedido')).toBeTruthy()
   })
 })

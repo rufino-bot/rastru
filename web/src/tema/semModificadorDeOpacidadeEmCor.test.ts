@@ -92,9 +92,13 @@ function caminhoRelativo(caminho: string): string {
  * exclusão de agrupamento.
  */
 const SEM_EXIGENCIA: Record<string, string> = {
-  'pages/PedidoDetalhePage.tsx::bg-black/50':
-    'véu (scrim) do modal de confirmação de exclusão — `fixed inset-0`, com o painel `bg-white` ' +
-    'sobreposto (`PedidoDetalhePage.tsx:152`). É decorativo: nenhum texto é lido sobre ele, então ' +
+  // Task 10 re-layout trocou a cor crua original do véu pelo token do tema — mesmo véu, mesma
+  // dispensa, só o nome da classe mudou (não escrito por extenso: o scanner do Tailwind lê o
+  // fonte inteiro, comentário incluído, e a forma antiga plantava uma regra no CSS de produção
+  // que elemento nenhum usa — ver o mesmo aviso em ListaDeCadastro.tsx).
+  'pages/PedidoDetalhePage.tsx::bg-tinta/50':
+    'véu (scrim) do modal de confirmação de exclusão — `fixed inset-0`, com o painel `bg-superficie` ' +
+    'sobreposto (`PedidoDetalhePage.tsx:183`). É decorativo: nenhum texto é lido sobre ele, então ' +
     'não há par de contraste texto/fundo a medir. WCAG 1.4.3 não se aplica a fundo sem conteúdo.',
 }
 

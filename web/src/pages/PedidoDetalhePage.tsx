@@ -1,14 +1,23 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, ehConflito,
   formatarDataHora, type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
   type ResultadoExclusao,
 } from '../api/cadastros'
+import { mensagemDeErro } from '../api/erros'
+import { usePodeEscrever } from '../auth/usePermissao'
+import { Pagina } from '../components/Pagina'
+import { Botao } from '../components/Botao'
+import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
+import { BannerDeErro } from '../components/BannerDeErro'
+import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
+import { Pilula } from '../components/Pilula'
+import { EstadoVazio } from '../components/EstadoVazio'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
 
-// Tipado contra a uniao, e nao `Record<string, string>`: com o tipo frouxo, renomear ou perder uma
+// Tipado contra a união, e não `Record<string, string>`: com o tipo frouxo, renomear ou perder uma
 // chave compila, passa os testes e passa o lint — e em runtime `MOTIVO_DA_RECUSA[desfecho]` vira
 // undefined e a tela fica MUDA no caso que mais acontece. O tipo forte faz o tsc cobrar o mapa.
 const MOTIVO_DA_RECUSA: Record<Exclude<ResultadoExclusao, 'ok'>, string> = {
@@ -26,21 +35,23 @@ export function PedidoDetalhePage() {
   const [form, setForm] = useState<NovoAgrupamento>(FORMULARIO_VAZIO)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
+  const [enviando, setEnviando] = useState(false)
   const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
 
-  // Recebe o id como argumento (em vez de fechar sobre `pedidoId` de fora) para casar com o
-  // padrao de SetoresPage/MateriaisPage: a dependencia do useEffect precisa aparecer usada
-  // dentro do corpo do callback, senao o react-hooks(exhaustive-deps) acusa 'carregar' como
-  // dependencia faltando.
+  const podeEscrever = usePodeEscrever('agrupamentos')
+
+  // Recebe o id como argumento (em vez de fechar sobre `pedidoId` de fora) porque a dependência do
+  // useEffect precisa aparecer usada dentro do corpo do callback, senão o exhaustive-deps acusa
+  // 'carregar' como dependência faltando.
   async function carregar(id: number) {
     setCarregando(true)
     try {
-      // Duas chamadas de proposito: o Pedido e o sub-recurso de Agrupamentos sao rotas separadas.
+      // Duas chamadas de propósito: o Pedido e o sub-recurso de Agrupamentos são rotas separadas.
       const [p, a] = await Promise.all([obterPedido(id), listarAgrupamentos(id)])
       setPedido(p)
       setAgrupamentos(a)
-    } catch {
-      setErro('Não foi possível carregar o pedido.')
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível carregar o pedido.'))
     } finally {
       setCarregando(false)
     }
@@ -48,12 +59,10 @@ export function PedidoDetalhePage() {
 
   useEffect(() => { carregar(pedidoId) }, [pedidoId])
 
-  // POST /pedidos/{pedidoId}/agrupamentos e [Authorize(Roles = "PCP,Administrador")] e o link
-  // aparece para todos os perfis: o try/catch e a fronteira real de perfil — sem ele um
-  // Operador/Qualidade clicando "Adicionar" tomaria 403 e a tela nao diria nada.
   async function salvar(e: FormEvent) {
     e.preventDefault()
     setErro(null)
+    setEnviando(true)
     try {
       const resultado = await criarAgrupamento(pedidoId, form)
       if (ehConflito(resultado)) {
@@ -62,22 +71,23 @@ export function PedidoDetalhePage() {
       }
       setForm(FORMULARIO_VAZIO)
       await carregar(pedidoId)
-    } catch {
-      setErro('Não foi possível salvar o agrupamento.')
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível salvar o agrupamento.'))
+    } finally {
+      setEnviando(false)
     }
   }
 
-  // DELETE /agrupamentos/{id} e [Authorize(Roles = "PCP,Administrador")]: mesma fronteira do
-  // salvar() acima. excluirAgrupamento so lanca para status fora de 204/404/409 — os dois 409 e
-  // o 404 chegam como retorno normal, tratados pelo MOTIVO_DA_RECUSA.
+  // `excluirAgrupamento` só lança para status fora de 204/404/409 — os dois 409 e o 404 chegam como
+  // retorno normal, tratados pelo MOTIVO_DA_RECUSA.
   async function excluir(agrupamentoId: number) {
     setErro(null)
     try {
       const desfecho = await excluirAgrupamento(agrupamentoId)
       if (desfecho !== 'ok') setErro(MOTIVO_DA_RECUSA[desfecho])
       await carregar(pedidoId)
-    } catch {
-      setErro('Não foi possível excluir o agrupamento.')
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível excluir o agrupamento.'))
     }
   }
 
@@ -88,103 +98,116 @@ export function PedidoDetalhePage() {
     excluir(agrupamentoId)
   }
 
-  // Sem early return de pagina inteira aqui, de proposito — ele existia e causava DOIS defeitos.
-  // `carregar()` roda apos CADA cadastro e exclusao, entao um `if (carregando) return <p>…</p>`
-  // demolia e remontava a tela toda a cada acao: e isso que se sente como "lentidao", nao a rede
-  // (o hop do proxy do Vite foi medido em ~5-15ms). E, pior, o early return ficava ANTES do bloco
-  // `{erro && …}`, entao a mensagem de recusa da exclusao era escrita e imediatamente escondida
-  // atras do "Carregando…" — o "erro que pisca" que a review da Task 11 levantou.
-  // O estado de carregamento fica ESCOPADO a lista, como em SetoresPage:107 e PedidosPage:74.
+  // SEM early return de página inteira, de propósito — ele existia e causava DOIS defeitos:
+  // demolia a tela a cada ação (o que se sente como lentidão) e escondia a mensagem de recusa da
+  // exclusão atrás do "Carregando…". O estado de carregamento fica ESCOPADO à lista.
   return (
-    <div className="min-h-screen p-6 max-w-md mx-auto flex flex-col gap-4">
-      <Link to="/pedidos" className="text-sm text-gray-500">&larr; Pedidos</Link>
-
+    <Pagina titulo={pedido ? pedido.numero : 'Pedido'}>
       {pedido && (
-        <header className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{pedido.numero}</h1>
-          <p className="text-gray-600">{pedido.cliente}</p>
-          <p className="text-sm text-gray-500">
-            {pedido.tipo} · {pedido.status} · aberto em {formatarDataHora(pedido.dataAbertura)}
+        <div className="flex flex-col gap-2 rounded-lg border border-borda bg-superficie p-4">
+          <p className="text-lg text-tinta">{pedido.cliente}</p>
+          <p className="flex flex-wrap items-center gap-2 text-sm text-tinta-fraca">
+            <Pilula>{pedido.tipo}</Pilula>
+            <Pilula>{pedido.status}</Pilula>
+            aberto em {formatarDataHora(pedido.dataAbertura)}
           </p>
-        </header>
+        </div>
       )}
 
-      <h2 className="text-lg font-medium mt-2">Agrupamentos</h2>
+      <h2 className="text-lg font-medium text-tinta">Agrupamentos</h2>
 
-      <form onSubmit={salvar} className="flex flex-col gap-2">
-        <input
-          value={form.codigo}
-          onChange={(e) => setForm({ ...form, codigo: e.target.value })}
-          placeholder="Código do agrupamento"
-          required
-          className="border rounded px-3 py-2"
+      {podeEscrever && (
+        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo rotulo="Código do agrupamento">
+              {(id) => (
+                <input
+                  id={id}
+                  value={form.codigo}
+                  onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                  required
+                  className={`${CLASSES_DE_CONTROLE} font-mono`}
+                />
+              )}
+            </Campo>
+            <Campo rotulo="Tipo">
+              {(id) => (
+                <select
+                  id={id}
+                  value={form.tipo}
+                  onChange={(e) => setForm({ ...form, tipo: e.target.value as NovoAgrupamento['tipo'] })}
+                  className={CLASSES_DE_CONTROLE}
+                >
+                  <option value="Kit">Kit</option>
+                  <option value="Avulso">Avulso</option>
+                </select>
+              )}
+            </Campo>
+          </div>
+          <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…" className="self-start">
+            Adicionar
+          </Botao>
+        </form>
+      )}
+
+      <BannerDeErro mensagem={erro} />
+
+      {carregando ? (
+        <p className="text-tinta-fraca">Carregando…</p>
+      ) : agrupamentos.length === 0 ? (
+        <EstadoVazio
+          titulo="Nenhum agrupamento neste pedido"
+          descricao={podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined}
         />
-        <select
-          value={form.tipo}
-          onChange={(e) => setForm({ ...form, tipo: e.target.value as NovoAgrupamento['tipo'] })}
-          className="border rounded px-3 py-2"
-        >
-          <option value="Kit">Kit</option>
-          <option value="Avulso">Avulso</option>
-        </select>
-        <button type="submit" className="border rounded px-3 py-2 self-start">Adicionar</button>
-      </form>
-
-      {erro && <p className="text-red-600 text-sm">{erro}</p>}
-
-      {carregando ? <p className="text-gray-600">Carregando…</p> : (
-        <ul className="flex flex-col gap-2">
+      ) : (
+        <ListaDeCadastro rotulo="Agrupamentos">
           {agrupamentos.map((a) => (
-            <li key={a.id} className="flex items-center justify-between border rounded px-3 py-2">
-              <span>
-                <strong>{a.codigo}</strong> ({a.tipo})
-              </span>
-              <button onClick={() => setPendenteExclusao(a)} className="text-sm border rounded px-2 py-1">
-                Excluir
-              </button>
-            </li>
+            <ItemDeCadastro
+              key={a.id}
+              acao={podeEscrever && (
+                <Botao variante="secundario" onClick={() => setPendenteExclusao(a)}>Excluir</Botao>
+              )}
+            >
+              <span className="font-mono font-semibold">{a.codigo}</span>{' '}
+              <Pilula>{a.tipo}</Pilula>
+            </ItemDeCadastro>
           ))}
-        </ul>
+        </ListaDeCadastro>
       )}
 
       {pendenteExclusao && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4">
-          <div role="dialog" aria-modal="true" className="bg-white rounded p-4 flex flex-col gap-3 max-w-sm w-full">
-            <p>
-              Excluir o agrupamento <strong>{pendenteExclusao.codigo}</strong>? Esta ação não pode
-              ser desfeita.
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-tinta/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="flex w-full max-w-sm flex-col gap-4 rounded-lg bg-superficie p-5 shadow-lg"
+          >
+            <p className="text-tinta">
+              Excluir o agrupamento <strong className="font-mono">{pendenteExclusao.codigo}</strong>?
+              Esta ação não pode ser desfeita.
             </p>
             {/*
-              Ordem e peso visual sao deliberados, nao estetica. Esta e a unica exclusao fisica do
-              sistema, e ate aqui os dois botoes tinham a MESMA classe — um modal de confirmacao com
-              dois botoes identicos troca a pausa deliberada por um sorteio. Excluir vem em vermelho
-              solido (convencao de acao destrutiva) e Cancelar fica a DIREITA, onde cai o polegar num
-              tablet, e com mais peso: quem clicar sem ler tem que acertar o caminho seguro.
+              Ordem e peso visual são deliberados, não estética. Esta é a única exclusão física do
+              sistema, e até a Fase 1A os dois botões tinham a MESMA classe — um modal de confirmação
+              com dois botões idênticos troca a pausa deliberada por um sorteio. "Excluir" em
+              vermelho (convenção de ação destrutiva) e "Cancelar" à DIREITA, onde cai o polegar num
+              tablet. NÃO trocar a ordem nem igualar os pesos.
             */}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={confirmarExclusao}
-                className="bg-red-600 text-white rounded px-3 py-2 hover:bg-red-700"
-              >
-                Excluir
-              </button>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Botao variante="perigo" onClick={confirmarExclusao}>Excluir</Botao>
               {/*
-                autoFocus: mesma intencao do comentario acima, aplicada ao teclado. No DOM
-                "Excluir" vem antes de "Cancelar" (ordem visual decidida, nao mexer) — sem foco
-                explicito, quem navega por teclado sem ler tabularia direto para o botao
-                destrutivo. NAO adicionar Esc / clique-fora / focus-trap: fora de escopo.
+                autoFocus: mesma intenção, aplicada ao teclado. No DOM "Excluir" vem antes de
+                "Cancelar" (ordem visual decidida, não mexer) — sem foco explícito, quem navega por
+                teclado sem ler tabularia direto para o botão destrutivo.
+                NÃO adicionar Esc / clique-fora / focus-trap: fora de escopo, como já estava.
               */}
-              <button
-                onClick={() => setPendenteExclusao(null)}
-                className="border-2 border-gray-800 rounded px-3 py-2 font-medium"
-                autoFocus
-              >
+              <Botao variante="secundario" onClick={() => setPendenteExclusao(null)} autoFocus>
                 Cancelar
-              </button>
+              </Botao>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </Pagina>
   )
 }
