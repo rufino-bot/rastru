@@ -326,4 +326,23 @@ describe('PedidoDetalhePage', () => {
 
     expect(await screen.findByText('Nenhum agrupamento neste pedido')).toBeTruthy()
   })
+
+  // Achado Important da review da Task 10 (plan-mandated): o Step 2 do brief não trazia o
+  // `erro === null &&` que as outras quatro telas retrofitadas têm. Sem ele, `agrupamentos` fica
+  // `[]` no catch de `carregar` (nunca é preenchido), e `.length === 0` sozinho também é verdade
+  // numa falha de rede — "Nenhum agrupamento neste pedido" apareceria JUNTO do banner de erro,
+  // convidando a criar o primeiro a partir de uma falha de conexão. É a mesma forma do Critical
+  // que o fix pass da Task 8 pagou (achado C1), e nenhum dos testes anteriores exercitava o
+  // caminho de falha de leitura.
+  it('não mostra o estado vazio quando a listagem falha', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => Promise.reject(new Error('rede caiu')),
+    }))
+
+    renderizarDetalhe()
+
+    await screen.findByText('Não foi possível carregar o pedido.')
+    expect(screen.queryByText('Nenhum agrupamento neste pedido')).toBeNull()
+  })
 })

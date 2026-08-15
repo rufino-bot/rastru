@@ -154,7 +154,12 @@ export function PedidoDetalhePage() {
 
       {carregando ? (
         <p className="text-tinta-fraca">Carregando…</p>
-      ) : agrupamentos.length === 0 ? (
+      ) : erro === null && agrupamentos.length === 0 ? (
+        // `erro === null` distingue "não há agrupamentos" de "a listagem falhou": no `catch` de
+        // `carregar`, `setAgrupamentos` nunca é chamado, então a lista fica `[]` e `.length === 0`
+        // sozinho também seria verdade numa falha de rede — mostrando este estado vazio JUNTO do
+        // banner de erro, convidando a criar o primeiro agrupamento a partir de uma falha de
+        // conexão. É a mesma forma do Critical que o fix pass da Task 8 pagou (achado C1).
         <EstadoVazio
           titulo="Nenhum agrupamento neste pedido"
           descricao={podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined}
