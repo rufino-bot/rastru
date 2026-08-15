@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { HomePage } from './HomePage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -46,23 +46,27 @@ describe('HomePage', () => {
 
   it('conta só os pedidos abertos', async () => {
     // Dois pedidos, um Aberto e um Concluido: contar `.length` daria 2 e a tela mentiria.
+    // `within(cartao).getByText('1')`, não `textContent.toContain('1')`: o cartão de componentes
+    // mostra "41", e "41" CONTÉM "1" — um `toContain` passaria com a fiação de pedidos e
+    // componentes trocada. `getByText` casa o nó de texto inteiro, então discrimina "1" de "41".
     vi.stubGlobal('fetch', apiCompleta())
 
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     await screen.findByText('41')
 
     const cartao = screen.getByText('pedidos abertos').closest('a')!
-    expect(cartao.textContent).toContain('1')
+    expect(within(cartao).getByText('1')).toBeTruthy()
   })
 
   it('mostra as contagens de materiais e setores', async () => {
+    // Mesmo motivo do teste acima: `getByText` escopado ao cartão, não `textContent.toContain`.
     vi.stubGlobal('fetch', apiCompleta())
 
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     await screen.findByText('41')
 
-    expect(screen.getByText('materiais ativos').closest('a')!.textContent).toContain('1')
-    expect(screen.getByText('setores ativos').closest('a')!.textContent).toContain('2')
+    expect(within(screen.getByText('materiais ativos').closest('a')!).getByText('1')).toBeTruthy()
+    expect(within(screen.getByText('setores ativos').closest('a')!).getByText('2')).toBeTruthy()
   })
 
   it('pede só um item ao contar componentes', async () => {
