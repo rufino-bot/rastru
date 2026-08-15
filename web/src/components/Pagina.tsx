@@ -8,11 +8,13 @@ interface Props {
 }
 
 /**
- * Substitui as SEIS cópias de `min-h-screen p-6 max-w-md mx-auto flex flex-col gap-4`.
+ * Substitui as SEIS cópias do container antigo: altura mínima de tela, respiro de página, largura
+ * contida e centralizada, coluna com espaçamento.
  *
- * `max-w-3xl` (768px) e não `max-w-md` (448px): a spec §7 registra que busca + filtro + seletor de
- * tamanho + paginação não cabem em 448px. `min-h-screen` sai daqui e vai para o `AppShell` — as
- * duas coisas juntas produzem rolagem permanente de alguns pixels.
+ * A largura contida aqui é 768px, mais generosa que os 448px do container antigo: a spec §7
+ * registra que busca + filtro + seletor de tamanho + paginação não cabem nos 448px. A altura
+ * mínima de tela sai daqui e vai para o `AppShell` — as duas coisas juntas produzem rolagem
+ * permanente de alguns pixels.
  *
  * O respiro é generoso de propósito (direção "sóbria e espaçada", spec §3). O custo foi medido e
  * aceito: na mesma altura de tela, ~3 itens onde a densa mostraria ~6.
