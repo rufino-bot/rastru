@@ -14,6 +14,7 @@ import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
+import { EstadoCarregando } from '../components/EstadoCarregando'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
 
@@ -153,7 +154,7 @@ export function PedidoDetalhePage() {
       <BannerDeErro mensagem={erro} />
 
       {carregando ? (
-        <p className="text-tinta-fraca">Carregando…</p>
+        <EstadoCarregando />
       ) : erro === null && agrupamentos.length === 0 ? (
         // `erro === null` distingue "não há agrupamentos" de "a listagem falhou": no `catch` de
         // `carregar`, `setAgrupamentos` nunca é chamado, então a lista fica `[]` e `.length === 0`

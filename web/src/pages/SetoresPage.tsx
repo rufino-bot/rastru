@@ -10,6 +10,7 @@ import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { EstadoVazio } from '../components/EstadoVazio'
+import { EstadoCarregando } from '../components/EstadoCarregando'
 
 export function SetoresPage() {
   const [setores, setSetores] = useState<SetorDto[]>([])
@@ -125,7 +126,7 @@ export function SetoresPage() {
       </label>
 
       {carregando ? (
-        <p className="text-tinta-fraca">Carregando…</p>
+        <EstadoCarregando />
       ) : erro === null && setores.length === 0 ? (
         // `erro === null` é o que distingue "não há setores" de "a listagem falhou": no `catch`
         // de `carregar`, `setSetores` nunca é chamado, então a lista fica `[]` e `.length === 0`

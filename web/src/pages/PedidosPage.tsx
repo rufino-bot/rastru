@@ -13,6 +13,7 @@ import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
+import { EstadoCarregando } from '../components/EstadoCarregando'
 
 const FORMULARIO_VAZIO: NovoPedido = { numero: '', cliente: '' }
 
@@ -107,7 +108,7 @@ export function PedidosPage() {
       <BannerDeErro mensagem={erro} />
 
       {carregando ? (
-        <p className="text-tinta-fraca">Carregando…</p>
+        <EstadoCarregando />
       ) : erro === null && pedidos.length === 0 ? (
         // `erro === null` é o que distingue "não há pedidos" de "a listagem falhou": no `catch`
         // de `carregar`, `setPedidos` nunca é chamado, então a lista fica `[]` e `.length === 0`

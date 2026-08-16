@@ -6,6 +6,7 @@ import {
 import { mensagemDeErro } from '../api/erros'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
+import { EstadoCarregando } from '../components/EstadoCarregando'
 
 interface Contagens {
   pedidosAbertos: number
@@ -65,7 +66,7 @@ export function HomePage() {
     <Pagina titulo="Início">
       <BannerDeErro mensagem={erro} />
 
-      {carregando && <p className="text-tinta-fraca">Carregando…</p>}
+      {carregando && <EstadoCarregando />}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <CartaoDeContagem titulo="pedidos abertos" valor={contagens?.pedidosAbertos ?? null} para="/pedidos" />

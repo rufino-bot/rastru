@@ -12,6 +12,7 @@ import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
+import { EstadoCarregando } from '../components/EstadoCarregando'
 
 const FORMULARIO_VAZIO: NovoMaterial = { codigo: '', descricao: '', unidadeMedida: '' }
 
@@ -156,7 +157,7 @@ export function MateriaisPage() {
       </label>
 
       {carregando ? (
-        <p className="text-tinta-fraca">Carregando…</p>
+        <EstadoCarregando />
       ) : erro === null && materiais.length === 0 ? (
         // `erro === null` é o que distingue "não há materiais" de "a listagem falhou": no `catch`
         // de `carregar`, `setMateriais` nunca é chamado, então a lista fica `[]` e `.length === 0`

@@ -46,6 +46,19 @@ describe('PedidosPage', () => {
 
   afterEach(() => { vi.unstubAllGlobals() })
 
+  // I1 (achado da review de branco da 1D): nenhuma das seis telas que buscam dados tinha teste
+  // provando o indicador "Carregando…" — só vazio e erro tinham. Molde de
+  // `LoginPage.test.tsx` ("desabilita o botão enquanto o login está em voo"): fetch que nunca
+  // resolve, e asserção SÍNCRONA (sem `await`/`findBy*`) de que o indicador está na tela antes de
+  // qualquer resposta chegar.
+  it('mostra o indicador de carregando antes da resposta da API chegar', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+
+    render(<MemoryRouter><PedidosPage /></MemoryRouter>)
+
+    expect(screen.getByRole('status').textContent).toBe('Carregando…')
+  })
+
   it('mostra os pedidos que a API devolveu', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos': () => respostaJson([PEDIDO]),

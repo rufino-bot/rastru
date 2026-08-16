@@ -13,6 +13,7 @@ import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
+import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ControlesDePaginacao } from '../components/ControlesDePaginacao'
 
 const FORMULARIO_VAZIO: NovoComponente = { codigo: '', descricao: '', tipo: 'Fabricado' }
@@ -195,7 +196,7 @@ export function ComponentesPage() {
       </div>
 
       {lista.carregando ? (
-        <p className="text-tinta-fraca">Carregando…</p>
+        <EstadoCarregando />
       ) : erroDeLeitura === null && lista.itens.length === 0 ? (
         // DECISÃO U1 (usuário, 2026-08-13), e ela CORRIGE o que a versão anterior deste bloco
         // dizia. Sem o `erroDeLeitura === null &&`, a tela mostra o banner de erro E "Nenhum
