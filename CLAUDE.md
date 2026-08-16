@@ -77,13 +77,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   é o shell. As duas exceções são `LoginPage` e `TelaCarregando`, ambas por renderizarem **fora**
   do shell (a segunda substitui o `AppShell` inteiro enquanto a sessão ainda carrega, em
   `ProtectedRoute`) — não numa terceira tela nova.
-- **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação ou estado vazio à
-  mão.** As primitivas estão em `web/src/components/`. Se faltar uma, crie-a lá com teste próprio —
-  não a embuta na tela.
+- **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
+  estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
+  inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
-  `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`, e a varredura da Fase 1D
-  confirmou zero ocorrências ali (planos e specs em `docs/superpowers/` citam os nomes antigos ao
-  narrar o histórico, o que é esperado).
+  `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
+  não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
+  de classe da paleta padrão do Tailwind (inclusive variantes direcionais, `border-t-` etc.) e falha
+  nomeando arquivo e linha — cai na suíte normal, então uma cor fora do token não passa despercebida
+  numa tela nova (planos e specs em `docs/superpowers/` citam os nomes antigos ao narrar o histórico,
+  o que é esperado e fora do escopo da guarda).
 - **Tom novo tem de ser medido antes de entrar.** `web/src/tema/contraste.test.ts` lê o `@theme` do
   `index.css` e reprova token sem par de contraste declarado. Os tons claros de verde-água e âmbar
   reprovam AA como texto sobre branco apesar de funcionarem como fundo de botão — a regra existe
