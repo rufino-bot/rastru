@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 /**
- * I2 da review de branco da 1D: nada impedia uma cor fora da paleta deste projeto de entrar num
+ * I2 da review de branch da 1D: nada impedia uma cor fora da paleta deste projeto de entrar num
  * `className` de produção. MEDIDO: reverter `TelaCarregando.tsx` da paleta do tema para a paleta
  * PADRÃO da Tailwind (nenhuma declaração `--color-*` nova — então as duas guardas de
  * `contraste.test.ts`, que só olham o `@theme`, não veem nada de errado) deixava a suíte inteira
