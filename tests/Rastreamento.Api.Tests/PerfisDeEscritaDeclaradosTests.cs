@@ -92,9 +92,12 @@ public class PerfisDeEscritaDeclaradosTests
   /// rotas sob `pedidos/` e sob `agrupamentos/`; agrupar por controller obrigava a somar os perfis
   /// de acoes diferentes numa uniao que nao existe em lugar nenhum do backend.</item>
   /// </list>
-  /// O padrao de rota vem do `RoutePattern.RawText`, que NAO tem barra inicial e NAO tem o `/api`:
-  /// o prefixo e middleware (`UsePathBase`, ver `CLAUDE.md`), nao faz parte do padrao. Por isso as
-  /// chaves sao `POST setores`, e nao `POST /api/setores`.
+  /// O padrao de rota vem do `RoutePattern.RawText`, que NAO tem o `/api`: o prefixo e middleware
+  /// (`UsePathBase`, ver `CLAUDE.md`), nao faz parte do padrao. Por isso as chaves sao
+  /// `POST setores`, e nao `POST /api/setores`. A barra inicial e literal: rota de CONTROLLER nao
+  /// tem (`setores`), rota de minimal API tem (`/perdas`, se `app.MapPost("/perdas", ...)` for a
+  /// forma escrita) — a chave copia o texto como ele sai do `RawText`, e a mensagem de falha ja
+  /// mostra a identidade exata a colar aqui.
   /// </remarks>
   private static readonly Dictionary<string, string[]> TabelaAprovada = new()
   {
@@ -241,7 +244,11 @@ public class PerfisDeEscritaDeclaradosTests
 
       // `[AllowAnonymous]` vence qualquer `[Authorize]` da cadeia: o endpoint continua declarando
       // os perfis certos e mesmo assim atende sem token nenhum (achado M1 — medido: `POST setores`
-      // com `[AllowAnonymous]` respondeu 201 sem credencial).
+      // com `[AllowAnonymous]` respondeu 201 sem credencial). Esta e a SEGUNDA linha de defesa: o
+      // analisador ASP0026 do proprio ASP.NET ja reprova a combinacao em tempo de compilacao, e
+      // com `-warnaserror` (o build deste projeto) isso vira erro — medido nas duas formas,
+      // atributo no metodo e atributo na classe. Esta asserção e o que sobra se alguem suprimir o
+      // ASP0026 ou rodar um build sem `-warnaserror`.
       Assert.False(
           endpoint.Anonimo,
           $"{identidade}: o endpoint carrega [AllowAnonymous], que ANULA o [Authorize(Roles)] " +
