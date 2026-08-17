@@ -334,6 +334,32 @@ mandado **burlar**.
   então **não deve** precisar de `ALTER`. Uma conferência de uma linha confirma isso em vez de
   presumir — e se precisar, o `ALTER` idempotente segue o padrão dos demais em `CLAUDE.md`.
 
+### 4.5 Massa de demonstração — `db/seed-demo.sql` (novo)
+
+**Autorização do usuário em 2026-08-17:** o banco do Docker pode ser **regenerado à vontade** — o
+conteúdo atual é resquício de teste dele — e pode ser populado com valores mais coerentes. Isso
+levanta a restrição que a sessão de 2026-08-17 tinha ("não derrubar o SQL Server"), e por causa
+dela uma contagem ficou registrada em `CLAUDE.md` como não reconferida.
+
+**Por que isto vira item da 1C e não um extra:** o `SeletorComBusca` (§3.3) existe **por causa do
+volume** do catálogo. O `db/seed.sql` de hoje tem 28 linhas e **nenhum item de catálogo** — só
+perfis e dois usuários. Contra um catálogo vazio, "busca por código ou nome" não é verificável: não
+há o que buscar, não há como ver a lista rolar, não há como provar que o debounce importa. A fase
+se compromete a verificar essa primitiva; a massa é o que torna a verificação possível.
+
+**A fronteira, e ela é o ponto:** a massa vai num arquivo **separado**, `db/seed-demo.sql`, e
+**não** dentro de `db/seed.sql`.
+
+- `db/seed.sql` é o **mínimo para o sistema funcionar** (perfis + usuários). Continua como está.
+- `db/seed-demo.sql` é **conveniência de desenvolvimento**: catálogo de `Componente`, `Material` e
+  `Setor` com nomes plausíveis de fábrica, em quantidade suficiente para a busca paginada ter
+  sentido, mais algumas receitas padrão de exemplo.
+
+**Nenhum teste automatizado pode depender de `seed-demo.sql`.** Os testes de `Api.Tests` e
+`Infrastructure.Tests` criam a própria massa, e é isso que os torna determinísticos. Massa de demo
+compartilhada com a suíte é como suíte verde vira suíte que só passa nesta máquina. A dependência é
+de mão única: a **verificação manual** usa o demo; a **suíte** ignora que ele existe.
+
 ---
 
 ## 5. Documentos que esta fase atualiza
@@ -345,7 +371,9 @@ mandado **burlar**.
   ciclo**; e o registro de que **setor repetido no roteiro é permitido e significa retorno ao
   setor**.
 - `CLAUDE.md` — se o `SeletorComBusca` estabelecer padrão para escolha de item de catálogo grande,
-  entra na seção de interface.
+  entra na seção de interface. E o bloco de pré-requisito dos testes ganha o `db/seed-demo.sql`
+  (§4.5), com a distinção entre ele e o `db/seed.sql` escrita — senão o próximo a ler vai supor que
+  a suíte depende do demo.
 
 ---
 
