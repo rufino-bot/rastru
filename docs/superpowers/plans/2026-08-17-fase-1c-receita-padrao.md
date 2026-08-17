@@ -994,7 +994,9 @@ public class ReceitaPadraoUseCaseTests
     var r = await caso.SubstituirMateriais(1, [new LinhaDeMaterialPadraoDto(11, 1m)], Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Contains("11", r.Erro);
+    // Mensagem INTEIRA, nao substring: "11" casaria com "110", "211" etc. Se a mensagem mudar de
+    // texto, este teste tem de morrer — e a mensagem E o contrato com o usuario aqui.
+    Assert.Equal("O material 11 esta inativo e nao pode entrar na receita.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -1653,7 +1655,10 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
     var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Contains("2", r.Erro);
+    // Mensagem INTEIRA, nao `Assert.Contains("2", ...)`: a substring "2" casa com "12", "20" e ate
+    // com o proprio texto da mensagem. E o mesmo defeito que a review da Task 11 da Fase 1D achou
+    // (`toContain('1')` casando com "41") — nao repetir.
+    Assert.Equal("O componente 2 esta inativo e nao pode entrar na receita.", r.Erro);
   }
 
   [Fact]
@@ -2047,29 +2052,35 @@ public class ReceitaPadraoEndpointsTests
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
 
+  /// <summary>
+  /// Cria os PROPRIOS setores em vez de pescar os que estiverem no banco. Ler
+  /// `db.Setores.Take(2)` amarraria este teste a massa ambiente — e o `db/seed.sql` (o unico seed
+  /// obrigatorio) NAO tem setor nenhum: os que existem hoje sao resquicio de teste manual, e a
+  /// massa da Task 7 e explicitamente proibida de sustentar teste automatizado.
+  /// </summary>
   [Fact]
   public async Task PCP_grava_roteiro_e_a_ordem_vem_do_servidor()
   {
     var id = await NovoComponente();
-    using var escopo = _factory.Services.CreateScope();
-    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-    var setores = await db.Setores.Where(s => s.Ativo).Take(2).ToListAsync();
-    Assert.Equal(2, setores.Count);  // o seed tem setores; sem eles este teste nao diz nada
+    var (setorA, setorB) = await DoisSetores();
 
     var resposta = await ClienteComo("PCP").PostAsJsonAsync(
         $"/api/componentes/{id}/roteiro-padrao",
-        new { linhas = new[] { new { setorId = setores[1].Id }, new { setorId = setores[0].Id } } });
+        new { linhas = new[] { new { setorId = setorB }, new { setorId = setorA } } });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var lidas = await ClienteComo("PCP")
         .GetFromJsonAsync<List<RoteiroLido>>($"/api/componentes/{id}/roteiro-padrao");
-    Assert.Equal([(setores[1].Id, 1), (setores[0].Id, 2)], lidas!.Select(l => (l.SetorId, l.Ordem)));
+    // A ordem sai da POSICAO no array: setorB veio primeiro, entao setorB e a Ordem 1.
+    Assert.Equal([(setorB, 1), (setorA, 2)], lidas!.Select(l => (l.SetorId, l.Ordem)));
   }
 
   private sealed record FilhoLido(int Id, int ComponenteFilhoId, decimal QuantidadePadrao);
   private sealed record RoteiroLido(int Id, int SetorId, string Nome, int Ordem);
 }
 ```
+
+Escreva também o helper `DoisSetores()` neste arquivo, no mesmo molde de `NovoComponente()`: cria dois `Setor` com nome único (`$"rp-{Guid.NewGuid():N}"[..12]`, para não colidir com `UQ_Setor_Nome`), registra os ids numa lista `_setoresCriados` e os apaga no `DisposeAsync` **depois** das linhas de roteiro (a FK aponta para eles). Devolve `(int, int)` com os dois ids.
 
 - [ ] **Step 2: Rode e veja falhar**
 
@@ -3094,10 +3105,17 @@ describe('ComponenteDetalhePage — escrita', () => {
 
     const salvar = screen.getByRole('button', { name: /salvar componentes filhos/i })
     await userEvent.click(salvar)
+    // Em voo: `sujo` ainda é true, então o que desabilita AQUI só pode ser `salvando`.
     expect(salvar.hasAttribute('disabled')).toBe(true)
 
-    liberar(respostaJson([]))
-    await waitFor(() => expect(salvar.hasAttribute('disabled')).toBe(true))  // volta a "sem pendência"
+    // Depois de responder, o botão continua desabilitado — mas agora por `!sujo`. Como as duas
+    // causas produzem o mesmo atributo, o que se afirma no fim é que a resposta foi PROCESSADA:
+    // a linha nova aparece na lista.
+    liberar(respostaJson([
+      { id: 1, componenteFilhoId: 3, codigo: 'PA-010', descricao: 'Parafuso M8', quantidadePadrao: 4 },
+      { id: 9, componenteFilhoId: 2, codigo: 'CH-200', descricao: 'Chapa frontal', quantidadePadrao: 2 },
+    ]))
+    expect(await screen.findByText('CH-200')).toBeTruthy()
   })
 
   it('o erro de gravação aparece e a lista da tela não some', async () => {
