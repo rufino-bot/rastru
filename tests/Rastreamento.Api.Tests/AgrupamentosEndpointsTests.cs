@@ -152,6 +152,31 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   }
 
   [Fact]
+  public async Task Codigo_duplicado_com_espaco_a_esquerda_responde_409_completo()
+  {
+    // Achado I2 da review da 1B: LocalizarDuplicado normaliza o valor antes de consultar
+    // (CadastroDeAgrupamentoUseCase.cs:139), mas nada testava esse Normalizar. Cria o
+    // Agrupamento e tenta criar outro com " codigo" (espaco a esquerda, como sai de
+    // copy-paste de planilha/PDF), no MESMO pedido. O 409 tem de vir COMPLETO: sem o
+    // Normalizar no localizador, `campo`/`idExistente` somem e o front cai no erro generico.
+    // Agrupamento nao tem `Ativo` — `existeInativo` e sempre false, sem botao de reativacao
+    // para sumir. O localizador recebe `pedidoId` E `codigo`, entao o Pedido pai precisa
+    // existir antes.
+    var cliente = ClienteComo("PCP");
+    var pedidoId = await NovoPedido(cliente);
+    var id = await NovoAgrupamento(cliente, pedidoId, "AG-01");
+
+    var resposta = await cliente.PostAsJsonAsync(
+        $"/api/pedidos/{pedidoId}/agrupamentos", Kit(" AG-01"));
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("codigo", corpo.GetProperty("campo").GetString());
+    Assert.False(corpo.GetProperty("existeInativo").GetBoolean());
+    Assert.Equal(id, corpo.GetProperty("idExistente").GetInt32());
+  }
+
+  [Fact]
   public async Task Mesmo_codigo_em_outro_pedido_e_aceito()
   {
     var cliente = ClienteComo("PCP");

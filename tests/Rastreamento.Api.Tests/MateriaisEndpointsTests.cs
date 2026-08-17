@@ -122,6 +122,31 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   [Fact]
+  public async Task Codigo_duplicado_com_espaco_a_esquerda_responde_409_completo()
+  {
+    // Achado I2 da review da 1B: LocalizarDuplicado normaliza o valor antes de consultar
+    // (CadastroDeMaterialUseCase.cs:98), mas nada testava esse Normalizar. Cria "X", inativa, e
+    // tenta criar " X" (espaco a esquerda, como sai de copy-paste de planilha/PDF). O 409 tem de
+    // vir COMPLETO: sem o Normalizar no localizador, `campo`/`existeInativo`/`idExistente` somem
+    // e o front cai no erro generico, sem oferecer a reativacao.
+    var cliente = ClienteComo("Administrador");
+    var codigo = CodigoUnico();
+    var criado = await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
+    var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    await cliente.PatchAsJsonAsync($"/api/materiais/{id}/ativo", new { ativo = false });
+
+    var resposta = await cliente.PostAsJsonAsync("/api/materiais", CorpoValido($" {codigo}"));
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("codigo", corpo.GetProperty("campo").GetString());
+    Assert.True(corpo.GetProperty("existeInativo").GetBoolean());
+    Assert.Equal(id, corpo.GetProperty("idExistente").GetInt32());
+  }
+
+  [Fact]
   public async Task Material_inativado_some_da_lista_padrao_e_volta_com_incluirInativos()
   {
     var cliente = ClienteComo("Administrador");

@@ -144,6 +144,31 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   }
 
   [Fact]
+  public async Task Numero_duplicado_com_espaco_a_esquerda_responde_409_completo()
+  {
+    // Achado I2 da review da 1B: LocalizarDuplicado normaliza o valor antes de consultar
+    // (CadastroDePedidoUseCase.cs:108), mas nada testava esse Normalizar. Cria o Pedido e tenta
+    // criar outro com " numero" (espaco a esquerda, como sai de copy-paste de planilha/PDF). O
+    // 409 tem de vir COMPLETO: sem o Normalizar no localizador, `campo`/`idExistente` somem e o
+    // front cai no erro generico. Pedido nao tem `Ativo` — `existeInativo` e sempre false, sem
+    // botao de reativacao para sumir.
+    var cliente = ClienteComo("PCP");
+    var numero = NumeroUnico();
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var resposta = await cliente.PostAsJsonAsync(
+        "/api/pedidos", new { numero = $" {numero}", cliente = "Cliente Y" });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("numero", corpo.GetProperty("campo").GetString());
+    Assert.False(corpo.GetProperty("existeInativo").GetBoolean());
+    Assert.Equal(id, corpo.GetProperty("idExistente").GetInt32());
+  }
+
+  [Fact]
   public async Task Obter_pedido_devolve_o_que_foi_cadastrado()
   {
     var cliente = ClienteComo("PCP");
