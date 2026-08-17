@@ -63,7 +63,9 @@ A spec §2.3 diz "componente-filho ou **material** inativo" não pode entrar na 
 
 **Backend — modificar:** `RastreamentoDbContext.cs` (3 `DbSet`) · `Application/Cadastros/Dtos.cs` (DTOs novos) · `Api/Program.cs` (2 registros de DI).
 
-**Testes — criar:** `tests/Rastreamento.Infrastructure.Tests/ReceitaPadraoMapeamentoTests.cs` · `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs` · `tests/Rastreamento.Api.Tests/ReceitaPadraoEndpointsTests.cs`.
+**Testes — criar:** `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoMapeamentoTests.cs` · `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoRepositoryTests.cs` · `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs` · `tests/Rastreamento.Api.Tests/ReceitaPadraoEndpointsTests.cs`.
+
+> **Corrigido depois da review da Task 1** (o plano original dizia a raiz do projeto de teste): os sete testes de mapeamento e de repositório deste projeto vivem em `Persistence/`, e **todos os sete** limpam as linhas que criam num `try/finally`. A prosa deste plano já mandava "siga o padrão dos vizinhos"; os blocos de código exemplo abaixo é que omitiam as duas coisas. **A prosa governa.**
 **Testes — modificar:** `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs` (3 entradas).
 
 **Front — criar:** `web/src/components/SeletorComBusca.tsx` (+ `.test.tsx`) · `web/src/api/receitaPadrao.ts` (+ `.test.ts`) · `web/src/pages/ComponenteDetalhePage.tsx` (+ `.test.tsx`).
@@ -83,7 +85,7 @@ A spec §2.3 diz "componente-filho ou **material** inativo" não pode entrar na 
 - Create: `src/Rastreamento.Infrastructure/Persistence/Configurations/ComponenteMaterialPadraoConfiguration.cs`
 - Create: `src/Rastreamento.Infrastructure/Persistence/Configurations/ComponenteRoteiroPadraoConfiguration.cs`
 - Modify: `src/Rastreamento.Infrastructure/Persistence/RastreamentoDbContext.cs`
-- Test: `tests/Rastreamento.Infrastructure.Tests/ReceitaPadraoMapeamentoTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoMapeamentoTests.cs`
 
 **Interfaces:**
 - Consumes: nada (primeira task).
@@ -402,7 +404,9 @@ git commit -m "feat(fase1c): entidades e mapeamento EF das 3 tabelas de receita 
 **Files:**
 - Create: `src/Rastreamento.Domain/Abstractions/IReceitaPadraoRepository.cs`
 - Create: `src/Rastreamento.Infrastructure/Persistence/ReceitaPadraoRepository.cs`
-- Test: `tests/Rastreamento.Infrastructure.Tests/ReceitaPadraoRepositoryTests.cs`
+- Test: `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoRepositoryTests.cs`
+
+**OBRIGATÓRIO, e o bloco de código do Step 1 abaixo NÃO mostra:** cada `[Fact]` deste arquivo **tem de** envolver suas asserções em `try/finally` e apagar, no `finally`, as linhas que criou (`Componente`, `Material`, `Setor` e as de receita). É o que os **sete** arquivos vizinhos de `Persistence/` fazem, sem exceção, e sem isso cada execução contra o banco de dev deixa linha órfã que se acumula sem limite. Abra `Persistence/ComponenteMappingTests.cs` e copie a forma. A Task 1 foi entregue sem isso e teve de ser corrigida em passe separado — não repita.
 
 **Interfaces:**
 - Consumes: as 3 entidades e os 3 `DbSet` da Task 1.
