@@ -248,6 +248,30 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
   }
 
   [Fact]
+  public async Task Codigo_duplicado_com_espaco_a_esquerda_responde_409_completo()
+  {
+    // Achado I2 da review da 1B: LocalizarDuplicado normaliza o valor antes de consultar
+    // (CadastroDeComponenteUseCase.cs:126), mas nada testava esse Normalizar. Cria "X", inativa,
+    // e tenta criar " X" (espaco a esquerda, como sai de copy-paste de planilha/PDF). O 409 tem
+    // de vir COMPLETO: sem o Normalizar no localizador, `campo`/`existeInativo`/`idExistente`
+    // somem e o front cai no erro generico, sem oferecer a reativacao.
+    var cliente = ClienteComo("Administrador");
+    var codigo = $"{NovoPrefixo()}-a";
+    var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
+    var id = await IdDaResposta(criado);
+
+    await cliente.PatchAsJsonAsync($"/api/componentes/{id}/ativo", new { ativo = false });
+
+    var resposta = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido($" {codigo}"));
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("codigo", corpo.GetProperty("campo").GetString());
+    Assert.True(corpo.GetProperty("existeInativo").GetBoolean());
+    Assert.Equal(id, corpo.GetProperty("idExistente").GetInt32());
+  }
+
+  [Fact]
   public async Task Editar_para_codigo_de_outro_componente_responde_409()
   {
     // Refinamento do adendo B12: ele dispensa o teste de 409-no-PUT quando o localizador de
