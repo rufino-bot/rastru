@@ -67,6 +67,49 @@ partir do zero.
 - Siga a estrutura de camadas descrita em `03-arquitetura-tecnica.md`
   (`Domain` / `Application` / `Infrastructure` / `Api`).
 
+## Interface (a partir da Fase 1D)
+
+O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova**. A spec de origem é
+`docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md`.
+
+- **Tela nova começa por `<Pagina titulo="…">`**, dentro da rota de layout do `AppShell` em
+  `web/src/App.tsx`. Não escreva container próprio, e nunca `min-h-screen` numa tela — quem faz isso
+  é o shell. As duas exceções são `LoginPage` e `TelaCarregando`, ambas por renderizarem **fora**
+  do shell (a segunda substitui o `AppShell` inteiro enquanto a sessão ainda carrega, em
+  `ProtectedRoute`) — não numa terceira tela nova.
+- **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
+  estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
+  inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
+- **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
+  `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
+  não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
+  de classe da paleta padrão do Tailwind (inclusive variantes direcionais, `border-t-` etc.) e falha
+  nomeando arquivo e linha — cai na suíte normal, então uma cor fora do token não passa despercebida
+  numa tela nova (planos e specs em `docs/superpowers/` citam os nomes antigos ao narrar o histórico,
+  o que é esperado e fora do escopo da guarda).
+- **Tom novo tem de ser medido antes de entrar.** `web/src/tema/contraste.test.ts` lê o `@theme` do
+  `index.css` e reprova token sem par de contraste declarado. Os tons claros de verde-água e âmbar
+  reprovam AA como texto sobre branco apesar de funcionarem como fundo de botão — a regra existe
+  por causa disso.
+- **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`) e
+  vermelho (`negativo`) são reservados a aprovado/ativo e reprovado/perda/erro. É o que faz a tela
+  de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
+- **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
+  achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
+  sumir**.
+- **Busca paginada usa `useBuscaPaginada`** (`web/src/hooks/`), nunca `useState` + `useEffect` à
+  mão: ele já resolve debounce, cancelamento por sequência, clamp de página e reset de filtro.
+- **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
+  botões de escrita; o link continua visível porque leitura é de todos. **A tabela
+  `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
+  E o `try/catch` do F2 continua obrigatório: o 403 é a fronteira real, esconder botão não é
+  segurança.
+- **Teste de tela usa `web/src/testes/api.ts`** (`respostaJson`, `fetchPorRota`) e declara
+  `// @vitest-environment jsdom` no topo, com `afterEach(cleanup)` explícito — este projeto não usa
+  `globals: true`.
+- **`npm run build` faz parte do ciclo**, não só `npm test`: erro de tipo em `.test.tsx` quebra o
+  build sem quebrar a suíte (o Vitest não faz typecheck).
+
 ## Invariantes de negócio que não podem ser violadas
 
 (resumo — ver `01-dominio-e-regras-de-negocio.md` para a lista completa)

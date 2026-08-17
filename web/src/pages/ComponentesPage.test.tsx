@@ -1,9 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, within, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ComponentesPage } from './ComponentesPage'
 import { inicializar, _resetParaTeste } from '../api/client'
+import { respostaJson, fetchPorRota } from '../testes/api'
+
+let perfil = 'Administrador'
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({
+    estado: { status: 'autenticado', usuario: { id: 1, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+    login: async () => {},
+    logout: async () => {},
+  }),
+}))
 
 afterEach(cleanup)
 
@@ -25,13 +35,35 @@ function paginaComTotal(total: number, pagina = 1, tamanho = 20) {
   )
 }
 
+// A busca agora e debounced (useBuscaPaginada). So os testes que digitam nela precisam disto —
+// ligar timers falsos no arquivo inteiro obrigaria reescrever os ~30 que nao tem nada com
+// debounce. `vi.useFakeTimers()` fica dentro do `it`, e `vi.useRealTimers()` no `afterEach` que
+// ja existe, para nao vazar para o teste seguinte.
+async function avancar(ms: number) {
+  await act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+}
+
 describe('ComponentesPage', () => {
   beforeEach(() => {
+    perfil = 'Administrador'
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
 
-  afterEach(() => { vi.unstubAllGlobals() })
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
+
+  // I1 (achado da review de branch da 1D): nenhuma das seis telas que buscam dados tinha teste
+  // provando o indicador "Carregando…" — só vazio e erro tinham. Molde de
+  // `LoginPage.test.tsx` ("desabilita o botão enquanto o login está em voo"): fetch que nunca
+  // resolve, e asserção SÍNCRONA (sem `await`/`findBy*`) de que o indicador está na tela antes de
+  // qualquer resposta chegar.
+  it('mostra o indicador de carregando antes da resposta da API chegar', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(screen.getByRole('status').textContent).toBe('Carregando…')
+  })
 
   it('lista os componentes que a API devolveu', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
@@ -41,79 +73,10 @@ describe('ComponentesPage', () => {
     expect(await screen.findByText('SUP-001')).toBeTruthy()
   })
 
-  // ESTE e o teste que justifica ter adotado @testing-library/react nesta fase. Sem ele, o reset
-  // de pagina e comportamento sem prova nenhuma: buscar algo que cabe em 2 paginas estando na
-  // pagina 7 mostraria lista vazia, com cara de bug, e nada quebraria.
-  it('volta para a pagina 1 quando a busca muda', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(100)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await screen.findByText('SUP-001')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.at(-1)![0]).toContain('pagina=2')
-    })
-
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
-      target: { value: 'sup' },
-    })
-
-    await waitFor(() => {
-      const ultima = fetchMock.mock.calls.at(-1)![0] as string
-      expect(ultima).toContain('busca=sup')
-      expect(ultima).toContain('pagina=1')
-    })
-  })
-
-  // Ao contrario do teste anterior (que sempre passa pela pagina 2 antes de mudar a busca), este
-  // comeca e permanece na pagina 1: se `busca` sair do array de dependencias do useEffect, o
-  // efeito so re-executaria por causa do setPagina(1) que mudarBusca tambem chama — e aqui pagina
-  // JA e 1, entao esse setState e um no-op (Object.is) e nao dispara o efeito sozinho. Sem esta
-  // prova, remover `busca` das dependencias sobrevive (medido por mutacao — ver o relatorio).
-  it('atualiza a URL de busca mesmo ja estando na pagina 1', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await screen.findByText('SUP-001')
-
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
-      target: { value: 'sup' },
-    })
-
-    await waitFor(() => {
-      const ultima = fetchMock.mock.calls.at(-1)![0] as string
-      expect(ultima).toContain('busca=sup')
-    })
-  })
-
-  it('volta para a pagina 1 quando o tamanho da pagina muda', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(100)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await screen.findByText('SUP-001')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.at(-1)![0]).toContain('pagina=2')
-    })
-
-    fireEvent.change(screen.getByLabelText('Por página'), { target: { value: '50' } })
-
-    await waitFor(() => {
-      const ultima = fetchMock.mock.calls.at(-1)![0] as string
-      expect(ultima).toContain('tamanho=50')
-      expect(ultima).toContain('pagina=1')
-    })
-  })
-
-  // Mesmo raciocinio do teste de busca isolado na pagina 1: o teste acima sempre passa pela
-  // pagina 2 antes de trocar o tamanho, entao a transicao pagina 2->1 dispara o efeito de
-  // qualquer jeito (o `pagina` do array de dependencias muda) e mascara uma eventual remocao de
-  // `tamanho` do array — medido por mutacao (ver o relatorio). Este comeca e fica na pagina 1.
+  // O reset de pagina ao trocar o tamanho agora vive no hook (useBuscaPaginada.test.tsx prova
+  // isso). O que fica aqui, e so aqui, e a integracao: e o unico ancoradouro do <select> "Por
+  // pagina" nesta tela — sem ele, o select pode ficar inerte (onChange sem efeito) sem que nada
+  // quebre. Matador da M14 (D8 do pre-flight da Task 9B).
   it('atualiza a URL de tamanho mesmo ja estando na pagina 1', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1)))
     vi.stubGlobal('fetch', fetchMock)
@@ -129,16 +92,21 @@ describe('ComponentesPage', () => {
     })
   })
 
-  it('desabilita Anterior na primeira pagina e Proxima na ultima', async () => {
-    // Com total 1 e tamanho 20 existe UMA pagina: os dois botoes ficam desabilitados. Mata a
-    // mutacao de deixar "Proxima" sempre habilitada, que levaria a uma pagina vazia.
+  // Adaptado ao comportamento real de `ControlesDePaginacao` (colisao registrada no brief da
+  // Task 9B): `if (totalDePaginas <= 1) return null` — com total 1 e tamanho 20 existe UMA
+  // pagina, entao a primitiva nao renderiza NENHUM botao, nao um par de botoes desabilitados.
+  // A propriedade "nao aparece com uma pagina so" ja tem dono proprio
+  // (`ControlesDePaginacao.test.tsx:56`); o que este teste prova e que ESTA tela, com um total
+  // que cabe numa pagina so, realmente chega nesse estado — nenhuma navegacao de paginacao visivel.
+  it('não mostra nenhum botão de paginação quando há uma página só', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
 
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
-    expect((screen.getByRole('button', { name: 'Anterior' }) as HTMLButtonElement).disabled).toBe(true)
-    expect((screen.getByRole('button', { name: 'Próxima' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.queryByRole('navigation', { name: 'Paginação' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Anterior' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Próxima' })).toBeNull()
   })
 
   it('mostra o total e a contagem de paginas', async () => {
@@ -171,8 +139,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     expect(await screen.findByRole('button', { name: 'Reativar o existente' })).toBeTruthy()
@@ -257,8 +225,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
@@ -298,8 +266,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
@@ -332,8 +300,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
@@ -376,13 +344,13 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
 
-    expect(await screen.findByText('Não foi possível reativar o componente.')).toBeTruthy()
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
   })
 
   // Achado proprio da varredura final (pos-await ainda sem prova): o `try/catch` de `salvar`
@@ -403,11 +371,11 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'NOV-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Novo' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'NOV-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Novo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
-    expect(await screen.findByText('Não foi possível salvar o componente.')).toBeTruthy()
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
   // Mata a mutacao de trocar `incluirInativos` pelo literal oposto (ex.: sempre false): sem este
@@ -447,8 +415,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'MON-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Montagem X' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'MON-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Montagem X' } })
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
@@ -463,172 +431,14 @@ describe('ComponentesPage', () => {
 
     // formulario voltou ao vazio (o default de Tipo, 'Fabricado', reaparece no select)
     await waitFor(() => {
-      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
-      expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
       expect((screen.getByLabelText('Tipo') as HTMLSelectElement).value).toBe('Fabricado')
     })
 
     // a lista recarregou: houve um GET depois do POST
     const gets = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method !== 'POST')
     expect(gets.length).toBeGreaterThanOrEqual(2)
-  })
-
-  // I2: o terceiro handler de reset de pagina (mudarInativos) nao tinha par — o teste existente do
-  // checkbox comeca e fica na pagina 1, entao a asserção de pagina=1 nele e degenerada (passa com ou
-  // sem o setPagina(1)). Este PASSA pela pagina 2 antes de mexer no checkbox, igual ao molde usado
-  // para `busca` e `tamanho`.
-  it('volta para a pagina 1 quando o filtro de inativos muda', async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(100)))
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await screen.findByText('SUP-001')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.at(-1)![0]).toContain('pagina=2')
-    })
-
-    fireEvent.click(screen.getByLabelText('Mostrar inativos'))
-
-    await waitFor(() => {
-      const ultima = fetchMock.mock.calls.at(-1)![0] as string
-      expect(ultima).toContain('incluirInativos=true')
-      expect(ultima).toContain('pagina=1')
-    })
-  })
-
-  // I3: corrida de resposta fora de ordem. A carga inicial (1a requisicao) fica pendurada; a
-  // requisicao disparada pela busca (2a, mais recente) resolve PRIMEIRO. A guarda de sequencia tem
-  // que garantir que o resultado exibido e o da requisicao mais RECENTE ENVIADA, e que a resposta
-  // atrasada da 1a, quando finalmente chega, e descartada em vez de sobrescrever a tela.
-  it('mantem o resultado da requisicao mais recente quando respostas chegam fora de ordem', async () => {
-    let resolverPrimeira!: (r: Response) => void
-    let resolverSegunda!: (r: Response) => void
-    let chamadas = 0
-
-    const fetchMock = vi.fn().mockImplementation(() => {
-      chamadas += 1
-      if (chamadas === 1) return new Promise<Response>((resolve) => { resolverPrimeira = resolve })
-      return new Promise<Response>((resolve) => { resolverSegunda = resolve })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
-      target: { value: 'sup' },
-    })
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-
-    // a SEGUNDA requisicao (a mais recente) responde primeiro
-    resolverSegunda(new Response(
-      JSON.stringify({
-        itens: [{ id: 2, codigo: 'SUP-RECENTE', descricao: 'Recente', tipo: 'Bruto', ativo: true }],
-        total: 1, pagina: 1, tamanho: 20,
-      }),
-      { status: 200 },
-    ))
-    await screen.findByText('SUP-RECENTE')
-
-    // a PRIMEIRA requisicao (atrasada, da carga inicial) so responde DEPOIS
-    resolverPrimeira(new Response(
-      JSON.stringify({
-        itens: [{ id: 1, codigo: 'SUP-ANTIGO', descricao: 'Antigo', tipo: 'Bruto', ativo: true }],
-        total: 1, pagina: 1, tamanho: 20,
-      }),
-      { status: 200 },
-    ))
-    // da tempo para a resposta atrasada ser processada, se a guarda nao a descartar
-    await new Promise((resolve) => setTimeout(resolve, 20))
-
-    expect(screen.queryByText('SUP-ANTIGO')).toBeNull()
-    expect(screen.getByText('SUP-RECENTE')).toBeTruthy()
-  })
-
-  // I3, guarda do `catch`: uma requisicao desatualizada que FALHA depois de uma mais recente ter
-  // tido SUCESSO nao pode pintar erro por cima de dados frescos. Isolado da guarda de
-  // `setComponentes`/`setTotal` (testada acima): aqui a 1a requisicao rejeita, nao resolve com
-  // dado velho.
-  it('nao mostra erro de uma requisicao desatualizada que falha depois de uma mais recente ter sucesso', async () => {
-    let rejeitarPrimeira!: (e: unknown) => void
-    let resolverSegunda!: (r: Response) => void
-    let chamadas = 0
-
-    const fetchMock = vi.fn().mockImplementation(() => {
-      chamadas += 1
-      if (chamadas === 1) {
-        return new Promise<Response>((_resolve, reject) => { rejeitarPrimeira = reject })
-      }
-      return new Promise<Response>((resolve) => { resolverSegunda = resolve })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
-      target: { value: 'sup' },
-    })
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-
-    // a 2a requisicao (a mais recente) tem sucesso primeiro
-    resolverSegunda(new Response(
-      JSON.stringify({
-        itens: [{ id: 2, codigo: 'SUP-FRESCO', descricao: 'Fresco', tipo: 'Bruto', ativo: true }],
-        total: 1, pagina: 1, tamanho: 20,
-      }),
-      { status: 200 },
-    ))
-    await screen.findByText('SUP-FRESCO')
-
-    // a 1a requisicao (desatualizada) so FALHA depois
-    rejeitarPrimeira(new Error('rede caiu'))
-    await new Promise((resolve) => setTimeout(resolve, 20))
-
-    expect(screen.queryByText('Não foi possível carregar os componentes.')).toBeNull()
-    expect(screen.getByText('SUP-FRESCO')).toBeTruthy()
-  })
-
-  // I3, guarda do `finally`: uma resposta desatualizada nao pode desligar o indicador de
-  // carregando enquanto a requisicao mais RECENTE ainda esta em voo — senao a tela mostra lista
-  // vazia (sem "Carregando…") como se tivesse terminado, quando na verdade so a resposta velha
-  // chegou.
-  it('mantem o indicador de carregando enquanto a requisicao mais recente ainda nao respondeu', async () => {
-    let resolverPrimeira!: (r: Response) => void
-    let resolverSegunda!: (r: Response) => void
-    let chamadas = 0
-
-    const fetchMock = vi.fn().mockImplementation(() => {
-      chamadas += 1
-      if (chamadas === 1) return new Promise<Response>((resolve) => { resolverPrimeira = resolve })
-      return new Promise<Response>((resolve) => { resolverSegunda = resolve })
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(screen.getByText('Carregando…')).toBeTruthy()
-
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
-      target: { value: 'sup' },
-    })
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
-
-    // a 1a requisicao (desatualizada) responde, mas a 2a (a atual) continua pendente
-    resolverPrimeira(new Response(
-      JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
-      { status: 200 },
-    ))
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(screen.getByText('Carregando…')).toBeTruthy()
-
-    resolverSegunda(new Response(
-      JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
-      { status: 200 },
-    ))
-    await waitFor(() => expect(screen.queryByText('Carregando…')).toBeNull())
   })
 
   // I4: "Anterior" nunca era clicado por teste nenhum — so se provava que ele fica `disabled` na
@@ -672,8 +482,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     expect(await screen.findByText('Já existe um componente com este código.')).toBeTruthy()
@@ -705,15 +515,15 @@ describe('ComponentesPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const chamadasAntesDoEnvio = fetchMock.mock.calls.length
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     await screen.findByText('Já existe um componente com este código.')
 
     // o formulario continua com o que foi digitado — nao foi limpo pelo ramo de sucesso
-    expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('SUP-001')
-    expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('Suporte')
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('SUP-001')
+    expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('Suporte')
 
     // so o POST foi disparado depois da carga inicial — nenhum GET extra (a lista nao recarregou)
     expect(fetchMock.mock.calls.length).toBe(chamadasAntesDoEnvio + 1)
@@ -734,7 +544,7 @@ describe('ComponentesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
 
-    expect(await screen.findByText('Não foi possível alterar o componente.')).toBeTruthy()
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
   })
 
   // I6, metade 2: falha no GET da carga. Sem o setErro do catch, uma queda de wifi durante a carga
@@ -744,7 +554,7 @@ describe('ComponentesPage', () => {
 
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
 
-    expect(await screen.findByText('Não foi possível carregar os componentes.')).toBeTruthy()
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
   // I7: nenhum teste renderizava um componente INATIVO — nem o rotulo condicional do botao
@@ -764,20 +574,9 @@ describe('ComponentesPage', () => {
 
     expect(screen.getByRole('button', { name: 'Reativar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Inativar' })).toBeNull()
-    expect(screen.getByText('INA-001').closest('span')?.className).toContain('line-through')
-  })
-
-  // Minor: `Math.max(1, …)` sem prova — com total=0 o rodape tem que mostrar "Pagina 1", nao
-  // "Pagina 0" (que o Math.ceil(0/20) produziria sozinho).
-  it('mostra Página 1 de 1 quando o total e zero', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response(
-      JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
-      { status: 200 },
-    ))))
-
-    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-
-    expect(await screen.findByText('Página 1 de 1 — 0 no total')).toBeTruthy()
+    // `closest('span')` devolve o proprio span do codigo (monoespacado, peso semibold); o
+    // `line-through` mora no span PAI, o wrapper que o ItemDeCadastro poe em volta de children.
+    expect(screen.getByText('INA-001').closest('span')?.parentElement?.className).toContain('line-through')
   })
 
   // Minor: reset de `erro`/`idReativavel` no inicio de `salvar`. Sem ele, depois de um 409 com
@@ -808,17 +607,17 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await screen.findByRole('button', { name: 'Reativar o existente' })
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-002' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Outro' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-002' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Outro' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     await waitFor(() => {
-      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
     })
     expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
   })
@@ -844,12 +643,12 @@ describe('ComponentesPage', () => {
     await screen.findByText('SUP-001')
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
-    await screen.findByText('Não foi possível alterar o componente.')
+    await screen.findByText('Seu perfil não tem permissão para esta ação.')
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('Não foi possível alterar o componente.')).toBeNull()
+      expect(screen.queryByText('Seu perfil não tem permissão para esta ação.')).toBeNull()
     })
   })
 
@@ -876,14 +675,14 @@ describe('ComponentesPage', () => {
     await screen.findByText('SUP-001')
 
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
-    await screen.findByText('Não foi possível alterar o componente.')
+    await screen.findByText('Seu perfil não tem permissão para esta ação.')
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'NOV-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Novo' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'NOV-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Novo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     await waitFor(() => {
-      expect(screen.queryByText('Não foi possível alterar o componente.')).toBeNull()
+      expect(screen.queryByText('Seu perfil não tem permissão para esta ação.')).toBeNull()
     })
   })
 
@@ -911,8 +710,8 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await screen.findByText('Já existe um componente com o código "SUP-001" inativo.')
 
@@ -928,6 +727,11 @@ describe('ComponentesPage', () => {
   // da certo — a lista nova tem que aparecer E a mensagem de erro tem que sumir. As outras funcoes
   // da tela (salvar/alternarAtivo/reativar) ja fazem isso; carregar era a unica que faltava.
   it('limpa a mensagem de erro da carga inicial quando uma recarga subsequente tem sucesso', async () => {
+    // Digita na busca: precisa de timers falsos e do `avancar` desde a 9B (a busca e debounced
+    // agora). MEDIDO: este teste passava sem timers falsos, custando ~330-450 ms de relogio real —
+    // o `waitFor`/`findBy*` tem timeout padrao de 1000 ms > 300 ms do debounce, entao passava por
+    // sorte, nao por prova.
+    vi.useFakeTimers()
     let chamadas = 0
     const fetchMock = vi.fn().mockImplementation(() => {
       chamadas += 1
@@ -937,13 +741,15 @@ describe('ComponentesPage', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    await screen.findByText('Não foi possível carregar os componentes.')
+    await avancar(0)
+    expect(screen.getByText('Não foi possível carregar os componentes.')).toBeTruthy()
 
-    fireEvent.change(screen.getByPlaceholderText('Buscar por código ou descrição'), {
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), {
       target: { value: 'sup' },
     })
+    await avancar(300)
 
-    await screen.findByText('SUP-001')
+    expect(screen.getByText('SUP-001')).toBeTruthy()
     expect(screen.queryByText('Não foi possível carregar os componentes.')).toBeNull()
   })
 
@@ -972,16 +778,232 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
-    fireEvent.change(screen.getByPlaceholderText('Código'), { target: { value: 'SUP-001' } })
-    fireEvent.change(screen.getByPlaceholderText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
     await screen.findByRole('button', { name: 'Reativar o existente' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Reativar o existente' }))
 
     await waitFor(() => {
-      expect((screen.getByPlaceholderText('Código') as HTMLInputElement).value).toBe('')
-      expect((screen.getByPlaceholderText('Descrição') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+      expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
     })
+  })
+
+  it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
+    // C1 da review da Task 6: `criarComponente(form)` -> `criarComponente({...form, tipo: 'Bruto'})`
+    // matava ZERO **na época daquela review**. O usuário escolhia "Montagem" e o sistema gravava
+    // "Bruto", em silêncio — e `tipo` é justamente o campo que governa a Receita Padrão da 1C.
+    //
+    // ⚠️ CORRIGIDO no pré-flight da 9A (2026-08-14): hoje o C1 JÁ TEM DONO. O teste
+    // `cadastra com sucesso: envia o corpo digitado (inclusive o tipo escolhido), limpa o formulario e
+    // recarrega a lista` (hoje `:435`) foi escrito exatamente para isso — o comentário dele (hoje
+    // `:433-434`), diz que troca o `<select>` de Tipo para um valor diferente do default "senao a
+    // mutacao … sobreviveria por coincidencia".
+    // MEDIDO: a M1 mata esse mesmo teste acima — o `cadastra com sucesso:` nomeado por extenso quatro
+    // linhas acima, hoje `:435` — mesmo SEM
+    // este teste, e a M2 mata ele e `cadastro com sucesso apos um conflito
+    // anterior esconde o botao Reativar o existente` (hoje `:786`). Ou seja, este teste NÃO acrescenta
+    // nenhuma morte de mutação — é o achado nº 5 do relatório de pré-flight.
+    //
+    // DECIDIDO pelo usuário em 2026-08-14: ele **FICA**, e a composição não muda por causa dele.
+    // Razão: prova o **corpo exato** do POST (`toBe(JSON.stringify(...))`), o que o teste acima faz
+    // de forma mais frouxa; e tirar um teste barato e correto para economizar uma linha de conta custaria
+    // propagar uma baseline nova para a 9B — a dívida que mais caro saiu nesta fase. Não o remova
+    // "para limpar duplicação": a redundância aqui é deliberada e está registrada.
+    const fetchMock = fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'CMP-1' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit)?.method === 'POST')!
+    expect((post[1] as RequestInit).body)
+      .toBe(JSON.stringify({ codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem' }))
+  })
+
+  it('distingue "nada corresponde à busca" de "catálogo vazio"', async () => {
+    // Reescrito na 9B: a busca agora e debounced, entao precisa de timers falsos e do `avancar`.
+    // Matador da M6' (trocar `buscando` pelo literal `false`, agora sobre `lista.textoDaBusca`).
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await avancar(0)
+    expect(screen.getByText('Nenhum componente cadastrado')).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'XPTO' } })
+    await avancar(300)
+
+    expect(screen.getByText('Nenhum componente encontrado')).toBeTruthy()
+    expect(screen.getByText('Nada corresponde a "XPTO".')).toBeTruthy()
+  })
+
+  it('esconde formulário e ação de inativar para quem não pode escrever', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({
+        itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Bruto', ativo: true }],
+        total: 1, pagina: 1, tamanho: 20,
+      }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByText('CMP-1')).toBeTruthy()
+    expect(screen.queryByLabelText('Código')).toBeNull()
+    expect(screen.queryByText('Inativar')).toBeNull()
+  })
+
+  it('não afirma "nenhum componente cadastrado" quando a carga da lista falhou', async () => {
+    // DECISÃO U1. A sonda que o pré-flight de 2026-08-13 rodou contra o bloco original do Step 2 (o
+    // que dizia só `itens.length === 0`): com o GET em 500, `queryByText('Nenhum componente
+    // cadastrado')` NÃO era nulo — a tela mostrava o banner de erro E o estado vazio ao mesmo tempo.
+    // É a mesma forma do Critical que o fix pass da Task 8 pagou. Sem este teste o conserto do
+    // Step 2 entra sem guarda, e a Task 8 já provou que essa forma volta.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ erro: 'Falha' }, 500),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.queryByText('Nenhum componente cadastrado')).toBeNull()
+    expect(screen.queryByText('Nenhum componente encontrado')).toBeNull()
+  })
+
+  it('mostra o formulário para o perfil PCP, que escreve em componentes mas não em setores', async () => {
+    // MATADOR DA M9, e o único possível. MEDIDO no pré-flight: `permissoes.ts:19-23` dá
+    // `componentes: ['Administrador','PCP']` e `setores: ['Administrador']`; a suíte só usava
+    // `Administrador` (escreve nos dois) e `Operador` (não escreve em nenhum), e nenhum dos dois
+    // separa os recursos — por isso trocar `('componentes')` por `('setores')` matava ZERO.
+    perfil = 'PCP'
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByLabelText('Código')).toBeTruthy()
+  })
+
+  it('mostra o tipo de cada componente na lista', async () => {
+    // MATADOR DA M16, e fecha o X3 do pré-flight da 9A (decisão do usuário, 2026-08-14). MEDIDO
+    // naquele passe: apagar `<Pilula>{c.tipo}</Pilula>` do item deixava os 39 testes VERDES — o tipo
+    // do componente sumia da lista inteira, em silêncio, e `tipo` é justamente o campo que governa a
+    // Receita Padrão da 1C. A `Pilula` tem teste próprio (`Pilula.test.tsx`), mas ele prova a
+    // PRIMITIVA; ninguém provava que ESTA tela a usa para mostrar o tipo.
+    //
+    // `within(item)` e não `screen.getByText('Montagem')` direto: com o formulário na tela, o
+    // `<select>` de Tipo também tem uma `<option>Montagem</option>`, e a busca global acharia DUAS
+    // ocorrências e estouraria. O escopo no `<li>` é o que torna a asserção sobre a lista, e não
+    // sobre o formulário — molde de `PedidosPage.test.tsx:62` (`closest('li')!`).
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({
+        itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem', ativo: true }],
+        total: 1, pagina: 1, tamanho: 20,
+      }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    const item = (await screen.findByText('CMP-1')).closest('li')!
+    expect(within(item).getByText('Montagem')).toBeTruthy()
+  })
+
+  it('dá à tela o título "Componentes" no h1', async () => {
+    // MATADOR DA M17, e fecha o X6 do pré-flight da 9A (decisão do usuário, 2026-08-14). MEDIDO
+    // naquele passe: trocar `titulo="Componentes"` por `titulo="XXX"` deixava os 39 testes VERDES —
+    // o `<h1>` da tela podia dizer qualquer coisa e nenhum deles lia o título.
+    //
+    // `Pagina.test.tsx:9` prova que a PRIMITIVA põe o título no `<h1>`; este prova que ESTA tela
+    // passa o título certo para ela. São duas propriedades diferentes, e só a segunda é da 9A.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect((await screen.findByRole('heading', { level: 1 })).textContent).toBe('Componentes')
+  })
+
+  it('agrupa as teclas da busca numa requisição só — o debounce está LIGADO na tela', async () => {
+    // Fecha o D14 do pré-flight: MEDIDO, `useBuscaPaginada({ buscar, atrasoDoDebounce: 0 })` — o
+    // debounce efetivamente desligado — deixava a suíte inteira verde, 0 mortes. O debounce é metade
+    // do título desta task e não tinha prova nenhuma no nível da tela. Molde: o
+    // `faz UMA requisição para três teclas digitadas em sequência`, de `useBuscaPaginada.test.tsx`,
+    // aplicado à tela em vez de ao Hospedeiro.
+    vi.useFakeTimers()
+    const fetchMock = fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await avancar(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1)   // só a carga da montagem
+
+    const campo = screen.getByLabelText('Buscar por código ou descrição')
+    fireEvent.change(campo, { target: { value: 'S' } })
+    fireEvent.change(campo, { target: { value: 'SU' } })
+    fireEvent.change(campo, { target: { value: 'SUP' } })
+
+    await avancar(299)
+    expect(fetchMock).toHaveBeenCalledTimes(1)   // o debounce ainda não venceu
+
+    await avancar(1)
+    expect(fetchMock).toHaveBeenCalledTimes(2)   // UMA requisição para as TRÊS teclas
+  })
+
+  it('mantém a mensagem de código duplicado depois da recarga da lista', async () => {
+    // O defeito mais provável desta task — o `erroDeEscrita ?? erroDeLeitura` existe para evitá-lo.
+    //
+    // O esboço do plano original não provava o que o título promete: só a PRECEDÊNCIA de
+    // `erroDeEscrita` sobre `erroDeLeitura` (já morta várias vezes pela M5). Para provar
+    // sobrevivência de verdade, depois de a mensagem de conflito aparecer é preciso disparar uma
+    // recarga de VERDADE — aqui, marcar "Mostrar inativos" — e só então afirmar que a mensagem
+    // continua lá. `mudarInativos` não é debounced (só a busca é), então não precisa de timers
+    // falsos.
+    //
+    // Respostas DIFERENTES por método: 409 no POST, 200 no GET — `fetchPorRota` roteia só por
+    // caminho, então aqui é um mock manual, no molde dos testes de conflito vizinhos.
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(new Response(
+          JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 7 }),
+          { status: 409 },
+        ))
+      }
+      return Promise.resolve(new Response(
+        JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+        { status: 200 },
+      ))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    expect(await screen.findByText('Já existe um componente com este código.')).toBeTruthy()
+
+    fireEvent.click(screen.getByLabelText('Mostrar inativos'))
+
+    await waitFor(() => {
+      const ultima = fetchMock.mock.calls.at(-1)![0] as string
+      expect(ultima).toContain('incluirInativos=true')
+    })
+    expect(screen.getByText('Já existe um componente com este código.')).toBeTruthy()
   })
 })

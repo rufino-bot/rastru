@@ -38,6 +38,31 @@ resolvidos (ou conscientemente adiados).
 > Dívidas rastreadas de 1A: camada global de erro de API no front e gating de navegação por
 > perfil.
 
+## Fase 1D — Identidade visual e UX
+
+- Tokens de tema, primitivas de interface à mão sobre Tailwind e shell de navegação.
+- Retrofit das 7 telas existentes para o padrão novo.
+- Critério de pronto: mesma primitiva nas 7 telas, estados carregando/vazio/erro em toda tela que
+  busca dados, navegação por teclado com foco visível, contraste AA medido por teste, e nenhuma
+  tela rolando na horizontal em viewport de celular.
+
+> **Esta fase NÃO tem aresta de dependência.** Ela não bloqueia nem é bloqueada pela 1C, e pode
+> rodar antes ou depois dela. A letra é rótulo cronológico, não ordem obrigatória — sem esta frase,
+> a sequência 1B → 1C → 1D se lê como dependência, e ela não é.
+>
+> **1D concluída em 2026-08-15.** Fecha três dívidas de UX que vinham da 1A e da 1B: camada global
+> de erro de API (`ErroDeApi` + `mensagemDeErro`), gating de perfil, e botão desabilitado durante
+> mutação. Fecha também o `useBuscaPaginada` (debounce, cancelamento, clamp, reset) e o W3
+> (`setCarregando` sem prova).
+>
+> **O gating de perfil ficou na AÇÃO, não no link** — o link continua visível para todos porque a
+> leitura de todos estes recursos é liberada a qualquer usuário autenticado no backend; o que some
+> para quem não pode escrever é o formulário e os botões de (in)ativar. Esconder o link de Materiais
+> do Almoxarifado tiraria dele uma leitura de que a **Fase 4** depende.
+>
+> **Corolário registrado:** se daqui a três fases o sistema precisar de outra passada de UI, isso não
+> é uma fase planejada que faltou — é sinal de que o padrão não pegou. Não existe "Fase 1D parte 2".
+
 ## Fase 2 — Estrutura recursiva
 
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero

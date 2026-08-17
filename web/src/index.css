@@ -1,1 +1,67 @@
 @import "tailwindcss";
+
+/*
+  Tokens da Fase 1D. A paleta e a regra que a sustenta estão em
+  `docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md` §3.
+
+  REGRA: cor de identidade nunca significa estado; cor de estado nunca decora. Verde e vermelho
+  são RESERVADOS — aprovado/ativo e reprovado/perda/erro. É isso que faz a tela de Qualidade da
+  Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
+
+  Todo tom novo aqui precisa de par declarado em `src/tema/contraste.test.ts`, senão a suíte
+  reprova. Não é zelo: os tons claros de verde-água (#0D9488) e âmbar (#D97706) reprovam os 4,5:1
+  de texto normal contra QUALQUER fundo — razão de contraste é simétrica, então inverter frente e
+  fundo não salva nada; os dois só alcançam os 3:1 de componente de interface / texto grande.
+  Escolher paleta olhando só o botão é o erro clássico, não porque a inversão muda o número, mas
+  porque 3:1 não é 4,5:1 — e o teste existe para que isso não passe despercebido.
+*/
+@theme {
+  /* Pilha do sistema: zero asset para baixar no wifi da fábrica, e trocar por fonte própria
+     depois é mudar este token, não reescrever tela. Monoespaçada para código de peça e material —
+     decisão funcional (alinha na coluna, facilita conferir contra o desenho na bancada). */
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, monospace;
+
+  /* Identidade */
+  --color-chrome: #134E4A;       /* barra de navegação e cabeçalho */
+  --color-marca: #5EEAD4;        /* logo, SEMPRE sobre o chrome escuro */
+
+  /* Tons do chrome. Existem DECLARADOS, e não como `bg-superficie/15` e afins, porque
+     modificador de opacidade compõe com `color-mix(in oklab, …)` — que não é declaração
+     `--color-*` e escapa das duas guardas de `contraste.test.ts`. Foi o caminho que sangrou
+     três vezes nesta fase (oklch do M8, `}` em comentário do I1, `/NN` do banner e da pílula). */
+  --color-chrome-tinta-fraca:   #D0DCDB;  /* link inativo da barra */
+  --color-chrome-tinta-apagada: #B7C2C1;  /* identidade do usuário — informa, não convida a clicar */
+  --color-chrome-ativo:         #366965;  /* fundo do item da tela atual; também o separador da gaveta */
+  --color-chrome-hover:         #2B605C;  /* fundo do item sob o ponteiro */
+  --color-chrome-borda:         #7B9C9A;  /* contorno do "Sair" e do botão de menu */
+
+  /* Ação — mesma família do chrome, por escolha explícita do usuário contra a recomendação de
+     dois matizes. O custo é real e a compensação é de FORMA, não de cor: o primário ganha peso
+     por tamanho e densidade tipográfica, e o contorno neutro fica reservado ao secundário.
+     Nenhuma tela deve ter dois botões com o mesmo peso visual. */
+  --color-acao: #3E6E68;
+  --color-acao-forte: #2F544F;   /* hover/active do primário */
+  --color-acao-fundo: #E8F0EF;   /* fundo tingido da pílula; a tinta é a MESMA --color-acao */
+
+  /* Estado — reservados */
+  /* Os dois verdes passam AA nos DOIS papéis — o que os separa é peso visual, não conformidade.
+     MEDIDO em 2026-08-09: #166534 sobre branco dá 7,130 e #15803D dá 5,016; razão de contraste é
+     simétrica, então os mesmos números valem com os papéis invertidos. A spec §3 tinha a mesma
+     frase falsa ("#166534 só como fundo") até o fix pass da Task 6 corrigi-la lá — corrigida nos
+     dois lugares agora, não só aqui. */
+  --color-positivo: #166534;         /* preenchimento cheio, com texto branco */
+  --color-positivo-texto: #15803D;   /* rótulo de estado: mais vivo, para ler pequeno */
+  --color-positivo-fundo: #F1F8F3;   /* tinta da pílula positiva; valor FIXO, não composto */
+  --color-negativo: #DC2626;         /* passa AA nos dois papéis */
+  --color-negativo-texto: #B91C1C;   /* texto sobre a tinta do banner */
+  --color-negativo-fundo: #FDF4F4;   /* tinta do banner de erro; valor FIXO, não composto */
+
+  /* Neutros, com viés verde-acinzentado para casarem com o chrome */
+  --color-tinta: #1C2422;
+  --color-tinta-fraca: #55605D;
+  --color-borda: #D3DEDB;        /* separador decorativo */
+  --color-borda-campo: #6B7A77;  /* borda de input/botão secundário — precisa de 3:1 */
+  --color-fundo: #F7FAF9;
+  --color-superficie: #FFFFFF;
+}

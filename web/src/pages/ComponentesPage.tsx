@@ -1,9 +1,20 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, type FormEvent } from 'react'
 import {
   listarComponentes, criarComponente, definirAtivoComponente, ehConflito,
   type ComponenteDto, type NovoComponente, type TipoDeComponente,
 } from '../api/cadastros'
+import { mensagemDeErro } from '../api/erros'
+import { useBuscaPaginada } from '../hooks/useBuscaPaginada'
+import { usePodeEscrever } from '../auth/usePermissao'
+import { Pagina } from '../components/Pagina'
+import { Botao } from '../components/Botao'
+import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
+import { BannerDeErro } from '../components/BannerDeErro'
+import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
+import { Pilula } from '../components/Pilula'
+import { EstadoVazio } from '../components/EstadoVazio'
+import { EstadoCarregando } from '../components/EstadoCarregando'
+import { ControlesDePaginacao } from '../components/ControlesDePaginacao'
 
 const FORMULARIO_VAZIO: NovoComponente = { codigo: '', descricao: '', tipo: 'Fabricado' }
 
@@ -14,214 +25,225 @@ const TIPOS: TipoDeComponente[] = ['Bruto', 'Fabricado', 'Montagem']
 const TAMANHOS = [20, 50, 100]
 
 export function ComponentesPage() {
-  const [componentes, setComponentes] = useState<ComponenteDto[]>([])
-  const [total, setTotal] = useState(0)
-  const [busca, setBusca] = useState('')
-  const [pagina, setPagina] = useState(1)
-  const [tamanho, setTamanho] = useState(20)
-  const [incluirInativos, setIncluirInativos] = useState(false)
   const [form, setForm] = useState<NovoComponente>(FORMULARIO_VAZIO)
-  const [erro, setErro] = useState<string | null>(null)
+  const [erroDeEscrita, setErroDeEscrita] = useState<string | null>(null)
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
-  const [carregando, setCarregando] = useState(true)
+  const [enviando, setEnviando] = useState(false)
 
-  // Guarda de sequência da corrida de resposta fora de ordem (I3 da review): quem ganha não pode
-  // ser a última requisição a RESPONDER, e sim a última a ser ENVIADA. `sequenciaRef` é
-  // incrementado a cada chamada de `carregar`; cada chamada captura o próprio número antes do
-  // `await` e só aplica os efeitos pós-`await` se ainda for a mais recente emitida. Não é
-  // `AbortController` de propósito — isso exigiria `listarComponentes` aceitar um `AbortSignal`,
-  // ou seja, mudar `cadastros.ts`, fora do escopo desta task.
-  const sequenciaRef = useRef(0)
+  const podeEscrever = usePodeEscrever('componentes')
 
-  const totalDePaginas = Math.max(1, Math.ceil(total / tamanho))
+  // `listarComponentes` é passada direto por ser estável (função de módulo) e por a assinatura
+  // dela ser estruturalmente compatível com a que o hook pede — `FiltroDeComponentes`/`PaginaDe<T>`
+  // de um lado, `FiltroDeBusca`/`PaginaDeBusca<T>` do outro: nomes diferentes, mesma forma
+  // (compila, MEDIDO). Nada de lambda inline aqui: o hook a guarda num ref justamente para tolerar
+  // isso, mas passar a estável é mais claro.
+  const lista = useBuscaPaginada<ComponenteDto>({ buscar: listarComponentes })
 
-  async function carregar(b: string, inc: boolean, p: number, t: number) {
-    const minhaSequencia = ++sequenciaRef.current
-    setCarregando(true)
-    try {
-      const resposta = await listarComponentes({ busca: b, incluirInativos: inc, pagina: p, tamanho: t })
-      if (minhaSequencia !== sequenciaRef.current) return
-      setComponentes(resposta.itens)
-      setTotal(resposta.total)
-      setErro(null)
-    } catch {
-      if (minhaSequencia !== sequenciaRef.current) return
-      setErro('Não foi possível carregar os componentes.')
-    } finally {
-      if (minhaSequencia === sequenciaRef.current) setCarregando(false)
-    }
-  }
-
-  useEffect(() => {
-    carregar(busca, incluirInativos, pagina, tamanho)
-  }, [busca, incluirInativos, pagina, tamanho])
-
-  // Trocar a busca, o tamanho de pagina ou o filtro de inativos VOLTA para a pagina 1. Sem isto,
-  // buscar algo que cabe em 2 paginas estando na pagina 7 mostra lista vazia, com cara de bug.
-  function mudarBusca(valor: string) {
-    setPagina(1)
-    setBusca(valor)
-  }
-
-  function mudarTamanho(valor: number) {
-    setPagina(1)
-    setTamanho(valor)
-  }
-
-  function mudarInativos(valor: boolean) {
-    setPagina(1)
-    setIncluirInativos(valor)
-  }
+  // Dois erros, e não um: o de LEITURA vem do hook e é apagado pela recarga seguinte; o de
+  // ESCRITA (conflito de código, 403) tem de sobreviver à recarga que o próprio salvar dispara.
+  // Um estado só faria a mensagem de duplicidade piscar e sumir — o defeito que a review da Task 11
+  // da Fase 1A chamou de "erro que pisca". É por causa DESTA divisão que a 9A podia viver com um
+  // `erro` único e a 9B não pode.
+  const erroDeLeitura = lista.erro === null
+    ? null
+    : mensagemDeErro(lista.erro, 'Não foi possível carregar os componentes.')
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
-    setErro(null)
+    setErroDeEscrita(null)
     setIdReativavel(null)
+    setEnviando(true)
     try {
       const resultado = await criarComponente(form)
       if (ehConflito(resultado)) {
-        // O conflito e sempre sobre o codigo (UQ_Componente_Codigo); descricao repetida passa.
+        // O conflito é sempre sobre o código (UQ_Componente_Codigo); descrição repetida passa.
         if (resultado.existeInativo) {
-          setErro(`Já existe um componente com o código "${form.codigo}" inativo.`)
+          setErroDeEscrita(`Já existe um componente com o código "${form.codigo}" inativo.`)
           setIdReativavel(resultado.idExistente)
         } else {
-          setErro('Já existe um componente com este código.')
+          setErroDeEscrita('Já existe um componente com este código.')
         }
         return
       }
       setForm(FORMULARIO_VAZIO)
-      await carregar(busca, incluirInativos, pagina, tamanho)
-    } catch {
-      setErro('Não foi possível salvar o componente.')
+      await lista.recarregar()
+    } catch (e) {
+      setErroDeEscrita(mensagemDeErro(e, 'Não foi possível salvar o componente.'))
+    } finally {
+      setEnviando(false)
     }
   }
 
-  // O 403 do backend e a fronteira de perfil (o link aparece para todos de proposito, e
-  // PATCH /componentes/{id}/ativo e [Authorize(Roles = "Administrador,PCP")]), entao aqui e onde
-  // um usuario sem permissao descobre isso — sem try/catch viraria uma promise rejeitada sem
-  // tratamento e a tela nao diria nada.
+  // O 403 do backend é a fronteira real de perfil (F2): esconder o botão é conveniência, e o
+  // try/catch é o que faz a tela dizer alguma coisa quando ele chega assim mesmo.
   async function alternarAtivo(componente: ComponenteDto) {
     try {
       await definirAtivoComponente(componente.id, !componente.ativo)
-      setErro(null)
-      await carregar(busca, incluirInativos, pagina, tamanho)
-    } catch {
-      setErro('Não foi possível alterar o componente.')
+      setErroDeEscrita(null)
+      await lista.recarregar()
+    } catch (e) {
+      setErroDeEscrita(mensagemDeErro(e, 'Não foi possível alterar o componente.'))
     }
   }
 
   async function reativar(id: number) {
     try {
       await definirAtivoComponente(id, true)
-      setErro(null)
+      setErroDeEscrita(null)
       setIdReativavel(null)
       setForm(FORMULARIO_VAZIO)
-      await carregar(busca, incluirInativos, pagina, tamanho)
-    } catch {
-      setErro('Não foi possível reativar o componente.')
+      await lista.recarregar()
+    } catch (e) {
+      setErroDeEscrita(mensagemDeErro(e, 'Não foi possível reativar o componente.'))
     }
   }
 
+  const buscando = lista.textoDaBusca.trim() !== ''
+
   return (
-    <div className="min-h-screen p-6 max-w-md mx-auto flex flex-col gap-4">
-      <Link to="/" className="text-sm text-gray-500">&larr; Início</Link>
-      <h1 className="text-2xl font-semibold">Componentes</h1>
+    <Pagina titulo="Componentes">
+      {podeEscrever && (
+        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo rotulo="Código">
+              {(id) => (
+                <input
+                  id={id}
+                  value={form.codigo}
+                  onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                  required
+                  className={`${CLASSES_DE_CONTROLE} font-mono`}
+                />
+              )}
+            </Campo>
+            {/* Lista fechada (CK_Componente_Tipo): select, não input livre. */}
+            <Campo rotulo="Tipo">
+              {(id) => (
+                <select
+                  id={id}
+                  value={form.tipo}
+                  onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoDeComponente })}
+                  className={CLASSES_DE_CONTROLE}
+                >
+                  {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              )}
+            </Campo>
+          </div>
+          <Campo rotulo="Descrição">
+            {(id) => (
+              <input
+                id={id}
+                value={form.descricao}
+                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                required
+                className={CLASSES_DE_CONTROLE}
+              />
+            )}
+          </Campo>
+          <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…" className="self-start">
+            Adicionar
+          </Botao>
+        </form>
+      )}
 
-      <form onSubmit={salvar} className="flex flex-col gap-2">
-        <input
-          value={form.codigo}
-          onChange={(e) => setForm({ ...form, codigo: e.target.value })}
-          placeholder="Código"
-          required
-          className="border rounded px-3 py-2"
-        />
-        <input
-          value={form.descricao}
-          onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-          placeholder="Descrição"
-          required
-          className="border rounded px-3 py-2"
-        />
-        {/* Lista fechada (CK_Componente_Tipo): select, nao input livre. */}
-        <select
-          value={form.tipo}
-          onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoDeComponente })}
-          aria-label="Tipo"
-          className="border rounded px-3 py-2"
-        >
-          {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <button type="submit" className="border rounded px-3 py-2 self-start">Adicionar</button>
-      </form>
+      <BannerDeErro mensagem={erroDeEscrita ?? erroDeLeitura} />
 
-      {erro && <p className="text-red-600 text-sm">{erro}</p>}
       {idReativavel !== null && (
-        <button onClick={() => reativar(idReativavel)} className="border rounded px-3 py-2 self-start">
+        <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
           Reativar o existente
-        </button>
+        </Botao>
       )}
 
-      <input
-        value={busca}
-        onChange={(e) => mudarBusca(e.target.value)}
-        placeholder="Buscar por código ou descrição"
-        className="border rounded px-3 py-2"
-      />
-
-      <label className="flex items-center gap-2 text-sm text-gray-600">
-        <input
-          type="checkbox"
-          checked={incluirInativos}
-          onChange={(e) => mudarInativos(e.target.checked)}
-        />
-        Mostrar inativos
-      </label>
-
-      <label className="flex items-center gap-2 text-sm text-gray-600">
-        Por página
-        <select
-          value={tamanho}
-          onChange={(e) => mudarTamanho(Number(e.target.value))}
-          className="border rounded px-2 py-1"
-        >
-          {TAMANHOS.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </label>
-
-      {carregando ? <p className="text-gray-600">Carregando…</p> : (
-        <ul className="flex flex-col gap-2">
-          {componentes.map((c) => (
-            <li key={c.id} className="flex items-center justify-between border rounded px-3 py-2">
-              <span className={c.ativo ? '' : 'text-gray-400 line-through'}>
-                <strong>{c.codigo}</strong> — {c.descricao} ({c.tipo})
-              </span>
-              <button onClick={() => alternarAtivo(c)} className="text-sm border rounded px-2 py-1">
-                {c.ativo ? 'Inativar' : 'Reativar'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="flex items-center gap-3 text-sm">
-        <button
-          onClick={() => setPagina(pagina - 1)}
-          disabled={pagina <= 1}
-          className="border rounded px-3 py-1 disabled:opacity-40"
-        >
-          Anterior
-        </button>
-        <span className="text-gray-600">
-          Página {pagina} de {totalDePaginas} — {total} no total
-        </span>
-        <button
-          onClick={() => setPagina(pagina + 1)}
-          disabled={pagina >= totalDePaginas}
-          className="border rounded px-3 py-1 disabled:opacity-40"
-        >
-          Próxima
-        </button>
+      {/*
+        A barra de filtros é o que não cabia em 448px (spec §7). Em `max-w-3xl` os três controles
+        cabem lado a lado a partir de `sm`, e empilham no celular sem rolagem horizontal.
+      */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="flex-1">
+          <Campo rotulo="Buscar por código ou descrição">
+            {(id) => (
+              <input
+                id={id}
+                value={lista.textoDaBusca}
+                onChange={(e) => lista.mudarBusca(e.target.value)}
+                className={CLASSES_DE_CONTROLE}
+              />
+            )}
+          </Campo>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-tinta-fraca sm:pb-2.5">
+          <input
+            type="checkbox"
+            checked={lista.incluirInativos}
+            onChange={(e) => lista.mudarInativos(e.target.checked)}
+            className="size-4 accent-acao"
+          />
+          Mostrar inativos
+        </label>
+        <Campo rotulo="Por página">
+          {(id) => (
+            <select
+              id={id}
+              value={lista.tamanho}
+              onChange={(e) => lista.mudarTamanho(Number(e.target.value))}
+              className={CLASSES_DE_CONTROLE}
+            >
+              {TAMANHOS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          )}
+        </Campo>
       </div>
-    </div>
+
+      {lista.carregando ? (
+        <EstadoCarregando />
+      ) : erroDeLeitura === null && lista.itens.length === 0 ? (
+        // DECISÃO U1 (usuário, 2026-08-13), e ela CORRIGE o que a versão anterior deste bloco
+        // dizia. Sem o `erroDeLeitura === null &&`, a tela mostra o banner de erro E "Nenhum
+        // componente cadastrado" ao mesmo tempo sob GET 500 — MEDIDO por sonda no pré-flight —,
+        // afirmando "não há componentes" a partir de uma falha de rede. É a mesma forma do
+        // Critical que o fix pass da Task 8 pagou (`SetoresPage.tsx:129`). Usa-se o derivado
+        // `erroDeLeitura`, e não `lista.erro`, porque ele é `null` exatamente quando `lista.erro`
+        // é, e lê melhor ao lado do `BannerDeErro` logo acima.
+        //
+        // Os três vazios que a spec §9 manda distinguir: busca sem resultado, catálogo vazio e —
+        // acima, no banner — erro de rede. Antes os três renderizavam a mesma lista muda.
+        <EstadoVazio
+          titulo={buscando ? 'Nenhum componente encontrado' : 'Nenhum componente cadastrado'}
+          descricao={
+            buscando
+              ? `Nada corresponde a "${lista.textoDaBusca}".`
+              : podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined
+          }
+        />
+      ) : (
+        <ListaDeCadastro>
+          {lista.itens.map((c) => (
+            <ItemDeCadastro
+              key={c.id}
+              ativo={c.ativo}
+              acao={podeEscrever && (
+                <Botao variante="secundario" onClick={() => alternarAtivo(c)}>
+                  {c.ativo ? 'Inativar' : 'Reativar'}
+                </Botao>
+              )}
+            >
+              <span className="font-mono font-semibold">{c.codigo}</span>
+              {' — '}
+              {c.descricao}
+              {' '}
+              <Pilula>{c.tipo}</Pilula>
+            </ItemDeCadastro>
+          ))}
+        </ListaDeCadastro>
+      )}
+
+      <ControlesDePaginacao
+        pagina={lista.pagina}
+        totalDePaginas={lista.totalDePaginas}
+        total={lista.total}
+        aoMudarPagina={lista.irParaPagina}
+      />
+    </Pagina>
   )
 }

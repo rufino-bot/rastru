@@ -1,57 +1,79 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { apiFetch } from '../api/client'
-import { useAuth } from '../auth/AuthContext'
-import type { UsuarioDto } from '../api/tipos'
+import {
+  listarComponentes, listarMateriais, listarSetores, listarPedidos,
+} from '../api/cadastros'
+import { mensagemDeErro } from '../api/erros'
+import { Pagina } from '../components/Pagina'
+import { BannerDeErro } from '../components/BannerDeErro'
+import { EstadoCarregando } from '../components/EstadoCarregando'
+
+interface Contagens {
+  pedidosAbertos: number
+  componentes: number
+  materiais: number
+  setores: number
+}
+
+function CartaoDeContagem({ titulo, valor, para }: { titulo: string; valor: number | null; para: string }) {
+  return (
+    <Link
+      to={para}
+      className="flex flex-col gap-1 rounded-lg border border-borda bg-superficie px-5 py-6 transition-colors hover:border-acao focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+    >
+      {/* Traço em vez de zero enquanto carrega: "0 pedidos" é uma afirmação, e ela seria falsa. */}
+      <span className="text-3xl font-semibold text-tinta">{valor === null ? '—' : valor}</span>
+      <span className="text-sm text-tinta-fraca">{titulo}</span>
+    </Link>
+  )
+}
 
 export function HomePage() {
-  const { logout } = useAuth()
-  const [usuario, setUsuario] = useState<UsuarioDto | null>(null)
-  const [carregando, setCarregando] = useState(true)
+  const [contagens, setContagens] = useState<Contagens | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [carregando, setCarregando] = useState(true)
 
-  async function carregarMe() {
+  async function carregar() {
     setCarregando(true)
     setErro(null)
     try {
-      const resp = await apiFetch('/me')
-      if (!resp.ok) {
-        setErro('Não foi possível carregar seus dados.')
-        return
-      }
-      setUsuario((await resp.json()) as UsuarioDto)
-    } catch {
-      setErro('Não foi possível carregar seus dados.')
+      // `tamanho: 1` no de componentes: só o `total` interessa, e assim nenhum item trafega. As
+      // outras três listagens ainda não são paginadas no backend (dívida rastreada da 1B: o
+      // `PaginaDto<T>` não foi migrado para Setor/Material) — quando forem, este cartão vira o
+      // molde das outras.
+      const [paginaDeComponentes, pedidos, materiais, setores] = await Promise.all([
+        listarComponentes({ busca: '', incluirInativos: false, pagina: 1, tamanho: 1 }),
+        listarPedidos(),
+        listarMateriais(false),
+        listarSetores(false),
+      ])
+      setContagens({
+        pedidosAbertos: pedidos.filter((p) => p.status === 'Aberto').length,
+        componentes: paginaDeComponentes.total,
+        materiais: materiais.length,
+        setores: setores.length,
+      })
+    } catch (e) {
+      setErro(mensagemDeErro(e, 'Não foi possível carregar os números do sistema.'))
     } finally {
       setCarregando(false)
     }
   }
 
-  useEffect(() => { carregarMe() }, [])
+  useEffect(() => { carregar() }, [])
 
   return (
-    <div className="min-h-screen p-6 max-w-md mx-auto flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold">Rastru</h1>
+    <Pagina titulo="Início">
+      <BannerDeErro mensagem={erro} />
 
-      {carregando && <p className="text-gray-600">Carregando…</p>}
-      {erro && <p className="text-red-600 text-sm">{erro}</p>}
+      {carregando && <EstadoCarregando />}
 
-      {usuario && (
-        <dl className="flex flex-col gap-2">
-          <div><dt className="text-sm text-gray-500">Usuário</dt><dd>{usuario.nomeUsuario}</dd></div>
-          <div><dt className="text-sm text-gray-500">Nome</dt><dd>{usuario.nomeCompleto}</dd></div>
-          <div><dt className="text-sm text-gray-500">Perfil</dt><dd>{usuario.perfil}</dd></div>
-        </dl>
-      )}
-
-      <div className="flex gap-3 mt-4">
-        <Link to="/setores" className="border rounded px-3 py-2">Setores</Link>
-        <Link to="/materiais" className="border rounded px-3 py-2">Materiais</Link>
-        <Link to="/componentes" className="border rounded px-3 py-2">Componentes</Link>
-        <Link to="/pedidos" className="border rounded px-3 py-2">Pedidos</Link>
-        <button onClick={carregarMe} className="border rounded px-3 py-2">Recarregar</button>
-        <button onClick={logout} className="border rounded px-3 py-2">Sair</button>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <CartaoDeContagem titulo="pedidos abertos" valor={contagens?.pedidosAbertos ?? null} para="/pedidos" />
+        <CartaoDeContagem titulo="componentes ativos" valor={contagens?.componentes ?? null} para="/componentes" />
+        <CartaoDeContagem titulo="materiais ativos" valor={contagens?.materiais ?? null} para="/materiais" />
+        <CartaoDeContagem titulo="setores ativos" valor={contagens?.setores ?? null} para="/setores" />
       </div>
-    </div>
+    </Pagina>
   )
 }

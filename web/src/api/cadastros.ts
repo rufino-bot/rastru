@@ -1,4 +1,5 @@
 import { apiFetch } from './client'
+import { ErroDeApi } from './erros'
 
 export interface SetorDto {
   id: number
@@ -29,15 +30,15 @@ async function lerOuFalhar<T>(resp: Response): Promise<T | ConflitoDeCadastro> {
   if (resp.status === 409) {
     const corpo = await resp.json()
     if (ehConflito(corpo)) return corpo
-    throw new Error('Falha na requisição (409): formato de conflito inesperado.')
+    throw new ErroDeApi(409, 'Falha na requisição (409): formato de conflito inesperado.')
   }
-  if (!resp.ok) throw new Error(`Falha na requisição (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha na requisição (${resp.status}).`)
   return (await resp.json()) as T
 }
 
 export async function listarSetores(incluirInativos: boolean): Promise<SetorDto[]> {
   const resp = await apiFetch(`/setores?incluirInativos=${incluirInativos}`)
-  if (!resp.ok) throw new Error(`Falha ao listar setores (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar setores (${resp.status}).`)
   return (await resp.json()) as SetorDto[]
 }
 
@@ -55,7 +56,7 @@ export async function definirAtivoSetor(id: number, ativo: boolean): Promise<voi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ativo }),
   })
-  if (!resp.ok) throw new Error(`Falha ao alterar o setor (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao alterar o setor (${resp.status}).`)
 }
 
 export interface MaterialDto {
@@ -78,7 +79,7 @@ export interface NovoMaterial {
 
 export async function listarMateriais(incluirInativos: boolean): Promise<MaterialDto[]> {
   const resp = await apiFetch(`/materiais?incluirInativos=${incluirInativos}`)
-  if (!resp.ok) throw new Error(`Falha ao listar materiais (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar materiais (${resp.status}).`)
   return (await resp.json()) as MaterialDto[]
 }
 
@@ -97,7 +98,7 @@ export async function definirAtivoMaterial(id: number, ativo: boolean): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ativo }),
   })
-  if (!resp.ok) throw new Error(`Falha ao alterar o material (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao alterar o material (${resp.status}).`)
 }
 
 export interface PedidoDto {
@@ -129,13 +130,13 @@ export function formatarDataHora(isoComOffset: string): string {
 
 export async function listarPedidos(): Promise<PedidoDto[]> {
   const resp = await apiFetch('/pedidos')
-  if (!resp.ok) throw new Error(`Falha ao listar pedidos (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar pedidos (${resp.status}).`)
   return (await resp.json()) as PedidoDto[]
 }
 
 export async function obterPedido(id: number): Promise<PedidoDto> {
   const resp = await apiFetch(`/pedidos/${id}`)
-  if (!resp.ok) throw new Error(`Falha ao carregar o pedido (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o pedido (${resp.status}).`)
   return (await resp.json()) as PedidoDto
 }
 
@@ -171,7 +172,7 @@ export type ResultadoExclusao = 'ok' | 'AgrupamentoNaoVazio' | 'PedidoNaoAberto'
 
 export async function listarAgrupamentos(pedidoId: number): Promise<AgrupamentoDto[]> {
   const resp = await apiFetch(`/pedidos/${pedidoId}/agrupamentos`)
-  if (!resp.ok) throw new Error(`Falha ao listar agrupamentos (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar agrupamentos (${resp.status}).`)
   return (await resp.json()) as AgrupamentoDto[]
 }
 
@@ -201,7 +202,7 @@ export async function excluirAgrupamento(id: number): Promise<ResultadoExclusao>
     const corpo = (await resp.json()) as { erro?: string }
     return corpo.erro === 'PedidoNaoAberto' ? 'PedidoNaoAberto' : 'AgrupamentoNaoVazio'
   }
-  throw new Error(`Falha ao excluir o agrupamento (${resp.status}).`)
+  throw new ErroDeApi(resp.status, `Falha ao excluir o agrupamento (${resp.status}).`)
 }
 
 export interface ComponenteDto {
@@ -251,7 +252,7 @@ export async function listarComponentes(
     tamanho: String(f.tamanho),
   })
   const resp = await apiFetch(`/componentes?${params}`)
-  if (!resp.ok) throw new Error(`Falha ao listar componentes (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar componentes (${resp.status}).`)
   return (await resp.json()) as PaginaDe<ComponenteDto>
 }
 
@@ -272,7 +273,7 @@ export async function definirAtivoComponente(id: number, ativo: boolean): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ativo }),
   })
-  if (!resp.ok) throw new Error(`Falha ao alterar o componente (${resp.status}).`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao alterar o componente (${resp.status}).`)
 }
 
 // Sem editarComponente aqui, de proposito, pelo mesmo motivo do editarPedido acima: o
