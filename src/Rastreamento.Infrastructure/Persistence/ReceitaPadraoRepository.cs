@@ -1,3 +1,4 @@
+using System.Data;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Abstractions;
@@ -65,12 +66,37 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
       Substituir(_db.RoteirosPadrao, r => r.ComponenteId == componenteId, novas, ct);
 
   /// <summary>
-  /// Remove + adiciona + UM SaveChanges. O EF envolve o SaveChanges numa transacao sozinho,
-  /// entao "apagou e nao gravou" nao e estado alcancavel — e essa e a propriedade que o teste
-  /// `Substituir_filhos_apaga_as_linhas_antigas_e_grava_as_novas` protege.
+  /// DELETE conjuntista + INSERT dentro de UMA transacao EXPLICITA.
   ///
-  /// Nao usa ExecuteDeleteAsync: ele emite um DELETE FORA da transacao do SaveChanges, o que
-  /// reabriria exatamente o meio-termo que este desenho fecha.
+  /// O delete e <c>ExecuteDeleteAsync</c> sobre o predicado (<c>DELETE ... WHERE ComponenteId =
+  /// @id</c>), e nao <c>ToListAsync</c> + <c>RemoveRange</c>: o segundo apaga pelas PKs das linhas
+  /// LIDAS, entao uma linha inserida por outro escritor entre a leitura e o SaveChanges nunca era
+  /// apagada e a receita final virava a UNIAO das duas gravacoes — medido 3 de 3 na review da
+  /// Task 2, sem excecao nenhuma. Conjuntista, o delete alcanca tambem o que este escritor nao viu.
+  ///
+  /// A transacao e explicita porque <c>ExecuteDeleteAsync</c> emite o DELETE FORA da transacao
+  /// implicita do <c>SaveChanges</c>: sem ela o meio-termo "apagou e nao gravou" seria alcancavel
+  /// de verdade. Com ela, o DELETE e o INSERT sobem ou caem juntos.
+  ///
+  /// As duas propriedades sao verificaveis, nao declaradas:
+  /// <c>Substituir_filhos_que_estoura_no_meio_deixa_as_linhas_antigas_intactas</c> morre se a
+  /// transacao sair ou for partida em dois commits;
+  /// <c>Substituicoes_paralelas_do_mesmo_componente_nao_deixam_a_uniao</c> morre se o delete
+  /// voltar a ser por PK das linhas lidas, se o isolamento cair para o default, ou se a transacao
+  /// sair.
+  ///
+  /// O isolamento e SERIALIZABLE, e nao o READ COMMITTED default, porque receita VAZIA nao tem
+  /// linha para travar: os dois DELETEs nao acham nada, nao seguram lock nenhum, e os dois INSERTs
+  /// passam — a uniao volta. Medido nesta arvore, com a transacao explicita e READ COMMITTED, na
+  /// suite completa. O range lock do SERIALIZABLE trava a FAIXA vazia, e ai um dos escritores
+  /// espera o outro (ou e derrubado por deadlock, que e desfecho legitimo: o caso de uso traduz
+  /// para 409).
+  ///
+  /// O custo do SERIALIZABLE aqui e limitado pelo schema, nao pela sorte: as tres tabelas tem
+  /// UNIQUE liderado pela coluna do componente (UQ_ComponenteFilhoPadrao, UQ_ComponenteMaterialPadrao,
+  /// UQ_ComponenteRoteiroPadrao), entao ha indice para o range lock morar. Enquanto as tabelas forem
+  /// pequenas o otimizador pode preferir varredura e travar mais que a faixa — nao esta medido, e
+  /// nao doi no MVP, onde receita padrao e escrita por tela de PCP, uma de cada vez.
   /// </summary>
   private async Task Substituir<T>(
       DbSet<T> tabela,
@@ -78,9 +104,11 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
       IReadOnlyList<T> novas,
       CancellationToken ct) where T : class
   {
-    var antigas = await tabela.Where(doComponente).ToListAsync(ct);
-    tabela.RemoveRange(antigas);
+    await using var tx =
+        await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+    await tabela.Where(doComponente).ExecuteDeleteAsync(ct);
     tabela.AddRange(novas);
     await _db.SaveChangesAsync(ct);
+    await tx.CommitAsync(ct);
   }
 }

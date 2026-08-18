@@ -7,6 +7,13 @@ using Xunit;
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>Requer o SQL Server no ar (docker compose up -d) com o schema aplicado.</summary>
+/// <remarks>
+/// Na mesma <see cref="ColecaoQueEscreveEmComponente"/> que os outros escritores de
+/// <c>dbo.Componente</c>: <c>Busca_em_branco_nao_filtra_nada</c> compara dois <c>Total</c> sem
+/// escopo de prefixo e nao sobrevive a outra classe inserindo/apagando em paralelo. Ver o XML doc
+/// da colecao.
+/// </remarks>
+[Collection(ColecaoQueEscreveEmComponente.Nome)]
 public class ComponenteMappingTests : TesteComBanco
 {
   /// <summary>

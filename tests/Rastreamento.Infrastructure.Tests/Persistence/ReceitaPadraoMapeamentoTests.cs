@@ -10,6 +10,11 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// serviria: o que se prova aqui e que os nomes de coluna, a precisao do DECIMAL(18,4) e as FKs
 /// batem com `specs/02-modelo-de-dados.sql` — a fonte de verdade do schema.
 /// </summary>
+/// <remarks>
+/// Na mesma <see cref="ColecaoQueEscreveEmComponente"/> que os outros escritores de
+/// <c>dbo.Componente</c>: ver o XML doc de la para o porque.
+/// </remarks>
+[Collection(ColecaoQueEscreveEmComponente.Nome)]
 public class ReceitaPadraoMapeamentoTests : FixtureDeReceitaPadrao
 {
   /// <summary>

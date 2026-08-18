@@ -203,6 +203,19 @@ esse número está velho e não foi reconferido — reconferir exigiria derrubar
 este fix pass foi instruído a não fazer). Sem o banco no ar esses testes falham com erro de
 conexão, não com mensagem útil.
 
+**Paralelismo do xUnit contra um banco só.** O xUnit roda classes de teste em paralelo dentro do
+mesmo assembly, e o SQL Server de dev é compartilhado — duas classes que escrevem na **mesma
+tabela** interferem uma na outra. Isso já produziu dois flakies nesta fase; o segundo
+(`ComponenteMappingTests.Busca_em_branco_nao_filtra_nada`, que compara duas contagens sem escopo)
+falhava em **4 de 10** execuções da suíte de Infrastructure, nos dois sentidos: insert concorrente
+inflando o total e limpeza concorrente derrubando-o. A regra que saiu disso: **teste novo que
+escreve numa tabela já escrita por outra classe entra na mesma `[Collection]` daquela tabela** —
+hoje `ColecaoQueEscreveEmComponente` (`tests/Rastreamento.Infrastructure.Tests/Persistence/`),
+aplicada a `ComponenteMappingTests`, `ReceitaPadraoMapeamentoTests` e
+`ReceitaPadraoRepositoryTests`. Serializar só as classes que disputam a tabela, e não o assembly
+inteiro: o resto da suíte não paga por isso. Escopar a asserção (prefixo por teste) é a alternativa
+e é melhor quando dá — só não dá quando o que se afirma é uma contagem global.
+
 ```bash
 docker compose up -d
 # aplicar, uma vez, no banco `Rastreamento` de localhost:1433 (sa / Your_strong_Pass123):
