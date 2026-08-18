@@ -263,3 +263,97 @@ public class FakeAgrupamentoRepo : IAgrupamentoRepository
     return Task.CompletedTask;
   }
 }
+
+/// <summary>
+/// Fake em memoria do repositorio de receita padrao. Sem banco: o que se prova aqui e REGRA, e
+/// regra que so passa com banco no ar e regra que ninguem roda. O que ele NAO cobre — a
+/// atomicidade real do apaga-e-grava e o predicado do DELETE — e provado em
+/// `ReceitaPadraoRepositoryTests` (Infrastructure), contra o SQL Server.
+/// </summary>
+public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
+{
+  /// <summary>
+  /// Ids de linha nascem ALTOS e fora da faixa dos ids de catalogo usados nos testes (1, 2, 10,
+  /// 11, 20, 21) para que uma projecao que devolva o campo errado nao possa acertar por
+  /// coincidencia numerica.
+  /// </summary>
+  private int _proximoId = 500;
+
+  public List<Componente> Componentes { get; } = [];
+  public List<Material> Materiais { get; } = [];
+  public List<Setor> Setores { get; } = [];
+  public List<ComponenteFilhoPadrao> Filhos { get; } = [];
+  public List<ComponenteMaterialPadrao> MateriaisPadrao { get; } = [];
+  public List<ComponenteRoteiroPadrao> Roteiro { get; } = [];
+
+  /// <summary>Quantas vezes uma substituicao chegou ao "banco". Prova que NAO gravou em falha.</summary>
+  public int Substituicoes { get; private set; }
+
+  public Task<Componente?> ObterComponenteAsync(int id, CancellationToken ct) =>
+      Task.FromResult(Componentes.SingleOrDefault(c => c.Id == id));
+
+  public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarFilhosAsync(
+      int componenteId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<ComponenteFilhoPadrao>>(
+          Filhos.Where(f => f.ComponentePaiId == componenteId).ToList());
+
+  public Task<IReadOnlyList<ComponenteMaterialPadrao>> ListarMateriaisAsync(
+      int componenteId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<ComponenteMaterialPadrao>>(
+          MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
+
+  public Task<IReadOnlyList<ComponenteRoteiroPadrao>> ListarRoteiroAsync(
+      int componenteId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<ComponenteRoteiroPadrao>>(
+          Roteiro.Where(r => r.ComponenteId == componenteId).OrderBy(r => r.Ordem).ToList());
+
+  public Task<IReadOnlyList<Componente>> ObterComponentesPorIdAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Componente>>(Componentes.Where(c => ids.Contains(c.Id)).ToList());
+
+  public Task<IReadOnlyList<Material>> ObterMateriaisPorIdAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Material>>(Materiais.Where(m => ids.Contains(m.Id)).ToList());
+
+  public Task<IReadOnlyList<Setor>> ObterSetoresPorIdAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Setor>>(Setores.Where(s => ids.Contains(s.Id)).ToList());
+
+  public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarTodasAsArestasAsync(CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<ComponenteFilhoPadrao>>(Filhos.ToList());
+
+  public Task SubstituirFilhosAsync(
+      int componenteId, IReadOnlyList<ComponenteFilhoPadrao> novas, CancellationToken ct)
+  {
+    Substituicoes++;
+    Filhos.RemoveAll(f => f.ComponentePaiId == componenteId);
+    foreach (var nova in novas) nova.Id = _proximoId++;
+    Filhos.AddRange(novas);
+    return Task.CompletedTask;
+  }
+
+  public Task SubstituirMateriaisAsync(
+      int componenteId, IReadOnlyList<ComponenteMaterialPadrao> novas, CancellationToken ct)
+  {
+    Substituicoes++;
+    // Apaga por PREDICADO no parametro, como o repositorio real. E grava as linhas COMO VIERAM:
+    // se o caso de uso montar uma linha com ComponenteId errado, ela fica no fake e some da
+    // leitura daquele componente, em vez de ser corrigida pelo fake.
+    MateriaisPadrao.RemoveAll(m => m.ComponenteId == componenteId);
+    // Imita a IDENTITY do banco: sem isto todo `Id` de linha ficaria 0 e uma projecao que
+    // devolvesse 0 no lugar do Id passaria por acidente.
+    foreach (var nova in novas) nova.Id = _proximoId++;
+    MateriaisPadrao.AddRange(novas);
+    return Task.CompletedTask;
+  }
+
+  public Task SubstituirRoteiroAsync(
+      int componenteId, IReadOnlyList<ComponenteRoteiroPadrao> novas, CancellationToken ct)
+  {
+    Substituicoes++;
+    Roteiro.RemoveAll(r => r.ComponenteId == componenteId);
+    foreach (var nova in novas) nova.Id = _proximoId++;
+    Roteiro.AddRange(novas);
+    return Task.CompletedTask;
+  }
+}
