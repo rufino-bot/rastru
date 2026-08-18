@@ -10,67 +10,8 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// serviria: o que se prova aqui e que os nomes de coluna, a precisao do DECIMAL(18,4) e as FKs
 /// batem com `specs/02-modelo-de-dados.sql` — a fonte de verdade do schema.
 /// </summary>
-public class ReceitaPadraoMapeamentoTests : TesteComBanco
+public class ReceitaPadraoMapeamentoTests : FixtureDeReceitaPadrao
 {
-  private static string NovoCodigo() => $"RP-{Guid.NewGuid():N}"[..12];
-
-  private static async Task<Componente> UmComponente(RastreamentoDbContext db)
-  {
-    var componente = new Componente
-    {
-      Codigo = NovoCodigo(),
-      Descricao = "Componente de teste",
-      Tipo = "Fabricado",
-      Ativo = true,
-    };
-    db.Componentes.Add(componente);
-    await db.SaveChangesAsync();
-    return componente;
-  }
-
-  private static async Task<(Componente pai, Componente filho)> DoisComponentes(RastreamentoDbContext db)
-  {
-    var pai = new Componente
-    {
-      Codigo = NovoCodigo(),
-      Descricao = "Componente pai de teste",
-      Tipo = "Montagem",
-      Ativo = true,
-    };
-    var filho = new Componente
-    {
-      Codigo = NovoCodigo(),
-      Descricao = "Componente filho de teste",
-      Tipo = "Fabricado",
-      Ativo = true,
-    };
-    db.Componentes.AddRange(pai, filho);
-    await db.SaveChangesAsync();
-    return (pai, filho);
-  }
-
-  private static async Task<Material> UmMaterial(RastreamentoDbContext db)
-  {
-    var material = new Material
-    {
-      Codigo = NovoCodigo(),
-      Descricao = "Material de teste",
-      UnidadeMedida = "KG",
-      Ativo = true,
-    };
-    db.Materiais.Add(material);
-    await db.SaveChangesAsync();
-    return material;
-  }
-
-  private static async Task<Setor> UmSetor(RastreamentoDbContext db)
-  {
-    var setor = new Setor { Nome = $"setor-{Guid.NewGuid():N}", Ativo = true };
-    db.Setores.Add(setor);
-    await db.SaveChangesAsync();
-    return setor;
-  }
-
   /// <summary>
   /// Remove a linha de ComponenteFilhoPadrao antes dos dois Componentes que ela referencia — as
   /// FKs apontam para eles, entao a ordem inversa falha.
