@@ -750,6 +750,13 @@ git commit -m "feat(fase1c): repositorio da receita padrao com substituicao atom
 
 **Delta previsto: Infrastructure 43 → 48 (+5).**
 
+**MEDIDO, e diferente do previsto: Infrastructure 43 → 57 (+14).** A task entregou os +5 previstos
+(`fa7fa8c`), e a review dela achou que 6 dos 12 métodos do repositório não tinham teste nenhum —
+defeito de dimensionamento **deste plano**, não do executor, que entregou exatamente os cinco testes
+especificados. O fix pass (`33c0a65`) somou +9: cobertura dos métodos órfãos, atomicidade sob falha,
+concorrência, e escopo do delete nas três tabelas (não só em filhos). As Tasks 3 a 6 abaixo herdam
+**Infrastructure 57**, não 48.
+
 ---
 
 ## Task 3: Caso de uso — materiais-padrão (o molde)
@@ -2226,7 +2233,7 @@ Em `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs`, no `TabelaA
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **Application 156**, **Infrastructure 48**, **Api 171 + 10 = 181**. Total **385**.
+Esperado: **Application 156**, **Infrastructure 57**, **Api 171 + 10 = 181**. Total **394**.
 
 - [ ] **Step 8: Prove por mutação que a guarda protege as rotas novas**
 
@@ -2245,7 +2252,8 @@ git add src/Rastreamento.Api tests/Rastreamento.Api.Tests
 git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guarda de perfis"
 ```
 
-**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 385.**
+**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 394** (era 385 no plano original; a
+Task 2 fechou em Infrastructure 57 em vez de 48 — ver o bloco MEDIDO na Task 2).
 
 ---
 
@@ -3350,7 +3358,7 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | Task | Projeto | De → Para | Δ |
 |---|---|---|---|
 | 1 | Infrastructure | 38 → 43 | +5 |
-| 2 | Infrastructure | 43 → 48 | +5 |
+| 2 | Infrastructure | 43 → **57** (medido; previsto 48) | **+14** |
 | 3 | Application | 129 → 139 | +10 |
 | 4 | Application | 139 → 145 | +6 |
 | 5 | Application | 145 → 156 | +11 |
@@ -3361,6 +3369,7 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 10 | front | ~334 → ~342 | ~+8 |
 | 11 | front | ~342 → ~350 | ~+8 |
 
-**Backend: 338 → 385.** **Front: 317 → ~350.**
+**Backend: 338 → 394** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto — o
+delta dela está corrigido na linha acima e o total já reflete isso). **Front: 317 → ~350.**
 
 Os números do front a partir da Task 9 são **aproximados de propósito**: a guarda `permissoesEspelhamOBackend` usa `it.each` sobre o mapa de recursos, então acrescentar um recurso muda a contagem por um caminho que este plano não consegue prever com exatidão sem rodar. **Meça na Task 9 e corrija as previsões das Tasks 10 e 11 na mesma passada** — total absoluto herdado propaga erro task a task.
