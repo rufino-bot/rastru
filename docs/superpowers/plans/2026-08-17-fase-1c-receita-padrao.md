@@ -63,7 +63,7 @@ A spec §2.3 diz "componente-filho ou **material** inativo" não pode entrar na 
 
 **Backend — modificar:** `RastreamentoDbContext.cs` (3 `DbSet`) · `Application/Cadastros/Dtos.cs` (DTOs novos) · `Api/Program.cs` (2 registros de DI).
 
-**Testes — criar:** `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoMapeamentoTests.cs` · `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoRepositoryTests.cs` · `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs` · `tests/Rastreamento.Api.Tests/ReceitaPadraoEndpointsTests.cs`.
+**Testes — criar:** `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoMapeamentoTests.cs` · `tests/Rastreamento.Infrastructure.Tests/Persistence/ReceitaPadraoRepositoryTests.cs` · `tests/Rastreamento.Application.Tests/Cadastros/ReceitaPadraoUseCaseTests.cs` · `tests/Rastreamento.Api.Tests/ReceitaPadraoEndpointsTests.cs`.
 
 > **Corrigido depois da review da Task 1** (o plano original dizia a raiz do projeto de teste): os sete testes de mapeamento e de repositório deste projeto vivem em `Persistence/`, e **todos os sete** limpam as linhas que criam num `try/finally`. A prosa deste plano já mandava "siga o padrão dos vizinhos"; os blocos de código exemplo abaixo é que omitiam as duas coisas. **A prosa governa.**
 **Testes — modificar:** `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs` (3 entradas).
@@ -766,7 +766,7 @@ Esta task estabelece o molde que as Tasks 4 e 5 copiam: validação, projeção,
 **Files:**
 - Create: `src/Rastreamento.Application/Cadastros/ReceitaPadraoUseCase.cs`
 - Modify: `src/Rastreamento.Application/Cadastros/Dtos.cs` (acrescentar no fim)
-- Test: `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs`
+- Test: `tests/Rastreamento.Application.Tests/Cadastros/ReceitaPadraoUseCaseTests.cs`
 
 **Interfaces:**
 - Consumes: `IReceitaPadraoRepository` (Task 2), `Result<T>` / `TipoDeErro` (`Application/Common`).
@@ -816,7 +816,7 @@ public sealed record ReceitaDeMateriaisDto([Required] IReadOnlyList<LinhaDeMater
 
 - [ ] **Step 2: Escreva os testes que falham**
 
-Crie `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs`. Antes de escrever o fake, **abra um arquivo de teste vizinho em `tests/Rastreamento.Application.Tests/`** e confira o estilo de fake usado lá; se houver um padrão estabelecido, siga-o em vez do esqueleto abaixo.
+Crie `tests/Rastreamento.Application.Tests/Cadastros/ReceitaPadraoUseCaseTests.cs` (a pasta `Cadastros/` e o fake em `Cadastros/Fakes.cs` sao o padrao ja estabelecido pelos vizinhos — o plano original dizia a raiz do projeto de teste, como ja acontecera na Task 1). Antes de escrever o fake, **abra um arquivo de teste vizinho em `tests/Rastreamento.Application.Tests/`** e confira o estilo de fake usado lá; se houver um padrão estabelecido, siga-o em vez do esqueleto abaixo.
 
 ```csharp
 using Rastreamento.Application.Cadastros;
@@ -1189,9 +1189,17 @@ dotnet test tests/Rastreamento.Application.Tests
 
 Esperado: **129 + 10 = 139 aprovados** (o `[Theory]` de quantidade conta 2), 0 falhas.
 
+> **MEDIDO na execução: 142 (+13), não 139 (+10).** Três testes a mais do que o esqueleto acima,
+> todos porque a prova por mutação do Step 6 mostrou guarda faltando — ver
+> `.superpowers/sdd/task-3-report.md`:
+> `Receita_de_um_componente_nao_vaza_para_outro` (sem ela, `componenteId` trocado por `1` literal
+> sobrevive em três lugares — é o achado B11 da Fase 1A repetido), e os dois ramos **plurais** de
+> `ConferirExistenciaEAtividade`, que é helper **compartilhado** pelas Tasks 4 e 5.
+> As previsões das Tasks 4, 5 e 6 abaixo já estão corrigidas para esta base.
+
 - [ ] **Step 6: Prove por mutação que a recusa não grava**
 
-Mova o `await _repositorio.SubstituirMateriaisAsync(...)` para **antes** da validação de quantidade. Esperado: `Quantidade_nao_positiva_e_recusada` **FALHA** nas duas linhas do `[Theory]` (`Substituicoes` vira 1). Reverta e reconfirme 139.
+Mova o `await _repositorio.SubstituirMateriaisAsync(...)` para **antes** da validação de quantidade. Esperado: `Quantidade_nao_positiva_e_recusada` **FALHA** nas duas linhas do `[Theory]` (`Substituicoes` vira 1). Reverta e reconfirme 142.
 
 - [ ] **Step 7: Build e commit**
 
@@ -1200,11 +1208,11 @@ dotnet build Rastreamento.slnx -warnaserror
 ```
 
 ```bash
-git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs
+git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Tests/Cadastros
 git commit -m "feat(fase1c): caso de uso da receita padrao — materiais"
 ```
 
-**Delta previsto: Application 129 → 139 (+10).**
+**Delta previsto: Application 129 → 139 (+10). MEDIDO: 129 → 142 (+13).**
 
 ---
 
@@ -1213,7 +1221,7 @@ git commit -m "feat(fase1c): caso de uso da receita padrao — materiais"
 **Files:**
 - Modify: `src/Rastreamento.Application/Cadastros/ReceitaPadraoUseCase.cs`
 - Modify: `src/Rastreamento.Application/Cadastros/Dtos.cs`
-- Modify: `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Cadastros/ReceitaPadraoUseCaseTests.cs`
 
 **Interfaces:**
 - Consumes: `ReceitaPadraoUseCase` e os helpers `PrimeiroRepetido` / `ConferirExistenciaEAtividade` (Task 3).
@@ -1412,7 +1420,7 @@ Acrescente em `ReceitaPadraoUseCase`, entre a seção de materiais e a de "comum
 dotnet test tests/Rastreamento.Application.Tests
 ```
 
-Esperado: **139 + 6 = 145 aprovados**, 0 falhas.
+Esperado: **142 + 6 = 148 aprovados**, 0 falhas.
 
 - [ ] **Step 6: As DUAS mutações desta task**
 
@@ -1426,7 +1434,7 @@ Esperado: **139 + 6 = 145 aprovados**, 0 falhas.
       return Result<IReadOnlyList<RoteiroPadraoDto>>.Falha($"Setor {repetido} repetido.");
 ```
 
-Esperado: `Mesmo_setor_repetido_no_roteiro_e_aceito` **FALHA**. **Isto é o ponto da task** — se ela ficar verde, o teste do permitido não discrimina e precisa ser reescrito. Reverta e reconfirme 145.
+Esperado: `Mesmo_setor_repetido_no_roteiro_e_aceito` **FALHA**. **Isto é o ponto da task** — se ela ficar verde, o teste do permitido não discrimina e precisa ser reescrito. Reverta e reconfirme 148.
 
 - [ ] **Step 7: Build e commit**
 
@@ -1435,11 +1443,11 @@ dotnet build Rastreamento.slnx -warnaserror
 ```
 
 ```bash
-git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs
+git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Tests/Cadastros
 git commit -m "feat(fase1c): caso de uso da receita padrao — roteiro, com ordem atribuida pelo servidor"
 ```
 
-**Delta previsto: Application 139 → 145 (+6).**
+**Delta previsto: Application 142 → 148 (+6).**
 
 ---
 
@@ -1450,7 +1458,7 @@ A task mais delicada da fase. **Leia §1.3 da spec antes de começar.**
 **Files:**
 - Modify: `src/Rastreamento.Application/Cadastros/ReceitaPadraoUseCase.cs`
 - Modify: `src/Rastreamento.Application/Cadastros/Dtos.cs`
-- Modify: `tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Cadastros/ReceitaPadraoUseCaseTests.cs`
 
 **Interfaces:**
 - Consumes: tudo das Tasks 3 e 4.
@@ -1835,7 +1843,7 @@ Acrescente em `ReceitaPadraoUseCase`, antes da seção "comum". As duas constant
 dotnet test tests/Rastreamento.Application.Tests
 ```
 
-Esperado: **145 + 11 = 156 aprovados**, 0 falhas.
+Esperado: **148 + 11 = 159 aprovados**, 0 falhas.
 
 - [ ] **Step 6: As CINCO mutações desta task**
 
@@ -1847,7 +1855,7 @@ Esperado: **145 + 11 = 156 aprovados**, 0 falhas.
 
 **Mutação D (lista vazia deixa de apagar):** acrescente, no topo de `SubstituirFilhos`, um atalho `if (linhas.Count == 0) return Result<IReadOnlyList<FilhoPadraoDto>>.Ok(await ProjetarFilhos(componenteId, ct));` — ou seja, lista vazia vira no-op em vez de apagar. Esperado: `Filhos_com_lista_vazia_apaga` **FALHA**. É a mutação 3 da lista da spec §4.3, e ela merece passe próprio porque "não fazer nada" é o modo de falha mais fácil de introduzir sem perceber. Reverta.
 
-**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 156.
+**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 159.
 
 - [ ] **Step 7: Build e commit**
 
@@ -1856,11 +1864,11 @@ dotnet build Rastreamento.slnx -warnaserror
 ```
 
 ```bash
-git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Tests/ReceitaPadraoUseCaseTests.cs
+git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Tests/Cadastros
 git commit -m "feat(fase1c): caso de uso da receita padrao — filhos, com deteccao de ciclo"
 ```
 
-**Delta previsto: Application 145 → 156 (+11).**
+**Delta previsto: Application 148 → 159 (+11).**
 
 ---
 
@@ -2233,13 +2241,13 @@ Em `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs`, no `TabelaA
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **Application 156**, **Infrastructure 57**, **Api 171 + 10 = 181**. Total **394**.
+Esperado: **Application 159**, **Infrastructure 57**, **Api 171 + 10 = 181**. Total **397**.
 
 - [ ] **Step 8: Prove por mutação que a guarda protege as rotas novas**
 
 Troque `PerfisDeEscrita` do `ReceitaPadraoController` para `"Administrador,PCP,Qualidade"`. Esperado: `PerfisDeEscritaDeclaradosTests` **FALHA** dizendo que o roteamento exige `[Administrador, PCP, Qualidade]` contra a tabela `[Administrador, PCP]`. Reverta.
 
-Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 385.
+Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 397.
 
 - [ ] **Step 9: Build e commit**
 
@@ -2252,8 +2260,9 @@ git add src/Rastreamento.Api tests/Rastreamento.Api.Tests
 git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guarda de perfis"
 ```
 
-**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 394** (era 385 no plano original; a
-Task 2 fechou em Infrastructure 57 em vez de 48 — ver o bloco MEDIDO na Task 2).
+**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 397** (era 385 no plano original; a
+Task 2 fechou em Infrastructure 57 em vez de 48 e a Task 3 em Application 142 em vez de 139 — ver
+o bloco MEDIDO em cada uma).
 
 ---
 
@@ -2324,7 +2333,7 @@ Repita o Step 3. Os números têm de ser **idênticos**. Se cresceram, o arquivo
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **385**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
+Esperado: **397**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
 
 - [ ] **Step 6: Commit**
 
@@ -3359,9 +3368,9 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 |---|---|---|---|
 | 1 | Infrastructure | 38 → 43 | +5 |
 | 2 | Infrastructure | 43 → **57** (medido; previsto 48) | **+14** |
-| 3 | Application | 129 → 139 | +10 |
-| 4 | Application | 139 → 145 | +6 |
-| 5 | Application | 145 → 156 | +11 |
+| 3 | Application | 129 → **142** (medido; previsto 139) | **+13** |
+| 4 | Application | 142 → 148 | +6 |
+| 5 | Application | 148 → 159 | +11 |
 | 6 | Api | 171 → 181 | +10 |
 | 7 | — | — | 0 |
 | 8 | front | 317 → 325 | +8 |
@@ -3369,7 +3378,7 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 10 | front | ~334 → ~342 | ~+8 |
 | 11 | front | ~342 → ~350 | ~+8 |
 
-**Backend: 338 → 394** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto — o
+**Backend: 338 → 397** (o plano original dizia 385; a Task 2 fechou +9 e a Task 3 +3 acima do previsto — o
 delta dela está corrigido na linha acima e o total já reflete isso). **Front: 317 → ~350.**
 
 Os números do front a partir da Task 9 são **aproximados de propósito**: a guarda `permissoesEspelhamOBackend` usa `it.each` sobre o mapa de recursos, então acrescentar um recurso muda a contagem por um caminho que este plano não consegue prever com exatidão sem rodar. **Meça na Task 9 e corrija as previsões das Tasks 10 e 11 na mesma passada** — total absoluto herdado propaga erro task a task.
