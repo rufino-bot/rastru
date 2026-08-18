@@ -5,11 +5,14 @@ using Rastreamento.Domain.Entities;
 namespace Rastreamento.Application.Tests.Cadastros;
 
 /// <summary>
-/// Receita padrao — parte de MATERIAIS. E o molde que roteiro (Task 4) e filhos (Task 5) copiam:
-/// componente existe, ids existem, ids estao ativos, nada de duplicata, substituicao inteira.
+/// Receita padrao — MATERIAIS (o molde) e ROTEIRO. Filhos (Task 5) copiam a mesma forma:
+/// componente existe, ids existem, ids estao ativos, substituicao inteira.
 /// As mensagens de "nao existe" e "esta inativo" nascem de um helper COMPARTILHADO pelos tres
-/// sub-recursos, entao os quatro ramos dele (singular/plural x ausente/inativo) sao provados aqui,
-/// uma vez, e nao tres.
+/// sub-recursos, entao os quatro ramos dele (singular/plural x ausente/inativo) sao provados uma
+/// vez, na secao de materiais, e nao tres.
+///
+/// O roteiro NAO herda uma coisa do molde: a guarda de id repetido. Setor repetido e valido —
+/// ver `Mesmo_setor_repetido_no_roteiro_e_aceito`.
 /// </summary>
 public class ReceitaPadraoUseCaseTests
 {
@@ -238,9 +241,13 @@ public class ReceitaPadraoUseCaseTests
   }
 
   /// <summary>
-  /// O `ct` da requisicao tem de chegar a TODAS as idas ao repositorio. Sem esta prova, trocar os
-  /// cinco `, ct)` por `, CancellationToken.None)` deixa a suite verde e o cancelamento vira
+  /// O `ct` da requisicao tem de chegar a TODAS as idas ao repositorio. Sem esta prova, trocar
+  /// qualquer `, ct)` por `, CancellationToken.None)` deixa a suite verde e o cancelamento vira
   /// decorativo — quem cancela a aba nao cancela a consulta.
+  ///
+  /// Os QUATRO metodos publicos que existem hoje sao exercitados aqui, e nao so os de material: um
+  /// `CancellationToken.None` plantado dentro de `SubstituirRoteiro` ou de `ProjetarRoteiro`
+  /// sobrevivia enquanto este teste so passava por materiais. A Task 5 acrescenta os de filhos.
   /// </summary>
   [Fact]
   public async Task Token_de_cancelamento_chega_a_todas_as_chamadas_do_repositorio()
@@ -251,6 +258,8 @@ public class ReceitaPadraoUseCaseTests
 
     await caso.SubstituirMateriais(1, [new LinhaDeMaterialPadraoDto(10, 1m)], cts.Token);
     await caso.ListarMateriais(1, cts.Token);
+    await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(20)], cts.Token);
+    await caso.ListarRoteiro(1, cts.Token);
 
     Assert.NotEmpty(fake.TokensRecebidos);
     Assert.All(fake.TokensRecebidos, t => Assert.Equal(cts.Token, t));
@@ -388,5 +397,239 @@ public class ReceitaPadraoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, r.TipoDoErro);
     Assert.Equal("Componente nao encontrado.", r.Erro);
+  }
+
+  // ------------------------------------------------------------------ roteiro
+
+  /// <summary>
+  /// A `Ordem` sai da POSICAO no array, nunca do cliente e nunca do id.
+  ///
+  /// Os setores entram FORA de ordem de id de proposito (21 antes de 20): numerar pela ordem dos
+  /// ids em vez de pela do array daria `(20,1),(21,2)` e passaria despercebido num array ja
+  /// ordenado. E a sequencia inteira e afirmada como tupla, e nao so a contagem: comecar do zero,
+  /// usar o indice sem `+1` ou gravar so a primeira linha tem de matar este teste.
+  /// </summary>
+  [Fact]
+  public async Task Roteiro_numera_a_ordem_de_um_ate_n_pela_posicao_do_array()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(20)], Ct);
+
+    Assert.True(r.Sucesso);
+    // A ordem sai da POSICAO, nao do id: 21 veio primeiro, entao 21 e a Ordem 1.
+    Assert.Equal([(21, 1), (20, 2)], r.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    // Gravou no ROTEIRO, e uma vez so. `SubstituicoesDeRoteiro`, e nao `Substituicoes`: a soma
+    // dos tres contadores seria satisfeita por uma gravacao de material.
+    Assert.Equal(1, fake.SubstituicoesDeRoteiro);
+  }
+
+  /// <summary>
+  /// O MESMO setor duas vezes e PERMITIDO: significa RETORNO AO SETOR (a peca volta a usinagem
+  /// depois da solda). Este teste prova o PERMITIDO, nao o proibido — sem ele, alguem "corrige"
+  /// acrescentando validacao de setor unico (o molde de materiais tem uma), a suite fica verde, e
+  /// o retorno ao setor some. O `UQ` do schema e (ComponenteId, Ordem), nao (ComponenteId,
+  /// SetorId), entao repetir setor nunca viola constraint nenhuma.
+  ///
+  /// O setor repetido esta na PRIMEIRA e na TERCEIRA posicao: uma guarda que so olhasse linhas
+  /// adjacentes tambem tem de morrer aqui.
+  /// </summary>
+  [Fact]
+  public async Task Mesmo_setor_repetido_no_roteiro_e_aceito()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirRoteiro(
+        1,
+        [new LinhaDeRoteiroPadraoDto(20), new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(20)],
+        Ct);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal([(20, 1), (21, 2), (20, 3)], r.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    Assert.Equal(1, fake.SubstituicoesDeRoteiro);
+  }
+
+  /// <summary>Lista vazia APAGA — unico caminho de remocao que existe (nao ha DELETE).</summary>
+  [Fact]
+  public async Task Roteiro_com_lista_vazia_apaga()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+    await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(20)], Ct);
+
+    var r = await caso.SubstituirRoteiro(1, [], Ct);
+
+    Assert.True(r.Sucesso);
+    Assert.Empty(r.Valor!);
+    Assert.Empty(fake.Roteiro);
+    // Duas gravacoes, nao tres: a do arranjo e a que apaga.
+    Assert.Equal(2, fake.SubstituicoesDeRoteiro);
+  }
+
+  /// <summary>
+  /// A receita e POR componente, tambem no roteiro. Com um unico componente no catalogo, um `1`
+  /// literal no lugar do `componenteId` — na gravacao, na leitura ou no `ComponenteId` da linha
+  /// montada — passaria em todos os outros testes de roteiro deste arquivo.
+  ///
+  /// As DUAS gravacoes tem o retorno afirmado, e nao so as leituras: um `1` literal SO na
+  /// re-leitura do POST faz a gravacao em /componentes/2 acertar e a RESPOSTA trazer o roteiro do
+  /// componente 1 — a tela mostra a sequencia de outra peca logo depois de salvar. Foi exatamente
+  /// esse quarto sitio que escapou na Task 3.
+  /// </summary>
+  [Fact]
+  public async Task Roteiro_de_um_componente_nao_vaza_para_outro()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var gravouNoUm = await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(20), new LinhaDeRoteiroPadraoDto(21)], Ct);
+    var gravouNoDois = await caso.SubstituirRoteiro(2, [new LinhaDeRoteiroPadraoDto(21)], Ct);
+
+    var doUm = await caso.ListarRoteiro(1, Ct);
+    var doDois = await caso.ListarRoteiro(2, Ct);
+
+    Assert.Equal([(20, 1), (21, 2)], gravouNoUm.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    Assert.Equal([(21, 1)], gravouNoDois.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    Assert.Equal([(20, 1), (21, 2)], doUm.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    Assert.Equal([(21, 1)], doDois.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    Assert.Equal(2, fake.SubstituicoesDeRoteiro);
+  }
+
+  [Fact]
+  public async Task Setor_inexistente_no_roteiro_e_recusado_nomeando_o_id()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(888)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    // Mensagem INTEIRA, e o singular do helper compartilhado com o nome de recurso do ROTEIRO:
+    // "setor", nao "material". Trocar as duas palavras do call site tem de matar este teste.
+    Assert.Equal("O setor 888 nao existe.", r.Erro);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// O roteiro e o PRIMEIRO chamador do helper compartilhado que lhe entrega ids REPETIDOS —
+  /// materiais nunca entregou, porque a guarda de duplicata dele recusa antes. Isso torna
+  /// load-bearing os dois `Distinct()` de `ConferirExistenciaEAtividade`, que a Task 3 tinha
+  /// declarado mutantes equivalentes: sem eles, a mensagem sai no plural nomeando o mesmo id duas
+  /// vezes ("Os setores 888, 888 nao existem."), que e o texto que o usuario le.
+  ///
+  /// A declaracao de equivalencia da Task 3 nao estava errada quando foi escrita — ela expirou
+  /// com esta task, e por isso este teste existe.
+  /// </summary>
+  [Fact]
+  public async Task Setor_inexistente_repetido_e_nomeado_uma_vez_so()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(888), new LinhaDeRoteiroPadraoDto(888)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal("O setor 888 nao existe.", r.Erro);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// Extensao deliberada da spec §2.3, que so nomeia componente-filho e material: Setor tem
+  /// `Ativo` e e a mesma classe de problema. Ver "Global Constraints" do plano.
+  /// </summary>
+  [Fact]
+  public async Task Setor_inativo_nao_pode_entrar_no_roteiro()
+  {
+    var fake = FakeComCatalogo();
+    fake.Setores.Single(s => s.Id == 21).Ativo = false;
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(21)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal("O setor 21 esta inativo e nao pode entrar na receita.", r.Erro);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// A projecao inteira, com DUAS linhas e em ORDEM — e nao uma contagem. `Ordem` e o contrato
+  /// central desta parte, e `Assert.Single` nao enxerga ordem nenhuma.
+  ///
+  /// Os quatro campos do DTO sao afirmados de uma vez porque tres mutacoes distintas se escondem
+  /// entre eles: devolver o `SetorId` no lugar do `Id` da linha (por isso os ids de linha nascem
+  /// em 500), ligar TODA linha ao primeiro setor do dicionario (a tela mostraria "Corte, Corte"),
+  /// e devolver a lista invertida.
+  ///
+  /// Os setores entram fora de ordem de id (21, depois 20) para que a sequencia lida nao coincida
+  /// com uma ordenacao por id.
+  /// </summary>
+  [Fact]
+  public async Task Listar_roteiro_projeta_a_sequencia_inteira_com_o_nome_do_setor()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+    await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(20)], Ct);
+
+    var r = await caso.ListarRoteiro(1, Ct);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal(
+        [(500, 21, "Solda", 1), (501, 20, "Corte", 2)],
+        r.Valor!.Select(l => (l.Id, l.SetorId, l.Nome, l.Ordem)));
+  }
+
+  /// <summary>
+  /// O 404 do recurso da ROTA vale nos DOIS metodos de roteiro. Um so teste porque a guarda e a
+  /// mesma linha duplicada: sem exercitar `SubstituirRoteiro`, apagar o `if` dela nao quebrava
+  /// nada — nenhum outro teste de roteiro chama a escrita com componente inexistente.
+  ///
+  /// E a escrita nao pode gravar nada nesse caminho: um roteiro gravado sob um `ComponenteId` que
+  /// nao existe viola a FK e sobe como 500.
+  /// </summary>
+  [Fact]
+  public async Task Roteiro_de_componente_inexistente_e_nao_encontrado_na_leitura_e_na_escrita()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var leitura = await caso.ListarRoteiro(999, Ct);
+    var escrita = await caso.SubstituirRoteiro(999, [new LinhaDeRoteiroPadraoDto(20)], Ct);
+
+    Assert.False(leitura.Sucesso);
+    Assert.Equal(TipoDeErro.NaoEncontrado, leitura.TipoDoErro);
+    Assert.Equal("Componente nao encontrado.", leitura.Erro);
+    Assert.False(escrita.Sucesso);
+    Assert.Equal(TipoDeErro.NaoEncontrado, escrita.TipoDoErro);
+    Assert.Equal("Componente nao encontrado.", escrita.Erro);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// Mesma traducao do 409 dos materiais, no roteiro. O `catch` nasceu cobrindo so materiais —
+  /// roteiro nao existia — e nada obrigava a estende-lo: sem este teste, a substituicao de roteiro
+  /// derrubada pelo banco subia `ConflitoDeConcorrenciaException` crua e virava 500, quando o
+  /// desfecho e previsto pelo desenho e o cliente so precisa refazer o POST.
+  /// </summary>
+  [Fact]
+  public async Task Conflito_de_concorrencia_na_gravacao_do_roteiro_vira_erro_de_conflito()
+  {
+    var fake = FakeComCatalogo();
+    fake.ConflitoNaProximaSubstituicao = true;
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(20)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Equal(
+        "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.", r.Erro);
   }
 }

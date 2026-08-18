@@ -170,3 +170,17 @@ public sealed record LinhaDeMaterialPadraoDto(int MaterialId, decimal Quantidade
 /// da Task 6, nao aqui — este nivel nao roda model binding.
 /// </remarks>
 public sealed record ReceitaDeMateriaisDto([Required] IReadOnlyList<LinhaDeMaterialPadraoDto>? Linhas);
+
+/// <summary>Um passo do roteiro, como ele sai na leitura (com o nome do Setor).</summary>
+public sealed record RoteiroPadraoDto(int Id, int SetorId, string Nome, int Ordem);
+
+/// <summary>Um passo do roteiro, como ele ENTRA. So o id do Setor.</summary>
+/// <remarks>
+/// SO `SetorId`, sem `Ordem`: a ordem e a POSICAO no array, e quem a atribui e o caso de uso.
+/// Aceitar `Ordem` do cliente reabriria buraco e duplicata na sequencia — que virariam violacao
+/// do UQ_ComponenteRoteiroPadrao e sairiam como erro de banco, nao como 400 legivel.
+/// </remarks>
+public sealed record LinhaDeRoteiroPadraoDto(int SetorId);
+
+/// <remarks>`[Required]` pelo mesmo motivo do `ReceitaDeMateriaisDto` — ver o remarks dele.</remarks>
+public sealed record ReceitaDeRoteiroDto([Required] IReadOnlyList<LinhaDeRoteiroPadraoDto>? Linhas);

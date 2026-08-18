@@ -311,10 +311,17 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   public List<CancellationToken> TokensRecebidos { get; } = [];
 
   /// <summary>
-  /// Faz a proxima gravacao de materiais subir <see cref="ConflitoDeConcorrenciaException"/>, que
-  /// e o que o repositorio real lanca quando o banco derruba o perdedor de duas substituicoes
-  /// simultaneas (deadlock/lock timeout do range lock do SERIALIZABLE). Existe para provar a
-  /// traducao para <c>TipoDeErro.Conflito</c> sem depender de uma corrida de banco.
+  /// Faz a proxima gravacao de materiais OU de roteiro subir
+  /// <see cref="ConflitoDeConcorrenciaException"/>, que e o que o repositorio real lanca quando o
+  /// banco derruba o perdedor de duas substituicoes simultaneas (deadlock/lock timeout do range
+  /// lock do SERIALIZABLE). Existe para provar a traducao para <c>TipoDeErro.Conflito</c> sem
+  /// depender de uma corrida de banco.
+  ///
+  /// Vale para roteiro tambem porque a transacao SERIALIZABLE e do repositorio, nao da tabela:
+  /// quem grava roteiro e derrubado pelo mesmo motivo que quem grava material. Enquanto so
+  /// materiais lancava, um `catch` faltando no roteiro era invisivel — o teste nao tinha como
+  /// chegar la. `SubstituirFilhosAsync` ainda NAO honra esta flag: quem a acrescenta la e a
+  /// Task 5, junto com o teste que a exercita.
   /// </summary>
   public bool ConflitoNaProximaSubstituicao { get; set; }
 
@@ -390,6 +397,7 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   {
     SubstituicoesDeRoteiro++;
     TokensRecebidos.Add(ct);
+    if (ConflitoNaProximaSubstituicao) throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
     Roteiro.RemoveAll(r => r.ComponenteId == componenteId);
     foreach (var nova in novas) nova.Id = _proximoId++;
     Roteiro.AddRange(novas);

@@ -120,16 +120,17 @@ public sealed class ReceitaPadraoUseCase
   {
     var linhas = await _repositorio.ListarMateriaisAsync(componenteId, ct);
 
-    // Este `Distinct()` e os DOIS de `ConferirExistenciaEAtividade` sao defensivos, nao regra:
-    // remove-los nao muda resultado nenhum e nenhum teste morre — tres mutantes EQUIVALENTES,
-    // declarados aqui de uma vez (R22, R23 e R24 do relatorio de review da Task 3).
+    // Este `Distinct()` e defensivo, nao regra: remove-lo nao muda resultado nenhum e nenhum teste
+    // morre — mutante EQUIVALENTE (R22 do relatorio de review da Task 3). Os DOIS de
+    // `ConferirExistenciaEAtividade` estavam na mesma nota (R23 e R24) e DEIXARAM de ser
+    // equivalentes na Task 4, quando o roteiro passou a chamar o helper com ids repetidos — ver o
+    // XML doc do helper.
     //
     // Quem garante a ausencia de duplicata na receita GRAVADA e o UNIQUE do banco,
     // `UQ_ComponenteMaterialPadrao (ComponenteId, MaterialId)` — nao a validacao da aplicacao:
     // constraint nao se apaga num refactor, guarda de duplicata sim. E, mesmo com repeticao na
     // entrada, tanto o `WHERE Id IN (...)` real quanto o fake devolvem cada material UMA vez,
-    // entao o `ToDictionary` abaixo nao estouraria nem sem o `Distinct()`. No helper e o mesmo:
-    // a guarda de duplicata roda antes e nenhum id repetido chega la.
+    // entao o `ToDictionary` abaixo nao estouraria nem sem o `Distinct()`.
     var materiais = (await _repositorio.ObterMateriaisPorIdAsync(
         linhas.Select(l => l.MaterialId).Distinct().ToList(), ct)).ToDictionary(m => m.Id);
 
@@ -141,6 +142,85 @@ public sealed class ReceitaPadraoUseCase
       return new MaterialPadraoDto(
           l.Id, l.MaterialId, m.Codigo, m.Descricao, m.UnidadeMedida, l.QuantidadePadrao);
     }).ToList();
+  }
+
+  // ------------------------------------------------------------------ roteiro
+
+  public async Task<Result<IReadOnlyList<RoteiroPadraoDto>>> ListarRoteiro(
+      int componenteId, CancellationToken ct)
+  {
+    if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
+      return Result<IReadOnlyList<RoteiroPadraoDto>>.Falha(
+          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    return Result<IReadOnlyList<RoteiroPadraoDto>>.Ok(await ProjetarRoteiro(componenteId, ct));
+  }
+
+  public async Task<Result<IReadOnlyList<RoteiroPadraoDto>>> SubstituirRoteiro(
+      int componenteId, IReadOnlyList<LinhaDeRoteiroPadraoDto> linhas, CancellationToken ct)
+  {
+    // Mesma precedencia dos materiais: o recurso da ROTA primeiro (404 ganha de 400), e toda
+    // validacao antes da unica chamada de escrita.
+    if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
+      return Result<IReadOnlyList<RoteiroPadraoDto>>.Falha(
+          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    // SEM checagem de repetido, de proposito: o mesmo Setor pode aparecer varias vezes — e o
+    // RETORNO AO SETOR, permitido pelo schema (UQ e (ComponenteId, Ordem)). Nao "conserte" isto
+    // copiando o `PrimeiroRepetido` dos materiais: `Mesmo_setor_repetido_no_roteiro_e_aceito`
+    // existe exatamente para matar essa "correcao".
+    var ids = linhas.Select(l => l.SetorId).ToList();
+    var setores = await _repositorio.ObterSetoresPorIdAsync(ids.Distinct().ToList(), ct);
+    var problema = ConferirExistenciaEAtividade(
+        ids, setores.ToDictionary(s => s.Id, s => s.Ativo), "setor", "setores");
+    if (problema is not null) return Result<IReadOnlyList<RoteiroPadraoDto>>.Falha(problema);
+
+    // Mesma traducao de conflito dos materiais, pelo mesmo motivo: a transacao SERIALIZABLE e do
+    // repositorio, entao quem grava roteiro tambem pode ser o perdedor derrubado pelo banco.
+    // 409, nao 500 — `Conflito_de_concorrencia_na_gravacao_do_roteiro_vira_erro_de_conflito`.
+    try
+    {
+      // A Ordem sai da POSICAO no array: 1-based, densa por construcao. Nao ha como o cliente
+      // produzir buraco nem duplicata na sequencia, porque ele nao envia Ordem nenhuma.
+      await _repositorio.SubstituirRoteiroAsync(componenteId, linhas.Select((l, i) =>
+          new ComponenteRoteiroPadrao
+          {
+            ComponenteId = componenteId,
+            SetorId = l.SetorId,
+            Ordem = i + 1,
+          }).ToList(), ct);
+    }
+    catch (ConflitoDeConcorrenciaException)
+    {
+      return Result<IReadOnlyList<RoteiroPadraoDto>>.Falha(
+          ErroDeConflitoDeGravacao, TipoDeErro.Conflito);
+    }
+
+    return Result<IReadOnlyList<RoteiroPadraoDto>>.Ok(await ProjetarRoteiro(componenteId, ct));
+  }
+
+  /// <summary>
+  /// A sequencia ja vem ordenada por `Ordem` do repositorio — este metodo nao reordena, so liga
+  /// cada passo ao nome do Setor. Sem filtro por Ativo, pela mesma razao dos materiais: passo ja
+  /// gravado sobrevive a inativacao do Setor.
+  /// </summary>
+  private async Task<IReadOnlyList<RoteiroPadraoDto>> ProjetarRoteiro(
+      int componenteId, CancellationToken ct)
+  {
+    var linhas = await _repositorio.ListarRoteiroAsync(componenteId, ct);
+
+    // Este `Distinct()` e o de `SubstituirRoteiro` sao mutantes EQUIVALENTES, como os tres
+    // declarados em `ProjetarMateriais`: com retorno ao setor a lista de ids REALMENTE chega com
+    // duplicata aqui (diferente dos materiais, onde a guarda de repetido ja recusou antes), mas
+    // tanto o `WHERE Id IN (...)` real quanto o fake devolvem cada Setor UMA vez — o
+    // `ToDictionary` abaixo nao estoura nem sem ele. O que o `Distinct()` faz e encurtar a lista
+    // do `IN`, e nao evitar erro.
+    var setores = (await _repositorio.ObterSetoresPorIdAsync(
+        linhas.Select(l => l.SetorId).Distinct().ToList(), ct)).ToDictionary(s => s.Id);
+
+    return linhas
+        .Select(l => new RoteiroPadraoDto(l.Id, l.SetorId, setores[l.SetorId].Nome, l.Ordem))
+        .ToList();
   }
 
   // ------------------------------------------------------------------ comum
@@ -163,8 +243,13 @@ public sealed class ReceitaPadraoUseCase
   /// Falha de VALIDACAO, nao 404: o recurso da rota (o Componente) existe — quem esta errado e uma
   /// linha do corpo.
   ///
-  /// Os dois <c>Distinct()</c> abaixo sao mutantes equivalentes declarados — ver a nota em
-  /// <c>ProjetarMateriais</c>, que cobre os tres do arquivo.
+  /// Os dois <c>Distinct()</c> abaixo NAO sao mais equivalentes, e a nota da Task 3 que os
+  /// declarava assim ficou obsoleta quando o roteiro entrou: ela valia porque a guarda de
+  /// duplicata dos materiais roda ANTES e nenhum id repetido chegava aqui. O roteiro nao tem
+  /// guarda de duplicata — setor repetido e valido — entao um roteiro com o mesmo id invalido
+  /// duas vezes chega com a lista repetida, e sem os <c>Distinct()</c> a mensagem sai no plural
+  /// nomeando o mesmo id duas vezes ("Os setores 888, 888 nao existem."). Pinado por
+  /// <c>Setor_inexistente_repetido_e_nomeado_uma_vez_so</c>.
   /// </summary>
   private static string? ConferirExistenciaEAtividade(
       IReadOnlyList<int> idsPedidos,
