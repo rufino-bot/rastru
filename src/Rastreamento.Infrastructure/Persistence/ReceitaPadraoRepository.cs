@@ -1,5 +1,6 @@
 using System.Data;
 using System.Linq.Expressions;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -92,6 +93,16 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
   /// espera o outro (ou e derrubado por deadlock, que e desfecho legitimo: o caso de uso traduz
   /// para 409).
   ///
+  /// Esse desfecho legitimo sobe como <see cref="ConflitoDeConcorrenciaException"/>, e nao cru:
+  /// <c>EhConflitoDeConcorrencia</c> reconhece deadlock (1205) e lock timeout (1222) em qualquer
+  /// ponto da cadeia de inner exceptions — o DELETE do <c>ExecuteDelete</c> nao passa pelo
+  /// <c>SaveChanges</c> e sobe o <c>SqlException</c> direto, o INSERT sobe embrulhado. E o mesmo
+  /// padrao de <c>RefreshTokenRepository.SalvarAlteracoesAsync</c> e existe pelo mesmo motivo: a
+  /// Application captura e traduz para 409 sem referenciar o EF Core. As duas
+  /// direcoes tem teste — <c>Perdedor_de_gravacao_simultanea_sobe_como_conflito_de_concorrencia</c>
+  /// morre se a traducao sair, e <c>Substituir_filhos_que_estoura_no_meio_deixa_as_linhas_antigas_intactas</c>
+  /// morre se ela ficar larga demais (violacao de FK, 547, tem de continuar <c>DbUpdateException</c>).
+  ///
   /// O custo do SERIALIZABLE aqui e limitado pelo schema, nao pela sorte: as tres tabelas tem
   /// UNIQUE liderado pela coluna do componente (UQ_ComponenteFilhoPadrao, UQ_ComponenteMaterialPadrao,
   /// UQ_ComponenteRoteiroPadrao), entao ha indice para o range lock morar. Enquanto as tabelas forem
@@ -104,11 +115,39 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
       IReadOnlyList<T> novas,
       CancellationToken ct) where T : class
   {
-    await using var tx =
-        await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-    await tabela.Where(doComponente).ExecuteDeleteAsync(ct);
-    tabela.AddRange(novas);
-    await _db.SaveChangesAsync(ct);
-    await tx.CommitAsync(ct);
+    try
+    {
+      await using var tx =
+          await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+      await tabela.Where(doComponente).ExecuteDeleteAsync(ct);
+      tabela.AddRange(novas);
+      await _db.SaveChangesAsync(ct);
+      await tx.CommitAsync(ct);
+    }
+    catch (Exception e) when (EhConflitoDeConcorrencia(e))
+    {
+      throw new ConflitoDeConcorrenciaException(e);
+    }
+  }
+
+  /// <summary>
+  /// 1205 = deadlock victim; 1222 = lock request timeout. Sao os dois jeitos de o gerenciador de
+  /// lock derrubar o PERDEDOR de duas substituicoes simultaneas do mesmo componente — desfecho
+  /// previsto pelo SERIALIZABLE, e nao falha do servidor. Qualquer outro numero (violacao de FK ou
+  /// de UNIQUE, por exemplo) passa cru de proposito: traduzir tudo para conflito esconderia bug
+  /// real atras de um 409.
+  ///
+  /// Percorre a CADEIA de inner exceptions em vez de olhar um nivel so, porque a profundidade
+  /// varia com o caminho: o DELETE do <c>ExecuteDelete</c> sobe <c>SqlException</c> pelado, o
+  /// INSERT sobe embrulhado em <c>DbUpdateException</c>, e o EF ainda embrulha esse par num
+  /// <c>InvalidOperationException</c> de "transient failure" quando reconhece o erro como
+  /// transitorio — medido, e foi o que reprovou a primeira versao desta guarda.
+  /// </summary>
+  private static bool EhConflitoDeConcorrencia(Exception e)
+  {
+    for (Exception? atual = e; atual is not null; atual = atual.InnerException)
+      if (atual is SqlException sql && sql.Number is 1205 or 1222) return true;
+
+    return false;
   }
 }

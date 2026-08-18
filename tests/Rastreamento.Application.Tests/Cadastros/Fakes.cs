@@ -286,46 +286,82 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   public List<ComponenteMaterialPadrao> MateriaisPadrao { get; } = [];
   public List<ComponenteRoteiroPadrao> Roteiro { get; } = [];
 
-  /// <summary>Quantas vezes uma substituicao chegou ao "banco". Prova que NAO gravou em falha.</summary>
-  public int Substituicoes { get; private set; }
+  /// <summary>
+  /// Um contador POR TABELA, e nao um so: os tres `Substituir*Async` recebem tipos de entidade
+  /// diferentes, entao chamar o errado nao compila — mas um teste que ARRANJA o cenario gravando
+  /// num sub-recurso e depois afirma `== 1` querendo dizer "o outro gravou" e satisfeito pelo
+  /// arranjo. E o mesmo formato do achado B11 da Fase 1A: assercao que casa com o cenario inteiro
+  /// em vez de casar com o alvo.
+  /// </summary>
+  public int SubstituicoesDeFilhos { get; private set; }
+  public int SubstituicoesDeMateriais { get; private set; }
+  public int SubstituicoesDeRoteiro { get; private set; }
+
+  /// <summary>
+  /// Soma dos tres. Serve para "NAO gravou NADA" (que e o que os caminhos de recusa afirmam);
+  /// para "gravou ISTO", use o contador da tabela.
+  /// </summary>
+  public int Substituicoes => SubstituicoesDeFilhos + SubstituicoesDeMateriais + SubstituicoesDeRoteiro;
+
+  /// <summary>
+  /// O `ct` de CADA chamada, na ordem em que chegaram. Sem isto, trocar o `ct` recebido por
+  /// `CancellationToken.None` nas chamadas ao repositorio nao quebra teste nenhum — a propagacao
+  /// do token fica verificada por leitura, e leitura nao roda no CI.
+  /// </summary>
+  public List<CancellationToken> TokensRecebidos { get; } = [];
+
+  /// <summary>
+  /// Faz a proxima gravacao de materiais subir <see cref="ConflitoDeConcorrenciaException"/>, que
+  /// e o que o repositorio real lanca quando o banco derruba o perdedor de duas substituicoes
+  /// simultaneas (deadlock/lock timeout do range lock do SERIALIZABLE). Existe para provar a
+  /// traducao para <c>TipoDeErro.Conflito</c> sem depender de uma corrida de banco.
+  /// </summary>
+  public bool ConflitoNaProximaSubstituicao { get; set; }
+
+  private Task<T> Anotado<T>(CancellationToken ct, T valor)
+  {
+    TokensRecebidos.Add(ct);
+    return Task.FromResult(valor);
+  }
 
   public Task<Componente?> ObterComponenteAsync(int id, CancellationToken ct) =>
-      Task.FromResult(Componentes.SingleOrDefault(c => c.Id == id));
+      Anotado(ct, Componentes.SingleOrDefault(c => c.Id == id));
 
   public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarFilhosAsync(
       int componenteId, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<ComponenteFilhoPadrao>>(
-          Filhos.Where(f => f.ComponentePaiId == componenteId).ToList());
+      Anotado<IReadOnlyList<ComponenteFilhoPadrao>>(
+          ct, Filhos.Where(f => f.ComponentePaiId == componenteId).ToList());
 
   public Task<IReadOnlyList<ComponenteMaterialPadrao>> ListarMateriaisAsync(
       int componenteId, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<ComponenteMaterialPadrao>>(
-          MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
+      Anotado<IReadOnlyList<ComponenteMaterialPadrao>>(
+          ct, MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
 
   public Task<IReadOnlyList<ComponenteRoteiroPadrao>> ListarRoteiroAsync(
       int componenteId, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<ComponenteRoteiroPadrao>>(
-          Roteiro.Where(r => r.ComponenteId == componenteId).OrderBy(r => r.Ordem).ToList());
+      Anotado<IReadOnlyList<ComponenteRoteiroPadrao>>(
+          ct, Roteiro.Where(r => r.ComponenteId == componenteId).OrderBy(r => r.Ordem).ToList());
 
   public Task<IReadOnlyList<Componente>> ObterComponentesPorIdAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Componente>>(Componentes.Where(c => ids.Contains(c.Id)).ToList());
+      Anotado<IReadOnlyList<Componente>>(ct, Componentes.Where(c => ids.Contains(c.Id)).ToList());
 
   public Task<IReadOnlyList<Material>> ObterMateriaisPorIdAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Material>>(Materiais.Where(m => ids.Contains(m.Id)).ToList());
+      Anotado<IReadOnlyList<Material>>(ct, Materiais.Where(m => ids.Contains(m.Id)).ToList());
 
   public Task<IReadOnlyList<Setor>> ObterSetoresPorIdAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Setor>>(Setores.Where(s => ids.Contains(s.Id)).ToList());
+      Anotado<IReadOnlyList<Setor>>(ct, Setores.Where(s => ids.Contains(s.Id)).ToList());
 
   public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarTodasAsArestasAsync(CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<ComponenteFilhoPadrao>>(Filhos.ToList());
+      Anotado<IReadOnlyList<ComponenteFilhoPadrao>>(ct, Filhos.ToList());
 
   public Task SubstituirFilhosAsync(
       int componenteId, IReadOnlyList<ComponenteFilhoPadrao> novas, CancellationToken ct)
   {
-    Substituicoes++;
+    SubstituicoesDeFilhos++;
+    TokensRecebidos.Add(ct);
     Filhos.RemoveAll(f => f.ComponentePaiId == componenteId);
     foreach (var nova in novas) nova.Id = _proximoId++;
     Filhos.AddRange(novas);
@@ -335,7 +371,9 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   public Task SubstituirMateriaisAsync(
       int componenteId, IReadOnlyList<ComponenteMaterialPadrao> novas, CancellationToken ct)
   {
-    Substituicoes++;
+    SubstituicoesDeMateriais++;
+    TokensRecebidos.Add(ct);
+    if (ConflitoNaProximaSubstituicao) throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
     // Apaga por PREDICADO no parametro, como o repositorio real. E grava as linhas COMO VIERAM:
     // se o caso de uso montar uma linha com ComponenteId errado, ela fica no fake e some da
     // leitura daquele componente, em vez de ser corrigida pelo fake.
@@ -350,7 +388,8 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   public Task SubstituirRoteiroAsync(
       int componenteId, IReadOnlyList<ComponenteRoteiroPadrao> novas, CancellationToken ct)
   {
-    Substituicoes++;
+    SubstituicoesDeRoteiro++;
+    TokensRecebidos.Add(ct);
     Roteiro.RemoveAll(r => r.ComponenteId == componenteId);
     foreach (var nova in novas) nova.Id = _proximoId++;
     Roteiro.AddRange(novas);

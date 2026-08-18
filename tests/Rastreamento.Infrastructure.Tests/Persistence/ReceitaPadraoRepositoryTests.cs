@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 using Xunit;
@@ -308,11 +309,13 @@ public class ReceitaPadraoRepositoryTests : FixtureDeReceitaPadrao
           await tarefa;
           vencedores++;
         }
-        catch (Exception e) when (e is DbUpdateException or SqlException)
+        catch (Exception e)
+            when (e is DbUpdateException or SqlException or ConflitoDeConcorrenciaException)
         {
           // Perdedor derrubado pelo banco (deadlock do range lock, ou conflito no INSERT):
-          // desfecho LEGITIMO e afirmado, e o oposto da uniao silenciosa. SqlException porque o
-          // DELETE do ExecuteDelete nao passa pelo SaveChanges e sobe cru.
+          // desfecho LEGITIMO e afirmado, e o oposto da uniao silenciosa. Deadlock e lock timeout
+          // chegam ja traduzidos em ConflitoDeConcorrenciaException; os outros erros sobem crus
+          // (SqlException quando vem do DELETE do ExecuteDelete, que nao passa pelo SaveChanges).
         }
       }
 
@@ -330,6 +333,71 @@ public class ReceitaPadraoRepositoryTests : FixtureDeReceitaPadrao
     finally
     {
       await LimparAsync([pai.Id, filhoX.Id, filhoY.Id]);
+    }
+  }
+
+  /// <summary>
+  /// CONCORRENCIA, o lado da TRADUCAO. O perdedor de duas gravacoes simultaneas sobe
+  /// <see cref="ConflitoDeConcorrenciaException"/> — nao <c>SqlException</c> cru — para que a
+  /// Application devolva 409 sem referenciar o EF Core, como ja acontece no fluxo de refresh
+  /// token. Sem isto, o desfecho que o proprio desenho do SERIALIZABLE preve como legitimo saia
+  /// como 500 nao tratado.
+  ///
+  /// A corrida e DETERMINISTICA, e nao "roda duas tarefas e torce": uma conexao segura a faixa do
+  /// componente numa transacao SERIALIZABLE aberta, e a conexao do repositorio entra com
+  /// <c>SET LOCK_TIMEOUT 0</c> — o gerenciador de lock a derruba na hora com o erro 1222, irmao do
+  /// 1205 (deadlock victim) que a mesma guarda reconhece. Um teste que dependesse de um deadlock
+  /// real seria intermitente e, quando nao deadlockasse, passaria sem provar nada.
+  ///
+  /// O lado oposto — nao engolir erro que NAO e de concorrencia — e provado por
+  /// <c>Substituir_filhos_que_estoura_no_meio_deixa_as_linhas_antigas_intactas</c>, que continua
+  /// exigindo <c>DbUpdateException</c> crua para violacao de FK.
+  /// </summary>
+  [Fact]
+  public async Task Perdedor_de_gravacao_simultanea_sobe_como_conflito_de_concorrencia()
+  {
+    await using var db = NovoContexto();
+    var componente = await UmComponente(db);
+    var material = await UmMaterial(db);
+
+    try
+    {
+      // Conexao que SEGURA a faixa do componente: SERIALIZABLE + leitura da faixa vazia = range
+      // lock preso ate o rollback.
+      await using var bloqueador = new SqlConnection(Conn);
+      await bloqueador.OpenAsync();
+      await using var tx = (SqlTransaction)await bloqueador.BeginTransactionAsync(
+          System.Data.IsolationLevel.Serializable);
+      await using (var leitura = bloqueador.CreateCommand())
+      {
+        leitura.Transaction = tx;
+        leitura.CommandText =
+            "SELECT Id FROM dbo.ComponenteMaterialPadrao WHERE ComponenteId = @id";
+        leitura.Parameters.AddWithValue("@id", componente.Id);
+        await leitura.ExecuteNonQueryAsync();
+      }
+
+      await using var dbPerdedor = NovoContexto();
+      await dbPerdedor.Database.OpenConnectionAsync();
+      // Sem isto o teste ficaria pendurado no lock ate o timeout default (infinito).
+      await dbPerdedor.Database.ExecuteSqlRawAsync("SET LOCK_TIMEOUT 0");
+
+      await Assert.ThrowsAsync<ConflitoDeConcorrenciaException>(
+          () => new ReceitaPadraoRepository(dbPerdedor).SubstituirMateriaisAsync(
+              componente.Id,
+              [new ComponenteMaterialPadrao
+              {
+                ComponenteId = componente.Id,
+                MaterialId = material.Id,
+                QuantidadePadrao = 1m,
+              }],
+              CancellationToken.None));
+
+      await tx.RollbackAsync();
+    }
+    finally
+    {
+      await LimparAsync([componente.Id], materialIds: [material.Id]);
     }
   }
 

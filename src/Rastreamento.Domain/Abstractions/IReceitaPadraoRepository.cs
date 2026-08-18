@@ -52,9 +52,10 @@ public interface IReceitaPadraoRepository
   /// nao e estado alcancavel.
   ///
   /// Sob gravacao simultanea no mesmo componente o resultado e a receita de UM dos escritores,
-  /// nunca a uniao das duas; o perdedor pode receber excecao de concorrencia do banco, que o caso
-  /// de uso deve traduzir para 409 (ver o tratamento de <c>ConflitoDeConcorrenciaException</c> no
-  /// fluxo de refresh token).
+  /// nunca a uniao das duas; o perdedor e derrubado pelo banco e a implementacao sobe
+  /// <see cref="ConflitoDeConcorrenciaException"/> — o mesmo tipo do fluxo de refresh token, para
+  /// que o caso de uso a traduza para 409 sem referenciar o EF Core. Erro que NAO e de
+  /// concorrencia (violacao de FK, por exemplo) continua subindo cru.
   /// </summary>
   Task SubstituirFilhosAsync(
       int componenteId, IReadOnlyList<ComponenteFilhoPadrao> novas, CancellationToken ct);
