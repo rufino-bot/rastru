@@ -1518,11 +1518,18 @@ public sealed record ReceitaDeFilhosDto([Required] IReadOnlyList<LinhaDeFilhoPad
 Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao fake um catálogo com **quatro** componentes para montar cadeias:
 
 ```csharp
-  /// <summary>Fake com componentes 1..4 ativos, para montar cadeias de filhos.</summary>
-  private static ReceitaPadraoRepositorioFake FakeComQuatroComponentes()
+  /// <summary>
+  /// Fake com componentes 1..4 ativos, para montar cadeias de filhos.
+  ///
+  /// So 3 e 4 sao ACRESCENTADOS: `FakeComCatalogo` ja traz o 1 ("PAI") e o 2 ("OUTRO"). Acrescentar
+  /// um segundo componente de Id 2 poe duas linhas com o mesmo Id na lista e faz o `SingleOrDefault`
+  /// de `ObterComponenteAsync` estourar InvalidOperationException. (Defeito de plano achado e
+  /// corrigido na execucao da Task 5.)
+  /// </summary>
+  private static FakeReceitaPadraoRepo FakeComQuatroComponentes()
   {
     var f = FakeComCatalogo();
-    foreach (var id in new[] { 2, 3, 4 })
+    foreach (var id in new[] { 3, 4 })
       f.Componentes.Add(new Componente
       {
         Id = id, Codigo = $"C{id}", Descricao = $"Componente {id}", Tipo = "Fabricado", Ativo = true,
@@ -1541,7 +1548,7 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
     Assert.True(r.Sucesso);
     var linha = Assert.Single(r.Valor!);
     Assert.Equal(2, linha.ComponenteFilhoId);
-    Assert.Equal("C2", linha.Codigo);
+    Assert.Equal("OUTRO", linha.Codigo);
     Assert.Equal(3m, linha.QuantidadePadrao);
     // GRAVOU, e uma vez so — mesmo formato de `Substituir_materiais_grava_e_projeta_os_dados_do_material`.
     Assert.Equal(1, fake.SubstituicoesDeFilhos);
@@ -1630,9 +1637,15 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
         1, [new LinhaDeFilhoPadraoDto(2, 1m), new LinhaDeFilhoPadraoDto(3, 1m)], Ct);
 
     Assert.True(r.Sucesso);
+    // Sem o `Id` literal (nao acopla a semente do fake) — a convencao em vigor desde o fix pass da
+    // review da Task 4. Exigir `ComponenteFilhoId` exato ja mata a troca `Id` <-> `ComponenteFilhoId`;
+    // as duas linhas de `Assert.All` reforcam a mesma garantia.
+    var linhas = r.Valor!;
     Assert.Equal(
-        [(500, 2, "C2", "Componente 2", 1m), (501, 3, "C3", "Componente 3", 1m)],
-        r.Valor!.Select(l => (l.Id, l.ComponenteFilhoId, l.Codigo, l.Descricao, l.QuantidadePadrao)));
+        [(2, "OUTRO", "Outro", 1m), (3, "C3", "Componente 3", 2m)],
+        linhas.Select(l => (l.ComponenteFilhoId, l.Codigo, l.Descricao, l.QuantidadePadrao)));
+    Assert.All(linhas, l => Assert.True(l.Id >= 500));
+    Assert.All(linhas, l => Assert.NotEqual(l.ComponenteFilhoId, l.Id));
     Assert.Equal(1, fake.SubstituicoesDeFilhos);
   }
 
@@ -1917,7 +1930,7 @@ Acrescente em `ReceitaPadraoUseCase`, antes da seção "comum". As duas constant
 dotnet test tests/Rastreamento.Application.Tests
 ```
 
-Esperado: **161 + 12 = 173 aprovados**, 0 falhas. (Baseline corrigida: a Task 4 fechou em 160 MEDIDOS, nao 156, e o fix pass da review da Task 4 somou mais +1 — 161. O +12, e nao +11, inclui `Conflito_de_concorrencia_na_gravacao_dos_filhos_vira_erro_de_conflito` — ver P1 do fix pass da review da Task 4, `.superpowers/sdd/task-4-fix-report.md`.)
+**MEDIDO: 161 + 25 = 186 aprovados**, 0 falhas. (O plano previa +12; o executor acrescentou 13 casos que o Step 2 nao pedia — o `[Theory]` de quantidade dos filhos (a coluna e o mesmo DECIMAL(18,4), e o Step 4 do plano nao previa a guarda de escala), o `[Theory]` de precedencia cruzada, os dois 404 de filhos, o teste de vazamento entre componentes, a estreiteza do `catch` e a sobrevivencia da linha a inativacao do filho. Cada um mata pelo menos uma mutacao que nenhum teste do plano mata — tabela em `.superpowers/sdd/task-5-report.md`.)
 
 - [ ] **Step 6: As CINCO mutações desta task**
 
@@ -1929,7 +1942,7 @@ Esperado: **161 + 12 = 173 aprovados**, 0 falhas. (Baseline corrigida: a Task 4 
 
 **Mutação D (lista vazia deixa de apagar):** acrescente, no topo de `SubstituirFilhos`, um atalho `if (linhas.Count == 0) return Result<IReadOnlyList<FilhoPadraoDto>>.Ok(await ProjetarFilhos(componenteId, ct));` — ou seja, lista vazia vira no-op em vez de apagar. Esperado: `Filhos_com_lista_vazia_apaga` **FALHA**. É a mutação 3 da lista da spec §4.3, e ela merece passe próprio porque "não fazer nada" é o modo de falha mais fácil de introduzir sem perceber. Reverta.
 
-**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 173.
+**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 186.
 
 - [ ] **Step 7: Build e commit**
 
@@ -1942,9 +1955,9 @@ git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Te
 git commit -m "feat(fase1c): caso de uso da receita padrao — filhos, com deteccao de ciclo"
 ```
 
-**Delta previsto: Application 161 → 173 (+12).** (Baseline corrigida pela medicao da Task 4 e pelo fix
-pass da review dela (160 → 161); +12 em vez de +11 inclui o teste de conflito de concorrência dos
-filhos — P1 do fix pass da review da Task 4.)
+**Delta MEDIDO: Application 161 → 186 (+25).** (O plano previa +12. Os +13 a mais sao cobertura ganha,
+cada um justificado por mutacao em `.superpowers/sdd/task-5-report.md`; a guarda de escala de
+`SubstituirFilhos` e codigo novo que o Step 4 do plano nao tinha.)
 
 ---
 
@@ -2317,13 +2330,13 @@ Em `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs`, no `TabelaA
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **Application 173**, **Infrastructure 58**, **Api 171 + 10 = 181**. Total **412**.
+Esperado: **Application 186**, **Infrastructure 58**, **Api 171 + 10 = 181**. Total **425**.
 
 - [ ] **Step 8: Prove por mutação que a guarda protege as rotas novas**
 
 Troque `PerfisDeEscrita` do `ReceitaPadraoController` para `"Administrador,PCP,Qualidade"`. Esperado: `PerfisDeEscritaDeclaradosTests` **FALHA** dizendo que o roteamento exige `[Administrador, PCP, Qualidade]` contra a tabela `[Administrador, PCP]`. Reverta.
 
-Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 412.
+Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 425.
 
 - [ ] **Step 9: Build e commit**
 
@@ -2336,13 +2349,14 @@ git add src/Rastreamento.Api tests/Rastreamento.Api.Tests
 git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guarda de perfis"
 ```
 
-**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 412** (era 385 no plano original; a
+**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 425** (era 385 no plano original; a
 Task 2 fechou em Infrastructure 57 em vez de 48, a Task 3 em Application 142 em vez de 139, e o fix
 pass da review da Task 3 levou Application a 150 e Infrastructure a 58, e a Task 4 a 160 em vez de
 156 — ver o bloco MEDIDO em cada uma. O fix pass da review da Task 4 somou mais duas vezes: +0 em
 código (I1/I2/I3) e +1 em teste novo (N1, catch estreito) — Application 160 → 161 — e +1 na previsão
 da Task 5 (P1, conflito de concorrência dos filhos) — 172 → 173, não 171. Ver
-`.superpowers/sdd/task-4-fix-report.md`).
+`.superpowers/sdd/task-4-fix-report.md`. E a Task 5 fechou MEDIDA em 186, e não 173: +13 acima do
+previsto, cobertura ganha — ver `.superpowers/sdd/task-5-report.md`).
 
 ---
 
@@ -2413,7 +2427,7 @@ Repita o Step 3. Os números têm de ser **idênticos**. Se cresceram, o arquivo
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **412**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
+Esperado: **425**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
 
 - [ ] **Step 6: Commit**
 
@@ -3452,7 +3466,7 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 3-fix | Application + Infrastructure | 142 → **150** e 57 → **58** (fix pass da review) | **+9** |
 | 4 | Application | 150 → **160** (medido; previsto 156) | **+10** |
 | 4-fix | Application | 160 → **161** (fix pass da review) | **+1** |
-| 5 | Application | 161 → 173 | +12 |
+| 5 | Application | 161 → **186** (medido; previsto 173) | **+25** |
 | 6 | Api | 171 → 181 | +10 |
 | 7 | — | — | 0 |
 | 8 | front | 317 → 325 | +8 |
@@ -3460,9 +3474,9 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 10 | front | ~334 → ~342 | ~+8 |
 | 11 | front | ~342 → ~350 | ~+8 |
 
-**Backend: 338 → 412** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
+**Backend: 338 → 425** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
 fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task 4 somou +1 em código
-(N1, 160 → 161) e mais +1 na previsão da Task 5 (P1, 172 → 173) — os
-deltas estão corrigidos nas linhas acima e o total já reflete isso). **Front: 317 → ~350.**
+(N1, 160 → 161) e mais +1 na previsão da Task 5 (P1, 172 → 173), e a Task 5 fechou +13 acima do
+previsto (161 → 186) — os deltas estão corrigidos nas linhas acima e o total já reflete isso). **Front: 317 → ~350.**
 
 Os números do front a partir da Task 9 são **aproximados de propósito**: a guarda `permissoesEspelhamOBackend` usa `it.each` sobre o mapa de recursos, então acrescentar um recurso muda a contagem por um caminho que este plano não consegue prever com exatidão sem rodar. **Meça na Task 9 e corrija as previsões das Tasks 10 e 11 na mesma passada** — total absoluto herdado propaga erro task a task.

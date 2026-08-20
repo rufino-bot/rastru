@@ -184,3 +184,17 @@ public sealed record LinhaDeRoteiroPadraoDto(int SetorId);
 
 /// <remarks>`[Required]` pelo mesmo motivo do `ReceitaDeMateriaisDto` — ver o remarks dele.</remarks>
 public sealed record ReceitaDeRoteiroDto([Required] IReadOnlyList<LinhaDeRoteiroPadraoDto>? Linhas);
+
+/// <summary>Uma linha de filho-padrao, como ela sai na leitura (com dados do Componente filho).</summary>
+public sealed record FilhoPadraoDto(
+    int Id, int ComponenteFilhoId, string Codigo, string Descricao, decimal QuantidadePadrao);
+
+/// <summary>Uma linha de filho-padrao, como ela ENTRA. So id + quantidade.</summary>
+/// <remarks>
+/// Sem `ComponentePaiId`: ele vem da rota (`POST /componentes/{id}/filhos-padrao`), nao do corpo —
+/// assim nao existe a possibilidade de os dois discordarem. Mesmo motivo do `NovoAgrupamentoDto`.
+/// </remarks>
+public sealed record LinhaDeFilhoPadraoDto(int ComponenteFilhoId, decimal QuantidadePadrao);
+
+/// <remarks>`[Required]` pelo mesmo motivo do `ReceitaDeMateriaisDto` — ver o remarks dele.</remarks>
+public sealed record ReceitaDeFilhosDto([Required] IReadOnlyList<LinhaDeFilhoPadraoDto>? Linhas);

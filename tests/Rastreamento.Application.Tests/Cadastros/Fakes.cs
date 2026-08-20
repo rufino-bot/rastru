@@ -317,11 +317,10 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   /// lock do SERIALIZABLE). Existe para provar a traducao para <c>TipoDeErro.Conflito</c> sem
   /// depender de uma corrida de banco.
   ///
-  /// Vale para roteiro tambem porque a transacao SERIALIZABLE e do repositorio, nao da tabela:
-  /// quem grava roteiro e derrubado pelo mesmo motivo que quem grava material. Enquanto so
-  /// materiais lancava, um `catch` faltando no roteiro era invisivel — o teste nao tinha como
-  /// chegar la. `SubstituirFilhosAsync` ainda NAO honra esta flag: quem a acrescenta la e a
-  /// Task 5, junto com o teste que a exercita.
+  /// Vale para os TRES sub-recursos porque a transacao SERIALIZABLE e do repositorio, nao da
+  /// tabela: quem grava roteiro ou filhos e derrubado pelo mesmo motivo que quem grava material.
+  /// Enquanto so materiais lancava, um `catch` faltando no roteiro era invisivel — o teste nao
+  /// tinha como chegar la; o mesmo valia para filhos ate a Task 5.
   /// </summary>
   public bool ConflitoNaProximaSubstituicao { get; set; }
 
@@ -334,6 +333,15 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   /// </summary>
   public bool ConflitoNaProximaListagemDeRoteiro { get; set; }
 
+  /// <summary>
+  /// O gemeo da flag acima para filhos, e por um motivo mais forte: em <c>SubstituirFilhos</c> o
+  /// <c>try</c> convive com a leitura do grafo e a deteccao de ciclo, entao um <c>catch</c> largo
+  /// transformaria <c>KeyNotFoundException</c>, <c>NullReference</c> e erro de montagem do grafo em
+  /// 409 "tente de novo" — a pior resposta possivel, porque o usuario reenvia e falha de novo sem
+  /// sintoma util. Pinado por <c>Falha_na_releitura_apos_gravar_os_filhos_nao_vira_conflito</c>.
+  /// </summary>
+  public bool ConflitoNaProximaListagemDeFilhos { get; set; }
+
   private Task<T> Anotado<T>(CancellationToken ct, T valor)
   {
     TokensRecebidos.Add(ct);
@@ -344,9 +352,13 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
       Anotado(ct, Componentes.SingleOrDefault(c => c.Id == id));
 
   public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarFilhosAsync(
-      int componenteId, CancellationToken ct) =>
-      Anotado<IReadOnlyList<ComponenteFilhoPadrao>>(
-          ct, Filhos.Where(f => f.ComponentePaiId == componenteId).ToList());
+      int componenteId, CancellationToken ct)
+  {
+    if (ConflitoNaProximaListagemDeFilhos)
+      throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    return Anotado<IReadOnlyList<ComponenteFilhoPadrao>>(
+        ct, Filhos.Where(f => f.ComponentePaiId == componenteId).ToList());
+  }
 
   public Task<IReadOnlyList<ComponenteMaterialPadrao>> ListarMateriaisAsync(
       int componenteId, CancellationToken ct) =>
@@ -382,6 +394,7 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   {
     SubstituicoesDeFilhos++;
     TokensRecebidos.Add(ct);
+    if (ConflitoNaProximaSubstituicao) throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
     Filhos.RemoveAll(f => f.ComponentePaiId == componenteId);
     foreach (var nova in novas) nova.Id = _proximoId++;
     Filhos.AddRange(novas);
