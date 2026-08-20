@@ -325,6 +325,15 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   /// </summary>
   public bool ConflitoNaProximaSubstituicao { get; set; }
 
+  /// <summary>
+  /// Faz a proxima leitura do roteiro (dentro de <c>ProjetarRoteiro</c>, chamada DEPOIS da
+  /// gravacao) subir <see cref="ConflitoDeConcorrenciaException"/>. Existe para provar que o
+  /// <c>try</c> de <c>SubstituirRoteiro</c> e ESTREITO — envolve so a gravacao, nao a releitura —
+  /// entao essa excecao sobe CRUA e NAO vira <c>TipoDeErro.Conflito</c>. Pinado por
+  /// <c>Falha_na_releitura_apos_gravar_o_roteiro_nao_vira_conflito</c>.
+  /// </summary>
+  public bool ConflitoNaProximaListagemDeRoteiro { get; set; }
+
   private Task<T> Anotado<T>(CancellationToken ct, T valor)
   {
     TokensRecebidos.Add(ct);
@@ -345,9 +354,13 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
           ct, MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
 
   public Task<IReadOnlyList<ComponenteRoteiroPadrao>> ListarRoteiroAsync(
-      int componenteId, CancellationToken ct) =>
-      Anotado<IReadOnlyList<ComponenteRoteiroPadrao>>(
-          ct, Roteiro.Where(r => r.ComponenteId == componenteId).OrderBy(r => r.Ordem).ToList());
+      int componenteId, CancellationToken ct)
+  {
+    if (ConflitoNaProximaListagemDeRoteiro)
+      throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    return Anotado<IReadOnlyList<ComponenteRoteiroPadrao>>(
+        ct, Roteiro.Where(r => r.ComponenteId == componenteId).OrderBy(r => r.Ordem).ToList());
+  }
 
   public Task<IReadOnlyList<Componente>> ObterComponentesPorIdAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct) =>

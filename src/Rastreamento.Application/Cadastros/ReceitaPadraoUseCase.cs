@@ -178,6 +178,12 @@ public sealed class ReceitaPadraoUseCase
     // Mesma traducao de conflito dos materiais, pelo mesmo motivo: a transacao SERIALIZABLE e do
     // repositorio, entao quem grava roteiro tambem pode ser o perdedor derrubado pelo banco.
     // 409, nao 500 — `Conflito_de_concorrencia_na_gravacao_do_roteiro_vira_erro_de_conflito`.
+    //
+    // O `try` e ESTREITO de proposito: envolve SO a gravacao, nao a releitura logo abaixo que
+    // projeta a resposta. Um erro na releitura nao pode virar 409 "tente de novo" — a gravacao ja
+    // aconteceu, e dizer que a operacao falhou seria mentira. Coberto, e nao so por leitura:
+    // `Falha_na_releitura_apos_gravar_o_roteiro_nao_vira_conflito` faz a releitura estourar e
+    // afirma que a excecao sobe crua.
     try
     {
       // A Ordem sai da POSICAO no array: 1-based, densa por construcao. Nao ha como o cliente
@@ -249,7 +255,13 @@ public sealed class ReceitaPadraoUseCase
   /// guarda de duplicata — setor repetido e valido — entao um roteiro com o mesmo id invalido
   /// duas vezes chega com a lista repetida, e sem os <c>Distinct()</c> a mensagem sai no plural
   /// nomeando o mesmo id duas vezes ("Os setores 888, 888 nao existem."). Pinado por
-  /// <c>Setor_inexistente_repetido_e_nomeado_uma_vez_so</c>.
+  /// <c>Setor_inexistente_repetido_e_nomeado_uma_vez_so</c> (ramo de "nao existe") e por
+  /// <c>Setor_inativo_nao_pode_entrar_no_roteiro</c> (ramo de "esta inativo").
+  ///
+  /// Essa carga (load-bearing-idade) e do CALL SITE, nao deste helper: e porque
+  /// <c>SubstituirRoteiro</c> entrega os ids como vieram — sem <c>Distinct()</c> — que a duplicata
+  /// chega ate aqui. Se o call site passasse <c>ids.Distinct()</c>, os dois <c>Distinct()</c>
+  /// abaixo voltariam a ser equivalentes.
   /// </summary>
   private static string? ConferirExistenciaEAtividade(
       IReadOnlyList<int> idsPedidos,

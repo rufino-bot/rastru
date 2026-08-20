@@ -1,5 +1,6 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
+using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
 namespace Rastreamento.Application.Tests.Cadastros;
@@ -48,8 +49,12 @@ public class ReceitaPadraoUseCaseTests
     Assert.True(r.Sucesso);
     var linha = Assert.Single(r.Valor!);
     // O `Id` e o da LINHA da receita (identity do fake, faixa 500+), nao o do Material — sao
-    // campos diferentes do mesmo DTO e trocar um pelo outro tem de matar este teste.
-    Assert.Equal(500, linha.Id);
+    // campos diferentes do mesmo DTO e trocar um pelo outro tem de matar este teste. `>= 500` e
+    // `NotEqual` em vez do literal `500`: nao acopla o teste a exatamente QUAL id o fake emitiu
+    // (poderia mudar se `_proximoId` mudar ou um teste futuro gravar no arranjo), mas continua
+    // pegando a troca `Id` <-> `MaterialId`.
+    Assert.True(linha.Id >= 500);
+    Assert.NotEqual(linha.MaterialId, linha.Id);
     Assert.Equal(10, linha.MaterialId);
     Assert.Equal("CH-3", linha.Codigo);
     Assert.Equal("Chapa 3mm", linha.Descricao);
@@ -82,9 +87,16 @@ public class ReceitaPadraoUseCaseTests
         1, [new LinhaDeMaterialPadraoDto(10, 2.5m), new LinhaDeMaterialPadraoDto(11, 4m)], Ct);
 
     Assert.True(r.Sucesso);
+    var linhas = r.Valor!;
     Assert.Equal(
-        [(500, 10, "CH-3", "Chapa 3mm", "KG", 2.5m), (501, 11, "PA-1", "Parafuso", "UN", 4m)],
-        r.Valor!.Select(l => (l.Id, l.MaterialId, l.Codigo, l.Descricao, l.UnidadeMedida, l.QuantidadePadrao)));
+        [(10, "CH-3", "Chapa 3mm", "KG", 2.5m), (11, "PA-1", "Parafuso", "UN", 4m)],
+        linhas.Select(l => (l.MaterialId, l.Codigo, l.Descricao, l.UnidadeMedida, l.QuantidadePadrao)));
+    // `Id` fora do `Equal` acima de proposito (nao acopla a semente do fake): a exigencia de
+    // `MaterialId` exato (10, depois 11) ja mata sozinha a troca `Id` <-> `MaterialId` — o campo
+    // `MaterialId` passaria a carregar o `Id` da linha (500+), que nao bate com 10 nem 11. As duas
+    // linhas abaixo so reforcam a mesma garantia, explicitamente.
+    Assert.All(linhas, l => Assert.True(l.Id >= 500));
+    Assert.All(linhas, l => Assert.NotEqual(l.MaterialId, l.Id));
     Assert.Equal(1, fake.SubstituicoesDeMateriais);
   }
 
@@ -433,8 +445,10 @@ public class ReceitaPadraoUseCaseTests
   /// o retorno ao setor some. O `UQ` do schema e (ComponenteId, Ordem), nao (ComponenteId,
   /// SetorId), entao repetir setor nunca viola constraint nenhuma.
   ///
-  /// O setor repetido esta na PRIMEIRA e na TERCEIRA posicao: uma guarda que so olhasse linhas
-  /// adjacentes tambem tem de morrer aqui.
+  /// O setor repetido aparece ADJACENTE (posicoes 1 e 2, o mesmo Setor duas vezes seguidas) E
+  /// NAO-adjacente (posicao 4, retorno depois de passar por outro setor): uma guarda que so
+  /// recusasse duplicata adjacente tambem tem de morrer aqui, porque a primeira repeticao da
+  /// lista ja e adjacente.
   /// </summary>
   [Fact]
   public async Task Mesmo_setor_repetido_no_roteiro_e_aceito()
@@ -444,11 +458,12 @@ public class ReceitaPadraoUseCaseTests
 
     var r = await caso.SubstituirRoteiro(
         1,
-        [new LinhaDeRoteiroPadraoDto(20), new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(20)],
+        [new LinhaDeRoteiroPadraoDto(20), new LinhaDeRoteiroPadraoDto(20),
+         new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(20)],
         Ct);
 
     Assert.True(r.Sucesso);
-    Assert.Equal([(20, 1), (21, 2), (20, 3)], r.Valor!.Select(l => (l.SetorId, l.Ordem)));
+    Assert.Equal([(20, 1), (20, 2), (21, 3), (20, 4)], r.Valor!.Select(l => (l.SetorId, l.Ordem)));
     Assert.Equal(1, fake.SubstituicoesDeRoteiro);
   }
 
@@ -550,7 +565,8 @@ public class ReceitaPadraoUseCaseTests
     fake.Setores.Single(s => s.Id == 21).Ativo = false;
     var caso = new ReceitaPadraoUseCase(fake);
 
-    var r = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(21)], Ct);
+    var r = await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(21)], Ct);
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
@@ -581,9 +597,16 @@ public class ReceitaPadraoUseCaseTests
     var r = await caso.ListarRoteiro(1, Ct);
 
     Assert.True(r.Sucesso);
+    var linhas = r.Valor!;
     Assert.Equal(
-        [(500, 21, "Solda", 1), (501, 20, "Corte", 2)],
-        r.Valor!.Select(l => (l.Id, l.SetorId, l.Nome, l.Ordem)));
+        [(21, "Solda", 1), (20, "Corte", 2)],
+        linhas.Select(l => (l.SetorId, l.Nome, l.Ordem)));
+    // `Id` fora do `Equal` acima de proposito (nao acopla a semente do fake): a exigencia de
+    // `SetorId` exato (21, depois 20) ja mata sozinha a troca `Id` <-> `SetorId` — o campo
+    // `SetorId` passaria a carregar o `Id` da linha (500+), que nao bate com 21 nem 20. As duas
+    // linhas abaixo so reforcam a mesma garantia, explicitamente.
+    Assert.All(linhas, l => Assert.True(l.Id >= 500));
+    Assert.All(linhas, l => Assert.NotEqual(l.SetorId, l.Id));
   }
 
   /// <summary>
@@ -601,7 +624,7 @@ public class ReceitaPadraoUseCaseTests
     var caso = new ReceitaPadraoUseCase(fake);
 
     var leitura = await caso.ListarRoteiro(999, Ct);
-    var escrita = await caso.SubstituirRoteiro(999, [new LinhaDeRoteiroPadraoDto(20)], Ct);
+    var escrita = await caso.SubstituirRoteiro(999, [new LinhaDeRoteiroPadraoDto(888)], Ct);
 
     Assert.False(leitura.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, leitura.TipoDoErro);
@@ -631,5 +654,28 @@ public class ReceitaPadraoUseCaseTests
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
     Assert.Equal(
         "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.", r.Erro);
+  }
+
+  /// <summary>
+  /// O `try` de `SubstituirRoteiro` e ESTREITO de proposito: envolve so a gravacao, nao a
+  /// releitura que monta a resposta. Um `ConflitoDeConcorrenciaException` que suba da releitura
+  /// NAO pode virar 409 "tente de novo" — a gravacao ja aconteceu, e dizer ao cliente que a
+  /// operacao falhou seria mentira. Este teste faz a releitura estourar e afirma que a excecao
+  /// sobe CRUA, sem virar `Result` nenhum. Relevante para a Task 5: la o `try` vai conviver com a
+  /// leitura do grafo e a deteccao de ciclo, e um `catch` largo la transformaria bug real em 409
+  /// falso.
+  /// </summary>
+  [Fact]
+  public async Task Falha_na_releitura_apos_gravar_o_roteiro_nao_vira_conflito()
+  {
+    var fake = FakeComCatalogo();
+    fake.ConflitoNaProximaListagemDeRoteiro = true;
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    await Assert.ThrowsAsync<ConflitoDeConcorrenciaException>(
+        () => caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(20)], Ct));
+
+    // A gravacao ACONTECEU antes da excecao: prova que o `try` estreito nao a impediu de rodar.
+    Assert.Equal(1, fake.SubstituicoesDeRoteiro);
   }
 }

@@ -1321,7 +1321,9 @@ Acrescente ao fim do `describe` de `ReceitaPadraoUseCaseTests` (dentro da classe
     var r = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(888)], Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Contains("888", r.Erro);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    // Mensagem INTEIRA, nao substring: "888" casaria com "8888" e "18880".
+    Assert.Equal("O setor 888 nao existe.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -1336,23 +1338,29 @@ Acrescente ao fim do `describe` de `ReceitaPadraoUseCaseTests` (dentro da classe
     fake.Setores.Single(s => s.Id == 21).Ativo = false;
     var caso = new ReceitaPadraoUseCase(fake);
 
-    var r = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(21)], Ct);
+    var r = await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(21)], Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Contains("21", r.Erro);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal("O setor 21 esta inativo e nao pode entrar na receita.", r.Erro);
+    Assert.Equal(0, fake.Substituicoes);
   }
 
   [Fact]
-  public async Task Listar_roteiro_projeta_o_nome_do_setor()
+  public async Task Listar_roteiro_projeta_a_sequencia_inteira_com_o_nome_do_setor()
   {
     var fake = FakeComCatalogo();
     var caso = new ReceitaPadraoUseCase(fake);
-    await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(20)], Ct);
+    await caso.SubstituirRoteiro(
+        1, [new LinhaDeRoteiroPadraoDto(21), new LinhaDeRoteiroPadraoDto(20)], Ct);
 
     var r = await caso.ListarRoteiro(1, Ct);
 
     Assert.True(r.Sucesso);
-    Assert.Equal("Corte", Assert.Single(r.Valor!).Nome);
+    Assert.Equal(
+        [(500, 21, "Solda", 1), (501, 20, "Corte", 2)],
+        r.Valor!.Select(l => (l.Id, l.SetorId, l.Nome, l.Ordem)));
   }
 ```
 
@@ -1457,6 +1465,14 @@ git commit -m "feat(fase1c): caso de uso da receita padrao — roteiro, com orde
 
 **Delta MEDIDO: Application 150 → 160 (+10).** A previsao era +6; os 4 testes a mais sao o 409 do roteiro (que o Step 4 do plano nao pedia), o vazamento entre componentes, o 404 nos dois metodos e o id inexistente repetido — ver `.superpowers/sdd/task-4-report.md`.
 
+**Fix pass da review da Task 4 (I1, I2, I3, N1, N2, N4, N5 — mais P1/P2/P3 no plano da Task 5, abaixo):
+Application 160 → 161 (+1).** I1, I2 e I3 sao edicoes de token em testes ja existentes (+0). O +1 e
+`Falha_na_releitura_apos_gravar_o_roteiro_nao_vira_conflito` (N1): prova que o `try` de
+`SubstituirRoteiro` e ESTREITO — envolve so a gravacao, nao a releitura — fazendo o fake lancar de
+`ListarRoteiroAsync` e afirmando que a excecao sobe crua, sem virar `TipoDeErro.Conflito`. Ver
+`.superpowers/sdd/task-4-fix-report.md`. **As previsoes das Tasks 5, 6 e 7 abaixo ja estao corrigidas
+para esta base (161).**
+
 ---
 
 ## Task 5: Caso de uso — filhos-padrão e a detecção de ciclo
@@ -1517,7 +1533,8 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
   [Fact]
   public async Task Substituir_filhos_grava_e_projeta_os_dados_do_componente_filho()
   {
-    var caso = new ReceitaPadraoUseCase(FakeComQuatroComponentes());
+    var fake = FakeComQuatroComponentes();
+    var caso = new ReceitaPadraoUseCase(fake);
 
     var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 3m)], Ct);
 
@@ -1526,6 +1543,8 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
     Assert.Equal(2, linha.ComponenteFilhoId);
     Assert.Equal("C2", linha.Codigo);
     Assert.Equal(3m, linha.QuantidadePadrao);
+    // GRAVOU, e uma vez so — mesmo formato de `Substituir_materiais_grava_e_projeta_os_dados_do_material`.
+    Assert.Equal(1, fake.SubstituicoesDeFilhos);
   }
 
   [Fact]
@@ -1587,6 +1606,11 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
   /// <summary>
   /// Diamante: 1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4. O componente 4 e alcancavel por DOIS caminhos, e
   /// isso NAO e ciclo. Se a busca confundir "ja visitei" com "e ciclo", este teste pega.
+  ///
+  /// A projecao inteira e afirmada como tupla EM ORDEM, e nao so a contagem (mesmo formato de
+  /// `Substituir_materiais_com_duas_linhas_projeta_as_duas_em_ordem`): `Assert.Equal(2,
+  /// r.Valor!.Count)` nao discrimina `Take(1)` na montagem, projecao invertida nem
+  /// `componentes.Values.First()` ligando toda linha ao mesmo componente filho.
   /// </summary>
   [Fact]
   public async Task Grafo_em_diamante_nao_e_ciclo()
@@ -1606,7 +1630,10 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
         1, [new LinhaDeFilhoPadraoDto(2, 1m), new LinhaDeFilhoPadraoDto(3, 1m)], Ct);
 
     Assert.True(r.Sucesso);
-    Assert.Equal(2, r.Valor!.Count);
+    Assert.Equal(
+        [(500, 2, "C2", "Componente 2", 1m), (501, 3, "C3", "Componente 3", 1m)],
+        r.Valor!.Select(l => (l.Id, l.ComponenteFilhoId, l.Codigo, l.Descricao, l.QuantidadePadrao)));
+    Assert.Equal(1, fake.SubstituicoesDeFilhos);
   }
 
   /// <summary>
@@ -1633,6 +1660,7 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
 
     Assert.True(r.Sucesso);
     Assert.Equal(3, Assert.Single(r.Valor!).ComponenteFilhoId);
+    Assert.Equal(1, fake.SubstituicoesDeFilhos);
   }
 
   /// <summary>
@@ -1657,6 +1685,7 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
     var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
 
     Assert.True(r.Sucesso);
+    Assert.Equal(1, fake.SubstituicoesDeFilhos);
   }
 
   [Fact]
@@ -1699,6 +1728,8 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
 
     Assert.True(r.Sucesso);
     Assert.Empty(r.Valor!);
+    // Duas gravacoes, nao tres: a do arranjo e a que apaga.
+    Assert.Equal(2, fake.SubstituicoesDeFilhos);
   }
 
   /// <summary>
@@ -1719,6 +1750,30 @@ Acrescente à classe `ReceitaPadraoUseCaseTests`. Note o helper novo, que dá ao
 
     Assert.True(r.Sucesso);
     Assert.Single(r.Valor!);
+    Assert.Equal(1, fake.SubstituicoesDeFilhos);
+  }
+
+  /// <summary>
+  /// Mesma traducao do 409 dos materiais e do roteiro, agora em filhos. Exige uma mudanca em
+  /// `Fakes.cs`: `SubstituirFilhosAsync` ainda NAO honra `ConflitoNaProximaSubstituicao` — os
+  /// outros dois `Substituir*Async` ja tem `if (ConflitoNaProximaSubstituicao) throw new
+  /// ConflitoDeConcorrenciaException(new Exception("simulado"));` logo no INICIO do metodo (depois
+  /// de incrementar o contador e anotar o `ct`); acrescente a mesma linha, no mesmo lugar, em
+  /// `SubstituirFilhosAsync`.
+  /// </summary>
+  [Fact]
+  public async Task Conflito_de_concorrencia_na_gravacao_dos_filhos_vira_erro_de_conflito()
+  {
+    var fake = FakeComQuatroComponentes();
+    fake.ConflitoNaProximaSubstituicao = true;
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Equal(
+        "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.", r.Erro);
   }
 ```
 
@@ -1784,13 +1839,24 @@ Acrescente em `ReceitaPadraoUseCase`, antes da seção "comum". As duas constant
     if (await FechariaCiclo(componenteId, ids, ct))
       return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(ErroDeCiclo);
 
-    await _repositorio.SubstituirFilhosAsync(componenteId, linhas.Select(l =>
-        new ComponenteFilhoPadrao
-        {
-          ComponentePaiId = componenteId,
-          ComponenteFilhoId = l.ComponenteFilhoId,
-          QuantidadePadrao = l.QuantidadePadrao,
-        }).ToList(), ct);
+    // Mesma traducao de conflito dos materiais e do roteiro: a transacao SERIALIZABLE e do
+    // repositorio, entao quem grava filhos tambem pode ser o perdedor derrubado pelo banco.
+    // 409, nao 500 — Conflito_de_concorrencia_na_gravacao_dos_filhos_vira_erro_de_conflito.
+    try
+    {
+      await _repositorio.SubstituirFilhosAsync(componenteId, linhas.Select(l =>
+          new ComponenteFilhoPadrao
+          {
+            ComponentePaiId = componenteId,
+            ComponenteFilhoId = l.ComponenteFilhoId,
+            QuantidadePadrao = l.QuantidadePadrao,
+          }).ToList(), ct);
+    }
+    catch (ConflitoDeConcorrenciaException)
+    {
+      return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(
+          ErroDeConflitoDeGravacao, TipoDeErro.Conflito);
+    }
 
     return Result<IReadOnlyList<FilhoPadraoDto>>.Ok(await ProjetarFilhos(componenteId, ct));
   }
@@ -1851,7 +1917,7 @@ Acrescente em `ReceitaPadraoUseCase`, antes da seção "comum". As duas constant
 dotnet test tests/Rastreamento.Application.Tests
 ```
 
-Esperado: **160 + 11 = 171 aprovados**, 0 falhas. (Baseline corrigida: a Task 4 fechou em 160 MEDIDOS, nao 156.)
+Esperado: **161 + 12 = 173 aprovados**, 0 falhas. (Baseline corrigida: a Task 4 fechou em 160 MEDIDOS, nao 156, e o fix pass da review da Task 4 somou mais +1 — 161. O +12, e nao +11, inclui `Conflito_de_concorrencia_na_gravacao_dos_filhos_vira_erro_de_conflito` — ver P1 do fix pass da review da Task 4, `.superpowers/sdd/task-4-fix-report.md`.)
 
 - [ ] **Step 6: As CINCO mutações desta task**
 
@@ -1863,7 +1929,7 @@ Esperado: **160 + 11 = 171 aprovados**, 0 falhas. (Baseline corrigida: a Task 4 
 
 **Mutação D (lista vazia deixa de apagar):** acrescente, no topo de `SubstituirFilhos`, um atalho `if (linhas.Count == 0) return Result<IReadOnlyList<FilhoPadraoDto>>.Ok(await ProjetarFilhos(componenteId, ct));` — ou seja, lista vazia vira no-op em vez de apagar. Esperado: `Filhos_com_lista_vazia_apaga` **FALHA**. É a mutação 3 da lista da spec §4.3, e ela merece passe próprio porque "não fazer nada" é o modo de falha mais fácil de introduzir sem perceber. Reverta.
 
-**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 171.
+**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 173.
 
 - [ ] **Step 7: Build e commit**
 
@@ -1876,7 +1942,9 @@ git add src/Rastreamento.Application/Cadastros tests/Rastreamento.Application.Te
 git commit -m "feat(fase1c): caso de uso da receita padrao — filhos, com deteccao de ciclo"
 ```
 
-**Delta previsto: Application 160 → 171 (+11).** (Baseline corrigida pela medicao da Task 4.)
+**Delta previsto: Application 161 → 173 (+12).** (Baseline corrigida pela medicao da Task 4 e pelo fix
+pass da review dela (160 → 161); +12 em vez de +11 inclui o teste de conflito de concorrência dos
+filhos — P1 do fix pass da review da Task 4.)
 
 ---
 
@@ -2249,13 +2317,13 @@ Em `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs`, no `TabelaA
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **Application 171**, **Infrastructure 58**, **Api 171 + 10 = 181**. Total **410**.
+Esperado: **Application 173**, **Infrastructure 58**, **Api 171 + 10 = 181**. Total **412**.
 
 - [ ] **Step 8: Prove por mutação que a guarda protege as rotas novas**
 
 Troque `PerfisDeEscrita` do `ReceitaPadraoController` para `"Administrador,PCP,Qualidade"`. Esperado: `PerfisDeEscritaDeclaradosTests` **FALHA** dizendo que o roteamento exige `[Administrador, PCP, Qualidade]` contra a tabela `[Administrador, PCP]`. Reverta.
 
-Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 410.
+Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 412.
 
 - [ ] **Step 9: Build e commit**
 
@@ -2268,10 +2336,13 @@ git add src/Rastreamento.Api tests/Rastreamento.Api.Tests
 git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guarda de perfis"
 ```
 
-**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 410** (era 385 no plano original; a
+**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 412** (era 385 no plano original; a
 Task 2 fechou em Infrastructure 57 em vez de 48, a Task 3 em Application 142 em vez de 139, e o fix
 pass da review da Task 3 levou Application a 150 e Infrastructure a 58, e a Task 4 a 160 em vez de
-156 — ver o bloco MEDIDO em cada uma).
+156 — ver o bloco MEDIDO em cada uma. O fix pass da review da Task 4 somou mais duas vezes: +0 em
+código (I1/I2/I3) e +1 em teste novo (N1, catch estreito) — Application 160 → 161 — e +1 na previsão
+da Task 5 (P1, conflito de concorrência dos filhos) — 172 → 173, não 171. Ver
+`.superpowers/sdd/task-4-fix-report.md`).
 
 ---
 
@@ -2342,7 +2413,7 @@ Repita o Step 3. Os números têm de ser **idênticos**. Se cresceram, o arquivo
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **410**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
+Esperado: **412**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
 
 - [ ] **Step 6: Commit**
 
@@ -3380,7 +3451,8 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 3 | Application | 129 → **142** (medido; previsto 139) | **+13** |
 | 3-fix | Application + Infrastructure | 142 → **150** e 57 → **58** (fix pass da review) | **+9** |
 | 4 | Application | 150 → **160** (medido; previsto 156) | **+10** |
-| 5 | Application | 160 → 171 | +11 |
+| 4-fix | Application | 160 → **161** (fix pass da review) | **+1** |
+| 5 | Application | 161 → 173 | +12 |
 | 6 | Api | 171 → 181 | +10 |
 | 7 | — | — | 0 |
 | 8 | front | 317 → 325 | +8 |
@@ -3388,8 +3460,9 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 10 | front | ~334 → ~342 | ~+8 |
 | 11 | front | ~342 → ~350 | ~+8 |
 
-**Backend: 338 → 410** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
-fix pass da review da Task 3 somou +9 e a Task 4 +4 — os
+**Backend: 338 → 412** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
+fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task 4 somou +1 em código
+(N1, 160 → 161) e mais +1 na previsão da Task 5 (P1, 172 → 173) — os
 deltas estão corrigidos nas linhas acima e o total já reflete isso). **Front: 317 → ~350.**
 
 Os números do front a partir da Task 9 são **aproximados de propósito**: a guarda `permissoesEspelhamOBackend` usa `it.each` sobre o mapa de recursos, então acrescentar um recurso muda a contagem por um caminho que este plano não consegue prever com exatidão sem rodar. **Meça na Task 9 e corrija as previsões das Tasks 10 e 11 na mesma passada** — total absoluto herdado propaga erro task a task.
