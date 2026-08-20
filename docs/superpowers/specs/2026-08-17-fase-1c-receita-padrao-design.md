@@ -78,6 +78,37 @@ Por que agora e não na Fase 2: esta é a única hora em que dá para barrar na 
 herdaria um grafo já sujo e teria de tratar dado inválido que não criou — e o usuário só descobriria
 o ciclo ao tentar montar a árvore.
 
+**A regra é ESTRITA, e a mensagem NOMEIA o ciclo** (decidido na review da Task 5, 2026-08-20). A
+pergunta não é *"este componente volta a si mesmo?"* e sim *"o grafo resultante tem ciclo alcançável
+a partir dele?"*. As duas coincidem enquanto o grafo de partida for acíclico — e a API preserva
+aciclicidade por indução —, mas divergem quando entra sujeira de fora (`SQL` na mão) ou pela corrida
+descrita abaixo: sob a regra leniente, ligar um componente limpo a um ramo já sujo era **aceito**, e
+a cópia recursiva da Fase 2 partindo dele giraria para sempre.
+
+O preço da regra estrita é o usuário poder ser barrado por um ciclo que não criou. Foi por isso que
+a decisão veio junto com a exigência da mensagem: *"vale mais especificar onde fica o ciclo pra
+corrigir mais fácil"*. As duas mensagens de recusa nomeiam o caminho pelo **`Codigo`** dos
+componentes (`C3 -> C4 -> C3`), e são duas porque o ciclo pode não passar pelo componente editado —
+dizer "o componente apareceria dentro da própria estrutura" nesse caso mandaria o usuário procurar o
+erro na receita errada. **O conserto sempre existe pela API:** editar a receita de qualquer
+componente **de dentro** do ciclo é aceito, porque a travessia parte do componente editado sobre o
+grafo pós-substituição, em que as arestas antigas dele já saíram.
+
+**TOCTOU nomeado e não fechado — a barreira é defesa em profundidade, não garantia.** A leitura do
+grafo (`ListarTodasAsArestasAsync`) é solta: `AsNoTracking`, sem transação, e acontece **antes** e
+**fora** da transação `SERIALIZABLE` que o repositório abre só em volta do apaga-e-grava. Dois
+`POST` simultâneos em componentes **diferentes** — um gravando `A → B`, outro `B → A` — leem o grafo
+antes de qualquer escrita, passam os dois na validação e escrevem em faixas de chave diferentes, sem
+que lock nenhum os coloque em conflito. O ciclo fica gravado, e o `CK` do banco só pega `A → A`.
+Isso é diferente do custo aceito de §1.2 (aquele é "o último a salvar apaga o trabalho do primeiro",
+sobre o **mesmo** componente, e produz dado **perdido**; este produz dado **inválido**). Não é
+fechável nesta fase: a validação vive na Application e a transação no repositório, e fechar de
+verdade exigiria a leitura do grafo dentro da mesma transação da escrita.
+
+**Consequência que a Fase 2 tem de assumir:** a cópia recursiva precisa de guarda de profundidade
+própria de qualquer jeito. Isso vale mesmo com a regra estrita — foi parte do que se pesou ao
+decidir.
+
 ### 1.4 O `Tipo` do Componente **não** restringe a receita
 
 `Componente.Tipo` (`Bruto | Fabricado | Montagem`) continua sendo rótulo descritivo. Qualquer
@@ -180,11 +211,27 @@ Três pontos do contrato que não são óbvios e por isso viram teste:
 | `400` | Duplicata dentro da lista enviada (mesmo filho duas vezes; mesmo material duas vezes) |
 | `400` | Auto-referência (`componenteFilhoId` == componente pai da rota) |
 | `400` | Item inativo entrando na receita (ver abaixo) |
-| `400` | Ciclo em qualquer profundidade |
+| `400` | Ciclo em qualquer profundidade — **nomeando o caminho** (§1.3) |
+| `409` | Gravação concorrente derrubada pelo banco (`TipoDeErro.Conflito`) |
 
-**Por que ciclo é `400` e não `409`.** O `409` do projeto já significa *"já existe cadastro com
-esse código"*, e o front tem um `ehConflito` que depende disso. Dar dois significados ao mesmo
-status estragaria essa leitura.
+**Por que ciclo é `400` e não `409`.** Ciclo é validação de entrada: o corpo enviado está errado e
+reenviá-lo igual falha de novo. `409` significaria "o estado atual conflita, tente de novo", que é
+justamente o oposto.
+
+**Por que gravação concorrente é `409`** (decidido na review da Task 5; corrige o argumento que
+estava aqui). As três `Substituir*` traduzem `ConflitoDeConcorrenciaException` — o perdedor
+legítimo do `SERIALIZABLE` — para `TipoDeErro.Conflito`, com três testes de Application só para
+isso, e **todo** outro controller do projeto mapeia `Conflito` para `Conflict(...)`. Mandar isso
+como `400` diria "sua entrada está errada" para um desfecho retentável.
+
+O argumento antigo — *"o `409` já significa código duplicado e o front tem um `ehConflito` que
+depende disso"* — estava errado sobre o front, e a medição está refeita: `web/src/api/cadastros.ts`
+discrimina pelo **corpo** (`ehConflito` testa `erro === 'ValorDuplicado'`), não pelo status. Custo
+no front hoje: **zero** — não existe cliente de receita padrão em `web/src/` ainda. O que a Task 9
+tem de respeitar: o helper `lerOuFalhar` transforma qualquer `409` de corpo diferente de
+`ValorDuplicado` em `ErroDeApi("formato de conflito inesperado")`, então as funções de receita
+**não** passam por ele — tratam o `409` com mensagem própria, como `definirAtivoSetor` já faz para
+o `409` "pelado".
 
 **Auto-referência e duplicata são validadas na aplicação mesmo tendo constraint no banco.** O
 `CK` e o `UQ` continuam sendo a rede de segurança; o que a aplicação acrescenta é a **mensagem
@@ -318,6 +365,12 @@ Nomeadas já aqui, e o ponto é que **a review seja instruída a burlar a guarda
 6. validar o ciclo contra o grafo **atual** em vez do **resultante** (§1.3) → alguém morre? Esta é
    a mutação mais traiçoeira das seis: ela deixa verdes todos os testes de ciclo *proibido* e só
    quebra o caso em que o usuário está **consertando** um ciclo
+7. (acrescentada depois da review da Task 5, junto com a regra estrita) voltar a regra para
+   **leniente** — recusar só o ciclo que passa pelo próprio componente → **dois** testes têm de
+   morrer, o de ligar-se a um ciclo preexistente e o do caminho de conserto. E tirar o conjunto
+   **cinza** da travessia não deixa a suíte verde nem vermelha em tempo útil: ela morre de memória
+   em ~30 s. Tirar o **preto** não muda resposta nenhuma e **pendura** — as duas medições estão em
+   `.superpowers/sdd/task-5-fix-report.md`
 
 Isso vem de uma lição que já custou duas rodadas neste projeto, registrada na sessão de
 2026-08-17: **mutação de prova escolhida por quem desenhou a guarda tende a confirmar o desenho

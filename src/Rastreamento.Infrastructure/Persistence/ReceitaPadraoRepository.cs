@@ -50,6 +50,20 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
       IReadOnlyCollection<int> ids, CancellationToken ct) =>
       await _db.Setores.AsNoTracking().Where(s => ids.Contains(s.Id)).ToListAsync(ct);
 
+  /// <summary>
+  /// Tabela INTEIRA, sem `WHERE`, e de proposito — o motivo esta no XML doc da interface
+  /// (`IReceitaPadraoRepository`): `ComponenteFilhoPadrao` e catalogo, cresce com o numero de
+  /// pecas cadastradas e nao com a producao.
+  ///
+  /// Leitura SOLTA: `AsNoTracking`, sem transacao, e ela roda ANTES e FORA da transacao
+  /// SERIALIZABLE que `Substituir` abre so em volta do apaga-e-grava. Isso e um TOCTOU conhecido e
+  /// nao fechado: dois POSTs simultaneos em componentes diferentes (um gravando A -> B, outro
+  /// B -> A) leem este grafo antes de qualquer escrita, passam os dois na deteccao de ciclo da
+  /// Application e gravam em faixas de chave diferentes, sem se derrubar. Nao "conserte" isso
+  /// levantando o isolamento aqui: a validacao vive na Application, e fechar de verdade exigiria a
+  /// leitura acontecer dentro da mesma transacao da escrita. Ver o XML doc de
+  /// `ReceitaPadraoUseCase.ProblemaDeCiclo` e §1.3 da spec da Fase 1C.
+  /// </summary>
   public async Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarTodasAsArestasAsync(
       CancellationToken ct) =>
       await _db.FilhosPadrao.AsNoTracking().ToListAsync(ct);

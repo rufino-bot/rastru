@@ -334,6 +334,15 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   public bool ConflitoNaProximaListagemDeRoteiro { get; set; }
 
   /// <summary>
+  /// O terceiro gemeo, para materiais — o ultimo dos tres a existir. Enquanto ele faltava, alargar
+  /// o <c>try</c> de <c>SubstituirMateriais</c> ate englobar a releitura, com
+  /// <c>catch (Exception)</c>, sobrevivia a suite inteira: nao havia como um teste fazer a
+  /// releitura de materiais estourar. Pinado por
+  /// <c>Falha_na_releitura_apos_gravar_os_materiais_nao_vira_conflito</c>.
+  /// </summary>
+  public bool ConflitoNaProximaListagemDeMateriais { get; set; }
+
+  /// <summary>
   /// O gemeo da flag acima para filhos, e por um motivo mais forte: em <c>SubstituirFilhos</c> o
   /// <c>try</c> convive com a leitura do grafo e a deteccao de ciclo, entao um <c>catch</c> largo
   /// transformaria <c>KeyNotFoundException</c>, <c>NullReference</c> e erro de montagem do grafo em
@@ -361,9 +370,13 @@ public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
   }
 
   public Task<IReadOnlyList<ComponenteMaterialPadrao>> ListarMateriaisAsync(
-      int componenteId, CancellationToken ct) =>
-      Anotado<IReadOnlyList<ComponenteMaterialPadrao>>(
-          ct, MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
+      int componenteId, CancellationToken ct)
+  {
+    if (ConflitoNaProximaListagemDeMateriais)
+      throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    return Anotado<IReadOnlyList<ComponenteMaterialPadrao>>(
+        ct, MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
+  }
 
   public Task<IReadOnlyList<ComponenteRoteiroPadrao>> ListarRoteiroAsync(
       int componenteId, CancellationToken ct)

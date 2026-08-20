@@ -40,8 +40,24 @@ public sealed class ReceitaPadraoUseCase
   /// </summary>
   private const string ErroDeAutoReferencia = "Um componente nao pode ser filho de si mesmo.";
 
-  private const string ErroDeCiclo =
-      "Esta receita criaria um ciclo: o componente apareceria dentro da propria estrutura.";
+  /// <summary>
+  /// As DUAS mensagens de ciclo, e nao uma: a regra e ESTRITA (recusa qualquer ciclo alcancavel a
+  /// partir do componente editado), entao existe um caso em que o ciclo NAO passa pelo proprio
+  /// componente — ele so se liga a sujeira que ja estava la. Dizer "o componente apareceria dentro
+  /// da propria estrutura" nesse caso seria mentira, e mentira que atrapalha: o usuario procuraria
+  /// o erro na receita errada.
+  ///
+  /// As duas NOMEIAM o caminho do ciclo pelo <c>Codigo</c> dos componentes — que e o que a tela
+  /// mostra e o que o `SeletorComBusca` procura —, e nao pelo id cru. Foi isso que a decisao pela
+  /// regra estrita comprou: sem saber ONDE esta o ciclo, o usuario fica bloqueado por sujeira que
+  /// nao criou e nao tem como achar. Mesma forma das mensagens vizinhas de setor e material, que
+  /// nomeiam o que esta errado em vez de dizer so "invalido".
+  /// </summary>
+  private const string ErroDeCicloProprio = "Esta receita criaria um ciclo: {0}.";
+
+  private const string ErroDeCicloAlcancado =
+      "Esta receita ligaria este componente a um ciclo que ja existe: {0}. "
+      + "Corrija a receita desses componentes antes.";
 
   /// <summary>Maior valor que cabe em DECIMAL(18,4): 14 digitos inteiros + 4 decimais.</summary>
   private const decimal MaiorQuantidade = 99_999_999_999_999.9999m;
@@ -71,8 +87,12 @@ public sealed class ReceitaPadraoUseCase
     //
     // A ORDEM entre as guardas tambem e contrato, e nao estetica: o recurso da ROTA vem primeiro
     // (404 ganha de 400, senao a tela nao sabe se redireciona por peca inexistente ou destaca um
-    // campo), e dentro do corpo vem quantidade, depois duplicata, depois existencia/atividade.
-    // `Precedencia_das_validacoes_e_fixa` cruza as tres e morre a cada reordenacao.
+    // campo), e dentro do corpo vem quantidade, escala, duplicata e existencia/atividade — cinco
+    // niveis, QUATRO fronteiras adjacentes, todas em `Precedencia_das_validacoes_e_fixa`.
+    //
+    // Duas delas so entraram no fix pass da review da Task 5: a guarda de escala nao aparecia em
+    // caso nenhum do `[Theory]`, entao troca-la com a de `<= 0` ou com a de duplicata deixava a
+    // suite INTEIRA verde (medido nas duas direcoes). O molde dos filhos tinha a mesma lacuna.
     if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
       return Result<IReadOnlyList<MaterialPadraoDto>>.Falha(
           ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
@@ -264,9 +284,15 @@ public sealed class ReceitaPadraoUseCase
   {
     // A ORDEM das guardas e contrato, nao estetica, e aqui ela tem mais niveis que nos outros dois
     // sub-recursos: 404 do pai -> quantidade -> escala -> auto-referencia -> duplicata ->
-    // existencia/atividade -> ciclo. `Precedencia_das_validacoes_de_filhos_e_fixa` cruza cinco
-    // desses pares e morre a cada reordenacao; o sexto (atividade vs. ciclo) esta em
+    // existencia/atividade -> ciclo. Sete niveis, SEIS fronteiras adjacentes: cinco delas estao em
+    // `Precedencia_das_validacoes_de_filhos_e_fixa` e a sexta (atividade vs. ciclo) em
     // `Componente_filho_inativo_nao_pode_entrar_na_receita`.
+    //
+    // A frase que estava aqui — "cruza cinco desses pares e morre a cada reordenacao" — era falsa
+    // e a review da Task 5 mediu: trocar esta guarda de `<= 0` com a de escala logo abaixo deixava
+    // a suite INTEIRA verde. Faltava o par quantidade x escala, que so uma entrada invalida pelos
+    // DOIS motivos distingue (`-0,00001`: negativa E fora da escala; a ordem decide qual mensagem
+    // sai). Esse caso entrou no `[Theory]` no fix pass, e agora a reordenacao morre de verdade.
     if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
       return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(
           ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
@@ -305,8 +331,8 @@ public sealed class ReceitaPadraoUseCase
         ids, filhos.ToDictionary(c => c.Id, c => c.Ativo), "componente", "componentes");
     if (problema is not null) return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(problema);
 
-    if (await FechariaCiclo(componenteId, ids, ct))
-      return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(ErroDeCiclo);
+    var ciclo = await ProblemaDeCiclo(componenteId, ids, ct);
+    if (ciclo is not null) return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(ciclo);
 
     // Mesma traducao de conflito dos materiais e do roteiro: a transacao SERIALIZABLE e do
     // repositorio, entao quem grava filhos tambem pode ser o perdedor derrubado pelo banco.
@@ -337,17 +363,44 @@ public sealed class ReceitaPadraoUseCase
   }
 
   /// <summary>
+  /// A mensagem de ciclo, ou <c>null</c> se o grafo resultante estiver limpo.
+  ///
   /// A pergunta e sobre o grafo COMO ELE FICARA depois da substituicao, nao sobre o atual: como o
   /// POST substitui a receita inteira, ele pode REMOVER uma aresta, e uma substituicao que desfaz
   /// um ciclo preexistente tem de ser ACEITA. Validar contra o grafo atual deixaria o usuario
-  /// preso — a unica saida para consertar um ciclo seria SQL na mao. (§1.3 da spec, e
-  /// <c>Substituicao_que_desfaz_um_ciclo_preexistente_e_aceita</c>, que e o UNICO teste que morre
-  /// se o filtro abaixo virar <c>true</c>.)
+  /// preso — a unica saida para consertar um ciclo seria SQL na mao. (§1.3 da spec.) Se o filtro
+  /// abaixo virar <c>true</c>, morrem DOIS testes — medido no fix pass:
+  /// <c>Substituicao_que_desfaz_um_ciclo_preexistente_e_aceita</c> e
+  /// <c>Consertar_o_ciclo_por_dentro_libera_a_gravacao_recusada</c>. Era UM so enquanto a regra era
+  /// leniente; foi a regra estrita que tornou o filtro load-bearing num segundo lugar, e o segundo
+  /// teste e justamente o que garante que existe caminho de conserto pela API.
   ///
-  /// So arestas SAINDO de <paramref name="componenteId"/> mudam, entao basta perguntar se ele volta
-  /// a si mesmo no grafo resultante.
+  /// A regra e ESTRITA, por decisao do usuario na review da Task 5: recusa QUALQUER ciclo
+  /// alcancavel a partir de <paramref name="componenteId"/>, e nao so o ciclo que passa por ele.
+  /// A versao anterior perguntava "ele volta a si mesmo?", e as duas perguntas so coincidem quando
+  /// o grafo de partida e aciclico — o que a API preserva por inducao, mas que sujeira vinda de
+  /// fora (SQL na mao) ou da corrida descrita abaixo quebra. Sob a regra leniente, ligar um
+  /// componente limpo a um ramo ja sujo era ACEITO, e a copia recursiva da Fase 2 partindo dele
+  /// giraria para sempre. O preco da regra estrita e o usuario poder ser bloqueado por um ciclo
+  /// que nao criou — e por isso a mensagem NOMEIA o caminho: sem saber onde ele esta, nao ha como
+  /// consertar. Editar a receita de qualquer componente DE DENTRO do ciclo continua sendo aceito
+  /// (a travessia parte do componente editado, cujas arestas antigas ja sairam), entao o caminho
+  /// de conserto existe sempre — <c>Consertar_o_ciclo_por_dentro_libera_a_gravacao_recusada</c>.
+  /// Custo medido de apertar a regra: DOIS testes (o de ligar-se ao ciclo e o de conserto) morrem
+  /// se alguem voltar a leniente, e nenhum outro se mexe.
+  ///
+  /// TOCTOU, nomeado e NAO fechado aqui: esta leitura do grafo e solta
+  /// (<c>ListarTodasAsArestasAsync</c> e <c>AsNoTracking</c>, sem transacao) e acontece FORA da
+  /// transacao SERIALIZABLE que o <c>Substituir</c> do repositorio abre so em volta do
+  /// apaga-e-grava. Dois POSTs simultaneos em componentes DIFERENTES (um gravando 1 -> 2, outro
+  /// 2 -> 1) leem o grafo antes de qualquer escrita, passam os dois na validacao e escrevem em
+  /// faixas de chave diferentes — nenhum lock os coloca em conflito, e o ciclo fica gravado. O
+  /// <c>CK</c> do banco so pega A -> A. Fechar isso exigiria ler o grafo dentro da mesma transacao
+  /// da escrita, e a validacao vive na Application. Consequencia que vale para a Fase 2: esta
+  /// barreira e defesa em profundidade, nao garantia — a copia recursiva PRECISA de guarda de
+  /// profundidade propria de qualquer jeito.
   /// </summary>
-  private async Task<bool> FechariaCiclo(
+  private async Task<string?> ProblemaDeCiclo(
       int componenteId, IReadOnlyList<int> filhosNovos, CancellationToken ct)
   {
     var resultante = (await _repositorio.ListarTodasAsArestasAsync(ct))
@@ -356,21 +409,90 @@ public sealed class ReceitaPadraoUseCase
         .Concat(filhosNovos.Select(f => (Pai: componenteId, Filho: f)))  // as novas ENTRAM
         .ToLookup(a => a.Pai, a => a.Filho);
 
-    // `visitados` nao e otimizacao: sem ele, um ciclo PREEXISTENTE em outro ramo faria esta
-    // travessia girar para sempre. Coberto por
-    // `Ciclo_preexistente_em_outro_ramo_nao_impede_editar_este_componente`.
-    var visitados = new HashSet<int>();
-    var pilha = new Stack<int>(resultante[componenteId]);
+    var ciclo = ProcurarCiclo(resultante, componenteId);
+    if (ciclo is null) return null;
+
+    // A consulta so acontece no caminho de RECUSA, e e o preco de nomear os componentes: o grafo
+    // e de ids, e id cru nao ajuda quem esta olhando codigos na tela.
+    var codigos = (await _repositorio.ObterComponentesPorIdAsync(ciclo.Distinct().ToList(), ct))
+        .ToDictionary(c => c.Id, c => c.Codigo);
+
+    // O `#{id}` e inalcancavel hoje — a FK de `ComponenteFilhoPadrao` garante que todo no do grafo
+    // tem linha em `Componente`, e o proprio pai foi conferido no inicio do metodo. Ele existe para
+    // que um grafo sujo NAO troque um 400 legivel por um `KeyNotFoundException` (500), e por isso
+    // nao tem teste: nao ha como chegar la pelo repositorio real.
+    var caminho = string.Join(
+        " -> ", ciclo.Select(id => codigos.TryGetValue(id, out var codigo) ? codigo : $"#{id}"));
+
+    return string.Format(
+        ciclo[0] == componenteId ? ErroDeCicloProprio : ErroDeCicloAlcancado, caminho);
+  }
+
+  /// <summary>
+  /// DFS ITERATIVA com cinza/preto, devolvendo o CAMINHO do ciclo (fechado: o primeiro no aparece
+  /// tambem no fim) ou <c>null</c>.
+  ///
+  /// Iterativa, e nao recursiva, porque a profundidade e do DADO: todo o estado — caminho,
+  /// enumeradores — mora no heap. <c>Cadeia_de_20000_niveis_termina_e_e_aceita</c> prende isso, e a
+  /// profundidade dele foi medida: uma DFS recursiva equivalente ainda PASSA com 2000 niveis e so
+  /// derruba o processo com 20000 (a iterativa leva 43 ms nos mesmos 20000).
+  ///
+  /// Os DOIS conjuntos carregam peso, e peso DIFERENTE — medido no fix pass, um de cada vez:
+  /// - <c>cinza</c> (os nos do caminho atual) e quem DETECTA o ciclo, e com isso quem garante que a
+  ///   travessia para. Sem ele a busca reentra no ciclo indefinidamente e
+  ///   <c>Ligar_se_a_um_ciclo_preexistente_e_recusado_nomeando_o_ciclo</c> morre com
+  ///   <c>OutOfMemoryException</c> em ~30 s: vermelho legivel, ainda que lento, porque cada volta
+  ///   empilha mais um enumerador e mais um no no caminho — diferente da travessia anterior a este
+  ///   fix pass, cuja pilha alternava com tamanho CONSTANTE e girava para sempre.
+  /// - <c>preto</c> (os nos ja fechados) nao muda resposta nenhuma, muda o CUSTO: sem ele um grafo
+  ///   aciclico com caminhos paralelos e re-explorado exponencialmente, e
+  ///   <c>Grafo_com_caminhos_paralelos_nao_explode_exponencialmente</c> deixa de terminar (medido:
+  ///   seguia rodando aos 180 s, morto de fora). ESSE e o que pendura, e para ele nao ha saida
+  ///   barata: <c>[Fact(Timeout)]</c> do xUnit v2 nao interrompe laco sincrono dentro de metodo
+  ///   async — a review da Task 5 aplicou o atributo e a execucao seguiu presa ate os 180 s.
+  /// </summary>
+  private static IReadOnlyList<int>? ProcurarCiclo(ILookup<int, int> grafo, int raiz)
+  {
+    var caminho = new List<int> { raiz };
+    var cinza = new HashSet<int> { raiz };
+    var preto = new HashSet<int>();
+    var pilha = new Stack<IEnumerator<int>>();
+    pilha.Push(grafo[raiz].GetEnumerator());
 
     while (pilha.Count > 0)
     {
-      var atual = pilha.Pop();
-      if (atual == componenteId) return true;
-      if (!visitados.Add(atual)) continue;
-      foreach (var filho in resultante[atual]) pilha.Push(filho);
+      var filhos = pilha.Peek();
+
+      if (!filhos.MoveNext())
+      {
+        pilha.Pop().Dispose();
+        var fechado = caminho[^1];
+        caminho.RemoveAt(caminho.Count - 1);
+        cinza.Remove(fechado);
+        preto.Add(fechado);
+        continue;
+      }
+
+      var filho = filhos.Current;
+
+      if (cinza.Contains(filho))
+      {
+        // O ciclo e o trecho do caminho atual que comeca no no reencontrado, fechado nele mesmo:
+        // e o que a mensagem precisa para dizer ONDE consertar, e o que descarta os ramos
+        // inocentes que a travessia percorreu antes.
+        var ciclo = caminho.Skip(caminho.IndexOf(filho)).Append(filho).ToList();
+        foreach (var pendente in pilha) pendente.Dispose();
+        return ciclo;
+      }
+
+      if (preto.Contains(filho)) continue;
+
+      caminho.Add(filho);
+      cinza.Add(filho);
+      pilha.Push(grafo[filho].GetEnumerator());
     }
 
-    return false;
+    return null;
   }
 
   private async Task<IReadOnlyList<FilhoPadraoDto>> ProjetarFilhos(

@@ -1942,7 +1942,7 @@ dotnet test tests/Rastreamento.Application.Tests
 
 **Mutação D (lista vazia deixa de apagar):** acrescente, no topo de `SubstituirFilhos`, um atalho `if (linhas.Count == 0) return Result<IReadOnlyList<FilhoPadraoDto>>.Ok(await ProjetarFilhos(componenteId, ct));` — ou seja, lista vazia vira no-op em vez de apagar. Esperado: `Filhos_com_lista_vazia_apaga` **FALHA**. É a mutação 3 da lista da spec §4.3, e ela merece passe próprio porque "não fazer nada" é o modo de falha mais fácil de introduzir sem perceber. Reverta.
 
-**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 186.
+**Mutação E (tipo restringe):** acrescente uma recusa para `Tipo != "Montagem"`. Esperado: `Componente_do_tipo_Bruto_pode_ter_filhos` **FALHA**. Reverta e reconfirme 186 (era o número desta task quando ela rodou; **depois do fix pass da review, o mesmo passo confirma 195** — ver o bloco de delta no fim da task). A **Mutação C** também mudou de forma no fix pass: `FechariaCiclo` virou `ProblemaDeCiclo`/`ProcurarCiclo`, e olhar só o primeiro nível mata **5** testes (medido: os dois de ciclo de dois e três níveis, o de ligar-se a ciclo preexistente, o de conserto por dentro e o de ciclo no fundo da cadeia funda), não os 2 que este passo previa.
 
 - [ ] **Step 7: Build e commit**
 
@@ -1958,6 +1958,13 @@ git commit -m "feat(fase1c): caso de uso da receita padrao — filhos, com detec
 **Delta MEDIDO: Application 161 → 186 (+25).** (O plano previa +12. Os +13 a mais sao cobertura ganha,
 cada um justificado por mutacao em `.superpowers/sdd/task-5-report.md`; a guarda de escala de
 `SubstituirFilhos` e codigo novo que o Step 4 do plano nao tinha.)
+
+**Fix pass da review desta task (2026-08-20): Application 186 → 195 (+9).** A regra de ciclo passou
+a ser ESTRITA e a mensagem passou a NOMEAR o caminho (decisao do usuario), o que trouxe +5 testes
+(ligar-se a ciclo preexistente, caminho de conserto, cadeia de 20000 niveis, ciclo no fundo dela,
+grafo com caminhos paralelos); os outros +4 fecham lacunas medidas: `-0,00001` na precedencia dos
+filhos e os dois pares de escala nos materiais (+3 `[InlineData]`) e o valor maximo exato da coluna
+(+1). Ver `.superpowers/sdd/task-5-fix-report.md`. **Baseline das tasks seguintes: 195.**
 
 ---
 
@@ -2183,10 +2190,54 @@ public class ReceitaPadraoEndpointsTests
     Assert.Equal([(setorB, 1), (setorA, 2)], lidas!.Select(l => (l.SetorId, l.Ordem)));
   }
 
+  /// <summary>
+  /// O caminho de CONFLITO no nivel HTTP: `TipoDeErro.Conflito` tem de sair como **409**, e nao
+  /// como 400. Sem este teste a traducao nasce viva — os outros 10 nao tocam esse ramo, e foi
+  /// exatamente por isso que o `Traduzir` deste plano colapsava `Conflito` em `BadRequest` sem
+  /// ninguem notar (achado C1 da review da Task 5).
+  ///
+  /// O conflito e FORCADO por substituicao do repositorio no DI, e nao por corrida real: provocar
+  /// o deadlock do SERIALIZABLE por HTTP exigiria segurar um range lock de fora, e a requisicao
+  /// ficaria pendurada no lock (o `SET LOCK_TIMEOUT 0` do teste de Infrastructure e da conexao do
+  /// PERDEDOR, e aqui a conexao e da API). O que se prova aqui e a TRADUCAO; que o repositorio real
+  /// levante `ConflitoDeConcorrenciaException` ja esta provado contra o SQL Server em
+  /// `Perdedor_de_gravacao_simultanea_sobe_como_conflito_de_concorrencia`.
+  /// </summary>
+  [Fact]
+  public async Task Conflito_de_gravacao_responde_409()
+  {
+    var id = await NovoComponente();
+    using var fabrica = _factory.WithWebHostBuilder(b => b.ConfigureTestServices(s =>
+        s.AddScoped<IReceitaPadraoRepository, RepositorioQueSoDaConflito>()));
+    var cliente = fabrica.CreateClient();
+    cliente.DefaultRequestHeaders.Authorization =
+        new AuthenticationHeaderValue("Bearer", TokenDeTeste.Emitir(_factory, "PCP"));
+
+    var resposta = await cliente.PostAsJsonAsync(
+        $"/api/componentes/{id}/filhos-padrao",
+        new { linhas = Array.Empty<object>() });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+  }
+
   private sealed record FilhoLido(int Id, int ComponenteFilhoId, decimal QuantidadePadrao);
   private sealed record RoteiroLido(int Id, int SetorId, string Nome, int Ordem);
 }
 ```
+
+O `RepositorioQueSoDaConflito` é uma classe do próprio arquivo de teste que implementa
+`IReceitaPadraoRepository`: `ObterComponenteAsync` devolve um `Componente` qualquer (senão a
+requisição para no 404 antes de chegar à gravação), `ListarTodasAsArestasAsync` devolve lista vazia,
+os três `Substituir*Async` lançam `ConflitoDeConcorrenciaException`, e o resto devolve listas
+vazias. Corpo com **lista vazia** de propósito: assim não há id de catálogo para existir, e o
+caminho chega à gravação sem depender de massa nenhuma.
+
+`ConfigureTestServices` (de `Microsoft.AspNetCore.TestHost`) roda **depois** do `Program`, então o
+`AddScoped` daqui substitui o registro real — `WithWebHostBuilder` já é usado neste projeto em
+`LockoutTests` e `ConfiguracaoDeStartupTests`, só que para configuração, não para serviço. Este
+teste precisa de dois `using` a mais no arquivo: `Microsoft.AspNetCore.TestHost` e
+`Rastreamento.Domain.Abstractions` (de onde vêm `IReceitaPadraoRepository` e
+`ConflitoDeConcorrenciaException`).
 
 Escreva também o helper `DoisSetores()` neste arquivo, no mesmo molde de `NovoComponente()`: cria dois `Setor` com nome único (`$"rp-{Guid.NewGuid():N}"[..12]`, para não colidir com `UQ_Setor_Nome`), registra os ids numa lista `_setoresCriados` e os apaga no `DisposeAsync` **depois** das linhas de roteiro (a FK aponta para eles). Devolve `(int, int)` com os dois ids.
 
@@ -2196,7 +2247,7 @@ Escreva também o helper `DoisSetores()` neste arquivo, no mesmo molde de `NovoC
 dotnet test tests/Rastreamento.Api.Tests
 ```
 
-Esperado: os 10 testes novos **FALHAM com 404** (as rotas não existem). A guarda `PerfisDeEscritaDeclaradosTests` continua verde — ainda não há controller novo.
+Esperado: os 11 testes novos **FALHAM com 404** (as rotas não existem). A guarda `PerfisDeEscritaDeclaradosTests` continua verde — ainda não há controller novo.
 
 - [ ] **Step 3: Crie o controller**
 
@@ -2275,23 +2326,39 @@ public class ReceitaPadraoController : ControllerBase
   // ----------------------------------------------------------------
 
   /// <summary>
-  /// 200 no sucesso, 404 so para "componente pai nao existe", 400 para o resto.
+  /// 200 no sucesso, 404 para "componente pai nao existe", 409 para gravacao concorrente derrubada
+  /// pelo banco, 400 para o resto.
   ///
   /// 200 e nao 201 no POST: ele nao cria um recurso novo enderecavel, substitui o conteudo de um
   /// sub-recurso que ja tem endereco. Nada de CreatedAtAction — nao ha "o" recurso criado.
+  ///
+  /// `switch` EXAUSTIVO sobre `TipoDeErro`, e nao um ternario com `else`: foi o `else` que, na
+  /// versao anterior deste plano, engoliu `TipoDeErro.Conflito` em `BadRequest` e teria apagado,
+  /// por acidente, o 409 que as Tasks 3, 4 e 5 construiram (achado C1 da review da Task 5). Um
+  /// membro novo no enum tem de aparecer aqui, e nao cair em silencio no ramo generico.
   ///
   /// O `corpo.Linhas!` das acoes acima e seguro porque `[Required]` + [ApiController] barram o
   /// campo ausente com 400 ANTES de a acao rodar. Lista VAZIA continua chegando aqui: e o comando
   /// explicito de apagar a receita.
   /// </summary>
-  private IActionResult Traduzir<T>(Result<T> resultado) =>
-      resultado.Sucesso
-          ? Ok(resultado.Valor)
-          : resultado.TipoDoErro == TipoDeErro.NaoEncontrado
-              ? NotFound(new { erro = resultado.Erro })
-              : BadRequest(new { erro = resultado.Erro });
+  private IActionResult Traduzir<T>(Result<T> resultado)
+  {
+    if (resultado.Sucesso) return Ok(resultado.Valor);
+
+    return resultado.TipoDoErro switch
+    {
+      TipoDeErro.NaoEncontrado => NotFound(new { erro = resultado.Erro }),
+      TipoDeErro.Conflito => Conflict(new { erro = resultado.Erro }),
+      _ => BadRequest(new { erro = resultado.Erro }),
+    };
+  }
 }
 ```
+
+**Sobre o `_`:** ele cobre `Validacao` (o caso real) e `NaoAutorizado` (que estes casos de uso nao
+produzem — quem responde 401 e o middleware de autenticacao). Nao troque por `TipoDeErro.Validacao
+=> ...` sem um ramo para `NaoAutorizado`: a exaustividade que importa aqui e a de LEITURA, e o
+comentario acima e o que impede o `else` de voltar a engolir um membro novo.
 
 - [ ] **Step 4: Registre no DI**
 
@@ -2308,7 +2375,7 @@ builder.Services.AddScoped<ReceitaPadraoUseCase>();
 dotnet test tests/Rastreamento.Api.Tests
 ```
 
-Esperado: os 10 testes novos **PASSAM**, e `PerfisDeEscritaDeclaradosTests` **FALHA**, nomeando as três rotas novas — algo como *"Controller com [Authorize(Roles)] fora da tabela aprovada: POST componentes/{componenteId:int}/filhos-padrao, …"*.
+Esperado: os 11 testes novos **PASSAM**, e `PerfisDeEscritaDeclaradosTests` **FALHA**, nomeando as três rotas novas — algo como *"Controller com [Authorize(Roles)] fora da tabela aprovada: POST componentes/{componenteId:int}/filhos-padrao, …"*.
 
 **Isto é a guarda funcionando, não um bug.** A 1C é o primeiro recurso novo desde que ela foi reescrita sobre o `EndpointDataSource`; esta é a primeira vez que ela faz o trabalho para o qual foi construída. **Copie as identidades exatas da mensagem de falha** para o próximo passo — não as digite de memória.
 
@@ -2330,13 +2397,13 @@ Em `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs`, no `TabelaA
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **Application 186**, **Infrastructure 58**, **Api 171 + 10 = 181**. Total **425**.
+Esperado: **Application 195**, **Infrastructure 58**, **Api 171 + 11 = 182**. Total **435**.
 
 - [ ] **Step 8: Prove por mutação que a guarda protege as rotas novas**
 
 Troque `PerfisDeEscrita` do `ReceitaPadraoController` para `"Administrador,PCP,Qualidade"`. Esperado: `PerfisDeEscritaDeclaradosTests` **FALHA** dizendo que o roteamento exige `[Administrador, PCP, Qualidade]` contra a tabela `[Administrador, PCP]`. Reverta.
 
-Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 425.
+Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 435.
 
 - [ ] **Step 9: Build e commit**
 
@@ -2349,14 +2416,16 @@ git add src/Rastreamento.Api tests/Rastreamento.Api.Tests
 git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guarda de perfis"
 ```
 
-**Delta previsto: Api 171 → 181 (+10). Backend total 338 → 425** (era 385 no plano original; a
+**Delta previsto: Api 171 → 182 (+11). Backend total 338 → 435** (era 385 no plano original; a
 Task 2 fechou em Infrastructure 57 em vez de 48, a Task 3 em Application 142 em vez de 139, e o fix
 pass da review da Task 3 levou Application a 150 e Infrastructure a 58, e a Task 4 a 160 em vez de
 156 — ver o bloco MEDIDO em cada uma. O fix pass da review da Task 4 somou mais duas vezes: +0 em
 código (I1/I2/I3) e +1 em teste novo (N1, catch estreito) — Application 160 → 161 — e +1 na previsão
 da Task 5 (P1, conflito de concorrência dos filhos) — 172 → 173, não 171. Ver
 `.superpowers/sdd/task-4-fix-report.md`. E a Task 5 fechou MEDIDA em 186, e não 173: +13 acima do
-previsto, cobertura ganha — ver `.superpowers/sdd/task-5-report.md`).
+previsto, cobertura ganha — ver `.superpowers/sdd/task-5-report.md`. O fix pass da review da Task 5
+somou +9 em Application — 186 → **195**, medido — e +1 nesta task, o teste HTTP do 409 que o achado
+C1 exigiu: 10 → **11**. Ver `.superpowers/sdd/task-5-fix-report.md`).
 
 ---
 
@@ -2427,7 +2496,7 @@ Repita o Step 3. Os números têm de ser **idênticos**. Se cresceram, o arquivo
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **425**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
+Esperado: **435**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
 
 - [ ] **Step 6: Commit**
 
@@ -3467,16 +3536,19 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 4 | Application | 150 → **160** (medido; previsto 156) | **+10** |
 | 4-fix | Application | 160 → **161** (fix pass da review) | **+1** |
 | 5 | Application | 161 → **186** (medido; previsto 173) | **+25** |
-| 6 | Api | 171 → 181 | +10 |
+| 5-fix | Application | 186 → **195** (fix pass da review: regra de ciclo estrita + lacunas medidas) | **+9** |
+| 6 | Api | 171 → 182 | +11 |
 | 7 | — | — | 0 |
 | 8 | front | 317 → 325 | +8 |
 | 9 | front | 325 → ~334 | ~+9 |
 | 10 | front | ~334 → ~342 | ~+8 |
 | 11 | front | ~342 → ~350 | ~+8 |
 
-**Backend: 338 → 425** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
+**Backend: 338 → 435** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
 fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task 4 somou +1 em código
-(N1, 160 → 161) e mais +1 na previsão da Task 5 (P1, 172 → 173), e a Task 5 fechou +13 acima do
-previsto (161 → 186) — os deltas estão corrigidos nas linhas acima e o total já reflete isso). **Front: 317 → ~350.**
+(N1, 160 → 161) e mais +1 na previsão da Task 5 (P1, 172 → 173), a Task 5 fechou +13 acima do
+previsto (161 → 186) e o fix pass da review dela somou +9 em Application (186 → **195**, medido) e
++1 na Task 6 (o teste HTTP do 409 do achado C1) — os deltas estão corrigidos nas linhas acima e o
+total já reflete isso). **Front: 317 → ~350.**
 
 Os números do front a partir da Task 9 são **aproximados de propósito**: a guarda `permissoesEspelhamOBackend` usa `it.each` sobre o mapa de recursos, então acrescentar um recurso muda a contagem por um caminho que este plano não consegue prever com exatidão sem rodar. **Meça na Task 9 e corrija as previsões das Tasks 10 e 11 na mesma passada** — total absoluto herdado propaga erro task a task.

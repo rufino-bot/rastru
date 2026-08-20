@@ -207,11 +207,21 @@ public class ReceitaPadraoUseCaseTests
   /// 2. quantidade invalida + id duplicado -> ganha a quantidade.
   /// 3. id duplicado + id inexistente -> ganha a duplicata (o usuario corrige a lista dele antes
   ///    de ouvir sobre o catalogo).
+  /// 4. quantidade negativa E fora da escala (`-0,00001`) -> ganha "maior que zero".
+  /// 5. quantidade fora da escala + id duplicado -> ganha a escala.
+  ///
+  /// Os casos 4 e 5 entraram no fix pass da review da Task 5 e fecham as duas fronteiras
+  /// ADJACENTES que faltavam (quantidade x escala e escala x duplicata): os casos 2 e 3 pulam por
+  /// cima da guarda de escala, entao trocar a guarda de `&lt;= 0` ou a de duplicata com ela deixava
+  /// a suite verde — a mesma lacuna medida do lado dos filhos, herdada do molde.
   /// </summary>
   [Theory]
   [InlineData(999, 777, 0, false, TipoDeErro.NaoEncontrado, "Componente nao encontrado.")]
   [InlineData(1, 777, 0, true, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
   [InlineData(1, 777, 1, true, TipoDeErro.Validacao, "O material 777 aparece mais de uma vez na lista.")]
+  [InlineData(1, 10, -0.00001, false, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
+  [InlineData(1, 10, 0.00001, true, TipoDeErro.Validacao,
+      "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
   public async Task Precedencia_das_validacoes_e_fixa(
       int componenteId,
       int materialId,
@@ -231,6 +241,57 @@ public class ReceitaPadraoUseCaseTests
     Assert.Equal(tipo, r.TipoDoErro);
     Assert.Equal(mensagem, r.Erro);
     Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// A fronteira EXATA de `MaiorQuantidade`: o maior valor que CABE em DECIMAL(18,4) —
+  /// 99.999.999.999.999,9999 — e aceito, e volta intacto na projecao.
+  ///
+  /// Sem este caso, trocar `> MaiorQuantidade` por `>=` sobrevive a suite inteira (medido na review
+  /// da Task 5 e reproduzido no fix pass): os `[InlineData]` de recusa usam `1e17`, tres ordens de
+  /// grandeza acima, e nao dizem nada sobre onde exatamente a guarda corta. Com `>=`, o valor que a
+  /// coluna aceita passaria a ser recusado por 400 e ninguem acusaria.
+  ///
+  /// Materiais E filhos no mesmo teste porque a guarda e a mesma constante nos dois call sites —
+  /// mutar so um deles tem de morrer aqui.
+  /// </summary>
+  [Fact]
+  public async Task Quantidade_no_maior_valor_que_cabe_na_coluna_e_aceita()
+  {
+    var fake = FakeComCatalogo();
+    var caso = new ReceitaPadraoUseCase(fake);
+    const decimal maximo = 99_999_999_999_999.9999m;
+
+    var material = await caso.SubstituirMateriais(1, [new LinhaDeMaterialPadraoDto(10, maximo)], Ct);
+    var filho = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, maximo)], Ct);
+
+    Assert.True(material.Sucesso);
+    Assert.Equal(maximo, Assert.Single(material.Valor!).QuantidadePadrao);
+    Assert.True(filho.Sucesso);
+    Assert.Equal(maximo, Assert.Single(filho.Valor!).QuantidadePadrao);
+  }
+
+  /// <summary>
+  /// O gemeo, nos MATERIAIS, de `Falha_na_releitura_apos_gravar_o_roteiro_nao_vira_conflito` e do
+  /// irmao de filhos. Era o ultimo dos tres sub-recursos sem guarda: a review da Task 5 mediu que
+  /// alargar o `try` de `SubstituirMateriais` ate englobar a releitura e trocar o `catch` por
+  /// `catch (Exception)` deixava a suite INTEIRA verde — reproduzido no fix pass antes de fechar.
+  ///
+  /// O que a assimetria custava: com dois sub-recursos guardados e um nao, o convite era
+  /// "uniformizar" para o lado errado. Agora os tres morrem da mesma mutacao.
+  /// </summary>
+  [Fact]
+  public async Task Falha_na_releitura_apos_gravar_os_materiais_nao_vira_conflito()
+  {
+    var fake = FakeComCatalogo();
+    fake.ConflitoNaProximaListagemDeMateriais = true;
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    await Assert.ThrowsAsync<ConflitoDeConcorrenciaException>(
+        () => caso.SubstituirMateriais(1, [new LinhaDeMaterialPadraoDto(10, 1m)], Ct));
+
+    // A gravacao ACONTECEU antes da excecao: prova que o `try` estreito nao a impediu de rodar.
+    Assert.Equal(1, fake.SubstituicoesDeMateriais);
   }
 
   /// <summary>
@@ -285,9 +346,14 @@ public class ReceitaPadraoUseCaseTests
   }
 
   /// <summary>
-  /// A lista tem DUAS duplicatas de proposito, e nao uma: 11 se repete primeiro (indice 2), 10 so
-  /// depois (indice 3). Com uma duplicata so, "o primeiro repetido" e "o ultimo repetido" dao a
-  /// mesma resposta e a ordem que o helper promete no XML doc dele nao estaria provada.
+  /// A lista tem DUAS duplicatas de proposito, e nao uma: com uma so, "o primeiro repetido" e "o
+  /// ultimo repetido" dao a mesma resposta e a ordem que o helper promete no XML doc dele nao
+  /// estaria provada.
+  ///
+  /// E ela NAO e palindromica: [10, 11, 10, 11], e nao [10, 11, 11, 10]. Numa lista espelhada,
+  /// varrer do fim para o comeco da a mesma resposta que varrer do comeco — a review da Task 5
+  /// mediu (`ids.Reverse()` sobrevivia a suite inteira). Assim, a primeira repeticao e o 10
+  /// (indice 2) na ida e o 11 na volta, e as duas mutacoes morrem.
   /// </summary>
   [Fact]
   public async Task Material_repetido_na_mesma_lista_e_recusado_nomeando_o_primeiro()
@@ -300,14 +366,14 @@ public class ReceitaPadraoUseCaseTests
         [
           new LinhaDeMaterialPadraoDto(10, 1m),
           new LinhaDeMaterialPadraoDto(11, 1m),
-          new LinhaDeMaterialPadraoDto(11, 2m),
           new LinhaDeMaterialPadraoDto(10, 2m),
+          new LinhaDeMaterialPadraoDto(11, 2m),
         ],
         Ct);
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal("O material 11 aparece mais de uma vez na lista.", r.Erro);
+    Assert.Equal("O material 10 aparece mais de uma vez na lista.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -708,6 +774,32 @@ public class ReceitaPadraoUseCaseTests
     return f;
   }
 
+  /// <summary>
+  /// Cadeia FUNDA: componentes 1..<paramref name="niveis"/>+1, com as arestas 2 -> 3 -> ... ja
+  /// gravadas. A aresta que liga o 1 ao 2 NAO entra aqui — ela e a linha nova que o teste manda,
+  /// que e o que faz a travessia partir do componente editado e descer a cadeia inteira.
+  ///
+  /// Catalogo proprio, e nao `FakeComCatalogo`: o componente 2 de la se chama "OUTRO", e aqui os
+  /// codigos precisam ser previsiveis (`C2`, `C3`, ...) para a mensagem de ciclo poder ser afirmada
+  /// por forma.
+  /// </summary>
+  private static FakeReceitaPadraoRepo FakeComCadeia(int niveis)
+  {
+    var f = new FakeReceitaPadraoRepo();
+    f.Componentes.Add(new Componente
+    {
+      Id = 1, Codigo = "PAI", Descricao = "Pai", Tipo = "Montagem", Ativo = true,
+    });
+    for (var id = 2; id <= niveis + 1; id++)
+      f.Componentes.Add(new Componente
+      {
+        Id = id, Codigo = $"C{id}", Descricao = $"Componente {id}", Tipo = "Fabricado", Ativo = true,
+      });
+
+    for (var pai = 2; pai <= niveis; pai++) Aresta(f, pai, pai + 1);
+    return f;
+  }
+
   /// <summary>Aresta pai -> filho ja existente no grafo, para arranjar os cenarios de ciclo.</summary>
   private static void Aresta(FakeReceitaPadraoRepo fake, int pai, int filho) =>
       fake.Filhos.Add(new ComponenteFilhoPadrao
@@ -767,6 +859,10 @@ public class ReceitaPadraoUseCaseTests
   /// <summary>
   /// O CK do banco (`CK_ComponenteFilhoPadrao_NaoAutoReferencia`) so pega A -> A. Este e
   /// A -> B -> A, que o banco ACEITA e que faria a copia recursiva da Fase 2 girar para sempre.
+  ///
+  /// A mensagem NOMEIA o caminho pelo `Codigo` (PAI -> OUTRO -> PAI), e nao por id: e o que a
+  /// decisao pela regra estrita comprou. Afirmar a mensagem INTEIRA e o que mata uma travessia que
+  /// detecte o ciclo certo e imprima o caminho errado.
   /// </summary>
   [Fact]
   public async Task Ciclo_de_dois_niveis_e_recusado()
@@ -779,9 +875,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal(
-        "Esta receita criaria um ciclo: o componente apareceria dentro da propria estrutura.",
-        r.Erro);
+    Assert.Equal("Esta receita criaria um ciclo: PAI -> OUTRO -> PAI.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -790,6 +884,10 @@ public class ReceitaPadraoUseCaseTests
   /// fecha o ciclo (2) esta na SEGUNDA linha da lista, atras de um filho inocente (4): uma
   /// travessia que so partisse da primeira linha nova sobreviveria com o ciclo em qualquer posicao
   /// que nao a primeira.
+  ///
+  /// O filho inocente tambem faz trabalho na MENSAGEM: o caminho afirmado e PAI -> OUTRO -> C3 ->
+  /// PAI, sem o C4 que a travessia visitou primeiro e abandonou. Uma implementacao que imprimisse
+  /// "os nos que visitei" em vez do trecho do caminho que fecha o ciclo morre aqui.
   /// </summary>
   [Fact]
   public async Task Ciclo_de_tres_niveis_e_recusado()
@@ -804,9 +902,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal(
-        "Esta receita criaria um ciclo: o componente apareceria dentro da propria estrutura.",
-        r.Erro);
+    Assert.Equal("Esta receita criaria um ciclo: PAI -> OUTRO -> C3 -> PAI.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -851,9 +947,11 @@ public class ReceitaPadraoUseCaseTests
   /// ACEITO: validar contra o grafo ATUAL (ou contra o atual MAIS as linhas novas) o deixaria
   /// preso, sem saida pela API — a unica correcao possivel seria SQL na mao.
   ///
-  /// E a mutacao que este teste existe para matar e a UNICA que nenhum outro pega: trocar o filtro
-  /// `a.ComponentePaiId != componenteId` por `true` mantem TODOS os testes de ciclo proibido
-  /// verdes.
+  /// A mutacao que este teste existe para matar — trocar o filtro `a.ComponentePaiId !=
+  /// componenteId` por `true` — mantem TODOS os testes de ciclo proibido verdes. Enquanto a regra
+  /// era leniente, este era o unico teste que a pegava; com a regra estrita ela mata dois (medido),
+  /// o outro sendo `Consertar_o_ciclo_por_dentro_libera_a_gravacao_recusada` — que e o mesmo
+  /// principio aplicado a um componente de DENTRO do ciclo.
   /// </summary>
   [Fact]
   public async Task Substituicao_que_desfaz_um_ciclo_preexistente_e_aceita()
@@ -872,20 +970,34 @@ public class ReceitaPadraoUseCaseTests
   }
 
   /// <summary>
-  /// Um ciclo preexistente em OUTRA parte do grafo (3 -> 4 -> 3) nao pode nem travar a edicao de
-  /// 1, nem fazer a busca girar para sempre.
+  /// A REGRA ESTRITA, decidida pelo usuario na review da Task 5: ligar um componente limpo a um
+  /// ciclo que ja existe em outro ramo (3 -> 4 -> 3) e RECUSADO, ainda que o ciclo nao passe pelo
+  /// componente 1. Antes da decisao isso era aceito, e a copia recursiva da Fase 2 partindo de 1
+  /// giraria para sempre — a §1.3 existe exatamente para nao herdar grafo sujo.
   ///
-  /// Este teste nao falha por assercao quando o conjunto de visitados some: ele NAO TERMINA. Medido
-  /// — trocando `if (!visitados.Add(atual)) continue;` por `visitados.Add(atual);`, a execucao
-  /// filtrada neste teste passou de 300 s sem concluir e teve de ser morta de fora. Nao ha timeout
-  /// no runner que transforme isso em vermelho legivel; a defesa e a travessia estar certa.
+  /// A mensagem e a SEGUNDA, e nao a de ciclo proprio: dizer "o componente apareceria dentro da
+  /// propria estrutura" seria mentira aqui (1 nao esta no ciclo) e mandaria o usuario procurar o
+  /// erro na receita errada. Ela nomeia C3 -> C4 -> C3, que e onde o conserto tem de acontecer —
+  /// e `Consertar_o_ciclo_por_dentro_libera_a_gravacao_recusada` prova que esse conserto e aceito.
+  ///
+  /// Quando o conjunto CINZA some, este teste falha com `OutOfMemoryException` em ~30 s — medido no
+  /// fix pass, com timeout externo por precaucao. Nao e assercao quebrada, mas e vermelho legivel,
+  /// e isso e uma MELHORA em relacao a travessia anterior a este fix pass, cuja pilha alternava com
+  /// tamanho constante e simplesmente girava para sempre. Aqui cada volta no ciclo empilha mais um
+  /// enumerador e mais um no no caminho, entao a memoria acaba.
+  ///
+  /// A mutacao que ainda PENDURA e outra — tirar o conjunto PRETO, em
+  /// `Grafo_com_caminhos_paralelos_nao_explode_exponencialmente` —, e para ela nao ha saida barata:
+  /// `[Fact(Timeout = ...)]` nao resolve (a review da Task 5 aplicou o atributo e a execucao seguiu
+  /// presa ate ser morta aos 180 s, porque o `Timeout` do xUnit v2 nao interrompe laco sincrono
+  /// dentro de metodo async). Nao tente de novo a saida barata; a defesa e a travessia estar certa.
   ///
   /// A edicao ALCANCA o ramo sujo de proposito (1 -> 3, e 3 esta dentro do ciclo): uma travessia
-  /// sem `visitados` que so andasse por um ramo isolado terminaria mesmo assim, e o teste passaria
-  /// sem exercitar nada.
+  /// que so andasse por um ramo isolado terminaria mesmo assim, e o teste passaria sem exercitar
+  /// nada.
   /// </summary>
   [Fact]
-  public async Task Ciclo_preexistente_em_outro_ramo_nao_impede_editar_este_componente()
+  public async Task Ligar_se_a_um_ciclo_preexistente_e_recusado_nomeando_o_ciclo()
   {
     var fake = FakeComQuatroComponentes();
     Aresta(fake, pai: 3, filho: 4);
@@ -894,8 +1006,130 @@ public class ReceitaPadraoUseCaseTests
 
     var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(3, 1m)], Ct);
 
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal(
+        "Esta receita ligaria este componente a um ciclo que ja existe: C3 -> C4 -> C3. "
+        + "Corrija a receita desses componentes antes.",
+        r.Erro);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// O CAMINHO DE CONSERTO, que e o que torna a regra estrita usavel: o usuario e barrado por um
+  /// ciclo que nao criou (3 -> 4 -> 3), abre a receita de um componente DE DENTRO do ciclo, tira a
+  /// aresta que o fecha — isso e ACEITO —, e ai a gravacao original passa.
+  ///
+  /// Sem esta propriedade a regra estrita trancaria o usuario fora da API: e por isso que a
+  /// travessia parte do componente EDITADO sobre o grafo pos-substituicao (as arestas antigas dele
+  /// ja sairam). Se alguem "endurecer" a regra validando o grafo inteiro em vez do alcancavel a
+  /// partir do editado, o passo do meio passa a ser recusado e este teste morre — que e
+  /// exatamente o ponto.
+  /// </summary>
+  [Fact]
+  public async Task Consertar_o_ciclo_por_dentro_libera_a_gravacao_recusada()
+  {
+    var fake = FakeComQuatroComponentes();
+    Aresta(fake, pai: 3, filho: 4);
+    Aresta(fake, pai: 4, filho: 3);
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var recusada = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(3, 1m)], Ct);
+    var conserto = await caso.SubstituirFilhos(4, [], Ct);
+    var depois = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(3, 1m)], Ct);
+
+    Assert.False(recusada.Sucesso);
+    Assert.True(conserto.Sucesso);
+    Assert.True(depois.Sucesso);
+    Assert.Equal(3, Assert.Single(depois.Valor!).ComponenteFilhoId);
+    // Duas gravacoes: o conserto e a que estava barrada. A recusada nao escreveu.
+    Assert.Equal(2, fake.SubstituicoesDeFilhos);
+  }
+
+  /// <summary>
+  /// A travessia e ITERATIVA, e isso e requisito, nao gosto: a profundidade vem do DADO, e uma
+  /// versao recursiva estoura `StackOverflowException` — que derruba o PROCESSO inteiro, sem
+  /// vermelho legivel e sem 500 utilizavel.
+  ///
+  /// A profundidade e 20000, e o numero foi MEDIDO, nao escolhido por conforto. O fix pass da
+  /// review escreveu uma DFS recursiva equivalente (funcao local, cinza/preto iguais) e rodou os
+  /// dois lados:
+  /// - com 2000 niveis, a recursiva PASSA — 2000 quadros pequenos ainda cabem na pilha do CLR.
+  ///   Ou seja: um teste de 2000 niveis NAO distinguiria as duas implementacoes, ao contrario do
+  ///   que a review da Task 5 estimou;
+  /// - com 20000, a recursiva derruba o host de teste com pilha estourada (rastro repetindo
+  ///   `g__Visita`), e a iterativa passa em 43 ms.
+  ///
+  /// 20000 nao e profundidade de peca real — e o valor onde a diferenca entre as duas
+  /// implementacoes aparece, que e o que este teste existe para prender.
+  /// </summary>
+  [Fact]
+  public async Task Cadeia_de_20000_niveis_termina_e_e_aceita()
+  {
+    var fake = FakeComCadeia(20000);
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
+
     Assert.True(r.Sucesso);
-    Assert.Equal(3, Assert.Single(r.Valor!).ComponenteFilhoId);
+    Assert.Equal(1, fake.SubstituicoesDeFilhos);
+  }
+
+  /// <summary>
+  /// O gemeo do anterior no lado da RECUSA: uma cadeia funda (2000 niveis, o suficiente aqui — a
+  /// profundidade que separa iterativa de recursiva ja esta presa no teste acima) em que o ultimo
+  /// componente aponta de volta para o primeiro. A travessia tem de chegar la no fundo e recusar.
+  ///
+  /// A mensagem nomeia o caminho INTEIRO — 2001 setas para um ciclo de 2001 componentes. Ela nao e
+  /// afirmada por extenso aqui (seriam ~14 KB de literal); o que se afirma e a forma e o TAMANHO,
+  /// que e o que distingue "achou o ciclo todo" de "achou um pedaco". Consequencia registrada e
+  /// nao corrigida: um ciclo fundo produz uma mensagem enorme. Na pratica um ciclo de receita tem
+  /// 2 ou 3 niveis; truncar seria decisao de produto, e nao foi tomada.
+  /// </summary>
+  [Fact]
+  public async Task Ciclo_no_fundo_de_uma_cadeia_de_2000_niveis_e_recusado()
+  {
+    var fake = FakeComCadeia(2000);
+    Aresta(fake, pai: 2001, filho: 1);
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.StartsWith("Esta receita criaria um ciclo: PAI -> C2 -> C3 -> ", r.Erro);
+    Assert.EndsWith(" -> C2000 -> C2001 -> PAI.", r.Erro);
+    Assert.Equal(2001, r.Erro!.Split(" -> ").Length - 1);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// O conjunto PRETO (nos ja fechados) nao muda resposta nenhuma — muda o custo, e o custo e o
+  /// que separa uma requisicao de 5 ms de uma que nunca responde. Neste grafo cada componente
+  /// aponta para os dois seguintes, entao o numero de CAMINHOS de 1 ate o fim cresce como
+  /// Fibonacci: com 60 niveis sao ~2,5e12 caminhos. Com o `preto`, sao 60 visitas e o teste roda
+  /// instantaneo; sem ele, a travessia re-explora cada caminho e NAO TERMINA — medido no fix pass:
+  /// a execucao filtrada seguia rodando aos 180 s e teve de ser morta de fora, com a memoria
+  /// estavel (a pilha e limitada pela profundidade; o que explode e o numero de passos).
+  ///
+  /// Esta e a mutacao que pendura a suite, e nao ha timeout de runner que a transforme em vermelho
+  /// legivel — ver o comentario de `Ligar_se_a_um_ciclo_preexistente_e_recusado_nomeando_o_ciclo`.
+  ///
+  /// Nao ha ciclo aqui: o grafo e um DAG (toda aresta aponta para frente). Uma implementacao que
+  /// confundisse "ja visitei" com "e ciclo" recusaria — e a assercao de sucesso pega isso, do
+  /// mesmo jeito que `Grafo_em_diamante_nao_e_ciclo` pega no pequeno.
+  /// </summary>
+  [Fact]
+  public async Task Grafo_com_caminhos_paralelos_nao_explode_exponencialmente()
+  {
+    var fake = FakeComCadeia(60);
+    // Segunda aresta de cada nivel: i -> i+2, alem do i -> i+1 que a cadeia ja tem.
+    for (var i = 2; i <= 59; i++) Aresta(fake, pai: i, filho: i + 2);
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
+
+    Assert.True(r.Sucesso);
     Assert.Equal(1, fake.SubstituicoesDeFilhos);
   }
 
@@ -905,9 +1139,11 @@ public class ReceitaPadraoUseCaseTests
   /// de banco (500) em vez de 400 legivel. "Duas unidades do mesmo filho" se escreve na
   /// quantidade, nao repetindo a linha.
   ///
-  /// A lista tem DUAS duplicatas de proposito, e nao uma: 3 se repete primeiro (indice 2), 2 so
-  /// depois (indice 3). Com uma duplicata so, "o primeiro repetido" e "o ultimo repetido" dao a
-  /// mesma resposta e a ordem que o helper promete nao estaria provada.
+  /// A lista tem DUAS duplicatas de proposito, e nao uma: com uma so, "o primeiro repetido" e "o
+  /// ultimo repetido" dao a mesma resposta e a ordem que o helper promete nao estaria provada.
+  /// E ela NAO e palindromica ([2, 3, 2, 3], e nao [2, 3, 3, 2]), pelo mesmo motivo do gemeo dos
+  /// materiais: numa lista espelhada, varrer ao contrario da a mesma resposta e a mutacao sobrevive
+  /// — medido na review da Task 5.
   /// </summary>
   [Fact]
   public async Task Filho_repetido_na_mesma_lista_e_recusado_nomeando_o_primeiro()
@@ -920,14 +1156,14 @@ public class ReceitaPadraoUseCaseTests
         [
           new LinhaDeFilhoPadraoDto(2, 1m),
           new LinhaDeFilhoPadraoDto(3, 1m),
-          new LinhaDeFilhoPadraoDto(3, 2m),
           new LinhaDeFilhoPadraoDto(2, 2m),
+          new LinhaDeFilhoPadraoDto(3, 2m),
         ],
         Ct);
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal("O componente 3 aparece mais de uma vez na lista.", r.Erro);
+    Assert.Equal("O componente 2 aparece mais de uma vez na lista.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -1172,9 +1408,15 @@ public class ReceitaPadraoUseCaseTests
   ///    `Auto_referencia_e_recusada_com_mensagem_propria`).
   /// 5. id duplicado + id inexistente -> ganha a duplicata (o usuario corrige a lista dele antes de
   ///    ouvir sobre o catalogo).
+  /// 6. quantidade NEGATIVA e fora da escala (`-0,00001`) -> ganha "maior que zero". Este caso
+  ///    entrou no fix pass da review da Task 5, que mediu a lacuna: trocar a guarda de `&lt;= 0`
+  ///    com a de escala deixava a suite inteira verde, porque os casos 2 e 3 provam que as duas
+  ///    vem antes da auto-referencia mas nao provam a ordem ENTRE elas. `-0,00001` e invalida pelos
+  ///    dois motivos, entao so a ordem decide qual mensagem sai.
   ///
   /// O par restante — existencia/atividade contra CICLO — nao cabe aqui porque exige arranjar o
-  /// grafo; ele esta em `Componente_filho_inativo_nao_pode_entrar_na_receita`.
+  /// grafo; ele esta em `Componente_filho_inativo_nao_pode_entrar_na_receita`. Com o caso 6, as
+  /// SEIS fronteiras adjacentes da cadeia estao presas.
   /// </summary>
   [Theory]
   [InlineData(999, 777, 0, false, TipoDeErro.NaoEncontrado, "Componente nao encontrado.")]
@@ -1184,6 +1426,7 @@ public class ReceitaPadraoUseCaseTests
   [InlineData(1, 1, 1, true, TipoDeErro.Validacao, "Um componente nao pode ser filho de si mesmo.")]
   [InlineData(1, 777, 1, true, TipoDeErro.Validacao,
       "O componente 777 aparece mais de uma vez na lista.")]
+  [InlineData(1, 2, -0.00001, false, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
   public async Task Precedencia_das_validacoes_de_filhos_e_fixa(
       int componenteId,
       int filhoId,
