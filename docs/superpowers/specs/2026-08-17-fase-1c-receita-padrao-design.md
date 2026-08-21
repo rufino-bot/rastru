@@ -206,6 +206,7 @@ Três pontos do contrato que não são óbvios e por isso viram teste:
 | `401` | Sem token |
 | `403` | Perfil sem escrita (qualquer um fora de Administrador/PCP) |
 | `404` | Componente pai inexistente |
+| `400` | Componente pai **inativo** — só na **escrita** (ver abaixo) |
 | `400` | Id inexistente na lista — **nomeando qual** |
 | `400` | Quantidade ≤ 0 (filhos e materiais) |
 | `400` | Duplicata dentro da lista enviada (mesmo filho duas vezes; mesmo material duas vezes) |
@@ -242,6 +243,24 @@ errada.
 Linha que já existe e cujo item foi inativado **depois** sobrevive — inativar um item de catálogo
 não deve corromper receitas já cadastradas, e a 1B já estabeleceu que catálogo se inativa, não se
 exclui.
+
+**Componente pai inativo: recusa a ESCRITA, permite a LEITURA** (decidido em 2026-08-20, depois da
+review da Task 5). O que pesou foi a assimetria: o sistema já recusava pôr material, setor ou filho
+inativo **dentro** de uma receita, e ainda assim deixava reescrever a receita inteira de um pai
+inativo — é a mesma regra vista do outro lado. Vale para os três `POST`. Os três `GET` continuam
+respondendo `200`: ver a receita de uma peça desativada tem valor histórico, e leitura neste projeto
+é de qualquer perfil autenticado.
+
+O status é `400`, e não `409`: a guarda é irmã da de item inativo, que já é validação, e o `409`
+destes endpoints já significa *"outra gravação derrubou a sua, tente de novo"* — dois `409` com
+semânticas opostas no mesmo `POST` só se distinguiriam pela string do corpo. **Precedente contrário,
+registrado:** `Excluir` de Agrupamento devolve `Conflito` para `"PedidoNaoAberto"`, que também é
+estado do recurso barrando a operação. Se a escolha for revista, o que muda é o `TipoDeErro` e a
+mensagem — os testes que prendem a regra e a precedência já existem.
+
+Na **ordem das validações**, o pai responde por dois níveis, antes de qualquer regra de linha:
+existe (`404`) e está ativo (`400`). Não adianta apontar erro no corpo de uma gravação que não vai
+acontecer de jeito nenhum.
 
 ### 2.4 A guarda de perfis não é opcional aqui
 

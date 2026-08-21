@@ -244,6 +244,78 @@ public class ReceitaPadraoUseCaseTests
   }
 
   /// <summary>
+  /// Componente da ROTA inativo recusa a ESCRITA nos TRES sub-recursos (decisao do usuario,
+  /// 2026-08-20). O sistema ja recusava por material, setor ou filho inativo DENTRO de uma receita;
+  /// deixar editar a receita inteira de um pai inativo era a mesma regra faltando do outro lado.
+  ///
+  /// Os tres num teste so porque a guarda e um helper compartilhado: se ela nascer faltando em um
+  /// dos tres — que foi o que aconteceu com o `catch` de conflito ate a Task 5 —, este teste morre.
+  ///
+  /// PRECEDENCIA presa aqui, na forma dos `[Theory]` de precedencia: cada corpo e invalido TAMBEM
+  /// por uma regra de linha (quantidade zero nos materiais, setor inexistente no roteiro, filho
+  /// inexistente E repetido nos filhos), e a mensagem afirmada e a do PAI INATIVO. Mover a guarda
+  /// para depois das validacoes de corpo faz o usuario receber "quantidade deve ser maior que zero"
+  /// numa gravacao que nao aconteceria de jeito nenhum — e mata este teste.
+  ///
+  /// O par que NAO da para cruzar e 404 x inativo: um componente nao consegue ser inexistente e
+  /// inativo ao mesmo tempo. Esse nivel esta em
+  /// `Filhos_de_componente_inexistente_sao_nao_encontrados_na_leitura_e_na_escrita` e nos gemeos.
+  /// </summary>
+  [Fact]
+  public async Task Componente_pai_inativo_recusa_a_gravacao_nos_tres_sub_recursos()
+  {
+    var fake = FakeComQuatroComponentes();
+    fake.Componentes.Single(c => c.Id == 1).Ativo = false;
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var materiais = await caso.SubstituirMateriais(1, [new LinhaDeMaterialPadraoDto(10, 0m)], Ct);
+    var roteiro = await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(888)], Ct);
+    var filhos = await caso.SubstituirFilhos(
+        1, [new LinhaDeFilhoPadraoDto(777, 1m), new LinhaDeFilhoPadraoDto(777, 1m)], Ct);
+
+    foreach (var r in new[] { materiais.TipoDoErro, roteiro.TipoDoErro, filhos.TipoDoErro })
+      Assert.Equal(TipoDeErro.Validacao, r);
+    foreach (var erro in new[] { materiais.Erro, roteiro.Erro, filhos.Erro })
+      // Mensagem INTEIRA e pelo CODIGO ("PAI"), nao pelo id: e o que o usuario ve na tela. E ela
+      // diz o que fazer — reativar —, porque a recusa e sobre estado, nao sobre o corpo enviado.
+      Assert.Equal("O componente PAI esta inativo: reative-o para alterar a receita.", erro);
+    Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// O outro lado da decisao acima, e o que impede alguem de "uniformizar" a guarda: a LEITURA da
+  /// receita de um componente inativo continua permitida, nos tres sub-recursos. Ver a receita de
+  /// uma peca desativada tem valor historico, e leitura neste projeto e de qualquer perfil
+  /// autenticado — a mesma razao pela qual `ProjetarMateriais`/`ProjetarFilhos` nao filtram por
+  /// `Ativo` na linha ja gravada.
+  ///
+  /// A receita e gravada ANTES da inativacao de proposito: e o cenario real (cadastra-se a peca,
+  /// depois ela sai de linha), e obriga a leitura a devolver conteudo, nao lista vazia.
+  /// </summary>
+  [Fact]
+  public async Task Receita_de_componente_inativo_continua_visivel_na_leitura()
+  {
+    var fake = FakeComQuatroComponentes();
+    var caso = new ReceitaPadraoUseCase(fake);
+    await caso.SubstituirMateriais(1, [new LinhaDeMaterialPadraoDto(10, 2m)], Ct);
+    await caso.SubstituirRoteiro(1, [new LinhaDeRoteiroPadraoDto(20)], Ct);
+    await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(3, 5m)], Ct);
+
+    fake.Componentes.Single(c => c.Id == 1).Ativo = false;
+
+    var materiais = await caso.ListarMateriais(1, Ct);
+    var roteiro = await caso.ListarRoteiro(1, Ct);
+    var filhos = await caso.ListarFilhos(1, Ct);
+
+    Assert.True(materiais.Sucesso);
+    Assert.Equal(10, Assert.Single(materiais.Valor!).MaterialId);
+    Assert.True(roteiro.Sucesso);
+    Assert.Equal(20, Assert.Single(roteiro.Valor!).SetorId);
+    Assert.True(filhos.Sucesso);
+    Assert.Equal(3, Assert.Single(filhos.Valor!).ComponenteFilhoId);
+  }
+
+  /// <summary>
   /// A fronteira EXATA de `MaiorQuantidade`: o maior valor que CABE em DECIMAL(18,4) —
   /// 99.999.999.999.999,9999 — e aceito, e volta intacto na projecao.
   ///
@@ -1080,14 +1152,15 @@ public class ReceitaPadraoUseCaseTests
   /// profundidade que separa iterativa de recursiva ja esta presa no teste acima) em que o ultimo
   /// componente aponta de volta para o primeiro. A travessia tem de chegar la no fundo e recusar.
   ///
-  /// A mensagem nomeia o caminho INTEIRO — 2001 setas para um ciclo de 2001 componentes. Ela nao e
-  /// afirmada por extenso aqui (seriam ~14 KB de literal); o que se afirma e a forma e o TAMANHO,
-  /// que e o que distingue "achou o ciclo todo" de "achou um pedaco". Consequencia registrada e
-  /// nao corrigida: um ciclo fundo produz uma mensagem enorme. Na pratica um ciclo de receita tem
-  /// 2 ou 3 niveis; truncar seria decisao de produto, e nao foi tomada.
+  /// E a mensagem e TRUNCADA (decisao do usuario, 2026-08-20): antes ela trazia o caminho inteiro,
+  /// ~14 KB de literal para um ciclo de 2001 componentes. Agora nomeia os SEIS primeiros, resume
+  /// quantos ficaram de fora e fecha no no de retorno — que continua nomeado, porque e ele que diz
+  /// para onde a estrutura volta. Por isso a mensagem inteira e afirmada aqui, e nao mais a forma:
+  /// com o resumo ela cabe num literal, e literal inteiro mata mutacao que forma nao mata (contar
+  /// setas nao distingue "os seis primeiros" de "seis quaisquer").
   /// </summary>
   [Fact]
-  public async Task Ciclo_no_fundo_de_uma_cadeia_de_2000_niveis_e_recusado()
+  public async Task Ciclo_no_fundo_de_uma_cadeia_de_2000_niveis_e_recusado_com_caminho_resumido()
   {
     var fake = FakeComCadeia(2000);
     Aresta(fake, pai: 2001, filho: 1);
@@ -1097,10 +1170,36 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.StartsWith("Esta receita criaria um ciclo: PAI -> C2 -> C3 -> ", r.Erro);
-    Assert.EndsWith(" -> C2000 -> C2001 -> PAI.", r.Erro);
-    Assert.Equal(2001, r.Erro!.Split(" -> ").Length - 1);
+    Assert.Equal(
+        "Esta receita criaria um ciclo: PAI -> C2 -> C3 -> C4 -> C5 -> C6 -> "
+        + "... (+1995 componentes) -> PAI.",
+        r.Erro);
     Assert.Equal(0, fake.Substituicoes);
+  }
+
+  /// <summary>
+  /// A FRONTEIRA EXATA do truncamento, nos dois sentidos — sem ela, mudar o limite de 6 para
+  /// qualquer outro numero (ou truncar sempre) passa despercebido, porque os ciclos curtos dos
+  /// outros testes cabem inteiros e o fundo e resumido de qualquer jeito.
+  ///
+  /// O corte nao e "acima de 6", e sim "acima de 7": com 7 componentes distintos, a forma truncada
+  /// teria o MESMO tamanho da completa (6 nomes + resumo + retorno) e o resumo diria "+1" — inutil,
+  /// e no plural errado. Com 8, o resumo passa a valer e diz "+2". Os dois casos abaixo sao esses
+  /// dois vizinhos.
+  /// </summary>
+  [Theory]
+  [InlineData(6, "PAI -> C2 -> C3 -> C4 -> C5 -> C6 -> C7 -> PAI")]
+  [InlineData(7, "PAI -> C2 -> C3 -> C4 -> C5 -> C6 -> ... (+2 componentes) -> PAI")]
+  public async Task Caminho_do_ciclo_so_e_resumido_quando_isso_encurta(int niveis, string caminho)
+  {
+    var fake = FakeComCadeia(niveis);
+    Aresta(fake, pai: niveis + 1, filho: 1);
+    var caso = new ReceitaPadraoUseCase(fake);
+
+    var r = await caso.SubstituirFilhos(1, [new LinhaDeFilhoPadraoDto(2, 1m)], Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal($"Esta receita criaria um ciclo: {caminho}.", r.Erro);
   }
 
   /// <summary>

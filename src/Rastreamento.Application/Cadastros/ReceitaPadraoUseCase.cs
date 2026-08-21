@@ -59,8 +59,45 @@ public sealed class ReceitaPadraoUseCase
       "Esta receita ligaria este componente a um ciclo que ja existe: {0}. "
       + "Corrija a receita desses componentes antes.";
 
+  /// <summary>
+  /// Componente da ROTA inativo recusa a ESCRITA nos tres sub-recursos (decisao do usuario,
+  /// 2026-08-20). O argumento que pesou foi a assimetria: o sistema ja recusa por em uma receita um
+  /// material, setor ou filho INATIVO, e mesmo assim deixava editar a receita inteira de um pai
+  /// inativo. E a mesma regra vista do outro lado.
+  ///
+  /// A LEITURA continua permitida — ver a receita de um componente inativo tem valor historico, e
+  /// leitura neste projeto e de qualquer perfil autenticado. Pinado por
+  /// <c>Receita_de_componente_inativo_continua_visivel_na_leitura</c>, que morre se alguem
+  /// "uniformizar" a guarda para os `Listar*`.
+  ///
+  /// <c>TipoDeErro.Validacao</c> (400), e nao 409: e a irma da guarda de item inativo, que ja e
+  /// validacao, e o 409 destes endpoints ja significa "outra gravacao derrubou a sua, tente de
+  /// novo" — dois 409 com semanticas opostas no mesmo POST so se distinguiriam pela string. O
+  /// precedente contrario existe e esta relatado (<c>Excluir</c> de Agrupamento usa Conflito para
+  /// "Pedido nao Aberto", que tambem e estado do recurso barrando a operacao); se o usuario
+  /// preferir aquele, e trocar o tipo e a mensagem, com os testes ja no lugar.
+  /// </summary>
+  private const string ErroDeComponenteInativo =
+      "O componente {0} esta inativo: reative-o para alterar a receita.";
+
   /// <summary>Maior valor que cabe em DECIMAL(18,4): 14 digitos inteiros + 4 decimais.</summary>
   private const decimal MaiorQuantidade = 99_999_999_999_999.9999m;
+
+  /// <summary>
+  /// Quantos componentes do ciclo a mensagem nomeia antes de resumir o resto (decisao do usuario,
+  /// 2026-08-20: truncar com resumo, em vez de despejar o caminho inteiro).
+  ///
+  /// SEIS porque o valor de diagnostico esta no comeco do caminho: e por ali que o usuario corta.
+  /// Ciclo de receita real tem 2 ou 3 saltos, entao 6 mostra o ciclo INTEIRO em qualquer caso
+  /// plausivel e ainda sobra margem; acima disso o que importa e saber que ha mais e para onde o
+  /// caminho volta. O no de retorno e SEMPRE nomeado, truncado ou nao — e ele que identifica onde o
+  /// ciclo fecha.
+  ///
+  /// O truncamento so acontece quando ENCURTA (`> Nomeados + 1`): com 7 componentes, a forma
+  /// truncada teria o mesmo tamanho da completa, e o resumo diria "+1", que alem de inutil sairia
+  /// no plural errado. Assim o "+N" e sempre >= 2.
+  /// </summary>
+  private const int ComponentesNomeadosNoCiclo = 6;
 
   private readonly IReceitaPadraoRepository _repositorio;
 
@@ -93,9 +130,14 @@ public sealed class ReceitaPadraoUseCase
     // Duas delas so entraram no fix pass da review da Task 5: a guarda de escala nao aparecia em
     // caso nenhum do `[Theory]`, entao troca-la com a de `<= 0` ou com a de duplicata deixava a
     // suite INTEIRA verde (medido nas duas direcoes). O molde dos filhos tinha a mesma lacuna.
-    if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
+    //
+    // O componente da rota responde por DOIS niveis, nesta ordem: existe (404) e esta ativo (400).
+    // Os dois vem antes de qualquer validacao de LINHA — nao adianta apontar erro no corpo de uma
+    // gravacao que nao vai acontecer de jeito nenhum.
+    var problemaDoPai = await ProblemaComOComponentePai(componenteId, ct);
+    if (problemaDoPai is not null)
       return Result<IReadOnlyList<MaterialPadraoDto>>.Falha(
-          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+          problemaDoPai.Value.Erro, problemaDoPai.Value.Tipo);
 
     if (linhas.Any(l => l.QuantidadePadrao <= 0))
       return Result<IReadOnlyList<MaterialPadraoDto>>.Falha(ErroDeQuantidadeInvalida);
@@ -192,11 +234,12 @@ public sealed class ReceitaPadraoUseCase
   public async Task<Result<IReadOnlyList<RoteiroPadraoDto>>> SubstituirRoteiro(
       int componenteId, IReadOnlyList<LinhaDeRoteiroPadraoDto> linhas, CancellationToken ct)
   {
-    // Mesma precedencia dos materiais: o recurso da ROTA primeiro (404 ganha de 400), e toda
-    // validacao antes da unica chamada de escrita.
-    if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
+    // Mesma precedencia dos materiais: o recurso da ROTA primeiro (404 de inexistente, depois 400
+    // de inativo), e toda validacao antes da unica chamada de escrita.
+    var problemaDoPai = await ProblemaComOComponentePai(componenteId, ct);
+    if (problemaDoPai is not null)
       return Result<IReadOnlyList<RoteiroPadraoDto>>.Falha(
-          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+          problemaDoPai.Value.Erro, problemaDoPai.Value.Tipo);
 
     // SEM checagem de repetido, de proposito: o mesmo Setor pode aparecer varias vezes — e o
     // RETORNO AO SETOR, permitido pelo schema (UQ e (ComponenteId, Ordem)). Nao "conserte" isto
@@ -293,9 +336,13 @@ public sealed class ReceitaPadraoUseCase
     // a suite INTEIRA verde. Faltava o par quantidade x escala, que so uma entrada invalida pelos
     // DOIS motivos distingue (`-0,00001`: negativa E fora da escala; a ordem decide qual mensagem
     // sai). Esse caso entrou no `[Theory]` no fix pass, e agora a reordenacao morre de verdade.
-    if (await _repositorio.ObterComponenteAsync(componenteId, ct) is null)
+    //
+    // O componente da ROTA responde por dois niveis ANTES de todos esses — existe (404) e esta
+    // ativo (400) —, presos por `Componente_pai_inativo_recusa_a_gravacao_nos_tres_sub_recursos`.
+    var problemaDoPai = await ProblemaComOComponentePai(componenteId, ct);
+    if (problemaDoPai is not null)
       return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(
-          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+          problemaDoPai.Value.Erro, problemaDoPai.Value.Tipo);
 
     if (linhas.Any(l => l.QuantidadePadrao <= 0))
       return Result<IReadOnlyList<FilhoPadraoDto>>.Falha(ErroDeQuantidadeInvalida);
@@ -421,11 +468,37 @@ public sealed class ReceitaPadraoUseCase
     // tem linha em `Componente`, e o proprio pai foi conferido no inicio do metodo. Ele existe para
     // que um grafo sujo NAO troque um 400 legivel por um `KeyNotFoundException` (500), e por isso
     // nao tem teste: nao ha como chegar la pelo repositorio real.
-    var caminho = string.Join(
-        " -> ", ciclo.Select(id => codigos.TryGetValue(id, out var codigo) ? codigo : $"#{id}"));
+    string Codigo(int id) => codigos.TryGetValue(id, out var codigo) ? codigo : $"#{id}";
 
     return string.Format(
-        ciclo[0] == componenteId ? ErroDeCicloProprio : ErroDeCicloAlcancado, caminho);
+        ciclo[0] == componenteId ? ErroDeCicloProprio : ErroDeCicloAlcancado,
+        ResumirCaminho(ciclo, Codigo));
+  }
+
+  /// <summary>
+  /// O caminho do ciclo em texto, TRUNCADO quando ele e fundo (decisao do usuario, 2026-08-20 — ver
+  /// <see cref="ComponentesNomeadosNoCiclo"/> para o porque do numero).
+  ///
+  /// <paramref name="ciclo"/> chega FECHADO (o primeiro no aparece tambem no fim), entao o numero de
+  /// componentes distintos e <c>Count - 1</c>. A forma truncada nomeia os primeiros N, resume
+  /// quantos ficaram de fora e fecha no no de retorno — que e o mesmo primeiro no, e e o que diz ao
+  /// usuario para onde a estrutura volta:
+  ///
+  /// <code>PAI -> C2 -> C3 -> C4 -> C5 -> C6 -> ... (+1995 componentes) -> PAI</code>
+  ///
+  /// Antes desta decisao a mensagem trazia o caminho inteiro: um ciclo de 2001 componentes gerava
+  /// ~14 KB de corpo de 400. O valor de diagnostico estava nos primeiros saltos, e so.
+  /// </summary>
+  private static string ResumirCaminho(IReadOnlyList<int> ciclo, Func<int, string> codigo)
+  {
+    var distintos = ciclo.Count - 1;
+
+    if (distintos <= ComponentesNomeadosNoCiclo + 1)
+      return string.Join(" -> ", ciclo.Select(codigo));
+
+    var nomeados = string.Join(" -> ", ciclo.Take(ComponentesNomeadosNoCiclo).Select(codigo));
+    return $"{nomeados} -> ... (+{distintos - ComponentesNomeadosNoCiclo} componentes) "
+           + $"-> {codigo(ciclo[0])}";
   }
 
   /// <summary>
@@ -450,6 +523,14 @@ public sealed class ReceitaPadraoUseCase
   ///   seguia rodando aos 180 s, morto de fora). ESSE e o que pendura, e para ele nao ha saida
   ///   barata: <c>[Fact(Timeout)]</c> do xUnit v2 nao interrompe laco sincrono dentro de metodo
   ///   async — a review da Task 5 aplicou o atributo e a execucao seguiu presa ate os 180 s.
+  ///
+  /// DECISAO REGISTRADA (usuario, 2026-08-20): NAO ha teto de iteracoes nesta travessia, e isso e
+  /// escolha, nao esquecimento. Um teto transformaria a mutacao acima em vermelho legivel, mas
+  /// seria guarda contra bug futuro NOSSO, com numero arbitrario, e um numero arbitrario recusa
+  /// estrutura legitima e funda — o grafo real e pequeno e a travessia esta provada. Consequencia
+  /// aceita: quem apagar a marcacao <c>preto</c> PENDURA a suite, e isso e sabido. Se voce chegou
+  /// aqui depois de uma execucao que nao termina, a causa provavel e essa — nao e descoberta nova,
+  /// nao gaste a sessao remedindo.
   /// </summary>
   private static IReadOnlyList<int>? ProcurarCiclo(ILookup<int, int> grafo, int raiz)
   {
@@ -519,6 +600,28 @@ public sealed class ReceitaPadraoUseCase
   }
 
   // ------------------------------------------------------------------ comum
+
+  /// <summary>
+  /// Os dois niveis de recusa do componente da ROTA, na ordem, ou <c>null</c> se ele estiver
+  /// existente e ativo: 404 para inexistente, 400 para inativo (ver <see cref="ErroDeComponenteInativo"/>).
+  ///
+  /// Helper compartilhado pelos tres <c>Substituir*</c> de proposito: e a mesma regra nos tres, e
+  /// tres copias sao tres chances de a guarda nascer faltando em um deles — foi o que aconteceu com
+  /// o <c>catch</c> de conflito, que ficou dois sub-recursos sem cobertura ate a Task 5. Os
+  /// <c>Listar*</c> NAO passam por aqui: leitura de receita de componente inativo continua
+  /// permitida.
+  /// </summary>
+  private async Task<(string Erro, TipoDeErro Tipo)?> ProblemaComOComponentePai(
+      int componenteId, CancellationToken ct)
+  {
+    var componente = await _repositorio.ObterComponenteAsync(componenteId, ct);
+
+    if (componente is null) return (ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    return componente.Ativo
+        ? null
+        : (string.Format(ErroDeComponenteInativo, componente.Codigo), TipoDeErro.Validacao);
+  }
 
   /// <summary>O primeiro id que aparece duas vezes, ou null. Ordem estavel: a lista dita.</summary>
   private static int? PrimeiroRepetido(IReadOnlyList<int> ids)
