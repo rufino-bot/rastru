@@ -2436,13 +2436,13 @@ Em `tests/Rastreamento.Api.Tests/PerfisDeEscritaDeclaradosTests.cs`, no `TabelaA
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **Application 199**, **Infrastructure 58**, **Api 171 + 12 = 183**. Total **440**.
+Esperado: **Application 199**, **Infrastructure 58**, **Api 171 + 29 = 200**. Total **457**.
 
 - [ ] **Step 8: Prove por mutação que a guarda protege as rotas novas**
 
 Troque `PerfisDeEscrita` do `ReceitaPadraoController` para `"Administrador,PCP,Qualidade"`. Esperado: `PerfisDeEscritaDeclaradosTests` **FALHA** dizendo que o roteamento exige `[Administrador, PCP, Qualidade]` contra a tabela `[Administrador, PCP]`. Reverta.
 
-Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. Esperado: a guarda **FALHA** pela asserção de verbo de escrita (rota de escrita fora da tabela e fora dos isentos), **e** `Operador_nao_grava_receita` continua verde (ele testa filhos, não materiais) — ou seja, **quem pega essa é a guarda, não o teste de endpoint**. Reverta e reconfirme 440.
+Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. **MEDIDO na execução da Task 6: os DOIS pegam** — a guarda falha pela asserção de verbo de escrita, E o teste de 403 falha junto, porque ele ficou parametrizado pelos três POST em vez de testar só filhos. A frase anterior aqui ("quem pega essa é a guarda, não o teste de endpoint") era previsão do plano e a medição a contradisse. Reverta e reconfirme 457.
 
 - [ ] **Step 9: Build e commit**
 
@@ -2455,7 +2455,7 @@ git add src/Rastreamento.Api tests/Rastreamento.Api.Tests
 git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guarda de perfis"
 ```
 
-**Delta previsto: Api 171 → 183 (+12). Backend total 338 → 440** (era 385 no plano original; a
+**Delta MEDIDO: Api 171 → 200 (+29), contra +12 previstos. Backend total 338 → 457** (era 385 no
 Task 2 fechou em Infrastructure 57 em vez de 48, a Task 3 em Application 142 em vez de 139, e o fix
 pass da review da Task 3 levou Application a 150 e Infrastructure a 58, e a Task 4 a 160 em vez de
 156 — ver o bloco MEDIDO em cada uma. O fix pass da review da Task 4 somou mais duas vezes: +0 em
@@ -2535,7 +2535,7 @@ Repita o Step 3. Os números têm de ser **idênticos**. Se cresceram, o arquivo
 dotnet test Rastreamento.slnx
 ```
 
-Esperado: **440**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
+Esperado: **457**, exatamente como no fim da Task 6. Se algum teste passou a depender da massa de demo, ele **quebrou a regra de mão única** — conserte o teste, não o seed.
 
 - [ ] **Step 6: Commit**
 
@@ -3577,14 +3577,14 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 5 | Application | 161 → **186** (medido; previsto 173) | **+25** |
 | 5-fix | Application | 186 → **195** (fix pass da review: regra de ciclo estrita + lacunas medidas) | **+9** |
 | 5-fix (2ª rodada) | Application | 195 → **199** (decisões do usuário: pai inativo recusa escrita, mensagem de ciclo truncada) | **+4** |
-| 6 | Api | 171 → 183 | +12 |
+| 6 | Api | 171 → 200 | **+29** (previsto +12) |
 | 7 | — | — | 0 |
 | 8 | front | 317 → 325 | +8 |
 | 9 | front | 325 → ~334 | ~+9 |
 | 10 | front | ~334 → ~342 | ~+8 |
 | 11 | front | ~342 → ~350 | ~+8 |
 
-**Backend: 338 → 440** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
+**Backend: 338 → 457** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
 fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task 4 somou +1 em código
 (N1, 160 → 161) e mais +1 na previsão da Task 5 (P1, 172 → 173), a Task 5 fechou +13 acima do
 previsto (161 → 186) e o fix pass da review dela somou, em duas rodadas, +13 em Application

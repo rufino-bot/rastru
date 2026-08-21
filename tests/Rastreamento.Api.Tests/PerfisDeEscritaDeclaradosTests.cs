@@ -113,6 +113,12 @@ public class PerfisDeEscritaDeclaradosTests
     ["PUT componentes/{id:int}"] = ["Administrador", "PCP"],
     ["PATCH componentes/{id:int}/ativo"] = ["Administrador", "PCP"],
 
+    // Receita padrao (Fase 1C): mesmos perfis do proprio Componente. Os tres GET nao entram —
+    // leitura e de qualquer autenticado, e endpoint sem `Roles` nao e assunto desta tabela.
+    ["POST componentes/{componenteId:int}/filhos-padrao"] = ["Administrador", "PCP"],
+    ["POST componentes/{componenteId:int}/materiais-padrao"] = ["Administrador", "PCP"],
+    ["POST componentes/{componenteId:int}/roteiro-padrao"] = ["Administrador", "PCP"],
+
     ["POST pedidos"] = ["PCP", "Administrador"],
     ["PUT pedidos/{id:int}"] = ["PCP", "Administrador"],
 
