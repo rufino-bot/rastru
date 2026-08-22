@@ -216,6 +216,18 @@ aplicada a `ComponenteMappingTests`, `ReceitaPadraoMapeamentoTests` e
 inteiro: o resto da suíte não paga por isso. Escopar a asserção (prefixo por teste) é a alternativa
 e é melhor quando dá — só não dá quando o que se afirma é uma contagem global.
 
+**`[Collection]` não atravessa processo — medido em 2026-08-22.** A mitigação acima não bastou:
+`Busca_em_branco_nao_filtra_nada` continuou intermitente (4 vermelhas em 20 execuções da solução)
+porque quem escrevia na janela entre as duas consultas era **outro assembly** — `Api.Tests`, em
+outro processo — e `[Collection]` só serializa classes dentro do mesmo assembly. Reproduzido em
+ambiente controlado (escrita concorrente em `dbo.Componente` durante o teste): **11 vermelhas em 30**
+antes (~37%, em duas rodadas de 10 e 20), **0 em 40** depois, na mesma bancada. O conserto foi **escopar a asserção**: o teste afirma sobre as linhas do
+próprio prefixo (`Itens` de uma página só, `Tamanho = int.MaxValue`, para a linha do prefixo nunca
+cair fora da página) em vez de comparar dois `Total` globais. A regra geral que fica: **asserção
+sobre contagem global de tabela compartilhada é flaky por construção** — nenhuma `[Collection]`
+resolve, porque o outro escritor pode estar em outro processo. Escope, ou afirme só o que é monótono
+(`Total >= n` das linhas que o próprio teste inseriu).
+
 ```bash
 docker compose up -d
 # aplicar, uma vez, no banco `Rastreamento` de localhost:1433 (sa / Your_strong_Pass123):

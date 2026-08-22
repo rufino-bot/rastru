@@ -16,6 +16,16 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// A alternativa seria desligar o paralelismo do assembly inteiro; nao vale — o resto da suite
 /// (Security, RefreshToken, os outros mapeamentos) nao toca esta tabela e nao precisa pagar.
 ///
+/// ATUALIZACAO 2026-08-22: a colecao NAO resolvia o caso principal, e isso agora esta medido. O
+/// mesmo teste continuou intermitente (4 vermelhas em 20 execucoes da solucao) porque quem escrevia
+/// na janela entre as duas consultas era outro PROCESSO — <c>Api.Tests</c> —, e <c>[Collection]</c>
+/// so serializa classes dentro do mesmo assembly. A correcao foi no teste: ele passou a afirmar
+/// sobre as linhas do proprio prefixo, em vez de comparar duas contagens globais. Reproducao
+/// controlada: com escrita concorrente na tabela, 11 vermelhas em 30 antes e 0 em 40 depois.
+/// Com isso a colecao ficou sem escritor que dependa de contagem global; ela permanece por
+/// prudencia (desliga-la e uma decisao separada, que pede medicao propria), nao porque haja hoje
+/// uma assercao que so ela protege.
+///
 /// Classe nova que escreva em <c>dbo.Componente</c> entra aqui com
 /// <c>[Collection(ColecaoQueEscreveEmComponente.Nome)]</c>.
 /// </summary>
