@@ -2530,7 +2530,16 @@ Autorizada pelo usuário em 2026-08-17 (spec §4.5). **O banco de dev é descart
 - Consumes: `specs/02-modelo-de-dados.sql`, `db/seed.sql`.
 - Produces: catálogo com volume, para as Tasks 8 e 12 poderem verificar a busca de verdade.
 
-**Por que agora:** medido em 2026-08-17, o banco tem **2 Componentes, 0 Materiais, 4 Setores**. Com zero materiais a seção de materiais-padrão não é nem exercitável na tela, e com 2 componentes a busca do `SeletorComBusca` não prova nada.
+**Por que agora:** ~~medido em 2026-08-17, o banco tem **2 Componentes, 0 Materiais, 4 Setores**~~. Com poucos componentes a busca do `SeletorComBusca` não prova nada, e sem materiais de verdade a seção de materiais-padrão não é exercitável na tela.
+
+> **Número corrigido na execução da Task 7 (2026-08-22).** A medição de 2026-08-17 estava velha e
+> a frase a citava como se fosse presente — o mesmo vício de "comentário que encena precisão".
+> **Medido de novo em 2026-08-22, antes do `DROP DATABASE`: 37 Componentes, 5 Materiais, 14 Setores,
+> 2 Usuários.** O crescimento é resíduo de massa que `Api.Tests` e `Infrastructure.Tests` criam e
+> não limpam — dado sujo e imprevisível, não catálogo. A justificativa da task **não muda**: o
+> Step 2 dropa e recria o banco, então o resíduo evapora de qualquer jeito, e o que faltava
+> (nomes plausíveis, prefixos de código para a busca filtrar, receitas montadas, retorno ao setor)
+> continua faltando.
 
 - [ ] **Step 1: Escreva o `db/seed-demo.sql`**
 

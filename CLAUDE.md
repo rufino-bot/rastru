@@ -221,7 +221,21 @@ docker compose up -d
 # aplicar, uma vez, no banco `Rastreamento` de localhost:1433 (sa / Your_strong_Pass123):
 #   specs/02-modelo-de-dados.sql   (schema — fonte de verdade)
 #   db/seed.sql                    (perfis + usuário admin / Admin@123)
+#   db/seed-demo.sql               (OPCIONAL — massa de demonstração, Fase 1C)
 ```
+
+**`db/seed-demo.sql` é opcional e não obrigatório** — a suíte **ignora que ele existe**, e é isso que
+a torna determinística numa máquina qualquer (`grep -rn "seed-demo"` em `src/` e `tests/` devolve
+zero). Mas quem regenerar o banco **sem** ele perde a massa de verificação manual (54 Componentes,
+17 Materiais, 10 Setores, 3 receitas completas) e vai achar que a tela está quebrada quando ela só
+está vazia. A dependência é de **mão única**: a verificação manual usa o demo, a suíte não.
+
+É idempotente (`MERGE` no catálogo, `INSERT…WHERE NOT EXISTS` nas receitas, sempre chaveado por
+código/nome — nunca por Id), então rodá-lo de novo num banco que já o tem não duplica nada.
+**Carregue-o com `-f 65001`**, e por `docker cp` + `-i` (o compose não monta o repo dentro do
+container): a acentuação dos nomes de setor é `NVARCHAR` e, se a codepage se perder na carga, os
+dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que sobreviveu não é
+olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
