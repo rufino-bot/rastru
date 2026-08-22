@@ -2399,6 +2399,26 @@ produzem — quem responde 401 e o middleware de autenticacao). Nao troque por `
 => ...` sem um ramo para `NaoAutorizado`: a exaustividade que importa aqui e a de LEITURA, e o
 comentario acima e o que impede o `else` de voltar a engolir um membro novo.
 
+> **SUPERADO pelo fix pass da review da Task 6 (achado I2).** O bloco acima é o que a Task 6
+> entregou; o código em `src/` **não** é mais esse. A review mediu que o comentário mentia, e o fix
+> pass reproduziu: com o `_`, acrescentar um 5º membro a `TipoDeErro` e rodar
+> `dotnet build Rastreamento.slnx -warnaserror` dá **0 avisos**, e o membro novo cai calado em
+> `BadRequest`. O `_` saiu, os quatro membros e o
+> `null` (o tipo é `TipoDeErro?`) foram listados nominalmente, e um `#pragma warning disable CS8524`
+> local passou a suprimir **só** o diagnóstico de *valor não nomeado* — `(TipoDeErro)4` obtido por
+> cast —, que dispara sempre que um switch de enum não tem `_` e sem o qual o build quebrava sem
+> membro novo nenhum. Medido depois da mudança: o mesmo experimento do 5º membro agora **FALHA** com
+> **CS8509**, nomeando o membro e apontando `ReceitaPadraoController.cs`. Delta de teste: **zero** —
+> só a garantia de compilação mudou.
+>
+> **Dívida escolhida, não esquecida — divergência de molde.** `CadastroControllerBase`
+> (`:33-38` e `:68-73`) mantém `_ =>` nos dois `switch` dele, por **decisão do usuário** neste fix
+> pass: lá não existe comentário prometendo exaustividade, então não há frase falsa a consertar e
+> mexer custaria mais do que compra. O que isso custa, medido: no experimento do 5º membro o build
+> acusou **exatamente 1 erro**, o do `ReceitaPadraoController` — um `TipoDeErro` novo quebra o build
+> pelo controller da receita e passa **em silêncio** nos outros controllers, que continuarão
+> respondendo 400 para ele. Quem acrescentar membro no enum tem de varrer os `_ =>` à mão.
+
 - [ ] **Step 4: Registre no DI**
 
 Em `src/Rastreamento.Api/Program.cs`, logo abaixo de `builder.Services.AddScoped<CadastroDeComponenteUseCase>();`:
@@ -2442,7 +2462,9 @@ Esperado: **Application 199**, **Infrastructure 58**, **Api 171 + 29 = 200**. To
 
 Troque `PerfisDeEscrita` do `ReceitaPadraoController` para `"Administrador,PCP,Qualidade"`. Esperado: `PerfisDeEscritaDeclaradosTests` **FALHA** dizendo que o roteamento exige `[Administrador, PCP, Qualidade]` contra a tabela `[Administrador, PCP]`. Reverta.
 
-Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. **MEDIDO na execução da Task 6: os DOIS pegam** — a guarda falha pela asserção de verbo de escrita, E o teste de 403 falha junto, porque ele ficou parametrizado pelos três POST em vez de testar só filhos. A frase anterior aqui ("quem pega essa é a guarda, não o teste de endpoint") era previsão do plano e a medição a contradisse. Reverta e reconfirme 457.
+Segunda mutação: **apague** o `[Authorize(Roles = PerfisDeEscrita)]` de `SubstituirMateriais`. **MEDIDO na execução da Task 6: os DOIS pegam** — a guarda falha **pela asserção de valores (`Perfis_exigidos_batem_com_a_tabela_aprovada`) — a de verbo de escrita continua verde, porque a identidade da rota segue na `TabelaAprovada`**, E o teste de 403 falha junto, porque ele ficou parametrizado pelos três POST em vez de testar só filhos. A frase anterior aqui ("quem pega essa é a guarda, não o teste de endpoint") era previsão do plano e a medição a contradisse. Reverta e reconfirme 457.
+
+**Remedido no fix pass da review da Task 6** (a frase acima dizia "verbo de escrita", herança da previsão de quando a rota ainda não estava na tabela): a mutação dá **3 falhas** — `Perfis_exigidos_batem_com_a_tabela_aprovada` + `Perfil_sem_escrita_recebe_403_no_post` nos casos `Operador/materiais-padrao` e `Qualidade/materiais-padrao`. `Todo_endpoint_de_escrita_esta_na_tabela_ou_na_lista_de_isentos` fica **verde** — o que sumiu foi o `Roles`, não a rota. Ver `.superpowers/sdd/task-6-fix-report.md`.
 
 - [ ] **Step 9: Build e commit**
 
@@ -2456,7 +2478,7 @@ git commit -m "feat(fase1c): endpoints da receita padrao, com as 3 rotas na guar
 ```
 
 **Delta MEDIDO: Api 171 → 200 (+29), contra +12 previstos. Backend total 338 → 457** (era 385 no
-Task 2 fechou em Infrastructure 57 em vez de 48, a Task 3 em Application 142 em vez de 139, e o fix
+plano original; a Task 2 fechou em Infrastructure 57 em vez de 48, a Task 3 em Application 142 em vez de 139, e o fix
 pass da review da Task 3 levou Application a 150 e Infrastructure a 58, e a Task 4 a 160 em vez de
 156 — ver o bloco MEDIDO em cada uma. O fix pass da review da Task 4 somou mais duas vezes: +0 em
 código (I1/I2/I3) e +1 em teste novo (N1, catch estreito) — Application 160 → 161 — e +1 na previsão
@@ -2471,6 +2493,35 @@ C1 e o do pai inativo (400 na escrita, 200 na leitura): 10 → **12**. Ver `.sup
 ## Task 7: Massa de demonstração e regeneração do banco
 
 Autorizada pelo usuário em 2026-08-17 (spec §4.5). **O banco de dev é descartável.**
+
+> ### Duas tasks próprias, abertas na mesma janela desta (decisão do usuário no fix pass da Task 6)
+>
+> Nenhuma das duas é trabalho da Task 7 nem da Task 6 — elas ficam registradas aqui porque é aqui
+> que a próxima janela começa. Ver `.superpowers/sdd/task-6-review-report.md` (M4 e M8) e
+> `.superpowers/sdd/task-6-fix-report.md`.
+>
+> **(a) Quarta asserção em `PerfisDeEscritaDeclaradosTests`** — *"todo endpoint roteado carrega
+> `IAuthorizeData` ou está em `IsentosDeAutorizacaoPorDesenho`"*, no mesmo molde das outras três
+> (iterar o `EndpointDataSource`). Hoje a guarda só pergunta por **verbo de escrita** e por
+> **`Roles`**, então o `[Authorize]` de **classe** é invisível para ela: a review apagou o
+> `[Authorize]` da classe do `ReceitaPadraoController` e morreu **1** teste
+> (`Sem_token_a_leitura_e_401`), com a guarda **verde**; apagando o dos outros seis controllers,
+> morreu exatamente 1 teste por controller. De quebra, a asserção nova fecha o caso acidental do
+> `MeController`, cujo `Me_sem_token_retorna_401` continua **verde** sem o `[Authorize]` — a própria
+> ação devolve `Unauthorized()` quando falta claim, e quem pega a remoção hoje é
+> `AuthEndpointsTests.Caminho_sob_o_prefixo_responde`, por efeito colateral.
+>
+> **(b) Task do flaky `ComponenteMappingTests.Busca_em_branco_nao_filtra_nada`** — mecanismo causal
+> que a análise anterior não cobria: a Task 6 acrescentou churn em `dbo.Componente` vinda de
+> **`Api.Tests`**, concorrente com a **contagem global** desse teste, e o `[Collection]` do
+> `CLAUDE.md` só serializa classes **dentro** do assembly de Infrastructure — não alcança escrita de
+> outro assembly. **O conserto é escopar a asserção, não serializar.** Amostra combinada até aqui:
+> **2 em 12** execuções da solução no ciclo da Task 6 (1/8 do executor, 1/4 da review) mais **2 em
+> 5** no fix pass da review — **4 em 17** no total. Nas duas falhas do fix pass a suíte estava, fora
+> ela, inteiramente verde (199 / 57 de 58 / 200), e o assembly de Infrastructure rodado **sozinho**
+> deu 58 verde. Amostra ainda pequena, e as execuções vieram de
+> sessões e cargas diferentes: dá para afirmar o mecanismo, **não** a taxa, e muito menos que a taxa
+> subiu.
 
 **Files:**
 - Create: `db/seed-demo.sql`
@@ -2973,6 +3024,21 @@ export function salvarRoteiroPadrao(
 ```
 
 - [ ] **Step 4: Acrescente o recurso na tabela de permissões**
+
+> **Decisão a tomar EXPLICITAMENTE nesta task, não por omissão** (achado M5 da review da Task 6).
+> Estado medido hoje, com a Task 6 já commitada: `web/src/auth/permissoesEspelhamOBackend.test.ts`
+> varre um mapa **hardcoded** (`CONTROLLER_POR_RECURSO`) que **não conhece**
+> `ReceitaPadraoController.cs`, e `Recurso` (`web/src/auth/permissoes.ts:1`) não tem entrada de
+> receita. Ou seja: **zero** cobertura do front sobre os perfis das três rotas novas, e `npm test`
+> fica verde disso.
+>
+> O `Record<Recurso, string>` é exaustivo, então **se** nascer um `Recurso` novo o TypeScript obriga
+> a mapear o controller — é o que os Steps 4 e 6 abaixo prescrevem. O risco é o atalho: reaproveitar
+> o recurso `componentes`, já que os perfis são idênticos (`['Administrador', 'PCP']`). Nesse
+> caminho **nenhum `Recurso` novo nasce**, o mapa nunca aprende `ReceitaPadraoController.cs`, e a
+> única linha de defesa do espelhamento continua sendo a `TabelaAprovada` do backend. Se a decisão
+> for reaproveitar, **registre isso e a consequência aqui**; o padrão deste plano é a entrada
+> própria.
 
 Em `web/src/auth/permissoes.ts`:
 
