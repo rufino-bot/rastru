@@ -2779,7 +2779,8 @@ Esperado: **8 aprovados**.
 cd web && npm test -- --run
 ```
 
-Esperado: **317 + 8 = 325 / 29 arquivos**.
+Esperado: ~~**317 + 8 = 325 / 29 arquivos**~~. **MEDIDO: 329 / 29** — +12, não +8. Ver o delta real
+no fim desta task.
 
 ```bash
 cd web && npm run build
@@ -2800,7 +2801,22 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase1c): primitiva SeletorComBusca, combobox sobre useBuscaPaginada"
 ```
 
-**Delta previsto: front 317 → 325 (+8), 28 → 29 arquivos.**
+**Delta MEDIDO: front 317 → 329 (+12, contra ~~+8~~ previstos), 28 → 29 arquivos.** Os 8 do plano
+ficaram intactos; os 4 a mais saíram cada um de uma mutação que SOBREVIVIA à rodada com os 8 — setas
+nos dois sentidos, duplo papel do input, ciclo do filtro, e o indicador de carregando (exigido pelos
+"três estados" do `CLAUDE.md` e ausente deste plano). A pior sobrevivente: apagar `busca.mudarBusca`
+do `onChange` deixava a suíte verde com um seletor que digita e nunca busca.
+
+**Defeitos deste plano medidos na execução, corrigidos no código e não aqui no bloco de teste acima:**
+`mensagemDeErro` recebe **dois** argumentos (`e`, `fallback`) e o Step 3 chamava com um — quebra
+`npm run build`, não `npm test`; **`@testing-library/user-event` NÃO está instalado** e o bloco do
+Step 1 o importa (reescrito com `fireEvent`, sem acrescentar dependência); as chaves do
+`fetchPorRota` estão sem o prefixo `/api` e falta `inicializar()`, sem o qual `apiFetch` lança.
+**As Tasks 9 a 11 herdam esses três — confira antes de colar o bloco de teste delas.**
+
+**Desvio deliberado:** o painel **não** nasce aberto (os testes acima assumiam que sim; as asserções
+foram mantidas e ganharam um `abrir()` explícito). Razão: a Task 11 põe mais de um seletor na mesma
+tela.
 
 ---
 
@@ -3077,7 +3093,7 @@ Em `web/src/auth/permissoesEspelhamOBackend.test.ts`, no `CONTROLLER_POR_RECURSO
 cd web && npm test -- --run
 ```
 
-Esperado: **325 + 8 = 333 / 30 arquivos** (8 de `receitaPadrao.test.ts`; a guarda de espelhamento ganha uma linha no `it.each` já existente, então o número dela sobe 1 — **confirme o número real e ajuste a previsão das tasks seguintes se divergir**).
+Esperado: **329 + 8 = 337 / 30 arquivos** (~~325 + 8 = 333~~ — baseline corrigida pela Task 8) (8 de `receitaPadrao.test.ts`; a guarda de espelhamento ganha uma linha no `it.each` já existente, então o número dela sobe 1 — **confirme o número real e ajuste a previsão das tasks seguintes se divergir**).
 
 ```bash
 cd web && npm run build
@@ -3094,7 +3110,7 @@ git add web/src/api/receitaPadrao.ts web/src/api/receitaPadrao.test.ts web/src/a
 git commit -m "feat(fase1c): cliente de API da receita padrao e recurso na tabela de permissoes"
 ```
 
-**Delta previsto: front 325 → ~334.** Meça e propague.
+**Delta previsto: front 329 → ~338** (~~325 → ~334~~ — baseline corrigida pela Task 8). Meça e propague.
 
 ---
 
@@ -3312,7 +3328,7 @@ Acrescente **um** teste em `web/src/pages/ComponentesPage.test.tsx` provando que
 cd web && npm test -- --run
 ```
 
-Esperado: **~334 + 8 = ~342 / 31 arquivos**. **Meça o número real.**
+Esperado: **~338 + 8 = ~346 / 31 arquivos** (~~~334 + 8 = ~342~~). **Meça o número real.**
 
 ```bash
 cd web && npm run build
@@ -3496,7 +3512,7 @@ Exigências:
 cd web && npm test -- --run
 ```
 
-Esperado: **~342 + 8 = ~350 / 31 arquivos**. **Meça e propague.**
+Esperado: **~346 + 8 = ~354 / 31 arquivos** (~~~342 + 8 = ~350~~). **Meça e propague.**
 
 ```bash
 cd web && npm run build
@@ -3654,10 +3670,10 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 5-fix (2ª rodada) | Application | 195 → **199** (decisões do usuário: pai inativo recusa escrita, mensagem de ciclo truncada) | **+4** |
 | 6 | Api | 171 → 200 | **+29** (previsto +12) |
 | 7 | — | — | 0 |
-| 8 | front | 317 → 325 | +8 |
-| 9 | front | 325 → ~334 | ~+9 |
-| 10 | front | ~334 → ~342 | ~+8 |
-| 11 | front | ~342 → ~350 | ~+8 |
+| 8 | front | 317 → **329** (~~325~~) | **+12** (previsto +8) — MEDIDO |
+| 9 | front | **329** (~~325~~) → ~**338** (~~334~~) | ~+9 |
+| 10 | front | ~**338** (~~334~~) → ~**346** (~~342~~) | ~+8 |
+| 11 | front | ~**346** (~~342~~) → ~**354** (~~350~~) | ~+8 |
 
 **Backend: 338 → 457** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
 fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task 4 somou +1 em código
@@ -3665,6 +3681,8 @@ fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task
 previsto (161 → 186) e o fix pass da review dela somou, em duas rodadas, +13 em Application
 (186 → **199**, medido: +9 na primeira, +4 depois das decisões do usuário) e +2 na Task 6 (os testes
 HTTP do 409 e do pai inativo) — os deltas estão corrigidos nas linhas acima e o total já reflete
-isso). **Front: 317 → ~350.**
+isso). **Front: 317 → ~354** (~~350~~; a Task 8 fechou +12 contra +8 previstos — as 4 a mais nasceram
+de mutações que sobreviviam à rodada com os 8 do plano, a pior delas um seletor que digita e nunca
+busca).
 
 Os números do front a partir da Task 9 são **aproximados de propósito**: a guarda `permissoesEspelhamOBackend` usa `it.each` sobre o mapa de recursos, então acrescentar um recurso muda a contagem por um caminho que este plano não consegue prever com exatidão sem rodar. **Meça na Task 9 e corrija as previsões das Tasks 10 e 11 na mesma passada** — total absoluto herdado propaga erro task a task.
