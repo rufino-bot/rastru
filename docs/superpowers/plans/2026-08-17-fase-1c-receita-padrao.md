@@ -3093,7 +3093,9 @@ Em `web/src/auth/permissoesEspelhamOBackend.test.ts`, no `CONTROLLER_POR_RECURSO
 cd web && npm test -- --run
 ```
 
-Esperado: **329 + 8 = 337 / 30 arquivos** (~~325 + 8 = 333~~ — baseline corrigida pela Task 8) (8 de `receitaPadrao.test.ts`; a guarda de espelhamento ganha uma linha no `it.each` já existente, então o número dela sobe 1 — **confirme o número real e ajuste a previsão das tasks seguintes se divergir**).
+Esperado: ~~**329 + 8 = 337 / 30**~~. **MEDIDO: 340 / 30** — 8 de `receitaPadrao.test.ts` e **3** da
+varredura de diretório. ~~a guarda de espelhamento ganha uma linha no `it.each`~~ — **não ganha**: a
+decisão do usuário não cria `Recurso` novo, então o `it.each` fica com os mesmos 5 casos.
 
 ```bash
 cd web && npm run build
@@ -3110,7 +3112,7 @@ git add web/src/api/receitaPadrao.ts web/src/api/receitaPadrao.test.ts web/src/a
 git commit -m "feat(fase1c): cliente de API da receita padrao e recurso na tabela de permissoes"
 ```
 
-**Delta previsto: front 329 → ~338** (~~325 → ~334~~ — baseline corrigida pela Task 8). Meça e propague.
+**Delta MEDIDO: front 329 → 340 (+11).** +8 do cliente de API, +3 da varredura de diretório. **Os Steps 4 e 6 acima estão SOBRESCRITOS** pela decisão do usuário de 2026-08-24 (nenhum `Recurso` novo; mapa `Record<Recurso, readonly string[]>` + varredura) — ver `.superpowers/sdd/task-9-fase1c-brief.md`.
 
 ---
 
@@ -3328,7 +3330,7 @@ Acrescente **um** teste em `web/src/pages/ComponentesPage.test.tsx` provando que
 cd web && npm test -- --run
 ```
 
-Esperado: **~338 + 8 = ~346 / 31 arquivos** (~~~334 + 8 = ~342~~). **Meça o número real.**
+Esperado: **340 + 8 = ~348 / 31 arquivos** (~~~338 + 8 = ~346~~ — baseline MEDIDA na Task 9). **Meça o número real.**
 
 ```bash
 cd web && npm run build
@@ -3512,7 +3514,7 @@ Exigências:
 cd web && npm test -- --run
 ```
 
-Esperado: **~346 + 8 = ~354 / 31 arquivos** (~~~342 + 8 = ~350~~). **Meça e propague.**
+Esperado: **~348 + 8 = ~356 / 31 arquivos** (~~~346 + 8 = ~354~~). **Meça e propague.**
 
 ```bash
 cd web && npm run build
@@ -3671,9 +3673,9 @@ Abra o PR com `gh pr create`, descrevendo: as 6 decisões da spec, os deltas de 
 | 6 | Api | 171 → 200 | **+29** (previsto +12) |
 | 7 | — | — | 0 |
 | 8 | front | 317 → **329** (~~325~~) | **+12** (previsto +8) — MEDIDO |
-| 9 | front | **329** (~~325~~) → ~**338** (~~334~~) | ~+9 |
-| 10 | front | ~**338** (~~334~~) → ~**346** (~~342~~) | ~+8 |
-| 11 | front | ~**346** (~~342~~) → ~**354** (~~350~~) | ~+8 |
+| 9 | front | 329 → **340** (~~338~~) | **+11** (previsto ~+9) — MEDIDO |
+| 10 | front | **340** → ~**348** (~~346~~) | ~+8 |
+| 11 | front | ~**348** (~~346~~) → ~**356** (~~354~~) | ~+8 |
 
 **Backend: 338 → 457** (o plano original dizia 385; a Task 2 fechou +9 acima do previsto, a Task 3 +3, o
 fix pass da review da Task 3 somou +9, a Task 4 +4, o fix pass da review da Task 4 somou +1 em código
