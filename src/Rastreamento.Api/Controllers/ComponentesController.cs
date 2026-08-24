@@ -40,6 +40,29 @@ public class ComponentesController : CadastroControllerBase
         : BadRequest(new { erro = resultado.Erro });
   }
 
+  /// <summary>
+  /// Detalhe de um Componente. SEM `[Authorize(Roles)]`: leitura e de qualquer autenticado, e o
+  /// gate e o `[Authorize]` de classe — molde de `PedidosController.Obter`. Um componente inativo
+  /// responde 200 aqui (ver o `Obter` do caso de uso).
+  /// </summary>
+  [HttpGet("{id:int}")]
+  public async Task<IActionResult> Obter(int id, CancellationToken ct)
+  {
+    var resultado = await _cadastro.Obter(id, ct);
+    return resultado.Sucesso ? Ok(resultado.Valor) : NotFound();
+  }
+
+  /// <summary>
+  /// DIVERGENCIA DE MOLDE DELIBERADA, 2026-08-24: o `Location` do 201 aponta para `Obter`, e nao
+  /// para `Listar` como em `MateriaisController` e `SetoresController`. Aqui existe
+  /// `GET componentes/{id:int}`, entao `CreatedAtAction(nameof(Obter), ...)` produz o caminho do
+  /// recurso criado (`/api/componentes/{id}`); la NAO existe `GET {id:int}`, e o
+  /// `CreatedAtAction(nameof(Listar), new { id })` deles cai na LISTA com o id virando query
+  /// string ignorada (`/api/materiais?id=123`). Os dois ficam como estao — nem poderiam mudar:
+  /// `nameof(Obter)` la nao compila, porque a acao nao existe. A divergencia e de CAPACIDADE
+  /// (quem tem detalhe aponta para o detalhe), nao de gosto, e some sozinha quando Material e
+  /// Setor ganharem o deles.
+  /// </summary>
   [HttpPost]
   [Authorize(Roles = PerfisDeEscrita)]
   public async Task<IActionResult> Cadastrar(
@@ -47,7 +70,7 @@ public class ComponentesController : CadastroControllerBase
   {
     var resultado = await _cadastro.Cadastrar(novo, ct);
     if (resultado.Sucesso)
-      return CreatedAtAction(nameof(Listar), new { id = resultado.Valor!.Id }, resultado.Valor);
+      return CreatedAtAction(nameof(Obter), new { id = resultado.Valor!.Id }, resultado.Valor);
 
     return await TraduzirFalha(resultado.TipoDoErro, resultado.Erro, Duplicado(novo.Codigo), ct);
   }

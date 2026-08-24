@@ -76,14 +76,78 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
         .PostAsJsonAsync("/api/componentes", CorpoValido($"{NovoPrefixo()}-a"));
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
-    // O 201 tem que vir com `Location`, e sob o prefixo `/api` — sem esta assercao nada na suite
-    // inteira le o header, e um 201 mudo passava. NAO se afirma o caminho exato de proposito: a 1B
-    // nao tem `GET /componentes/{id}`, entao o `CreatedAtAction(nameof(Listar), new { id })` aponta
-    // para a LISTA com o id virando query string ignorada (`/api/componentes?id=123`). Isso e
-    // molde-wide (MateriaisController faz igual) e deliberado na forma; o teste ancora so o que
-    // existe hoje. Quando a 1C criar `GET /componentes/{id}`, e aqui que a assercao aperta.
+    // ASSERCAO APERTADA em 2026-08-24, que e o que o comentario anterior aqui prometia: com
+    // `GET componentes/{id:int}` existindo, o `CreatedAtAction` passou a apontar `Obter`, e o
+    // `Location` passa a ser o CAMINHO DO RECURSO CRIADO — nao mais a lista com o id virando
+    // query string ignorada (`/api/componentes?id=123`), que era o que a versao `StartsWith`
+    // deste teste tolerava.
+    //
+    // O que ela afirma agora, e que a anterior nao afirmava: (1) o caminho tem o id, entao voltar
+    // para `nameof(Listar)` quebra; (2) o id do caminho e o do componente criado, e nao um
+    // qualquer, porque ele vem do CORPO da resposta; (3) o prefixo `/api` continua ali, que era o
+    // unico ponto da versao anterior. `MateriaisController` e `SetoresController` NAO acompanham
+    // — divergencia deliberada, motivo escrito no `Cadastrar` do ComponentesController.
     Assert.NotNull(resposta.Headers.Location);
-    Assert.StartsWith("/api/componentes", resposta.Headers.Location!.AbsolutePath);
+    var id = await IdDaResposta(resposta);
+    Assert.Equal($"/api/componentes/{id}", resposta.Headers.Location!.AbsolutePath);
+    Assert.Equal(string.Empty, resposta.Headers.Location.Query);
+  }
+
+  [Fact]
+  public async Task Obter_componente_devolve_o_que_foi_cadastrado()
+  {
+    var cliente = ClienteComo("Administrador");
+    var codigo = $"{NovoPrefixo()}-a";
+    var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
+    var id = await IdDaResposta(criado);
+
+    var resposta = await cliente.GetAsync($"/api/componentes/{id}");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    // Os CINCO campos do ComponenteDto, nao so um: e a unica prova ponta a ponta de que o
+    // `Obter` reusa a mesma projecao da listagem. Um campo faltando no JSON quebra a Task 10,
+    // que le o cabecalho da tela de detalhe daqui.
+    Assert.Equal(id, corpo.GetProperty("id").GetInt32());
+    Assert.Equal(codigo, corpo.GetProperty("codigo").GetString());
+    Assert.Equal("Suporte lateral", corpo.GetProperty("descricao").GetString());
+    Assert.Equal("Fabricado", corpo.GetProperty("tipo").GetString());
+    Assert.True(corpo.GetProperty("ativo").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Operador_le_o_detalhe_do_componente()
+  {
+    // Leitura e de QUALQUER autenticado: o gate de `Obter` e o `[Authorize]` de classe, sem
+    // `Roles`. Sem este teste, acrescentar `[Authorize(Roles = PerfisDeEscrita)]` ao GET novo
+    // passaria por toda a suite — inclusive pela guarda de perfis, que so exige que um endpoint
+    // com `Roles` esteja NA TABELA, e nao que ele nao devesse ter `Roles` nenhum.
+    var criado = await ClienteComo("Administrador")
+        .PostAsJsonAsync("/api/componentes", CorpoValido($"{NovoPrefixo()}-a"));
+    var id = await IdDaResposta(criado);
+
+    var resposta = await ClienteComo("Operador").GetAsync($"/api/componentes/{id}");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Obter_componente_inexistente_responde_404()
+  {
+    var resposta = await ClienteComo("Administrador").GetAsync("/api/componentes/999999");
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Sem_token_nao_le_o_detalhe()
+  {
+    // Par do `Sem_token_nao_le_a_lista`. Ele prova o 401 do `[Authorize]` de classe pela rota de
+    // LISTA; apagar o atributo com so aquele teste no lugar deixaria a rota nova descoberta no
+    // nivel de comportamento (a guarda de perfis le metadata, nao faz requisicao).
+    var resposta = await _factory.CreateClient().GetAsync("/api/componentes/999999");
+
+    Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
 
   [Theory]

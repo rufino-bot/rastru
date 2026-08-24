@@ -104,6 +104,26 @@ public sealed class CadastroDeComponenteUseCase
         new PaginaDto<ComponenteDto>(itens.Select(Projetar).ToList(), total, pagina, tamanho));
   }
 
+  /// <summary>
+  /// Detalhe de UM Componente. Molde de `CadastroDePedidoUseCase.Obter`: `NaoEncontrado` quando o
+  /// repositorio devolve null, projecao reusada quando acha. Nasceu porque a tela de detalhe da
+  /// receita padrao precisa do cabecalho do Componente e a listagem paginada nao serve para isso.
+  ///
+  /// <para>
+  /// NAO filtra por `Ativo`: Componente inativo continua tendo receita e historico, e a tela de
+  /// detalhe precisa poder abri-lo (a listagem e que esconde inativo por padrao, com
+  /// `incluirInativos` para pedir de volta). Consequencia: `GET /componentes/{id}` de um
+  /// componente inativo responde 200, nao 404.
+  /// </para>
+  /// </summary>
+  public async Task<Result<ComponenteDto>> Obter(int id, CancellationToken ct)
+  {
+    var componente = await _repositorio.ObterPorIdAsync(id, ct);
+    return componente is null
+        ? Result<ComponenteDto>.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado)
+        : Result<ComponenteDto>.Ok(Projetar(componente));
+  }
+
   /// <summary>Cobre inativar e reativar — o mesmo endpoint `PATCH /componentes/{id}/ativo`.</summary>
   public async Task<Result> DefinirAtivo(int id, bool ativo, CancellationToken ct)
   {

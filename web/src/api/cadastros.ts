@@ -256,6 +256,17 @@ export async function listarComponentes(
   return (await resp.json()) as PaginaDe<ComponenteDto>
 }
 
+/**
+ * Detalhe de um Componente — o cabeçalho da tela de receita padrão. Molde de `obterPedido`.
+ * Componente inativo responde 200 (o backend não filtra por `Ativo` aqui), então a tela decide
+ * o que mostrar; quem esconde inativo é a listagem, via `incluirInativos`.
+ */
+export async function obterComponente(id: number): Promise<ComponenteDto> {
+  const resp = await apiFetch(`/componentes/${id}`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o componente (${resp.status}).`)
+  return (await resp.json()) as ComponenteDto
+}
+
 /** O único 409 possível aqui é `ValorDuplicado` sobre `codigo` (UQ_Componente_Codigo). */
 export function criarComponente(
   c: NovoComponente,

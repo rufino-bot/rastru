@@ -215,6 +215,41 @@ public class CadastroDeComponenteUseCaseTests
     Assert.Equal(0, repo.Saves);
   }
 
+  [Fact]
+  public async Task Obter_devolve_o_componente_pedido_e_nao_escreve()
+  {
+    // DUAS linhas, e o id da segunda: com uma so, um `_linhas[0]` no lugar do `SingleOrDefault`
+    // — ou um id preso — passaria verde. `Saves == 0` porque leitura nao commita: sem isso,
+    // acrescentar um `SalvarAlteracoesAsync` ao caminho de leitura ficaria despercebido.
+    var repo = new FakeComponenteRepo(Linha(1, "SUP-001"), Linha(2, "SUP-002", ativo: false));
+    var useCase = new CadastroDeComponenteUseCase(repo);
+
+    var resultado = await useCase.Obter(2, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(2, resultado.Valor!.Id);
+    Assert.Equal("SUP-002", resultado.Valor.Codigo);
+    Assert.Equal("Suporte", resultado.Valor.Descricao);
+    Assert.Equal("Fabricado", resultado.Valor.Tipo);
+    // INATIVO de proposito: `Obter` nao filtra por `Ativo` (a listagem e que filtra). Se alguem
+    // acrescentar o filtro aqui, este teste vira 404 e obriga a decisao a ser explicita.
+    Assert.False(resultado.Valor.Ativo);
+    Assert.Equal(0, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Obter_componente_inexistente_e_nao_encontrado()
+  {
+    var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
+    var useCase = new CadastroDeComponenteUseCase(repo);
+
+    var resultado = await useCase.Obter(99, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
+    Assert.Equal(0, repo.Saves);
+  }
+
   [Theory]
   [InlineData(0, 20)]
   [InlineData(-1, 20)]
