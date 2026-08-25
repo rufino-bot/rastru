@@ -40,7 +40,14 @@ const COMPONENTES_BUSCA = {
   pagina: 1,
   tamanho: 20,
 }
-const MATERIAIS_CADASTRO = [{ id: 5, codigo: 'CH-3', descricao: 'Chapa 3mm', unidadeMedida: 'KG', ativo: true }]
+// DOIS materiais, e os ids são diferentes do que a receita já usa de propósito: com catálogo de
+// uma entrada só — e ela com o mesmo id da linha pré-existente —, um teste que "escolhe" material
+// não discrimina nada, porque trocar a seleção por `materiaisCadastro[0].id` dá o mesmo resultado.
+// Achado da re-review do fix pass das Tasks 10-12.
+const MATERIAIS_CADASTRO = [
+  { id: 5, codigo: 'CH-3', descricao: 'Chapa 3mm', unidadeMedida: 'KG', ativo: true },
+  { id: 8, codigo: 'PF-8', descricao: 'Parafuso M8', unidadeMedida: 'UN', ativo: true },
+]
 const SETORES_CADASTRO = [
   { id: 20, nome: 'Corte', ativo: true },
   { id: 21, nome: 'Solda', ativo: true },
@@ -586,6 +593,10 @@ describe('ComponenteDetalhePage — escrita', () => {
    * `removerMaterial` e `salvarMateriais` podiam virar no-op, ou gravar na rota ERRADA (por
    * exemplo, via `salvarFilhosPadrao`), sem matar teste nenhum. Molde do teste de filhos
    * (`Salvar manda a lista inteira da seção, não só a linha nova`), mas na seção de Materiais.
+   *
+   * Este teste cobre DOIS dos três: `aoAdicionarMaterial` e `salvarMateriais`. O terceiro
+   * (`removerMaterial`) é do teste seguinte — a primeira versão deste comentário dizia que os três
+   * estavam cobertos, e a re-review mediu que não estavam.
    */
   it('Salvar materiais manda a lista inteira, no caminho e no corpo certos', async () => {
     const posts: { caminho: string; corpo: unknown }[] = []
@@ -594,7 +605,9 @@ describe('ComponenteDetalhePage — escrita', () => {
     await screen.findByText('CH-3')
 
     const secaoMateriais = screen.getByRole('region', { name: /^materiais$/i })
-    fireEvent.change(within(secaoMateriais).getByLabelText(/material/i), { target: { value: '5' } })
+    // O material 8, e não o 5: o 5 é o que a receita JÁ tem, então escolhê-lo deixaria o teste
+    // passar mesmo que a tela ignorasse a seleção e usasse sempre a primeira opção do catálogo.
+    fireEvent.change(within(secaoMateriais).getByLabelText(/material/i), { target: { value: '8' } })
     fireEvent.change(within(secaoMateriais).getByLabelText(/quantidade/i), { target: { value: '3' } })
     fireEvent.click(within(secaoMateriais).getByRole('button', { name: 'Adicionar' }))
     fireEvent.click(within(secaoMateriais).getByRole('button', { name: /salvar materiais/i }))
@@ -607,9 +620,33 @@ describe('ComponenteDetalhePage — escrita', () => {
       corpo: {
         linhas: [
           { materialId: 5, quantidadePadrao: 1.5 },
-          { materialId: 5, quantidadePadrao: 3 },
+          { materialId: 8, quantidadePadrao: 3 },
         ],
       },
+    })
+  })
+
+  /**
+   * `removerMaterial` era o TERCEIRO buraco do item 1 da review, e continuou aberto depois do fix
+   * pass: nenhum teste clicava em remover na seção de Materiais, então a função podia virar no-op
+   * com a suíte verde — reproduzido antes de escrever este teste (`atual.filter(…)` → `atual`
+   * deixava 24/24 passando). O comentário do teste vizinho afirmava cobrir os três; cobria dois.
+   */
+  it('remover material tira a linha do corpo que o Salvar manda', async () => {
+    const posts: { caminho: string; corpo: unknown }[] = []
+    vi.stubGlobal('fetch', fetchPorRotaGravando(posts))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('CH-3')
+
+    const secaoMateriais = screen.getByRole('region', { name: /^materiais$/i })
+    fireEvent.click(within(secaoMateriais).getByRole('button', { name: /remover CH-3/i }))
+    fireEvent.click(within(secaoMateriais).getByRole('button', { name: /salvar materiais/i }))
+
+    // Lista vazia é o único caminho de remoção que existe — não há DELETE por linha.
+    await vi.waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0]).toEqual({
+      caminho: '/api/componentes/7/materiais-padrao',
+      corpo: { linhas: [] },
     })
   })
 
