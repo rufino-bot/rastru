@@ -42,6 +42,46 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
+## Como este projeto executa plano — o gate de review não é opcional
+
+Task de plano executa pelo fluxo de **`superpowers:subagent-driven-development`**, inteiro:
+
+> **implementer → task review (conformidade com a spec + qualidade) → fix pass para
+> Critical/Important → re-review** → só então a task é marcada completa. No fim da branch, a review
+> de branch inteira, no modelo mais capaz.
+
+**Invoque a skill.** Despachar implementer direto pela ferramenta de agente, sem o gate, é como a
+qualidade se perde — e já se perdeu: as Tasks 3 a 6 da Fase 1C tiveram review; as **Tasks 7 a 12
+não tiveram nenhuma**, e *não existe decisão registrada de parar*. Foi deriva, achada pelo usuário
+em 2026-08-25, com 3.009 linhas em 16 commits já commitadas sem gate.
+
+### Pular a review exige justificativa ESCRITA, e de uma classe estreita
+
+Não é proibido pular. É proibido pular **em silêncio**. A justificativa vai no ledger **e** no
+relatório da task — se ela existe só na cabeça de quem decidiu, o próximo a retomar lê como deriva,
+e é indistinguível dela. As classes que justificam:
+
+- **Task cujo produto não é código.** Verificação manual, decisão de desenho, levantamento — o
+  produto é o relatório, e revisar um relatório é lê-lo, não abrir um gate. (Exemplo real: a Task 12
+  da Fase 1C, cujo produto foi evidência de navegador e três decisões.)
+- **Delta zero verificado ponto a ponto** pelo controlador, com o "ponto a ponto" escrito.
+
+Fora dessas, a review acontece.
+
+### O que NÃO conta como review
+
+- **A verificação do controlador.** Quem escreve o brief remede a mutação que mandou medir e confere
+  contra as premissas que estabeleceu — mesmo ponto cego do implementer sobre o que ninguém pensou
+  em olhar. É complemento, nunca substituto. A prova de que o ângulo externo acha o que o interno
+  não acha está na Fase 1C: a verificação em navegador pegou um descumprimento de spec que **362
+  testes verdes** não pegavam.
+- **Review pequena e sem escopo definido.** O escopo é o diff da task, com a **base registrada antes
+  de despachar o implementer** — nunca `HEAD~1`, que trunca task de múltiplos commits em silêncio.
+  Gere o pacote com o `scripts/review-package BASE HEAD` da skill e passe o caminho ao revisor; o
+  diff nunca entra no contexto do controlador.
+- **Achado de review executado sem medir.** Recomendação de revisor se remede: três vezes na Fase 1C
+  uma proposta concreta de review não sobreviveu à medição de quem foi executá-la.
+
 ## Banco de dados — regra importante
 
 `specs/02-modelo-de-dados.sql` é a **fonte de verdade** do schema. O mapeamento do EF
