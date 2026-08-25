@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, cleanup } from '@testing-library/react'
+import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ComponenteDetalhePage } from './ComponenteDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -8,10 +8,9 @@ import { respostaJson, fetchPorRota } from '../testes/api'
 
 afterEach(cleanup)
 
-// A Task 11 acrescenta escrita nesta mesma tela, gated por perfil — nasce aqui com a forma certa
-// (mock com variável mutável, molde de PedidoDetalhePage.test.tsx) para não precisar reescrever o
-// arquivo depois. Não usado por nenhum teste desta task: a Task 10 é só leitura, e
-// ComponenteDetalhePage.tsx (Task 10) não chama `usePodeEscrever`.
+// O perfil da sessão governa o que a tela mostra (Task 11): `usePodeEscrever('componentes')`
+// esconde formulário e Salvar de cada seção. Molde de `PedidoDetalhePage.test.tsx`/`SetoresPage.test.tsx`
+// — variável mutável, escrita pelo 2º parâmetro de `renderizarNaRota` antes do `render`.
 let perfil = 'PCP'
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({
@@ -30,20 +29,48 @@ const ROTEIRO = [
   { id: 5, setorId: 20, nome: 'Corte', ordem: 3 },
 ]
 
-/** Todas as 4 chamadas que a tela faz, no caminho feliz. Chaves COM o prefixo `/api` (defeito 3). */
+// Defeito 2 do brief: a Task 11 acrescenta 3 chamadas NA MONTAGEM (com o perfil default 'PCP', que
+// escreve — o rodapé de escrita monta e elas disparam): a busca de componentes do
+// `SeletorComBusca` (filhos), `listarMateriais(false)` e `listarSetores(false)` (catálogos dos
+// dois `<select>`). Sem declarar as 3, os 11 testes de leitura da Task 10 CAEM — `fetchPorRota`
+// rejeita rota não declarada em vez de devolver `undefined`.
+const COMPONENTES_BUSCA = {
+  itens: [{ id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Bruto', ativo: true }],
+  total: 1,
+  pagina: 1,
+  tamanho: 20,
+}
+const MATERIAIS_CADASTRO = [{ id: 5, codigo: 'CH-3', descricao: 'Chapa 3mm', unidadeMedida: 'KG', ativo: true }]
+const SETORES_CADASTRO = [
+  { id: 20, nome: 'Corte', ativo: true },
+  { id: 21, nome: 'Solda', ativo: true },
+]
+
+/** As 7 rotas GET que a tela pode chamar no caminho feliz, com o perfil que escreve. Compartilhado
+    entre `apiCompleta()` e os helpers de gravação abaixo, para não divergir em dois lugares. */
+const LEITURAS: Record<string, () => Response> = {
+  '/api/componentes/7': () => respostaJson(COMPONENTE),
+  '/api/componentes/7/filhos-padrao': () => respostaJson(FILHOS),
+  '/api/componentes/7/materiais-padrao': () => respostaJson(MATERIAIS),
+  '/api/componentes/7/roteiro-padrao': () => respostaJson(ROTEIRO),
+  '/api/componentes': () => respostaJson(COMPONENTES_BUSCA),
+  '/api/materiais': () => respostaJson(MATERIAIS_CADASTRO),
+  '/api/setores': () => respostaJson(SETORES_CADASTRO),
+}
+
+/** Todas as chamadas que a tela pode fazer, no caminho feliz. Chaves COM o prefixo `/api` (defeito 3). */
 function apiCompleta() {
-  return fetchPorRota({
-    '/api/componentes/7/filhos-padrao': () => respostaJson(FILHOS),
-    '/api/componentes/7/materiais-padrao': () => respostaJson(MATERIAIS),
-    '/api/componentes/7/roteiro-padrao': () => respostaJson(ROTEIRO),
-    '/api/componentes/7': () => respostaJson(COMPONENTE),
-  })
+  return fetchPorRota(LEITURAS)
 }
 
 // Molde de PedidoDetalhePage.test.tsx: a tela lê `:id` da rota, então precisa nascer DENTRO de
 // uma rota casada — renderizar o componente solto deixaria `useParams()` vazio e `componenteId`
 // viraria NaN mesmo quando o teste queria um id válido.
-function renderizarNaRota(caminho: string) {
+//
+// Defeito 3 do brief: `renderizarNaRota` ganha um 2º parâmetro (perfil), que escreve na variável
+// mutável `perfil` ANTES do `render` — não um segundo mock de `AuthContext`, o mock já existe.
+function renderizarNaRota(caminho: string, perfilDoTeste: string = 'PCP') {
+  perfil = perfilDoTeste
   return render(
     <MemoryRouter initialEntries={[caminho]}>
       <Routes>
@@ -51,6 +78,68 @@ function renderizarNaRota(caminho: string) {
       </Routes>
     </MemoryRouter>,
   )
+}
+
+function ehLeitura(init?: RequestInit): boolean {
+  return !init || !init.method || init.method === 'GET'
+}
+
+/**
+ * Roteador de gravação: GET segue o mapa de `LEITURAS`; qualquer outro método (a tela só usa POST)
+ * empilha `{ caminho, corpo }` em `posts` — SEM responder pelo body do que a tela mandou, porque
+ * `gravar()` (`receitaPadrao.ts`) sempre serializa `{ linhas }`, nunca outra coisa.
+ */
+function fetchPorRotaGravando(posts: { caminho: string; corpo: unknown }[]) {
+  return vi.fn((url: string | URL, init?: RequestInit) => {
+    const caminho = String(url).split('?')[0]
+    if (!ehLeitura(init)) {
+      posts.push({ caminho, corpo: init?.body ? JSON.parse(String(init.body)) : undefined })
+      return Promise.resolve(respostaJson([]))
+    }
+    const entrada = LEITURAS[caminho]
+    if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    return Promise.resolve(entrada())
+  })
+}
+
+/** POST fica pendente até o teste chamar o `resolve` que `receberLiberador` recebe — para provar
+    que o botão desabilita ENQUANTO a gravação está em voo, antes de qualquer resposta chegar. */
+function fetchComPostPendente(receberLiberador: (liberar: (r: Response) => void) => void) {
+  return vi.fn((url: string | URL, init?: RequestInit) => {
+    const caminho = String(url).split('?')[0]
+    if (!ehLeitura(init)) {
+      return new Promise<Response>((resolve) => { receberLiberador(resolve) })
+    }
+    const entrada = LEITURAS[caminho]
+    if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    return Promise.resolve(entrada())
+  })
+}
+
+/** POST sempre falha com `status`. `ler()` (`receitaPadrao.ts`) lança antes de olhar o corpo da
+    resposta de erro, então o corpo aqui não precisa carregar `mensagem` nenhuma. */
+function fetchComPostQueFalha(status: number) {
+  return vi.fn((url: string | URL, init?: RequestInit) => {
+    const caminho = String(url).split('?')[0]
+    if (!ehLeitura(init)) return Promise.resolve(respostaJson({}, status))
+    const entrada = LEITURAS[caminho]
+    if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    return Promise.resolve(entrada())
+  })
+}
+
+/**
+ * Escolhe `codigo` no `SeletorComBusca` da seção de filhos e preenche a quantidade. Não digita
+ * nada no combobox: a carga inicial do `SeletorComBusca` (`busca === ''`, no mount, SEM debounce)
+ * já traz `COMPONENTES_BUSCA` inteiro, então abrir o painel já mostra a opção — evita depender de
+ * `vi.useFakeTimers()`/`avancar()` (molde de `ComponentesPage.test.tsx`) só para isto.
+ */
+async function adicionarFilho(codigo: string, quantidade: number) {
+  const secao = screen.getByRole('region', { name: /componentes filhos/i })
+  fireEvent.click(within(secao).getByRole('combobox'))
+  fireEvent.click(await within(secao).findByText(codigo))
+  fireEvent.change(within(secao).getByLabelText(/quantidade/i), { target: { value: String(quantidade) } })
+  fireEvent.click(within(secao).getByRole('button', { name: 'Adicionar' }))
 }
 
 describe('ComponenteDetalhePage — leitura', () => {
@@ -68,7 +157,13 @@ describe('ComponenteDetalhePage — leitura', () => {
 
     expect(await screen.findByText('PA-010')).toBeTruthy()
     expect(await screen.findByText('CH-3')).toBeTruthy()
-    expect(await screen.findByText('Solda')).toBeTruthy()
+    // Escopado na `<ul>` da lista (`role="list"`, molde HTML-AAM), e não em `screen` global: a
+    // Task 11 acrescenta um `<select>` de setores na MESMA seção, cujas `<option>` repetem o nome
+    // do setor como texto puro — sem o escopo, `findByText('Solda')` acha DOIS elementos (a linha
+    // da lista e a opção do select) e lança. Medido ao rodar a suíte após a Task 11: era passiva
+    // antes do `<select>` existir, e a Task 11 é exatamente o que introduz a colisão.
+    const listaRoteiro = await screen.findByRole('list', { name: 'Roteiro' })
+    expect(await within(listaRoteiro).findByText('Solda')).toBeTruthy()
   })
 
   /**
@@ -79,7 +174,10 @@ describe('ComponenteDetalhePage — leitura', () => {
     vi.stubGlobal('fetch', apiCompleta())
     renderizarNaRota('/componentes/7')
 
-    expect(await screen.findAllByText('Corte')).toHaveLength(2)
+    // Mesmo escopo do teste acima, pelo mesmo motivo: sem ele, a Task 11 conta também as
+    // `<option>` do `<select>` de setores, que também repete "Corte" (dá 3, não 2).
+    const listaRoteiro = await screen.findByRole('list', { name: 'Roteiro' })
+    expect(within(listaRoteiro).getAllByText('Corte')).toHaveLength(2)
   })
 
   /**
@@ -231,5 +329,142 @@ describe('ComponenteDetalhePage — leitura', () => {
 
     expect(screen.getByText('Este componente não existe.')).toBeTruthy()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ComponenteDetalhePage — escrita', () => {
+  beforeEach(() => {
+    perfil = 'PCP'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('Salvar manda a lista inteira da seção, não só a linha nova', async () => {
+    const posts: { caminho: string; corpo: unknown }[] = []
+    vi.stubGlobal('fetch', fetchPorRotaGravando(posts))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+
+    await adicionarFilho('CH-200', 2)
+    fireEvent.click(screen.getByRole('button', { name: /salvar componentes filhos/i }))
+
+    // A linha que JÁ existia continua no corpo: o POST substitui a receita INTEIRA, não só anexa.
+    await vi.waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0]).toEqual({
+      caminho: '/api/componentes/7/filhos-padrao',
+      corpo: {
+        linhas: [
+          { componenteFilhoId: 3, quantidadePadrao: 4 },
+          { componenteFilhoId: 2, quantidadePadrao: 2 },
+        ],
+      },
+    })
+  })
+
+  it('remover a última linha e salvar manda lista vazia', async () => {
+    const posts: { caminho: string; corpo: unknown }[] = []
+    vi.stubGlobal('fetch', fetchPorRotaGravando(posts))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+
+    fireEvent.click(screen.getByRole('button', { name: /remover pa-010/i }))
+    fireEvent.click(screen.getByRole('button', { name: /salvar componentes filhos/i }))
+
+    // Lista vazia é o ÚNICO caminho de remoção que existe — não há DELETE de linha.
+    await vi.waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0]).toEqual({ caminho: '/api/componentes/7/filhos-padrao', corpo: { linhas: [] } })
+  })
+
+  it('Salvar começa desabilitado e habilita quando há alteração pendente', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+
+    const salvar = screen.getByRole('button', { name: /salvar componentes filhos/i })
+    expect(salvar.hasAttribute('disabled')).toBe(true)
+
+    await adicionarFilho('CH-200', 2)
+    expect(salvar.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('desabilita Salvar enquanto a gravação está em voo', async () => {
+    let liberar: (r: Response) => void = () => {}
+    vi.stubGlobal('fetch', fetchComPostPendente((r) => { liberar = r }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+    await adicionarFilho('CH-200', 2)
+
+    const salvar = screen.getByRole('button', { name: /salvar componentes filhos/i })
+    fireEvent.click(salvar)
+    // Em voo: `sujo` ainda é `true`, então o que desabilita AQUI só pode ser `salvando`.
+    expect(salvar.hasAttribute('disabled')).toBe(true)
+
+    // Depois de responder, o botão continua desabilitado — mas agora por `!sujo`. Como as duas
+    // causas produzem o mesmo atributo, o que se afirma no fim é que a resposta foi PROCESSADA: a
+    // linha nova aparece na lista.
+    liberar(respostaJson([
+      { id: 1, componenteFilhoId: 3, codigo: 'PA-010', descricao: 'Parafuso M8', quantidadePadrao: 4 },
+      { id: 9, componenteFilhoId: 2, codigo: 'CH-200', descricao: 'Chapa frontal', quantidadePadrao: 2 },
+    ]))
+    expect(await screen.findByText('CH-200')).toBeTruthy()
+  })
+
+  it('o erro de gravação aparece e a lista da tela não some', async () => {
+    vi.stubGlobal('fetch', fetchComPostQueFalha(400))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+    await adicionarFilho('CH-200', 2)
+
+    fireEvent.click(screen.getByRole('button', { name: /salvar componentes filhos/i }))
+
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByText('PA-010')).toBeTruthy()
+  })
+
+  /** Gating na AÇÃO, não no link: Operador LÊ a receita, não a edita. */
+  it('Operador vê a receita mas não vê formulário nem Salvar', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    expect(await screen.findByText('PA-010')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /salvar/i })).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  /**
+   * O 403 é a fronteira REAL — esconder botão não é segurança. Se o backend recusar mesmo com o
+   * botão visível (perfil desatualizado no front, por exemplo), a tela mostra a recusa em vez de
+   * quebrar.
+   */
+  it('403 na gravação vira mensagem, não exceção', async () => {
+    vi.stubGlobal('fetch', fetchComPostQueFalha(403))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+    await adicionarFilho('CH-200', 2)
+
+    fireEvent.click(screen.getByRole('button', { name: /salvar componentes filhos/i }))
+
+    expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('o roteiro é salvo na ordem da tela, só com setorId', async () => {
+    const posts: { caminho: string; corpo: unknown }[] = []
+    vi.stubGlobal('fetch', fetchPorRotaGravando(posts))
+    renderizarNaRota('/componentes/7')
+    // Escopado na lista, não em `screen`: o `<select>` de setores do rodapé (mesma seção) repete
+    // "Solda" como texto de `<option>` — ver o comentário do mesmo problema no describe de leitura.
+    await within(await screen.findByRole('list', { name: 'Roteiro' })).findByText('Solda')
+
+    fireEvent.click(screen.getByRole('button', { name: /remover.*solda/i }))
+    fireEvent.click(screen.getByRole('button', { name: /salvar roteiro/i }))
+
+    // Sem `ordem` no corpo: quem numera é o servidor, pela posição.
+    await vi.waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0]).toEqual({
+      caminho: '/api/componentes/7/roteiro-padrao',
+      corpo: { linhas: [{ setorId: 20 }, { setorId: 20 }] },
+    })
   })
 })
