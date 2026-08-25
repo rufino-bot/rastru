@@ -56,5 +56,38 @@ describe('ErroDeApi', () => {
     expect(e.status).toBe(409)
     expect(e.message).toBe('Falha na requisição (409).')
     expect(e.name).toBe('ErroDeApi')
+    // Sem terceiro argumento não há detalhe — é o que mantém os 12 pontos de `cadastros.ts`
+    // exatamente como estavam.
+    expect(e.detalhe).toBeUndefined()
+  })
+})
+
+/**
+ * Achado da verificação no navegador (Task 12 da Fase 1C): o backend recusa o ciclo com uma
+ * mensagem que o NOMEIA — `"Esta receita criaria um ciclo: MT-1010 -> MT-1000 -> MT-1010."` — e a
+ * tela mostrava o fallback genérico, porque todo 400 caía nele. A spec §1.3 EXIGE essa mensagem:
+ * a regra de ciclo é estrita, então alguém pode ser barrado por um ciclo que não criou, e saber
+ * onde ele está é o que torna a regra praticável.
+ */
+describe('mensagemDeErro com detalhe do servidor', () => {
+  it('prefere a mensagem do servidor ao texto da tela', () => {
+    const ciclo = 'Esta receita criaria um ciclo: MT-1010 -> MT-1000 -> MT-1010.'
+    expect(mensagemDeErro(new ErroDeApi(400, 'Falha ao salvar (400).', ciclo), PADRAO)).toBe(ciclo)
+  })
+
+  /**
+   * O detalhe ganha inclusive dos status que TÊM texto próprio. Se o servidor se deu ao trabalho
+   * de dizer o motivo, ele sabe mais do que a tabela por status — e quem popula `detalhe` leu o
+   * corpo de propósito, não por acidente.
+   */
+  it('o detalhe ganha do texto por status', () => {
+    expect(mensagemDeErro(new ErroDeApi(403, 'x', 'Só o PCP altera a receita.'), PADRAO))
+      .toBe('Só o PCP altera a receita.')
+  })
+
+  it('sem detalhe, nada muda para os outros clientes', () => {
+    expect(mensagemDeErro(new ErroDeApi(400, 'x'), PADRAO)).toBe(PADRAO)
+    expect(mensagemDeErro(new ErroDeApi(403, 'x'), PADRAO))
+      .toBe('Seu perfil não tem permissão para esta ação.')
   })
 })

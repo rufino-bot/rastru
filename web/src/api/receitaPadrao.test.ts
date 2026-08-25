@@ -112,4 +112,27 @@ describe('receitaPadrao', () => {
 
     await expect(listarFilhosPadrao(7)).rejects.toMatchObject({ status: 500 })
   })
+
+  /**
+   * Achado da Task 12, medido no navegador: o `POST` de ciclo devolve 400 com
+   * `{"erro":"Esta receita criaria um ciclo: ..."}` e a mensagem nunca chegava ao usuário, porque
+   * este cliente não lia o corpo. A spec §1.3 exige que chegue.
+   */
+  it('carrega no erro a mensagem que o servidor mandou no corpo', async () => {
+    const ciclo = 'Esta receita criaria um ciclo: MT-1010 -> MT-1000 -> MT-1010.'
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaJson({ erro: ciclo }, 400))))
+
+    await expect(salvarFilhosPadrao(2, [{ componenteFilhoId: 1, quantidadePadrao: 1 }]))
+      .rejects.toMatchObject({ status: 400, detalhe: ciclo })
+  })
+
+  /**
+   * Um erro ao LER a explicação não pode substituir o erro original: sem esta guarda, um corpo que
+   * não é JSON faria a tela mostrar o `SyntaxError` do parse no lugar de "não foi possível salvar".
+   */
+  it('corpo sem o campo esperado nao vira detalhe, e o status sobrevive', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('nao sou json', { status: 400 }))))
+
+    await expect(salvarFilhosPadrao(2, [])).rejects.toMatchObject({ status: 400, detalhe: undefined })
+  })
 })

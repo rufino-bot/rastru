@@ -43,8 +43,35 @@ export interface LinhaDeRoteiro {
   setorId: number
 }
 
+/**
+ * Lê o campo `erro` do corpo, que é o formato de erro do backend
+ * (`BadRequest(new { erro = resultado.Erro })`). Devolve `undefined` em vez de lançar quando o
+ * corpo não é o esperado: um erro ao ler a explicação do erro não pode substituir o erro original,
+ * senão a tela mostra "SyntaxError: Unexpected token" no lugar de "não foi possível salvar".
+ */
+async function detalheDoCorpo(resp: Response): Promise<string | undefined> {
+  try {
+    const corpo: unknown = await resp.json()
+    if (corpo && typeof corpo === 'object' && 'erro' in corpo) {
+      const erro = (corpo as { erro: unknown }).erro
+      if (typeof erro === 'string' && erro.trim() !== '') return erro
+    }
+  } catch {
+    // Corpo vazio ou não-JSON: sem detalhe, e o chamador cai no texto da tela.
+  }
+  return undefined
+}
+
+/**
+ * O `detalhe` é lido em TODA resposta de erro, e não só no 400: o servidor pode nomear o motivo em
+ * qualquer status, e `mensagemDeErro` já decide o que fazer com ele. O caso que motivou isto é o
+ * 400 de ciclo — ver `ErroDeApi.detalhe` e a spec §1.3 da Fase 1C.
+ */
 async function ler<T>(resp: Response, oQue: string): Promise<T> {
-  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao ${oQue} (${resp.status}).`)
+  if (!resp.ok) {
+    const detalhe = await detalheDoCorpo(resp)
+    throw new ErroDeApi(resp.status, `Falha ao ${oQue} (${resp.status}).`, detalhe)
+  }
   return (await resp.json()) as T
 }
 
