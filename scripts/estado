@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# Estado do checkout, medido — o roteiro fixo de abertura de sessão em uma chamada só.
+#
+# Existe porque a regra nº 1 do ledger ("não acredite na página sem conferir o disco") custava
+# seis chamadas de ferramenta toda sessão. Aqui ele custa uma, e o resultado é MEDIÇÃO, não
+# registro: nada neste script lê `.superpowers/sdd/progress.md`.
+#
+#   bash scripts/estado          # git + docker (barato, ~2s)
+#   bash scripts/estado --testes # acrescenta as suítes (caro: front ~15s, backend ~2min)
+#
+# O que ele deliberadamente NÃO faz:
+#   - não sobe o banco (`docker compose up -d`) — subir é ação, e ação com efeito colateral não
+#     entra num script cujo propósito é observar;
+#   - não roda as suítes por padrão, pelo tempo;
+#   - não afirma nada que não mediu. Onde não sabe, escreve "não sei" — ver o bloco do Docker.
+
+set -uo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+echo "=============================================================="
+echo " ESTADO MEDIDO — $(date '+%Y-%m-%d %H:%M')"
+echo "=============================================================="
+
+echo
+echo "## GIT"
+printf 'branch   : %s\n' "$(git rev-parse --abbrev-ref HEAD)"
+printf 'HEAD     : %s\n' "$(git log --oneline -1)"
+
+upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+if [ -z "$upstream" ]; then
+  printf 'remoto   : SEM UPSTREAM — esta branch nunca foi empurrada\n'
+else
+  frente=$(git rev-list --count "$upstream..HEAD" 2>/dev/null)
+  atras=$(git rev-list --count "HEAD..$upstream" 2>/dev/null)
+  if [ "$frente" = "0" ] && [ "$atras" = "0" ]; then
+    printf 'remoto   : %s — SINCRONIZADO\n' "$upstream"
+  else
+    printf 'remoto   : %s — %s commit(s) à frente, %s atrás\n' "$upstream" "$frente" "$atras"
+  fi
+fi
+printf 'main     : %s\n' "$(git log --oneline -1 main 2>/dev/null || echo '(sem main local)')"
+
+echo
+sujeira=$(git status --short)
+if [ -z "$sujeira" ]; then
+  echo "árvore   : LIMPA"
+else
+  echo "árvore suja:"
+  echo "$sujeira" | sed 's/^/  /'
+fi
+
+echo
+echo "## DOCKER"
+# `docker ps` vazio NÃO significa "não há containers" — significa "não sei", porque com o engine
+# fora o comando devolve lista vazia com exit 0. Isso já custou um diagnóstico errado (o de
+# 2026-08-24, em que o banco foi declarado perdido e nada tinha se perdido). Por isso a pergunta
+# "o engine responde?" vem ANTES, e é `docker version --format {{.Server.Version}}`, que só
+# imprime quando há servidor do outro lado.
+servidor=$(timeout 25 docker version --format '{{.Server.Version}}' 2>/dev/null)
+if [ -z "$servidor" ]; then
+  echo "engine   : NÃO RESPONDE — abra o Docker Desktop e espere mais do que parece razoável."
+  echo "           Enquanto isto, listagem de container/volume não é dado: é ausência de resposta."
+  echo "           NUNCA conclua daqui que o banco foi perdido, e nunca o reconstrua por isto."
+else
+  printf 'engine   : %s (responde)\n' "$servidor"
+  linha=$(timeout 25 docker ps -a --filter name=tcc-sqlserver --format '{{.Names}}  {{.Status}}')
+  if [ -z "$linha" ]; then
+    echo "sqlserver: container NÃO EXISTE (o engine respondeu, então isto é dado, não ausência)"
+    echo "           subir com: docker compose up -d"
+  else
+    printf 'sqlserver: %s\n' "$linha"
+    case "$linha" in
+      *Up*) : ;;
+      *)    echo "           PARADO — subir com: docker compose up -d, e reconferir com docker ps" ;;
+    esac
+  fi
+fi
+
+if [ "${1:-}" = "--testes" ]; then
+  echo
+  echo "## SUÍTES (medidas agora)"
+  echo "front:"
+  (cd web && npm test -- --run 2>&1 | grep -E "Test Files|Tests " | sed 's/^/  /')
+  echo "build do front:"
+  (cd web && npm run build >/dev/null 2>&1 && echo "  limpo" || echo "  QUEBRADO — rode 'npm run build' e leia o erro")
+  echo "backend (precisa do SQL Server no ar):"
+  dotnet test Rastreamento.slnx 2>&1 | grep -E "^Test summary|total:|failed:" | sed 's/^/  /'
+else
+  echo
+  echo "## SUÍTES — não medidas (rode com --testes, ou à mão)"
+  echo "  cd web && npm test -- --run   # e npm run build: 'npm test' verde NÃO prova que compila"
+  echo "  dotnet test Rastreamento.slnx # precisa do SQL Server no ar"
+fi
+
+echo
+echo "=============================================================="
