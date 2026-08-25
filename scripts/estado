@@ -126,8 +126,21 @@ else
     # Aspas SIMPLES: com aspas duplas, as crases em volta do nome do arquivo viram command
     # substitution e o bash tenta EXECUTAR `sdd/.gitignore`. Medido — a mensagem saiu com o nome
     # do arquivo comido e um "No such file or directory" no meio do aviso.
-    echo 'ledger   : ⚠ sdd/.gitignore VOLTOU com "*" — o ledger esta sendo ignorado EM SILENCIO.'
-    echo "           Apague-o: o repo do TCC ja ignora .superpowers/ inteiro, entao ele e redundante la."
+    # Ele VOLTA toda vez que a skill roda: `sdd-workspace:21` faz `printf '*\n' > .gitignore`
+    # incondicionalmente, e tanto `review-package` quanto `task-brief` o chamam. Nao e acidente
+    # raro — e deterministico. Ja escondeu os quatro artefatos de um ciclo de review inteiro.
+    #
+    # O dano e so para arquivo NOVO: `.gitignore` nao afeta o que ja esta rastreado. Por isso o
+    # aviso conta quantos estao escondidos AGORA — "voltou" e menos acionavel que "voltou e esta
+    # escondendo 4".
+    escondidos=$(git -C .superpowers status --short --ignored 2>/dev/null \
+      | grep -c '^!! sdd/.*\.md$')
+    echo 'ledger   : ⚠ sdd/.gitignore VOLTOU com "*" (a skill o recria) — apague-o:'
+    echo "           rm .superpowers/sdd/.gitignore   # o repo do TCC ja ignora .superpowers/ inteiro"
+    if [ "${escondidos:-0}" -gt 0 ]; then
+      printf '           ha %s arquivo(s) .md escondido(s) AGORA — confira com:\n' "$escondidos"
+      echo "           git -C .superpowers status --short --ignored | grep '^!!'"
+    fi
   fi
   pendentes=$(git -C .superpowers status --short | wc -l)
   naoempurrados=$(git -C .superpowers rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo '?')
