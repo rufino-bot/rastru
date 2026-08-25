@@ -226,6 +226,14 @@ sobe o banco, porque ação com efeito colateral não pertence a um script cujo 
 hook `SessionStart` (em `.claude/settings.json`) já roda a forma barata na abertura da sessão e
 injeta o resultado como contexto.
 
+`.claude/settings.json` também versiona `worktree.bgIsolation: "none"`. A review de 2026-08-25
+sugeriu separá-lo como "preferência de máquina" — **não é**, e por isso ele fica: é o que permite
+subagente em segundo plano escrever no checkout principal, e o fluxo deste projeto é exatamente
+esse (implementer, fix pass e review despachados sobre a árvore de trabalho). Com o padrão
+`"worktree"`, todo agente em background pararia antes de editar. Quem clonar o repositório e usar o
+mesmo fluxo precisa dos dois; por isso o arquivo é versionado inteiro. O que **não** entra nele é
+credencial ou caminho de máquina — para isso existe `.claude/settings.local.json`.
+
 ### O ledger tem repositório próprio, e o script vigia isso
 
 `.superpowers/` — ledger, briefs, relatórios, histórico de fase — é um **repositório git separado e
@@ -234,7 +242,7 @@ independentes na mesma árvore, e este aqui ignora `.superpowers/` na raiz (`.gi
 código muda por causa disso.
 
 Existe porque aquele conteúdo é o **único** registro das decisões, medições e dívidas do projeto, e
-até então vivia no disco de uma máquina só. Ficam de fora dele os 70 pacotes `.diff` de review (o
+até então vivia no disco de uma máquina só. Ficam de fora dele os pacotes `.diff` de review (o
 nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de runtime do brainstorm.
 
 `scripts/estado` confere duas coisas na abertura, porque as duas falhas desta cópia são

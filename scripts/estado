@@ -20,7 +20,14 @@
 #   - não afirma nada que não mediu. Onde não sabe, escreve "não sei" — ver o bloco do Docker.
 
 set -uo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+# Resolvido ANTES do `cd`, e por isso existe: `${BASH_SOURCE[0]}` pode ser relativo ao diretorio de
+# onde se chamou, e depois do `cd` ele aponta para o lugar errado. Achado na review de 2026-08-25:
+# `bash estado --json` de dentro de `scripts/` falhava com `estado/estado: No such file or
+# directory` — e, pior, saia com **exit 0 e JSON valido**, entao o hook injetaria a mensagem de erro
+# como se fosse o estado medido. Exatamente o modo de falha que este script existe para evitar.
+EU=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")
+cd "$(dirname "$EU")/.." || exit 1
 
 TO=${ESTADO_DOCKER_TIMEOUT:-25}
 
@@ -33,7 +40,7 @@ TO=${ESTADO_DOCKER_TIMEOUT:-25}
 # Vite) — se ele sumir, o front para antes do hook.
 if [ "${1:-}" = "--json" ]; then
   shift
-  saida=$("${BASH_SOURCE[0]%/*}/estado" "$@" 2>&1)
+  saida=$("$EU" "$@" 2>&1)
   printf '%s' "$saida" | node -e "
     let s = ''
     process.stdin.on('data', (d) => (s += d)).on('end', () => process.stdout.write(
