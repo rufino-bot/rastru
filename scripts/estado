@@ -7,6 +7,11 @@
 #
 #   bash scripts/estado          # git + docker (barato, ~2s)
 #   bash scripts/estado --testes # acrescenta as suítes (caro: front ~15s, backend ~2min)
+#   bash scripts/estado --json   # a mesma saída embrulhada para o hook SessionStart
+#
+# `ESTADO_DOCKER_TIMEOUT` (default 25s) limita cada chamada ao Docker. O hook usa um valor curto:
+# quando o engine está fora, a chamada fica pendurada no named pipe, e o preço disso na ABERTURA da
+# sessão é o usuário esperando na frente de um terminal parado.
 #
 # O que ele deliberadamente NÃO faz:
 #   - não sobe o banco (`docker compose up -d`) — subir é ação, e ação com efeito colateral não
@@ -16,6 +21,27 @@
 
 set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+TO=${ESTADO_DOCKER_TIMEOUT:-25}
+
+# `--json` embrulha a saída no formato que o hook SessionStart injeta como contexto. Feito por
+# re-execução em vez de um `if` por linha de saída — assim existe UM caminho de impressão, e o que
+# o hook entrega é, byte a byte, o que o terminal mostra.
+#
+# O codificador é `node`, não `jq`: MEDIDO em 2026-08-25, `jq` não existe nesta máquina, e o
+# exemplo canônico de hook depende dele. `node` é dependência real deste repositório (o front é
+# Vite) — se ele sumir, o front para antes do hook.
+if [ "${1:-}" = "--json" ]; then
+  shift
+  saida=$("${BASH_SOURCE[0]%/*}/estado" "$@" 2>&1)
+  printf '%s' "$saida" | node -e "
+    let s = ''
+    process.stdin.on('data', (d) => (s += d)).on('end', () => process.stdout.write(
+      JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: s } }),
+    ))
+  "
+  exit 0
+fi
 
 echo "=============================================================="
 echo " ESTADO MEDIDO — $(date '+%Y-%m-%d %H:%M')"
@@ -56,14 +82,14 @@ echo "## DOCKER"
 # 2026-08-24, em que o banco foi declarado perdido e nada tinha se perdido). Por isso a pergunta
 # "o engine responde?" vem ANTES, e é `docker version --format {{.Server.Version}}`, que só
 # imprime quando há servidor do outro lado.
-servidor=$(timeout 25 docker version --format '{{.Server.Version}}' 2>/dev/null)
+servidor=$(timeout "$TO" docker version --format '{{.Server.Version}}' 2>/dev/null)
 if [ -z "$servidor" ]; then
   echo "engine   : NÃO RESPONDE — abra o Docker Desktop e espere mais do que parece razoável."
   echo "           Enquanto isto, listagem de container/volume não é dado: é ausência de resposta."
   echo "           NUNCA conclua daqui que o banco foi perdido, e nunca o reconstrua por isto."
 else
   printf 'engine   : %s (responde)\n' "$servidor"
-  linha=$(timeout 25 docker ps -a --filter name=tcc-sqlserver --format '{{.Names}}  {{.Status}}')
+  linha=$(timeout "$TO" docker ps -a --filter name=tcc-sqlserver --format '{{.Names}}  {{.Status}}')
   if [ -z "$linha" ]; then
     echo "sqlserver: container NÃO EXISTE (o engine respondeu, então isto é dado, não ausência)"
     echo "           subir com: docker compose up -d"
