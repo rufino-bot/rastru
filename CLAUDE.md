@@ -174,6 +174,18 @@ build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `s
 
 ## Comandos
 
+Antes de qualquer coisa, para saber onde o checkout está — branch, HEAD, upstream, árvore suja e
+Docker, medidos, não lembrados:
+
+```bash
+bash scripts/estado
+```
+
+`--testes` acrescenta as suítes (caro: front ~15s, backend ~2min). Ele **observa e não age**: não
+sobe o banco, porque ação com efeito colateral não pertence a um script cujo propósito é medir. Um
+hook `SessionStart` (em `.claude/settings.json`, **untracked** — `git clean -xfd` o apaga) já roda a
+forma barata na abertura da sessão e injeta o resultado como contexto.
+
 Backend (solution `Rastreamento.slnx`, na raiz):
 
 ```bash
