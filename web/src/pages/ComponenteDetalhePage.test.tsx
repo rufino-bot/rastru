@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { ComponenteDetalhePage } from './ComponenteDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
@@ -116,12 +116,15 @@ function fetchComPostPendente(receberLiberador: (liberar: (r: Response) => void)
   })
 }
 
-/** POST sempre falha com `status`. `ler()` (`receitaPadrao.ts`) lança antes de olhar o corpo da
-    resposta de erro, então o corpo aqui não precisa carregar `mensagem` nenhuma. */
-function fetchComPostQueFalha(status: number) {
+/** POST sempre falha com `status`. Desde `e15eb60`, `ler()` (`receitaPadrao.ts:70-73`) LÊ o corpo
+    em toda resposta de erro — o oposto do que este helper afirmava antes —, então `corpo` deixa
+    de ser opcional em espírito: quem quiser exercitar o caminho de `detalhe` (a mensagem do
+    servidor chegando à tela) passa um corpo com `erro`; quem não passa nada mantém o caminho
+    antigo (corpo vazio, cai no fallback da seção). */
+function fetchComPostQueFalha(status: number, corpo: unknown = {}) {
   return vi.fn((url: string | URL, init?: RequestInit) => {
     const caminho = String(url).split('?')[0]
-    if (!ehLeitura(init)) return Promise.resolve(respostaJson({}, status))
+    if (!ehLeitura(init)) return Promise.resolve(respostaJson(corpo, status))
     const entrada = LEITURAS[caminho]
     if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
     return Promise.resolve(entrada())
@@ -332,6 +335,83 @@ describe('ComponenteDetalhePage — leitura', () => {
   })
 })
 
+/**
+ * A rota casada é a MESMA em `/componentes/1` e `/componentes/2` (só o `:id` muda), então
+ * `<ComponenteDetalhePage>` NÃO desmonta na troca — é a mesma instância React recebendo um `id`
+ * novo. É exatamente essa continuidade que o item 6 da review explora: sem cancelamento, o
+ * `.then` de uma busca disparada para o id ANTIGO ainda escreve no estado depois da troca. Botão
+ * de navegação real (não `initialEntries` novo, que REMONTARIA a árvore e não provaria nada).
+ */
+function TelaComNavegacaoParaOutroComponente() {
+  const navigate = useNavigate()
+  return (
+    <>
+      <button onClick={() => navigate('/componentes/2')}>Ir para o componente 2</button>
+      <Routes>
+        <Route path="/componentes/:id" element={<ComponenteDetalhePage />} />
+      </Routes>
+    </>
+  )
+}
+
+describe('ComponenteDetalhePage — troca de :id (item 6 da review)', () => {
+  beforeEach(() => {
+    perfil = 'PCP'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('a resposta de filhos do id ANTIGO, atrasada, não sobrescreve a receita do id NOVO', async () => {
+    let liberarFilhosDoUm: (r: Response) => void = () => {}
+    const mapa: Record<string, () => Response | Promise<Response>> = {
+      // A busca de filhos do componente 1 fica PENDURADA — só resolve quando o teste mandar,
+      // DEPOIS da troca de rota.
+      '/api/componentes/1/filhos-padrao': () => new Promise<Response>((resolve) => { liberarFilhosDoUm = resolve }),
+      '/api/componentes/1': () => respostaJson({ id: 1, codigo: 'CH-001', descricao: 'Peça 1', tipo: 'Fabricado', ativo: true }),
+      '/api/componentes/1/materiais-padrao': () => respostaJson([]),
+      '/api/componentes/1/roteiro-padrao': () => respostaJson([]),
+      '/api/componentes/2': () => respostaJson({ id: 2, codigo: 'CH-002', descricao: 'Peça 2', tipo: 'Fabricado', ativo: true }),
+      '/api/componentes/2/filhos-padrao': () => respostaJson([
+        { id: 9, componenteFilhoId: 30, codigo: 'PA-020', descricao: 'Parafuso da peça 2', quantidadePadrao: 1 },
+      ]),
+      '/api/componentes/2/materiais-padrao': () => respostaJson([]),
+      '/api/componentes/2/roteiro-padrao': () => respostaJson([]),
+      '/api/componentes': () => respostaJson(COMPONENTES_BUSCA),
+      '/api/materiais': () => respostaJson(MATERIAIS_CADASTRO),
+      '/api/setores': () => respostaJson(SETORES_CADASTRO),
+    }
+    vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      const entrada = mapa[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+
+    render(
+      <MemoryRouter initialEntries={['/componentes/1']}>
+        <TelaComNavegacaoParaOutroComponente />
+      </MemoryRouter>,
+    )
+
+    // A troca acontece com a busca de filhos de 1 ainda EM VOO.
+    fireEvent.click(screen.getByRole('button', { name: /ir para o componente 2/i }))
+    expect(await screen.findByText('PA-020')).toBeTruthy()
+
+    // SÓ AGORA a resposta antiga chega. Sem a guarda de cancelamento, o `.then` sobrescreveria
+    // `filhos` com a linha de 1 — e se o usuário salvasse a essa altura, o POST iria para
+    // `/componentes/2/filhos-padrao` com a receita de 1 dentro.
+    liberarFilhosDoUm(respostaJson([
+      { id: 1, componenteFilhoId: 3, codigo: 'PA-010', descricao: 'Parafuso M8', quantidadePadrao: 4 },
+    ]))
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(screen.queryByText('PA-010')).toBeNull()
+    expect(screen.getByText('PA-020')).toBeTruthy()
+  })
+})
+
 describe('ComponenteDetalhePage — escrita', () => {
   beforeEach(() => {
     perfil = 'PCP'
@@ -340,6 +420,36 @@ describe('ComponenteDetalhePage — escrita', () => {
   })
 
   afterEach(() => { vi.unstubAllGlobals() })
+
+  /**
+   * Item 2 da review (Tasks 10-12): a guarda `erro === null &&` na frente do `rodape`
+   * (`ComponenteDetalhePage.tsx`, comentário acima dela) é load-bearing e não tinha teste. Se o
+   * GET de uma seção falha, o estado fica `[]` — igual ao vazio legítimo. Sem a guarda, o rodapé
+   * apareceria mesmo com a carga falha, o usuário adicionaria uma linha, e o POST mandaria SÓ essa
+   * linha — apagando no servidor a receita que ele nunca chegou a ver. Mutação verificada: trocar
+   * `{!carregando && erro === null && rodape}` por `{!carregando && rodape}` deixa este teste
+   * vermelho (ver campanha de mutação no relatório do fix pass).
+   */
+  it('seção que falhou ao carregar não mostra o formulário de escrita', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes/7': () => respostaJson(COMPONENTE),
+      '/api/componentes/7/filhos-padrao': () => new Response(null, { status: 500 }),
+      '/api/componentes/7/materiais-padrao': () => respostaJson(MATERIAIS),
+      '/api/componentes/7/roteiro-padrao': () => respostaJson(ROTEIRO),
+      '/api/componentes': () => respostaJson(COMPONENTES_BUSCA),
+      '/api/materiais': () => respostaJson(MATERIAIS_CADASTRO),
+      '/api/setores': () => respostaJson(SETORES_CADASTRO),
+    }))
+    renderizarNaRota('/componentes/7')
+
+    const secaoFilhos = screen.getByRole('region', { name: /componentes filhos/i })
+    await within(secaoFilhos).findByRole('alert')
+
+    // Nem o combobox de busca de componente filho, nem o botão "Salvar componentes filhos": o
+    // rodapé inteiro está ausente, não só desabilitado.
+    expect(within(secaoFilhos).queryByRole('combobox')).toBeNull()
+    expect(within(secaoFilhos).queryByRole('button', { name: /salvar componentes filhos/i })).toBeNull()
+  })
 
   it('Salvar manda a lista inteira da seção, não só a linha nova', async () => {
     const posts: { caminho: string; corpo: unknown }[] = []
@@ -423,6 +533,27 @@ describe('ComponenteDetalhePage — escrita', () => {
     expect(screen.getByText('PA-010')).toBeTruthy()
   })
 
+  /**
+   * Item 4 da review (Tasks 10-12): o fix pass `e15eb60` ligou `ErroDeApi.detalhe` à tela, mas
+   * nenhum teste atravessava `ComponenteDetalhePage` — a integração "400 de ciclo -> banner da
+   * seção com a frase do backend" era afirmação sem prova (só `erros.test.ts`/`receitaPadrao.test.ts`
+   * exercitavam isso, em unidade). Junta-se ao item 3: removendo `if (e.detalhe) return e.detalhe`
+   * de `erros.ts` este teste tem de morrer — sem essa linha o banner mostraria o fallback genérico
+   * da seção, não a frase do servidor.
+   */
+  it('a mensagem de ciclo do servidor aparece na seção de filhos, não o fallback genérico', async () => {
+    const cicloDoServidor = 'Esta receita criaria um ciclo: MT-1010 -> MT-1000 -> MT-1010.'
+    vi.stubGlobal('fetch', fetchComPostQueFalha(400, { erro: cicloDoServidor }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+    await adicionarFilho('CH-200', 2)
+
+    fireEvent.click(screen.getByRole('button', { name: /salvar componentes filhos/i }))
+
+    const secaoFilhos = screen.getByRole('region', { name: /componentes filhos/i })
+    expect(await within(secaoFilhos).findByText(cicloDoServidor)).toBeTruthy()
+  })
+
   /** Gating na AÇÃO, não no link: Operador LÊ a receita, não a edita. */
   it('Operador vê a receita mas não vê formulário nem Salvar', async () => {
     vi.stubGlobal('fetch', apiCompleta())
@@ -449,6 +580,39 @@ describe('ComponenteDetalhePage — escrita', () => {
     expect(await screen.findByRole('alert')).toBeTruthy()
   })
 
+  /**
+   * Item 1 da review (Tasks 10-12): nenhum dos 19 testes anteriores clicava em "Salvar materiais"
+   * nem citava `/api/componentes/7/materiais-padrao` como destino de POST — `aoAdicionarMaterial`,
+   * `removerMaterial` e `salvarMateriais` podiam virar no-op, ou gravar na rota ERRADA (por
+   * exemplo, via `salvarFilhosPadrao`), sem matar teste nenhum. Molde do teste de filhos
+   * (`Salvar manda a lista inteira da seção, não só a linha nova`), mas na seção de Materiais.
+   */
+  it('Salvar materiais manda a lista inteira, no caminho e no corpo certos', async () => {
+    const posts: { caminho: string; corpo: unknown }[] = []
+    vi.stubGlobal('fetch', fetchPorRotaGravando(posts))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('CH-3')
+
+    const secaoMateriais = screen.getByRole('region', { name: /^materiais$/i })
+    fireEvent.change(within(secaoMateriais).getByLabelText(/material/i), { target: { value: '5' } })
+    fireEvent.change(within(secaoMateriais).getByLabelText(/quantidade/i), { target: { value: '3' } })
+    fireEvent.click(within(secaoMateriais).getByRole('button', { name: 'Adicionar' }))
+    fireEvent.click(within(secaoMateriais).getByRole('button', { name: /salvar materiais/i }))
+
+    // A linha que já existia continua no corpo, e o caminho é o de MATERIAIS — não o de filhos
+    // nem o de roteiro, que são os três únicos destinos que os testes anteriores afirmavam.
+    await vi.waitFor(() => expect(posts).toHaveLength(1))
+    expect(posts[0]).toEqual({
+      caminho: '/api/componentes/7/materiais-padrao',
+      corpo: {
+        linhas: [
+          { materialId: 5, quantidadePadrao: 1.5 },
+          { materialId: 5, quantidadePadrao: 3 },
+        ],
+      },
+    })
+  })
+
   it('o roteiro é salvo na ordem da tela, só com setorId', async () => {
     const posts: { caminho: string; corpo: unknown }[] = []
     vi.stubGlobal('fetch', fetchPorRotaGravando(posts))
@@ -466,5 +630,32 @@ describe('ComponenteDetalhePage — escrita', () => {
       caminho: '/api/componentes/7/roteiro-padrao',
       corpo: { linhas: [{ setorId: 20 }, { setorId: 20 }] },
     })
+  })
+
+  /**
+   * Item 7 da review (Tasks 10-12) — DECISÃO DO USUÁRIO: numerar pela POSIÇÃO na tela, não por
+   * `r.ordem`. Cenário exato da review: `[1.Corte, 2.Solda, 3.Corte]` → remover "2. Solda" →
+   * `[1.Corte, 3.Corte]` (por `r.ordem` da leitura original) → adicionar Solda de novo → COM
+   * `r.ordem` a tela mostraria `1. Corte`, `3. Corte`, `3. Solda` — número pulado, número
+   * repetido, e dois botões "Remover 3. …" com o MESMO nome acessível. Numerando pela posição do
+   * array, os três nomes ficam únicos. Mata se `i + 1` voltar a ser `r.ordem`.
+   */
+  it('a numeração do roteiro é pela posição na tela — sem número repetido nem pulado', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7')
+    const listaRoteiro = await screen.findByRole('list', { name: 'Roteiro' })
+    await within(listaRoteiro).findByText('Solda')
+
+    fireEvent.click(within(listaRoteiro).getByRole('button', { name: 'Remover 2. Solda' }))
+
+    const secaoRoteiro = screen.getByRole('region', { name: /roteiro/i })
+    fireEvent.change(within(secaoRoteiro).getByLabelText(/setor/i), { target: { value: '21' } })
+    fireEvent.click(within(secaoRoteiro).getByRole('button', { name: 'Adicionar passo' }))
+
+    // `getByRole` só passa se existir EXATAMENTE um elemento com aquele nome acessível — é a
+    // prova de que os três não colidem.
+    expect(within(listaRoteiro).getByRole('button', { name: 'Remover 1. Corte' })).toBeTruthy()
+    expect(within(listaRoteiro).getByRole('button', { name: 'Remover 2. Corte' })).toBeTruthy()
+    expect(within(listaRoteiro).getByRole('button', { name: 'Remover 3. Solda' })).toBeTruthy()
   })
 })

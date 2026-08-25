@@ -19,7 +19,7 @@ namespace Rastreamento.Application.Cadastros;
 /// </summary>
 public sealed class ReceitaPadraoUseCase
 {
-  private const string ErroDeComponenteNaoEncontrado = "Componente nao encontrado.";
+  private const string ErroDeComponenteNaoEncontrado = "Componente não encontrado.";
   private const string ErroDeQuantidadeInvalida = "Quantidade deve ser maior que zero.";
 
   /// <summary>
@@ -27,18 +27,18 @@ public sealed class ReceitaPadraoUseCase
   /// digitos inteiros. Quantidade fora disso e recusada, nao arredondada — decisao do usuario.
   /// </summary>
   private const string ErroDeQuantidadeForaDaEscala =
-      "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.";
+      "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.";
 
   /// <summary>Mensagem do 409 — a gravacao nao aconteceu e refazer o POST e o caminho.</summary>
   private const string ErroDeConflitoDeGravacao =
-      "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.";
+      "A receita deste componente está sendo alterada por outra gravação. Tente de novo.";
 
   /// <summary>
   /// Mensagem PROPRIA para A -> A, em vez de deixar a travessia de ciclo responder. A travessia
   /// tambem pegaria, mas diria "criaria um ciclo" onde "nao pode ser filho de si mesmo" e mais
   /// util. Pinado por <c>Auto_referencia_e_recusada_com_mensagem_propria</c>.
   /// </summary>
-  private const string ErroDeAutoReferencia = "Um componente nao pode ser filho de si mesmo.";
+  private const string ErroDeAutoReferencia = "Um componente não pode ser filho de si mesmo.";
 
   /// <summary>
   /// As DUAS mensagens de ciclo, e nao uma: a regra e ESTRITA (recusa qualquer ciclo alcancavel a
@@ -56,7 +56,7 @@ public sealed class ReceitaPadraoUseCase
   private const string ErroDeCicloProprio = "Esta receita criaria um ciclo: {0}.";
 
   private const string ErroDeCicloAlcancado =
-      "Esta receita ligaria este componente a um ciclo que ja existe: {0}. "
+      "Esta receita ligaria este componente a um ciclo que já existe: {0}. "
       + "Corrija a receita desses componentes antes.";
 
   /// <summary>
@@ -78,7 +78,7 @@ public sealed class ReceitaPadraoUseCase
   /// preferir aquele, e trocar o tipo e a mensagem, com os testes ja no lugar.
   /// </summary>
   private const string ErroDeComponenteInativo =
-      "O componente {0} esta inativo: reative-o para alterar a receita.";
+      "O componente {0} está inativo: reative-o para alterar a receita.";
 
   /// <summary>Maior valor que cabe em DECIMAL(18,4): 14 digitos inteiros + 4 decimais.</summary>
   private const decimal MaiorQuantidade = 99_999_999_999_999.9999m;
@@ -664,14 +664,14 @@ public sealed class ReceitaPadraoUseCase
     var ausentes = idsPedidos.Where(id => !ativoPorId.ContainsKey(id)).Distinct().ToList();
     if (ausentes.Count > 0)
       return ausentes.Count == 1
-          ? $"O {singular} {ausentes[0]} nao existe."
-          : $"Os {plural} {string.Join(", ", ausentes)} nao existem.";
+          ? $"O {singular} {ausentes[0]} não existe."
+          : $"Os {plural} {string.Join(", ", ausentes)} não existem.";
 
     var inativos = idsPedidos.Where(id => !ativoPorId[id]).Distinct().ToList();
     if (inativos.Count > 0)
       return inativos.Count == 1
-          ? $"O {singular} {inativos[0]} esta inativo e nao pode entrar na receita."
-          : $"Os {plural} {string.Join(", ", inativos)} estao inativos e nao podem entrar na receita.";
+          ? $"O {singular} {inativos[0]} está inativo e não pode entrar na receita."
+          : $"Os {plural} {string.Join(", ", inativos)} estão inativos e não podem entrar na receita.";
 
     return null;
   }

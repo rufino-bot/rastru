@@ -62,6 +62,12 @@ function Secao({ idTitulo, titulo, carregando, erro, erroFallback, quantidade, v
           vezes (Tasks 8 e 10). Não remova. */}
       {!carregando && erro === null && quantidade === 0 && <EstadoVazio titulo={vazio} />}
       {!carregando && erro === null && quantidade > 0 && children}
+      {/* `erro === null &&` aqui TAMBÉM não é redundante com o `!carregando`, e por um motivo
+          diferente do vazio acima: se o GET desta seção falhou, o estado fica `[]` — igual ao
+          vazio legítimo. Sem a guarda, o rodapé (formulário + Salvar) apareceria mesmo assim, o
+          usuário adicionaria uma linha (`sujo = true`), clicaria Salvar, e o POST mandaria SÓ essa
+          linha nova — APAGANDO no servidor a receita inteira que ele nunca chegou a ver, porque a
+          gravação substitui a lista inteira (não há PATCH por linha). Não remova. */}
       {!carregando && erro === null && rodape}
     </section>
   )
@@ -85,9 +91,12 @@ function Secao({ idTitulo, titulo, carregando, erro, erroFallback, quantidade, v
  * `key` do React até a resposta do servidor trazer os ids reais — nunca colide com um id real
  * (sempre positivo, `IDENTITY`).
  *
- * O roteiro não tem campo de ordem: a posição no array É a ordem, e o `ordem` guardado em cada
- * linha é só um rótulo de exibição — remover uma linha do meio não renumera as demais na tela.
- * Quem numera de verdade é o servidor, ao salvar (`LinhaDeRoteiro` só carrega `setorId`).
+ * O roteiro não manda `ordem` nenhuma ao servidor (`LinhaDeRoteiro` só carrega `setorId` — quem
+ * numera de verdade, ao salvar, é o servidor). NA TELA, porém, o número exibido é a POSIÇÃO no
+ * array (`i + 1`), não o `r.ordem` que a última leitura trouxe — decisão da review das Tasks
+ * 10-12: `r.ordem` fica desatualizado a cada edição local (remover o passo do meio e adicionar
+ * um novo produzia número pulado, número repetido, e dois botões "Remover" com o MESMO nome
+ * acessível), e a posição no array é sempre densa e sequencial por construção.
  *
  * `usePodeEscrever('componentes')`, não `'receitaPadrao')`: a receita padrão e o Componente são um
  * conceito de permissão só (ver `web/src/auth/permissoes.ts`). Gating na AÇÃO — o rodapé de cada
@@ -141,40 +150,63 @@ export function ComponenteDetalhePage() {
   const [erroSalvarRoteiro, setErroSalvarRoteiro] = useState<unknown>(null)
   const proximoIdRoteiroRef = useRef(-1)
 
+  // Item 6 da review (Tasks 10-12): `/componentes/:id` NÃO desmonta ao mudar de parâmetro (é a
+  // MESMA instância do componente React que recebe um `id` novo), então navegar de
+  // `/componentes/1` para `/componentes/2` com a resposta de 1 ainda em voo faria o `.then`
+  // antigo escrever por cima do que 2 acabou de carregar — e, se o usuário editasse e salvasse, o
+  // POST iria para `/componentes/2/…` com as linhas de 1. `cancelado` fecha isso: a flag nasce
+  // `false` a cada execução do efeito e vira `true` no cleanup, que roda ANTES do efeito da
+  // dependência nova — nenhum `set*` de uma resposta tardia de um id velho passa pela guarda. Por
+  // isso ela cobre também o `finally`: um `carregando` que baixasse sem a guarda mostraria a tela
+  // de 2 como "carregada" com os dados de 1 ainda por cima. `erro` é zerado no INÍCIO do efeito,
+  // não só o array de dados: sem isto, trocar de um id com falha para um id que carrega bem
+  // deixaria erro e sucesso e o banner ficaria colado mesmo depois do sucesso.
   useEffect(() => {
     if (!idValido) return
+    let cancelado = false
     setCarregandoComponente(true)
+    setErroComponente(null)
     obterComponente(componenteId)
-      .then(setComponente)
-      .catch(setErroComponente)
-      .finally(() => setCarregandoComponente(false))
+      .then((c) => { if (!cancelado) setComponente(c) })
+      .catch((e) => { if (!cancelado) setErroComponente(e) })
+      .finally(() => { if (!cancelado) setCarregandoComponente(false) })
+    return () => { cancelado = true }
   }, [componenteId, idValido])
 
   useEffect(() => {
     if (!idValido) return
+    let cancelado = false
     setCarregandoFilhos(true)
+    setErroFilhos(null)
     listarFilhosPadrao(componenteId)
-      .then(setFilhos)
-      .catch(setErroFilhos)
-      .finally(() => setCarregandoFilhos(false))
+      .then((f) => { if (!cancelado) setFilhos(f) })
+      .catch((e) => { if (!cancelado) setErroFilhos(e) })
+      .finally(() => { if (!cancelado) setCarregandoFilhos(false) })
+    return () => { cancelado = true }
   }, [componenteId, idValido])
 
   useEffect(() => {
     if (!idValido) return
+    let cancelado = false
     setCarregandoMateriais(true)
+    setErroMateriais(null)
     listarMateriaisPadrao(componenteId)
-      .then(setMateriais)
-      .catch(setErroMateriais)
-      .finally(() => setCarregandoMateriais(false))
+      .then((m) => { if (!cancelado) setMateriais(m) })
+      .catch((e) => { if (!cancelado) setErroMateriais(e) })
+      .finally(() => { if (!cancelado) setCarregandoMateriais(false) })
+    return () => { cancelado = true }
   }, [componenteId, idValido])
 
   useEffect(() => {
     if (!idValido) return
+    let cancelado = false
     setCarregandoRoteiro(true)
+    setErroRoteiro(null)
     listarRoteiroPadrao(componenteId)
-      .then(setRoteiro)
-      .catch(setErroRoteiro)
-      .finally(() => setCarregandoRoteiro(false))
+      .then((r) => { if (!cancelado) setRoteiro(r) })
+      .catch((e) => { if (!cancelado) setErroRoteiro(e) })
+      .finally(() => { if (!cancelado) setCarregandoRoteiro(false) })
+    return () => { cancelado = true }
   }, [componenteId, idValido])
 
   // Catálogos das duas seções com `<select>` nativo. Só buscados para quem pode escrever — quem só
@@ -182,14 +214,19 @@ export function ComponenteDetalhePage() {
   // requisição a mais por sessão sem uso nenhum. Falha aqui é engolida de propósito: ela só
   // impediria popular UMA lista de opções para adicionar linha nova, e não é motivo para um banner
   // de erro na tela — a receita já carregada (as 3 seções acima) não depende destes dois catálogos.
+  // Mesma guarda de cancelamento dos quatro efeitos acima, pelo mesmo motivo (troca de `:id`).
   useEffect(() => {
     if (!idValido || !podeEscrever) return
-    listarMateriais(false).then(setMateriaisCadastro).catch(() => {})
+    let cancelado = false
+    listarMateriais(false).then((m) => { if (!cancelado) setMateriaisCadastro(m) }).catch(() => {})
+    return () => { cancelado = true }
   }, [idValido, podeEscrever])
 
   useEffect(() => {
     if (!idValido || !podeEscrever) return
-    listarSetores(false).then(setSetoresCadastro).catch(() => {})
+    let cancelado = false
+    listarSetores(false).then((s) => { if (!cancelado) setSetoresCadastro(s) }).catch(() => {})
+    return () => { cancelado = true }
   }, [idValido, podeEscrever])
 
   function aoAdicionarFilho() {
@@ -280,9 +317,10 @@ export function ComponenteDetalhePage() {
       id: proximoIdRoteiroRef.current--,
       setorId: setor.id,
       nome: setor.nome,
-      // Só rótulo de exibição da linha nova — não é renumerado se algo for removido depois, e o
-      // servidor decide a ordem real ao salvar (comentário de topo do componente).
-      ordem: roteiro.length + 1,
+      // Campo exigido pelo tipo (o GET real sempre traz `ordem`), mas NÃO é o que a tela exibe —
+      // ver o comentário de `roteiro.map((r, i) => …)` mais abaixo, e a DECISÃO no topo do
+      // componente. Valor aqui é irrelevante para a exibição; existe só para o objeto tipar.
+      ordem: 0,
     }
     setRoteiro((atual) => [...atual, linha])
     setRoteiroSujo(true)
@@ -543,23 +581,34 @@ export function ComponenteDetalhePage() {
             o roteiro pode repetir o mesmo setor — é retorno ao setor, não duplicata. A `key` é
             `r.id`, o id da própria linha de `ComponenteRoteiroPadrao` (ou o id local negativo de
             uma linha ainda não salva), e nunca `r.setorId`, que colidiria entre a primeira e a
-            segunda passagem pelo mesmo setor. */}
+            segunda passagem pelo mesmo setor.
+
+            Item 7 da review (Tasks 10-12) — DECISÃO DO USUÁRIO: o número exibido é `i + 1`, a
+            POSIÇÃO no array, não `r.ordem`. `r.ordem` é o rótulo que o SERVIDOR atribuiu na
+            última leitura/gravação — correto no momento em que chegou, mas MENTIROSO depois de
+            qualquer edição local: remover o passo do meio e adicionar um novo faz `r.ordem`
+            pular um número, repetir outro, e produzir DOIS botões "Remover N. Nome" com o MESMO
+            nome acessível (`getByRole` rejeita — era o defeito que a Task 11 mandou evitar ao
+            exigir o código no rótulo). Numerar pela posição do array elimina os três sintomas de
+            uma vez, porque a posição sempre é densa e sequencial por construção. A intenção
+            original do brief continua valendo: `ordem` nunca é MANDADA ao servidor
+            (`LinhaDeRoteiro` só carrega `setorId`) — só deixou de ser o que a TELA mostra. */}
         <ListaDeCadastro rotulo="Roteiro">
-          {roteiro.map((r) => (
+          {roteiro.map((r, i) => (
             <ItemDeCadastro
               key={r.id}
               acao={podeEscrever && (
                 <Botao variante="secundario" onClick={() => removerPassoRoteiro(r.id)}>
-                  {`Remover ${r.ordem}. ${r.nome}`}
+                  {`Remover ${i + 1}. ${r.nome}`}
                 </Botao>
               )}
             >
               {/* `nome` num `<span>` próprio, e não texto solto ao lado da ordem. MEDIDO ao
-                  escrever a tela: com `{r.ordem}. {r.nome}` solto, nenhum elemento tem
+                  escrever a tela: com `{i + 1}. {r.nome}` solto, nenhum elemento tem
                   "Corte" como texto próprio — o mais interno vira "1. Corte" —, e
                   `findAllByText('Corte')` acha ZERO. O `<span>` é o que dá ao nome do setor um
                   elemento só dele, e é dele que depende o teste do retorno ao setor. */}
-              <span className="text-tinta-fraca">{r.ordem}.</span>
+              <span className="text-tinta-fraca">{i + 1}.</span>
               {' '}
               <span>{r.nome}</span>
             </ItemDeCadastro>

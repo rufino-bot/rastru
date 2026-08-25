@@ -90,4 +90,15 @@ describe('mensagemDeErro com detalhe do servidor', () => {
     expect(mensagemDeErro(new ErroDeApi(403, 'x'), PADRAO))
       .toBe('Seu perfil não tem permissão para esta ação.')
   })
+
+  /**
+   * Achado (Minor) da review das Tasks 10-12: `detalhe` NÃO ganha do 401, ao contrário de todos
+   * os outros status. Hoje é inócuo — nenhum endpoint emite `{erro}` num 401 — mas se um dia
+   * emitir, esta guarda impede que "Sua sessão expirou. Entre novamente." (a única mensagem
+   * acionável do conjunto) seja substituída por um texto de validação qualquer.
+   */
+  it('o 401 NÃO cede para o detalhe — é o único status excluído do desvio', () => {
+    expect(mensagemDeErro(new ErroDeApi(401, 'x', 'Algum detalhe do servidor.'), PADRAO))
+      .toBe('Sua sessão expirou. Entre novamente.')
+  })
 })

@@ -50,7 +50,12 @@ export function mensagemDeErro(e: unknown, fallback: string): string {
     // Mensagem do servidor ganha do texto da tela, e SÓ dela: `detalhe` não é inventado aqui nem
     // preenchido por acidente — quem o popula leu o corpo de propósito. Isto vem ANTES dos ramos
     // por status porque a explicação específica é melhor que a genérica sempre que existe.
-    if (e.detalhe) return e.detalhe
+    //
+    // EXCETO no 401: hoje é inócuo (o backend só emite `{erro}` em 400/404/409, e o 401 vem do
+    // middleware com corpo vazio, então `detalhe` nunca populado aqui), mas se algum dia um
+    // endpoint responder 401 com corpo, esta guarda impede que ele apague "Sua sessão expirou.
+    // Entre novamente." — a única mensagem acionável do conjunto (achado da review Tasks 10-12).
+    if (e.status !== 401 && e.detalhe) return e.detalhe
     if (e.status === 401) return 'Sua sessão expirou. Entre novamente.'
     if (e.status === 403) return 'Seu perfil não tem permissão para esta ação.'
     if (e.status === 404) return 'Este registro não existe mais.'

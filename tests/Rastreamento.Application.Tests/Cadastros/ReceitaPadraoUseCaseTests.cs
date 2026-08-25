@@ -160,7 +160,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, r.TipoDoErro);
-    Assert.Equal("Componente nao encontrado.", r.Erro);
+    Assert.Equal("Componente não encontrado.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -179,8 +179,8 @@ public class ReceitaPadraoUseCaseTests
   [Theory]
   [InlineData(0, "Quantidade deve ser maior que zero.")]
   [InlineData(-1, "Quantidade deve ser maior que zero.")]
-  [InlineData(0.00001, "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
-  [InlineData(1e17, "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
+  [InlineData(0.00001, "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.")]
+  [InlineData(1e17, "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.")]
   public async Task Quantidade_invalida_e_recusada(decimal quantidade, string mensagem)
   {
     var fake = FakeComCatalogo();
@@ -216,12 +216,12 @@ public class ReceitaPadraoUseCaseTests
   /// a suite verde — a mesma lacuna medida do lado dos filhos, herdada do molde.
   /// </summary>
   [Theory]
-  [InlineData(999, 777, 0, false, TipoDeErro.NaoEncontrado, "Componente nao encontrado.")]
+  [InlineData(999, 777, 0, false, TipoDeErro.NaoEncontrado, "Componente não encontrado.")]
   [InlineData(1, 777, 0, true, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
   [InlineData(1, 777, 1, true, TipoDeErro.Validacao, "O material 777 aparece mais de uma vez na lista.")]
   [InlineData(1, 10, -0.00001, false, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
   [InlineData(1, 10, 0.00001, true, TipoDeErro.Validacao,
-      "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
+      "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.")]
   public async Task Precedencia_das_validacoes_e_fixa(
       int componenteId,
       int materialId,
@@ -278,7 +278,7 @@ public class ReceitaPadraoUseCaseTests
     foreach (var erro in new[] { materiais.Erro, roteiro.Erro, filhos.Erro })
       // Mensagem INTEIRA e pelo CODIGO ("PAI"), nao pelo id: e o que o usuario ve na tela. E ela
       // diz o que fazer — reativar —, porque a recusa e sobre estado, nao sobre o corpo enviado.
-      Assert.Equal("O componente PAI esta inativo: reative-o para alterar a receita.", erro);
+      Assert.Equal("O componente PAI está inativo: reative-o para alterar a receita.", erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -386,7 +386,7 @@ public class ReceitaPadraoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
     Assert.Equal(
-        "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.", r.Erro);
+        "A receita deste componente está sendo alterada por outra gravação. Tente de novo.", r.Erro);
   }
 
   /// <summary>
@@ -464,7 +464,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal("O material 777 nao existe.", r.Erro);
+    Assert.Equal("O material 777 não existe.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -484,7 +484,7 @@ public class ReceitaPadraoUseCaseTests
         Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Equal("Os materiais 777, 888 nao existem.", r.Erro);
+    Assert.Equal("Os materiais 777, 888 não existem.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -500,7 +500,7 @@ public class ReceitaPadraoUseCaseTests
     Assert.False(r.Sucesso);
     // Mensagem INTEIRA, nao substring: "11" casaria com "110", "211" etc. Se a mensagem mudar de
     // texto, este teste tem de morrer — e a mensagem E o contrato com o usuario aqui.
-    Assert.Equal("O material 11 esta inativo e nao pode entrar na receita.", r.Erro);
+    Assert.Equal("O material 11 está inativo e não pode entrar na receita.", r.Erro);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
     Assert.Equal(0, fake.Substituicoes);
   }
@@ -518,7 +518,7 @@ public class ReceitaPadraoUseCaseTests
         1, [new LinhaDeMaterialPadraoDto(10, 1m), new LinhaDeMaterialPadraoDto(11, 1m)], Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Equal("Os materiais 10, 11 estao inativos e nao podem entrar na receita.", r.Erro);
+    Assert.Equal("Os materiais 10, 11 estão inativos e não podem entrar na receita.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -553,7 +553,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, r.TipoDoErro);
-    Assert.Equal("Componente nao encontrado.", r.Erro);
+    Assert.Equal("Componente não encontrado.", r.Erro);
   }
 
   // ------------------------------------------------------------------ roteiro
@@ -671,7 +671,7 @@ public class ReceitaPadraoUseCaseTests
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
     // Mensagem INTEIRA, e o singular do helper compartilhado com o nome de recurso do ROTEIRO:
     // "setor", nao "material". Trocar as duas palavras do call site tem de matar este teste.
-    Assert.Equal("O setor 888 nao existe.", r.Erro);
+    Assert.Equal("O setor 888 não existe.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -680,7 +680,7 @@ public class ReceitaPadraoUseCaseTests
   /// materiais nunca entregou, porque a guarda de duplicata dele recusa antes. Isso torna
   /// load-bearing os dois `Distinct()` de `ConferirExistenciaEAtividade`, que a Task 3 tinha
   /// declarado mutantes equivalentes: sem eles, a mensagem sai no plural nomeando o mesmo id duas
-  /// vezes ("Os setores 888, 888 nao existem."), que e o texto que o usuario le.
+  /// vezes ("Os setores 888, 888 não existem."), que e o texto que o usuario le.
   ///
   /// A declaracao de equivalencia da Task 3 nao estava errada quando foi escrita — ela expirou
   /// com esta task, e por isso este teste existe.
@@ -695,7 +695,7 @@ public class ReceitaPadraoUseCaseTests
         1, [new LinhaDeRoteiroPadraoDto(888), new LinhaDeRoteiroPadraoDto(888)], Ct);
 
     Assert.False(r.Sucesso);
-    Assert.Equal("O setor 888 nao existe.", r.Erro);
+    Assert.Equal("O setor 888 não existe.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -715,7 +715,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal("O setor 21 esta inativo e nao pode entrar na receita.", r.Erro);
+    Assert.Equal("O setor 21 está inativo e não pode entrar na receita.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -773,10 +773,10 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(leitura.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, leitura.TipoDoErro);
-    Assert.Equal("Componente nao encontrado.", leitura.Erro);
+    Assert.Equal("Componente não encontrado.", leitura.Erro);
     Assert.False(escrita.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, escrita.TipoDoErro);
-    Assert.Equal("Componente nao encontrado.", escrita.Erro);
+    Assert.Equal("Componente não encontrado.", escrita.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -798,7 +798,7 @@ public class ReceitaPadraoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
     Assert.Equal(
-        "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.", r.Erro);
+        "A receita deste componente está sendo alterada por outra gravação. Tente de novo.", r.Erro);
   }
 
   /// <summary>
@@ -908,7 +908,7 @@ public class ReceitaPadraoUseCaseTests
   /// A auto-referencia e recusada com mensagem PROPRIA, e nao com a de ciclo. A entrada e invalida
   /// por dois motivos ao mesmo tempo — A -> A tambem e ciclo, e a travessia pegaria —, entao
   /// afirmar a mensagem inteira e o que prende a precedencia: trocar a ordem das duas guardas faz
-  /// o usuario ler "criaria um ciclo" onde "nao pode ser filho de si mesmo" e mais util.
+  /// o usuario ler "criaria um ciclo" onde "não pode ser filho de si mesmo" e mais util.
   ///
   /// A auto-referencia esta na SEGUNDA linha de proposito: com uma linha so, uma guarda que
   /// olhasse apenas a primeira (`linhas.Take(1).Any(...)`) recusaria igual e a mutacao sobreviveria.
@@ -924,7 +924,7 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
-    Assert.Equal("Um componente nao pode ser filho de si mesmo.", r.Erro);
+    Assert.Equal("Um componente não pode ser filho de si mesmo.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -1081,7 +1081,7 @@ public class ReceitaPadraoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
     Assert.Equal(
-        "Esta receita ligaria este componente a um ciclo que ja existe: C3 -> C4 -> C3. "
+        "Esta receita ligaria este componente a um ciclo que já existe: C3 -> C4 -> C3. "
         + "Corrija a receita desses componentes antes.",
         r.Erro);
     Assert.Equal(0, fake.Substituicoes);
@@ -1287,7 +1287,7 @@ public class ReceitaPadraoUseCaseTests
     // Mensagem INTEIRA, nao `Assert.Contains("2", ...)`: a substring "2" casa com "12", "20" e ate
     // com o proprio texto da mensagem. E o mesmo defeito que a review da Task 11 da Fase 1D achou
     // (`toContain('1')` casando com "41") — nao repetir.
-    Assert.Equal("O componente 2 esta inativo e nao pode entrar na receita.", r.Erro);
+    Assert.Equal("O componente 2 está inativo e não pode entrar na receita.", r.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -1350,7 +1350,7 @@ public class ReceitaPadraoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
     Assert.Equal(
-        "A receita deste componente esta sendo alterada por outra gravacao. Tente de novo.", r.Erro);
+        "A receita deste componente está sendo alterada por outra gravação. Tente de novo.", r.Erro);
   }
 
   /// <summary>
@@ -1397,10 +1397,10 @@ public class ReceitaPadraoUseCaseTests
 
     Assert.False(leitura.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, leitura.TipoDoErro);
-    Assert.Equal("Componente nao encontrado.", leitura.Erro);
+    Assert.Equal("Componente não encontrado.", leitura.Erro);
     Assert.False(escrita.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, escrita.TipoDoErro);
-    Assert.Equal("Componente nao encontrado.", escrita.Erro);
+    Assert.Equal("Componente não encontrado.", escrita.Erro);
     Assert.Equal(0, fake.Substituicoes);
   }
 
@@ -1474,8 +1474,8 @@ public class ReceitaPadraoUseCaseTests
   [Theory]
   [InlineData(0, "Quantidade deve ser maior que zero.")]
   [InlineData(-1, "Quantidade deve ser maior que zero.")]
-  [InlineData(0.00001, "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
-  [InlineData(1e17, "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
+  [InlineData(0.00001, "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.")]
+  [InlineData(1e17, "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.")]
   public async Task Quantidade_de_filho_invalida_e_recusada(decimal quantidade, string mensagem)
   {
     var fake = FakeComQuatroComponentes();
@@ -1518,11 +1518,11 @@ public class ReceitaPadraoUseCaseTests
   /// SEIS fronteiras adjacentes da cadeia estao presas.
   /// </summary>
   [Theory]
-  [InlineData(999, 777, 0, false, TipoDeErro.NaoEncontrado, "Componente nao encontrado.")]
+  [InlineData(999, 777, 0, false, TipoDeErro.NaoEncontrado, "Componente não encontrado.")]
   [InlineData(1, 1, 0, false, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
   [InlineData(1, 1, 0.00001, false, TipoDeErro.Validacao,
-      "Quantidade deve ter no maximo 4 casas decimais e no maximo 14 digitos inteiros.")]
-  [InlineData(1, 1, 1, true, TipoDeErro.Validacao, "Um componente nao pode ser filho de si mesmo.")]
+      "Quantidade deve ter no máximo 4 casas decimais e no máximo 14 dígitos inteiros.")]
+  [InlineData(1, 1, 1, true, TipoDeErro.Validacao, "Um componente não pode ser filho de si mesmo.")]
   [InlineData(1, 777, 1, true, TipoDeErro.Validacao,
       "O componente 777 aparece mais de uma vez na lista.")]
   [InlineData(1, 2, -0.00001, false, TipoDeErro.Validacao, "Quantidade deve ser maior que zero.")]
