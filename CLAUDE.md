@@ -183,8 +183,27 @@ bash scripts/estado
 
 `--testes` acrescenta as suítes (caro: front ~15s, backend ~2min). Ele **observa e não age**: não
 sobe o banco, porque ação com efeito colateral não pertence a um script cujo propósito é medir. Um
-hook `SessionStart` (em `.claude/settings.json`, **untracked** — `git clean -xfd` o apaga) já roda a
-forma barata na abertura da sessão e injeta o resultado como contexto.
+hook `SessionStart` (em `.claude/settings.json`) já roda a forma barata na abertura da sessão e
+injeta o resultado como contexto.
+
+### O ledger tem repositório próprio, e o script vigia isso
+
+`.superpowers/` — ledger, briefs, relatórios, histórico de fase — é um **repositório git separado e
+privado** (`rufino-bot/rastru-ledger`), desde 2026-08-25. Não é submodule: são dois repos
+independentes na mesma árvore, e este aqui ignora `.superpowers/` na raiz (`.gitignore:6`). Nada do
+código muda por causa disso.
+
+Existe porque aquele conteúdo é o **único** registro das decisões, medições e dívidas do projeto, e
+até então vivia no disco de uma máquina só. Ficam de fora dele os 70 pacotes `.diff` de review (o
+nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de runtime do brainstorm.
+
+`scripts/estado` confere duas coisas na abertura, porque as duas falhas desta cópia são
+**silenciosas** e só apareceriam no dia de trocar de máquina:
+
+1. **trabalho sem commit ou sem push** — registro que existe só localmente não é backup;
+2. **`sdd/.gitignore` recriado com `*`** — ele é redundante aqui (a raiz já ignora a pasta) e
+   destrutivo lá, onde ignora o ledger inteiro. Já aconteceu: foi pego com `git check-ignore -v`
+   antes do primeiro `git add`, senão o repositório teria nascido vazio de conteúdo.
 
 Backend (solution `Rastreamento.slnx`, na raiz):
 

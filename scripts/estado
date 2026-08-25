@@ -102,6 +102,37 @@ else
   fi
 fi
 
+echo
+echo "## LEDGER (backup em rufino-bot/rastru-ledger, privado)"
+# `.superpowers/` e um repositorio git PROPRIO — o repo do TCC o ignora (`.gitignore:6`). Ele
+# guarda o unico registro de decisao, medicao e divida do projeto, e ate 2026-08-25 existia so no
+# disco de uma maquina.
+#
+# As duas perguntas abaixo existem porque as duas formas de falha desta copia sao SILENCIOSAS:
+# commit local que ninguem empurrou nao protege de nada, e um `sdd/.gitignore` recriado com `*`
+# faz o repositorio parar de receber conteudo sem reclamar. Nos dois casos o sintoma so apareceria
+# no dia de trocar de maquina — o unico dia em que este backup precisa funcionar.
+if [ ! -d .superpowers/.git ]; then
+  echo "ledger   : .superpowers/ NAO e repositorio git — o registro do projeto nao tem copia."
+else
+  if [ -f .superpowers/sdd/.gitignore ] && grep -qx '\*' .superpowers/sdd/.gitignore 2>/dev/null; then
+    # Aspas SIMPLES: com aspas duplas, as crases em volta do nome do arquivo viram command
+    # substitution e o bash tenta EXECUTAR `sdd/.gitignore`. Medido — a mensagem saiu com o nome
+    # do arquivo comido e um "No such file or directory" no meio do aviso.
+    echo 'ledger   : ⚠ sdd/.gitignore VOLTOU com "*" — o ledger esta sendo ignorado EM SILENCIO.'
+    echo "           Apague-o: o repo do TCC ja ignora .superpowers/ inteiro, entao ele e redundante la."
+  fi
+  pendentes=$(git -C .superpowers status --short | wc -l)
+  naoempurrados=$(git -C .superpowers rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo '?')
+  if [ "$pendentes" -gt 0 ] || [ "$naoempurrados" != "0" ]; then
+    printf 'ledger   : %s arquivo(s) sem commit, %s commit(s) sem push — o registro de hoje ainda\n' \
+      "$pendentes" "$naoempurrados"
+    echo "           so existe nesta maquina. Feche a sessao empurrando."
+  else
+    echo "ledger   : em dia (sem alteracao local, nada por empurrar)"
+  fi
+fi
+
 if [ "${1:-}" = "--testes" ]; then
   echo
   echo "## SUÍTES (medidas agora)"
