@@ -31,9 +31,13 @@ resolvidos (ou conscientemente adiados).
 > `Application/Common`. `Setor` e `Material` **não** foram migrados para ele — dívida rastreada,
 > e não item esquecido: eles não têm o volume que motivou a paginação.
 >
-> **Falta 1C**: a receita padrão (`ComponenteFilhoPadrao`, `ComponenteMaterialPadrao`,
-> `ComponenteRoteiroPadrao`), que recebe plano próprio. **A Fase 2 depende dela** — "criar
-> `EstruturaItem` copiando a receita" não tem o que copiar enquanto a 1C não existir.
+> **1C concluída em 2026-08-25**: a receita padrão do Componente
+> (`ComponenteFilhoPadrao`/`ComponenteMaterialPadrao`/`ComponenteRoteiroPadrao`) — backend
+> (`ReceitaPadraoController`, três pares `GET/POST componentes/{id}/{filhos,materiais,roteiro}-padrao`,
+> contrato em `05-api-endpoints.md`) e a tela de detalhe do Componente no front, com leitura e
+> escrita das três seções e gating de perfil. **A Fase 2 passa a ter o que copiar** — e é só isso
+> que muda: a lógica de cópia recursiva em si (`EstruturaItem` a partir da receita) ainda não
+> existe, nasce na própria Fase 2.
 >
 > Dívidas rastreadas de 1A: camada global de erro de API no front e gating de navegação por
 > perfil.

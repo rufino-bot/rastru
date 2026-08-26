@@ -120,6 +120,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
+- **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
+  teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
+  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
+  (a receita padrão em `ComponenteDetalhePage`) — o bastante para nomear a primitiva certa, não
+  para chamá-la de padrão já consolidado em várias telas.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
@@ -277,10 +282,22 @@ Frontend: ainda não criado (Fase 1 em diante).
 Parte da suíte roda contra o **SQL Server real**, não contra banco em memória — é o que
 prova o mapeamento EF, os lifetimes do DI, a atomicidade da rotação de refresh token, a
 queima da família de tokens no reuso e o lockout de conta ponta a ponta.
-Quantos exatamente não está medido de novo desde que a suíte cresceu (era 41 dos 123 testes, mas
-esse número está velho e não foi reconferido — reconferir exigiria derrubar o SQL Server, o que
-este fix pass foi instruído a não fazer). Sem o banco no ar esses testes falham com erro de
-conexão, não com mensagem útil.
+
+**O banco de dev é descartável** (autorização do dono do projeto, 2026-08-17): pode ser
+derrubado, regenerado e populado à vontade. A restrição antiga que vivia neste parágrafo — "não
+derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
+reconferir.
+
+A suíte tem **464 testes** (medido em 2026-08-26 com `dotnet test Rastreamento.slnx
+--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
+ar: 205 em `Api.Tests`, 201 em `Application.Tests`, 58 em `Infrastructure.Tests`). Quantos
+exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
+exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
+falha por erro de conexão em vez de mensagem útil, e a task que escreveu este parágrafo é
+documentação pura, sem delta de teste, então não executou a suíte para medir isso. O que se sabe
+por leitura de código, sem precisar rodar nada: `Application.Tests` usa fakes e não precisa de
+banco (nenhum teste seu); `Infrastructure.Tests` e `Api.Tests` precisam **em parte**, sem a fração
+medida.
 
 **Paralelismo do xUnit contra um banco só.** O xUnit roda classes de teste em paralelo dentro do
 mesmo assembly, e o SQL Server de dev é compartilhado — duas classes que escrevem na **mesma
@@ -327,6 +344,20 @@ código/nome — nunca por Id), então rodá-lo de novo num banco que já o tem 
 container): a acentuação dos nomes de setor é `NVARCHAR` e, se a codepage se perder na carga, os
 dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que sobreviveu não é
 olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
+
+**Terceiro usuário, `operador`/`Admin@123`, existe só no banco desta máquina — deliberadamente
+FORA de `db/seed.sql`.** Criado à mão em 2026-08-25 para o V5 da Task 12 da Fase 1C (gating por
+perfil) ser verificável: `admin` e `pcp`, os dois usuários do seed, **escrevem** — sem um usuário
+de perfil sem-escrita no banco não dá para provar que a AÇÃO some para quem não pode escrever (ver
+seção Interface, "Gating de perfil vai na AÇÃO"). **Decisão da Task 13 (documentação): não entrou
+no seed.** Razão: o hash BCrypt do `admin` e do `pcp` acima está commitado porque nasceu de uma
+execução real do `BCryptPasswordHasher` de produção (ver `SeedAdminSenhaTests`); gerar um hash novo
+e legítimo para `operador` exigiria rodar código .NET de novo, e esta task não toca em código nem
+executa a suíte — está fora do que ela pode fazer. Consequência: **a próxima verificação manual de
+gating por um perfil sem escrita** (Operador, Almoxarifado, Qualidade ou Gestão) **precisa recriar
+este usuário à mão de novo**, no mesmo padrão idempotente do bloco `pcp` acima, com um hash gerado
+por quem fizer a verificação — este parágrafo existe para que essa recriação não parta do zero,
+redescobrindo por que nenhum usuário sem-escrita está disponível.
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de

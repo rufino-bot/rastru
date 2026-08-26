@@ -72,9 +72,31 @@ reenvia e a sessão morre no primeiro refresh.
 - `PUT /componentes/{id}` *(Administrador, PCP)* — idem
 - `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
   Não existe `DELETE`: catálogo se inativa, não se exclui.
-- `GET/POST /componentes/{id}/filhos-padrao` — **Fase 1C**, não implementado
-- `GET/POST /componentes/{id}/materiais-padrao` — **Fase 1C**, não implementado
-- `GET/POST /componentes/{id}/roteiro-padrao` — **Fase 1C**, não implementado
+- `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
+  Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
+  quantidadePadrao }[]`
+- `POST /componentes/{id}/filhos-padrao` *(Administrador, PCP)* — substitui a receita de filhos
+  inteira. Body: `{ linhas: [{ componenteFilhoId, quantidadePadrao }] }`. `200`, não `201`: não
+  cria um recurso novo endereçável, substitui o conteúdo de um sub-recurso que já tem endereço.
+  `linhas: []` apaga a receita — é o comando explícito de remoção, não erro.
+- `GET /componentes/{id}/materiais-padrao` *(qualquer perfil autenticado)* — `{ id, materialId,
+  codigo, descricao, unidadeMedida, quantidadePadrao }[]`
+- `POST /componentes/{id}/materiais-padrao` *(Administrador, PCP)* — Body: `{ linhas: [{
+  materialId, quantidadePadrao }] }`. Mesmo contrato de `200` e lista vazia do item acima.
+- `GET /componentes/{id}/roteiro-padrao` *(qualquer perfil autenticado)* — `{ id, setorId, nome,
+  ordem }[]`, ordenado por `ordem`
+- `POST /componentes/{id}/roteiro-padrao` *(Administrador, PCP)* — Body: `{ linhas: [{ setorId
+  }] }`, sem `ordem`: ela é atribuída pelo servidor, pela posição de cada linha no array.
+  **O mesmo Setor pode repetir na lista** — significa retorno ao setor, não erro (ver regra 21 de
+  `01-dominio-e-regras-de-negocio.md`). Mesmo contrato de `200` e lista vazia dos dois itens acima.
+
+Contrato de erro dos três sub-recursos acima: `{ erro: "..." }`, em `400` (validação — ex.:
+quantidade inválida, linha repetida no corpo, ciclo na receita de filhos), `404` (Componente da
+rota inexistente) e `409` (gravação concorrente derrubada pelo banco — refazer o `POST` é o
+caminho). **Não** é o mesmo formato da seção "Contrato de erro dos cadastros" logo abaixo: lá o
+`409` é `{ erro: "ValorDuplicado", campo, existeInativo, idExistente }`; aqui o `409` só existe por
+conflito de concorrência, e uma linha repetida dentro do próprio corpo do `POST` responde `400`,
+não `409` — os dois contratos usam o mesmo verbo HTTP para coisas diferentes.
 
 ## Pedido / Agrupamento
 
