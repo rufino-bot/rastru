@@ -94,17 +94,19 @@ reenvia e a sessão morre no primeiro refresh.
   ao setor, não erro (ver regra 21 de `01-dominio-e-regras-de-negocio.md`). Mesmo contrato de `200`,
   lista vazia e `linhas` ausente dos dois itens acima.
 
-Contrato de erro dos três sub-recursos acima: `{ erro: "..." }`, em `400` (validação — em
-**materiais e filhos**: quantidade inválida, linha repetida no corpo; em filhos, também ciclo na
-receita; nos três sub-recursos, Componente da rota **inativo** recusa a gravação), `404`
-(Componente da rota inexistente) e `409` (gravação concorrente derrubada pelo banco — refazer o
-`POST` é o caminho). **No roteiro não há essas duas validações de `400`**: não existe campo de
-quantidade, e setor repetido é aceito, não erro — ver o item acima e a regra 21. **Não** é o mesmo
-formato da seção "Contrato de erro dos cadastros" (mais abaixo, depois de Pedido/Agrupamento): lá o
-`409` é `{ erro: "ValorDuplicado", campo, existeInativo, idExistente }`; aqui o `409` só existe por
-conflito de concorrência, e uma linha repetida dentro do próprio corpo do `POST` responde `400`,
-não `409`, em materiais e filhos — os dois contratos usam o mesmo verbo HTTP para coisas
-diferentes.
+Contrato de erro dos três sub-recursos acima: `{ erro: "..." }`, em `400` (validação — ex.:
+referência inexistente ou inativa, nos três sub-recursos (material, setor ou componente filho); em
+**materiais e filhos**, também quantidade inválida ou fora da escala e linha repetida no corpo; em
+filhos, também auto-referência e ciclo na receita; e, nos três, Componente da rota **inativo**),
+`404` (Componente da rota inexistente) e `409` (gravação concorrente derrubada pelo banco — refazer
+o `POST` é o caminho). **No roteiro não há as validações de quantidade e de linha repetida que
+materiais e filhos têm**: não existe campo de quantidade, e setor repetido é aceito, não erro — ver
+o item acima e a regra 21; já a recusa por referência inexistente ou inativa (aqui, do setor) vale
+igualmente no roteiro. **Não** é o mesmo formato da seção "Contrato de erro dos cadastros" (mais
+abaixo, depois de Pedido/Agrupamento): lá o `409` é `{ erro: "ValorDuplicado", campo, existeInativo,
+idExistente }`; aqui o `409` só existe por conflito de concorrência, e uma linha repetida dentro do
+próprio corpo do `POST` responde `400`, não `409`, em materiais e filhos — os dois contratos usam o
+mesmo status HTTP para coisas diferentes.
 
 ## Pedido / Agrupamento
 
