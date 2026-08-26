@@ -31,7 +31,8 @@ resolvidos (ou conscientemente adiados).
 > `Application/Common`. `Setor` e `Material` **não** foram migrados para ele — dívida rastreada,
 > e não item esquecido: eles não têm o volume que motivou a paginação.
 >
-> **1C concluída em 2026-08-25**: a receita padrão do Componente
+> **1C implementada**; a conclusão da fase se dá quando o PR mesclar (Task 14 fecha a data): a
+> receita padrão do Componente
 > (`ComponenteFilhoPadrao`/`ComponenteMaterialPadrao`/`ComponenteRoteiroPadrao`) — backend
 > (`ReceitaPadraoController`, três pares `GET/POST componentes/{id}/{filhos,materiais,roteiro}-padrao`,
 > contrato em `05-api-endpoints.md`) e a tela de detalhe do Componente no front, com leitura e

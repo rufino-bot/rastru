@@ -345,20 +345,6 @@ container): a acentuação dos nomes de setor é `NVARCHAR` e, se a codepage se 
 dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que sobreviveu não é
 olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
 
-**Terceiro usuário, `operador`/`Admin@123`, existe só no banco desta máquina — deliberadamente
-FORA de `db/seed.sql`.** Criado à mão em 2026-08-25 para o V5 da Task 12 da Fase 1C (gating por
-perfil) ser verificável: `admin` e `pcp`, os dois usuários do seed, **escrevem** — sem um usuário
-de perfil sem-escrita no banco não dá para provar que a AÇÃO some para quem não pode escrever (ver
-seção Interface, "Gating de perfil vai na AÇÃO"). **Decisão da Task 13 (documentação): não entrou
-no seed.** Razão: o hash BCrypt do `admin` e do `pcp` acima está commitado porque nasceu de uma
-execução real do `BCryptPasswordHasher` de produção (ver `SeedAdminSenhaTests`); gerar um hash novo
-e legítimo para `operador` exigiria rodar código .NET de novo, e esta task não toca em código nem
-executa a suíte — está fora do que ela pode fazer. Consequência: **a próxima verificação manual de
-gating por um perfil sem escrita** (Operador, Almoxarifado, Qualidade ou Gestão) **precisa recriar
-este usuário à mão de novo**, no mesmo padrão idempotente do bloco `pcp` acima, com um hash gerado
-por quem fizer a verificação — este parágrafo existe para que essa recriação não parta do zero,
-redescobrindo por que nenhum usuário sem-escrita está disponível.
-
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
 verdade: `dbo.Componente` não tinha `ArquivoSolido`/`ArquivoFoto`, que nasceram no schema depois
@@ -396,6 +382,21 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
 ```
+
+**Terceiro usuário, `operador`/`Admin@123`, perfil `Operador`, sem permissão de escrita, existe só
+no banco desta máquina — deliberadamente FORA de `db/seed.sql`.** Criado à mão em 2026-08-25 para o
+V5 da Task 12 da Fase 1C (gating por perfil) ser verificável: `admin` e `pcp`, os dois usuários do
+seed acima, **escrevem** — sem um usuário de perfil sem-escrita no banco não dá para provar que a
+AÇÃO some para quem não pode escrever (ver seção Interface, "Gating de perfil vai na AÇÃO"). Ele
+reusa o hash BCrypt do próprio `admin` (`db/seed.sql:12`, válido para `Admin@123`). **Decisão da
+Task 13 (documentação): não entrou no seed.** Razão: `db/seed.sql:17-21` registra que o `pcp`
+recebeu hash e senha distintos do `admin` de propósito no seed, "para não virar mina para quem
+tentar logar depois" — versionar `operador` reusando o hash do `admin` sob outro nome de usuário
+quebraria esse padrão. Consequência: **a próxima verificação manual de gating por um perfil sem
+escrita** (Operador, Almoxarifado, Qualidade ou Gestão) **precisa recriar este usuário à mão de
+novo**, no mesmo padrão idempotente do bloco `pcp` acima — reusando o hash do `admin`, como da
+primeira vez — este parágrafo existe para que essa recriação não parta do zero, redescobrindo por
+que nenhum usuário sem-escrita está disponível.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
 composto por N Peças, e a contagem de Peças já responde "quantas são"; indicar uma quantidade no

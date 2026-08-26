@@ -78,25 +78,33 @@ reenvia e a sessão morre no primeiro refresh.
 - `POST /componentes/{id}/filhos-padrao` *(Administrador, PCP)* — substitui a receita de filhos
   inteira. Body: `{ linhas: [{ componenteFilhoId, quantidadePadrao }] }`. `200`, não `201`: não
   cria um recurso novo endereçável, substitui o conteúdo de um sub-recurso que já tem endereço.
-  `linhas: []` apaga a receita — é o comando explícito de remoção, não erro.
+  `linhas: []` apaga a receita — é o comando explícito de remoção, não erro; campo `linhas`
+  **ausente** responde `400` (é o `[Required]` do DTO que impede `POST {}` de limpar a receita em
+  silêncio).
 - `GET /componentes/{id}/materiais-padrao` *(qualquer perfil autenticado)* — `{ id, materialId,
   codigo, descricao, unidadeMedida, quantidadePadrao }[]`
 - `POST /componentes/{id}/materiais-padrao` *(Administrador, PCP)* — Body: `{ linhas: [{
-  materialId, quantidadePadrao }] }`. Mesmo contrato de `200` e lista vazia do item acima.
+  materialId, quantidadePadrao }] }`. Mesmo contrato de `200`, lista vazia e `linhas` ausente do
+  item acima.
 - `GET /componentes/{id}/roteiro-padrao` *(qualquer perfil autenticado)* — `{ id, setorId, nome,
   ordem }[]`, ordenado por `ordem`
 - `POST /componentes/{id}/roteiro-padrao` *(Administrador, PCP)* — Body: `{ linhas: [{ setorId
-  }] }`, sem `ordem`: ela é atribuída pelo servidor, pela posição de cada linha no array.
-  **O mesmo Setor pode repetir na lista** — significa retorno ao setor, não erro (ver regra 21 de
-  `01-dominio-e-regras-de-negocio.md`). Mesmo contrato de `200` e lista vazia dos dois itens acima.
+  }] }`, sem `ordem`: ela é atribuída pelo servidor, pela posição de cada linha no array — 1-based
+  (a primeira linha vira `ordem = 1`). **O mesmo Setor pode repetir na lista** — significa retorno
+  ao setor, não erro (ver regra 21 de `01-dominio-e-regras-de-negocio.md`). Mesmo contrato de `200`,
+  lista vazia e `linhas` ausente dos dois itens acima.
 
-Contrato de erro dos três sub-recursos acima: `{ erro: "..." }`, em `400` (validação — ex.:
-quantidade inválida, linha repetida no corpo, ciclo na receita de filhos), `404` (Componente da
-rota inexistente) e `409` (gravação concorrente derrubada pelo banco — refazer o `POST` é o
-caminho). **Não** é o mesmo formato da seção "Contrato de erro dos cadastros" logo abaixo: lá o
+Contrato de erro dos três sub-recursos acima: `{ erro: "..." }`, em `400` (validação — em
+**materiais e filhos**: quantidade inválida, linha repetida no corpo; em filhos, também ciclo na
+receita; nos três sub-recursos, Componente da rota **inativo** recusa a gravação), `404`
+(Componente da rota inexistente) e `409` (gravação concorrente derrubada pelo banco — refazer o
+`POST` é o caminho). **No roteiro não há essas duas validações de `400`**: não existe campo de
+quantidade, e setor repetido é aceito, não erro — ver o item acima e a regra 21. **Não** é o mesmo
+formato da seção "Contrato de erro dos cadastros" (mais abaixo, depois de Pedido/Agrupamento): lá o
 `409` é `{ erro: "ValorDuplicado", campo, existeInativo, idExistente }`; aqui o `409` só existe por
 conflito de concorrência, e uma linha repetida dentro do próprio corpo do `POST` responde `400`,
-não `409` — os dois contratos usam o mesmo verbo HTTP para coisas diferentes.
+não `409`, em materiais e filhos — os dois contratos usam o mesmo verbo HTTP para coisas
+diferentes.
 
 ## Pedido / Agrupamento
 

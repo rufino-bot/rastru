@@ -137,7 +137,12 @@
     sempre. A verificação é sobre o **grafo resultante** da gravação (o estado depois de aplicar a
     substituição inteira que o `POST` representa), não sobre o estado anterior a ela — é essa
     nuance que torna possível consertar um ciclo já gravado: uma substituição que remove a aresta
-    que fechava o ciclo é aceita, mesmo partindo de um grafo sujo.
+    que fechava o ciclo é aceita, mesmo partindo de um grafo sujo. A leitura desse grafo acontece
+    fora da transação que grava a substituição (`ReceitaPadraoUseCase.cs:439-448`): dois `POST`
+    simultâneos em componentes diferentes podem gravar um ciclo que nenhum dos dois via sozinho.
+    Por isso a regra é defesa em profundidade na escrita, não garantia de que o grafo gravado seja
+    sempre acíclico — uma travessia recursiva que dependa disso, como a cópia da Fase 2, precisa da
+    própria guarda contra ciclo.
 21. **Setor repetido no roteiro padrão (`ComponenteRoteiroPadrao`) é permitido, e significa
     retorno ao mesmo setor** — não é duplicata a corrigir. Esta é a regra que existe justamente
     para que ninguém "conserte" esse comportamento no futuro achando que é bug. O roteiro é uma
