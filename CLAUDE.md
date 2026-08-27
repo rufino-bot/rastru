@@ -51,9 +51,25 @@ Task de plano executa pelo fluxo de **`superpowers:subagent-driven-development`*
 > de branch inteira, no modelo mais capaz.
 
 **Invoque a skill.** Despachar implementer direto pela ferramenta de agente, sem o gate, é como a
-qualidade se perde — e já se perdeu: as Tasks 3 a 6 da Fase 1C tiveram review; as **Tasks 7 a 12
-não tiveram nenhuma**, e *não existe decisão registrada de parar*. Foi deriva, achada pelo usuário
-em 2026-08-25, com 3.009 linhas em 16 commits já commitadas sem gate.
+qualidade se perde — e já se perdeu. O recorte exato, remedido em 2026-08-27 contra os artefatos do
+ledger e o `git log`:
+
+- **Tasks 1 a 6 da Fase 1C tiveram review.** A 1 tem "review APROVADA" registrada
+  (`historico/05-fase-1c.md:681`), sem re-review; o `task-2-report.md` **é** o relatório de review da
+  2; as 3 a 6 têm par `-review-brief` / `-review-report` em disco.
+- **A Task 7 não teve review, e isso está certo:** delta de teste zero (457/457 em 3 execuções) e
+  verificada ponto a ponto, com a decisão escrita no ledger na sessão da época
+  (`historico/05-fase-1c.md:63-64`). Cai exatamente na segunda exceção da seção abaixo.
+- **As Tasks 8 a 12 não tiveram nenhuma, e *não existe decisão registrada de parar*.** É esta a
+  deriva: **15 commits, 2.711 linhas** já commitadas sem gate, achada pelo usuário em 2026-08-25.
+  (O número que este parágrafo trazia antes — 3.009 linhas em 16 commits — media de a Task 7 em
+  diante, e a 7 não é deriva.)
+
+**A deriva foi fechada, e o fecho é o argumento a favor do gate:** as Tasks 10-12 receberam review
+retroativa, que achou **8 Important** que a verificação do controlador não tinha achado; as Tasks 13
+e 14 rodaram o fluxo inteiro. Na 13 a review achou duas afirmações falsas em spec que **nenhum teste
+quebraria** (o delta de teste da task era zero); na 14, quatro rodadas seguidas acharam afirmação
+inflando o rigor do processo na descrição de um PR que ia a repositório **público**.
 
 ### Pular a review exige justificativa ESCRITA, e de uma classe estreita
 
@@ -62,11 +78,19 @@ relatório da task — se ela existe só na cabeça de quem decidiu, o próximo 
 e é indistinguível dela. As classes que justificam:
 
 - **Task cujo produto não é código.** Verificação manual, decisão de desenho, levantamento — o
-  produto é o relatório, e revisar um relatório é lê-lo, não abrir um gate. (Exemplo real: a Task 12
-  da Fase 1C, cujo produto foi evidência de navegador e três decisões.)
+  produto é o relatório, e revisar um relatório é lê-lo, não abrir um gate.
 - **Delta zero verificado ponto a ponto** pelo controlador, com o "ponto a ponto" escrito.
+  (Exemplo real, e o **único** desta fase: a Task 7 — ver acima.)
 
 Fora dessas, a review acontece.
+
+**Cuidado com a primeira classe: ela é a mais fácil de invocar errado.** Até 2026-08-27 este
+parágrafo citava a Task 12 da Fase 1C como exemplo dela ("produto foi evidência de navegador e três
+decisões"). A medição desmentiu: o relatório da Task 12 **não registra dispensa nenhuma**, e ela caiu
+na review retroativa das 10-12 — ou seja, era deriva, não exceção, e a review posterior achou coisa
+de verdade no escopo dela. A classe continua válida; o que não valia era o exemplo. **Se você for
+invocar esta exceção, escreva a justificativa ANTES, no ledger e no relatório** — justificativa
+reconstruída depois é indistinguível de racionalização.
 
 ### O que NÃO conta como review
 
