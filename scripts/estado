@@ -17,7 +17,8 @@
 #   - não sobe o banco (`docker compose up -d`) — subir é ação, e ação com efeito colateral não
 #     entra num script cujo propósito é observar;
 #   - não roda as suítes por padrão, pelo tempo;
-#   - não afirma nada que não mediu. Onde não sabe, escreve "não sei" — ver o bloco do Docker.
+#   - não afirma nada que não mediu. Onde não sabe, escreve "não sei" — ver o bloco do Docker e,
+#     desde 2026-08-27, os dois blocos de suíte (front e backend), que antes calavam.
 
 set -uo pipefail
 
@@ -157,7 +158,37 @@ if [ "${1:-}" = "--testes" ]; then
   echo
   echo "## SUÍTES (medidas agora)"
   echo "front:"
-  (cd web && npm test -- --run 2>&1 | grep -E "Test Files|Tests " | sed 's/^/  /')
+  # Este bloco tinha o MESMO modo de falha silenciosa do bloco do backend abaixo, e ganha aqui a
+  # mesma forma de conserto (achado I2 do re-review, 2026-08-27). ANTES ele era
+  # `(cd web && npm test … | grep … | sed …)`: com o `npm test` saindo ≠ 0 ele imprimia o cabeçalho
+  # `front:` e NADA embaixo. Reproduzido com um `npm` falso no PATH, não deduzido. Vazio lê-se como
+  # sucesso — exatamente o que o cabeçalho deste arquivo promete não fazer (`:20`).
+  #
+  # O `cd web` fica DENTRO da captura de propósito: se ele falhar (repositório movido, execução de
+  # outro diretório), o `&&` corta e o exit ≠ 0 chega até a guarda em vez de sumir num subshell. O
+  # `2>&1` envolve o GRUPO, não só o `npm`: com ele só no `npm`, o erro do próprio `cd` escapava da
+  # captura e o "últimas linhas cruas" saía EM BRANCO justamente no caso que mais precisa delas
+  # (medido — o diagnóstico vinha vazio).
+  saida_front=$( { cd web && npm test -- --run; } 2>&1 )
+  codigo_front=$?
+  # Padrões ANCORADOS em início de linha: o resumo do Vitest sai em coluna própria
+  # (` Test Files  31 passed (31)` e `      Tests  374 passed (374)`, medido em 2026-08-27). Sem
+  # âncora, qualquer linha de log que contivesse "Tests " seria impressa NO LUGAR do resumo — é o
+  # mesmo defeito que o bloco do backend tinha em `total:`/`failed:`.
+  resumo_front=$(printf '%s\n' "$saida_front" | grep -E "^ *Test Files|^ *Tests ")
+  if [ -n "$resumo_front" ]; then
+    printf '%s\n' "$resumo_front" | sed 's/^/  /'
+  else
+    echo "  NÃO SEI — nenhum padrão de resumo casou na saída do npm test (exit $codigo_front)."
+    echo "  últimas linhas cruas, para diagnóstico:"
+    printf '%s\n' "$saida_front" | tail -5 | sed 's/^/    /'
+  fi
+  # Fora do `if`: resumo casado e execução vermelha NÃO são exclusivos. Vitest pode imprimir o
+  # resumo e ainda sair ≠ 0 (teste falhando, arquivo que não carrega), e aí a linha de resumo
+  # sozinha lê-se como verde.
+  if [ "$codigo_front" -ne 0 ]; then
+    echo "  ATENÇÃO — npm test saiu com $codigo_front; leia o resumo acima como INCOMPLETO."
+  fi
   echo "build do front:"
   (cd web && npm run build >/dev/null 2>&1 && echo "  limpo" || echo "  QUEBRADO — rode 'npm run build' e leia o erro")
   echo "backend (precisa do SQL Server no ar):"
@@ -178,9 +209,24 @@ if [ "${1:-}" = "--testes" ]; then
   #
   # Os dois formatos de resumo ficam cobertos: o do VSTest (`Passed!`/`Failed!`, o desta máquina
   # hoje) e o do MTP (`Test summary: total: …, failed: …`), para o dia da migração.
+  #
+  # A saída é CAPTURADA, não transmitida ao vivo — decisão do Minor 3 do re-review (2026-08-27),
+  # tomada com medição e escrita aqui para não ser redescoberta. O `| grep` antigo era incremental
+  # só no terminal, e só a partir do fim do PRIMEIRO assembly; no modo `--json`, que é como o hook
+  # `SessionStart` roda este script, `saida=$("$EU" "$@" 2>&1)` (`:43`) já capturava tudo — ou seja,
+  # para o consumidor mais frequente o streaming NUNCA existiu. Preservá-lo com `tee` custaria
+  # despejar a saída crua do `dotnet test` no bloco (e, no `--json`, dentro do contexto de abertura
+  # de sessão), que é ruído em troca de feedback que o hook não vê. O que se paga então é a espera
+  # sem sinal, e é ela que a linha abaixo cobre.
+  echo "  medindo… (~2 min, sem saída até o fim — a captura é proposital; ver o comentário acima)"
   saida_backend=$(DOTNET_CLI_UI_LANGUAGE=en dotnet test Rastreamento.slnx 2>&1)
   codigo_backend=$?
-  resumo_backend=$(printf '%s\n' "$saida_backend" | grep -E "^Test summary|^(Passed|Failed)!|total:|failed:")
+  # `total:`/`failed:` ANCORADOS. Desancorados (como estavam), uma linha de log qualquer que
+  # contivesse `failed:` era impressa NO LUGAR do resumo e a guarda do "NÃO SEI" nem disparava —
+  # mutação do re-review que sobreviveu. `^Test summary` já cobre o MTP; a âncora com espaço
+  # opcional mantém a cobertura para uma eventual linha indentada.
+  resumo_backend=$(printf '%s\n' "$saida_backend" \
+    | grep -E "^Test summary|^(Passed|Failed)!|^ *total:|^ *failed:")
   if [ -n "$resumo_backend" ]; then
     printf '%s\n' "$resumo_backend" | sed 's/^/  /'
   else
@@ -190,6 +236,13 @@ if [ "${1:-}" = "--testes" ]; then
     echo "  NÃO SEI — nenhum padrão de resumo casou na saída do dotnet test (exit $codigo_backend)."
     echo "  últimas linhas cruas, para diagnóstico:"
     printf '%s\n' "$saida_backend" | tail -5 | sed 's/^/    /'
+  fi
+  # Fora do `if`, e por isso: a guarda acima pergunta "o grep casou alguma coisa?", não "a execução
+  # terminou bem". Execução PARCIAL (um assembly resume verde, outro morre na compilação, exit 1)
+  # casava o padrão e imprimia só a linha verde — mutação do re-review que sobreviveu, e a mais
+  # perigosa das duas, porque o leitor que procura vermelho não acha nada.
+  if [ "$codigo_backend" -ne 0 ]; then
+    echo "  ATENÇÃO — dotnet test saiu com $codigo_backend; leia o resumo acima como INCOMPLETO."
   fi
 else
   echo
