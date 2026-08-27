@@ -40,8 +40,11 @@ resolvidos (ou conscientemente adiados).
 > que muda: a lógica de cópia recursiva em si (`EstruturaItem` a partir da receita) ainda não
 > existe, nasce na própria Fase 2.
 >
-> Dívidas rastreadas de 1A: camada global de erro de API no front e gating de navegação por
-> perfil.
+> Dívida rastreada de 1A: **gating de NAVEGAÇÃO** por perfil — o link continua visível para todos.
+> Segue aberta **por decisão**, não por esquecimento: o `CLAUDE.md` registra que o gating deste
+> projeto vai na AÇÃO, não no link, e é a ação que a 1D fechou (ver abaixo). A outra dívida que
+> vivia nesta linha — a camada global de erro de API no front — **foi fechada pela 1D**
+> (`ErroDeApi` + `mensagemDeErro`), e por isso saiu daqui.
 
 ## Fase 1D — Identidade visual e UX
 

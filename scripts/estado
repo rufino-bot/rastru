@@ -161,7 +161,36 @@ if [ "${1:-}" = "--testes" ]; then
   echo "build do front:"
   (cd web && npm run build >/dev/null 2>&1 && echo "  limpo" || echo "  QUEBRADO — rode 'npm run build' e leia o erro")
   echo "backend (precisa do SQL Server no ar):"
-  dotnet test Rastreamento.slnx 2>&1 | grep -E "^Test summary|total:|failed:" | sed 's/^/  /'
+  # `DOTNET_CLI_UI_LANGUAGE=en` não é preferência de gosto: é o conserto do I4 da review de branch
+  # (2026-08-27). Esta máquina emite o resumo do VSTest LOCALIZADO —
+  # `Aprovado!  – Com falha:     0, Aprovado:   201, …` — e os três padrões abaixo, escritos em
+  # inglês, casavam ZERO linhas. O bloco saía VAZIO, e vazio lê-se como sucesso: exatamente o modo
+  # de falha que o cabeçalho deste arquivo promete não ter (`:20`).
+  #
+  # Por que fixar o idioma em vez de casar um token que sobreviva à tradução: são DUAS variáveis
+  # independentes na saída — o idioma e o formato do runner (VSTest x Microsoft.Testing.Platform).
+  # Fixar o idioma elimina a primeira de forma determinística, em qualquer máquina, e reduz o que o
+  # padrão precisa cobrir a um conjunto FINITO e conhecido. Casar por token invariante (`.dll
+  # (net10.0)` no fim da linha) resolveria o idioma mas amarraria o script à FORMA de linha do
+  # VSTest — que é justamente a que muda na migração para o MTP. Medido em 2026-08-27:
+  # `DOTNET_CLI_UI_LANGUAGE=en dotnet test tests/Rastreamento.Application.Tests` sai
+  # `Passed!  - Failed:     0, Passed:   201, Skipped:     0, Total:   201, …`.
+  #
+  # Os dois formatos de resumo ficam cobertos: o do VSTest (`Passed!`/`Failed!`, o desta máquina
+  # hoje) e o do MTP (`Test summary: total: …, failed: …`), para o dia da migração.
+  saida_backend=$(DOTNET_CLI_UI_LANGUAGE=en dotnet test Rastreamento.slnx 2>&1)
+  codigo_backend=$?
+  resumo_backend=$(printf '%s\n' "$saida_backend" | grep -E "^Test summary|^(Passed|Failed)!|total:|failed:")
+  if [ -n "$resumo_backend" ]; then
+    printf '%s\n' "$resumo_backend" | sed 's/^/  /'
+  else
+    # NUNCA imprima vazio aqui. Mesmo com o padrão certo, banco fora do ar, build quebrado e
+    # formato de saída novo caem todos neste ramo — e os três produziam o mesmo silêncio que o
+    # leitor conta como "sem falhas" quando o que houve foi "não medi".
+    echo "  NÃO SEI — nenhum padrão de resumo casou na saída do dotnet test (exit $codigo_backend)."
+    echo "  últimas linhas cruas, para diagnóstico:"
+    printf '%s\n' "$saida_backend" | tail -5 | sed 's/^/    /'
+  fi
 else
   echo
   echo "## SUÍTES — não medidas (rode com --testes, ou à mão)"
