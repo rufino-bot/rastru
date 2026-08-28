@@ -4,7 +4,7 @@ import {
   listarMateriais, criarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, obterPedido, formatarDataHora,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento,
-  listarComponentes, criarComponente, definirAtivoComponente,
+  listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
   type ConflitoDeCadastro,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
@@ -581,6 +581,40 @@ describe('cadastros', () => {
     await expect(
       listarComponentes({ busca: '', incluirInativos: false, pagina: 1, tamanho: 20 }),
     ).rejects.toThrow()
+  })
+
+  // `obterComponente` nasce sem chamador (a tela de detalhe e a Task 10), mas leva os dois testes
+  // do F4 como qualquer funcao nova do modulo — foi por pular isso que `criarSetor`/`criarMaterial`
+  // ficaram 5 tasks sem prova de URL.
+  it('obterComponente busca a rota do id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: 7, codigo: 'SUP-007', descricao: 'Suporte', tipo: 'Montagem', ativo: false }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const componente = await obterComponente(7)
+
+    // O id 7 aparece na URL e no corpo: um id preso em literal quebra a primeira asserção, e um
+    // GET que ignore o corpo quebra as outras. `ativo: false` de proposito — o backend responde
+    // 200 para inativo, e a funcao nao pode filtrar nada. O `method` indefinido e o que ancora o
+    // verbo: `apiFetch` sempre entrega um `init` (ele injeta `headers`/`credentials`), entao o
+    // que distingue GET de POST aqui e a AUSENCIA de `method`.
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/componentes/7')
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method).toBeUndefined()
+    expect(componente.codigo).toBe('SUP-007')
+    expect(componente.tipo).toBe('Montagem')
+    expect(componente.ativo).toBe(false)
+  })
+
+  // Corpo JSON nao-vazio (adendo F6): com `''` o `.json()` lancaria sozinho e o teste passaria
+  // mesmo sem a guarda `if (!resp.ok) throw`.
+  it('obterComponente propaga o status quando a resposta nao e ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })))
+
+    await expect(obterComponente(999)).rejects.toMatchObject({ name: 'ErroDeApi', status: 404 })
   })
 
   // I2 da review da Task 4: o estilo solto (`fetchMock.mock.calls[0][1].method`) nao dava o

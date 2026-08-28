@@ -129,6 +129,35 @@
     exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
     contra dados semeados (2026-08-03).
 
+20. **A receita padrão de filhos (`ComponenteFilhoPadrao`) não pode conter ciclo, em nenhuma
+    profundidade.** É a regra que existe porque a receita é um **grafo**: cada linha aponta de um
+    `Componente` pai para um `Componente` filho, que por sua vez tem receita própria — e é essa
+    cadeia que a Fase 2 percorre para copiar a receita recursivamente ao montar um `EstruturaItem`
+    a partir de um Componente padrão. Um ciclo nesse grafo faria a cópia recursiva girar para
+    sempre. A verificação é sobre o **grafo resultante** da gravação (o estado depois de aplicar a
+    substituição inteira que o `POST` representa), não sobre o estado anterior a ela — é essa
+    nuance que torna possível consertar um ciclo já gravado: uma substituição que remove a aresta
+    que fechava o ciclo é aceita, mesmo partindo de um grafo sujo. A leitura desse grafo acontece
+    fora da transação que grava a substituição (`ReceitaPadraoUseCase.cs:439-448`): dois `POST`
+    simultâneos em componentes diferentes podem gravar um ciclo que nenhum dos dois via sozinho.
+    Por isso a regra é defesa em profundidade na escrita, não garantia de que o grafo gravado seja
+    sempre acíclico — uma travessia recursiva que dependa disso, como a cópia da Fase 2, precisa da
+    própria guarda contra ciclo.
+21. **Setor repetido no roteiro padrão (`ComponenteRoteiroPadrao`) é permitido, e significa
+    retorno ao mesmo setor** — não é duplicata a corrigir. Esta é a regra que existe justamente
+    para que ninguém "conserte" esse comportamento no futuro achando que é bug. O roteiro é uma
+    **sequência**, não um grafo: cada passo aponta para um `Setor`, que não referencia `Componente`
+    nem tem roteiro próprio, então a travessia sempre termina, por mais vezes que o mesmo Setor
+    apareça nela. É por isso que a chave única do schema é `UQ_ComponenteRoteiroPadrao
+    (ComponenteId, Ordem)` — **não** `(ComponenteId, SetorId)`: a unicidade é da posição na
+    sequência, não do Setor visitado.
+
+    **Distinção com a regra 20**: as duas regras usam "repetir" em sentidos opostos porque as
+    estruturas são de naturezas diferentes. O roteiro repete um **nó terminal** (`Setor`, que não
+    tem para onde apontar de volta) — por isso repetir é sempre seguro e é permitido. A receita de
+    filhos repete um **nó não-terminal** (`Componente`, que tem receita própria) — por isso repetir
+    pode fechar um ciclo, e é isso, não a repetição em si, que a regra 20 proíbe.
+
 ## Pontos ainda em aberto
 
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).

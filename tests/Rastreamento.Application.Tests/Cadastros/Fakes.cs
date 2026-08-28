@@ -263,3 +263,183 @@ public class FakeAgrupamentoRepo : IAgrupamentoRepository
     return Task.CompletedTask;
   }
 }
+
+/// <summary>
+/// Fake em memoria do repositorio de receita padrao. Sem banco: o que se prova aqui e REGRA, e
+/// regra que so passa com banco no ar e regra que ninguem roda. O que ele NAO cobre — a
+/// atomicidade real do apaga-e-grava e o predicado do DELETE — e provado em
+/// `ReceitaPadraoRepositoryTests` (Infrastructure), contra o SQL Server.
+/// </summary>
+public class FakeReceitaPadraoRepo : IReceitaPadraoRepository
+{
+  /// <summary>
+  /// Ids de linha nascem ALTOS e fora da faixa dos ids de catalogo usados nos testes (1, 2, 10,
+  /// 11, 20, 21) para que uma projecao que devolva o campo errado nao possa acertar por
+  /// coincidencia numerica.
+  /// </summary>
+  private int _proximoId = 500;
+
+  public List<Componente> Componentes { get; } = [];
+  public List<Material> Materiais { get; } = [];
+  public List<Setor> Setores { get; } = [];
+  public List<ComponenteFilhoPadrao> Filhos { get; } = [];
+  public List<ComponenteMaterialPadrao> MateriaisPadrao { get; } = [];
+  public List<ComponenteRoteiroPadrao> Roteiro { get; } = [];
+
+  /// <summary>
+  /// Um contador POR TABELA, e nao um so: os tres `Substituir*Async` recebem tipos de entidade
+  /// diferentes, entao chamar o errado nao compila — mas um teste que ARRANJA o cenario gravando
+  /// num sub-recurso e depois afirma `== 1` querendo dizer "o outro gravou" e satisfeito pelo
+  /// arranjo. E o mesmo formato do achado B11 da Fase 1A: assercao que casa com o cenario inteiro
+  /// em vez de casar com o alvo.
+  /// </summary>
+  public int SubstituicoesDeFilhos { get; private set; }
+  public int SubstituicoesDeMateriais { get; private set; }
+  public int SubstituicoesDeRoteiro { get; private set; }
+
+  /// <summary>
+  /// Soma dos tres. Serve para "NAO gravou NADA" (que e o que os caminhos de recusa afirmam);
+  /// para "gravou ISTO", use o contador da tabela.
+  /// </summary>
+  public int Substituicoes => SubstituicoesDeFilhos + SubstituicoesDeMateriais + SubstituicoesDeRoteiro;
+
+  /// <summary>
+  /// O `ct` de CADA chamada, na ordem em que chegaram. Sem isto, trocar o `ct` recebido por
+  /// `CancellationToken.None` nas chamadas ao repositorio nao quebra teste nenhum — a propagacao
+  /// do token fica verificada por leitura, e leitura nao roda no CI.
+  /// </summary>
+  public List<CancellationToken> TokensRecebidos { get; } = [];
+
+  /// <summary>
+  /// Faz a proxima gravacao de materiais OU de roteiro subir
+  /// <see cref="ConflitoDeConcorrenciaException"/>, que e o que o repositorio real lanca quando o
+  /// banco derruba o perdedor de duas substituicoes simultaneas (deadlock/lock timeout do range
+  /// lock do SERIALIZABLE). Existe para provar a traducao para <c>TipoDeErro.Conflito</c> sem
+  /// depender de uma corrida de banco.
+  ///
+  /// Vale para os TRES sub-recursos porque a transacao SERIALIZABLE e do repositorio, nao da
+  /// tabela: quem grava roteiro ou filhos e derrubado pelo mesmo motivo que quem grava material.
+  /// Enquanto so materiais lancava, um `catch` faltando no roteiro era invisivel — o teste nao
+  /// tinha como chegar la; o mesmo valia para filhos ate a Task 5.
+  /// </summary>
+  public bool ConflitoNaProximaSubstituicao { get; set; }
+
+  /// <summary>
+  /// Faz a proxima leitura do roteiro (dentro de <c>ProjetarRoteiro</c>, chamada DEPOIS da
+  /// gravacao) subir <see cref="ConflitoDeConcorrenciaException"/>. Existe para provar que o
+  /// <c>try</c> de <c>SubstituirRoteiro</c> e ESTREITO — envolve so a gravacao, nao a releitura —
+  /// entao essa excecao sobe CRUA e NAO vira <c>TipoDeErro.Conflito</c>. Pinado por
+  /// <c>Falha_na_releitura_apos_gravar_o_roteiro_nao_vira_conflito</c>.
+  /// </summary>
+  public bool ConflitoNaProximaListagemDeRoteiro { get; set; }
+
+  /// <summary>
+  /// O terceiro gemeo, para materiais — o ultimo dos tres a existir. Enquanto ele faltava, alargar
+  /// o <c>try</c> de <c>SubstituirMateriais</c> ate englobar a releitura, com
+  /// <c>catch (Exception)</c>, sobrevivia a suite inteira: nao havia como um teste fazer a
+  /// releitura de materiais estourar. Pinado por
+  /// <c>Falha_na_releitura_apos_gravar_os_materiais_nao_vira_conflito</c>.
+  /// </summary>
+  public bool ConflitoNaProximaListagemDeMateriais { get; set; }
+
+  /// <summary>
+  /// O gemeo da flag acima para filhos, e por um motivo mais forte: em <c>SubstituirFilhos</c> o
+  /// <c>try</c> convive com a leitura do grafo e a deteccao de ciclo, entao um <c>catch</c> largo
+  /// transformaria <c>KeyNotFoundException</c>, <c>NullReference</c> e erro de montagem do grafo em
+  /// 409 "tente de novo" — a pior resposta possivel, porque o usuario reenvia e falha de novo sem
+  /// sintoma util. Pinado por <c>Falha_na_releitura_apos_gravar_os_filhos_nao_vira_conflito</c>.
+  /// </summary>
+  public bool ConflitoNaProximaListagemDeFilhos { get; set; }
+
+  private Task<T> Anotado<T>(CancellationToken ct, T valor)
+  {
+    TokensRecebidos.Add(ct);
+    return Task.FromResult(valor);
+  }
+
+  public Task<Componente?> ObterComponenteAsync(int id, CancellationToken ct) =>
+      Anotado(ct, Componentes.SingleOrDefault(c => c.Id == id));
+
+  public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarFilhosAsync(
+      int componenteId, CancellationToken ct)
+  {
+    if (ConflitoNaProximaListagemDeFilhos)
+      throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    return Anotado<IReadOnlyList<ComponenteFilhoPadrao>>(
+        ct, Filhos.Where(f => f.ComponentePaiId == componenteId).ToList());
+  }
+
+  public Task<IReadOnlyList<ComponenteMaterialPadrao>> ListarMateriaisAsync(
+      int componenteId, CancellationToken ct)
+  {
+    if (ConflitoNaProximaListagemDeMateriais)
+      throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    return Anotado<IReadOnlyList<ComponenteMaterialPadrao>>(
+        ct, MateriaisPadrao.Where(m => m.ComponenteId == componenteId).ToList());
+  }
+
+  public Task<IReadOnlyList<ComponenteRoteiroPadrao>> ListarRoteiroAsync(
+      int componenteId, CancellationToken ct)
+  {
+    if (ConflitoNaProximaListagemDeRoteiro)
+      throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    return Anotado<IReadOnlyList<ComponenteRoteiroPadrao>>(
+        ct, Roteiro.Where(r => r.ComponenteId == componenteId).OrderBy(r => r.Ordem).ToList());
+  }
+
+  public Task<IReadOnlyList<Componente>> ObterComponentesPorIdAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Anotado<IReadOnlyList<Componente>>(ct, Componentes.Where(c => ids.Contains(c.Id)).ToList());
+
+  public Task<IReadOnlyList<Material>> ObterMateriaisPorIdAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Anotado<IReadOnlyList<Material>>(ct, Materiais.Where(m => ids.Contains(m.Id)).ToList());
+
+  public Task<IReadOnlyList<Setor>> ObterSetoresPorIdAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Anotado<IReadOnlyList<Setor>>(ct, Setores.Where(s => ids.Contains(s.Id)).ToList());
+
+  public Task<IReadOnlyList<ComponenteFilhoPadrao>> ListarTodasAsArestasAsync(CancellationToken ct) =>
+      Anotado<IReadOnlyList<ComponenteFilhoPadrao>>(ct, Filhos.ToList());
+
+  public Task SubstituirFilhosAsync(
+      int componenteId, IReadOnlyList<ComponenteFilhoPadrao> novas, CancellationToken ct)
+  {
+    SubstituicoesDeFilhos++;
+    TokensRecebidos.Add(ct);
+    if (ConflitoNaProximaSubstituicao) throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    Filhos.RemoveAll(f => f.ComponentePaiId == componenteId);
+    foreach (var nova in novas) nova.Id = _proximoId++;
+    Filhos.AddRange(novas);
+    return Task.CompletedTask;
+  }
+
+  public Task SubstituirMateriaisAsync(
+      int componenteId, IReadOnlyList<ComponenteMaterialPadrao> novas, CancellationToken ct)
+  {
+    SubstituicoesDeMateriais++;
+    TokensRecebidos.Add(ct);
+    if (ConflitoNaProximaSubstituicao) throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    // Apaga por PREDICADO no parametro, como o repositorio real. E grava as linhas COMO VIERAM:
+    // se o caso de uso montar uma linha com ComponenteId errado, ela fica no fake e some da
+    // leitura daquele componente, em vez de ser corrigida pelo fake.
+    MateriaisPadrao.RemoveAll(m => m.ComponenteId == componenteId);
+    // Imita a IDENTITY do banco: sem isto todo `Id` de linha ficaria 0 e uma projecao que
+    // devolvesse 0 no lugar do Id passaria por acidente.
+    foreach (var nova in novas) nova.Id = _proximoId++;
+    MateriaisPadrao.AddRange(novas);
+    return Task.CompletedTask;
+  }
+
+  public Task SubstituirRoteiroAsync(
+      int componenteId, IReadOnlyList<ComponenteRoteiroPadrao> novas, CancellationToken ct)
+  {
+    SubstituicoesDeRoteiro++;
+    TokensRecebidos.Add(ct);
+    if (ConflitoNaProximaSubstituicao) throw new ConflitoDeConcorrenciaException(new Exception("simulado"));
+    Roteiro.RemoveAll(r => r.ComponenteId == componenteId);
+    foreach (var nova in novas) nova.Id = _proximoId++;
+    Roteiro.AddRange(novas);
+    return Task.CompletedTask;
+  }
+}

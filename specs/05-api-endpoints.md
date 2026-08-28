@@ -72,9 +72,41 @@ reenvia e a sessão morre no primeiro refresh.
 - `PUT /componentes/{id}` *(Administrador, PCP)* — idem
 - `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
   Não existe `DELETE`: catálogo se inativa, não se exclui.
-- `GET/POST /componentes/{id}/filhos-padrao` — **Fase 1C**, não implementado
-- `GET/POST /componentes/{id}/materiais-padrao` — **Fase 1C**, não implementado
-- `GET/POST /componentes/{id}/roteiro-padrao` — **Fase 1C**, não implementado
+- `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
+  Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
+  quantidadePadrao }[]`
+- `POST /componentes/{id}/filhos-padrao` *(Administrador, PCP)* — substitui a receita de filhos
+  inteira. Body: `{ linhas: [{ componenteFilhoId, quantidadePadrao }] }`. `200`, não `201`: não
+  cria um recurso novo endereçável, substitui o conteúdo de um sub-recurso que já tem endereço.
+  `linhas: []` apaga a receita — é o comando explícito de remoção, não erro; campo `linhas`
+  **ausente** responde `400` (é o `[Required]` do DTO que impede `POST {}` de limpar a receita em
+  silêncio).
+- `GET /componentes/{id}/materiais-padrao` *(qualquer perfil autenticado)* — `{ id, materialId,
+  codigo, descricao, unidadeMedida, quantidadePadrao }[]`
+- `POST /componentes/{id}/materiais-padrao` *(Administrador, PCP)* — Body: `{ linhas: [{
+  materialId, quantidadePadrao }] }`. Mesmo contrato de `200`, lista vazia e `linhas` ausente do
+  item acima.
+- `GET /componentes/{id}/roteiro-padrao` *(qualquer perfil autenticado)* — `{ id, setorId, nome,
+  ordem }[]`, ordenado por `ordem`
+- `POST /componentes/{id}/roteiro-padrao` *(Administrador, PCP)* — Body: `{ linhas: [{ setorId
+  }] }`, sem `ordem`: ela é atribuída pelo servidor, pela posição de cada linha no array — 1-based
+  (a primeira linha vira `ordem = 1`). **O mesmo Setor pode repetir na lista** — significa retorno
+  ao setor, não erro (ver regra 21 de `01-dominio-e-regras-de-negocio.md`). Mesmo contrato de `200`,
+  lista vazia e `linhas` ausente dos dois itens acima.
+
+Contrato de erro dos três sub-recursos acima: `{ erro: "..." }`, em `400` (validação — ex.:
+referência inexistente ou inativa, nos três sub-recursos (material, setor ou componente filho); em
+**materiais e filhos**, também quantidade inválida ou fora da escala e linha repetida no corpo; em
+filhos, também auto-referência e ciclo na receita; e, nos três, Componente da rota **inativo**),
+`404` (Componente da rota inexistente) e `409` (gravação concorrente derrubada pelo banco — refazer
+o `POST` é o caminho). **No roteiro não há as validações de quantidade e de linha repetida que
+materiais e filhos têm**: não existe campo de quantidade, e setor repetido é aceito, não erro — ver
+o item acima e a regra 21; já a recusa por referência inexistente ou inativa (aqui, do setor) vale
+igualmente no roteiro. **Não** é o mesmo formato da seção "Contrato de erro dos cadastros" (mais
+abaixo, depois de Pedido/Agrupamento): lá o `409` é `{ erro: "ValorDuplicado", campo, existeInativo,
+idExistente }`; aqui o `409` só existe por conflito de concorrência, e uma linha repetida dentro do
+próprio corpo do `POST` responde `400`, não `409`, em materiais e filhos — os dois contratos usam o
+mesmo status HTTP para coisas diferentes.
 
 ## Pedido / Agrupamento
 

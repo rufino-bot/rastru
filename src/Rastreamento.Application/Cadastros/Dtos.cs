@@ -136,3 +136,65 @@ public sealed record NovoComponenteDto(
     [MaxLength(50)] string Codigo,
     [MaxLength(200)] string Descricao,
     [MaxLength(20)] string Tipo);
+
+// ---------------------------------------------------------------------------
+// Receita padrao do Componente (Fase 1C)
+// ---------------------------------------------------------------------------
+
+/// <summary>Uma linha de material-padrao, como ela sai na leitura (ja com dados do Material).</summary>
+public sealed record MaterialPadraoDto(
+    int Id,
+    int MaterialId,
+    string Codigo,
+    string Descricao,
+    string UnidadeMedida,
+    decimal QuantidadePadrao);
+
+/// <summary>Uma linha de material-padrao, como ela ENTRA. So id + quantidade.</summary>
+public sealed record LinhaDeMaterialPadraoDto(int MaterialId, decimal QuantidadePadrao);
+
+/// <remarks>
+/// `[Required]` num `IReadOnlyList&lt;T&gt;?` ANULAVEL, e nao numa lista nao-anulavel: o
+/// desserializador entrega `null` para campo ausente mesmo em propriedade nao-anulavel, e sem o
+/// `[Required]` um corpo `{}` vincularia `Linhas = null`. Como lista VAZIA significa "apague a
+/// receita" (§2.2 da spec), tratar `null` como vazio faria `POST {}` LIMPAR a receita em silencio —
+/// a mesma classe de bug que o `DefinirAtivoDto` ja pagou com `bool?` (ver o remarks dele acima).
+/// Com `[Required]`, campo ausente vira 400 do proprio [ApiController] e `[]` continua sendo o
+/// comando explicito de apagar.
+///
+/// Atributo SEM `[property:]`, no parametro do construtor primario — e onde a validacao de modelo
+/// do MVC le em record posicional. Com `[property:]` o MVC lanca InvalidOperationException e a
+/// requisicao vira 500.
+///
+/// A prova de que `{}` vira 400 e de que `[]` apaga e de nivel HTTP: ela mora no teste de endpoint
+/// da Task 6, nao aqui — este nivel nao roda model binding.
+/// </remarks>
+public sealed record ReceitaDeMateriaisDto([Required] IReadOnlyList<LinhaDeMaterialPadraoDto>? Linhas);
+
+/// <summary>Um passo do roteiro, como ele sai na leitura (com o nome do Setor).</summary>
+public sealed record RoteiroPadraoDto(int Id, int SetorId, string Nome, int Ordem);
+
+/// <summary>Um passo do roteiro, como ele ENTRA. So o id do Setor.</summary>
+/// <remarks>
+/// SO `SetorId`, sem `Ordem`: a ordem e a POSICAO no array, e quem a atribui e o caso de uso.
+/// Aceitar `Ordem` do cliente reabriria buraco e duplicata na sequencia — que virariam violacao
+/// do UQ_ComponenteRoteiroPadrao e sairiam como erro de banco, nao como 400 legivel.
+/// </remarks>
+public sealed record LinhaDeRoteiroPadraoDto(int SetorId);
+
+/// <remarks>`[Required]` pelo mesmo motivo do `ReceitaDeMateriaisDto` — ver o remarks dele.</remarks>
+public sealed record ReceitaDeRoteiroDto([Required] IReadOnlyList<LinhaDeRoteiroPadraoDto>? Linhas);
+
+/// <summary>Uma linha de filho-padrao, como ela sai na leitura (com dados do Componente filho).</summary>
+public sealed record FilhoPadraoDto(
+    int Id, int ComponenteFilhoId, string Codigo, string Descricao, decimal QuantidadePadrao);
+
+/// <summary>Uma linha de filho-padrao, como ela ENTRA. So id + quantidade.</summary>
+/// <remarks>
+/// Sem `ComponentePaiId`: ele vem da rota (`POST /componentes/{id}/filhos-padrao`), nao do corpo —
+/// assim nao existe a possibilidade de os dois discordarem. Mesmo motivo do `NovoAgrupamentoDto`.
+/// </remarks>
+public sealed record LinhaDeFilhoPadraoDto(int ComponenteFilhoId, decimal QuantidadePadrao);
+
+/// <remarks>`[Required]` pelo mesmo motivo do `ReceitaDeMateriaisDto` — ver o remarks dele.</remarks>
+public sealed record ReceitaDeFilhosDto([Required] IReadOnlyList<LinhaDeFilhoPadraoDto>? Linhas);

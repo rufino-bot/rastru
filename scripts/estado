@@ -1,0 +1,255 @@
+#!/usr/bin/env bash
+# Estado do checkout, medido — o roteiro fixo de abertura de sessão em uma chamada só.
+#
+# Existe porque a regra nº 1 do ledger ("não acredite na página sem conferir o disco") custava
+# seis chamadas de ferramenta toda sessão. Aqui ele custa uma, e o resultado é MEDIÇÃO, não
+# registro: nada neste script lê `.superpowers/sdd/progress.md`.
+#
+#   bash scripts/estado          # git + docker (barato, ~2s)
+#   bash scripts/estado --testes # acrescenta as suítes (caro: front ~15s, backend ~2min)
+#   bash scripts/estado --json   # a mesma saída embrulhada para o hook SessionStart
+#
+# `ESTADO_DOCKER_TIMEOUT` (default 25s) limita cada chamada ao Docker. O hook usa um valor curto:
+# quando o engine está fora, a chamada fica pendurada no named pipe, e o preço disso na ABERTURA da
+# sessão é o usuário esperando na frente de um terminal parado.
+#
+# O que ele deliberadamente NÃO faz:
+#   - não sobe o banco (`docker compose up -d`) — subir é ação, e ação com efeito colateral não
+#     entra num script cujo propósito é observar;
+#   - não roda as suítes por padrão, pelo tempo;
+#   - não afirma nada que não mediu. Onde não sabe, escreve "não sei" — ver o bloco do Docker e,
+#     desde 2026-08-27, os dois blocos de suíte (front e backend), que antes calavam.
+
+set -uo pipefail
+
+# Resolvido ANTES do `cd`, e por isso existe: `${BASH_SOURCE[0]}` pode ser relativo ao diretorio de
+# onde se chamou, e depois do `cd` ele aponta para o lugar errado. Achado na review de 2026-08-25:
+# `bash estado --json` de dentro de `scripts/` falhava com `estado/estado: No such file or
+# directory` — e, pior, saia com **exit 0 e JSON valido**, entao o hook injetaria a mensagem de erro
+# como se fosse o estado medido. Exatamente o modo de falha que este script existe para evitar.
+EU=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")
+cd "$(dirname "$EU")/.." || exit 1
+
+TO=${ESTADO_DOCKER_TIMEOUT:-25}
+
+# `--json` embrulha a saída no formato que o hook SessionStart injeta como contexto. Feito por
+# re-execução em vez de um `if` por linha de saída — assim existe UM caminho de impressão, e o que
+# o hook entrega é, byte a byte, o que o terminal mostra.
+#
+# O codificador é `node`, não `jq`: MEDIDO em 2026-08-25, `jq` não existe nesta máquina, e o
+# exemplo canônico de hook depende dele. `node` é dependência real deste repositório (o front é
+# Vite) — se ele sumir, o front para antes do hook.
+if [ "${1:-}" = "--json" ]; then
+  shift
+  saida=$("$EU" "$@" 2>&1)
+  printf '%s' "$saida" | node -e "
+    let s = ''
+    process.stdin.on('data', (d) => (s += d)).on('end', () => process.stdout.write(
+      JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: s } }),
+    ))
+  "
+  exit 0
+fi
+
+echo "=============================================================="
+echo " ESTADO MEDIDO — $(date '+%Y-%m-%d %H:%M')"
+echo "=============================================================="
+
+echo
+echo "## GIT"
+printf 'branch   : %s\n' "$(git rev-parse --abbrev-ref HEAD)"
+printf 'HEAD     : %s\n' "$(git log --oneline -1)"
+
+upstream=$(git rev-parse --abbrev-ref '@{upstream}' 2>/dev/null)
+if [ -z "$upstream" ]; then
+  printf 'remoto   : SEM UPSTREAM — esta branch nunca foi empurrada\n'
+else
+  frente=$(git rev-list --count "$upstream..HEAD" 2>/dev/null)
+  atras=$(git rev-list --count "HEAD..$upstream" 2>/dev/null)
+  if [ "$frente" = "0" ] && [ "$atras" = "0" ]; then
+    printf 'remoto   : %s — SINCRONIZADO\n' "$upstream"
+  else
+    printf 'remoto   : %s — %s commit(s) à frente, %s atrás\n' "$upstream" "$frente" "$atras"
+  fi
+fi
+printf 'main     : %s\n' "$(git log --oneline -1 main 2>/dev/null || echo '(sem main local)')"
+
+echo
+sujeira=$(git status --short)
+if [ -z "$sujeira" ]; then
+  echo "árvore   : LIMPA"
+else
+  echo "árvore suja:"
+  echo "$sujeira" | sed 's/^/  /'
+fi
+
+echo
+echo "## DOCKER"
+# `docker ps` vazio NÃO significa "não há containers" — significa "não sei", porque com o engine
+# fora o comando devolve lista vazia com exit 0. Isso já custou um diagnóstico errado (o de
+# 2026-08-24, em que o banco foi declarado perdido e nada tinha se perdido). Por isso a pergunta
+# "o engine responde?" vem ANTES, e é `docker version --format {{.Server.Version}}`, que só
+# imprime quando há servidor do outro lado.
+servidor=$(timeout "$TO" docker version --format '{{.Server.Version}}' 2>/dev/null)
+if [ -z "$servidor" ]; then
+  echo "engine   : NÃO RESPONDE — abra o Docker Desktop e espere mais do que parece razoável."
+  echo "           Enquanto isto, listagem de container/volume não é dado: é ausência de resposta."
+  echo "           NUNCA conclua daqui que o banco foi perdido, e nunca o reconstrua por isto."
+else
+  printf 'engine   : %s (responde)\n' "$servidor"
+  linha=$(timeout "$TO" docker ps -a --filter name=tcc-sqlserver --format '{{.Names}}  {{.Status}}')
+  if [ -z "$linha" ]; then
+    echo "sqlserver: container NÃO EXISTE (o engine respondeu, então isto é dado, não ausência)"
+    echo "           subir com: docker compose up -d"
+  else
+    printf 'sqlserver: %s\n' "$linha"
+    case "$linha" in
+      *Up*) : ;;
+      *)    echo "           PARADO — subir com: docker compose up -d, e reconferir com docker ps" ;;
+    esac
+  fi
+fi
+
+echo
+echo "## LEDGER (backup em rufino-bot/rastru-ledger, privado)"
+# `.superpowers/` e um repositorio git PROPRIO — o repo do TCC o ignora (`.gitignore:6`). Ele
+# guarda o unico registro de decisao, medicao e divida do projeto, e ate 2026-08-25 existia so no
+# disco de uma maquina.
+#
+# As duas perguntas abaixo existem porque as duas formas de falha desta copia sao SILENCIOSAS:
+# commit local que ninguem empurrou nao protege de nada, e um `sdd/.gitignore` recriado com `*`
+# faz o repositorio parar de receber conteudo sem reclamar. Nos dois casos o sintoma so apareceria
+# no dia de trocar de maquina — o unico dia em que este backup precisa funcionar.
+if [ ! -d .superpowers/.git ]; then
+  echo "ledger   : .superpowers/ NAO e repositorio git — o registro do projeto nao tem copia."
+else
+  if [ -f .superpowers/sdd/.gitignore ] && grep -qx '\*' .superpowers/sdd/.gitignore 2>/dev/null; then
+    # Aspas SIMPLES: com aspas duplas, as crases em volta do nome do arquivo viram command
+    # substitution e o bash tenta EXECUTAR `sdd/.gitignore`. Medido — a mensagem saiu com o nome
+    # do arquivo comido e um "No such file or directory" no meio do aviso.
+    # Ele VOLTA toda vez que a skill roda: `sdd-workspace:21` faz `printf '*\n' > .gitignore`
+    # incondicionalmente, e tanto `review-package` quanto `task-brief` o chamam. Nao e acidente
+    # raro — e deterministico. Ja escondeu os quatro artefatos de um ciclo de review inteiro.
+    #
+    # O dano e so para arquivo NOVO: `.gitignore` nao afeta o que ja esta rastreado. Por isso o
+    # aviso conta quantos estao escondidos AGORA — "voltou" e menos acionavel que "voltou e esta
+    # escondendo 4".
+    escondidos=$(git -C .superpowers status --short --ignored 2>/dev/null \
+      | grep -c '^!! sdd/.*\.md$')
+    echo 'ledger   : ⚠ sdd/.gitignore VOLTOU com "*" (a skill o recria) — apague-o:'
+    echo "           rm .superpowers/sdd/.gitignore   # o repo do TCC ja ignora .superpowers/ inteiro"
+    if [ "${escondidos:-0}" -gt 0 ]; then
+      printf '           ha %s arquivo(s) .md escondido(s) AGORA — confira com:\n' "$escondidos"
+      echo "           git -C .superpowers status --short --ignored | grep '^!!'"
+    fi
+  fi
+  pendentes=$(git -C .superpowers status --short | wc -l)
+  naoempurrados=$(git -C .superpowers rev-list --count '@{upstream}..HEAD' 2>/dev/null || echo '?')
+  if [ "$pendentes" -gt 0 ] || [ "$naoempurrados" != "0" ]; then
+    printf 'ledger   : %s arquivo(s) sem commit, %s commit(s) sem push — o registro de hoje ainda\n' \
+      "$pendentes" "$naoempurrados"
+    echo "           so existe nesta maquina. Feche a sessao empurrando."
+  else
+    echo "ledger   : em dia (sem alteracao local, nada por empurrar)"
+  fi
+fi
+
+if [ "${1:-}" = "--testes" ]; then
+  echo
+  echo "## SUÍTES (medidas agora)"
+  echo "front:"
+  # Este bloco tinha o MESMO modo de falha silenciosa do bloco do backend abaixo, e ganha aqui a
+  # mesma forma de conserto (achado I2 do re-review, 2026-08-27). ANTES ele era
+  # `(cd web && npm test … | grep … | sed …)`: com o `npm test` saindo ≠ 0 ele imprimia o cabeçalho
+  # `front:` e NADA embaixo. Reproduzido com um `npm` falso no PATH, não deduzido. Vazio lê-se como
+  # sucesso — exatamente o que o cabeçalho deste arquivo promete não fazer (`:20`).
+  #
+  # O `cd web` fica DENTRO da captura de propósito: se ele falhar (repositório movido, execução de
+  # outro diretório), o `&&` corta e o exit ≠ 0 chega até a guarda em vez de sumir num subshell. O
+  # `2>&1` envolve o GRUPO, não só o `npm`: com ele só no `npm`, o erro do próprio `cd` escapava da
+  # captura e o "últimas linhas cruas" saía EM BRANCO justamente no caso que mais precisa delas
+  # (medido — o diagnóstico vinha vazio).
+  saida_front=$( { cd web && npm test -- --run; } 2>&1 )
+  codigo_front=$?
+  # Padrões ANCORADOS em início de linha: o resumo do Vitest sai em coluna própria
+  # (` Test Files  31 passed (31)` e `      Tests  374 passed (374)`, medido em 2026-08-27). Sem
+  # âncora, qualquer linha de log que contivesse "Tests " seria impressa NO LUGAR do resumo — é o
+  # mesmo defeito que o bloco do backend tinha em `total:`/`failed:`.
+  resumo_front=$(printf '%s\n' "$saida_front" | grep -E "^ *Test Files|^ *Tests ")
+  if [ -n "$resumo_front" ]; then
+    printf '%s\n' "$resumo_front" | sed 's/^/  /'
+  else
+    echo "  NÃO SEI — nenhum padrão de resumo casou na saída do npm test (exit $codigo_front)."
+    echo "  últimas linhas cruas, para diagnóstico:"
+    printf '%s\n' "$saida_front" | tail -5 | sed 's/^/    /'
+  fi
+  # Fora do `if`: resumo casado e execução vermelha NÃO são exclusivos. Vitest pode imprimir o
+  # resumo e ainda sair ≠ 0 (teste falhando, arquivo que não carrega), e aí a linha de resumo
+  # sozinha lê-se como verde.
+  if [ "$codigo_front" -ne 0 ]; then
+    echo "  ATENÇÃO — npm test saiu com $codigo_front; leia o resumo acima como INCOMPLETO."
+  fi
+  echo "build do front:"
+  (cd web && npm run build >/dev/null 2>&1 && echo "  limpo" || echo "  QUEBRADO — rode 'npm run build' e leia o erro")
+  echo "backend (precisa do SQL Server no ar):"
+  # `DOTNET_CLI_UI_LANGUAGE=en` não é preferência de gosto: é o conserto do I4 da review de branch
+  # (2026-08-27). Esta máquina emite o resumo do VSTest LOCALIZADO —
+  # `Aprovado!  – Com falha:     0, Aprovado:   201, …` — e os três padrões abaixo, escritos em
+  # inglês, casavam ZERO linhas. O bloco saía VAZIO, e vazio lê-se como sucesso: exatamente o modo
+  # de falha que o cabeçalho deste arquivo promete não ter (`:20`).
+  #
+  # Por que fixar o idioma em vez de casar um token que sobreviva à tradução: são DUAS variáveis
+  # independentes na saída — o idioma e o formato do runner (VSTest x Microsoft.Testing.Platform).
+  # Fixar o idioma elimina a primeira de forma determinística, em qualquer máquina, e reduz o que o
+  # padrão precisa cobrir a um conjunto FINITO e conhecido. Casar por token invariante (`.dll
+  # (net10.0)` no fim da linha) resolveria o idioma mas amarraria o script à FORMA de linha do
+  # VSTest — que é justamente a que muda na migração para o MTP. Medido em 2026-08-27:
+  # `DOTNET_CLI_UI_LANGUAGE=en dotnet test tests/Rastreamento.Application.Tests` sai
+  # `Passed!  - Failed:     0, Passed:   201, Skipped:     0, Total:   201, …`.
+  #
+  # Os dois formatos de resumo ficam cobertos: o do VSTest (`Passed!`/`Failed!`, o desta máquina
+  # hoje) e o do MTP (`Test summary: total: …, failed: …`), para o dia da migração.
+  #
+  # A saída é CAPTURADA, não transmitida ao vivo — decisão do Minor 3 do re-review (2026-08-27),
+  # tomada com medição e escrita aqui para não ser redescoberta. O `| grep` antigo era incremental
+  # só no terminal, e só a partir do fim do PRIMEIRO assembly; no modo `--json`, que é como o hook
+  # `SessionStart` roda este script, `saida=$("$EU" "$@" 2>&1)` (`:43`) já capturava tudo — ou seja,
+  # para o consumidor mais frequente o streaming NUNCA existiu. Preservá-lo com `tee` custaria
+  # despejar a saída crua do `dotnet test` no bloco (e, no `--json`, dentro do contexto de abertura
+  # de sessão), que é ruído em troca de feedback que o hook não vê. O que se paga então é a espera
+  # sem sinal, e é ela que a linha abaixo cobre.
+  echo "  medindo… (~2 min, sem saída até o fim — a captura é proposital; ver o comentário acima)"
+  saida_backend=$(DOTNET_CLI_UI_LANGUAGE=en dotnet test Rastreamento.slnx 2>&1)
+  codigo_backend=$?
+  # `total:`/`failed:` ANCORADOS. Desancorados (como estavam), uma linha de log qualquer que
+  # contivesse `failed:` era impressa NO LUGAR do resumo e a guarda do "NÃO SEI" nem disparava —
+  # mutação do re-review que sobreviveu. `^Test summary` já cobre o MTP; a âncora com espaço
+  # opcional mantém a cobertura para uma eventual linha indentada.
+  resumo_backend=$(printf '%s\n' "$saida_backend" \
+    | grep -E "^Test summary|^(Passed|Failed)!|^ *total:|^ *failed:")
+  if [ -n "$resumo_backend" ]; then
+    printf '%s\n' "$resumo_backend" | sed 's/^/  /'
+  else
+    # NUNCA imprima vazio aqui. Mesmo com o padrão certo, banco fora do ar, build quebrado e
+    # formato de saída novo caem todos neste ramo — e os três produziam o mesmo silêncio que o
+    # leitor conta como "sem falhas" quando o que houve foi "não medi".
+    echo "  NÃO SEI — nenhum padrão de resumo casou na saída do dotnet test (exit $codigo_backend)."
+    echo "  últimas linhas cruas, para diagnóstico:"
+    printf '%s\n' "$saida_backend" | tail -5 | sed 's/^/    /'
+  fi
+  # Fora do `if`, e por isso: a guarda acima pergunta "o grep casou alguma coisa?", não "a execução
+  # terminou bem". Execução PARCIAL (um assembly resume verde, outro morre na compilação, exit 1)
+  # casava o padrão e imprimia só a linha verde — mutação do re-review que sobreviveu, e a mais
+  # perigosa das duas, porque o leitor que procura vermelho não acha nada.
+  if [ "$codigo_backend" -ne 0 ]; then
+    echo "  ATENÇÃO — dotnet test saiu com $codigo_backend; leia o resumo acima como INCOMPLETO."
+  fi
+else
+  echo
+  echo "## SUÍTES — não medidas (rode com --testes, ou à mão)"
+  echo "  cd web && npm test -- --run   # e npm run build: 'npm test' verde NÃO prova que compila"
+  echo "  dotnet test Rastreamento.slnx # precisa do SQL Server no ar"
+fi
+
+echo
+echo "=============================================================="

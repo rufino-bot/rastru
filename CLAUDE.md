@@ -42,6 +42,70 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
+## Como este projeto executa plano — o gate de review não é opcional
+
+Task de plano executa pelo fluxo de **`superpowers:subagent-driven-development`**, inteiro:
+
+> **implementer → task review (conformidade com a spec + qualidade) → fix pass para
+> Critical/Important → re-review** → só então a task é marcada completa. No fim da branch, a review
+> de branch inteira, no modelo mais capaz.
+
+**Invoque a skill.** Despachar implementer direto pela ferramenta de agente, sem o gate, é como a
+qualidade se perde — e já se perdeu. O recorte exato, remedido em 2026-08-27 contra os artefatos do
+ledger e o `git log`:
+
+- **Tasks 1 a 6 da Fase 1C tiveram review.** A 1 tem "review APROVADA" registrada
+  (`historico/05-fase-1c.md:681`), sem re-review; o `task-2-report.md` **é** o relatório de review da
+  2; as 3 a 6 têm par `-review-brief` / `-review-report` em disco.
+- **A Task 7 não teve review, e isso está certo:** delta de teste zero (457/457 em 3 execuções) e
+  verificada ponto a ponto, com a decisão escrita no ledger na sessão da época
+  (`historico/05-fase-1c.md:63-64`). Cai exatamente na segunda exceção da seção abaixo.
+- **As Tasks 8 a 12 não tiveram nenhuma, e *não existe decisão registrada de parar*.** É esta a
+  deriva: **15 commits, 2.711 linhas** já commitadas sem gate, achada pelo usuário em 2026-08-25.
+  (O número que este parágrafo trazia antes — 3.009 linhas em 16 commits — media de a Task 7 em
+  diante, e a 7 não é deriva.)
+
+**A deriva foi fechada, e o fecho é o argumento a favor do gate:** as Tasks 10-12 receberam review
+retroativa, que achou **8 Important** que a verificação do controlador não tinha achado; as Tasks 13
+e 14 rodaram o fluxo inteiro. Na 13 a review achou duas afirmações falsas em spec que **nenhum teste
+quebraria** (o delta de teste da task era zero); na 14, quatro rodadas seguidas acharam afirmação
+inflando o rigor do processo na descrição de um PR que ia a repositório **público**.
+
+### Pular a review exige justificativa ESCRITA, e de uma classe estreita
+
+Não é proibido pular. É proibido pular **em silêncio**. A justificativa vai no ledger **e** no
+relatório da task — se ela existe só na cabeça de quem decidiu, o próximo a retomar lê como deriva,
+e é indistinguível dela. As classes que justificam:
+
+- **Task cujo produto não é código.** Verificação manual, decisão de desenho, levantamento — o
+  produto é o relatório, e revisar um relatório é lê-lo, não abrir um gate.
+- **Delta zero verificado ponto a ponto** pelo controlador, com o "ponto a ponto" escrito.
+  (Exemplo real, e o **único** desta fase: a Task 7 — ver acima.)
+
+Fora dessas, a review acontece.
+
+**Cuidado com a primeira classe: ela é a mais fácil de invocar errado.** Até 2026-08-27 este
+parágrafo citava a Task 12 da Fase 1C como exemplo dela ("produto foi evidência de navegador e três
+decisões"). A medição desmentiu: o relatório da Task 12 **não registra dispensa nenhuma**, e ela caiu
+na review retroativa das 10-12 — ou seja, era deriva, não exceção, e a review posterior achou coisa
+de verdade no escopo dela. A classe continua válida; o que não valia era o exemplo. **Se você for
+invocar esta exceção, escreva a justificativa ANTES, no ledger e no relatório** — justificativa
+reconstruída depois é indistinguível de racionalização.
+
+### O que NÃO conta como review
+
+- **A verificação do controlador.** Quem escreve o brief remede a mutação que mandou medir e confere
+  contra as premissas que estabeleceu — mesmo ponto cego do implementer sobre o que ninguém pensou
+  em olhar. É complemento, nunca substituto. A prova de que o ângulo externo acha o que o interno
+  não acha está na Fase 1C: a verificação em navegador pegou um descumprimento de spec que **362
+  testes verdes** não pegavam.
+- **Review pequena e sem escopo definido.** O escopo é o diff da task, com a **base registrada antes
+  de despachar o implementer** — nunca `HEAD~1`, que trunca task de múltiplos commits em silêncio.
+  Gere o pacote com o `scripts/review-package BASE HEAD` da skill e passe o caminho ao revisor; o
+  diff nunca entra no contexto do controlador.
+- **Achado de review executado sem medir.** Recomendação de revisor se remede: três vezes na Fase 1C
+  uma proposta concreta de review não sobreviveu à medição de quem foi executá-la.
+
 ## Banco de dados — regra importante
 
 `specs/02-modelo-de-dados.sql` é a **fonte de verdade** do schema. O mapeamento do EF
@@ -80,6 +144,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
+- **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
+  teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
+  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
+  (a receita padrão em `ComponenteDetalhePage`) — o bastante para nomear a primitiva certa, não
+  para chamá-la de padrão já consolidado em várias telas.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
@@ -174,6 +243,45 @@ build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `s
 
 ## Comandos
 
+Antes de qualquer coisa, para saber onde o checkout está — branch, HEAD, upstream, árvore suja e
+Docker, medidos, não lembrados:
+
+```bash
+bash scripts/estado
+```
+
+`--testes` acrescenta as suítes (caro: front ~15s, backend ~2min). Ele **observa e não age**: não
+sobe o banco, porque ação com efeito colateral não pertence a um script cujo propósito é medir. Um
+hook `SessionStart` (em `.claude/settings.json`) já roda a forma barata na abertura da sessão e
+injeta o resultado como contexto.
+
+`.claude/settings.json` também versiona `worktree.bgIsolation: "none"`. A review de 2026-08-25
+sugeriu separá-lo como "preferência de máquina" — **não é**, e por isso ele fica: é o que permite
+subagente em segundo plano escrever no checkout principal, e o fluxo deste projeto é exatamente
+esse (implementer, fix pass e review despachados sobre a árvore de trabalho). Com o padrão
+`"worktree"`, todo agente em background pararia antes de editar. Quem clonar o repositório e usar o
+mesmo fluxo precisa dos dois; por isso o arquivo é versionado inteiro. O que **não** entra nele é
+credencial ou caminho de máquina — para isso existe `.claude/settings.local.json`.
+
+### O ledger tem repositório próprio, e o script vigia isso
+
+`.superpowers/` — ledger, briefs, relatórios, histórico de fase — é um **repositório git separado e
+privado** (`rufino-bot/rastru-ledger`), desde 2026-08-25. Não é submodule: são dois repos
+independentes na mesma árvore, e este aqui ignora `.superpowers/` na raiz (`.gitignore:6`). Nada do
+código muda por causa disso.
+
+Existe porque aquele conteúdo é o **único** registro das decisões, medições e dívidas do projeto, e
+até então vivia no disco de uma máquina só. Ficam de fora dele os pacotes `.diff` de review (o
+nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de runtime do brainstorm.
+
+`scripts/estado` confere duas coisas na abertura, porque as duas falhas desta cópia são
+**silenciosas** e só apareceriam no dia de trocar de máquina:
+
+1. **trabalho sem commit ou sem push** — registro que existe só localmente não é backup;
+2. **`sdd/.gitignore` recriado com `*`** — ele é redundante aqui (a raiz já ignora a pasta) e
+   destrutivo lá, onde ignora o ledger inteiro. Já aconteceu: foi pego com `git check-ignore -v`
+   antes do primeiro `git add`, senão o repositório teria nascido vazio de conteúdo.
+
 Backend (solution `Rastreamento.slnx`, na raiz):
 
 ```bash
@@ -198,17 +306,68 @@ Frontend: ainda não criado (Fase 1 em diante).
 Parte da suíte roda contra o **SQL Server real**, não contra banco em memória — é o que
 prova o mapeamento EF, os lifetimes do DI, a atomicidade da rotação de refresh token, a
 queima da família de tokens no reuso e o lockout de conta ponta a ponta.
-Quantos exatamente não está medido de novo desde que a suíte cresceu (era 41 dos 123 testes, mas
-esse número está velho e não foi reconferido — reconferir exigiria derrubar o SQL Server, o que
-este fix pass foi instruído a não fazer). Sem o banco no ar esses testes falham com erro de
-conexão, não com mensagem útil.
+
+**O banco de dev é descartável** (autorização do dono do projeto, 2026-08-17): pode ser
+derrubado, regenerado e populado à vontade. A restrição antiga que vivia neste parágrafo — "não
+derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
+reconferir.
+
+A suíte tem **464 testes** (medido em 2026-08-26 com `dotnet test Rastreamento.slnx
+--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
+ar: 205 em `Api.Tests`, 201 em `Application.Tests`, 58 em `Infrastructure.Tests`). Quantos
+exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
+exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
+falha por erro de conexão em vez de mensagem útil, e a task que escreveu este parágrafo é
+documentação pura, sem delta de teste, então não executou a suíte para medir isso. O que se sabe
+por leitura de código, sem precisar rodar nada: `Application.Tests` usa fakes e não precisa de
+banco (nenhum teste seu); `Infrastructure.Tests` e `Api.Tests` precisam **em parte**, sem a fração
+medida.
+
+**Paralelismo do xUnit contra um banco só.** O xUnit roda classes de teste em paralelo dentro do
+mesmo assembly, e o SQL Server de dev é compartilhado — duas classes que escrevem na **mesma
+tabela** interferem uma na outra. Isso já produziu dois flakies nesta fase; o segundo
+(`ComponenteMappingTests.Busca_em_branco_nao_filtra_nada`, que compara duas contagens sem escopo)
+falhava em **4 de 10** execuções da suíte de Infrastructure, nos dois sentidos: insert concorrente
+inflando o total e limpeza concorrente derrubando-o. A regra que saiu disso: **teste novo que
+escreve numa tabela já escrita por outra classe entra na mesma `[Collection]` daquela tabela** —
+hoje `ColecaoQueEscreveEmComponente` (`tests/Rastreamento.Infrastructure.Tests/Persistence/`),
+aplicada a `ComponenteMappingTests`, `ReceitaPadraoMapeamentoTests` e
+`ReceitaPadraoRepositoryTests`. Serializar só as classes que disputam a tabela, e não o assembly
+inteiro: o resto da suíte não paga por isso. Escopar a asserção (prefixo por teste) é a alternativa
+e é melhor quando dá — só não dá quando o que se afirma é uma contagem global.
+
+**`[Collection]` não atravessa processo — medido em 2026-08-22.** A mitigação acima não bastou:
+`Busca_em_branco_nao_filtra_nada` continuou intermitente (4 vermelhas em 20 execuções da solução)
+porque quem escrevia na janela entre as duas consultas era **outro assembly** — `Api.Tests`, em
+outro processo — e `[Collection]` só serializa classes dentro do mesmo assembly. Reproduzido em
+ambiente controlado (escrita concorrente em `dbo.Componente` durante o teste): **11 vermelhas em 30**
+antes (~37%, em duas rodadas de 10 e 20), **0 em 40** depois, na mesma bancada. O conserto foi **escopar a asserção**: o teste afirma sobre as linhas do
+próprio prefixo (`Itens` de uma página só, `Tamanho = int.MaxValue`, para a linha do prefixo nunca
+cair fora da página) em vez de comparar dois `Total` globais. A regra geral que fica: **asserção
+sobre contagem global de tabela compartilhada é flaky por construção** — nenhuma `[Collection]`
+resolve, porque o outro escritor pode estar em outro processo. Escope, ou afirme só o que é monótono
+(`Total >= n` das linhas que o próprio teste inseriu).
 
 ```bash
 docker compose up -d
 # aplicar, uma vez, no banco `Rastreamento` de localhost:1433 (sa / Your_strong_Pass123):
 #   specs/02-modelo-de-dados.sql   (schema — fonte de verdade)
 #   db/seed.sql                    (perfis + usuário admin / Admin@123)
+#   db/seed-demo.sql               (OPCIONAL — massa de demonstração, Fase 1C)
 ```
+
+**`db/seed-demo.sql` é opcional e não obrigatório** — a suíte **ignora que ele existe**, e é isso que
+a torna determinística numa máquina qualquer (`grep -rn "seed-demo"` em `src/` e `tests/` devolve
+zero). Mas quem regenerar o banco **sem** ele perde a massa de verificação manual (54 Componentes,
+17 Materiais, 10 Setores, 3 receitas completas) e vai achar que a tela está quebrada quando ela só
+está vazia. A dependência é de **mão única**: a verificação manual usa o demo, a suíte não.
+
+É idempotente (`MERGE` no catálogo, `INSERT…WHERE NOT EXISTS` nas receitas, sempre chaveado por
+código/nome — nunca por Id), então rodá-lo de novo num banco que já o tem não duplica nada.
+**Carregue-o com `-f 65001`**, e por `docker cp` + `-i` (o compose não monta o repo dentro do
+container): a acentuação dos nomes de setor é `NVARCHAR` e, se a codepage se perder na carga, os
+dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que sobreviveu não é
+olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
@@ -247,6 +406,21 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
 ```
+
+**Terceiro usuário, `operador`/`Admin@123`, perfil `Operador`, sem permissão de escrita, existe só
+no banco desta máquina — deliberadamente FORA de `db/seed.sql`.** Criado à mão em 2026-08-25 para o
+V5 da Task 12 da Fase 1C (gating por perfil) ser verificável: `admin` e `pcp`, os dois usuários do
+seed acima, **escrevem** — sem um usuário de perfil sem-escrita no banco não dá para provar que a
+AÇÃO some para quem não pode escrever (ver seção Interface, "Gating de perfil vai na AÇÃO"). Ele
+reusa o hash BCrypt do próprio `admin` (`db/seed.sql:12`, válido para `Admin@123`). **Decisão da
+Task 13 (documentação): não entrou no seed.** Razão: `db/seed.sql:17-21` registra que o `pcp`
+recebeu hash e senha distintos do `admin` de propósito no seed, "para não virar mina para quem
+tentar logar depois" — versionar `operador` reusando o hash do `admin` sob outro nome de usuário
+quebraria esse padrão. Consequência: **a próxima verificação manual de gating por um perfil sem
+escrita** (Operador, Almoxarifado, Qualidade ou Gestão) **precisa recriar este usuário à mão de
+novo**, no mesmo padrão idempotente do bloco `pcp` acima — reusando o hash do `admin`, como da
+primeira vez — este parágrafo existe para que essa recriação não parta do zero, redescobrindo por
+que nenhum usuário sem-escrita está disponível.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
 composto por N Peças, e a contagem de Peças já responde "quantas são"; indicar uma quantidade no

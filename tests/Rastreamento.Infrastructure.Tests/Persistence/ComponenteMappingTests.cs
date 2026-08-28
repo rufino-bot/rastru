@@ -7,6 +7,15 @@ using Xunit;
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>Requer o SQL Server no ar (docker compose up -d) com o schema aplicado.</summary>
+/// <remarks>
+/// Continua na <see cref="ColecaoQueEscreveEmComponente"/>, mas o motivo que a criou morreu em
+/// 2026-08-22: <c>Busca_em_branco_nao_filtra_nada</c> nao compara mais dois <c>Total</c> globais,
+/// e nenhum teste desta classe depende hoje do tamanho da tabela. A colecao ficou porque desliga-la
+/// e decisao separada, que pede medicao propria — e porque ela nunca cobriu o caso que fazia o
+/// teste falhar de verdade: quem escrevia na janela entre as duas consultas era outro PROCESSO
+/// (<c>Api.Tests</c>), e <c>[Collection]</c> so serializa dentro do mesmo assembly.
+/// </remarks>
+[Collection(ColecaoQueEscreveEmComponente.Nome)]
 public class ComponenteMappingTests : TesteComBanco
 {
   /// <summary>
@@ -17,6 +26,16 @@ public class ComponenteMappingTests : TesteComBanco
 
   private static Componente Peca(string codigo, string descricao = "Suporte lateral") =>
       new() { Codigo = codigo, Descricao = descricao, Tipo = "Fabricado", Ativo = true };
+
+  /// <summary>
+  /// Recorta de um resultado de listagem so as linhas deste teste. Existe para assercao sobre
+  /// listagem NAO escopada (busca nula ou em branco) nao depender do que outros processos
+  /// escrevem em <c>dbo.Componente</c> ao mesmo tempo.
+  /// </summary>
+  private static string[] SoDoPrefixo(IEnumerable<Componente> itens, string prefixo) =>
+      itens.Where(c => c.Codigo.StartsWith(prefixo, StringComparison.Ordinal))
+          .Select(c => c.Codigo)
+          .ToArray();
 
   private static async Task LimparAsync(string prefixo)
   {
@@ -400,19 +419,42 @@ public class ComponenteMappingTests : TesteComBanco
       await using var db = NovoContexto();
       var repo = new ComponenteRepository(db);
 
-      // Comparado por Total, SEM escopar por prefixo e SEM olhar Itens de proposito: e o que
-      // torna a assercao independente do tamanho da tabela. Escopar por prefixo (como antes, com
-      // Contains sobre Itens de uma pagina de 500) quebraria assim que a Task 3 somar testes de
-      // endpoint contra o mesmo banco e a linha do prefixo deixar de caber nas primeiras 500 por
-      // OrderBy(Codigo). Comparando os dois Totais na mesma janela, a prova nao depende de qual
-      // linha cai em qual pagina.
-      var semBusca = await repo.ListarAsync(
-          new FiltroDeComponente(null, false, 1, 20), CancellationToken.None);
-      var comEspacos = await repo.ListarAsync(
-          new FiltroDeComponente("   ", false, 1, 20), CancellationToken.None);
+      // Tamanho = int.MaxValue: uma pagina so, a tabela inteira. Este teste nao e sobre paginacao
+      // (isso e Pagina_alem_do_fim_devolve_lista_vazia_e_o_total_verdadeiro), e pedir tudo numa
+      // pagina e o que faz as MINHAS linhas aparecerem no resultado independentemente de quantas
+      // linhas vem antes delas em OrderBy(Codigo). Foi exatamente por isso que a primeira versao
+      // escopada por prefixo foi abandonada: ela olhava as primeiras 500 e a linha do prefixo
+      // podia nao caber ali. Uma pagina infinita nao tem esse problema; o custo e carregar a
+      // tabela de dev inteira (dezenas de linhas) em memoria.
+      const int paginaUnica = int.MaxValue;
 
+      var semBusca = await repo.ListarAsync(
+          new FiltroDeComponente(null, false, 1, paginaUnica), CancellationToken.None);
+      var comEspacos = await repo.ListarAsync(
+          new FiltroDeComponente("   ", false, 1, paginaUnica), CancellationToken.None);
+
+      // A prova, escopada nas linhas que este teste controla: as duas nao contem tres espacos
+      // seguidos nem no Codigo nem na Descricao, entao uma busca "   " aplicada ao pe da letra as
+      // faria sumir. Elas aparecerem nas DUAS listas e o comportamento observavel de "busca so de
+      // espacos == busca ausente". Mata a mutacao real (guarda IsNullOrWhiteSpace -> IsNullOrEmpty
+      // com o Trim fora do if): medido, com esse mutante a lista com espacos volta sem nenhuma das
+      // duas linhas do prefixo — Expected [..-a, ..-b], Actual [].
+      //
+      // Ate 2026-08-22 isto era `Assert.Equal(semBusca.Total, comEspacos.Total)` sobre os dois
+      // Total GLOBAIS, e era corrida: qualquer INSERT/DELETE de OUTRO PROCESSO (Api.Tests) na
+      // janela entre as duas consultas muda a contagem e a assercao quebra. Reproduzido de
+      // proposito: 11 vermelhas em 30 com escrita concorrente na tabela, nos dois sentidos
+      // (54 -> 55 por insert, 55 -> 54 por delete). [Collection] nao resolve isso, porque so
+      // serializa classes dentro do MESMO assembly.
+      var meus = new[] { $"{prefixo}-a", $"{prefixo}-b" };
+      Assert.Equal(meus, SoDoPrefixo(semBusca.Itens, prefixo));
+      Assert.Equal(meus, SoDoPrefixo(comEspacos.Itens, prefixo));
+
+      // Dos Total globais so se afirma o que e monotono — nenhuma das duas consultas devolveu
+      // menos que as minhas duas linhas. Diferente da igualdade entre eles, isto e imune a
+      // escrita concorrente: as minhas linhas estao commitadas antes e apagadas depois.
       Assert.True(semBusca.Total >= 2);
-      Assert.Equal(semBusca.Total, comEspacos.Total);
+      Assert.True(comEspacos.Total >= 2);
     }
     finally
     {
