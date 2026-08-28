@@ -5,11 +5,17 @@ import {
   type PedidoDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
-import { STATUS_DO_PEDIDO, tomDoStatus } from '../pedidos/statusDoPedido'
+import { STATUS_DO_PEDIDO, ENCERRADOS, tomDoStatus } from '../pedidos/statusDoPedido'
+import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { Pagina } from '../components/Pagina'
 import { Pilula } from '../components/Pilula'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { EstadoCarregando } from '../components/EstadoCarregando'
+import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
+import { EstadoVazio } from '../components/EstadoVazio'
+
+/** Quantos pedidos a seção "há mais tempo" mostra. Cinco, pela spec §3.2. */
+const QUANTOS_MAIS_ANTIGOS = 5
 
 // `pedidosAbertos` saiu daqui na 1E: o array de pedidos vive em estado próprio (a Home deriva
 // TRÊS coisas dele agora), e guardar a contagem em paralelo criaria duas verdades sobre o mesmo
@@ -89,6 +95,20 @@ export function HomePage() {
     quantidade: pedidos.filter((p) => p.status === status).length,
   }))
 
+  // Ordenação pela string ISO, e não por `Date`: `dataAbertura` chega em GMT-3 com offset
+  // explícito (`HorarioDeBrasiliaJsonConverter`), e ISO 8601 com o mesmo offset ordena
+  // lexicograficamente na mesma ordem que cronologicamente. Passar por `new Date()` reconverteria
+  // para o fuso do aparelho — o mesmo motivo que fez `formatarDataHora` não usar `Date`.
+  //
+  // `.filter()` já devolve array novo, então o `.sort()` abaixo não ordena o estado no lugar.
+  //
+  // `.some(===)` e não `.includes`: `ENCERRADOS` é tupla `readonly`, e `.includes` exigiria um
+  // cast para aceitar um `status` que pode não estar nela.
+  const maisAntigos = pedidos === null ? null : pedidos
+    .filter((p) => !ENCERRADOS.some((encerrado) => encerrado === p.status))
+    .sort((a, b) => a.dataAbertura.localeCompare(b.dataAbertura))
+    .slice(0, QUANTOS_MAIS_ANTIGOS)
+
   return (
     <Pagina titulo="Início">
       <BannerDeErro mensagem={erro} />
@@ -116,6 +136,31 @@ export function HomePage() {
         <CartaoDeContagem titulo="materiais ativos" valor={contagens?.materiais ?? null} para="/materiais" />
         <CartaoDeContagem titulo="setores ativos" valor={contagens?.setores ?? null} para="/setores" />
       </div>
+
+      {/* `maisAntigos !== null` cobre carregando E erro de uma vez: nos dois casos `pedidos` é
+          `null`. Não troque por `maisAntigos?.length` — durante o carregando isso renderizaria o
+          `EstadoVazio`, que tem `role="status"` igual ao `EstadoCarregando`, e o teste
+          `mostra o indicador de carregando` faz `getByRole('status')`, que LANÇA com dois. Além
+          de, claro, dizer "não há pedidos abertos" quando a verdade é "ainda não perguntei". */}
+      {maisAntigos !== null && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold text-tinta">Pedidos abertos há mais tempo</h2>
+          {maisAntigos.length === 0 ? (
+            <EstadoVazio
+              titulo="Nenhum pedido em aberto."
+              descricao="Todos os pedidos cadastrados estão concluídos ou cancelados."
+            />
+          ) : (
+            <ListaDeCadastro rotulo="Pedidos abertos há mais tempo">
+              {maisAntigos.map((p) => (
+                <ItemDeCadastro key={p.id}>
+                  <LinhaDePedido pedido={p} />
+                </ItemDeCadastro>
+              ))}
+            </ListaDeCadastro>
+          )}
+        </section>
+      )}
     </Pagina>
   )
 }

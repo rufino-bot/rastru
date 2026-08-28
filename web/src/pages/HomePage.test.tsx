@@ -179,4 +179,106 @@ describe('HomePage', () => {
     const cartao = screen.getByText('pedidos abertos').closest('a')!
     expect(within(cartao).queryAllByRole('link')).toHaveLength(0)
   })
+
+  it('lista os pedidos abertos ha mais tempo, do mais antigo para o mais novo', async () => {
+    // Fixture: PED-003 (08-01) < PED-004 (08-03) < PED-001 (08-06) entre os NÃO encerrados.
+    // Ordem alfabética de `numero` daria PED-001/003/004 — se a implementação esquecer o `sort`,
+    // o React renderiza na ordem do array e esta asserção é a que pega.
+    vi.stubGlobal('fetch', apiCompleta())
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    const linhas = within(secao).getAllByRole('listitem').map((li) => li.textContent)
+    expect(linhas[0]).toContain('PED-003')
+    expect(linhas[1]).toContain('PED-004')
+    expect(linhas[2]).toContain('PED-001')
+  })
+
+  it('deixa Concluido e Cancelado fora da lista de ha mais tempo', async () => {
+    // PED-005 (Cancelado) é o MAIS ANTIGO do fixture (07-20). Se o filtro sumir, ele encabeça a
+    // lista — e a Home passa a dizer que um pedido cancelado está "parado há mais tempo".
+    vi.stubGlobal('fetch', apiCompleta())
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    expect(within(secao).queryByText(/PED-005/)).toBeNull()   // Cancelado, e o mais antigo de todos
+    expect(within(secao).queryByText(/PED-002/)).toBeNull()   // Concluido
+    expect(within(secao).getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('para em cinco mesmo havendo mais pedidos elegiveis', async () => {
+    const oito = Array.from({ length: 8 }, (_, i) => ({
+      id: i + 1, numero: `PED-${String(i + 1).padStart(3, '0')}`, cliente: 'Cliente',
+      tipo: 'Normal', status: 'Aberto',
+      // Dias 01 a 08: o mais antigo é PED-001 e o corte tem de deixar PED-006..008 de fora.
+      dataAbertura: `2026-08-0${i + 1}T09:00:00-03:00`, criadoPorUsuarioId: 1,
+    }))
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
+      '/api/pedidos': () => respostaJson(oito),
+      '/api/materiais': () => respostaJson([]),
+      '/api/setores': () => respostaJson([]),
+    }))
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    expect(within(secao).getAllByRole('listitem')).toHaveLength(5)
+    expect(within(secao).queryByText(/PED-006/)).toBeNull()
+  })
+
+  it('leva ao pedido certo por cada linha da lista', async () => {
+    // O par número→id: uma implementação que use o índice do array no lugar de `p.id` acerta por
+    // acidente quando os ids são 1..n em ordem. Aqui o mais antigo é o id 3, não o id 1.
+    vi.stubGlobal('fetch', apiCompleta())
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    const primeira = within(secao).getAllByRole('listitem')[0]
+    expect(within(primeira).getByRole('link').getAttribute('href')).toBe('/pedidos/3')
+  })
+
+  it('diz que nao ha pedido aberto, em vez de sumir, quando a leitura deu certo e a lista e vazia', async () => {
+    // A distinção que a spec §3.2 exige: "não há nada" tem de soar diferente de "não consegui
+    // ler". Aqui a leitura FOI bem-sucedida — todos os pedidos estão encerrados.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
+      '/api/pedidos': () => respostaJson([
+        { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1 },
+      ]),
+      '/api/materiais': () => respostaJson([]),
+      '/api/setores': () => respostaJson([]),
+    }))
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    expect(screen.getByText('Nenhum pedido em aberto.')).toBeTruthy()
+    expect(screen.queryByRole('list', { name: 'Pedidos abertos há mais tempo' })).toBeNull()
+  })
+
+  it('nao mostra a secao — nem vazia — quando a leitura falhou', async () => {
+    // O padrão que já pegou DUAS vezes na 1C (Tasks 8 e 10): estado vazio renderizado junto do
+    // banner de erro, dizendo "não há pedidos abertos" quando a verdade é "não consegui
+    // perguntar". A seção inteira some enquanto houver erro.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ erro: 'x' }, 500),
+      '/api/pedidos': () => respostaJson(PEDIDOS),
+      '/api/materiais': () => respostaJson([]),
+      '/api/setores': () => respostaJson([]),
+    }))
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')
+
+    expect(screen.queryByText('Nenhum pedido em aberto.')).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Pedidos abertos há mais tempo' })).toBeNull()
+  })
 })
