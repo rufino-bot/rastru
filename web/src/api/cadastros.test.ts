@@ -293,11 +293,12 @@ describe('cadastros', () => {
   // GUARDA DE DÍVIDA — Fase 1E. NÃO é teste de comportamento novo: é o alarme que dispara no dia
   // em que `/pedidos` for paginado, como `/componentes` já foi na 1B.
   //
-  // A `HomePage` deriva TRÊS coisas do array que esta função devolve: a contagem de "pedidos
-  // abertos", o resumo pelos 5 status e a lista "abertos há mais tempo". As três só são verdadeiras
-  // porque a resposta traz o conjunto INTEIRO. Se `listarPedidos` passar a devolver uma página, as
-  // três viram meia-verdade — "contagem da primeira página", "os mais antigos dos 20 primeiros" —
-  // e nenhuma delas fica vermelha sozinha, porque continuam sendo números plausíveis.
+  // Hoje a `HomePage` deriva UMA coisa do array que esta função devolve: a contagem de "pedidos
+  // abertos". As Tasks 3 e 5 desta fase acrescentam outras duas — o resumo pelos 5 status e a
+  // lista "abertos há mais tempo". As três só são verdadeiras porque a resposta traz o conjunto
+  // INTEIRO. Se `listarPedidos` passar a devolver uma página, viram meia-verdade — "contagem da
+  // primeira página", "os mais antigos dos 20 primeiros" — e nenhuma delas fica vermelha sozinha,
+  // porque continuam sendo números plausíveis.
   //
   // Este teste morre de DOIS jeitos, de propósito: `Array.isArray` mata a troca do tipo de retorno
   // em tempo de execução, e a anotação de tipo da variável `contrato` mata a mesma troca em
