@@ -1,18 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  listarPedidos, criarPedido, ehConflito, formatarDataHora,
+  listarPedidos, criarPedido, ehConflito,
   type PedidoDto, type NovoPedido,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
-import { tomDoStatus } from '../pedidos/statusDoPedido'
+import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { Pagina } from '../components/Pagina'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
-import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 
@@ -112,23 +110,7 @@ export function PedidosPage() {
         <ListaDeCadastro>
           {pedidos.map((p) => (
             <ItemDeCadastro key={p.id}>
-              {/*
-                O item inteiro é o alvo do clique, e não só o número: numa tela de bancada com
-                tablet, alvo pequeno erra. `after:absolute after:inset-0` estende a área clicável do
-                link ao cartão sem aninhar elementos interativos.
-              */}
-              <Link
-                to={`/pedidos/${p.id}`}
-                className="flex flex-col gap-1 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
-              >
-                <span className="font-medium">
-                  <span className="font-mono">{p.numero}</span> — {p.cliente}
-                </span>
-                <span className="flex items-center gap-2 text-sm text-tinta-fraca">
-                  <Pilula tom={tomDoStatus(p.status)}>{p.status}</Pilula>
-                  aberto em {formatarDataHora(p.dataAbertura)}
-                </span>
-              </Link>
+              <LinhaDePedido pedido={p} />
             </ItemDeCadastro>
           ))}
         </ListaDeCadastro>
