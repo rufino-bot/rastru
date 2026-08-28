@@ -6,6 +6,7 @@ import {
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { tomDoStatus } from '../pedidos/statusDoPedido'
 import { Pagina } from '../components/Pagina'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
@@ -16,17 +17,6 @@ import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 
 const FORMULARIO_VAZIO: NovoPedido = { numero: '', cliente: '' }
-
-/**
- * Status do `CK_Pedido_Status`. `Concluido` é o único que ganha tom positivo; `Cancelado`, o
- * negativo. Os intermediários ficam neutros — verde e vermelho são reservados a estado que exige
- * decisão, e "em produção" não exige nenhuma.
- */
-function tomDoStatus(status: string): 'neutro' | 'positivo' | 'negativo' {
-  if (status === 'Concluido') return 'positivo'
-  if (status === 'Cancelado') return 'negativo'
-  return 'neutro'
-}
 
 export function PedidosPage() {
   const [pedidos, setPedidos] = useState<PedidoDto[]>([])

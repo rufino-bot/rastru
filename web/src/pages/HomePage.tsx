@@ -1,21 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarComponentes, listarMateriais, listarSetores, listarPedidos,
+  type PedidoDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
+import { STATUS_DO_PEDIDO, tomDoStatus } from '../pedidos/statusDoPedido'
 import { Pagina } from '../components/Pagina'
+import { Pilula } from '../components/Pilula'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 
+// `pedidosAbertos` saiu daqui na 1E: o array de pedidos vive em estado próprio (a Home deriva
+// TRÊS coisas dele agora), e guardar a contagem em paralelo criaria duas verdades sobre o mesmo
+// dado, que podem divergir.
 interface Contagens {
-  pedidosAbertos: number
   componentes: number
   materiais: number
   setores: number
 }
 
-function CartaoDeContagem({ titulo, valor, para }: { titulo: string; valor: number | null; para: string }) {
+function CartaoDeContagem({ titulo, valor, para, resumo }: {
+  titulo: string
+  valor: number | null
+  para: string
+  /** Conteúdo extra dentro do cartão. NÃO pode conter `<a>`: o cartão já é um `<Link>`. */
+  resumo?: ReactNode
+}) {
   return (
     <Link
       to={para}
@@ -24,11 +35,13 @@ function CartaoDeContagem({ titulo, valor, para }: { titulo: string; valor: numb
       {/* Traço em vez de zero enquanto carrega: "0 pedidos" é uma afirmação, e ela seria falsa. */}
       <span className="text-3xl font-semibold text-tinta">{valor === null ? '—' : valor}</span>
       <span className="text-sm text-tinta-fraca">{titulo}</span>
+      {resumo}
     </Link>
   )
 }
 
 export function HomePage() {
+  const [pedidos, setPedidos] = useState<PedidoDto[] | null>(null)
   const [contagens, setContagens] = useState<Contagens | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -47,13 +60,18 @@ export function HomePage() {
         listarMateriais(false),
         listarSetores(false),
       ])
+      setPedidos(pedidos)
       setContagens({
-        pedidosAbertos: pedidos.filter((p) => p.status === 'Aberto').length,
         componentes: paginaDeComponentes.total,
         materiais: materiais.length,
         setores: setores.length,
       })
     } catch (e) {
+      // Sem isto, uma falha numa releitura futura deixaria a seção "há mais tempo" (Task 5)
+      // mostrando dado velho ao lado do banner de erro — o que a spec §3.4 proíbe. Hoje `carregar`
+      // roda uma vez só e não há caminho que exercite isto; está aqui porque a alternativa é
+      // depender de a Home nunca ganhar um botão de recarregar.
+      setPedidos(null)
       setErro(mensagemDeErro(e, 'Não foi possível carregar os números do sistema.'))
     } finally {
       setCarregando(false)
@@ -62,6 +80,15 @@ export function HomePage() {
 
   useEffect(() => { carregar() }, [])
 
+  // Derivado, não guardado: uma fonte de verdade só. `null` enquanto o dado não chegou — e o
+  // resumo NÃO renderiza nesse estado (nem com zeros, que seriam falsos, nem com traços, que
+  // seriam ruído; o número grande do cartão já diz "—").
+  const abertos = pedidos === null ? null : pedidos.filter((p) => p.status === 'Aberto').length
+  const porStatus = pedidos === null ? null : STATUS_DO_PEDIDO.map((status) => ({
+    status,
+    quantidade: pedidos.filter((p) => p.status === status).length,
+  }))
+
   return (
     <Pagina titulo="Início">
       <BannerDeErro mensagem={erro} />
@@ -69,7 +96,22 @@ export function HomePage() {
       {carregando && <EstadoCarregando />}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <CartaoDeContagem titulo="pedidos abertos" valor={contagens?.pedidosAbertos ?? null} para="/pedidos" />
+        <CartaoDeContagem
+          titulo="pedidos abertos"
+          valor={abertos}
+          para="/pedidos"
+          resumo={porStatus && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {porStatus.map(({ status, quantidade }) => (
+                // Rótulo e contagem numa ÚNICA string, e não em dois elementos: o teste
+                // `conta só os pedidos abertos` faz `within(cartao).getByText('2')`, e
+                // `getByText` LANÇA quando casa mais de um nó. Contagem em elemento próprio
+                // colidiria com o número grande do cartão.
+                <Pilula key={status} tom={tomDoStatus(status)}>{`${status} ${quantidade}`}</Pilula>
+              ))}
+            </div>
+          )}
+        />
         <CartaoDeContagem titulo="componentes ativos" valor={contagens?.componentes ?? null} para="/componentes" />
         <CartaoDeContagem titulo="materiais ativos" valor={contagens?.materiais ?? null} para="/materiais" />
         <CartaoDeContagem titulo="setores ativos" valor={contagens?.setores ?? null} para="/setores" />
