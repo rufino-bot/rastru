@@ -160,6 +160,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `index.css` e reprova token sem par de contraste declarado. Os tons claros de verde-água e âmbar
   reprovam AA como texto sobre branco apesar de funcionarem como fundo de botão — a regra existe
   por causa disso.
+- **O documento declara `lang="pt-BR"`.** `web/index.html` nasceu com o `lang="en"` do template do
+  Vite, o que viola a WCAG 3.1.1 (Language of Page) numa interface escrita inteira em português —
+  leitor de tela pronuncia o conteúdo com fonética do inglês, e a tradução automática do navegador
+  trata a página como inglesa. `web/src/tema/idiomaDaPagina.test.ts` lê o `index.html` real de disco
+  e reprova quem trocar o atributo por qualquer coisa que não seja exatamente `pt-BR` (a grafia
+  canônica do BCP 47 — `pt-br` e `PT-BR` também reprovam, de propósito). É **guarda, não
+  varredura**, e a diferença foi medida em 2026-08-28: com `lang="en"` no arquivo, os 374 testes de
+  então ficavam **verdes**, porque teste de tela monta componente no jsdom e nunca olha o documento
+  que hospeda o React.
 - **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`) e
   vermelho (`negativo`) são reservados a aprovado/ativo e reprovado/perda/erro. É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.

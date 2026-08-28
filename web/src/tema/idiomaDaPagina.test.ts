@@ -30,12 +30,16 @@ const HTML = readFileSync(CAMINHO_HTML, 'utf8')
 const IDIOMA_EXIGIDO = 'pt-BR'
 
 /**
- * Apaga comentário HTML sem apagar quebra de linha — mesmo propósito do `semComentarios` das
- * outras guardas de `src/tema/`. Sem isto, um `<html lang="pt-BR">` de exemplo escrito dentro de
- * um comentário satisfaria a guarda no lugar da tag real.
+ * Apaga comentário HTML antes de procurar a tag. Sem isto, um `<html lang="pt-BR">` de exemplo
+ * escrito dentro de um comentário satisfaria a guarda no lugar da tag real.
+ *
+ * Ao contrário do `semComentarios` de `semCorForaDaPaleta.test.ts`, este NÃO preserva a quebra de
+ * linha: lá ela existe para o relatório citar o número de linha certo, e esta guarda não reporta
+ * linha nenhuma. É o mesmo formato do `semComentarios` de `contraste.test.ts`, que também não
+ * reporta linha.
  */
 function semComentarios(fonte: string): string {
-  return fonte.replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
+  return fonte.replace(/<!--[\s\S]*?-->/g, '')
 }
 
 /**
@@ -44,7 +48,25 @@ function semComentarios(fonte: string): string {
  * O atributo só é reconhecido quando vem precedido de espaço em branco dentro da tag. O `\s` no
  * lugar de um `\b` é deliberado: `\b` casaria também o sufixo de `xml:lang`, e
  * `<html xml:lang="en" lang="pt-BR">` — que está CERTO — seria lido pelo atributo errado e
- * reprovado. Coberto por fixture abaixo.
+ * reprovado. Coberto por fixture abaixo, e a decisão é PORTANTE: medido na review de 2026-08-28,
+ * trocar o `\s` por `\b` mata exatamente aquele fixture, e só ele.
+ *
+ * LIMITES CONHECIDOS, os três medidos na mesma review. Isto é parsing por regex, não por parser
+ * de HTML, e a escolha é proporcional: o alvo é um arquivo estático de 13 linhas que muda uma vez
+ * por ano. Declarados aqui em vez de fingidos inexistentes — mesmo padrão da limitação que
+ * `semCorForaDaPaleta.test.ts` registra para o `semComentarios` dele.
+ *
+ * 1. **Valor sem aspas não é reconhecido.** `<html lang=pt-BR>` é HTML válido e o idioma estaria
+ *    certo, mas o `["']` da regex não casa e a guarda reprova. Falha na direção SEGURA (reprova
+ *    quem está certo, nunca aprova quem está errado) e este projeto escreve atributo com aspas
+ *    em todo lugar. Pinado por fixture, para não virar surpresa de quem tropeçar.
+ * 2. **`>` dentro de valor de atributo encerra a tag cedo.** `<html data-x="a>b" lang="pt-BR">`
+ *    reprova, porque o `[^>]*>` para no `>` que está entre aspas. Também falha para o lado
+ *    seguro.
+ * 3. **`lang=` DENTRO do valor de outro atributo é lido como se fosse o atributo.**
+ *    `<html title=" lang='pt-BR' ">`, sem nenhum `lang` de verdade, passa. É o único ponto cego
+ *    em que a guarda aprova uma página que viola a WCAG 3.1.1 — fechá-lo exigiria um parser de
+ *    HTML de verdade, o que não se paga para o alvo desta guarda.
  */
 function idiomaDeclarado(fonte: string = HTML): string | null {
   const tagDeAbertura = semComentarios(fonte).match(/<html\b[^>]*>/i)
@@ -97,9 +119,24 @@ describe('idiomaDeclarado (mecanismo da guarda acima) — medido em fixture, nã
     expect(idiomaDeclarado(fixture)).toBeNull()
   })
 
-  it('reprova grafia fora da forma canônica do BCP 47', () => {
-    expect(idiomaDeclarado('<html lang="pt-br">')).not.toBe(IDIOMA_EXIGIDO)
-    expect(idiomaDeclarado('<html lang="pt">')).not.toBe(IDIOMA_EXIGIDO)
+  /**
+   * Asserção POSITIVA de propósito. A forma anterior deste teste afirmava só
+   * `.not.toBe(IDIOMA_EXIGIDO)`, e MEDIDO em 2026-08-28 (achado Minor 3 da review desta task):
+   * mutando `idiomaDeclarado` para devolver `null` sempre, ele sobrevivia VERDE enquanto outros
+   * cinco morriam — porque `null` também não é `pt-BR`. Afirmar o valor LIDO distingue "reprovou
+   * pela grafia errada" de "o extrator parou de funcionar".
+   */
+  it('lê grafia fora da forma canônica do BCP 47 como ela é — e é isso que a faz reprovar', () => {
+    for (const grafia of ['pt-br', 'PT-BR', 'pt']) {
+      expect(idiomaDeclarado(`<html lang="${grafia}">`), `grafia "${grafia}"`).toBe(grafia)
+      expect(idiomaDeclarado(`<html lang="${grafia}">`), `grafia "${grafia}"`).not.toBe(
+        IDIOMA_EXIGIDO,
+      )
+    }
+  })
+
+  it('não reconhece valor sem aspas — limite 1, e ele falha para o lado seguro', () => {
+    expect(idiomaDeclarado(`<html lang=${IDIOMA_EXIGIDO}>`)).toBeNull()
   })
 
   it('falha alto quando não existe tag <html> — nunca em silêncio, com um null ambíguo', () => {
