@@ -28,33 +28,51 @@ import { dirname, join } from 'node:path'
  * ## Por que um parser de HTML, e não uma regex
  *
  * A primeira versão desta guarda casava o atributo por regex. A re-review de 2026-08-28 mediu
- * cinco formas de enganá-la — todas fazendo a guarda aprovar um documento que NÃO declara idioma
- * nenhum. A pior não usava atributo exótico algum: um comentário sem terminador (`<!--` sem
- * `-->`) engole o resto do arquivo, não sobra `<html>` nenhum, e a guarda passava 10/10 verde.
- * As outras quatro eram `lang=` escrito dentro do valor de outro atributo, `pt-BR` dentro de uma
- * string em `<script>`, um comentário no meio do nome da tag, e um decoy que escondia um `lang`
- * REAL e errado.
+ * cinco formas de enganá-la. Em quatro delas a guarda lia `pt-BR` num documento que não declara
+ * idioma NENHUM; na quinta — o decoy — ela lia `pt-BR` num documento cujo idioma real era `en`,
+ * escondendo um atributo errado de verdade. A pior não usava atributo exótico algum: um
+ * comentário sem terminador (`<!--` sem `-->`) engole o resto do arquivo, não sobra `<html>`
+ * nenhum, e a guarda passava 10/10 verde.
  *
- * A resposta a isso não é declarar os cinco em prosa — este projeto trata frase de fechamento
- * como o dano, e a versão anterior deste arquivo chegou a afirmar que um deles era "o único",
- * o que a medição desmentiu. A resposta é fechar a família inteira, parseando o documento em vez
- * de varrer o texto dele: a pergunta que importa é **qual idioma o navegador vai ver**, não qual
- * sequência de caracteres está no arquivo. Os cinco enganos viram `null` ou `en`, e a guarda
- * reprova todos. Cada um deles tem fixture abaixo, para que o fechamento continue provado.
+ * A resposta a isso não é declarar as cinco em prosa — este projeto trata frase de fechamento
+ * como o dano, e a versão anterior deste arquivo chegou a afirmar que uma delas era "o único"
+ * ponto cego, o que a medição desmentiu. A resposta é fechar a família inteira, parseando o
+ * documento em vez de varrer o texto dele. As cinco viram `null` ou `en`, e a guarda reprova
+ * todas; cada uma tem fixture no bloco `enganos que derrubavam a versão por regex`, para que o
+ * fechamento continue provado.
  *
- * O parser é o `DOMParser` do ambiente de teste, sob `@vitest-environment jsdom` — a mesma
- * convenção dos testes de tela deste projeto. Preferido a importar `jsdom` direto por dois
- * motivos, o segundo medido: é a API padrão do navegador, tipada pelo `lib.dom` do TypeScript, e
- * importar o pacote exigiria `@types/jsdom` — sem ele `npm test` fica VERDE e só `npm run build`
- * quebra (TS7016), que é exatamente a armadilha que `CLAUDE.md` manda evitar rodando os dois.
+ * O parser é o `DOMParser` do ambiente de teste, sob o pragma `vitest-environment jsdom` da
+ * primeira linha — mesma convenção dos testes de tela deste projeto. Preferido a importar `jsdom`
+ * direto por dois motivos, o segundo medido: é a API padrão do navegador, tipada pelo `lib.dom`
+ * do TypeScript, e importar o pacote exigiria `@types/jsdom` — sem ele `npm test` fica VERDE e só
+ * `npm run build` quebra (TS7016), que é exatamente a armadilha que `CLAUDE.md` manda evitar
+ * rodando os dois.
+ *
+ * ## O que este parser responde, e o que ele NÃO responde
+ *
+ * `DOMParser` parseia sem browsing context, o que pela spec significa **scripting desabilitado**.
+ * Então o que a guarda responde, com precisão, é: *qual idioma o documento declara quando o
+ * navegador termina de parsear o arquivo, antes de qualquer script rodar*. Isso não é a mesma
+ * coisa que "qual idioma o navegador vê" em todo instante, e as duas divergem em dois casos
+ * medidos na re-review de 2026-08-28:
+ *
+ * - **`<noscript>` no `<head>`:** com scripting habilitado ele é raw text e o que está dentro não
+ *   vira marcação; aqui ele é parseado. Um `<html lang="pt-BR">` escrito dentro de um `<noscript>`
+ *   PASSA nesta guarda e não passaria no navegador. Ponto cego conhecido.
+ * - **Script que altera `documentElement.lang` em runtime:** a guarda lê o arquivo, não o runtime.
+ *   Hoje sem risco vivo — `grep -rn "documentElement" web/src/` devolve zero.
+ *
+ * Não se afirma aqui que não há mais ponto cego: foi exatamente essa classe de frase que a
+ * re-review derrubou na versão anterior deste arquivo. O que mudou é a FRONTEIRA — ela agora é o
+ * algoritmo de parsing da spec de HTML, e não uma regex escrita à mão.
  */
 
 /**
  * Caminho montado com `fileURLToPath` + `join`, como em `semCorForaDaPaleta.test.ts`, e não com
- * `new URL(..., import.meta.url)` como em `contraste.test.ts`. O motivo é o
- * `@vitest-environment jsdom` do topo: sob ele o `URL` global é o do jsdom, e o `readFileSync` do
- * Node recusa esse objeto com `TypeError: The URL must be of scheme file`. As outras guardas de
- * `src/tema/` rodam no ambiente `node` padrão e não esbarram nisso.
+ * `new URL(..., import.meta.url)` como em `contraste.test.ts`. O motivo é o pragma de ambiente da
+ * primeira linha: sob jsdom o `URL` global é o do jsdom, e o `readFileSync` do Node recusa esse
+ * objeto com `TypeError: The URL must be of scheme file`. As outras guardas de `src/tema/` rodam
+ * no ambiente `node` padrão e não esbarram nisso.
  */
 const CAMINHO_HTML = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'index.html')
 const HTML = readFileSync(CAMINHO_HTML, 'utf8')
@@ -62,13 +80,12 @@ const HTML = readFileSync(CAMINHO_HTML, 'utf8')
 const IDIOMA_EXIGIDO = 'pt-BR'
 
 /**
- * O `lang` do elemento raiz do documento, como o NAVEGADOR o enxerga — ou `null` quando o
+ * O `lang` do elemento raiz do documento, como o parser da spec o constrói — ou `null` quando o
  * documento não declara nenhum.
  *
- * Note que não existe mais o caso "não achei a tag `<html>`": o parser da spec sempre constrói um
+ * Note que não existe mais o caso "não achei a tag `<html>`": o parser sempre constrói um
  * `documentElement`, mesmo para um fragmento solto. Um documento sem `<html>` escrito à mão cai
- * no caso `null` e reprova do mesmo jeito — o que é o comportamento certo, e é o que o navegador
- * faz.
+ * no caso `null` e reprova do mesmo jeito — que é o comportamento certo.
  */
 function idiomaDeclarado(fonte: string = HTML): string | null {
   const documento = new DOMParser().parseFromString(fonte, 'text/html')
@@ -122,14 +139,30 @@ describe('idiomaDeclarado (mecanismo da guarda acima) — medido em fixture, nã
 
     expect(idiomaDeclarado(fixture)).toBe(IDIOMA_EXIGIDO)
   })
+
+  /**
+   * Este caso a versão por regex JÁ pegava — ela apagava comentário FECHADO antes de procurar a
+   * tag. Fica aqui, no bloco de mecanismo, e não no de enganos: pô-lo lá afirmaria que ele
+   * derrubava a implementação antiga, o que é falso e foi medido na re-review de 2026-08-28.
+   */
+  it('lang escrito dentro de comentário fechado não vale pela tag real', () => {
+    const fixture = `<!-- exemplo: <html lang="${IDIOMA_EXIGIDO}"> -->\n<html>\n</html>`
+
+    expect(idiomaDeclarado(fixture)).toBeNull()
+  })
 })
 
 /**
- * Os cinco enganos que a re-review de 2026-08-28 mediu contra a versão anterior desta guarda, que
- * casava o atributo por regex. Em TODOS, a guarda antiga lia `pt-BR` e aprovava um documento que
- * não declara idioma nenhum (ou, no último, que declara um idioma ERRADO). Cada um está aqui para
- * que o fechamento continue provado: se alguém trocar o jsdom por uma varredura de texto de novo,
- * é este bloco que morre.
+ * As cinco formas de engano que a re-review de 2026-08-28 mediu contra a versão anterior desta
+ * guarda, que casava o atributo por regex. Em todas as cinco a guarda antiga lia `pt-BR`: em
+ * quatro, de um documento que não declara idioma nenhum; na última, de um documento cujo idioma
+ * REAL é `en`.
+ *
+ * Cada uma está aqui para que o fechamento continue provado. MEDIDO em 2026-08-28: substituindo o
+ * corpo de `idiomaDeclarado` pela implementação por regex, os CINCO testes deste bloco morrem.
+ * Essa medição é o motivo de o fixture do `<script>` usar aspas SIMPLES no HTML interno — com
+ * aspas duplas escapadas, como ele nasceu, o documento carrega uma contrabarra literal, a regex
+ * antiga não casa, e o teste ficava verde nas duas implementações, sem distinguir nada.
  */
 describe('enganos que derrubavam a versão por regex — todos reprovam agora', () => {
   it('comentário SEM terminador engole o documento, e não sobra idioma nenhum', () => {
@@ -143,7 +176,7 @@ describe('enganos que derrubavam a versão por regex — todos reprovam agora', 
   })
 
   it('pt-BR dentro de uma string em <script> não declara idioma', () => {
-    const fixture = '<!doctype html>\n<body><script>var a = "<html lang=\\"pt-BR\\">"</script></body>'
+    const fixture = `<!doctype html>\n<body><script>var a = "<html lang='pt-BR'>"</script></body>`
 
     expect(idiomaDeclarado(fixture)).toBeNull()
   })
@@ -156,12 +189,6 @@ describe('enganos que derrubavam a versão por regex — todos reprovam agora', 
     const fixture = `<html data-foo=" lang='pt-BR' " lang="en">`
 
     expect(idiomaDeclarado(fixture)).toBe('en')
-  })
-
-  it('lang escrito dentro de comentário fechado não vale pela tag real', () => {
-    const fixture = `<!-- exemplo: <html lang="${IDIOMA_EXIGIDO}"> -->\n<html>\n</html>`
-
-    expect(idiomaDeclarado(fixture)).toBeNull()
   })
 })
 
