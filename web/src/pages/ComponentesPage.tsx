@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import {
   listarComponentes, criarComponente, definirAtivoComponente, ehConflito,
   type ComponenteDto, type NovoComponente, type TipoDeComponente,
@@ -228,9 +229,21 @@ export function ComponentesPage() {
                 </Botao>
               )}
             >
-              <span className="font-mono font-semibold">{c.codigo}</span>
-              {' — '}
-              {c.descricao}
+              {/*
+                SEM overlay de propósito (decisão da Task 10 — ver o aviso do m6 em
+                ItemDeCadastro.tsx): este item TEM uma `acao` (Inativar/Reativar) no mesmo `<li>`,
+                e estender a área clicável do link ao cartão inteiro engoliria o botão — clicar
+                nele devolveria o link, não a ação. O link cobre só o texto (código — descrição);
+                a `acao` fica fora dele, e o alvo de clique menor é o custo aceito.
+              */}
+              <Link
+                to={`/componentes/${c.id}`}
+                className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+              >
+                <span className="font-mono font-semibold">{c.codigo}</span>
+                {' — '}
+                {c.descricao}
+              </Link>
               {' '}
               <Pilula>{c.tipo}</Pilula>
             </ItemDeCadastro>

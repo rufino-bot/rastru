@@ -18,6 +18,11 @@ export type Recurso = 'setores' | 'materiais' | 'componentes' | 'pedidos' | 'agr
 const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   setores: ['Administrador'],
   materiais: ['Administrador'],
+  // `componentes` cobre TAMBÉM a receita padrão (filhos, materiais e roteiro do Componente): é um
+  // conceito de permissão só, e não dois — o backend declara os mesmos perfis nos dois controllers
+  // de propósito. A tela da receita usa `usePodeEscrever('componentes')`; não existe
+  // `'receitaPadrao'`, e a razão de não existir está no comentário do mapa de
+  // `permissoesEspelhamOBackend.test.ts`, junto da guarda que fica vermelha se os dois divergirem.
   componentes: ['Administrador', 'PCP'],
   pedidos: ['PCP', 'Administrador'],
   agrupamentos: ['PCP', 'Administrador'],

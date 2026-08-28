@@ -574,9 +574,12 @@ describe('ComponentesPage', () => {
 
     expect(screen.getByRole('button', { name: 'Reativar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Inativar' })).toBeNull()
-    // `closest('span')` devolve o proprio span do codigo (monoespacado, peso semibold); o
-    // `line-through` mora no span PAI, o wrapper que o ItemDeCadastro poe em volta de children.
-    expect(screen.getByText('INA-001').closest('span')?.parentElement?.className).toContain('line-through')
+    // Task 10 pos a `Link` entre o span do codigo e o wrapper do ItemDeCadastro (decisao 1: o
+    // link cobre so o texto, sem overlay) — por isso `closest('a')`, e nao mais `closest('span')`,
+    // que agora devolveria o proprio span do codigo de novo (ele casa 'span' antes de subir ate o
+    // link). `line-through` mora no span AVO, o wrapper que o ItemDeCadastro poe em volta de
+    // children: span(codigo) -> a(Link) -> span(line-through).
+    expect(screen.getByText('INA-001').closest('a')?.parentElement?.className).toContain('line-through')
   })
 
   // Minor: reset de `erro`/`idReativavel` no inicio de `salvar`. Sem ele, depois de um 409 com
@@ -961,6 +964,25 @@ describe('ComponentesPage', () => {
 
     await avancar(1)
     expect(fetchMock).toHaveBeenCalledTimes(2)   // UMA requisição para as TRÊS teclas
+  })
+
+  it('cada componente linka para a própria página de detalhe', async () => {
+    // Chave COM o prefixo `/api` (defeito 3 do brief da Task 10) e forma inline dos ~20 vizinhos
+    // desta suíte, e não um helper `renderizarComponentes()` — ele não existe neste arquivo
+    // (defeito 4 do brief), e inventá-lo aqui seria refatorar teste alheio fora de escopo.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({
+        itens: [{ id: 7, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true }],
+        total: 1,
+        pagina: 1,
+        tamanho: 20,
+      }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    const link = await screen.findByRole('link', { name: /CH-100/ })
+    expect(link.getAttribute('href')).toBe('/componentes/7')
   })
 
   it('mantém a mensagem de código duplicado depois da recarga da lista', async () => {

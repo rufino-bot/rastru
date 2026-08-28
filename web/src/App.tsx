@@ -4,6 +4,7 @@ import { HomePage } from './pages/HomePage'
 import { SetoresPage } from './pages/SetoresPage'
 import { MateriaisPage } from './pages/MateriaisPage'
 import { ComponentesPage } from './pages/ComponentesPage'
+import { ComponenteDetalhePage } from './pages/ComponenteDetalhePage'
 import { PedidosPage } from './pages/PedidosPage'
 import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/setores" element={<SetoresPage />} />
         <Route path="/materiais" element={<MateriaisPage />} />
         <Route path="/componentes" element={<ComponentesPage />} />
+        <Route path="/componentes/:id" element={<ComponenteDetalhePage />} />
         <Route path="/pedidos" element={<PedidosPage />} />
         <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
       </Route>

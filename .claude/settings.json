@@ -1,0 +1,19 @@
+{
+  "worktree": {
+    "bgIsolation": "none"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ESTADO_DOCKER_TIMEOUT=8 bash \"${CLAUDE_PROJECT_DIR:-.}/scripts/estado\" --json 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Medindo o estado do checkout…"
+          }
+        ]
+      }
+    ]
+  }
+}

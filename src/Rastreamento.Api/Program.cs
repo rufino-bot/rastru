@@ -117,6 +117,11 @@ builder.Services.AddScoped<CadastroDeAgrupamentoUseCase>();
 builder.Services.AddScoped<IComponenteRepository, ComponenteRepository>();
 builder.Services.AddScoped<CadastroDeComponenteUseCase>();
 
+// Receita padrao do Componente (Fase 1C): UM repositorio para as tres tabelas, e um caso de uso
+// para os tres sub-recursos — ver o summary de IReceitaPadraoRepository.
+builder.Services.AddScoped<IReceitaPadraoRepository, ReceitaPadraoRepository>();
+builder.Services.AddScoped<ReceitaPadraoUseCase>();
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
 // A validacao do bearer le o MESMO JwtOptions do resto da aplicacao (um unico bind da secao
