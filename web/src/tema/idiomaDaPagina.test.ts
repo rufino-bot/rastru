@@ -51,20 +51,30 @@ import { dirname, join } from 'node:path'
  * ## O que este parser responde, e o que ele NÃO responde
  *
  * `DOMParser` parseia sem browsing context, o que pela spec significa **scripting desabilitado**.
- * Então o que a guarda responde, com precisão, é: *qual idioma o documento declara quando o
- * navegador termina de parsear o arquivo, antes de qualquer script rodar*. Isso não é a mesma
- * coisa que "qual idioma o navegador vê" em todo instante, e as duas divergem em dois casos
- * medidos na re-review de 2026-08-28:
+ * O que a guarda responde, então, é: *qual idioma o documento declara ao fim do parsing do
+ * arquivo, na leitura do jsdom, antes de qualquer script rodar*. Cada ressalva dessa frase é uma
+ * divergência medida em 2026-08-28 — as duas primeiras continuam abertas, a terceira foi fechada:
  *
- * - **`<noscript>` no `<head>`:** com scripting habilitado ele é raw text e o que está dentro não
- *   vira marcação; aqui ele é parseado. Um `<html lang="pt-BR">` escrito dentro de um `<noscript>`
- *   PASSA nesta guarda e não passaria no navegador. Ponto cego conhecido.
- * - **Script que altera `documentElement.lang` em runtime:** a guarda lê o arquivo, não o runtime.
- *   Hoje sem risco vivo — `grep -rn "documentElement" web/src/` devolve zero.
+ * - **`<noscript>` no `<head>` (ABERTA):** com scripting habilitado ele é raw text e o que está
+ *   dentro não vira marcação; aqui ele é parseado. Um `<html lang="pt-BR">` dentro de um
+ *   `<noscript>` PASSA nesta guarda e não passaria num navegador com JavaScript **habilitado** —
+ *   com JS desligado o navegador concorda com a guarda, pela mesma regra. Ponto cego conhecido.
+ * - **Script que altera `documentElement.lang` em runtime (ABERTA):** a guarda lê o arquivo, não
+ *   o runtime. Hoje sem risco vivo, medido assim: `grep -rn "documentElement" web/src/` casa
+ *   quatro linhas, e **todas as quatro são deste arquivo** — com
+ *   `--exclude=idiomaDaPagina.test.ts` devolve zero, e o mesmo vale para `\.lang`.
+ * - **Duas tags `<html>` no arquivo (FECHADA — ver `tagsDeAberturaHtml` abaixo):** o parse5 do
+ *   jsdom sobrescreve o `lang` da raiz com o da segunda tag, enquanto a spec (modo "in body",
+ *   start tag `html`) manda só acrescentar atributo que a raiz ainda NÃO tem — e o Chrome 148,
+ *   medido, obedece. Consequência antes do fecho: `<html lang="en">` como raiz mais um
+ *   `<html lang="pt-BR">` solto deixava esta guarda **15/15 VERDE** enquanto o `dist/index.html`
+ *   saía com `lang="en"`. É o ponto em que trocar a regex pelo parser REGREDIU a cobertura — a
+ *   versão por regex pegava este caso, e por isso ele não podia ficar só declarado em prosa.
  *
  * Não se afirma aqui que não há mais ponto cego: foi exatamente essa classe de frase que a
  * re-review derrubou na versão anterior deste arquivo. O que mudou é a FRONTEIRA — ela agora é o
- * algoritmo de parsing da spec de HTML, e não uma regex escrita à mão.
+ * parser de HTML do jsdom (parse5), mais a contagem sintática onde ele diverge do Chrome, e não
+ * uma regex escrita à mão.
  */
 
 /**
@@ -92,6 +102,24 @@ function idiomaDeclarado(fonte: string = HTML): string | null {
   return documento.documentElement.getAttribute('lang')
 }
 
+/**
+ * Quantas tags de ABERTURA `<html` o arquivo contém. É contagem sintática, complementar ao
+ * parser, e existe por um caso medido em que o parser sozinho aprovava página errada — o terceiro
+ * bullet do cabeçalho.
+ *
+ * Por que não dá para perguntar isso ao parser: quando há duas tags, ele já colapsou as duas numa
+ * raiz só antes de qualquer pergunta ser feita. A informação que interessa (havia duas?) só
+ * existe no texto.
+ *
+ * Limite assumido, e é o mesmo tipo que derrubou a versão por regex — mas aqui na direção SEGURA:
+ * um `<html` escrito dentro de um comentário ou de uma string de `<script>` é contado, e faria a
+ * guarda reprovar uma página correta. Nunca o contrário. Para um arquivo estático de 13 linhas,
+ * um falso positivo barulhento vale mais que um falso negativo silencioso.
+ */
+function tagsDeAberturaHtml(fonte: string = HTML): number {
+  return (fonte.match(/<html\b/gi) ?? []).length
+}
+
 describe('web/index.html declara o idioma da página', () => {
   it(`a tag <html> raiz declara lang="${IDIOMA_EXIGIDO}"`, () => {
     expect(
@@ -99,6 +127,36 @@ describe('web/index.html declara o idioma da página', () => {
       `web/index.html precisa declarar lang="${IDIOMA_EXIGIDO}" na tag <html> raiz (WCAG 3.1.1): ` +
         'a interface inteira é em português brasileiro.',
     ).toBe(IDIOMA_EXIGIDO)
+  })
+
+  it('o arquivo tem UMA tag <html> de abertura, e não duas', () => {
+    expect(
+      tagsDeAberturaHtml(),
+      'web/index.html precisa ter exatamente uma tag <html> de abertura. Com duas, o parser do ' +
+        'jsdom sobrescreve o lang da raiz com o da segunda e esta guarda aprova a página errada, ' +
+        'enquanto o navegador (medido: Chrome 148) mantém o lang da PRIMEIRA — que é o que sai ' +
+        'no dist/index.html.',
+    ).toBe(1)
+  })
+})
+
+describe('tagsDeAberturaHtml (a contagem que fecha o caso das duas tags)', () => {
+  it('conta uma no documento bem formado', () => {
+    expect(tagsDeAberturaHtml('<!doctype html>\n<html lang="pt-BR">\n</html>')).toBe(1)
+  })
+
+  it('conta duas no caso que derrubava o parser sozinho', () => {
+    const fixture = '<!doctype html>\n<html lang="en">\n<body></body>\n<html lang="pt-BR">\n</html>'
+
+    expect(tagsDeAberturaHtml(fixture)).toBe(2)
+  })
+
+  it('não conta a tag de FECHAMENTO, que aparece em todo documento', () => {
+    expect(tagsDeAberturaHtml('<html lang="pt-BR"></html>')).toBe(1)
+  })
+
+  it('não confunde <htmlfoo> com <html>', () => {
+    expect(tagsDeAberturaHtml('<htmlfoo lang="pt-BR">')).toBe(0)
   })
 })
 
