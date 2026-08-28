@@ -52,7 +52,7 @@ FRONT : 374 testes / 31 arquivos, verdes.  (`cd web && npm test -- --run`)
 BUILD : limpo.                              (`cd web && npm run build`)
 ```
 
-Alvo ao fim do plano: **391 testes / 33 arquivos**. Cada task declara o próprio delta; se um deles
+Alvo ao fim do plano: **395 testes / 34 arquivos**. Cada task declara o próprio delta; se um deles
 não bater, **corrija a baseline das tasks seguintes na mesma passada** — total absoluto propaga
 erro task a task.
 
@@ -91,10 +91,16 @@ cláusula 1 (não vender a fonte sozinha) não se aplica.
 | `web/src/api/cadastros.test.ts` | Guarda: `listarPedidos()` não é paginado | 2 |
 | `web/src/pedidos/statusDoPedido.ts` | `STATUS_DO_PEDIDO`, `ENCERRADOS`, `tomDoStatus` — o mapa que Home e `PedidosPage` compartilham | 3 |
 | `web/src/pedidos/statusDoPedido.test.ts` | Teste do módulo | 3 |
-| `web/src/pages/PedidosPage.tsx` | Passa a importar `tomDoStatus` em vez de declarar o próprio | 3 |
-| `web/src/pages/HomePage.tsx` | Resumo por status (3) + seção "há mais tempo" (4) | 3, 4 |
-| `web/src/pages/HomePage.test.tsx` | Testes das duas | 3, 4 |
-| `specs/06-roadmap-mvp.md` | Registrar a Fase 1E | 5 |
+| `web/src/pedidos/LinhaDePedido.tsx` | A linha de Pedido (número, cliente, status, data), com o item inteiro como alvo do clique — Home e `PedidosPage` | 4 |
+| `web/src/pedidos/LinhaDePedido.test.tsx` | Teste da primitiva | 4 |
+| `web/src/pages/PedidosPage.tsx` | Importa `tomDoStatus` (3); depois adota `LinhaDePedido` e perde quatro imports órfãos (4) | 3, 4 |
+| `web/src/pages/HomePage.tsx` | Resumo por status (3) + seção "há mais tempo" (5) | 3, 5 |
+| `web/src/pages/HomePage.test.tsx` | Testes das duas | 3, 5 |
+| `specs/06-roadmap-mvp.md` | Registrar a Fase 1E | 6 |
+
+**A ordem 3 → 4 → 5 é obrigatória:** a Task 4 precisa do `tomDoStatus` que a 3 extrai, e a 5
+precisa da `LinhaDePedido` que a 4 extrai e do estado `pedidos` que a 3 cria. As Tasks 1, 2 e 6 são
+independentes das demais.
 
 ---
 
@@ -484,8 +490,8 @@ Em `web/src/api/cadastros.test.ts`, logo **abaixo** do `it('lista pedidos', ...)
   // e nenhuma delas fica vermelha sozinha, porque continuam sendo números plausíveis.
   //
   // Este teste morre de DOIS jeitos, de propósito: `Array.isArray` mata a troca do tipo de retorno
-  // em tempo de execução, e a anotação de tipo abaixo dele mata a mesma troca em `tsc -b` (o
-  // Vitest não faz typecheck — `npm test` verde não prova que compila).
+  // em tempo de execução, e a anotação de tipo da variável `contrato` mata a mesma troca em
+  // `tsc -b`.
   //
   // Quando ele ficar vermelho, o conserto NÃO é apagá-lo: é decidir o que a Home passa a mostrar
   // (endpoint de resumo no backend, ou pedir `tamanho` grande explicitamente) e só então
@@ -500,17 +506,17 @@ Em `web/src/api/cadastros.test.ts`, logo **abaixo** do `it('lista pedidos', ...)
       new Response(JSON.stringify(vinteECinco), { status: 200 }),
     ))
 
-    const pedidos = await listarPedidos()
+    // A anotação de tipo É a guarda de compilação, e a chamada abaixo é a de runtime — as duas
+    // na mesma linha, sem variável de enfeite. Se `listarPedidos` virar
+    // `Promise<PaginaDe<PedidoDto>>`, esta atribuição para de compilar e `npm run build` reprova
+    // (o Vitest não faz typecheck: `npm test` verde não prova que compila).
+    const contrato: () => Promise<PedidoDto[]> = listarPedidos
+    const pedidos = await contrato()
 
     // Vinte e cinco, e não vinte: 20 é o tamanho de página padrão de `listarComponentes`. Se
     // alguém paginar `/pedidos` copiando aquele default, esta asserção é a que fica vermelha.
     expect(Array.isArray(pedidos)).toBe(true)
     expect(pedidos).toHaveLength(25)
-
-    // A guarda de TIPO, irmã da de runtime. Se `listarPedidos` virar
-    // `Promise<PaginaDe<PedidoDto>>`, esta linha para de compilar e `npm run build` reprova.
-    const _contrato: () => Promise<PedidoDto[]> = listarPedidos
-    expect(_contrato).toBe(listarPedidos)
   })
 ```
 
@@ -589,11 +595,11 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `listarPedidos`, `PedidoDto` (`web/src/api/cadastros.ts`); `Pilula`, `TomDePilula`
   (`web/src/components/Pilula.tsx`).
-- Produces, e a Task 4 depende dos três:
+- Produces, e as Tasks 4 e 5 dependem dos três:
   - `STATUS_DO_PEDIDO: readonly ['Aberto', 'EmProducao', 'AguardandoExpedicao', 'Concluido', 'Cancelado']`
   - `ENCERRADOS: readonly ['Concluido', 'Cancelado']`
   - `tomDoStatus(status: string): TomDePilula`
-  - Em `HomePage.tsx`: o estado `pedidos: PedidoDto[] | null` — a Task 4 deriva `maisAntigos` dele.
+  - Em `HomePage.tsx`: o estado `pedidos: PedidoDto[] | null` — a Task 5 deriva `maisAntigos` dele.
 
 **Delta de teste:** +3 (`statusDoPedido.test.ts`) +3 (`HomePage.test.tsx`) = **+6 testes, +1
 arquivo → 385 / 33**.
@@ -644,7 +650,7 @@ describe('statusDoPedido', () => {
     ])
   })
 
-  // `ENCERRADOS` é o que a seção "há mais tempo" (Task 4) exclui. Se alguém acrescentar
+  // `ENCERRADOS` é o que a seção "há mais tempo" (Task 5) exclui. Se alguém acrescentar
   // 'Cancelado' e esquecer 'Concluido' — ou vice-versa —, a Home listaria pedido encerrado como
   // "parado há mais tempo".
   it('trata Concluido e Cancelado como encerrados, e mais nenhum', () => {
@@ -926,7 +932,7 @@ No `try` do `carregar()`, no lugar do `setContagens({...})` de
 E no `catch`, **antes** do `setErro`, limpe o array:
 
 ```tsx
-      // Sem isto, uma falha numa releitura futura deixaria a seção "há mais tempo" (Task 4)
+      // Sem isto, uma falha numa releitura futura deixaria a seção "há mais tempo" (Task 5)
       // mostrando dado velho ao lado do banner de erro — o que a spec §3.4 proíbe. Hoje `carregar`
       // roda uma vez só e não há caminho que exercite isto; está aqui porque a alternativa é
       // depender de a Home nunca ganhar um botão de recarregar.
@@ -1028,28 +1034,284 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
-## Task 4: Home — seção "pedidos abertos há mais tempo"
+## Task 4: Extrair a primitiva `LinhaDePedido`
+
+**Files:**
+- Create: `web/src/pedidos/LinhaDePedido.tsx`
+- Create: `web/src/pedidos/LinhaDePedido.test.tsx`
+- Modify: `web/src/pages/PedidosPage.tsx` (adota a primitiva; quatro imports ficam órfãos e saem)
+
+**Interfaces:**
+- Consumes: `PedidoDto` e `formatarDataHora` (`web/src/api/cadastros.ts`); `Pilula`
+  (`web/src/components/Pilula.tsx`); `tomDoStatus` (`web/src/pedidos/statusDoPedido.ts`, Task 3).
+- Produces, e a Task 5 depende disto:
+  - `LinhaDePedido({ pedido }: { pedido: PedidoDto })` — o **conteúdo** de um `ItemDeCadastro`,
+    não o `<li>`.
+
+**Delta de teste:** +4 testes (`LinhaDePedido.test.tsx`), +1 arquivo → **389 / 34**.
+`PedidosPage.test.tsx` continua com **11** — a adoção é refatoração pura.
+
+### Por que esta task existe, e por que ela vem antes da seção da Home
+
+A Task 5 mostra o **mesmo item de Pedido** que a `PedidosPage` já mostra. A primeira versão deste
+plano mandava duplicar as ~12 linhas de markup inline, apoiada na §1 da spec ("zero tela
+reescrita"). **O usuário decidiu o contrário em 2026-08-28:** extrair a primitiva, e a
+`PedidosPage` adotá-la. Razão: é o que o `CLAUDE.md` prega ("se faltar uma primitiva, crie-a lá com
+teste próprio — não a embuta na tela"), e duplicação literal de bloco é o que a rúbrica de review
+trata como defeito. Extrair **antes** da Task 5 é o que impede a duplicação de existir em algum
+commit intermediário.
+
+**A pasta é `web/src/pedidos/`, e não `web/src/components/`, de propósito.** O `CLAUDE.md` diz que
+as primitivas vivem em `components/` — e as de lá são todas **genéricas** (`Pilula`, `Campo`,
+`Botao`, `EstadoVazio`): não conhecem entidade nenhuma. `LinhaDePedido` conhece `PedidoDto` e o
+vocabulário de status. O precedente do próprio repositório para componente com domínio é
+`web/src/auth/`, que guarda `ProtectedRoute.tsx` e `AuthContext.tsx` **junto** de `permissoes.ts`.
+`web/src/pedidos/` segue esse molde, e mantém a primitiva ao lado do `statusDoPedido.ts` de que ela
+depende.
+
+**Churn esperado entre tasks, e não é engano:** a Task 3 acrescentou
+`import { tomDoStatus } from '../pedidos/statusDoPedido'` à `PedidosPage`; esta task **remove** esse
+import, porque quem passa a chamar `tomDoStatus` é a primitiva. Cada uma das duas está certa no seu
+ponto — no diff da branch inteira, o saldo é um import a menos.
+
+- [ ] **Step 1: Escrever os quatro testes da primitiva**
+
+Crie `web/src/pedidos/LinhaDePedido.test.tsx`:
+
+```tsx
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach } from 'vitest'
+import { render, screen, cleanup } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { LinhaDePedido } from './LinhaDePedido'
+import type { PedidoDto } from '../api/cadastros'
+
+afterEach(cleanup)
+
+const PEDIDO: PedidoDto = {
+  id: 7, numero: 'PED-042', cliente: 'Metalúrgica Alfa', tipo: 'Fabricacao',
+  status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', criadoPorUsuarioId: 1,
+}
+
+function renderizar(pedido: PedidoDto) {
+  render(<MemoryRouter><LinhaDePedido pedido={pedido} /></MemoryRouter>)
+}
+
+describe('LinhaDePedido', () => {
+  it('leva ao pedido pelo id, e nao pela posicao na lista', () => {
+    // `id: 7` num render de um item só: uma implementação que use índice de array acertaria com
+    // `/pedidos/0`, e este teste é o que separa os dois casos.
+    renderizar(PEDIDO)
+
+    expect(screen.getByRole('link').getAttribute('href')).toBe('/pedidos/7')
+  })
+
+  it('mostra numero, cliente e a data de abertura no formato do projeto', () => {
+    // `formatarDataHora` NÃO passa por `Date` de propósito (a data já vem em GMT-3 com offset, e
+    // `new Date()` a reconverteria para o fuso do aparelho). Este teste fixa o formato de saída:
+    // se alguém trocar a formatação por `toLocaleString`, o dia aparece certo nesta bancada e
+    // errado num tablet fora do fuso — e só esta asserção pega.
+    renderizar(PEDIDO)
+
+    expect(screen.getByText('PED-042')).toBeTruthy()
+    expect(screen.getByText(/Metalúrgica Alfa/)).toBeTruthy()
+    expect(screen.getByText(/aberto em 01\/08\/2026 09:30/)).toBeTruthy()
+  })
+
+  it('reserva verde para Concluido e vermelho para Cancelado, e deixa o resto neutro', () => {
+    // Asserção pela CLASSE, e não pelo texto: `Pilula` renderiza `children` seja qual for o tom,
+    // então achar a palavra "Concluido" na tela não prova tom nenhum. É a mesma forma que
+    // `PedidosPage.test.tsx` já usa.
+    renderizar({ ...PEDIDO, status: 'Concluido' })
+    expect(screen.getByText('Concluido').className).toMatch(/positivo-/)
+    cleanup()
+
+    renderizar({ ...PEDIDO, status: 'Cancelado' })
+    expect(screen.getByText('Cancelado').className).toMatch(/negativo-/)
+    cleanup()
+
+    renderizar({ ...PEDIDO, status: 'EmProducao' })
+    const neutra = screen.getByText('EmProducao').className
+    expect(neutra).not.toMatch(/positivo-/)
+    expect(neutra).not.toMatch(/negativo-/)
+  })
+
+  it('estende a area clicavel ao item inteiro', () => {
+    // ⚠️ Esta asserção é sobre a CLASSE, não sobre o comportamento: jsdom não calcula layout, e
+    // nenhum teste desta suíte consegue provar que o overlay realmente cobre o `<li>`. O que ela
+    // impede é o apagamento silencioso do overlay — numa bancada com tablet, alvo do tamanho do
+    // número em vez do item inteiro erra o clique, e nada na suíte reclamaria.
+    renderizar(PEDIDO)
+
+    const classes = screen.getByRole('link').className.split(/\s+/)
+    expect(classes).toContain('after:absolute')
+    expect(classes).toContain('after:inset-0')
+  })
+})
+```
+
+- [ ] **Step 2: Rodar e ver falhar**
+
+```bash
+cd web && npx vitest run src/pedidos/LinhaDePedido.test.tsx
+```
+
+Esperado: falha no import — `Failed to resolve import "./LinhaDePedido"`.
+
+- [ ] **Step 3: Escrever a primitiva**
+
+Crie `web/src/pedidos/LinhaDePedido.tsx`. O markup é **o mesmo** que a `PedidosPage` tem hoje em
+[PedidosPage.tsx:124-141](web/src/pages/PedidosPage.tsx:124) — esta task o move, não o redesenha:
+
+```tsx
+import { Link } from 'react-router-dom'
+import { formatarDataHora, type PedidoDto } from '../api/cadastros'
+import { Pilula } from '../components/Pilula'
+import { tomDoStatus } from './statusDoPedido'
+
+/**
+ * Uma linha de Pedido: número, cliente, status e data de abertura, com o item inteiro como alvo do
+ * clique.
+ *
+ * Nasceu na Fase 1E, quando a Home ganhou a seção "abertos há mais tempo" e passou a mostrar o
+ * MESMO item que a `PedidosPage` — dois consumidores do mesmo markup, que é o que faz primitiva.
+ * Antes disso era código inline de uma tela só, e extrair teria sido abstração sem segundo caso.
+ *
+ * **Não traz o `<li>`**: quem o traz é o `ItemDeCadastro`, que guarda o que não varia (semântica de
+ * lista, borda e espaçamento). Esta primitiva é o CONTEÚDO dele.
+ */
+export function LinhaDePedido({ pedido }: { pedido: PedidoDto }) {
+  return (
+    // O item inteiro é o alvo do clique, e não só o número: numa tela de bancada com tablet, alvo
+    // pequeno erra. `after:absolute after:inset-0` estende a área clicável ao cartão sem aninhar
+    // elementos interativos.
+    //
+    // ⚠️ DEPENDE de o ancestral ser posicionado — hoje é o `<li>` do `ItemDeCadastro`. Usada fora
+    // dele, o overlay vaza para o ancestral posicionado mais próximo e cobre o que não devia. E
+    // vale a armadilha m6 documentada no próprio `ItemDeCadastro`: overlay e `acao` no mesmo item
+    // colidem, e jsdom não pega — a conferência é no navegador.
+    <Link
+      to={`/pedidos/${pedido.id}`}
+      className="flex flex-col gap-1 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+    >
+      <span className="font-medium">
+        <span className="font-mono">{pedido.numero}</span> — {pedido.cliente}
+      </span>
+      <span className="flex items-center gap-2 text-sm text-tinta-fraca">
+        <Pilula tom={tomDoStatus(pedido.status)}>{pedido.status}</Pilula>
+        aberto em {formatarDataHora(pedido.dataAbertura)}
+      </span>
+    </Link>
+  )
+}
+```
+
+- [ ] **Step 4: Rodar e ver os quatro passarem**
+
+```bash
+cd web && npx vitest run src/pedidos/LinhaDePedido.test.tsx
+```
+
+Esperado: **4 passed**.
+
+- [ ] **Step 5: A `PedidosPage` adota a primitiva**
+
+Em `web/src/pages/PedidosPage.tsx`, troque todo o conteúdo do `<ItemDeCadastro>` — o comentário de
+`:125-129` e o `<Link>` de `:130-141` — por uma linha:
+
+```tsx
+            <ItemDeCadastro key={p.id}>
+              <LinhaDePedido pedido={p} />
+            </ItemDeCadastro>
+```
+
+E limpe os **quatro** imports que ficam órfãos (nenhum deles tem outro uso no arquivo — conferido):
+
+| Import | Onde | Por quê sai |
+|---|---|---|
+| `Link` de `react-router-dom` (`:2`) | linha inteira | era usado só no bloco movido |
+| `formatarDataHora` (`:4`) | dentro do `import` de `../api/cadastros` | idem |
+| `Pilula` (`:14`) | linha inteira | idem |
+| `tomDoStatus` (`../pedidos/statusDoPedido`) | linha inteira | a Task 3 o acrescentou; agora quem chama é a primitiva |
+
+E acrescente:
+
+```tsx
+import { LinhaDePedido } from '../pedidos/LinhaDePedido'
+```
+
+- [ ] **Step 6: Provar que a adoção não mudou nada**
+
+```bash
+cd web && npx vitest run src/pages/PedidosPage.test.tsx && npm run build
+```
+
+Esperado: **11 passed** — o mesmo número medido em 2026-08-28 antes de qualquer task — e build
+limpo. O build importa mais que de costume aqui: import órfão que sobrou é erro de lint/tipo, não
+de teste, e a suíte ficaria verde com ele.
+
+**Se a contagem mudar, pare.** Refatoração pura não muda contagem de teste; contagem diferente
+significa que algo além do markup mudou.
+
+- [ ] **Step 7: Provar por mutação que a primitiva está mesmo em uso**
+
+Adoção pode "passar" porque o teste não olha para o lugar certo. Apague o corpo do `<Link>` dentro
+de `LinhaDePedido.tsx`, deixando só o `<Link to=…/>` vazio:
+
+```bash
+cd web && npx vitest run src/pages/PedidosPage.test.tsx src/pedidos/LinhaDePedido.test.tsx
+```
+
+Esperado: falham testes nos **dois** arquivos. Se `PedidosPage.test.tsx` ficar **verde**, a adoção
+do Step 5 não foi aplicada — a tela ainda renderiza o markup antigo. Reverta a mutação e confirme
+o verde.
+
+- [ ] **Step 8: Suíte inteira**
+
+```bash
+cd web && npm test -- --run && npm run build
+```
+
+Esperado: **389 passed / 34 files**, build limpo.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add web/src/pedidos/LinhaDePedido.tsx web/src/pedidos/LinhaDePedido.test.tsx web/src/pages/PedidosPage.tsx
+git commit -m "refactor(1e): extrai LinhaDePedido, e a PedidosPage adota
+
+A Home da Task 5 mostra o MESMO item de Pedido que a PedidosPage — segundo
+consumidor do mesmo markup, que e o que faz primitiva. Extrair antes e o que impede
+a duplicacao de existir em algum commit intermediario.
+
+Fica em src/pedidos/ e nao em src/components/: as primitivas de components/ sao todas
+genericas, e esta conhece PedidoDto. O precedente do repo para componente com dominio
+e src/auth/ (ProtectedRoute.tsx junto de permissoes.ts).
+
+Refatoracao pura: PedidosPage.test.tsx continua 11/11. Mutacao medida — esvaziar o
+Link da primitiva quebra testes nos DOIS arquivos, o que prova que a adocao pegou.
+
+Decisao do usuario em 2026-08-28, contra a primeira versao do plano, que mandava
+duplicar apoiada no 'zero tela reescrita' da spec.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
+```
+
+---
+
+## Task 5: Home — seção "pedidos abertos há mais tempo"
 
 **Files:**
 - Modify: `web/src/pages/HomePage.tsx` (derivação `maisAntigos` + `<section>` nova depois da grade)
 - Modify: `web/src/pages/HomePage.test.tsx`
 
 **Interfaces:**
-- Consumes: da Task 3 — o estado `pedidos: PedidoDto[] | null` e `ENCERRADOS`/`tomDoStatus` de
-  `web/src/pedidos/statusDoPedido.ts`. De `web/src/api/cadastros.ts` — `formatarDataHora`.
-  De `web/src/components/` — `ListaDeCadastro`, `ItemDeCadastro`, `EstadoVazio`, `Pilula`.
+- Consumes: da Task 3 — o estado `pedidos: PedidoDto[] | null` e `ENCERRADOS` de
+  `web/src/pedidos/statusDoPedido.ts`. Da Task 4 — `LinhaDePedido`. De `web/src/components/` —
+  `ListaDeCadastro`, `ItemDeCadastro`, `EstadoVazio`.
 - Produces: nada. É a última task de código.
 
-**Delta de teste:** +6 testes, +0 arquivo → **391 / 33**.
-
-### Desvio deliberado da spec §3.2, nomeado em vez de silencioso
-
-A spec diz *"Cada linha (número, cliente, status) é um link para `/pedidos/:id`"*. Este plano
-**acrescenta a data de abertura** à linha, reusando o markup da `PedidosPage`
-([PedidosPage.tsx:130-141](web/src/pages/PedidosPage.tsx:130)). Razão: a seção **ordena por
-`dataAbertura`** e não mostrar a chave da ordenação faz a lista parecer arbitrária — o leitor não
-tem como saber por que PED-005 vem antes de PED-003. É acréscimo, não troca: os três campos que a
-spec pede continuam lá. Se a review discordar, remover a data é apagar uma linha.
+**Delta de teste:** +6 testes, +0 arquivo → **395 / 34**.
 
 ### Armadilha medida: `role="status"` duplicado
 
@@ -1076,10 +1338,10 @@ Ao fim do `describe` de `web/src/pages/HomePage.test.tsx`:
     await screen.findByText('41')
 
     const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
-    const numeros = within(secao).getAllByRole('listitem').map((li) => li.textContent)
-    expect(numeros[0]).toContain('PED-003')
-    expect(numeros[1]).toContain('PED-004')
-    expect(numeros[2]).toContain('PED-001')
+    const linhas = within(secao).getAllByRole('listitem').map((li) => li.textContent)
+    expect(linhas[0]).toContain('PED-003')
+    expect(linhas[1]).toContain('PED-004')
+    expect(linhas[2]).toContain('PED-001')
   })
 
   it('deixa Concluido e Cancelado fora da lista de ha mais tempo', async () => {
@@ -1127,8 +1389,8 @@ Ao fim do `describe` de `web/src/pages/HomePage.test.tsx`:
     await screen.findByText('41')
 
     const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
-    const primeiro = within(secao).getAllByRole('listitem')[0]
-    expect(within(primeiro).getByRole('link').getAttribute('href')).toBe('/pedidos/3')
+    const primeira = within(secao).getAllByRole('listitem')[0]
+    expect(within(primeira).getByRole('link').getAttribute('href')).toBe('/pedidos/3')
   })
 
   it('diz que nao ha pedido aberto, em vez de sumir, quando a leitura deu certo e a lista e vazia', async () => {
@@ -1151,8 +1413,8 @@ Ao fim do `describe` de `web/src/pages/HomePage.test.tsx`:
   })
 
   it('nao mostra a secao — nem vazia — quando a leitura falhou', async () => {
-    // O padrão que já pegou DUAS vezes nesta fase (Tasks 8 e 10 da 1C): estado vazio renderizado
-    // junto do banner de erro, dizendo "não há pedidos abertos" quando a verdade é "não consegui
+    // O padrão que já pegou DUAS vezes na 1C (Tasks 8 e 10): estado vazio renderizado junto do
+    // banner de erro, dizendo "não há pedidos abertos" quando a verdade é "não consegui
     // perguntar". A seção inteira some enquanto houver erro.
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ erro: 'x' }, 500),
@@ -1169,7 +1431,7 @@ Ao fim do `describe` de `web/src/pages/HomePage.test.tsx`:
   })
 ```
 
-- [ ] **Step 2: Rodar e ver falhar**
+- [ ] **Step 2: Rodar, e conferir QUAL falha**
 
 ```bash
 cd web && npx vitest run src/pages/HomePage.test.tsx
@@ -1184,7 +1446,7 @@ Esperado: **5 failed, 12 passed**.
 | `para em cinco…` | **FALHA** | idem |
 | `leva ao pedido certo por cada linha` | **FALHA** | idem |
 | `diz que nao ha pedido aberto…` | **FALHA** | `getByText('Nenhum pedido em aberto.')` não acha nada |
-| `nao mostra a secao — nem vazia — quando a leitura falhou` | passa | afirma ausência, e não há nada. Vira prova de verdade na mutação **M8** do Step 5 |
+| `nao mostra a secao — nem vazia — quando a leitura falhou` | passa | afirma ausência, e não há nada. Vira prova de verdade na mutação **M8** do Step 4 |
 
 Se algum dos 11 antigos falhar, pare: a Task 3 deixou algo pela metade.
 
@@ -1195,11 +1457,14 @@ Em `web/src/pages/HomePage.tsx`:
 **3a.** Acrescente aos imports:
 
 ```tsx
-import { ..., formatarDataHora, type PedidoDto } from '../api/cadastros'
 import { STATUS_DO_PEDIDO, ENCERRADOS, tomDoStatus } from '../pedidos/statusDoPedido'
+import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { EstadoVazio } from '../components/EstadoVazio'
 ```
+
+(`STATUS_DO_PEDIDO` e `tomDoStatus` já estavam lá desde a Task 3 — o que entra agora é
+`ENCERRADOS` naquela mesma linha, mais os três imports novos.)
 
 **3b.** Uma constante, junto do topo do arquivo:
 
@@ -1211,12 +1476,15 @@ const QUANTOS_MAIS_ANTIGOS = 5
 **3c.** A derivação, ao lado de `porStatus`:
 
 ```tsx
-  // Ordenação por string ISO, e não por `Date`: `dataAbertura` chega em GMT-3 com offset explícito
-  // (`HorarioDeBrasiliaJsonConverter`), e ISO 8601 com o mesmo offset ordena lexicograficamente na
-  // mesma ordem que cronologicamente. Passar por `new Date()` reconverteria para o fuso do
-  // aparelho — o mesmo motivo que fez `formatarDataHora` não usar `Date`.
+  // Ordenação pela string ISO, e não por `Date`: `dataAbertura` chega em GMT-3 com offset
+  // explícito (`HorarioDeBrasiliaJsonConverter`), e ISO 8601 com o mesmo offset ordena
+  // lexicograficamente na mesma ordem que cronologicamente. Passar por `new Date()` reconverteria
+  // para o fuso do aparelho — o mesmo motivo que fez `formatarDataHora` não usar `Date`.
   //
-  // `.filter()` já devolve array novo, então o `.sort()` abaixo não muda o estado no lugar.
+  // `.filter()` já devolve array novo, então o `.sort()` abaixo não ordena o estado no lugar.
+  //
+  // `.some(===)` e não `.includes`: `ENCERRADOS` é tupla `readonly`, e `.includes` exigiria um
+  // cast para aceitar um `status` que pode não estar nela.
   const maisAntigos = pedidos === null ? null : pedidos
     .filter((p) => !ENCERRADOS.some((encerrado) => encerrado === p.status))
     .sort((a, b) => a.dataAbertura.localeCompare(b.dataAbertura))
@@ -1243,22 +1511,7 @@ const QUANTOS_MAIS_ANTIGOS = 5
             <ListaDeCadastro rotulo="Pedidos abertos há mais tempo">
               {maisAntigos.map((p) => (
                 <ItemDeCadastro key={p.id}>
-                  {/* Mesmo markup da `PedidosPage`: o item inteiro é o alvo do clique, porque numa
-                      bancada com tablet alvo pequeno erra. `ItemDeCadastro` aqui não recebe
-                      `acao` — a armadilha m6 documentada na primitiva (overlay engolindo a ação)
-                      não se aplica. */}
-                  <Link
-                    to={`/pedidos/${p.id}`}
-                    className="flex flex-col gap-1 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
-                  >
-                    <span className="font-medium">
-                      <span className="font-mono">{p.numero}</span> — {p.cliente}
-                    </span>
-                    <span className="flex items-center gap-2 text-sm text-tinta-fraca">
-                      <Pilula tom={tomDoStatus(p.status)}>{p.status}</Pilula>
-                      aberto em {formatarDataHora(p.dataAbertura)}
-                    </span>
-                  </Link>
+                  <LinhaDePedido pedido={p} />
                 </ItemDeCadastro>
               ))}
             </ListaDeCadastro>
@@ -1267,7 +1520,7 @@ const QUANTOS_MAIS_ANTIGOS = 5
       )}
 ```
 
-- [ ] **Step 4: Rodar e ver os seis passarem**
+- [ ] **Step 4: Rodar, e depois provar por mutação**
 
 ```bash
 cd web && npx vitest run src/pages/HomePage.test.tsx
@@ -1275,39 +1528,40 @@ cd web && npx vitest run src/pages/HomePage.test.tsx
 
 Esperado: **17 passed** (11 da Task 3 + 6).
 
-- [ ] **Step 5: Provar por mutação — quatro, uma de cada vez**
+Então as cinco mutações, uma de cada vez, revertendo entre elas. **Anote o que NÃO morreu** — é
+isso que diz onde a suíte é cega.
 
 | # | Mutação em `HomePage.tsx` | Esperado |
 |---|---|---|
 | M4 | apagar o `.sort(...)` | `lista os pedidos abertos ha mais tempo…` falha |
-| M5 | inverter o sinal: `b.dataAbertura.localeCompare(a.dataAbertura)` | idem, e a mensagem mostra PED-001 no índice 0 |
+| M5 | inverter o sinal: `b.dataAbertura.localeCompare(a.dataAbertura)` | idem, com PED-001 no índice 0 |
 | M6 | apagar o `.filter(...)` de `ENCERRADOS` | `deixa Concluido e Cancelado fora…` falha, com PED-005 na lista |
 | M7 | `.slice(0, QUANTOS_MAIS_ANTIGOS)` → `.slice(0, 8)` | `para em cinco…` falha |
-| M8 | `maisAntigos !== null` → `maisAntigos !== null \|\| erro !== null` renderizando vazio | `nao mostra a secao — nem vazia — quando a leitura falhou` falha |
+| M8 | trocar `maisAntigos !== null` por uma condição que renderize a seção vazia sob erro | `nao mostra a secao — nem vazia — quando a leitura falhou` falha |
 
-**Anote o que não morreu.** Uma mutação que sobrevive é um teste que não prova o que diz.
-
-- [ ] **Step 6: Suíte inteira e build**
+- [ ] **Step 5: Suíte inteira e build**
 
 ```bash
 cd web && npm test -- --run && npm run build
 ```
 
-Esperado: **391 passed / 33 files**, build limpo.
+Esperado: **395 passed / 34 files**, build limpo.
 
-- [ ] **Step 7: Verificar no navegador**
+- [ ] **Step 6: Verificar no navegador**
 
-Suba o front pela ferramenta de preview, com o banco de demo carregado (`db/seed-demo.sql` — sem
-ele a Home fica vazia e parece quebrada). Confira, e registre no relatório:
+Suba o front pela ferramenta de preview (não por Bash), com o banco de demo carregado
+(`db/seed-demo.sql` — sem ele a Home fica vazia e parece quebrada). Confira, e registre no
+relatório:
 
 1. o cartão de Pedidos mostra as cinco pílulas, incluindo a zerada;
 2. a seção "Pedidos abertos há mais tempo" lista no máximo cinco, do mais antigo para o mais novo;
-3. clicar numa linha abre o pedido certo;
+3. clicar numa linha abre o pedido certo — e o clique funciona **no meio da linha**, não só sobre o
+   texto (é o overlay que nenhum teste consegue provar);
 4. a tela não rola na horizontal em viewport de celular (375px) — as cinco pílulas quebram linha;
 5. o foco por teclado (Tab) percorre os quatro cartões e depois as linhas da seção, com contorno
    visível.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add web/src/pages/HomePage.tsx web/src/pages/HomePage.test.tsx
@@ -1323,12 +1577,14 @@ por Date a reconverteria para o fuso do aparelho.
 A secao some inteira quando a leitura falha, em vez de mostrar estado vazio ao lado
 do banner de erro — o padrao que ja pegou duas vezes na 1C.
 
+Reusa a LinhaDePedido da Task 4: zero markup duplicado da PedidosPage.
+
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 5: Registrar a Fase 1E no roadmap
+## Task 6: Registrar a Fase 1E no roadmap
 
 **Files:**
 - Modify: `specs/06-roadmap-mvp.md` (seção nova entre a da Fase 1D, que termina em
@@ -1364,7 +1620,8 @@ em duas linhas vizinhas. A seção nova precisa desarmar isso explicitamente. In
 > ampla motivada por o padrão de primitivas não ter segurado. Aqui o padrão segurou: a troca de
 > fonte é **o gancho que a própria 1D deixou pronto** ("trocar por uma fonte própria depois é mudar
 > um token, não reescrever telas"), e o reforço da Home usa as primitivas existentes e o dado que a
-> Home **já** buscava. As outras seis telas não são reabertas.
+> Home **já** buscava. As outras seis telas não são reabertas — a `PedidosPage` é tocada só para
+> adotar a `LinhaDePedido` extraída do markup que ela mesma já tinha.
 >
 > **Fora de escopo, por decisão escrita:** densidade das outras telas; "prazo de entrega" e
 > "pedidos em atraso" — o domínio não tem campo de data prevista, e criá-lo é mudança de schema
@@ -1386,6 +1643,7 @@ Prosa não tem suíte; a conferência é o teste. Uma a uma:
 grep -n "font-sans\|font-mono" web/src/index.css          # os tokens existem e nomeiam IBM Plex
 grep -rn "AguardandoExpedicao" web/src/pages/HomePage.tsx # o status cru está mesmo na tela
 grep -n "HomePage depende disso" web/src/api/cadastros.test.ts   # a guarda existe
+grep -rn "LinhaDePedido" web/src/pages/PedidosPage.tsx    # a PedidosPage adota mesmo a primitiva
 sed -n '/Fase 1D/,/Fase 1E/p' specs/06-roadmap-mvp.md     # o corolário citado está no texto acima
 ```
 
@@ -1420,9 +1678,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ## Fechamento da branch
 
-Depois da Task 5, e **antes** de abrir o PR:
+Depois da Task 6, e **antes** de abrir o PR:
 
-- [ ] `cd web && npm test -- --run && npm run build` — **391 / 33**, build limpo.
+- [ ] `cd web && npm test -- --run && npm run build` — **395 / 34**, build limpo.
 - [ ] `bash scripts/estado` — árvore limpa, branch empurrada, ledger em dia.
 - [ ] Review de branch inteira, no modelo mais capaz, em **sessão nova** — review pesada não se
   despacha no fim de sessão longa. Prepare o pacote com `scripts/review-package BASE HEAD` (BASE =
@@ -1448,14 +1706,14 @@ suíte cheia, meça-a na hora; não copie esse número para um relatório como s
 | §2 prova da licença OFL **antes** de baixar | 1, bloco "o que a medição derrubou" + Step 4 |
 | §3.1 cinco status, inclusive os zerados | 3, Step 5 (1º teste) |
 | §3.1 cartão continua um `<Link>` só | 3, Step 5 (3º teste) |
-| §3.2 cinco mais antigos, fora de `Concluido`/`Cancelado`, por `DataAbertura` | 4, Steps 1 e 3 |
-| §3.2 cada linha leva a `/pedidos/:id` | 4, Step 1 (4º teste) |
-| §3.2 estado vazio real, nunca junto de erro | 4, Step 1 (5º e 6º testes) |
-| §3.3 zero requisição nova, derivado do mesmo array | 3 e 4 (nenhuma chamada nova) + a guarda da 2 |
-| §3.4 traço "—", não "0", e seção ausente sob erro | 3, Step 5 (2º teste); 4, Step 1 (6º teste) |
-| §4 os seis casos mínimos de teste | 3 e 4 — os seis estão cobertos, com quatro a mais |
-| §5 "prazo de entrega" registrado como fase futura | já está na §5 da spec; a Task 5 o repete no roadmap |
-| §0 esta fase não é a "1D parte 2" | 5, Step 1 |
+| §3.2 cinco mais antigos, fora de `Concluido`/`Cancelado`, por `DataAbertura` | 5, Steps 1 e 3 |
+| §3.2 cada linha leva a `/pedidos/:id` | 4, Step 1 (1º teste); 5, Step 1 (4º teste) |
+| §3.2 estado vazio real, nunca junto de erro | 5, Step 1 (5º e 6º testes) |
+| §3.3 zero requisição nova, derivado do mesmo array | 3 e 5 (nenhuma chamada nova) + a guarda da 2 |
+| §3.4 traço "—", não "0", e seção ausente sob erro | 3, Step 5 (2º teste); 5, Step 1 (6º teste) |
+| §4 os seis casos mínimos de teste | 3 e 5 — os seis estão cobertos, com quatro a mais |
+| §5 "prazo de entrega" registrado como fase futura | já está na §5 da spec; a Task 6 o repete no roadmap |
+| §0 esta fase não é a "1D parte 2" | 6, Step 1 |
 
 Sem lacuna.
 
@@ -1463,23 +1721,36 @@ Sem lacuna.
 todo passo que muda código traz o código, e todo comando traz a saída esperada.
 
 **3. Consistência de tipos.** `STATUS_DO_PEDIDO`, `ENCERRADOS` e `tomDoStatus` são declarados na
-Task 3 e usados com os mesmos nomes na Task 4. `PedidoDto` vem de `web/src/api/cadastros.ts` nas
-Tasks 2, 3 e 4. `TomDePilula` é importado de `web/src/components/Pilula.tsx`, onde já é exportado.
-O estado `pedidos: PedidoDto[] | null` nasce na Task 3 e a Task 4 deriva dele — a Task 4 **não**
-roda antes da 3.
+Task 3 e usados com os mesmos nomes nas Tasks 4 e 5. `LinhaDePedido({ pedido })` é declarado na
+Task 4 e consumido na 5 com o mesmo nome de prop. `PedidoDto` vem de `web/src/api/cadastros.ts` nas
+Tasks 2, 3, 4 e 5. `TomDePilula` é importado de `web/src/components/Pilula.tsx`, onde já é
+exportado. O estado `pedidos: PedidoDto[] | null` nasce na Task 3 e a Task 5 deriva dele — a ordem
+3 → 4 → 5 é obrigatória.
 
 **4. Medição do próprio plano** (`[[medir-o-plano-antes-de-despachar]]`). Somei os `it(`, medi as
-contagens por arquivo na bancada e reencenei mentalmente cada passo de "rodar e ver falhar". Achou
-**três defeitos**, todos da mesma família — *saída esperada de passo de TDD escrita por dedução em
-vez de por simulação*:
+contagens por arquivo na bancada e reencenei cada passo de "rodar e ver falhar". Achou **três
+defeitos**, todos da mesma família — *saída esperada de passo de TDD escrita por dedução em vez de
+por simulação*:
 
 | Onde | Dizia | É |
 |---|---|---|
 | Task 1, Step 6 | "4 failed" | **2 failed, 2 passed** — o teste de existência de arquivo passa **por iterar lista vazia**, e a licença já foi copiada no Step 2 |
 | Task 3, Step 6 | "3 failed", e no mesmo parágrafo explicava que um deles passa | **1 failed, 10 passed** |
-| Task 4, Step 2 | "4 failed, 2 passed" | **5 failed, 1 passed** |
+| Task 5 (então 4), Step 2 | "4 failed, 2 passed" | **5 failed, 1 passed** |
 
 Os três estão corrigidos, e os passos passaram a listar **qual** teste cai de cada lado, com o
 porquê — número de falhas sozinho não distingue "a guarda ainda não pegou" de "a guarda nunca vai
 pegar". Números medidos que entraram no plano: `cadastros.test.ts` = 51, `HomePage.test.tsx` = 8,
 `PedidosPage.test.tsx` = 11, `contraste.test.ts` = 37.
+
+**5. Varredura pré-voo (skill `subagent-driven-development`).** Duas coisas que o plano mandava e a
+rúbrica de review trata como defeito:
+
+- **Asserção tautológica** em Task 2 (`expect(_contrato).toBe(listarPedidos)`, uma variável
+  comparada ao que acabou de ser atribuído a ela). Não havia trade-off — a versão corrigida usa a
+  variável anotada para **chamar** a função, mantendo as duas guardas e perdendo a tautologia.
+  Corrigido no plano sem consultar.
+- **Duplicação literal de ~12 linhas** de markup entre a `PedidosPage` e a seção nova da Home. A
+  primeira versão do plano a mandava, apoiada no "zero tela reescrita" da §1 da spec. **Decisão do
+  usuário em 2026-08-28: extrair a primitiva `LinhaDePedido`** — o que criou a Task 4 e empurrou as
+  antigas 4 e 5 para 5 e 6. Total do plano subiu de 391/33 para **395/34**.
