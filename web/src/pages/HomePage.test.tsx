@@ -309,6 +309,29 @@ describe('HomePage', () => {
 
     expect(screen.getByText('Nenhum pedido em aberto.')).toBeTruthy()
     expect(screen.queryByRole('list', { name: 'Pedidos abertos há mais tempo' })).toBeNull()
+    // A descrição é a metade que distingue esta causa da do teste seguinte: aqui HÁ pedido
+    // cadastrado, e o que não há é pedido em aberto.
+    expect(screen.getByText('Todos os pedidos cadastrados estão concluídos ou cancelados.')).toBeTruthy()
+  })
+
+  it('distingue cadastro vazio de todos encerrados, que caem no mesmo vazio', async () => {
+    // Os dois caminhos chegam a `maisAntigos.length === 0`, e o título é o mesmo nos dois. Sem
+    // esta ramificação a tela afirmaria que "todos os pedidos cadastrados estão concluídos ou
+    // cancelados" sobre um cadastro que não tem pedido nenhum — o `CLAUDE.md` exige que o vazio
+    // distinga "não achei" de "não há nada".
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
+      '/api/pedidos': () => respostaJson([]),
+      '/api/materiais': () => respostaJson([]),
+      '/api/setores': () => respostaJson([]),
+    }))
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    expect(screen.getByText('Nenhum pedido em aberto.')).toBeTruthy()
+    expect(screen.getByText('Nenhum pedido foi cadastrado ainda.')).toBeTruthy()
+    expect(screen.queryByText('Todos os pedidos cadastrados estão concluídos ou cancelados.')).toBeNull()
   })
 
   it('nao mostra a secao — nem vazia — quando a leitura falhou', async () => {

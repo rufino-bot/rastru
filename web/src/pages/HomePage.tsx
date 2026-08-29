@@ -109,6 +109,10 @@ export function HomePage() {
     .sort((a, b) => a.dataAbertura.localeCompare(b.dataAbertura))
     .slice(0, QUANTOS_MAIS_ANTIGOS)
 
+  // Derivado aqui, e não no JSX, porque lá dentro o TypeScript não estreita `pedidos` pela porta
+  // `maisAntigos !== null` — são duas variáveis diferentes para ele, mesmo que uma nasça da outra.
+  const cadastroVazio = pedidos !== null && pedidos.length === 0
+
   return (
     <Pagina titulo="Início">
       <BannerDeErro mensagem={erro} />
@@ -138,8 +142,9 @@ export function HomePage() {
                 // tema (paleta, contraste, opacidade) mede SEMÂNTICA de cor, e por isso o teste
                 // `nao usa cor de estado no resumo...` existe — sem ele, uma recolorização futura
                 // deste resumo passaria a suíte inteira em verde. MEDIDO, e não deduzido: repondo
-                // `tom={tomDoStatus(status)}` aqui, a suíte fecha em 395 verdes e UMA vermelha, e
-                // a vermelha é esse teste.
+                // `tom={tomDoStatus(status)}` aqui — mais o import de `tomDoStatus`, que este
+                // arquivo não tem, sem o qual a reposição nem compila — a suíte fecha com UMA
+                // vermelha, e a vermelha é esse teste.
                 <Pilula key={status}>{`${status} ${quantidade}`}</Pilula>
               ))}
             </div>
@@ -159,9 +164,16 @@ export function HomePage() {
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold text-tinta">Pedidos abertos há mais tempo</h2>
           {maisAntigos.length === 0 ? (
+            // Duas causas diferentes caem neste mesmo `length === 0`, e o `CLAUDE.md` exige que o
+            // vazio distinga "não achei" de "não há nada": com o cadastro vazio, dizer que "todos
+            // estão concluídos ou cancelados" afirma algo sobre um conjunto que não existe.
             <EstadoVazio
               titulo="Nenhum pedido em aberto."
-              descricao="Todos os pedidos cadastrados estão concluídos ou cancelados."
+              descricao={
+                cadastroVazio
+                  ? 'Nenhum pedido foi cadastrado ainda.'
+                  : 'Todos os pedidos cadastrados estão concluídos ou cancelados.'
+              }
             />
           ) : (
             <ListaDeCadastro rotulo="Pedidos abertos há mais tempo">
