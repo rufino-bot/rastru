@@ -155,7 +155,12 @@ describe('HomePage', () => {
     expect(within(cartao).getByText('Cancelado 1')).toBeTruthy()
   })
 
-  it('nao usa cor de estado no resumo por status, e preserva a reserva na linha de pedido', async () => {
+  // O nome diz SÓ o que este teste prova. Ele não afirma "e preserva a reserva na linha de
+  // pedido": essa metade é estruturalmente improvável aqui — a seção "há mais tempo" exclui
+  // `Concluido`/`Cancelado` por definição, e o `EmProducao` que sobra já é neutro, igual ao padrão
+  // da `Pilula`. Quem prova a reserva são `LinhaDePedido.test.tsx` e `PedidosPage.test.tsx`, e o
+  // comentário no fim deste teste aponta para lá.
+  it('nao usa cor de estado no resumo por status do cartao de Pedidos', async () => {
     // Achado da Fase 1E: `Concluido 0` saia verde e `Cancelado 0` saia vermelho no resumo, porque
     // a pílula do resumo herdava `tomDoStatus`. Nenhuma das três guardas de tema
     // (`semCorForaDaPaleta`, `contraste`, `semModificadorDeOpacidadeEmCor`) mede SEMÂNTICA — o
