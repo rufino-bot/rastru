@@ -71,9 +71,16 @@ describe('fontes auto-hospedadas', () => {
   // ele só olha o lado do token. Aqui os dois lados são extraídos e confrontados um com o outro,
   // que é o que torna a guarda simétrica: renomear em QUALQUER um dos dois lugares fica vermelho.
   //
-  // As duas contagens vêm ANTES do laço, pelo motivo do controle positivo lá em cima: se uma das
-  // regex parar de casar (aspas duplas, `font-family` movido para depois do `src`), o array vira
-  // vazio e o `for` passaria por não iterar nada — a auditoria falharia em VERDE.
+  // As duas contagens vêm ANTES do laço, pelo motivo do controle positivo lá em cima: um `for`
+  // sobre array vazio não itera, e passaria — a auditoria falharia em VERDE. São elas que
+  // convertem "a regex parou de casar" em vermelho, e é esse o trabalho delas.
+  //
+  // Medido em 2026-08-29, contra as duas formas de fazer a regex perder um bloco:
+  //   aspas duplas em vez de simples no `font-family` -> 1 vermelha, e é ESTE teste (a contagem
+  //     cai para 3 e o `toHaveLength(4)` morre antes do laço, como projetado);
+  //   `font-family` movido para depois do `src`       -> tudo VERDE, e continua correto: o
+  //     `[^}]*` é ganancioso e alcança o nome em qualquer posição dentro do bloco.
+  // A segunda linha está aqui para não sugerir mais rigor do que existe: ordem não afeta.
   it('todo font-family de @font-face é citado por algum token --font-*', () => {
     const declaradas = familiasDeclaradas(css)
     const citadas = familiasCitadasNosTokens(css)
