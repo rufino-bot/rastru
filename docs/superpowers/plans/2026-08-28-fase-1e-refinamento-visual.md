@@ -1655,7 +1655,12 @@ Prosa não tem suíte; a conferência é o teste. Uma a uma:
 
 ```bash
 grep -n "font-sans\|font-mono" web/src/index.css          # os tokens existem e nomeiam IBM Plex
-grep -rn "AguardandoExpedicao" web/src/pages/HomePage.tsx # o status cru está mesmo na tela
+# O status cru está mesmo na tela — em DOIS passos, porque a Task 3 tirou o literal da Home:
+grep -n "AguardandoExpedicao" web/src/pedidos/statusDoPedido.ts  # o valor cru existe no vocabulário
+grep -n "Pilula key={status}" web/src/pages/HomePage.tsx         # e a Home o renderiza sem humanizar
+# (A primeira versão desta receita procurava o literal em `HomePage.tsx` e devolvia VAZIO — não
+#  porque a afirmação fosse falsa, mas porque a string migrou para o módulo compartilhado. Receita
+#  de verificação também apodrece, e uma que devolve zero por não casar nada aprova qualquer coisa.)
 grep -n "HomePage depende disso" web/src/api/cadastros.test.ts   # a guarda existe
 grep -rn "LinhaDePedido" web/src/pages/PedidosPage.tsx    # a PedidosPage adota mesmo a primitiva
 sed -n '/Fase 1D/,/Fase 1E/p' specs/06-roadmap-mvp.md     # o corolário citado está no texto acima
