@@ -91,18 +91,27 @@ public class EstruturaRepository : IEstruturaRepository
     return item;
   }
 
+  /// <summary>
+  /// `OrderBy(Id)`: defesa em profundidade contra Minor 2 da review da Task 3 — sem `ORDER BY`, um
+  /// heap sem indice clusterizado nao garante ordem estavel entre chamadas. Quem PROVA a
+  /// ordenacao e o teste de Application (`MontagemDeEstruturaUseCase`, com o fake alimentado fora
+  /// de ordem de proposito): esta tabela e pequena e um teste de Infra ficaria verde de qualquer
+  /// jeito, mutante ou nao.
+  /// </summary>
   public async Task<IReadOnlyList<EstruturaItem>> ListarDoAgrupamentoAsync(
       int agrupamentoId, CancellationToken ct) =>
-      await _db.Estruturas.AsNoTracking().Where(e => e.AgrupamentoId == agrupamentoId).ToListAsync(ct);
+      await _db.Estruturas.AsNoTracking().Where(e => e.AgrupamentoId == agrupamentoId)
+          .OrderBy(e => e.Id).ToListAsync(ct);
 
   /// <summary>RASTREADA de proposito: a Task 4 edita/exclui a partir deste retorno.</summary>
   public Task<EstruturaItem?> ObterPorIdAsync(int id, CancellationToken ct) =>
       _db.Estruturas.SingleOrDefaultAsync(e => e.Id == id, ct);
 
+  /// <summary>`OrderBy(Id)`: mesmo motivo de `ListarDoAgrupamentoAsync` acima.</summary>
   public async Task<IReadOnlyList<EstruturaMaterial>> ListarMateriaisAsync(
       IReadOnlyList<int> itemIds, CancellationToken ct) =>
       await _db.EstruturaMateriais.AsNoTracking()
-          .Where(m => itemIds.Contains(m.EstruturaItemId)).ToListAsync(ct);
+          .Where(m => itemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToListAsync(ct);
 
   public async Task<IReadOnlyList<EstruturaRoteiro>> ListarRoteiroAsync(
       IReadOnlyList<int> itemIds, CancellationToken ct) =>

@@ -16,14 +16,23 @@ namespace Rastreamento.Application.Estrutura;
 public sealed class MontagemDeEstruturaUseCase
 {
   private const string ErroDeAgrupamentoNaoEncontrado = "Agrupamento nao encontrado.";
-  private const string ErroDeQuantidadeInvalida = "Quantidade deve ser maior que zero.";
+
+  /// <summary>
+  /// Piso e sinal na MESMA mensagem: `QuantidadeMinimaDaColuna` (0,0001) ja e maior que zero, entao
+  /// um unico `&lt;` cobre negativo, zero e positivo pequeno demais para a coluna guardar sem
+  /// arredondar. Fechado junto do Important 1 da review da Task 3 — a mensagem antiga
+  /// ("maior que zero") afirmava menos do que o codigo hoje garante.
+  /// </summary>
+  private const string ErroDeQuantidadeInvalida =
+      "Quantidade deve ser de pelo menos 0,0001 — abaixo disso a coluna do banco arredonda para zero.";
 
   /// <summary>
   /// Fecha o escape de OverflowException nomeado na review da Task 2 (ver XML doc de
   /// `PlanejadorDeCopia`): o planejador multiplica descendo e nao guarda magnitude, entao uma raiz
   /// grande combinada com fatores da receita pode estourar o `decimal` NO MEIO da descida. Sem este
   /// catch, a excecao escaparia por fora do contrato `PlanoDeCopia` (que devolve erro, nao lanca) e
-  /// viraria 500 em vez de 400.
+  /// viraria 500 em vez de 400. Nao cobre a faixa da COLUNA — isso e `QuantidadeExcedeColunaException`,
+  /// capturada abaixo (Important 1 da review da Task 3).
   /// </summary>
   private const string ErroDeQuantidadeExcessiva =
       "A quantidade informada, multiplicada pela receita, ultrapassa o que o sistema suporta.";
@@ -31,28 +40,33 @@ public sealed class MontagemDeEstruturaUseCase
   private readonly IEstruturaRepository _estruturas;
   private readonly IAgrupamentoRepository _agrupamentos;
   private readonly IReceitaPadraoRepository _catalogo;
+  private readonly IPedidoRepository _pedidos;
 
   public MontagemDeEstruturaUseCase(
-      IEstruturaRepository estruturas, IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo)
+      IEstruturaRepository estruturas, IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo,
+      IPedidoRepository pedidos)
   {
     _estruturas = estruturas;
     _agrupamentos = agrupamentos;
     _catalogo = catalogo;
+    _pedidos = pedidos;
   }
 
   public async Task<Result<EstruturaItemDto>> CriarPeca(
       int agrupamentoId, NovaPecaDto nova, CancellationToken ct)
   {
-    // DECISAO sobre magnitude/sinal de quantidade (empurrada para ca pela review da Task 2):
-    // validar aqui, na Application — nao CHECK no schema (excecao de CHECK vira 500, nao 400; e o
-    // mesmo criterio ja usado para Agrupamento.Tipo e Componente.Tipo) e nao dívida silenciosa. So
-    // o SINAL: o valor absoluto excessivo e tratado abaixo, no catch de OverflowException, porque
-    // um teto fixo aqui teria de ser arbitrario (a explosao depende dos fatores da receita, nao so
-    // da raiz) enquanto o catch cobre exatamente o caso em que o valor realmente nao cabe.
-    if (nova.Quantidade <= 0)
+    // DECISAO sobre magnitude/sinal de quantidade (empurrada para ca pela review da Task 2, e
+    // corrigida pelo Important 1 da review da Task 3): a faixa guardada e a da COLUNA
+    // (`EstruturaItem.Quantidade DECIMAL(18,4)`), nao a do tipo `decimal` do .NET. Piso aqui, na
+    // Application — nao CHECK no schema (excecao de CHECK vira 500, nao 400; mesmo criterio ja
+    // usado para Agrupamento.Tipo e Componente.Tipo). O teto NAO entra aqui: depende dos fatores da
+    // receita, nao so da raiz, entao mora em `PlanejadorDeCopia.Descer` — aplicado a CADA no da
+    // descida, capturado abaixo em `QuantidadeExcedeColunaException`.
+    if (nova.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
       return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
 
-    if (await _agrupamentos.ObterPorIdAsync(agrupamentoId, ct) is null)
+    var agrupamento = await _agrupamentos.ObterPorIdAsync(agrupamentoId, ct);
+    if (agrupamento is null)
       return Result<EstruturaItemDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
     var (arestasFilhos, arestasMateriais, arestasRoteiro) = await _estruturas.LerReceitaCompletaAsync(ct);
@@ -70,9 +84,17 @@ public sealed class MontagemDeEstruturaUseCase
     {
       return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeExcessiva, TipoDeErro.Validacao);
     }
+    catch (QuantidadeExcedeColunaException e)
+    {
+      return Result<EstruturaItemDto>.Falha(e.Message, TipoDeErro.Validacao);
+    }
 
+    // Important 2 da review da Task 3: `Erro` carrega o CODIGO estavel (o que o front comuta,
+    // ex.: "CicloNaReceita"), `Detalhe` carrega a FRASE que `PlanejadorDeCopia` ja produz (ex.: "A
+    // receita tem um ciclo: 2 -> 3 -> 2. ..."). Antes so o codigo ia — a frase, que levou tres
+    // rodadas de review na Task 2 para nomear o CAMINHO do ciclo, era descartada.
     if (plano.Erro is not null)
-      return Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito);
+      return Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito, plano.Erro);
 
     // SEM guarda de status, e isso e decisao de negocio, nao omissao: cliente grande pede alteracao
     // de projeto com o Pedido JA em execucao, e acrescentar peca nova ao pedido rodando e o
@@ -80,10 +102,21 @@ public sealed class MontagemDeEstruturaUseCase
     // "so para de ser produzido" — NAO e desta fase: e a Fase 3, onde "Pedido em execucao" passa a
     // existir de fato (hoje nenhum Pedido sai de `Aberto`). Ver §2.3 da spec.
     //
+    // `_pedidos` existe (Minor 7 da review da Task 3) so para que esta decisao seja TESTAVEL: sem
+    // injetar o repositorio, nenhum teste consegue provar que uma guarda futura quebraria — a
+    // decisao ficaria documentada so em comentario, sem forma barata de virar guarda executavel
+    // (a propria review reconhece isso). O valor lido e DESCARTADO de proposito: ler o Pedido aqui
+    // e prova de ALCANCE, nao guarda — se algum dia esta decisao mudar, e este `_ =` que vira o
+    // `if (pedido.Status != "Aberto") ...`. Medido em 2026-08-29 (ver relatorio): acrescentar essa
+    // guarda no lugar do descarte faz `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido_...` morrer,
+    // sem afetar as outras `CriarPecaTests` (o `FakePedidoRepo` de `Montar()` fica vazio nelas).
+    //
     // A regra 18 tem uma segunda metade que TAMBEM nao e cobrada aqui: `Componente.ArquivoSolido`
     // preenchido. Sem a Fase 2B nao existe upload, entao ninguem consegue preencher pela interface,
     // e cobrar agora travaria a verificacao manual (os 54 Componentes do seed-demo nao tem solido).
     // Quem fecha isso e a 2B.
+    _ = await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
+
     var paraGravar = ConverterParaGravar(plano.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);
     var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
 
@@ -152,8 +185,21 @@ public sealed class MontagemDeEstruturaUseCase
     var roteirosPorItem = roteiros.ToLookup(r => r.EstruturaItemId);
     var filhosPorPai = itens.ToLookup(i => i.EstruturaPaiId);
 
+    // Minor 2 da review da Task 3: nada ordenava filhos/materiais (so o roteiro, por `Ordem`, que e
+    // sequencia de negocio). `ToLookup` preserva a ordem de CHEGADA de `itens`/`materiais`, que e a
+    // ordem que o SQL Server devolver — nao garantida entre chamadas sem `ORDER BY` (heap sem
+    // indice clusterizado). A ordenacao entra aqui, explicita por `Id`, em vez de confiar so no
+    // repositorio: e o que o teste
+    // `Filhos_e_materiais_saem_ordenados_por_Id_mesmo_que_o_repositorio_devolva_fora_de_ordem`
+    // prova, alimentando o fake fora de ordem de proposito — um teste de Infra contra SQL Server
+    // real ficaria verde de qualquer jeito nesta tabela pequena (o heap tende a devolver em ordem
+    // de insercao), o que o tornaria fraco.
+    var visitados = new HashSet<int>();
+
     EstruturaItemDto Montar(EstruturaItem item)
     {
+      visitados.Add(item.Id);
+
       string? codigo = null;
       var descricao = item.Descricao;
       if (item.ComponenteId is int componenteId && componentes.TryGetValue(componenteId, out var componente))
@@ -164,6 +210,7 @@ public sealed class MontagemDeEstruturaUseCase
       descricao ??= string.Empty;
 
       var listaDeMateriais = materiaisPorItem[item.Id]
+          .OrderBy(m => m.Id)
           .Select(m => new MaterialDoNoDto(
               m.MaterialId,
               nomesMateriais.TryGetValue(m.MaterialId, out var material) ? material.Descricao : string.Empty,
@@ -178,13 +225,39 @@ public sealed class MontagemDeEstruturaUseCase
               r.Ordem))
           .ToList();
 
-      var filhos = filhosPorPai[item.Id].Select(Montar).ToList();
+      var filhos = filhosPorPai[item.Id].OrderBy(f => f.Id).Select(Montar).ToList();
 
       return new EstruturaItemDto(
           item.Id, item.ComponenteId, codigo, descricao, item.Quantidade,
           item.NivelHierarquico, item.RequerRelatorioDimensional, listaDeMateriais, listaDeRoteiro, filhos);
     }
 
-    return filhosPorPai[null].Select(Montar).ToList();
+    var raizes = filhosPorPai[null].OrderBy(i => i.Id).Select(Montar).ToList();
+
+    // Minor 3 da review da Task 3: um no cujo EstruturaPaiId aponta para fora do proprio
+    // Agrupamento nunca e visitado por `Montar` (que so desce a partir de `filhosPorPai[null]`) —
+    // sem esta checagem ele SOME da arvore devolvida, sem erro, sem log: perda de dado silenciosa
+    // numa LEITURA. Hoje nao deveria acontecer (toda gravacao usa o mesmo AgrupamentoId,
+    // `EstruturaRepository.GravarNo`), mas o schema nao impede a inconsistencia — lancar aqui torna
+    // o caso AUDIVEL em vez de invisivel, sem inventar recuperacao: quem le a arvore incompleta sem
+    // saber vira o operador, e isso e pior que um 500.
+    if (visitados.Count != itens.Count)
+    {
+      var orfaos = itens.Where(i => !visitados.Contains(i.Id)).Select(i => i.Id);
+      throw new ArvoreInconsistenteException(
+          $"A arvore do Agrupamento {agrupamentoId} tem {itens.Count - visitados.Count} no(s) "
+              + "orfao(s) — EstruturaPaiId aponta para fora dos itens lidos deste Agrupamento: "
+              + $"{string.Join(", ", orfaos)}.");
+    }
+
+    return raizes;
   }
 }
+
+/// <summary>
+/// Dado inconsistente na leitura da arvore: um <see cref="EstruturaItem"/> cujo
+/// <c>EstruturaPaiId</c> nao esta entre os itens lidos do proprio Agrupamento. Ver o comentario em
+/// <c>MontagemDeEstruturaUseCase.MontarArvore</c> (Minor 3 da review da Task 3) para o porque de
+/// virar excecao em vez de o no simplesmente desaparecer da arvore devolvida.
+/// </summary>
+public sealed class ArvoreInconsistenteException(string mensagem) : Exception(mensagem);
