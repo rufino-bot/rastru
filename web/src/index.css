@@ -1,6 +1,77 @@
 @import "tailwindcss";
 
 /*
+  IBM Plex, AUTO-HOSPEDADA — zero requisição de rede em runtime, pelo mesmo motivo da decisão
+  original da 1D: o wifi da fábrica. Os arquivos e a proveniência estão em `public/fontes/`.
+
+  LICENÇA: OFL 1.1. A cláusula 2 exige que cada cópia carregue o aviso de copyright e a licença —
+  é por isso que `public/fontes/` tem os dois `LICENSE-*.txt`. Não são documentação; apagá-los é
+  violar a licença. (A cláusula 3, Reserved Font Name, não morde: a IBM não reservou o nome, então
+  declarar `font-family: 'IBM Plex Sans'` aqui é permitido.)
+
+  SUBSET `latin` SÓ. O `unicode-range` abaixo é `U+0000-00FF` mais pontuação, e todo o português
+  cabe nele — inclusive o travessão `—` (U+2014) que a Home usa para dizer "ainda não sei". Um
+  caractere fora da faixa cai no fallback do SO pelo próprio `unicode-range`, sem quebrar a tela.
+
+  O SANS É VARIÁVEL (um arquivo, 100–700) e cobre os quatro pesos que as telas usam: 400, 500
+  (`font-medium`), 600 (`font-semibold`) e 700 (`<strong>`). O MONO NÃO TEM VERSÃO VARIÁVEL
+  publicada — medido em 2026-08-28, `@fontsource-variable/ibm-plex-mono` devolve E404 — daí três
+  arquivos estáticos, nos três pesos que `web/src/` de fato pede.
+
+  `font-display: swap`: a tela aparece na hora com a fonte do SO e troca quando a Plex chega. O
+  padrão (`block`) esconderia o texto por até 3s no wifi ruim, que é justamente o que se quer
+  evitar.
+
+  ⚠️ ESTES BLOCOS FICAM FORA DO `@theme`, E ANTES DELE. Duas coisas quebram se um deles entrar
+  lá dentro, e só UMA delas é incondicional — medido em 2026-08-29, movendo um bloco real:
+
+  1. O `npm run build` falha, nas DUAS posições testadas: `@theme` blocks must only contain
+     custom properties or `@keyframes` (exit 1). É este o detector que não depende de onde.
+  2. A suíte, essa DEPENDE da posição. `contraste.test.ts` lê o tema com
+     `/@theme\s*\{([\s\S]*?)\n\}/`, que PARA no primeiro `\n}`: com o bloco ANTES do primeiro
+     token, a paleta é lida pela metade e dá 26 vermelhas; com o bloco no FIM do `@theme`, a
+     regex já passou por toda a paleta e a suíte fica 399/399 VERDE.
+
+  Ou seja: a suíte sozinha não é rede para este erro, e é por isso que `npm run build` faz parte
+  do ciclo (`CLAUDE.md`) em vez de ser opcional depois do `npm test`.
+*/
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 700;
+  src: url('/fontes/ibm-plex-sans-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fontes/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('/fontes/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/fontes/ibm-plex-mono-latin-700-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/*
   Tokens da Fase 1D. A paleta e a regra que a sustenta estão em
   `docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md` §3.
 
@@ -16,11 +87,12 @@
   porque 3:1 não é 4,5:1 — e o teste existe para que isso não passe despercebido.
 */
 @theme {
-  /* Pilha do sistema: zero asset para baixar no wifi da fábrica, e trocar por fonte própria
-     depois é mudar este token, não reescrever tela. Monoespaçada para código de peça e material —
-     decisão funcional (alinha na coluna, facilita conferir contra o desenho na bancada). */
-  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, monospace;
+  /* IBM Plex auto-hospedada (ver os `@font-face` acima). A pilha do SO fica ATRÁS como fallback:
+     se o `.woff2` não carregar, a tela volta para a fonte do sistema em vez de quebrar.
+     Monoespaçada para código de peça e material — decisão funcional (alinha na coluna, facilita
+     conferir contra o desenho na bancada). */
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, monospace;
 
   /* Identidade */
   --color-chrome: #134E4A;       /* barra de navegação e cabeçalho */

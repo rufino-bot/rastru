@@ -70,6 +70,48 @@ resolvidos (ou conscientemente adiados).
 > **Corolário registrado:** se daqui a três fases o sistema precisar de outra passada de UI, isso não
 > é uma fase planejada que faltou — é sinal de que o padrão não pegou. Não existe "Fase 1D parte 2".
 
+## Fase 1E — Refinamento visual
+
+- Tipografia própria: IBM Plex Sans/Mono auto-hospedadas, por troca dos tokens `--font-sans` e
+  `--font-mono` — zero tela reescrita.
+- `HomePage`: resumo pelos cinco status do Pedido no cartão de Pedidos, e seção "pedidos abertos
+  há mais tempo".
+- Critério de pronto: fonte aplicada e **carregada** (verificada no navegador, não só no token),
+  os cinco status visíveis inclusive os zerados, e a seção nova com os três estados —
+  carregando, vazio de verdade e erro — cada um com teste que morre se o estado sumir.
+
+> **Esta fase NÃO é a "Fase 1D parte 2" que o corolário acima descarta**, e vale dizer por quê em
+> vez de fingir que a tensão não existe. O que aquele corolário advertia era uma reestilização
+> ampla motivada por o padrão de primitivas não ter segurado. Aqui o padrão segurou: a troca de
+> fonte é **o gancho que a própria 1D deixou pronto** ("trocar por uma fonte própria depois é mudar
+> um token, não reescrever telas"), e o reforço da Home usa as primitivas existentes e o dado que a
+> Home **já** buscava. As outras seis telas não são reabertas — a `PedidosPage` é tocada só para
+> adotar a `LinhaDePedido` extraída do markup que ela mesma já tinha.
+>
+> **Fora de escopo, por decisão escrita:** densidade das outras telas; "prazo de entrega" e
+> "pedidos em atraso" — o domínio não tem campo de data prevista, e criá-lo é mudança de schema
+> **e** de formulário de cadastro, candidata a fase própria (§5 da spec da 1E); e qualquer KPI da
+> Fase 6, que depende do rastreamento por Setor que só nasce na Fase 3.
+>
+> **Dívidas nomeadas por esta fase:** `listarPedidos()` não é paginado, e a Home deriva o resumo e
+> a lista do array inteiro. Não é problema hoje, e **não** está só escrito: há guarda executável em
+> `web/src/api/cadastros.test.ts` que fica vermelha se **o cliente** `listarPedidos()` passar a
+> paginar — por truncar o array ou por trocar a assinatura por um envelope. Ela mede o cliente com
+> `fetch` stubado, então **não cobre o lado do servidor**: se o backend passar a truncar
+> `GET /api/pedidos` mantendo a forma de array, o cliente não muda, a guarda fica verde e a Home
+> volta a mostrar "contagem das N primeiras" em silêncio. Fechar esse lado pede uma asserção de
+> forma da resposta em `tests/Rastreamento.Api.Tests`, e ela não existe. A outra
+> é cosmética — o rótulo de status aparece cru (`EmProducao`, `AguardandoExpedicao`) na Home e na
+> `PedidosPage`; humanizá-lo é mexer nas duas telas de uma vez, fora do escopo desta fase. A
+> terceira é estrutural: **as três guardas de tema não medem semântica de cor.**
+> `semCorForaDaPaleta.test.ts` mede token fora da paleta, `contraste.test.ts` mede razão de
+> contraste, `semModificadorDeOpacidadeEmCor.test.ts` mede opacidade — nenhuma verifica se uma cor
+> reservada está sendo usada com o significado certo. Nesta fase, o resumo por status saiu com
+> `Concluido 0` em verde e `Cancelado 0` em vermelho — violando "cor de estado nunca decora" — e
+> passou por toda a suíte em verde; quem pegou foi a verificação no navegador, em 375px. O conserto
+> desta instância foi pontual (tom neutro no resumo, mais um teste específico); a **classe** do
+> problema continua sem guarda.
+
 ## Fase 2 — Estrutura recursiva
 
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero
