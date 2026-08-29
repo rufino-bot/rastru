@@ -1352,6 +1352,12 @@ vizinhos, não na linha alterada.
 **Portanto a Task 9 roda o gate inteiro**, e o brief do revisor pede explicitamente: cada frase nova
 declara escopo que a mudança de fato tem? Alguma contradiz um vizinho na mesma seção?
 
+**O usuário confirmou a decisão em 2026-08-29, com uma razão que a reforça:** boa parte de `specs/`,
+dos planos e do ledger **vira documentação do TCC depois**. Isso muda o custo de uma frase errada —
+ela deixa de ser dívida interna, que alguém corrige numa próxima passada, e passa a ser texto que
+sai do repositório para um trabalho que ele assina e defende. Palavras dele: *"melhor corrigir
+afirmação falsa depois"* — isto é, mais barato pagar a review agora do que desmentir no fim.
+
 ## Auto-revisão do plano
 
 Feita antes de entregar, e o que ela achou está corrigido acima.
