@@ -867,7 +867,7 @@ import {
   type PedidoDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
-import { STATUS_DO_PEDIDO, tomDoStatus } from '../pedidos/statusDoPedido'
+import { STATUS_DO_PEDIDO } from '../pedidos/statusDoPedido'
 import { Pagina } from '../components/Pagina'
 import { Pilula } from '../components/Pilula'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -967,7 +967,15 @@ Logo antes do `return`, a derivação:
                 // `conta só os pedidos abertos` faz `within(cartao).getByText('2')`, e
                 // `getByText` LANÇA quando casa mais de um nó. Contagem em elemento próprio
                 // colidiria com o número grande do cartão.
-                <Pilula key={status} tom={tomDoStatus(status)}>{`${status} ${quantidade}`}</Pilula>
+                //
+                // TOM NEUTRO em todas as cinco, e NÃO `tomDoStatus(status)`. A regra do
+                // `CLAUDE.md` é "cor de estado nunca decora": verde e vermelho ficam reservados a
+                // aprovado/ativo e reprovado/perda/erro. Numa linha da `PedidosPage` a pílula
+                // "Cancelado" É o estado daquele pedido, e o vermelho está certo; aqui ela é
+                // rótulo de uma CONTAGEM, e vermelho num "Cancelado 0" alarma sobre coisa nenhuma.
+                // Nenhuma das três guardas de tema pega isto — elas medem token fora da paleta,
+                // contraste e opacidade, não semântica —, e por isso quem pegou foi a tela.
+                <Pilula key={status}>{`${status} ${quantidade}`}</Pilula>
               ))}
             </div>
           )}
@@ -1459,14 +1467,15 @@ Em `web/src/pages/HomePage.tsx`:
 **3a.** Acrescente aos imports:
 
 ```tsx
-import { STATUS_DO_PEDIDO, ENCERRADOS, tomDoStatus } from '../pedidos/statusDoPedido'
+import { STATUS_DO_PEDIDO, ENCERRADOS } from '../pedidos/statusDoPedido'
 import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { EstadoVazio } from '../components/EstadoVazio'
 ```
 
-(`STATUS_DO_PEDIDO` e `tomDoStatus` já estavam lá desde a Task 3 — o que entra agora é
-`ENCERRADOS` naquela mesma linha, mais os três imports novos.)
+(`STATUS_DO_PEDIDO` já estava lá desde a Task 3 — o que entra agora é `ENCERRADOS` naquela mesma
+linha, mais os três imports novos. **`tomDoStatus` não entra**: quem o chama é a `LinhaDePedido`,
+por dentro, e o resumo por status usa tom neutro.)
 
 **3b.** Uma constante, junto do topo do arquivo:
 

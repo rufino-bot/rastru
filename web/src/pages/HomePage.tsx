@@ -137,7 +137,9 @@ export function HomePage() {
                 // olhando a tela renderizada em 375px, não por teste: nenhuma das três guardas de
                 // tema (paleta, contraste, opacidade) mede SEMÂNTICA de cor, e por isso o teste
                 // `nao usa cor de estado no resumo...` existe — sem ele, uma recolorização futura
-                // deste resumo passaria a suíte inteira em verde.
+                // deste resumo passaria a suíte inteira em verde. MEDIDO, e não deduzido: repondo
+                // `tom={tomDoStatus(status)}` aqui, a suíte fecha em 395 verdes e UMA vermelha, e
+                // a vermelha é esse teste.
                 <Pilula key={status}>{`${status} ${quantidade}`}</Pilula>
               ))}
             </div>
