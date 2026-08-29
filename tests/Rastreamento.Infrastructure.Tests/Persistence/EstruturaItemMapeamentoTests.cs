@@ -70,6 +70,20 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
     return setor.Id;
   }
 
+  private static async Task<int> NovoMaterialAsync(RastreamentoDbContext db, string prefixo)
+  {
+    var material = new Material
+    {
+      Codigo = $"{prefixo}-m",
+      Descricao = "Material de teste da estrutura",
+      UnidadeMedida = "KG",
+      Ativo = true,
+    };
+    db.Materiais.Add(material);
+    await db.SaveChangesAsync();
+    return material.Id;
+  }
+
   /// <summary>
   /// Limpeza na ordem que as FKs exigem: EstruturaRoteiro/EstruturaMaterial (filhos) antes de
   /// EstruturaItem, EstruturaItem antes de Componente/Setor, Agrupamento antes de Pedido.
@@ -118,6 +132,13 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
   {
     await using var db = NovoContexto();
     db.Setores.RemoveRange(await db.Setores.Where(s => s.Id == setorId).ToListAsync());
+    await db.SaveChangesAsync();
+  }
+
+  private static async Task LimparMaterialAsync(int materialId)
+  {
+    await using var db = NovoContexto();
+    db.Materiais.RemoveRange(await db.Materiais.Where(m => m.Id == materialId).ToListAsync());
     await db.SaveChangesAsync();
   }
 
@@ -187,7 +208,12 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
 
       // CK_EstruturaItem_PecaTemComponente (Task 1, Fase 2): uma Peca (no sem pai) sempre exige
       // Componente. So um Item ad-hoc pode ficar sem ele.
-      await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+      var excecao = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+
+      // Prende o teste a ESTA constraint por construcao: sem conferir o nome, uma FK violada por
+      // acidente no futuro faria o teste passar provando outra coisa.
+      var mensagem = excecao.InnerException?.Message ?? excecao.Message;
+      Assert.Contains("CK_EstruturaItem_PecaTemComponente", mensagem);
     }
     finally
     {
@@ -287,6 +313,59 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
       await LimparAsync(pedidoId, agrupamentoId);
       await LimparComponenteAsync(componenteId);
       await LimparSetorAsync(setorId);
+    }
+  }
+
+  /// <summary>
+  /// EstruturaItem.Quantidade e EstruturaMaterial.Quantidade sao DECIMAL(18,4) no .sql; sem
+  /// <c>HasPrecision(18, 4)</c> nas duas configurations o EF assume o default dele e trunca em
+  /// silencio. 0.0001 e o menor valor representavel — se voltar 0, o mapeamento esta errado.
+  /// Este e tambem o primeiro teste que grava uma linha de EstruturaMaterial: antes desta task
+  /// nenhum teste cobria essa entidade.
+  /// </summary>
+  [Fact]
+  public async Task Quantidade_preserva_as_quatro_casas_decimais_em_EstruturaItem_e_EstruturaMaterial()
+  {
+    var prefixo = NovoPrefixo();
+    await using var db = NovoContexto();
+    var (pedidoId, agrupamentoId) = await NovoAgrupamentoAsync(db);
+    var componenteId = await NovoComponenteAsync(db, prefixo);
+    var materialId = await NovoMaterialAsync(db, prefixo);
+
+    try
+    {
+      var peca = new EstruturaItem
+      {
+        AgrupamentoId = agrupamentoId,
+        ComponenteId = componenteId,
+        EstruturaPaiId = null,
+        NivelHierarquico = "Peca",
+        Quantidade = 0.0001m,
+      };
+      db.Estruturas.Add(peca);
+      await db.SaveChangesAsync();
+
+      db.EstruturaMateriais.Add(new EstruturaMaterial
+      {
+        EstruturaItemId = peca.Id,
+        MaterialId = materialId,
+        Quantidade = 0.0001m,
+      });
+      await db.SaveChangesAsync();
+
+      await using var dbLeitura = NovoContexto();
+      var pecaLida = await dbLeitura.Estruturas.AsNoTracking().SingleAsync(e => e.Id == peca.Id);
+      var materialLido = await dbLeitura.EstruturaMateriais.AsNoTracking()
+          .SingleAsync(m => m.EstruturaItemId == peca.Id);
+
+      Assert.Equal(0.0001m, pecaLida.Quantidade);
+      Assert.Equal(0.0001m, materialLido.Quantidade);
+    }
+    finally
+    {
+      await LimparAsync(pedidoId, agrupamentoId);
+      await LimparComponenteAsync(componenteId);
+      await LimparMaterialAsync(materialId);
     }
   }
 }

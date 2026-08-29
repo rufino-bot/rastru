@@ -32,8 +32,11 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var pedidos = await db.Pedidos.Where(p => _numerosCriados.Contains(p.Numero)).ToListAsync();
     var ids = pedidos.Select(p => p.Id).ToList();
 
-    // EstruturaItem (Fase 2, sem entidade) sai por SQL: um teste insere uma linha de proposito.
-    // Antes do Componente que ela referencia — FK_EstruturaItem_Componente nao aceita a ordem inversa.
+    // EstruturaItem ganhou entidade e DbSet (Estruturas) na Task 1 da Fase 2; a limpeza aqui
+    // continua por SQL cru, no mesmo padrao do INSERT abaixo em
+    // Excluir_agrupamento_com_estrutura_responde_409_AgrupamentoNaoVazio (um teste insere uma
+    // linha de proposito). Antes do Componente que ela referencia — FK_EstruturaItem_Componente
+    // nao aceita a ordem inversa.
     foreach (var id in ids)
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.EstruturaItem WHERE AgrupamentoId IN (SELECT Id FROM dbo.Agrupamento WHERE PedidoId = {id})");
@@ -353,9 +356,10 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var pedidoId = await NovoPedido(cliente);
     var id = await NovoAgrupamento(cliente, pedidoId);
 
-    // EstruturaItem e da Fase 2 e nao tem entidade: a linha entra por SQL, que e exatamente o
-    // que TemEstruturaAsync consulta. Peca exige Componente desde a Task 1 da Fase 2
-    // (CK_EstruturaItem_PecaTemComponente) — daqui o NovoComponente().
+    // EstruturaItem ganhou entidade e DbSet (Estruturas) na Task 1 da Fase 2; a linha ainda entra
+    // por SQL cru aqui de proposito, para exercitar exatamente o que TemEstruturaAsync consulta
+    // sem depender do mapeamento EF neste teste ponta-a-ponta. Peca exige Componente desde a
+    // Task 1 (CK_EstruturaItem_PecaTemComponente) — daqui o NovoComponente().
     var componenteId = await NovoComponente();
     using (var escopo = _factory.Services.CreateScope())
     {
