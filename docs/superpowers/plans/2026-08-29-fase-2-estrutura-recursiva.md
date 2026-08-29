@@ -119,7 +119,15 @@ O que nasce e o que muda, com a responsabilidade de cada arquivo.
 - Consumes: nada de tasks anteriores.
 - Produces: `EstruturaItem { int Id; int AgrupamentoId; int? ComponenteId; string? Descricao; int? EstruturaPaiId; string NivelHierarquico; decimal Quantidade; bool RequerRelatorioDimensional; }`; `EstruturaMaterial { int Id; int EstruturaItemId; int MaterialId; decimal Quantidade; }`; `EstruturaRoteiro { int Id; int EstruturaItemId; int SetorId; int Ordem; }`. `DbSet`s: `Estruturas`, `EstruturaMateriais`, `EstruturaRoteiros`.
 
-**Delta de teste desta task: +4.**
+**Delta de teste desta task: +5.**
+
+> **Correção de plano, feita em 2026-08-29 depois da review da própria Task 1.** Este número era
+> **+4**, e a lista do Passo 7 tinha quatro testes. Faltava o quinto, e a falta era um defeito de
+> plano, não do implementer: o Passo 5 manda replicar `HasPrecision(18, 4)` das configurations do
+> catálogo **sem** replicar a guarda que o acompanha lá. `ReceitaPadraoMapeamentoTests` grava e relê
+> `0.0001m` justamente para matar a mutação "apagaram o `HasPrecision`" — sem isso o EF cai no
+> default `decimal(18,2)` e **trunca em silêncio** a coluna do invariante central do domínio.
+> A lição, que vale para o resto do plano: **replicar um padrão inclui replicar a guarda dele.**
 
 - [ ] **Passo 1: a constraint sai de comentário no `.sql`**
 
@@ -324,6 +332,9 @@ Os quatro:
 2. `Peca_sem_Componente_e_recusada_pelo_banco` — tenta gravar `NivelHierarquico = "Peca"` com `ComponenteId = null` e espera `DbUpdateException`. **Este é o teste da constraint do Passo 1.**
 3. `Item_sem_Componente_e_aceito` — o ad-hoc. Mesma coisa com `NivelHierarquico = "Item"` e um pai válido: grava sem exceção.
 4. `Roteiro_preserva_ordem_com_setor_repetido` — grava dois `EstruturaRoteiro` para o mesmo nó, com o **mesmo `SetorId`** e `Ordem` 1 e 3; relê ordenado por `Ordem` e confere que os dois vieram, na ordem. É a regra 21 no mapeamento.
+5. `Quantidade_sobrevive_a_quatro_casas_decimais` — grava e relê `0.0001m` em **`EstruturaItem.Quantidade` e em `EstruturaMaterial.Quantidade`**, afirmando igualdade exata na volta. Molde pronto em `ReceitaPadraoMapeamentoTests.cs:109-116`. **É a guarda do `HasPrecision(18, 4)` do Passo 5** — sem ela, apagar as duas linhas deixa a suíte inteira verde e o EF trunca em `decimal(18,2)`. Cobre também o primeiro round-trip de `EstruturaMaterial`, que nenhum dos outros quatro exercita.
+
+**Meça as duas mutações, uma por vez:** apague o `HasPrecision` de `EstruturaItemConfiguration` → o teste 5 tem de ficar vermelho; restaure; apague o de `EstruturaMaterialConfiguration` → vermelho; restaure. Se alguma não matar, o teste é afirmação e não guarda.
 
 Rode:
 
