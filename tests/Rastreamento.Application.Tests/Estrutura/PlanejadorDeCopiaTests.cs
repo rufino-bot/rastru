@@ -13,6 +13,30 @@ public class PlanejadorDeCopiaTests
           (materiais ?? []).ToLookup(m => m.Comp, m => (m.Material, m.Qtd)),
           (roteiro ?? []).ToLookup(r => r.Comp, r => (r.Setor, r.Ordem)));
 
+  // Gera uma receita em arvore de largura constante: raiz = 1, cada no de cada geracao ganha
+  // `fanOut` filhos, por `niveis` (contando a raiz como nivel 1). Usada pelos testes do teto de NOS
+  // — precisa ser larga e rasa, o oposto da corrente usada nos testes do teto de PROFUNDIDADE, para
+  // separar os dois erros.
+  private static (int Pai, int Filho, decimal Qtd)[] ArvoreLarga(int fanOut, int niveis)
+  {
+    var arestas = new List<(int, int, decimal)>();
+    var proximoId = 2; // raiz e 1
+    var nivelAtual = new List<int> { 1 };
+    for (var nivel = 1; nivel < niveis; nivel++)
+    {
+      var proximoNivel = new List<int>();
+      foreach (var pai in nivelAtual)
+        for (var i = 0; i < fanOut; i++)
+        {
+          var filho = proximoId++;
+          arestas.Add((pai, filho, 1m));
+          proximoNivel.Add(filho);
+        }
+      nivelAtual = proximoNivel;
+    }
+    return arestas.ToArray();
+  }
+
   [Fact]
   public void Raiz_sem_receita_gera_um_no_so()
   {
@@ -70,14 +94,22 @@ public class PlanejadorDeCopiaTests
     var plano = PlanejadorDeCopia.Planejar(Receita([(1, 2, 1m), (2, 3, 1m), (3, 2, 1m)]), 1, 1m);
 
     Assert.Equal(PlanejadorDeCopia.CodigoDeCiclo, plano.CodigoDoErro);
-    Assert.Contains("2", plano.Erro);
-    Assert.Contains("3", plano.Erro);
+    // Nao basta os digitos aparecerem soltos ("2" casa com o "2" de dentro de "12"): a mensagem tem
+    // de nomear a SEQUENCIA contigua do trecho ciclico, fechado no no reencontrado — 2 -> 3 -> 2 -,
+    // senao Skip(IndexOf + 1) (perde o fechamento) ou o caminho inteiro sem Skip nenhum (1 -> 2 -> 3
+    // -> 2, ramo inocente incluso) tambem passariam.
+    Assert.Contains("2 -> 3 -> 2", plano.Erro);
   }
 
   [Fact]
   public void Profundidade_acima_do_teto_e_recusada()
   {
-    var corrente = Enumerable.Range(1, 22).Select(i => (i, i + 1, 1m)).ToArray();
+    // Comprimento derivado da constante, nao de um literal: cadeia com PROFUNDIDADE MAXIMA + 1 nos
+    // (Range(1, PM) da PM arestas, entao PM + 1 nos) — imediatamente ACIMA do teto. Junto com o
+    // teste seguinte (imediatamente abaixo), o par prende o `>` de PlanejadorDeCopia.cs:83: trocar
+    // por `>=` (ou deslocar a constante em 1, para qualquer lado) mata um dos dois.
+    var corrente = Enumerable.Range(1, PlanejadorDeCopia.ProfundidadeMaxima)
+        .Select(i => (i, i + 1, 1m)).ToArray();
     var plano = PlanejadorDeCopia.Planejar(Receita(corrente), 1, 1m);
 
     Assert.Equal(PlanejadorDeCopia.CodigoDeProfundidade, plano.CodigoDoErro);
@@ -86,8 +118,34 @@ public class PlanejadorDeCopiaTests
   [Fact]
   public void Corrente_dentro_do_teto_e_aceita()
   {
-    var corrente = Enumerable.Range(1, 5).Select(i => (i, i + 1, 1m)).ToArray();
+    // Par do teste acima: cadeia com exatamente PROFUNDIDADE MAXIMA nos (Range(1, PM - 1) da
+    // PM - 1 arestas, entao PM nos) — imediatamente ABAIXO do limite que recusa.
+    var corrente = Enumerable.Range(1, PlanejadorDeCopia.ProfundidadeMaxima - 1)
+        .Select(i => (i, i + 1, 1m)).ToArray();
     var plano = PlanejadorDeCopia.Planejar(Receita(corrente), 1, 1m);
+
+    Assert.Null(plano.Erro);
+  }
+
+  [Fact]
+  public void Numero_de_nos_acima_do_teto_e_recusado()
+  {
+    // Larga e rasa de proposito: fan-out 8, 4 niveis (raiz + 3 geracoes) = 1 + 8 + 64 + 512 = 585
+    // nos, profundidade so 4 — bem longe do teto de profundidade (20). So assim o teste prova que
+    // quem recusa e o teto de NOS (CodigoDeTamanho), nao o de profundidade (CodigoDeProfundidade).
+    var arvore = ArvoreLarga(fanOut: 8, niveis: 4);
+    var plano = PlanejadorDeCopia.Planejar(Receita(arvore), 1, 1m);
+
+    Assert.Equal(PlanejadorDeCopia.CodigoDeTamanho, plano.CodigoDoErro);
+  }
+
+  [Fact]
+  public void Numero_de_nos_dentro_do_teto_e_aceito()
+  {
+    // Par do teste acima: sem ele, um NosMaximos de 1 passaria no teste anterior sem guarda
+    // nenhuma. Fan-out 5, 3 niveis (raiz + 2 geracoes) = 1 + 5 + 25 = 31 nos, dentro do teto de 500.
+    var arvore = ArvoreLarga(fanOut: 5, niveis: 3);
+    var plano = PlanejadorDeCopia.Planejar(Receita(arvore), 1, 1m);
 
     Assert.Null(plano.Erro);
   }
@@ -108,6 +166,7 @@ public class PlanejadorDeCopiaTests
 
     var filho = plano.Raiz!.Filhos.Single();
     Assert.Equal(3m, filho.Quantidade);
+    Assert.Null(filho.Descricao);   // regra 19: NULL herda do Componente — o planejador nao copia texto
     Assert.Equal((90, 4.5m), filho.Materiais.Single());          // 3 x 1,5 — o material multiplica
     Assert.Equal([(7, 10), (8, 20), (7, 30)], filho.Roteiro);    // reordenado pela Ordem gravada
   }
