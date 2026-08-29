@@ -52,7 +52,10 @@ FRONT : 374 testes / 31 arquivos, verdes.  (`cd web && npm test -- --run`)
 BUILD : limpo.                              (`cd web && npm run build`)
 ```
 
-Alvo ao fim do plano: **395 testes / 34 arquivos**. Cada task declara o próprio delta; se um deles
+Alvo ao fim do plano: **396 testes / 34 arquivos** — 395 pelas seis tasks, mais um guarda de
+semântica de cor que a verificação em navegador da Task 5 obrigou a acrescentar (o resumo por
+status saía com `Concluido 0` verde e `Cancelado 0` vermelho, e nenhuma das três guardas de tema
+mede semântica). Cada task declara o próprio delta; se um deles
 não bater, **corrija a baseline das tasks seguintes na mesma passada** — total absoluto propaga
 erro task a task.
 
@@ -1691,7 +1694,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Depois da Task 6, e **antes** de abrir o PR:
 
-- [ ] `cd web && npm test -- --run && npm run build` — **395 / 34**, build limpo.
+- [ ] `cd web && npm test -- --run && npm run build` — **396 / 34**, build limpo (395 pelas seis
+  tasks, mais o guarda de semântica de cor do fix da Task 5). **E este número vale só enquanto a
+  branch não tiver a `main`**: o PR #9, mesclado em 2026-08-28, traz +20 testes / +1 arquivo. Ao
+  trazer a `main`, **remeça** — a previsão é 416 / 35, e previsão não vai para o PR.
 - [ ] `bash scripts/estado` — árvore limpa, branch empurrada, ledger em dia.
 - [ ] Review de branch inteira, no modelo mais capaz, em **sessão nova** — review pesada não se
   despacha no fim de sessão longa. Prepare o pacote com `scripts/review-package BASE HEAD` (BASE =
