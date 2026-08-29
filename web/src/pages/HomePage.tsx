@@ -5,7 +5,7 @@ import {
   type PedidoDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
-import { STATUS_DO_PEDIDO, ENCERRADOS, tomDoStatus } from '../pedidos/statusDoPedido'
+import { STATUS_DO_PEDIDO, ENCERRADOS } from '../pedidos/statusDoPedido'
 import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { Pagina } from '../components/Pagina'
 import { Pilula } from '../components/Pilula'
@@ -127,7 +127,18 @@ export function HomePage() {
                 // `conta só os pedidos abertos` faz `within(cartao).getByText('2')`, e
                 // `getByText` LANÇA quando casa mais de um nó. Contagem em elemento próprio
                 // colidiria com o número grande do cartão.
-                <Pilula key={status} tom={tomDoStatus(status)}>{`${status} ${quantidade}`}</Pilula>
+                //
+                // SEM `tom` de propósito — a pílula fica no tom neutro padrão. Verde e vermelho
+                // ficam reservados a ESTADO de um pedido concreto: é o que `PedidosPage` e a
+                // linha de "Pedidos abertos há mais tempo" (via `LinhaDePedido`) continuam
+                // fazendo, e continua certo lá. Aqui a pílula é rótulo de uma CONTAGEM, não de um
+                // pedido — "Concluido 0" em verde ou "Cancelado 0" em vermelho estaria colorindo
+                // um zero, e um zero não é nem aprovação nem erro para alarmar sobre. Achado
+                // olhando a tela renderizada em 375px, não por teste: nenhuma das três guardas de
+                // tema (paleta, contraste, opacidade) mede SEMÂNTICA de cor, e por isso o teste
+                // `nao usa cor de estado no resumo...` existe — sem ele, uma recolorização futura
+                // deste resumo passaria a suíte inteira em verde.
+                <Pilula key={status}>{`${status} ${quantidade}`}</Pilula>
               ))}
             </div>
           )}

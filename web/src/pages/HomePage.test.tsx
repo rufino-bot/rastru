@@ -155,6 +155,48 @@ describe('HomePage', () => {
     expect(within(cartao).getByText('Cancelado 1')).toBeTruthy()
   })
 
+  it('nao usa cor de estado no resumo por status, e preserva a reserva na linha de pedido', async () => {
+    // Achado da Fase 1E: `Concluido 0` saia verde e `Cancelado 0` saia vermelho no resumo, porque
+    // a pílula do resumo herdava `tomDoStatus`. Nenhuma das três guardas de tema
+    // (`semCorForaDaPaleta`, `contraste`, `semModificadorDeOpacidadeEmCor`) mede SEMÂNTICA — o
+    // resumo podia ficar colorido para sempre sem que nenhuma delas acusasse. Achado olhando a
+    // tela em 375px, não por teste — daí este teste.
+    vi.stubGlobal('fetch', apiCompleta())
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    const cartao = screen.getByText('pedidos abertos').closest('a')!
+    const pilulasDoResumo = [
+      within(cartao).getByText('Aberto 2'),
+      within(cartao).getByText('EmProducao 1'),
+      within(cartao).getByText('AguardandoExpedicao 0'),
+      within(cartao).getByText('Concluido 1'),
+      within(cartao).getByText('Cancelado 1'),
+    ]
+    for (const pilula of pilulasDoResumo) {
+      expect(pilula.className).not.toMatch(/positivo-/)
+      expect(pilula.className).not.toMatch(/negativo-/)
+    }
+
+    // A reserva não sumiu do sistema — só do resumo. Na seção "há mais tempo" a pílula É o estado
+    // de um pedido concreto (via `LinhaDePedido`, que continua chamando `tomDoStatus`), não
+    // rótulo de contagem — e essa distinção é o que faz o vermelho continuar certo ali.
+    // O fixture desta seção só tem status NÃO encerrados (`ENCERRADOS` exclui Concluido/Cancelado
+    // dela por definição — ver o filtro de `maisAntigos`), então não há como provar aqui a cor
+    // positiva/negativa em si: essa prova já existe em `LinhaDePedido.test.tsx`
+    // ('reserva verde para Concluido e vermelho para Cancelado...') e em `PedidosPage.test.tsx`
+    // ('mostra o status como pílula, com o tom certo por status'). O que dá para provar aqui,
+    // com o fixture que existe, é que a pílula da seção continua sendo uma `Pilula` de verdade
+    // tingida pelo tom que `tomDoStatus` devolve para esse status (neutro, para os três status
+    // que aparecem nesta seção) — e não texto solto sem classe nenhuma, que uma correção afoita
+    // na linha errada poderia produzir.
+    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    const pilulaNaSecao = within(secao).getByText('EmProducao')
+    expect(pilulaNaSecao.className).toMatch(/bg-acao-fundo/)
+    expect(pilulaNaSecao.className).toMatch(/text-acao\b/)
+  })
+
   it('nao mostra o resumo por status enquanto os numeros nao chegaram', () => {
     // Cinco zeros seriam cinco afirmações falsas; cinco traços seriam ruído (o número grande do
     // cartão já diz "—"). O resumo simplesmente não existe até o dado chegar.
