@@ -80,6 +80,13 @@ resolvidos (ou conscientemente adiados).
   os cinco status visíveis inclusive os zerados, e a seção nova com os três estados —
   carregando, vazio de verdade e erro — cada um com teste que morre se o estado sumir.
 
+> **1E concluída em 2026-08-29**: tipografia IBM Plex auto-hospedada por troca de um token, o
+> resumo pelos cinco status no cartão de Pedidos da Home e a seção "pedidos abertos há mais tempo".
+> Saíram junto duas extrações que a fase provou necessárias — `statusDoPedido.ts` e a primitiva
+> `LinhaDePedido`, que a `PedidosPage` adotou — e uma guarda executável para a dívida de
+> `listarPedidos()` não paginado. Suíte do front em **419 testes / 35 arquivos**, medida depois do
+> merge da `main`.
+
 > **Esta fase NÃO é a "Fase 1D parte 2" que o corolário acima descarta**, e vale dizer por quê em
 > vez de fingir que a tensão não existe. O que aquele corolário advertia era uma reestilização
 > ampla motivada por o padrão de primitivas não ter segurado. Aqui o padrão segurou: a troca de
