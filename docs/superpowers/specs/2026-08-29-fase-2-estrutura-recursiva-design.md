@@ -268,10 +268,30 @@ recursivamente, sem o cliente remontar a árvore a partir de `EstruturaPaiId`.
 Cada recusa viaja como **código** no corpo, no padrão que a 1A fixou e a spec de endpoints define —
 o controller repassa e não deriva comportamento da string:
 
+**Emenda de 2026-08-29, decidida pelo usuário durante a execução da Task 3 — o corpo do erro tem
+DOIS campos.** Esta seção nascia dizendo que a recusa viaja como código, e só. A review da Task 3
+mostrou o custo: o caso de uso descartava a frase e a tela mostraria `"CicloNaReceita"` ao operador,
+jogando fora justamente o que a Task 2 levou **três rodadas** para produzir — a frase **nomeia o
+caminho do ciclo** (`"2 -> 3 -> 2"`), e o front não tem como reconstruí-la, porque não sabe qual foi
+o caminho.
+
+O corpo passa a ser `{ "erro": "<código>", "mensagem": "<frase>" }`, com `mensagem` **omitida**
+quando não houver. `Result`/`Result<T>` ganham um `string? Detalhe` opcional e default `null` — a
+mudança é aditiva e nenhum call-site existente muda. O front **comuta pelo `erro`** e **mostra a
+`mensagem`**.
+
+**Também emendado aqui: a faixa de `Quantidade` é a da COLUNA, não a do tipo.** Validar `> 0` e
+capturar `OverflowException` de `decimal` não fecha nada — `decimal` vai a ~7,9e28 e `DECIMAL(18,4)`
+segura ~9,99e13, então `1e15` vira 500. E `0,00001` trunca para `0,0000`, permitindo Peça com
+quantidade **zero**, que quebra a conservação de quantidade da Fase 3 em silêncio. A guarda é de
+aplicação (400), não de schema — esta fase mantém "uma única mudança de schema", e um `CHECK` não
+cobriria o teto.
+
 | Situação | Resposta |
 |---|---|
 | Peça sem `ComponenteId` | 400, validação |
-| Ciclo na receita durante a cópia | 409 `CicloNaReceita` |
+| `Quantidade` fora da faixa de `DECIMAL(18,4)` (`< 0,0001` ou acima do que a coluna segura) | 400, validação |
+| Ciclo na receita durante a cópia | 409 `CicloNaReceita`, **com `mensagem` nomeando o caminho** |
 | Teto de profundidade ou de nós estourado | 409, código próprio |
 | `DELETE` com Pedido fora de `Aberto` | 409 `PedidoNaoAberto` — mesmo código já em uso |
 | Nó inexistente | 404 |

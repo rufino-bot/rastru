@@ -864,7 +864,33 @@ Esperado: falha de compilação.
 
 - [ ] **Passo 3: implementar o caso de uso**
 
-`MontagemDeEstruturaUseCase.CriarPeca`: valida `Quantidade > 0`; confere que o Agrupamento existe (404); lê a receita; chama `PlanejadorDeCopia.Planejar`; se `plano.Erro` não é nulo, devolve `Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito)`; senão converte `NoPlanejado` em `NoParaGravar` (a raiz recebe `RequerRelatorioDimensional` do DTO; os filhos recebem `false`, porque a marca é **por Peça**, regra 10) e grava.
+`MontagemDeEstruturaUseCase.CriarPeca`: valida a **faixa** de `Quantidade` (ver abaixo); confere que o Agrupamento existe (404); lê a receita; chama `PlanejadorDeCopia.Planejar`; se `plano.Erro` não é nulo, devolve falha de conflito **carregando o código E a frase** (ver abaixo); senão converte `NoPlanejado` em `NoParaGravar` (a raiz recebe `RequerRelatorioDimensional` do DTO; os filhos recebem `false`, porque a marca é **por Peça**, regra 10) e grava.
+
+> **Correção de plano, 2026-08-29, decidida pelo usuário depois da review da Task 3 — duas coisas
+> que este passo dizia errado.**
+>
+> **(a) A faixa de quantidade é a da COLUNA, não a do tipo.** Validar `> 0` e capturar
+> `OverflowException` de `decimal` **não fecha o buraco**: `decimal` vai a ~7,9e28 e a coluna é
+> `DECIMAL(18,4)`, que segura ~9,99e13. Uma quantidade de `1e15`, positiva e sem receita nenhuma,
+> passa as duas guardas e morre como `DbUpdateException` → **500**, que é exatamente o desfecho que
+> a guarda dizia fechar. A outra ponta é igual: `0,00001` trunca para `0,0000`, e uma Peça com
+> quantidade **zero** quebra a conservação de quantidade da Fase 3 **sem erro nenhum**.
+> A guarda passa a ser: `Quantidade >= 0,0001` **e** o produto acumulado cabendo em `DECIMAL(18,4)`,
+> com 400 legível. Fica na **aplicação**, onde a guarda de sinal já vive — a spec fixou "uma única
+> mudança de schema" nesta fase, e um `CHECK` não cobriria o teto de qualquer forma.
+>
+> **(b) O 409 carrega o CÓDIGO e a FRASE.** Descartar `plano.Erro` e devolver só
+> `plano.CodigoDoErro` faz a tela mostrar `"CicloNaReceita"` ao operador — e joga fora justamente a
+> informação que a Task 2 levou **três rodadas de review** para produzir: a frase **nomeia o
+> caminho do ciclo** (`"2 -> 3 -> 2"`), que é o único jeito de saber onde consertar a receita. O
+> front não consegue reconstruí-la, porque não sabe qual foi o caminho.
+>
+> **Como carregar os dois:** `Result` e `Result<T>` (`Application/Common/Result.cs`) ganham um
+> `string? Detalhe`, **opcional e default `null`** — mudança aditiva, nenhum call-site existente
+> muda. `Erro` continua sendo o **código** (é o que os controllers já traduzem e o que o front
+> comuta); `Detalhe` leva a frase. O controller emite `{ erro, mensagem }`, com `mensagem` omitida
+> quando `Detalhe` é nulo. **A Task 5 e a Task 6 consomem esse formato** — as duas ainda não foram
+> escritas, então o custo é só este parágrafo.
 
 **Nenhuma checagem de `Pedido.Status`.** Escreva o comentário que diz por quê:
 
@@ -1177,7 +1203,7 @@ export function excluirNo(id: number): Promise<ResultadoDeEstrutura>
 
 1. `obterEstrutura chama /agrupamentos/:id/estrutura sem escrever /api à mão` — afirma a URL **exata** recebida pelo fetch, incluindo o prefixo aplicado pelo `rota()`. É a guarda contra duplicar o prefixo.
 2. `criarPeca devolve o nó criado no 201`.
-3. `criarPeca devolve o código do conflito no 409` — corpo `{ erro: 'CicloNaReceita' }`.
+3. `criarPeca devolve o código E a mensagem do conflito no 409` — corpo `{ erro: 'CicloNaReceita', mensagem: 'A receita tem um ciclo: 2 -> 3 -> 2. …' }`. **Afirme os dois**: o código é por onde o front comuta, a mensagem é o que ele mostra, e ela nomeia o caminho do ciclo — a única informação que permite consertar a receita. Um teste que afirmasse só o código deixaria a mensagem cair sem ninguém notar.
 4. `excluirNo devolve 'PedidoNaoAberto' no 409`.
 5. `excluirNo devolve 'NaoEncontrado' no 404, sem lançar` — o 404 é desfecho, não exceção, no mesmo padrão de `excluirAgrupamento`.
 6. `acrescentarFilho posta em /estrutura/:id/filhos e devolve o nó criado` — a URL exata, pelo mesmo motivo do teste 1.
