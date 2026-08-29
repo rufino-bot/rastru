@@ -10,6 +10,7 @@ using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
 using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
+using Rastreamento.Application.Estrutura;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
@@ -121,6 +122,10 @@ builder.Services.AddScoped<CadastroDeComponenteUseCase>();
 // para os tres sub-recursos — ver o summary de IReceitaPadraoRepository.
 builder.Services.AddScoped<IReceitaPadraoRepository, ReceitaPadraoRepository>();
 builder.Services.AddScoped<ReceitaPadraoUseCase>();
+
+// Estrutura real (Fase 2): a arvore EstruturaItem, copiada da receita padrao do catalogo.
+builder.Services.AddScoped<IEstruturaRepository, EstruturaRepository>();
+builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
