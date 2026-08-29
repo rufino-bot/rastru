@@ -1299,6 +1299,59 @@ Print ou descrição por verificação, no relatório. **Achado em navegador é 
 
 ---
 
+## Gate de review: o que roda com ele, e a única dispensa
+
+Escrito **antes** da execução, que é a única forma que vale. `CLAUDE.md` é explícito: justificativa
+reconstruída depois é indistinguível de racionalização, e a exceção "produto não é código" é a
+**mais fácil de invocar errado** — o próprio arquivo registra que já foi invocada errado uma vez,
+para a Task 12 da Fase 1C, e a review retroativa achou coisa de verdade no escopo dela.
+
+### Tasks 1 a 8: gate inteiro, sem exceção
+
+Implementer → review de task → fix pass para Critical/Important → re-review. Todas produzem código
+com delta de teste diferente de zero.
+
+### Task 10 — DISPENSADA, e esta é a exceção limpa
+
+**Classe invocada:** "task cujo produto não é código" (`CLAUDE.md`), que nomeia **verificação
+manual** entre os exemplos.
+
+**Por que ela cabe aqui, e não é a invocação errada:** o produto da Task 10 é o registro de seis
+verificações em navegador — o que foi visto na tela, em que ordem, com que dado. Não há diff para
+revisar: o delta de código é **zero por construção**, e o delta de teste é zero. Revisar esse
+relatório é lê-lo. Um revisor de código sem acesso ao navegador não teria como confirmar nem
+contestar "a quantidade do neto acumulou na tela"; ele só poderia reler a prosa, que é o que o
+controlador já faz ao aceitar a task.
+
+**O que continua obrigatório, e não é dispensa nenhuma:** achado em navegador é **achado**. Se
+qualquer das seis verificações divergir, abre-se correção com o gate inteiro — a dispensa é da
+review da task, não do conserto do que ela encontrar.
+
+### Task 9 — NÃO dispensada, e a razão é medição contra o registro do projeto
+
+O produto da Task 9 é prosa em `specs/` e `CLAUDE.md`, então ela **parece** cair na mesma classe da
+Task 10. Não cai, e o projeto tem duas medições próprias dizendo por quê:
+
+- **Fase 1C, Task 13** — documentação pura, **delta de teste zero**, exatamente a forma da Task 9. A
+  review achou **duas afirmações falsas em spec que nenhum teste quebraria** (`CLAUDE.md`).
+- **Fase 1E** — a família "prosa que encena precisão" apareceu **dez vezes** numa fase só, e o passe
+  que fechava a família **escreveu duas ocorrências novas dela**, pegas apenas pela re-review.
+  Foram precisos **três rounds**. `[[o-fix-pass-escreve-a-proxima-ocorrencia]]`
+
+A diferença entre as duas tasks é o **modo de falha**, não o tipo de produto. O relatório da Task 10
+descreve o que se viu: erra por omissão, e omissão o controlador percebe relendo. A Task 9 **altera a
+fonte de verdade do domínio** — `01`, `05`, `06` e `CLAUDE.md` — e erra por afirmação: uma frase que
+declara escopo maior do que a mudança tem, ou que contradiz um bullet vizinho. Nenhum teste morre, e
+o autor é justamente quem não enxerga a própria frase.
+
+A Task 9 ainda edita quatro documentos onde **vizinhos falam do mesmo assunto** (o roadmap ganha uma
+Fase 2B ao lado da Fase 2; `01` ganha um ponto em aberto ao lado das regras 13 e 18). É a forma
+descrita em `[[edicao-pontual-em-prosa-estraga-o-entorno]]`: a contradição mora entre bullets
+vizinhos, não na linha alterada.
+
+**Portanto a Task 9 roda o gate inteiro**, e o brief do revisor pede explicitamente: cada frase nova
+declara escopo que a mudança de fato tem? Alguma contradiz um vizinho na mesma seção?
+
 ## Auto-revisão do plano
 
 Feita antes de entregar, e o que ela achou está corrigido acima.
