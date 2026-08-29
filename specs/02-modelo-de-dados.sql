@@ -205,12 +205,9 @@ CREATE TABLE dbo.Agrupamento (
 CREATE TABLE dbo.EstruturaItem (
     Id                          INT IDENTITY(1,1)  NOT NULL,
     AgrupamentoId               INT                 NOT NULL,
-    -- Nullable: item 100% ad-hoc, sem base no catálogo.
-    -- PENDENTE (Fase 2, decidido em 2026-08-04 -- ver regra 18 em 01): so um Item (no com pai)
-    -- pode ser ad-hoc. Uma Peca sempre referencia um Componente, senao o solido -- que mora em
-    -- Componente -- nao tem onde ser pendurado. Constraint a acrescentar nesta tabela:
-    --   CONSTRAINT CK_EstruturaItem_PecaTemComponente
-    --       CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
+    -- Nullable: item 100% ad-hoc, sem base no catalogo. So um Item (no com pai) pode ser ad-hoc --
+    -- uma Peca sempre referencia um Componente, senao o solido (que mora em Componente) nao tem
+    -- onde ser pendurado. Ver regra 18 em 01, e CK_EstruturaItem_PecaTemComponente abaixo.
     ComponenteId                INT                 NULL,
     -- Nome proprio do no. NULL = herda a descricao do Componente. Existe porque, com ComponenteId
     -- NULL (item ad-hoc), o no nao tinha NENHUM texto proprio: a consulta de "o que esta no meu
@@ -230,7 +227,9 @@ CREATE TABLE dbo.EstruturaItem (
     -- Peça = topo da árvore dentro do Agrupamento (sem pai); Item = tem pai
     CONSTRAINT CK_EstruturaItem_PecaSemPai
         CHECK ((NivelHierarquico = 'Peca' AND EstruturaPaiId IS NULL)
-            OR (NivelHierarquico = 'Item' AND EstruturaPaiId IS NOT NULL))
+            OR (NivelHierarquico = 'Item' AND EstruturaPaiId IS NOT NULL)),
+    CONSTRAINT CK_EstruturaItem_PecaTemComponente
+        CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
 );
 
 CREATE TABLE dbo.EstruturaMaterial (

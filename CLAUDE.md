@@ -442,6 +442,16 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF COL_LENGTH('dbo.Agrupamento','Quantidade') IS NOT NULL ALTER TABLE dbo.Agrupamento DROP COLUMN Quantidade;"
 ```
 
+Na Fase 2 entra a constraint que fecha a regra 18 no schema. **Diferente dos quatro blocos acima,
+este NÃO é no-op nesta máquina:** o banco foi regenerado em 2026-08-04 a partir do `.sql`, e naquela
+data a constraint ainda era comentário.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_EstruturaItem_PecaTemComponente') ALTER TABLE dbo.EstruturaItem ADD CONSTRAINT CK_EstruturaItem_PecaTemComponente CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL);"
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 
 namespace Rastreamento.Api.Tests;
@@ -17,6 +18,7 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
 {
   private readonly WebApplicationFactory<Program> _factory;
   private readonly List<string> _numerosCriados = [];
+  private readonly List<int> _componentesCriados = [];
 
   public AgrupamentosEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
@@ -31,15 +33,42 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var ids = pedidos.Select(p => p.Id).ToList();
 
     // EstruturaItem (Fase 2, sem entidade) sai por SQL: um teste insere uma linha de proposito.
+    // Antes do Componente que ela referencia — FK_EstruturaItem_Componente nao aceita a ordem inversa.
     foreach (var id in ids)
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.EstruturaItem WHERE AgrupamentoId IN (SELECT Id FROM dbo.Agrupamento WHERE PedidoId = {id})");
+
+    db.Componentes.RemoveRange(
+        await db.Componentes.Where(c => _componentesCriados.Contains(c.Id)).ToListAsync());
+    await db.SaveChangesAsync();
 
     db.Agrupamentos.RemoveRange(await db.Agrupamentos.Where(a => ids.Contains(a.PedidoId)).ToListAsync());
     await db.SaveChangesAsync();
 
     db.Pedidos.RemoveRange(pedidos);
     await db.SaveChangesAsync();
+  }
+
+  /// <summary>
+  /// Componente minimo, so para satisfazer FK_EstruturaItem_Componente — a Task 1 da Fase 2 fechou
+  /// CK_EstruturaItem_PecaTemComponente no banco, e uma Peca sem Componente passou a ser recusada.
+  /// Mesmo padrao de <c>ReceitaPadraoEndpointsTests.NovoComponente</c>.
+  /// </summary>
+  private async Task<int> NovoComponente()
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var c = new Componente
+    {
+      Codigo = $"AG-{Guid.NewGuid():N}"[..12],
+      Descricao = "Componente de teste do agrupamento",
+      Tipo = "Fabricado",
+      Ativo = true,
+    };
+    db.Componentes.Add(c);
+    await db.SaveChangesAsync();
+    _componentesCriados.Add(c.Id);
+    return c.Id;
   }
 
   /// <summary>
@@ -325,12 +354,14 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     var id = await NovoAgrupamento(cliente, pedidoId);
 
     // EstruturaItem e da Fase 2 e nao tem entidade: a linha entra por SQL, que e exatamente o
-    // que TemEstruturaAsync consulta. ComponenteId nulo = item ad-hoc, permitido pelo DDL.
+    // que TemEstruturaAsync consulta. Peca exige Componente desde a Task 1 da Fase 2
+    // (CK_EstruturaItem_PecaTemComponente) — daqui o NovoComponente().
+    var componenteId = await NovoComponente();
     using (var escopo = _factory.Services.CreateScope())
     {
       var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
       await db.Database.ExecuteSqlInterpolatedAsync(
-          $"INSERT INTO dbo.EstruturaItem (AgrupamentoId, NivelHierarquico, Quantidade) VALUES ({id}, 'Peca', 1)");
+          $"INSERT INTO dbo.EstruturaItem (AgrupamentoId, ComponenteId, NivelHierarquico, Quantidade) VALUES ({id}, {componenteId}, 'Peca', 1)");
     }
 
     var resposta = await cliente.DeleteAsync($"/api/agrupamentos/{id}");

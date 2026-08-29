@@ -22,10 +22,8 @@ public interface IAgrupamentoRepository
 
   /// <summary>
   /// Existe alguma EstruturaItem apontando para este Agrupamento? E a guarda do DELETE.
-  /// `EstruturaItem` e tabela da FASE 2 e ainda nao tem entidade mapeada de proposito — mapear
-  /// aqui puxaria a Fase 2 para dentro da Fase 1, e um mapeamento feito so para servir de guarda
-  /// envelheceria errado. A implementacao usa SQL direto; quando a Fase 2 mapear a entidade,
-  /// isto vira LINQ e o contrato nao muda.
+  /// Ate a Fase 2 isto era SQL direto, porque `EstruturaItem` nao tinha entidade mapeada; a Fase 2
+  /// mapeou, e a implementacao virou LINQ sem o contrato mudar — que era exatamente o previsto.
   /// </summary>
   Task<bool> TemEstruturaAsync(int agrupamentoId, CancellationToken ct);
 

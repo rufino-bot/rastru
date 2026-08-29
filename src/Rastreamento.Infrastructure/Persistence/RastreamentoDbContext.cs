@@ -18,6 +18,9 @@ public class RastreamentoDbContext : DbContext
   public DbSet<ComponenteRoteiroPadrao> RoteirosPadrao => Set<ComponenteRoteiroPadrao>();
   public DbSet<Pedido> Pedidos => Set<Pedido>();
   public DbSet<Agrupamento> Agrupamentos => Set<Agrupamento>();
+  public DbSet<EstruturaItem> Estruturas => Set<EstruturaItem>();
+  public DbSet<EstruturaMaterial> EstruturaMateriais => Set<EstruturaMaterial>();
+  public DbSet<EstruturaRoteiro> EstruturaRoteiros => Set<EstruturaRoteiro>();
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {
