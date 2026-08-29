@@ -441,7 +441,18 @@ public static class PlanejadorDeCopia
 }
 ```
 
-**Delta de teste desta task: +9.**
+**Delta de teste desta task: +11.**
+
+> **Correção de plano, feita em 2026-08-29 depois da review da própria Task 2.** Este número era
+> **+9**, e faltavam os dois testes do **teto de nós** — `NosMaximos` e `CodigoDeTamanho` nasciam
+> sem teste algum, apagáveis com a suíte inteira verde. O par do teto de **profundidade** também
+> não prendia nada: correntes de 6 e 23 nós deixam o limite livre em qualquer valor entre os dois.
+>
+> **É a terceira ocorrência da mesma família nesta fase** (a primeira foi o `HasPrecision` da Task
+> 1; a segunda, as `Ordem` contíguas do teste 9). A regra que sai disso, e que vale para o resto do
+> plano: **toda constante ou guarda que o plano introduz precisa de um teste nomeado que morra
+> quando ela é apagada — e limiar precisa de PAR ADJACENTE, derivado da constante e não de literal
+> copiado.** `[[medir-o-plano-antes-de-despachar]]`
 
 - [ ] **Passo 1: escrever os nove testes, e vê-los falhar**
 
@@ -520,19 +531,23 @@ Assert.Contains("2", plano.Erro);
 Assert.Contains("3", plano.Erro);
 ```
 
-7. **`Profundidade_acima_do_teto_e_recusada`** — corrente 1 → 2 → … → 22, mais funda que `ProfundidadeMaxima`.
+**Os testes 7 e 8 são um PAR ADJACENTE, e é isso que os faz prender o teto.** A aritmética: uma corrente de `N` arestas `(i, i+1)` produz um caminho de `N + 1` nós, e a guarda recusa quando `caminho.Count > ProfundidadeMaxima`. Logo `N = ProfundidadeMaxima` recusa (por um) e `N = ProfundidadeMaxima - 1` aceita (por um). **Derive das constantes, nunca de literais** `20`/`21` — assim o par continua preso se alguém mudar a constante de propósito.
+
+7. **`Profundidade_acima_do_teto_e_recusada`** — o primeiro comprimento que estoura.
 
 ```csharp
-var corrente = Enumerable.Range(1, 22).Select(i => (i, i + 1, 1m)).ToArray();
+var n = PlanejadorDeCopia.ProfundidadeMaxima;
+var corrente = Enumerable.Range(1, n).Select(i => (i, i + 1, 1m)).ToArray();
 var plano = PlanejadorDeCopia.Planejar(Receita(corrente), 1, 1m);
 
 Assert.Equal(PlanejadorDeCopia.CodigoDeProfundidade, plano.CodigoDoErro);
 ```
 
-8. **`Corrente_dentro_do_teto_e_aceita`** — o par do anterior. Uma corrente de profundidade 5 passa. Sem este teste, um teto de 1 passaria no teste 7.
+8. **`Corrente_no_limite_do_teto_e_aceita`** — o último comprimento que passa. Juntos, os dois matam tanto `>` virando `>=` quanto o teto deslocado em um, para qualquer lado.
 
 ```csharp
-var corrente = Enumerable.Range(1, 5).Select(i => (i, i + 1, 1m)).ToArray();
+var n = PlanejadorDeCopia.ProfundidadeMaxima - 1;
+var corrente = Enumerable.Range(1, n).Select(i => (i, i + 1, 1m)).ToArray();
 var plano = PlanejadorDeCopia.Planejar(Receita(corrente), 1, 1m);
 
 Assert.Null(plano.Erro);
@@ -558,6 +573,10 @@ Assert.Equal(3m, filho.Quantidade);
 Assert.Equal((90, 4.5m), filho.Materiais.Single());          // 3 x 1,5 — o material multiplica
 Assert.Equal([(7, 10), (8, 20), (7, 30)], filho.Roteiro);    // reordenado, e a Ordem preservada
 ```
+
+10. **`Teto_de_nos_recusa_arvore_larga_e_rasa`** — o teto de **nós**, que é erro diferente do de profundidade e precisa de teste que os separe. Uma receita de fan-out 8 com 4 níveis dá `1 + 8 + 64 + 512 = 585` nós com profundidade 4: estoura `NosMaximos` sem chegar perto de `ProfundidadeMaxima`. **A asserção é `CodigoDeTamanho`, não `CodigoDeProfundidade`** — essa distinção é o teste.
+
+11. **`Arvore_larga_dentro_do_teto_e_aceita`** — o par. Fan-out 5 com 3 níveis dá `1 + 5 + 25 = 31` nós. Afirme `plano.Erro is null`. Sem ele, um `NosMaximos` de 1 passaria no teste 10.
 
 - [ ] **Passo 2: rodar e ver falhar**
 
@@ -710,6 +729,8 @@ Não é opcional, e o resultado vai no relatório. Para cada mutação: aplique,
 | `quantidade * f.QuantidadePadrao` → `f.QuantidadePadrao` | testes 2 e 3 |
 | `quantidade * f.QuantidadePadrao` → multiplicar só no 1º nível | teste 3, **não** o 2 |
 | `ProfundidadeMaxima` → 1000 | teste 7, **não** o 8 |
+| `>` → `>=` na checagem de profundidade | um dos dois (7 ou 8) — o par é adjacente, então o deslocamento de um é fatal |
+| `if (++nos > NosMaximos) throw …` apagado | teste 10, **não** o 11 |
 | `.OrderBy(r => r.Ordem)` removido | teste 9 — e ele só mata porque a entrada do teste está fora de ordem |
 | `Roteiro` reindexado (`Select((r, i) => (r.SetorId, i + 1))`) | teste 9 |
 | material **não** multiplicado (`m.QuantidadePadrao` em vez de `quantidade * m.QuantidadePadrao`) | teste 9 |
@@ -755,6 +776,15 @@ public sealed record PassoDoRoteiroDto(int SetorId, string Nome, int Ordem);
 ```
 
 > `Descricao` no DTO **já vem resolvida**: `EstruturaItem.Descricao` quando não-nula, senão a descrição do `Componente` (regra 19). O front não faz esse fallback — se fizesse, cada consumidor novo teria de lembrar dele.
+
+> **Decisão que a review da Task 2 empurrou para cá, e que esta task precisa tomar explicitamente:
+> quantidade tem piso e teto?** O planejador multiplica descendo e **não** guarda magnitude nem
+> sinal: uma receita com quantidade negativa ou absurda propaga, e um `OverflowException` de
+> `decimal` escaparia **por fora** do contrato `PlanoDeCopia` (que devolve erro, não lança). O
+> schema não ajuda — `EstruturaItem.Quantidade` é `DECIMAL(18,4)` **sem `CHECK > 0`**
+> (`02-modelo-de-dados.sql:218`). Decida uma das três e **escreva a decisão**: validar
+> `Quantidade > 0` no caso de uso (mais provável); acrescentar o `CHECK` ao schema, com o `ALTER`
+> idempotente; ou aceitar e registrar como dívida com gatilho. Não deixe implícito.
 
 **Delta de teste desta task: +6.**
 
