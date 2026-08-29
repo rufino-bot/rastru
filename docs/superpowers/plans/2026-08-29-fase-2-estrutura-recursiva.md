@@ -540,19 +540,23 @@ Assert.Null(plano.Erro);
 
 9. **`Materiais_e_roteiro_sao_copiados_em_cada_no_com_a_ordem_preservada`** — inclui **setor repetido** (regra 21).
 
-Duas armadilhas de propósito neste teste. **O material também multiplica**: o nó tem 3 unidades e cada uma pede 1,5 kg, então o nó pede **4,5** — não 1,5. E **o roteiro entra fora de ordem**, senão o `OrderBy` da implementação não é load-bearing e removê-lo não mataria teste nenhum.
+**Três armadilhas de propósito neste teste**, e cada uma existe para matar uma mutação diferente:
+
+1. **O material também multiplica** — o nó tem 3 unidades e cada uma pede 1,5 kg, então o nó pede **4,5**, não 1,5.
+2. **O roteiro entra fora de ordem**, senão o `OrderBy` da implementação não é load-bearing e removê-lo não mata nada.
+3. **As `Ordem` são 10, 20, 30 — não 1, 2, 3.** Com valores contíguos começando em 1, reindexar por posição produz exatamente os mesmos números que preservar a `Ordem`, e a mutação "roteiro reindexado" **sobrevive**. Isso foi medido na execução da própria Task 2: com `1, 2, 3` a mutação não matou teste nenhum.
 
 ```csharp
 var plano = PlanejadorDeCopia.Planejar(
     Receita([(1, 2, 3m)],
             materiais: [(2, 90, 1.5m)],
-            roteiro: [(2, 7, 3), (2, 8, 2), (2, 7, 1)]),   // FORA de ordem, de proposito
+            roteiro: [(2, 7, 30), (2, 8, 20), (2, 7, 10)]),  // FORA de ordem, e NAO contiguas
     1, 1m);
 
 var filho = plano.Raiz!.Filhos.Single();
 Assert.Equal(3m, filho.Quantidade);
-Assert.Equal((90, 4.5m), filho.Materiais.Single());        // 3 x 1,5 — o material multiplica
-Assert.Equal([(7, 1), (8, 2), (7, 3)], filho.Roteiro);     // reordenado pela Ordem
+Assert.Equal((90, 4.5m), filho.Materiais.Single());          // 3 x 1,5 — o material multiplica
+Assert.Equal([(7, 10), (8, 20), (7, 30)], filho.Roteiro);    // reordenado, e a Ordem preservada
 ```
 
 - [ ] **Passo 2: rodar e ver falhar**
