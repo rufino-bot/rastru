@@ -7,10 +7,10 @@ import { tomDoStatus } from './statusDoPedido'
  * Uma linha de Pedido: número, cliente, status e data de abertura, com o item inteiro como alvo do
  * clique.
  *
- * Extraída na Fase 1E para servir de segundo consumidor a uma seção "abertos há mais tempo" que
- * outra task desta mesma fase ainda vai acrescentar à Home, mostrando o MESMO item de Pedido que a
- * `PedidosPage` já mostra — dois consumidores do mesmo markup é o que faz primitiva. Antes disso
- * era código inline de uma tela só, e extrair teria sido abstração sem segundo caso.
+ * Extraída na Fase 1E quando surgiu o segundo consumidor. Hoje são dois, e é isso que a faz
+ * primitiva: a `PedidosPage` (a lista inteira) e a seção "abertos há mais tempo" da `HomePage`
+ * (os cinco mais antigos). Ambas mostram o MESMO item de Pedido. Antes do segundo caso era código
+ * inline de uma tela só, e extrair teria sido abstração sem segundo caso.
  *
  * **Não traz o `<li>`**: quem o traz é o `ItemDeCadastro`, que guarda o que não varia (semântica de
  * lista, borda e espaçamento). Esta primitiva é o CONTEÚDO dele.

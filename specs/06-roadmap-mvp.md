@@ -95,7 +95,12 @@ resolvidos (ou conscientemente adiados).
 >
 > **Dívidas nomeadas por esta fase:** `listarPedidos()` não é paginado, e a Home deriva o resumo e
 > a lista do array inteiro. Não é problema hoje, e **não** está só escrito: há guarda executável em
-> `web/src/api/cadastros.test.ts` que fica vermelha no dia em que `/pedidos` for paginado. A outra
+> `web/src/api/cadastros.test.ts` que fica vermelha se **o cliente** `listarPedidos()` passar a
+> paginar — por truncar o array ou por trocar a assinatura por um envelope. Ela mede o cliente com
+> `fetch` stubado, então **não cobre o lado do servidor**: se o backend passar a truncar
+> `GET /api/pedidos` mantendo a forma de array, o cliente não muda, a guarda fica verde e a Home
+> volta a mostrar "contagem das N primeiras" em silêncio. Fechar esse lado pede uma asserção de
+> forma da resposta em `tests/Rastreamento.Api.Tests`, e ela não existe. A outra
 > é cosmética — o rótulo de status aparece cru (`EmProducao`, `AguardandoExpedicao`) na Home e na
 > `PedidosPage`; humanizá-lo é mexer nas duas telas de uma vez, fora do escopo desta fase. A
 > terceira é estrutural: **as três guardas de tema não medem semântica de cor.**

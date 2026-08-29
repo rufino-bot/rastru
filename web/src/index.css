@@ -24,7 +24,9 @@
 
   ⚠️ ESTES BLOCOS FICAM FORA DO `@theme`, E ANTES DELE. `contraste.test.ts` lê o tema com
   `/@theme\s*\{([\s\S]*?)\n\}/`, que PARA no primeiro `\n}` — um `@font-face` dentro do `@theme`
-  truncaria a leitura da paleta e a guarda de contraste passaria a medir meia paleta, em silêncio.
+  trunca a leitura da paleta, e a guarda de contraste passa a medir meia paleta. Isso NÃO é
+  silencioso: medido em 2026-08-29, mover um destes blocos para dentro do `@theme` deixa a suíte
+  em 26 vermelhas, todas em `contraste.test.ts`. A instrução vale pelo estrago, não pelo susto.
 */
 @font-face {
   font-family: 'IBM Plex Sans';
