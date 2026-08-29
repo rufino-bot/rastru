@@ -786,7 +786,25 @@ public sealed record PassoDoRoteiroDto(int SetorId, string Nome, int Ordem);
 > `Quantidade > 0` no caso de uso (mais provável); acrescentar o `CHECK` ao schema, com o `ALTER`
 > idempotente; ou aceitar e registrar como dívida com gatilho. Não deixe implícito.
 
-**Delta de teste desta task: +6.**
+**Delta de teste desta task: +16** — 13 em `Application.Tests`, 3 em `Infrastructure.Tests`.
+
+> **Correção de plano, feita em 2026-08-29 durante a execução da própria Task 3, e é uma família de
+> defeito NOVA — não é mais "guarda sem matador".** Este número era **+6**, e os seis testes cobriam
+> só `CriarPeca`. Duas coisas faltavam:
+>
+> 1. **`ObterArvore` estava no bloco *Produces* acima e em nenhum passo abaixo.** O controller da
+>    Task 5 o chama (`GET /agrupamentos/{id}/estrutura`), então a Task 5 chegaria invocando um método
+>    que nenhuma task mandou construir. **O bloco de interfaces prometia o que passo nenhum
+>    entregava** — e o compilador só cobraria isso três tasks depois. Passa a ter passos e testes
+>    próprios aqui.
+> 2. **A mutação "remover a transação" era inmatável com fake.** Ela só quebra se houver erro no meio
+>    de uma gravação real, e um repositório falso grava em lista de memória. Por isso esta task
+>    ganha `tests/Rastreamento.Infrastructure.Tests/Persistence/EstruturaRepositoryTests.cs`, contra
+>    o **SQL Server real** — é o único lugar onde a atomicidade da árvore é observável. Sem ele, a
+>    mutação passa em silêncio.
+>
+> A lição, distinta da que a Task 2 gerou: **todo símbolo do bloco *Produces* precisa de um passo que
+> o construa, e a varredura é mecânica — para cada nome ali, aponte o passo.**
 
 - [ ] **Passo 1: o contrato do repositório**
 
@@ -1147,15 +1165,23 @@ export function editarNo(id: number, e: EdicaoDeNo): Promise<NoDaEstrutura | Con
 export function excluirNo(id: number): Promise<ResultadoDeEstrutura>
 ```
 
-**Delta de teste desta task: +5.**
+**Delta de teste desta task: +7.**
 
-- [ ] **Passo 1: escrever os cinco testes com `fetchPorRota`, e vê-los falhar**
+> **Correção de plano, 2026-08-29 — achada aplicando ao plano inteiro a varredura que a Task 3
+> gerou.** Este número era **+5**, e o bloco *Produces* acima declara **cinco** funções enquanto a
+> lista de testes cobria só três delas: `acrescentarFilho` e `editarNo` nasceriam sem teste algum.
+> É a mesma família do defeito da Task 3 — símbolo prometido no *Produces* sem passo que o exercite —
+> em versão mais fraca (aqui o passo de implementação existe; o que falta é a prova).
+
+- [ ] **Passo 1: escrever os sete testes com `fetchPorRota`, e vê-los falhar**
 
 1. `obterEstrutura chama /agrupamentos/:id/estrutura sem escrever /api à mão` — afirma a URL **exata** recebida pelo fetch, incluindo o prefixo aplicado pelo `rota()`. É a guarda contra duplicar o prefixo.
 2. `criarPeca devolve o nó criado no 201`.
 3. `criarPeca devolve o código do conflito no 409` — corpo `{ erro: 'CicloNaReceita' }`.
 4. `excluirNo devolve 'PedidoNaoAberto' no 409`.
 5. `excluirNo devolve 'NaoEncontrado' no 404, sem lançar` — o 404 é desfecho, não exceção, no mesmo padrão de `excluirAgrupamento`.
+6. `acrescentarFilho posta em /estrutura/:id/filhos e devolve o nó criado` — a URL exata, pelo mesmo motivo do teste 1.
+7. `editarNo faz PUT em /estrutura/:id e devolve o nó atualizado`.
 
 - [ ] **Passo 2: implementar**, seguindo o formato de `cadastros.ts` (mesmo `ehConflito`, mesmo tratamento de status). **Arquivo próprio**: `cadastros.ts` já serve cinco cadastros e a árvore não é um cadastro.
 
