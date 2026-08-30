@@ -17,6 +17,22 @@ public sealed class MontagemDeEstruturaUseCase
 {
   private const string ErroDeAgrupamentoNaoEncontrado = "Agrupamento nao encontrado.";
 
+  // Nomeado por entidade, mesmo criterio de `CadastroDeAgrupamentoUseCase`: `AcrescentarFilho`,
+  // `EditarNo` e `ExcluirNo` buscam um EstruturaItem por Id, e "no nao encontrado" e ambiguo com
+  // "Agrupamento nao encontrado" acima.
+  private const string ErroDeNoNaoEncontrado = "No nao encontrado.";
+
+  /// <summary>
+  /// Regra 19: `ComponenteId` nulo (no ad-hoc) NAO tem de onde herdar descricao — sem uma
+  /// `Descricao` propria ele chegaria ANONIMO a tela do operador, que e exatamente o que a regra
+  /// existe para impedir. Vale na criacao (`AcrescentarFilho`) e na edicao (`EditarNo`): um no
+  /// ad-hoc nao pode ser esvaziado de volta ao anonimato.
+  /// </summary>
+  private const string ErroDeDescricaoObrigatoria =
+      "Descricao e obrigatoria para um no sem Componente associado (regra 19).";
+
+  private const string StatusAberto = "Aberto";
+
   /// <summary>
   /// Piso e sinal na MESMA mensagem: `QuantidadeMinimaDaColuna` (0,0001) ja e maior que zero, entao
   /// um unico `&lt;` cobre negativo, zero e positivo pequeno demais para a coluna guardar sem
@@ -41,6 +57,7 @@ public sealed class MontagemDeEstruturaUseCase
   private readonly IAgrupamentoRepository _agrupamentos;
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly IPedidoRepository _pedidos;
+  private readonly MontadorDeArvoreDeEstrutura _montador;
 
   public MontagemDeEstruturaUseCase(
       IEstruturaRepository estruturas, IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo,
@@ -50,6 +67,9 @@ public sealed class MontagemDeEstruturaUseCase
     _agrupamentos = agrupamentos;
     _catalogo = catalogo;
     _pedidos = pedidos;
+    // Instanciado direto, nao via DI: e um colaborador interno, sem estado proprio alem das duas
+    // dependencias que o caso de uso ja recebe — nao ha razao para o container conhecer o tipo.
+    _montador = new MontadorDeArvoreDeEstrutura(estruturas, catalogo);
   }
 
   public async Task<Result<EstruturaItemDto>> CriarPeca(
@@ -120,7 +140,7 @@ public sealed class MontagemDeEstruturaUseCase
     var paraGravar = ConverterParaGravar(plano.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);
     var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
 
-    var arvore = await MontarArvore(agrupamentoId, ct);
+    var arvore = await _montador.MontarAsync(agrupamentoId, ct);
     return Result<EstruturaItemDto>.Ok(arvore.Single(i => i.Id == raizId));
   }
 
@@ -138,7 +158,140 @@ public sealed class MontagemDeEstruturaUseCase
       return Result<IReadOnlyList<EstruturaItemDto>>.Falha(
           ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
-    return Result<IReadOnlyList<EstruturaItemDto>>.Ok(await MontarArvore(agrupamentoId, ct));
+    return Result<IReadOnlyList<EstruturaItemDto>>.Ok(await _montador.MontarAsync(agrupamentoId, ct));
+  }
+
+  /// <summary>
+  /// Acrescenta um sub-Item sob um no ja existente (`paiId`, Peca ou Item — ambos podem ganhar
+  /// filho). Duas formas, discriminadas por `ComponenteId`:
+  ///
+  /// - Vindo de Componente: mesma maquina de `CriarPeca`/`PlanejadorDeCopia` — a receita do
+  ///   catalogo e copiada recursivamente a partir do Componente informado, com TODAS as guardas do
+  ///   planejador valendo (ciclo por caminho, profundidade/tamanho maximos, piso e teto de
+  ///   quantidade da coluna). `RequerRelatorioDimensional` nunca vale aqui (regra 10: so a RAIZ da
+  ///   Peca pode exigir relatorio, e um sub-Item nunca e raiz).
+  /// - Ad-hoc (`ComponenteId` nulo): um no solto so — sem receita, sem filhos, sem materiais, sem
+  ///   roteiro — e por isso PRECISA de `Descricao` propria (regra 19): sem Componente para herdar
+  ///   dela, um no sem descricao chegaria anonimo a tela do operador.
+  ///
+  /// SEM guarda de status do Pedido, pelo mesmo motivo que `CriarPeca` nao tem: acrescentar
+  /// estrutura ao Pedido em execucao e o comportamento PADRAO da fabrica, nao excecao — ver o
+  /// comentario em `CriarPeca`. A assimetria com `ExcluirNo` (que CHECA status) e deliberada.
+  /// </summary>
+  public async Task<Result<EstruturaItemDto>> AcrescentarFilho(int paiId, NovoFilhoDto novo, CancellationToken ct)
+  {
+    if (novo.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
+      return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
+
+    var pai = await _estruturas.ObterPorIdAsync(paiId, ct);
+    if (pai is null)
+      return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    NoParaGravar paraGravar;
+    if (novo.ComponenteId is int componenteId)
+    {
+      var (arestasFilhos, arestasMateriais, arestasRoteiro) = await _estruturas.LerReceitaCompletaAsync(ct);
+      var receita = new ReceitaDoCatalogo(
+          arestasFilhos.ToLookup(f => f.Pai, f => (f.Filho, f.Qtd)),
+          arestasMateriais.ToLookup(m => m.Comp, m => (m.Material, m.Qtd)),
+          arestasRoteiro.ToLookup(r => r.Comp, r => (r.Setor, r.Ordem)));
+
+      PlanoDeCopia plano;
+      try
+      {
+        plano = PlanejadorDeCopia.Planejar(receita, componenteId, novo.Quantidade);
+      }
+      catch (OverflowException)
+      {
+        return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeExcessiva, TipoDeErro.Validacao);
+      }
+      catch (QuantidadeExcedeColunaException e)
+      {
+        return Result<EstruturaItemDto>.Falha(e.Message, TipoDeErro.Validacao);
+      }
+
+      if (plano.Erro is not null)
+        return Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito, plano.Erro);
+
+      // ehRaiz sempre false: um sub-Item pendurado num no existente nunca e a raiz da Peca.
+      paraGravar = ConverterParaGravar(plano.Raiz!, ehRaiz: false, requerRelatorioDaRaiz: false);
+    }
+    else
+    {
+      if (string.IsNullOrWhiteSpace(novo.Descricao))
+        return Result<EstruturaItemDto>.Falha(ErroDeDescricaoObrigatoria, TipoDeErro.Validacao);
+
+      paraGravar = new NoParaGravar(
+          ComponenteId: null,
+          Descricao: novo.Descricao.Trim(),
+          Quantidade: novo.Quantidade,
+          RequerRelatorioDimensional: false,
+          Materiais: [],
+          Roteiro: [],
+          Filhos: []);
+    }
+
+    var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
+
+    var arvore = await _montador.MontarAsync(pai.AgrupamentoId, ct);
+    return Result<EstruturaItemDto>.Ok(BuscarNo(arvore, novoId)!);
+  }
+
+  /// <summary>
+  /// Edita `Descricao` e `Quantidade` de um no ja existente (Peca ou Item). NAO cascateia a
+  /// quantidade para os filhos — decisao de dominio, nao lacuna: a copia da receita e
+  /// PRE-PREENCHIMENTO, nao automacao, e nao existe invariante "filho = pai x razao" (um filho pode
+  /// legitimamente divergir da proporcao original, por sobra de refugo). `Descricao` vazia/so
+  /// espaco grava `null`, que volta a herdar a descricao do Componente (regra 19) — MAS so quando o
+  /// no tem Componente para herdar dela: um no ad-hoc (`ComponenteId` nulo) nao pode ser esvaziado
+  /// de volta ao anonimato que a regra 19 existe para impedir.
+  /// </summary>
+  public async Task<Result<EstruturaItemDto>> EditarNo(int id, EdicaoDeNoDto edicao, CancellationToken ct)
+  {
+    if (edicao.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
+      return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
+
+    var no = await _estruturas.ObterPorIdAsync(id, ct);
+    if (no is null)
+      return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    var descricao = string.IsNullOrWhiteSpace(edicao.Descricao) ? null : edicao.Descricao.Trim();
+    if (no.ComponenteId is null && descricao is null)
+      return Result<EstruturaItemDto>.Falha(ErroDeDescricaoObrigatoria, TipoDeErro.Validacao);
+
+    no.Descricao = descricao;
+    no.Quantidade = edicao.Quantidade;
+    await _estruturas.SalvarAlteracoesAsync(ct);
+
+    var arvore = await _montador.MontarAsync(no.AgrupamentoId, ct);
+    return Result<EstruturaItemDto>.Ok(BuscarNo(arvore, id)!);
+  }
+
+  /// <summary>
+  /// Apaga um no e a subarvore inteira dele (Material/Roteiro de cada no, filhos antes de pais — a
+  /// FK self-referenciada em `EstruturaPaiId` exige). So permitido enquanto o Pedido esta `Aberto`.
+  /// </summary>
+  public async Task<Result> ExcluirNo(int id, CancellationToken ct)
+  {
+    // EXCLUIR e CORRECAO DE MONTAGEM, nao descarte — sao operacoes diferentes e tem palavras
+    // diferentes. Correcao so existe enquanto nada foi produzido, isto e, Pedido `Aberto`; e a
+    // mesma fronteira que `CadastroDeAgrupamentoUseCase.Excluir` ja usa, entao a Fase 2 estende um
+    // precedente em vez de inventar regra. DESCARTE ("saiu do projeto, para de ser produzido")
+    // preserva a historia e nasce na Fase 3 — ver §2.4 e §6 da spec.
+    var no = await _estruturas.ObterPorIdAsync(id, ct);
+    if (no is null)
+      return Result.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    // `no.AgrupamentoId` ja vem denormalizado em TODO EstruturaItem (Peca ou Item — ver o XML doc
+    // da entidade), entao chegar no Agrupamento nao exige subir a arvore ate a raiz: uma consulta
+    // direta basta.
+    var agrupamento = await _agrupamentos.ObterPorIdAsync(no.AgrupamentoId, ct);
+    var pedido = agrupamento is null ? null : await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
+    if (pedido is null || pedido.Status != StatusAberto)
+      return Result.Falha("PedidoNaoAberto", TipoDeErro.Conflito);
+
+    await _estruturas.RemoverSubarvoreAsync(id, ct);
+    return Result.Ok();
   }
 
   /// <summary>
@@ -155,109 +308,15 @@ public sealed class MontagemDeEstruturaUseCase
           Roteiro: no.Roteiro,
           Filhos: no.Filhos.Select(f => ConverterParaGravar(f, ehRaiz: false, requerRelatorioDaRaiz)).ToList());
 
-  /// <summary>
-  /// Le a arvore inteira do Agrupamento (todas as Pecas e seus descendentes) e monta os DTOs, com
-  /// nome de Material/Setor e Codigo/Descricao de Componente resolvidos em lote — nunca um lookup
-  /// por no, que faria N+1 numa arvore de centenas de nos.
-  /// </summary>
-  private async Task<IReadOnlyList<EstruturaItemDto>> MontarArvore(int agrupamentoId, CancellationToken ct)
+  /// <summary>Busca por Id em profundidade na arvore de DTOs ja montada — usado por `AcrescentarFilho`/`EditarNo` para projetar o no alterado, que nao e necessariamente uma raiz (diferente do `raizId` de `CriarPeca`).</summary>
+  private static EstruturaItemDto? BuscarNo(IEnumerable<EstruturaItemDto> nos, int id)
   {
-    var itens = await _estruturas.ListarDoAgrupamentoAsync(agrupamentoId, ct);
-    if (itens.Count == 0) return [];
-
-    var ids = itens.Select(i => i.Id).ToList();
-    var materiais = await _estruturas.ListarMateriaisAsync(ids, ct);
-    var roteiros = await _estruturas.ListarRoteiroAsync(ids, ct);
-
-    var componenteIds = itens.Where(i => i.ComponenteId.HasValue)
-        .Select(i => i.ComponenteId!.Value).Distinct().ToList();
-    var materialIds = materiais.Select(m => m.MaterialId).Distinct().ToList();
-    var setorIds = roteiros.Select(r => r.SetorId).Distinct().ToList();
-
-    var componentes = (await _catalogo.ObterComponentesPorIdAsync(componenteIds, ct))
-        .ToDictionary(c => c.Id);
-    var nomesMateriais = (await _catalogo.ObterMateriaisPorIdAsync(materialIds, ct))
-        .ToDictionary(m => m.Id);
-    var nomesSetores = (await _catalogo.ObterSetoresPorIdAsync(setorIds, ct))
-        .ToDictionary(s => s.Id);
-
-    var materiaisPorItem = materiais.ToLookup(m => m.EstruturaItemId);
-    var roteirosPorItem = roteiros.ToLookup(r => r.EstruturaItemId);
-    var filhosPorPai = itens.ToLookup(i => i.EstruturaPaiId);
-
-    // Minor 2 da review da Task 3: nada ordenava filhos/materiais (so o roteiro, por `Ordem`, que e
-    // sequencia de negocio). `ToLookup` preserva a ordem de CHEGADA de `itens`/`materiais`, que e a
-    // ordem que o SQL Server devolver — nao garantida entre chamadas sem `ORDER BY` (heap sem
-    // indice clusterizado). A ordenacao entra aqui, explicita por `Id`, em vez de confiar so no
-    // repositorio: e o que o teste
-    // `Filhos_e_materiais_saem_ordenados_por_Id_mesmo_que_o_repositorio_devolva_fora_de_ordem`
-    // prova, alimentando o fake fora de ordem de proposito — um teste de Infra contra SQL Server
-    // real ficaria verde de qualquer jeito nesta tabela pequena (o heap tende a devolver em ordem
-    // de insercao), o que o tornaria fraco.
-    var visitados = new HashSet<int>();
-
-    EstruturaItemDto Montar(EstruturaItem item)
+    foreach (var no in nos)
     {
-      visitados.Add(item.Id);
-
-      string? codigo = null;
-      var descricao = item.Descricao;
-      if (item.ComponenteId is int componenteId && componentes.TryGetValue(componenteId, out var componente))
-      {
-        codigo = componente.Codigo;
-        descricao ??= componente.Descricao;   // regra 19: NULL herda a descricao do Componente
-      }
-      descricao ??= string.Empty;
-
-      var listaDeMateriais = materiaisPorItem[item.Id]
-          .OrderBy(m => m.Id)
-          .Select(m => new MaterialDoNoDto(
-              m.MaterialId,
-              nomesMateriais.TryGetValue(m.MaterialId, out var material) ? material.Descricao : string.Empty,
-              m.Quantidade))
-          .ToList();
-
-      var listaDeRoteiro = roteirosPorItem[item.Id]
-          .OrderBy(r => r.Ordem)
-          .Select(r => new PassoDoRoteiroDto(
-              r.SetorId,
-              nomesSetores.TryGetValue(r.SetorId, out var setor) ? setor.Nome : string.Empty,
-              r.Ordem))
-          .ToList();
-
-      var filhos = filhosPorPai[item.Id].OrderBy(f => f.Id).Select(Montar).ToList();
-
-      return new EstruturaItemDto(
-          item.Id, item.ComponenteId, codigo, descricao, item.Quantidade,
-          item.NivelHierarquico, item.RequerRelatorioDimensional, listaDeMateriais, listaDeRoteiro, filhos);
+      if (no.Id == id) return no;
+      var achado = BuscarNo(no.Filhos, id);
+      if (achado is not null) return achado;
     }
-
-    var raizes = filhosPorPai[null].OrderBy(i => i.Id).Select(Montar).ToList();
-
-    // Minor 3 da review da Task 3: um no cujo EstruturaPaiId aponta para fora do proprio
-    // Agrupamento nunca e visitado por `Montar` (que so desce a partir de `filhosPorPai[null]`) —
-    // sem esta checagem ele SOME da arvore devolvida, sem erro, sem log: perda de dado silenciosa
-    // numa LEITURA. Hoje nao deveria acontecer (toda gravacao usa o mesmo AgrupamentoId,
-    // `EstruturaRepository.GravarNo`), mas o schema nao impede a inconsistencia — lancar aqui torna
-    // o caso AUDIVEL em vez de invisivel, sem inventar recuperacao: quem le a arvore incompleta sem
-    // saber vira o operador, e isso e pior que um 500.
-    if (visitados.Count != itens.Count)
-    {
-      var orfaos = itens.Where(i => !visitados.Contains(i.Id)).Select(i => i.Id);
-      throw new ArvoreInconsistenteException(
-          $"A arvore do Agrupamento {agrupamentoId} tem {itens.Count - visitados.Count} no(s) "
-              + "orfao(s) — EstruturaPaiId aponta para fora dos itens lidos deste Agrupamento: "
-              + $"{string.Join(", ", orfaos)}.");
-    }
-
-    return raizes;
+    return null;
   }
 }
-
-/// <summary>
-/// Dado inconsistente na leitura da arvore: um <see cref="EstruturaItem"/> cujo
-/// <c>EstruturaPaiId</c> nao esta entre os itens lidos do proprio Agrupamento. Ver o comentario em
-/// <c>MontagemDeEstruturaUseCase.MontarArvore</c> (Minor 3 da review da Task 3) para o porque de
-/// virar excecao em vez de o no simplesmente desaparecer da arvore devolvida.
-/// </summary>
-public sealed class ArvoreInconsistenteException(string mensagem) : Exception(mensagem);

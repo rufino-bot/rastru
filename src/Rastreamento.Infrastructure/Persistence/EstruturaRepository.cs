@@ -119,4 +119,46 @@ public class EstruturaRepository : IEstruturaRepository
           .Where(r => itemIds.Contains(r.EstruturaItemId)).OrderBy(r => r.Ordem).ToListAsync(ct);
 
   public Task SalvarAlteracoesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
+
+  /// <summary>
+  /// Transacao explicita, como `GravarArvoreAsync`, mas SEM `Serializable`: apagar nao disputa a
+  /// mesma corrida de insercao concorrente que motivou o isolamento la (residual documentado
+  /// naquele metodo, fora do escopo desta task). Reune a subarvore NIVEL POR NIVEL (largura),
+  /// comecando no proprio `id`, para poder apagar do nivel mais profundo para o mais raso — a FK
+  /// self-referenciada em `EstruturaPaiId` exige filho antes de pai. `EstruturaMaterial`/
+  /// `EstruturaRoteiro` saem primeiro, de TODOS os nos da subarvore de uma vez (a FK deles e para o
+  /// `EstruturaItemId`, entao nao competem com a ordem nivel-a-nivel dos proprios nos).
+  /// </summary>
+  public async Task RemoverSubarvoreAsync(int id, CancellationToken ct)
+  {
+    await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+    var niveis = new List<List<int>> { new() { id } };
+    while (true)
+    {
+      var nivelAtual = niveis[^1];
+      var filhos = await _db.Estruturas.AsNoTracking()
+          .Where(e => e.EstruturaPaiId != null && nivelAtual.Contains(e.EstruturaPaiId!.Value))
+          .Select(e => e.Id)
+          .ToListAsync(ct);
+      if (filhos.Count == 0) break;
+      niveis.Add(filhos);
+    }
+
+    var todos = niveis.SelectMany(nivel => nivel).ToList();
+
+    _db.EstruturaMateriais.RemoveRange(_db.EstruturaMateriais.Where(m => todos.Contains(m.EstruturaItemId)));
+    _db.EstruturaRoteiros.RemoveRange(_db.EstruturaRoteiros.Where(r => todos.Contains(r.EstruturaItemId)));
+    await _db.SaveChangesAsync(ct);
+
+    // Do nivel mais profundo para o mais raso: o proprio `id` (niveis[0]) e apagado por ultimo.
+    for (var i = niveis.Count - 1; i >= 0; i--)
+    {
+      var idsDoNivel = niveis[i];
+      _db.Estruturas.RemoveRange(_db.Estruturas.Where(e => idsDoNivel.Contains(e.Id)));
+      await _db.SaveChangesAsync(ct);
+    }
+
+    await tx.CommitAsync(ct);
+  }
 }

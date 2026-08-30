@@ -34,6 +34,14 @@ public interface IEstruturaRepository
   /// <summary>Ja vem ordenado por `Ordem`: quem monta a arvore desenha a sequencia direto.</summary>
   Task<IReadOnlyList<EstruturaRoteiro>> ListarRoteiroAsync(IReadOnlyList<int> itemIds, CancellationToken ct);
 
+  /// <summary>
+  /// Apaga o no `id` e toda a subarvore dele (Task 4 — correcao de montagem, nao descarte). Ordem
+  /// exigida pelas FKs: `EstruturaMaterial`/`EstruturaRoteiro` de cada no antes do proprio no, e
+  /// filhos antes de pais (a FK self-referenciada em `EstruturaPaiId` exige). Nao-op se `id` nao
+  /// existir mais.
+  /// </summary>
+  Task RemoverSubarvoreAsync(int id, CancellationToken ct);
+
   Task SalvarAlteracoesAsync(CancellationToken ct);
 }
 

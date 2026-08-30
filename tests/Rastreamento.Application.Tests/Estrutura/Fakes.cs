@@ -32,6 +32,21 @@ public class FakeEstruturaRepo : IEstruturaRepository
   public Task<int> GravarArvoreAsync(
       int agrupamentoId, int? estruturaPaiId, NoParaGravar raiz, CancellationToken ct)
   {
+    // A Task 4 e a primeira a semear `Itens` DIRETO (para montar um no ja existente antes de
+    // AcrescentarFilho/EditarNo/ExcluirNo) e DEPOIS gravar um no novo no mesmo teste — antes disso
+    // nenhum teste combinava as duas coisas. Sem este ajuste, um teste que insere `Itens.Add(new
+    // EstruturaItem { Id = 1, ... })` na mao colide com `_proximoId`, que continua nascendo em 1: o
+    // no novo tambem vira Id=1, com `EstruturaPaiId` apontando pro Id que acabou de receber —
+    // auto-referencia que estoura a pilha em `MontadorDeArvoreDeEstrutura.MontarAsync` (a recursao
+    // nunca visita o mesmo Id duas vezes num Agrupamento bem formado, entao nao tem guarda de
+    // ciclo). Reavaliar o piso a CADA chamada, nao so no construtor, porque o seeding acontece
+    // depois de o Fake ja existir.
+    var pisoDeItens = Itens.Count == 0 ? 0 : Itens.Max(i => i.Id);
+    var pisoDeMateriais = Materiais.Count == 0 ? 0 : Materiais.Max(m => m.Id);
+    var pisoDeRoteiros = Roteiros.Count == 0 ? 0 : Roteiros.Max(r => r.Id);
+    var proximoMinimo = Math.Max(pisoDeItens, Math.Max(pisoDeMateriais, pisoDeRoteiros)) + 1;
+    if (_proximoId < proximoMinimo) _proximoId = proximoMinimo;
+
     GravacoesDeArvore++;
     var item = GravarNo(agrupamentoId, estruturaPaiId, raiz);
     return Task.FromResult(item.Id);
@@ -96,6 +111,25 @@ public class FakeEstruturaRepo : IEstruturaRepository
   public Task SalvarAlteracoesAsync(CancellationToken ct)
   {
     Saves++;
+    return Task.CompletedTask;
+  }
+
+  /// <summary>Mesma logica nivel-a-nivel do repositorio real, sem transacao (fake em memoria nao precisa).</summary>
+  public Task RemoverSubarvoreAsync(int id, CancellationToken ct)
+  {
+    var idsParaRemover = new HashSet<int> { id };
+    var fronteira = new List<int> { id };
+    while (fronteira.Count > 0)
+    {
+      var filhos = Itens.Where(i => i.EstruturaPaiId.HasValue && fronteira.Contains(i.EstruturaPaiId.Value))
+          .Select(i => i.Id).ToList();
+      foreach (var filho in filhos) idsParaRemover.Add(filho);
+      fronteira = filhos;
+    }
+
+    Materiais.RemoveAll(m => idsParaRemover.Contains(m.EstruturaItemId));
+    Roteiros.RemoveAll(r => idsParaRemover.Contains(r.EstruturaItemId));
+    Itens.RemoveAll(i => idsParaRemover.Contains(i.Id));
     return Task.CompletedTask;
   }
 }

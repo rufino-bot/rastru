@@ -185,6 +185,90 @@ public class EstruturaRepositoryTests : TesteComBanco
     }
   }
 
+  /// <summary>
+  /// `RemoverSubarvoreAsync` (Task 4) contra o SQL Server real. NAO esta no brief da Task 4 (que so
+  /// pede `Application.Tests`, com o fake), pelo mesmo motivo do arquivo inteiro: o fake nao aplica
+  /// FK nenhuma, entao a ordem "Material/Roteiro antes do no, filho antes de pai" pode estar
+  /// invertida no fake sem quebrar nada — a Task 1 ja mordeu exatamente esse erro (FK) num teste, e
+  /// o proprio brief da Task 4 cita esse historico ao descrever a ordem exigida. Sem este teste,
+  /// trocar a ordem das duas `RemoveRange` (ou apagar so o `id` sem descer os niveis) so estouraria
+  /// em producao, contra `DbUpdateException` de FK que nenhum teste de Application pode reproduzir.
+  ///
+  /// Arvore de 3 niveis (raiz -&gt; meio -&gt; folha), com Material e Roteiro no MEIO e na FOLHA — as
+  /// duas tabelas que a ordem tem de esvaziar antes de apagar os proprios EstruturaItem. Apaga a
+  /// partir do MEIO: raiz sobrevive, meio e folha (e os respectivos Material/Roteiro) somem.
+  /// </summary>
+  [Fact]
+  public async Task RemoverSubarvoreAsync_apaga_material_roteiro_e_subarvore_sem_violar_FK()
+  {
+    var prefixo = NovoPrefixo();
+    await using var db = NovoContexto();
+    var (pedidoId, agrupamentoId) = await NovoAgrupamentoAsync(db);
+    var componenteRaiz = await NovoComponenteAsync(db, prefixo, "raiz");
+    var componenteMeio = await NovoComponenteAsync(db, prefixo, "meio");
+    var componenteFolha = await NovoComponenteAsync(db, prefixo, "folha");
+
+    var material = new Material
+    { Codigo = $"{prefixo}-m", Descricao = "Material de teste", UnidadeMedida = "UN", Ativo = true };
+    var setor = new Setor { Nome = $"{prefixo}-s", Ativo = true };
+    db.Materiais.Add(material);
+    db.Setores.Add(setor);
+    await db.SaveChangesAsync();
+
+    try
+    {
+      var repo = new EstruturaRepository(db);
+      var no = new NoParaGravar(
+          ComponenteId: componenteRaiz, Descricao: null, Quantidade: 10m, RequerRelatorioDimensional: true,
+          Materiais: [], Roteiro: [],
+          Filhos:
+          [
+            new NoParaGravar(
+                ComponenteId: componenteMeio, Descricao: null, Quantidade: 40m, RequerRelatorioDimensional: false,
+                Materiais: [(material.Id, 1m)], Roteiro: [(setor.Id, 1)],
+                Filhos:
+                [
+                  new NoParaGravar(
+                      ComponenteId: componenteFolha, Descricao: null, Quantidade: 5m,
+                      RequerRelatorioDimensional: false,
+                      Materiais: [(material.Id, 2m)], Roteiro: [(setor.Id, 1)], Filhos: [])
+                ])
+          ]);
+
+      var raizId = await repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None);
+
+      await using var dbLeitura = NovoContexto();
+      var meioId = (await dbLeitura.Estruturas.AsNoTracking()
+          .SingleAsync(e => e.AgrupamentoId == agrupamentoId && e.EstruturaPaiId == raizId)).Id;
+      var folhaId = (await dbLeitura.Estruturas.AsNoTracking()
+          .SingleAsync(e => e.AgrupamentoId == agrupamentoId && e.EstruturaPaiId == meioId)).Id;
+
+      await using var dbExclusao = NovoContexto();
+      var repoExclusao = new EstruturaRepository(dbExclusao);
+      await repoExclusao.RemoverSubarvoreAsync(meioId, CancellationToken.None);
+
+      await using var dbVerificacao = NovoContexto();
+      var idsRestantes = await dbVerificacao.Estruturas.AsNoTracking()
+          .Where(e => e.AgrupamentoId == agrupamentoId).Select(e => e.Id).ToListAsync();
+      Assert.Equal([raizId], idsRestantes);
+
+      var materiaisRestantes = await dbVerificacao.EstruturaMateriais.AsNoTracking()
+          .Where(m => m.EstruturaItemId == meioId || m.EstruturaItemId == folhaId).CountAsync();
+      var roteirosRestantes = await dbVerificacao.EstruturaRoteiros.AsNoTracking()
+          .Where(r => r.EstruturaItemId == meioId || r.EstruturaItemId == folhaId).CountAsync();
+      Assert.Equal(0, materiaisRestantes);
+      Assert.Equal(0, roteirosRestantes);
+    }
+    finally
+    {
+      await LimparAsync(pedidoId, agrupamentoId, componenteRaiz, componenteMeio, componenteFolha);
+      await using var dbLimpeza = NovoContexto();
+      dbLimpeza.Materiais.RemoveRange(await dbLimpeza.Materiais.Where(m => m.Id == material.Id).ToListAsync());
+      dbLimpeza.Setores.RemoveRange(await dbLimpeza.Setores.Where(s => s.Id == setor.Id).ToListAsync());
+      await dbLimpeza.SaveChangesAsync();
+    }
+  }
+
   [Fact]
   public async Task LerReceitaCompletaAsync_le_as_tres_tabelas_padrao()
   {
