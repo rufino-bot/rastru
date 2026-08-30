@@ -39,6 +39,7 @@ const CONTROLLERS_POR_RECURSO: Record<Recurso, readonly string[]> = {
   componentes: ['ComponentesController.cs', 'ReceitaPadraoController.cs'],
   pedidos: ['PedidosController.cs'],
   agrupamentos: ['AgrupamentosController.cs'],
+  estrutura: ['EstruturaController.cs'],
 }
 
 /**

@@ -1,4 +1,4 @@
-export type Recurso = 'setores' | 'materiais' | 'componentes' | 'pedidos' | 'agrupamentos'
+export type Recurso = 'setores' | 'materiais' | 'componentes' | 'pedidos' | 'agrupamentos' | 'estrutura'
 
 /**
  * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-08-10.
@@ -26,6 +26,11 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   componentes: ['Administrador', 'PCP'],
   pedidos: ['PCP', 'Administrador'],
   agrupamentos: ['PCP', 'Administrador'],
+  // A árvore real de um Agrupamento. `Recurso` PRÓPRIO, e não carona em `agrupamentos`: os dois têm
+  // os mesmos perfis hoje, mas são conceitos separados — criar um Agrupamento vazio e montar a
+  // árvore dele são ações distintas, e a primeira vez que os perfis divergirem (a Fase 3 mexe em
+  // quem aponta setor) a carona seria descoberta como bug, não como decisão.
+  estrutura: ['PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

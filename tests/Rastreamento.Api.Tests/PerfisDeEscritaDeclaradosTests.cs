@@ -149,6 +149,14 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST pedidos/{pedidoId:int}/agrupamentos"] = ["PCP", "Administrador"],
     ["PUT agrupamentos/{id:int}"] = ["PCP", "Administrador"],
     ["DELETE agrupamentos/{id:int}"] = ["PCP", "Administrador"],
+
+    // Estrutura (Fase 2, Task 5): mesmos perfis do Agrupamento — quem monta o pedido monta a
+    // arvore dele. O GET aninhado nao entra, pelo mesmo motivo dos GET de receita padrao acima:
+    // leitura e de qualquer autenticado, sem `Roles`.
+    ["POST agrupamentos/{agrupamentoId:int}/estrutura"] = ["PCP", "Administrador"],
+    ["POST estrutura/{id:int}/filhos"] = ["PCP", "Administrador"],
+    ["PUT estrutura/{id:int}"] = ["PCP", "Administrador"],
+    ["DELETE estrutura/{id:int}"] = ["PCP", "Administrador"],
   };
 
   /// <summary>
