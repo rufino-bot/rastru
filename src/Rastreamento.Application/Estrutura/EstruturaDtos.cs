@@ -17,7 +17,13 @@ public sealed record MaterialDoNoDto(int MaterialId, string Nome, decimal Quanti
 
 public sealed record PassoDoRoteiroDto(int SetorId, string Nome, int Ordem);
 
-/// <summary>`ComponenteId` nulo = no ad-hoc, e ai `Descricao` e OBRIGATORIA (regra 19).</summary>
+/// <summary>
+/// `ComponenteId` nulo = no ad-hoc, e ai `Descricao` e OBRIGATORIA (regra 19). Com `ComponenteId`
+/// preenchido, `Descricao` e OPCIONAL: quando informada (nao vazia/so espaco), SOBREPOE a do
+/// Componente no no gravado — a mesma regra 19 que permite `EstruturaItem.Descricao` nomear o no
+/// tambem vale aqui. Decisao do fix pass da Task 4 (Minor 2 da review): antes, um texto digitado
+/// junto de `ComponenteId` era descartado em silencio.
+/// </summary>
 public sealed record NovoFilhoDto(int? ComponenteId, string? Descricao, decimal Quantidade);
 
 /// <summary>

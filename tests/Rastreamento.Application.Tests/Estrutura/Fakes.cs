@@ -114,7 +114,11 @@ public class FakeEstruturaRepo : IEstruturaRepository
     return Task.CompletedTask;
   }
 
-  /// <summary>Mesma logica nivel-a-nivel do repositorio real, sem transacao (fake em memoria nao precisa).</summary>
+  /// <summary>
+  /// Mesma logica nivel-a-nivel do repositorio real, sem transacao (fake em memoria nao precisa).
+  /// Mesmo conjunto de `visitados` do real (Minor 6 da review da Task 4) — o espelho tinha o MESMO
+  /// risco de laco sem fim contra um ciclo em `EstruturaPaiId`.
+  /// </summary>
   public Task RemoverSubarvoreAsync(int id, CancellationToken ct)
   {
     var idsParaRemover = new HashSet<int> { id };
@@ -123,7 +127,11 @@ public class FakeEstruturaRepo : IEstruturaRepository
     {
       var filhos = Itens.Where(i => i.EstruturaPaiId.HasValue && fronteira.Contains(i.EstruturaPaiId.Value))
           .Select(i => i.Id).ToList();
-      foreach (var filho in filhos) idsParaRemover.Add(filho);
+      foreach (var filho in filhos)
+        if (!idsParaRemover.Add(filho))
+          throw new SubarvoreCiclicaException(
+              $"A subarvore a partir do no {id} tem um ciclo em EstruturaPaiId: o no {filho} "
+                  + "reaparece como filho depois de ja ter sido visitado.");
       fronteira = filhos;
     }
 

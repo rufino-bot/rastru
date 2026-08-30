@@ -128,11 +128,18 @@ public class EstruturaRepository : IEstruturaRepository
   /// self-referenciada em `EstruturaPaiId` exige filho antes de pai. `EstruturaMaterial`/
   /// `EstruturaRoteiro` saem primeiro, de TODOS os nos da subarvore de uma vez (a FK deles e para o
   /// `EstruturaItemId`, entao nao competem com a ordem nivel-a-nivel dos proprios nos).
+  ///
+  /// Conjunto de `visitados` (Minor 6 da review da Task 4): `CK_EstruturaItem_NaoAutoReferencia` so
+  /// impede um no apontar pra SI MESMO — nao impede um ciclo mais longo (A -&gt; B -&gt; A) entre
+  /// nos distintos. Sem este conjunto, um ciclo nos dados travaria o `while` para sempre, com a
+  /// transacao aberta segurando locks. Lanca <see cref="SubarvoreCiclicaException"/> em vez de
+  /// travar — audivel, no mesmo espirito de `ArvoreInconsistenteException` (Minor 3 da Task 3).
   /// </summary>
   public async Task RemoverSubarvoreAsync(int id, CancellationToken ct)
   {
     await using var tx = await _db.Database.BeginTransactionAsync(ct);
 
+    var visitados = new HashSet<int> { id };
     var niveis = new List<List<int>> { new() { id } };
     while (true)
     {
@@ -142,20 +149,34 @@ public class EstruturaRepository : IEstruturaRepository
           .Select(e => e.Id)
           .ToListAsync(ct);
       if (filhos.Count == 0) break;
+
+      foreach (var filhoId in filhos)
+        if (!visitados.Add(filhoId))
+          throw new SubarvoreCiclicaException(
+              $"A subarvore a partir do no {id} tem um ciclo em EstruturaPaiId: o no {filhoId} "
+                  + "reaparece como filho depois de ja ter sido visitado. Corrija os dados antes de "
+                  + "excluir.");
+
       niveis.Add(filhos);
     }
 
     var todos = niveis.SelectMany(nivel => nivel).ToList();
 
-    _db.EstruturaMateriais.RemoveRange(_db.EstruturaMateriais.Where(m => todos.Contains(m.EstruturaItemId)));
-    _db.EstruturaRoteiros.RemoveRange(_db.EstruturaRoteiros.Where(r => todos.Contains(r.EstruturaItemId)));
+    // M5 da review da Task 4: `ct` propagado e leitura assincrona nas tres consultas que antes
+    // passavam um `IQueryable` direto a `RemoveRange` (que o enumera de forma SINCRONA e bloqueante
+    // dentro de um metodo `async`, sem honrar o CancellationToken) — mesmo padrao `ToListAsync(ct)`
+    // do resto do arquivo (`:20-28`, `:104`, `:114`, `:119`).
+    _db.EstruturaMateriais.RemoveRange(
+        await _db.EstruturaMateriais.Where(m => todos.Contains(m.EstruturaItemId)).ToListAsync(ct));
+    _db.EstruturaRoteiros.RemoveRange(
+        await _db.EstruturaRoteiros.Where(r => todos.Contains(r.EstruturaItemId)).ToListAsync(ct));
     await _db.SaveChangesAsync(ct);
 
     // Do nivel mais profundo para o mais raso: o proprio `id` (niveis[0]) e apagado por ultimo.
     for (var i = niveis.Count - 1; i >= 0; i--)
     {
       var idsDoNivel = niveis[i];
-      _db.Estruturas.RemoveRange(_db.Estruturas.Where(e => idsDoNivel.Contains(e.Id)));
+      _db.Estruturas.RemoveRange(await _db.Estruturas.Where(e => idsDoNivel.Contains(e.Id)).ToListAsync(ct));
       await _db.SaveChangesAsync(ct);
     }
 

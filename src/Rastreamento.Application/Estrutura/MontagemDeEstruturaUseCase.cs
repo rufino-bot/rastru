@@ -1,6 +1,5 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Abstractions;
-using Rastreamento.Domain.Entities;
 
 namespace Rastreamento.Application.Estrutura;
 
@@ -89,32 +88,8 @@ public sealed class MontagemDeEstruturaUseCase
     if (agrupamento is null)
       return Result<EstruturaItemDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
-    var (arestasFilhos, arestasMateriais, arestasRoteiro) = await _estruturas.LerReceitaCompletaAsync(ct);
-    var receita = new ReceitaDoCatalogo(
-        arestasFilhos.ToLookup(f => f.Pai, f => (f.Filho, f.Qtd)),
-        arestasMateriais.ToLookup(m => m.Comp, m => (m.Material, m.Qtd)),
-        arestasRoteiro.ToLookup(r => r.Comp, r => (r.Setor, r.Ordem)));
-
-    PlanoDeCopia plano;
-    try
-    {
-      plano = PlanejadorDeCopia.Planejar(receita, nova.ComponenteId, nova.Quantidade);
-    }
-    catch (OverflowException)
-    {
-      return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeExcessiva, TipoDeErro.Validacao);
-    }
-    catch (QuantidadeExcedeColunaException e)
-    {
-      return Result<EstruturaItemDto>.Falha(e.Message, TipoDeErro.Validacao);
-    }
-
-    // Important 2 da review da Task 3: `Erro` carrega o CODIGO estavel (o que o front comuta,
-    // ex.: "CicloNaReceita"), `Detalhe` carrega a FRASE que `PlanejadorDeCopia` ja produz (ex.: "A
-    // receita tem um ciclo: 2 -> 3 -> 2. ..."). Antes so o codigo ia — a frase, que levou tres
-    // rodadas de review na Task 2 para nomear o CAMINHO do ciclo, era descartada.
-    if (plano.Erro is not null)
-      return Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito, plano.Erro);
+    var (plano, falha) = await PlanejarCopiaDoCatalogo(nova.ComponenteId, nova.Quantidade, ct);
+    if (falha is not null) return falha;
 
     // SEM guarda de status, e isso e decisao de negocio, nao omissao: cliente grande pede alteracao
     // de projeto com o Pedido JA em execucao, e acrescentar peca nova ao pedido rodando e o
@@ -137,7 +112,7 @@ public sealed class MontagemDeEstruturaUseCase
     // Quem fecha isso e a 2B.
     _ = await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
 
-    var paraGravar = ConverterParaGravar(plano.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);
+    var paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);
     var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
 
     var arvore = await _montador.MontarAsync(agrupamentoId, ct);
@@ -190,31 +165,19 @@ public sealed class MontagemDeEstruturaUseCase
     NoParaGravar paraGravar;
     if (novo.ComponenteId is int componenteId)
     {
-      var (arestasFilhos, arestasMateriais, arestasRoteiro) = await _estruturas.LerReceitaCompletaAsync(ct);
-      var receita = new ReceitaDoCatalogo(
-          arestasFilhos.ToLookup(f => f.Pai, f => (f.Filho, f.Qtd)),
-          arestasMateriais.ToLookup(m => m.Comp, m => (m.Material, m.Qtd)),
-          arestasRoteiro.ToLookup(r => r.Comp, r => (r.Setor, r.Ordem)));
-
-      PlanoDeCopia plano;
-      try
-      {
-        plano = PlanejadorDeCopia.Planejar(receita, componenteId, novo.Quantidade);
-      }
-      catch (OverflowException)
-      {
-        return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeExcessiva, TipoDeErro.Validacao);
-      }
-      catch (QuantidadeExcedeColunaException e)
-      {
-        return Result<EstruturaItemDto>.Falha(e.Message, TipoDeErro.Validacao);
-      }
-
-      if (plano.Erro is not null)
-        return Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito, plano.Erro);
+      var (plano, falha) = await PlanejarCopiaDoCatalogo(componenteId, novo.Quantidade, ct);
+      if (falha is not null) return falha;
 
       // ehRaiz sempre false: um sub-Item pendurado num no existente nunca e a raiz da Peca.
-      paraGravar = ConverterParaGravar(plano.Raiz!, ehRaiz: false, requerRelatorioDaRaiz: false);
+      paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: false, requerRelatorioDaRaiz: false);
+
+      // Minor 2 da review da Task 4: antes, uma `Descricao` digitada junto de `ComponenteId` era
+      // descartada em silencio (so o plano da receita ia pro no). Decisao do fix pass: HONRAR —
+      // regra 19 ja permite `EstruturaItem.Descricao` nao-nula sobrepor a do Componente, entao
+      // "sub-Item de Componente X, descrito como 'Suporte lado esquerdo'" e um caso legitimo, nao
+      // uma inconsistencia a recusar.
+      if (!string.IsNullOrWhiteSpace(novo.Descricao))
+        paraGravar = paraGravar with { Descricao = novo.Descricao.Trim() };
     }
     else
     {
@@ -234,7 +197,11 @@ public sealed class MontagemDeEstruturaUseCase
     var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
 
     var arvore = await _montador.MontarAsync(pai.AgrupamentoId, ct);
-    return Result<EstruturaItemDto>.Ok(BuscarNo(arvore, novoId)!);
+    var noCriado = BuscarNo(arvore, novoId)
+        ?? throw new InvalidOperationException(
+            $"No {novoId} nao encontrado na arvore recem montada do Agrupamento {pai.AgrupamentoId} "
+                + "(M1 da review da Task 4: gravado e nao lido de volta — nunca deveria acontecer).");
+    return Result<EstruturaItemDto>.Ok(noCriado);
   }
 
   /// <summary>
@@ -264,7 +231,11 @@ public sealed class MontagemDeEstruturaUseCase
     await _estruturas.SalvarAlteracoesAsync(ct);
 
     var arvore = await _montador.MontarAsync(no.AgrupamentoId, ct);
-    return Result<EstruturaItemDto>.Ok(BuscarNo(arvore, id)!);
+    var noEditado = BuscarNo(arvore, id)
+        ?? throw new InvalidOperationException(
+            $"No {id} nao encontrado na arvore recem montada do Agrupamento {no.AgrupamentoId} "
+                + "(M1 da review da Task 4: editado e nao lido de volta — nunca deveria acontecer).");
+    return Result<EstruturaItemDto>.Ok(noEditado);
   }
 
   /// <summary>
@@ -292,6 +263,54 @@ public sealed class MontagemDeEstruturaUseCase
 
     await _estruturas.RemoverSubarvoreAsync(id, ct);
     return Result.Ok();
+  }
+
+  /// <summary>
+  /// Le a receita completa do catalogo, monta os tres lookups e chama o planejador para um unico
+  /// Componente/quantidade — o bloco que `CriarPeca` e `AcrescentarFilho` precisam IGUAL, byte a
+  /// byte, ate a linha em que decidem o que fazer com o plano (raiz nova vs. sub-Item pendurado).
+  ///
+  /// EXTRAIDO no fix pass da Task 4 (Important 1 da review): antes de a Task 4 criar o segundo
+  /// consumidor deste bloco, ele so existia em `CriarPeca` — 18 linhas verbatim reapareceram em
+  /// `AcrescentarFilho` sem virar metodo. O custo concreto: o `Detalhe` que carrega o CAMINHO do
+  /// ciclo levou tres rodadas de review na Task 2/3 para nascer, e vivia em duas copias — a proxima
+  /// correcao no tratamento de erro so acertaria uma das duas se o bloco continuasse duplicado.
+  ///
+  /// Devolve `(plano, null)` no sucesso e `(null, falha)` no erro — o chamador so precisa de um
+  /// `if (falha is not null) return falha;` e o tipo de retorno do `Result` bate com os dois
+  /// metodos (`Result&lt;EstruturaItemDto&gt;`), entao um `Falha` construido aqui serve aos dois.
+  /// </summary>
+  private async Task<(PlanoDeCopia? Plano, Result<EstruturaItemDto>? Falha)> PlanejarCopiaDoCatalogo(
+      int componenteId, decimal quantidade, CancellationToken ct)
+  {
+    var (arestasFilhos, arestasMateriais, arestasRoteiro) = await _estruturas.LerReceitaCompletaAsync(ct);
+    var receita = new ReceitaDoCatalogo(
+        arestasFilhos.ToLookup(f => f.Pai, f => (f.Filho, f.Qtd)),
+        arestasMateriais.ToLookup(m => m.Comp, m => (m.Material, m.Qtd)),
+        arestasRoteiro.ToLookup(r => r.Comp, r => (r.Setor, r.Ordem)));
+
+    PlanoDeCopia plano;
+    try
+    {
+      plano = PlanejadorDeCopia.Planejar(receita, componenteId, quantidade);
+    }
+    catch (OverflowException)
+    {
+      return (null, Result<EstruturaItemDto>.Falha(ErroDeQuantidadeExcessiva, TipoDeErro.Validacao));
+    }
+    catch (QuantidadeExcedeColunaException e)
+    {
+      return (null, Result<EstruturaItemDto>.Falha(e.Message, TipoDeErro.Validacao));
+    }
+
+    // Important 2 da review da Task 3: `Erro` carrega o CODIGO estavel (o que o front comuta,
+    // ex.: "CicloNaReceita"), `Detalhe` carrega a FRASE que `PlanejadorDeCopia` ja produz (ex.: "A
+    // receita tem um ciclo: 2 -> 3 -> 2. ..."). Antes so o codigo ia — a frase, que levou tres
+    // rodadas de review na Task 2 para nomear o CAMINHO do ciclo, era descartada.
+    if (plano.Erro is not null)
+      return (null, Result<EstruturaItemDto>.Falha(plano.CodigoDoErro!, TipoDeErro.Conflito, plano.Erro));
+
+    return (plano, null);
   }
 
   /// <summary>

@@ -66,7 +66,21 @@ public class EstruturaRepositoryTests : TesteComBanco
     return componente.Id;
   }
 
-  /// <summary>Mesma ordem de limpeza de `EstruturaItemMapeamentoTests`: filhos antes de pais, FKs primeiro.</summary>
+  /// <summary>
+  /// Mesma ordem de limpeza de `EstruturaItemMapeamentoTests`: filhos antes de pais, FKs primeiro.
+  ///
+  /// M3 da review da Task 4: os nao-raizes saem NIVEL A NIVEL, do mais profundo para o mais raso —
+  /// nao mais num `RemoveRange` so. Um unico `RemoveRange` sobre TODOS os nao-raizes funciona numa
+  /// arvore de 2 niveis (raiz+filho, o unico formato que os testes deste arquivo tinham antes da
+  /// Task 4), mas numa arvore de 3+ niveis com dois nos nao-raiz numa relacao pai-filho entre si
+  /// (o EF nao ordena o DELETE de duas linhas da mesma tabela sem tracking de navegacao entre elas)
+  /// pode tentar apagar o no do MEIO antes do neto que ainda aponta pra ele
+  /// (`FK_EstruturaItem_Pai`) — exatamente quando este `finally` roda por o teste ter FALHADO antes
+  /// de a arvore ja ter sido reduzida, mascarando a asercao original com uma `DbUpdateException` de
+  /// FK e deixando linhas orfas no SQL Server de dev compartilhado. Repete ate sobrar so a(s)
+  /// raiz(es): a cada volta remove as FOLHAS (nos cujo Id nenhum nao-raiz restante referencia como
+  /// pai), entao nunca tenta apagar um pai antes do proprio filho.
+  /// </summary>
   private static async Task LimparAsync(int pedidoId, int agrupamentoId, params int[] componenteIds)
   {
     await using var db = NovoContexto();
@@ -80,9 +94,16 @@ public class EstruturaRepositoryTests : TesteComBanco
         await db.EstruturaMateriais.Where(m => idsDaEstrutura.Contains(m.EstruturaItemId)).ToListAsync());
     await db.SaveChangesAsync();
 
-    db.Estruturas.RemoveRange(await db.Estruturas
-        .Where(e => e.AgrupamentoId == agrupamentoId && e.EstruturaPaiId != null).ToListAsync());
-    await db.SaveChangesAsync();
+    var naoRaizes = await db.Estruturas
+        .Where(e => e.AgrupamentoId == agrupamentoId && e.EstruturaPaiId != null).ToListAsync();
+    while (naoRaizes.Count > 0)
+    {
+      var paisAindaPresentes = naoRaizes.Select(n => n.EstruturaPaiId!.Value).ToHashSet();
+      var folhas = naoRaizes.Where(n => !paisAindaPresentes.Contains(n.Id)).ToList();
+      db.Estruturas.RemoveRange(folhas);
+      await db.SaveChangesAsync();
+      naoRaizes = naoRaizes.Except(folhas).ToList();
+    }
 
     db.Estruturas.RemoveRange(await db.Estruturas.Where(e => e.AgrupamentoId == agrupamentoId).ToListAsync());
     await db.SaveChangesAsync();
@@ -266,6 +287,66 @@ public class EstruturaRepositoryTests : TesteComBanco
       dbLimpeza.Materiais.RemoveRange(await dbLimpeza.Materiais.Where(m => m.Id == material.Id).ToListAsync());
       dbLimpeza.Setores.RemoveRange(await dbLimpeza.Setores.Where(s => s.Id == setor.Id).ToListAsync());
       await dbLimpeza.SaveChangesAsync();
+    }
+  }
+
+  /// <summary>
+  /// M6 da review da Task 4: `CK_EstruturaItem_NaoAutoReferencia` so impede um no apontar pra SI
+  /// MESMO — nao impede um ciclo mais longo entre nos distintos. Monta A -&gt; B validos (dois
+  /// `SaveChangesAsync`, sem violar nenhuma CHECK), depois fecha o ciclo por fora da aplicacao com
+  /// um UPDATE direto: A passa a apontar pra B (que ja aponta pra A). Sem o conjunto de visitados
+  /// que este fix pass acrescentou, `RemoverSubarvoreAsync(A)` entraria num `while` sem fim; com a
+  /// guarda, lanca <see cref="SubarvoreCiclicaException"/> — e e essa excecao, nao um travamento,
+  /// que este teste prova.
+  /// </summary>
+  [Fact]
+  public async Task RemoverSubarvoreAsync_com_ciclo_nos_dados_lanca_em_vez_de_travar()
+  {
+    var prefixo = NovoPrefixo();
+    await using var db = NovoContexto();
+    var (pedidoId, agrupamentoId) = await NovoAgrupamentoAsync(db);
+    var componenteA = await NovoComponenteAsync(db, prefixo, "a");
+    var componenteB = await NovoComponenteAsync(db, prefixo, "b");
+
+    try
+    {
+      var repo = new EstruturaRepository(db);
+      var noA = new NoParaGravar(
+          ComponenteId: componenteA, Descricao: null, Quantidade: 1m, RequerRelatorioDimensional: false,
+          Materiais: [], Roteiro: [],
+          Filhos: [new NoParaGravar(componenteB, null, 1m, false, [], [], [])]);
+      var idA = await repo.GravarArvoreAsync(agrupamentoId, null, noA, CancellationToken.None);
+
+      await using var dbLeitura = NovoContexto();
+      var idB = (await dbLeitura.Estruturas.AsNoTracking()
+          .SingleAsync(e => e.AgrupamentoId == agrupamentoId && e.EstruturaPaiId == idA)).Id;
+
+      // Fecha o ciclo por fora da app: A passa a apontar pra B. Muda tambem NivelHierarquico pra
+      // "Item" — CK_EstruturaItem_PecaSemPai exige EstruturaPaiId nulo so quando e "Peca".
+      await using var dbCiclo = NovoContexto();
+      var linhaA = await dbCiclo.Estruturas.SingleAsync(e => e.Id == idA);
+      linhaA.EstruturaPaiId = idB;
+      linhaA.NivelHierarquico = "Item";
+      await dbCiclo.SaveChangesAsync();
+
+      await using var dbExclusao = NovoContexto();
+      var repoExclusao = new EstruturaRepository(dbExclusao);
+      await Assert.ThrowsAsync<SubarvoreCiclicaException>(
+          () => repoExclusao.RemoverSubarvoreAsync(idA, CancellationToken.None));
+    }
+    finally
+    {
+      // Desfaz o ciclo antes de limpar — senao LimparAsync (que tambem so sabe andar num grafo
+      // aciclico, mesma classe de risco do M3) tropeca do mesmo jeito.
+      await using var dbDesfaz = NovoContexto();
+      var linhaA = await dbDesfaz.Estruturas.SingleOrDefaultAsync(e => e.AgrupamentoId == agrupamentoId && e.EstruturaPaiId != null && e.ComponenteId == componenteA);
+      if (linhaA is not null)
+      {
+        linhaA.EstruturaPaiId = null;
+        linhaA.NivelHierarquico = "Peca";
+        await dbDesfaz.SaveChangesAsync();
+      }
+      await LimparAsync(pedidoId, agrupamentoId, componenteA, componenteB);
     }
   }
 
