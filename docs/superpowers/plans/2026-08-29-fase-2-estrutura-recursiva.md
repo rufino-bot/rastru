@@ -1342,6 +1342,8 @@ Produto é texto, não código. **Delta de teste: 0.** Não pule a review por ca
 
 - [ ] **Passo 4: `CLAUDE.md`** — se `ArvoreDeEstrutura` for virar padrão para tela nova, a seção "Interface" ganha a linha; se não for, **não escreva que é**. Uma primitiva com um consumidor é uma primitiva com um consumidor.
 
+- [ ] **Passo 4b: a regra de negócio que a Task 4 criou e não registrou** (achado M4 da review da Task 4, deliberadamente diferido para cá). A Task 4 introduziu uma regra nova ao acrescentar sub-Item — ela **existe no código e em teste, e em `specs/` nenhuma**. Leia o achado M4 em `.superpowers/sdd/task-4-fase2-review.md`, decida se ela é regra de domínio ou detalhe de implementação, e **registre em `01-dominio-e-regras-de-negocio.md` se for domínio**. Regra que vive só no código é regra que a próxima fase re-decide sem saber que já foi decidida.
+
 - [ ] **Passo 5: reler o entorno, não só a frase**
 
 Cada edição acima muda um documento onde vizinhos falam do mesmo assunto. **O escopo da releitura é a seção inteira**, não a linha alterada — é assim que se acha a contradição entre bullets vizinhos. `[[edicao-pontual-em-prosa-estraga-o-entorno]]`
