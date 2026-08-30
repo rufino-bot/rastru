@@ -1026,7 +1026,7 @@ git commit -m "feat(fase-2): sub-Item ad-hoc, edicao de no e exclusao com a suba
 
 1. `POST_cria_a_Peca_e_devolve_201_com_a_arvore`
 2. `GET_devolve_a_arvore_aninhada_do_Agrupamento`
-3. `POST_com_ciclo_na_receita_devolve_409_CicloNaReceita`
+3. `POST_com_ciclo_na_receita_devolve_409_com_codigo_E_mensagem` — afirme **os dois campos** do corpo: `erro == "CicloNaReceita"` **e** `mensagem` contendo o caminho do ciclo. Um teste que afirmasse só o código deixaria a frase cair sem ninguém notar — que é exatamente como este defeito nasceu no plano.
 4. `DELETE_em_Pedido_nao_Aberto_devolve_409_PedidoNaoAberto`
 5. `POST_de_filho_ad_hoc_sem_descricao_devolve_400`
 6. `Perfil_sem_escrita_recebe_403_no_POST` — autentique como `Operador`.
@@ -1089,26 +1089,39 @@ public class EstruturaController : ControllerBase
   {
     var r = await _montagem.ExcluirNo(id, ct);
     if (r.Sucesso) return NoContent();
-    return r.TipoDoErro switch
-    {
-      TipoDeErro.NaoEncontrado => NotFound(),
-      TipoDeErro.Conflito => Conflict(new { erro = r.Erro }),
-      _ => BadRequest(new { erro = r.Erro }),
-    };
+    return Recusar(r.TipoDoErro, r.Erro, r.Detalhe);
   }
 
   private IActionResult Traduzir<T>(Result<T> r, bool criado = false)
   {
     if (r.Sucesso) return criado ? StatusCode(StatusCodes.Status201Created, r.Valor) : Ok(r.Valor);
-    return r.TipoDoErro switch
-    {
-      TipoDeErro.NaoEncontrado => NotFound(),
-      TipoDeErro.Conflito => Conflict(new { erro = r.Erro }),
-      _ => BadRequest(new { erro = r.Erro }),
-    };
+    return Recusar(r.TipoDoErro, r.Erro, r.Detalhe);
+  }
+
+  /// <summary>
+  /// O corpo leva `erro` (o CODIGO, por onde o front comuta) e, quando existe, `mensagem` (a FRASE
+  /// que o operador le). `mensagem` e OMITIDA quando `Detalhe` e nulo — nao vira `null` no JSON.
+  ///
+  /// Descartar o `Detalhe` aqui e o defeito que a review da Task 3 levou um fix pass para fechar:
+  /// a frase de `CicloNaReceita` NOMEIA o caminho do ciclo, e o front nao tem como reconstrui-la,
+  /// porque nao sabe qual foi o caminho. `PedidoNaoAberto` continua sem frase, de proposito — e o
+  /// precedente de `CadastroDeAgrupamentoUseCase`.
+  /// </summary>
+  private IActionResult Recusar(TipoDeErro? tipo, string? erro, string? detalhe)
+  {
+    if (tipo == TipoDeErro.NaoEncontrado) return NotFound();
+
+    object corpo = detalhe is null ? new { erro } : new { erro, mensagem = detalhe };
+    return tipo == TipoDeErro.Conflito ? Conflict(corpo) : BadRequest(corpo);
   }
 }
 ```
+
+> **Correção de plano, 2026-08-29, achada medindo o plano antes de despachar esta task.** O código
+> acima fazia `new { erro = r.Erro }` nos dois lugares, **descartando o `Detalhe`** — o que desfaria
+> em silêncio o Important 2 que a Task 3 fechou com um fix pass inteiro. O erro só apareceria na
+> **Task 6**, cujos testes de cliente afirmam a mensagem, duas tasks depois de ter sido cometido.
+> `[[medir-o-plano-antes-de-despachar]]`
 
 - [ ] **Passo 3: o espelho no front**
 
