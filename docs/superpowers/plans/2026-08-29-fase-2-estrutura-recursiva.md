@@ -1306,7 +1306,22 @@ git commit -m "feat(fase-2): primitiva ArvoreDeEstrutura, lista indentada"
 - Consumes: `ArvoreDeEstrutura` (Task 7), `web/src/api/estrutura.ts` (Task 6), `SeletorComBusca` e `usePodeEscrever` (já existem).
 - Produces: rota `/agrupamentos/:id`.
 
-**Delta de teste desta task: +8** (7 na tela nova, 1 na `PedidoDetalhePage`).
+**Delta de teste desta task: +9** (8 na tela nova, 1 na `PedidoDetalhePage`).
+
+> **Decisão do usuário, 2026-08-29, vinda da review da Task 7:** `requerRelatorioDimensional`
+> **aparece na árvore, e o dono disso é esta task.** A review mediu que o campo não estava em
+> **nenhum** dos 15 testes nomeados das Tasks 7 e 8 somadas — ele é gravado na criação da Peça e
+> nenhum pixel o mostrava.
+>
+> Acrescente o teste **9**: `Peça marcada como exigindo relatório dimensional mostra isso na linha`
+> — por **rótulo ou pílula neutra**, nunca por cor de estado (verde e vermelho são reservados a
+> aprovado/reprovado, e é justamente a tela de Qualidade da Fase 5 que vai dividir a linha com essa
+> marca). Exibição apenas: **editar a marca continua fora** (a D4 fechou a edição de nó em
+> quantidade e descrição, e abrir um terceiro campo reabriria o backend na última task de tela).
+>
+> **Por que não ficou como dívida:** a Fase 5 inteira depende desse campo, e quem cadastra a Peça não
+> tem como conferir se marcou certo. Um dado que nasce invisível só é descoberto quando o cliente
+> cobra o relatório que ninguém sabia ser exigido.
 
 - [ ] **Passo 1: escrever os oito testes, e vê-los falhar**
 
@@ -1367,6 +1382,16 @@ Produto é texto, não código. **Delta de teste: 0.** Não pule a review por ca
 ```
 
 - [ ] **Passo 4: `CLAUDE.md`** — se `ArvoreDeEstrutura` for virar padrão para tela nova, a seção "Interface" ganha a linha; se não for, **não escreva que é**. Uma primitiva com um consumidor é uma primitiva com um consumidor.
+
+- [ ] **Passo 4a: escrever a exceção de "botão de chrome"** — decisão do usuário em 2026-08-29, vinda da review da Task 7.
+
+  A seção Interface diz hoje: *"Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou estado de carregando à mão."* **O código já a contraria em três lugares**, e dois deles são anteriores à Fase 2: os botões "Sair" e do hambúrguer em `AppShell.tsx` (que compartilham a constante `BOTAO_DO_CHROME`) e o alternador de expandir/recolher em `ArvoreDeEstrutura.tsx`.
+
+  **A decisão foi aceitar a exceção e escrevê-la**, não extrair uma primitiva. Registre-a com o motivo **técnico correto**, que a review mediu: a primitiva `Botao` carrega peso de CTA (`px-4 py-2`, `Botao.tsx:24`) que não serve a um controle de ícone; e no `AppShell` a razão documentada é **contraste do anel de foco sobre fundo escuro** — que é motivo diferente, e o relatório da Task 7 errou ao tratá-los como o mesmo.
+
+  Escreva o **limite** da exceção, senão ela vira porta larga: vale para controle de **chrome** (disclosure, navegação, ícone sem rótulo), **não** para ação de formulário nem para nada que a `Botao` sirva. E diga que quem escrever o terceiro caso deve considerar extrair `AlternadorDeDisclosure` — foi a saída que o implementer propôs e que o usuário adiou, não descartou.
+
+  **Por que escrever em vez de deixar como está:** regra com três violações conhecidas e nenhuma exceção escrita produz deriva nos dois sentidos — quem obedece cega cria primitiva que ninguém quer, e quem observa o código conclui que a regra não vale.
 
 - [ ] **Passo 4b: a regra de negócio que a Task 4 criou e não registrou** (achado M4 da review da Task 4, deliberadamente diferido para cá). A Task 4 introduziu uma regra nova ao acrescentar sub-Item — ela **existe no código e em teste, e em `specs/` nenhuma**. Leia o achado M4 em `.superpowers/sdd/task-4-fase2-review.md`, decida se ela é regra de domínio ou detalhe de implementação, e **registre em `01-dominio-e-regras-de-negocio.md` se for domínio**. Regra que vive só no código é regra que a próxima fase re-decide sem saber que já foi decidida.
 
