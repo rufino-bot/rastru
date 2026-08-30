@@ -1204,13 +1204,26 @@ export function editarNo(id: number, e: EdicaoDeNo): Promise<NoDaEstrutura | Con
 export function excluirNo(id: number): Promise<ResultadoDeEstrutura>
 ```
 
-**Delta de teste desta task: +7.**
+**Delta de teste desta task: +14** (7 nomeados abaixo + 7 de cobertura de ramo).
 
-> **Correção de plano, 2026-08-29 — achada aplicando ao plano inteiro a varredura que a Task 3
-> gerou.** Este número era **+5**, e o bloco *Produces* acima declara **cinco** funções enquanto a
-> lista de testes cobria só três delas: `acrescentarFilho` e `editarNo` nasceriam sem teste algum.
-> É a mesma família do defeito da Task 3 — símbolo prometido no *Produces* sem passo que o exercite —
-> em versão mais fraca (aqui o passo de implementação existe; o que falta é a prova).
+> **Duas correções de plano, 2026-08-29.**
+>
+> **(a)** O número era **+5**: o bloco *Produces* declarava **cinco** funções e a lista cobria três —
+> `acrescentarFilho` e `editarNo` nasceriam sem teste. Mesma família do defeito da Task 3 (símbolo
+> prometido no *Produces* sem passo que o exercite), em versão mais fraca.
+>
+> **(b) Depois da execução, virou +14** — e a diferença **não é escopo esticado**, é o plano tendo
+> nomeado só o caminho principal. Os 7 extras isolam ramos de `if`/`throw` que os 7 nomeados não
+> tocavam: o corpo real de `obterEstrutura`, o `throw` genérico dela, o 204 e o status não tratado de
+> `excluirNo`, o conflito de `acrescentarFilho`, o `throw` de `editarNo` e o 409 malformado. A review
+> julgou um a um: nenhum redundante, nenhum passaria com implementação errada.
+>
+> **Isto é padrão, não acidente — aconteceu em TRÊS tasks (4, 5 e 6).** A causa é do plano: ele nomeia
+> o caminho feliz e deixa as bordas implícitas na prosa. Vale para as tasks 7 e 8, que têm a mesma
+> forma: **a lista nomeada é o piso, não o teto**, e um implementer que só a cumpra deixa ramo sem
+> prova. O risco do lado oposto — cobrir borda que ninguém pediu e virar regra nova sem decisão — já
+> se materializou uma vez, na Task 4, e é por isso que o brief de review pede julgamento **caso a
+> caso** em vez de aceitar ou recusar o excedente em bloco.
 
 - [ ] **Passo 1: escrever os sete testes com `fetchPorRota`, e vê-los falhar**
 
