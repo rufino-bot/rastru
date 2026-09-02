@@ -86,7 +86,7 @@ function LinhaDoNo({
           {temDetalhe && (
             // `<button>` cru, exceção consciente aceita pelo usuário em 2026-08-29 (não extrair
             // primitiva agora): `Botao` carrega peso de CTA — `secundario` é `px-4 py-2`
-            // (`Botao.tsx:24`), dimensionado para "Acrescentar filho"/"Editar"/"Excluir" — peso
+            // (`Botao.tsx:25`), dimensionado para "Acrescentar filho"/"Editar"/"Excluir" — peso
             // incompatível com um alternador de ícone de um caractere embutido na linha. Há
             // precedente de FORMA para `<button>` cru fora de `Botao` (`AppShell.tsx:118-126`,
             // o hambúrguer), mas não de motivo: lá a razão documentada é contraste do anel de
@@ -97,7 +97,14 @@ function LinhaDoNo({
               onClick={() => setExpandido((v) => !v)}
               aria-expanded={expandido}
               aria-label={`${expandido ? 'Recolher' : 'Expandir'} ${no.descricao}`}
-              className="text-tinta-fraca"
+              // Área de toque declarada, não herdada do glifo: `▸`/`▾` (U+25B8/U+25BE) caem fora do
+              // `unicode-range` do subset auto-hospedado (`index.css`) e vão para o fallback do SO,
+              // então o tamanho do caractere varia por dispositivo. `min-h-6 min-w-6` = 24×24px CSS,
+              // o mínimo da WCAG 2.2 AA 2.5.8 — uso declarado é celular Android no chão de fábrica
+              // (`AppShell.tsx:129-130`). Anel de foco por `outline-acao`, o mesmo token do `Botao`
+              // (`Botao.tsx:17`): esta primitiva vive sobre fundo claro, não sobre o chrome escuro
+              // que justifica `outline-marca` no `AppShell` (`AppShell.tsx:47-49`).
+              className="inline-flex min-h-6 min-w-6 items-center justify-center rounded text-tinta-fraca focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
             >
               {expandido ? '▾' : '▸'}
             </button>
@@ -111,7 +118,7 @@ function LinhaDoNo({
         </div>
 
         {temAcao && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div data-testid={`acoes-do-no-${no.id}`} className="flex flex-wrap items-center gap-2">
             {onAcrescentarFilho && (
               <Botao variante="secundario" onClick={() => onAcrescentarFilho(no.id)}>
                 Acrescentar filho

@@ -31,10 +31,14 @@ const filho: NoDaEstrutura = {
   requerRelatorioDimensional: false,
   materiais: [{ materialId: 1, nome: 'Aço 1020', quantidade: 2 }],
   // Setor 1 (Corte) aparece duas vezes: regra 21, retorno ao mesmo setor, não duplicata.
+  // Array fora de ordem de propósito (ordem 3, depois 1, depois 2): a asserção abaixo só prova
+  // "na ordem" se a fixture não chegar pronta — ordenada na origem, o teste passaria mesmo sem o
+  // `.sort` do componente (Minor 2 da re-review da Task 7, medido por mutação). Os pares
+  // ordem/nome não mudaram, só a posição de cada objeto no array.
   roteiro: [
+    { setorId: 1, nome: 'Corte', ordem: 3 },
     { setorId: 1, nome: 'Corte', ordem: 1 },
     { setorId: 2, nome: 'Solda', ordem: 2 },
-    { setorId: 1, nome: 'Corte', ordem: 3 },
   ],
   filhos: [folha],
 }
@@ -165,6 +169,29 @@ describe('ArvoreDeEstrutura', () => {
     expect(screen.getAllByRole('button', { name: /acrescentar filho/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: /^editar/i }).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('button', { name: /excluir/i }).length).toBeGreaterThan(0)
+  })
+
+  it('(extra) com permissão de escrita e um único callback, só a ação dele aparece', () => {
+    // Minor 1 da re-review da Task 7: com `podeEscrever` e os três callbacks sempre juntos, o eixo
+    // "quantos callbacks" fica cego — `podeEscrever && (a && b && c)` (`&&` em vez de `||`, bug
+    // real: a Task 8 passando só `onEditar` não renderizaria ação nenhuma) sobrevivia. Este teste
+    // passa um único callback e afirma que só a ação dele existe.
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever onEditar={vi.fn()} />)
+
+    expect(screen.getAllByRole('button', { name: /^editar/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /acrescentar filho/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /excluir/i })).toBeNull()
+  })
+
+  it('(extra) com permissão de escrita e nenhum callback, a área de ações não é renderizada', () => {
+    // Cobre o Minor 2 original no sentido literal: `podeEscrever` sozinho não basta para desenhar a
+    // `div` de ações vazia. Afirma a AUSÊNCIA da própria `div` (por `data-testid`), não só dos
+    // botões dentro dela — sem isso, `temAcao = podeEscrever` (o bug que o Minor 2 corrigiu)
+    // sobrevive: a `div` vazia renderizaria, mas nenhum botão apareceria de qualquer forma, porque
+    // os três `onX &&` internos já dependem dos callbacks que aqui não foram passados.
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever />)
+
+    expect(screen.queryByTestId('acoes-do-no-1')).toBeNull()
   })
 
   it('(extra) nó sem materiais e sem roteiro não mostra alternador de expandir', () => {
