@@ -1405,8 +1405,10 @@ git commit -m "feat(fase-2): tela de detalhe do Agrupamento com a arvore"
   `ArvoreDeEstrutura` (Task 7); `SeletorComBusca` e `usePodeEscrever` (já existem).
 - Produces: nada novo — nenhuma rota, nenhum componente novo.
 
-**Delta de teste desta task: +9** (todos em `AgrupamentoDetalhePage.test.tsx`). Como nas anteriores,
-**a lista é piso, não teto**: ramo real descoberto se cobre, com justificativa individual no
+**Delta de teste desta task: +9** (os nove nomeados abaixo, em `AgrupamentoDetalhePage.test.tsx`)
+**mais 2 a 4** do cabeçalho (decisão do usuário registrada acima: ao menos um em
+`cadastros.test.ts` para a função nova, e ao menos um na tela para o rótulo e a degradação). Como
+nas anteriores, **a lista é piso, não teto**: ramo real descoberto se cobre, com justificativa individual no
 relatório; regra de negócio nova **não se decide sozinho** — sinalize.
 
 ### O que o cliente de API já resolve, e não se reimplementa
@@ -1432,6 +1434,29 @@ desta tela:
 a única informação que permite ao operador consertar a receita, porque o front não sabe o caminho
 percorrido. Essa frase custou três rodadas de review e um fix pass no backend. **Uma tela que
 mostrasse só um erro genérico derrubaria a cadeia inteira no último elo.**
+
+### O cabeçalho da tela mostra o Agrupamento, não o Id — decisão do usuário, 2026-09-02
+
+Hoje o título é `Agrupamento {id}`, numérico. **A decisão do usuário:** vale a chamada extra, porque
+**o Id não é informação que o usuário reconheça** — código e tipo, sim. O Id continua tendo valor,
+mas para **nós**: é a chave para rastrear logs e recompor sequências de eventos quando houver
+problema. Então **os dois aparecem** — o código e o tipo como identidade legível, o Id preservado
+como referência técnica, discreto.
+
+**Medido antes de escrever, e é barato — não toca backend:**
+
+- o endpoint **já existe**: `GET agrupamentos/{id}`, em `AgrupamentosController.Obter`
+  (`src/Rastreamento.Api/Controllers/AgrupamentosController.cs:24-25`);
+- o tipo **já existe** no front: `AgrupamentoDto` (`web/src/api/cadastros.ts:155-163`), com `codigo`,
+  `tipo`, `pedidoId` e `criadoEm`;
+- falta **só** a função `obterAgrupamento(id)` em `cadastros.ts`, no padrão das vizinhas dela, com
+  teste próprio — e o uso na tela.
+
+**Como o cabeçalho degrada, e por que isto está escrito:** se a busca do Agrupamento falhar, a tela
+**não** ganha um terceiro estado de erro nem um terceiro banner. Ela cai para o que já mostra hoje
+(o Id) e segue. Esta tela já teve **dois** achados por estados de erro mal separados — o Important
+da regressão e o m9 abaixo —, e um terceiro banner disputando espaço repetiria a mesma família.
+A árvore é o conteúdo da tela; o cabeçalho é rótulo.
 
 ### Dois itens herdados da Task 8, com dono aqui porque é a mesma tela
 
