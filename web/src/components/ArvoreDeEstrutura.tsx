@@ -72,16 +72,26 @@ function LinhaDoNo({
   // (regra 21), não duplicata — o backend preserva a Ordem por isso, e apagar a repetição aqui
   // destruiria a informação que ela carrega.
   const roteiroOrdenado = [...no.roteiro].sort((a, b) => a.ordem - b.ordem)
+  const recuoPx = RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX
+  const temAcao = podeEscrever && (onAcrescentarFilho || onEditar || onExcluir)
 
   return (
     <li>
       <div
         data-testid={`linha-no-${no.id}`}
         className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-borda bg-superficie py-2 pr-3"
-        style={{ paddingLeft: `${RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX}px` }}
+        style={{ paddingLeft: `${recuoPx}px` }}
       >
         <div className="flex flex-wrap items-center gap-2">
           {temDetalhe && (
+            // `<button>` cru, exceção consciente aceita pelo usuário em 2026-08-29 (não extrair
+            // primitiva agora): `Botao` carrega peso de CTA — `secundario` é `px-4 py-2`
+            // (`Botao.tsx:24`), dimensionado para "Acrescentar filho"/"Editar"/"Excluir" — peso
+            // incompatível com um alternador de ícone de um caractere embutido na linha. Há
+            // precedente de FORMA para `<button>` cru fora de `Botao` (`AppShell.tsx:118-126`,
+            // o hambúrguer), mas não de motivo: lá a razão documentada é contraste do anel de
+            // foco sobre fundo escuro (`AppShell.tsx:47-49`), não peso visual. Extrair
+            // `AlternadorDeDisclosure` para os dois usos foi adiado pelo usuário, não descartado.
             <button
               type="button"
               onClick={() => setExpandido((v) => !v)}
@@ -100,7 +110,7 @@ function LinhaDoNo({
           <span className="text-sm text-tinta-fraca">{`Qtd: ${no.quantidade}`}</span>
         </div>
 
-        {podeEscrever && (
+        {temAcao && (
           <div className="flex flex-wrap items-center gap-2">
             {onAcrescentarFilho && (
               <Botao variante="secundario" onClick={() => onAcrescentarFilho(no.id)}>
@@ -124,7 +134,7 @@ function LinhaDoNo({
       {expandido && (
         <div
           className="flex flex-col gap-2 border-l border-borda py-2 pl-4 text-sm"
-          style={{ marginLeft: `${RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX}px` }}
+          style={{ marginLeft: `${recuoPx}px` }}
         >
           {no.materiais.length > 0 && (
             <div>

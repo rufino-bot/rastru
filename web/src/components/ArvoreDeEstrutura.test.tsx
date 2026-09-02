@@ -174,4 +174,47 @@ describe('ArvoreDeEstrutura', () => {
 
     expect(screen.queryByRole('button', { name: /expandir chassi/i })).toBeNull()
   })
+
+  it('(extra) um Agrupamento com duas Peças renderiza os dois nós-raiz, cada um com sua subárvore', () => {
+    // Achado Minor 3 da review da Task 7: `nos` com mais de um elemento no topo é caso real (um
+    // Agrupamento tem N Peças), e o componente já suporta (`nos.map`) — faltava a asserção.
+    const outraPeca: NoDaEstrutura = {
+      id: 5,
+      componenteId: 50,
+      codigoDoComponente: 'C-050',
+      descricao: 'Base',
+      quantidade: 2,
+      nivelHierarquico: 'Peca',
+      requerRelatorioDimensional: false,
+      materiais: [],
+      roteiro: [],
+      filhos: [
+        {
+          id: 6,
+          componenteId: 60,
+          codigoDoComponente: 'C-060',
+          descricao: 'Pé',
+          quantidade: 8,
+          nivelHierarquico: 'Item',
+          requerRelatorioDimensional: false,
+          materiais: [],
+          roteiro: [],
+          filhos: [],
+        },
+      ],
+    }
+
+    render(<ArvoreDeEstrutura nos={[peca, outraPeca]} podeEscrever={false} />)
+
+    // Subárvore da primeira Peça (Chassi -> Suporte -> Parafuso).
+    expect(screen.getByText('Chassi')).toBeTruthy()
+    expect(screen.getByText('Suporte')).toBeTruthy()
+    expect(screen.getByText('Parafuso')).toBeTruthy()
+    // Subárvore da segunda Peça (Base -> Pé), independente da primeira.
+    expect(screen.getByText('Base')).toBeTruthy()
+    expect(screen.getByText('Pé')).toBeTruthy()
+
+    // Cada Peça é um `<ul>` de topo próprio, e as duas aparecem como itens de nível 0 da lista raiz.
+    expect(screen.getAllByRole('list')[0].children).toHaveLength(2)
+  })
 })
