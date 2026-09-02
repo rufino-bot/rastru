@@ -88,8 +88,8 @@ function caminhoRelativo(caminho: string): string {
 /**
  * Dispensa nomeada, no molde do `SEM_EXIGENCIA` de `contraste.test.ts`: motivo escrito
  * obrigatório, chave por arquivo + classe exata (não por linha — sobrevive a reformatação, e
- * não exime a classe em nenhum OUTRO arquivo). Hoje há exatamente uma: o véu do modal de
- * exclusão de agrupamento.
+ * não exime a classe em nenhum OUTRO arquivo). Hoje há duas: o véu do modal de exclusão de
+ * agrupamento, e o véu da primitiva `Confirmacao` (Task 8b) que o extraiu.
  */
 const SEM_EXIGENCIA: Record<string, string> = {
   // Task 10 re-layout trocou a cor crua original do véu pelo token do tema — mesmo véu, mesma
@@ -100,6 +100,12 @@ const SEM_EXIGENCIA: Record<string, string> = {
     'véu (scrim) do modal de confirmação de exclusão — `fixed inset-0`, com o painel `bg-superficie` ' +
     'sobreposto (`PedidoDetalhePage.tsx:183`). É decorativo: nenhum texto é lido sobre ele, então ' +
     'não há par de contraste texto/fundo a medir. WCAG 1.4.3 não se aplica a fundo sem conteúdo.',
+  // Task 8b: `Confirmacao` é a primitiva extraída do MESMO véu acima (ver o comentário do
+  // componente) — mesma forma, mesmo motivo, endereço novo porque o JSX mora num arquivo novo.
+  'components/Confirmacao.tsx::bg-tinta/50':
+    'véu (scrim) do diálogo de confirmação — `fixed inset-0`, com o painel `bg-superficie` ' +
+    'sobreposto. Decorativo, sem texto sobre ele: mesma dispensa de `PedidoDetalhePage.tsx` acima, ' +
+    'que este componente generaliza.',
 }
 
 describe('nenhuma classe de cor usa modificador de opacidade (/NN) fora de dispensa nomeada', () => {
