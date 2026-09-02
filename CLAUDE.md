@@ -288,8 +288,27 @@ nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de 
 
 1. **trabalho sem commit ou sem push** — registro que existe só localmente não é backup;
 2. **`sdd/.gitignore` recriado com `*`** — ele é redundante aqui (a raiz já ignora a pasta) e
-   destrutivo lá, onde ignora o ledger inteiro. Já aconteceu: foi pego com `git check-ignore -v`
-   antes do primeiro `git add`, senão o repositório teria nascido vazio de conteúdo.
+   destrutivo lá, onde ignora o ledger inteiro. Já aconteceu **três vezes**. A primeira foi pega
+   com `git check-ignore -v` antes do primeiro `git add`, senão o repositório teria nascido vazio
+   de conteúdo; a de **2026-09-02** deu o mecanismo, medido e não inferido:
+   `scripts/sdd-workspace:21` da skill `subagent-driven-development` faz
+   `printf '*\n' > "$dir/.gitignore"` **incondicionalmente**, e é chamado tanto por `task-brief`
+   quanto por `review-package`. Ou seja: o arquivo volta **a cada task** que gere brief ou pacote
+   de review, não de vez em quando. A premissa do script (o comentário dele trata o diretório como
+   scratch descartável do repo do projeto) era verdadeira até 2026-08-25 e deixou de ser.
+
+   **Conferir só na abertura não basta**, e isso também foi medido: a ocorrência de 09-02 nasceu
+   às 07:39, depois da abertura das 07:25, no primeiro `review-package` da sessão. Por isso existe
+   **`scripts/desarma-gitignore-do-sdd`**, ligado a dois hooks em `.claude/settings.json`
+   (`PostToolUse` de `Bash`, e `SubagentStop` para o caso de o subagente ter rodado o script). Ele
+   apaga o arquivo quando o conteúdo é **exatamente** `*`, e **não toca** em nenhum outro conteúdo
+   — exclusão deliberada que alguém escreva ali sobrevive. Os três casos (positivo, conteúdo
+   deliberado, arquivo ausente) foram exercitados quando o script nasceu, e o hook foi visto
+   disparar ao vivo. O `scripts/estado` continua conferindo na abertura, como segunda rede.
+
+   **O modo de falha é silencioso, e é por isso que a guarda é automática em vez de um lembrete:**
+   `git add -A` pula untracked ignorado sem reclamar. Um `git add` explícito falha alto — foi o que
+   salvou em 09-02 —, mas isso é sorte da forma do comando, não guarda.
 
 Backend (solution `Rastreamento.slnx`, na raiz):
 
