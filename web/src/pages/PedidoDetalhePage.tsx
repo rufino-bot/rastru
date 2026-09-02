@@ -178,14 +178,15 @@ export function PedidoDetalhePage() {
                 Task 8 (Fase 2): o item vira link para a árvore de estrutura do Agrupamento.
                 DELIBERADAMENTE não usa o padrão de `LinhaDePedido` (`after:absolute after:inset-0`
                 cobrindo o `<li>` inteiro): este item já tem uma `acao` (o botão "Excluir" acima),
-                e `ItemDeCadastro.tsx` documenta essa combinação como uma armadilha MEDIDA em
-                Chrome (m6 da review da Task 8 da Fase 1D) — o overlay de link, sobre o `<li>`
-                inteiro, cobre e ENGOLE o clique no botão de ação, e `jsdom` (esta suíte) não
-                calcula layout, então não pega isso: ficaria verde e quebraria só no navegador. O
-                link aqui fica restrito ao próprio texto do código — menor como alvo de toque, mas
-                sem colidir com "Excluir". Extrair o conserto documentado (a `acao` num wrapper de
-                `z-index` positivo) fica para quando alguém precisar da área inteira clicável aqui,
-                com verificação em navegador de verdade, não só na suíte.
+                e `ListaDeCadastro.tsx` (onde `ItemDeCadastro` é definido) documenta essa
+                combinação como uma armadilha MEDIDA em Chrome (m6 da review da Task 8 da Fase 1D)
+                — o overlay de link, sobre o `<li>` inteiro, cobre e ENGOLE o clique no botão de
+                ação, e `jsdom` (esta suíte) não calcula layout, então não pega isso: ficaria verde
+                e quebraria só no navegador. O link aqui fica restrito ao próprio texto do código —
+                menor como alvo de toque, mas sem colidir com "Excluir". Extrair o conserto
+                documentado (a `acao` num wrapper de `z-index` positivo) fica para quando alguém
+                precisar da área inteira clicável aqui, com verificação em navegador de verdade,
+                não só na suíte.
               */}
               <Link
                 to={`/agrupamentos/${a.id}`}

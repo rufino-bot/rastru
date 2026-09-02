@@ -37,6 +37,7 @@ import { ArvoreDeEstrutura } from '../components/ArvoreDeEstrutura'
 export function AgrupamentoDetalhePage() {
   const { id } = useParams<{ id: string }>()
   const agrupamentoId = Number(id)
+  const idValido = !Number.isNaN(agrupamentoId)
 
   const [nos, setNos] = useState<NoDaEstrutura[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -46,6 +47,14 @@ export function AgrupamentoDetalhePage() {
   const [quantidade, setQuantidade] = useState('')
   const [requerRelatorioDimensional, setRequerRelatorioDimensional] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  // Estado PRÓPRIO da escrita, separado de `erro` (que é só da carga) — Important 1 do fix pass da
+  // Task 8: com um estado só compartilhado entre carga e escrita, um erro ao criar a Peça (o 409 de
+  // ciclo, por exemplo) marcava o MESMO `erro` que a guarda `erro === null &&` do ramo da árvore
+  // usa para decidir se mostra `<ArvoreDeEstrutura>` — e apagava a árvore já carregada, justo no
+  // cenário em que o usuário mais precisa dela (a mensagem do ciclo existe para ensinar como
+  // consertar a receita, e ele precisa ver a árvore para aplicar o conserto). Molde de
+  // `ComponenteDetalhePage`, que já separa `erroComponente` de `erroSalvarFilhos`/etc.
+  const [erroEscrita, setErroEscrita] = useState<string | null>(null)
 
   const podeEscrever = usePodeEscrever('estrutura')
 
@@ -64,12 +73,15 @@ export function AgrupamentoDetalhePage() {
     }
   }
 
-  useEffect(() => { carregar(agrupamentoId) }, [agrupamentoId])
+  // m4 do fix pass da Task 8: com `:id` não numérico (`/agrupamentos/abc` -> `NaN`) não há
+  // agrupamento nenhum para buscar — sem a guarda, o efeito ainda disparava
+  // `GET /agrupamentos/NaN/estrutura`. Molde de `ComponenteDetalhePage` (`idValido`).
+  useEffect(() => { if (idValido) carregar(agrupamentoId) }, [agrupamentoId, idValido])
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
     if (!componente) return
-    setErro(null)
+    setErroEscrita(null)
     setEnviando(true)
     try {
       const resultado = await criarPeca(agrupamentoId, {
@@ -81,7 +93,7 @@ export function AgrupamentoDetalhePage() {
         // `mensagem` nomeia o caminho do ciclo quando o código é `CicloNaReceita` (sempre vem
         // nesse caso — ver o comentário de `ConflitoDeEstrutura` em `api/estrutura.ts`); os
         // outros três códigos podem chegar sem `mensagem`, daí o fallback genérico.
-        setErro(resultado.mensagem ?? 'Não foi possível criar a Peça: conflito na estrutura.')
+        setErroEscrita(resultado.mensagem ?? 'Não foi possível criar a Peça: conflito na estrutura.')
         return
       }
       setComponente(null)
@@ -89,14 +101,27 @@ export function AgrupamentoDetalhePage() {
       setRequerRelatorioDimensional(false)
       await carregar(agrupamentoId)
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Não foi possível criar a Peça.'))
+      // I2 do fix pass da Task 8: este `catch` é o único caminho que transforma um 403 em texto na
+      // tela ("Seu perfil não tem permissão para esta ação.") em vez de deixar a exceção subir — o
+      // 403 é a fronteira REAL (adendo F2), esconder o formulário no front não é segurança.
+      setErroEscrita(mensagemDeErro(e, 'Não foi possível criar a Peça.'))
     } finally {
       setEnviando(false)
     }
   }
 
+  // m4 do fix pass da Task 8: `id` inválido não tenta nenhuma busca (a guarda do `useEffect`
+  // acima) e mostra só este banner — mesmo molde de `ComponenteDetalhePage`.
+  if (!idValido) {
+    return (
+      <Pagina titulo="Agrupamento">
+        <BannerDeErro mensagem="Este agrupamento não existe." />
+      </Pagina>
+    )
+  }
+
   return (
-    <Pagina titulo={`Agrupamento ${Number.isNaN(agrupamentoId) ? '' : agrupamentoId}`}>
+    <Pagina titulo={`Agrupamento ${agrupamentoId}`}>
       {podeEscrever && (
         <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
           <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
@@ -139,7 +164,10 @@ export function AgrupamentoDetalhePage() {
         </form>
       )}
 
-      <BannerDeErro mensagem={erro} />
+      {/* `erro` (carga) e `erroEscrita` (escrita) nunca aparecem ao mesmo tempo na prática — a
+          escrita só é tentada depois de a carga assentar —, mas o banner não precisa saber disso:
+          mostra o que houver. */}
+      <BannerDeErro mensagem={erro ?? erroEscrita} />
 
       {carregando ? (
         <EstadoCarregando />

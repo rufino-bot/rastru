@@ -88,10 +88,18 @@ function renderizarDetalhe() {
   )
 }
 
-/** Escolhe `CH-100` no `SeletorComBusca`, preenche a quantidade e marca (ou não) o checkbox. */
+/**
+ * Escolhe `CH-100` no `SeletorComBusca`, preenche a quantidade e marca (ou não) o checkbox.
+ *
+ * O clique na opção é escopado ao `listbox` (não `screen.findByText` global): os testes de I1/I2
+ * do fix pass da Task 8 carregam a árvore com a MESMA Peça (`CH-100`) já visível na tela, então um
+ * `findByText` sem escopo acha dois `CH-100` — o nó da árvore e a opção do combobox — e lança
+ * "Found multiple elements" em vez de selecionar.
+ */
 async function preencherFormulario(quantidade: number, marcarRequerRelatorio = false) {
   fireEvent.click(screen.getByRole('combobox'))
-  fireEvent.click(await screen.findByText('CH-100'))
+  const listbox = await screen.findByRole('listbox')
+  fireEvent.click(await within(listbox).findByText('CH-100'))
   fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: String(quantidade) } })
   if (marcarRequerRelatorio) fireEvent.click(screen.getByLabelText(/requer relatório dimensional/i))
 }
@@ -136,8 +144,11 @@ describe('AgrupamentoDetalhePage', () => {
 
     renderizarDetalhe()
 
+    // m2 do fix pass da Task 8: a segunda asserção original (`queryByText(/não achei/i)`) não podia
+    // falhar — nenhum caminho do código renderiza essa literal, e a propriedade que o nome do teste
+    // promete já é provada pela asserção acima (o texto que NOMEIA o único caminho da lista vazia
+    // desta tela, que não tem busca). Removida em vez de mantida como cobertura encenada.
     expect(await screen.findByText('Este agrupamento ainda não tem estrutura')).toBeTruthy()
-    expect(screen.queryByText(/não achei/i)).toBeNull()
   })
 
   // Teste 4. `fetch` real rejeita com `TypeError` quando a requisição nem sai (DNS, rede, CORS) —
@@ -182,6 +193,25 @@ describe('AgrupamentoDetalhePage', () => {
     })
   })
 
+  // m3 do fix pass da Task 8 (o item mais visível, os demais ficam para a review de branch):
+  // depois de criar a Peça com sucesso, o formulário volta ao estado inicial — sem isto, um
+  // formulário preenchido continuaria preenchido e ninguém saberia que a criação anterior já foi
+  // aplicada, convidando a clicar "Criar Peça" de novo com os mesmos dados.
+  it('formulário volta ao estado inicial depois de criar a Peça com sucesso', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [], estruturaAposCriar: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Este agrupamento ainda não tem estrutura')
+    await preencherFormulario(5, true)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText('Chassi')).toBeTruthy()
+
+    expect(screen.getByRole('combobox')).toHaveProperty('value', '')
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '')
+    expect(screen.getByLabelText(/requer relatório dimensional/i)).toHaveProperty('checked', false)
+  })
+
   // Teste 6. `mensagem` nomeia o CAMINHO do ciclo (a única informação que permite ao operador
   // consertar a receita — comentário de `ConflitoDeEstrutura` em `api/estrutura.ts`). Sem este
   // teste, `resultado.mensagem ?? '...'` poderia virar sempre o fallback genérico sem quebrar nada.
@@ -198,6 +228,49 @@ describe('AgrupamentoDetalhePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
 
     expect(await screen.findByText(mensagemDoServidor)).toBeTruthy()
+  })
+
+  // I1 do fix pass da Task 8: `erro` era UM estado só, compartilhado entre carga e escrita — um
+  // erro de escrita (o mesmo 409 do teste 6, agora com a árvore JÁ carregada) apagava a árvore
+  // inteira, sobrando só o banner. É exatamente o cenário que a mensagem do ciclo existe para
+  // socorrer: o usuário precisa ver a árvore para consertar a receita, não perder a visão dela.
+  it('409 de ciclo na escrita não apaga a árvore já carregada', async () => {
+    const mensagemDoServidor = 'A receita tem um ciclo: 2 -> 3 -> 2. Não é possível montar essa Peça.'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaCriar: { status: 409, corpo: { erro: 'CicloNaReceita', mensagem: mensagemDoServidor } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText(mensagemDoServidor)).toBeTruthy()
+    expect(screen.getByText('Chassi')).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Estrutura do agrupamento' })).toBeTruthy()
+  })
+
+  // I2 do fix pass da Task 8: o `try/catch` de `salvar` (`AgrupamentoDetalhePage.tsx:91-93`) não
+  // tinha nenhum teste que o protegesse — em 409 `criarPeca` RESOLVE (`lerNoOuConflito` devolve o
+  // objeto de conflito), então o teste 6/I1 nunca entra no `catch`. Todo status não-409 lança, e um
+  // 403 é o caso que o brief da Fase 1D nomeia como a fronteira REAL ("esconder botão não é
+  // segurança"): mesmo com o formulário visível (perfil desatualizado no front), o backend pode
+  // recusar, e a tela precisa mostrar a recusa em vez de quebrar — e sem apagar a árvore.
+  it('403 na escrita vira mensagem, não exceção, e a árvore continua visível', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaCriar: { status: 403, corpo: {} },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
+    expect(screen.getByText('Chassi')).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Estrutura do agrupamento' })).toBeTruthy()
   })
 
   // Teste 7. Gating na AÇÃO, não no link: quem não escreve não vê o formulário, mas continua
@@ -241,5 +314,25 @@ describe('AgrupamentoDetalhePage', () => {
     const linhaChassi = screen.getByTestId('linha-no-100')
     expect(linhaChassi.innerHTML).not.toContain('text-positivo')
     expect(linhaChassi.innerHTML).not.toContain('text-negativo')
+  })
+
+  // m4 do fix pass da Task 8, molde de `ComponenteDetalhePage.test.tsx` ("trata id inválido sem
+  // tentar buscar nada"): com `:id` não numérico o ramo `Number.isNaN` do título era morto (o
+  // título virava "Agrupamento " com espaço final) e a tela ainda disparava
+  // `GET /agrupamentos/NaN/estrutura`. Agora ela nem tenta.
+  it('id não numérico mostra mensagem, sem disparar busca', () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <MemoryRouter initialEntries={['/agrupamentos/abc']}>
+        <Routes>
+          <Route path="/agrupamentos/:id" element={<AgrupamentoDetalhePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('Este agrupamento não existe.')).toBeTruthy()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
