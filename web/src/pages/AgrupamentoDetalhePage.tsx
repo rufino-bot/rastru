@@ -216,6 +216,15 @@ export function AgrupamentoDetalhePage() {
     setPainel({ tipo: 'editar', no })
     // Pré-preenchido com a descrição JÁ RESOLVIDA pelo backend (regra 19) — o usuário edita a
     // partir do que vê na tela, não de um campo em branco que ele não sabe se está herdando ou não.
+    //
+    // I3 do fix pass da Task 8b, decisão CONSCIENTE do usuário (2026-09-02, caminho (a) — registrar
+    // e manter): salvar esta edição SEM tocar na descrição grava `descricao` própria no nó (mesmo
+    // valor pré-preenchido, mas agora persistido — ver `corpoDaEdicao`), e o nó PARA de acompanhar
+    // o Componente do catálogo (regra 19: só uma descrição NULA herda). O front não distingue hoje
+    // "descrição própria" de "descrição herdada" — `EstruturaItemDto.Descricao` já vem resolvida,
+    // sem essa bandeira (`Rastreamento.Application/Estrutura/EstruturaDtos.cs`). Consertar isso é
+    // trabalho FUTURO e separado (trazer a referência do catálogo do backend), fora do escopo desta
+    // task.
     setDescricaoPainel(no.descricao)
     setQuantidadePainel(String(no.quantidade))
     setErroPainel(null)
@@ -246,6 +255,12 @@ export function AgrupamentoDetalhePage() {
     // fluxo normal (ex.: `form.requestSubmit()` disparado por outro caminho) chamaria a API com
     // `componenteId` de um `null` forçado a número.
     if (painel.tipo === 'acrescentarFilho' && modoNovoFilho === 'catalogo' && !componenteNovoFilho) return
+    // m2 do fix pass da Task 8b: esta linha é REDUNDANTE, medido e não suposto — `abrirAcrescentarFilho`,
+    // `abrirEditar` e `fecharPainel` já zeram `erroPainel`, e `fecharPainel` roda em todo sucesso.
+    // A única diferença OBSERVÁVEL é a janela em voo: com ela, o banner de uma tentativa anterior
+    // some assim que "Salvando…" começa; sem ela, ficaria até a resposta chegar. Defensável, mas é
+    // a mesma classe do M10 (defesa sem prova própria) — mantida por essa razão, não por simetria
+    // com o `catch`.
     setErroPainel(null)
     setEnviandoPainel(true)
     try {
@@ -330,9 +345,14 @@ export function AgrupamentoDetalhePage() {
 
   const quantidadePainelValida = Number(quantidadePainel) > 0
   const painelInvalido = !painel || !quantidadePainelValida || (
-    painel.tipo === 'acrescentarFilho' && (
-      modoNovoFilho === 'catalogo' ? !componenteNovoFilho : descricaoPainel.trim() === ''
-    )
+    painel.tipo === 'acrescentarFilho'
+      ? (modoNovoFilho === 'catalogo' ? !componenteNovoFilho : descricaoPainel.trim() === '')
+      // m5 do fix pass da Task 8b: regra 19, mesma guarda do modo ad-hoc do acrescentar (linhas
+      // acima) — um nó AD-HOC (`componenteId === null`) não tem Componente de catálogo para
+      // herdar a descrição, então esvaziá-la na edição mandaria `descricao: null` ao backend, que
+      // recusa com 400 (`ErroDeDescricaoObrigatoria`). Um nó de catálogo pode ficar em branco
+      // (volta a herdar do Componente, regra 19) — a guarda é só para o ad-hoc.
+      : (painel.no.componenteId === null && descricaoPainel.trim() === '')
   )
 
   return (
@@ -510,6 +530,11 @@ export function AgrupamentoDetalhePage() {
             // PRÓPRIO `podeEscrever` que ela recebe é falso, mas a TELA também só passa os
             // callbacks quando pode escrever — sem isso, um perfil sem escrita ainda "poderia"
             // acionar acrescentar/editar/excluir se a primitiva um dia parasse de gatear sozinha.
+            // M10/Concern 2 da review da Task 8b: esta camada NÃO TEM MATADOR — `ArvoreDeEstrutura`
+            // recebe o mesmo `podeEscrever` (`ArvoreDeEstrutura.tsx:81`, `temAcao = podeEscrever && …`),
+            // então remover os três `podeEscrever ? … : undefined` abaixo não quebra teste nenhum
+            // (medido pela review, mutação M-F). Fica como redundância honesta — defesa em
+            // profundidade sem prova própria —, não por engano.
             onAcrescentarFilho={podeEscrever ? abrirAcrescentarFilho : undefined}
             onEditar={podeEscrever ? abrirEditar : undefined}
             onExcluir={podeEscrever ? pedirExclusao : undefined}

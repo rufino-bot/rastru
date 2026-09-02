@@ -645,10 +645,13 @@ describe('AgrupamentoDetalhePage', () => {
     fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
     fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
 
-    expect(await screen.findByText(mensagemDoServidor)).toBeTruthy()
+    const bannerDoPainel = await screen.findByText(mensagemDoServidor)
     // O painel NÃO fecha em conflito (só em sucesso), e a árvore continua visível.
     expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
     expect(screen.getByText('Chassi')).toBeTruthy()
+    // m1 do fix pass da Task 8b: o banner do painel mora DENTRO do `<form>` (m9 estendido) — mesmo
+    // molde do banner de "Criar Peça" (teste posicional `:826`, que só cobre AQUELE form).
+    expect(bannerDoPainel.closest('form')).toBe(screen.getByTestId('painel-de-escrita'))
   })
 
   // Teste 5. D4 por asserção de corpo: nenhum terceiro campo (nem `componenteId`) vaza no PUT.
@@ -749,6 +752,143 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull()
     expect(screen.queryByTestId('painel-de-escrita')).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  // ---------------------------------------------------------------------------------------------
+  // Fix pass da Task 8b: I1, I2, I3/M-K, m3 e m5 da review.
+  // ---------------------------------------------------------------------------------------------
+
+  // I1: a suíte tinha o diálogo abrir, o cancelamento e o 404 — nenhum teste de um DELETE que dá
+  // certo. `estruturaAposCriar: []` prova a recarga: o nó só some da árvore na SEGUNDA chamada de
+  // GET, depois do DELETE — sem `await carregar(agrupamentoId)` em `confirmarExclusao`, 'Chassi'
+  // continuaria na tela (mutação M-H, remedida antes do conserto: 483/483 verde sem o `await`).
+  it('excluir com sucesso remove o nó da árvore e recarrega (I1)', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], estruturaAposCriar: [] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
+    const dialogo = await screen.findByRole('dialog')
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir' }))
+
+    // O nó some (a recarga rodou) e a tela cai no estado vazio — não fica só sem 'Chassi' por
+    // acidente de outro motivo.
+    await waitFor(() => expect(screen.queryByText('Chassi')).toBeNull())
+    expect(await screen.findByText('Este agrupamento ainda não tem estrutura')).toBeTruthy()
+  })
+
+  // I2 (metade acrescentar): o `catch` de `salvarPainel` não tinha teste que o protegesse — em 409
+  // o cliente RESOLVE (não lança), então o teste de ciclo (teste 4) nunca passa por `catch` nenhum.
+  // Só um status que lança (403) alcança o `catch`.
+  it('403 ao acrescentar filho vira mensagem, não exceção, e o painel continua aberto (I2)', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaFilhos: { status: 403, corpo: {} },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByRole('combobox'))
+    const listbox = await within(painel).findByRole('listbox')
+    fireEvent.click(await within(listbox).findByText('CH-100'))
+    fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
+
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
+    expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
+    expect(screen.getByText('Chassi')).toBeTruthy()
+  })
+
+  // I2 (metade excluir): mesmo raciocínio do parágrafo acima, agora para `confirmarExclusao` — o
+  // 404 do teste 8 é DESFECHO tratado sem lançar; só um 403 alcança o `catch` de verdade.
+  it('403 ao excluir vira mensagem, não exceção, e a árvore continua visível (I2)', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaExcluir: { status: 403, corpo: {} },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
+    const dialogo = await screen.findByRole('dialog')
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
+    expect(screen.getByText('Chassi')).toBeTruthy()
+  })
+
+  // I3 / M-K: a metade "descrição vazia volta a herdar" da regra 19 não tinha matador — sem o
+  // `descricaoPainel.trim() === '' ? null : descricaoPainel` de `corpoDaEdicao`, o PUT mandaria a
+  // string vazia em vez de `null`, e o backend não voltaria a herdar a descrição do Componente.
+  it('editar um nó de catálogo e esvaziar a descrição envia null (volta a herdar, I3/M-K)', async () => {
+    const fetchMock = montarFetch({ estruturaInicial: [PECA] })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.change(within(painel).getByLabelText('Descrição'), { target: { value: '' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '2' } })
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar edição' }))
+
+    await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
+
+    const chamadaPut = fetchMock.mock.calls.find(
+      (c) => String(c[0]) === '/api/estrutura/100' && (c[1] as RequestInit | undefined)?.method === 'PUT',
+    )
+    expect(chamadaPut).toBeTruthy()
+    expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toEqual({
+      descricao: null,
+      quantidade: 2,
+    })
+  })
+
+  // m3: a exclusividade mútua painel <-> confirmação não tinha matador. Abre "Editar" num nó,
+  // depois pede a exclusão do MESMO nó (o cenário real é outro nó, mas o efeito sob teste — o
+  // painel fechar quando a confirmação abre — é o mesmo): sem `fecharPainel()` em `pedirExclusao`
+  // (e sem `setNoParaExcluir(null)` em `abrirEditar`/`abrirAcrescentarFilho`), os dois ficariam
+  // abertos ao mesmo tempo.
+  it('pedir exclusão fecha o painel de acrescentar/editar aberto (m3)', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+    expect(screen.queryByTestId('painel-de-escrita')).toBeNull()
+  })
+
+  // m5: editar um nó AD-HOC (`componenteId: null`) e esvaziar a descrição precisa desabilitar o
+  // botão — a mesma guarda que já existe para o modo ad-hoc do acrescentar (quatro linhas acima em
+  // `painelInvalido`), aplicada ao lado da edição. Sem a guarda o PUT sairia com `descricao: null`
+  // e o backend recusaria com 400 (`ErroDeDescricaoObrigatoria`, regra 19), mas o usuário só veria
+  // o fallback genérico.
+  it('editar um nó ad-hoc e esvaziar a descrição desabilita o botão de salvar (m5)', async () => {
+    const noAdHoc: NoDaEstrutura = {
+      ...PECA, componenteId: null, codigoDoComponente: null, descricao: 'Parafuso especial',
+    }
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [noAdHoc] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Parafuso especial')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.change(within(painel).getByLabelText('Descrição'), { target: { value: '' } })
+
+    expect(within(painel).getByRole('button', { name: 'Salvar edição' })).toHaveProperty('disabled', true)
   })
 
   // ---------------------------------------------------------------------------------------------

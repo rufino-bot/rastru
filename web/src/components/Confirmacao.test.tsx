@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import { Confirmacao } from './Confirmacao'
 
 afterEach(cleanup)
@@ -92,6 +92,42 @@ describe('Confirmacao', () => {
 
     const classes = screen.getByRole('button', { name: 'Excluir' }).className.split(/\s+/)
     expect(classes).toContain('bg-negativo')
+  })
+
+  // m4: o molde de origem (`PedidoDetalhePage.tsx`) declara `autoFocus` no Cancelar como
+  // deliberado — "sem foco explícito, quem navega por teclado sem ler tabularia direto para o
+  // botão destrutivo". Sem matador, `autoFocus` podia sumir do JSX sem quebrar nada.
+  it('o foco inicial vai para o botão Cancelar, não para o de confirmar (m4)', () => {
+    render(
+      <Confirmacao
+        aberto
+        mensagem="Excluir?"
+        rotuloConfirmar="Excluir"
+        aoConfirmar={() => {}}
+        aoCancelar={() => {}}
+      />,
+    )
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancelar' }))
+  })
+
+  // m4: a ORDEM no DOM também é deliberada (confirmar primeiro/à esquerda, cancelar por
+  // último/à direita — onde cai o polegar num tablet). Sem matador, inverter a ordem no JSX não
+  // quebrava nenhum teste (os `getByRole` anteriores não olham posição).
+  it('o botão de confirmar vem antes do de cancelar no DOM (m4)', () => {
+    render(
+      <Confirmacao
+        aberto
+        mensagem="Excluir?"
+        rotuloConfirmar="Excluir"
+        aoConfirmar={() => {}}
+        aoCancelar={() => {}}
+      />,
+    )
+
+    const dialogo = screen.getByRole('dialog')
+    const botoes = within(dialogo).getAllByRole('button')
+    expect(botoes.map((b) => b.textContent)).toEqual(['Excluir', 'Cancelar'])
   })
 
   it('aceita rótulo de cancelar e variante de confirmar customizados', () => {
