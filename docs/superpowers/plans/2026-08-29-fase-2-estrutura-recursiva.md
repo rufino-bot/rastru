@@ -1433,6 +1433,36 @@ a única informação que permite ao operador consertar a receita, porque o fron
 percorrido. Essa frase custou três rodadas de review e um fix pass no backend. **Uma tela que
 mostrasse só um erro genérico derrubaria a cadeia inteira no último elo.**
 
+### Dois itens herdados da Task 8, com dono aqui porque é a mesma tela
+
+A terceira passada de review da Task 8 fechou com **0 Critical e 0 Important**, e deixou dois Minor
+cuja correção cai exatamente no que esta task vai mexer — os formulários de escrita e os banners de
+erro deles.
+
+**m8 — `setErroEscrita(null)` do início de `salvar` não tem matador.** Removê-la deixa a suíte
+**inteira** verde (medido contra a suíte toda, não só contra o arquivo da tela). O comportamento está
+**certo** — 403 na primeira tentativa, 201 na segunda, e o banner do 403 some —, mas essa é a
+**única** linha que zera `erroEscrita`, e apagá-la reproduz para a escrita o defeito que o I3 fechou
+para a carga: banner que nunca sai depois de a ação passar a dar certo. É a mesma família do m7,
+fechado para `erro` e não para `erroEscrita` — **fechar um lado da simetria e deixar o outro é o que
+faz o passe seguinte herdar o item.** Teste: duas escritas, a primeira 403 e a segunda 201, asserção
+de que a mensagem do 403 sumiu.
+
+**m9 — offline, o usuário vê a MESMA frase duas vezes, em dois `role="alert"` colados.** Com a rede
+fora, `carregar` e `salvar` caem os dois no ramo `TypeError` de `mensagemDeErro`
+(`web/src/api/erros.ts`), que ignora o `fallback` e devolve a mesma frase aos dois estados — medido:
+dois banners idênticos, um embaixo do outro, sem nada que diga qual é de quê.
+
+**A causa é cópia parcial de molde, e vale mais que o sintoma:** `ComponenteDetalhePage` põe cada
+banner **dentro da sua seção**, ao lado do botão que o produz; a Task 8 copiou "um banner por estado"
+e deixou "cada um na sua seção" para trás. **Direção:** mover `<BannerDeErro mensagem={erroEscrita} />`
+para **dentro do `<form>`**, junto do botão de ação — acaba a duplicação visual e a mensagem passa a
+estar onde a ação que a produziu está. Vale para **cada formulário que esta task criar**, não só para
+o de criar Peça.
+
+Cobertos junto com os testes abaixo, não há delta extra; se precisarem de teste próprio, conte-os
+como excedente e justifique um a um, no padrão desta fase.
+
 - [ ] **Passo 1: escrever os nove testes, e vê-los falhar**
 
 1. `acrescentar sub-Item de catálogo escolhe o Componente pelo SeletorComBusca` — o gatilho é
