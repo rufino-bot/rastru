@@ -30,7 +30,12 @@ const RECUO_POR_NIVEL_PX = 20
  */
 export function ArvoreDeEstrutura({ nos, podeEscrever, onAcrescentarFilho, onEditar, onExcluir }: Props) {
   return (
-    <ul aria-label="Estrutura da peça" className="flex flex-col gap-1">
+    // Rótulo no PLURAL desde a Task 8 (Minor 4 da re-review da Task 7): um Agrupamento tem N
+    // Peças (`nos` pode ter mais de uma raiz — o teste "um Agrupamento com duas Peças" da própria
+    // suíte desta primitiva prova isso), então "Estrutura da peça" no singular mentia sobre o que
+    // a lista raiz contém. Hardcoded (sem prop nova): hoje o único consumidor é
+    // `AgrupamentoDetalhePage`, e uma prop sem segundo chamador seria parâmetro sem uso real.
+    <ul aria-label="Estrutura do agrupamento" className="flex flex-col gap-1">
       {nos.map((no) => (
         <LinhaDoNo
           key={no.id}
@@ -114,6 +119,13 @@ function LinhaDoNo({
           )}
           <span className="text-tinta">{no.descricao}</span>
           {ehAdHoc && <Pilula tom="neutro">Ad-hoc</Pilula>}
+          {/* Task 8, decisão do usuário (review da Task 7): o campo nasce na criação da Peça e
+              nenhum pixel o mostrava — nem um dos 15 testes nomeados das Tasks 7 e 8 somadas o
+              exercitava (MEDIDO ao ler `ArvoreDeEstrutura.test.tsx` e o brief desta task). Tom
+              NEUTRO de propósito: verde/vermelho são reservados a aprovado/reprovado (a tela de
+              Qualidade da Fase 5 vai dividir a linha com essa marca), e este rótulo é dado de
+              cadastro, não resultado de avaliação. Exibição apenas — editar continua fora (D4). */}
+          {no.requerRelatorioDimensional && <Pilula tom="neutro">Requer relatório dimensional</Pilula>}
           <span className="text-sm text-tinta-fraca">{`Qtd: ${no.quantidade}`}</span>
         </div>
 

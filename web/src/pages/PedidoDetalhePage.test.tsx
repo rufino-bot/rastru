@@ -329,6 +329,20 @@ describe('PedidoDetalhePage', () => {
     expect(screen.queryByText('Excluir')).toBeNull()
   })
 
+  // Teste 8 da Task 8 (Fase 2): o código do agrupamento vira link para a árvore de estrutura dele
+  // — é por essa navegação que a Fase 2 fica alcançável a partir do Pedido.
+  it('cada agrupamento da lista é um link para /agrupamentos/:id', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+    }))
+
+    renderizarDetalhe()
+
+    const link = await screen.findByRole('link', { name: 'AGR-01' })
+    expect(link.getAttribute('href')).toBe('/agrupamentos/21')
+  })
+
   it('mostra estado vazio quando o pedido não tem agrupamentos', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos/7': () => respostaJson(PEDIDO),

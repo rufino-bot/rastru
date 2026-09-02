@@ -7,6 +7,7 @@ import { ComponentesPage } from './pages/ComponentesPage'
 import { ComponenteDetalhePage } from './pages/ComponenteDetalhePage'
 import { PedidosPage } from './pages/PedidosPage'
 import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
+import { AgrupamentoDetalhePage } from './pages/AgrupamentoDetalhePage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './components/AppShell'
 
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/componentes/:id" element={<ComponenteDetalhePage />} />
         <Route path="/pedidos" element={<PedidosPage />} />
         <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
+        <Route path="/agrupamentos/:id" element={<AgrupamentoDetalhePage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
