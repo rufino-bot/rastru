@@ -1323,6 +1323,18 @@ git commit -m "feat(fase-2): primitiva ArvoreDeEstrutura, lista indentada"
 > tem como conferir se marcou certo. Um dado que nasce invisível só é descoberto quando o cliente
 > cobra o relatório que ninguém sabia ser exigido.
 
+> **Herdado da re-review da Task 7 (Minor 4), 2026-09-02 — dono é esta task, por conhecer a tela:**
+> `ArvoreDeEstrutura.tsx:33` traz `aria-label="Estrutura da peça"`, no **singular**. O teste de
+> múltiplos nós-raiz que o fix pass da Task 7 acrescentou formalizou o que o domínio já dizia — um
+> Agrupamento tem **N** Peças —, então a lista raiz passa a conter várias. Decida aqui, com o
+> contexto da tela: o rótulo vira "Estrutura do agrupamento", ou o `<ul>` externo passa a receber
+> rótulo por prop. **Não é delta de teste novo** — cabe na asserção de acessibilidade que a tela já
+> vai ter.
+>
+> **Confirmar visualmente nesta task (também da Task 7):** a área de toque do alternador de
+> expandir/recolher. A primitiva não tem tela própria, então o alinhamento do controle com o resto
+> da linha só é observável aqui.
+
 - [ ] **Passo 1: escrever os oito testes, e vê-los falhar**
 
 Na tela nova:

@@ -310,6 +310,14 @@ nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de 
    `git add -A` pula untracked ignorado sem reclamar. Um `git add` explícito falha alto — foi o que
    salvou em 09-02 —, mas isso é sorte da forma do comando, não guarda.
 
+   **O alcance do hook, medido — ele não é absoluto.** `PostToolUse` roda **entre** chamadas de
+   ferramenta, então o arquivo que um `review-package` acabou de criar continua lá até aquela
+   chamada terminar. Medido na mesma sessão de 09-02: conferido **dentro** da chamada que rodou o
+   script, o arquivo existia; na chamada seguinte, ausente. Consequência: um
+   `review-package && git add -A` **numa só chamada** escaparia da guarda — e é a combinação exata
+   dos dois parágrafos acima. O que fecha isso não é técnica e sim forma: gerar brief ou pacote é
+   uma chamada, `git add` é outra, e o `git add` do ledger vai por caminho explícito.
+
 Backend (solution `Rastreamento.slnx`, na raiz):
 
 ```bash
