@@ -1371,6 +1371,110 @@ git commit -m "feat(fase-2): tela de detalhe do Agrupamento com a arvore"
 
 ---
 
+## Task 8b: ligar as três ações de escrita da árvore
+
+> **Task NOVA, criada em 2026-09-02 por decisão do usuário.** Ela não existia no plano original, e a
+> razão de existir é um buraco medido entre a spec e o plano — não um escopo esticado.
+>
+> **O que foi medido, antes de propor:** a spec da fase (§1.3, "Edição: criar e customizar os nós")
+> põe **dentro** do escopo *"copiar a receita, acrescentar sub-Item (de Componente ou ad-hoc),
+> editar quantidade e descrição de um nó, excluir nó com a subárvore"*, e o critério de pronto da
+> fase é **"montar"**. Mas:
+>
+> - `onAcrescentarFilho`/`onEditar`/`onExcluir` aparecem no plano **uma única vez**, na definição da
+>   interface da Task 7 — **nenhuma task as passa**;
+> - em toda a `web/src/`, os métodos `acrescentarFilho`, `editarNo` e `excluirNo` do cliente de API
+>   tinham **zero consumidores** depois da Task 8 (só `criarPeca` era usado);
+> - as Tasks 9 (documentos) e 10 (verificação manual) não implementam tela.
+>
+> Sem esta task, a Fase 2 fecharia com backend, endpoints, cliente de API e a primitiva com os três
+> callbacks prontos e revisados — e o usuário conseguindo apenas **criar Peças raiz** pela interface.
+> A spec passaria a afirmar algo que a fase não entregou, e `specs/` vira texto do TCC.
+>
+> **O custo é de tela, não de domínio:** as Tasks 4, 5 e 6 já entregaram e revisaram o caso de uso,
+> os endpoints e o cliente. Esta task **não toca backend**.
+
+**Files:**
+- Modify: `web/src/pages/AgrupamentoDetalhePage.tsx`
+- Modify: `web/src/pages/AgrupamentoDetalhePage.test.tsx`
+
+**Interfaces:**
+- Consumes: `acrescentarFilho`, `editarNo`, `excluirNo`, `ehConflitoDeEstrutura` e os tipos
+  `NovoFilho`, `EdicaoDeNo`, `ConflitoDeEstrutura`, `ResultadoDeEstrutura` (todos de
+  `web/src/api/estrutura.ts`, Task 6); as props `onAcrescentarFilho`/`onEditar`/`onExcluir` de
+  `ArvoreDeEstrutura` (Task 7); `SeletorComBusca` e `usePodeEscrever` (já existem).
+- Produces: nada novo — nenhuma rota, nenhum componente novo.
+
+**Delta de teste desta task: +9** (todos em `AgrupamentoDetalhePage.test.tsx`). Como nas anteriores,
+**a lista é piso, não teto**: ramo real descoberto se cobre, com justificativa individual no
+relatório; regra de negócio nova **não se decide sozinho** — sinalize.
+
+### O que o cliente de API já resolve, e não se reimplementa
+
+Leia `web/src/api/estrutura.ts` antes de escrever qualquer coisa. Três formas dele mandam no desenho
+desta tela:
+
+1. **`acrescentarFilho(paiId, { componenteId, descricao, quantidade })`** devolve
+   `NoDaEstrutura | ConflitoDeEstrutura` — o conflito é **valor de retorno**, não exceção. Use
+   `ehConflitoDeEstrutura` para discriminar; não compare o literal à mão.
+2. **`editarNo(id, { descricao, quantidade })`** — **só esses dois campos**, pela D4. `descricao`
+   nula/vazia faz o nó voltar a herdar a do Componente (regra 19). O backend **nunca** emite 409
+   aqui, embora o tipo permita.
+3. **`excluirNo(id)`** devolve `ResultadoDeEstrutura` — `'ok' | 'NaoEncontrado' | 'PedidoNaoAberto' |
+   …`. O **404 é desfecho, não exceção**, de propósito: "o nó já não existe" não pode chegar à tela
+   como exceção que o `catch` não esperava.
+
+### A mensagem do 409 de ciclo não pode ser descartada
+
+`ConflitoDeEstrutura.mensagem` é opcional **porque o backend a omite** quando não há frase
+(`PedidoNaoAberto`). Nos três códigos de `PlanejadorDeCopia` ela **sempre vem**, e em
+`CicloNaReceita` ela **nomeia o caminho** do ciclo (ex.: `"A receita tem um ciclo: 2 -> 3 -> 2."`) —
+a única informação que permite ao operador consertar a receita, porque o front não sabe o caminho
+percorrido. Essa frase custou três rodadas de review e um fix pass no backend. **Uma tela que
+mostrasse só um erro genérico derrubaria a cadeia inteira no último elo.**
+
+- [ ] **Passo 1: escrever os nove testes, e vê-los falhar**
+
+1. `acrescentar sub-Item de catálogo escolhe o Componente pelo SeletorComBusca` — o gatilho é
+   catálogo paginado; `<select>` com a lista inteira não escala.
+2. `acrescentar sub-Item ad-hoc envia componenteId nulo e a descrição digitada` — os dois modos
+   existem no `NovoFilho`, e a árvore já distingue ad-hoc de catálogo por forma e rótulo.
+3. `a árvore é recarregada depois de acrescentar` — sem isso o nó novo não aparece até um F5.
+4. `409 de ciclo ao acrescentar mostra a mensagem que nomeia o caminho` — afirme o **texto da
+   `mensagem` do backend** na tela, não um erro genérico. É o teste que protege a cadeia acima.
+5. `editar um nó envia apenas descrição e quantidade` — a D4 por asserção: nenhum terceiro campo no
+   corpo.
+6. `excluir pede confirmação, e a confirmação diz que a subárvore vai junto` — exclusão em cascata
+   sem aviso é perda de dado por surpresa.
+7. `cancelar a confirmação não chama a API` — o par do teste 6; sem ele, "pede confirmação" é
+   decorativo.
+8. `404 na exclusão é tratado como desfecho` — o nó já não existe; a tela informa e recarrega, não
+   cai no banner de erro genérico.
+9. `perfil sem escrita não vê nenhuma das três ações` — o gating vai na **AÇÃO**. A `ArvoreDeEstrutura`
+   já esconde os botões quando `podeEscrever` é falso; este teste afirma que a **tela** não passa os
+   callbacks nem renderiza os formulários.
+
+- [ ] **Passo 2: implementar**
+
+Nada escrito à mão: campo, botão, banner de erro e diálogo saem das primitivas de
+`web/src/components/`. **Se faltar uma primitiva de confirmação, crie-a lá, com teste próprio** — não
+a embuta na tela. O `try/catch` em volta de cada escrita continua obrigatório: o 403 é a fronteira
+real, esconder botão não é segurança.
+
+**Cor:** o conflito e o erro usam o token de erro; a confirmação de exclusão **não** decora com
+`negativo` por ser "perigosa" — cor de estado nunca decora. Verde e vermelho seguem reservados a
+aprovado/reprovado, e é a tela de Qualidade da Fase 5 que vai dividir a linha com essa marca.
+
+- [ ] **Passo 3: rodar, buildar, commitar**
+
+```bash
+cd web && npm test -- --run && npm run build
+git add web/src
+git commit -m "feat(fase-2): liga acrescentar, editar e excluir na tela do Agrupamento"
+```
+
+---
+
 ## Task 9: Documentos
 
 Produto é texto, não código. **Delta de teste: 0.** Não pule a review por causa disso — a Fase 1E mediu que a família "prosa que encena precisão" apareceu **dez vezes** e que o passe que a fechava escreveu duas ocorrências novas.
