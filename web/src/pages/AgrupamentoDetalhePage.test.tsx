@@ -251,8 +251,9 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.getByRole('list', { name: 'Estrutura do agrupamento' })).toBeTruthy()
   })
 
-  // I2 do fix pass da Task 8: o `try/catch` de `salvar` (`AgrupamentoDetalhePage.tsx:91-93`) não
-  // tinha nenhum teste que o protegesse — em 409 `criarPeca` RESOLVE (`lerNoOuConflito` devolve o
+  // I2 do fix pass da Task 8: o `catch` de `salvar` (m6 do segundo fix pass: sem número de linha
+  // de propósito — o arquivo já moveu duas vezes desde a review que citou uma) não tinha nenhum
+  // teste que o protegesse — em 409 `criarPeca` RESOLVE (`lerNoOuConflito` devolve o
   // objeto de conflito), então o teste 6/I1 nunca entra no `catch`. Todo status não-409 lança, e um
   // 403 é o caso que o brief da Fase 1D nomeia como a fronteira REAL ("esconder botão não é
   // segurança"): mesmo com o formulário visível (perfil desatualizado no front), o backend pode
@@ -314,6 +315,104 @@ describe('AgrupamentoDetalhePage', () => {
     const linhaChassi = screen.getByTestId('linha-no-100')
     expect(linhaChassi.innerHTML).not.toContain('text-positivo')
     expect(linhaChassi.innerHTML).not.toContain('text-negativo')
+  })
+
+  // I3 do segundo fix pass da Task 8: o primeiro fix trocou o `setErro(null)` do início de `salvar`
+  // por `setErroEscrita(null)` — e `carregar` nunca zerava `erro`, só o escrevia no `catch`.
+  // Resultado medido pela re-review: depois de uma carga que falha, uma escrita bem-sucedida
+  // recarrega os dados (prova: 'Chassi' aparece), mas o banner da falha ANTIGA continuava na tela
+  // e a guarda `erro === null &&` do ramo da árvore (agora reparada) ficava presa para sempre com
+  // ele. Molde de `ComponenteDetalhePage`: `setErroComponente(null)` no INÍCIO de cada carga
+  // (`:168`), não só no `catch`.
+  it('recarga bem-sucedida depois de uma carga falha limpa o banner de carga antigo', async () => {
+    let getsDeEstrutura = 0
+    const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      const metodo = init?.method ?? 'GET'
+      if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
+      if (caminho === '/api/agrupamentos/21/estrutura') {
+        if (metodo === 'POST') return Promise.resolve(respostaJson({ ...PECA, id: 101 }, 201))
+        getsDeEstrutura += 1
+        if (getsDeEstrutura === 1) return Promise.reject(new TypeError('failed to fetch'))
+        return Promise.resolve(respostaJson([PECA]))
+      }
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Sem conexão com o servidor. Verifique a rede e tente de novo.')
+
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    // A árvore volta (prova que o caminho de sucesso — POST 201, recarga OK, `setNos` — rodou
+    // inteiro) E o banner da carga que falhou antes some. Antes do fix, o formulário era resetado
+    // (prova de sucesso) mas a tela ficava com o banner de rede e SEM a árvore para sempre.
+    expect(await screen.findByText('Chassi')).toBeTruthy()
+    expect(screen.queryByText('Sem conexão com o servidor. Verifique a rede e tente de novo.')).toBeNull()
+  })
+
+  // m5 do segundo fix pass da Task 8: o comentário que licenciava `erro ?? erroEscrita` afirmava
+  // que os dois nunca coexistem — falso, medido pela re-review: o `<form>` só depende de
+  // `podeEscrever`, não de `erro`, e o `SeletorComBusca` busca em `/componentes`, rota diferente da
+  // que falhou. Com um `??` só, o erro de CARGA engolia o de ESCRITA. Molde de
+  // `ComponenteDetalhePage`: um `<BannerDeErro>` por estado, nunca dois disputando um slot.
+  it('erro de carga e erro de escrita aparecem os dois, em banners separados', async () => {
+    const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      const metodo = init?.method ?? 'GET'
+      if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
+      if (caminho === '/api/agrupamentos/21/estrutura') {
+        if (metodo === 'POST') return Promise.resolve(respostaJson({}, 403))
+        return Promise.reject(new TypeError('failed to fetch'))
+      }
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Sem conexão com o servidor. Verifique a rede e tente de novo.')
+
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    // O 403 da escrita não é engolido pelo erro de carga que já estava na tela.
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
+    // ...e o banner de carga continua visível também: os dois coexistem, cada um no seu slot.
+    expect(screen.getByText('Sem conexão com o servidor. Verifique a rede e tente de novo.')).toBeTruthy()
+  })
+
+  // m7 do segundo fix pass da Task 8: a guarda `erro === null &&` do ramo da árvore não tinha
+  // matador — o teste do I3 acima não cobre, porque nele `nos` só fica populado QUANDO `erro` já
+  // voltou a `null` (carga falha com `nos` vazio, depois recarga com sucesso). Este teste cobre o
+  // caso que a guarda existe para tratar: `nos` JÁ populado de uma carga anterior, e uma RECARGA
+  // que falha — a árvore precisa sumir (ela ficaria obsoleta), não continuar mostrando dados de
+  // antes da falha ao lado do banner.
+  it('recarga que falha depois de nós já carregados esconde a árvore obsoleta', async () => {
+    let getsDeEstrutura = 0
+    const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      const metodo = init?.method ?? 'GET'
+      if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
+      if (caminho === '/api/agrupamentos/21/estrutura') {
+        if (metodo === 'POST') return Promise.resolve(respostaJson({ ...PECA, id: 101 }, 201))
+        getsDeEstrutura += 1
+        if (getsDeEstrutura === 1) return Promise.resolve(respostaJson([PECA]))
+        return Promise.reject(new TypeError('failed to fetch'))
+      }
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText('Sem conexão com o servidor. Verifique a rede e tente de novo.')).toBeTruthy()
+    expect(screen.queryByRole('list', { name: 'Estrutura do agrupamento' })).toBeNull()
   })
 
   // m4 do fix pass da Task 8, molde de `ComponenteDetalhePage.test.tsx` ("trata id inválido sem

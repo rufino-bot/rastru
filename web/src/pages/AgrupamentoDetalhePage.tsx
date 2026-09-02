@@ -63,6 +63,12 @@ export function AgrupamentoDetalhePage() {
   // dependência faltando se o corpo não usar o parâmetro.
   async function carregar(id: number) {
     setCarregando(true)
+    // I3 do segundo fix pass da Task 8: sem este `setErro(null)`, `erro` só era ESCRITO (no
+    // `catch` abaixo) e nunca zerado — uma carga que falhasse prendia o banner (e a guarda
+    // `erro === null &&` do ramo da árvore) para sempre, mesmo depois de uma recarga
+    // bem-sucedida. Molde de `ComponenteDetalhePage`: `setErroComponente(null)` no INÍCIO de
+    // cada carga (`:168`), não só no `catch`.
+    setErro(null)
     try {
       const dados = await obterEstrutura(id)
       setNos(dados)
@@ -164,10 +170,15 @@ export function AgrupamentoDetalhePage() {
         </form>
       )}
 
-      {/* `erro` (carga) e `erroEscrita` (escrita) nunca aparecem ao mesmo tempo na prática — a
-          escrita só é tentada depois de a carga assentar —, mas o banner não precisa saber disso:
-          mostra o que houver. */}
-      <BannerDeErro mensagem={erro ?? erroEscrita} />
+      {/* m5 do segundo fix pass da Task 8: `erro` (carga) e `erroEscrita` (escrita) PODEM
+          coexistir — medido, não suposto. O `<form>` só depende de `podeEscrever`, não de `erro`,
+          e o `SeletorComBusca` busca em `/componentes`, rota diferente da que a carga usa; nada
+          impede tentar criar a Peça com a carga já tendo falhado. Um banner por estado, cada um
+          no seu slot — nunca um `??` disputando um só, que engoliria o de escrita quando os dois
+          coexistem. Molde de `ComponenteDetalhePage`: um `<BannerDeErro>` por seção/estado
+          (`:369-371`, `:417-419`, `:498-500`, `:565-567`). */}
+      <BannerDeErro mensagem={erro} />
+      <BannerDeErro mensagem={erroEscrita} />
 
       {carregando ? (
         <EstadoCarregando />
