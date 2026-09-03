@@ -650,7 +650,8 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
     expect(screen.getByText('Chassi')).toBeTruthy()
     // m1 do fix pass da Task 8b: o banner do painel mora DENTRO do `<form>` (m9 estendido) — mesmo
-    // molde do banner de "Criar Peça" (teste posicional `:826`, que só cobre AQUELE form).
+    // molde do banner de "Criar Peça" (teste posicional "banner de erro de escrita fica dentro do
+    // formulário de criar Peça (m9 herdado da Task 8)", que só cobre AQUELE form).
     expect(bannerDoPainel.closest('form')).toBe(screen.getByTestId('painel-de-escrita'))
   })
 
@@ -870,11 +871,34 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByTestId('painel-de-escrita')).toBeNull()
   })
 
+  // m9 (fix pass 2 da Task 8b): o teste acima ('pedir exclusão fecha o painel...') fecha só UM lado
+  // da exclusividade — painel aberto, depois pede exclusão NO MESMO nó. O outro lado é o cenário que
+  // o comentário de `abrirEditar`/`abrirAcrescentarFilho` (`AgrupamentoDetalhePage.tsx`, acima de
+  // `pedirExclusao`) nomeia como motivador: a confirmação de exclusão aberta NUM nó, e "Editar"
+  // clicado em OUTRO nó. Sem `setNoParaExcluir(null)` em `abrirEditar`, a confirmação do primeiro nó
+  // ficaria na tela ao mesmo tempo que o painel do segundo.
+  it('abrir "Editar" em outro nó fecha a confirmação de exclusão aberta em nó diferente (m9)', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA_COM_FILHO] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await screen.findByText('Sub-item')
+
+    const acoesDoChassi = screen.getByTestId(`acoes-do-no-${PECA_COM_FILHO.id}`)
+    fireEvent.click(within(acoesDoChassi).getByRole('button', { name: 'Excluir' }))
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+
+    const acoesDoSubItem = screen.getByTestId(`acoes-do-no-${ITEM_FILHO.id}`)
+    fireEvent.click(within(acoesDoSubItem).getByRole('button', { name: 'Editar' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   // m5: editar um nó AD-HOC (`componenteId: null`) e esvaziar a descrição precisa desabilitar o
-  // botão — a mesma guarda que já existe para o modo ad-hoc do acrescentar (quatro linhas acima em
-  // `painelInvalido`), aplicada ao lado da edição. Sem a guarda o PUT sairia com `descricao: null`
-  // e o backend recusaria com 400 (`ErroDeDescricaoObrigatoria`, regra 19), mas o usuário só veria
-  // o fallback genérico.
+  // botão — a mesma guarda que já existe para o modo ad-hoc do acrescentar, no outro ramo do mesmo
+  // `if` dentro da constante `painelInvalido`, aplicada ao lado da edição. Sem a guarda o PUT
+  // sairia com `descricao: null` e o backend recusaria com 400 (`ErroDeDescricaoObrigatoria`,
+  // regra 19), mas o usuário só veria o fallback genérico.
   it('editar um nó ad-hoc e esvaziar a descrição desabilita o botão de salvar (m5)', async () => {
     const noAdHoc: NoDaEstrutura = {
       ...PECA, componenteId: null, codigoDoComponente: null, descricao: 'Parafuso especial',
