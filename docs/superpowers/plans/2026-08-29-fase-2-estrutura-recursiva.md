@@ -1584,6 +1584,39 @@ Produto é texto, não código. **Delta de teste: 0.** Não pule a review por ca
 
 - [ ] **Passo 4b: a regra de negócio que a Task 4 criou e não registrou** (achado M4 da review da Task 4, deliberadamente diferido para cá). A Task 4 introduziu uma regra nova ao acrescentar sub-Item — ela **existe no código e em teste, e em `specs/` nenhuma**. Leia o achado M4 em `.superpowers/sdd/task-4-fase2-review.md`, decida se ela é regra de domínio ou detalhe de implementação, e **registre em `01-dominio-e-regras-de-negocio.md` se for domínio**. Regra que vive só no código é regra que a próxima fase re-decide sem saber que já foi decidida.
 
+- [ ] **Passo 4c: a regra de citação entra no `CLAUDE.md`** — decisão do usuário em 2026-09-02,
+  vinda do m8 da re-review da Task 8b. Razão dele, nas palavras dele: *"toda vez que mudarmos
+  código, é plausível de tornar o comentário em falso"*.
+
+  **A regra:** comentário no código — e prosa de `specs/`, plano ou ledger — cita o alvo **pelo
+  nome** (o texto do `it(...)`, o nome da função, da constante, da variante, da regra), **não** por
+  `arquivo.ext:NN` nem por distância relativa ("quatro linhas acima").
+
+  **O motivo, que é o modo de falha e não o fato de o número ficar errado.** Medido no m8: um
+  comentário citou um teste por número de linha; o número **era verdade quando escrito**, e o
+  **próprio commit** que o escreveu inseriu 140 linhas acima dele. A citação nasceu apontando para
+  outra coisa. O número continua apontando para uma linha que **existe**, com outro conteúdo, então
+  quem for atrás acha algo plausível e não percebe que está lendo a coisa errada. Um nome, quando o
+  alvo é renomeado, **não é achado pelo `grep`** — quebra alto em vez de degradar em silêncio. Na
+  mesma passada, "quatro linhas acima" já tinha virado seis, porque um comentário entrou no meio.
+
+  **Escreva também o escopo, com honestidade — e este é o ponto em que esta regra pode virar
+  afirmação falsa sobre si mesma.** O controlador varreu o repositório em 2026-09-02 e achou **43
+  citações** do tipo `arquivo.ext:NN` em `web/src/`, `src/` e `tests/`. **Nenhuma** aponta para
+  arquivo ausente ou linha além do fim — mas isso **não prova que estão certas**: a morte do m8 é do
+  tipo *"a linha existe e aponta para outra coisa"*, que nenhuma varredura barata alcança. Portanto:
+
+  - a regra vale para texto **novo**; **não** mande varrer nem consertar as 43 (escopo não medido);
+  - **não escreva que existe guarda executável**, porque não existe, e uma guarda que checasse só
+    "arquivo existe / linha existe" passaria verde exatamente no caso que motivou a regra — falso
+    conforto pior que nenhum. `[[detector-que-devolve-zero-por-nao-casar-nada]]`;
+  - se quiser deixar a porta aberta, registre a guarda de verdade como **não resolvida**, dizendo o
+    que ela teria de fazer (comparar o conteúdo citado, não a existência da linha).
+
+  **Onde no `CLAUDE.md`:** escolha a seção e **justifique a escolha no relatório** — a regra é sobre
+  como se escreve comentário e prosa, não sobre domínio nem sobre interface. Não a enfie na seção
+  Interface só porque o exemplo nasceu numa tela.
+
 - [ ] **Passo 5: reler o entorno, não só a frase**
 
 Cada edição acima muda um documento onde vizinhos falam do mesmo assunto. **O escopo da releitura é a seção inteira**, não a linha alterada — é assim que se acha a contradição entre bullets vizinhos. `[[edicao-pontual-em-prosa-estraga-o-entorno]]`
