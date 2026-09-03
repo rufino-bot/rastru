@@ -1558,7 +1558,25 @@ Produto é texto, não código. **Delta de teste: 0.** Não pule a review por ca
 
   A seção Interface diz hoje: *"Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou estado de carregando à mão."* **O código já a contraria em três lugares**, e dois deles são anteriores à Fase 2: os botões "Sair" e do hambúrguer em `AppShell.tsx` (que compartilham a constante `BOTAO_DO_CHROME`) e o alternador de expandir/recolher em `ArvoreDeEstrutura.tsx`.
 
-  **A decisão foi aceitar a exceção e escrevê-la**, não extrair uma primitiva. Registre-a com o motivo **técnico correto**, que a review mediu: a primitiva `Botao` carrega peso de CTA (`px-4 py-2`, `Botao.tsx:25` — **meça antes de copiar**: a linha 24 é a variante `primario`, `px-5 py-2.5`, e este `:24` errado já sobreviveu a três artefatos até a segunda re-review o pegar aqui, a um passo de entrar no `CLAUDE.md`) que não serve a um controle de ícone; e no `AppShell` a razão documentada é **contraste do anel de foco sobre fundo escuro** — que é motivo diferente, e o relatório da Task 7 errou ao tratá-los como o mesmo.
+  **A decisão foi aceitar a exceção e escrevê-la**, não extrair uma primitiva. Registre-a com o motivo **técnico correto**, que a review mediu: a primitiva `Botao` carrega peso de CTA que não serve a um controle de ícone — no mapa `POR_VARIANTE` de `Botao.tsx`, mesmo a variante mais leve (`secundario`) traz `px-4 py-2`, e `primario` traz `px-5 py-2.5`; é padding de botão com rótulo, não de controle de ícone. E no `AppShell` a razão documentada é **contraste do anel de foco sobre fundo escuro** — que é motivo diferente, e o relatório da Task 7 errou ao tratá-los como o mesmo.
+
+  **CITE PELO NOME, NÃO POR NÚMERO DE LINHA** — decisão do usuário em 2026-09-02, e ela vale para
+  tudo o que esta task escrever. O parágrafo acima nomeia a variante (`secundario`, `primario`) em
+  vez de `Botao.tsx:NN` de propósito. A razão foi medida no m8 da re-review da Task 8b: um comentário
+  citou um teste por número de linha, o número **era verdade quando foi escrito**, e o **próprio
+  commit** que o escreveu inseriu 140 linhas acima dele — a citação nasceu apontando para outra
+  coisa. O modo de falha é o problema: o número continua apontando para uma linha que **existe**, com
+  outro conteúdo, então quem for atrás acha algo plausível e não percebe. Um nome, quando o alvo é
+  renomeado, **não é achado pelo `grep`** — falha alta em vez de silenciosa. A mesma objeção vale
+  para distância relativa ("quatro linhas acima" virou seis quando um comentário entrou no meio).
+
+  Esta é a versão anterior deste parágrafo, mantida como registro do que a regra evita: ele dizia
+  *"(`px-4 py-2`, `Botao.tsx:25` — **meça antes de copiar**: a linha 24 é a variante `primario`…)"*.
+  O `:25` estava **certo** quando o plano foi escrito, e continuava certo quando medido em 09-02 —
+  o problema nunca foi estar errado hoje, e sim que nada o segura amanhã, dentro do documento mais
+  longevo do repositório. O histórico que o parênteses carregava continua valendo e vale repetir: um
+  `:24` errado sobreviveu a **três artefatos** até a segunda re-review o pegar, a um passo de entrar
+  no `CLAUDE.md`.
 
   Escreva o **limite** da exceção, senão ela vira porta larga: vale para controle de **chrome** (disclosure, navegação, ícone sem rótulo), **não** para ação de formulário nem para nada que a `Botao` sirva. E diga que quem escrever o terceiro caso deve considerar extrair `AlternadorDeDisclosure` — foi a saída que o implementer propôs e que o usuário adiou, não descartou.
 
