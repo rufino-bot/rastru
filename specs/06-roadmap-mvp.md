@@ -128,7 +128,7 @@ resolvidos (ou conscientemente adiados).
   `Componente` de origem quando NULL — serve ao nó ad-hoc, que sem ela chegaria anônimo à tela
   do operador.
 - **Peça sempre referencia um `Componente`** — decidido em 2026-08-04, adiado de propósito
-  para esta fase, que é onde o `EstruturaItem` nasce de fato. Acrescentar ao DDL:
+  para esta fase, que é onde o `EstruturaItem` nasce de fato. A constraint que fecha isso:
   ```sql
   CONSTRAINT CK_EstruturaItem_PecaTemComponente
       CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
@@ -149,7 +149,8 @@ resolvidos (ou conscientemente adiados).
 
 - Upload e exibição de `Componente.ArquivoSolido` (sólido 3D) e a regra de negócio que o exige
   por Peça de Pedido — segunda metade da regra 18 de `01`: a Fase 2 fechou só o **gancho**
-  (a constraint acima, que garante que toda Peça tem onde pendurar o sólido); exigir o arquivo
+  (a constraint `CK_EstruturaItem_PecaTemComponente`, que garante que toda Peça tem onde pendurar
+  o sólido); exigir o arquivo
   **preenchido** é validação de aplicação, cobrada só a partir desta fase, porque é aqui que
   nasce o upload que permite preenchê-lo — cobrar antes travaria a verificação manual (o
   `seed-demo` não tem sólido em nenhum dos Componentes).

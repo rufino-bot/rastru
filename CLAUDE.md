@@ -143,18 +143,19 @@ linhas acima").
 
 **O motivo é o modo de falha, não o número ficar errado.** Medido em 2026-09-02, na re-review da
 Task 8b da Fase 2: um comentário citou um teste por número de linha; o número **era verdade quando
-foi escrito**, e o **próprio commit** que o escreveu inseriu 140 linhas acima dele — a citação
-nasceu já apontando para outra coisa. O número continuava apontando para uma linha que **existe**,
-com outro conteúdo, então quem for atrás acha algo plausível e não percebe que está lendo a coisa
-errada. Um nome, quando o alvo é renomeado, **não é achado pelo `grep`** — quebra alto em vez de
-degradar em silêncio. Na mesma passada, "quatro linhas acima" já tinha virado seis, porque um
-comentário entrou no meio.
+foi medido, no commit anterior**, e o **próprio commit** que o escreveu já tinha inserido 140
+linhas acima dele — a citação nasceu já apontando para outra coisa. O número continuava apontando
+para uma linha que **existe**, com outro conteúdo, então quem for atrás acha algo plausível e não
+percebe que está lendo a coisa errada. Um nome, quando o alvo é renomeado, **não é achado pelo
+`grep`** — quebra alto em vez de degradar em silêncio. Na mesma passada, "quatro linhas acima" já
+tinha virado seis, porque um comentário entrou no meio.
 
 **Escopo, com honestidade — para esta regra não virar afirmação falsa sobre si mesma.** Uma
 varredura em 2026-09-02 achou **43 citações** do tipo `arquivo.ext:NN` em `web/src/`, `src/` e
 `tests/`. Nenhuma aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não
 prova que estão certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para
-outra coisa", que nenhuma varredura barata alcança.
+outra coisa", que nenhuma varredura barata alcança. **A varredura cobriu só os diretórios de
+código — a prosa de `specs/`, dos planos e do ledger não foi medida.**
 
 - A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as 43 —
   escopo não medido.
@@ -177,11 +178,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
-- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em três lugares:
-  os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante `BOTAO_DO_CHROME`,
-  dois deles anteriores à Fase 2) e o alternador de expandir/recolher da `ArvoreDeEstrutura`, da
-  Fase 2. Decisão do usuário (2026-08-29, na review da Task 7 da Fase 2): aceitar a exceção e
-  escrevê-la, não extrair uma primitiva.
+- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em três
+  controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
+  `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2) e o alternador de expandir/recolher da
+  `ArvoreDeEstrutura`, da Fase 2. ("Controles", não "lugares": `grep -rn "BOTAO_DO_CHROME"
+  web/src/` acha três usos no `AppShell` — "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da
+  gaveta —, mais o `<button>` da `ArvoreDeEstrutura`, que não usa essa constante; são **quatro**
+  `<button>` crus, e "três" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da
+  gaveta são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da
+  Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
 
   O motivo é técnico, e são **dois motivos diferentes** — a review da Task 7 errou ao tratá-los
   como o mesmo. Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um

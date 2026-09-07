@@ -84,9 +84,10 @@
     lido). **A coluna é nullable e isso é deliberado**: a obrigatoriedade vale para *Peça de
     Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
     e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
-    Fase 2B — onde nasce o upload que permite preenchê-la; a Fase 2 fecha só o gancho, a
-    constraint abaixo —, não constraint de schema. `Componente.ArquivoFoto` é **opcional**
-    e serve só para o operador reconhecer a peça; não substitui o sólido.
+    Fase 2B — onde nasce o upload que permite preenchê-la; a Fase 2 fechou só o gancho, a
+    constraint `CK_EstruturaItem_PecaTemComponente` —, não constraint de schema.
+    `Componente.ArquivoFoto` é **opcional** e serve só para o operador reconhecer a peça; não
+    substitui o sólido.
 
     **Decidido em 2026-08-04, aplicado na Fase 2:** uma **Peça**
     (`EstruturaItem` sem pai) **sempre** referencia um `Componente`; só um **Item** (nó com pai)
@@ -130,12 +131,11 @@
     exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
     contra dados semeados (2026-08-03).
 
-    **Consequência aplicada na edição (Fase 2, Task 4):** um nó ad-hoc não pode ter a `Descricao`
+    **Consequência aplicada na edição (Fase 2):** um nó ad-hoc não pode ter a `Descricao`
     esvaziada. Sem `ComponenteId`, o nó não tem de onde herdar — aceitar a edição devolveria o nó
-    exatamente ao anonimato que esta regra existe para impedir. A guarda vive na edição do nó
-    (`MontagemDeEstruturaUseCase.EditarNo`), não na criação: um nó ad-hoc novo já nasce obrigado a
-    trazer `Descricao` própria, e é essa mesma condição que a edição reaplica para não deixá-lo
-    esvaziar depois.
+    exatamente ao anonimato que esta regra existe para impedir. A mesma condição vale nos dois
+    caminhos: `AcrescentarFilho` a exige ao criar o nó ad-hoc, e `EditarNo` a reaplica na edição,
+    para não deixar a `Descricao` esvaziar depois.
 
 20. **A receita padrão de filhos (`ComponenteFilhoPadrao`) não pode conter ciclo, em nenhuma
     profundidade.** É a regra que existe porque a receita é um **grafo**: cada linha aponta de um
