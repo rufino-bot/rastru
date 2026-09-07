@@ -154,11 +154,17 @@ tinha virado seis, porque um comentário entrou no meio.
 varredura em 2026-09-02 achou **43 citações** do tipo `arquivo.ext:NN` em `web/src/`, `src/` e
 `tests/`. Nenhuma aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não
 prova que estão certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para
-outra coisa", que nenhuma varredura barata alcança. **A varredura cobriu só os diretórios de
-código — a prosa de `specs/`, dos planos e do ledger não foi medida.**
+outra coisa", que nenhuma varredura barata alcança. **Aquela varredura cobriu só os diretórios de
+código.** A prosa foi medida depois, em 2026-09-06, e só em parte:
+`grep -rE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" specs/ CLAUDE.md` acha **5**
+ocorrências — uma em `specs/01-dominio-e-regras-de-negocio.md`, que cita `ReceitaPadraoUseCase.cs`
+por número de linha, e quatro no próprio `CLAUDE.md`, que citam `historico/05-fase-1c.md` e
+`db/seed.sql` assim. **Nenhuma foi consertada**, por escolha de escopo — a regra vale para texto
+novo. A prosa dos planos (`docs/superpowers/`) e a do ledger (`.superpowers/`) continuam **não
+medidas**.
 
-- A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as 43 —
-  escopo não medido.
+- A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as 43 do
+  código nem as 5 da prosa.
 - **Não existe guarda executável** para isto, e uma guarda que checasse só "arquivo existe / linha
   existe" passaria verde exatamente no caso que motivou a regra — falso conforto pior que nenhum.
 - Se um dia alguém quiser fechar isso de verdade, a guarda teria de comparar o **conteúdo** citado
@@ -182,11 +188,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
   `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2) e o alternador de expandir/recolher da
   `ArvoreDeEstrutura`, da Fase 2. ("Controles", não "lugares": `grep -rn "BOTAO_DO_CHROME"
-  web/src/` acha três usos no `AppShell` — "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da
-  gaveta —, mais o `<button>` da `ArvoreDeEstrutura`, que não usa essa constante; são **quatro**
-  `<button>` crus, e "três" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da
-  gaveta são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da
-  Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
+  web/src/` imprime **quatro linhas**, todas no `AppShell` — a declaração da constante e três usos
+  dela: "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da gaveta. O `<button>` da
+  `ArvoreDeEstrutura` **não** compartilha a constante e por isso não aparece nesse `grep`. Somando,
+  são **quatro** `<button>` crus, e "três" só é exato contando controles — o "Sair" do cabeçalho e
+  o do rodapé da gaveta são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29,
+  na review da Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
 
   O motivo é técnico, e são **dois motivos diferentes** — a review da Task 7 errou ao tratá-los
   como o mesmo. Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um

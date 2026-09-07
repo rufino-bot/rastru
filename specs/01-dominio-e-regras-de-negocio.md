@@ -131,11 +131,11 @@
     exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
     contra dados semeados (2026-08-03).
 
-    **Consequência aplicada na edição (Fase 2):** um nó ad-hoc não pode ter a `Descricao`
-    esvaziada. Sem `ComponenteId`, o nó não tem de onde herdar — aceitar a edição devolveria o nó
-    exatamente ao anonimato que esta regra existe para impedir. A mesma condição vale nos dois
-    caminhos: `AcrescentarFilho` a exige ao criar o nó ad-hoc, e `EditarNo` a reaplica na edição,
-    para não deixar a `Descricao` esvaziar depois.
+    **Consequência aplicada na criação e na edição (Fase 2):** um nó ad-hoc não pode ficar sem
+    `Descricao` — nem ao nascer, nem por uma edição que a esvazie. Sem `ComponenteId`, o nó não tem
+    de onde herdar — aceitar a edição devolveria o nó exatamente ao anonimato que esta regra existe
+    para impedir. A mesma condição vale nos dois caminhos: `AcrescentarFilho` a exige ao criar o nó
+    ad-hoc, e `EditarNo` a reaplica na edição, para não deixar a `Descricao` esvaziar depois.
 
 20. **A receita padrão de filhos (`ComponenteFilhoPadrao`) não pode conter ciclo, em nenhuma
     profundidade.** É a regra que existe porque a receita é um **grafo**: cada linha aponta de um
