@@ -84,18 +84,19 @@
     lido). **A coluna é nullable e isso é deliberado**: a obrigatoriedade vale para *Peça de
     Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
     e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
-    Fase 2 (onde a Peça nasce), não constraint de schema. `Componente.ArquivoFoto` é **opcional**
+    Fase 2B — onde nasce o upload que permite preenchê-la; a Fase 2 fecha só o gancho, a
+    constraint abaixo —, não constraint de schema. `Componente.ArquivoFoto` é **opcional**
     e serve só para o operador reconhecer a peça; não substitui o sólido.
 
-    **Decidido em 2026-08-04, a aplicar na Fase 2 (não implementado ainda):** uma **Peça**
+    **Decidido em 2026-08-04, aplicado na Fase 2:** uma **Peça**
     (`EstruturaItem` sem pai) **sempre** referencia um `Componente`; só um **Item** (nó com pai)
     pode ser ad-hoc (`ComponenteId` NULL). Fecha com
     `CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)`.
 
     O furo que isso tapa: o sólido mora em `Componente`, a obrigação vale em `EstruturaItem`, e a
     ponte entre os dois é nullable — quando é NULL não existe linha de `Componente`, então não é
-    campo vazio, é **campo inexistente**. Hoje o schema aceita uma Peça ad-hoc (nenhuma constraint
-    impede), e para ela a regra 18 é literalmente inexprimível.
+    campo vazio, é **campo inexistente**. Antes desta constraint, o schema aceitava uma Peça ad-hoc
+    (nenhuma constraint impedia), e para ela a regra 18 era literalmente inexprimível.
 
     Precisão que importa: a constraint garante que existe **onde** pendurar o sólido. Que ele
     esteja *preenchido* continua regra de aplicação — um `CHECK` não alcança outra tabela, e
@@ -128,6 +129,13 @@
     próprio: numa consulta de "o que está no meu setor" ele chegava anônimo à tela do operador —
     exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
     contra dados semeados (2026-08-03).
+
+    **Consequência aplicada na edição (Fase 2, Task 4):** um nó ad-hoc não pode ter a `Descricao`
+    esvaziada. Sem `ComponenteId`, o nó não tem de onde herdar — aceitar a edição devolveria o nó
+    exatamente ao anonimato que esta regra existe para impedir. A guarda vive na edição do nó
+    (`MontagemDeEstruturaUseCase.EditarNo`), não na criação: um nó ad-hoc novo já nasce obrigado a
+    trazer `Descricao` própria, e é essa mesma condição que a edição reaplica para não deixá-lo
+    esvaziar depois.
 
 20. **A receita padrão de filhos (`ComponenteFilhoPadrao`) não pode conter ciclo, em nenhuma
     profundidade.** É a regra que existe porque a receita é um **grafo**: cada linha aponta de um
@@ -163,5 +171,12 @@
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
   Não é decisão de domínio ainda: depende de um spike medir a taxa de acerto. Ver
   `06-roadmap-mvp.md`.
+- **Descontinuar uma Peça trava o fechamento do Pedido.** O comportamento padrão quando um cliente
+  altera o projeto de um Pedido em execução é o descartado **parar de ser produzido**, não ser
+  apagado. Mas pela regra 13 uma Peça só conclui quando **toda** a quantidade virou expedido ou
+  perdido — e a quantidade que nunca entrou em produção não é nem uma coisa nem outra. A Peça nunca
+  conclui, o Agrupamento nunca conclui, e o Pedido nunca fecha. Descontinuar precisa de um **bucket
+  terminal** próprio ou de uma exceção explícita na regra 13. Levantado na Fase 2 e deliberadamente
+  não decidido lá: tem efeito na Fase 5 (fechamento), não só na 3.
 
 Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.

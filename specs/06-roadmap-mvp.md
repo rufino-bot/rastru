@@ -124,8 +124,9 @@ resolvidos (ou conscientemente adiados).
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero
   (customizado).
 - Visualização em árvore da estrutura de um Agrupamento (Peça → Itens → sub-Itens).
-- Upload e exibição de `Componente.ArquivoSolido` (sólido 3D) e da regra de negócio que o
-  exige por Peça de Pedido — regra 18 de `01`. Inclui `EstruturaItem.Descricao` (regra 19).
+- `EstruturaItem.Descricao` (regra 19): nome próprio do nó, com fallback para a descrição do
+  `Componente` de origem quando NULL — serve ao nó ad-hoc, que sem ela chegaria anônimo à tela
+  do operador.
 - **Peça sempre referencia um `Componente`** — decidido em 2026-08-04, adiado de propósito
   para esta fase, que é onde o `EstruturaItem` nasce de fato. Acrescentar ao DDL:
   ```sql
@@ -136,14 +137,30 @@ resolvidos (ou conscientemente adiados).
   não tem onde ser pendurado numa Peça ad-hoc, e a regra 18 fica inexprimível para ela. A
   motivação completa e as alternativas descartadas estão na regra 18 de `01`; não re-decidir
   a partir do zero. A constraint garante o **gancho**; exigir o arquivo preenchido continua
-  sendo validação de aplicação (um `CHECK` não alcança outra tabela).
+  sendo validação de aplicação (um `CHECK` não alcança outra tabela) — é isso que a Fase 2B,
+  abaixo, fecha.
+- Como a coluna nasceu depois do banco de dev, aplicar o `ALTER` idempotente de `Descricao` ao
+  iniciar a fase, no mesmo padrão dos demais em `CLAUDE.md`.
+  **Não se aplica a um banco regenerado:** o banco de dev foi recriado em 2026-08-04 a partir
+  deste `.sql`, então a coluna já veio no `CREATE`. Vale só para instalação anterior a essa data.
+- Critério de pronto: dá para montar visualmente a árvore completa de uma Peça complexa.
+
+## Fase 2B — Sólido 3D da Peça
+
+- Upload e exibição de `Componente.ArquivoSolido` (sólido 3D) e a regra de negócio que o exige
+  por Peça de Pedido — segunda metade da regra 18 de `01`: a Fase 2 fechou só o **gancho**
+  (a constraint acima, que garante que toda Peça tem onde pendurar o sólido); exigir o arquivo
+  **preenchido** é validação de aplicação, cobrada só a partir desta fase, porque é aqui que
+  nasce o upload que permite preenchê-lo — cobrar antes travaria a verificação manual (o
+  `seed-demo` não tem sólido em nenhum dos Componentes).
 - Como as colunas nasceram depois do banco de dev, aplicar os `ALTER` idempotentes de
-  `ArquivoSolido`/`ArquivoFoto`/`Descricao` ao iniciar a fase, no mesmo padrão dos demais
-  em `CLAUDE.md`.
+  `ArquivoSolido`/`ArquivoFoto` ao iniciar a fase, no mesmo padrão dos demais em `CLAUDE.md`.
   **Não se aplica a um banco regenerado:** o banco de dev foi recriado em 2026-08-04 a partir
   deste `.sql`, então as colunas já vieram no `CREATE`. Vale só para instalação anterior a essa
   data.
-- Critério de pronto: dá para montar visualmente a árvore completa de uma Peça complexa.
+- Critério de pronto: dá para fazer upload do sólido de um `Componente` pela tela, e a regra 18
+  passa a ser cobrada de verdade — Peça sem sólido preenchido no `Componente` de origem é
+  recusada.
 
 ## Fase 3 — Rastreamento de setor
 

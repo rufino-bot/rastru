@@ -159,12 +159,54 @@ de segurança para a corrida entre a verificação e a escrita.
 
 ## Estrutura
 
-- `GET /agrupamentos/{id}/estrutura` — árvore completa de `EstruturaItem` do Agrupamento
-- `POST /agrupamentos/{id}/estrutura` — cria Peça (nó de topo), com opção de copiar de um
-  `Componente` padrão
-- `POST /estrutura-itens/{id}/itens` — adiciona Item filho a um `EstruturaItem`
-- `GET/POST /estrutura-itens/{id}/materiais`
-- `GET/POST /estrutura-itens/{id}/roteiro`
+*(Fase 2, Task 5. `EstruturaItem` é a árvore real de um Agrupamento — nó sem pai é Peça, nó com pai
+é Item; ver `01-dominio-e-regras-de-negocio.md`. Perfis de escrita: `PCP, Administrador`, os mesmos
+de Pedido/Agrupamento — quem monta o Pedido monta a árvore dele. Leitura é liberada a qualquer
+perfil autenticado.)*
+
+- `GET /agrupamentos/{id}/estrutura` *(qualquer perfil autenticado)* — árvore completa de
+  `EstruturaItem` do Agrupamento. Cada nó já sai com `Materiais` e `Roteiro` resolvidos e
+  `Descricao` já com o fallback do Componente aplicado — o front nunca recebe `Descricao` nula
+- `POST /agrupamentos/{id}/estrutura` *(PCP, Administrador)* — cria a Peça (nó de topo), copiando a
+  receita padrão a partir de um `Componente`. Body: `{ componenteId, quantidade,
+  requerRelatorioDimensional }`. Sem opção de nó ad-hoc aqui: pela regra 18 toda Peça referencia um
+  `Componente` — só um Item (nó com pai) pode ser ad-hoc
+- `POST /estrutura/{id}/filhos` *(PCP, Administrador)* — acrescenta um Item filho ao nó `{id}`
+  (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade }`.
+  Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
+  `descricao`, se informada, sobrepõe a herdada (regra 19). Sem `componenteId` (ad-hoc):
+  `descricao` é obrigatória
+- `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao` e `Quantidade` do nó `{id}`.
+  Body: `{ descricao?, quantidade }`. Não cascateia a quantidade para os filhos — decisão de
+  domínio, não lacuna (a cópia da receita é pré-preenchimento, não automação). `Descricao`
+  vazia/só espaço grava `null`, que volta a herdar a do Componente — exceto num nó ad-hoc, que não
+  tem de onde herdar e recusa a edição
+- `DELETE /estrutura/{id}` *(PCP, Administrador)* — apaga o nó e a subárvore inteira dele
+  (Material e Roteiro de cada nó, filhos antes de pais). Só permitido com o Pedido `Aberto` — ver
+  o contrato de erro abaixo. **Sem** essa guarda nos dois `POST` acima, de propósito: acrescentar
+  estrutura a um Pedido em execução é o comportamento padrão da fábrica (decisão do usuário,
+  2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada
+
+### Contrato de erro da Estrutura
+
+- **400** — quantidade abaixo do piso da coluna (`0,0001`) ou, na cópia da receita, acima do teto
+  dela (`DECIMAL(18,4)`); nó ad-hoc sem `Descricao`. Só nas três rotas com corpo.
+- **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`) ou nó inexistente
+  (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
+- **409** — quatro códigos, no mesmo formato do 409 de regra de negócio já usado em
+  `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`.
+
+  | Código | Onde | Motivo |
+  |---|---|---|
+  | `CicloNaReceita` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos` | a receita copiada do Componente tem ciclo; o corpo leva `mensagem` junto do `erro`, nomeando o caminho do ciclo |
+  | `EstruturaProfundaDemais` | idem | a cópia recursiva passaria de 20 níveis de profundidade |
+  | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
+  | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` — sem `mensagem`, mesmo precedente do `DELETE /agrupamentos/{id}` |
+
+  `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas
+  contra receita corrompida ou cópia recursiva desgovernada, por isso não entram em
+  `01-dominio-e-regras-de-negocio.md` (ver o comentário do planejador da cópia, no código, se o
+  contrato mudar).
 
 ## Execução / Rastreamento
 

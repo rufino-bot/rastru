@@ -131,6 +131,39 @@ partir do zero.
 - Siga a estrutura de camadas descrita em `03-arquitetura-tecnica.md`
   (`Domain` / `Application` / `Infrastructure` / `Api`).
 
+## Convenção de citação em comentário e prosa
+
+Vale para código (comentário) e para prosa de `specs/`, plano ou ledger — não é regra de domínio
+nem de interface, por isso vive numa seção própria em vez de dentro de "Interface" ou dos
+invariantes de negócio.
+
+**A regra:** cite o alvo **pelo nome** — o texto do `it(...)`, o nome da função, da constante, da
+variante, da regra de negócio — **nunca** por `arquivo.ext:NN` nem por distância relativa ("quatro
+linhas acima").
+
+**O motivo é o modo de falha, não o número ficar errado.** Medido em 2026-09-02, na re-review da
+Task 8b da Fase 2: um comentário citou um teste por número de linha; o número **era verdade quando
+foi escrito**, e o **próprio commit** que o escreveu inseriu 140 linhas acima dele — a citação
+nasceu já apontando para outra coisa. O número continuava apontando para uma linha que **existe**,
+com outro conteúdo, então quem for atrás acha algo plausível e não percebe que está lendo a coisa
+errada. Um nome, quando o alvo é renomeado, **não é achado pelo `grep`** — quebra alto em vez de
+degradar em silêncio. Na mesma passada, "quatro linhas acima" já tinha virado seis, porque um
+comentário entrou no meio.
+
+**Escopo, com honestidade — para esta regra não virar afirmação falsa sobre si mesma.** Uma
+varredura em 2026-09-02 achou **43 citações** do tipo `arquivo.ext:NN` em `web/src/`, `src/` e
+`tests/`. Nenhuma aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não
+prova que estão certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para
+outra coisa", que nenhuma varredura barata alcança.
+
+- A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as 43 —
+  escopo não medido.
+- **Não existe guarda executável** para isto, e uma guarda que checasse só "arquivo existe / linha
+  existe" passaria verde exatamente no caso que motivou a regra — falso conforto pior que nenhum.
+- Se um dia alguém quiser fechar isso de verdade, a guarda teria de comparar o **conteúdo** citado
+  (o nome ainda existe? ainda nomeia a mesma coisa?), não a existência da linha — permanece **não
+  resolvido**.
+
 ## Interface (a partir da Fase 1D)
 
 O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova**. A spec de origem é
@@ -144,6 +177,28 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
+- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em três lugares:
+  os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante `BOTAO_DO_CHROME`,
+  dois deles anteriores à Fase 2) e o alternador de expandir/recolher da `ArvoreDeEstrutura`, da
+  Fase 2. Decisão do usuário (2026-08-29, na review da Task 7 da Fase 2): aceitar a exceção e
+  escrevê-la, não extrair uma primitiva.
+
+  O motivo é técnico, e são **dois motivos diferentes** — a review da Task 7 errou ao tratá-los
+  como o mesmo. Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um
+  controle de ícone — no mapa de variantes de `Botao`, mesmo a mais leve (`secundario`) traz
+  `px-4 py-2`, e `primario` traz `px-5 py-2.5`; é padding de botão com rótulo, dimensionado para
+  "Acrescentar filho"/"Editar"/"Excluir", não de um alternador de um caractere embutido na linha.
+  No `AppShell`: a razão é outra — contraste do anel de foco sobre fundo escuro, que a `Botao`
+  também não resolve, mas por um motivo que nada tem a ver com padding.
+
+  **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
+  rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. Quem escrever o
+  terceiro caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes — saída
+  que o implementer propôs e que o usuário adiou, não descartou.
+
+  Por que escrever em vez de deixar como está: uma regra com três violações conhecidas e nenhuma
+  exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva
+  que ninguém quer, e quem só observa o código conclui que a regra não vale.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
   itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
