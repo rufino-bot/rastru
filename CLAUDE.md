@@ -399,13 +399,21 @@ credencial ou caminho de máquina — para isso existe `.claude/settings.local.j
 ### O ledger tem repositório próprio, e o script vigia isso
 
 `.superpowers/` — ledger, briefs, relatórios, histórico de fase — é um **repositório git separado e
-privado** (`rufino-bot/rastru-ledger`), desde 2026-08-25. Não é submodule: são dois repos
+privado** (`rufino-bot/rastru-tcc`), desde 2026-08-25. Não é submodule: são dois repos
 independentes na mesma árvore, e este aqui ignora `.superpowers/` na raiz (`.gitignore:6`). Nada do
 código muda por causa disso.
 
 Existe porque aquele conteúdo é o **único** registro das decisões, medições e dívidas do projeto, e
 até então vivia no disco de uma máquina só. Ficam de fora dele os pacotes `.diff` de review (o
 nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de runtime do brainstorm.
+
+**Ele também guarda os documentos do TCC** (`proposta/`, desde 2026-09-07) — e é daí que veio o
+nome novo, `rastru-tcc`, que em 2026-09-07 substituiu `rastru-ledger`. O motivo de esses documentos
+não viverem no repositório de código é que **este aqui é público**, e o que falta preencher na
+proposta é nome, telefone e e-mail dos **dois** estudantes, mais o orientador. Publicar dado
+pessoal de terceiro por conveniência de versionamento não é decisão que se tome de passagem. A
+regra que fica: documento de TCC com dado de identificação vai para o repositório privado, nunca
+para `docs/` daqui.
 
 `scripts/estado` confere duas coisas na abertura, porque as duas falhas desta cópia são
 **silenciosas** e só apareceriam no dia de trocar de máquina:
