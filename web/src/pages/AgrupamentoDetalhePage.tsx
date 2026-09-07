@@ -134,8 +134,8 @@ export function AgrupamentoDetalhePage() {
     // I3 do segundo fix pass da Task 8: sem este `setErro(null)`, `erro` só era ESCRITO (no
     // `catch` abaixo) e nunca zerado — uma carga que falhasse prendia o banner (e a guarda
     // `erro === null &&` do ramo da árvore) para sempre, mesmo depois de uma recarga
-    // bem-sucedida. Molde de `ComponenteDetalhePage`: `setErroComponente(null)` no INÍCIO de
-    // cada carga (`:168`), não só no `catch`.
+    // bem-sucedida. Molde de `ComponenteDetalhePage`: o `setErroComponente(null)` que abre o efeito
+    // de carga do componente, no INÍCIO de cada carga, não só no `catch`.
     setErro(null)
     try {
       const dados = await obterEstrutura(id)
@@ -531,7 +531,7 @@ export function AgrupamentoDetalhePage() {
             // callbacks quando pode escrever — sem isso, um perfil sem escrita ainda "poderia"
             // acionar acrescentar/editar/excluir se a primitiva um dia parasse de gatear sozinha.
             // M10/Concern 2 da review da Task 8b: esta camada NÃO TEM MATADOR — `ArvoreDeEstrutura`
-            // recebe o mesmo `podeEscrever` (`ArvoreDeEstrutura.tsx:81`, `temAcao = podeEscrever && …`),
+            // recebe o mesmo `podeEscrever`, e o `temAcao` dela já começa por `podeEscrever &&`,
             // então remover os três `podeEscrever ? … : undefined` abaixo não quebra teste nenhum
             // (medido pela review, mutação M-F). Fica como redundância honesta — defesa em
             // profundidade sem prova própria —, não por engano.

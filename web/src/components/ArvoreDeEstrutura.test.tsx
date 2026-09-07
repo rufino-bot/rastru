@@ -171,16 +171,44 @@ describe('ArvoreDeEstrutura', () => {
     expect(screen.getAllByRole('button', { name: /excluir/i }).length).toBeGreaterThan(0)
   })
 
-  it('(extra) com permissão de escrita e um único callback, só a ação dele aparece', () => {
-    // Minor 1 da re-review da Task 7: com `podeEscrever` e os três callbacks sempre juntos, o eixo
-    // "quantos callbacks" fica cego — `podeEscrever && (a && b && c)` (`&&` em vez de `||`, bug
-    // real: a Task 8 passando só `onEditar` não renderizaria ação nenhuma) sobrevivia. Este teste
-    // passa um único callback e afirma que só a ação dele existe.
+  // Os três testes abaixo são um por termo da disjunção de `temAcao`, e existem em trio por uma
+  // razão medida, não por simetria estética. Minor 1 da re-review da Task 7 pediu "um único
+  // callback" e ganhou UM caso, o de `onEditar`; a review de branch (I7) mostrou o que faltava:
+  // `temAcao = podeEscrever && onEditar` — a disjunção trocada por um termo fixo — deixava os
+  // 492 testes de então VERDES, porque o único caso isolado que existia era justamente o de
+  // `onEditar`. Um consumidor que passasse só `onExcluir` (ou só `onAcrescentarFilho`) perderia a
+  // coluna de ações inteira, em silêncio. Cada teste afirma a `div` de ações (por `data-testid`) e
+  // não só o botão: é ela que `temAcao` governa.
+  //
+  // O eixo COMPLEMENTAR — `podeEscrever` — continua preso por
+  // `sem permissão de escrita, as ações não são renderizadas`, e essa metade já tinha matador
+  // (medido na mesma review: remover o `podeEscrever &&` mata exatamente aquele teste).
+
+  it('(extra) com permissão de escrita e só onEditar, a ação dele aparece', () => {
     render(<ArvoreDeEstrutura nos={[peca]} podeEscrever onEditar={vi.fn()} />)
 
+    expect(screen.getByTestId('acoes-do-no-1')).toBeTruthy()
     expect(screen.getAllByRole('button', { name: /^editar/i }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: /acrescentar filho/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /excluir/i })).toBeNull()
+  })
+
+  it('(extra) com permissão de escrita e só onAcrescentarFilho, a ação dele aparece', () => {
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever onAcrescentarFilho={vi.fn()} />)
+
+    expect(screen.getByTestId('acoes-do-no-1')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /acrescentar filho/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /^editar/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /excluir/i })).toBeNull()
+  })
+
+  it('(extra) com permissão de escrita e só onExcluir, a ação dele aparece', () => {
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever onExcluir={vi.fn()} />)
+
+    expect(screen.getByTestId('acoes-do-no-1')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: /excluir/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /acrescentar filho/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^editar/i })).toBeNull()
   })
 
   it('(extra) com permissão de escrita e nenhum callback, a área de ações não é renderizada', () => {
@@ -192,6 +220,27 @@ describe('ArvoreDeEstrutura', () => {
     render(<ArvoreDeEstrutura nos={[peca]} podeEscrever />)
 
     expect(screen.queryByTestId('acoes-do-no-1')).toBeNull()
+  })
+
+  it('o alternador de expandir declara a área de toque mínima da WCAG 2.5.8', () => {
+    // I8 da review de branch da Fase 2: remover `min-h-6 min-w-6` do `className` do alternador
+    // deixava os 492 testes de então verdes, e aquelas duas classes carregam o comentário mais
+    // elaborado do componente — uma afirmação de acessibilidade para o operador no chão de fábrica,
+    // sem matador nenhum. Escolha entre "ganhar teste" e "o comentário passa a dizer que não há
+    // guarda": ganhar teste, porque já há precedente de virar guarda executável em vez de nota —
+    // `idiomaDaPagina.test.ts` para o `lang` do documento, `contraste.test.ts` para os tons — e
+    // porque aqui custa quatro linhas.
+    //
+    // O QUE ESTE TESTE NÃO PROVA, e a distinção é o ponto: ele prende a DECLARAÇÃO das classes, não
+    // 24 pixels computados. O jsdom não roda o Tailwind, então nada aqui morre se a escala de
+    // espaçamento do tema for redefinida e `6` deixar de valer 1,5rem. O que ele impede é o modo de
+    // falha real e barato — um refactor de `className` que leve as classes embora.
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever={false} />)
+
+    const alternador = screen.getByRole('button', { name: /expandir suporte/i })
+
+    expect(alternador.classList.contains('min-h-6')).toBe(true)
+    expect(alternador.classList.contains('min-w-6')).toBe(true)
   })
 
   it('(extra) nó sem materiais e sem roteiro não mostra alternador de expandir', () => {

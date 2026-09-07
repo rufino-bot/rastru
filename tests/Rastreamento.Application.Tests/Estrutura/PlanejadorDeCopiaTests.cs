@@ -94,20 +94,26 @@ public class PlanejadorDeCopiaTests
     var plano = PlanejadorDeCopia.Planejar(Receita([(1, 2, 1m), (2, 3, 1m), (3, 2, 1m)]), 1, 1m);
 
     Assert.Equal(PlanejadorDeCopia.CodigoDeCiclo, plano.CodigoDoErro);
-    // Nao basta os digitos aparecerem soltos ("2" casa com o "2" de dentro de "12"): a mensagem tem
-    // de nomear a SEQUENCIA contigua do trecho ciclico, fechado no no reencontrado — 2 -> 3 -> 2 -,
-    // senao Skip(IndexOf + 1) (perde o fechamento) ou o caminho inteiro sem Skip nenhum (1 -> 2 -> 3
-    // -> 2, ramo inocente incluso) tambem passariam.
-    Assert.Contains("2 -> 3 -> 2", plano.Erro);
+    // A mensagem INTEIRA, e nao um `Contains` do trecho, porque um `Contains("2 -> 3 -> 2")` NAO
+    // prende as duas implementacoes erradas que este teste existe para recusar — medido na review
+    // de branch da Fase 2 (I5): trocar `caminho.Skip(caminho.IndexOf(componenteId))` por `caminho`
+    // (o caminho inteiro, com o ramo inocente `1 ->` incluso) deixava a suite INTEIRA verde,
+    // 525/525, porque "1 -> 2 -> 3 -> 2" contem "2 -> 3 -> 2". So a outra metade — `Skip(IndexOf +
+    // 1)`, que perde o fechamento — era pega. `Assert.Equal` prende as duas de uma vez, e junto o
+    // prefixo e o sufixo da frase que o front mostra no banner.
+    Assert.Equal(
+        "A receita tem um ciclo: 2 -> 3 -> 2. Corrija a receita do catalogo antes de criar a Peca.",
+        plano.Erro);
   }
 
   [Fact]
   public void Profundidade_acima_do_teto_e_recusada()
   {
     // Comprimento derivado da constante, nao de um literal: cadeia com PROFUNDIDADE MAXIMA + 1 nos
-    // (Range(1, PM) da PM arestas, entao PM + 1 nos) — imediatamente ACIMA do teto. Junto com o
-    // teste seguinte (imediatamente abaixo), o par prende o `>` de PlanejadorDeCopia.cs:83: trocar
-    // por `>=` (ou deslocar a constante em 1, para qualquer lado) mata um dos dois.
+    // (Range(1, PM) da PM arestas, entao PM + 1 nos) — imediatamente ACIMA do teto. Junto com
+    // `Corrente_dentro_do_teto_e_aceita`, o par prende o `>` de `if (caminho.Count >
+    // ProfundidadeMaxima)` em `PlanejadorDeCopia.Descer`: trocar por `>=` (ou deslocar a constante
+    // em 1, para qualquer lado) mata um dos dois.
     var corrente = Enumerable.Range(1, PlanejadorDeCopia.ProfundidadeMaxima)
         .Select(i => (i, i + 1, 1m)).ToArray();
     var plano = PlanejadorDeCopia.Planejar(Receita(corrente), 1, 1m);
@@ -118,8 +124,8 @@ public class PlanejadorDeCopiaTests
   [Fact]
   public void Corrente_dentro_do_teto_e_aceita()
   {
-    // Par do teste acima: cadeia com exatamente PROFUNDIDADE MAXIMA nos (Range(1, PM - 1) da
-    // PM - 1 arestas, entao PM nos) — imediatamente ABAIXO do limite que recusa.
+    // Par de `Profundidade_acima_do_teto_e_recusada`: cadeia com exatamente PROFUNDIDADE MAXIMA nos
+    // (Range(1, PM - 1) da PM - 1 arestas, entao PM nos) — imediatamente ABAIXO do limite que recusa.
     var corrente = Enumerable.Range(1, PlanejadorDeCopia.ProfundidadeMaxima - 1)
         .Select(i => (i, i + 1, 1m)).ToArray();
     var plano = PlanejadorDeCopia.Planejar(Receita(corrente), 1, 1m);
@@ -142,8 +148,9 @@ public class PlanejadorDeCopiaTests
   [Fact]
   public void Numero_de_nos_dentro_do_teto_e_aceito()
   {
-    // Par do teste acima: sem ele, um NosMaximos de 1 passaria no teste anterior sem guarda
-    // nenhuma. Fan-out 5, 3 niveis (raiz + 2 geracoes) = 1 + 5 + 25 = 31 nos, dentro do teto de 500.
+    // Par de `Numero_de_nos_acima_do_teto_e_recusado`: sem ele, um NosMaximos de 1 passaria naquele
+    // teste sem guarda nenhuma. Fan-out 5, 3 niveis (raiz + 2 geracoes) = 1 + 5 + 25 = 31 nos,
+    // dentro do teto de 500.
     var arvore = ArvoreLarga(fanOut: 5, niveis: 3);
     var plano = PlanejadorDeCopia.Planejar(Receita(arvore), 1, 1m);
 

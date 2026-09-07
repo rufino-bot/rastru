@@ -150,12 +150,32 @@ percebe que está lendo a coisa errada. Um nome, quando o alvo é renomeado, **n
 `grep`** — quebra alto em vez de degradar em silêncio. Na mesma passada, "quatro linhas acima" já
 tinha virado seis, porque um comentário entrou no meio.
 
-**Escopo, com honestidade — para esta regra não virar afirmação falsa sobre si mesma.** Uma
-varredura em 2026-09-02 achou **43 citações** do tipo `arquivo.ext:NN` em `web/src/`, `src/` e
-`tests/`. Nenhuma aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não
-prova que estão certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para
-outra coisa", que nenhuma varredura barata alcança. **Aquela varredura cobriu só os diretórios de
-código.** A prosa foi medida depois, em 2026-09-06, e só em parte:
+**Escopo, com honestidade — para esta regra não virar afirmação falsa sobre si mesma.** Medido em
+2026-09-07, no fix pass da review de branch da Fase 2, com
+`grep -rE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" web/src/ src/ tests/`:
+restam **37 ocorrências** do tipo `arquivo.ext:NN` (**35 citações distintas** — o mesmo texto
+repetido em dois lugares conta uma vez só). **Diga sempre qual das duas métricas é.** As duas são
+legítimas e trocar uma pela outra no meio de um conserto é o próprio defeito que esta seção
+descreve: a review de branch da Fase 2 recomendou corrigir o número daqui de 43 para 48, o que
+trocava *distintas* por *ocorrências*, e a recomendação não sobreviveu à medição.
+
+As 37 são **todas anteriores à Fase 2**: a contagem de cada arquivo que ainda tem citação bate, ao
+número, com a do commit em que a Fase 2 começou (`9ec40e6`). Não são isentas por serem antigas —
+são **passivo não varrido**, e a decisão de não varrê-lo é de **escopo**, não de mérito. Nenhuma
+aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não prova que estão
+certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para outra coisa", que
+nenhuma varredura barata alcança.
+
+**A redação anterior desta seção era ela própria o defeito, e vale registrar por quê.** Ela dizia
+"43 citações" e depois, em presente, "as 43 do código" — um número congelado que virava isenção
+permanente. Duas coisas nela estavam erradas. O número: no próprio commit que o escreveu
+(`2ed444a`), o mesmo `grep` acima dá **44 distintas / 48 ocorrências**, então ele já nasceu
+desatualizado. E a moldura: o passivo "herdado" absorvia em silêncio as **11 citações que a própria
+Fase 2 escreveu** — justamente as que a regra alcança, já que ela vale para texto novo. O fix pass
+da review de branch converteu as 11 para nome, e é por isso que a contagem voltou ao valor da base.
+
+**A medição acima cobre só os diretórios de código.** A prosa foi medida à parte, em 2026-09-06, e
+só em parte:
 `grep -rE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" specs/ CLAUDE.md` acha **5**
 ocorrências — uma em `specs/01-dominio-e-regras-de-negocio.md`, que cita `ReceitaPadraoUseCase.cs`
 por número de linha, e quatro no próprio `CLAUDE.md`, que citam `historico/05-fase-1c.md` e
@@ -163,8 +183,9 @@ por número de linha, e quatro no próprio `CLAUDE.md`, que citam `historico/05-
 novo. A prosa dos planos (`docs/superpowers/`) e a do ledger (`.superpowers/`) continuam **não
 medidas**.
 
-- A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as 43 do
-  código nem as 5 da prosa.
+- A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as que já
+  estão lá — as 37 do código nem as 5 da prosa. Os dois números são a medição de uma data, não uma
+  cota: quem os reescrever remede antes, e diz a métrica.
 - **Não existe guarda executável** para isto, e uma guarda que checasse só "arquivo existe / linha
   existe" passaria verde exatamente no caso que motivou a regra — falso conforto pior que nenhum.
 - Se um dia alguém quiser fechar isso de verdade, a guarda teria de comparar o **conteúdo** citado
@@ -211,6 +232,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   Por que escrever em vez de deixar como está: uma regra com três violações conhecidas e nenhuma
   exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva
   que ninguém quer, e quem só observa o código conclui que a regra não vale.
+- **`data-testid` só quando o alvo não tem papel ARIA nem texto estável para achá-lo.** Não é
+  atalho para fugir de `getByRole`/`getByText`: seletor por papel e nome acessível testa o que o
+  leitor de tela vê, e um `data-testid` no lugar dele esconde regressão de acessibilidade. É
+  aceitável quando o alvo é um **contêiner sem papel** que o teste precisa nomear — a `div` de uma
+  linha ou do bloco de ações —, ou um elemento cujo papel existe mas **não distingue** (um `<form>`
+  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **4 usos em 2 arquivos**
+  (medido em 2026-09-07 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`):
+  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, e `painel-de-escrita` na
+  `AgrupamentoDetalhePage`. A regra é escrita porque o segundo consumidor **já chegou** e nada no
+  documento dizia quando o primeiro valia — mesmo desenho de risco da exceção do "botão de chrome",
+  resolvido do mesmo jeito: escrevendo.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
   itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor

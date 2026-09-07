@@ -317,8 +317,9 @@ public class EditarEExcluirNoTests
   [Fact]
   public async Task Filho_de_Componente_sem_descricao_propria_continua_herdando_do_Componente()
   {
-    // Par do teste anterior: sem `Descricao` (null/vazio), o comportamento de ANTES do Minor 2
-    // continua valendo — nada sobrepoe, e o no herda a descricao do Componente (regra 19).
+    // Par de `Filho_de_Componente_com_descricao_propria_sobrepoe_a_do_Componente`: sem `Descricao`
+    // (null/vazio), o comportamento de ANTES do Minor 2 continua valendo — nada sobrepoe, e o no
+    // herda a descricao do Componente (regra 19).
     var (useCase, estruturas, _, catalogo, _) = Montar(NovoAgrupamento());
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
     catalogo.Componentes.Add(NovoComponente(10, "C10", "Descricao do Componente"));
@@ -329,5 +330,38 @@ public class EditarEExcluirNoTests
     Assert.True(resultado.Sucesso);
     Assert.Equal("Descricao do Componente", resultado.Valor!.Descricao);
     Assert.Null(estruturas.Itens.Single(i => i.Id == resultado.Valor.Id).Descricao);
+  }
+
+  [Fact]
+  public async Task Descricao_propria_do_filho_nao_desce_para_os_netos_da_receita()
+  {
+    // I6 da review de branch da Fase 2. A review da Task 4 registrou que a nao-propagacao era
+    // garantida "estruturalmente" pelo `with` sobre record imutavel — mas "estrutural" ali so queria
+    // dizer "ninguem escreveu a linha que propaga", e a linha que propaga e plausivel: quem for
+    // "consertar" a heranca de descricao escreve `Filhos = paraGravar.Filhos.Select(f => f with
+    // { Descricao = ... })`. Medido: com essa linha, a suite INTEIRA ficava verde, 525/525. Se
+    // acontecesse, cada sub-Item copiado da receita passaria a se chamar como o pai, e a tela do
+    // operador voltaria ao anonimato-por-outro-nome que a regra 19 existe para impedir.
+    //
+    // Por isso o Componente tem FILHO na receita: sem filho, nao ha nada para vazar, e era essa a
+    // lacuna — os dois testes de descricao sobreposta usavam Componente FOLHA.
+    var (useCase, estruturas, _, catalogo, _) = Montar(NovoAgrupamento());
+    estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
+    estruturas.ReceitaFilhos.Add((10, 11, 2m));
+    catalogo.Componentes.Add(NovoComponente(10, "C10", "Descricao do Componente"));
+    catalogo.Componentes.Add(NovoComponente(11, "C11", "Descricao do Filho da Receita"));
+
+    var resultado = await useCase.AcrescentarFilho(
+        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "Suporte lado esquerdo", Quantidade: 5m),
+        CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal("Suporte lado esquerdo", resultado.Valor!.Descricao);
+
+    // O que mata a mutacao: a linha GRAVADA do neto continua com `Descricao` NULA — e por isso a
+    // projecao dele continua herdando o nome do proprio Componente, nao o do pai.
+    var neto = Assert.Single(resultado.Valor.Filhos);
+    Assert.Equal("Descricao do Filho da Receita", neto.Descricao);
+    Assert.Null(estruturas.Itens.Single(i => i.Id == neto.Id).Descricao);
   }
 }

@@ -267,4 +267,78 @@ public class CriarPecaTests
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
     Assert.Equal(0, estruturas.GravacoesDeArvore);
   }
+
+  [Fact]
+  public async Task Quantidade_acumulada_no_produto_da_receita_afunda_abaixo_do_piso_da_coluna_e_e_recusada()
+  {
+    // I2 da review de branch da Fase 2, simetrico de
+    // `Quantidade_acumulada_no_produto_da_receita_ultrapassa_o_teto_da_coluna_e_e_recusada`: o piso
+    // vivia so em `CriarPeca`/`AcrescentarFilho`/`EditarNo`, sempre sobre a quantidade DIGITADA, e
+    // nenhuma checagem de piso corria durante a descida. Todas as entradas aqui sao LEGAIS: raiz 1
+    // passa o piso, e `ReceitaPadraoUseCase` aceita fator `> 0` com ate 4 casas, entao 0,0001 e o
+    // menor fator cadastravel. Filho = 0,0001 (exatamente o piso, aceito); neto = 0,00000001, que a
+    // coluna DECIMAL(18,4) grava como 0,0000 — uma Peca de quantidade ZERO, sem erro nenhum,
+    // quebrando a conservacao de quantidade da Fase 3 em silencio. Medido antes do conserto: a
+    // suite inteira ficava verde e `plano.Erro` vinha NULO.
+    var (useCase, estruturas, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    estruturas.ReceitaFilhos.Add((1, 2, 0.0001m));
+    estruturas.ReceitaFilhos.Add((2, 3, 0.0001m));
+
+    var resultado = await useCase.CriarPeca(
+        1, new NovaPecaDto(ComponenteId: 1, Quantidade: 1m, RequerRelatorioDimensional: false),
+        CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal(0, estruturas.GravacoesDeArvore);
+  }
+
+  [Fact]
+  public async Task Quantidade_de_material_acima_do_teto_da_coluna_e_recusada()
+  {
+    // I3 da review de branch da Fase 2. `EstruturaMaterial.Quantidade` e o MESMO `DECIMAL(18,4)` de
+    // `EstruturaItem.Quantidade`, e o produto `quantidade x QuantidadePadrao` nao passava por guarda
+    // nenhuma — nem teto nem piso. A raiz aqui esta EXATAMENTE em `QuantidadeMaximaDaColuna`, valor
+    // que a guarda de no ACEITA por construcao (`>`, nao `>=`), entao quem tem de recusar e a guarda
+    // do material: 1000 vezes o teto. Sem ela isto chegava ao `INSERT` como `DbUpdateException` nao
+    // tratada -> 500, que e literalmente o desfecho que o Important 1 da review da Task 3 fechou
+    // para o NO e deixou aberto para o MATERIAL.
+    var (useCase, estruturas, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    estruturas.ReceitaMateriais.Add((1, 90, 1000m));
+
+    var resultado = await useCase.CriarPeca(
+        1,
+        new NovaPecaDto(
+            ComponenteId: 1,
+            Quantidade: PlanejadorDeCopia.QuantidadeMaximaDaColuna,
+            RequerRelatorioDimensional: false),
+        CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal(0, estruturas.GravacoesDeArvore);
+  }
+
+  [Fact]
+  public async Task Quantidade_de_material_abaixo_do_piso_da_coluna_e_recusada()
+  {
+    // I3 da review de branch, a outra direcao. Tudo legal: raiz 0,0001 e exatamente o piso (a guarda
+    // de entrada usa `<`, entao passa) e 0,0001 e o menor fator que `ReceitaPadraoUseCase` aceita
+    // cadastrar. O produto, 0,00000001, a coluna grava como 0,0000 — material de quantidade zero
+    // separado para a Peca, sem erro nenhum.
+    var (useCase, estruturas, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    estruturas.ReceitaMateriais.Add((1, 90, 0.0001m));
+
+    var resultado = await useCase.CriarPeca(
+        1,
+        new NovaPecaDto(
+            ComponenteId: 1,
+            Quantidade: PlanejadorDeCopia.QuantidadeMinimaDaColuna,
+            RequerRelatorioDimensional: false),
+        CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal(0, estruturas.GravacoesDeArvore);
+  }
 }

@@ -8,7 +8,8 @@ namespace Rastreamento.Application.Tests.Estrutura;
 
 /// <summary>
 /// `ObterArvore` nao esta nos "seis testes" do brief da Task 3 (que so descreve `CriarPeca`), mas
-/// o plano da Fase 2 (linha 1022) mostra a Task 5 chamando `_montagem.ObterArvore` diretamente, sem
+/// o plano da Fase 2 mostra a Task 5 chamando `_montagem.ObterArvore` diretamente — no esqueleto do
+/// `EstruturaController` do "Passo 2: implementar o controller", cuja acao `Obter` a chama —, sem
 /// nenhuma task intermediaria que a introduza. Ver a decisao no relatorio da Task 3: o metodo E
 /// implementado aqui, e por isso ganha teste — guarda sem teste que a mate nao conta como guarda.
 /// </summary>

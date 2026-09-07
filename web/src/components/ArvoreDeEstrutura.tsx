@@ -90,13 +90,14 @@ function LinhaDoNo({
         <div className="flex flex-wrap items-center gap-2">
           {temDetalhe && (
             // `<button>` cru, exceção consciente aceita pelo usuário em 2026-08-29 (não extrair
-            // primitiva agora): `Botao` carrega peso de CTA — `secundario` é `px-4 py-2`
-            // (`Botao.tsx:25`), dimensionado para "Acrescentar filho"/"Editar"/"Excluir" — peso
-            // incompatível com um alternador de ícone de um caractere embutido na linha. Há
-            // precedente de FORMA para `<button>` cru fora de `Botao` (`AppShell.tsx:118-126`,
-            // o hambúrguer), mas não de motivo: lá a razão documentada é contraste do anel de
-            // foco sobre fundo escuro (`AppShell.tsx:47-49`), não peso visual. Extrair
-            // `AlternadorDeDisclosure` para os dois usos foi adiado pelo usuário, não descartado.
+            // primitiva agora): `Botao` carrega peso de CTA — a variante `secundario` do mapa
+            // `POR_VARIANTE` traz `px-4 py-2`, dimensionado para "Acrescentar
+            // filho"/"Editar"/"Excluir" — peso incompatível com um alternador de ícone de um
+            // caractere embutido na linha. Há precedente de FORMA para `<button>` cru fora de
+            // `Botao` (o botão do hambúrguer do `AppShell`, o que alterna `gavetaAberta`), mas não
+            // de motivo: lá a razão documentada, na constante `BOTAO_DO_CHROME`, é contraste do
+            // anel de foco sobre fundo escuro, não peso visual. Extrair `AlternadorDeDisclosure`
+            // para os dois usos foi adiado pelo usuário, não descartado.
             <button
               type="button"
               onClick={() => setExpandido((v) => !v)}
@@ -106,9 +107,16 @@ function LinhaDoNo({
               // `unicode-range` do subset auto-hospedado (`index.css`) e vão para o fallback do SO,
               // então o tamanho do caractere varia por dispositivo. `min-h-6 min-w-6` = 24×24px CSS,
               // o mínimo da WCAG 2.2 AA 2.5.8 — uso declarado é celular Android no chão de fábrica
-              // (`AppShell.tsx:129-130`). Anel de foco por `outline-acao`, o mesmo token do `Botao`
-              // (`Botao.tsx:17`): esta primitiva vive sobre fundo claro, não sobre o chrome escuro
-              // que justifica `outline-marca` no `AppShell` (`AppShell.tsx:47-49`).
+              // (o comentário da gaveta do `AppShell` registra isso). Anel de foco por
+              // `outline-acao`, o mesmo token que a constante `BASE` do `Botao` usa: esta primitiva
+              // vive sobre fundo claro, não sobre o chrome escuro que justifica `outline-marca` no
+              // `AppShell`.
+              //
+              // I8 da review de branch da Fase 2: até ela, nada além deste comentário afirmava as
+              // duas classes — removê-las deixava os 492 testes de então verdes. O matador é
+              // `o alternador de expandir declara a área de toque mínima da WCAG 2.5.8`, e o que
+              // ele prende é a DECLARAÇÃO: as classes no elemento, não a geometria computada. Ver o
+              // limite escrito lá — jsdom não roda Tailwind.
               className="inline-flex min-h-6 min-w-6 items-center justify-center rounded text-tinta-fraca focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
             >
               {expandido ? '▾' : '▸'}

@@ -165,7 +165,8 @@ public class EstruturaRepository : IEstruturaRepository
     // M5 da review da Task 4: `ct` propagado e leitura assincrona nas tres consultas que antes
     // passavam um `IQueryable` direto a `RemoveRange` (que o enumera de forma SINCRONA e bloqueante
     // dentro de um metodo `async`, sem honrar o CancellationToken) — mesmo padrao `ToListAsync(ct)`
-    // do resto do arquivo (`:20-28`, `:104`, `:114`, `:119`).
+    // do resto do arquivo (`LerReceitaCompletaAsync`, `ListarDoAgrupamentoAsync`,
+    // `ListarMateriaisAsync`, `ListarRoteiroAsync`).
     _db.EstruturaMateriais.RemoveRange(
         await _db.EstruturaMateriais.Where(m => todos.Contains(m.EstruturaItemId)).ToListAsync(ct));
     _db.EstruturaRoteiros.RemoveRange(

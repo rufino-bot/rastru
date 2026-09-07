@@ -179,8 +179,8 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.getByRole('status').textContent).toBe('Carregando…')
   })
 
-  // Teste 2. Também prova o Minor 4 herdado da re-review da Task 7 (`ArvoreDeEstrutura.tsx:33`):
-  // o rótulo da lista raiz passou de "Estrutura da peça" (singular) para "Estrutura do
+  // Teste 2. Também prova o Minor 4 herdado da re-review da Task 7: o `aria-label` do `<ul>` raiz
+  // da `ArvoreDeEstrutura` passou de "Estrutura da peça" (singular) para "Estrutura do
   // agrupamento" — não é delta de teste novo, cabe nesta mesma asserção de acessibilidade.
   it('mostra a árvore quando há estrutura', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
@@ -378,8 +378,8 @@ describe('AgrupamentoDetalhePage', () => {
   // Resultado medido pela re-review: depois de uma carga que falha, uma escrita bem-sucedida
   // recarrega os dados (prova: 'Chassi' aparece), mas o banner da falha ANTIGA continuava na tela
   // e a guarda `erro === null &&` do ramo da árvore (agora reparada) ficava presa para sempre com
-  // ele. Molde de `ComponenteDetalhePage`: `setErroComponente(null)` no INÍCIO de cada carga
-  // (`:168`), não só no `catch`.
+  // ele. Molde de `ComponenteDetalhePage`: o `setErroComponente(null)` que abre o efeito de carga
+  // do componente, no INÍCIO de cada carga, não só no `catch`.
   it('recarga bem-sucedida depois de uma carga falha limpa o banner de carga antigo', async () => {
     let getsDeEstrutura = 0
     const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {

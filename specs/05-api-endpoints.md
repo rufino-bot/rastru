@@ -212,7 +212,7 @@ Note o prefixo: `estrutura/{id}` (sem "itens") é o real, implementado na Fase 2
 em três das cinco rotas de `EstruturaController` (`POST /estrutura/{id}/filhos`, `PUT` e `DELETE`);
 as outras duas penduram a árvore no Agrupamento, sob `/agrupamentos/{id}/estrutura`. Já
 `estrutura-itens/{id}` é o prefixo do rascunho ainda não implementado — o mesmo que a seção
-"Execução / Rastreamento" já usa para as rotas dela, também todas planejadas (Fase 3/4). Se as duas
+"Execução / Rastreamento" já usa para as rotas de nó dela, também todas planejadas (Fase 3/4). Se as duas
 rotas deste bloco saírem do papel, decidir ali o prefixo definitivo é decidir para as duas seções
 de uma vez.
 
@@ -223,9 +223,15 @@ de uma vez.
   **Do caso de uso**, só nas três rotas com corpo: `{ "erro": "<mensagem em português>" }` — aqui o
   mesmo campo `erro` que no 409 carrega um código estável (`CicloNaReceita` etc.) carrega uma frase
   pronta para o operador ler. São quatro as causas de negócio:
-  - quantidade abaixo do piso da coluna (`0,0001`);
-  - na cópia da receita, um nó calculado passa do teto da coluna (`DECIMAL(18,4)`) —
-    `QuantidadeExcedeColunaException`, com a frase nomeando o componente e o valor;
+  - quantidade **digitada** abaixo do piso da coluna (`0,0001`);
+  - na cópia da receita, uma quantidade calculada sai da faixa da coluna (`DECIMAL(18,4)`) —
+    `QuantidadeForaDaColunaException`, com a frase nomeando o alvo e o valor. A mesma checagem corre
+    nas duas direções — **teto e piso** — e sobre os dois sujeitos — **nó e material** —, então são
+    quatro combinações sob esta causa única. O piso durante a descida não é redundante com o da
+    quantidade digitada — fatores fracionários encolhem o produto nó a nó, e um valor que a coluna
+    arredondaria para `0,0000` seria uma Peça (ou um material) de quantidade zero gravada sem erro
+    nenhum. A quantidade de material sai do mesmo `DECIMAL(18,4)`
+    (`dbo.EstruturaMaterial.Quantidade`), e por isso passa pela mesma guarda;
   - na cópia da receita, a multiplicação **estoura o tipo `decimal` do próprio .NET** antes de
     chegar a comparar com o teto da coluna — `OverflowException`, caso mais raro e mais extremo que
     o anterior, com mensagem genérica ("a quantidade informada, multiplicada pela receita,

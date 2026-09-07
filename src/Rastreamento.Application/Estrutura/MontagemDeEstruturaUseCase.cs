@@ -46,8 +46,8 @@ public sealed class MontagemDeEstruturaUseCase
   /// `PlanejadorDeCopia`): o planejador multiplica descendo e nao guarda magnitude, entao uma raiz
   /// grande combinada com fatores da receita pode estourar o `decimal` NO MEIO da descida. Sem este
   /// catch, a excecao escaparia por fora do contrato `PlanoDeCopia` (que devolve erro, nao lanca) e
-  /// viraria 500 em vez de 400. Nao cobre a faixa da COLUNA — isso e `QuantidadeExcedeColunaException`,
-  /// capturada abaixo (Important 1 da review da Task 3).
+  /// viraria 500 em vez de 400. Nao cobre a faixa da COLUNA — isso e `QuantidadeForaDaColunaException`,
+  /// capturada abaixo (Important 1 da review da Task 3, e I2/I3 da review de branch).
   /// </summary>
   private const string ErroDeQuantidadeExcessiva =
       "A quantidade informada, multiplicada pela receita, ultrapassa o que o sistema suporta.";
@@ -79,8 +79,10 @@ public sealed class MontagemDeEstruturaUseCase
     // (`EstruturaItem.Quantidade DECIMAL(18,4)`), nao a do tipo `decimal` do .NET. Piso aqui, na
     // Application — nao CHECK no schema (excecao de CHECK vira 500, nao 400; mesmo criterio ja
     // usado para Agrupamento.Tipo e Componente.Tipo). O teto NAO entra aqui: depende dos fatores da
-    // receita, nao so da raiz, entao mora em `PlanejadorDeCopia.Descer` — aplicado a CADA no da
-    // descida, capturado abaixo em `QuantidadeExcedeColunaException`.
+    // receita, nao so da raiz, entao mora em `PlanejadorDeCopia.ConferirFaixaDaColuna` — aplicado a
+    // CADA no da descida, capturado abaixo em `QuantidadeForaDaColunaException`. Desde I2 da review
+    // de branch, o PISO tambem corre la, pelo mesmo motivo: este `if` guarda o que o usuario
+    // digitou, e o produto acumulado nao passa por ele.
     if (nova.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
       return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
 
@@ -121,8 +123,9 @@ public sealed class MontagemDeEstruturaUseCase
 
   /// <summary>
   /// Nao esta nos Passos do brief da Task 3 (que so descreve `CriarPeca`), mas o plano da Fase 2
-  /// (linha 1022) mostra a Task 5 chamando `_montagem.ObterArvore` diretamente, sem nenhuma task
-  /// intermediaria que a introduza — e o proprio `IEstruturaRepository` da Task 3 ja expoe os
+  /// mostra a Task 5 chamando `_montagem.ObterArvore` diretamente — no esqueleto do
+  /// `EstruturaController` do "Passo 2: implementar o controller", cuja acao `Obter` a chama —, sem
+  /// nenhuma task intermediaria que a introduza; e o proprio `IEstruturaRepository` da Task 3 ja expoe os
   /// quatro metodos de leitura (`ListarDoAgrupamentoAsync`, `ObterPorIdAsync`,
   /// `ListarMateriaisAsync`, `ListarRoteiroAsync`) que so fazem sentido para montar esta arvore.
   /// Implementada aqui; ver o relatorio da Task 3 para a decisao por extenso.
@@ -298,7 +301,7 @@ public sealed class MontagemDeEstruturaUseCase
     {
       return (null, Result<EstruturaItemDto>.Falha(ErroDeQuantidadeExcessiva, TipoDeErro.Validacao));
     }
-    catch (QuantidadeExcedeColunaException e)
+    catch (QuantidadeForaDaColunaException e)
     {
       return (null, Result<EstruturaItemDto>.Falha(e.Message, TipoDeErro.Validacao));
     }

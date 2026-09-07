@@ -137,6 +137,25 @@
     para impedir. A mesma condição vale nos dois caminhos: `AcrescentarFilho` a exige ao criar o nó
     ad-hoc, e `EditarNo` a reaplica na edição, para não deixar a `Descricao` esvaziar depois.
 
+    **Editar um nó de catálogo congela a descrição herdada como própria — comportamento aceito,
+    decisão do usuário de 2026-09-02.** A leitura direta desta regra ("descrição nula herda do
+    `Componente`") continua verdadeira, mas ela sozinha faz esperar que um nó de catálogo acompanhe
+    o catálogo para sempre, e na prática **não acompanha depois da primeira edição**. O mecanismo:
+    a API entrega a descrição **já resolvida** — `EstruturaItemDto.Descricao` traz o texto do
+    `Componente` quando `EstruturaItem.Descricao` é NULL, sem bandeira que separe "própria" de
+    "herdada" —, o formulário de edição pré-preenche o campo com esse texto resolvido (para o
+    usuário editar a partir do que vê, e não de um campo em branco), e `EditarNo` grava o que
+    recebe. Logo, salvar uma edição de **só a quantidade** grava a descrição herdada como
+    `EstruturaItem.Descricao` própria, e a partir daí uma mudança na descrição do `Componente` não
+    alcança mais aquele nó.
+
+    Foi aceito assim porque o nó nasce como **cópia** da receita, não como referência viva a ela — a
+    quantidade e a estrutura já divergem do catálogo pelo mesmo motivo —, e porque a alternativa
+    exigiria distinguir as duas descrições no contrato da API para que a interface pudesse oferecer
+    a escolha. Quem for **desfazer** esta decisão começa por aí: trazer a referência do catálogo no
+    DTO. Enquanto ela valer, não conte com um nó de catálogo seguindo mudanças de descrição do
+    `Componente` — e um relatório que precise do nome de catálogo lê o `Componente`, não o nó.
+
 20. **A receita padrão de filhos (`ComponenteFilhoPadrao`) não pode conter ciclo, em nenhuma
     profundidade.** É a regra que existe porque a receita é um **grafo**: cada linha aponta de um
     `Componente` pai para um `Componente` filho, que por sua vez tem receita própria — e é essa
