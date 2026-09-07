@@ -415,6 +415,14 @@ pessoal de terceiro por conveniência de versionamento não é decisão que se t
 regra que fica: documento de TCC com dado de identificação vai para o repositório privado, nunca
 para `docs/` daqui.
 
+**Resíduo conhecido do rename, com dono e prazo.** `scripts/desarma-gitignore-do-sdd` ainda cita
+`rastru-ledger` num comentário. Não foi corrigido junto porque aquele arquivo **nasceu na branch da
+Fase 2** (`91e8a6f`) e não existe em `main` — consertá-lo exigiria um commit avulso naquela branch,
+logo antes da review dela. **Corrigir depois do merge da Fase 2**, com um `sed` de uma linha. Nada
+funcional depende do nome ali: é comentário, e a fonte de verdade da URL é o `git remote -v` de
+`.superpowers/`, que já aponta para o nome novo. Se você está revisando a Fase 2 e encontrou essa
+citação, ela **não é achado daquela branch** — é este resíduo, já conhecido e datado.
+
 `scripts/estado` confere duas coisas na abertura, porque as duas falhas desta cópia são
 **silenciosas** e só apareceriam no dia de trocar de máquina:
 
