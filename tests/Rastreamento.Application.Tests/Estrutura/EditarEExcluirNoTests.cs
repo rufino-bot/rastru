@@ -178,7 +178,8 @@ public class EditarEExcluirNoTests
   [Fact]
   public async Task Excluir_com_Pedido_Aberto_e_permitido()
   {
-    // O par do teste anterior — sem ele, uma implementacao que recusasse SEMPRE passaria no 7.
+    // O par de Excluir_com_Pedido_fora_de_Aberto_recusa_com_PedidoNaoAberto — sem este aqui, uma
+    // implementacao que recusasse SEMPRE passaria naquele.
     var pedido = NovoPedido(status: "Aberto");
     var (useCase, estruturas, _, _, _) = Montar(NovoAgrupamento(pedidoId: pedido.Id), pedido);
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));

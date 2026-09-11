@@ -230,8 +230,8 @@ export function AgrupamentoDetalhePage() {
     setErroPainel(null)
   }
 
-  // Mesmo motivo do comentário acima, na direção oposta: pedir a exclusão de um nó fecha o painel
-  // de acrescentar/editar que porventura esteja aberto.
+  // Mesmo motivo do `setNoParaExcluir(null)` que abre `abrirEditar`, na direção oposta: pedir a
+  // exclusão de um nó fecha o painel de acrescentar/editar que porventura esteja aberto.
   function pedirExclusao(no: NoDaEstrutura) {
     fecharPainel()
     setNoParaExcluir(no)

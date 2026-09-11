@@ -287,6 +287,17 @@ quantidade **zero**, que quebra a conservação de quantidade da Fase 3 em silê
 aplicação (400), não de schema — esta fase mantém "uma única mudança de schema", e um `CHECK` não
 cobriria o teto.
 
+> **NOTA (2026-09-11, fix pass das ressalvas da Fase 2 — R2).** A oração *"que quebra a conservação
+> de quantidade da Fase 3 em silêncio"*, no parágrafo
+> *"Também emendado aqui: a faixa de `Quantidade` é a da COLUNA, não a do tipo"*, é **falsa**.
+> Fica **anotada e não
+> reescrita**, porque este documento é o registro datado do desenho aprovado em 2026-08-29. Pelo
+> enunciado da **regra 9** de `specs/01-dominio-e-regras-de-negocio.md` (soma em Setores + expedido
+> + perdido = total da Peça), um nó de total **zero** tem os três termos zero e **satisfaz** o
+> invariante. A guarda continua certa; errada era a justificativa. O dano real é a **gravação
+> silenciosa de um valor que ninguém pediu** — que é como o código a documenta hoje, no XML doc de
+> `PlanejadorDeCopia.QuantidadeMinimaDaColuna`.
+
 | Situação | Resposta |
 |---|---|
 | Peça sem `ComponenteId` | 400, validação |

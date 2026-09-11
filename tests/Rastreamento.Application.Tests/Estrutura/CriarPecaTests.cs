@@ -120,9 +120,10 @@ public class CriarPecaTests
     // Decisao de dominio (2026-08-29): cliente grande pede alteracao de projeto com o Pedido JA em
     // execucao, e acrescentar Peca nova ao pedido rodando e o comportamento PADRAO — nao excecao.
     //
-    // Minor 7 da review da Task 3: o teste anterior montava um Pedido solto, nunca ligado a nada, e
-    // afirmava contra o proprio literal que acabara de escrever — passava mesmo que o codigo nunca
-    // olhasse Status. Aqui o Pedido esta de fato alcancavel pelo caso de uso (via
+    // Minor 7 da review da Task 3: a versao ANTERIOR deste mesmo teste (nao um teste vizinho)
+    // montava um Pedido solto, nunca ligado a nada, e afirmava contra o proprio literal que acabara
+    // de escrever — passava mesmo que o codigo nunca olhasse Status. Hoje o Pedido esta de fato
+    // alcancavel pelo caso de uso (via
     // `MontarComPedido`, que injeta um `IPedidoRepository` real), com `Status` fora de "Aberto", e
     // a assercao e sobre o DESFECHO (Sucesso + gravacao), nao sobre o arranjo.
     //
@@ -216,8 +217,8 @@ public class CriarPecaTests
   public async Task Quantidade_positiva_abaixo_do_piso_da_coluna_e_recusada()
   {
     // Important 1 da review da Task 3, segunda metade: 0,00001 e POSITIVO (passa num check so de
-    // sinal) mas e menor que o piso da coluna DECIMAL(18,4) — gravado, viraria 0,0000 em silencio,
-    // uma Peca de quantidade ZERO quebrando a conservacao de quantidade da Fase 3 sem erro nenhum.
+    // sinal) mas e menor que o piso da coluna DECIMAL(18,4) — gravado, viraria 0,0000 em silencio:
+    // uma Peca de quantidade ZERO, valor que ninguem pediu, persistido sem erro nenhum.
     var (useCase, estruturas, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
 
     var resultado = await useCase.CriarPeca(
@@ -277,8 +278,8 @@ public class CriarPecaTests
     // nenhuma checagem de piso corria durante a descida. Todas as entradas aqui sao LEGAIS: raiz 1
     // passa o piso, e `ReceitaPadraoUseCase` aceita fator `> 0` com ate 4 casas, entao 0,0001 e o
     // menor fator cadastravel. Filho = 0,0001 (exatamente o piso, aceito); neto = 0,00000001, que a
-    // coluna DECIMAL(18,4) grava como 0,0000 — uma Peca de quantidade ZERO, sem erro nenhum,
-    // quebrando a conservacao de quantidade da Fase 3 em silencio. Medido antes do conserto: a
+    // coluna DECIMAL(18,4) grava como 0,0000 — uma Peca de quantidade ZERO, valor que ninguem
+    // pediu, persistido sem erro nenhum. Medido antes do conserto: a
     // suite inteira ficava verde e `plano.Erro` vinha NULO.
     var (useCase, estruturas, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
     estruturas.ReceitaFilhos.Add((1, 2, 0.0001m));

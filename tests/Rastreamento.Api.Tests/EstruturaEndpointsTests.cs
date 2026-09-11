@@ -257,9 +257,10 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   /// <summary>
-  /// O par positivo do teste acima -- sem ele, um `[Authorize(Roles)]` posto na CLASSE inteira (em
-  /// vez de só na ação de escrita) passaria no teste do 403 e quebraria a leitura para todo mundo
-  /// sem ninguém notar. Precisa de Agrupamento real: 200 exige o caso de uso rodar até o fim.
+  /// O par positivo de Perfil_sem_escrita_recebe_403_no_POST -- sem ele, um `[Authorize(Roles)]`
+  /// posto na CLASSE inteira (em vez de só na ação de escrita) passaria no teste do 403 e
+  /// quebraria a leitura para todo mundo sem ninguém notar. Precisa de Agrupamento real: 200 exige
+  /// o caso de uso rodar até o fim.
   /// </summary>
   [Fact]
   public async Task Perfil_sem_escrita_recebe_200_no_GET()

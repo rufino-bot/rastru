@@ -166,6 +166,27 @@ aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não
 certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para outra coisa", que
 nenhuma varredura barata alcança.
 
+**A outra forma proibida — distância relativa — NÃO tem contagem, e a ausência é de método, não
+de zelo.** "Quatro linhas acima", "o teste anterior", "o par positivo do teste acima" não têm
+forma léxica que um `grep` ache: qualquer padrão que as pegue devolve prosa legítima junto, e
+qualquer padrão estreito o bastante para não devolver lixo deixa passar a próxima redação. Então
+o número acima (37 / 35) mede **só** `arquivo.ext:NN`, e dizer "restam 37" sem esta ressalva
+reporia, um nível abaixo, a moldura que o parágrafo
+*"A redação anterior desta seção era ela própria o defeito"* existe para denunciar — o passivo
+contado absorvendo em silêncio o passivo não contado. A Fase 2 escreveu citações dessa forma e as
+converteu em **duas rodadas** — o fix pass da review de branch achou um grupo, e a re-review dele
+achou outro, no mesmo arquivo em que o fix já havia convertido a irmã. Não se dá total aqui **de
+propósito**: contar esta forma exigiria o mesmo `grep` que o parágrafo acaba de declarar
+impossível, e um número obtido assim seria estimativa apresentada como medição — exatamente o que
+esta seção proíbe. Que a segunda rodada tenha achado o que a primeira deixou é a evidência do
+ponto: a forma não se fecha por varredura, só por leitura.
+
+Uma delas, na re-review, era pior que distância: `CriarPecaTests` dizia "o teste anterior montava
+um Pedido solto" querendo dizer **a versão anterior daquele mesmo teste**, não um teste vizinho —
+quem olha para cima acha `Agrupamento_inexistente_da_404` e reconstrói o argumento errado. Citação
+temporal escrita como se fosse espacial é a variante mais enganosa da família, porque o leitor
+encontra um alvo plausível.
+
 **A redação anterior desta seção era ela própria o defeito, e vale registrar por quê.** Ela dizia
 "43 citações" e depois, em presente, "as 43 do código" — um número congelado que virava isenção
 permanente. Duas coisas nela estavam erradas. O número: no próprio commit que o escreveu
@@ -208,12 +229,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em três
   controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
   `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2) e o alternador de expandir/recolher da
-  `ArvoreDeEstrutura`, da Fase 2. ("Controles", não "lugares": `grep -rn "BOTAO_DO_CHROME"
-  web/src/` imprime **quatro linhas**, todas no `AppShell` — a declaração da constante e três usos
-  dela: "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da gaveta. O `<button>` da
-  `ArvoreDeEstrutura` **não** compartilha a constante e por isso não aparece nesse `grep`. Somando,
-  são **quatro** `<button>` crus, e "três" só é exato contando controles — o "Sair" do cabeçalho e
-  o do rodapé da gaveta são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29,
+  `ArvoreDeEstrutura`, da Fase 2. ("Controles", não "lugares":
+  `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx` devolve **4** — a declaração da
+  constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da gaveta. O
+  `<button>` da `ArvoreDeEstrutura` **não** compartilha a constante, mas o comentário dele a cita
+  **pelo nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma quinta linha — que é
+  referência, não uso. O comando acima é ancorado no arquivo da constante justamente por isso: a
+  regra de citação quer que o nome apareça em mais lugares com o tempo, e uma contagem sobre a
+  árvore inteira envelheceria a cada citação nova. Somando, são **quatro** `<button>` crus, e
+  "três" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta são o mesmo
+  controle em dois breakpoints.) Decisão do usuário (2026-08-29,
   na review da Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
 
   O motivo é técnico, e são **dois motivos diferentes** — a review da Task 7 errou ao tratá-los

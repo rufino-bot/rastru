@@ -68,9 +68,12 @@ public static class PlanejadorDeCopia
 
   /// <summary>
   /// Abaixo disto a coluna <c>DECIMAL(18,4)</c> arredonda para <c>0,0000</c> — uma Peca de
-  /// quantidade ZERO gravada sem erro nenhum, quebrando a conservacao de quantidade da Fase 3 em
-  /// silencio (segunda metade do Important 1 da review). Cobre tambem sinal: qualquer valor
-  /// `&lt;= 0` ja e menor que este piso.
+  /// quantidade ZERO gravada sem erro nenhum (segunda metade do Important 1 da review). O dano e a
+  /// GRAVACAO SILENCIOSA de um valor que ninguem pediu, e nao a violacao da conservacao de
+  /// quantidade: pelo enunciado dela (regra 9 de <c>specs/01</c> — soma em Setores + expedido +
+  /// perdido = total da Peca), com total zero os tres termos sao zero e o invariante se SATISFAZ.
+  /// O que a Fase 3 fara com um no assim nao esta medido, porque ela ainda nao existe. Cobre
+  /// tambem sinal: qualquer valor `&lt;= 0` ja e menor que este piso.
   /// </summary>
   public const decimal QuantidadeMinimaDaColuna = 0.0001m;
 
@@ -173,10 +176,10 @@ public static class PlanejadorDeCopia
   /// escrita no comentario de `CriarPeca` — serve tambem ao piso, porque um fator menor que 1
   /// encolhe pelo mesmo mecanismo que um fator maior que 1 amplia. Sem ele, dois fatores legais de
   /// 0,0001 sobre uma raiz legal de 1 produzem um neto de 0,00000001, que a coluna grava como
-  /// 0,0000 — uma quantidade que ninguem pediu, gravada sem erro nenhum, quebrando em silencio a
-  /// conservacao de quantidade sobre a qual a Fase 3 e construida (I2 da review de branch da Fase
-  /// 2). Como a Fase 3 ainda nao existe, o que ela faria com um no de quantidade zero nao esta
-  /// medido — o defeito e a gravacao silenciosa, e e ela que esta guarda impede.
+  /// 0,0000 — uma quantidade que ninguem pediu, gravada sem erro nenhum (I2 da review de branch da
+  /// Fase 2). O defeito e a gravacao silenciosa, e e ela que esta guarda impede; ver
+  /// <see cref="QuantidadeMinimaDaColuna"/> para por que NAO se afirma aqui que o invariante de
+  /// conservacao de quantidade e violado.
   ///
   /// <paramref name="oQueE"/> entra na frase que o operador le, entao vem por extenso do chamador
   /// ("o componente 7", "o material 3 do componente 7") em vez de ser montado aqui.

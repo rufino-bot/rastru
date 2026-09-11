@@ -879,6 +879,17 @@ Esperado: falha de compilação.
 > com 400 legível. Fica na **aplicação**, onde a guarda de sinal já vive — a spec fixou "uma única
 > mudança de schema" nesta fase, e um `CHECK` não cobriria o teto de qualquer forma.
 >
+> **NOTA (2026-09-11, fix pass das ressalvas da Fase 2 — R2).** A oração *"uma Peça com quantidade
+> zero quebra a conservação de quantidade da Fase 3 sem erro nenhum"*, no parágrafo rotulado
+> **(a) A faixa de quantidade é a da COLUNA, não a do tipo**, é
+> **falsa**. Fica **anotada e não reescrita**, porque este bloco é o registro datado do que se
+> decidiu em 2026-08-29 e com que argumento. Pelo enunciado da **regra 9** de
+> `specs/01-dominio-e-regras-de-negocio.md` (soma em Setores + expedido + perdido = total da Peça),
+> um nó de total **zero** tem os três termos zero e **satisfaz** o invariante — nenhum termo pode
+> ser negativo, então não há atribuição que o viole. A guarda continua certa; o que estava errado
+> era a justificativa. O dano real é a **gravação silenciosa de um valor que ninguém pediu**, sobre
+> o qual a Fase 3 construiria.
+>
 > **(b) O 409 carrega o CÓDIGO e a FRASE.** Descartar `plano.Erro` e devolver só
 > `plano.CodigoDoErro` faz a tela mostrar `"CicloNaReceita"` ao operador — e joga fora justamente a
 > informação que a Task 2 levou **três rodadas de review** para produzir: a frase **nomeia o
