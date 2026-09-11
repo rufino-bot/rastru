@@ -234,9 +234,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da gaveta. O
   `<button>` da `ArvoreDeEstrutura` **não** compartilha a constante, mas o comentário dele a cita
   **pelo nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma quinta linha — que é
-  referência, não uso. O comando acima é ancorado no arquivo da constante justamente por isso: a
-  regra de citação quer que o nome apareça em mais lugares com o tempo, e uma contagem sobre a
-  árvore inteira envelheceria a cada citação nova. Somando, são **quatro** `<button>` crus, e
+  referência, não uso. O `grep -c` sobre `AppShell.tsx` é ancorado no arquivo da constante
+  justamente por isso: a regra de citação quer que o nome apareça em mais lugares com o tempo, e
+  uma contagem sobre a árvore inteira envelheceria a cada citação nova. Somando, são **quatro** `<button>` crus, e
   "três" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta são o mesmo
   controle em dois breakpoints.) Decisão do usuário (2026-08-29,
   na review da Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
