@@ -121,6 +121,23 @@ resolvidos (ou conscientemente adiados).
 
 ## Fase 2 — Estrutura recursiva
 
+> **2 concluída em 2026-09-11**, com o merge do PR #12: a tabela recursiva única
+> (`EstruturaItem` sem pai é Peça, com pai é Item), o `PlanejadorDeCopia` puro que copia a receita
+> do `Componente` com guardas de ciclo — **por caminho**, de modo que diamante vale e ciclo não —,
+> profundidade, número de nós e faixa da coluna `DECIMAL(18,4)` nas duas direções; os cinco casos
+> de uso em transação; os endpoints sob `/api` com o `Recurso` novo no espelho de perfis; e no
+> front a primitiva `ArvoreDeEstrutura` mais a `AgrupamentoDetalhePage` com acrescentar filho,
+> editar e excluir ligados. A constraint `CK_EstruturaItem_PecaTemComponente` entrou aqui e pegou
+> um caso real de dado inválido no primeiro dia. Suítes medidas depois do merge: backend
+> **529**, front **495 / 39 arquivos**, os dois builds limpos.
+
+> **O que a fase custou, e onde:** zero Critical em todos os gates. O achado dominante não foi
+> código — foi **prosa afirmando com confiança algo não medido**, em comentário, XML doc e spec,
+> classe que nenhum teste pega. Daí saíram duas coisas que passam a valer para as fases seguintes:
+> a seção "Convenção de citação em comentário e prosa" do `CLAUDE.md` (cite pelo **nome**, nunca
+> por `arquivo.ext:NN` nem por distância relativa) e a prática de mandar o revisor **medir cada
+> afirmação verificável** em vez de lê-la.
+
 - Criar `EstruturaItem` a partir de um `Componente` padrão (copiar receita) ou do zero
   (customizado).
 - Visualização em árvore da estrutura de um Agrupamento (Peça → Itens → sub-Itens).
