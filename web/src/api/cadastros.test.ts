@@ -3,7 +3,7 @@ import {
   listarSetores, criarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, obterPedido, formatarDataHora,
-  listarAgrupamentos, criarAgrupamento, excluirAgrupamento,
+  listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
   listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
   type ConflitoDeCadastro, type PedidoDto,
 } from './cadastros'
@@ -475,6 +475,34 @@ describe('cadastros', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
 
     await expect(listarAgrupamentos(4)).rejects.toThrow()
+  })
+
+  // obterAgrupamento nasce na Task 8b (Fase 2), para o cabeçalho de AgrupamentoDetalhePage — mesmo
+  // par de testes do F4 que obterPedido/obterComponente já têm (busca a rota certa; lança quando
+  // a resposta não é ok). Corpo JSON não-vazio (não ''): ver nota em 'lanca quando a resposta e
+  // erro nao tratado'.
+  it('obterAgrupamento busca a rota do id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 21, pedidoId: 4, codigo: 'AGR-01', tipo: 'Kit',
+          criadoEm: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+        }),
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const agrupamento = await obterAgrupamento(21)
+
+    expect(agrupamento.codigo).toBe('AGR-01')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/agrupamentos/21')
+  })
+
+  it('obterAgrupamento lanca quando a resposta nao e ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 404 })))
+
+    await expect(obterAgrupamento(999)).rejects.toThrow()
   })
 
   // A1 do fix pass da review de branch: os 5 testes abaixo cobrem so a TRADUCAO dos status

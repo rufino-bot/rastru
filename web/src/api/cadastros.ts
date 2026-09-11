@@ -176,6 +176,17 @@ export async function listarAgrupamentos(pedidoId: number): Promise<AgrupamentoD
   return (await resp.json()) as AgrupamentoDto[]
 }
 
+/**
+ * Detalhe de um Agrupamento — o cabeçalho de `AgrupamentoDetalhePage` (Task 8b da Fase 2). Molde de
+ * `obterPedido`. Nasce nesta task porque o título da tela até então usava só o `id` da rota: decisão
+ * do usuário (2026-09-02) é mostrar código+tipo, que o usuário reconhece, e não o Id numérico sozinho.
+ */
+export async function obterAgrupamento(id: number): Promise<AgrupamentoDto> {
+  const resp = await apiFetch(`/agrupamentos/${id}`)
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o agrupamento (${resp.status}).`)
+  return (await resp.json()) as AgrupamentoDto
+}
+
 export function criarAgrupamento(
   pedidoId: number,
   a: NovoAgrupamento,

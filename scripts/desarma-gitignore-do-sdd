@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Remove o `.superpowers/sdd/.gitignore` com `*` sempre que ele reaparecer.
+#
+# POR QUE ISTO EXISTE
+# -------------------
+# `.superpowers/` e um repositorio git PROPRIO e privado (`rufino-bot/rastru-ledger`) desde
+# 2026-08-25: e o unico registro das decisoes, medicoes e dividas do projeto. Os scripts da skill
+# `subagent-driven-development` nao sabem disso. O `sdd-workspace` da skill faz, na linha 21:
+#
+#     printf '*\n' > "$dir/.gitignore"
+#
+# incondicionalmente, a cada invocacao -- e ele e chamado por `task-brief` E por `review-package`.
+# Ou seja, o arquivo volta A CADA TASK que gere brief ou pacote de review.
+#
+# A premissa do script da skill (o comentario dele diz que o workspace e scratch descartavel do
+# repo do projeto) era verdadeira ate 2026-08-25. Deixou de ser. No repo do ledger, aquele `*`
+# ignora o ledger inteiro -- briefs, relatorios, historico de fase --, e o `.gitignore` mais
+# proximo do arquivo ganha do da raiz, entao nao ha como neutraliza-lo por la.
+#
+# O MODO DE FALHA, que e o motivo de a guarda ser automatica e nao um lembrete
+# ---------------------------------------------------------------------------
+# Ele e SILENCIOSO para arquivo novo adicionado em massa: `git add -A` pula untracked ignorado sem
+# reclamar. Um `git add` explicito falha alto (foi o que salvou em 2026-09-02, a terceira
+# ocorrencia), mas isso e sorte de forma de comando, nao guarda.
+#
+# O `scripts/estado` ja confere isto na ABERTURA da sessao. Nao basta: a ocorrencia de 2026-09-02
+# nasceu as 07:39, DEPOIS da abertura das 07:25, no primeiro `review-package` da sessao.
+#
+# O QUE ELE NAO FAZ
+# -----------------
+# Se o arquivo existir com QUALQUER outro conteudo, ele nao toca -- pode ser exclusao deliberada
+# que alguem escreveu, e apagar isso seria o mesmo erro em sentido contrario.
+set -euo pipefail
+
+raiz=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+alvo="$raiz/.superpowers/sdd/.gitignore"
+
+[ -f "$alvo" ] || exit 0
+
+# So o arquivo exato que a skill escreve: `*` e mais nada.
+conteudo=$(tr -d '\r\n' < "$alvo")
+[ "$conteudo" = "*" ] || exit 0
+
+rm -f "$alvo"
+echo "desarmado: $alvo tinha '*' e ignorava o ledger inteiro (recriado por scripts/sdd-workspace da skill)"

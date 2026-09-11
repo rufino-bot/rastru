@@ -159,14 +159,120 @@ de segurança para a corrida entre a verificação e a escrita.
 
 ## Estrutura
 
-- `GET /agrupamentos/{id}/estrutura` — árvore completa de `EstruturaItem` do Agrupamento
-- `POST /agrupamentos/{id}/estrutura` — cria Peça (nó de topo), com opção de copiar de um
-  `Componente` padrão
-- `POST /estrutura-itens/{id}/itens` — adiciona Item filho a um `EstruturaItem`
-- `GET/POST /estrutura-itens/{id}/materiais`
-- `GET/POST /estrutura-itens/{id}/roteiro`
+*(Fase 2. `EstruturaItem` é a árvore real de um Agrupamento — nó sem pai é Peça, nó com pai
+é Item; ver `01-dominio-e-regras-de-negocio.md`. Perfis de escrita: `PCP, Administrador`, os mesmos
+de Pedido/Agrupamento — quem monta o Pedido monta a árvore dele. Leitura é liberada a qualquer
+perfil autenticado.)*
+
+- `GET /agrupamentos/{id}/estrutura` *(qualquer perfil autenticado)* — árvore completa de
+  `EstruturaItem` do Agrupamento. Cada nó já sai com `Materiais` e `Roteiro` resolvidos e
+  `Descricao` já com o fallback do Componente aplicado — o front nunca recebe `Descricao` nula
+- `POST /agrupamentos/{id}/estrutura` *(PCP, Administrador)* — cria a Peça (nó de topo), copiando a
+  receita padrão a partir de um `Componente`. Body: `{ componenteId, quantidade,
+  requerRelatorioDimensional }`. Sem opção de nó ad-hoc aqui: pela regra 18 toda Peça referencia um
+  `Componente` — só um Item (nó com pai) pode ser ad-hoc
+- `POST /estrutura/{id}/filhos` *(PCP, Administrador)* — acrescenta um Item filho ao nó `{id}`
+  (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade }`.
+  Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
+  `descricao`, se informada, sobrepõe a herdada (regra 19). Sem `componenteId` (ad-hoc):
+  `descricao` é obrigatória
+- `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao` e `Quantidade` do nó `{id}`.
+  Body: `{ descricao?, quantidade }`. Não cascateia a quantidade para os filhos — decisão de
+  domínio, não lacuna (a cópia da receita é pré-preenchimento, não automação). `Descricao`
+  vazia/só espaço grava `null`, que volta a herdar a do Componente — exceto num nó ad-hoc, que não
+  tem de onde herdar e recusa a edição
+- `DELETE /estrutura/{id}` *(PCP, Administrador)* — apaga o nó e a subárvore inteira dele
+  (Material e Roteiro de cada nó, filhos antes de pais). Só permitido com o Pedido `Aberto` — ver
+  "Contrato de erro da Estrutura". **Sem** essa guarda nos dois `POST` acima, de propósito:
+  acrescentar estrutura a um Pedido em execução é o comportamento padrão da fábrica (decisão do usuário,
+  2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada
+
+**Planejado, ainda sem rota decidida:** as cinco rotas de `EstruturaController` cobrem criar, ler,
+editar e excluir o nó — nenhuma cobre **editar** o Roteiro ou os Materiais de um nó já existente
+depois de copiados da receita. Isso não é lacuna esquecida: é o outro lado da regra 7 de
+`01-dominio-e-regras-de-negocio.md` — o roteiro de Setores pode ser copiado de um padrão do
+catálogo (`Componente`), mas pode ser customizado por Pedido/Agrupamento, não é fixo — e do verbete
+**Roteiro** do glossário, que o descreve como padrão (catálogo) **ou** específico daquele
+Pedido/Agrupamento. Hoje não há endpoint nenhum para exercer essa customização depois da cópia
+inicial. As duas rotas de `estrutura-itens/{id}` deste bloco são o registro dessa decisão de
+domínio, **não** um contrato implementado — `grep -rn "estrutura-itens" src/ --include=*.cs`
+devolve vazio:
+
+- `GET/POST /estrutura-itens/{id}/materiais` *(planejado — fase ainda não atribuída)*
+- `GET/POST /estrutura-itens/{id}/roteiro` *(planejado — fase ainda não atribuída)*
+
+**Sem fase atribuída, e isto foi medido, não esquecido.** `06-roadmap-mvp.md` não tem bullet para
+customizar Roteiro ou Materiais **por nó** em fase nenhuma: a Fase 3 (Rastreamento de setor) é
+apontamento de entrada/saída, conservação de quantidade e tela de fila; a Fase 4 (Separação de
+materiais) é o registro de `MaterialSeparacao`, que este documento já mapeia em
+`POST /estrutura-itens/{id}/separacoes-material` — separar material não é editar a lista de
+materiais do nó. Quem for atribuir a fase decide primeiro no roadmap, e só depois aqui.
+
+Note o prefixo: `estrutura/{id}` (sem "itens") é o real, implementado na Fase 2, e endereça o **nó**
+em três das cinco rotas de `EstruturaController` (`POST /estrutura/{id}/filhos`, `PUT` e `DELETE`);
+as outras duas penduram a árvore no Agrupamento, sob `/agrupamentos/{id}/estrutura`. Já
+`estrutura-itens/{id}` é o prefixo do rascunho ainda não implementado — o mesmo que a seção
+"Execução / Rastreamento" já usa para as rotas de nó dela, também todas planejadas (Fase 3/4). Se as duas
+rotas deste bloco saírem do papel, decidir ali o prefixo definitivo é decidir para as duas seções
+de uma vez.
+
+### Contrato de erro da Estrutura
+
+- **400** — vem de duas origens distintas nestas rotas, e o cliente precisa saber ler as duas.
+
+  **Do caso de uso**, só nas três rotas com corpo: `{ "erro": "<mensagem em português>" }` — aqui o
+  mesmo campo `erro` que no 409 carrega um código estável (`CicloNaReceita` etc.) carrega uma frase
+  pronta para o operador ler. São quatro as causas de negócio:
+  - quantidade **digitada** abaixo do piso da coluna (`0,0001`);
+  - na cópia da receita, uma quantidade calculada sai da faixa da coluna (`DECIMAL(18,4)`) —
+    `QuantidadeForaDaColunaException`, com a frase nomeando o alvo e o valor. A mesma checagem corre
+    nas duas direções — **teto e piso** — e sobre os dois sujeitos — **nó e material** —, então são
+    quatro combinações sob esta causa única. O piso durante a descida não é redundante com o da
+    quantidade digitada — fatores fracionários encolhem o produto nó a nó, e um valor que a coluna
+    arredondaria para `0,0000` seria uma Peça (ou um material) de quantidade zero gravada sem erro
+    nenhum. A quantidade de material sai do mesmo `DECIMAL(18,4)`
+    (`dbo.EstruturaMaterial.Quantidade`), e por isso passa pela mesma guarda;
+  - na cópia da receita, a multiplicação **estoura o tipo `decimal` do próprio .NET** antes de
+    chegar a comparar com o teto da coluna — `OverflowException`, caso mais raro e mais extremo que
+    o anterior, com mensagem genérica ("a quantidade informada, multiplicada pela receita,
+    ultrapassa o que o sistema suporta", sem números); **não** é o mesmo caso do teto da coluna, e
+    as duas frases não devem ser lidas como sinônimas;
+  - nó ad-hoc sem `Descricao`.
+
+  **Da validação de formato e de binding** (corpo malformado, `"quantidade": "abc"`), que é
+  recusada antes de chegar ao caso de uso: o formato do ASP.NET, o mesmo que a seção "Contrato de
+  erro dos cadastros" descreve — `EstruturaController` é `[ApiController]` e o `Program.cs` da API
+  registra `AddControllers()` sem substituir a resposta padrão de model state. Um cliente que só
+  souber ler `erro` quebra no primeiro corpo malformado.
+- **403** — perfil sem permissão, do `[Authorize(Roles = "PCP,Administrador")]` nas quatro rotas de
+  escrita (os dois `POST`, o `PUT` e o `DELETE`) — mesmo formato do "Contrato de erro dos
+  cadastros".
+- **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`) ou nó inexistente
+  (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
+- **409** — quatro códigos, no mesmo formato do 409 de regra de negócio já usado em
+  `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
+  `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
+  levam `mensagem` junto do `erro`; `PedidoNaoAberto` não — mesmo precedente do
+  `DELETE /agrupamentos/{id}`.
+
+  | Código | Onde | Motivo |
+  |---|---|---|
+  | `CicloNaReceita` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos` | a receita copiada do Componente tem ciclo; `mensagem` nomeia o caminho do ciclo |
+  | `EstruturaProfundaDemais` | idem | a cópia recursiva passaria de 20 níveis de profundidade |
+  | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
+  | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
+
+  `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas
+  contra receita corrompida ou cópia recursiva desgovernada, por isso não entram em
+  `01-dominio-e-regras-de-negocio.md` (ver o comentário do planejador da cópia, no código, se o
+  contrato mudar).
 
 ## Execução / Rastreamento
+
+*(Planejado — Fase 3/4, ainda sem controller. As quatro rotas de nó desta seção usam o prefixo
+`estrutura-itens/{id}`, o mesmo do bloco "Planejado" da seção Estrutura e diferente do
+`estrutura/{id}` que a Fase 2 já implementou; a quinta, `GET /setores/{id}/fila`, é indexada pelo
+Setor e não usa prefixo nenhum de nó.)*
 
 - `POST /estrutura-itens/{id}/entradas-setor` — registra entrada no setor atual
 - `POST /estrutura-itens/{id}/saidas-setor` — registra saída do setor atual

@@ -34,20 +34,8 @@ public class AgrupamentoRepository : IAgrupamentoRepository
     return Task.CompletedTask;
   }
 
-  /// <remarks>
-  /// SQL direto contra dbo.EstruturaItem, que e tabela da FASE 2 e nao tem entidade mapeada —
-  /// ver o contrato em IAgrupamentoRepository. `SqlQuery` com interpolacao vira consulta
-  /// parametrizada (nao e concatenacao de string), e `TOP 1` para em quanto acha a primeira.
-  /// </remarks>
-  public async Task<bool> TemEstruturaAsync(int agrupamentoId, CancellationToken ct)
-  {
-    var achou = await _db.Database
-        .SqlQuery<int>(
-            $"SELECT TOP 1 1 AS [Value] FROM dbo.EstruturaItem WHERE AgrupamentoId = {agrupamentoId}")
-        .ToListAsync(ct);
-
-    return achou.Count > 0;
-  }
+  public Task<bool> TemEstruturaAsync(int agrupamentoId, CancellationToken ct) =>
+      _db.Estruturas.AnyAsync(e => e.AgrupamentoId == agrupamentoId, ct);
 
   public Task SalvarAlteracoesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

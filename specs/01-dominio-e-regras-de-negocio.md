@@ -84,18 +84,20 @@
     lido). **A coluna é nullable e isso é deliberado**: a obrigatoriedade vale para *Peça de
     Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
     e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
-    Fase 2 (onde a Peça nasce), não constraint de schema. `Componente.ArquivoFoto` é **opcional**
-    e serve só para o operador reconhecer a peça; não substitui o sólido.
+    Fase 2B — onde nasce o upload que permite preenchê-la; a Fase 2 fechou só o gancho, a
+    constraint `CK_EstruturaItem_PecaTemComponente` —, não constraint de schema.
+    `Componente.ArquivoFoto` é **opcional** e serve só para o operador reconhecer a peça; não
+    substitui o sólido.
 
-    **Decidido em 2026-08-04, a aplicar na Fase 2 (não implementado ainda):** uma **Peça**
+    **Decidido em 2026-08-04, aplicado na Fase 2:** uma **Peça**
     (`EstruturaItem` sem pai) **sempre** referencia um `Componente`; só um **Item** (nó com pai)
     pode ser ad-hoc (`ComponenteId` NULL). Fecha com
     `CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)`.
 
     O furo que isso tapa: o sólido mora em `Componente`, a obrigação vale em `EstruturaItem`, e a
     ponte entre os dois é nullable — quando é NULL não existe linha de `Componente`, então não é
-    campo vazio, é **campo inexistente**. Hoje o schema aceita uma Peça ad-hoc (nenhuma constraint
-    impede), e para ela a regra 18 é literalmente inexprimível.
+    campo vazio, é **campo inexistente**. Antes desta constraint, o schema aceitava uma Peça ad-hoc
+    (nenhuma constraint impedia), e para ela a regra 18 era literalmente inexprimível.
 
     Precisão que importa: a constraint garante que existe **onde** pendurar o sólido. Que ele
     esteja *preenchido* continua regra de aplicação — um `CHECK` não alcança outra tabela, e
@@ -128,6 +130,31 @@
     próprio: numa consulta de "o que está no meu setor" ele chegava anônimo à tela do operador —
     exatamente a pessoa que não sabe o que a peça é. Encontrado ao provar a consulta de setor
     contra dados semeados (2026-08-03).
+
+    **Consequência aplicada na criação e na edição (Fase 2):** um nó ad-hoc não pode ficar sem
+    `Descricao` — nem ao nascer, nem por uma edição que a esvazie. Sem `ComponenteId`, o nó não tem
+    de onde herdar — aceitar a edição devolveria o nó exatamente ao anonimato que esta regra existe
+    para impedir. A mesma condição vale nos dois caminhos: `AcrescentarFilho` a exige ao criar o nó
+    ad-hoc, e `EditarNo` a reaplica na edição, para não deixar a `Descricao` esvaziar depois.
+
+    **Editar um nó de catálogo congela a descrição herdada como própria — comportamento aceito,
+    decisão do usuário de 2026-09-02.** A leitura direta desta regra ("descrição nula herda do
+    `Componente`") continua verdadeira, mas ela sozinha faz esperar que um nó de catálogo acompanhe
+    o catálogo para sempre, e na prática **não acompanha depois da primeira edição**. O mecanismo:
+    a API entrega a descrição **já resolvida** — `EstruturaItemDto.Descricao` traz o texto do
+    `Componente` quando `EstruturaItem.Descricao` é NULL, sem bandeira que separe "própria" de
+    "herdada" —, o formulário de edição pré-preenche o campo com esse texto resolvido (para o
+    usuário editar a partir do que vê, e não de um campo em branco), e `EditarNo` grava o que
+    recebe. Logo, salvar uma edição de **só a quantidade** grava a descrição herdada como
+    `EstruturaItem.Descricao` própria, e a partir daí uma mudança na descrição do `Componente` não
+    alcança mais aquele nó.
+
+    Foi aceito assim porque o nó nasce como **cópia** da receita, não como referência viva a ela — a
+    quantidade e a estrutura já divergem do catálogo pelo mesmo motivo —, e porque a alternativa
+    exigiria distinguir as duas descrições no contrato da API para que a interface pudesse oferecer
+    a escolha. Quem for **desfazer** esta decisão começa por aí: trazer a referência do catálogo no
+    DTO. Enquanto ela valer, não conte com um nó de catálogo seguindo mudanças de descrição do
+    `Componente` — e um relatório que precise do nome de catálogo lê o `Componente`, não o nó.
 
 20. **A receita padrão de filhos (`ComponenteFilhoPadrao`) não pode conter ciclo, em nenhuma
     profundidade.** É a regra que existe porque a receita é um **grafo**: cada linha aponta de um
@@ -163,5 +190,12 @@
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
   Não é decisão de domínio ainda: depende de um spike medir a taxa de acerto. Ver
   `06-roadmap-mvp.md`.
+- **Descontinuar uma Peça trava o fechamento do Pedido.** O comportamento padrão quando um cliente
+  altera o projeto de um Pedido em execução é o descartado **parar de ser produzido**, não ser
+  apagado. Mas pela regra 13 uma Peça só conclui quando **toda** a quantidade virou expedido ou
+  perdido — e a quantidade que nunca entrou em produção não é nem uma coisa nem outra. A Peça nunca
+  conclui, o Agrupamento nunca conclui, e o Pedido nunca fecha. Descontinuar precisa de um **bucket
+  terminal** próprio ou de uma exceção explícita na regra 13. Levantado na Fase 2 e deliberadamente
+  não decidido lá: tem efeito na Fase 5 (fechamento), não só na 3.
 
 Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.

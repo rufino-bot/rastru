@@ -131,6 +131,88 @@ partir do zero.
 - Siga a estrutura de camadas descrita em `03-arquitetura-tecnica.md`
   (`Domain` / `Application` / `Infrastructure` / `Api`).
 
+## Convenção de citação em comentário e prosa
+
+Vale para código (comentário) e para prosa de `specs/`, plano ou ledger — não é regra de domínio
+nem de interface, por isso vive numa seção própria em vez de dentro de "Interface" ou dos
+invariantes de negócio.
+
+**A regra:** cite o alvo **pelo nome** — o texto do `it(...)`, o nome da função, da constante, da
+variante, da regra de negócio — **nunca** por `arquivo.ext:NN` nem por distância relativa ("quatro
+linhas acima").
+
+**O motivo é o modo de falha, não o número ficar errado.** Medido em 2026-09-02, na re-review da
+Task 8b da Fase 2: um comentário citou um teste por número de linha; o número **era verdade quando
+foi medido, no commit anterior**, e o **próprio commit** que o escreveu já tinha inserido 140
+linhas acima dele — a citação nasceu já apontando para outra coisa. O número continuava apontando
+para uma linha que **existe**, com outro conteúdo, então quem for atrás acha algo plausível e não
+percebe que está lendo a coisa errada. Um nome, quando o alvo é renomeado, **não é achado pelo
+`grep`** — quebra alto em vez de degradar em silêncio. Na mesma passada, "quatro linhas acima" já
+tinha virado seis, porque um comentário entrou no meio.
+
+**Escopo, com honestidade — para esta regra não virar afirmação falsa sobre si mesma.** Medido em
+2026-09-07, no fix pass da review de branch da Fase 2, com
+`grep -rE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" web/src/ src/ tests/`:
+restam **37 ocorrências** do tipo `arquivo.ext:NN` (**35 citações distintas** — o mesmo texto
+repetido em dois lugares conta uma vez só). **Diga sempre qual das duas métricas é.** As duas são
+legítimas e trocar uma pela outra no meio de um conserto é o próprio defeito que esta seção
+descreve: a review de branch da Fase 2 recomendou corrigir o número daqui de 43 para 48, o que
+trocava *distintas* por *ocorrências*, e a recomendação não sobreviveu à medição.
+
+As 37 são **todas anteriores à Fase 2**: a contagem de cada arquivo que ainda tem citação bate, ao
+número, com a do commit em que a Fase 2 começou (`9ec40e6`). Não são isentas por serem antigas —
+são **passivo não varrido**, e a decisão de não varrê-lo é de **escopo**, não de mérito. Nenhuma
+aponta para arquivo ausente ou linha além do fim do arquivo — mas isso **não prova que estão
+certas**: o modo de falha medido acima é do tipo "a linha existe e aponta para outra coisa", que
+nenhuma varredura barata alcança.
+
+**A outra forma proibida — distância relativa — NÃO tem contagem, e a ausência é de método, não
+de zelo.** "Quatro linhas acima", "o teste anterior", "o par positivo do teste acima" não têm
+forma léxica que um `grep` ache: qualquer padrão que as pegue devolve prosa legítima junto, e
+qualquer padrão estreito o bastante para não devolver lixo deixa passar a próxima redação. Então
+o número acima (37 / 35) mede **só** `arquivo.ext:NN`, e dizer "restam 37" sem esta ressalva
+reporia, um nível abaixo, a moldura que o parágrafo
+*"A redação anterior desta seção era ela própria o defeito"* existe para denunciar — o passivo
+contado absorvendo em silêncio o passivo não contado. A Fase 2 escreveu citações dessa forma e as
+converteu em **duas rodadas** — o fix pass da review de branch achou um grupo, e a re-review dele
+achou outro, no mesmo arquivo em que o fix já havia convertido a irmã. Não se dá total aqui **de
+propósito**: contar esta forma exigiria o mesmo `grep` que o parágrafo acaba de declarar
+impossível, e um número obtido assim seria estimativa apresentada como medição — exatamente o que
+esta seção proíbe. Que a segunda rodada tenha achado o que a primeira deixou é a evidência do
+ponto: a forma não se fecha por varredura, só por leitura.
+
+Uma delas, na re-review, era pior que distância: `CriarPecaTests` dizia "o teste anterior montava
+um Pedido solto" querendo dizer **a versão anterior daquele mesmo teste**, não um teste vizinho —
+quem olha para cima acha `Agrupamento_inexistente_da_404` e reconstrói o argumento errado. Citação
+temporal escrita como se fosse espacial é a variante mais enganosa da família, porque o leitor
+encontra um alvo plausível.
+
+**A redação anterior desta seção era ela própria o defeito, e vale registrar por quê.** Ela dizia
+"43 citações" e depois, em presente, "as 43 do código" — um número congelado que virava isenção
+permanente. Duas coisas nela estavam erradas. O número: no próprio commit que o escreveu
+(`2ed444a`), o mesmo `grep` acima dá **44 distintas / 48 ocorrências**, então ele já nasceu
+desatualizado. E a moldura: o passivo "herdado" absorvia em silêncio as **11 citações que a própria
+Fase 2 escreveu** — justamente as que a regra alcança, já que ela vale para texto novo. O fix pass
+da review de branch converteu as 11 para nome, e é por isso que a contagem voltou ao valor da base.
+
+**A medição acima cobre só os diretórios de código.** A prosa foi medida à parte, em 2026-09-06, e
+só em parte:
+`grep -rE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" specs/ CLAUDE.md` acha **5**
+ocorrências — uma em `specs/01-dominio-e-regras-de-negocio.md`, que cita `ReceitaPadraoUseCase.cs`
+por número de linha, e quatro no próprio `CLAUDE.md`, que citam `historico/05-fase-1c.md` e
+`db/seed.sql` assim. **Nenhuma foi consertada**, por escolha de escopo — a regra vale para texto
+novo. A prosa dos planos (`docs/superpowers/`) e a do ledger (`.superpowers/`) continuam **não
+medidas**.
+
+- A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as que já
+  estão lá — as 37 do código nem as 5 da prosa. Os dois números são a medição de uma data, não uma
+  cota: quem os reescrever remede antes, e diz a métrica.
+- **Não existe guarda executável** para isto, e uma guarda que checasse só "arquivo existe / linha
+  existe" passaria verde exatamente no caso que motivou a regra — falso conforto pior que nenhum.
+- Se um dia alguém quiser fechar isso de verdade, a guarda teria de comparar o **conteúdo** citado
+  (o nome ainda existe? ainda nomeia a mesma coisa?), não a existência da linha — permanece **não
+  resolvido**.
+
 ## Interface (a partir da Fase 1D)
 
 O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova**. A spec de origem é
@@ -144,6 +226,48 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
+- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em três
+  controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
+  `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2) e o alternador de expandir/recolher da
+  `ArvoreDeEstrutura`, da Fase 2. ("Controles", não "lugares":
+  `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx` devolve **4** — a declaração da
+  constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da gaveta. O
+  `<button>` da `ArvoreDeEstrutura` **não** compartilha a constante, mas o comentário dele a cita
+  **pelo nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma quinta linha — que é
+  referência, não uso. O `grep -c` sobre `AppShell.tsx` é ancorado no arquivo da constante
+  justamente por isso: a regra de citação quer que o nome apareça em mais lugares com o tempo, e
+  uma contagem sobre a árvore inteira envelheceria a cada citação nova. Somando, são **quatro** `<button>` crus, e
+  "três" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta são o mesmo
+  controle em dois breakpoints.) Decisão do usuário (2026-08-29,
+  na review da Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
+
+  O motivo é técnico, e são **dois motivos diferentes** — a review da Task 7 errou ao tratá-los
+  como o mesmo. Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um
+  controle de ícone — no mapa de variantes de `Botao`, mesmo a mais leve (`secundario`) traz
+  `px-4 py-2`, e `primario` traz `px-5 py-2.5`; é padding de botão com rótulo, dimensionado para
+  "Acrescentar filho"/"Editar"/"Excluir", não de um alternador de um caractere embutido na linha.
+  No `AppShell`: a razão é outra — contraste do anel de foco sobre fundo escuro, que a `Botao`
+  também não resolve, mas por um motivo que nada tem a ver com padding.
+
+  **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
+  rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. Quem escrever o
+  terceiro caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes — saída
+  que o implementer propôs e que o usuário adiou, não descartou.
+
+  Por que escrever em vez de deixar como está: uma regra com três violações conhecidas e nenhuma
+  exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva
+  que ninguém quer, e quem só observa o código conclui que a regra não vale.
+- **`data-testid` só quando o alvo não tem papel ARIA nem texto estável para achá-lo.** Não é
+  atalho para fugir de `getByRole`/`getByText`: seletor por papel e nome acessível testa o que o
+  leitor de tela vê, e um `data-testid` no lugar dele esconde regressão de acessibilidade. É
+  aceitável quando o alvo é um **contêiner sem papel** que o teste precisa nomear — a `div` de uma
+  linha ou do bloco de ações —, ou um elemento cujo papel existe mas **não distingue** (um `<form>`
+  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **4 usos em 2 arquivos**
+  (medido em 2026-09-07 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`):
+  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, e `painel-de-escrita` na
+  `AgrupamentoDetalhePage`. A regra é escrita porque o segundo consumidor **já chegou** e nada no
+  documento dizia quando o primeiro valia — mesmo desenho de risco da exceção do "botão de chrome",
+  resolvido do mesmo jeito: escrevendo.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
   itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
@@ -288,8 +412,35 @@ nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de 
 
 1. **trabalho sem commit ou sem push** — registro que existe só localmente não é backup;
 2. **`sdd/.gitignore` recriado com `*`** — ele é redundante aqui (a raiz já ignora a pasta) e
-   destrutivo lá, onde ignora o ledger inteiro. Já aconteceu: foi pego com `git check-ignore -v`
-   antes do primeiro `git add`, senão o repositório teria nascido vazio de conteúdo.
+   destrutivo lá, onde ignora o ledger inteiro. Já aconteceu **três vezes**. A primeira foi pega
+   com `git check-ignore -v` antes do primeiro `git add`, senão o repositório teria nascido vazio
+   de conteúdo; a de **2026-09-02** deu o mecanismo, medido e não inferido:
+   `scripts/sdd-workspace:21` da skill `subagent-driven-development` faz
+   `printf '*\n' > "$dir/.gitignore"` **incondicionalmente**, e é chamado tanto por `task-brief`
+   quanto por `review-package`. Ou seja: o arquivo volta **a cada task** que gere brief ou pacote
+   de review, não de vez em quando. A premissa do script (o comentário dele trata o diretório como
+   scratch descartável do repo do projeto) era verdadeira até 2026-08-25 e deixou de ser.
+
+   **Conferir só na abertura não basta**, e isso também foi medido: a ocorrência de 09-02 nasceu
+   às 07:39, depois da abertura das 07:25, no primeiro `review-package` da sessão. Por isso existe
+   **`scripts/desarma-gitignore-do-sdd`**, ligado a dois hooks em `.claude/settings.json`
+   (`PostToolUse` de `Bash`, e `SubagentStop` para o caso de o subagente ter rodado o script). Ele
+   apaga o arquivo quando o conteúdo é **exatamente** `*`, e **não toca** em nenhum outro conteúdo
+   — exclusão deliberada que alguém escreva ali sobrevive. Os três casos (positivo, conteúdo
+   deliberado, arquivo ausente) foram exercitados quando o script nasceu, e o hook foi visto
+   disparar ao vivo. O `scripts/estado` continua conferindo na abertura, como segunda rede.
+
+   **O modo de falha é silencioso, e é por isso que a guarda é automática em vez de um lembrete:**
+   `git add -A` pula untracked ignorado sem reclamar. Um `git add` explícito falha alto — foi o que
+   salvou em 09-02 —, mas isso é sorte da forma do comando, não guarda.
+
+   **O alcance do hook, medido — ele não é absoluto.** `PostToolUse` roda **entre** chamadas de
+   ferramenta, então o arquivo que um `review-package` acabou de criar continua lá até aquela
+   chamada terminar. Medido na mesma sessão de 09-02: conferido **dentro** da chamada que rodou o
+   script, o arquivo existia; na chamada seguinte, ausente. Consequência: um
+   `review-package && git add -A` **numa só chamada** escaparia da guarda — e é a combinação exata
+   dos dois parágrafos acima. O que fecha isso não é técnica e sim forma: gerar brief ou pacote é
+   uma chamada, `git add` é outra, e o `git add` do ledger vai por caminho explícito.
 
 Backend (solution `Rastreamento.slnx`, na raiz):
 
@@ -440,6 +591,16 @@ Agrupamento era redundante. A quantidade com significado no domínio é `Estrutu
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF COL_LENGTH('dbo.Agrupamento','Quantidade') IS NOT NULL ALTER TABLE dbo.Agrupamento DROP COLUMN Quantidade;"
+```
+
+Na Fase 2 entra a constraint que fecha a regra 18 no schema. **Diferente dos quatro blocos acima,
+este NÃO é no-op nesta máquina:** o banco foi regenerado em 2026-08-04 a partir do `.sql`, e naquela
+data a constraint ainda era comentário.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_EstruturaItem_PecaTemComponente') ALTER TABLE dbo.EstruturaItem ADD CONSTRAINT CK_EstruturaItem_PecaTemComponente CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL);"
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
