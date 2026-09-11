@@ -415,13 +415,19 @@ pessoal de terceiro por conveniência de versionamento não é decisão que se t
 regra que fica: documento de TCC com dado de identificação vai para o repositório privado, nunca
 para `docs/` daqui.
 
-**Resíduo conhecido do rename, com dono e prazo.** `scripts/desarma-gitignore-do-sdd` ainda cita
-`rastru-ledger` num comentário. Não foi corrigido junto porque aquele arquivo **nasceu na branch da
-Fase 2** (`91e8a6f`) e não existe em `main` — consertá-lo exigiria um commit avulso naquela branch,
-logo antes da review dela. **Corrigir depois do merge da Fase 2**, com um `sed` de uma linha. Nada
-funcional depende do nome ali: é comentário, e a fonte de verdade da URL é o `git remote -v` de
-`.superpowers/`, que já aponta para o nome novo. Se você está revisando a Fase 2 e encontrou essa
-citação, ela **não é achado daquela branch** — é este resíduo, já conhecido e datado.
+**O resíduo do rename está FECHADO, e o adiamento dele vale registro.** O comentário de
+`scripts/desarma-gitignore-do-sdd` citava `rastru-ledger`, e ficou assim de propósito por quatro
+dias: aquele arquivo **nasceu na branch da Fase 2** (`91e8a6f`) e não existia em `main`, então
+consertá-lo enquanto a fase corria exigiria um commit avulso naquela branch, logo antes da review
+dela — e um commit avulso na véspera da review é exatamente o que suja o escopo do gate. A saída
+foi nomear o resíduo aqui, para quem revisasse a Fase 2 não o contar como achado dela, e fechá-lo
+depois do merge. **Corrigido em 2026-09-11**, no rebase deste PR sobre o `main` já com a Fase 2, de
+modo que o rename fecha inteiro num PR só. Medido depois: `grep -rn "rastru-ledger" scripts/`
+devolve **zero**, e `bash scripts/desarma-gitignore-do-sdd` continua saindo em 0.
+
+As menções que restam ao nome antigo são **narrativa histórica** — este parágrafo, o de cima, e o
+ledger, que registra as decisões na ordem em que foram tomadas. A fonte de verdade da URL nunca foi
+o texto: é o `git remote -v` de `.superpowers/`.
 
 `scripts/estado` confere duas coisas na abertura, porque as duas falhas desta cópia são
 **silenciosas** e só apareceriam no dia de trocar de máquina:
