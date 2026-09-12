@@ -111,7 +111,9 @@ CREATE TABLE dbo.Componente (
     -- Solido 3D (STL) do Componente, em dbo.ArquivoDeComponente. NULLABLE de proposito: a
     -- obrigatoriedade e de negocio e vale para Peca de Pedido, nao para toda linha de catalogo (um
     -- Componente 'Bruto' nao tem solido), e o banco nao consegue distinguir os dois casos aqui --
-    -- ver regra 18 em 01. Quem cobra e MontagemDeEstruturaUseCase.CriarPeca.
+    -- ver regra 18 em 01. O lugar da cobranca do arquivo PREENCHIDO e
+    -- MontagemDeEstruturaUseCase.CriarPeca, e o comentario daquele metodo diz se a guarda ja esta
+    -- la -- este comentario aponta o lugar, nao afirma o estado, para nao envelhecer errado.
     --
     -- Por que BLOB em tabela propria, e nao caminho de arquivo (2026-09-12, Fase 2B): esta coluna
     -- ERA NVARCHAR(260) com caminho relativo, e o comentario de entao argumentava contra
@@ -125,6 +127,10 @@ CREATE TABLE dbo.Componente (
     -- silhuetas da busca por foto (fora das fases, condicionado a spike) queria o arquivo em disco
     -- para alimentar a ferramenta CAD. Com blob, ele tera de materializar um arquivo temporario.
     -- Custo pequeno e localizado, mas real.
+    --
+    -- A terceira razao daquele comentario -- "a API de upload fica mais simples" -- NAO se
+    -- sustentou: a API recebe IFormFile do mesmo jeito nos dois desenhos. O que muda e o destino
+    -- de dois metodos de repositorio, nao a forma do endpoint.
     ArquivoSolidoId INT                 NULL,
     ArquivoFoto     NVARCHAR(260)       NULL,     -- foto de referencia, OPCIONAL: ajuda o operador a reconhecer a peca. Nao substitui o solido
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Componente_Ativo DEFAULT (1),

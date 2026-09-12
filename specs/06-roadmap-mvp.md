@@ -172,11 +172,10 @@ resolvidos (ou conscientemente adiados).
   é aqui que nasce o upload que permite preenchê-lo — cobrar antes travaria a verificação manual (o
   `seed-demo` não tem sólido em nenhum dos Componentes).
 - **Diferente das colunas de fases anteriores, o schema desta fase não espera "início de fase" para
-  ser aplicado**: a Task 1 já criou a tabela `dbo.ArquivoDeComponente`, já trocou
-  `Componente.ArquivoSolido` por `Componente.ArquivoSolidoId` em `02-modelo-de-dados.sql` e já
-  aplicou os três `CREATE`/`ALTER` idempotentes correspondentes no banco de dev — documentados no
-  `CLAUDE.md`, e **não** no-op nesta máquina (o banco foi regenerado em 2026-08-04, antes de este
-  schema existir).
+  ser aplicado**: a tabela `dbo.ArquivoDeComponente` já existe, `Componente.ArquivoSolido` já deu
+  lugar a `Componente.ArquivoSolidoId` em `02-modelo-de-dados.sql`, e os três `CREATE`/`ALTER`
+  idempotentes correspondentes já foram aplicados no banco de dev — documentados no `CLAUDE.md`, e
+  **não** no-op nesta máquina (o banco foi regenerado em 2026-08-04, antes de este schema existir).
 - Critério de pronto: dá para fazer upload do sólido de um `Componente` pela tela, e a regra 18
   passa a ser cobrada de verdade — Peça sem sólido preenchido no `Componente` de origem é
   recusada.
