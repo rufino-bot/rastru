@@ -34,6 +34,44 @@
 
 **Os deltas por task abaixo são ESTIMATIVA, não medição.** Cada task mede o próprio delta ao fechar e, se divergir, **corrige a baseline das tasks seguintes na mesma passada** — total absoluto propaga erro task a task, e fechar a contagem de uma não basta.
 
+### EMENDA DE 2026-09-12 — duas decisões do usuário tomadas DURANTE a execução
+
+Ambas nasceram de findings da review da Task 2. **Elas mudam o texto de tasks abaixo, e o texto
+antigo delas não foi reescrito linha a linha — esta seção é que governa em caso de conflito.**
+
+**(A) `TamanhoEmBytes` e `Sha256` são COLUNAS CALCULADAS `PERSISTED`** — ver §4.1 da spec, que traz
+o DDL e as cinco medições da bancada. Motivo: enquanto fossem colunas comuns, o invariante
+"tamanho igual ao tamanho do blob" não tinha dono nem guarda, e erraria em silêncio.
+
+O que muda, task por task:
+
+- **Task 1 (já fechada):** o DDL dela nasceu com as duas como colunas comuns. **A emenda é aplicada
+  junto do fix pass da Task 2**, não reabrindo a Task 1 — o `.sql`, o `ALTER` do `CLAUDE.md` e o
+  banco de dev passam a ter as colunas calculadas. O `ALTER` tem **quatro passos**, nesta ordem, por
+  causa do `CHECK` que depende da coluna: dropar a constraint, dropar a coluna, criar a calculada,
+  recriar a constraint.
+- **Task 2:** as duas propriedades são mapeadas como **geradas pelo banco**
+  (`ValueGeneratedOnAddOrUpdate`, sem escrita). **Sem isso, todo insert falha** — o SQL Server
+  recusa escrita em coluna calculada. Falha alta e imediata, não silenciosa.
+- **Task 3:** o caso de uso **não** calcula `SHA256` nem preenche `TamanhoEmBytes`. Some o
+  `using System.Security.Cryptography` e somem os dois campos do objeto novo. O teste que afirmava
+  `Assert.Equal(32, gravado.Sha256.Length)` e `Assert.Equal(..., gravado.TamanhoEmBytes)` deixa de
+  fazer sentido sobre o objeto em memória — **quem prova os dois agora é o banco**, e a prova vive
+  no teste de mapeamento da Task 2.
+
+**(B) `GET /componentes/{id}` passa a devolver um `ComponenteDetalheDto`** — ver §5.2 da spec. Ele
+tem os campos de `ComponenteDto` mais `NomeDoSolido: string?` e `TamanhoDoSolidoEmBytes: int?`.
+**A listagem fica intocada.**
+
+- **Task 2:** o repositório ganha um **terceiro método**,
+  `ObterMetadadoDoSolidoAsync(int componenteId, CancellationToken ct)`, devolvendo o nome e o
+  tamanho **sem o blob** — projeção explícita, nunca `Include` (não há navegação, por desenho).
+- **Task 4:** `Obter` devolve `ComponenteDetalheDto`; `Cadastrar`, `Editar` e `Listar` continuam em
+  `ComponenteDto`. A projeção única `Projetar` **não** serve aos dois — o detalhe tem projeção
+  própria.
+- **Task 6:** o `UploadDeSolido` mostra nome e tamanho vindos do detalhe. **Sem a emenda (B) esta
+  promessa da §7.1 era incumprível** — foi a review da Task 2 que achou isso.
+
 ### Uma armadilha de ambiente que vale saber antes de começar
 
 O arquivo `web/src/components/SeletorComBusca.test.tsx` tem **flake conhecido e anterior a esta fase** (~14% num dia sob carga concorrente, ~2-4% registrado antes, 0 em 10 com o arquivo isolado; dois testes distintos dele já falharam). **A Task 8 mexe justamente nesse arquivo.** Se ele falhar durante a Task 8: **grave o nome do teste que falhou antes de rodar de novo** — rodar de novo destrói a amostra — e não atribua a falha à task sem medir.

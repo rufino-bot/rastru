@@ -199,10 +199,42 @@ EF sai do novo schema. Nada de `Add-Migration`.
 | `Id` | `INT IDENTITY PRIMARY KEY` | |
 | `NomeOriginal` | `NVARCHAR(260) NOT NULL` | o nome que o usuário subiu — exibição na tela e `Content-Disposition` do download |
 | `Conteudo` | `VARBINARY(MAX) NOT NULL` | o STL |
-| `TamanhoEmBytes` | `INT NOT NULL` | exibir tamanho sem tocar no blob. `INT` chega a 2 GB, muito acima do limite de 16 MiB desta fase |
-| `Sha256` | `BINARY(32) NOT NULL` | integridade, e permite reconhecer subida repetida do mesmo arquivo |
+| `TamanhoEmBytes` | **`AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED`** | exibir tamanho sem tocar no blob — **calculada pelo banco** (ver abaixo) |
+| `Sha256` | **`AS HASHBYTES('SHA2_256', Conteudo) PERSISTED`** | integridade, e reconhecer subida repetida — **calculada pelo banco** |
 | `CriadoEm` | `DATETIME2 NOT NULL DEFAULT (SYSUTCDATETIME())` | mesmo padrão de `Agrupamento` |
 | `CriadoPorUsuarioId` | `INT NOT NULL FK → dbo.Usuario(Id)` | autoria, mesmo padrão de `Pedido` e `Agrupamento` |
+
+O `CHECK (TamanhoEmBytes > 0)` continua na tabela, sobre a coluna calculada — arquivo de zero byte
+não é arquivo.
+
+#### Por que `TamanhoEmBytes` e `Sha256` são calculadas pelo banco
+
+**Decisão do usuário, 2026-09-12**, em resposta a um finding da review da Task 2: os dois campos
+são *deriváveis* de `Conteudo`, e enquanto fossem colunas comuns o invariante
+`TamanhoEmBytes == Conteudo.Length` (e `Sha256 == SHA256(Conteudo)`) **não teria dono nem guarda** —
+se o caso de uso do upload errasse, o tamanho mentiria e o hash pararia de servir, **em silêncio**.
+Coluna calculada troca disciplina por garantia: é o mesmo padrão que o resto do projeto já usa ao
+preferir guarda executável a comentário.
+
+**Medido na bancada em 2026-09-12** (SQL Server 16.0), porque nenhum destes pontos é óbvio:
+
+- `DATALENGTH` sobre `VARBINARY(MAX)` devolve **`bigint`** (sobre `VARBINARY(n)`, `int`) — daí o
+  `CAST(... AS INT)`, que mantém `int` em C#. Sem o `CAST`, a entidade teria de ser `long`.
+- `PERSISTED` é aceito com o `CAST`, e a coluna resultante é `int`.
+- **`CHECK` sobre coluna calculada é aceito**, e continua recusando blob vazio.
+- `HASHBYTES('SHA2_256', …)` funciona sobre blob grande (provado com 20.000 bytes). O limite de
+  8.000 bytes é de versões antigas do SQL Server, não desta.
+- **O SQL Server recusa escrita na coluna**: *"cannot be modified because it is either a computed
+  column…"*. É isso que torna o invariante inviolável.
+
+**Consequência obrigatória no EF, e ela falha alto se for esquecida:** as duas propriedades têm de
+ser mapeadas como geradas pelo banco (`ValueGeneratedOnAddOrUpdate`, sem escrita). Sem isso o EF
+tenta inserir nelas e **todo insert falha** — falha imediata e clara, não silenciosa.
+
+**Ganho colateral no caso de uso:** ele deixa de calcular SHA256 em C# e de preencher o tamanho.
+
+**O que isto NÃO é:** garantia de integridade de *transporte*. O banco calcula o hash do que
+recebeu — exatamente o que o C# faria. Não há perda; só não é uma garantia nova.
 
 O nome é **`ArquivoDeComponente`**, e não `ArquivoSolido`, de propósito: a tabela serve às duas
 colunas de arquivo de `Componente`. `ArquivoFoto` está **fora do escopo desta fase** (§9), mas
@@ -270,14 +302,40 @@ para leitura, `[Authorize(Roles = PerfisDeEscrita)]` — `Administrador,PCP` —
 Sem a terceira camada, um PDF renomeado para `.stl` sobe, e o defeito só aparece no viewer, longe
 da causa. É ela que transforma "achamos que é um STL" em "é um STL".
 
-### 5.2 `ComponenteDto` ganha `TemSolido: bool`
+### 5.2 `ComponenteDto` ganha `TemSolido: bool`, e o detalhe ganha um DTO próprio
 
-Booleano, não o id do arquivo: a tela não precisa do id — a rota do binário é pelo id do
-`Componente` — e expor um id de arquivo convidaria um segundo caminho para o mesmo recurso.
+`ComponenteDto` — o da **listagem** — ganha só `TemSolido: bool`. Booleano, não o id do arquivo: a
+tela não precisa do id (a rota do binário é pelo id do `Componente`), e expor um id de arquivo
+convidaria um segundo caminho para o mesmo recurso.
 
 **Atenção de alcance:** `ComponenteDto` é consumido por toda tela e todo teste que lista ou lê
 Componente. Acrescentar o campo tem delta de teste em vários arquivos; é trabalho mecânico, mas não
 é zero, e a task que o fizer deve medir o próprio delta em vez de estimá-lo.
+
+#### `ComponenteDetalheDto`, e a lacuna que ele fecha
+
+**Decisão do usuário, 2026-09-12.** A review da Task 2 achou uma **contradição interna desta spec**:
+a §7.1 promete que o `UploadDeSolido` "mostra nome e tamanho do que já existe", e `TemSolido: bool`
+não entrega nem um nem outro. O valor existe na tabela desde o começo — `TamanhoEmBytes` foi criado
+exatamente para "exibir o tamanho sem tocar no blob" — mas **nenhum caminho de leitura chegava até o
+front**. A tela prometia o que a superfície de dados não tinha.
+
+A saída escolhida: **`GET /componentes/{id}` passa a devolver um `ComponenteDetalheDto`**, com os
+campos de `ComponenteDto` mais `NomeDoSolido: string?` e `TamanhoDoSolidoEmBytes: int?` (ambos nulos
+quando não há sólido). A **listagem fica intocada**.
+
+Por que um DTO próprio, e não um campo a mais no existente — o custo real, medido em 2026-09-12:
+`ComponenteRepository.ListarAsync` **materializa a entidade `Componente`** (não projeta), e a
+projeção `Projetar(Componente c)` do caso de uso é **uma função única** que serve a `Cadastrar`,
+`Editar`, `Obter` e `Listar`. Acrescentar o metadado ao DTO existente forçaria uma de três: um
+`LEFT JOIN` na consulta paginada do catálogo; ou deixar os campos nulos na listagem e preenchidos no
+detalhe, fazendo o mesmo campo significar duas coisas ("não tem sólido" contra "não pedi") — defeito
+de contrato; ou este DTO separado, em que **cada DTO diz a verdade sobre si**.
+
+**Uma objeção que não se sustentou, e fica escrita para não ser reusada:** dizer que o `LEFT JOIN`
+violaria a §4.3 é mais forte do que os fatos — a §4.3 protege contra arrastar o **`VARBINARY(MAX)`**,
+e um JOIN que traz `NomeOriginal` (nvarchar 260) e `TamanhoEmBytes` (int) não arrasta blob nenhum. O
+JOIN foi descartado por manter a listagem simples, não por violar a §4.3.
 
 ## 6. A cobrança da regra 18
 
@@ -307,6 +365,8 @@ lá, e ela deve apenas orquestrar as duas.
 - **`UploadDeSolido`** — escolhe o `.stl`, mostra nome e tamanho do que já existe, envia, e tem os
   três estados (carregando, erro via `mensagemDeErro`, sucesso). Visível só sob
   `usePodeEscrever`, com o `try/catch` do 403 obrigatório — esconder botão não é segurança.
+  **O nome e o tamanho vêm do `ComponenteDetalheDto`** (§5.2) — esta promessa só é cumprível por
+  causa dele, e foi a review da Task 2 que achou a lacuna.
 - **`VisualizadorDeSolido`** — busca o binário, passa pelo `STLLoader` e renderiza.
 
 O `client.ts` **não precisa de nada novo**, e isso foi medido: `apiFetch` devolve o `Response` cru e
