@@ -158,9 +158,9 @@ próprio.
 
 Biblioteca de componentes React e estratégia de auth já resolvidas (ver acima). O hosting exato
 (IIS vs. container) dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento —
-mas não é mais o único ponto em aberto: a escolha da VPS pública (ver "Hospedagem", acima) destrava
-três itens de dívida de endurecimento, cada um com o mesmo gatilho, **obrigatório antes do
-primeiro deploy público**:
+mas não é mais o único ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem")
+destrava três itens de dívida de endurecimento, cada um com o mesmo gatilho, **obrigatório antes
+do primeiro deploy público**:
 
 1. **TLS é pré-requisito de funcionamento, não melhoria.** O cookie de refresh é gravado com
    `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP. Sem TLS na
@@ -176,5 +176,6 @@ primeiro deploy público**:
    numa VPS pública passa a ser risco de qualquer um na internet. Não é para consertar aqui — é
    para o trade-off não continuar escrito como se o contexto de exposição fosse o mesmo.
 
-**O endurecimento acima não é desta fase.** Vira item próprio na fila, em branch separada —
+**Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
+fila, em branch separada —
 decisão do usuário: misturar infraestrutura na branch da Fase 2B poluiria a review dela.

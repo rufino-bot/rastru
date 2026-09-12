@@ -682,8 +682,9 @@ o limite vira global por acidente. Flag de deploy, ainda não necessária (deplo
 `RefreshToken` expiradas; `UseHttpsRedirection`; mensagem dedicada de 429 no front (hoje cai no
 erro genérico de auth — só dispara sob abuso).
 
-**Correção sobre a `SigningKey` (2026-09-12):** este parágrafo listava "`SigningKey` como segredo
-de ambiente" como dívida de código, e isso é impreciso — o `JwtOptionsValidator` **já recusa no
+**Correção sobre a `SigningKey` (2026-09-12):** o parágrafo "Ainda em aberto (deferido de
+propósito)" listava "`SigningKey` como segredo de ambiente" como dívida de código, e isso é
+impreciso — o `JwtOptionsValidator` **já recusa no
 startup** o valor de placeholder commitado (`JwtOptions.SigningKeyPlaceholder`) e exige no mínimo
 `TamanhoMinimoDaSigningKeyEmBytes` bytes. O que falta não é código: é **procedimento de deploy** —
 fornecer a `SigningKey` por variável de ambiente na VPS, em vez de deixar o `appsettings.json` com
