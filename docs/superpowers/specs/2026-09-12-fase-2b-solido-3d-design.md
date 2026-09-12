@@ -78,6 +78,32 @@ Alternativas descartadas: **disco do servidor com caminho em `ArquivoSolido`** (
 própria `dbo.Componente`** (mistura catálogo com binário e exigiria cuidado em toda listagem para
 não arrastar o blob — cuidado que é disciplina, enquanto a tabela separada é desenho).
 
+**Esta decisão REVERTE uma decisão documentada, e isso não pode entrar em silêncio.** Achado depois
+da aprovação do desenho, ao ler o schema para escrever o plano: o comentário da coluna
+`ArquivoSolido` em `02-modelo-de-dados.sql` argumenta **explicitamente contra `VARBINARY(MAX)`**, e
+dá três razões — arquivo de CAD é da ordem de MB; *"o pipeline de silhuetas precisa do arquivo em
+disco para alimentar a ferramenta CAD"*; e a API de upload fica mais simples. Ele nomeia o custo que
+aceitava (backup não atômico, arquivo órfão possível) e se fecha assim: **"decisão reversível
+enquanto ninguém gravar dado de verdade"**. Ninguém gravou — a coluna nunca foi escrita por código
+algum —, então a reversão é exatamente o que aquela nota previa. As três razões, respondidas uma a
+uma:
+
+- **"arquivo de CAD é da ordem de MB"** — verdade, e é o que o limite de §5.1 governa. Não é
+  argumento contra blob: o espaço é o mesmo nos dois desenhos (ver a correção de premissa acima).
+- **"o pipeline de silhuetas precisa do arquivo em disco"** — é o único custo real que a reversão
+  cria, e ele **não estava registrado no desenho até aqui**. Se o spike da busca por foto acontecer,
+  o pipeline terá de **materializar um arquivo temporário** a partir do blob antes de chamar a
+  ferramenta. Custo pequeno (escrever um temp file) e localizado num trabalho que está fora das
+  fases e condicionado a spike — mas é custo, e fica escrito para quem executar o spike não o
+  descobrir como surpresa.
+- **"a API de upload fica mais simples"** — não se sustentou: a API recebe `IFormFile` do mesmo
+  jeito nos dois casos. O que muda é o destino de dois métodos de repositório, não a forma do
+  endpoint.
+
+**A Task 2 do plano reescreve esse comentário**, não o apaga: o novo texto tem de dizer por que é
+blob **e** responder ao pipeline de silhuetas. Apagar o argumento antigo deixaria a próxima pessoa
+refazendo a mesma análise sem saber que ela já foi feita duas vezes.
+
 ### 2.3 Exibição: viewer three.js no desktop, carregado sob demanda
 
 Quem precisa ver o sólido girando é **PCP/Administrador no desktop, ao cadastrar** — o viewer serve
