@@ -82,25 +82,57 @@ GO
    CATÁLOGO (receita padrão / template reutilizável entre pedidos)
    --------------------------------------------------------------------- */
 
+/* Blob do arquivo de Componente. Tabela SEPARADA de dbo.Componente de proposito: o catalogo e
+   listado paginado, e VARBINARY(MAX) na mesma linha convidaria a arrastar megabytes numa
+   listagem. Serve as DUAS colunas de arquivo de Componente -- hoje so o solido tem consumidor
+   (Fase 2B); a foto entra depois com uma FK nova e um validador diferente, sem mudar esta tabela. */
+CREATE TABLE dbo.ArquivoDeComponente (
+    Id                  INT IDENTITY(1,1)   NOT NULL,
+    NomeOriginal        NVARCHAR(260)       NOT NULL, -- o nome que o usuario subiu: exibicao na tela e Content-Disposition do download
+    Conteudo            VARBINARY(MAX)      NOT NULL,
+    TamanhoEmBytes      INT                 NOT NULL, -- exibir tamanho sem tocar no blob. INT chega a 2 GB, muito acima do limite de 16 MiB da aplicacao
+    Sha256              BINARY(32)          NOT NULL, -- integridade, e permite reconhecer subida repetida do mesmo arquivo
+    CriadoEm            DATETIME2           NOT NULL CONSTRAINT DF_ArquivoDeComponente_CriadoEm DEFAULT (SYSUTCDATETIME()),
+    CriadoPorUsuarioId  INT                 NOT NULL,
+    CONSTRAINT PK_ArquivoDeComponente PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_ArquivoDeComponente_CriadoPorUsuario FOREIGN KEY (CriadoPorUsuarioId)
+        REFERENCES dbo.Usuario(Id),
+    -- Arquivo de zero byte nao e arquivo. O limite SUPERIOR (16 MiB) fica na aplicacao, nao aqui:
+    -- excecao de CHECK sobe como SqlException e vira 500, e o cliente merece 400 -- mesmo criterio
+    -- de Componente.Tipo e Agrupamento.Tipo.
+    CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0)
+);
+
 CREATE TABLE dbo.Componente (
     Id              INT IDENTITY(1,1)   NOT NULL,
     Codigo          NVARCHAR(50)        NOT NULL, -- identificador unico da peca de catalogo NESTE sistema; alfanumerico. O sistema nao modela a numeracao do cliente (nem toda peca chega com codigo, e varia por cliente) -- ver glossario em 01
     Descricao       NVARCHAR(200)       NOT NULL,
     Tipo            NVARCHAR(20)        NOT NULL, -- Bruto | Fabricado | Montagem
-    -- Referencia (caminho relativo) ao arquivo do solido 3D exportado do CAD -- STEP ou STL, nao
-    -- .SLDPRT (formato proprietario). NULLABLE de proposito: a obrigatoriedade e de negocio e vale
-    -- para Peca de Pedido, nao para toda linha de catalogo (um Componente 'Bruto' nao tem solido),
-    -- e o banco nao consegue distinguir os dois casos aqui -- ver regra 18 em 01.
-    -- Por que caminho e nao VARBINARY(MAX): arquivo de CAD e da ordem de MB, o pipeline de
-    -- silhuetas precisa do arquivo em disco para alimentar a ferramenta CAD, e a API de upload
-    -- fica mais simples. Custo aceito e nomeado: backup deixa de ser atomico e arquivo orfao
-    -- vira possivel. Decisao reversivel enquanto ninguem gravar dado de verdade.
-    ArquivoSolido   NVARCHAR(260)       NULL,
+    -- Solido 3D (STL) do Componente, em dbo.ArquivoDeComponente. NULLABLE de proposito: a
+    -- obrigatoriedade e de negocio e vale para Peca de Pedido, nao para toda linha de catalogo (um
+    -- Componente 'Bruto' nao tem solido), e o banco nao consegue distinguir os dois casos aqui --
+    -- ver regra 18 em 01. Quem cobra e MontagemDeEstruturaUseCase.CriarPeca.
+    --
+    -- Por que BLOB em tabela propria, e nao caminho de arquivo (2026-09-12, Fase 2B): esta coluna
+    -- ERA NVARCHAR(260) com caminho relativo, e o comentario de entao argumentava contra
+    -- VARBINARY(MAX). A reversao e a que aquela nota previa -- ela se fechava com "decisao
+    -- reversivel enquanto ninguem gravar dado de verdade", e ninguem gravou: nenhum codigo jamais
+    -- escreveu a coluna antiga. O ganho do blob e OPERACIONAL, nao de espaco (o binario ocupa
+    -- disco igual nos dois desenhos): backup unico, sem pasta nem permissao de escrita como passo
+    -- de deploy, e registro que nao pode divergir do arquivo.
+    --
+    -- O argumento antigo que a reversao CUSTA, registrado para nao ser redescoberto: o pipeline de
+    -- silhuetas da busca por foto (fora das fases, condicionado a spike) queria o arquivo em disco
+    -- para alimentar a ferramenta CAD. Com blob, ele tera de materializar um arquivo temporario.
+    -- Custo pequeno e localizado, mas real.
+    ArquivoSolidoId INT                 NULL,
     ArquivoFoto     NVARCHAR(260)       NULL,     -- foto de referencia, OPCIONAL: ajuda o operador a reconhecer a peca. Nao substitui o solido
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Componente_Ativo DEFAULT (1),
     CONSTRAINT PK_Componente PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Componente_Codigo UNIQUE (Codigo),
-    CONSTRAINT CK_Componente_Tipo CHECK (Tipo IN ('Bruto', 'Fabricado', 'Montagem'))
+    CONSTRAINT CK_Componente_Tipo CHECK (Tipo IN ('Bruto', 'Fabricado', 'Montagem')),
+    CONSTRAINT FK_Componente_ArquivoSolido FOREIGN KEY (ArquivoSolidoId)
+        REFERENCES dbo.ArquivoDeComponente(Id)
 );
 
 -- Receita padrão: de quais componentes-filho um componente-pai é composto

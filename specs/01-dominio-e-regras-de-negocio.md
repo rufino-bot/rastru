@@ -9,7 +9,7 @@
 | **Agrupamento** | Agrupamento de Peças dentro de um Pedido. Um Pedido tem N Agrupamentos. Tem um **Tipo**: 'Kit' (peças que vão para a solda, juntas) ou 'Avulso' (peças que não passam por solda). O Tipo é descritivo — não impõe roteiro. |
 | **Componente** | Registro de **catálogo** (receita padrão/template), reutilizável entre Pedidos. Não é a instância física — é a definição. |
 | **Componente.Codigo** | O **identificador único da peça de catálogo** dentro deste sistema. É **alfanumérico** (`NVARCHAR(50)`) e **único global** (`UQ_Componente_Codigo`). Decisão do dono do projeto (2026-08-03): **o sistema não modela a numeração do cliente.** Nem toda peça chega com código definido pelo cliente, e o critério varia de cliente para cliente — essa regra **não é absorvida aqui**. O que vale é que toda peça de catálogo tenha um identificador único neste sistema, o que é o que permite reconhecê-la quando ela é pedida **várias vezes ao longo do ano**. Quem cadastra atribui o valor (reaproveitando o código do cliente quando existir); o sistema não gera nem valida formato. Consequência operacional a vigiar: o ganho depende de a peça repetida ser **encontrada e reutilizada**, não recadastrada sob um código novo — cadastro duplicado sob códigos diferentes não viola nenhuma constraint e passa despercebido. |
-| **Componente.ArquivoSolido** | Referência ao arquivo de **sólido 3D** (CAD) da peça de catálogo — STEP ou STL. É obrigação de negócio para toda Peça de Pedido, mas coluna **nullable** por não valer para todo Componente; ver regra 18. `Componente.ArquivoFoto`, ao lado, é uma foto de referência **opcional**. |
+| **Componente.ArquivoSolidoId** | Referência (FK para `dbo.ArquivoDeComponente`) ao arquivo de **sólido 3D** (CAD) da peça de catálogo — **STL**, e só (decisão de 2026-09-12, do usuário: o three.js lê STL nativamente, enquanto STEP exigiria parser de terceiros no navegador; `.SLDPRT` continua fora, por ser proprietário). É obrigação de negócio para toda Peça de Pedido, mas coluna **nullable** por não valer para todo Componente; ver regra 18. `Componente.ArquivoFoto`, ao lado, é uma foto de referência **opcional**. |
 | **EstruturaItem** | A árvore **real** usada em um Agrupamento específico, podendo ter sido copiada do catálogo (`Componente`) e customizada. É recursiva: um `EstruturaItem` pode ter `EstruturaItem` filhos. O nó de topo (sem pai) é chamado de **Peça**; os nós com pai são chamados de **Item**. Representa um **lote agregado** (quantidade), não uma unidade física individual — e esse lote é divisível por quantidades livres (ver regra 9). |
 | **EstruturaItem.Descricao** | Nome próprio do nó dentro do Agrupamento. NULL = usa a descrição do `Componente` de origem. Serve ao item **ad-hoc** (`ComponenteId` NULL), que sem ela chega sem nome nenhum à tela do operador; ver regra 19. |
 | **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
@@ -80,9 +80,11 @@
 
 18. **Toda Peça que um Pedido precisa tem um sólido 3D** — é obrigação do negócio, anterior a
     este sistema: a peça não entra em produção sem o arquivo de CAD. O sistema guarda a
-    referência em `Componente.ArquivoSolido` (STEP ou STL — `.SLDPRT` é proprietário e não é
-    lido). **A coluna é nullable e isso é deliberado**: a obrigatoriedade vale para *Peça de
-    Pedido*, não para toda linha de catálogo — um `Componente` do tipo `Bruto` não tem sólido —
+    referência em `Componente.ArquivoSolidoId` (**STL**, e só — decisão de 2026-09-12, do usuário:
+    o three.js lê STL nativamente, enquanto STEP exigiria parser de terceiros no navegador;
+    `.SLDPRT` continua fora, por ser proprietário). **A coluna é nullable e isso é deliberado**:
+    a obrigatoriedade vale para *Peça de Pedido*, não para toda linha de catálogo — um
+    `Componente` do tipo `Bruto` não tem sólido —
     e o banco não distingue os dois casos nessa tabela. Logo, é regra de aplicação, cobrada na
     Fase 2B — onde nasce o upload que permite preenchê-la; a Fase 2 fechou só o gancho, a
     constraint `CK_EstruturaItem_PecaTemComponente` —, não constraint de schema.
@@ -101,7 +103,7 @@
 
     Precisão que importa: a constraint garante que existe **onde** pendurar o sólido. Que ele
     esteja *preenchido* continua regra de aplicação — um `CHECK` não alcança outra tabela, e
-    `ArquivoSolido` segue nullable por causa do `Bruto`.
+    `ArquivoSolidoId` segue nullable por causa do `Bruto`.
 
     Motivação registrada, porque é o que sustenta o custo de "peça de uma vez só vira linha de
     catálogo":
@@ -118,7 +120,7 @@
       recai sobre a mesma disciplina registrada em `Componente.Codigo` — o ganho depende de a peça
       repetida ser **encontrada e reutilizada**, não recadastrada sob código novo.
 
-    Alternativas descartadas: repetir `ArquivoSolido` em `EstruturaItem` (dois lugares para olhar,
+    Alternativas descartadas: repetir `ArquivoSolidoId` em `EstruturaItem` (dois lugares para olhar,
     e abre override de geometria — se a geometria mudou não é mais a mesma peça; nota que em
     `Descricao` o override é útil, em geometria é perigoso, por isso a mesma forma dá respostas
     diferentes nos dois campos); e aceitar Peça sem sólido (a regra 18 viraria "quase toda peça",

@@ -164,18 +164,19 @@ resolvidos (ou conscientemente adiados).
 
 ## Fase 2B — Sólido 3D da Peça
 
-- Upload e exibição de `Componente.ArquivoSolido` (sólido 3D) e a regra de negócio que o exige
-  por Peça de Pedido — segunda metade da regra 18 de `01`: a Fase 2 fechou só o **gancho**
-  (a constraint `CK_EstruturaItem_PecaTemComponente`, que garante que toda Peça tem onde pendurar
-  o sólido); exigir o arquivo
-  **preenchido** é validação de aplicação, cobrada só a partir desta fase, porque é aqui que
-  nasce o upload que permite preenchê-lo — cobrar antes travaria a verificação manual (o
+- Upload e exibição de `Componente.ArquivoSolidoId` (sólido 3D, guardado em blob na tabela
+  `dbo.ArquivoDeComponente`) e a regra de negócio que o exige por Peça de Pedido — segunda metade
+  da regra 18 de `01`: a Fase 2 fechou só o **gancho** (a constraint
+  `CK_EstruturaItem_PecaTemComponente`, que garante que toda Peça tem onde pendurar o sólido);
+  exigir o arquivo **preenchido** é validação de aplicação, cobrada só a partir desta fase, porque
+  é aqui que nasce o upload que permite preenchê-lo — cobrar antes travaria a verificação manual (o
   `seed-demo` não tem sólido em nenhum dos Componentes).
-- Como as colunas nasceram depois do banco de dev, aplicar os `ALTER` idempotentes de
-  `ArquivoSolido`/`ArquivoFoto` ao iniciar a fase, no mesmo padrão dos demais em `CLAUDE.md`.
-  **Não se aplica a um banco regenerado:** o banco de dev foi recriado em 2026-08-04 a partir
-  deste `.sql`, então as colunas já vieram no `CREATE`. Vale só para instalação anterior a essa
-  data.
+- **Diferente das colunas de fases anteriores, o schema desta fase não espera "início de fase" para
+  ser aplicado**: a Task 1 já criou a tabela `dbo.ArquivoDeComponente`, já trocou
+  `Componente.ArquivoSolido` por `Componente.ArquivoSolidoId` em `02-modelo-de-dados.sql` e já
+  aplicou os três `CREATE`/`ALTER` idempotentes correspondentes no banco de dev — documentados no
+  `CLAUDE.md`, e **não** no-op nesta máquina (o banco foi regenerado em 2026-08-04, antes de este
+  schema existir).
 - Critério de pronto: dá para fazer upload do sólido de um `Componente` pela tela, e a regra 18
   passa a ser cobrada de verdade — Peça sem sólido preenchido no `Componente` de origem é
   recusada.
@@ -261,7 +262,7 @@ compound file com estruturas fechadas), sem biblioteca aberta confiável. As ún
 SolidWorks** (exige SolidWorks instalado e licenciado na máquina do servidor — inviável para uma API
 web hospedada numa VPS, mais ainda do que seria num servidor on-premise: não há máquina servidora
 da empresa para instalar o SolidWorks, e licenciar a ferramenta só para rodar numa VPS de terceiros
-não se sustenta). É a mesma razão pela qual `Componente.ArquivoSolido` já é **STEP ou STL, não
+não se sustenta). É a mesma razão pela qual `Componente.ArquivoSolidoId` já é **STL, e só, não
 `.SLDPRT`** (ver `02-modelo-de-dados.sql`); a regra vale um nível acima, para a montagem.
 
 O BOM indentado carrega **nível de indentação, part number, descrição e quantidade** — que é
@@ -270,8 +271,9 @@ literalmente a forma de `ComponenteFilhoPadrao` (pai → filho + `QuantidadePadr
 proprietária.
 
 Alternativa descartada por agora, não por ser ruim: **STEP AP242/AP214 da montagem** — formato ISO
-aberto, seria o mesmo arquivo que já serve ao sólido, mas o parser é bem mais pesado e o STEP
-costuma trazer **nome de arquivo** em vez de part number, o que piora a conferência.
+aberto, mas que com STL-only (ver glossário em `01`, `Componente.ArquivoSolidoId`) deixou de ser o
+mesmo arquivo que já serve ao sólido; o parser também é bem mais pesado e o STEP costuma trazer
+**nome de arquivo** em vez de part number, o que piora a conferência.
 
 **Conciliação part number ↔ `Componente.Codigo`: resolvida como regra de negócio.** O sistema não
 modela a numeração do cliente (ver glossário em `01`), então o código do CAD pode não ser o `Codigo`

@@ -603,6 +603,23 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_EstruturaItem_PecaTemComponente') ALTER TABLE dbo.EstruturaItem ADD CONSTRAINT CK_EstruturaItem_PecaTemComponente CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL);"
 ```
 
+Na Fase 2B entra o schema do sólido em blob (ver `02-modelo-de-dados.sql`, tabela
+`dbo.ArquivoDeComponente`). **Estes três blocos também NÃO são no-op nesta máquina**, pelo mesmo
+motivo do bloco da constraint `CK_EstruturaItem_PecaTemComponente`: o banco foi regenerado em
+2026-08-04, antes de este schema existir.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF OBJECT_ID('dbo.ArquivoDeComponente') IS NULL CREATE TABLE dbo.ArquivoDeComponente (Id INT IDENTITY(1,1) NOT NULL, NomeOriginal NVARCHAR(260) NOT NULL, Conteudo VARBINARY(MAX) NOT NULL, TamanhoEmBytes INT NOT NULL, Sha256 BINARY(32) NOT NULL, CriadoEm DATETIME2 NOT NULL CONSTRAINT DF_ArquivoDeComponente_CriadoEm DEFAULT (SYSUTCDATETIME()), CriadoPorUsuarioId INT NOT NULL, CONSTRAINT PK_ArquivoDeComponente PRIMARY KEY CLUSTERED (Id), CONSTRAINT FK_ArquivoDeComponente_CriadoPorUsuario FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario(Id), CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0));"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Componente','ArquivoSolidoId') IS NULL ALTER TABLE dbo.Componente ADD ArquivoSolidoId INT NULL CONSTRAINT FK_Componente_ArquivoSolido FOREIGN KEY REFERENCES dbo.ArquivoDeComponente(Id);"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Componente','ArquivoSolido') IS NOT NULL ALTER TABLE dbo.Componente DROP COLUMN ArquivoSolido;"
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
