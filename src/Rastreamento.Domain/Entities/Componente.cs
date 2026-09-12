@@ -16,7 +16,19 @@ public class Componente
   /// <summary>Catalogo nao se exclui, se inativa: EstruturaItem aponta para o Componente.</summary>
   public bool Ativo { get; set; }
 
-  // ArquivoSolido e ArquivoFoto existem em dbo.Componente e NAO sao mapeadas aqui de proposito:
-  // upload e a regra 18 (solido obrigatorio por Peca de Pedido) sao trabalho da Fase 2. Colunas
-  // nullable, entao o INSERT do EF sem elas e valido.
+  /// <summary>
+  /// Solido 3D (STL) em <see cref="ArquivoDeComponente"/>. Nullable porque a obrigatoriedade e de
+  /// negocio e vale para Peca de Pedido, nao para toda linha de catalogo (regra 18) — quem cobra e
+  /// <c>MontagemDeEstruturaUseCase.CriarPeca</c>.
+  ///
+  /// <para>
+  /// Escalar, SEM propriedade de navegacao, e isso e desenho e nao esquecimento: sem navegacao nao
+  /// existe <c>Include</c> que arraste o VARBINARY(MAX) para uma listagem paginada de catalogo. O
+  /// blob so e lido pelo repositorio do arquivo, por consulta propria.
+  /// </para>
+  /// </summary>
+  public int? ArquivoSolidoId { get; set; }
+
+  // ArquivoFoto existe em dbo.Componente e NAO e mapeada aqui: a foto esta fora do escopo da Fase
+  // 2B (decisao do usuario). Coluna nullable, entao o INSERT do EF sem ela e valido.
 }

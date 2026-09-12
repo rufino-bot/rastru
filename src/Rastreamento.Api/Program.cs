@@ -116,6 +116,7 @@ builder.Services.AddScoped<CadastroDePedidoUseCase>();
 builder.Services.AddScoped<IAgrupamentoRepository, AgrupamentoRepository>();
 builder.Services.AddScoped<CadastroDeAgrupamentoUseCase>();
 builder.Services.AddScoped<IComponenteRepository, ComponenteRepository>();
+builder.Services.AddScoped<IArquivoDeComponenteRepository, ArquivoDeComponenteRepository>();
 builder.Services.AddScoped<CadastroDeComponenteUseCase>();
 
 // Receita padrao do Componente (Fase 1C): UM repositorio para as tres tabelas, e um caso de uso
