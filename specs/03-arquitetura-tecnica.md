@@ -120,7 +120,7 @@ reais de frequência.
 
 - SQL Server na VPS, conforme `02-modelo-de-dados.sql`.
 - Sugestão: ambiente de desenvolvimento local via Docker (`mcr.microsoft.com/mssql/server`)
-  para os agents/desenvolvedores rodarem o schema sem depender do servidor da empresa
+  para os agents/desenvolvedores rodarem o schema sem depender do banco da VPS
   durante o desenvolvimento; deploy final aponta para a VPS.
 
 ## Hospedagem
@@ -159,8 +159,10 @@ próprio.
 Biblioteca de componentes React (ver a seção "Frontend — React + TypeScript") e estratégia de auth
 (ver a seção "Autenticação e Autorização") já resolvidas. O hosting exato (IIS vs. container)
 dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento — mas não é mais o único
-ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem") destrava três itens de dívida
-de endurecimento, cada um com o mesmo gatilho, **obrigatório antes do primeiro deploy público**:
+ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem") torna exigíveis três itens de
+dívida de endurecimento — os dois primeiros porque é a **exposição pública** que os cria, o
+terceiro porque é um **deploy real** que o cobra, com ou sem exposição —, e os três carregam o
+mesmo gatilho, **obrigatório antes do primeiro deploy público**:
 
 1. **TLS é pré-requisito de funcionamento, não melhoria.** O cookie de refresh é gravado com
    `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP — **exceto em
