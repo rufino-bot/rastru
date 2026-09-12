@@ -90,8 +90,16 @@ CREATE TABLE dbo.ArquivoDeComponente (
     Id                  INT IDENTITY(1,1)   NOT NULL,
     NomeOriginal        NVARCHAR(260)       NOT NULL, -- o nome que o usuario subiu: exibicao na tela e Content-Disposition do download
     Conteudo            VARBINARY(MAX)      NOT NULL,
-    TamanhoEmBytes      INT                 NOT NULL, -- exibir tamanho sem tocar no blob. INT chega a 2 GB, muito acima do limite de 16 MiB da aplicacao
-    Sha256              BINARY(32)          NOT NULL, -- integridade, e permite reconhecer subida repetida do mesmo arquivo
+    -- Calculada pelo banco (emenda de 2026-09-12, apos review da Task 2 da Fase 2B): enquanto era
+    -- coluna comum, o invariante TamanhoEmBytes == DATALENGTH(Conteudo) nao tinha dono nem guarda --
+    -- se o caso de uso do upload errasse, o tamanho exibido mentia em silencio. O SQL Server recusa
+    -- escrita nela (Msg 271), o que torna o invariante inviolavel em vez de apenas disciplinado.
+    -- DATALENGTH sobre VARBINARY(MAX) devolve BIGINT -- o CAST mantem INT (medido na bancada).
+    TamanhoEmBytes      AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED,
+    -- Idem, mesmo motivo. HASHBYTES('SHA2_256', ...) sozinho produz VARBINARY(8000) (medido na
+    -- bancada, achado alem das cinco medicoes da spec): o CAST para BINARY(32) preserva o tipo fixo
+    -- de 32 bytes do SHA-256, que e o que o mapeamento EF (HasColumnType) espera.
+    Sha256              AS CAST(HASHBYTES('SHA2_256', Conteudo) AS BINARY(32)) PERSISTED,
     CriadoEm            DATETIME2           NOT NULL CONSTRAINT DF_ArquivoDeComponente_CriadoEm DEFAULT (SYSUTCDATETIME()),
     CriadoPorUsuarioId  INT                 NOT NULL,
     CONSTRAINT PK_ArquivoDeComponente PRIMARY KEY CLUSTERED (Id),

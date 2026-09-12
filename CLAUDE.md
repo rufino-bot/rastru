@@ -606,18 +606,44 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
 Na Fase 2B entra o schema do sólido em blob (ver `02-modelo-de-dados.sql`, tabela
 `dbo.ArquivoDeComponente`). **Estes três blocos também NÃO são no-op nesta máquina**, pelo mesmo
 motivo do bloco da constraint `CK_EstruturaItem_PecaTemComponente`: o banco foi regenerado em
-2026-08-04, antes de este schema existir.
+2026-08-04, antes de este schema existir. **`TamanhoEmBytes` e `Sha256` já nascem como colunas
+calculadas** no `CREATE TABLE` abaixo — quem aplicar este bloco pela primeira vez não precisa do
+bloco de conversão seguinte.
 
 ```bash
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
-  -Q "IF OBJECT_ID('dbo.ArquivoDeComponente') IS NULL CREATE TABLE dbo.ArquivoDeComponente (Id INT IDENTITY(1,1) NOT NULL, NomeOriginal NVARCHAR(260) NOT NULL, Conteudo VARBINARY(MAX) NOT NULL, TamanhoEmBytes INT NOT NULL, Sha256 BINARY(32) NOT NULL, CriadoEm DATETIME2 NOT NULL CONSTRAINT DF_ArquivoDeComponente_CriadoEm DEFAULT (SYSUTCDATETIME()), CriadoPorUsuarioId INT NOT NULL, CONSTRAINT PK_ArquivoDeComponente PRIMARY KEY CLUSTERED (Id), CONSTRAINT FK_ArquivoDeComponente_CriadoPorUsuario FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario(Id), CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0));"
+  -Q "IF OBJECT_ID('dbo.ArquivoDeComponente') IS NULL CREATE TABLE dbo.ArquivoDeComponente (Id INT IDENTITY(1,1) NOT NULL, NomeOriginal NVARCHAR(260) NOT NULL, Conteudo VARBINARY(MAX) NOT NULL, TamanhoEmBytes AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED, Sha256 AS CAST(HASHBYTES('SHA2_256', Conteudo) AS BINARY(32)) PERSISTED, CriadoEm DATETIME2 NOT NULL CONSTRAINT DF_ArquivoDeComponente_CriadoEm DEFAULT (SYSUTCDATETIME()), CriadoPorUsuarioId INT NOT NULL, CONSTRAINT PK_ArquivoDeComponente PRIMARY KEY CLUSTERED (Id), CONSTRAINT FK_ArquivoDeComponente_CriadoPorUsuario FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario(Id), CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0));"
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF COL_LENGTH('dbo.Componente','ArquivoSolidoId') IS NULL ALTER TABLE dbo.Componente ADD ArquivoSolidoId INT NULL CONSTRAINT FK_Componente_ArquivoSolido FOREIGN KEY REFERENCES dbo.ArquivoDeComponente(Id);"
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF COL_LENGTH('dbo.Componente','ArquivoSolido') IS NOT NULL ALTER TABLE dbo.Componente DROP COLUMN ArquivoSolido;"
+```
+
+**Emenda de 2026-09-12** (decisão do usuário, durante o fix pass da Task 2 da Fase 2B):
+`TamanhoEmBytes` e `Sha256` viraram colunas **calculadas `PERSISTED`** — ver §4.1 da spec de Fase 2B
+para o raciocínio. Quem tiver um banco em que a Task 1 já rodou com as duas como colunas comuns
+converte com o bloco abaixo, **nesta ordem** (o `CHECK` depende da coluna, por isso vem primeiro o
+`DROP CONSTRAINT` e por último o `ADD CONSTRAINT`). Idempotente: uma coluna já computed não é
+recriada. **Medido nesta máquina, 2026-09-12** — `HASHBYTES('SHA2_256', ...)` sem `CAST` produz
+`VARBINARY(8000)`, não `BINARY(32)`; o `CAST` para `BINARY(32)` é o que preserva o tipo fixo que o
+mapeamento EF espera (achado além das cinco medições que a spec já trazia).
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ArquivoDeComponente_Tamanho') ALTER TABLE dbo.ArquivoDeComponente DROP CONSTRAINT CK_ArquivoDeComponente_Tamanho;"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COLUMNPROPERTY(OBJECT_ID('dbo.ArquivoDeComponente'), 'TamanhoEmBytes', 'IsComputed') = 0 ALTER TABLE dbo.ArquivoDeComponente DROP COLUMN TamanhoEmBytes; IF COLUMNPROPERTY(OBJECT_ID('dbo.ArquivoDeComponente'), 'Sha256', 'IsComputed') = 0 ALTER TABLE dbo.ArquivoDeComponente DROP COLUMN Sha256;"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.ArquivoDeComponente', 'TamanhoEmBytes') IS NULL ALTER TABLE dbo.ArquivoDeComponente ADD TamanhoEmBytes AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED; IF COL_LENGTH('dbo.ArquivoDeComponente', 'Sha256') IS NULL ALTER TABLE dbo.ArquivoDeComponente ADD Sha256 AS CAST(HASHBYTES('SHA2_256', Conteudo) AS BINARY(32)) PERSISTED;"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ArquivoDeComponente_Tamanho') ALTER TABLE dbo.ArquivoDeComponente ADD CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0);"
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
