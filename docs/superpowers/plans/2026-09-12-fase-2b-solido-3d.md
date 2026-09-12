@@ -327,8 +327,12 @@ using Rastreamento.Infrastructure.Persistence;
 
 namespace Rastreamento.Infrastructure.Tests.Persistence;
 
-[Collection(nameof(ColecaoQueEscreveEmComponente))]
-public class ArquivoDeComponenteMapeamentoTests
+// A string vem da CONSTANTE, nao de `nameof`: o `[CollectionDefinition]` da classe usa
+// `ColecaoQueEscreveEmComponente.Nome` ("escritores de dbo.Componente"), e `nameof` produziria
+// outra string. O atributo compilaria, o teste passaria, e a serializacao NAO aconteceria —
+// falha silenciosa. (Corrigido em 2026-09-12: o plano trazia `nameof` aqui, medido errado.)
+[Collection(ColecaoQueEscreveEmComponente.Nome)]
+public class ArquivoDeComponenteMapeamentoTests : TesteComBanco
 {
   private static byte[] ConteudoDeTeste() => [0x01, 0x02, 0x03, 0x04];
 
@@ -345,7 +349,7 @@ public class ArquivoDeComponenteMapeamentoTests
   [Fact]
   public async Task Arquivo_grava_e_le_o_blob_de_volta_byte_a_byte()
   {
-    await using var db = FabricaDeContexto.Criar();
+    await using var db = NovoContexto();
     var usuarioId = await db.Usuarios.Select(u => u.Id).FirstAsync();
 
     var arquivo = NovoArquivo(usuarioId);
@@ -370,7 +374,7 @@ public class ArquivoDeComponenteMapeamentoTests
   [Fact]
   public async Task Componente_guarda_o_ArquivoSolidoId_e_a_listagem_nao_traz_o_blob()
   {
-    await using var db = FabricaDeContexto.Criar();
+    await using var db = NovoContexto();
     var usuarioId = await db.Usuarios.Select(u => u.Id).FirstAsync();
 
     var arquivo = NovoArquivo(usuarioId);
@@ -409,7 +413,7 @@ public class ArquivoDeComponenteMapeamentoTests
 }
 ```
 
-**Antes de escrever este arquivo, leia `tests/Rastreamento.Infrastructure.Tests/Persistence/ComponenteMappingTests.cs`** e use o mesmo mecanismo de criação de contexto que ele usa — o nome `FabricaDeContexto.Criar()` acima é um **espaço reservado pelo nome do papel**, não uma promessa de que a classe se chama assim. Se o projeto criar o contexto por outro caminho, use aquele e registre no relatório da task.
+**O mecanismo de contexto está MEDIDO, não é mais espaço reservado** (2026-09-12): os testes de Infrastructure herdam de `TesteComBanco` (no namespace raiz do projeto de teste) e chamam `NovoContexto()`, que já carrega a connection string do container de dev. Leia `ComponenteMappingTests` para o padrão de prefixo único por teste — é o que mantém as asserções independentes de a tabela estar vazia.
 
 - [ ] **Step 2: Rodar e ver falhar**
 
@@ -2053,7 +2057,9 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 2. **A mutação 1 do Step 6 da Task 3 pode não matar.** A fixture com cabeçalho `"solid"` talvez não prove a ordem das tentativas, porque o ASCII-check também exige `facet normal`. O plano manda medir e fortalecer a fixture, e proíbe afirmar cobertura que não existe.
 3. **A mutação 1 do Step 6 da Task 7 provavelmente não mata.** Nenhum teste de jsdom distingue import estático de dinâmico — a única prova é o chunk do build, e o plano manda registrar o tamanho dos chunks em vez de alegar cobertura.
 4. **A mutação 2 do Step 11 da Task 3 passa por coincidência numérica** (o componente do teste é o 10, que é o literal). O plano manda acrescentar o segundo componente. Mesmo formato do achado B11 da Fase 1A.
-5. **`FabricaDeContexto.Criar()` (Task 2) e `erroDaResposta` (Task 6) são espaços reservados pelo NOME DO PAPEL, não promessas de API.** O plano diz explicitamente para ler o arquivo real e usar o mecanismo que está lá. São os dois únicos lugares assim, e estão marcados como tais.
+5. **Sobrou UM espaço reservado pelo nome do papel: `erroDaResposta` (Task 6).** O plano diz para ler `web/src/api/cadastros.ts` e usar o mecanismo que está lá.
+
+   **O outro já foi resolvido por medição, e o que ele escondia vale registrar.** A Task 2 trazia `FabricaDeContexto.Criar()`; o mecanismo real é herdar de `TesteComBanco` e chamar `NovoContexto()`, e o plano foi corrigido em 2026-09-12. Ao medir isso, apareceu um **segundo defeito do plano, deste tipo silencioso**: o plano escrevia `[Collection(nameof(ColecaoQueEscreveEmComponente))]`, mas a definição real usa a constante `ColecaoQueEscreveEmComponente.Nome`, cujo valor é `"escritores de dbo.Componente"`. Com `nameof`, o atributo **compila**, o teste **passa**, e a serialização contra a tabela compartilhada **não acontece** — a proteção contra o flake existiria só no texto. Corrigido, e a razão está escrita como comentário no próprio código da task.
 6. **A ordem dos campos de `ComponenteDto` no Step 2 da Task 6 está errada de propósito no bloco de código, e o texto logo abaixo diz isso** — copie a ordem do arquivo real.
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
