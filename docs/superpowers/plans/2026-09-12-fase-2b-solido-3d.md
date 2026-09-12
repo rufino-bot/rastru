@@ -1522,6 +1522,11 @@ E em `CriarPeca`, **depois** da guarda de agrupamento e **antes** de `PlanejarCo
 
 **Remova o comentário antigo** que dizia que a segunda metade da regra 18 não é cobrada ali e que quem fecha é a 2B — ele deixa de ser verdade exatamente aqui, e um comentário que afirma o contrário do código é pior que nenhum.
 
+**Duas coisas a mais neste mesmo comentário, achadas pela re-review da Task 1 e propagadas para cá:**
+
+1. **Ele cita `Componente.ArquivoSolido`, coluna que a Task 1 REMOVEU do schema.** Hoje é referência a coluna inexistente. Corrija para `ArquivoSolidoId` de passagem — a Task 1 não podia fazê-lo (delta de teste zero, escopo de schema e prosa), e esta task é a primeira a tocar o método.
+2. **O comentário da coluna em `02-modelo-de-dados.sql` aponta para este método e delega a ele o estado da guarda** — a frase lá diz "o comentário daquele método diz se a guarda já está lá". Então, ao acrescentar a guarda, **o comentário deste método tem de passar a dizer que ela existe**. Se ficar dizendo que a regra não é cobrada aqui, o `.sql` passa a apontar para uma informação falsa, e o defeito reaparece do outro lado da indireção.
+
 - [ ] **Step 5: Rodar e ver passar**
 
 ```bash
