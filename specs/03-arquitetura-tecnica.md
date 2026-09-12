@@ -118,22 +118,28 @@ reais de frequência.
 
 ## Banco de dados
 
-- SQL Server on-premise, conforme `02-modelo-de-dados.sql`.
+- SQL Server na VPS, conforme `02-modelo-de-dados.sql`.
 - Sugestão: ambiente de desenvolvimento local via Docker (`mcr.microsoft.com/mssql/server`)
   para os agents/desenvolvedores rodarem o schema sem depender do servidor da empresa
-  durante o desenvolvimento; deploy final aponta para o servidor on-premise real.
+  durante o desenvolvimento; deploy final aponta para a VPS.
 
-## Hospedagem on-premise
+## Hospedagem
+
+VPS paga com domínio próprio, escolhida em 2026-09-12. Motivo declarado pelo usuário: deixar o
+link de acesso do Rastru mais "produto" — em vez de um endereço de rede interna, um domínio
+próprio.
 
 - Backend: IIS (hosting model padrão .NET) ou container Docker + reverse proxy
-  (ex.: nginx), a definir conforme o que já existe de infraestrutura na empresa.
+  (ex.: nginx), a definir conforme o que a VPS oferecer.
 - Frontend: build estático (Vite build) servido pelo próprio IIS/nginx, ou embutido como
-  arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy on-premise
+  arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy numa VPS
   com uma única aplicação publicada. **Atenção de ordem de pipeline se for este o caminho:**
   `UseStaticFiles` / `MapFallbackToFile` precisam ser registrados **antes** da guarda do prefixo
   `/api` (ver abaixo e `Program.cs`) — ela é um 404 cego para tudo que não começa com `/api`, e
-  registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA. Hoje não se
-  aplica: não há `UseStaticFiles` em `src/`.
+  registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA. Numa VPS de
+  origem única (SPA e API na mesma aplicação publicada) esse caminho fica **mais** provável do
+  que quando a infraestrutura era decidida pela empresa. Hoje não se aplica: não há
+  `UseStaticFiles` em `src/`.
 - **Se o SPA e a API ficarem na mesma origem** (o segundo caso acima, e o mais provável: o cookie
   de refresh é `SameSite=Strict`, que inviabiliza cross-site), era obrigatório que os caminhos nus
   da API tivessem parado de responder antes do deploy — senão a colisão entre rota de SPA e rota
@@ -145,11 +151,30 @@ reais de frequência.
 ## CI/CD
 
 - **Não existe pipeline hoje.** Deploy inicial será manual — publicar build do backend
-  (IIS ou container) e do frontend direto no servidor on-premise. Automatizar (Azure
-  DevOps, GitHub Actions self-hosted, etc.) fica como melhoria futura, fora do MVP.
+  (IIS ou container) e do frontend direto na VPS. Automatizar (Azure DevOps, GitHub
+  Actions self-hosted, etc.) fica como melhoria futura, fora do MVP.
 
 ## Pontos em aberto
 
-Biblioteca de componentes React e estratégia de auth já resolvidas (ver acima). Resta apenas
-o hosting exato (IIS vs. container), que pode ser decidido no deploy sem bloquear o
-desenvolvimento.
+Biblioteca de componentes React e estratégia de auth já resolvidas (ver acima). O hosting exato
+(IIS vs. container) dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento —
+mas não é mais o único ponto em aberto: a escolha da VPS pública (ver "Hospedagem", acima) destrava
+três itens de dívida de endurecimento, cada um com o mesmo gatilho, **obrigatório antes do
+primeiro deploy público**:
+
+1. **TLS é pré-requisito de funcionamento, não melhoria.** O cookie de refresh é gravado com
+   `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP. Sem TLS na
+   VPS, o login funciona e o refresh **nunca**: a sessão morre em 15 minutos sem renovar, e o
+   sintoma não aponta para a causa. `UseHttpsRedirection` não existe em `src/`.
+2. **`ForwardedHeaders` não está configurado.** Com um proxy reverso na frente (nginx/Caddy), o
+   rate limit por IP do `/auth/login` vira global — todos os clientes passam a compartilhar o IP
+   do proxy — e o log de auth grava o IP do proxy em vez do cliente. As duas defesas continuam de
+   pé, mas passam a medir a coisa errada.
+3. **Retrancar conta não tem limite, e a exposição muda de tamanho.** O trade-off já está
+   registrado no `CLAUDE.md`: quem sabe um nome de usuário segura a conta trancada indefinidamente
+   com poucas dezenas de requisições por hora. Era risco de alguém na rede interna da empresa;
+   numa VPS pública passa a ser risco de qualquer um na internet. Não é para consertar aqui — é
+   para o trade-off não continuar escrito como se o contexto de exposição fosse o mesmo.
+
+**O endurecimento acima não é desta fase.** Vira item próprio na fila, em branch separada —
+decisão do usuário: misturar infraestrutura na branch da Fase 2B poluiria a review dela.

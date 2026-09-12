@@ -17,7 +17,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 
 - **Backend**: .NET (C#), ASP.NET Core Web API
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA no MVP)
-- **Banco**: SQL Server, on-premise
+- **Banco**: SQL Server, numa VPS paga com domínio próprio
 - **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
 - **CI/CD**: nenhum ainda — deploy manual no MVP
 
@@ -679,5 +679,12 @@ frente da API, configurar `ForwardedHeaders` — senão todos os clientes compar
 o limite vira global por acidente. Flag de deploy, ainda não necessária (deploy manual, sem proxy).
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
-`RefreshToken` expiradas; `SigningKey` como segredo de ambiente e `UseHttpsRedirection`; mensagem
-dedicada de 429 no front (hoje cai no erro genérico de auth — só dispara sob abuso).
+`RefreshToken` expiradas; `UseHttpsRedirection`; mensagem dedicada de 429 no front (hoje cai no
+erro genérico de auth — só dispara sob abuso).
+
+**Correção sobre a `SigningKey` (2026-09-12):** este parágrafo listava "`SigningKey` como segredo
+de ambiente" como dívida de código, e isso é impreciso — o `JwtOptionsValidator` **já recusa no
+startup** o valor de placeholder commitado (`JwtOptions.SigningKeyPlaceholder`) e exige no mínimo
+`TamanhoMinimoDaSigningKeyEmBytes` bytes. O que falta não é código: é **procedimento de deploy** —
+fornecer a `SigningKey` por variável de ambiente na VPS, em vez de deixar o `appsettings.json` com
+o placeholder. Listá-la como dívida de código faria alguém reimplementar uma guarda que já existe.

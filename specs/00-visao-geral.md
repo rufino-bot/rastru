@@ -42,7 +42,7 @@ perfil (não é "todo usuário vê tudo").
 | Backend      | .NET (C#), ASP.NET Core Web API                          |
 | Frontend     | React + TypeScript, responsivo (mobile-first, uso em Android via navegador) |
 | Banco        | SQL Server                                                |
-| Hospedagem   | On-premise (servidor próprio da empresa)                  |
+| Hospedagem   | VPS paga, com domínio próprio                             |
 
 ## Documentos desta pasta
 

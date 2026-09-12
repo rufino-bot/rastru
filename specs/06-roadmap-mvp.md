@@ -259,7 +259,9 @@ Por que **não** ler `.SLDASM` direto: é formato proprietário e não documenta
 compound file com estruturas fechadas), sem biblioteca aberta confiável. As únicas saídas seriam a
 **SolidWorks Document Manager API** (exige chave de licença da Dassault) ou a **API COM do
 SolidWorks** (exige SolidWorks instalado e licenciado na máquina do servidor — inviável para uma API
-web on-premise). É a mesma razão pela qual `Componente.ArquivoSolido` já é **STEP ou STL, não
+web hospedada numa VPS, mais ainda do que seria num servidor on-premise: não há máquina da empresa
+para instalar o SolidWorks, e licenciar a ferramenta só para rodar numa VPS de terceiros não se
+sustenta). É a mesma razão pela qual `Componente.ArquivoSolido` já é **STEP ou STL, não
 `.SLDPRT`** (ver `02-modelo-de-dados.sql`); a regra vale um nível acima, para a montagem.
 
 O BOM indentado carrega **nível de indentação, part number, descrição e quantidade** — que é
