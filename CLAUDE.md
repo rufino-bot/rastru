@@ -19,7 +19,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA no MVP)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
 - **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
-- **CI/CD**: nenhum ainda — deploy manual no MVP
+- **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
 
 ## Mapa da pasta `specs/`
 
@@ -635,7 +635,13 @@ First, o `.sql` é a fonte de verdade.
   apagando uma trava recém-criada; benigno, porque quem venceu a race provou a senha certa. O que
   **não** acontece: uma trava que nunca libera. O timestamp da trava é capturado antes do BCrypt
   rodar, então uma requisição atrasada só consegue estender a trava pela duração dela mesma, nunca
-  travar por mais tempo que isso.
+  travar por mais tempo que isso. **Exposição mudou de tamanho com a VPS pública (2026-09-12):** o
+  retrancamento sem limite descrito neste bullet ("de um único IP") descrevia alguém na rede
+  interna da empresa; numa VPS com domínio próprio (ver a seção "Hospedagem" de
+  `specs/03-arquitetura-tecnica.md`) o mesmo ataque fica disponível a qualquer um na internet. Não
+  é para consertar nesta fase — diferente de TLS, `ForwardedHeaders` e `SigningKey`, que a seção
+  "Pontos em aberto" do mesmo arquivo lista com gatilho de pré-deploy, este é só o registro de que
+  o risco cresceu, sem prazo associado.
 - **Rate limit por IP no `/auth/login`:** `RateLimit:PermitLimit` (10) por
   `RateLimit:WindowSeconds` (60), janela fixa, 429 com `Retry-After`. O `/auth/refresh` fica de
   fora de propósito — ver `specs/05-api-endpoints.md`, que registra a isenção e a consequência dela
@@ -676,16 +682,28 @@ alguns segundos após a rotação) porque isso reabriria a mesma corrida que o `
 
 **Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
 frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
-o limite vira global por acidente. Flag de deploy, ainda não necessária (deploy manual, sem proxy).
+o limite vira global por acidente. Com a hospedagem decidida como VPS pública (2026-09-12,
+`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), o proxy reverso deixou de ser hipotético —
+`ForwardedHeaders` está registrado como dívida com gatilho **"obrigatório antes do primeiro deploy
+público"** na seção "Pontos em aberto" do mesmo arquivo.
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
-`RefreshToken` expiradas; `UseHttpsRedirection`; mensagem dedicada de 429 no front (hoje cai no
-erro genérico de auth — só dispara sob abuso).
+`RefreshToken` expiradas; mensagem dedicada de 429 no front (hoje cai no erro genérico de auth — só
+dispara sob abuso). **`UseHttpsRedirection` saiu desta lista em 2026-09-12:** com a hospedagem
+decidida como VPS pública (`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), TLS deixou de
+ser melhoria deferida e passou a pré-requisito de funcionamento — está registrado com gatilho
+**"obrigatório antes do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo,
+junto de `ForwardedHeaders` e da `SigningKey`.
 
 **Correção sobre a `SigningKey` (2026-09-12):** o parágrafo "Ainda em aberto (deferido de
 propósito)" listava "`SigningKey` como segredo de ambiente" como dívida de código, e isso é
-impreciso — o `JwtOptionsValidator` **já recusa no
-startup** o valor de placeholder commitado (`JwtOptions.SigningKeyPlaceholder`) e exige no mínimo
-`TamanhoMinimoDaSigningKeyEmBytes` bytes. O que falta não é código: é **procedimento de deploy** —
-fornecer a `SigningKey` por variável de ambiente na VPS, em vez de deixar o `appsettings.json` com
-o placeholder. Listá-la como dívida de código faria alguém reimplementar uma guarda que já existe.
+impreciso — o `JwtOptionsValidator` **já recusa no startup** o valor de placeholder commitado
+(`JwtOptions.SigningKeyPlaceholder`) e exige no mínimo `TamanhoMinimoDaSigningKeyEmBytes` (32)
+bytes. O que falta não é código: é **procedimento de deploy** — fornecer a `SigningKey` por
+variável de ambiente na VPS, em vez de deixar o `appsettings.json` com o placeholder. Listá-la
+como dívida de código faria alguém reimplementar uma guarda que já existe. Esse procedimento de
+deploy está registrado com o mesmo gatilho de TLS e `ForwardedHeaders` — **"obrigatório antes do
+primeiro deploy público"** — na seção "Pontos em aberto" de `specs/03-arquitetura-tecnica.md`; o
+atenuante que essa lista registra e vale repetir aqui: como o validador roda em
+`.ValidateOnStart()`, esquecer o procedimento **derruba a aplicação no startup** (falha alta e
+imediata), não deixa uma chave fraca passar em silêncio.

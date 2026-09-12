@@ -166,9 +166,12 @@ misturar infraestrutura na branch da 2B poluiria a review de branch dela. Decis�
 
 1. **TLS deixa de ser melhoria e passa a ser pré-requisito de funcionamento.** O cookie de refresh
    é gravado com `Secure = true` (medido no `AuthController`), e navegador não grava cookie `Secure`
-   em HTTP. Numa VPS sem TLS o login funciona e o refresh **nunca**: a sessão morre em 15 minutos
-   sem renovar, e o sintoma não aponta para a causa. `UseHttpsRedirection` não existe em `src/`
-   (medido: `grep -rn "UseHttpsRedirection" src/` devolve zero).
+   em HTTP — exceto em `localhost`, que os navegadores tratam como contexto seguro mesmo sem TLS (é
+   por isso que o refresh funciona hoje em desenvolvimento; ver o comentário da entrada `/api` do
+   proxy em `web/vite.config.ts`). Um domínio próprio numa VPS não tem essa isenção: sem TLS ali, o
+   login funciona e o refresh **nunca**: a sessão morre em 15 minutos sem renovar, e o sintoma não
+   aponta para a causa. `UseHttpsRedirection` não existe em `src/` (medido: `grep -rn
+   "UseHttpsRedirection" src/` devolve zero).
 2. **`ForwardedHeaders` não existe em `src/`** — só comentários dizendo que, havendo proxy, precisa
    ser configurado. Com nginx/Caddy na frente numa VPS, o rate limit por IP do `/auth/login` vira
    **global** (todos os clientes compartilham o IP do proxy) e o log de auth grava o IP do proxy em

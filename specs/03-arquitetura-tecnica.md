@@ -156,26 +156,37 @@ próprio.
 
 ## Pontos em aberto
 
-Biblioteca de componentes React e estratégia de auth já resolvidas (ver acima). O hosting exato
-(IIS vs. container) dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento —
-mas não é mais o único ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem")
-destrava três itens de dívida de endurecimento, cada um com o mesmo gatilho, **obrigatório antes
-do primeiro deploy público**:
+Biblioteca de componentes React (ver a seção "Frontend — React + TypeScript") e estratégia de auth
+(ver a seção "Autenticação e Autorização") já resolvidas. O hosting exato (IIS vs. container)
+dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento — mas não é mais o único
+ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem") destrava três itens de dívida
+de endurecimento, cada um com o mesmo gatilho, **obrigatório antes do primeiro deploy público**:
 
 1. **TLS é pré-requisito de funcionamento, não melhoria.** O cookie de refresh é gravado com
-   `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP. Sem TLS na
-   VPS, o login funciona e o refresh **nunca**: a sessão morre em 15 minutos sem renovar, e o
-   sintoma não aponta para a causa. `UseHttpsRedirection` não existe em `src/`.
+   `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP — **exceto em
+   `localhost`, que os navegadores tratam como contexto seguro mesmo sem TLS** (é por isso que o
+   refresh funciona em desenvolvimento; ver o comentário da entrada `/api` do proxy em
+   `web/vite.config.ts`). Um domínio próprio numa VPS não tem essa isenção: sem TLS ali, o login
+   funciona e o refresh **nunca**: a sessão morre em 15 minutos sem renovar, e o sintoma não aponta
+   para a causa. `UseHttpsRedirection` não existe em `src/`.
 2. **`ForwardedHeaders` não está configurado.** Com um proxy reverso na frente (nginx/Caddy), o
    rate limit por IP do `/auth/login` vira global — todos os clientes passam a compartilhar o IP
    do proxy — e o log de auth grava o IP do proxy em vez do cliente. As duas defesas continuam de
    pé, mas passam a medir a coisa errada.
-3. **Retrancar conta não tem limite, e a exposição muda de tamanho.** O trade-off já está
-   registrado no `CLAUDE.md`: quem sabe um nome de usuário segura a conta trancada indefinidamente
-   com poucas dezenas de requisições por hora. Era risco de alguém na rede interna da empresa;
-   numa VPS pública passa a ser risco de qualquer um na internet. Não é para consertar aqui — é
-   para o trade-off não continuar escrito como se o contexto de exposição fosse o mesmo.
+3. **A `SigningKey` já tem o procedimento de validação certo — falta o de deploy.** O
+   `JwtOptionsValidator` já recusa, no startup (`.ValidateOnStart()`), o valor de placeholder
+   commitado e exige no mínimo 32 bytes: esquecer de trocá-la **derruba a aplicação ao subir**, não
+   fica como chave fraca em silêncio — o requisito de fornecê-la por variável de ambiente na VPS
+   continua valendo, com o mesmo gatilho de TLS e `ForwardedHeaders`; o que muda é o risco de
+   esquecer, não a obrigação.
 
 **Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
-fila, em branch separada —
-decisão do usuário: misturar infraestrutura na branch da Fase 2B poluiria a review dela.
+fila, em branch separada — decisão do usuário: misturar infraestrutura na branch da Fase 2B
+poluiria a review dela.
+
+Um quarto ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
+(seção "Defesas de autenticação em vigor", bullet "Lockout de conta") que retrancar conta não tem
+limite. Era risco de alguém na rede interna da empresa; numa VPS pública o mesmo ataque fica
+disponível a qualquer um na internet — a mudança de exposição está anotada junto daquele bullet.
+Não é para consertar nesta fase, e não carrega o gatilho de pré-deploy de TLS, `ForwardedHeaders`
+e `SigningKey`.
