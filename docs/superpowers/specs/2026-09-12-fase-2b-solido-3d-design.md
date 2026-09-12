@@ -200,7 +200,7 @@ EF sai do novo schema. Nada de `Add-Migration`.
 | `NomeOriginal` | `NVARCHAR(260) NOT NULL` | o nome que o usuário subiu — exibição na tela e `Content-Disposition` do download |
 | `Conteudo` | `VARBINARY(MAX) NOT NULL` | o STL |
 | `TamanhoEmBytes` | **`AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED`** | exibir tamanho sem tocar no blob — **calculada pelo banco** (ver abaixo) |
-| `Sha256` | **`AS HASHBYTES('SHA2_256', Conteudo) PERSISTED`** | integridade, e reconhecer subida repetida — **calculada pelo banco** |
+| `Sha256` | **`AS CAST(HASHBYTES('SHA2_256', Conteudo) AS BINARY(32)) PERSISTED`** | integridade, e reconhecer subida repetida — **calculada pelo banco** |
 | `CriadoEm` | `DATETIME2 NOT NULL DEFAULT (SYSUTCDATETIME())` | mesmo padrão de `Agrupamento` |
 | `CriadoPorUsuarioId` | `INT NOT NULL FK → dbo.Usuario(Id)` | autoria, mesmo padrão de `Pedido` e `Agrupamento` |
 
@@ -224,6 +224,13 @@ preferir guarda executável a comentário.
 - **`CHECK` sobre coluna calculada é aceito**, e continua recusando blob vazio.
 - `HASHBYTES('SHA2_256', …)` funciona sobre blob grande (provado com 20.000 bytes). O limite de
   8.000 bytes é de versões antigas do SQL Server, não desta.
+- **Uma SEXTA medição, achada pelo fix pass e não por mim — e ela corrige um erro desta spec:**
+  `HASHBYTES('SHA2_256', …)` **sem `CAST` produz uma coluna `VARBINARY(8000)`**, não `BINARY(32)`.
+  A primeira redação desta tabela trazia o DDL do hash sem `CAST`, o que divergiria do `BINARY(32)`
+  declarado na tabela original e do `HasColumnType("binary(32)")` do mapeamento EF. É a **mesma
+  causa** do `CAST` que o tamanho já exigia — eu medi o tipo de retorno do `DATALENGTH` e **não**
+  medi o do `HASHBYTES`, tendo conferido apenas que os *dados* tinham 32 bytes. Conferido no banco
+  depois da correção: `Sha256 → binary(32) computed=1`.
 - **O SQL Server recusa escrita na coluna**: *"cannot be modified because it is either a computed
   column…"*. É isso que torna o invariante inviolável.
 
