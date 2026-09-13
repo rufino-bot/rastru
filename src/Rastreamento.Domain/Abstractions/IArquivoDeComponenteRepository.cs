@@ -45,8 +45,9 @@ public interface IArquivoDeComponenteRepository
   /// <summary>
   /// Nome e tamanho do solido, SEM o <c>Conteudo</c> — projecao explicita, nunca <c>Include</c>
   /// (nao ha navegacao para <c>ArquivoDeComponente</c>, por desenho: ver
-  /// <see cref="Componente.ArquivoSolidoId"/>). Mesmo colapso do metodo acima: <c>null</c> quando
-  /// o componente nao existe OU nao tem solido.
+  /// <see cref="Componente.ArquivoSolidoId"/>). Mesmo colapso de
+  /// <see cref="ObterSolidoDoComponenteAsync"/>: <c>null</c> quando o componente nao existe OU nao
+  /// tem solido.
   /// </summary>
   Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(int componenteId, CancellationToken ct);
 }

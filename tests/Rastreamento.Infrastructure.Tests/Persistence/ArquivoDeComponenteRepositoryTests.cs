@@ -55,9 +55,11 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
   /// Duas chamadas a SaveChanges, NUNCA uma so: sem navegacao entre Componente e
   /// ArquivoDeComponente (por desenho), o EF nao enxerga FK_Componente_ArquivoSolido no modelo e
   /// nao sabe ordenar os deletes -- medido: um SaveChanges so, com os dois Remove juntos, viola a
-  /// FK porque o EF as vezes tenta apagar o ArquivoDeComponente antes do Componente que aponta
-  /// para ele. Apagar o Componente (quem tem a FK) primeiro, e so depois o arquivo, evita a corrida
-  /// com a propria ordem que o EF escolheria sozinho.
+  /// FK em 3 de 3 execucoes, porque o EF escolhe apagar o ArquivoDeComponente antes do Componente
+  /// que aponta para ele. Nao e intermitencia nem concorrencia: os dois Remove iriam no MESMO
+  /// SaveChanges, numa thread so, e a ordem que o EF escolhe sem o metadado da FK e
+  /// deterministica para este modelo -- deterministica e errada. Apagar o Componente (quem tem a
+  /// FK) primeiro, e so depois o arquivo, deixa de depender dessa ordem.
   /// </summary>
   private static async Task LimparAsync(int componenteId, params int[] arquivoIds)
   {

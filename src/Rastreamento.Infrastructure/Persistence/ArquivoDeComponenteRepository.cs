@@ -75,8 +75,9 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
   }
 
   // Duas consultas em vez de um JOIN com navegacao: a navegacao e justamente o que nao existe,
-  // por desenho. Este SELECT le SO o id -- nao toca no blob nem no nome -- e serve os dois
-  // metodos publicos acima (o que traz o blob e o que traz so o metadado).
+  // por desenho. Este SELECT le SO o id -- nao toca no blob nem no nome -- e serve
+  // ObterSolidoDoComponenteAsync (que traz o blob) e ObterMetadadoDoSolidoAsync (que traz so o
+  // metadado).
   private async Task<int?> ObterArquivoIdAsync(int componenteId, CancellationToken ct) =>
       await _db.Componentes.AsNoTracking()
           .Where(c => c.Id == componenteId)
