@@ -1292,7 +1292,13 @@ git commit -m "feat(fase-2b): validador de STL em tres camadas e caso de uso do 
 > - `CadastroDeComponenteUseCase.Obter` precisa do metadado do sólido, mas o construtor recebe **um
 >   parâmetro só**, e **21 testes o instanciam literalmente** (`new CadastroDeComponenteUseCase(repo)`),
 >   sem helper nenhum — `grep -c "new CadastroDeComponenteUseCase" ` no arquivo de teste devolve 21.
-> - `ComponenteDto` é construído posicionalmente em **4 lugares** fora da própria declaração.
+> - `ComponenteDto` é construído em **UM** lugar só: o `Projetar` do caso de uso, e via `new(...)`
+>   target-typed, que **não repete o nome do tipo**. CORRIGIDO em 2026-09-13, e as duas medições
+>   erradas ficam escritas porque a lição é o método, não o número: `grep "ComponenteDto("` devolve
+>   **4**, e as quatro são falso positivo por substring de `NovoComponenteDto`; o mesmo grep
+>   ancorado no início do identificador devolve **0**, falso negativo porque `new(...)` omite o
+>   nome. O valor certo é **1**, e foi achado por LEITURA — nenhuma das duas varreduras o acha.
+>   O número 4 saiu no brief da Task 4 e foi o implementer que o derrubou.
 > - O **controller não muda**: `Obter` devolve `IActionResult` e faz `Ok(resultado.Valor)`, que
 >   serializa o que vier. O tipo novo passa por ele sem tocá-lo.
 >
