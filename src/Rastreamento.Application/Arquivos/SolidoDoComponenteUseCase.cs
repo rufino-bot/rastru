@@ -45,8 +45,9 @@ public sealed class SolidoDoComponenteUseCase
     };
     // O null do repositorio tambem e "componente nao existe" -- checagem que a Task 2 passou a
     // fazer dentro da transacao, ANTES do primeiro SaveChanges. Aqui ele e defesa em profundidade:
-    // a checagem logo acima ja barrou esse caso, e so um componente que desaparecesse entre as
-    // duas chamadas chegaria aqui. Nao ha teste que mate este `if` -- o dominio DESATIVA
+    // a checagem de existencia do componente, via _componentes.ObterPorIdAsync, ja descartou esse
+    // caso, e so um componente que desaparecesse entre as duas chamadas chegaria aqui. Nao ha
+    // teste que mate este `if` -- o dominio DESATIVA
     // Componente, nunca apaga (medido na re-review da Task 2), entao o cenario nao e alcancavel
     // sem injetar falha. Ignorar o retorno e que seria errado: devolveria Ok() sem ter gravado.
     if (await _arquivos.GravarEVincularComoSolidoAsync(componenteId, arquivo, ct) is null)

@@ -67,6 +67,36 @@ public class ValidadorDeArquivoStlTests
   }
 
   [Fact]
+  public void No_limite_exato_de_16_MiB_e_aceito()
+  {
+    // Fecha a lacuna achada na review: so existia teste para 16 MiB + 1 (recusado). Um STL
+    // binario de EXATAMENTE 16 MiB nao existe pela formula 84+50n -- (16*1024*1024 - 84) / 50 nao
+    // e inteiro -- entao a fixture precisa ser ASCII. EhAsciiCoerente le so os 4096 primeiros
+    // bytes (StartsWith "solid" e Contains "facet normal"); o preenchimento apos o cabeçalho ASCII
+    // fica fora dessa amostra e nao interfere na checagem estrutural.
+    var conteudo = new byte[ValidadorDeArquivoStl.TamanhoMaximoEmBytes];
+    StlDeTeste.Ascii().CopyTo(conteudo, 0);
+    // Comprimento afirmado explicitamente, nao presumido da alocacao: deixa claro que a fixture
+    // tem o tamanho EXATO do limite, nem um byte a menos nem a mais.
+    Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes, conteudo.Length);
+
+    Assert.Null(ValidadorDeArquivoStl.Validar("cubo.stl", conteudo));
+  }
+
+  [Fact]
+  public void Ascii_com_espaco_em_branco_antes_do_cabecalho_e_aceito()
+  {
+    // Fecha a lacuna achada na review: nenhuma fixture tinha espaco em branco antes de "solid",
+    // entao a robustez que o TrimStart() promete (aceitar STL ASCII com espaco/quebra de linha
+    // antes do cabecalho) nao estava provada por nenhum teste.
+    var comEspaco = System.Text.Encoding.UTF8.GetBytes("   \n")
+        .Concat(StlDeTeste.Ascii())
+        .ToArray();
+
+    Assert.Null(ValidadorDeArquivoStl.Validar("cubo.stl", comEspaco));
+  }
+
+  [Fact]
   public void Binario_com_contagem_de_triangulos_que_nao_bate_com_o_tamanho_e_recusado()
   {
     // O coracao da terceira camada: 12 triangulos declarados, um triangulo a menos gravado.
