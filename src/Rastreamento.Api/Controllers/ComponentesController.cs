@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Cadastros;
 
 namespace Rastreamento.Api.Controllers;
@@ -18,8 +19,13 @@ public class ComponentesController : CadastroControllerBase
   private const string PerfisDeEscrita = "Administrador,PCP";
 
   private readonly CadastroDeComponenteUseCase _cadastro;
+  private readonly SolidoDoComponenteUseCase _solido;
 
-  public ComponentesController(CadastroDeComponenteUseCase cadastro) => _cadastro = cadastro;
+  public ComponentesController(CadastroDeComponenteUseCase cadastro, SolidoDoComponenteUseCase solido)
+  {
+    _cadastro = cadastro;
+    _solido = solido;
+  }
 
   /// <summary>
   /// Unica falha possivel aqui e faixa de paginacao invalida (400) — por isso a traducao e direta
@@ -92,6 +98,44 @@ public class ComponentesController : CadastroControllerBase
   public async Task<IActionResult> DefinirAtivo(
       int id, [FromBody] DefinirAtivoDto corpo, CancellationToken ct) =>
       TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo!.Value, ct));
+
+  /// <summary>
+  /// Envia (ou SUBSTITUI) o solido 3D do Componente. `RequestSizeLimit` espelha o limite do
+  /// validador: sem ele, um arquivo de 20 MiB seria lido inteiro em memoria antes de a validacao
+  /// dizer que nao servia. Passar do limite responde 413, nao 400 — e resposta do pipeline, nao do
+  /// caso de uso.
+  /// </summary>
+  [HttpPost("{id:int}/solido")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes)]
+  public async Task<IActionResult> EnviarSolido(
+      int id, IFormFile arquivo, CancellationToken ct)
+  {
+    var usuarioId = UsuarioDaSessao();
+    if (usuarioId is null) return Unauthorized();
+
+    using var memoria = new MemoryStream();
+    await arquivo.CopyToAsync(memoria, ct);
+
+    var resultado = await _solido.Enviar(
+        id, arquivo.FileName, memoria.ToArray(), usuarioId.Value, ct);
+
+    return TraduzirResultado(resultado);
+  }
+
+  /// <summary>
+  /// SEM `[Authorize(Roles)]`: leitura e de qualquer autenticado, e o gate e o `[Authorize]` de
+  /// classe — molde de `Obter`. Serve o download E o viewer: um endpoint, dois consumidores.
+  /// </summary>
+  [HttpGet("{id:int}/solido")]
+  public async Task<IActionResult> ObterSolido(int id, CancellationToken ct)
+  {
+    var resultado = await _solido.Obter(id, ct);
+    if (!resultado.Sucesso) return NotFound();
+
+    return File(
+        resultado.Valor!.Conteudo, "application/octet-stream", resultado.Valor!.NomeOriginal);
+  }
 
   /// <summary>Como Componente pergunta pelo duplicado: por codigo (UQ_Componente_Codigo).</summary>
   private LocalizadorDeDuplicado Duplicado(string codigo) =>

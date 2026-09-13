@@ -119,11 +119,26 @@ public sealed record NovoAgrupamentoDto(
 // ---------------------------------------------------------------------------
 
 /// <remarks>
-/// Sem `ArquivoSolido`/`ArquivoFoto`: as colunas existem em `dbo.Componente`, mas upload e a
-/// regra 18 sao trabalho da Fase 2, e a entidade da 1B nao as mapeia.
+/// `TemSolido` e booleano, e nao o id do arquivo, de proposito: a tela nao precisa do id — a rota
+/// do binario e `GET componentes/{id}/solido`, pelo id do COMPONENTE — e expor um id de arquivo
+/// abriria um segundo caminho para o mesmo recurso. `ArquivoFoto` continua de fora: a foto esta
+/// fora do escopo da Fase 2B.
 /// </remarks>
 public sealed record ComponenteDto(
-    int Id, string Codigo, string Descricao, string Tipo, bool Ativo);
+    int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido);
+
+/// <remarks>
+/// Projecao PROPRIA, e nao um campo a mais em <c>ComponenteDto</c>: a listagem nao tem de onde
+/// tirar nome e tamanho sem um JOIN, e deixar os dois nulos na listagem faria o MESMO campo
+/// significar duas coisas -- "nao tem solido" e "nao pedi" -- que e defeito de contrato. Ver §5.2
+/// da spec da Fase 2B, que registra tambem a objecao que NAO se sustentou: um JOIN traria
+/// NomeOriginal (nvarchar 260) e TamanhoEmBytes (int), e nao violaria a §4.3, cuja protecao e
+/// contra arrastar o VARBINARY(MAX). O JOIN foi descartado por manter a listagem simples.
+/// Os dois campos de solido sao nulos JUNTOS: nulos quando nao ha solido, preenchidos quando ha.
+/// </remarks>
+public sealed record ComponenteDetalheDto(
+    int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido,
+    string? NomeDoSolido, int? TamanhoDoSolidoEmBytes);
 
 /// <remarks>
 /// Os `MaxLength` espelham `dbo.Componente`: NVARCHAR(50), (200) e (20). Mesma regra de alvo do

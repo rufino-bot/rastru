@@ -136,6 +136,11 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST componentes"] = ["Administrador", "PCP"],
     ["PUT componentes/{id:int}"] = ["Administrador", "PCP"],
     ["PATCH componentes/{id:int}/ativo"] = ["Administrador", "PCP"],
+    // Solido 3D (Fase 2B, Task 4): mesmos perfis do proprio Componente -- mesmo `PerfisDeEscrita`
+    // do controller, e mesma decisao de 2026-08-04 (quem planeja producao e quem conhece a peca).
+    // O GET nao entra: leitura e de qualquer autenticado, sem `Roles` (mesmo criterio das rotas de
+    // receita padrao logo abaixo).
+    ["POST componentes/{id:int}/solido"] = ["Administrador", "PCP"],
 
     // Receita padrao (Fase 1C): mesmos perfis do proprio Componente. Os tres GET nao entram —
     // leitura e de qualquer autenticado, e endpoint sem `Roles` nao e assunto desta tabela.
