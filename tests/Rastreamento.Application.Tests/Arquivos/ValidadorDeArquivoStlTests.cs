@@ -71,9 +71,11 @@ public class ValidadorDeArquivoStlTests
   {
     // Fecha a lacuna achada na review: so existia teste para 16 MiB + 1 (recusado). Um STL
     // binario de EXATAMENTE 16 MiB nao existe pela formula 84+50n -- (16*1024*1024 - 84) / 50 nao
-    // e inteiro -- entao a fixture precisa ser ASCII. EhAsciiCoerente le so os 4096 primeiros
-    // bytes (StartsWith "solid" e Contains "facet normal"); o preenchimento apos o cabeçalho ASCII
-    // fica fora dessa amostra e nao interfere na checagem estrutural.
+    // e inteiro -- entao a fixture precisa ser ASCII. EhAsciiCoerente le os 4096 primeiros bytes
+    // (StartsWith "solid" e Contains "facet normal"), e a re-review mediu que 3.956 bytes do
+    // preenchimento caem DENTRO dessa amostra -- nao e a POSICAO que os torna inofensivos, como
+    // uma versao anterior deste comentario afirmava. E o CONTEUDO: 0x00 e UTF-8 valido, e as duas
+    // checagens olham o cabecalho, que os zeros nao perturbam.
     var conteudo = new byte[ValidadorDeArquivoStl.TamanhoMaximoEmBytes];
     StlDeTeste.Ascii().CopyTo(conteudo, 0);
     // Comprimento afirmado explicitamente, nao presumido da alocacao: deixa claro que a fixture
