@@ -1279,18 +1279,189 @@ git commit -m "feat(fase-2b): validador de STL em tres camadas e caso de uso do 
 
 ---
 
-## Task 4: Os dois endpoints, e `ComponenteDto.TemSolido`
+## Task 4: Os dois endpoints, `ComponenteDto.TemSolido` e o `ComponenteDetalheDto`
+
+> **EMENDA (B) APLICADA AO TEXTO EM 2026-09-13, pelo controlador, ANTES de despachar.** O texto
+> original desta task **não mencionava o `ComponenteDetalheDto` em uma única linha** — a emenda do
+> topo do plano o exigia, e o `task-brief` extrai somente a seção da task, então o brief teria saído
+> sem ele. Mesmo defeito medido na Task 3.
+>
+> Ao medir o alcance, ele é maior do que a emenda do topo sugeria, e há uma **decisão do usuário**
+> dentro dele. Medido em 2026-09-13:
+>
+> - `CadastroDeComponenteUseCase.Obter` precisa do metadado do sólido, mas o construtor recebe **um
+>   parâmetro só**, e **21 testes o instanciam literalmente** (`new CadastroDeComponenteUseCase(repo)`),
+>   sem helper nenhum — `grep -c "new CadastroDeComponenteUseCase" ` no arquivo de teste devolve 21.
+> - `ComponenteDto` é construído posicionalmente em **4 lugares** fora da própria declaração.
+> - O **controller não muda**: `Obter` devolve `IActionResult` e faz `Ok(resultado.Valor)`, que
+>   serializa o que vier. O tipo novo passa por ele sem tocá-lo.
+>
+> **DECISÃO DO USUÁRIO (2026-09-13), entre dois desenhos apresentados com o custo medido:** injetar
+> `IArquivoDeComponenteRepository` no `CadastroDeComponenteUseCase`, em vez de compor o DTO no
+> controller. O caso de uso devolve o DTO completo e o controller fica magro, como as outras actions.
+> O preço aceito: o caso de uso de cadastro passa a conhecer o repositório de arquivos, e as 21
+> instanciações mudam — **com um helper `Montar`**, que é o conserto que a Fase 2 já aplicou em
+> `CriarPecaTests` pelo mesmo motivo, e não os 21 call sites um a um.
+
+### Steps adicionais da emenda (B) — faça-os junto dos Steps abaixo, não depois
+
+- [ ] **Step B1: O `ComponenteDetalheDto`, em `Dtos.cs`**
+
+Ao lado de `ComponenteDto` (que o Step 2 abaixo altera para ganhar `TemSolido`):
+
+```csharp
+/// <remarks>
+/// Projecao PROPRIA, e nao um campo a mais em <c>ComponenteDto</c>: a listagem nao tem de onde
+/// tirar nome e tamanho sem um JOIN, e deixar os dois nulos na listagem faria o MESMO campo
+/// significar duas coisas -- "nao tem solido" e "nao pedi" -- que e defeito de contrato. Ver §5.2
+/// da spec da Fase 2B, que registra tambem a objecao que NAO se sustentou: um JOIN traria
+/// NomeOriginal (nvarchar 260) e TamanhoEmBytes (int), e nao violaria a §4.3, cuja protecao e
+/// contra arrastar o VARBINARY(MAX). O JOIN foi descartado por manter a listagem simples.
+/// Os dois campos de solido sao nulos JUNTOS: nulos quando nao ha solido, preenchidos quando ha.
+/// </remarks>
+public sealed record ComponenteDetalheDto(
+    int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido,
+    string? NomeDoSolido, int? TamanhoDoSolidoEmBytes);
+```
+
+- [ ] **Step B2: O construtor e o `Obter` do caso de uso**
+
+Em `CadastroDeComponenteUseCase`, o construtor ganha a segunda dependência:
+
+```csharp
+  private readonly IComponenteRepository _repositorio;
+  private readonly IArquivoDeComponenteRepository _arquivos;
+
+  public CadastroDeComponenteUseCase(
+      IComponenteRepository repositorio, IArquivoDeComponenteRepository arquivos)
+  {
+    _repositorio = repositorio;
+    _arquivos = arquivos;
+  }
+```
+
+E o `Obter` passa a devolver o detalhe (o `Projetar` continua existindo e servindo `Cadastrar`,
+`Editar` e `Listar` — **não** o altere para o detalhe):
+
+```csharp
+  public async Task<Result<ComponenteDetalheDto>> Obter(int id, CancellationToken ct)
+  {
+    var componente = await _repositorio.ObterPorIdAsync(id, ct);
+    if (componente is null)
+      return Result<ComponenteDetalheDto>.Falha(
+          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    // Segunda consulta so no DETALHE, nunca na listagem, e so quando ha solido: o curto-circuito
+    // pelo ArquivoSolidoId poupa a ida ao banco no caso comum de componente sem solido. Quem traz
+    // nome e tamanho SEM tocar no blob e ObterMetadadoDoSolidoAsync, que projeta em vez de
+    // materializar a entidade.
+    var metadado = componente.ArquivoSolidoId is null
+        ? null
+        : await _arquivos.ObterMetadadoDoSolidoAsync(id, ct);
+
+    return Result<ComponenteDetalheDto>.Ok(new ComponenteDetalheDto(
+        componente.Id, componente.Codigo, componente.Descricao, componente.Tipo, componente.Ativo,
+        componente.ArquivoSolidoId is not null, metadado?.NomeOriginal, metadado?.TamanhoEmBytes));
+  }
+```
+
+- [ ] **Step B3: O helper `Montar` nos testes, e as 21 chamadas**
+
+Em `tests/Rastreamento.Application.Tests/Cadastros/CadastroDeComponenteUseCaseTests.cs`, acrescente
+o helper e **troque as 21 ocorrências** de `new CadastroDeComponenteUseCase(repo)` por `Montar(repo)`.
+`FakeArquivoDeComponenteRepo` já existe, é `public`, e vive em
+`Rastreamento.Application.Tests.Arquivos` (criado pela Task 3) — reuse-o com um `using`, **não
+duplique um segundo fake**. Escreva no relatório que reusou e de onde.
+
+```csharp
+  /// <summary>
+  /// Ponto unico de construcao do caso de uso. Nasceu na Task 4 da Fase 2B: quando o construtor
+  /// ganhou o repositorio de arquivos, 21 testes deste arquivo o instanciavam literalmente. O
+  /// helper existe para que a PROXIMA dependencia nova toque uma linha, nao vinte e uma -- mesmo
+  /// conserto que a Fase 2 aplicou em CriarPecaTests, e pelo mesmo motivo.
+  /// </summary>
+  private static CadastroDeComponenteUseCase Montar(
+      FakeComponenteRepo repo, FakeArquivoDeComponenteRepo? arquivos = null) =>
+      new(repo, arquivos ?? new FakeArquivoDeComponenteRepo());
+```
+
+- [ ] **Step B4: Os testes do `Obter` com e sem sólido**
+
+Dois casos, e o segundo é o que prova que os campos são nulos **juntos**:
+
+```csharp
+  [Fact]
+  public async Task Obter_de_componente_com_solido_traz_nome_e_tamanho()
+  {
+    var repo = new FakeComponenteRepo(Linha(7, "PEC-007"));
+    repo.Componentes[7].ArquivoSolidoId = 99;
+    var arquivos = new FakeArquivoDeComponenteRepo();
+    arquivos.MetadadoPorComponente[7] = new MetadadoDeSolido("cubo.stl", 684);
+
+    var resultado = await Montar(repo, arquivos).Obter(7, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.True(resultado.Valor!.TemSolido);
+    Assert.Equal("cubo.stl", resultado.Valor.NomeDoSolido);
+    Assert.Equal(684, resultado.Valor.TamanhoDoSolidoEmBytes);
+  }
+
+  [Fact]
+  public async Task Obter_de_componente_sem_solido_deixa_os_dois_campos_nulos()
+  {
+    var repo = new FakeComponenteRepo(Linha(7, "PEC-007"));
+
+    var resultado = await Montar(repo).Obter(7, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.False(resultado.Valor!.TemSolido);
+    // Os DOIS nulos, nao so um: campo de solido preenchido sem TemSolido (ou o inverso) seria
+    // estado impossivel vazando no contrato.
+    Assert.Null(resultado.Valor.NomeDoSolido);
+    Assert.Null(resultado.Valor.TamanhoDoSolidoEmBytes);
+  }
+```
+
+**`FakeArquivoDeComponenteRepo` talvez não exponha `MetadadoPorComponente`** — a Task 3 o escreveu
+derivando o metadado do dicionário de sólidos. **Meça o fake antes de escrever o teste** e escolha:
+ou acrescente o dicionário, ou monte o cenário pelo caminho que o fake já oferece. Diga no relatório
+qual caminho foi, e por quê.
+
+- [ ] **Step B5: Mutação da emenda**
+
+Três, e **registre o que NÃO morreu**:
+
+1. Trocar `metadado?.NomeOriginal` por `null` fixo — deve derrubar `Obter_de_componente_com_solido_traz_nome_e_tamanho`.
+2. Remover o curto-circuito (`componente.ArquivoSolidoId is null ? null :`), consultando sempre —
+   **provavelmente não mata nenhum teste**, porque o fake devolve null de todo modo. Se não matar,
+   **não invente teste para ele**: é otimização de consulta, não regra. Declare a lacuna e o motivo.
+3. Trocar `componente.ArquivoSolidoId is not null` por `metadado is not null` no `TemSolido` — pense
+   se algum teste pega, e diga qual. Os dois são equivalentes hoje **só** porque o curto-circuito
+   existe; se a mutação 2 for aplicada junto, deixam de ser.
+
+- [ ] **Step B6: Os testes de API do detalhe**
+
+`tests/Rastreamento.Api.Tests/ComponentesEndpointsTests.cs` já afirma sobre `GET /componentes/{id}`.
+**Meça o que ele afirma hoje** antes de mexer: se ele desserializa em `ComponenteDto`, o tipo trocou
+e o teste precisa acompanhar. Acrescente **um** caso de ponta a ponta do detalhe com sólido — o
+caminho HTTP inteiro, não só o caso de uso.
+
+
 
 **Files:**
-- Modify: `src/Rastreamento.Application/Cadastros/Dtos.cs`
-- Modify: `src/Rastreamento.Application/Cadastros/CadastroDeComponenteUseCase.cs`
-- Modify: `src/Rastreamento.Api/Controllers/ComponentesController.cs`
+- Modify: `src/Rastreamento.Application/Cadastros/Dtos.cs` (`TemSolido` no `ComponenteDto` + o `ComponenteDetalheDto` novo)
+- Modify: `src/Rastreamento.Application/Cadastros/CadastroDeComponenteUseCase.cs` (construtor, `Obter`, `Projetar`)
+- Modify: `src/Rastreamento.Api/Controllers/ComponentesController.cs` (os dois endpoints do solido; o `Obter` NAO muda -- devolve `IActionResult`, que serializa o tipo novo sem tocar nele)
+- Modify: `tests/Rastreamento.Application.Tests/Cadastros/CadastroDeComponenteUseCaseTests.cs` (helper `Montar` + as 21 chamadas + os dois testes do detalhe -- emenda B)
+- Modify: `tests/Rastreamento.Api.Tests/ComponentesEndpointsTests.cs` (o `GET {id}` trocou de tipo -- emenda B)
+- Modify: `src/Rastreamento.Api/Program.cs` (o DI do caso de uso ganha a segunda dependencia)
 - Create: `tests/Rastreamento.Api.Tests/SolidoEndpointsTests.cs`
 
 **Interfaces:**
 - Consumes: `SolidoDoComponenteUseCase.Enviar` / `.Obter` da Task 3; `UsuarioDaSessao()` de `CadastroControllerBase` (devolve `int?`, lendo a claim `sub`).
 - Produces:
   - `ComponenteDto(int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido)` — **campo novo no FIM do record**, para não reordenar o posicional existente.
+  - `ComponenteDetalheDto(int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido, string? NomeDoSolido, int? TamanhoDoSolidoEmBytes)` -- devolvido SO por `GET /api/componentes/{id}` (emenda B). A **listagem fica intocada**, em `ComponenteDto`.
   - `POST /api/componentes/{id}/solido` (multipart, campo `arquivo`), `GET /api/componentes/{id}/solido`.
 
 - [ ] **Step 1: Medir quem consome `ComponenteDto` antes de mexer**
