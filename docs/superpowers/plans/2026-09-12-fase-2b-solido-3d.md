@@ -671,11 +671,31 @@ git add src/Rastreamento.Domain src/Rastreamento.Infrastructure src/Rastreamento
 git commit -m "feat(fase-2b): entidade, mapeamento e repositorio do arquivo de componente"
 ```
 
-**Delta de teste estimado: +2** (Infrastructure). Baseline estimada ao fim: backend **531** (App 249 · Infra 70 · Api 212) / front 495. **Meça e corrija se divergir.**
+**Delta de teste MEDIDO: +9** (Infrastructure) — a estimativa era +2. Os 7 a mais são os testes de repositório que o **fix pass** acrescentou (a review achou que nenhum teste instanciava `ArquivoDeComponenteRepository`). Baseline MEDIDA ao fim: backend **538** (App 249 · Infra 77 · Api 212) / front 495. As baselines das tasks abaixo foram corrigidas em 2026-09-13 a partir desta.
 
 ---
 
 ## Task 3: Validador de STL e o caso de uso
+
+> **CORRIGIDA EM 2026-09-13, pelo controlador, ANTES de despachar** — a emenda do topo deste plano
+> governava sobre o texto abaixo, e medir o texto contra o codigo real achou **quatro** defeitos,
+> nao um. Os tres primeiros fariam o codigo **nao compilar**; o quarto era um bug silencioso.
+> Corrigidos aqui, no proprio texto da task, para o brief voltar a ser a unica fonte de requisitos:
+>
+> 1. **(emenda A)** o caso de uso nao calcula `Sha256` nem `TamanhoEmBytes`, e o `using
+>    System.Security.Cryptography` sai. As duas sao colunas calculadas `PERSISTED` desde a Task 2.
+> 2. **(emenda A)** os dois `Assert` sobre `gravado.TamanhoEmBytes` e `gravado.Sha256.Length` saem
+>    do teste: no objeto em memoria elas valem `0` e `[]`, e afirmar sobre elas provaria o fake.
+> 3. **(consequencia do fix pass da Task 2)** `GravarEVincularComoSolidoAsync` devolve `Task<int?>`,
+>    nao `Task<int>` -- e `Task.FromResult(arquivo.Id)` **nao** converte para `Task<int?>`. Alem
+>    disso o fake precisa implementar o **terceiro** metodo da interface,
+>    `ObterMetadadoDoSolidoAsync`, que esta task nao consome mas sem o qual o fake nao compila.
+> 4. **Ambiguidade resolvida pelo controlador:** o texto ignorava o `int?` devolvido, o que faria o
+>    caso de uso responder `Ok()` num caminho em que **nada foi gravado**. Passa a tratar o `null`
+>    como `NaoEncontrado`. Nao ha teste que mate esse `if`, e isso e deliberado: a re-review da
+>    Task 2 mediu que o dominio DESATIVA `Componente` e nunca o apaga, entao o cenario e
+>    inalcancavel sem injetar falha. Declare a lacuna no relatorio; nao escreva teste frágil para
+>    ela. Se o revisor discordar do desenho, a decisao volta ao usuario.
 
 **Files:**
 - Create: `src/Rastreamento.Application/Arquivos/ValidadorDeArquivoStl.cs`
@@ -997,19 +1017,30 @@ public class FakeArquivoDeComponenteRepo : IArquivoDeComponenteRepository
 
   public List<int> VinculadosA { get; } = [];
 
-  public Task<int> GravarEVincularComoSolidoAsync(
+  // Task<int?> e nao Task<int>: o null e "o componente nao existe", contrato que a Task 2 ganhou
+  // no fix pass dela. Este fake NAO modela esse null -- ele grava para qualquer id que lhe pecam,
+  // e quem barra componente inexistente e o caso de uso, antes de chegar aqui.
+  public Task<int?> GravarEVincularComoSolidoAsync(
       int componenteId, ArquivoDeComponente arquivo, CancellationToken ct)
   {
     arquivo.Id = _proximoId++;
     Gravados.Add(arquivo);
     VinculadosA.Add(componenteId);
     SolidoPorComponente[componenteId] = arquivo;
-    return Task.FromResult(arquivo.Id);
+    return Task.FromResult<int?>(arquivo.Id);
   }
 
   public Task<ArquivoDeComponente?> ObterSolidoDoComponenteAsync(
       int componenteId, CancellationToken ct) =>
       Task.FromResult(SolidoPorComponente.GetValueOrDefault(componenteId));
+
+  // Terceiro metodo da interface, nascido da emenda (B). A Task 3 NAO o consome -- quem consome e
+  // a Task 4, no ComponenteDetalheDto -- mas o fake tem de implementa-lo para compilar.
+  public Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(
+      int componenteId, CancellationToken ct) =>
+      Task.FromResult(SolidoPorComponente.TryGetValue(componenteId, out var a)
+          ? new MetadadoDeSolido(a.NomeOriginal, a.Conteudo.Length)
+          : null);
 }
 
 public class SolidoDoComponenteUseCaseTests
@@ -1027,8 +1058,10 @@ public class SolidoDoComponenteUseCaseTests
     Assert.True(resultado.Sucesso);
     var gravado = Assert.Single(arquivos.Gravados);
     Assert.Equal("cubo.stl", gravado.NomeOriginal);
-    Assert.Equal(StlDeTeste.TamanhoEsperado, gravado.TamanhoEmBytes);
-    Assert.Equal(32, gravado.Sha256.Length);
+    // NAO se afirma TamanhoEmBytes nem Sha256 aqui (emenda (A) de 2026-09-12): as duas sao
+    // colunas calculadas PERSISTED, ninguem em C# as preenche, e no objeto em memoria elas valem
+    // 0 e [] -- afirmar sobre elas aqui provaria o fake, nao o banco. Quem as prova e
+    // ArquivoDeComponenteMapeamentoTests, contra o SQL Server real, na Task 2.
     Assert.Equal(UsuarioId, gravado.CriadoPorUsuarioId);
     // Vinculado ao componente PEDIDO, nao a qualquer um: com um componente so no fake, um literal
     // no lugar do parametro passaria (achado B11 da Fase 1A).
@@ -1143,7 +1176,6 @@ public sealed record ArquivoDeSolidoDto(string NomeOriginal, byte[] Conteudo);
 `SolidoDoComponenteUseCase.cs`:
 
 ```csharp
-using System.Security.Cryptography;
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -1187,11 +1219,16 @@ public sealed class SolidoDoComponenteUseCase
     {
       NomeOriginal = nomeOriginal,
       Conteudo = conteudo,
-      TamanhoEmBytes = conteudo.Length,
-      Sha256 = SHA256.HashData(conteudo),
       CriadoPorUsuarioId = usuarioId,
     };
-    await _arquivos.GravarEVincularComoSolidoAsync(componenteId, arquivo, ct);
+    // O null do repositorio tambem e "componente nao existe" -- checagem que a Task 2 passou a
+    // fazer dentro da transacao, ANTES do primeiro SaveChanges. Aqui ele e defesa em profundidade:
+    // a checagem logo acima ja barrou esse caso, e so um componente que desaparecesse entre as
+    // duas chamadas chegaria aqui. Nao ha teste que mate este `if` -- o dominio DESATIVA
+    // Componente, nunca apaga (medido na re-review da Task 2), entao o cenario nao e alcancavel
+    // sem injetar falha. Ignorar o retorno e que seria errado: devolveria Ok() sem ter gravado.
+    if (await _arquivos.GravarEVincularComoSolidoAsync(componenteId, arquivo, ct) is null)
+      return Result.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
 
     return Result.Ok();
   }
@@ -1237,7 +1274,7 @@ git add src/Rastreamento.Application/Arquivos src/Rastreamento.Api/Program.cs te
 git commit -m "feat(fase-2b): validador de STL em tres camadas e caso de uso do solido"
 ```
 
-**Delta de teste estimado: +20** (Application). Baseline estimada ao fim: backend **551** (App 269 · Infra 70 · Api 212) / front 495.
+**Delta de teste estimado: +20** (Application). Baseline estimada ao fim: backend **558** (App 269 · Infra 77 · Api 212) / front 495.
 
 ---
 
@@ -1418,7 +1455,7 @@ git add src/Rastreamento.Application/Cadastros src/Rastreamento.Api/Controllers/
 git commit -m "feat(fase-2b): endpoints de envio e leitura do solido, e TemSolido no DTO"
 ```
 
-**Delta de teste estimado: +8** (Api), mais os ajustes mecânicos do DTO (delta 0, mas trabalho real). Baseline estimada ao fim: backend **559** (App 269 · Infra 70 · Api 220) / front 495.
+**Delta de teste estimado: +8** (Api), mais os ajustes mecânicos do DTO (delta 0, mas trabalho real). Baseline estimada ao fim: backend **566** (App 269 · Infra 77 · Api 220) / front 495.
 
 ---
 
@@ -1616,7 +1653,7 @@ git add src/Rastreamento.Application/Estrutura tests/
 git commit -m "feat(fase-2b): cobra a regra 18 -- Peca exige solido no Componente de origem"
 ```
 
-**Delta de teste estimado: +5** (App +4, Api +1). Baseline estimada ao fim: backend **564** (App 273 · Infra 70 · Api 221) / front 495.
+**Delta de teste estimado: +5** (App +4, Api +1). Baseline estimada ao fim: backend **571** (App 273 · Infra 77 · Api 221) / front 495.
 
 ---
 
@@ -1819,7 +1856,7 @@ git add web/src/testes/api.ts web/src/api/cadastros.ts web/src/components/Upload
 git commit -m "feat(fase-2b): upload do solido na tela do Componente"
 ```
 
-**Delta de teste estimado: +5** (front). Baseline estimada ao fim: backend 564 / front **500**.
+**Delta de teste estimado: +5** (front). Baseline estimada ao fim: backend 571 / front **500**.
 
 ---
 
@@ -1931,7 +1968,7 @@ git add web/package.json web/package-lock.json web/src/components/VisualizadorDe
 git commit -m "feat(fase-2b): viewer 3D do solido, com three.js carregado sob demanda"
 ```
 
-**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 564 / front **504**.
+**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 571 / front **504**.
 
 ---
 
@@ -2025,7 +2062,7 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 564 / front **508**.
+**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 571 / front **508**.
 
 ---
 
@@ -2102,4 +2139,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **564** (App 273 · Infra 70 · Api 221), front **508**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **571** (App 273 · Infra 77 · Api 221), front **508**. **São estimativas.** Cada task mede e corrige as seguintes.
