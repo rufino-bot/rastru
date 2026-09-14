@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Rastreamento.Api.Tests;
 
 /// <summary>
@@ -36,4 +38,33 @@ public static class StlDeTesteDaApi
   /// lixo" -- 400 por ESTRUTURA, nao por extensao.
   /// </summary>
   public static byte[] Invalido() => [1, 2, 3, 4, 5];
+
+  private const string TextoAscii =
+      """
+      solid cubo
+        facet normal 0 0 1
+          outer loop
+            vertex 0 0 0
+            vertex 1 0 0
+            vertex 1 1 0
+          endloop
+        endfacet
+      endsolid cubo
+      """;
+
+  /// <summary>
+  /// ASCII valido preenchido ate `tamanho` bytes EXATOS -- mesmo truque de
+  /// `ValidadorDeArquivoStlTests.No_limite_exato_de_16_MiB_e_aceito` (Application.Tests, duplicado
+  /// aqui pelo mesmo motivo do resto desta classe, ver o comentario da classe): um STL BINARIO de
+  /// 16 MiB nao existe pela formula 84+50n (a divisao nao da inteiro), entao a fixture do limite
+  /// exato precisa ser ASCII. O preenchimento de zeros apos o texto cabe dentro dos 4096 bytes que
+  /// `ValidadorDeArquivoStl.EhAsciiCoerente` le, e `0x00` e UTF-8 valido -- nao perturba nem o
+  /// `StartsWith("solid")` nem o `Contains("facet normal")`.
+  /// </summary>
+  public static byte[] AsciiDeTamanhoExato(int tamanho)
+  {
+    var bytes = new byte[tamanho];
+    Encoding.UTF8.GetBytes(TextoAscii).CopyTo(bytes, 0);
+    return bytes;
+  }
 }

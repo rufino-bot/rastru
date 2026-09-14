@@ -18,6 +18,33 @@ public class ComponentesController : CadastroControllerBase
   /// </summary>
   private const string PerfisDeEscrita = "Administrador,PCP";
 
+  /// <summary>
+  /// `[RequestSizeLimit]` mede o CORPO MULTIPART INTEIRO (boundary + cabecalhos da parte), nao so
+  /// o arquivo -- por isso o limite do endpoint e `ValidadorDeArquivoStl.TamanhoMaximoEmBytes`
+  /// MAIS esta margem, nao o valor cru do validador. Sem ela, um STL de exatamente 16 MiB (que o
+  /// validador aceita) seria recusado pelo pipeline antes de chegar ao codigo -- achado da review
+  /// da Task 4 (Critical 1), medido por HTTP real: overhead de 221 bytes so para o boundary e os
+  /// cabecalhos da parte com o nome "cubo.stl".
+  ///
+  /// <para>
+  /// Medido em 2026-09-13 com o `MultipartFormDataContent` do proprio .NET (o client que
+  /// `SolidoEndpointsTests` usa), variando so o `NomeOriginal` (o campo tem NVARCHAR(260) de
+  /// teto): nome curto ASCII ("cubo.stl") = 218-228 bytes de overhead; nome de 260 caracteres
+  /// ASCII = 722 bytes (o `MultipartFormDataContent` escreve o filename DUAS vezes --
+  /// `filename=` e `filename*=utf-8''...`); nome de 260 caracteres TODOS acentuados (ç, ã, é, ú,
+  /// ê, õ) = <b>2.444 bytes</b>, o pior caso medido -- para filename nao-ASCII o .NET troca
+  /// `filename=` por um "encoded-word" MIME (`=?utf-8?B?...base64...?=`) e AINDA mantem o
+  /// `filename*=` percent-encoded, dobrando o custo por caractere acentuado duas vezes.
+  /// </para>
+  ///
+  /// <para>
+  /// 4096 bytes cobrem o pior caso medido (2.444) com ~65% de folga, sem empurrar o limite para
+  /// perto do teto default do Kestrel (30.000.000 bytes): 16 MiB + 4096 = 16.781.312, a folga
+  /// real do Kestrel continua em ~13,2 MiB -- a spec exige nao encostar nesse teto.
+  /// </para>
+  /// </summary>
+  private const int MargemDoCorpoMultipartEmBytes = 4096;
+
   private readonly CadastroDeComponenteUseCase _cadastro;
   private readonly SolidoDoComponenteUseCase _solido;
 
@@ -100,14 +127,27 @@ public class ComponentesController : CadastroControllerBase
       TraduzirResultado(await _cadastro.DefinirAtivo(id, corpo.Ativo!.Value, ct));
 
   /// <summary>
-  /// Envia (ou SUBSTITUI) o solido 3D do Componente. `RequestSizeLimit` espelha o limite do
-  /// validador: sem ele, um arquivo de 20 MiB seria lido inteiro em memoria antes de a validacao
-  /// dizer que nao servia. Passar do limite responde 413, nao 400 — e resposta do pipeline, nao do
-  /// caso de uso.
+  /// Envia (ou SUBSTITUI) o solido 3D do Componente. `RequestSizeLimit` usa o limite do validador
+  /// MAIS `MargemDoCorpoMultipartEmBytes` (ver o comentario da constante para a conta): sem o
+  /// atributo, um arquivo de 20 MiB seria lido inteiro em memoria antes de a validacao dizer que
+  /// nao servia. A DECLARACAO do limite (o valor do atributo, na tabela de roteamento real) e
+  /// provada por
+  /// `SolidoEndpointsTests.RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem`
+  /// -- ela morre se o atributo for removido ou o valor mudar, mas nao prova o COMPORTAMENTO em
+  /// producao: `WebApplicationFactory`/`TestServer`, medido nesta task (2026-09-13), nao aplica a
+  /// mesma checagem de `IHttpMaxRequestBodySizeFeature` que o Kestrel real aplica antes do model
+  /// binding terminar de ler o form -- um corpo de 20 MiB passa direto ate o validador mesmo com o
+  /// atributo no lugar, sob o host de teste. A prova de COMPORTAMENTO e da review da Task 4, feita
+  /// contra a API real (`dotnet run` + curl): passar do limite responde SEMPRE 400, nunca 413.
+  /// Quando quem recusa e este atributo, a mensagem vem do model binding do ASP.NET ("Failed to
+  /// read the request form. Request body too large...", formato `ValidationProblemDetails`, chave
+  /// `errors`); quando o corpo cabe na margem mas o ARQUIVO em si passa dos 16 MiB, quem recusa e
+  /// `ValidadorDeArquivoStl`, com o formato `{ erro }` deste projeto -- as duas mensagens sao
+  /// distintas de proposito, e essa distincao e o que prova qual dos dois recusou.
   /// </summary>
   [HttpPost("{id:int}/solido")]
   [Authorize(Roles = PerfisDeEscrita)]
-  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes)]
+  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
   public async Task<IActionResult> EnviarSolido(
       int id, IFormFile arquivo, CancellationToken ct)
   {

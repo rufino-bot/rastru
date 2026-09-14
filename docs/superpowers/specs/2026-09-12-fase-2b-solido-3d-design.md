@@ -284,9 +284,19 @@ para leitura, `[Authorize(Roles = PerfisDeEscrita)]` — `Administrador,PCP` —
 
 - `multipart/form-data`, recebido como `IFormFile`. Perfis de escrita.
 - **Substitui** o sólido existente (§2.5).
-- Resposta: o `ComponenteDto` atualizado, com `TemSolido` verdadeiro.
-- Falhas: 404 (componente inexistente), 400 (arquivo inválido — ver §5.1), 413 (acima do limite),
-  403 (perfil sem escrita).
+- **Resposta: 204 No Content, sem corpo.** *(Corrigido, decisão do usuário, 2026-09-13, no fix
+  pass da review da Task 4 — esta linha dizia "o `ComponenteDto` atualizado, com `TemSolido`
+  verdadeiro", e a Task 3 já tinha decidido `Task<Result> Enviar(...)` sem valor de retorno; a
+  Task 4 implementou 204 sem que ninguém atualizasse este parágrafo. Motivo de manter 204 em vez
+  de mudar o código: o front busca o detalhe via `GET /componentes/{id}` depois do envio — é o
+  padrão que `SolidoEndpointsTests.Post_de_STL_valido_grava_e_o_componente_passa_a_ter_solido` já
+  exercita — e a Task 6 do plano do front já declara `enviarSolido(): Promise<void>`.)*
+- Falhas: 404 (componente inexistente), **400** (arquivo inválido — ver §5.1 — **ou acima do
+  limite de tamanho**, ambos 400), 403 (perfil sem escrita). *(Corrigido junto, mesma decisão: a
+  linha citava 413 para "acima do limite". Medido na review, contra a API real: é sempre 400,
+  nunca 413. Quem decide os 16 MiB do arquivo é só o `ValidadorDeArquivoStl` — o
+  `[RequestSizeLimit]` do controller só protege a memória contra um corpo muito maior que isso, com
+  uma margem para o overhead do multipart, e por isso também responde 400, não 413, quando aciona.)*
 
 ### `GET /componentes/{id}/solido`
 

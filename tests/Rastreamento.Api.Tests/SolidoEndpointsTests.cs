@@ -1,9 +1,13 @@
+using System.Linq;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 
@@ -156,6 +160,84 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
         _factory.CreateClient(), 999999, StlDeTesteDaApi.CuboBinario());
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
+  }
+
+  // ------------------------------------------------- LIMITE DE TAMANHO (Critical 1 da review)
+
+  [Fact]
+  public async Task Post_de_STL_de_exatamente_16_MiB_e_aceito()
+  {
+    var conteudo = StlDeTesteDaApi.AsciiDeTamanhoExato(ValidadorDeArquivoStl.TamanhoMaximoEmBytes);
+    // Comprimento afirmado explicitamente, nao presumido da alocacao -- mesmo cuidado de
+    // `ValidadorDeArquivoStlTests.No_limite_exato_de_16_MiB_e_aceito`: prova que a fixture tem o
+    // tamanho EXATO do limite do validador, nem um byte a menos nem a mais. O nome do arquivo
+    // ("cubo.stl", curto) mede so ~228 bytes de overhead multipart -- bem dentro da margem de
+    // `MargemDoCorpoMultipartEmBytes` (4096) que o `RequestSizeLimit` do controller soma.
+    Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes, conteudo.Length);
+
+    var resposta = await EnviarSolido(
+        ClienteComo("Administrador"), await NovoComponente(), conteudo);
+
+    Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Post_de_STL_de_16_MiB_mais_1_byte_e_recusado()
+  {
+    // Conteudo lixo (zeros): o validador recusa pelo TAMANHO antes de checar estrutura -- mesmo
+    // mapa de `ValidadorDeArquivoStlTests.Acima_do_limite_de_16_MiB_e_recusado`, que tambem usa
+    // um array zerado para o mesmo fim. O corpo multipart inteiro (arquivo + overhead) continua
+    // BEM abaixo de `TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes`, entao quem recusa
+    // aqui e o VALIDADOR de dominio, nao o `RequestSizeLimit` -- ver o comentario de
+    // `RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem` para o motivo
+    // de nao existir, nesta classe, um teste comportamental que prove o pipeline recusando antes
+    // do validador (medido: `WebApplicationFactory`/`TestServer` nao exercita esse caminho).
+    var conteudo = new byte[ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 1];
+
+    var resposta = await EnviarSolido(
+        ClienteComo("Administrador"), await NovoComponente(), conteudo);
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+  }
+
+  /// <summary>
+  /// LACUNA DECLARADA, medida nesta task (fix pass do Critical 1 da review): a mutacao que a
+  /// review descreveu -- remover `[RequestSizeLimit]` e subir um corpo grande pelo caminho HTTP --
+  /// nao e provavel de matar via `WebApplicationFactory`/`TestServer`, e isso foi MEDIDO, nao
+  /// suposto. Tentei um `POST` de 20 MiB (acima de `TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes`,
+  /// abaixo do teto do Kestrel) COM o atributo no lugar: a resposta foi 400 vindo do
+  /// `ValidadorDeArquivoStl` ("O arquivo passa de 16 MiB..."), NAO a mensagem de model binding do
+  /// ASP.NET que a review observou contra a API real (`dotnet run` + curl). Ou seja: sob
+  /// `TestServer`, o corpo de 20 MiB e lido por INTEIRO e chega ao caso de uso mesmo com o
+  /// atributo presente -- `TestServer` nao implementa a mesma checagem de `IHttpMaxRequestBodySizeFeature`
+  /// que o Kestrel real aplica antes do model binding terminar de ler o form. Removendo o
+  /// atributo o resultado e IDENTICO (confirmado): a suite HTTP desta classe e cega a essa
+  /// mutacao especifica, nao por as duas mensagens serem indistinguiveis (SAO, e o comentario do
+  /// controller documenta as duas), mas porque o AMBIENTE de teste nao exercita o mecanismo que
+  /// as diferencia. Este teste cobre o que da para cobrir por este ambiente: a DECLARACAO do
+  /// limite na tabela de roteamento real (o mesmo `EndpointDataSource` que
+  /// `PerfisDeEscritaDeclaradosTests` usa), que MORRE se o atributo for removido ou o valor for
+  /// trocado -- mas nao prova que o Kestrel de producao vai de fato interromper a leitura do
+  /// corpo antes de materializa-lo em memoria; essa prova e da review, contra a API real.
+  /// </summary>
+  [Fact]
+  public void RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem()
+  {
+    using var factory = new WebApplicationFactory<Program>();
+    var fonte = factory.Services.GetRequiredService<EndpointDataSource>();
+
+    var endpoint = fonte.Endpoints
+        .OfType<RouteEndpoint>()
+        .Single(e =>
+            e.RoutePattern.RawText == "componentes/{id:int}/solido" &&
+            (e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("POST") ?? false));
+
+    var limite = endpoint.Metadata.GetMetadata<IRequestSizeLimitMetadata>();
+
+    Assert.NotNull(limite);
+    // 4096 espelha `ComponentesController.MargemDoCorpoMultipartEmBytes` (privada -- ver o
+    // comentario dela para a conta do overhead medido). Precisa acompanhar se a margem mudar.
+    Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 4096, limite!.MaxRequestBodySize);
   }
 
   // ---------------------------------------------------------------- GET

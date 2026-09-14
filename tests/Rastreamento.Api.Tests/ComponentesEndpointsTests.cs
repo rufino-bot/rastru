@@ -139,7 +139,8 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
   }
 
   /// <summary>
-  /// O caminho HTTP inteiro do detalhe COM solido -- par positivo do teste acima. Prova que
+  /// O caminho HTTP inteiro do detalhe COM solido -- par positivo de
+  /// `Obter_componente_devolve_o_que_foi_cadastrado` (que prova o caso SEM solido). Prova que
   /// `ComponentesController.Obter` devolve `ComponenteDetalheDto` serializado com os campos de
   /// solido preenchidos quando o Componente aponta para um `ArquivoDeComponente` de verdade, e nao
   /// so o caso de uso isolado (que ja tem cobertura em

@@ -1573,12 +1573,18 @@ Em `ComponentesController`, injete o caso de uso novo ao lado do que já existe 
   /// <summary>
   /// Envia (ou SUBSTITUI) o solido 3D do Componente. `RequestSizeLimit` espelha o limite do
   /// validador: sem ele, um arquivo de 20 MiB seria lido inteiro em memoria antes de a validacao
-  /// dizer que nao servia. Passar do limite responde 413, nao 400 — e resposta do pipeline, nao do
-  /// caso de uso.
+  /// dizer que nao servia. CORRIGIDO no fix pass da Task 4, 2026-09-13: esta linha dizia "Passar do
+  /// limite responde 413, nao 400", e a review mediu isso como falso -- e SEMPRE 400, vindo de duas
+  /// origens distintas (o model binding do ASP.NET quando o `RequestSizeLimit` recusa, o
+  /// `ValidadorDeArquivoStl` quando o arquivo em si passa dos 16 MiB). O limite real tambem mudou:
+  /// `RequestSizeLimit` mede o CORPO MULTIPART INTEIRO (boundary + cabecalhos da parte), nao so o
+  /// arquivo, entao o valor certo e `TamanhoMaximoEmBytes` MAIS uma margem medida para esse
+  /// overhead -- ver `MargemDoCorpoMultipartEmBytes` e o comentario real em
+  /// `src/Rastreamento.Api/Controllers/ComponentesController.cs`.
   /// </summary>
   [HttpPost("{id:int}/solido")]
   [Authorize(Roles = PerfisDeEscrita)]
-  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes)]
+  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
   public async Task<IActionResult> EnviarSolido(
       int id, IFormFile arquivo, CancellationToken ct)
   {

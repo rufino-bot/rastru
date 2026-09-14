@@ -67,11 +67,30 @@ reenvia e a sessão morre no primeiro refresh.
   `?pagina=1`, `?tamanho=20` (teto 100) *(qualquer perfil autenticado)*. Responde
   `{ itens, total, pagina, tamanho }`; `total` é contado com os mesmos filtros da página.
   Faixa fora do permitido responde 400; página além do fim responde 200 com `itens` vazio.
+  **Este documento não detalha os campos de cada item de `itens`** (nem detalhava antes da Fase
+  2B) — só o envelope da paginação; por isso `temSolido`, que o item de listagem carrega desde a
+  Fase 2B, não ganha bullet próprio aqui.
+- `GET /componentes/{id}` *(qualquer perfil autenticado)* — detalhe do Componente:
+  `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes }`
+  (Fase 2B, Task 4 — antes só tinha os cinco primeiros campos). `nomeDoSolido` e
+  `tamanhoDoSolidoEmBytes` são nulos **juntos** quando o Componente não tem sólido enviado, e
+  preenchidos **juntos** quando tem — nunca um só. `404` se o Componente não existir.
 - `POST /componentes` *(Administrador, PCP)* — `{ codigo, descricao, tipo }`, `tipo` em
   `Bruto | Fabricado | Montagem`
 - `PUT /componentes/{id}` *(Administrador, PCP)* — idem
 - `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
   Não existe `DELETE`: catálogo se inativa, não se exclui.
+- `POST /componentes/{id}/solido` *(Administrador, PCP)* — envia (ou **substitui**) o sólido 3D do
+  Componente. `multipart/form-data`, campo `arquivo`. Resposta **204**, sem corpo — o front busca
+  o detalhe de novo via `GET /componentes/{id}` para mostrar nome e tamanho. Falhas: `400`
+  (arquivo inválido — extensão, tamanho acima de 16 MiB ou estrutura de STL inválida; ver §5.1 de
+  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md` — **ou** corpo da requisição
+  acima da margem que o servidor tolera para o overhead do multipart; as duas causas respondem
+  400, nunca 413), `404` (Componente inexistente), `403` (perfil sem escrita).
+- `GET /componentes/{id}/solido` *(qualquer perfil autenticado)* — `application/octet-stream`, com
+  `Content-Disposition` carregando o nome original do arquivo enviado. Serve o download **e** o
+  viewer 3D — um endpoint, dois consumidores. `404` quando o Componente não existe **ou** quando
+  existe mas não tem sólido enviado.
 - `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
   Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
   quantidadePadrao }[]`
