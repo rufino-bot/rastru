@@ -120,18 +120,20 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
-    // Os SETE campos do ComponenteDetalheDto (Task 4 da Fase 2B trocou o tipo de retorno de
+    // Os OITO campos do ComponenteDetalheDto (a Task 4 da Fase 2B trocou o tipo de retorno de
     // `Obter`, de `ComponenteDto` para `ComponenteDetalheDto`), nao so os cinco antigos: e a
     // unica prova ponta a ponta de que o `Obter` monta o detalhe certo. Um campo faltando no JSON
-    // quebra a Task 10, que le o cabecalho da tela de detalhe daqui.
+    // quebra a tela de detalhe do Componente, que le o cabecalho daqui (quem a construiu foi a
+    // Task 10 da FASE 1C -- nao existe Task 10 na Fase 2B).
     Assert.Equal(id, corpo.GetProperty("id").GetInt32());
     Assert.Equal(codigo, corpo.GetProperty("codigo").GetString());
     Assert.Equal("Suporte lateral", corpo.GetProperty("descricao").GetString());
     Assert.Equal("Fabricado", corpo.GetProperty("tipo").GetString());
     Assert.True(corpo.GetProperty("ativo").GetBoolean());
     // Par negativo do caso "com solido" de SolidoEndpointsTests: componente recem-cadastrado NAO
-    // tem solido, e os dois campos de nome/tamanho devem vir nulos (Obter_de_componente_sem_solido
-    // _deixa_os_dois_campos_nulos ja prova isso no nivel de Application -- aqui e o mesmo contrato
+    // tem solido, e os dois campos de nome/tamanho devem vir nulos
+    // (`CadastroDeComponenteUseCaseTests.Obter_de_componente_sem_solido_deixa_os_dois_campos_nulos`
+    // ja prova isso no nivel de Application -- aqui e o mesmo contrato
     // ponta a ponta, pelo JSON de verdade).
     Assert.False(corpo.GetProperty("temSolido").GetBoolean());
     Assert.Equal(JsonValueKind.Null, corpo.GetProperty("nomeDoSolido").ValueKind);

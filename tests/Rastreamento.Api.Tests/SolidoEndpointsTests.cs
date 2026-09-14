@@ -162,7 +162,7 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
 
-  // ------------------------------------------------- LIMITE DE TAMANHO (Critical 1 da review)
+  // ------------------ LIMITE DE TAMANHO (validador pelo caminho HTTP + declaracao do RequestSizeLimit)
 
   [Fact]
   public async Task Post_de_STL_de_exatamente_16_MiB_e_aceito()
@@ -170,9 +170,15 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     var conteudo = StlDeTesteDaApi.AsciiDeTamanhoExato(ValidadorDeArquivoStl.TamanhoMaximoEmBytes);
     // Comprimento afirmado explicitamente, nao presumido da alocacao -- mesmo cuidado de
     // `ValidadorDeArquivoStlTests.No_limite_exato_de_16_MiB_e_aceito`: prova que a fixture tem o
-    // tamanho EXATO do limite do validador, nem um byte a menos nem a mais. O nome do arquivo
-    // ("cubo.stl", curto) mede so ~228 bytes de overhead multipart -- bem dentro da margem de
-    // `MargemDoCorpoMultipartEmBytes` (4096) que o `RequestSizeLimit` do controller soma.
+    // tamanho EXATO do limite do validador, nem um byte a menos nem a mais.
+    //
+    // O QUE ESTE TESTE NAO PROVA, medido na re-review da Task 4: ele NAO cobre a margem do
+    // `RequestSizeLimit`. Sob `WebApplicationFactory` o `TestServer` nao aplica esse atributo, e
+    // este teste passa IDENTICO contra o controller de antes do conserto -- em que um STL de
+    // exatamente 16 MiB era recusado pelo Kestrel real. O que ele prova e o limite do VALIDADOR
+    // pelo caminho HTTP inteiro. Quem guarda a margem e
+    // `RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem`, que falha
+    // contra aquele controller; o comportamento do Kestrel foi medido por HTTP real, na review.
     Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes, conteudo.Length);
 
     var resposta = await EnviarSolido(

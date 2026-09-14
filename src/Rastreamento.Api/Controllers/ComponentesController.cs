@@ -38,9 +38,15 @@ public class ComponentesController : CadastroControllerBase
   /// </para>
   ///
   /// <para>
+  /// Esse e o pior caso do cliente de TESTE, nao do de producao. A re-review da Task 4 mediu o que
+  /// um navegador envia com `fetch` + `FormData` para o mesmo nome de 260 caracteres acentuados:
+  /// <b>558 bytes</b> de overhead. A margem foi dimensionada pelo maior dos dois clientes medidos.
+  /// </para>
+  ///
+  /// <para>
   /// 4096 bytes cobrem o pior caso medido (2.444) com ~65% de folga, sem empurrar o limite para
-  /// perto do teto default do Kestrel (30.000.000 bytes): 16 MiB + 4096 = 16.781.312, a folga
-  /// real do Kestrel continua em ~13,2 MiB -- a spec exige nao encostar nesse teto.
+  /// perto do teto default do Kestrel (30.000.000 bytes): 16 MiB + 4096 = 16.781.312, e a folga
+  /// ate esse teto e de 13.218.688 bytes (~12,6 MiB) -- a spec exige nao encostar nele.
   /// </para>
   /// </summary>
   private const int MargemDoCorpoMultipartEmBytes = 4096;
