@@ -11,6 +11,16 @@ interface Props {
   rotulo: string
   valorSelecionado: ComponenteDto | null
   aoSelecionar: (componente: ComponenteDto) => void
+  /**
+   * Quando verdadeiro, componente sem sólido aparece MARCADO e não selecionável (regra 18: Peça
+   * exige sólido no Componente de origem). Default `false` porque só o formulário de criar Peça a
+   * liga: os outros usos — a receita padrão e o painel de acrescentar filho — escolhem Item, que
+   * pode ser ad-hoc.
+   *
+   * Isto NÃO é validação: a fronteira real é o 400 de `CriarPeca`. É aviso, para o usuário não
+   * montar a árvore inteira antes de descobrir.
+   */
+  exigirSolido?: boolean
 }
 
 /** Nenhuma opção destacada. `Enter` nesse estado não seleciona nada — não há "o destacado". */
@@ -58,7 +68,7 @@ function rotuloDe(componente: ComponenteDto | null): string {
  * um destes na mesma tela, e um painel aberto por montagem apareceria por cima do resto sem
  * ninguém ter pedido.
  */
-export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar }: Props) {
+export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar, exigirSolido = false }: Props) {
   const busca = useBuscaPaginada({ buscar: listarComponentes })
   const [aberto, setAberto] = useState(false)
   const [rascunho, setRascunho] = useState<string | null>(null)
@@ -83,6 +93,9 @@ export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar }: Prop
   }
 
   function selecionar(componente: ComponenteDto) {
+    // A guarda mora aqui, não no `onClick` do `<li>`: `Enter` e clique passam os dois por
+    // `selecionar`, e uma guarda só no `onClick` deixaria o teclado contornar a marca.
+    if (exigirSolido && !componente.temSolido) return
     aoSelecionar(componente)
     voltarAoRepouso()
   }
@@ -178,26 +191,41 @@ export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar }: Prop
             />
           )}
           <ul role="listbox" id={idDaLista} aria-label={rotulo}>
-            {itens.map((item, indice) => (
-              <li
-                key={item.id}
-                id={idDaOpcao(indice)}
-                role="option"
-                aria-selected={item.id === valorSelecionado?.id}
-                // Ver o comentário de `aoPerderFoco`: é isto que impede o blur de fechar o painel
-                // antes de o clique chegar na opção.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selecionar(item)}
-                className={`flex cursor-pointer flex-col rounded-md px-3 py-2 ${
-                  indice === destaque ? 'bg-acao text-superficie' : 'text-tinta'
-                }`}
-              >
-                <span className="font-mono text-sm">{item.codigo}</span>
-                <span className={indice === destaque ? 'text-sm' : 'text-sm text-tinta-fraca'}>
-                  {item.descricao}
-                </span>
-              </li>
-            ))}
+            {itens.map((item, indice) => {
+              const destacado = indice === destaque
+              // Regra 18, aviso de tela: ver o comentário de `exigirSolido` na assinatura do
+              // componente para o porquê de a fronteira real ser o 400 de `CriarPeca`.
+              const bloqueado = exigirSolido && !item.temSolido
+              return (
+                <li
+                  key={item.id}
+                  id={idDaOpcao(indice)}
+                  role="option"
+                  aria-selected={item.id === valorSelecionado?.id}
+                  aria-disabled={bloqueado || undefined}
+                  // Ver o comentário de `aoPerderFoco`: é isto que impede o blur de fechar o painel
+                  // antes de o clique chegar na opção.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => selecionar(item)}
+                  className={`flex flex-col rounded-md px-3 py-2 ${bloqueado ? 'cursor-default' : 'cursor-pointer'} ${
+                    destacado ? 'bg-acao text-superficie' : 'text-tinta'
+                  }`}
+                >
+                  <span className="font-mono text-sm">{item.codigo}</span>
+                  <span className={destacado ? 'text-sm' : 'text-sm text-tinta-fraca'}>
+                    {item.descricao}
+                  </span>
+                  {bloqueado && (
+                    // Ausência de dado, não estado de negócio: `text-tinta-fraca`, nunca
+                    // verde/vermelho — mesmo tratamento de contraste da descrição acima, sem
+                    // `text-tinta-fraca` quando o item está destacado (`bg-acao` por trás).
+                    <span className={destacado ? 'text-xs' : 'text-xs text-tinta-fraca'}>
+                      sem sólido
+                    </span>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}

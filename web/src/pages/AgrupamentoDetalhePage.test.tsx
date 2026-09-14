@@ -6,7 +6,7 @@ import { AgrupamentoDetalhePage } from './AgrupamentoDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
 import type { NoDaEstrutura } from '../api/estrutura'
-import type { AgrupamentoDto } from '../api/cadastros'
+import type { AgrupamentoDto, ComponenteDto } from '../api/cadastros'
 
 afterEach(cleanup)
 
@@ -34,7 +34,13 @@ const PECA: NoDaEstrutura = {
   filhos: [],
 }
 
-const COMPONENTE_BUSCA = { id: 10, codigo: 'CH-100', descricao: 'Chassi', tipo: 'Fabricado', ativo: true }
+// `temSolido: true` preserva a intenção original da fixture: com `exigirSolido` ligado no
+// formulário de criar Peça, um `temSolido` indefinido contaria como "sem sólido" e bloquearia
+// `CH-100` em todo teste que cria Peça por este seletor.
+const COMPONENTE_BUSCA: ComponenteDto = { id: 10, codigo: 'CH-100', descricao: 'Chassi', tipo: 'Fabricado', ativo: true, temSolido: true }
+
+/** Só para os dois testes de `exigirSolido` — os demais continuam usando `COMPONENTE_BUSCA`. */
+const COMPONENTE_SEM_SOLIDO_BUSCA: ComponenteDto = { id: 20, codigo: 'SF-050', descricao: 'Suporte sem sólido', tipo: 'Fabricado', ativo: true, temSolido: false }
 
 /** `AgrupamentoDto` que `GET /agrupamentos/21` devolve — Task 8b, o cabeçalho da tela. */
 const AGRUPAMENTO: AgrupamentoDto = {
@@ -62,7 +68,12 @@ const PECA_COM_FILHO: NoDaEstrutura = { ...PECA, filhos: [ITEM_FILHO] }
     `busca === ''` no mount) — todo teste com `podeEscrever` monta o formulário, e o formulário
     monta o seletor, então esta rota precisa estar declarada mesmo quando o teste não interage com
     o combobox (senão `fetchPorRotaComEstrutura` rejeita com "fetch não esperado"). */
-const COMPONENTES_BUSCA = { itens: [COMPONENTE_BUSCA], total: 1, pagina: 1, tamanho: 20 }
+const COMPONENTES_BUSCA = {
+  itens: [COMPONENTE_BUSCA, COMPONENTE_SEM_SOLIDO_BUSCA],
+  total: 2,
+  pagina: 1,
+  tamanho: 20,
+}
 
 /**
  * Mock de `fetch` desta tela: distingue GET de POST na MESMA rota
@@ -266,6 +277,26 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.getByRole('combobox')).toHaveProperty('value', '')
     expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '')
     expect(screen.getByLabelText(/requer relatório dimensional/i)).toHaveProperty('checked', false)
+  })
+
+  // Task 8: `exigirSolido` (regra 18) vai só no formulário de criar Peça. Sem este teste de tela,
+  // remover a prop dali deixava a suíte inteira verde — só a suíte de `SeletorComBusca` provava a
+  // marca, nunca o lugar onde ela é ligada.
+  it('no formulário de criar Peça, componente sem sólido aparece marcado e não é selecionável', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Este agrupamento ainda não tem estrutura')
+
+    fireEvent.click(screen.getByRole('combobox'))
+    const listbox = await screen.findByRole('listbox')
+    const opcaoSemSolido = await within(listbox).findByRole('option', { name: /SF-050/ })
+    expect(opcaoSemSolido.getAttribute('aria-disabled')).toBe('true')
+
+    fireEvent.click(opcaoSemSolido)
+
+    expect(screen.getByRole('combobox')).toHaveProperty('value', '')
+    expect(screen.getByRole('button', { name: 'Criar Peça' })).toHaveProperty('disabled', true)
   })
 
   // Teste 6. `mensagem` nomeia o CAMINHO do ciclo (a única informação que permite ao operador
@@ -575,6 +606,24 @@ describe('AgrupamentoDetalhePage', () => {
       descricao: null,
       quantidade: 3,
     })
+  })
+
+  // Task 8: o painel de acrescentar filho NÃO liga `exigirSolido` — Item pode ser ad-hoc, e a
+  // regra 18 é só da Peça. Par negativo do teste equivalente do formulário de criar Peça (acima):
+  // o mesmo componente sem sólido que lá fica bloqueado, aqui é selecionável.
+  it('no painel de acrescentar filho, modo catálogo, componente sem sólido é selecionável', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByRole('combobox'))
+    const listbox = await within(painel).findByRole('listbox')
+    fireEvent.click(await within(listbox).findByText('SF-050'))
+
+    expect(within(painel).getByRole('combobox')).toHaveProperty('value', 'SF-050 — Suporte sem sólido')
   })
 
   // Teste 2. `NovoFilho` modela os dois modos; a árvore já distingue ad-hoc de catálogo por forma e
