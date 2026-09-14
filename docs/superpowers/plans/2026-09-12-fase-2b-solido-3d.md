@@ -2144,10 +2144,38 @@ git commit -m "feat(fase-2b): upload do solido na tela do Componente"
 - Create: `web/src/components/VisualizadorDeSolido.tsx`
 - Create: `web/src/components/VisualizadorDeSolido.test.tsx`
 - Modify: `web/src/pages/ComponenteDetalhePage.tsx`
+- Modify: `web/src/pages/ComponenteDetalhePage.test.tsx`
 
 **Interfaces:**
-- Consumes: `caminhoDoSolido` da Task 6; `GET /componentes/{id}/solido`.
+- Consumes: `caminhoDoSolido` (`web/src/api/cadastros.ts`) e `respostaBinaria(bytes: Uint8Array<ArrayBuffer>, nomeDoArquivo?, status = 200)` (`web/src/testes/api.ts`), os dois da Task 6; `GET /componentes/{id}/solido`; o estado `componente: ComponenteDetalheDto` da `ComponenteDetalhePage`.
 - Produces: `export function VisualizadorDeSolido({ componenteId }: { componenteId: number })`.
+
+> **CORREÇÃO DE 2026-09-14, medida contra o código (já com a Task 6) e a spec antes de gerar o
+> brief.** Todos os defeitos são meus; o corpo da task já está corrigido.
+>
+> 1. **O esqueleto de teste não inicializava o client.** `apiFetch` lança "client nao
+>    inicializado" sem `inicializar()`. `UploadDeSolido.test.tsx` (Task 6) mostra o arranjo:
+>    `_resetParaTeste()` + `inicializar({ getToken: () => 'token', ... })` num `beforeEach`.
+> 2. **`vi.fn()` sem parâmetros lendo `mock.calls[0][0]` quebra o `npm run build`** — foi o
+>    defeito 5 da Task 6. Tipe o mock como `UploadDeSolido.test.tsx` já faz.
+> 3. **O `vi.mock` dublava só `three`.** O componente importa também o `STLLoader` (de
+>    `three/examples/jsm/...`), que é outro módulo: sem dublê, o teste de busca carregaria o
+>    loader real. Os dois módulos precisam de dublê.
+> 4. **"Três estados, cada um com teste que morre" — mas não havia teste do estado PRONTO.**
+>    Acrescentado: com os dublês, o `<canvas>` rotulado aparece depois da busca.
+> 5. **A mutação 1 era dada como lacuna aceita**, e dá para fechá-la: a fábrica de `vi.mock` só
+>    roda quando o módulo é importado pela primeira vez. Um contador na fábrica (`vi.hoisted`)
+>    distingue import dinâmico (fábrica não rodou antes do clique) de import estático (rodou no
+>    carregamento do arquivo). **Meça** — se o contador não distinguir no Vitest instalado, volte à
+>    redação antiga (a prova é o chunk do build) e registre a medição.
+> 6. **O gating do viewer na tela estava ambíguo.** "Ao lado do `UploadDeSolido`" poria o viewer
+>    dentro da guarda `podeEscrever` que a Task 6 criou. A spec (§2.3) nomeia o **público** do
+>    viewer (PCP/Admin no desktop), mas não o restringe; o `GET` do sólido é de qualquer perfil
+>    autenticado; e a Task 6 registrou que quem não escreve vê o sólido **pelo viewer**. Então: o
+>    viewer fica **fora** da guarda `podeEscrever`, e só depende de `temSolido`. Com teste de tela.
+> 7. **Erro por `mensagemDeErro`** não estava escrito, e é regra do `CLAUDE.md`.
+>
+> Delta estimado: +4 -> **+7** (5 do viewer, 2 da tela).
 
 - [ ] **Step 1: Instalar a dependência**
 
@@ -2163,29 +2191,45 @@ O jsdom **não tem WebGL**, então este teste cobre o **estado da tela**, não o
 
 ```tsx
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import { VisualizadorDeSolido } from './VisualizadorDeSolido'
 import { respostaBinaria } from '../testes/api'
+import { inicializar, _resetParaTeste } from '../api/client'
 
+// Contador de import: a fabrica de `vi.mock` so roda quando o modulo e importado pela primeira vez.
+const importacoes = vi.hoisted(() => ({ three: 0 }))
+
+beforeEach(() => {
+  _resetParaTeste()
+  inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+})
 afterEach(cleanup)
 
 // O jsdom não implementa WebGL: nenhum teste aqui prova que o sólido APARECE. O que se prova é o
 // que o componente controla — buscar, os três estados, e não carregar o three.js sem clique. O
-// canvas é coberto pela verificação manual em navegador (Task 9), declarada na spec.
-vi.mock('three', () => ({ /* dublê mínimo: só o que o componente importa */ }))
+// canvas renderizado é coberto pela verificação manual em navegador (Task 9), declarada na spec.
+vi.mock('three', () => {
+  importacoes.three++
+  return { /* dublê mínimo: só o que o componente usa — renderer com domElement = canvas real do jsdom */ }
+})
+vi.mock('three/examples/jsm/loaders/STLLoader.js', () => ({ /* dublê do STLLoader: parse devolve uma geometria do dublê */ }))
 
 describe('VisualizadorDeSolido', () => {
   it('não busca o sólido nem carrega o three.js antes do clique', () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi.fn((_url: string | URL, _init?: RequestInit) => Promise.resolve(new Response()))
     vi.stubGlobal('fetch', fetchMock)
     render(<VisualizadorDeSolido componenteId={7} />)
     expect(fetchMock).not.toHaveBeenCalled()
+    // Mata o import ESTATICO: com `import ... from 'three'` no topo do modulo, a fabrica ja rodou
+    // quando este arquivo carregou. Ver o item 5 da caixa de correcao — meca antes de confiar.
+    expect(importacoes.three).toBe(0)
   })
 
   it('busca o binário quando o usuário pede para visualizar', async () => {
-    const fetchMock = vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684))))
+    const fetchMock = vi.fn((_url: string | URL, _init?: RequestInit) =>
+      Promise.resolve(respostaBinaria(new Uint8Array(684))))
     vi.stubGlobal('fetch', fetchMock)
 
     render(<VisualizadorDeSolido componenteId={7} />)
@@ -2202,9 +2246,19 @@ describe('VisualizadorDeSolido', () => {
     render(<VisualizadorDeSolido componenteId={7} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+    // Texto pelo `mensagemDeErro`: 404 tem frase propria ("Este registro não existe mais."), que e
+    // o que o `GET /componentes/{id}/solido` responde quando o sólido sumiu.
+  })
+
+  it('mostra o canvas rotulado quando o sólido carregou', async () => {
+    // Estado PRONTO: com os dublês de `three` e do `STLLoader`, depois da busca o `<canvas>` com
+    // `aria-label` entra na tela (`getByLabelText`). Não prova render — prova que o componente
+    // chegou ao estado pronto e montou o canvas acessível.
   })
 })
 ```
+
+Os esqueletos marcam o lugar: a forma exata dos dublês é do implementer, desde que `three` e o `STLLoader` sejam os dois dublados e o contador de import esteja na fábrica de `three`.
 
 - [ ] **Step 3: Rodar e ver falhar**
 
@@ -2217,7 +2271,9 @@ cd web && npm test -- --run VisualizadorDeSolido
 Exigências:
 
 - **`await import('three')` e `await import('three/examples/jsm/loaders/STLLoader.js')` dentro do handler do clique**, nunca no topo do módulo. É o que mantém o bundle principal sem os ~600 KB: o público do viewer é o desktop do PCP/Admin, e o operador no Android não deve pagar por uma tela que nunca abre.
-- **Três estados** (carregando via `EstadoCarregando`, erro via `BannerDeErro`, pronto), cada um com teste que morre se o estado sumir.
+- **Três estados** (carregando via `EstadoCarregando`, erro via `BannerDeErro` com texto de `mensagemDeErro(erro, 'Não foi possível carregar o sólido.')`, pronto), cada um com teste que morre se o estado sumir.
+- **O caminho vem de `caminhoDoSolido(componenteId)`**, nunca escrito à mão — a Task 6 o exportou para a rota existir num lugar só.
+- **O caminho de import do `STLLoader` é medição, não suposição:** confira no pacote instalado se é `three/examples/jsm/loaders/STLLoader.js` ou `three/addons/loaders/STLLoader.js` (os dois costumam existir; use o que os tipos resolvem) e use **o mesmo** no componente e no `vi.mock`.
 - **O binário vem por `apiFetch` + `arrayBuffer()`** — não por `<img>`/`<a>`, que não mandam o Bearer.
 - **Limpeza ao desmontar**: `renderer.dispose()`, cancelar o loop de animação, e não escrever no estado depois de desmontado (o padrão `cancelado` que as telas deste projeto já usam nos `useEffect`).
 - **O `<canvas>` precisa de rótulo acessível** (`aria-label`), porque um canvas sem nome é opaco para leitor de tela — e é por isso que o viewer não substitui a descrição textual do componente.
@@ -2225,7 +2281,9 @@ Exigências:
 
 - [ ] **Step 5: Integrar na tela e rodar tudo**
 
-O viewer entra ao lado do `UploadDeSolido`, e só aparece quando `temSolido` é verdadeiro — não há o que visualizar quando não há arquivo.
+O viewer entra junto do `UploadDeSolido`, **mas FORA da guarda `podeEscrever`** que a Task 6 pôs em volta dele (item 6 da caixa de correção): aparece para **qualquer perfil** quando `componente.temSolido` é verdadeiro, e não aparece quando é falso — não há o que visualizar sem arquivo. Não reordene nem mexa na guarda do `UploadDeSolido`.
+
+Dois testes em `ComponenteDetalhePage.test.tsx`, seguindo o arranjo que os testes de gating da Task 6 já usam nesse arquivo: (a) perfil **sem escrita** com `temSolido: true` vê o botão "Visualizar" (e não vê o upload); (b) `temSolido: false` não mostra "Visualizar".
 
 ```bash
 cd web && npm test -- --run && npm run build
@@ -2235,17 +2293,20 @@ Esperado: verde e build limpo. **Confira no build que o `three` saiu num chunk s
 
 - [ ] **Step 6: Mutação**
 
-1. **Mova o `import('three')` para o topo do módulo** (import estático). Esperado: `não busca o sólido nem carrega o three.js antes do clique` **provavelmente continua passando** — o teste mede o fetch, não o import. **Se for isso, o teste não cobre a decisão do import dinâmico, e a única prova é o chunk do build.** Escreva isso no relatório em vez de afirmar cobertura que não existe.
+1. **Mova o `import('three')` para o topo do módulo** (import estático). Esperado: `não busca o sólido nem carrega o three.js antes do clique` **falha na asserção do contador de import** (item 5 da caixa de correção). **Se continuar passando**, o contador não distingue no Vitest instalado: tire a asserção, escreva no relatório que o teste não cobre a decisão do import dinâmico e que a única prova é o chunk do build — em vez de afirmar cobertura que não existe. Restaure.
 2. **Remova o `EstadoCarregando`.** Esperado: o teste de carregando falha. Restaure.
+3. **Remova a montagem do canvas no estado pronto** (ou o `aria-label`). Esperado: o teste do canvas rotulado falha. Restaure.
+4. **Ponha o viewer dentro da guarda `podeEscrever`** na tela. Esperado: o teste (a) de tela falha. Restaure.
+5. **Tire a condição `temSolido`** do viewer na tela. Esperado: o teste (b) de tela falha. Restaure.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add web/package.json web/package-lock.json web/src/components/VisualizadorDeSolido.tsx web/src/components/VisualizadorDeSolido.test.tsx web/src/pages/ComponenteDetalhePage.tsx
+git add web/package.json web/package-lock.json web/src/components/VisualizadorDeSolido.tsx web/src/components/VisualizadorDeSolido.test.tsx web/src/pages/ComponenteDetalhePage.tsx web/src/pages/ComponenteDetalhePage.test.tsx
 git commit -m "feat(fase-2b): viewer 3D do solido, com three.js carregado sob demanda"
 ```
 
-**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 581 / front **508** (corrigida em 2026-09-14 a partir da baseline MEDIDA da Task 6, 504).
+**Delta de teste estimado: +7** (front: 5 do viewer, 2 da tela). Baseline estimada ao fim: backend 581 / front **511** (a partir da baseline MEDIDA da Task 6, 504).
 
 ---
 
@@ -2339,7 +2400,7 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **512**.
+**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **515**.
 
 ---
 
@@ -2416,4 +2477,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **512**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **515**. **São estimativas.** Cada task mede e corrige as seguintes.
