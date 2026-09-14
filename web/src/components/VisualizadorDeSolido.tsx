@@ -47,10 +47,18 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   // import dinâmico chegando depois de desmontar a tela escreveria estado num componente morto.
   const desmontadoRef = useRef(false)
 
-  useEffect(() => () => {
-    desmontadoRef.current = true
-    if (quadroRef.current !== null) cancelAnimationFrame(quadroRef.current)
-    rendererRef.current?.dispose()
+  useEffect(() => {
+    // StrictMode remonta este componente em dev (monta, desmonta, monta de novo) para expor efeito
+    // que não aguenta o ciclo. Sem esta linha, a remontagem herdava `desmontadoRef.current === true`
+    // já deixado `true` pela limpeza que a primeira montagem rodou, e as guardas de
+    // `aoClicarVisualizar` descartavam o estado PRONTO e o de ERRO para sempre — o viewer ficava
+    // preso em "Carregando…".
+    desmontadoRef.current = false
+    return () => {
+      desmontadoRef.current = true
+      if (quadroRef.current !== null) cancelAnimationFrame(quadroRef.current)
+      rendererRef.current?.dispose()
+    }
   }, [])
 
   function montarCena(THREE: typeof ThreeModulo, geometria: ThreeModulo.BufferGeometry) {

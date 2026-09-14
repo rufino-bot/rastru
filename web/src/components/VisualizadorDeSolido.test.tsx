@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { VisualizadorDeSolido } from './VisualizadorDeSolido'
@@ -14,6 +15,12 @@ import { inicializar, _resetParaTeste } from '../api/client'
 // com `import('three')` continuando dinâmico — por isso a asserção sobre `stlLoader` é
 // indispensável e não redundante com a de `three`.
 const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0 }))
+
+// Guarda a última instância de `WebGLRendererFalso` criada — o componente instancia um renderer
+// novo a cada `montarCena`, cada um com seu próprio `dispose = vi.fn()`; sem isto não haveria como
+// o teste `cancela o quadro de animação e libera o renderer ao desmontar sob StrictMode` chegar ao
+// dublê certo para checar se `dispose` foi chamado.
+const rendererFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void } }))
 
 // `apiFetch` exige `inicializar()` — molde de `UploadDeSolido.test.tsx`.
 beforeEach(() => {
@@ -48,6 +55,9 @@ vi.mock('three', () => {
     setSize = vi.fn()
     render = vi.fn()
     dispose = vi.fn()
+    constructor() {
+      rendererFalsos.ultimo = this
+    }
   }
 
   return {
@@ -145,5 +155,63 @@ describe('VisualizadorDeSolido', () => {
     // o canvas acessível (getByLabelText também acha `aria-label` fora de campo de formulário).
     expect(await screen.findByLabelText(/visualização 3d do sólido/i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /visualizar/i })).toBeNull()
+  })
+
+  // `web/src/main.tsx` monta o app em `<StrictMode>`: em dev o React monta o componente, roda a
+  // limpeza do `useEffect` e remonta, para forçar que efeitos aguentem esse ciclo. O teste
+  // `mostra o canvas rotulado quando o sólido carregou`, sem `StrictMode`, não passa por isso — só
+  // este, envolto em `StrictMode`, prova que `desmontadoRef` volta a `false` na montagem em vez de
+  // ficar `true` para sempre depois da limpeza da primeira passada.
+  it('mostra o canvas rotulado quando o sólido carregou, mesmo sob StrictMode', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(
+      <StrictMode>
+        <VisualizadorDeSolido componenteId={7} />
+      </StrictMode>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+
+    expect(await screen.findByLabelText(/visualização 3d do sólido/i)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /visualizar/i })).toBeNull()
+  })
+
+  it('mostra erro quando a busca falha sob StrictMode, e mantém o botão para tentar de novo', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(0), undefined, 404))))
+
+    render(
+      <StrictMode>
+        <VisualizadorDeSolido componenteId={7} />
+      </StrictMode>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+    expect(screen.getByRole('alert').textContent).toContain('Este registro não existe mais.')
+    expect(screen.getByRole('button', { name: /visualizar/i })).toBeTruthy()
+  })
+
+  it('cancela o quadro de animação e libera o renderer ao desmontar sob StrictMode', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+    const cancelarQuadro = vi.spyOn(globalThis, 'cancelAnimationFrame')
+
+    const { unmount } = render(
+      <StrictMode>
+        <VisualizadorDeSolido componenteId={7} />
+      </StrictMode>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    const dispose = rendererFalsos.ultimo?.dispose
+    expect(dispose).not.toHaveBeenCalled()
+    expect(cancelarQuadro).not.toHaveBeenCalled()
+
+    unmount()
+
+    expect(cancelarQuadro).toHaveBeenCalled()
+    expect(dispose).toHaveBeenCalled()
+
+    cancelarQuadro.mockRestore()
   })
 })
