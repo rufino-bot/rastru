@@ -1639,7 +1639,7 @@ git add src/Rastreamento.Application/Cadastros src/Rastreamento.Api/Controllers/
 git commit -m "feat(fase-2b): endpoints de envio e leitura do solido, e TemSolido no DTO"
 ```
 
-**Delta de teste estimado: +8** (Api), mais os ajustes mecânicos do DTO (delta 0, mas trabalho real). Baseline estimada ao fim: backend **570** (App 273 · Infra 77 · Api 220) / front 495.
+**Delta de teste MEDIDO: +14** (App +2, Api +12) — a estimativa era +8 na Api. Medido por etapa: o implementer levou a suíte de 562 a 573 (App +2, Api +9) e o fix pass do limite de 16 MiB a 576 (Api +3). A emenda (B) não estava na estimativa original, que é anterior a ela. Baseline MEDIDA ao fim: backend **576** (App 275 · Infra 77 · Api 224) / front 495. As baselines abaixo foram corrigidas a partir desta em 2026-09-13.
 
 ---
 
@@ -1837,7 +1837,7 @@ git add src/Rastreamento.Application/Estrutura tests/
 git commit -m "feat(fase-2b): cobra a regra 18 -- Peca exige solido no Componente de origem"
 ```
 
-**Delta de teste estimado: +5** (App +4, Api +1). Baseline estimada ao fim: backend **575** (App 277 · Infra 77 · Api 221) / front 495.
+**Delta de teste estimado: +5** (App +4, Api +1). Baseline estimada ao fim: backend **581** (App 279 · Infra 77 · Api 225) / front 495.
 
 ---
 
@@ -2040,7 +2040,7 @@ git add web/src/testes/api.ts web/src/api/cadastros.ts web/src/components/Upload
 git commit -m "feat(fase-2b): upload do solido na tela do Componente"
 ```
 
-**Delta de teste estimado: +5** (front). Baseline estimada ao fim: backend 575 / front **500**.
+**Delta de teste estimado: +5** (front). Baseline estimada ao fim: backend 581 / front **500**.
 
 ---
 
@@ -2152,7 +2152,7 @@ git add web/package.json web/package-lock.json web/src/components/VisualizadorDe
 git commit -m "feat(fase-2b): viewer 3D do solido, com three.js carregado sob demanda"
 ```
 
-**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 575 / front **504**.
+**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 581 / front **504**.
 
 ---
 
@@ -2246,7 +2246,7 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 575 / front **508**.
+**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **508**.
 
 ---
 
@@ -2323,4 +2323,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **575** (App 277 · Infra 77 · Api 221), front **508**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **508**. **São estimativas.** Cada task mede e corrige as seguintes.
