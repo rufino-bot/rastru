@@ -189,7 +189,9 @@ perfil autenticado.)*
 - `POST /agrupamentos/{id}/estrutura` *(PCP, Administrador)* — cria a Peça (nó de topo), copiando a
   receita padrão a partir de um `Componente`. Body: `{ componenteId, quantidade,
   requerRelatorioDimensional }`. Sem opção de nó ad-hoc aqui: pela regra 18 toda Peça referencia um
-  `Componente` — só um Item (nó com pai) pode ser ad-hoc
+  `Componente` — só um Item (nó com pai) pode ser ad-hoc. Regra 18, segunda metade (Fase 2B, Task
+  5): o `Componente` de origem precisa ter sólido 3D (`ArquivoSolidoId` preenchido) — sem ele, 400;
+  se o `Componente` não existir, 404 (ver "Contrato de erro da Estrutura")
 - `POST /estrutura/{id}/filhos` *(PCP, Administrador)* — acrescenta um Item filho ao nó `{id}`
   (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade }`.
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
@@ -256,7 +258,11 @@ de uma vez.
     o anterior, com mensagem genérica ("a quantidade informada, multiplicada pela receita,
     ultrapassa o que o sistema suporta", sem números); **não** é o mesmo caso do teto da coluna, e
     as duas frases não devem ser lidas como sinônimas;
-  - nó ad-hoc sem `Descricao`.
+  - nó ad-hoc sem `Descricao`;
+  - regra 18, segunda metade (Fase 2B, Task 5), só no `POST /agrupamentos/{id}/estrutura`: o
+    `Componente` de origem da Peça não tem sólido 3D. Corpo `{ "erro": "Este Componente nao tem
+    solido 3D (regra 18). Envie o arquivo STL no cadastro do Componente antes de criar a Peca." }`
+    — sem `mensagem`, porque a falha não tem `Detalhe` (ver `Recusar` em `EstruturaController`).
 
   **Da validação de formato e de binding** (corpo malformado, `"quantidade": "abc"`), que é
   recusada antes de chegar ao caso de uso: o formato do ASP.NET, o mesmo que a seção "Contrato de
@@ -266,8 +272,10 @@ de uma vez.
 - **403** — perfil sem permissão, do `[Authorize(Roles = "PCP,Administrador")]` nas quatro rotas de
   escrita (os dois `POST`, o `PUT` e o `DELETE`) — mesmo formato do "Contrato de erro dos
   cadastros".
-- **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`) ou nó inexistente
-  (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
+- **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`), `Componente`
+  inexistente (`POST /agrupamentos/{id}/estrutura`, regra 18 — checado depois do Agrupamento, de
+  propósito: o tipo do erro não deve distinguir "Agrupamento existe" para quem só chuta ids) ou nó
+  inexistente (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
 - **409** — quatro códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —

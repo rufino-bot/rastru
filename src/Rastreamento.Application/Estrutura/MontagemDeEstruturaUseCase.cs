@@ -52,6 +52,18 @@ public sealed class MontagemDeEstruturaUseCase
   private const string ErroDeQuantidadeExcessiva =
       "A quantidade informada, multiplicada pela receita, ultrapassa o que o sistema suporta.";
 
+  /// <summary>
+  /// Segunda metade da regra 18, cobrada a partir da Fase 2B. A primeira metade e a constraint
+  /// CK_EstruturaItem_PecaTemComponente (Fase 2), que garante que a Peca tem ONDE pendurar o
+  /// solido; esta garante que o solido esta LA. Nao e CHECK porque um CHECK nao alcanca outra
+  /// tabela, e ArquivoSolidoId e nullable por causa do Componente do tipo 'Bruto'.
+  /// </summary>
+  private const string ErroDeSolidoObrigatorio =
+      "Este Componente nao tem solido 3D (regra 18). Envie o arquivo STL no cadastro do "
+      + "Componente antes de criar a Peca.";
+
+  private const string ErroDeComponenteNaoEncontrado = "Componente nao encontrado.";
+
   private readonly IEstruturaRepository _estruturas;
   private readonly IAgrupamentoRepository _agrupamentos;
   private readonly IReceitaPadraoRepository _catalogo;
@@ -90,6 +102,18 @@ public sealed class MontagemDeEstruturaUseCase
     if (agrupamento is null)
       return Result<EstruturaItemDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
+    // Regra 18, segunda metade. Depois do agrupamento de proposito: o tipo do erro nao deve
+    // distinguir "agrupamento existe" para quem so chuta ids. Usa `_catalogo`, que o caso de uso
+    // ja recebe — nenhuma dependencia nova.
+    //
+    // Vale so para a PECA (no raiz). `AcrescentarFilho` nao passa por aqui, e e por isso que Item
+    // ad-hoc continua valido.
+    var componenteDaPeca = await _catalogo.ObterComponenteAsync(nova.ComponenteId, ct);
+    if (componenteDaPeca is null)
+      return Result<EstruturaItemDto>.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+    if (componenteDaPeca.ArquivoSolidoId is null)
+      return Result<EstruturaItemDto>.Falha(ErroDeSolidoObrigatorio, TipoDeErro.Validacao);
+
     var (plano, falha) = await PlanejarCopiaDoCatalogo(nova.ComponenteId, nova.Quantidade, ct);
     if (falha is not null) return falha;
 
@@ -107,11 +131,6 @@ public sealed class MontagemDeEstruturaUseCase
     // `if (pedido.Status != "Aberto") ...`. Medido em 2026-08-29 (ver relatorio): acrescentar essa
     // guarda no lugar do descarte faz `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido_...` morrer,
     // sem afetar as outras `CriarPecaTests` (o `FakePedidoRepo` de `Montar()` fica vazio nelas).
-    //
-    // A regra 18 tem uma segunda metade que TAMBEM nao e cobrada aqui: `Componente.ArquivoSolido`
-    // preenchido. Sem a Fase 2B nao existe upload, entao ninguem consegue preencher pela interface,
-    // e cobrar agora travaria a verificacao manual (os 54 Componentes do seed-demo nao tem solido).
-    // Quem fecha isso e a 2B.
     _ = await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
 
     var paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);

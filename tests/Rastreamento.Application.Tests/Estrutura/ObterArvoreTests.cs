@@ -28,7 +28,10 @@ public class ObterArvoreTests
 
     var agrupamentos = new FakeAgrupamentoRepo(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
     var catalogo = new FakeReceitaPadraoRepo();
-    catalogo.Componentes.Add(NovoComponente(1, "C1", "Peca Um"));
+    // Este teste cria a Peca por `CriarPeca` com ComponenteId 1 -- precisa de solido (regra 18,
+    // Task 5), senao a guarda recusa a criacao antes de chegar a `ObterArvore`.
+    catalogo.Componentes.Add(new Componente
+    { Id = 1, Codigo = "C1", Descricao = "Peca Um", Tipo = "Montagem", Ativo = true, ArquivoSolidoId = 701 });
     catalogo.Componentes.Add(NovoComponente(2, "C2", "Item Dois"));
     catalogo.Materiais.Add(new Material { Id = 90, Codigo = "M90", Descricao = "Chapa 2mm", UnidadeMedida = "UN", Ativo = true });
     catalogo.Setores.Add(new Setor { Id = 7, Nome = "Solda", Ativo = true });
