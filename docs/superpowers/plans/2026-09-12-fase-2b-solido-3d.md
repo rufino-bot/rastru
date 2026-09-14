@@ -1648,11 +1648,29 @@ git commit -m "feat(fase-2b): endpoints de envio e leitura do solido, e TemSolid
 **Files:**
 - Modify: `src/Rastreamento.Application/Estrutura/MontagemDeEstruturaUseCase.cs`
 - Modify: `tests/Rastreamento.Application.Tests/Estrutura/CriarPecaTests.cs`
+- Modify: `tests/Rastreamento.Application.Tests/Estrutura/ObterArvoreTests.cs`
 - Modify: `tests/Rastreamento.Api.Tests/EstruturaEndpointsTests.cs`
+- Modify: `specs/05-api-endpoints.md`
 
 **Interfaces:**
 - Consumes: `IReceitaPadraoRepository.ObterComponenteAsync(int id, CancellationToken ct)` → `Componente?`. **Já está injetado** em `MontagemDeEstruturaUseCase` como `_catalogo`: nenhuma dependência nova.
 - Produces: nada para tasks seguintes.
+
+> **CORREÇÃO DE 2026-09-14, medida contra o código antes de gerar o brief.** O texto original desta
+> task tinha seis defeitos, todos meus e todos corrigidos abaixo, no lugar em que aparecem:
+> (1) semear os Componentes 1 e 2 em `Montar` **duplica** os Ids que
+> `Peca_e_criada_e_a_arvore_da_receita_vem_junto` já adiciona — o fake usa `SingleOrDefault` e o
+> `MontadorDeArvoreDeEstrutura` usa `ToDictionary`, então o teste quebraria **já no Step 3**, antes
+> da guarda; (2) `Peca_de_Componente_sem_receita_grava_um_no_so` usa `ComponenteId: 5`, que nenhuma
+> semeadura cobre — a guarda o recusaria; (3) `ObterArvoreTests` também cria Peça por `CriarPeca`,
+> com Componente sem sólido, e não estava na lista de arquivos; (4) a ordem de teardown do Step 6
+> estava **invertida** — quem tem a FK é `Componente`, então Componente sai **antes** de
+> `ArquivoDeComponente`, como já faz `SolidoEndpointsTests.DisposeAsync`; (5) o `POST` ganha dois
+> códigos de erro (400 da regra 18, 404 de Componente inexistente) e `specs/05-api-endpoints.md`,
+> a doc canônica, não estava na task — decisão 4 da Task 4; (6) o comentário de
+> `Peca_de_Componente_inexistente_da_NaoEncontrado_e_nao_500` afirmava, "medido", que
+> `CriarPecaTests` não tinha caso de Componente inexistente — o defeito (2) é exatamente esse caso,
+> afirmando sucesso — e afirmava um 500 no banco que ninguém mediu.
 
 - [ ] **Step 1: Medir o estrago antes de causá-lo**
 
@@ -1703,9 +1721,10 @@ Em `CriarPecaTests.cs`:
   [Fact]
   public async Task Peca_de_Componente_inexistente_da_NaoEncontrado_e_nao_500()
   {
-    // Lacuna PRE-EXISTENTE que esta guarda fecha de graca: antes dela, um ComponenteId inexistente
-    // passava pela Application e estourava na FK do banco como 500. Nenhum teste cobria isso —
-    // medido em 2026-09-12, `CriarPecaTests` nao tinha caso de componente inexistente.
+    // Lacuna PRE-EXISTENTE que esta guarda fecha de graca: antes dela, a Application aceitava um
+    // ComponenteId inexistente — `Peca_de_Componente_sem_receita_grava_um_no_so` usava justamente
+    // um Id fora do catalogo do fake e afirmava SUCESSO. O que acontecia depois, no banco, NAO foi
+    // medido: nao afirme 500 sem medir.
     var (useCase, estruturas, _, catalogo) = Montar(
         new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
     catalogo.Componentes.Clear();
@@ -1737,9 +1756,15 @@ Em `CriarPecaTests.cs`:
   }
 ```
 
-Acrescente os dois helpers ao arquivo — `ComponenteSemSolido(int id)` e `ComponenteComSolido(int id)`, o segundo com `ArquivoSolidoId = 700 + id` (id alto, fora da faixa dos ids de catálogo dos testes, para não acertar por coincidência numérica) — e **altere `Montar` e `MontarComPedido` para semear `ComponenteComSolido(1)` e `ComponenteComSolido(2)`** no `FakeReceitaPadraoRepo`.
+Acrescente os dois helpers ao arquivo — `ComponenteSemSolido(int id)` e `ComponenteComSolido(int id)`, o segundo com `ArquivoSolidoId = 700 + id` (id alto, fora da faixa dos ids de catálogo dos testes, para não acertar por coincidência numérica) — e **altere `Montar` e `MontarComPedido` para semear `ComponenteComSolido(1)`** no `FakeReceitaPadraoRepo`. O arquivo já tem um helper `NovoComponente(id, codigo, descricao)`; os dois novos podem construir sobre ele.
 
-Escreva junto, como comentário no `Montar`, **por que** ele semeia: sem o Componente com sólido, a guarda da regra 18 recusa toda Peça e 15 testes falham por cenário incompleto, não por regressão.
+**Só o Componente 1, e não o 2.** `Peca_e_criada_e_a_arvore_da_receita_vem_junto` adiciona ela mesma `NovoComponente(1, "C1", ...)` e `NovoComponente(2, "C2", ...)` — semear o Id 1 ou o 2 em `Montar` e deixar esse teste como está **duplica o Id na lista**, e o fake (`SingleOrDefault`) e o `MontadorDeArvoreDeEstrutura` (`ToDictionary`) lançam. Nesse teste, **troque** o `catalogo.Componentes.Add(NovoComponente(1, "C1", "Peca Um"))` por uma substituição do semeado — `catalogo.Componentes.Clear()` seguido do par, com o Componente 1 **com sólido** e mantendo código e descrição (`"C1"`, `"Peca Um"`), que o teste afirma. O Componente 2 é Item da receita, não Peça: não precisa de sólido.
+
+**`Peca_de_Componente_sem_receita_grava_um_no_so` usa `ComponenteId: 5`**, que a semeadura não cobre. Semeie `ComponenteComSolido(5)` nele — mantém a intenção (Componente sem receita), e o Id deixa de ser inexistente, que é outro cenário e agora tem teste próprio.
+
+Escreva junto, como comentário no `Montar`, **por que** ele semeia: sem o Componente com sólido, a guarda da regra 18 recusa toda Peça criada a partir dele, e os testes falhariam por cenário incompleto, não por regressão.
+
+**`ObterArvoreTests` também cria Peça** (`Arvore_do_Agrupamento_inclui_todos_os_nos_com_materiais_e_roteiro_resolvidos` chama `CriarPeca` com o Componente 1 montado sem `ArquivoSolidoId`). Dê `ArquivoSolidoId` ao Componente 1 desse teste — sem isso ele cai na guarda. A contagem desse arquivo não muda.
 
 - [ ] **Step 3: Rodar e ver falhar — e conferir COMO falha**
 
@@ -1747,7 +1772,7 @@ Escreva junto, como comentário no `Montar`, **por que** ele semeia: sem o Compo
 dotnet test tests/Rastreamento.Application.Tests --filter "CriarPecaTests"
 ```
 
-Esperado: os testes novos falham (a guarda não existe, então a Peça é criada) e **os antigos continuam passando** (a semeadura do `Montar` não muda o comportamento deles). Se algum antigo quebrar **agora**, antes da guarda, a semeadura mudou algo que não devia — investigue antes de seguir.
+Esperado: `Peca_de_Componente_sem_solido_e_recusada_regra_18` e `Peca_de_Componente_inexistente_da_NaoEncontrado_e_nao_500` falham (a guarda não existe, então a Peça é criada); `A_guarda_de_solido_roda_DEPOIS_da_de_agrupamento` e o teste de Item ad-hoc **passam já** — o primeiro porque a guarda de agrupamento existe, o segundo porque não depende da guarda — e isso é esperado, não sinal de teste vazio: quem os valida é a mutação do Step 8. **Os antigos continuam passando** (a semeadura do `Montar` não muda o comportamento deles). Se algum antigo quebrar **agora**, antes da guarda, a semeadura mudou algo que não devia — investigue antes de seguir.
 
 - [ ] **Step 4: Implementar a guarda**
 
@@ -1802,7 +1827,7 @@ Esperado: **19 passando** (15 antigos + 4 novos).
 
 `EstruturaEndpointsTests` cria Componente por um helper próprio, `NovoComponente(prefixo)`, e cria Peça por HTTP contra o banco real. Com a guarda, essas Peças passam a ser recusadas.
 
-**O conserto é no helper, que é ponto único:** `NovoComponente` passa a inserir também um `ArquivoDeComponente` (use o cubo de 684 bytes) e a ligar `ArquivoSolidoId`. O `DisposeAsync` precisa apagar as linhas novas **antes** dos Componentes que as referenciam — a ordem de FK agora tem um elo a mais, e errá-la produz falha de FK no teardown, não no teste.
+**O conserto é no helper, que é ponto único:** `NovoComponente` passa a inserir também um `ArquivoDeComponente` (use `StlDeTesteDaApi.CuboBinario()`, 684 bytes) e a ligar `ArquivoSolidoId`. `ArquivoDeComponente.CriadoPorUsuarioId` é `NOT NULL` com FK para `Usuario` — veja como `SolidoEndpointsTests` resolve isso e siga o mesmo padrão. O `DisposeAsync` ganha um elo na ordem de FK: **quem tem a FK é `Componente`** (`FK_Componente_ArquivoSolido`), então os Componentes saem **antes** dos `ArquivoDeComponente` que eles apontam — mesma ordem de `SolidoEndpointsTests.DisposeAsync`. Errar a ordem produz falha de FK no teardown, não no teste.
 
 Acrescente **um** teste de endpoint aqui:
 
@@ -1814,6 +1839,8 @@ Acrescente **um** teste de endpoint aqui:
     // no nivel HTTP e nao so no caso de uso.
   }
 ```
+
+**Atualize `specs/05-api-endpoints.md`**, na seção de erros da estrutura: o `POST /agrupamentos/{id}/estrutura` passa a responder **400** quando o Componente de origem não tem sólido (regra 18 — confira no teste de endpoint novo o formato real do corpo, e documente esse, não o que você supõe) e **404** quando o Componente não existe (hoje o bullet do 404 só cita Agrupamento e nó). Não documente o que você não mediu.
 
 - [ ] **Step 7: Suíte inteira**
 
@@ -1833,7 +1860,7 @@ Esperado: verde. Se aparecer vermelho intermitente em `ComponenteMappingTests`, 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/Rastreamento.Application/Estrutura tests/
+git add src/Rastreamento.Application/Estrutura tests/ specs/05-api-endpoints.md
 git commit -m "feat(fase-2b): cobra a regra 18 -- Peca exige solido no Componente de origem"
 ```
 
