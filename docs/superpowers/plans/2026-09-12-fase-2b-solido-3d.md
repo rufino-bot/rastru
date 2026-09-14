@@ -1876,15 +1876,46 @@ git commit -m "feat(fase-2b): cobra a regra 18 -- Peca exige solido no Component
 - Create: `web/src/components/UploadDeSolido.tsx`
 - Create: `web/src/components/UploadDeSolido.test.tsx`
 - Modify: `web/src/pages/ComponenteDetalhePage.tsx`
+- Modify: `web/src/pages/ComponenteDetalhePage.test.tsx`
 
 **Interfaces:**
 - Consumes: `POST /componentes/{id}/solido` (multipart, campo `arquivo`), `GET /componentes/{id}` (para `temSolido`).
 - Produces:
   - `web/src/testes/api.ts`: `export function respostaBinaria(bytes: Uint8Array, nomeDoArquivo?: string, status?: number): Response`
   - `web/src/api/cadastros.ts`: `ComponenteDto` ganha `temSolido: boolean`; `export async function enviarSolido(componenteId: number, arquivo: File): Promise<void>`; `export function caminhoDoSolido(componenteId: number): string`
-  - `web/src/components/UploadDeSolido.tsx`: `export function UploadDeSolido({ componenteId, temSolido, aoEnviar }: { componenteId: number; temSolido: boolean; aoEnviar: () => void })`
+  - `web/src/api/cadastros.ts`: `export interface ComponenteDetalheDto extends ComponenteDto { nomeDoSolido: string | null; tamanhoDoSolidoEmBytes: number | null }`, e `obterComponente` passa a devolver `Promise<ComponenteDetalheDto>`
+  - `web/src/components/UploadDeSolido.tsx`: `export function UploadDeSolido({ componenteId, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes, aoEnviar }: { componenteId: number; temSolido: boolean; nomeDoSolido: string | null; tamanhoDoSolidoEmBytes: number | null; aoEnviar: () => void })`
 
-- [ ] **Step 1: `respostaBinaria` no helper de teste**
+> **CORREÇÃO DE 2026-09-14, medida contra o código e a spec antes de gerar o brief.** O texto
+> original desta task tinha os defeitos abaixo, todos meus; o corpo da task já está corrigido, e
+> esta caixa existe para o implementer e a review saberem o que mudou e por quê.
+>
+> 1. **A emenda (B) do topo do plano não estava aqui** — e o `task-brief` só extrai esta seção. A
+>    §7.1 da spec exige que o `UploadDeSolido` **mostre nome e tamanho** do sólido que já existe,
+>    vindos do `ComponenteDetalheDto`. O backend já devolve `nomeDoSolido` e
+>    `tamanhoDoSolidoEmBytes` no `GET /componentes/{id}` (Task 4), mas o front **não tem o tipo**:
+>    `obterComponente` devolve `ComponenteDto`. Daí o tipo novo, as props novas e o teste novo.
+> 2. **Conflito com a spec, resolvido pela regra do plano ("a spec ganha").** O Step 6 dizia que a
+>    parte de leitura (existe sólido, baixar) é de todos os perfis. A §7.1 diz que o
+>    `UploadDeSolido` é **visível só sob `usePodeEscrever`**. Vale a spec: o componente inteiro só
+>    renderiza para quem escreve. Quem não escreve verá o sólido pelo viewer da Task 7.
+> 3. **O teste pedia `getByRole('link', { name: /baixar/i })`, e o próprio Step 5 recomendava
+>    baixar por `apiFetch` + object URL** — que não é um link, e um `<a href>` cru daria 401. E a
+>    regra de "nada escrito à mão" pede `Botao`. Resolvido: baixar é um **`Botao`**, e o download
+>    ganha **teste próprio**. Somado ao teste de nome e tamanho (item 1, que alarga um teste
+>    existente) e a um teste de gating na tela (item 2), o delta estimado vai de +5 para **+7**.
+> 4. **O erro 400 perderia o motivo em silêncio, e isso agora é decisão escrita.** `mensagemDeErro`
+>    só mostra a mensagem do servidor quando o cliente popula `ErroDeApi.detalhe`, e hoje só a
+>    receita padrão popula. As mensagens do `ValidadorDeArquivoStl` são ASCII sem acento
+>    ("extensao", "esta vazio") — mostrá-las na tela poria português errado na interface. Então
+>    `enviarSolido` **não** popula `detalhe`, e o texto de fallback é que diz o que fazer:
+>    "Não foi possível enviar o sólido. Envie um arquivo .stl de até 16 MiB." O teste de erro
+>    afirma esse texto — é o que prova que o `catch` passou por `mensagemDeErro`.
+> 5. **O esqueleto do teste importava `* as client` sem usar**, e tipava o mock de `fetch` sem
+>    parâmetros enquanto lia `mock.calls[0][1]` — os dois quebram o `npm run build` (o build faz
+>    typecheck dos `.test.tsx`), com a suíte verde. Veja como os testes existentes tipam o mock.
+> 6. **"O bloco acima marca o lugar"** era citação por distância relativa no próprio plano, e o
+>    implementer a transcreveria. Reescrito pelo nome.
 
 O `respostaJson` que já existe não serve para binário. Acrescente, seguindo o estilo do arquivo:
 
@@ -1922,7 +1953,20 @@ export interface ComponenteDto {
 }
 ```
 
-**Mantenha a ordem dos campos existentes como está** — acima está reordenado por engano neste plano; copie a ordem do arquivo real e apenas acrescente `temSolido: boolean` ao fim. E:
+**Mantenha a ordem dos campos existentes como está** — o bloco de `ComponenteDto` deste Step está reordenado por engano; copie a ordem do arquivo real (`id, codigo, descricao, tipo, ativo`) e apenas acrescente `temSolido: boolean` ao fim.
+
+Acrescente o tipo do detalhe e troque o retorno de `obterComponente` (hoje `Promise<ComponenteDto>`) — os nomes em camelCase espelham o `ComponenteDetalheDto` do backend (`NomeDoSolido`, `TamanhoDoSolidoEmBytes`, anuláveis juntos):
+
+```typescript
+export interface ComponenteDetalheDto extends ComponenteDto {
+  nomeDoSolido: string | null
+  tamanhoDoSolidoEmBytes: number | null
+}
+```
+
+A `ComponenteDetalhePage` guarda o componente em estado tipado como `ComponenteDto`; passe esse estado a `ComponenteDetalheDto`. `listarComponentes` continua em `ComponenteDto`.
+
+E:
 
 ```typescript
 /**
@@ -1947,7 +1991,7 @@ export async function enviarSolido(componenteId: number, arquivo: File): Promise
 }
 ```
 
-**Use o mesmo mecanismo de erro que as outras funções do arquivo usam** — `erroDaResposta` acima é um espaço reservado pelo papel; leia `cadastros.ts` e siga o que está lá.
+**Use o mesmo mecanismo de erro que as outras funções do arquivo usam** — o `erroDaResposta` do `enviarSolido` deste Step é um espaço reservado pelo papel. Medido: em `cadastros.ts` o padrão é `if (!resp.ok) throw new ErroDeApi(resp.status, \`Falha ao ... (${resp.status}).\`)`, **sem** o terceiro argumento (`detalhe`) — e é assim que fica aqui, pelo item 4 da caixa de correção.
 
 - [ ] **Step 3: Escrever o teste do `UploadDeSolido`, que falha**
 
@@ -1957,8 +2001,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 import { UploadDeSolido } from './UploadDeSolido'
-import { respostaJson } from '../testes/api'
-import * as client from '../api/client'
+import { respostaBinaria, respostaJson } from '../testes/api'
+import { inicializar, _resetParaTeste } from '../api/client'
 
 afterEach(cleanup)
 
@@ -1969,6 +2013,9 @@ function arquivoStl(nome = 'cubo.stl'): File {
 }
 
 describe('UploadDeSolido', () => {
+  // As props `nomeDoSolido` e `tamanhoDoSolidoEmBytes` vão `null` em todo render sem sólido, e
+  // preenchidas nos dois testes com sólido. Os renders abaixo as omitem por brevidade — escreva-as.
+
   it('mostra que o componente ainda não tem sólido', () => {
     render(<UploadDeSolido componenteId={7} temSolido={false} aoEnviar={() => {}} />)
     expect(screen.getByText(/sem sólido/i)).toBeTruthy()
@@ -2003,6 +2050,9 @@ describe('UploadDeSolido', () => {
     fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivoStl()] } })
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+    // O fallback, e nao a mensagem do servidor: `enviarSolido` nao popula `detalhe` (item 4 da
+    // caixa de correcao). Afirmar o texto prova que o `catch` passou por `mensagemDeErro`.
+    expect(screen.getByRole('alert').textContent).toContain('Envie um arquivo .stl de até 16 MiB')
     expect(aoEnviar).not.toHaveBeenCalled()
   })
 
@@ -2010,15 +2060,27 @@ describe('UploadDeSolido', () => {
     // Promise que não resolve, para o estado intermediário ser observável.
   })
 
-  it('quando já tem sólido, oferece substituir e baixar', () => {
-    render(<UploadDeSolido componenteId={7} temSolido aoEnviar={() => {}} />)
+  it('quando já tem sólido, mostra nome e tamanho e oferece substituir e baixar', () => {
+    render(<UploadDeSolido componenteId={7} temSolido nomeDoSolido="suporte.stl"
+      tamanhoDoSolidoEmBytes={684} aoEnviar={() => {}} />)
+    expect(screen.getByText(/suporte\.stl/)).toBeTruthy()
+    expect(screen.getByText(/684 bytes/)).toBeTruthy()
     expect(screen.getByText(/substituir/i)).toBeTruthy()
-    expect(screen.getByRole('link', { name: /baixar/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /baixar/i })).toBeTruthy()
+  })
+
+  it('baixar busca o binario autenticado e revoga o object URL', async () => {
+    // jsdom nao implementa `URL.createObjectURL`/`revokeObjectURL`: stube os dois e afirme que o
+    // URL criado e o URL revogado sao o MESMO (revogar outro vazaria o blob).
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684), 'suporte.stl'))))
+    // ... render com temSolido, clique em "Baixar", e espere a revogacao.
   })
 })
 ```
 
-**Antes de escrever, abra um teste de tela existente** (por exemplo o de `ComponentesPage`) e copie dele o arranjo de inicialização do client e o uso de `fetchPorRota`/`respostaJson` — o bloco acima marca o lugar, não a forma exata.
+**Antes de escrever, abra um teste de tela existente** — `ComponenteDetalhePage.test.tsx` usa `inicializar`/`_resetParaTeste` de `../api/client` e `respostaJson`/`fetchPorRota` de `../testes/api` — e copie dele o arranjo de inicialização do client e a tipagem do mock de `fetch`. O bloco de teste deste Step marca o lugar, não a forma exata.
+
+**Tamanho na tela:** abaixo de 1024 bytes, `"N bytes"`; abaixo de 1 MiB, KiB com uma casa; acima, MiB com uma casa — sempre com `toLocaleString('pt-BR', …)`, para a vírgula decimal. É o que o teste com 684 afirma; se quiser cobrir as outras faixas, é teste a mais, não obrigatório.
 
 - [ ] **Step 4: Rodar e ver falhar**
 
@@ -2035,16 +2097,18 @@ Regras que o componente tem de respeitar, e que a review vai conferir:
 - **Nada escrito à mão**: use `Campo`, `Botao`, `BannerDeErro` de `web/src/components/`. O `<input type="file">` vai **dentro** do `Campo`, pelo padrão de `children` com `idDoCampo` que as outras telas usam.
 - **Cores só por token.** Nenhum token novo: "sem sólido" é ausência de dado, não estado de negócio, então `text-tinta-fraca`, nunca `negativo`.
 - **`accept=".stl"`** no input — conveniência de seletor de arquivo, **não** validação. A validação real é do backend, e o `catch` do 400 é obrigatório.
-- **Erro por `mensagemDeErro(erro, fallback)`**, com fallback próprio ("Não foi possível enviar o sólido.").
-- **O link de baixar** aponta para o caminho do sólido. **Atenção medida:** o download por link precisa do `Authorization: Bearer`, que um `<a href>` não manda — então **ou** o link busca por `apiFetch` e monta um object URL, **ou** ele não existe. Decida na task e **escreva a decisão**: um `<a>` cru para o endpoint responderia 401 e o usuário veria "erro" sem explicação. O caminho de menor risco é buscar com `apiFetch`, criar `URL.createObjectURL(blob)` e disparar o download; se escolher isso, **revogue o object URL** depois.
+- **Erro por `mensagemDeErro(erro, fallback)`**, com o fallback exato "Não foi possível enviar o sólido. Envie um arquivo .stl de até 16 MiB." (403 e 5xx continuam com o texto próprio de `mensagemDeErro`).
+- **Mostra nome e tamanho** quando `temSolido`, pelas props vindas do `ComponenteDetalheDto`.
+- **Baixar é um `Botao`, não um link.** O download precisa do `Authorization: Bearer`, que um `<a href>` não manda — um `<a>` cru para o endpoint responderia 401 e o usuário veria "erro" sem explicação. O botão busca com `apiFetch(caminhoDoSolido(id))`, cria `URL.createObjectURL(blob)`, dispara o download por um `<a download>` criado **em memória** (não renderizado — a proibição de escrever à mão é sobre a interface) e **revoga o object URL** depois. Nome do arquivo: o `nomeDoSolido` da prop. Falha no download também passa por `mensagemDeErro`, com fallback "Não foi possível baixar o sólido.". **Escreva a decisão** num comentário curto no componente.
 - **Sem `data-testid`**: o input tem rótulo, e o botão tem texto. `getByLabelText`/`getByRole` alcançam os dois.
 
 - [ ] **Step 6: Integrar na `ComponenteDetalhePage`**
 
 O ponto de inserção é **depois do bloco de cabeçalho** (o `<div>` que mostra código e descrição) e **antes da primeira `<Secao>`**. Duas exigências:
 
-- **Só sob `usePodeEscrever`** para a parte de envio — o mesmo hook que a tela já usa para a receita padrão. A parte de leitura (que existe sólido, e baixar) é de todos.
-- **Depois de enviar, a tela tem de reler o componente**, senão `temSolido` continua falso e a interface mente. É para isso que o `aoEnviar` existe.
+- **O `UploadDeSolido` inteiro só renderiza sob `usePodeEscrever('componentes')`** — o mesmo `podeEscrever` que a tela já usa para a receita padrão. É a §7.1 da spec, que ganha do texto antigo deste Step (item 2 da caixa de correção). O `try/catch` do 403 continua obrigatório dentro do componente: esconder é conveniência, o 403 é a fronteira.
+- **Depois de enviar, a tela tem de reler o componente** (`obterComponente`), senão `temSolido`, nome e tamanho continuam velhos e a interface mente. É para isso que o `aoEnviar` existe.
+- **A tela ganha testes em `ComponenteDetalhePage.test.tsx`?** Os testes existentes dela têm de continuar verdes com o componente novo na tela (um `getByRole('button')` ambíguo, por exemplo, quebraria). Acrescentar teste de integração da tela é bem-vindo se barato — **no mínimo** um que prove que perfil sem escrita **não** vê o upload — e conta no delta.
 
 - [ ] **Step 7: Rodar e ver passar, e conferir o build**
 
@@ -2059,15 +2123,17 @@ Esperado: suíte verde e build limpo. **`npm test` verde não prova que compila*
 1. **Troque o nome do campo do `FormData`** de `arquivo` para `file`. Esperado: o teste de envio falha na asserção do `get('arquivo')`. Restaure.
 2. **Remova o `aoEnviar()`** depois do sucesso. Esperado: o teste de envio falha. Restaure.
 3. **Faça o `catch` do erro chamar `aoEnviar()`.** Esperado: o teste de erro falha no `not.toHaveBeenCalled`. Restaure.
+4. **Revogue um URL diferente do criado** (ou não revogue). Esperado: o teste de baixar falha. Restaure.
+5. **Tire a guarda de `podeEscrever`** em volta do `UploadDeSolido` na tela. Esperado: o teste de perfil sem escrita da tela falha. Restaure.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add web/src/testes/api.ts web/src/api/cadastros.ts web/src/components/UploadDeSolido.tsx web/src/components/UploadDeSolido.test.tsx web/src/pages/ComponenteDetalhePage.tsx
+git add web/src/testes/api.ts web/src/api/cadastros.ts web/src/components/UploadDeSolido.tsx web/src/components/UploadDeSolido.test.tsx web/src/pages/ComponenteDetalhePage.tsx web/src/pages/ComponenteDetalhePage.test.tsx
 git commit -m "feat(fase-2b): upload do solido na tela do Componente"
 ```
 
-**Delta de teste estimado: +5** (front). Baseline estimada ao fim: backend 581 / front **500**.
+**Delta de teste estimado: +7** (front: 6 do `UploadDeSolido`, 1 da tela). Baseline estimada ao fim: backend 581 / front **502**. Estimativa — meça.
 
 ---
 
@@ -2179,7 +2245,7 @@ git add web/package.json web/package-lock.json web/src/components/VisualizadorDe
 git commit -m "feat(fase-2b): viewer 3D do solido, com three.js carregado sob demanda"
 ```
 
-**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 581 / front **504**.
+**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 581 / front **506** (corrigida em 2026-09-14: a Task 6 passou de +5 para +7 estimados).
 
 ---
 
@@ -2273,7 +2339,7 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **508**.
+**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **510**.
 
 ---
 
@@ -2350,4 +2416,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **508**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **510**. **São estimativas.** Cada task mede e corrige as seguintes.
