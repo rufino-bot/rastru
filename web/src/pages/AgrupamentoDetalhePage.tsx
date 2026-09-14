@@ -373,7 +373,8 @@ export function AgrupamentoDetalhePage() {
               valorSelecionado={componente}
               aoSelecionar={setComponente}
               // Regra 18: só aqui, porque este seletor escolhe o Componente de origem da PEÇA. O
-              // painel de acrescentar filho (abaixo) fica de fora — Item pode ser ad-hoc.
+              // `SeletorComBusca` do painel de acrescentar filho (`modoNovoFilho === 'catalogo'`)
+              // fica de fora — Item pode ser ad-hoc.
               exigirSolido
             />
             <Campo rotulo="Quantidade">

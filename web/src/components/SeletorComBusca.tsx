@@ -217,8 +217,9 @@ export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar, exigir
                   </span>
                   {bloqueado && (
                     // Ausência de dado, não estado de negócio: `text-tinta-fraca`, nunca
-                    // verde/vermelho — mesmo tratamento de contraste da descrição acima, sem
-                    // `text-tinta-fraca` quando o item está destacado (`bg-acao` por trás).
+                    // verde/vermelho — mesmo tratamento de contraste do `<span>` de
+                    // `item.descricao`, sem `text-tinta-fraca` quando o item está destacado
+                    // (`bg-acao` por trás).
                     <span className={destacado ? 'text-xs' : 'text-xs text-tinta-fraca'}>
                       sem sólido
                     </span>

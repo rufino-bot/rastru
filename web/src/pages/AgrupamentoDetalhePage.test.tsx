@@ -609,7 +609,8 @@ describe('AgrupamentoDetalhePage', () => {
   })
 
   // Task 8: o painel de acrescentar filho NÃO liga `exigirSolido` — Item pode ser ad-hoc, e a
-  // regra 18 é só da Peça. Par negativo do teste equivalente do formulário de criar Peça (acima):
+  // regra 18 é só da Peça. Par negativo de
+  // `no formulário de criar Peça, componente sem sólido aparece marcado e não é selecionável`:
   // o mesmo componente sem sólido que lá fica bloqueado, aqui é selecionável.
   it('no painel de acrescentar filho, modo catálogo, componente sem sólido é selecionável', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))

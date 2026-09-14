@@ -39,6 +39,19 @@ const PAGINA_COM_SOLIDO = {
   tamanho: 20,
 }
 
+/**
+ * Sem o campo `temSolido` na resposta — não é o mesmo caso de `temSolido: false`. O dado chega
+ * como `unknown` via `respostaJson`, sem precisar burlar `ComponenteDto` no componente: a API
+ * real pode omitir o campo (contrato antigo, serialização que descarta booleano falso), e a
+ * guarda tem de tratar a ausência como bloqueio, o lado seguro.
+ */
+const PAGINA_SEM_CAMPO_TEMSOLIDO = {
+  itens: [{ id: 5, codigo: 'CH-400', descricao: 'Chapa sem campo', tipo: 'Fabricado', ativo: true }],
+  total: 1,
+  pagina: 1,
+  tamanho: 20,
+}
+
 /** O rótulo do selecionado é `código — descrição`. */
 const ROTULO_DO_PRIMEIRO = 'CH-100 — Chapa lateral'
 
@@ -301,9 +314,10 @@ describe('SeletorComBusca', () => {
     )
   })
 
-  // Os quatro testes abaixo cobrem `exigirSolido` (regra 18: Peça exige sólido no Componente de
-  // origem). A marca é aviso de tela, não validação — a fronteira real continua sendo o 400 de
-  // `CriarPeca` no backend.
+  // Comportamento de `exigirSolido` (regra 18: Peça exige sólido no Componente de origem): sem a
+  // prop nada muda; com a prop, item sem sólido fica bloqueado por clique e por Enter; item com
+  // sólido continua selecionável. A marca é aviso de tela, não validação — a fronteira real
+  // continua sendo o 400 de `CriarPeca` no backend.
 
   it('sem exigirSolido, componente sem sólido é selecionável — o comportamento de hoje não muda', async () => {
     const aoSelecionar = vi.fn()
@@ -378,5 +392,31 @@ describe('SeletorComBusca', () => {
     fireEvent.click(await screen.findByText('CH-300'))
 
     expect(aoSelecionar).toHaveBeenCalledWith(expect.objectContaining({ id: 4 }))
+  })
+
+  it('com exigirSolido, item sem o campo temSolido na resposta aparece marcado e não é selecionável', async () => {
+    const aoSelecionar = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA_SEM_CAMPO_TEMSOLIDO) }),
+    )
+    render(
+      <SeletorComBusca
+        rotulo="Componente filho"
+        valorSelecionado={null}
+        aoSelecionar={aoSelecionar}
+        exigirSolido
+      />,
+    )
+    abrir()
+    await screen.findByText('CH-400')
+
+    const opcaoSemCampo = screen.getByRole('option', { name: /CH-400/ })
+    expect(opcaoSemCampo.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByText(/sem sólido/i)).toBeTruthy()
+
+    fireEvent.click(opcaoSemCampo)
+
+    expect(aoSelecionar).not.toHaveBeenCalled()
   })
 })
