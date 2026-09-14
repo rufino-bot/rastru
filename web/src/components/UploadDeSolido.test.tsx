@@ -35,6 +35,10 @@ describe('UploadDeSolido', () => {
       />,
     )
     expect(screen.getByText(/sem sólido/i)).toBeTruthy()
+    // Sem sólido, nome/tamanho/"Substituir"/"Baixar" não aparecem — são do OUTRO ramo do
+    // `temSolido && (...)`. Mata se essa guarda virar sempre-verdadeiro (Important 1 da review).
+    expect(screen.queryByRole('button', { name: /baixar/i })).toBeNull()
+    expect(screen.queryByText(/substituir/i)).toBeNull()
   })
 
   it('envia o arquivo escolhido como multipart e avisa o pai', async () => {
@@ -87,7 +91,7 @@ describe('UploadDeSolido', () => {
     expect(aoEnviar).not.toHaveBeenCalled()
   })
 
-  it('mostra estado de enviando enquanto a requisição está em voo', async () => {
+  it('mostra estado de enviando enquanto a requisição está em voo, e desabilita o campo', async () => {
     const aoEnviar = vi.fn()
     // Promise que não resolve, para o estado intermediário ser observável — molde do teste de
     // carregando de `SeletorComBusca.test.tsx`.
@@ -102,10 +106,42 @@ describe('UploadDeSolido', () => {
         aoEnviar={aoEnviar}
       />,
     )
-    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivoStl()] } })
+    const campo = screen.getByLabelText(/sólido/i) as HTMLInputElement
+    fireEvent.change(campo, { target: { files: [arquivoStl()] } })
 
     expect(await screen.findByRole('status')).toBeTruthy()
     expect(aoEnviar).not.toHaveBeenCalled()
+    // Campo desabilitado durante o envio evita duplo envio (Important 2 da review). Mata se
+    // `disabled={enviando}` virar `disabled={false}`.
+    expect(campo.disabled).toBe(true)
+  })
+
+  it('reabilita o campo e esconde "Enviando…" depois que o envio termina', async () => {
+    const aoEnviar = vi.fn()
+    // Promise controlada por este teste (ao contrário da anterior, que nunca resolve) — precisa
+    // resolver para o `finally` do componente rodar e provar que ele DESLIGA o estado de envio.
+    let resolver: (r: Response) => void = () => {}
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={aoEnviar}
+      />,
+    )
+    const campo = screen.getByLabelText(/sólido/i) as HTMLInputElement
+    fireEvent.change(campo, { target: { files: [arquivoStl()] } })
+    expect(await screen.findByRole('status')).toBeTruthy()
+
+    resolver(respostaJson({}))
+    await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+    // Mata se `setEnviando(false)` do `finally` for removido/comentado (Important 2 da review):
+    // sem ele, "Enviando…" nunca some e o campo nunca reabilita, mesmo depois do sucesso.
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull())
+    expect(campo.disabled).toBe(false)
   })
 
   it('quando já tem sólido, mostra nome e tamanho e oferece substituir e baixar', () => {

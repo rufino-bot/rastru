@@ -589,6 +589,38 @@ describe('ComponenteDetalhePage — escrita', () => {
   })
 
   /**
+   * Important 3 da review do fix pass: a tela precisa RELER o Componente depois de um upload com
+   * sucesso — sem isso, `temSolido`/nome/tamanho ficam com os dados de antes (o próprio comentário
+   * de `recarregarComponente` diz "a interface mente"). A prova é o efeito VISÍVEL: depois do
+   * envio, a tela mostra o que o SEGUNDO `GET /componentes/7` devolveu (nome de sólido que antes
+   * não existia), não só que algum `fetch` foi chamado. `/api/componentes/7` responde por um
+   * contador — 1ª chamada sem sólido, 2ª (e seguintes) com. Mata se `aoEnviar={recarregarComponente}`
+   * virar `aoEnviar={() => {}}`.
+   */
+  it('relê o componente depois de um upload de sólido com sucesso', async () => {
+    let chamadasComponente = 0
+    vi.stubGlobal('fetch', fetchPorRota({
+      ...LEITURAS,
+      '/api/componentes/7': () => {
+        chamadasComponente += 1
+        return chamadasComponente === 1
+          ? respostaJson(COMPONENTE)
+          : respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte-novo.stl', tamanhoDoSolidoEmBytes: 2048 })
+      },
+      '/api/componentes/7/solido': () => respostaJson({}),
+    }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+    expect(screen.getByText(/sem sólido/i)).toBeTruthy()
+
+    const arquivo = new File([new Uint8Array(10)], 'suporte-novo.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivo] } })
+
+    expect(await screen.findByText(/suporte-novo\.stl/)).toBeTruthy()
+    expect(chamadasComponente).toBeGreaterThanOrEqual(2)
+  })
+
+  /**
    * O 403 é a fronteira REAL — esconder botão não é segurança. Se o backend recusar mesmo com o
    * botão visível (perfil desatualizado no front, por exemplo), a tela mostra a recusa em vez de
    * quebrar.
