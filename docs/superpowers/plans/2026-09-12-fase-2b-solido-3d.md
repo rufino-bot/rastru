@@ -2318,10 +2318,37 @@ git commit -m "feat(fase-2b): viewer 3D do solido, com three.js carregado sob de
 - Modify: `web/src/components/SeletorComBusca.tsx`
 - Modify: `web/src/components/SeletorComBusca.test.tsx`
 - Modify: `web/src/pages/AgrupamentoDetalhePage.tsx`
+- Modify: `web/src/pages/AgrupamentoDetalhePage.test.tsx`
 
 **Interfaces:**
 - Consumes: `ComponenteDto.temSolido` da Task 6.
 - Produces: `SeletorComBusca` passa a aceitar `exigirSolido?: boolean` (default `false`).
+
+> **CORREÇÃO DE 2026-09-14, medida contra o código (já com as Tasks 6 e 7) e a spec antes de gerar
+> o brief.** Todos os defeitos são meus; o corpo da task já está corrigido.
+>
+> 1. **A fixture da tela quebraria testes existentes, e o `tsc` não avisa.** Em
+>    `AgrupamentoDetalhePage.test.tsx`, `COMPONENTE_BUSCA` é um objeto literal **sem tipo** e **sem
+>    `temSolido`** (a Task 6 não o alcançou porque nada o obriga a ser `ComponenteDto`). Com
+>    `exigirSolido` ligado no formulário de criar Peça, `temSolido` indefinido conta como "sem
+>    sólido": o CH-100 fica bloqueado e os testes que criam Peça por esse seletor param de
+>    selecionar. Conserto: `temSolido: true` nessa fixture (preserva a intenção dela), e uma
+>    fixture **separada** sem sólido para os testes novos.
+> 2. **Não havia teste de tela para a ligação no lugar certo.** Só a mutação 2 olhava a tela, e
+>    ninguém provava que `exigirSolido` está **no formulário de criar Peça** — tirá-lo de lá deixava
+>    a suíte verde. Agora são dois testes de tela obrigatórios, com a mutação correspondente.
+> 3. **Contraste do item destacado.** O `<li>` destacado usa `bg-acao text-superficie`, e o
+>    componente já troca a descrição para sem `text-tinta-fraca` quando o item está destacado.
+>    A marca "sem sólido" tem de seguir o mesmo padrão: `text-tinta-fraca` sobre `bg-acao` perde
+>    contraste.
+> 4. **"Os dois consumidores anteriores" era falso.** Há **três** usos de `SeletorComBusca` hoje:
+>    o formulário de criar Peça e o painel de acrescentar filho (`AgrupamentoDetalhePage`), e a
+>    receita padrão (`ComponenteDetalhePage`). O de Peça também é anterior à task — ele é o que
+>    ganha a prop. Redação do comentário corrigida.
+> 5. **Comentário de código não cita o plano, o brief nem esta caixa** — o repositório de código é
+>    público e esses documentos não estão nele. Diga o porquê no próprio comentário.
+>
+> Delta estimado: +4 -> **+6** (4 do seletor, 2 da tela).
 
 - [ ] **Step 1: Escrever os testes, que falham**
 
@@ -2329,7 +2356,7 @@ Acrescente a `SeletorComBusca.test.tsx`, no estilo do arquivo:
 
 ```tsx
   it('sem exigirSolido, componente sem sólido é selecionável — o comportamento de hoje não muda', async () => {
-    // Este é o teste que protege os dois consumidores existentes (a receita padrão na tela do
+    // Este é o teste que protege os usos que NÃO ganham a prop (a receita padrão na tela do
     // Componente e o painel de acrescentar filho): o default `false` tem de deixá-los intactos.
   })
 
@@ -2363,8 +2390,9 @@ interface Props {
   aoSelecionar: (componente: ComponenteDto) => void
   /**
    * Quando verdadeiro, componente sem sólido aparece MARCADO e não selecionável (regra 18: Peça
-   * exige sólido no Componente de origem). Default `false` porque os dois consumidores anteriores
-   * — a receita padrão e o painel de acrescentar filho — escolhem Item, que pode ser ad-hoc.
+   * exige sólido no Componente de origem). Default `false` porque só o formulário de criar Peça a
+   * liga: os outros usos — a receita padrão e o painel de acrescentar filho — escolhem Item, que
+   * pode ser ad-hoc.
    *
    * Isto NÃO é validação: a fronteira real é o 400 de `CriarPeca`. É aviso, para o usuário não
    * montar a árvore inteira antes de descobrir.
@@ -2373,13 +2401,19 @@ interface Props {
 }
 ```
 
-A guarda vai em **`selecionar`** (a função por onde clique e `Enter` passam), não só no `onClick` — senão o teclado contorna a regra. No `<li>`: `aria-disabled` quando bloqueado, e uma marca textual usando **`text-tinta-fraca`** (nenhum token novo; "sem sólido" é ausência de dado, não estado de negócio, e verde/vermelho estão reservados).
+A guarda vai em **`selecionar`** (a função por onde clique e `Enter` passam), não só no `onClick` — senão o teclado contorna a regra. No `<li>`: `aria-disabled` quando bloqueado, e uma marca textual "sem sólido" usando **`text-tinta-fraca`** (nenhum token novo; "sem sólido" é ausência de dado, não estado de negócio, e verde/vermelho estão reservados) — **exceto quando o item está destacado**, em que a marca segue o mesmo tratamento que a descrição já recebe (sem `text-tinta-fraca` sobre `bg-acao`). O `cursor-pointer` do `<li>` não deve sugerir clique num item bloqueado.
+
+Na fixture de `SeletorComBusca.test.tsx` os três componentes já têm `temSolido: false` (a Task 6 os acrescentou); para o teste "item COM sólido continua selecionável" acrescente um com `temSolido: true` sem mudar o que os testes existentes afirmam.
 
 - [ ] **Step 4: Ligar no lugar certo, e só nele**
 
 Em `AgrupamentoDetalhePage.tsx`, `exigirSolido` vai **apenas** no `SeletorComBusca` do **formulário de criar Peça** — o do topo da tela, dentro do `podeEscrever &&`, ao lado do campo de quantidade.
 
 **Não** vai no `SeletorComBusca` do **painel de acrescentar filho, modo catálogo**: Item pode ser ad-hoc, e a regra 18 é só da Peça. Ligá-lo ali seria inventar uma regra que o domínio não tem.
+
+**Fixture:** em `AgrupamentoDetalhePage.test.tsx`, dê `temSolido: true` a `COMPONENTE_BUSCA` (item 1 da correção: sem isso os testes existentes que criam Peça quebram) e tipe a fixture como `ComponenteDto` para o `tsc` pegar a próxima vez que o DTO crescer.
+
+**Dois testes de tela**, seguindo o arranjo de fetch que o arquivo já usa (a busca de componentes devolve uma página): (a) no **formulário de criar Peça**, um componente sem sólido aparece com a marca e `aria-disabled`, e clicar nele não o seleciona; (b) no **painel de acrescentar filho, modo catálogo**, o mesmo componente sem sólido **é** selecionável.
 
 - [ ] **Step 5: Rodar tudo**
 
@@ -2390,17 +2424,19 @@ cd web && npm test -- --run && npm run build
 - [ ] **Step 6: Mutação**
 
 1. **Mova a guarda do `selecionar` para o `onClick` do `<li>`.** Esperado: o teste do `Enter` falha. Restaure.
-2. **Ligue `exigirSolido` também no painel de acrescentar filho.** Esperado: algum teste da `AgrupamentoDetalhePage` sobre filho de catálogo falha. **Se a suíte ficar verde, o caso não está coberto** — acrescente o teste e registre.
-3. **Troque o default de `exigirSolido` para `true`.** Esperado: o teste "sem exigirSolido... não muda" falha.
+2. **Ligue `exigirSolido` também no painel de acrescentar filho.** Esperado: o teste de tela (b) falha. Restaure.
+3. **Troque o default de `exigirSolido` para `true`.** Esperado: o teste "sem exigirSolido... não muda" falha. Restaure.
+4. **Tire `exigirSolido` do formulário de criar Peça.** Esperado: o teste de tela (a) falha. Restaure.
+5. **Tire o `aria-disabled`** mantendo a guarda. Esperado: o teste "o item sem sólido aparece marcado e não é selecionável" falha. Restaure.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusca.test.tsx web/src/pages/AgrupamentoDetalhePage.tsx
+git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusca.test.tsx web/src/pages/AgrupamentoDetalhePage.tsx web/src/pages/AgrupamentoDetalhePage.test.tsx
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **515**.
+**Delta de teste estimado: +6** (front: 4 do seletor, 2 da tela). Baseline estimada ao fim: backend 581 / front **517** (a partir da baseline MEDIDA da Task 7, 511).
 
 ---
 
@@ -2477,4 +2513,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **515**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **517**. **São estimativas.** Cada task mede e corrige as seguintes.
