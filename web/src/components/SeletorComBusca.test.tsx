@@ -19,9 +19,9 @@ beforeEach(() => {
 /** Três componentes, o suficiente para navegar com o teclado e provar a seleção. */
 const PAGINA = {
   itens: [
-    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true },
-    { id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Fabricado', ativo: true },
-    { id: 3, codigo: 'PA-010', descricao: 'Parafuso M8', tipo: 'Bruto', ativo: true },
+    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false },
+    { id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Fabricado', ativo: true, temSolido: false },
+    { id: 3, codigo: 'PA-010', descricao: 'Parafuso M8', tipo: 'Bruto', ativo: true, temSolido: false },
   ],
   total: 3,
   pagina: 1,

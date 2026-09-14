@@ -20,7 +20,10 @@ vi.mock('../auth/AuthContext', () => ({
   }),
 }))
 
-const COMPONENTE = { id: 7, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true }
+const COMPONENTE = {
+  id: 7, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true,
+  temSolido: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+}
 const FILHOS = [{ id: 1, componenteFilhoId: 3, codigo: 'PA-010', descricao: 'Parafuso M8', quantidadePadrao: 4 }]
 const MATERIAIS = [{ id: 2, materialId: 5, codigo: 'CH-3', descricao: 'Chapa 3mm', unidadeMedida: 'KG', quantidadePadrao: 1.5 }]
 const ROTEIRO = [
@@ -569,6 +572,20 @@ describe('ComponenteDetalhePage — escrita', () => {
     expect(await screen.findByText('PA-010')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /salvar/i })).toBeNull()
     expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  /**
+   * Task 6 (Fase 2B): o `UploadDeSolido` inteiro é gated por `podeEscrever` (§7.1 da spec, item 2
+   * da caixa de correção do brief) — quem não escreve vê o sólido pelo `VisualizadorDeSolido`
+   * (Task 7), não por aqui. Mata se a guarda de `podeEscrever` em volta dele for removida (Step 8,
+   * mutação 5 do brief).
+   */
+  it('Operador não vê o upload do sólido', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    await screen.findByText('PA-010')
+    expect(screen.queryByLabelText(/sólido/i)).toBeNull()
   })
 
   /**
