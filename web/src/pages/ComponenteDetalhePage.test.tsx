@@ -589,6 +589,33 @@ describe('ComponenteDetalhePage — escrita', () => {
   })
 
   /**
+   * Task 7 (Fase 2B): o `VisualizadorDeSolido` fica FORA da guarda `podeEscrever` (item 6 da caixa
+   * de correção do brief) — o `GET` do sólido é de qualquer perfil autenticado, e quem não escreve
+   * enxerga o sólido pelo viewer, não pelo `UploadDeSolido`. Mata se o viewer entrar dentro da
+   * guarda `podeEscrever` (Step 6, mutação 4 do brief da Task 7).
+   */
+  it('Operador com sólido vê o botão de Visualizar, mas não o upload', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684 }) }))
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    await screen.findByText('PA-010')
+    expect(screen.getByRole('button', { name: /visualizar/i })).toBeTruthy()
+    expect(screen.queryByLabelText(/sólido/i)).toBeNull()
+  })
+
+  /**
+   * Mata se a condição `componente.temSolido` sumir do gating do viewer na tela (Step 6, mutação 5
+   * do brief da Task 7): sem sólido não há o que visualizar, e o botão não deveria aparecer.
+   */
+  it('sem sólido, não mostra o botão de Visualizar', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7')
+
+    await screen.findByText('PA-010')
+    expect(screen.queryByRole('button', { name: /visualizar/i })).toBeNull()
+  })
+
+  /**
    * Important 3 da review do fix pass: a tela precisa RELER o Componente depois de um upload com
    * sucesso — sem isso, `temSolido`/nome/tamanho ficam com os dados de antes (o próprio comentário
    * de `recarregarComponente` diz "a interface mente"). A prova é o efeito VISÍVEL: depois do

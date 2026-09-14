@@ -22,6 +22,7 @@ import { SeletorComBusca } from '../components/SeletorComBusca'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { UploadDeSolido } from '../components/UploadDeSolido'
+import { VisualizadorDeSolido } from '../components/VisualizadorDeSolido'
 
 interface PropsDaSecao {
   idTitulo: string
@@ -401,6 +402,14 @@ export function ComponenteDetalhePage() {
           tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
           aoEnviar={recarregarComponente}
         />
+      )}
+
+      {/* FORA da guarda `podeEscrever` de propósito (item 6 da caixa de correção do brief da
+          Task 7): o `GET /componentes/{id}/solido` que o viewer consome é de qualquer perfil
+          autenticado, e quem não escreve enxerga o sólido por aqui, não pelo `UploadDeSolido`.
+          Condicionado só a `temSolido` — sem arquivo, não há o que visualizar. */}
+      {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
+        <VisualizadorDeSolido componenteId={componenteId} />
       )}
 
       <Secao
