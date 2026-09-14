@@ -18,15 +18,15 @@ type Estado =
   | { tipo: 'pronto' }
 
 /** Nome acessível do canvas — um canvas sem `aria-label` é opaco para leitor de tela, e é por isso
-    que o viewer não substitui a descrição textual do Componente (exigência do Step 4 do brief). */
+    que o viewer não substitui a descrição textual do Componente. */
 const ROTULO_DO_CANVAS = 'Visualização 3D do sólido'
 
 /**
  * Viewer 3D do sólido STL de um Componente — Task 7 da Fase 2B (§2.3 e §7.2 da spec de desenho).
  *
- * Fica FORA da guarda `usePodeEscrever` da tela que o monta (item 6 da caixa de correção do
- * brief): o `GET /componentes/{id}/solido` é de qualquer perfil autenticado, e quem não escreve
- * enxerga o sólido por aqui — o `UploadDeSolido` (Task 6) é só para quem escreve.
+ * Fica FORA da guarda `usePodeEscrever` da tela que o monta: o `GET /componentes/{id}/solido` é
+ * de qualquer perfil autenticado, e quem não escreve enxerga o sólido por aqui — o
+ * `UploadDeSolido` (Task 6) é só para quem escreve.
  *
  * `three` e o `STLLoader` entram por `import()` dinâmico DENTRO do clique de "Visualizar", nunca
  * no topo do módulo: o público que de fato abre o viewer é o desktop do PCP/Administrador ao

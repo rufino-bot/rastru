@@ -7,9 +7,13 @@ import { inicializar, _resetParaTeste } from '../api/client'
 
 // Contador de import: a fábrica de `vi.mock` só roda quando o módulo é importado pela primeira
 // vez. Distingue import ESTÁTICO (a fábrica já rodou ao carregar este arquivo) de import DINÂMICO
-// no clique (a fábrica só roda depois). Item 5 da caixa de correção do brief: medido nesta suíte
-// com o Vitest instalado — ver a mutação 1 do relatório para o resultado.
-const importacoes = vi.hoisted(() => ({ three: 0 }))
+// no clique (a fábrica só roda depois). Dois contadores porque os dois módulos são importados
+// separadamente no componente (`Promise.all` com um `import()` para cada) e cada um pode
+// regredir para estático de forma independente: um `STLLoader` estático, sozinho, já faz o
+// `three` inteiro (que ele importa estaticamente por dentro) voltar ao bundle principal, mesmo
+// com `import('three')` continuando dinâmico — por isso a asserção sobre `stlLoader` é
+// indispensável e não redundante com a de `three`.
+const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0 }))
 
 // `apiFetch` exige `inicializar()` — molde de `UploadDeSolido.test.tsx`.
 beforeEach(() => {
@@ -59,13 +63,17 @@ vi.mock('three', () => {
 
 // Dublê do STLLoader: `parse` devolve uma geometria falsa com os dois métodos que
 // `montarCena` chama antes de montar a cena (`computeBoundingBox`/`center`), ambos no-op.
-vi.mock('three/examples/jsm/loaders/STLLoader.js', () => ({
-  STLLoader: class {
-    parse() {
-      return { computeBoundingBox: () => {}, center: () => {} }
-    }
-  },
-}))
+vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
+  importacoes.stlLoader++
+
+  return {
+    STLLoader: class {
+      parse() {
+        return { computeBoundingBox: () => {}, center: () => {} }
+      }
+    },
+  }
+})
 
 describe('VisualizadorDeSolido', () => {
   it('não busca o sólido nem carrega o three.js antes do clique', () => {
@@ -75,10 +83,15 @@ describe('VisualizadorDeSolido', () => {
     render(<VisualizadorDeSolido componenteId={7} />)
 
     expect(fetchMock).not.toHaveBeenCalled()
-    // Mata o import ESTÁTICO: com `import ... from 'three'` no topo do módulo, a fábrica já teria
-    // rodado quando este arquivo de teste importou `VisualizadorDeSolido`, antes de qualquer
-    // clique. Ver a mutação 1 do relatório — medida contra o Vitest instalado, não suposta.
+    // Mata o import ESTÁTICO de `three`: com `import ... from 'three'` no topo do módulo, a
+    // fábrica já teria rodado quando este arquivo de teste importou `VisualizadorDeSolido`, antes
+    // de qualquer clique.
     expect(importacoes.three).toBe(0)
+    // Mata o import ESTÁTICO do `STLLoader`, isoladamente: um `STLLoader` estático, sozinho, traz
+    // o `three` inteiro de volta ao bundle principal (ele o importa estaticamente por dentro),
+    // mesmo com `import('three')` continuando dinâmico no componente — a asserção sobre
+    // `importacoes.three`, sozinha, não pega essa regressão.
+    expect(importacoes.stlLoader).toBe(0)
   })
 
   it('busca o binário quando o usuário pede para visualizar', async () => {

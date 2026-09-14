@@ -589,10 +589,9 @@ describe('ComponenteDetalhePage — escrita', () => {
   })
 
   /**
-   * Task 7 (Fase 2B): o `VisualizadorDeSolido` fica FORA da guarda `podeEscrever` (item 6 da caixa
-   * de correção do brief) — o `GET` do sólido é de qualquer perfil autenticado, e quem não escreve
-   * enxerga o sólido pelo viewer, não pelo `UploadDeSolido`. Mata se o viewer entrar dentro da
-   * guarda `podeEscrever` (Step 6, mutação 4 do brief da Task 7).
+   * Task 7 (Fase 2B): o `VisualizadorDeSolido` fica FORA da guarda `podeEscrever` — o `GET` do
+   * sólido é de qualquer perfil autenticado, e quem não escreve enxerga o sólido pelo viewer, não
+   * pelo `UploadDeSolido`. Mata se o viewer entrar dentro da guarda `podeEscrever`.
    */
   it('Operador com sólido vê o botão de Visualizar, mas não o upload', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684 }) }))
@@ -604,8 +603,8 @@ describe('ComponenteDetalhePage — escrita', () => {
   })
 
   /**
-   * Mata se a condição `componente.temSolido` sumir do gating do viewer na tela (Step 6, mutação 5
-   * do brief da Task 7): sem sólido não há o que visualizar, e o botão não deveria aparecer.
+   * Mata se a condição `componente.temSolido` sumir do gating do viewer na tela: sem sólido não
+   * há o que visualizar, e o botão não deveria aparecer.
    */
   it('sem sólido, não mostra o botão de Visualizar', async () => {
     vi.stubGlobal('fetch', apiCompleta())

@@ -404,10 +404,10 @@ export function ComponenteDetalhePage() {
         />
       )}
 
-      {/* FORA da guarda `podeEscrever` de propósito (item 6 da caixa de correção do brief da
-          Task 7): o `GET /componentes/{id}/solido` que o viewer consome é de qualquer perfil
-          autenticado, e quem não escreve enxerga o sólido por aqui, não pelo `UploadDeSolido`.
-          Condicionado só a `temSolido` — sem arquivo, não há o que visualizar. */}
+      {/* FORA da guarda `podeEscrever` de propósito: o `GET /componentes/{id}/solido` que o
+          viewer consome é de qualquer perfil autenticado, e quem não escreve enxerga o sólido
+          por aqui, não pelo `UploadDeSolido`. Condicionado só a `temSolido` — sem arquivo, não
+          há o que visualizar. */}
       {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
         <VisualizadorDeSolido componenteId={componenteId} />
       )}
