@@ -2436,7 +2436,7 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +6** (front: 4 do seletor, 2 da tela). Baseline estimada ao fim: backend 581 / front **517** (a partir da baseline MEDIDA da Task 7, 511).
+**Delta de teste MEDIDO: +7** (front) — a estimativa era +6. Medido por etapa: o implementer levou a suíte de 511 a 517 e o fix pass da review a 518 (+1: o teste de `temSolido` ausente). Baseline MEDIDA ao fim: backend 581 / front **518 / 41 arquivos**.
 
 ---
 
@@ -2513,4 +2513,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **517**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **518 / 41 arquivos** — **MEDIDAS** ao fechar a Task 8 (2026-09-14); a Task 9 não tem delta de teste. Cada task mede e corrige as seguintes.
