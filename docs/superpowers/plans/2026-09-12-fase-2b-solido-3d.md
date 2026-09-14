@@ -2133,7 +2133,7 @@ git add web/src/testes/api.ts web/src/api/cadastros.ts web/src/components/Upload
 git commit -m "feat(fase-2b): upload do solido na tela do Componente"
 ```
 
-**Delta de teste estimado: +7** (front: 6 do `UploadDeSolido`, 1 da tela). Baseline estimada ao fim: backend 581 / front **502**. Estimativa — meça.
+**Delta de teste MEDIDO: +9** (front) — a estimativa era +7. Medido por etapa: o implementer levou a suíte de 495 a 502 (40 arquivos) e o fix pass da review a 504 (+2: dois testes novos para os estados do upload e a releitura da tela; os outros dois achados alargaram testes existentes). Baseline MEDIDA ao fim: backend 581 / front **504 / 40 arquivos**. As baselines abaixo foram corrigidas a partir desta em 2026-09-14.
 
 ---
 
@@ -2245,7 +2245,7 @@ git add web/package.json web/package-lock.json web/src/components/VisualizadorDe
 git commit -m "feat(fase-2b): viewer 3D do solido, com three.js carregado sob demanda"
 ```
 
-**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 581 / front **506** (corrigida em 2026-09-14: a Task 6 passou de +5 para +7 estimados).
+**Delta de teste estimado: +4** (front). Baseline estimada ao fim: backend 581 / front **508** (corrigida em 2026-09-14 a partir da baseline MEDIDA da Task 6, 504).
 
 ---
 
@@ -2339,7 +2339,7 @@ git add web/src/components/SeletorComBusca.tsx web/src/components/SeletorComBusc
 git commit -m "feat(fase-2b): seletor marca componente sem solido ao escolher Peca"
 ```
 
-**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **510**.
+**Delta de teste estimado: +4** (front, mais os que a mutação 2 exigir). Baseline estimada ao fim: backend 581 / front **512**.
 
 ---
 
@@ -2416,4 +2416,4 @@ Um caso por linha, com o que foi observado. **Divergência encontrada é resulta
 
 **Consistência de tipos:** `ArquivoSolidoId` é `int?` em toda parte; `TemSolido`/`temSolido` é `bool`/`boolean`; `caminhoDoSolido` é a única fonte da rota nos dois consumidores do front; `Validar` devolve `string?` no mesmo molde de `CadastroDeComponenteUseCase`; `Enviar` devolve `Result` (sem valor) e `Obter` devolve `Result<ArquivoDeSolidoDto>`.
 
-**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **510**. **São estimativas.** Cada task mede e corrige as seguintes.
+**Baseline final estimada:** backend **581** (App 279 · Infra 77 · Api 225), front **512**. **São estimativas.** Cada task mede e corrige as seguintes.
