@@ -84,9 +84,8 @@ describe('UploadDeSolido', () => {
     fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivoStl()] } })
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
-    // O fallback, e não a mensagem do servidor: `enviarSolido` não popula `detalhe` (item 4 da
-    // caixa de correção do brief da Task 6). Afirmar o texto prova que o `catch` passou por
-    // `mensagemDeErro`.
+    // O fallback, e não a mensagem do servidor: `enviarSolido` não popula `detalhe`. Afirmar o
+    // texto prova que o `catch` passou por `mensagemDeErro`.
     expect(screen.getByRole('alert').textContent).toContain('Envie um arquivo .stl de até 16 MiB')
     expect(aoEnviar).not.toHaveBeenCalled()
   })

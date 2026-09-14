@@ -575,10 +575,9 @@ describe('ComponenteDetalhePage — escrita', () => {
   })
 
   /**
-   * Task 6 (Fase 2B): o `UploadDeSolido` inteiro é gated por `podeEscrever` (§7.1 da spec, item 2
-   * da caixa de correção do brief) — quem não escreve vê o sólido pelo `VisualizadorDeSolido`
-   * (Task 7), não por aqui. Mata se a guarda de `podeEscrever` em volta dele for removida (Step 8,
-   * mutação 5 do brief).
+   * Task 6 (Fase 2B): o `UploadDeSolido` inteiro é gated por `podeEscrever` (§7.1 da spec) — quem
+   * não escreve vê o sólido pelo `VisualizadorDeSolido` (Task 7), não por aqui. Mata se a guarda
+   * de `podeEscrever` em volta dele for removida.
    */
   it('Operador não vê o upload do sólido', async () => {
     vi.stubGlobal('fetch', apiCompleta())

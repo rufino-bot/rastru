@@ -63,10 +63,10 @@ export function UploadDeSolido({
     }
   }
 
-  // DECISÃO (item 3 da caixa de correção do brief): baixar é um Botao, não um <a href> cru — um
-  // <a> cru não manda `Authorization: Bearer` e o endpoint responderia 401. O botão busca pelo
-  // `apiFetch`, cria um object URL em memória e dispara o download por um <a download> criado (e
-  // nunca renderizado) na hora, revogando o object URL logo depois.
+  // DECISÃO: baixar é um Botao, não um <a href> cru — um <a> cru não manda
+  // `Authorization: Bearer` e o endpoint responderia 401. O botão busca pelo `apiFetch`, cria um
+  // object URL em memória e dispara o download por um <a download> criado (e nunca renderizado)
+  // na hora, revogando o object URL logo depois.
   async function aoBaixar() {
     setBaixando(true)
     setErroDownload(null)

@@ -389,11 +389,10 @@ export function ComponenteDetalhePage() {
         )}
       </div>
 
-      {/* O UploadDeSolido inteiro só renderiza sob `podeEscrever` (§7.1 da spec, que ganha do
-          texto antigo do Step 6 do brief da Task 6): quem não escreve vê o sólido pelo
-          VisualizadorDeSolido (Task 7), não por aqui. Gated também por `componente` carregado —
-          as props exigem `temSolido`/nome/tamanho, que só existem depois da busca do componente
-          (`obterComponente`) assentar. */}
+      {/* O UploadDeSolido inteiro só renderiza sob `podeEscrever` (§7.1 da spec): quem não
+          escreve vê o sólido pelo VisualizadorDeSolido (Task 7), não por aqui. Gated também por
+          `componente` carregado — as props exigem `temSolido`/nome/tamanho, que só existem
+          depois da busca do componente (`obterComponente`) assentar. */}
       {podeEscrever && !carregandoComponente && erroComponente === null && componente && (
         <UploadDeSolido
           componenteId={componenteId}
