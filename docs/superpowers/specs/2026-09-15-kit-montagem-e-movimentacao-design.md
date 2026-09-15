@@ -39,6 +39,11 @@ com D de 40 (4 por C).
 | `specs/03-arquitetura-tecnica.md` | Separar "PWA/offline" (continua descartado) de "PWA mínimo para push" (seção 7) |
 | `specs/00-visao-geral.md` | Perfil Movimentador (seção 7) |
 | Spec da Fase 2 (`2026-08-29-fase-2-estrutura-recursiva-design.md`) | Errata datada na §2.1, sem reescrever o texto original (seção 6) |
+| `specs/04-fluxos-de-usuario.md` e `specs/05-api-endpoints.md` | **Nota datada** nas seções que esta spec contradiz (apontamento em setor, retrabalho, perda) apontando para cá; o texto delas é revisto na spec da fase correspondente (seção 7) |
+| `CLAUDE.md` | Invariante de conservação de quantidade alinhado à regra 9 nova, e um invariante para o Kit (seção 7) |
+
+(As três últimas linhas entraram depois da aprovação, no preparo do plano, em 2026-09-15: sem elas,
+o `04`, o `05` e o resumo de invariantes do `CLAUDE.md` passariam a contradizer o `01` em silêncio.)
 
 **Fica para o início de cada fase:** as mudanças em `specs/02-modelo-de-dados.sql` —
 `Setor.UtilizaKit`, `EstruturaItem.QuantidadePorPai`, o destino "montado", o motivo `Descarte` em
@@ -270,8 +275,11 @@ troca a cada turno.
   saída acima do montado; o aviso de Kit pronto aparece e some quando o Kit é levado.
 - **Fase 5 — ampliada.** Regra 27 (perda que sobe até a Peça, nó pronto no Retrabalho), perda de Item e
   motivo `Descarte`.
-- **Fase 3C — Notificação push (nova).** Nota no topo: **executada depois da Fase 5**, como a 1F já
-  ficou na fila fora da ordem das letras — o fluxo ponta a ponta vem primeiro, e o push é reforço.
+- **Fase 3C — Notificação push (nova).** Nota no topo: **executada depois da Fase 5**, fora da ordem
+  das letras — o fluxo ponta a ponta vem primeiro, e o push é reforço de uma lista que já funciona.
+  (Correção de 2026-09-15, no preparo do plano: a redação aprovada citava a Fase 1F como precedente,
+  mas a 1F não consta do roadmap da `main` — mora em branch própria —, e o texto público citaria algo
+  que o leitor não encontra.)
   Critério de pronto: um Movimentador com o celular bloqueado recebe o aviso de Kit pronto, e tocar
   nele abre a tela Tarefas.
 - **Nova seção "Fora das fases — dívida: CRUD de Usuário e permissão por Perfil".** Ver seção 8.
@@ -293,10 +301,19 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
 
 - **`03`:** o item "PWA/offline: não é necessário no MVP" continua valendo para funcionamento sem
   rede. Ganha a ressalva de que o **PWA mínimo para push** (manifesto, service worker sem cache de
-  API) está previsto na Fase 3C e não reabre aquela decisão. A lista de pendências de pré-deploy ganha
-  as **chaves VAPID**, no mesmo procedimento da `SigningKey`, valendo só a partir da Fase 3C.
+  API) está previsto na Fase 3C e não reabre aquela decisão. As **chaves VAPID** entram em "Pontos em
+  aberto" como **parágrafo próprio**, com gatilho "início da Fase 3C" e procedimento igual ao da
+  `SigningKey` (variável de ambiente na VPS) — e **não** como quarto item da lista numerada, porque
+  aquela lista declara que seus itens carregam todos o mesmo gatilho, "obrigatório antes do primeiro
+  deploy público". (Correção de 2026-09-15, no preparo do plano.)
 - **`00`:** a lista de perfis ganha o **Movimentador** — leva Itens prontos ao próximo Setor e Kits
   completos à Solda.
+- **`04` e `05`:** nota datada, sem reescrever, no topo de "2. Apontamento em Setor", "5. Retrabalho" e
+  "6. Perda de peças" (`04`) e de "Execução / Rastreamento" e "Perdas" (`05`), dizendo o que esta spec
+  mudou e que o texto é revisto na spec da Fase 3 ou da Fase 5.
+- **`CLAUDE.md`:** o invariante de conservação passa a dizer "em produção + montado + expedido +
+  perdido = total, para todo `EstruturaItem`"; entra um invariante para a trava de montagem e o
+  conjunto completo do Kit.
 
 ## 8. Dívida registrada: CRUD de Usuário e permissão por Perfil
 
