@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 2**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 3**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -62,7 +62,19 @@ Duas partes, com pesos diferentes:
     independente do Tipo — descartada porque um Avulso pode ter filhos montados de outro jeito
     (ex.: parafusados), e a trava seria falsa ali.
 
-## Pergunta 2 — ABERTA, aguardando o usuário
+- **D2 — Montagem parcial: monta o que dá** (resposta à Pergunta 2, 2026-09-15, opção B abaixo).
+  Com 24 suportes de 40 na Solda, soldam-se 6 das 10 Peças. O usuário amarrou isso à expedição
+  parcial (regra 16): montar parte é o que permite expedir a parte vital antes.
+  - **Consequência aceita pelo usuário: errata na spec da Fase 2**, motivada por **esclarecimento do
+    processo atual da fábrica** (não por erro de raciocínio da época). A §2.1 descartou guardar a
+    razão por unidade; a trava precisa dela. A **redação** da errata depende da Pergunta 3 (de onde
+    vem a razão), e por isso ainda não foi escrita na spec da Fase 2 — entra junto com o design
+    aprovado, como seção de errata datada naquela spec, sem reescrever a §2.1 original.
+  - Fato levantado ao retomar: a receita de catálogo **já guarda** a razão —
+    `ComponenteFilhoPadrao.QuantidadePadrao` é por unidade do pai; é a cópia da Fase 2 que multiplica
+    e descarta a razão ao gravar o `EstruturaItem`.
+
+## Pergunta 2 — RESPONDIDA (B), mantida para registro
 
 **A Solda de verdade monta parte da quantidade de uma Peça?**
 
@@ -80,6 +92,26 @@ Exemplo: Peça de 10, filho "suporte" de 40. Chegaram 24 suportes na Solda.
 Nenhuma recomendação foi dada ainda, de propósito: depende de como a fábrica opera, não de
 técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser pequena.
 
+## Pergunta 3 — ABERTA, aguardando o usuário
+
+**De onde vem a razão por unidade que a trava usa?** Exemplo: Peça de 10, suporte de 45
+(4 por unidade + 5 de sobra de refugo).
+
+- **A) Coluna nova no `EstruturaItem`, guardada junto com o absoluto** (ex.:
+  `QuantidadePorUnidadeDoPai`). A cópia da receita preenche com `QuantidadePadrao`; o item ad-hoc
+  informa à mão. O absoluto continua sendo o que o apontamento da Fase 3 movimenta, e a razão só
+  serve à trava. A trava libera `mínimo(presente na Solda ÷ razão)` entre os filhos → com 24
+  suportes, 6 Peças. Errata **pequena**: a §2.1 passa a guardar as duas, não troca uma pela outra.
+  Custo: dois números que podem divergir (45 vs 10 × 4), e isso é legítimo pela §2.2.
+- **B) Derivar: filho ÷ pai, sem schema novo.** 45 ÷ 10 = 4,5 → a trava exige 4,5 por Peça e, com
+  24 suportes, libera 5 em vez de 6. A sobra de refugo vira exigência; editar o absoluto muda a
+  trava sem ninguém perceber.
+- **C) Inverter a §2.1: guardar só a razão e derivar o absoluto.** A errata **grande** — reabre o
+  custo que a Fase 2 registrou (toda consulta de setor sobe a árvore) e acaba com o absoluto
+  customizável da §2.2.
+
+Recomendação apresentada: **A**.
+
 ## Perguntas ainda não feitas (fila, uma por vez, nesta ordem provável)
 
 1. **Como o sistema sabe qual Setor é a Solda?** Opções a apresentar: flag no `Setor` (ex.:
@@ -88,8 +120,8 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
 2. **O que acontece com a quantidade do Item depois de soldado?** Ele "some" dentro da Peça. A
    conservação de quantidade (regra 9) fala da Peça; hoje não há bucket "consumido na montagem"
    para Item. Pode já estar respondido quando a Fase 3 for desenhada — confirmar antes de inventar.
-3. **Item perdido** (regra 17): com a opção A da Pergunta 2, uma perda de suporte trava a Peça para
-   sempre? Conta o perdido como "resolvido" e libera menos Peças? Liga com o ponto em aberto
+3. **Item perdido** (regra 17): com a montagem parcial (D2), a perda de suporte reduz quantas Peças
+   dá para montar — as Peças que ficam sem Item nunca montam, e isso as prende em produção? Liga com o ponto em aberto
    "Descontinuar uma Peça trava o fechamento do Pedido", do mesmo arquivo de domínio.
 4. **Sub-Itens**: a trava vale só para os filhos diretos da Peça, ou um Item com filhos (submontagem)
    também espera os dele numa Solda anterior?
