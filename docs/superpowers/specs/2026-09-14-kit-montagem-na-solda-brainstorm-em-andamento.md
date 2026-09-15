@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 10**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 11**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -201,7 +201,33 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
 **Parte 1 da ideia (trava de montagem) fechada no nível de domínio.** Daqui em diante, parte 2
 (aviso de Kit pronto).
 
-## Pergunta 10 — ABERTA, aguardando o usuário
+- **D12 — Terminar no Setor e mover são ações separadas, feitas por pessoas diferentes** (resposta
+  à Pergunta 10, 2026-09-15, opção A). O operador marca "terminei"; o movimentador leva. A Fase 3
+  precisa do estado **"aguardando coleta"** entre a saída de um Setor e a entrada no próximo. O aviso
+  de Kit pronto sai quando os filhos diretos (**aguardando coleta + já no Setor `UtilizaKit`**)
+  passam a permitir montar mais unidades do pai.
+  - O usuário **amarrou** a extensão antes adiada — aviso de Item pronto para o próximo Setor — a
+    este mesmo estado. Leitura registrada (a confirmar se ele corrigir): a extensão **entra no
+    desenho**, sobre o mesmo estado e o mesmo mecanismo; o Kit pronto é um caso particular dela.
+
+## Pergunta 11 — ABERTA, aguardando o usuário
+
+**Quem é o movimentador no sistema?** Hoje (`00-visao-geral.md`): Operador registra entrada/saída no
+seu Setor; Almoxarifado registra separação de materiais.
+
+- **A) Perfil novo, `Movimentador`.** Recebe os avisos e registra a entrada no próximo Setor. Nome
+  fiel ao chão de fábrica. Custo: linha nova em `Perfil`, na tabela `web/src/auth/permissoes.ts` e nos
+  `[Authorize(Roles)]` literais — a dívida de permissão hardcoded (perfil novo = código + deploy).
+- **B) Almoxarifado.** O usuário chamou de "movimentadores/separadores", e o Almoxarifado já é o
+  perfil de separação (Fase 4). Sem perfil novo. Custo: junta dois papéis num perfil, e a tela do
+  Almoxarifado passa a misturar material bruto com Item pronto.
+- **C) Operador.** Qualquer operador vê "aguardando coleta" e move. Sem perfil novo, mas o aviso não
+  tem destinatário: vai para todo mundo do chão de fábrica.
+
+Recomendação apresentada: **A**, se na fábrica movimentador é mesmo uma função própria; **B** se
+quem move é a mesma equipe que separa material.
+
+## Pergunta 10 — RESPONDIDA (A), mantida para registro
 
 **Quem termina o trabalho num Setor é quem leva o Item ao próximo?** O aviso "Kit pronto para coleta"
 pressupõe um estado que a Fase 3 ainda não desenhou: **Item terminado no Setor, esperando alguém
