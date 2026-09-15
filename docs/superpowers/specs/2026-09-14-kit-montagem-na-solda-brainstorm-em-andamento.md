@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 12**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 13**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -229,7 +229,41 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   - Descartadas: (B) Almoxarifado — junta separação de material bruto com movimentação de Item;
     (C) Operador — o aviso ficaria sem destinatário.
 
-## Pergunta 12 — ABERTA, aguardando o usuário
+- **D15 — "Kit pronto" é aviso próprio, e é ele que define a tarefa do movimentador** (resposta à
+  Pergunta 12, 2026-09-15, opção B; recomendação A + C rejeitada). Motivo do usuário, **regra de
+  domínio nova**:
+  - **Um Kit pode ser levado parcialmente em relação ao pai (levar o conjunto de 7 de 10), mas nunca
+    pela metade ou faltando partes.** Item solto na Solda ocupa espaço que serviria a outra coisa, e,
+    se há perda antes de chegar à Solda, aquele espaço fica praticamente morto, sem destino.
+  - Os dois avisos têm papéis diferentes: **"Item pronto"** (D13) deixa o movimentador **informado**
+    da situação dos Kits; **"Kit pronto para montagem"** é a **tarefa** — levar tudo até a Solda.
+  - Leitura derivada (a confirmar no desenho): para um filho de Kit cujo próximo Setor é `UtilizaKit`,
+    o aviso de Item pronto é só informativo; para qualquer outro caso, ele continua sendo a tarefa.
+  - O disparo do Kit pronto passa a ser: os filhos diretos **aguardando coleta** formam ao menos
+    **um conjunto completo a mais** do pai (`N × QuantidadePorPai` de cada filho), e o aviso diz
+    quantos conjuntos dá para levar.
+  - Descartadas: (A) destaque na lista — não transforma o Kit em tarefa; (C) só para o operador da
+    Solda — quem precisa agir é o movimentador; (A + C) pelo mesmo motivo.
+
+## Pergunta 13 — ABERTA, aguardando o usuário
+
+**"Nunca levado pela metade" é validação do sistema ou organização do trabalho?**
+
+- **A) Validação dura na entrada do Setor `UtilizaKit`.** O sistema recusa a entrada de filhos de Kit
+  em quantidade que não feche conjuntos completos (`N × QuantidadePorPai` de **todos** os filhos
+  diretos, juntos, na mesma movimentação). Mesmo estilo da trava de montagem. Custo: a sobra de
+  refugo (os 5 D além dos 40) nunca entra na Solda por conta própria, e repor 1 D que quebrou
+  **dentro** da Solda passa a ser impossível — pela D8, isso já seria perda que sobe para o pai.
+- **B) Validação dura, com exceção para complemento.** Conjuntos completos na entrada, mas permite
+  levar filho avulso para completar um conjunto que já está na Solda e perdeu parte ali. Cobre o
+  uso da sobra de refugo, ao custo de uma regra a mais.
+- **C) Só organização.** O aviso de Kit pronto só fala em conjuntos completos, mas a movimentação
+  aceita qualquer quantidade. Mais simples; a regra passa a depender de disciplina.
+
+Recomendação apresentada: **A**, a menos que a sobra de refugo seja de fato usada na Solda para
+repor peça que quebra ali — nesse caso, **B**.
+
+## Pergunta 12 — RESPONDIDA (B), mantida para registro
 
 **Com o aviso universal (D13), o que o Kit acrescenta?** O movimentador já seria avisado para levar D
 e E à Solda, porque o Roteiro manda.
