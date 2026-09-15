@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 3**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 4**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -74,6 +74,21 @@ Duas partes, com pesos diferentes:
     `ComponenteFilhoPadrao.QuantidadePadrao` é por unidade do pai; é a cópia da Fase 2 que multiplica
     e descarta a razão ao gravar o `EstruturaItem`.
 
+- **D3 — A razão fica guardada numa coluna nova do `EstruturaItem`, ao lado do absoluto**
+  (resposta à Pergunta 3, 2026-09-15, opção A). Nome de trabalho: `QuantidadePorUnidadeDoPai`.
+  A cópia da receita a preenche com `ComponenteFilhoPadrao.QuantidadePadrao`; o Item ad-hoc a
+  recebe de quem cadastra. O absoluto continua sendo o que a Fase 3 movimenta; a razão só serve à
+  trava, que libera `mínimo, entre os filhos, de (quantidade na Solda ÷ razão)`.
+  - **Texto da errata da Fase 2 agora definido**: a §2.1 passa a guardar **as duas** quantidades
+    (absoluta e por unidade do pai), em vez de descartar a razão; o motivo é o esclarecimento de
+    processo (montagem parcial, D2). A §2.2 continua valendo — os dois números podem divergir
+    (sobra de refugo), e não se cria invariante entre eles.
+  - Descartadas: (B) derivar filho ÷ pai — a sobra de refugo vira exigência, e editar o absoluto
+    muda a trava em silêncio; (C) guardar só a razão e derivar o absoluto — reabre o custo que a
+    §2.1 registrou e acaba com o absoluto customizável da §2.2.
+  - Em aberto para o desenho: se a razão é obrigatória em todo Item ou só em filho de Peça de Kit, e
+    o que a edição de nó (Fase 2) faz com ela.
+
 ## Pergunta 2 — RESPONDIDA (B), mantida para registro
 
 **A Solda de verdade monta parte da quantidade de uma Peça?**
@@ -92,7 +107,25 @@ Exemplo: Peça de 10, filho "suporte" de 40. Chegaram 24 suportes na Solda.
 Nenhuma recomendação foi dada ainda, de propósito: depende de como a fábrica opera, não de
 técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser pequena.
 
-## Pergunta 3 — ABERTA, aguardando o usuário
+## Pergunta 4 — ABERTA, aguardando o usuário
+
+**Como o sistema sabe em qual Setor a trava vale?** Hoje `dbo.Setor` é só nome + ativo, e a regra 21
+permite o mesmo Setor repetido no Roteiro.
+
+- **A) Marca no `Setor`** (ex.: `EhMontagem BIT`). Todo Setor marcado aplica a trava. Uma coluna,
+  vale para todos os Pedidos. Com Setor de montagem repetido no Roteiro da Peça, a trava vale na
+  **primeira** passagem (na segunda os Itens já viraram Peça).
+- **B) Marca no passo do Roteiro da Peça** (`EstruturaRoteiro`). Explícito por Peça; cobre "esta
+  Peça é montada neste passo" mesmo num Setor que não é Solda. Custo: o PCP marca em todo Pedido, e
+  a receita padrão (`ComponenteRoteiroPadrao`) precisa da mesma marca para a cópia trazer.
+- **C) Nome fixo "Solda".** Sem schema; quebra ao renomear o Setor, e a spec da Fase 1 (cadastros
+  básicos) já registra que inativar "Solda" impede recriar o nome.
+- **D) Implícito: o primeiro Setor do Roteiro da Peça.** Sem schema; errado quando a própria Peça
+  tem processo antes da montagem (ex.: a base é cortada e dobrada, depois recebe os suportes).
+
+Recomendação apresentada: **A**.
+
+## Pergunta 3 — RESPONDIDA (A), mantida para registro
 
 **De onde vem a razão por unidade que a trava usa?** Exemplo: Peça de 10, suporte de 45
 (4 por unidade + 5 de sobra de refugo).
@@ -114,9 +147,6 @@ Recomendação apresentada: **A**.
 
 ## Perguntas ainda não feitas (fila, uma por vez, nesta ordem provável)
 
-1. **Como o sistema sabe qual Setor é a Solda?** Opções a apresentar: flag no `Setor` (ex.:
-   "setor de montagem", pode haver mais de um); nome fixo (frágil); ou "o Setor do Roteiro da Peça
-   em que os filhos terminam o Roteiro deles" (sem schema novo, mas implícito).
 2. **O que acontece com a quantidade do Item depois de soldado?** Ele "some" dentro da Peça. A
    conservação de quantidade (regra 9) fala da Peça; hoje não há bucket "consumido na montagem"
    para Item. Pode já estar respondido quando a Fase 3 for desenhada — confirmar antes de inventar.
