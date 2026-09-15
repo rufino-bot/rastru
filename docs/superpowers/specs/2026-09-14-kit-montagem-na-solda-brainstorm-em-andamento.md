@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 8**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 9**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -175,7 +175,39 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   A** (E, B...). **Todo o resto continua no Pedido original**: as outras 9 A, e qualquer Peça que não
   seja desta árvore, não se movem nem são marcadas.
 
-## Pergunta 8 — ABERTA, aguardando o usuário
+- **D10 — As partes prontas da unidade perdida saem do original como perda, junto com a Peça**
+  (resposta à Pergunta 8, 2026-09-15, opção A). Registrar a perda de 1 A leva ao bucket "perdido" o
+  que pendia daquela unidade (no exemplo, 1 E e 1 B); no Retrabalho, esses nós nascem marcados como
+  prontos, com quantidade própria. Sem vínculo por nó entre o que saiu e o que entrou.
+  - **Justificativa do usuário, registrada como tal:** o rastro não se perde, porque o Pedido de
+    Retrabalho **já nasce vinculado ao original** (`PedidoOrigemId`, `MotivoRetrabalho = 'Perda'`),
+    e o original é quem mostra o saldo perdido. Confrontando os dois, encontra-se o destino do
+    saldo — se foi realmente perdido/excluído, ou se voltou como Retrabalho e foi expedido depois.
+    Isso vale mesmo que alguém precise da informação; um vínculo por nó seria redundante com o
+    vínculo por Pedido.
+  - Descartadas: (B) transferência rastreada — destino novo na conservação e vínculo nos dois lados,
+    redundante com `PedidoOrigemId`; (C) nada no original — a conservação do Item nunca fecha e o
+    operador vê na Solda um E que não existe mais.
+
+## Pergunta 9 — ABERTA, aguardando o usuário
+
+**Como um nó marcado "pronto" se comporta no Retrabalho?**
+
+- **A) Pronto = já fabricado (folha) ou já montado (nó com filhos), sem Roteiro a percorrer; a
+  movimentação física continua normal.** O nó não passa pelos Setores anteriores, mas ainda precisa
+  **entrar** no Setor `UtilizaKit` do pai por uma movimentação comum (alguém leva o E até a Solda).
+  Para nó com filhos, "pronto" significa total montado = quantidade (a trava dele fica satisfeita e
+  os filhos nem precisam existir no Retrabalho). Coerente com a D7 (montar ≠ mover), e o aviso de
+  Kit pronto funciona no Retrabalho igual ao original.
+- **B) Pronto nasce direto dentro do Setor de montagem do pai.** O sistema cria a entrada no Setor
+  sozinho ao marcar. Um passo a menos, mas registra uma movimentação que ninguém fez e escolhe um
+  Setor por conta própria (qual, se o Roteiro do pai tem dois `UtilizaKit`?).
+- **C) Pronto não passa por Setor nenhum: a trava soma "prontos" aos presentes.** Sem movimentação
+  falsa, mas o E nunca aparece na fila da Solda, e o movimentador não tem o que levar no sistema.
+
+Recomendação apresentada: **A**.
+
+## Pergunta 8 — RESPONDIDA (A), mantida para registro
 
 **O que acontece, no Pedido original, com as partes prontas dessa A que foram para o Retrabalho?**
 Exemplo: com a 10ª A perdida, o original ainda tem 1 E sobrando na Solda e 1 B já montada. No chão de
@@ -303,11 +335,8 @@ Recomendação apresentada: **A**.
 (Os antigos itens "Item perdido" e "Sub-Itens" saíram da fila: o primeiro virou a Pergunta 6, o
 segundo foi respondido pela D5.)
 
-- **"Pronto" no Retrabalho (D8)**: marca no nó, e o nó entra direto no Setor da montagem com a
-  quantidade, sem Roteiro? E o E físico que sobrou na Solda do Pedido original — some do original
-  por baixa simples, ou vira transferência rastreada entre os dois Pedidos (destino novo na
-  conservação)? Lembrar que sobra de Item no original não trava a conclusão (regra 13 só olha a
-  Peça), mas deixa a conservação do Item aberta.
+(O item "Pronto no Retrabalho" saiu da fila: a parte do original foi respondida pela D10, e a
+mecânica do nó virou a Pergunta 9.)
 
 5. **Quem recebe o aviso**: perfil novo (Movimentador) — que exige mexer em `permissoes.ts` e nos
    `[Authorize(Roles)]`, ver a dívida de permissão hardcoded —, ou um perfil existente
