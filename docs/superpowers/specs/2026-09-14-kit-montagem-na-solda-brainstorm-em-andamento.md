@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 4**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 5**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -75,7 +75,7 @@ Duas partes, com pesos diferentes:
     e descarta a razão ao gravar o `EstruturaItem`.
 
 - **D3 — A razão fica guardada numa coluna nova do `EstruturaItem`, ao lado do absoluto**
-  (resposta à Pergunta 3, 2026-09-15, opção A). Nome de trabalho: `QuantidadePorUnidadeDoPai`.
+  (resposta à Pergunta 3, 2026-09-15, opção A). Nome fechado: `QuantidadePorPai` (ver o item seguinte).
   A cópia da receita a preenche com `ComponenteFilhoPadrao.QuantidadePadrao`; o Item ad-hoc a
   recebe de quem cadastra. O absoluto continua sendo o que a Fase 3 movimenta; a razão só serve à
   trava, que libera `mínimo, entre os filhos, de (quantidade na Solda ÷ razão)`.
@@ -107,7 +107,46 @@ Exemplo: Peça de 10, filho "suporte" de 40. Chegaram 24 suportes na Solda.
 Nenhuma recomendação foi dada ainda, de propósito: depende de como a fábrica opera, não de
 técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser pequena.
 
-## Pergunta 4 — ABERTA, aguardando o usuário
+- **Nome da coluna da D3 fechado: `QuantidadePorPai`** (2026-09-15). Descartados:
+  `QuantidadePorUnidadeDoPai` (comprido), `QuantidadeUnitaria` (não diz "em relação a quê"),
+  `Proporcao` (sai do padrão `Quantidade*`), `QuantidadePorPeca` (mente quando o pai é Item) e
+  `QuantidadePadrao` — repetir nome entre tabelas não é o problema; o problema é que "Padrão" neste
+  projeto significa catálogo, que ao lado de `Quantidade` sugere "sugerida × efetiva" da mesma
+  grandeza (convida a "sincronizar" 45 com 4), e que contradiz a regra 19 (o nó é cópia, não
+  referência viva ao catálogo).
+- **D4 — A trava é marcada no `Setor`, coluna `UtilizaKit`** (resposta à Pergunta 4, 2026-09-15,
+  opção A; nome dado pelo usuário). A trava vale quando **as três** condições valem:
+  `Agrupamento.Tipo = 'Kit'` **e** `Setor.UtilizaKit = 1` **e** a Peça **tem ao menos um filho**.
+  - Vale **todas as vezes** que a Peça passa por um Setor marcado — não só na primeira (a
+    recomendação apresentada dizia "primeira passagem"; o usuário decidiu "todas"). Isso cria a
+    dependência tratada na Pergunta 5: numa segunda passagem os Itens já viraram Peça e não estão
+    em Setor nenhum.
+  - Hoje só a Solda seria marcada, mas a marca não é nome fixo.
+  - Descartadas: (B) marca no passo do Roteiro — PCP marcaria em todo Pedido e a receita padrão
+    precisaria da mesma marca; (C) nome fixo "Solda"; (D) implícito no primeiro Setor do Roteiro.
+
+## Pergunta 5 — ABERTA, aguardando o usuário
+
+**Como a montagem é registrada, e o que acontece com a quantidade do Item montado?**
+
+Hoje a conservação (regra 9) fecha só com Setor + expedido + perdido — um Item soldado dentro da Peça
+não é nenhum dos três. E a D4 ("todas as vezes") precisa saber quanto **já foi montado**, senão a
+segunda passagem pela Solda trava para sempre.
+
+- **A) Montagem é um registro explícito.** Na Solda, o operador registra "montei N Peças". O sistema
+  valida `N ≤ mínimo(filho na Solda ÷ QuantidadePorPai)` e baixa `N × QuantidadePorPai` de cada
+  filho para um destino terminal novo, "montado". A trava da saída passa a ser: **a Peça não sai de
+  Setor `UtilizaKit` com mais do que o total já montado** — o que torna a segunda passagem
+  automaticamente liberada. Custo: um apontamento a mais para o operador.
+- **B) Montagem implícita na saída da Peça.** Ao apontar saída de N Peças do Setor marcado, o
+  sistema consome os Itens nesse momento. Um clique a menos, mas mistura "montei" com "movi": Peça
+  montada esperando na Solda não aparece como montada, e a contagem de "já montado" precisa existir
+  do mesmo jeito para a segunda passagem.
+- **C) Item não é consumido.** Não fecha a conservação do Item e a segunda passagem trava.
+
+Recomendação apresentada: **A**.
+
+## Pergunta 4 — RESPONDIDA (A, `UtilizaKit`), mantida para registro
 
 **Como o sistema sabe em qual Setor a trava vale?** Hoje `dbo.Setor` é só nome + ativo, e a regra 21
 permite o mesmo Setor repetido no Roteiro.
@@ -147,9 +186,6 @@ Recomendação apresentada: **A**.
 
 ## Perguntas ainda não feitas (fila, uma por vez, nesta ordem provável)
 
-2. **O que acontece com a quantidade do Item depois de soldado?** Ele "some" dentro da Peça. A
-   conservação de quantidade (regra 9) fala da Peça; hoje não há bucket "consumido na montagem"
-   para Item. Pode já estar respondido quando a Fase 3 for desenhada — confirmar antes de inventar.
 3. **Item perdido** (regra 17): com a montagem parcial (D2), a perda de suporte reduz quantas Peças
    dá para montar — as Peças que ficam sem Item nunca montam, e isso as prende em produção? Liga com o ponto em aberto
    "Descontinuar uma Peça trava o fechamento do Pedido", do mesmo arquivo de domínio.
