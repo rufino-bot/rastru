@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 9**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 10**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -189,7 +189,37 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
     redundante com `PedidoOrigemId`; (C) nada no original — a conservação do Item nunca fecha e o
     operador vê na Solda um E que não existe mais.
 
-## Pergunta 9 — ABERTA, aguardando o usuário
+- **D11 — "Pronto" no Retrabalho = sem Roteiro a percorrer; a movimentação física continua
+  normal** (resposta à Pergunta 9, 2026-09-15, opção A). Folha pronta = já fabricada; nó com filhos
+  pronto = já montado (total montado = quantidade, trava satisfeita, filhos dispensáveis no
+  Retrabalho). O nó ainda **entra** no Setor `UtilizaKit` do pai por movimentação comum — o sistema
+  registra só o que aconteceu no chão de fábrica. Coerente com a D7 (montar ≠ mover).
+  - Descartadas: (B) nascer dentro do Setor de montagem — movimentação que ninguém fez, e escolha de
+    Setor ambígua com dois `UtilizaKit` no Roteiro; (C) não passar por Setor — o E some da fila da
+    Solda e o movimentador não tem o que levar.
+
+**Parte 1 da ideia (trava de montagem) fechada no nível de domínio.** Daqui em diante, parte 2
+(aviso de Kit pronto).
+
+## Pergunta 10 — ABERTA, aguardando o usuário
+
+**Quem termina o trabalho num Setor é quem leva o Item ao próximo?** O aviso "Kit pronto para coleta"
+pressupõe um estado que a Fase 3 ainda não desenhou: **Item terminado no Setor, esperando alguém
+levar**. Hoje o schema só tem `DataEntrada`/`DataSaida` em `EstruturaSetorHistorico`.
+
+- **A) São pessoas diferentes.** O operador marca "terminei"; o movimentador leva. A Fase 3 precisa
+  do estado "aguardando coleta" (terminar ≠ mover, mesmo espírito da D7). O aviso sai quando os
+  filhos diretos — **aguardando coleta + já na Solda** — passam a permitir montar mais unidades do
+  pai. Esse mesmo estado é o que a extensão adiada (aviso de Item pronto para o próximo Setor)
+  precisa.
+- **B) É a mesma pessoa.** O operador termina e já leva. Não há "coleta" para avisar; o aviso útil
+  seria para o **operador da Solda** ("dá para montar N de C"), disparado quando uma entrada na
+  Solda aumenta o montável.
+- **C) Depende do Setor.** Precisa de marca por Setor, e o aviso vale só onde há movimentador.
+
+Sem recomendação: é pergunta de como a fábrica opera.
+
+## Pergunta 9 — RESPONDIDA (A), mantida para registro
 
 **Como um nó marcado "pronto" se comporta no Retrabalho?**
 
