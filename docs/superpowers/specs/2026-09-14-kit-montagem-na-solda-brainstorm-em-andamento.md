@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 7**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 8**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -168,7 +168,33 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
     contar E como presente sem ele percorrer Roteiro.
   - Em aberto: até onde a perda sobe (Pergunta 7) e como "pronto" funciona (fila).
 
-## Pergunta 7 — ABERTA, aguardando o usuário
+- **D9 — A perda sobe até a Peça do topo, e o "pronto" do Retrabalho é só da árvore daquela
+  unidade** (resposta à Pergunta 7, 2026-09-15, opção A; "se não vai furar as outras regras").
+  Perde-se 1 A no Pedido original, que conclui pela regra 13; o Retrabalho tem A (1 unidade) como
+  Peça, fabrica o que faltou (D) e marca como pronto o que já existe **dentro da árvore dessa única
+  A** (E, B...). **Todo o resto continua no Pedido original**: as outras 9 A, e qualquer Peça que não
+  seja desta árvore, não se movem nem são marcadas.
+
+## Pergunta 8 — ABERTA, aguardando o usuário
+
+**O que acontece, no Pedido original, com as partes prontas dessa A que foram para o Retrabalho?**
+Exemplo: com a 10ª A perdida, o original ainda tem 1 E sobrando na Solda e 1 B já montada. No chão de
+fábrica elas vão para o Retrabalho; no sistema, a conservação do original ainda as conta.
+
+- **A) Baixa como perda junto com a A.** Registrar a perda de 1 A leva junto, para o bucket
+  "perdido", o que estava pendurado naquela unidade (1 E, 1 B). No Retrabalho, E e B nascem
+  marcados como prontos, com quantidade própria. Sem mecanismo novo. Custo: o histórico chama de
+  "perdido" algo que foi reaproveitado, e não há vínculo entre o E que saiu e o E que entrou.
+- **B) Transferência rastreada.** Destino novo na conservação, "transferido para Retrabalho",
+  apontando o Pedido de destino; no Retrabalho, o nó pronto aponta de onde veio. Fiel e
+  auditável. Custo: mais uma tabela/coluna e mais uma regra de conservação nos dois lados.
+- **C) Nada no original.** A sobra fica lá: não trava a conclusão (a regra 13 só olha a Peça), mas
+  a conservação do Item nunca fecha e o operador vê um E "na Solda" que não existe mais.
+
+Recomendação apresentada: **A**, pelo horizonte curto do sistema e porque a perda já é o registro que
+leva a A para o Retrabalho; a **B** só vale se alguém precisar consultar "de onde veio este E".
+
+## Pergunta 7 — RESPONDIDA (A), mantida para registro
 
 **A perda sobe só até C, ou até a Peça do topo (A)?** Cadeia do exemplo: A ← C ← D.
 
