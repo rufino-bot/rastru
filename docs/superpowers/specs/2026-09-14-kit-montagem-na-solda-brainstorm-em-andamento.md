@@ -11,8 +11,9 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. As perguntas acabaram (D1–D20). A conversa está na **apresentação do design em seções**; a
-   seção 1 (escopo do documento) foi apresentada em 2026-09-15 e aguarda aprovação. Continue dali,
+3. As perguntas acabaram (D1–D20). A conversa está na **apresentação do design em seções**
+   (seção "Design — seções apresentadas", no fim das decisões): Partes 1 e 2 aprovadas; Parte 3
+   apresentada e aguardando aprovação. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -292,6 +293,64 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
     nem Setor.
 
 **Perguntas encerradas. Próximo passo: apresentar o design em seções para aprovação.**
+
+## Design — seções apresentadas
+
+### Parte 1 — Escopo do documento (APROVADA em 2026-09-15)
+
+- Spec de **domínio e roadmap**, não de implementação: sem endpoints, telas nem tasks. Cada fase
+  (3, 3B, 5, 3C) terá brainstorm/spec/plano próprios partindo destas decisões.
+- **Muda agora, com a spec aprovada:** `specs/01` (regras novas e alteradas, Parte 2), `specs/06`
+  (Fase 3 ampliada, 3B e 3C novas, Fase 5 ampliada), `specs/03` (separar "PWA/offline" descartado de
+  "PWA mínimo para push"), `specs/00` (perfil Movimentador), **errata datada** na §2.1 da spec da
+  Fase 2 (texto original intocado).
+- **Fica para o início de cada fase:** as mudanças em `02-modelo-de-dados.sql` (`Setor.UtilizaKit`,
+  `EstruturaItem.QuantidadePorPai`, destino "montado", `CK_Perda_Motivo`, inscrição de push) —
+  precedente da Fase 2, que aplicou a constraint "ao iniciar a fase". Regras escritas no `01` já.
+- **Não muda:** regra 13 (conclusão pela Peça), regra 17 (reposição por Retrabalho), lote agregado
+  sem serial.
+
+### Parte 2 — Regras de domínio, como entram no `01` (APROVADA em 2026-09-15)
+
+Alteradas:
+- **Glossário "Agrupamento"**: o Tipo deixa de ser só descritivo — Kit se sujeita às regras 24 e 25;
+  Avulso segue sem trava. A redação nova data a reversão e o motivo.
+- **Regra 9**: conservação vale para **todo `EstruturaItem`**: em produção + montado + expedido +
+  perdido = total. "Aguardando coleta" conta como em produção (representação: Fase 3).
+- **Regra 15**: entra o perfil Movimentador.
+- **Regra 17**: perda registrável em qualquer `EstruturaItem`; motivo novo `Descarte`.
+
+Novas:
+- **22. Terminar ≠ mover.** Operador registra "terminei" → quantidade aguarda coleta; Movimentador
+  registra a entrada no próximo destino. Vale para todo `EstruturaItem`, Kit ou Avulso. Filho com
+  Roteiro próprio concluído aguarda coleta para a montagem do pai.
+- **23. Tarefas do Movimentador**, derivadas do estado: **Item pronto** (tarefa; informativo quando é
+  filho de Kit rumo a Setor `UtilizaKit`) e **Kit pronto** (tarefa, quando os filhos diretos aguardando
+  coleta formam ≥ 1 conjunto completo; conjuntos = mínimo entre filhos de
+  ⌊aguardando coleta ÷ `QuantidadePorPai`⌋).
+- **24. Trava de montagem** (Agrupamento Kit **e** Setor `UtilizaKit` **e** nó com filhos). Montar é
+  registro próprio ("montei N"), válido se `N ≤ mínimo entre filhos diretos de ⌊no Setor ÷
+  QuantidadePorPai⌋`. **Grava-se a baixa por filho** (não só N), para editar a razão depois não
+  reescrever o passado. Saída do nó de Setor `UtilizaKit` limitada ao total montado, em qualquer
+  passagem; a ordem de baixo para cima é consequência.
+- **25. Conjunto completo.** Filhos de Kit só entram em Setor `UtilizaKit` em conjuntos completos
+  (todos os filhos diretos, proporcionais, na mesma movimentação). Sobra que não fecha conjunto vira
+  `Descarte`.
+- **26. `QuantidadePorPai`.** Razão por unidade do pai, ao lado da absoluta; cópia da receita
+  preenche, ad-hoc informa; sem invariante entre as duas. **Obrigatória em todo Item, nula na Peça**
+  (proposta do Claude, aprovada), para trocar o Tipo não deixar nó sem razão.
+- **27. Perda que impede montar.** Sobe até a Peça do topo; partes não montadas daquela unidade saem
+  junto como perda. O Retrabalho reproduz a Peça e marca **pronto** o que já existe: nó pronto não
+  percorre Roteiro, nasce aguardando coleta e é levado normalmente; com filhos, conta como montado.
+
+Deixados para a spec da fase:
+- **3B**: trocar Tipo do Agrupamento ou `UtilizaKit` com produção em andamento; filho que termina a
+  própria montagem na mesma Solda em que o pai será montado (movimentação Solda → Solda).
+- **Fase 5**: de qual Setor sai a parte que acompanha a perda, com o lote dividido entre Setores.
+
+### Parte 3 — Roadmap, errata e demais specs (APRESENTADA, aguardando aprovação)
+
+Ver o texto da conversa de 2026-09-15; resumo registrado quando for aprovada.
 
 ## Pergunta 16 — RESPONDIDA (A), mantida para registro
 
