@@ -11,8 +11,8 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 16**, abaixo, aguardando a resposta do usuário. É a última: depois
-   dela, apresentar o design em seções para aprovação. Continue dali,
+3. As perguntas acabaram (D1–D20). A conversa está na **apresentação do design em seções**; a
+   seção 1 (escopo do documento) foi apresentada em 2026-09-15 e aguarda aprovação. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -282,7 +282,18 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   Retrabalho dentro da **Fase 5**; **Fase 3C — Notificação push** executada **depois da Fase 5**. A Fase 3
   fica maior que o texto atual do roadmap (perfil e tela novos), e a 3B fica enxuta.
 
-## Pergunta 16 — ABERTA, aguardando o usuário (última antes do design)
+- **D20 — Descarte da sobra é motivo novo em `Perda`: `Descarte`** (resposta à Pergunta 16,
+  2026-09-15, opção A). Uma linha a mais em `CK_Perda_Motivo`; entra no bucket "perdido". Relatório
+  de perda separa `Descarte` de perda de verdade, e Retrabalho de reposição não se aplica a ele.
+  Junto com a D10, `Perda.EstruturaItemId` deixa de ser "Peça que sofreu a perda" e passa a aceitar
+  qualquer `EstruturaItem`.
+  - Descartadas: (B) tabela `Descarte` — mais uma tabela e mais um termo na conservação para o que é
+    só outro motivo de saída terminal; (C) baixa implícita ao concluir a Peça — sem data, responsável
+    nem Setor.
+
+**Perguntas encerradas. Próximo passo: apresentar o design em seções para aprovação.**
+
+## Pergunta 16 — RESPONDIDA (A), mantida para registro
 
 **Como se registra o descarte da sobra (D16)?** Hoje `dbo.Perda` tem `MotivoPerda IN ('PerdaArmazem',
 'MortaEmProcesso')`, e o comentário da coluna diz "Peça que sofreu a perda". **A D10 já exige perda de
