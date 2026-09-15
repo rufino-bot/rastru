@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 13**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 14**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -245,7 +245,38 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   - Descartadas: (A) destaque na lista — não transforma o Kit em tarefa; (C) só para o operador da
     Solda — quem precisa agir é o movimentador; (A + C) pelo mesmo motivo.
 
-## Pergunta 13 — ABERTA, aguardando o usuário
+- **D16 — "Kit nunca vai pela metade" é validação dura na entrada do Setor `UtilizaKit`**
+  (resposta à Pergunta 13, 2026-09-15, opção A). A movimentação de filhos de Kit para a Solda só é
+  aceita em **conjuntos completos**: `N × QuantidadePorPai` de **todos** os filhos diretos, juntos, na
+  mesma movimentação. Sem exceção para complemento.
+  - **Sobra de refugo** (ex.: os 5 D além dos 40) nunca entra na Solda; se não for usada, **cai como
+    descarte depois** (palavra do usuário). Como o descarte se registra ficou na fila.
+  - Peça que quebra dentro da Solda segue a D8 (perda sobe, reposição por Retrabalho).
+  - Descartadas: (B) exceção para complemento — a sobra não é usada na Solda; (C) só organização —
+    regra dependeria de disciplina.
+
+## Pergunta 14 — ABERTA, aguardando o usuário
+
+**Como o aviso chega ao movimentador?** Restrições: sem PWA no MVP (decidido), e no Chrome do
+Android notificação de sistema com a tela fora do navegador exige service worker — ou seja, não
+existe "o celular apita no bolso" sem reabrir essa decisão.
+
+- **A) Lista derivada do estado, com atualização periódica.** Tela "Tarefas" do Movimentador com
+  duas seções — **Kits prontos para levar** (tarefa) e **Itens prontos** (informativo) — e um contador
+  no menu, recalculados por consulta a cada poucos segundos. Nenhuma tabela de aviso: o aviso **é**
+  o estado "aguardando coleta". Quando alguém leva, some sozinho; nunca fica aviso velho. Não é
+  mensageria no sentido de fila/broker — e não precisa ser.
+- **B) Tabela de notificação persistida** (destinatário, lida/não lida) + atualização periódica.
+  Dá histórico de "quem viu o quê", mas duplica o estado: o aviso pode dizer "Kit pronto" de um Kit
+  que outro movimentador já levou, e é preciso invalidar.
+- **C) Tempo real (SignalR/WebSocket) sobre a lista da A.** Chega na hora, sem esperar o intervalo.
+  Custo: infraestrutura na VPS (proxy com WebSocket, reconexão no wifi da fábrica) para ganhar
+  segundos.
+
+Recomendação apresentada: **A**. Com o horizonte curto do sistema, poucos segundos de atraso não
+mudam o trabalho, e é a única que não tem como mostrar tarefa já feita.
+
+## Pergunta 13 — RESPONDIDA (A), mantida para registro
 
 **"Nunca levado pela metade" é validação do sistema ou organização do trabalho?**
 
@@ -457,20 +488,12 @@ Recomendação apresentada: **A**.
 
 ## Perguntas ainda não feitas (fila, uma por vez, nesta ordem provável)
 
-(Os antigos itens "Item perdido" e "Sub-Itens" saíram da fila: o primeiro virou a Pergunta 6, o
-segundo foi respondido pela D5.)
+(Saíram da fila: "Item perdido" → Pergunta 6; "Sub-Itens" → D5; "Pronto no Retrabalho" → D10 e
+Pergunta 9; "Quem recebe o aviso" → D14; "Momento do aviso" → D12 e D15; "Mecanismo do aviso" →
+Pergunta 14.)
 
-(O item "Pronto no Retrabalho" saiu da fila: a parte do original foi respondida pela D10, e a
-mecânica do nó virou a Pergunta 9.)
-
-5. **Quem recebe o aviso**: perfil novo (Movimentador) — que exige mexer em `permissoes.ts` e nos
-   `[Authorize(Roles)]`, ver a dívida de permissão hardcoded —, ou um perfil existente
-   (Almoxarifado? Operador?).
-6. **Mecanismo do aviso** (arquitetura): sem PWA no MVP, então sem push do sistema operacional.
-   Candidatos a comparar: tela/contador "Kits prontos para coleta" com polling; SignalR;
-   tabela de notificação lida/não lida. Considerar o horizonte curto do sistema.
-7. **Momento do aviso**: quando o **último** Item fica pronto no Setor anterior (pode ser levado) ou
-   quando o último Item **chega** na Solda (pode ser montado)? O usuário disse "podem ser/foram
-   alocados" — as duas leituras cabem.
-8. **Em que fase entra**: a trava depende da Fase 3; decidir se vira parte da Fase 3 ou uma fase
-   própria logo depois dela. `06-roadmap-mvp.md` precisa refletir.
+1. **Descarte da sobra (D16)**: como se registra — tipo novo de perda (ex.: `Descarte`, ao lado de
+   `PerdaArmazem`/`MortaEmProcesso`) ou destino terminal próprio? Sobra de Item não trava a conclusão
+   (a regra 13 só olha a Peça), mas deixa a conservação do Item aberta até ser registrada.
+2. **Em que fase entra**: tudo depende da Fase 3 (estado "aguardando coleta", apontamento). Decidir se
+   vira parte da Fase 3 ou fase própria logo depois. `06-roadmap-mvp.md` precisa refletir.
