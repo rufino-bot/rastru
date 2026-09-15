@@ -11,8 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 5**, abaixo, aguardando a resposta do usuário (a 5b já foi
-   respondida — D6). Continue dali,
+3. A conversa parou na **Pergunta 6**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -148,6 +147,40 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   passagem, o limite de C que pode sair não é "filhos na Solda ÷ `QuantidadePorPai`", é o total de
   C já montado. Logo, **"quanto deste nó já foi montado" precisa ser um número que o sistema sabe** —
   o que pesa a favor de a montagem ser registro próprio (Pergunta 5, opção A).
+- **D7 — Montar é registro próprio, separado de mover** (resposta à Pergunta 5, 2026-09-15,
+  opção A; motivo do usuário: "montar e mover precisam ser ações diferentes"). Na Solda, o operador
+  registra "montei N de C". O sistema:
+  1. valida `N ≤ mínimo, entre os filhos diretos, de (quantidade na Solda ÷ QuantidadePorPai)`;
+  2. baixa `N × QuantidadePorPai` de cada filho direto para um **destino terminal novo, "montado"**
+     — que entra na conservação de quantidade (regra 9) ao lado de Setor, expedido e perdido;
+  3. soma N ao **total montado** de C, que tem data, responsável e quantidade.
+  A saída de C de Setor `UtilizaKit` fica limitada ao total montado, em qualquer passagem (D6). O
+  registro de montagem é o candidato natural a disparar o aviso de Kit pronto (parte 2 da ideia).
+  - Descartadas: (B) montagem implícita na saída — numa segunda passagem sair não é montar, e a saída
+    teria de adivinhar qual dos dois está fazendo; (C) Item não consumido — não fecha a conservação.
+
+## Pergunta 6 — ABERTA, aguardando o usuário
+
+**O que acontece quando um filho se perde e o pai não consegue ser montado inteiro?** Exemplo: C de
+10, D de 40 (`QuantidadePorPai` = 4). Perdem-se 2 D (regra 17) → 38 ÷ 4 = 9 C montáveis; a 10ª
+nunca monta. Sobram ainda 2 D na Solda.
+
+Por que importa: a regra 13 conclui só a **Peça** (topo), mas a 10ª C não montada impede montar a
+10ª A — e a 10ª A fica em produção para sempre, travando Agrupamento e Pedido. É o mesmo desenho do
+ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido".
+
+- **A) A perda sobe para o pai.** A quantidade do pai que não dá para montar é registrada como perda
+  do **pai** (`MortaEmProcesso`), e a reposição é um Pedido de Retrabalho, como a regra 17 já manda.
+  Sem mecanismo novo; o Retrabalho monta a estrutura que precisar refazer. Custo: no sistema a
+  reposição é da unidade inteira, mesmo que na fábrica só o suporte seja refeito.
+- **B) Repõe o filho dentro do mesmo Pedido.** Aumenta-se a quantidade absoluta de D (+2), que é
+  customizável pela §2.2, e os 2 novos suportes seguem o Roteiro até a Solda. Fiel ao chão de
+  fábrica, mas **contradiz a regra 17** (reposição é sempre Pedido de Retrabalho separado) para
+  Item.
+- **C) Não decidir agora.** A trava só informa a falta, e o destino da unidade não montada fica com o
+  ponto em aberto de "Descontinuar", na Fase 5.
+
+Sem recomendação por enquanto: depende de como a fábrica repõe hoje.
 
 ## Pergunta 5b — RESPONDIDA (sim, volta), mantida para registro
 
@@ -155,7 +188,7 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
 Solda (retorno permitido pela regra 21). Se nunca acontece, "toda passagem" (D4) não gera caso
 especial. Se acontece, a segunda passagem precisa contar "já montado", não "filhos na Solda".
 
-## Pergunta 5 — ABERTA, aguardando o usuário
+## Pergunta 5 — RESPONDIDA (A), mantida para registro
 
 **Como a montagem é registrada, e o que acontece com a quantidade do Item montado?**
 
@@ -216,11 +249,9 @@ Recomendação apresentada: **A**.
 
 ## Perguntas ainda não feitas (fila, uma por vez, nesta ordem provável)
 
-3. **Item perdido** (regra 17): com a montagem parcial (D2), a perda de suporte reduz quantas Peças
-   dá para montar — as Peças que ficam sem Item nunca montam, e isso as prende em produção? Liga com o ponto em aberto
-   "Descontinuar uma Peça trava o fechamento do Pedido", do mesmo arquivo de domínio.
-4. **Sub-Itens**: a trava vale só para os filhos diretos da Peça, ou um Item com filhos (submontagem)
-   também espera os dele numa Solda anterior?
+(Os antigos itens "Item perdido" e "Sub-Itens" saíram da fila: o primeiro virou a Pergunta 6, o
+segundo foi respondido pela D5.)
+
 5. **Quem recebe o aviso**: perfil novo (Movimentador) — que exige mexer em `permissoes.ts` e nos
    `[Authorize(Roles)]`, ver a dívida de permissão hardcoded —, ou um perfil existente
    (Almoxarifado? Operador?).
