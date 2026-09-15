@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 14**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 15**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -255,7 +255,47 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   - Descartadas: (B) exceção para complemento — a sobra não é usada na Solda; (C) só organização —
     regra dependeria de disciplina.
 
-## Pergunta 14 — ABERTA, aguardando o usuário
+- **D17 — O aviso é uma lista de tarefas calculada do estado, atualizada periodicamente** (resposta
+  à Pergunta 14, 2026-09-15, opção A). Tela "Tarefas" do Movimentador: **Kits prontos para levar**
+  (tarefa) e **Itens prontos** (informativo), com contador no menu. Sem tabela de aviso: o aviso é o
+  estado "aguardando coleta". Motivo do usuário: o movimentador deve **consultar todas as tarefas
+  dele**, não só receber a notificação e ficar por isso.
+- **D18 — Push no celular é fase pequena própria, por cima da D17** (2026-09-15, depois de o usuário
+  pedir o custo de PWA). A notificação diz "olhe agora"; tocar nela abre a lista da D17, que é a
+  fonte da verdade. Nada da D17 é jogado fora.
+  - **Não reabre a decisão "PWA/offline"** de `03-arquitetura-tecnica.md`: aquela descartou desenhar
+    a camada de estado para funcionar sem rede. O push exige só o **mínimo de PWA** (manifesto,
+    ícones e service worker **sem cache de API**). A redação daquela decisão precisa distinguir as
+    duas coisas quando o design for escrito.
+  - Custo levantado e aceito: tabela de inscrição (usuário, endpoint, chaves), endpoints de
+    inscrever/cancelar, chaves VAPID como segredo de ambiente na VPS, biblioteca `WebPush`, limpeza
+    de inscrição morta, disparo por evento no servidor (recalcular "conjunto completo" a cada
+    "terminei"), pedido de permissão na tela, e verificação manual num Android real por HTTPS
+    (service worker não roda no jsdom). Entrega não garantida (economia de bateria do Android) — é
+    reforço, nunca a única fonte da tarefa. Estimativa: 5 a 7 tasks.
+  - **Celular do movimentador é pessoal** (usuário, 2026-09-15) — o caso favorável: a inscrição fica
+    presa a uma pessoa, sem troca a cada turno.
+
+## Pergunta 15 — ABERTA, aguardando o usuário
+
+**Em que fase entra cada parte, e com que nome?** Proposta apresentada (dependências medidas no
+`06-roadmap-mvp.md`: Fase 3 é apontamento de setor; Perda, Expedição e Retrabalho são Fase 5):
+
+1. **Base de movimentação → dentro da Fase 3**, não fase separada: terminar ≠ mover, estado
+   "aguardando coleta", perfil `Movimentador`, tela "Tarefas" com Itens prontos (D12–D14, D17). Não
+   é recurso de Kit — é como a movimentação funciona para tudo (D13). A Fase 3 ainda não começou;
+   desenhá-la sem isso e emendar depois seria retrabalho no próprio apontamento.
+2. **Fase 3B — Kit e montagem**: `Setor.UtilizaKit`, `EstruturaItem.QuantidadePorPai` + errata da
+   Fase 2, registro de montagem e destino "montado", trava de montagem (local por nó, conta o já
+   montado), conjunto completo na entrada da Solda, aviso "Kit pronto" na tela de Tarefas
+   (D1–D7, D15, D16).
+3. **Partes que dependem de Perda e Retrabalho → dentro da Fase 5**: perda que sobe até a Peça,
+   partes prontas saindo como perda, nó "pronto" no Retrabalho, descarte da sobra (D8–D11, D16).
+4. **Fase 3C — Notificação push** (D18). Nome segue o precedente de letra por tema (`1A`–`1F`,
+   `2B`). **Quando** executar: recomendação de **depois da Fase 5** (fluxo ponta a ponta primeiro;
+   push é reforço), usando o precedente da 1F, que já ficou na fila fora da ordem de letra.
+
+## Pergunta 14 — RESPONDIDA (A), mantida para registro
 
 **Como o aviso chega ao movimentador?** Restrições: sem PWA no MVP (decidido), e no Chrome do
 Android notificação de sistema com a tela fora do navegador exige service worker — ou seja, não
@@ -495,5 +535,4 @@ Pergunta 14.)
 1. **Descarte da sobra (D16)**: como se registra — tipo novo de perda (ex.: `Descarte`, ao lado de
    `PerdaArmazem`/`MortaEmProcesso`) ou destino terminal próprio? Sobra de Item não trava a conclusão
    (a regra 13 só olha a Peça), mas deixa a conservação do Item aberta até ser registrada.
-2. **Em que fase entra**: tudo depende da Fase 3 (estado "aguardando coleta", apontamento). Decidir se
-   vira parte da Fase 3 ou fase própria logo depois. `06-roadmap-mvp.md` precisa refletir.
+(O item "Em que fase entra" virou a Pergunta 15.)
