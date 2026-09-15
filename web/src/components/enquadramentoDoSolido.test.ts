@@ -48,4 +48,25 @@ describe('enquadramentoDoSolido', () => {
     expect(resultado.near).toBeGreaterThan(0)
     expect(resultado.near).toBeLessThan(resultado.far)
   })
+
+  it('calcula a distância por um valor absoluto conhecido, não só por proporção', () => {
+    // Nenhum outro teste desta suíte amarra a fórmula a um valor numérico fixo: 'mantém a
+    // distância proporcional...', 'afasta a câmera quando a margem cresce...' e 'afasta near e far
+    // junto com o tamanho...' comparam RAZÕES entre duas chamadas (`grande.distancia /
+    // pequeno.distancia`, `comFolga.distancia / semFolga.distancia`); 'nunca produz distância
+    // zero...' e 'mantém near dentro do far...' verificam só propriedades qualitativas (ausência de
+    // NaN, `near < far`). Nenhuma das duas formas distingue `sin` de `tan`: para um ângulo fixo,
+    // tanto `raio / sin(ângulo)` quanto `raio / tan(ângulo)` são lineares em `raio` e em `margem`
+    // (o que engana as razões), e as duas seguem produzindo distância positiva, sem NaN e com
+    // `near < far` (o que engana as propriedades qualitativas) — confirmado por mutação real:
+    // trocar `Math.sin` por `Math.tan` em `enquadramentoDoSolido` mantém esses cinco testes verdes.
+    // Este teste usa um oráculo calculado à mão, fora da função: com abertura de 60° o meio-ângulo
+    // é 30°, onde `sin(30°) = 0,5` exatamente (`tan(30°) ≈ 0,577`, seria uma distância bem
+    // diferente). Com `margem = 1` a fórmula fica `distancia = raio / sin(30°) = raio × 2` — para
+    // `raio = 10`, o valor esperado é `20`, escrito aqui como número, nunca recalculado chamando a
+    // própria função de produção.
+    const resultado = enquadramentoDoSolido(10, 60, 1)
+
+    expect(resultado.distancia).toBeCloseTo(20, 10)
+  })
 })

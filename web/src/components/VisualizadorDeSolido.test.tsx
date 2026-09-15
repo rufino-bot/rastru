@@ -38,11 +38,13 @@ const camerasFalsas = vi.hoisted(() => ({
 const controlsFalsos = vi.hoisted(() => ({
   ultimo: null as null | {
     autoRotate: boolean
+    enablePan: boolean
     minDistance: number
     maxDistance: number
     update: () => void
     dispose: () => void
     disparar: (tipo: string) => void
+    ouvintesPorTipo: Record<string, Array<() => void>>
   },
 }))
 
@@ -143,6 +145,9 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
 
   class OrbitControlsFalso {
     autoRotate = false
+    // `true` por padrão, igual ao `OrbitControls` real — é o que faz o teste de `enablePan`
+    // morrer se a linha que desliga o pan for removida do componente.
+    enablePan = true
     minDistance = 0
     maxDistance = 0
     update = vi.fn()
@@ -379,5 +384,42 @@ describe('VisualizadorDeSolido', () => {
     // na primeira manipulação, e não retoma quando o usuário solta o mouse.
     controles?.disparar('end')
     expect(controles?.autoRotate).toBe(false)
+  })
+
+  it('remove o próprio ouvinte de start depois de disparado uma vez', async () => {
+    // O teste `gira sozinho...` não pega a ausência de `removeEventListener`: reatribuir
+    // `autoRotate = false` numa segunda invocação do mesmo ouvinte é inócuo (já está `false`), então
+    // nenhuma asserção sobre `autoRotate` morre se a chamada a `removeEventListener` for removida.
+    // Este teste inspeciona o dublê diretamente: `ouvintesPorTipo.start` só esvazia se
+    // `removeEventListener` for chamado com o MESMO tipo e a MESMA referência de função que
+    // `addEventListener` recebeu — o dublê filtra por identidade (`o !== ouvinte`), então uma
+    // chamada ausente, ou com outra função, deixaria o ouvinte parado no array.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    const controles = controlsFalsos.ultimo
+    expect(controles?.ouvintesPorTipo.start).toHaveLength(1)
+
+    controles?.disparar('start')
+
+    expect(controles?.ouvintesPorTipo.start).toHaveLength(0)
+  })
+
+  it('desliga o pan, sem controle de recentralizar na tela para desfazer um arrasto', async () => {
+    // Decisão do usuário: o `OrbitControls` real vem com pan ligado por padrão (botão direito do
+    // mouse / dois dedos), e esta tela não tem nenhum controle de "recentralizar" — um pan que
+    // afastasse o sólido do quadro deixaria o operador sem jeito de voltar a não ser sair e
+    // reentrar na tela. `enablePan = true` no dublê imita o padrão real, então esta asserção morre
+    // se a linha que desliga o pan no componente for removida.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    expect(controlsFalsos.ultimo?.enablePan).toBe(false)
   })
 })

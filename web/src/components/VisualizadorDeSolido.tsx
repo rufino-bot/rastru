@@ -27,10 +27,11 @@ const ROTULO_DO_CANVAS = 'Visualização 3D do sólido'
  * `controls.minDistance = distância inicial × este fator`. Derivado da distância que
  * `enquadramentoDoSolido` calcula (que por sua vez escala com o raio da esfera envolvente), nunca
  * um número fixo: um literal serviria a um tamanho de peça e atravessaria outro, o mesmo problema
- * que motivou a Parte 1. `0.5` mantém a câmera fora da esfera envolvente em qualquer tamanho de
- * sólido: como a distância inicial já é `raio / sin(abertura/2) × margem`, e `sin(abertura/2)` para
- * a abertura deste viewer vale ≈ 0.42, a distância inicial equivale a ≈ 2,7 raios — a metade disso
- * ainda deixa a câmera além do raio, nunca dentro da esfera que envolve o sólido.
+ * que motivou `enquadramentoDoSolido`. `0.5` mantém a câmera fora da esfera envolvente em qualquer
+ * tamanho de sólido: como a distância inicial já é `raio / sin(abertura/2) × margem`, e
+ * `sin(abertura/2)` para a abertura deste viewer vale ≈ 0.42, a distância inicial equivale a ≈ 2,7
+ * raios — a metade disso ainda deixa a câmera além do raio, nunca dentro da esfera que envolve o
+ * sólido.
  */
 export const FATOR_DE_ZOOM_MINIMO = 0.5
 
@@ -131,6 +132,9 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     rendererRef.current = renderer
 
     const controls = new OrbitControls(camera, renderer.domElement)
+    // Decisão do usuário: sem um controle de "recentralizar" nesta tela, arrastar com pan afastaria
+    // o sólido do quadro sem nenhuma forma de voltar a não ser sair e reentrar na tela.
+    controls.enablePan = false
     // Limites de zoom derivados do MESMO enquadramento, nunca literais — ver `FATOR_DE_ZOOM_MINIMO`
     // e `FATOR_DE_ZOOM_MAXIMO`.
     controls.minDistance = enquadramento.distancia * FATOR_DE_ZOOM_MINIMO
