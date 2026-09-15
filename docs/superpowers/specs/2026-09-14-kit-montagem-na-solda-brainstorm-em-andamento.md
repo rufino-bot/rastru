@@ -11,7 +11,8 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 5b** (e depois a 5), abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 5**, abaixo, aguardando a resposta do usuário (a 5b já foi
+   respondida — D6). Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -142,7 +143,13 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
     Roteiro) — o caso que motivava a pergunta de "segunda passagem"; (2) o destino da quantidade de
     D e E quando C é montado — a conservação ainda precisa de "montado" (Pergunta 5).
 
-## Pergunta 5b — ABERTA, aguardando o usuário (feita antes da 5)
+- **D6 — Um nó montado volta a Setor `UtilizaKit`, e a partir daí a trava conta o que já foi
+  montado** (resposta à Pergunta 5b, 2026-09-15). Ex.: C em Solda → Usinagem → Solda: na segunda
+  passagem, o limite de C que pode sair não é "filhos na Solda ÷ `QuantidadePorPai`", é o total de
+  C já montado. Logo, **"quanto deste nó já foi montado" precisa ser um número que o sistema sabe** —
+  o que pesa a favor de a montagem ser registro próprio (Pergunta 5, opção A).
+
+## Pergunta 5b — RESPONDIDA (sim, volta), mantida para registro
 
 **Um mesmo nó volta a um Setor `UtilizaKit` depois de montado?** Ex.: C passa por Solda → Usinagem →
 Solda (retorno permitido pela regra 21). Se nunca acontece, "toda passagem" (D4) não gera caso
