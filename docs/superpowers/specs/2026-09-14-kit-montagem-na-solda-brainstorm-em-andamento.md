@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 6**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 7**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -159,7 +159,32 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   - Descartadas: (B) montagem implícita na saída — numa segunda passagem sair não é montar, e a saída
     teria de adivinhar qual dos dois está fazendo; (C) Item não consumido — não fecha a conservação.
 
-## Pergunta 6 — ABERTA, aguardando o usuário
+- **D8 — Unidade que não dá para montar: a perda sobe, e a reposição é Pedido de Retrabalho**
+  (resposta à Pergunta 6, 2026-09-15, opção A). O PCP cria o Retrabalho para a peça faltante. A
+  regra 17 fica intacta.
+  - **Requisito novo trazido pelo usuário: no Pedido de Retrabalho, poder marcar nós como já
+    prontos.** No exemplo, C é feita de D e E, mas só D se perdeu; o E existe e não precisa ser
+    fabricado de novo. O Retrabalho precisa dizer "E já está pronto" para a trava de montagem (D7)
+    contar E como presente sem ele percorrer Roteiro.
+  - Em aberto: até onde a perda sobe (Pergunta 7) e como "pronto" funciona (fila).
+
+## Pergunta 7 — ABERTA, aguardando o usuário
+
+**A perda sobe só até C, ou até a Peça do topo (A)?** Cadeia do exemplo: A ← C ← D.
+
+- **A) Sobe até a Peça do topo.** Registra-se perda de 1 A no Pedido original, que conclui normalmente
+  (regra 13 só olha a Peça). O Retrabalho tem como Peça **A** (1 unidade), com a estrutura que
+  faltar: C com D a fabricar, e com **E, B e o que mais existir marcados como prontos**. É o A que
+  vai ao cliente, então a expedição acontece no Retrabalho.
+- **B) Para em C.** Perda de 1 C no original; o Retrabalho fabrica só C. Mas então a 10ª A do
+  original continua esperando uma C que, pela regra 17, nunca volta para aquele Pedido — o original
+  não conclui. E, pela regra 18, a Peça do Retrabalho precisaria de Componente e sólido próprios
+  para C.
+
+Recomendação apresentada: **A** — é a única em que o Pedido original fecha, e o "marcar como pronto"
+passa a ser exatamente o que o Retrabalho precisa para não refabricar o que já existe.
+
+## Pergunta 6 — RESPONDIDA (A), mantida para registro
 
 **O que acontece quando um filho se perde e o pai não consegue ser montado inteiro?** Exemplo: C de
 10, D de 40 (`QuantidadePorPai` = 4). Perdem-se 2 D (regra 17) → 38 ÷ 4 = 9 C montáveis; a 10ª
@@ -251,6 +276,12 @@ Recomendação apresentada: **A**.
 
 (Os antigos itens "Item perdido" e "Sub-Itens" saíram da fila: o primeiro virou a Pergunta 6, o
 segundo foi respondido pela D5.)
+
+- **"Pronto" no Retrabalho (D8)**: marca no nó, e o nó entra direto no Setor da montagem com a
+  quantidade, sem Roteiro? E o E físico que sobrou na Solda do Pedido original — some do original
+  por baixa simples, ou vira transferência rastreada entre os dois Pedidos (destino novo na
+  conservação)? Lembrar que sobra de Item no original não trava a conclusão (regra 13 só olha a
+  Peça), mas deixa a conservação do Item aberta.
 
 5. **Quem recebe o aviso**: perfil novo (Movimentador) — que exige mexer em `permissoes.ts` e nos
    `[Authorize(Roles)]`, ver a dívida de permissão hardcoded —, ou um perfil existente
