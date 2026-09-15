@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 11**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 12**, abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -207,10 +207,45 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   de Kit pronto sai quando os filhos diretos (**aguardando coleta + já no Setor `UtilizaKit`**)
   passam a permitir montar mais unidades do pai.
   - O usuário **amarrou** a extensão antes adiada — aviso de Item pronto para o próximo Setor — a
-    este mesmo estado. Leitura registrada (a confirmar se ele corrigir): a extensão **entra no
-    desenho**, sobre o mesmo estado e o mesmo mecanismo; o Kit pronto é um caso particular dela.
+    este mesmo estado. (A leitura "o Kit pronto é caso particular dela" foi corrigida pela D13.)
+- **D13 — O aviso de "pronto para o próximo Setor" é universal; só a trava é de Kit** (correção do
+  usuário, 2026-09-15). "Mesma situação" = o estado **"aguardando coleta"** da D12, não a condição de
+  Kit. Todo `EstruturaItem` — Peça ou Item, de Agrupamento **Kit ou Avulso** — que termina num Setor
+  gera aviso ao movimentador para levá-lo ao próximo Setor do Roteiro, porque é isso que continua a
+  produção. A trava de montagem (D1–D11) continua valendo **só** para Agrupamento Kit.
+  - Consequência de escopo: o aviso deixa de ser "extensão adiada" e vira **peça central** da parte 2;
+    o que resta decidir é o que o Kit acrescenta a ele (Pergunta 12).
+- **D14 — Perfil novo `Movimentador`** (resposta à Pergunta 11, 2026-09-15, opção A). Recebe os
+  avisos e registra a entrada no próximo Setor. **Custo aceito conscientemente pelo usuário**: linha
+  nova em `Perfil`, `web/src/auth/permissoes.ts` e `[Authorize(Roles)]` literais — perfil novo exige
+  código + deploy.
+  - **Dívida registrada, não resolvida aqui (cara e importante, para depois):** CRUD de Usuário e de
+    Perfil. Medido em 2026-09-15: `GET/POST /usuarios` está em `specs/05-api-endpoints.md`, mas **não
+    existe controller** em `src/` e **nenhuma fase** do roadmap o implementa — hoje usuário só nasce
+    por SQL (o `operador` da Fase 1C foi criado à mão). São duas dívidas de custo diferente: **CRUD de
+    Usuário** (criar, ativar, atribuir perfil existente) é barato e fica mais urgente com o
+    Movimentador, porque alguém vai precisar criar essas contas; **permissão dinâmica por Perfil**
+    (mapeamento perfil → ação fora do código) é a cara, e é a que o usuário quer revisitar.
+  - Descartadas: (B) Almoxarifado — junta separação de material bruto com movimentação de Item;
+    (C) Operador — o aviso ficaria sem destinatário.
 
-## Pergunta 11 — ABERTA, aguardando o usuário
+## Pergunta 12 — ABERTA, aguardando o usuário
+
+**Com o aviso universal (D13), o que o Kit acrescenta?** O movimentador já seria avisado para levar D
+e E à Solda, porque o Roteiro manda.
+
+- **A) Destaque na mesma lista do movimentador.** Quando os filhos aguardando coleta + já na Solda
+  permitem montar mais unidades do pai, esses Itens aparecem marcados (ex.: "completa 6 de C") —
+  prioridade: levar esses destrava uma montagem. Sem aviso novo, só um dado a mais no mesmo aviso.
+- **B) Aviso separado de "Kit pronto".** Mensagem própria, além dos avisos por Item. Fiel à ideia
+  original, mas o movimentador recebe dois avisos pelo mesmo D.
+- **C) Nada para o movimentador; o Kit aparece para o operador da Solda** ("dá para montar N de C"
+  na fila dele), derivado da trava.
+- **A + C** também é possível: destaque para quem leva, montável para quem monta.
+
+Recomendação apresentada: **A + C**.
+
+## Pergunta 11 — RESPONDIDA (A, `Movimentador`), mantida para registro
 
 **Quem é o movimentador no sistema?** Hoje (`00-visao-geral.md`): Operador registra entrada/saída no
 seu Setor; Almoxarifado registra separação de materiais.
