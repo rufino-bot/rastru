@@ -11,7 +11,7 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 5**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 5b** (e depois a 5), abaixo, aguardando a resposta do usuário. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -124,6 +124,29 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   - Hoje só a Solda seria marcada, mas a marca não é nome fixo.
   - Descartadas: (B) marca no passo do Roteiro — PCP marcaria em todo Pedido e a receita padrão
     precisaria da mesma marca; (C) nome fixo "Solda"; (D) implícito no primeiro Setor do Roteiro.
+
+- **D5 — A trava é local a cada nó com filhos, e a ordem de baixo para cima sai sozinha**
+  (esclarecimento do usuário ao ler a Pergunta 5, 2026-09-15). Exemplo dele: A depende de B e C, B de
+  C e D, C de D e E, todos passam pela Solda. Monta-se primeiro C (só tem folhas), depois B (precisa
+  de C já montado), depois A. Consequências:
+  - **A trava não é só da Peça**: vale para **todo `EstruturaItem` com filhos** (Peça ou Item de
+    submontagem) do Agrupamento Kit que passa por Setor `UtilizaKit`, sempre olhando **só os filhos
+    diretos**. Isso responde a antiga pergunta "Sub-Itens" da fila e **generaliza a D1 e a D4**
+    ("a Peça tem filho" → "o nó tem filho").
+  - Não é preciso calcular "o pai mais baixo": a ordem vem de o filho-submontagem só existir na
+    Solda depois de montado.
+  - **Precisão de modelo a confirmar no desenho**: `EstruturaItem` tem **um** pai só
+    (`EstruturaPaiId`). "C dentro de A e dentro de B" são **dois nós distintos** (mesmo `Componente`,
+    duas linhas), não o mesmo lote compartilhado.
+  - **O que a D5 não resolve**: (1) o mesmo nó voltar à Solda (regra 21 permite Setor repetido no
+    Roteiro) — o caso que motivava a pergunta de "segunda passagem"; (2) o destino da quantidade de
+    D e E quando C é montado — a conservação ainda precisa de "montado" (Pergunta 5).
+
+## Pergunta 5b — ABERTA, aguardando o usuário (feita antes da 5)
+
+**Um mesmo nó volta a um Setor `UtilizaKit` depois de montado?** Ex.: C passa por Solda → Usinagem →
+Solda (retorno permitido pela regra 21). Se nunca acontece, "toda passagem" (D4) não gera caso
+especial. Se acontece, a segunda passagem precisa contar "já montado", não "filhos na Solda".
 
 ## Pergunta 5 — ABERTA, aguardando o usuário
 
