@@ -11,7 +11,8 @@
 2. Leia este arquivo inteiro. O contexto da seção "O que a documentação diz hoje" **já foi
    levantado** — não refaça a busca, só confira se `main` mudou algo em `specs/01-dominio-e-regras-de-negocio.md`
    (glossário "Agrupamento", regras 9 e 16) e na §2.1/§2.2 da spec da Fase 2.
-3. A conversa parou na **Pergunta 15**, abaixo, aguardando a resposta do usuário. Continue dali,
+3. A conversa parou na **Pergunta 16**, abaixo, aguardando a resposta do usuário. É a última: depois
+   dela, apresentar o design em seções para aprovação. Continue dali,
    uma pergunta por vez.
 4. Esta ideia **não é da Fase 2B** e não deve entrar na branch `fase-2b-solido-3d`.
 
@@ -276,7 +277,28 @@ técnica. Se for **A**, o desenho é pequeno; se for **B**, a ideia deixa de ser
   - **Celular do movimentador é pessoal** (usuário, 2026-09-15) — o caso favorável: a inscrição fica
     presa a uma pessoa, sem troca a cada turno.
 
-## Pergunta 15 — ABERTA, aguardando o usuário
+- **D19 — Divisão em fases aprovada como proposta** (resposta à Pergunta 15, 2026-09-15): base de
+  movimentação dentro da **Fase 3**; **Fase 3B — Kit e montagem** logo depois; partes de Perda e
+  Retrabalho dentro da **Fase 5**; **Fase 3C — Notificação push** executada **depois da Fase 5**. A Fase 3
+  fica maior que o texto atual do roadmap (perfil e tela novos), e a 3B fica enxuta.
+
+## Pergunta 16 — ABERTA, aguardando o usuário (última antes do design)
+
+**Como se registra o descarte da sobra (D16)?** Hoje `dbo.Perda` tem `MotivoPerda IN ('PerdaArmazem',
+'MortaEmProcesso')`, e o comentário da coluna diz "Peça que sofreu a perda". **A D10 já exige perda de
+Item** (partes prontas saem como perda junto com a Peça), então esse comentário muda de qualquer jeito.
+
+- **A) Motivo novo em `Perda`: `Descarte`.** Uma linha no `CHECK`, sem tabela nova; entra no bucket
+  "perdido" da conservação. Custo: relatório de perda precisa separar descarte (sobra planejada) de
+  perda de verdade, e o Retrabalho de reposição não se aplica a ele.
+- **B) Destino terminal próprio (tabela `Descarte`).** Separação limpa, mas é mais uma tabela e mais
+  um termo na conservação.
+- **C) Baixa implícita ao concluir a Peça do topo.** Ninguém registra; a sobra dos Itens some quando a
+  Peça conclui. Sem ação do operador, mas sem data, responsável nem Setor.
+
+Recomendação apresentada: **A**.
+
+## Pergunta 15 — RESPONDIDA (proposta aprovada), mantida para registro
 
 **Em que fase entra cada parte, e com que nome?** Proposta apresentada (dependências medidas no
 `06-roadmap-mvp.md`: Fase 3 é apontamento de setor; Perda, Expedição e Retrabalho são Fase 5):
