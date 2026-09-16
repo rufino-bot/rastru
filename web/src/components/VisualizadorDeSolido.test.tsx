@@ -2,7 +2,12 @@
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { VisualizadorDeSolido, FATOR_DE_ZOOM_MINIMO, FATOR_DE_ZOOM_MAXIMO } from './VisualizadorDeSolido'
+import {
+  VisualizadorDeSolido,
+  FATOR_DE_ZOOM_MINIMO,
+  FATOR_DE_ZOOM_MAXIMO,
+  ALTURA_DO_CANVAS_EM_PIXELS,
+} from './VisualizadorDeSolido'
 import { ABERTURA_VERTICAL_EM_GRAUS, MARGEM_DE_ENQUADRAMENTO, enquadramentoDoSolido } from './enquadramentoDoSolido'
 import { respostaBinaria } from '../testes/api'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -23,13 +28,21 @@ const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0, orbitControls: 0
 // novo a cada `montarCena`, cada um com seu próprio `dispose = vi.fn()`; sem isto não haveria como
 // o teste `cancela o quadro de animação e libera o renderer ao desmontar sob StrictMode` chegar ao
 // dublê certo para checar se `dispose` foi chamado.
-const rendererFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void } }))
+const rendererFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void; setSize: (...args: number[]) => void } }))
 
-// Guarda a última câmera falsa criada, com os argumentos recebidos no construtor (abertura, aspect,
-// near, far) — é o que prova que `montarCena` passou a usar `enquadramentoDoSolido` em vez dos
-// literais fixos que a câmera tinha antes.
+// Guarda a última câmera falsa criada. `aspect`/`near`/`far` são propriedades graváveis (como na
+// `PerspectiveCamera` real) em vez de argumentos de construtor: `aplicarEnquadramento`, no
+// componente, constrói a câmera com literais de placeholder e escreve os valores reais depois via
+// atribuição de propriedade — é assim que a MESMA função também consegue reaplicar o enquadramento
+// quando o `ResizeObserver` dispara, sem reconstruir a câmera.
 const camerasFalsas = vi.hoisted(() => ({
-  ultima: null as null | { args: unknown[]; position: { set: (...args: number[]) => void } },
+  ultima: null as null | {
+    aspect: number
+    near: number
+    far: number
+    updateProjectionMatrix: () => void
+    position: { set: (...args: number[]) => void }
+  },
 }))
 
 // Guarda a última instância de `OrbitControlsFalso`, com um `disparar` que simula o dublê
@@ -43,20 +56,49 @@ const controlsFalsos = vi.hoisted(() => ({
     maxDistance: number
     update: () => void
     dispose: () => void
+    reset: () => void
     disparar: (tipo: string) => void
     ouvintesPorTipo: Record<string, Array<() => void>>
   },
 }))
 
-/** Raio da esfera envolvente que o dublê do `STLLoader` devolve — usado pelos testes que
-    conferem o enquadramento para reproduzir a MESMA conta que o componente faz, com
-    `enquadramentoDoSolido` importado de verdade (não um valor redigitado à mão). */
-const RAIO_DE_TESTE = 30
+/** Meias-extensões do sólido falso que o dublê do `STLLoader` devolve, usadas pelos testes de
+    enquadramento para reproduzir a MESMA conta que o componente faz (nunca um número redigitado à
+    mão). X e Z formam o plano em que a rotação automática gira a câmera (em torno do eixo Y); Y é
+    a altura — os valores são bem diferentes entre si de propósito, para os testes que checam a
+    escolha entre largura e altura terem uma peça assimétrica de verdade. */
+const MEIA_EXTENSAO_X_DE_TESTE = 40
+const MEIA_EXTENSAO_Y_DE_TESTE = 6
+const MEIA_EXTENSAO_Z_DE_TESTE = 8
+const RAIO_NO_PLANO_DE_GIRO_DE_TESTE = Math.sqrt(MEIA_EXTENSAO_X_DE_TESTE ** 2 + MEIA_EXTENSAO_Z_DE_TESTE ** 2)
+
+// Guarda a última instância do dublê de `ResizeObserver` — `disparar()` simula o navegador
+// invocando o callback que o componente passou ao `observe()`, sem precisar de um redimensionamento
+// de verdade (que o jsdom não tem).
+let ultimoResizeObserverFalso: ResizeObserverFalso | null = null
+
+class ResizeObserverFalso {
+  disconnect = vi.fn()
+  observe = vi.fn()
+  callback: () => void
+  constructor(callback: () => void) {
+    this.callback = callback
+    ultimoResizeObserverFalso = this
+  }
+  disparar() {
+    this.callback()
+  }
+}
 
 // `apiFetch` exige `inicializar()` — molde de `UploadDeSolido.test.tsx`.
 beforeEach(() => {
   _resetParaTeste()
   inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  ultimoResizeObserverFalso = null
+  // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
+  // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
+  // "Visualizar", não só os testes que testam redimensionamento.
+  vi.stubGlobal('ResizeObserver', ResizeObserverFalso)
 })
 
 afterEach(() => {
@@ -81,14 +123,19 @@ vi.mock('three', () => {
     add = vi.fn()
   }
 
-  // Herda de `Object3DFalso` (mesmo `position.set` espiável) e acrescenta só o que a câmera
-  // precisa a mais: guardar os argumentos do construtor, para o teste do enquadramento conferir
-  // `near`/`far` sem precisar de um espião separado por chamada.
-  class PerspectiveCameraFalsa extends Object3DFalso {
-    args: unknown[]
-    constructor(...args: unknown[]) {
-      super()
-      this.args = args
+  // Não herda de `Object3DFalso`: a câmera real não tem `rotation.y`/`add` relevantes aqui, e o que
+  // o componente de fato usa nela (`position.set`, `aspect`, `near`, `far`,
+  // `updateProjectionMatrix`) é tudo que este dublê precisa expor.
+  class PerspectiveCameraFalsa {
+    position = { set: vi.fn() }
+    aspect: number
+    near: number
+    far: number
+    updateProjectionMatrix = vi.fn()
+    constructor(_fov: number, aspect: number, near: number, far: number) {
+      this.aspect = aspect
+      this.near = near
+      this.far = far
       camerasFalsas.ultima = this
     }
   }
@@ -114,44 +161,54 @@ vi.mock('three', () => {
   }
 })
 
-// Dublê do STLLoader: `parse` devolve uma geometria falsa com os métodos que `montarCena` chama
-// antes de montar a cena. `computeBoundingSphere` imita o comportamento real (grava
-// `boundingSphere` na própria geometria) para o componente conseguir ler `boundingSphere.radius`
-// exatamente como leria de uma `BufferGeometry` de verdade.
+// Dublê do STLLoader: `parse` devolve uma geometria falsa cujo `computeBoundingBox` grava um
+// `boundingBox` com as meias-extensões `MEIA_EXTENSAO_X_DE_TESTE`/`MEIA_EXTENSAO_Y_DE_TESTE`/
+// `MEIA_EXTENSAO_Z_DE_TESTE` — imita a `BufferGeometry` real o bastante para o componente derivar
+// `raioNoPlanoDeGiro`/`meiaAlturaEmY` dela.
 vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
   importacoes.stlLoader++
+
+  type Vetor3DeTeste = { x: number; y: number; z: number }
 
   return {
     STLLoader: class {
       parse() {
         return {
-          computeBoundingBox: () => {},
-          center: () => {},
-          computeBoundingSphere(this: { boundingSphere?: { radius: number } }) {
-            this.boundingSphere = { radius: RAIO_DE_TESTE }
+          computeBoundingBox(this: { boundingBox?: { min: Vetor3DeTeste; max: Vetor3DeTeste } }) {
+            this.boundingBox = {
+              min: { x: -MEIA_EXTENSAO_X_DE_TESTE, y: -MEIA_EXTENSAO_Y_DE_TESTE, z: -MEIA_EXTENSAO_Z_DE_TESTE },
+              max: { x: MEIA_EXTENSAO_X_DE_TESTE, y: MEIA_EXTENSAO_Y_DE_TESTE, z: MEIA_EXTENSAO_Z_DE_TESTE },
+            }
           },
+          center: () => {},
         }
       }
     },
   }
 })
 
-// Dublê do OrbitControls: expõe só o que `montarCena` usa (`autoRotate`, `minDistance`,
-// `maxDistance`, `update`, `dispose`) e um `addEventListener`/`removeEventListener` mínimo o
-// bastante para o componente se inscrever e cancelar a inscrição do evento `start` — `disparar` é
-// o gancho de teste para simular o evento sem precisar de um `PointerEvent` de verdade.
+// Dublê do OrbitControls: expõe só o que `montarCena` usa (`autoRotate`, `enablePan`,
+// `minDistance`, `maxDistance`, `update`, `dispose`, `reset`) e um
+// `addEventListener`/`removeEventListener` mínimo o bastante para o componente se inscrever e
+// cancelar a inscrição do evento `start` — `disparar` é o gancho de teste para simular o evento
+// sem precisar de um `PointerEvent` de verdade.
 vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
   importacoes.orbitControls++
 
   class OrbitControlsFalso {
     autoRotate = false
-    // `true` por padrão, igual ao `OrbitControls` real — é o que faz o teste de `enablePan`
-    // morrer se a linha que desliga o pan for removida do componente.
+    // `true` por padrão, igual ao `OrbitControls` real (e ao que ele fica depois de o componente
+    // parar de forçar `false`) — é o que faz o teste do pan ligado morrer se algum código voltar a
+    // desligá-lo.
     enablePan = true
     minDistance = 0
     maxDistance = 0
     update = vi.fn()
     dispose = vi.fn()
+    // `reset()` real não muda `autoRotate` nem dispara `start` (só `change`) — o dublê reflete
+    // isso não fazendo nada além de registrar a chamada, para o teste do botão "Recentralizar"
+    // provar que É O COMPONENTE, e não o `OrbitControls`, quem para a rotação automática.
+    reset = vi.fn()
     ouvintesPorTipo: Record<string, Array<() => void>> = {}
 
     constructor() {
@@ -283,7 +340,7 @@ describe('VisualizadorDeSolido', () => {
     expect(screen.getByRole('button', { name: /visualizar/i })).toBeTruthy()
   })
 
-  it('cancela o quadro de animação e libera o renderer e os controles ao desmontar sob StrictMode', async () => {
+  it('libera o renderer, os controles e o observador de redimensionamento ao desmontar sob StrictMode', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
     const cancelarQuadro = vi.spyOn(globalThis, 'cancelAnimationFrame')
 
@@ -297,8 +354,10 @@ describe('VisualizadorDeSolido', () => {
 
     const dispose = rendererFalsos.ultimo?.dispose
     const disposeDosControles = controlsFalsos.ultimo?.dispose
+    const desconectarObservador = ultimoResizeObserverFalso?.disconnect
     expect(dispose).not.toHaveBeenCalled()
     expect(disposeDosControles).not.toHaveBeenCalled()
+    expect(desconectarObservador).not.toHaveBeenCalled()
     expect(cancelarQuadro).not.toHaveBeenCalled()
 
     unmount()
@@ -309,27 +368,37 @@ describe('VisualizadorDeSolido', () => {
     // sem `desmontadoRef.current = false` na montagem, prendia o viewer em "Carregando…" para
     // sempre (é o que o teste `mostra o canvas rotulado quando o sólido carregou, mesmo sob
     // StrictMode` prova). Uma chamada a mais aqui seria a mesma classe de regressão, desta vez no
-    // dispose em vez do estado preso.
+    // dispose/disconnect em vez do estado preso.
     expect(dispose).toHaveBeenCalledTimes(1)
     expect(disposeDosControles).toHaveBeenCalledTimes(1)
+    expect(desconectarObservador).toHaveBeenCalledTimes(1)
 
     cancelarQuadro.mockRestore()
   })
 
-  it('enquadra a câmera pelo tamanho do sólido em vez da distância fixa antiga', async () => {
+  it('enquadra a câmera pelo tamanho e formato do sólido em vez da distância fixa antiga', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     render(<VisualizadorDeSolido componenteId={7} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
-    // Mesma conta que `montarCena` faz, com a função de verdade — nunca um número redigitado à
-    // mão, que divergiria em silêncio se a fórmula ou as constantes mudassem de novo.
-    const esperado = enquadramentoDoSolido(RAIO_DE_TESTE, ABERTURA_VERTICAL_EM_GRAUS, MARGEM_DE_ENQUADRAMENTO)
+    // jsdom não mede layout: `getBoundingClientRect()` do container devolve 0, e o componente cai
+    // no piso (a própria altura fixa), o que dá proporção 1:1 — a MESMA conta que `esperado`
+    // reproduz com a função `enquadramentoDoSolido` de produção, nunca um número redigitado à mão.
+    const esperado = enquadramentoDoSolido(
+      RAIO_NO_PLANO_DE_GIRO_DE_TESTE,
+      MEIA_EXTENSAO_Y_DE_TESTE,
+      ABERTURA_VERTICAL_EM_GRAUS,
+      1,
+      MARGEM_DE_ENQUADRAMENTO,
+    )
 
-    // Mata a mutação de voltar ao `50, 1, 0.1, 10000` fixo: com `RAIO_DE_TESTE = 30`, a distância
-    // e o near/far esperados são bem diferentes dos literais antigos.
-    expect(camerasFalsas.ultima?.args).toEqual([ABERTURA_VERTICAL_EM_GRAUS, 1, esperado.near, esperado.far])
+    // Mata a mutação de voltar ao `50, 1, 0.1, 1000` fixo (aspect sempre 1, near/far sem depender
+    // do tamanho do sólido).
+    expect(camerasFalsas.ultima?.aspect).toBe(1)
+    expect(camerasFalsas.ultima?.near).toBeCloseTo(esperado.near, 10)
+    expect(camerasFalsas.ultima?.far).toBeCloseTo(esperado.far, 10)
     // Mata a mutação de voltar a `camera.position.set(0, 0, 200)`.
     expect(camerasFalsas.ultima?.position.set).toHaveBeenCalledWith(0, 0, esperado.distancia)
   })
@@ -341,11 +410,17 @@ describe('VisualizadorDeSolido', () => {
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
-    const esperado = enquadramentoDoSolido(RAIO_DE_TESTE, ABERTURA_VERTICAL_EM_GRAUS, MARGEM_DE_ENQUADRAMENTO)
+    const esperado = enquadramentoDoSolido(
+      RAIO_NO_PLANO_DE_GIRO_DE_TESTE,
+      MEIA_EXTENSAO_Y_DE_TESTE,
+      ABERTURA_VERTICAL_EM_GRAUS,
+      1,
+      MARGEM_DE_ENQUADRAMENTO,
+    )
 
-    // Mata a mutação de trocar `minDistance`/`maxDistance` por literais: um `RAIO_DE_TESTE`
-    // diferente (30, aqui) teria de produzir limites diferentes dos de qualquer outro sólido, e um
-    // literal fixo não acompanharia essa mudança.
+    // Mata a mutação de trocar `minDistance`/`maxDistance` por literais: uma peça de teste
+    // diferente teria de produzir limites diferentes dos de qualquer outra, e um literal fixo não
+    // acompanharia essa mudança.
     expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MINIMO)
     expect(controlsFalsos.ultimo?.maxDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MAXIMO)
   })
@@ -408,18 +483,124 @@ describe('VisualizadorDeSolido', () => {
     expect(controles?.ouvintesPorTipo.start).toHaveLength(0)
   })
 
-  it('desliga o pan, sem controle de recentralizar na tela para desfazer um arrasto', async () => {
-    // Decisão do usuário: o `OrbitControls` real vem com pan ligado por padrão (botão direito do
-    // mouse / dois dedos), e esta tela não tem nenhum controle de "recentralizar" — um pan que
-    // afastasse o sólido do quadro deixaria o operador sem jeito de voltar a não ser sair e
-    // reentrar na tela. `enablePan = true` no dublê imita o padrão real, então esta asserção morre
-    // se a linha que desliga o pan no componente for removida.
+  it('mantém o pan ligado (padrão do OrbitControls), agora que o botão Recentralizar existe', async () => {
+    // Com o botão "Recentralizar" desfazendo qualquer arrasto que afaste o sólido do quadro, o pan
+    // volta ao padrão ligado do `OrbitControls` (`enablePan = true` no dublê, nunca sobrescrito pelo
+    // componente). Mata a mutação de o componente forçar `enablePan = false`.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     render(<VisualizadorDeSolido componenteId={7} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
-    expect(controlsFalsos.ultimo?.enablePan).toBe(false)
+    expect(controlsFalsos.ultimo?.enablePan).toBe(true)
+    expect(screen.getByRole('button', { name: /recentralizar/i })).toBeTruthy()
+  })
+
+  it('mostra o botão Recentralizar só depois que o sólido carrega', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    expect(screen.queryByRole('button', { name: /recentralizar/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    expect(screen.queryByRole('button', { name: /recentralizar/i })).toBeNull()
+
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+    expect(screen.getByRole('button', { name: /recentralizar/i })).toBeTruthy()
+  })
+
+  it('recentraliza a vista e para a rotação automática de vez ao clicar em Recentralizar', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    const controles = controlsFalsos.ultimo
+    expect(controles?.autoRotate).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: /recentralizar/i }))
+
+    // Mata a mutação de remover `controls.reset()` do botão.
+    expect(controles?.reset).toHaveBeenCalledTimes(1)
+    // Mata a mutação de a rotação automática NÃO parar ao clicar em Recentralizar: o `reset()` do
+    // `OrbitControls` real dispara só o evento `change`, nunca `start` (conferido no código-fonte
+    // do `OrbitControls` antes de escrever este teste) — sem o componente parar a rotação por
+    // conta própria, a peça voltaria à vista inicial e continuaria girando sozinho.
+    expect(controles?.autoRotate).toBe(false)
+
+    // O clique também conta como a PRIMEIRA interação: disparar `start` depois não deveria religar
+    // nada — mesma regra de sempre, a rotação para de vez.
+    controles?.disparar('start')
+    expect(controles?.autoRotate).toBe(false)
+  })
+
+  it('mede a largura do container e a usa para o tamanho do canvas e a proporção da câmera', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    vi.spyOn(getByTestId('canvas-do-visualizador'), 'getBoundingClientRect').mockReturnValue({
+      width: 700,
+    } as DOMRect)
+
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    expect(rendererFalsos.ultimo?.setSize).toHaveBeenCalledWith(700, ALTURA_DO_CANVAS_EM_PIXELS)
+    expect(camerasFalsas.ultima?.aspect).toBeCloseTo(700 / ALTURA_DO_CANVAS_EM_PIXELS, 10)
+  })
+
+  it('nunca chama setSize com largura zero quando o container ainda não tem layout', async () => {
+    // jsdom não mede layout: `getBoundingClientRect()` do container devolve 0 sem mock nenhum. Um
+    // `setSize(0, ALTURA_DO_CANVAS_EM_PIXELS)` produziria um canvas invisível sem erro nenhum — só
+    // afirmar a LARGURA passada (não só que `setSize` foi chamado) pega essa regressão.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    expect(rendererFalsos.ultimo?.setSize).toHaveBeenCalledWith(ALTURA_DO_CANVAS_EM_PIXELS, ALTURA_DO_CANVAS_EM_PIXELS)
+  })
+
+  it('refaz o tamanho, a proporção e o enquadramento quando o observador de redimensionamento dispara', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    const container = getByTestId('canvas-do-visualizador')
+    const medidaDeLargura = vi.spyOn(container, 'getBoundingClientRect')
+    medidaDeLargura.mockReturnValue({ width: 700 } as DOMRect)
+
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+    expect(rendererFalsos.ultimo?.setSize).toHaveBeenCalledWith(700, ALTURA_DO_CANVAS_EM_PIXELS)
+
+    const chamadasDeUpdateAntes = (camerasFalsas.ultima?.updateProjectionMatrix as ReturnType<typeof vi.fn>).mock
+      .calls.length
+
+    medidaDeLargura.mockReturnValue({ width: 350 } as DOMRect)
+    ultimoResizeObserverFalso?.disparar()
+
+    const esperado = enquadramentoDoSolido(
+      RAIO_NO_PLANO_DE_GIRO_DE_TESTE,
+      MEIA_EXTENSAO_Y_DE_TESTE,
+      ABERTURA_VERTICAL_EM_GRAUS,
+      350 / ALTURA_DO_CANVAS_EM_PIXELS,
+      MARGEM_DE_ENQUADRAMENTO,
+    )
+
+    // Mata a mutação de trocar `setSize`/aspect por um valor que não acompanha a nova largura.
+    expect(rendererFalsos.ultimo?.setSize).toHaveBeenLastCalledWith(350, ALTURA_DO_CANVAS_EM_PIXELS)
+    expect(camerasFalsas.ultima?.aspect).toBeCloseTo(350 / ALTURA_DO_CANVAS_EM_PIXELS, 10)
+    // Mata a mutação de tirar `updateProjectionMatrix()` do callback de redimensionamento
+    // especificamente: a câmera já chama esse método uma vez na montagem, então só
+    // `toHaveBeenCalled()` não provaria nada sobre o callback — o teste precisa de uma chamada A
+    // MAIS depois do disparo.
+    expect(
+      (camerasFalsas.ultima?.updateProjectionMatrix as ReturnType<typeof vi.fn>).mock.calls.length,
+    ).toBeGreaterThan(chamadasDeUpdateAntes)
+    expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MINIMO, 6)
+    expect(controlsFalsos.ultimo?.maxDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MAXIMO, 6)
   })
 })
