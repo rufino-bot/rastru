@@ -61,10 +61,15 @@ const malhasFalsas = vi.hoisted(() => ({
     foi gerada. */
 const cenasFalsas = vi.hoisted(() => ({ ultima: null as null | { environment: unknown } }))
 
-/** Último `PMREMGenerator` falso construído — usado tanto pelo teste do ambiente de reflexo
-    (`fromScene` devolve a textura capturada em `texturasDeAmbienteFalsas`) quanto pelo teste de
-    limpeza (`dispose`). */
-const pmremGeneratorsFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void } }))
+/** `PMREMGenerator` falso que de fato chamou `fromScene` — não "o último construído". Mesmo
+    raciocínio que `ambienteRecebidoPorFromScene` já aplica ao `RoomEnvironment` (ver comentário
+    dela), transportado para o próprio gerador: capturar por ordem de construção deixaria passar
+    uma SEGUNDA instância, nunca usada para produzir a textura de ambiente, se o ref do componente
+    fosse atribuído a ela por engano — o recurso que vazaria (render target, dois materiais de
+    shader e as geometrias internas de LOD) pertence à instância que RENDERIZOU o ambiente, que é a
+    que recebeu a chamada de `fromScene`, nunca a segunda. Capturado via `this` dentro do próprio
+    método, porque é o único ponto em que "a instância que está executando `fromScene`" existe. */
+const geradorQueChamouFromScene = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
 /** Última textura de ambiente falsa devolvida por `PMREMGenerator.fromScene(...).texture` —
     guardada à parte do gerador porque a limpeza do componente libera os dois separadamente. */
@@ -171,7 +176,7 @@ beforeEach(() => {
   geometriasFalsas.ultima = null
   malhasFalsas.ultima = null
   cenasFalsas.ultima = null
-  pmremGeneratorsFalsos.ultimo = null
+  geradorQueChamouFromScene.ultima = null
   texturasDeAmbienteFalsas.ultima = null
   ambienteRecebidoPorFromScene.ultima = null
   // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
@@ -281,20 +286,24 @@ vi.mock('three', () => {
 
   // Dublê do `PMREMGenerator`: `fromScene` devolve um `WebGLRenderTarget`-like mínimo (só o
   // `.texture` que o componente lê) e guarda a textura à parte, porque a limpeza do componente
-  // libera o gerador e a textura separadamente.
+  // libera o gerador e a textura separadamente. Não existe rastreador global "última instância
+  // construída" aqui — pelo mesmo motivo que `MeshStandardMaterialFalso` não tem um: capturar por
+  // ORDEM DE CONSTRUÇÃO deixaria passar uma segunda instância, nunca usada para gerar a textura de
+  // ambiente, se o ref do componente fosse atribuído a ela por engano — só a instância que de fato
+  // EXECUTOU `fromScene` prova qual gerador produziu o render target, os materiais de shader e as
+  // geometrias de LOD que a limpeza precisa liberar.
   class PMREMGeneratorFalso {
     // Registra em `ordemDeLiberacao` — junto do `dispose` da textura devolvida por `fromScene` e
     // do `RoomEnvironmentFalso`, prova que os três rodam ANTES do renderer.
     dispose = vi.fn(() => {
       ordemDeLiberacao.eventos.push('pmremGenerator')
     })
-    constructor() {
-      pmremGeneratorsFalsos.ultimo = this
-    }
-    // Captura o argumento RECEBIDO (a instância de `RoomEnvironment` que o componente de fato
-    // passou), não uma referência global de "última construída" — ver o comentário de
-    // `ambienteRecebidoPorFromScene` no topo do arquivo para o motivo.
+    // Captura `this` (a própria instância que está executando `fromScene`) em
+    // `geradorQueChamouFromScene`, e o argumento RECEBIDO (a instância de `RoomEnvironment` que o
+    // componente de fato passou) em `ambienteRecebidoPorFromScene` — ver o comentário dela no topo
+    // do arquivo para o motivo.
     fromScene(cena: unknown) {
+      geradorQueChamouFromScene.ultima = this
       ambienteRecebidoPorFromScene.ultima = cena as { dispose: () => void }
       const textura = { dispose: vi.fn(() => ordemDeLiberacao.eventos.push('textura')) }
       texturasDeAmbienteFalsas.ultima = textura
@@ -534,7 +543,11 @@ describe('VisualizadorDeSolido', () => {
     const dispose = rendererFalsos.ultimo?.dispose
     const disposeDosControles = controlsFalsos.ultimo?.dispose
     const desconectarObservador = ultimoResizeObserverFalso?.disconnect
-    const disposeDoGerador = pmremGeneratorsFalsos.ultimo?.dispose
+    // A instância que de fato EXECUTOU `fromScene`, não "o último `PMREMGenerator` construído" —
+    // ver o comentário de `geradorQueChamouFromScene` no topo do arquivo para o motivo (mesma
+    // classe de buraco que a captura por uso real já fecha para `ambienteRecebidoPorFromScene` e
+    // `malhasFalsas.ultima?.material`).
+    const disposeDoGerador = geradorQueChamouFromScene.ultima?.dispose
     const disposeDaTextura = texturasDeAmbienteFalsas.ultima?.dispose
     // A instância que `fromScene` de fato RECEBEU, não "a última `RoomEnvironment` construída" —
     // ver o comentário de `ambienteRecebidoPorFromScene` no topo do arquivo para o motivo (mesma
