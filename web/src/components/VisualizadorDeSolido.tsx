@@ -62,14 +62,24 @@ export const ROUGHNESS_DO_ACABAMENTO = 0.4
 const COR_DO_ACABAMENTO_METALICO = 0x9ca3af
 
 /**
- * Intensidades de luz revisadas para o acabamento metálico. Os valores 0,6/0,8 eram calibrados
- * para um material fosco, sem `metalness`, cuja aparência vinha quase toda da parcela difusa
- * dessas duas luzes. Com `scene.environment` passando a iluminar a peça de toda direção (o quarto
- * do `RoomEnvironment`, prefiltrado pelo `PMREMGenerator`), manter essas intensidades somaria
- * brilho em cima do ambiente — e o reflexo especular de um material com `metalness = 1` é bem mais
- * concentrado que a difusão de um material sem `metalness`, então a MESMA intensidade de luz
- * direcional estouraria o brilho onde ele incide. Reduzidas para complementar o ambiente (a
- * direcional marca uma direção de luz, sem ser a fonte principal), não para substituí-lo.
+ * Intensidades de luz revisadas para o acabamento metálico — por motivos DIFERENTES para cada
+ * luz, apesar de as duas terem mudado juntas quando o material ganhou `metalness`/`roughness`.
+ *
+ * `INTENSIDADE_DA_LUZ_AMBIENTE`: com `metalness = 1`, `material.diffuseContribution` (no shader
+ * físico do three.js) é `diffuseColor * (1 - metalness)` — exatamente zero, não só pequeno. A
+ * irradiância da `AmbientLight` só alimenta essa parcela difusa neste material
+ * (`MeshStandardMaterial`, que define `STANDARD`): o termo de compensação de multiespalhamento do
+ * especular indireto usa `getIBLIrradiance`, a irradiância do MAPA de ambiente
+ * (`RoomEnvironment`/`PMREMGenerator`) — uma variável separada, que só se soma à da `AmbientLight`
+ * para os defines `LAMBERT`/`PHONG`, nunca para `STANDARD`. Ou seja: com `metalness = 1`, esta luz
+ * não chega a contribuir nada ao pixel final — reduzi-la de 0,6 para 0,3 é inofensivo, não uma
+ * correção de brilho medida.
+ *
+ * `INTENSIDADE_DA_LUZ_DIRECIONAL`: aqui o efeito é real. O reflexo especular direto de um material
+ * com `metalness = 1` é concentrado num lóbulo estreito ao redor da direção de reflexão (diferente
+ * da difusão ampla de um material sem `metalness`), então a MESMA intensidade calibrada para
+ * difusão estouraria o ponto de brilho da peça. Reduzida para complementar o ambiente (marca uma
+ * direção de luz, sem ser a fonte principal), não para substituí-lo.
  */
 const INTENSIDADE_DA_LUZ_AMBIENTE = 0.3
 const INTENSIDADE_DA_LUZ_DIRECIONAL = 0.6
