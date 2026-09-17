@@ -37,22 +37,21 @@ const geometriasFalsas = vi.hoisted(() => ({
   ultima: null as null | { computeVertexNormals: () => void },
 }))
 
-/** Última malha falsa construída, com a geometria que RECEBEU no construtor — achado ao tentar
-    burlar o teste do recálculo: sem isto, um `new THREE.Mesh()` com uma geometria qualquer no
-    lugar da recalculada passava despercebido pelos outros 21 testes (nenhum inspecionava o
-    argumento do construtor). */
-const malhasFalsas = vi.hoisted(() => ({ ultima: null as null | { geometria: unknown } }))
+/** Última malha falsa construída, com a geometria E o material que RECEBEU no construtor — achado
+    ao tentar burlar o teste do recálculo: sem capturar a geometria aqui, um `new THREE.Mesh()` com
+    uma geometria qualquer (em vez da recalculada) passava despercebido pelos outros testes do
+    arquivo (nenhum inspecionava o argumento do construtor). O material entrou pelo mesmo motivo,
+    na Parte B: capturar por ORDEM DE CONSTRUÇÃO (`materiaisFalsos.ultimo`) deixa passar um
+    material errado na malha desde que um segundo material correto, nunca usado, seja construído
+    depois — só capturar o que o `Mesh` de fato RECEBEU fecha os dois casos da mesma forma. */
+const malhasFalsas = vi.hoisted(() => ({
+  ultima: null as null | { geometria: unknown; material: unknown },
+}))
 
 /** Última cena falsa construída, com o que foi atribuído a `.environment` — permite ao teste do
     ambiente de reflexo provar que `scene.environment` recebeu a textura do PMREM, não só que ela
     foi gerada. */
 const cenasFalsas = vi.hoisted(() => ({ ultima: null as null | { environment: unknown } }))
-
-/** Último material padrão falso construído, com os parâmetros que recebeu — permite ao teste do
-    acabamento inspecionar `metalness`/`roughness` sem vasculhar a malha. */
-const materiaisFalsos = vi.hoisted(() => ({
-  ultimo: null as null | { color?: number; metalness?: number; roughness?: number },
-}))
 
 /** Último `PMREMGenerator` falso construído — usado tanto pelo teste do ambiente de reflexo
     (`fromScene` devolve a textura capturada em `texturasDeAmbienteFalsas`) quanto pelo teste de
@@ -157,7 +156,6 @@ beforeEach(() => {
   geometriasFalsas.ultima = null
   malhasFalsas.ultima = null
   cenasFalsas.ultima = null
-  materiaisFalsos.ultimo = null
   pmremGeneratorsFalsos.ultimo = null
   texturasDeAmbienteFalsas.ultima = null
   roomEnvironmentsFalsos.ultimo = null
@@ -227,10 +225,10 @@ vi.mock('three', () => {
   // é construída em `ordemDeChamadas` — é o marcador que prova que o recálculo de normais aconteceu
   // ANTES de a malha existir, não depois.
   class MeshFalso extends Object3DFalso {
-    constructor(geometria: unknown) {
+    constructor(geometria: unknown, material: unknown) {
       super()
       ordemDeChamadas.eventos.push('malhaConstruida')
-      malhasFalsas.ultima = { geometria }
+      malhasFalsas.ultima = { geometria, material }
     }
   }
 
@@ -245,8 +243,12 @@ vi.mock('three', () => {
     }
   }
 
-  // Dublê do material padrão: captura os parâmetros recebidos (`color`/`metalness`/`roughness`)
-  // para o teste do acabamento metálico inspecionar sem vasculhar a malha.
+  // Dublê do material padrão: guarda os parâmetros recebidos (`color`/`metalness`/`roughness`) na
+  // própria instância — é essa instância que `MeshFalso` captura como `malhasFalsas.ultima.material`
+  // quando o `Mesh` a recebe no construtor, o que o teste do acabamento metálico inspeciona. Não
+  // existe rastreador global "última instância construída" aqui: capturar por ORDEM DE CONSTRUÇÃO
+  // deixaria passar um material errado na malha se um segundo material (correto, nunca usado) fosse
+  // construído depois — só o que o `Mesh` de fato recebe conta.
   class MeshStandardMaterialFalso {
     color?: number
     metalness?: number
@@ -255,7 +257,6 @@ vi.mock('three', () => {
       this.color = parametros.color
       this.metalness = parametros.metalness
       this.roughness = parametros.roughness
-      materiaisFalsos.ultimo = this
     }
   }
 
@@ -536,8 +537,9 @@ describe('VisualizadorDeSolido', () => {
     expect(disposeDaTextura).toHaveBeenCalledTimes(1)
     // Mata a mutação de deixar a instância de `RoomEnvironment` fora da limpeza: ela tem
     // `dispose()` próprio (1 geometria + 8 materiais que ela mesma cria ao ser construída) e,
-    // criada inline sem referência guardada, nada a liberaria — o mesmo vazamento de GPU que as
-    // duas asserções acima já cobrem para o gerador e a textura, desta vez na cena de origem.
+    // criada inline sem referência guardada, nada a liberaria — o mesmo vazamento de GPU que
+    // `disposeDoGerador`/`disposeDaTextura` já cobrem para o gerador e a textura, desta vez na
+    // cena de origem.
     expect(disposeDoRoomEnvironment).toHaveBeenCalledTimes(1)
 
     cancelarQuadro.mockRestore()
@@ -564,11 +566,20 @@ describe('VisualizadorDeSolido', () => {
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
+    // Inspeciona o material que a MALHA de fato recebeu (não "o último construído"): um material
+    // decoy — um segundo `MeshStandardMaterial` correto, construído mas nunca usado, depois de um
+    // primeiro com `metalness: 0` passado ao `Mesh` — passava por esta suíte sem quebrar nada até
+    // esta captura mudar de `materiaisFalsos.ultimo` (ordem de construção) para
+    // `malhasFalsas.ultima?.material` (uso real).
+    const materialUsado = malhasFalsas.ultima?.material as
+      | { metalness?: number; roughness?: number }
+      | undefined
+
     // Mata a mutação de `metalness` voltar a 0: a peça deixaria de ler como metal (metal genuíno
     // não tem parcela difusa — depende do reflexo do ambiente, não da cor).
-    expect(materiaisFalsos.ultimo?.metalness).toBe(METALNESS_DO_ACABAMENTO)
-    expect(materiaisFalsos.ultimo?.metalness).toBeGreaterThan(0)
-    expect(materiaisFalsos.ultimo?.roughness).toBe(ROUGHNESS_DO_ACABAMENTO)
+    expect(materialUsado?.metalness).toBe(METALNESS_DO_ACABAMENTO)
+    expect(materialUsado?.metalness).toBeGreaterThan(0)
+    expect(materialUsado?.roughness).toBe(ROUGHNESS_DO_ACABAMENTO)
   })
 
   it('recalcula as normais da geometria depois do parse do STLLoader e antes de montar a malha', async () => {
@@ -596,7 +607,7 @@ describe('VisualizadorDeSolido', () => {
 
     // Achado ao tentar burlar este próprio teste: sem esta linha, trocar a geometria passada ao
     // `Mesh` por qualquer outro objeto (em vez da que teve as normais recalculadas) passava pelos
-    // outros 21 testes do arquivo sem quebrar nenhum. A malha tem de guardar a MESMA instância que
+    // outros testes do arquivo sem quebrar nenhum. A malha tem de guardar a MESMA instância que
     // `computeVertexNormals()` mutou, não uma cópia nem uma geometria nova.
     expect(malhasFalsas.ultima?.geometria).toBe(geometriasFalsas.ultima)
   })
