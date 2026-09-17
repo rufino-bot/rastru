@@ -279,7 +279,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       )}
       <div
         ref={containerRef}
-        data-testid="canvas-do-visualizador"
+        data-testid="container-do-visualizador"
         className="w-full"
         style={{ height: ALTURA_DO_CANVAS_EM_PIXELS }}
       />

@@ -71,6 +71,20 @@ const MEIA_EXTENSAO_Y_DE_TESTE = 6
 const MEIA_EXTENSAO_Z_DE_TESTE = 8
 const RAIO_NO_PLANO_DE_GIRO_DE_TESTE = Math.sqrt(MEIA_EXTENSAO_X_DE_TESTE ** 2 + MEIA_EXTENSAO_Z_DE_TESTE ** 2)
 
+type CaixaEnvolventeDeTeste = { min: { x: number; y: number; z: number }; max: { x: number; y: number; z: number } }
+
+/** Caixa envolvente que o dublê do `STLLoader` devolve — mutável por teste (lida por referência a
+    cada `computeBoundingBox`, então trocar o CONTEÚDO antes do clique em "Visualizar" já muda o
+    que o componente recebe). Começa nas meias-extensões normais; resetada no `beforeEach`. Existe
+    para o teste "não propaga Infinity..." simular uma geometria SEM vértice nenhum: o `Box3` real
+    do Three.js fica com `min = (+Infinity, +Infinity, +Infinity)` e `max = (-Infinity, -Infinity,
+    -Infinity)` (o estado "vazio" de `Box3.makeEmpty()`) quando não há ponto nenhum para expandi-lo
+    — é esse par de valores que prova a guarda `Number.isFinite` em `meiaExtensao`. */
+let caixaEnvolventeDeTeste: CaixaEnvolventeDeTeste = {
+  min: { x: -MEIA_EXTENSAO_X_DE_TESTE, y: -MEIA_EXTENSAO_Y_DE_TESTE, z: -MEIA_EXTENSAO_Z_DE_TESTE },
+  max: { x: MEIA_EXTENSAO_X_DE_TESTE, y: MEIA_EXTENSAO_Y_DE_TESTE, z: MEIA_EXTENSAO_Z_DE_TESTE },
+}
+
 // Guarda a última instância do dublê de `ResizeObserver` — `disparar()` simula o navegador
 // invocando o callback que o componente passou ao `observe()`, sem precisar de um redimensionamento
 // de verdade (que o jsdom não tem).
@@ -98,6 +112,13 @@ beforeEach(() => {
   // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
   // "Visualizar", não só os testes que testam redimensionamento.
   vi.stubGlobal('ResizeObserver', ResizeObserverFalso)
+  // Reseta a caixa envolvente para as meias-extensões normais a cada teste — só o teste "não
+  // propaga Infinity para a câmera quando o sólido não tem vértice nenhum" troca este valor, e sem
+  // este reset explícito o `beforeEach` não garantiria isolamento entre execuções de teste.
+  caixaEnvolventeDeTeste = {
+    min: { x: -MEIA_EXTENSAO_X_DE_TESTE, y: -MEIA_EXTENSAO_Y_DE_TESTE, z: -MEIA_EXTENSAO_Z_DE_TESTE },
+    max: { x: MEIA_EXTENSAO_X_DE_TESTE, y: MEIA_EXTENSAO_Y_DE_TESTE, z: MEIA_EXTENSAO_Z_DE_TESTE },
+  }
 })
 
 afterEach(() => {
@@ -160,24 +181,19 @@ vi.mock('three', () => {
   }
 })
 
-// Dublê do STLLoader: `parse` devolve uma geometria falsa cujo `computeBoundingBox` grava um
-// `boundingBox` com as meias-extensões `MEIA_EXTENSAO_X_DE_TESTE`/`MEIA_EXTENSAO_Y_DE_TESTE`/
-// `MEIA_EXTENSAO_Z_DE_TESTE` — imita a `BufferGeometry` real o bastante para o componente derivar
-// `raioNoPlanoDeGiro`/`meiaAlturaEmY` dela.
+// Dublê do STLLoader: `parse` devolve uma geometria falsa cujo `computeBoundingBox` grava
+// `caixaEnvolventeDeTeste` (lida por referência, nunca copiada na definição do mock, para o teste
+// da guarda `Number.isFinite` poder trocar o conteúdo antes do clique) — imita a `BufferGeometry`
+// real o bastante para o componente derivar `raioNoPlanoDeGiro`/`meiaAlturaEmY` dela.
 vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
   importacoes.stlLoader++
-
-  type Vetor3DeTeste = { x: number; y: number; z: number }
 
   return {
     STLLoader: class {
       parse() {
         return {
-          computeBoundingBox(this: { boundingBox?: { min: Vetor3DeTeste; max: Vetor3DeTeste } }) {
-            this.boundingBox = {
-              min: { x: -MEIA_EXTENSAO_X_DE_TESTE, y: -MEIA_EXTENSAO_Y_DE_TESTE, z: -MEIA_EXTENSAO_Z_DE_TESTE },
-              max: { x: MEIA_EXTENSAO_X_DE_TESTE, y: MEIA_EXTENSAO_Y_DE_TESTE, z: MEIA_EXTENSAO_Z_DE_TESTE },
-            }
+          computeBoundingBox(this: { boundingBox?: CaixaEnvolventeDeTeste }) {
+            this.boundingBox = caixaEnvolventeDeTeste
           },
           center: () => {},
         }
@@ -402,6 +418,38 @@ describe('VisualizadorDeSolido', () => {
     expect(camerasFalsas.ultima?.position.set).toHaveBeenCalledWith(0, 0, esperado.distancia)
   })
 
+  it('não propaga Infinity para a câmera quando o sólido não tem vértice nenhum', async () => {
+    // Um STL vazio (ou sem geometria válida) deixa o `Box3` real do Three.js no estado "vazio" de
+    // `Box3.makeEmpty()`: `min = (+Infinity, +Infinity, +Infinity)`, `max = (-Infinity, -Infinity,
+    // -Infinity)` — nunca expandido por nenhum ponto. Sem a guarda `Number.isFinite` em
+    // `meiaExtensao`, `max - min` desse par (`-Infinity - Infinity = -Infinity`) propagaria
+    // `Infinity`/`-Infinity` para `raioNoPlanoDeGiro` e `meiaAlturaEmY`, e dali para
+    // `enquadramentoDoSolido`, que devolveria `distancia`/`near`/`far`/`distanciaMinima` todos
+    // `Infinity` — bem diferente do valor com o piso de degenerescência (`enquadramentoDoSolido(0,
+    // 0, ...)`, o mesmo cenário que a suíte de `enquadramentoDoSolido` já prova para a função pura)
+    // que a variável `esperado` deste teste calcula.
+    caixaEnvolventeDeTeste = {
+      min: { x: Infinity, y: Infinity, z: Infinity },
+      max: { x: -Infinity, y: -Infinity, z: -Infinity },
+    }
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    // jsdom não mede layout — mesmo piso de largura (proporção 1:1) que "enquadra a câmera pelo
+    // tamanho e formato do sólido em vez da distância fixa antiga" usa.
+    const esperado = enquadramentoDoSolido(0, 0, ABERTURA_VERTICAL_EM_GRAUS, 1, MARGEM_DE_ENQUADRAMENTO)
+
+    expect(camerasFalsas.ultima?.near).toBeCloseTo(esperado.near, 10)
+    expect(camerasFalsas.ultima?.far).toBeCloseTo(esperado.far, 10)
+    expect(camerasFalsas.ultima?.position.set).toHaveBeenCalledWith(0, 0, esperado.distancia)
+    expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distanciaMinima, 10)
+    expect(Number.isFinite(camerasFalsas.ultima?.near)).toBe(true)
+    expect(Number.isFinite(camerasFalsas.ultima?.far)).toBe(true)
+  })
+
   it('limita o zoom com base no tamanho do sólido, não em números fixos', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
@@ -539,7 +587,7 @@ describe('VisualizadorDeSolido', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
-    vi.spyOn(getByTestId('canvas-do-visualizador'), 'getBoundingClientRect').mockReturnValue({
+    vi.spyOn(getByTestId('container-do-visualizador'), 'getBoundingClientRect').mockReturnValue({
       width: 700,
     } as DOMRect)
 
@@ -548,6 +596,22 @@ describe('VisualizadorDeSolido', () => {
 
     expect(rendererFalsos.ultimo?.setSize).toHaveBeenCalledWith(700, ALTURA_DO_CANVAS_EM_PIXELS)
     expect(camerasFalsas.ultima?.aspect).toBeCloseTo(700 / ALTURA_DO_CANVAS_EM_PIXELS, 10)
+  })
+
+  it('observa o container (não o canvas) para refazer o enquadramento quando ele muda de tamanho', async () => {
+    // O elemento observado tem de ser o CONTAINER (`container-do-visualizador`, que ocupa `w-full` e
+    // cujo tamanho o layout CSS do card determina), não o `<canvas>` que o Three.js cria dentro dele
+    // — o tamanho do canvas é escrito programaticamente por `renderer.setSize()`, então observá-lo
+    // mediria o próprio efeito colateral do componente, não o redimensionamento real do card. Sem
+    // esta asserção, trocar o alvo do `observe` não derrubava nenhum teste: o dublê grava a chamada,
+    // mas nenhum teste inspecionava o argumento recebido.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    expect(ultimoResizeObserverFalso?.observe).toHaveBeenCalledWith(getByTestId('container-do-visualizador'))
   })
 
   it('nunca chama setSize com largura zero quando o container ainda não tem layout', async () => {
@@ -567,7 +631,7 @@ describe('VisualizadorDeSolido', () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
-    const container = getByTestId('canvas-do-visualizador')
+    const container = getByTestId('container-do-visualizador')
     const medidaDeLargura = vi.spyOn(container, 'getBoundingClientRect')
     medidaDeLargura.mockReturnValue({ width: 700 } as DOMRect)
 
