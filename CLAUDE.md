@@ -262,12 +262,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   leitor de tela vê, e um `data-testid` no lugar dele esconde regressão de acessibilidade. É
   aceitável quando o alvo é um **contêiner sem papel** que o teste precisa nomear — a `div` de uma
   linha ou do bloco de ações —, ou um elemento cujo papel existe mas **não distingue** (um `<form>`
-  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **4 usos em 2 arquivos**
-  (medido em 2026-09-07 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`):
-  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, e `painel-de-escrita` na
-  `AgrupamentoDetalhePage`. A regra é escrita porque o segundo consumidor **já chegou** e nada no
-  documento dizia quando o primeiro valia — mesmo desenho de risco da exceção do "botão de chrome",
-  resolvido do mesmo jeito: escrevendo.
+  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **5 usos em 3 arquivos**
+  (medido em 2026-09-17 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`,
+  remedido depois de 2026-09-07 porque um terceiro arquivo passou a usar o atributo):
+  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, `painel-de-escrita` na
+  `AgrupamentoDetalhePage`, e `container-do-visualizador` na `VisualizadorDeSolido` (nomeia o `<div>`
+  contêiner que recebe o `<canvas>` do Three.js — sem papel ARIA nem texto estável antes do clique em
+  "Visualizar", quando o `<canvas>` com `aria-label` ainda não existe). A regra é escrita porque o
+  segundo consumidor **já chegou** e nada no documento dizia quando o primeiro valia — mesmo desenho
+  de risco da exceção do "botão de chrome", resolvido do mesmo jeito: escrevendo. O terceiro
+  consumidor é só mais uma medição — a contagem é de uma data, não uma cota, e quem a atualizar de
+  novo remede com o mesmo comando e diz a data nova.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
   itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
