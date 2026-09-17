@@ -39,20 +39,31 @@ const FATOR_DE_FOLGA_PROXIMA = 1 / 100
 const FATOR_DE_FOLGA_DISTANTE = 50
 
 /**
- * `distanciaMinima = raio (já com o piso de degenerescência) × esta margem`. Diferente de `distancia`
- * — que soma a parcela pela largura OU pela altura, dependendo de qual domina, e por isso varia com
- * a proporção do quadro — `distanciaMinima` multiplica só o raio no plano de giro, nunca a distância
- * final: é isso que garante o invariante (câmera nunca entra no cilindro que a peça varre ao girar) —
- * ver os dois testes cujo nome começa por "mantém distanciaMinima estritamente maior que
- * raioNoPlanoDeGiro", um para peça dominada pela largura e outro pela altura — para QUALQUER
- * proporção de quadro, em vez de só para quadro quadrado.
+ * `distanciaMinima = esfera do volume varrido (já com o piso de degenerescência em cada dimensão) ×
+ * esta margem`. O `OrbitControls` deixa `minPolarAngle = 0` e `maxPolarAngle = Math.PI` (conferido
+ * no fonte de `node_modules/three/examples/jsm/controls/OrbitControls.js`) — o usuário orbita até a
+ * vista de cima ou de baixo, não só ao redor do eixo Y — então proteger só `raioNoPlanoDeGiro`, como
+ * o piso do primeiro fix pass fazia, deixa a câmera atravessar uma peça alta ao orbitar por cima:
+ * uma barra de 6 m em pé, por exemplo, tem `raioNoPlanoDeGiro` pequeno e `meiaAlturaEmY` grande, e
+ * aquele piso (`raio × margem`) ficava bem MENOR que a própria peça. Como a geometria é centralizada
+ * (`center()` sobre a caixa), todo ponto dela fica a no máximo `√(raio² + meiaAltura²)` do centro,
+ * em QUALQUER direção de órbita — a esfera que envolve o volume, não o cilindro que ele varre só ao
+ * redor do eixo Y. Ver os três testes cujo nome começa por "mantém distanciaMinima estritamente
+ * maior que a esfera do volume", um para peça deitada, um para peça em pé e um para peça quase
+ * cúbica — para QUALQUER proporção de quadro.
  *
- * `1,1 < MARGEM_DE_ENQUADRAMENTO` (1,15) de propósito: `distanciaPelaLargura = raio /
- * sin(meioAnguloHorizontal)` é sempre `>= raio` (porque `sin <= 1`), então `distancia >= raio ×
- * MARGEM_DE_ENQUADRAMENTO` sempre — inclusive no limite de um quadro infinitamente largo, onde
- * `sin(meioAnguloHorizontal) → 1` e a desigualdade vira igualdade. Manter `distanciaMinima` abaixo
- * dessa margem garante `distanciaMinima < distancia` (zoom mínimo sempre mais perto que a vista
- * inicial) mesmo nesse limite, sem depender da proporção real do quadro.
+ * `1,1 < MARGEM_DE_ENQUADRAMENTO` (1,15) continua de propósito, e o motivo agora exige a altura
+ * também: `distanciaPelaAltura = meiaAltura / tan(meioAnguloVertical) + raio` NÃO depende da
+ * proporção do quadro (só `distanciaPelaLargura` depende), então `distancia >= distanciaPelaAltura ×
+ * MARGEM_DE_ENQUADRAMENTO` sempre, qualquer que seja o quadro. Com `ABERTURA_VERTICAL_EM_GRAUS` = 50
+ * (meio ângulo vertical 25°, `tan(25°) ≈ 0,466308`), isso dá `distancia >= 1,15 × (raio + 2,144507 ×
+ * meiaAltura)`. Escrevendo `t = meiaAltura / raio`, falta `1,1 × √(1+t²) < 1,15 + 2,466183 × t` para
+ * todo `t >= 0` (dividindo os dois lados por `raio`): em `t = 0` a diferença é `0,05`, e a derivada
+ * do lado direito menos o esquerdo é `2,466183 − 1,1 × t/√(1+t²)`, sempre `> 2,466183 − 1,1 =
+ * 1,366183` (porque `t/√(1+t²) < 1` para todo `t` finito) — estritamente positiva, então a diferença
+ * só cresce a partir de `0,05`. Vale para qualquer proporção entre raio e meia altura, sem depender
+ * da proporção do quadro; conferido também por varredura numérica de `t` até `2.000` (menor
+ * diferença encontrada: os mesmos `0,05` de `t = 0`).
  */
 const MARGEM_DA_APROXIMACAO_MINIMA = 1.1
 
@@ -95,6 +106,6 @@ export function enquadramentoDoSolido(
     distancia,
     near: distancia * FATOR_DE_FOLGA_PROXIMA,
     far: distancia * FATOR_DE_FOLGA_DISTANTE,
-    distanciaMinima: raio * MARGEM_DA_APROXIMACAO_MINIMA,
+    distanciaMinima: Math.sqrt(raio * raio + meiaAltura * meiaAltura) * MARGEM_DA_APROXIMACAO_MINIMA,
   }
 }

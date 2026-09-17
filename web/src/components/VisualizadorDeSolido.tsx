@@ -180,9 +180,11 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     const controls = new OrbitControls(camera, renderer.domElement)
     // Limites de zoom derivados do MESMO enquadramento, nunca literais — ver `FATOR_DE_ZOOM_MAXIMO`.
     // `minDistance` vem pronto de `enquadramentoDoSolido` (`distanciaMinima`), que garante o
-    // invariante "câmera nunca entra no cilindro que a peça varre ao girar" para qualquer proporção
-    // de quadro — diferente de multiplicar `distancia` (que varia com a proporção) por um fator fixo
-    // aqui, o que deixava a garantia depender do quadro ser sempre quadrado.
+    // invariante "câmera nunca entra na esfera que envolve o volume varrido pela peça ao girar" —
+    // o `OrbitControls` permite orbitar até a vista de cima ou de baixo, não só ao redor do eixo Y,
+    // então a proteção tem de valer em QUALQUER direção de órbita, não só no plano de giro — para
+    // qualquer proporção de quadro, diferente de multiplicar `distancia` (que varia com a proporção)
+    // por um fator fixo aqui, o que deixava a garantia depender do quadro ser sempre quadrado.
     controls.minDistance = enquadramentoInicial.distanciaMinima
     controls.maxDistance = enquadramentoInicial.distancia * FATOR_DE_ZOOM_MAXIMO
     controlsRef.current = controls
