@@ -23,6 +23,24 @@ import { inicializar, _resetParaTeste } from '../api/client'
 // mesmo clique, e regride para estático de forma independente dos outros dois.
 const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0, orbitControls: 0 }))
 
+/** Sequência de eventos, na ordem em que acontecem — usado para provar ORDEM (não só presença) do
+    recálculo de normais: `parse` (quando o STLLoader falso devolve a geometria), depois
+    `computeVertexNormals` (quando o componente recalcula), depois `malhaConstruida` (quando o
+    `Mesh` falso é construído com aquela geometria). Resetado a cada teste no `beforeEach`. */
+const ordemDeChamadas = vi.hoisted(() => ({ eventos: [] as string[] }))
+
+/** Última geometria falsa devolvida pelo `STLLoader.parse()` — permite ao teste inspecionar
+    diretamente `computeVertexNormals` (um `vi.fn()`) sem precisar vasculhar o dublê do `Mesh`. */
+const geometriasFalsas = vi.hoisted(() => ({
+  ultima: null as null | { computeVertexNormals: () => void },
+}))
+
+/** Última malha falsa construída, com a geometria que RECEBEU no construtor — achado ao tentar
+    burlar o teste do recálculo: sem isto, um `new THREE.Mesh()` com uma geometria qualquer no
+    lugar da recalculada passava despercebido pelos outros 21 testes (nenhum inspecionava o
+    argumento do construtor). */
+const malhasFalsas = vi.hoisted(() => ({ ultima: null as null | { geometria: unknown } }))
+
 // Guarda a última instância de `WebGLRendererFalso` criada — o componente instancia um renderer
 // novo a cada `montarCena`, cada um com seu próprio `dispose = vi.fn()`; sem isto não haveria como
 // o teste `cancela o quadro de animação e libera o renderer ao desmontar sob StrictMode` chegar ao
@@ -108,6 +126,9 @@ beforeEach(() => {
   _resetParaTeste()
   inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   ultimoResizeObserverFalso = null
+  ordemDeChamadas.eventos = []
+  geometriasFalsas.ultima = null
+  malhasFalsas.ultima = null
   // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
   // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
   // "Visualizar", não só os testes que testam redimensionamento.
@@ -170,12 +191,23 @@ vi.mock('three', () => {
     }
   }
 
+  // Dublê do `Mesh`: só existe separado de `Object3DFalso` para registrar o instante em que a malha
+  // é construída em `ordemDeChamadas` — é o marcador que prova que o recálculo de normais aconteceu
+  // ANTES de a malha existir, não depois.
+  class MeshFalso extends Object3DFalso {
+    constructor(geometria: unknown) {
+      super()
+      ordemDeChamadas.eventos.push('malhaConstruida')
+      malhasFalsas.ultima = { geometria }
+    }
+  }
+
   return {
     Scene: Object3DFalso,
     PerspectiveCamera: PerspectiveCameraFalsa,
     AmbientLight: Object3DFalso,
     DirectionalLight: Object3DFalso,
-    Mesh: Object3DFalso,
+    Mesh: MeshFalso,
     MeshStandardMaterial: class {},
     WebGLRenderer: WebGLRendererFalso,
   }
@@ -191,12 +223,20 @@ vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
   return {
     STLLoader: class {
       parse() {
-        return {
+        ordemDeChamadas.eventos.push('parse')
+        const geometria = {
           computeBoundingBox(this: { boundingBox?: CaixaEnvolventeDeTeste }) {
             this.boundingBox = caixaEnvolventeDeTeste
           },
           center: () => {},
+          // `vi.fn()` real (não só uma função comum) para o teste poder inspecionar quantas vezes
+          // foi chamado, além de registrar o instante em `ordemDeChamadas`.
+          computeVertexNormals: vi.fn(() => {
+            ordemDeChamadas.eventos.push('computeVertexNormals')
+          }),
         }
+        geometriasFalsas.ultima = geometria
+        return geometria
       }
     },
   }
@@ -389,6 +429,36 @@ describe('VisualizadorDeSolido', () => {
     expect(desconectarObservador).toHaveBeenCalledTimes(1)
 
     cancelarQuadro.mockRestore()
+  })
+
+  it('recalcula as normais da geometria depois do parse do STLLoader e antes de montar a malha', async () => {
+    // Achado do controlador: os STL de teste da fase têm normal zerada, e o `STLLoader` copia a
+    // normal do arquivo sem recalcular nada — sem este recálculo, a parcela difusa da luz
+    // direcional fica zero em toda face e só a luz ambiente (uniforme) sobra, apagando as arestas.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    // Mata a mutação de tirar o `computeVertexNormals()`: sem ele, o dublê nunca é chamado.
+    expect(geometriasFalsas.ultima?.computeVertexNormals).toHaveBeenCalledTimes(1)
+
+    const indiceDoParse = ordemDeChamadas.eventos.indexOf('parse')
+    const indiceDoRecalculo = ordemDeChamadas.eventos.indexOf('computeVertexNormals')
+    const indiceDaMalha = ordemDeChamadas.eventos.indexOf('malhaConstruida')
+
+    // Mata a mutação de recalcular ANTES do parse (índice teria de ser menor que o de 'parse') e a
+    // de recalcular DEPOIS de a malha já estar montada (índice teria de ser maior que o de
+    // 'malhaConstruida') — a ordem certa é parse, recálculo, malha, nesta sequência.
+    expect(indiceDoRecalculo).toBeGreaterThan(indiceDoParse)
+    expect(indiceDoRecalculo).toBeLessThan(indiceDaMalha)
+
+    // Achado ao tentar burlar este próprio teste: sem esta linha, trocar a geometria passada ao
+    // `Mesh` por qualquer outro objeto (em vez da que teve as normais recalculadas) passava pelos
+    // outros 21 testes do arquivo sem quebrar nenhum. A malha tem de guardar a MESMA instância que
+    // `computeVertexNormals()` mutou, não uma cópia nem uma geometria nova.
+    expect(malhasFalsas.ultima?.geometria).toBe(geometriasFalsas.ultima)
   })
 
   it('enquadra a câmera pelo tamanho e formato do sólido em vez da distância fixa antiga', async () => {

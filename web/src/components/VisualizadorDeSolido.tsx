@@ -245,6 +245,16 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       if (desmontadoRef.current) return
 
       const geometria = new STLLoader().parse(binario)
+      // O `STLLoader` devolve geometria NÃO indexada (cada triângulo com os próprios três
+      // vértices, sem compartilhar nenhum com a face vizinha) e copia a normal do arquivo como
+      // está, sem recalcular nada — um exportador que grava normal zerada (ou errada) faz a
+      // parcela difusa da luz sumir em toda face, sobrando só a luz ambiente uniforme, e a peça
+      // perde a distinção entre faces. `computeVertexNormals()`, numa geometria sem índice, produz
+      // normal por face (cada "vértice" só pertence a UM triângulo), que é o sombreamento
+      // facetado correto para peça mecânica — precisa rodar aqui, depois do `parse` e antes de
+      // montar a malha, nunca depois: a malha guarda a MESMA geometria por referência, mas o
+      // primeiro quadro já é desenhado dentro de `montarCena`.
+      geometria.computeVertexNormals()
       montarCena(THREE, geometria, OrbitControls)
       if (desmontadoRef.current) return
       setEstado({ tipo: 'pronto' })
