@@ -70,10 +70,16 @@ const pmremGeneratorsFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispo
     guardada à parte do gerador porque a limpeza do componente libera os dois separadamente. */
 const texturasDeAmbienteFalsas = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
-/** Última instância falsa de `RoomEnvironment` construída, com `dispose` espionável — a classe real
-    tem `dispose()` próprio (1 geometria + 8 materiais que ela mesma cria) e nada mais a libera: sem
-    este espião não haveria como um teste provar que o componente chama esse `dispose`. */
-const roomEnvironmentsFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void } }))
+/** `RoomEnvironment` falso que `PMREMGeneratorFalso.fromScene(...)` de fato RECEBEU como argumento
+    — não a última instância CONSTRUÍDA. Mesmo raciocínio que `malhasFalsas.ultima?.material` já
+    aplica ao material (ver comentário de `MeshStandardMaterialFalso`), transportado para o
+    `RoomEnvironment`: capturar por ordem de construção deixaria passar uma SEGUNDA instância,
+    nunca passada a `fromScene` e nunca renderizada, se o ref do componente fosse atribuído a ela
+    por engano — só o que `fromScene` de fato recebeu prova qual instância virou a textura de
+    ambiente que a peça usa. Tem `dispose` espionável porque a classe real tem `dispose()` próprio
+    (1 geometria + 8 materiais que ela mesma cria) e nada mais a libera: sem isto não haveria como
+    um teste provar que o componente chama esse `dispose` NA instância certa. */
+const ambienteRecebidoPorFromScene = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
 // Guarda a última instância de `WebGLRendererFalso` criada — o componente instancia um renderer
 // novo a cada `montarCena`, cada um com seu próprio `dispose = vi.fn()`; sem isto não haveria como
@@ -167,7 +173,7 @@ beforeEach(() => {
   cenasFalsas.ultima = null
   pmremGeneratorsFalsos.ultimo = null
   texturasDeAmbienteFalsas.ultima = null
-  roomEnvironmentsFalsos.ultimo = null
+  ambienteRecebidoPorFromScene.ultima = null
   // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
   // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
   // "Visualizar", não só os testes que testam redimensionamento.
@@ -277,15 +283,19 @@ vi.mock('three', () => {
   // `.texture` que o componente lê) e guarda a textura à parte, porque a limpeza do componente
   // libera o gerador e a textura separadamente.
   class PMREMGeneratorFalso {
-    // Registra em `ordemDeLiberacao` — junto do `dispose` da textura (logo abaixo, em
-    // `fromScene`) e do `RoomEnvironmentFalso`, prova que os três rodam ANTES do renderer.
+    // Registra em `ordemDeLiberacao` — junto do `dispose` da textura devolvida por `fromScene` e
+    // do `RoomEnvironmentFalso`, prova que os três rodam ANTES do renderer.
     dispose = vi.fn(() => {
       ordemDeLiberacao.eventos.push('pmremGenerator')
     })
     constructor() {
       pmremGeneratorsFalsos.ultimo = this
     }
-    fromScene() {
+    // Captura o argumento RECEBIDO (a instância de `RoomEnvironment` que o componente de fato
+    // passou), não uma referência global de "última construída" — ver o comentário de
+    // `ambienteRecebidoPorFromScene` no topo do arquivo para o motivo.
+    fromScene(cena: unknown) {
+      ambienteRecebidoPorFromScene.ultima = cena as { dispose: () => void }
       const textura = { dispose: vi.fn(() => ordemDeLiberacao.eventos.push('textura')) }
       texturasDeAmbienteFalsas.ultima = textura
       return { texture: textura }
@@ -304,22 +314,19 @@ vi.mock('three', () => {
   }
 })
 
-// Dublê do `RoomEnvironment`: o que importa para o teste é o `PMREMGeneratorFalso.fromScene`, não o
-// conteúdo da cena de ambiente em si (o jsdom não renderiza WebGL de qualquer forma) — mas a classe
-// precisa de um `dispose` espionável, porque o `RoomEnvironment` real tem `dispose()` próprio (1
-// geometria + 8 materiais que ela mesma cria) e é isso que o teste de limpeza prova ter sido
-// chamado.
+// Dublê do `RoomEnvironment`: o que importa para o teste é o argumento que
+// `PMREMGeneratorFalso.fromScene` de fato RECEBEU (ver `ambienteRecebidoPorFromScene`), não a
+// última instância CONSTRUÍDA — a classe não rastreia a si mesma por ordem de construção, só expõe
+// um `dispose` espionável, porque o `RoomEnvironment` real tem `dispose()` próprio (1 geometria + 8
+// materiais que ela mesma cria) e é isso que o teste de limpeza prova ter sido chamado.
 vi.mock('three/examples/jsm/environments/RoomEnvironment.js', () => {
   importacoes.roomEnvironment++
 
   class RoomEnvironmentFalso {
-    // Registra em `ordemDeLiberacao`, pelo mesmo motivo do `PMREMGeneratorFalso` acima.
+    // Registra em `ordemDeLiberacao`, pelo mesmo motivo do `dispose` de `PMREMGeneratorFalso`.
     dispose = vi.fn(() => {
       ordemDeLiberacao.eventos.push('roomEnvironment')
     })
-    constructor() {
-      roomEnvironmentsFalsos.ultimo = this
-    }
   }
 
   return {
@@ -529,7 +536,10 @@ describe('VisualizadorDeSolido', () => {
     const desconectarObservador = ultimoResizeObserverFalso?.disconnect
     const disposeDoGerador = pmremGeneratorsFalsos.ultimo?.dispose
     const disposeDaTextura = texturasDeAmbienteFalsas.ultima?.dispose
-    const disposeDoRoomEnvironment = roomEnvironmentsFalsos.ultimo?.dispose
+    // A instância que `fromScene` de fato RECEBEU, não "a última `RoomEnvironment` construída" —
+    // ver o comentário de `ambienteRecebidoPorFromScene` no topo do arquivo para o motivo (mesma
+    // classe de buraco que a captura por uso real já fecha para `malhasFalsas.ultima?.material`).
+    const disposeDoRoomEnvironment = ambienteRecebidoPorFromScene.ultima?.dispose
     expect(dispose).not.toHaveBeenCalled()
     expect(disposeDosControles).not.toHaveBeenCalled()
     expect(desconectarObservador).not.toHaveBeenCalled()
@@ -567,8 +577,8 @@ describe('VisualizadorDeSolido', () => {
     // internas que a liberação do programa GL compilado (dos materiais) e da textura precisa achar
     // populado — nessa ordem errada, cada um ainda dispara `dispose`, mas o ouvinte do renderer
     // encontra o mapa já vazio e pula a liberação de verdade (ver o comentário da limpeza no
-    // componente). Afirma a ORDEM relativa, não só que cada `dispose` aconteceu — as asserções
-    // `toHaveBeenCalledTimes` acima já cobrem a presença.
+    // componente). Afirma a ORDEM relativa, não só que cada `dispose` aconteceu — as chamadas a
+    // `toHaveBeenCalledTimes` já cobrem a presença de cada uma.
     const indiceRenderer = ordemDeLiberacao.eventos.indexOf('renderer')
     const indiceGerador = ordemDeLiberacao.eventos.indexOf('pmremGenerator')
     const indiceTextura = ordemDeLiberacao.eventos.indexOf('textura')

@@ -155,8 +155,8 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       if (quadroRef.current !== null) cancelAnimationFrame(quadroRef.current)
       resizeObserverRef.current?.disconnect()
       controlsRef.current?.dispose()
-      // Ordem importa, e é ao contrário do que pareceria natural: os três `dispose` abaixo (a
-      // textura de ambiente, o `PMREMGenerator`, o `RoomEnvironment`) têm de rodar ANTES de
+      // Ordem importa, e é ao contrário do que pareceria natural: os `dispose` de
+      // `texturaDeAmbienteRef`, `pmremGeneratorRef` e `roomEnvironmentRef` têm de rodar ANTES de
       // `rendererRef.current?.dispose()`, nunca depois. `WebGLRenderer.dispose()` chama
       // `properties.dispose()`, que troca o WeakMap inteiro de propriedades internas por um vazio
       // — e é NESSE mapa que tanto `releaseMaterialProgramReferences` (para os 8 materiais que o
