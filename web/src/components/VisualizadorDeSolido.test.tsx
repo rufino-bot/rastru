@@ -6,6 +6,8 @@ import {
   VisualizadorDeSolido,
   FATOR_DE_ZOOM_MAXIMO,
   ALTURA_DO_CANVAS_EM_PIXELS,
+  METALNESS_DO_ACABAMENTO,
+  ROUGHNESS_DO_ACABAMENTO,
 } from './VisualizadorDeSolido'
 import { ABERTURA_VERTICAL_EM_GRAUS, MARGEM_DE_ENQUADRAMENTO, enquadramentoDoSolido } from './enquadramentoDoSolido'
 import { respostaBinaria } from '../testes/api'
@@ -13,15 +15,15 @@ import { inicializar, _resetParaTeste } from '../api/client'
 
 // Contador de import: a fábrica de `vi.mock` só roda quando o módulo é importado pela primeira
 // vez. Distingue import ESTÁTICO (a fábrica já rodou ao carregar este arquivo) de import DINÂMICO
-// no clique (a fábrica só roda depois). Três contadores porque os três módulos são importados
+// no clique (a fábrica só roda depois). Quatro contadores porque os quatro módulos são importados
 // separadamente no componente (`Promise.all` com um `import()` para cada) e cada um pode
 // regredir para estático de forma independente: um `STLLoader` estático, sozinho, já faz o
 // `three` inteiro (que ele importa estaticamente por dentro) voltar ao bundle principal, mesmo
 // com `import('three')` continuando dinâmico — por isso a asserção sobre `stlLoader` é
-// indispensável e não redundante com a de `three`. O mesmo vale para `orbitControls`: nada no
-// `STLLoader` nem no `three` importa `OrbitControls` por dentro, mas ele é um `import()` a mais no
-// mesmo clique, e regride para estático de forma independente dos outros dois.
-const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0, orbitControls: 0 }))
+// indispensável e não redundante com a de `three`. O mesmo vale para `orbitControls` e
+// `roomEnvironment`: nada nos outros três importa esses dois por dentro, mas cada um é um
+// `import()` a mais no mesmo clique, e regride para estático de forma independente dos demais.
+const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0, orbitControls: 0, roomEnvironment: 0 }))
 
 /** Sequência de eventos, na ordem em que acontecem — usado para provar ORDEM (não só presença) do
     recálculo de normais: `parse` (quando o STLLoader falso devolve a geometria), depois
@@ -40,6 +42,26 @@ const geometriasFalsas = vi.hoisted(() => ({
     lugar da recalculada passava despercebido pelos outros 21 testes (nenhum inspecionava o
     argumento do construtor). */
 const malhasFalsas = vi.hoisted(() => ({ ultima: null as null | { geometria: unknown } }))
+
+/** Última cena falsa construída, com o que foi atribuído a `.environment` — permite ao teste do
+    ambiente de reflexo provar que `scene.environment` recebeu a textura do PMREM, não só que ela
+    foi gerada. */
+const cenasFalsas = vi.hoisted(() => ({ ultima: null as null | { environment: unknown } }))
+
+/** Último material padrão falso construído, com os parâmetros que recebeu — permite ao teste do
+    acabamento inspecionar `metalness`/`roughness` sem vasculhar a malha. */
+const materiaisFalsos = vi.hoisted(() => ({
+  ultimo: null as null | { color?: number; metalness?: number; roughness?: number },
+}))
+
+/** Último `PMREMGenerator` falso construído — usado tanto pelo teste do ambiente de reflexo
+    (`fromScene` devolve a textura capturada em `texturasDeAmbienteFalsas`) quanto pelo teste de
+    limpeza (`dispose`). */
+const pmremGeneratorsFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void } }))
+
+/** Última textura de ambiente falsa devolvida por `PMREMGenerator.fromScene(...).texture` —
+    guardada à parte do gerador porque a limpeza do componente libera os dois separadamente. */
+const texturasDeAmbienteFalsas = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
 // Guarda a última instância de `WebGLRendererFalso` criada — o componente instancia um renderer
 // novo a cada `montarCena`, cada um com seu próprio `dispose = vi.fn()`; sem isto não haveria como
@@ -129,6 +151,10 @@ beforeEach(() => {
   ordemDeChamadas.eventos = []
   geometriasFalsas.ultima = null
   malhasFalsas.ultima = null
+  cenasFalsas.ultima = null
+  materiaisFalsos.ultimo = null
+  pmremGeneratorsFalsos.ultimo = null
+  texturasDeAmbienteFalsas.ultima = null
   // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
   // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
   // "Visualizar", não só os testes que testam redimensionamento.
@@ -202,14 +228,66 @@ vi.mock('three', () => {
     }
   }
 
+  // Dublê da `Scene`: só existe separado de `Object3DFalso` para o teste do ambiente de reflexo
+  // poder inspecionar o que foi atribuído a `.environment` (o real não tem esse campo nenhuma
+  // outra classe deste dublê precisa).
+  class SceneFalso extends Object3DFalso {
+    environment: unknown = null
+    constructor() {
+      super()
+      cenasFalsas.ultima = this
+    }
+  }
+
+  // Dublê do material padrão: captura os parâmetros recebidos (`color`/`metalness`/`roughness`)
+  // para o teste do acabamento metálico inspecionar sem vasculhar a malha.
+  class MeshStandardMaterialFalso {
+    color?: number
+    metalness?: number
+    roughness?: number
+    constructor(parametros: { color?: number; metalness?: number; roughness?: number } = {}) {
+      this.color = parametros.color
+      this.metalness = parametros.metalness
+      this.roughness = parametros.roughness
+      materiaisFalsos.ultimo = this
+    }
+  }
+
+  // Dublê do `PMREMGenerator`: `fromScene` devolve um `WebGLRenderTarget`-like mínimo (só o
+  // `.texture` que o componente lê) e guarda a textura à parte, porque a limpeza do componente
+  // libera o gerador e a textura separadamente.
+  class PMREMGeneratorFalso {
+    dispose = vi.fn()
+    constructor() {
+      pmremGeneratorsFalsos.ultimo = this
+    }
+    fromScene() {
+      const textura = { dispose: vi.fn() }
+      texturasDeAmbienteFalsas.ultima = textura
+      return { texture: textura }
+    }
+  }
+
   return {
-    Scene: Object3DFalso,
+    Scene: SceneFalso,
     PerspectiveCamera: PerspectiveCameraFalsa,
     AmbientLight: Object3DFalso,
     DirectionalLight: Object3DFalso,
     Mesh: MeshFalso,
-    MeshStandardMaterial: class {},
+    MeshStandardMaterial: MeshStandardMaterialFalso,
     WebGLRenderer: WebGLRendererFalso,
+    PMREMGenerator: PMREMGeneratorFalso,
+  }
+})
+
+// Dublê do `RoomEnvironment`: só precisa existir como classe instanciável — o que importa para o
+// teste é o `PMREMGeneratorFalso.fromScene` acima, não o conteúdo da cena de ambiente em si (o
+// jsdom não renderiza WebGL de qualquer forma).
+vi.mock('three/examples/jsm/environments/RoomEnvironment.js', () => {
+  importacoes.roomEnvironment++
+
+  return {
+    RoomEnvironment: class {},
   }
 })
 
@@ -306,6 +384,9 @@ describe('VisualizadorDeSolido', () => {
     // Mata o import ESTÁTICO do `OrbitControls`, pela mesma razão: nenhum dos outros dois
     // contadores pega uma regressão isolada dele.
     expect(importacoes.orbitControls).toBe(0)
+    // Mata o import ESTÁTICO do `RoomEnvironment`, pela mesma razão: ele entra no mesmo
+    // `Promise.all` do clique, e nada nos outros três módulos o importa por dentro.
+    expect(importacoes.roomEnvironment).toBe(0)
   })
 
   it('busca o binário quando o usuário pede para visualizar', async () => {
@@ -395,7 +476,7 @@ describe('VisualizadorDeSolido', () => {
     expect(screen.getByRole('button', { name: /visualizar/i })).toBeTruthy()
   })
 
-  it('libera o renderer, os controles e o observador de redimensionamento ao desmontar sob StrictMode', async () => {
+  it('libera o renderer, os controles, o observador de redimensionamento e os recursos do ambiente ao desmontar sob StrictMode', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
     const cancelarQuadro = vi.spyOn(globalThis, 'cancelAnimationFrame')
 
@@ -410,10 +491,14 @@ describe('VisualizadorDeSolido', () => {
     const dispose = rendererFalsos.ultimo?.dispose
     const disposeDosControles = controlsFalsos.ultimo?.dispose
     const desconectarObservador = ultimoResizeObserverFalso?.disconnect
+    const disposeDoGerador = pmremGeneratorsFalsos.ultimo?.dispose
+    const disposeDaTextura = texturasDeAmbienteFalsas.ultima?.dispose
     expect(dispose).not.toHaveBeenCalled()
     expect(disposeDosControles).not.toHaveBeenCalled()
     expect(desconectarObservador).not.toHaveBeenCalled()
     expect(cancelarQuadro).not.toHaveBeenCalled()
+    expect(disposeDoGerador).not.toHaveBeenCalled()
+    expect(disposeDaTextura).not.toHaveBeenCalled()
 
     unmount()
 
@@ -427,14 +512,47 @@ describe('VisualizadorDeSolido', () => {
     expect(dispose).toHaveBeenCalledTimes(1)
     expect(disposeDosControles).toHaveBeenCalledTimes(1)
     expect(desconectarObservador).toHaveBeenCalledTimes(1)
+    // Mata a mutação de deixar o `PMREMGenerator` ou a textura de ambiente fora da limpeza: os
+    // dois seguram recurso de GPU (render targets internos do PMREM, a textura prefiltrada) que
+    // vazariam a cada vez que o viewer fosse aberto e fechado.
+    expect(disposeDoGerador).toHaveBeenCalledTimes(1)
+    expect(disposeDaTextura).toHaveBeenCalledTimes(1)
 
     cancelarQuadro.mockRestore()
   })
 
+  it('gera o ambiente de reflexo do RoomEnvironment via PMREMGenerator e atribui a textura a scene.environment', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    // Mata a mutação de não atribuir `scene.environment`: sem a atribuição, o campo fica no
+    // `null` inicial do dublê da `Scene`, nunca na textura que `PMREMGenerator.fromScene(...)`
+    // devolveu.
+    expect(cenasFalsas.ultima?.environment).not.toBeNull()
+    expect(cenasFalsas.ultima?.environment).toBe(texturasDeAmbienteFalsas.ultima)
+  })
+
+  it('usa acabamento metálico (metalness e roughness) igual para toda peça', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    // Mata a mutação de `metalness` voltar a 0: a peça deixaria de ler como metal (metal genuíno
+    // não tem parcela difusa — depende do reflexo do ambiente, não da cor).
+    expect(materiaisFalsos.ultimo?.metalness).toBe(METALNESS_DO_ACABAMENTO)
+    expect(materiaisFalsos.ultimo?.metalness).toBeGreaterThan(0)
+    expect(materiaisFalsos.ultimo?.roughness).toBe(ROUGHNESS_DO_ACABAMENTO)
+  })
+
   it('recalcula as normais da geometria depois do parse do STLLoader e antes de montar a malha', async () => {
-    // Achado do controlador: os STL de teste da fase têm normal zerada, e o `STLLoader` copia a
-    // normal do arquivo sem recalcular nada — sem este recálculo, a parcela difusa da luz
-    // direcional fica zero em toda face e só a luz ambiente (uniforme) sobra, apagando as arestas.
+    // Os STL de teste desta suíte têm normal zerada, e o `STLLoader` copia a normal do arquivo sem
+    // recalcular nada — sem este recálculo, a parcela difusa da luz direcional fica zero em toda
+    // face e só a luz ambiente (uniforme) sobra, apagando as arestas.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     render(<VisualizadorDeSolido componenteId={7} />)

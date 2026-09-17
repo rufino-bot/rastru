@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type * as ThreeModulo from 'three'
 import type { OrbitControls as OrbitControlsModulo } from 'three/examples/jsm/controls/OrbitControls.js'
+import type { RoomEnvironment as RoomEnvironmentModulo } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { apiFetch } from '../api/client'
 import { caminhoDoSolido } from '../api/cadastros'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
@@ -36,6 +37,44 @@ export const FATOR_DE_ZOOM_MAXIMO = 3
 export const ALTURA_DO_CANVAS_EM_PIXELS = 400
 
 /**
+ * Acabamento metálico igual para toda peça — decisão do usuário, independente do material da
+ * receita. `metalness = 1` (metal genuíno): no workflow metalness/roughness do
+ * `MeshStandardMaterial`, a parcela difusa cai a zero quando `metalness` é 1 — quase toda a
+ * aparência do material passa a vir do reflexo do ambiente (ver `RoomEnvironment` em
+ * `montarCena`), não da cor. Sem um ambiente de reflexo, metal genuíno ficaria quase preto fora do
+ * ponto de brilho da luz direcional; é por isso que as duas mudanças desta peça (metal + ambiente)
+ * vêm juntas.
+ */
+export const METALNESS_DO_ACABAMENTO = 1
+
+/**
+ * Nem espelhado nem fosco: rugoso o bastante para não virar espelho (que confundiria a leitura da
+ * forma da peça com o reflexo do quarto do `RoomEnvironment`), liso o bastante para o reflexo do
+ * ambiente continuar visível e ajudar a distinguir face de face — a mesma distinção que a normal
+ * recalculada de `computeVertexNormals()` já produz na luz direcional.
+ */
+export const ROUGHNESS_DO_ACABAMENTO = 0.4
+
+/** Cor base do acabamento — some quase inteira na tinta de reflexo com `metalness = 1`, mas dá o
+    tom neutro (cinza-claro) do metal quando a luz é branca. A regra de tokens do `CLAUDE.md`
+    ("cores só pelos tokens") vale para classe CSS; um hexadecimal passado direto ao three.js não é
+    classe, mas a constante nomeada evita o literal solto no meio do código. */
+const COR_DO_ACABAMENTO_METALICO = 0x9ca3af
+
+/**
+ * Intensidades de luz revisadas para o acabamento metálico. Os valores 0,6/0,8 eram calibrados
+ * para um material fosco, sem `metalness`, cuja aparência vinha quase toda da parcela difusa
+ * dessas duas luzes. Com `scene.environment` passando a iluminar a peça de toda direção (o quarto
+ * do `RoomEnvironment`, prefiltrado pelo `PMREMGenerator`), manter essas intensidades somaria
+ * brilho em cima do ambiente — e o reflexo especular de um material com `metalness = 1` é bem mais
+ * concentrado que a difusão de um material sem `metalness`, então a MESMA intensidade de luz
+ * direcional estouraria o brilho onde ele incide. Reduzidas para complementar o ambiente (a
+ * direcional marca uma direção de luz, sem ser a fonte principal), não para substituí-lo.
+ */
+const INTENSIDADE_DA_LUZ_AMBIENTE = 0.3
+const INTENSIDADE_DA_LUZ_DIRECIONAL = 0.6
+
+/**
  * Largura do container, com piso: `getBoundingClientRect()` devolve 0 no jsdom (a suíte roda sem
  * layout de verdade) e devolveria 0 também num navegador real antes do primeiro layout do card. Um
  * `renderer.setSize(0, …)` produziria um canvas invisível sem erro nenhum — o piso evita isso caindo
@@ -54,10 +93,10 @@ function medirLarguraDoContainer(container: HTMLDivElement): number {
  * de qualquer perfil autenticado, e quem não escreve enxerga o sólido por aqui — o
  * `UploadDeSolido` (Task 6) é só para quem escreve.
  *
- * `three`, o `STLLoader` e o `OrbitControls` entram por `import()` dinâmico DENTRO do clique de
- * "Visualizar", nunca no topo do módulo: o público que de fato abre o viewer é o desktop do
- * PCP/Administrador ao cadastrar (§2.3), e o operador no Android não deve pagar o bundle de uma
- * tela que nunca abre.
+ * `three`, o `STLLoader`, o `OrbitControls` e o `RoomEnvironment` entram por `import()` dinâmico
+ * DENTRO do clique de "Visualizar", nunca no topo do módulo: o público que de fato abre o viewer é
+ * o desktop do PCP/Administrador ao cadastrar (§2.3), e o operador no Android não deve pagar o
+ * bundle de uma tela que nunca abre.
  *
  * A câmera se enquadra pelo tamanho real do sólido e pela proporção do quadro
  * (`enquadramentoDoSolido`, a partir do raio no plano de giro e da meia altura), em vez de um
@@ -81,6 +120,8 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   const rendererRef = useRef<ThreeModulo.WebGLRenderer | null>(null)
   const controlsRef = useRef<OrbitControlsModulo | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
+  const pmremGeneratorRef = useRef<ThreeModulo.PMREMGenerator | null>(null)
+  const texturaDeAmbienteRef = useRef<ThreeModulo.Texture | null>(null)
   const quadroRef = useRef<number | null>(null)
   // Guarda a MESMA função que o ouvinte de `start` usa para parar a rotação automática — o botão
   // "Recentralizar" reusa esta referência em vez de duplicar a lógica de parar, porque clicar nele
@@ -104,6 +145,8 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       resizeObserverRef.current?.disconnect()
       controlsRef.current?.dispose()
       rendererRef.current?.dispose()
+      texturaDeAmbienteRef.current?.dispose()
+      pmremGeneratorRef.current?.dispose()
     }
   }, [])
 
@@ -111,6 +154,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     THREE: typeof ThreeModulo,
     geometria: ThreeModulo.BufferGeometry,
     OrbitControls: typeof OrbitControlsModulo,
+    RoomEnvironment: typeof RoomEnvironmentModulo,
   ) {
     const container = containerRef.current
     if (!container) return
@@ -164,10 +208,17 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     const larguraInicial = medirLarguraDoContainer(container)
     const enquadramentoInicial = aplicarEnquadramento(larguraInicial / ALTURA_DO_CANVAS_EM_PIXELS)
 
-    const malha = new THREE.Mesh(geometria, new THREE.MeshStandardMaterial({ color: 0x9ca3af }))
+    const malha = new THREE.Mesh(
+      geometria,
+      new THREE.MeshStandardMaterial({
+        color: COR_DO_ACABAMENTO_METALICO,
+        metalness: METALNESS_DO_ACABAMENTO,
+        roughness: ROUGHNESS_DO_ACABAMENTO,
+      }),
+    )
     cena.add(malha)
-    cena.add(new THREE.AmbientLight(0xffffff, 0.6))
-    const luz = new THREE.DirectionalLight(0xffffff, 0.8)
+    cena.add(new THREE.AmbientLight(0xffffff, INTENSIDADE_DA_LUZ_AMBIENTE))
+    const luz = new THREE.DirectionalLight(0xffffff, INTENSIDADE_DA_LUZ_DIRECIONAL)
     luz.position.set(1, 1, 1)
     cena.add(luz)
 
@@ -176,6 +227,17 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     renderer.domElement.setAttribute('aria-label', ROTULO_DO_CANVAS)
     container.appendChild(renderer.domElement)
     rendererRef.current = renderer
+
+    // Ambiente de reflexo: com `metalness = 1` a parcela difusa da malha é zero, então sem uma
+    // fonte de luz vindo de toda direção a peça ficaria quase preta fora do ponto de brilho da
+    // `DirectionalLight`. `RoomEnvironment` é uma salinha padrão do three.js (não depende de
+    // nenhum asset externo); o `PMREMGenerator` prefiltra essa cena nos níveis de rugosidade que o
+    // material físico precisa antes de virar `scene.environment`.
+    const pmremGenerator = new THREE.PMREMGenerator(renderer)
+    const texturaDeAmbiente = pmremGenerator.fromScene(new RoomEnvironment()).texture
+    cena.environment = texturaDeAmbiente
+    pmremGeneratorRef.current = pmremGenerator
+    texturaDeAmbienteRef.current = texturaDeAmbiente
 
     const controls = new OrbitControls(camera, renderer.domElement)
     // Limites de zoom derivados do MESMO enquadramento, nunca literais — ver `FATOR_DE_ZOOM_MAXIMO`.
@@ -236,11 +298,12 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o sólido (${resp.status}).`)
       const binario = await resp.arrayBuffer()
 
-      // Os três módulos, num só Promise.all — nenhum deles é importado antes deste ponto.
-      const [THREE, { STLLoader }, { OrbitControls }] = await Promise.all([
+      // Os quatro módulos, num só Promise.all — nenhum deles é importado antes deste ponto.
+      const [THREE, { STLLoader }, { OrbitControls }, { RoomEnvironment }] = await Promise.all([
         import('three'),
         import('three/examples/jsm/loaders/STLLoader.js'),
         import('three/examples/jsm/controls/OrbitControls.js'),
+        import('three/examples/jsm/environments/RoomEnvironment.js'),
       ])
       if (desmontadoRef.current) return
 
@@ -255,7 +318,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       // montar a malha, nunca depois: a malha guarda a MESMA geometria por referência, mas o
       // primeiro quadro já é desenhado dentro de `montarCena`.
       geometria.computeVertexNormals()
-      montarCena(THREE, geometria, OrbitControls)
+      montarCena(THREE, geometria, OrbitControls, RoomEnvironment)
       if (desmontadoRef.current) return
       setEstado({ tipo: 'pronto' })
     } catch (erro) {
