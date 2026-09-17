@@ -155,10 +155,28 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       if (quadroRef.current !== null) cancelAnimationFrame(quadroRef.current)
       resizeObserverRef.current?.disconnect()
       controlsRef.current?.dispose()
-      rendererRef.current?.dispose()
+      // Ordem importa, e é ao contrário do que pareceria natural: os três `dispose` abaixo (a
+      // textura de ambiente, o `PMREMGenerator`, o `RoomEnvironment`) têm de rodar ANTES de
+      // `rendererRef.current?.dispose()`, nunca depois. `WebGLRenderer.dispose()` chama
+      // `properties.dispose()`, que troca o WeakMap inteiro de propriedades internas por um vazio
+      // — e é NESSE mapa que tanto `releaseMaterialProgramReferences` (para os 8 materiais que o
+      // `RoomEnvironment` cria) quanto `WebGLTextures.deallocateTexture` (para a textura e os
+      // render targets internos do `PMREMGenerator`) leem o estado já alocado (`.programs`,
+      // `.__webglInit`) para decidir o que liberar. Com o mapa já reciclado, cada `dispose()`
+      // ainda dispara o evento, mas o ouvinte do renderer encontra um objeto novo e vazio e pula o
+      // corpo inteiro — o programa GL compilado nunca chega a `programCache.releaseProgram`, que é
+      // o único lugar que de fato chama `program.destroy()`. A geometria do `RoomEnvironment` não
+      // sofre disso (usa o WeakMap próprio de `WebGLAttributes`, nunca reciclado por
+      // `renderer.dispose()`), então na ordem antiga só ela era liberada de forma garantida.
+      // `releaseProgram` decrementa uma contagem de referência (`usedTimes`) e só destrói o
+      // programa quando ela chega a zero — para estes materiais, que não compartilham cacheKey com
+      // nada fora desta cena isolada, o esperado é chegar a zero já na primeira liberação, mas a
+      // garantia que chamar `dispose()` nesta ordem oferece é a de DISPARAR a liberação, não a de
+      // destruir o programa incondicionalmente.
       texturaDeAmbienteRef.current?.dispose()
       pmremGeneratorRef.current?.dispose()
       roomEnvironmentRef.current?.dispose()
+      rendererRef.current?.dispose()
     }
   }, [])
 

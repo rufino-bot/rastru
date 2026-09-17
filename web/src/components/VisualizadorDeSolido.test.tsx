@@ -31,6 +31,14 @@ const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0, orbitControls: 0
     `Mesh` falso é construído com aquela geometria). Resetado a cada teste no `beforeEach`. */
 const ordemDeChamadas = vi.hoisted(() => ({ eventos: [] as string[] }))
 
+/** Sequência dos `dispose` chamados na limpeza, na ordem em que acontecem — usado para provar que
+    a textura de ambiente, o `PMREMGenerator` e o `RoomEnvironment` são liberados ANTES do
+    renderer, nunca depois: `WebGLRenderer.dispose()` recicla o WeakMap de propriedades internas
+    que o caminho de liberação do programa GL compilado (dos materiais) e da textura precisa achar
+    populado — na ordem errada essa liberação roda pela metade (ver o comentário da limpeza em
+    `VisualizadorDeSolido.tsx`). Resetado a cada teste no `beforeEach`. */
+const ordemDeLiberacao = vi.hoisted(() => ({ eventos: [] as string[] }))
+
 /** Última geometria falsa devolvida pelo `STLLoader.parse()` — permite ao teste inspecionar
     diretamente `computeVertexNormals` (um `vi.fn()`) sem precisar vasculhar o dublê do `Mesh`. */
 const geometriasFalsas = vi.hoisted(() => ({
@@ -153,6 +161,7 @@ beforeEach(() => {
   inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   ultimoResizeObserverFalso = null
   ordemDeChamadas.eventos = []
+  ordemDeLiberacao.eventos = []
   geometriasFalsas.ultima = null
   malhasFalsas.ultima = null
   cenasFalsas.ultima = null
@@ -215,7 +224,11 @@ vi.mock('three', () => {
     domElement = document.createElement('canvas')
     setSize = vi.fn()
     render = vi.fn()
-    dispose = vi.fn()
+    // Registra em `ordemDeLiberacao` — é o que prova que a textura de ambiente, o
+    // `PMREMGenerator` e o `RoomEnvironment` são liberados ANTES deste `dispose`, não depois.
+    dispose = vi.fn(() => {
+      ordemDeLiberacao.eventos.push('renderer')
+    })
     constructor() {
       rendererFalsos.ultimo = this
     }
@@ -264,12 +277,16 @@ vi.mock('three', () => {
   // `.texture` que o componente lê) e guarda a textura à parte, porque a limpeza do componente
   // libera o gerador e a textura separadamente.
   class PMREMGeneratorFalso {
-    dispose = vi.fn()
+    // Registra em `ordemDeLiberacao` — junto do `dispose` da textura (logo abaixo, em
+    // `fromScene`) e do `RoomEnvironmentFalso`, prova que os três rodam ANTES do renderer.
+    dispose = vi.fn(() => {
+      ordemDeLiberacao.eventos.push('pmremGenerator')
+    })
     constructor() {
       pmremGeneratorsFalsos.ultimo = this
     }
     fromScene() {
-      const textura = { dispose: vi.fn() }
+      const textura = { dispose: vi.fn(() => ordemDeLiberacao.eventos.push('textura')) }
       texturasDeAmbienteFalsas.ultima = textura
       return { texture: textura }
     }
@@ -296,7 +313,10 @@ vi.mock('three/examples/jsm/environments/RoomEnvironment.js', () => {
   importacoes.roomEnvironment++
 
   class RoomEnvironmentFalso {
-    dispose = vi.fn()
+    // Registra em `ordemDeLiberacao`, pelo mesmo motivo do `PMREMGeneratorFalso` acima.
+    dispose = vi.fn(() => {
+      ordemDeLiberacao.eventos.push('roomEnvironment')
+    })
     constructor() {
       roomEnvironmentsFalsos.ultimo = this
     }
@@ -541,6 +561,21 @@ describe('VisualizadorDeSolido', () => {
     // `disposeDoGerador`/`disposeDaTextura` já cobrem para o gerador e a textura, desta vez na
     // cena de origem.
     expect(disposeDoRoomEnvironment).toHaveBeenCalledTimes(1)
+
+    // Mata a mutação de voltar a liberar a textura de ambiente, o `PMREMGenerator` e o
+    // `RoomEnvironment` DEPOIS do renderer: `renderer.dispose()` recicla o WeakMap de propriedades
+    // internas que a liberação do programa GL compilado (dos materiais) e da textura precisa achar
+    // populado — nessa ordem errada, cada um ainda dispara `dispose`, mas o ouvinte do renderer
+    // encontra o mapa já vazio e pula a liberação de verdade (ver o comentário da limpeza no
+    // componente). Afirma a ORDEM relativa, não só que cada `dispose` aconteceu — as asserções
+    // `toHaveBeenCalledTimes` acima já cobrem a presença.
+    const indiceRenderer = ordemDeLiberacao.eventos.indexOf('renderer')
+    const indiceGerador = ordemDeLiberacao.eventos.indexOf('pmremGenerator')
+    const indiceTextura = ordemDeLiberacao.eventos.indexOf('textura')
+    const indiceAmbiente = ordemDeLiberacao.eventos.indexOf('roomEnvironment')
+    expect(indiceGerador).toBeLessThan(indiceRenderer)
+    expect(indiceTextura).toBeLessThan(indiceRenderer)
+    expect(indiceAmbiente).toBeLessThan(indiceRenderer)
 
     cancelarQuadro.mockRestore()
   })
