@@ -9,6 +9,7 @@ export interface EnquadramentoDoSolido {
   distancia: number
   near: number
   far: number
+  distanciaMinima: number
 }
 
 /**
@@ -36,6 +37,24 @@ const FATOR_DE_FOLGA_PROXIMA = 1 / 100
 
 /** `far = distancia × este fator` — grande o bastante para não cortar o sólido ao afastar. */
 const FATOR_DE_FOLGA_DISTANTE = 50
+
+/**
+ * `distanciaMinima = raio (já com o piso de degenerescência) × esta margem`. Diferente de `distancia`
+ * — que soma a parcela pela largura OU pela altura, dependendo de qual domina, e por isso varia com
+ * a proporção do quadro — `distanciaMinima` multiplica só o raio no plano de giro, nunca a distância
+ * final: é isso que garante o invariante (câmera nunca entra no cilindro que a peça varre ao girar) —
+ * ver os dois testes cujo nome começa por "mantém distanciaMinima estritamente maior que
+ * raioNoPlanoDeGiro", um para peça dominada pela largura e outro pela altura — para QUALQUER
+ * proporção de quadro, em vez de só para quadro quadrado.
+ *
+ * `1,1 < MARGEM_DE_ENQUADRAMENTO` (1,15) de propósito: `distanciaPelaLargura = raio /
+ * sin(meioAnguloHorizontal)` é sempre `>= raio` (porque `sin <= 1`), então `distancia >= raio ×
+ * MARGEM_DE_ENQUADRAMENTO` sempre — inclusive no limite de um quadro infinitamente largo, onde
+ * `sin(meioAnguloHorizontal) → 1` e a desigualdade vira igualdade. Manter `distanciaMinima` abaixo
+ * dessa margem garante `distanciaMinima < distancia` (zoom mínimo sempre mais perto que a vista
+ * inicial) mesmo nesse limite, sem depender da proporção real do quadro.
+ */
+const MARGEM_DA_APROXIMACAO_MINIMA = 1.1
 
 /**
  * Distância de referência que enquadra o sólido tanto na largura quanto na altura do quadro,
@@ -76,5 +95,6 @@ export function enquadramentoDoSolido(
     distancia,
     near: distancia * FATOR_DE_FOLGA_PROXIMA,
     far: distancia * FATOR_DE_FOLGA_DISTANTE,
+    distanciaMinima: raio * MARGEM_DA_APROXIMACAO_MINIMA,
   }
 }

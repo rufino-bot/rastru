@@ -77,6 +77,59 @@ describe('enquadramentoDoSolido', () => {
     expect(largo.distancia).toBeCloseTo(1118.033989, 5)
   })
 
+  it('mantém distanciaMinima estritamente maior que raioNoPlanoDeGiro para peça dominada pela LARGURA, em três proporções bem separadas', () => {
+    // O piso de zoom antigo multiplicava a DISTÂNCIA final (que muda com a proporção do quadro) por
+    // um fator fixo — e quando a largura domina num quadro largo o bastante, a distância mínima
+    // resultante ficava MENOR que o próprio raio da peça, deixando a câmera entrar nela ao orbitar.
+    // `distanciaMinima` multiplica só o raio (nunca a distância), e por isso não depende da
+    // proporção: as três proporções 0,5 / 1,0 e 1,75 (a mesma faixa que expôs o defeito), com
+    // raioNoPlanoDeGiro = 100 e meiaAlturaEmY = 1 (bem menor que o raio, então a largura domina nas
+    // três — conferido à mão: mesmo na proporção mais estreita, 0,5, a distância pela altura fica em
+    // 101 contra 223,6 pela largura), produzem `distanciaMinima = raio × 1,1 = 110` — o mesmo valor
+    // nas três é essa independência da proporção que fecha o defeito.
+    const estreita = enquadramentoDoSolido(100, 1, 90, 0.5, 1)
+    const quadrada = enquadramentoDoSolido(100, 1, 90, 1, 1)
+    const larga = enquadramentoDoSolido(100, 1, 90, 1.75, 1)
+
+    expect(estreita.distanciaMinima).toBeCloseTo(110, 9)
+    expect(quadrada.distanciaMinima).toBeCloseTo(110, 9)
+    expect(larga.distanciaMinima).toBeCloseTo(110, 9)
+    expect(estreita.distanciaMinima).toBeGreaterThan(100)
+    expect(quadrada.distanciaMinima).toBeGreaterThan(100)
+    expect(larga.distanciaMinima).toBeGreaterThan(100)
+  })
+
+  it('mantém distanciaMinima estritamente maior que raioNoPlanoDeGiro para peça dominada pela ALTURA, nas mesmas três proporções', () => {
+    // Complementa "para peça dominada pela LARGURA...": aqui raioNoPlanoDeGiro = 5 é bem menor que meiaAlturaEmY = 200,
+    // então a altura domina nas três proporções (a distância pela altura fica em 205 nas três,
+    // sempre maior que a pela largura, que vai de ≈5,76 a ≈11,18 dependendo da proporção — conferido
+    // à mão). `distanciaMinima = raio × 1,1 = 5,5` continua maior que o raio (5) nas três, e continua
+    // o mesmo valor independente de qual termo domina — a fórmula não distingue os dois casos, e é
+    // isso que a prova exige.
+    const estreita = enquadramentoDoSolido(5, 200, 90, 0.5, 1)
+    const quadrada = enquadramentoDoSolido(5, 200, 90, 1, 1)
+    const larga = enquadramentoDoSolido(5, 200, 90, 1.75, 1)
+
+    expect(estreita.distanciaMinima).toBeCloseTo(5.5, 9)
+    expect(quadrada.distanciaMinima).toBeCloseTo(5.5, 9)
+    expect(larga.distanciaMinima).toBeCloseTo(5.5, 9)
+    expect(estreita.distanciaMinima).toBeGreaterThan(5)
+    expect(quadrada.distanciaMinima).toBeGreaterThan(5)
+    expect(larga.distanciaMinima).toBeGreaterThan(5)
+  })
+
+  it('reproduz o cenário real que atravessava a peça antes do conserto (bloco 6.000×400×300, proporção 1,75) e prova a câmera fora dele', () => {
+    // Números medidos: bloco com meia-extensão X = 3.000, Z = 150 dá raioNoPlanoDeGiro =
+    // √(3.000² + 150²) = 3.003,747659175118. Antes do conserto, o piso multiplicava a distância final
+    // (≈5.463,58, dominada pela largura nesta proporção) por 0,5, dando minDistance ≈ 2.731,79 — MENOR
+    // que o raio, então a câmera entrava na peça ao orbitar. `distanciaMinima = raio × 1,1 =
+    // 3.304,122425092626` fica acima do raio, sem depender da distância final nem da proporção.
+    const bloco = enquadramentoDoSolido(3003.747659175118, 200, 50, 1.75, 1.15)
+
+    expect(bloco.distanciaMinima).toBeCloseTo(3304.122425092626, 6)
+    expect(bloco.distanciaMinima).toBeGreaterThan(3003.747659175118)
+  })
+
   it('escolhe a distância pela ALTURA quando ela é maior, num quadro estreito', () => {
     // Complementa 'escolhe a distância pela LARGURA...': lá a largura domina, aqui é a altura, e
     // este é o que prova que a fórmula soma `+ raioNoPlanoDeGiro` na distância pela altura (a borda

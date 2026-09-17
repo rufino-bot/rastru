@@ -28,16 +28,6 @@ type Estado =
     que o viewer não substitui a descrição textual do Componente. */
 const ROTULO_DO_CANVAS = 'Visualização 3D do sólido'
 
-/**
- * `controls.minDistance = distância inicial × este fator`. Derivado da distância que
- * `enquadramentoDoSolido` calcula (que por sua vez escala com o tamanho do sólido), nunca um número
- * fixo: um literal serviria a um tamanho de peça e atravessaria outro, o mesmo problema que motivou
- * `enquadramentoDoSolido`. `0.5` mantém a câmera fora do sólido em qualquer tamanho dele: como a
- * distância inicial já inclui a margem de `enquadramentoDoSolido` (que abre folga ao redor do
- * sólido), a metade dessa distância ainda deixa a câmera fora do volume que ele ocupa.
- */
-export const FATOR_DE_ZOOM_MINIMO = 0.5
-
 /** `controls.maxDistance = distância inicial × este fator` — o usuário pode afastar até o triplo. */
 export const FATOR_DE_ZOOM_MAXIMO = 3
 
@@ -188,9 +178,12 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     rendererRef.current = renderer
 
     const controls = new OrbitControls(camera, renderer.domElement)
-    // Limites de zoom derivados do MESMO enquadramento, nunca literais — ver `FATOR_DE_ZOOM_MINIMO`
-    // e `FATOR_DE_ZOOM_MAXIMO`.
-    controls.minDistance = enquadramentoInicial.distancia * FATOR_DE_ZOOM_MINIMO
+    // Limites de zoom derivados do MESMO enquadramento, nunca literais — ver `FATOR_DE_ZOOM_MAXIMO`.
+    // `minDistance` vem pronto de `enquadramentoDoSolido` (`distanciaMinima`), que garante o
+    // invariante "câmera nunca entra no cilindro que a peça varre ao girar" para qualquer proporção
+    // de quadro — diferente de multiplicar `distancia` (que varia com a proporção) por um fator fixo
+    // aqui, o que deixava a garantia depender do quadro ser sempre quadrado.
+    controls.minDistance = enquadramentoInicial.distanciaMinima
     controls.maxDistance = enquadramentoInicial.distancia * FATOR_DE_ZOOM_MAXIMO
     controlsRef.current = controls
 
@@ -203,7 +196,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       const novaLargura = medirLarguraDoContainer(containerAtual)
       renderer.setSize(novaLargura, ALTURA_DO_CANVAS_EM_PIXELS)
       const novoEnquadramento = aplicarEnquadramento(novaLargura / ALTURA_DO_CANVAS_EM_PIXELS)
-      controls.minDistance = novoEnquadramento.distancia * FATOR_DE_ZOOM_MINIMO
+      controls.minDistance = novoEnquadramento.distanciaMinima
       controls.maxDistance = novoEnquadramento.distancia * FATOR_DE_ZOOM_MAXIMO
     })
     resizeObserver.observe(container)

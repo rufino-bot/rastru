@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import {
   VisualizadorDeSolido,
-  FATOR_DE_ZOOM_MINIMO,
   FATOR_DE_ZOOM_MAXIMO,
   ALTURA_DO_CANVAS_EM_PIXELS,
 } from './VisualizadorDeSolido'
@@ -421,7 +420,7 @@ describe('VisualizadorDeSolido', () => {
     // Mata a mutação de trocar `minDistance`/`maxDistance` por literais: uma peça de teste
     // diferente teria de produzir limites diferentes dos de qualquer outra, e um literal fixo não
     // acompanharia essa mudança.
-    expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MINIMO)
+    expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distanciaMinima)
     expect(controlsFalsos.ultimo?.maxDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MAXIMO)
   })
 
@@ -600,7 +599,7 @@ describe('VisualizadorDeSolido', () => {
     expect(
       (camerasFalsas.ultima?.updateProjectionMatrix as ReturnType<typeof vi.fn>).mock.calls.length,
     ).toBeGreaterThan(chamadasDeUpdateAntes)
-    expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MINIMO, 6)
+    expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distanciaMinima, 6)
     expect(controlsFalsos.ultimo?.maxDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MAXIMO, 6)
   })
 })
