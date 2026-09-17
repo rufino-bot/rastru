@@ -122,6 +122,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const pmremGeneratorRef = useRef<ThreeModulo.PMREMGenerator | null>(null)
   const texturaDeAmbienteRef = useRef<ThreeModulo.Texture | null>(null)
+  const roomEnvironmentRef = useRef<RoomEnvironmentModulo | null>(null)
   const quadroRef = useRef<number | null>(null)
   // Guarda a MESMA função que o ouvinte de `start` usa para parar a rotação automática — o botão
   // "Recentralizar" reusa esta referência em vez de duplicar a lógica de parar, porque clicar nele
@@ -147,6 +148,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       rendererRef.current?.dispose()
       texturaDeAmbienteRef.current?.dispose()
       pmremGeneratorRef.current?.dispose()
+      roomEnvironmentRef.current?.dispose()
     }
   }, [])
 
@@ -232,12 +234,17 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     // fonte de luz vindo de toda direção a peça ficaria quase preta fora do ponto de brilho da
     // `DirectionalLight`. `RoomEnvironment` é uma salinha padrão do three.js (não depende de
     // nenhum asset externo); o `PMREMGenerator` prefiltra essa cena nos níveis de rugosidade que o
-    // material físico precisa antes de virar `scene.environment`.
+    // material físico precisa antes de virar `scene.environment`. A instância de `RoomEnvironment`
+    // não precisa sobreviver além do `fromScene()` (a textura prefiltrada já basta para desenhar),
+    // mas ela mesma cria 1 geometria e 8 materiais que só o `dispose()` próprio dela libera — sem
+    // guardar a referência aqui, ninguém poderia chamá-lo na limpeza.
     const pmremGenerator = new THREE.PMREMGenerator(renderer)
-    const texturaDeAmbiente = pmremGenerator.fromScene(new RoomEnvironment()).texture
+    const ambiente = new RoomEnvironment()
+    const texturaDeAmbiente = pmremGenerator.fromScene(ambiente).texture
     cena.environment = texturaDeAmbiente
     pmremGeneratorRef.current = pmremGenerator
     texturaDeAmbienteRef.current = texturaDeAmbiente
+    roomEnvironmentRef.current = ambiente
 
     const controls = new OrbitControls(camera, renderer.domElement)
     // Limites de zoom derivados do MESMO enquadramento, nunca literais — ver `FATOR_DE_ZOOM_MAXIMO`.

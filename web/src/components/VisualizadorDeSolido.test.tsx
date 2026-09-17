@@ -63,6 +63,11 @@ const pmremGeneratorsFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispo
     guardada à parte do gerador porque a limpeza do componente libera os dois separadamente. */
 const texturasDeAmbienteFalsas = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
+/** Última instância falsa de `RoomEnvironment` construída, com `dispose` espionável — a classe real
+    tem `dispose()` próprio (1 geometria + 8 materiais que ela mesma cria) e nada mais a libera: sem
+    este espião não haveria como um teste provar que o componente chama esse `dispose`. */
+const roomEnvironmentsFalsos = vi.hoisted(() => ({ ultimo: null as null | { dispose: () => void } }))
+
 // Guarda a última instância de `WebGLRendererFalso` criada — o componente instancia um renderer
 // novo a cada `montarCena`, cada um com seu próprio `dispose = vi.fn()`; sem isto não haveria como
 // o teste `cancela o quadro de animação e libera o renderer ao desmontar sob StrictMode` chegar ao
@@ -155,6 +160,7 @@ beforeEach(() => {
   materiaisFalsos.ultimo = null
   pmremGeneratorsFalsos.ultimo = null
   texturasDeAmbienteFalsas.ultima = null
+  roomEnvironmentsFalsos.ultimo = null
   // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
   // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
   // "Visualizar", não só os testes que testam redimensionamento.
@@ -280,14 +286,23 @@ vi.mock('three', () => {
   }
 })
 
-// Dublê do `RoomEnvironment`: só precisa existir como classe instanciável — o que importa para o
-// teste é o `PMREMGeneratorFalso.fromScene` acima, não o conteúdo da cena de ambiente em si (o
-// jsdom não renderiza WebGL de qualquer forma).
+// Dublê do `RoomEnvironment`: o que importa para o teste é o `PMREMGeneratorFalso.fromScene`, não o
+// conteúdo da cena de ambiente em si (o jsdom não renderiza WebGL de qualquer forma) — mas a classe
+// precisa de um `dispose` espionável, porque o `RoomEnvironment` real tem `dispose()` próprio (1
+// geometria + 8 materiais que ela mesma cria) e é isso que o teste de limpeza prova ter sido
+// chamado.
 vi.mock('three/examples/jsm/environments/RoomEnvironment.js', () => {
   importacoes.roomEnvironment++
 
+  class RoomEnvironmentFalso {
+    dispose = vi.fn()
+    constructor() {
+      roomEnvironmentsFalsos.ultimo = this
+    }
+  }
+
   return {
-    RoomEnvironment: class {},
+    RoomEnvironment: RoomEnvironmentFalso,
   }
 })
 
@@ -493,12 +508,14 @@ describe('VisualizadorDeSolido', () => {
     const desconectarObservador = ultimoResizeObserverFalso?.disconnect
     const disposeDoGerador = pmremGeneratorsFalsos.ultimo?.dispose
     const disposeDaTextura = texturasDeAmbienteFalsas.ultima?.dispose
+    const disposeDoRoomEnvironment = roomEnvironmentsFalsos.ultimo?.dispose
     expect(dispose).not.toHaveBeenCalled()
     expect(disposeDosControles).not.toHaveBeenCalled()
     expect(desconectarObservador).not.toHaveBeenCalled()
     expect(cancelarQuadro).not.toHaveBeenCalled()
     expect(disposeDoGerador).not.toHaveBeenCalled()
     expect(disposeDaTextura).not.toHaveBeenCalled()
+    expect(disposeDoRoomEnvironment).not.toHaveBeenCalled()
 
     unmount()
 
@@ -517,6 +534,11 @@ describe('VisualizadorDeSolido', () => {
     // vazariam a cada vez que o viewer fosse aberto e fechado.
     expect(disposeDoGerador).toHaveBeenCalledTimes(1)
     expect(disposeDaTextura).toHaveBeenCalledTimes(1)
+    // Mata a mutação de deixar a instância de `RoomEnvironment` fora da limpeza: ela tem
+    // `dispose()` próprio (1 geometria + 8 materiais que ela mesma cria ao ser construída) e,
+    // criada inline sem referência guardada, nada a liberaria — o mesmo vazamento de GPU que as
+    // duas asserções acima já cobrem para o gerador e a textura, desta vez na cena de origem.
+    expect(disposeDoRoomEnvironment).toHaveBeenCalledTimes(1)
 
     cancelarQuadro.mockRestore()
   })
