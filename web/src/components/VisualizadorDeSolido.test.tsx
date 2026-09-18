@@ -74,7 +74,9 @@ const cenasFalsas = vi.hoisted(() => ({ ultima: null as null | { environment: un
 const geradorQueChamouFromScene = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
 /** Última textura de ambiente falsa devolvida por `PMREMGenerator.fromScene(...).texture` —
-    guardada à parte do gerador porque a limpeza do componente libera os dois separadamente. */
+    guardada à parte para o teste do ambiente de reflexo compará-la, por identidade, com o que foi
+    atribuído a `scene.environment`. A limpeza do componente não a libera diretamente: libera o
+    render target inteiro (ver `renderTargetsDeAmbienteFalsos`). */
 const texturasDeAmbienteFalsas = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
 /** Todo `WebGLRenderTarget` falso que `PMREMGeneratorFalso.fromScene(...)` já devolveu, não só o
@@ -309,17 +311,17 @@ vi.mock('three', () => {
     }
   }
 
-  // Dublê do `PMREMGenerator`: `fromScene` devolve um `WebGLRenderTarget`-like mínimo (só o
-  // `.texture` que o componente lê) e guarda a textura à parte, porque a limpeza do componente
-  // libera o gerador e a textura separadamente. Não existe rastreador global "última instância
-  // construída" aqui — pelo mesmo motivo que `MeshStandardMaterialFalso` não tem um: capturar por
-  // ORDEM DE CONSTRUÇÃO deixaria passar uma segunda instância, nunca usada para gerar a textura de
-  // ambiente, se o ref do componente fosse atribuído a ela por engano — só a instância que de fato
-  // EXECUTOU `fromScene` prova qual gerador produziu o render target, os materiais de shader e as
-  // geometrias de LOD que a limpeza precisa liberar.
+  // Dublê do `PMREMGenerator`: `fromScene` devolve um `WebGLRenderTarget`-like mínimo (o
+  // `.texture` que o componente lê e o `dispose` que a limpeza chama) e guarda a textura à parte,
+  // para o teste do ambiente de reflexo compará-la com `scene.environment`. Não existe rastreador
+  // global "última instância construída" aqui — pelo mesmo motivo que `MeshStandardMaterialFalso`
+  // não tem um: capturar por ORDEM DE CONSTRUÇÃO deixaria passar uma segunda instância, nunca usada
+  // para gerar a textura de ambiente, se o ref do componente fosse atribuído a ela por engano — só a
+  // instância que de fato EXECUTOU `fromScene` prova qual gerador produziu o render target, os
+  // materiais de shader e as geometrias de LOD que a limpeza precisa liberar.
   class PMREMGeneratorFalso {
-    // Registra em `ordemDeLiberacao` — junto do `dispose` da textura devolvida por `fromScene` e
-    // do `RoomEnvironmentFalso`, prova que os três rodam ANTES do renderer.
+    // Registra em `ordemDeLiberacao` — junto do `dispose` do render target devolvido por
+    // `fromScene` e do `RoomEnvironmentFalso`, prova que os três rodam ANTES do renderer.
     dispose = vi.fn(() => {
       ordemDeLiberacao.eventos.push('pmremGenerator')
     })
@@ -332,7 +334,7 @@ vi.mock('three', () => {
     fromScene(cena: unknown) {
       geradorQueChamouFromScene.ultima = this
       ambienteRecebidoPorFromScene.ultima = cena as { dispose: () => void }
-      const textura = { dispose: vi.fn(() => ordemDeLiberacao.eventos.push('textura')) }
+      const textura = { dispose: vi.fn() }
       texturasDeAmbienteFalsas.ultima = textura
       const alvoDeRenderizacao = {
         texture: textura,
