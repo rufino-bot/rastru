@@ -291,12 +291,22 @@ para leitura, `[Authorize(Roles = PerfisDeEscrita)]` — `Administrador,PCP` —
   de mudar o código: o front busca o detalhe via `GET /componentes/{id}` depois do envio — é o
   padrão que `SolidoEndpointsTests.Post_de_STL_valido_grava_e_o_componente_passa_a_ter_solido` já
   exercita — e a Task 6 do plano do front já declara `enviarSolido(): Promise<void>`.)*
-- Falhas: 404 (componente inexistente), **400** (arquivo inválido — ver §5.1 — **ou acima do
-  limite de tamanho**, ambos 400), 403 (perfil sem escrita). *(Corrigido junto, mesma decisão: a
-  linha citava 413 para "acima do limite". Medido na review, contra a API real: é sempre 400,
-  nunca 413. Quem decide os 16 MiB do arquivo é só o `ValidadorDeArquivoStl` — o
-  `[RequestSizeLimit]` do controller só protege a memória contra um corpo muito maior que isso, com
-  uma margem para o overhead do multipart, e por isso também responde 400, não 413, quando aciona.)*
+- Falhas: 404 (componente inexistente), **400** (arquivo inválido — ver §5.1, inclusive o arquivo
+  acima de 16 MiB cujo corpo ainda cabe no limite do endpoint), 403 (perfil sem escrita).
+  *(Corrigido em 2026-09-13: a linha citava 413 para "acima do limite".)*
+- **Acima do limite do endpoint, o que o cliente vê depende do cliente.** Quem decide os 16 MiB do
+  arquivo é o `ValidadorDeArquivoStl`; o `[RequestSizeLimit]` do controller (16 MiB mais uma margem
+  de 4 KiB para o overhead do multipart) só protege a memória contra um corpo maior que isso, e
+  quando ele aciona, o que chega ao cliente varia. Medido contra o Kestrel em 2026-09-13: com
+  `curl` (arquivos de 17 e 31 MiB, com e sem `Expect: 100-continue`) e com um cliente Node que monta
+  o multipart à mão, chega um 400 com a mensagem do model binding. Medido em 2026-09-18: com o
+  `fetch` do Chromium (`FormData`) e com o `HttpClient` do .NET, **não chega resposta nenhuma** — o
+  servidor fecha a conexão com o corpo ainda subindo, e nos tamanhos medidos (de 16 MiB + 5.000
+  bytes a 40 MiB no .NET e a 100 MiB no Chromium) a requisição falha como erro de rede; a tela
+  diria "Sem conexão com o servidor". Por que os clientes diferem **não foi isolado**, e Firefox,
+  Safari e o navegador do Android **não foram medidos**. Por isso o `UploadDeSolido` recusa o
+  arquivo acima de 16 MiB **antes** de enviar: quem explica o tamanho ao usuário é essa checagem,
+  não a resposta do servidor.
 
 ### `GET /componentes/{id}/solido`
 

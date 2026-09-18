@@ -90,6 +90,66 @@ describe('UploadDeSolido', () => {
     expect(aoEnviar).not.toHaveBeenCalled()
   })
 
+  /**
+   * O limite do backend (`ValidadorDeArquivoStl.TamanhoMaximoEmBytes`, 16 MiB) escrito aqui como
+   * número, e não importado da constante do front: é a comparação entre os dois lados. Se a
+   * constante do front mudar sozinha, morre `arquivo um byte acima do limite é recusado na tela,
+   * sem requisição nenhuma` (medido com 17 MiB e com 15 MiB); se ela encolher, morre também
+   * `arquivo de exatamente o limite é enviado — a fronteira é inclusiva, como no backend`.
+   */
+  const LIMITE_DO_BACKEND_EM_BYTES = 16 * 1024 * 1024
+
+  it('arquivo um byte acima do limite é recusado na tela, sem requisição nenhuma', async () => {
+    const aoEnviar = vi.fn()
+    const fetchMock = vi.fn(() => Promise.resolve(respostaJson({})))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={aoEnviar}
+      />,
+    )
+    const grande = new File(
+      [new Uint8Array(LIMITE_DO_BACKEND_EM_BYTES + 1)], 'grande.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [grande] } })
+
+    // A mensagem diz o tamanho e o que fazer — não o "Sem conexão com o servidor" que o navegador
+    // produziria se o arquivo subisse e o servidor fechasse a conexão no meio do envio.
+    expect((await screen.findByRole('alert')).textContent).toContain('passa do limite de 16 MiB')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(aoEnviar).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('arquivo de exatamente o limite é enviado — a fronteira é inclusiva, como no backend', async () => {
+    const aoEnviar = vi.fn()
+    const fetchMock = vi.fn((_url: string | URL, _init?: RequestInit) => Promise.resolve(respostaJson({})))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={aoEnviar}
+      />,
+    )
+    const noLimite = new File(
+      [new Uint8Array(LIMITE_DO_BACKEND_EM_BYTES)], 'no-limite.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [noLimite] } })
+
+    await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const enviado = (fetchMock.mock.calls[0][1]?.body as FormData).get('arquivo') as File
+    expect(enviado.size).toBe(LIMITE_DO_BACKEND_EM_BYTES)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('mostra estado de enviando enquanto a requisição está em voo, e desabilita o campo', async () => {
     const aoEnviar = vi.fn()
     // Promise que não resolve, para o estado intermediário ser observável — molde do teste de

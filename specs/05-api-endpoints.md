@@ -84,9 +84,14 @@ reenvia e a sessão morre no primeiro refresh.
   Componente. `multipart/form-data`, campo `arquivo`. Resposta **204**, sem corpo — o front busca
   o detalhe de novo via `GET /componentes/{id}` para mostrar nome e tamanho. Falhas: `400`
   (arquivo inválido — extensão, tamanho acima de 16 MiB ou estrutura de STL inválida; ver §5.1 de
-  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md` — **ou** corpo da requisição
-  acima da margem que o servidor tolera para o overhead do multipart; as duas causas respondem
-  400, nunca 413), `404` (Componente inexistente), `403` (perfil sem escrita).
+  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md`), `404` (Componente
+  inexistente), `403` (perfil sem escrita). **Corpo acima do limite do endpoint** (16 MiB mais uma
+  margem de 4 KiB para o overhead do multipart) **não tem uma resposta garantida**: o servidor
+  recusa, mas o que chega depende do cliente — com `curl` chega um 400 (medido em 2026-09-13); com
+  o `fetch` do Chromium e o `HttpClient` do .NET a conexão cai com o corpo ainda subindo e não
+  chega resposta nenhuma (medido em 2026-09-18); Firefox, Safari e o navegador do Android não
+  foram medidos. Por isso o front recusa o arquivo acima de 16 MiB antes de enviar — é essa
+  checagem, e não a resposta do servidor, que explica o tamanho ao usuário.
 - `GET /componentes/{id}/solido` *(qualquer perfil autenticado)* — `application/octet-stream`, com
   `Content-Disposition` carregando o nome original do arquivo enviado. Serve o download **e** o
   viewer 3D — um endpoint, dois consumidores. `404` quando o Componente não existe **ou** quando
@@ -273,9 +278,10 @@ de uma vez.
   escrita (os dois `POST`, o `PUT` e o `DELETE`) — mesmo formato do "Contrato de erro dos
   cadastros".
 - **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`), `Componente`
-  inexistente (`POST /agrupamentos/{id}/estrutura`, regra 18 — checado depois do Agrupamento, de
-  propósito: o tipo do erro não deve distinguir "Agrupamento existe" para quem só chuta ids) ou nó
-  inexistente (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
+  inexistente (`POST /agrupamentos/{id}/estrutura` — checado depois do Agrupamento, por convenção:
+  o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
+  e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
+  (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
 - **409** — quatro códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —

@@ -120,6 +120,8 @@ export function ComponenteDetalhePage() {
   const [componente, setComponente] = useState<ComponenteDetalheDto | null>(null)
   const [carregandoComponente, setCarregandoComponente] = useState(true)
   const [erroComponente, setErroComponente] = useState<unknown>(null)
+  // Sobe a cada envio de sólido — ver `aoEnviarSolido`.
+  const [versaoDoSolido, setVersaoDoSolido] = useState(0)
 
   const [filhos, setFilhos] = useState<FilhoPadraoDto[]>([])
   const [carregandoFilhos, setCarregandoFilhos] = useState(true)
@@ -232,12 +234,23 @@ export function ComponenteDetalhePage() {
   }, [idValido, podeEscrever])
 
   // Depois de um upload de sólido com sucesso, `temSolido`/nome/tamanho do estado ficam velhos —
-  // esta função é o `aoEnviar` que o `UploadDeSolido` chama para a tela reler o Componente. Falha
-  // aqui é engolida de propósito: o upload em si já teve sucesso (é ele quem chamou `aoEnviar`), e
+  // esta função relê o Componente, chamada por `aoEnviarSolido` (o `aoEnviar` do `UploadDeSolido`).
+  // Falha aqui é engolida de propósito: o upload em si já teve sucesso (é ele quem chamou `aoEnviar`), e
   // um erro nesta releitura não desfaz isso — na pior hipótese a tela mostra os dados de antes até
   // a próxima ação recarregar a página.
   function recarregarComponente() {
     obterComponente(componenteId).then(setComponente).catch(() => {})
+  }
+
+  // `versaoDoSolido` é a `key` do `VisualizadorDeSolido`. Substituir o sólido não muda `temSolido`
+  // (continua `true`), então sem a `key` o viewer aberto seguiria mostrando a geometria ANTIGA ao
+  // lado do nome do arquivo novo. Trocar a `key` desmonta o viewer velho — a limpeza dele libera os
+  // recursos de GPU — e monta um novo no estado inicial, que busca o arquivo novo no próximo clique
+  // em "Visualizar". Contador, e não nome/tamanho do arquivo: dois STL diferentes podem ter o mesmo
+  // nome e o mesmo tamanho.
+  function aoEnviarSolido() {
+    setVersaoDoSolido((versao) => versao + 1)
+    recarregarComponente()
   }
 
   function aoAdicionarFilho() {
@@ -399,7 +412,7 @@ export function ComponenteDetalhePage() {
           temSolido={componente.temSolido}
           nomeDoSolido={componente.nomeDoSolido}
           tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
-          aoEnviar={recarregarComponente}
+          aoEnviar={aoEnviarSolido}
         />
       )}
 
@@ -408,7 +421,7 @@ export function ComponenteDetalhePage() {
           por aqui, não pelo `UploadDeSolido`. Condicionado só a `temSolido` — sem arquivo, não
           há o que visualizar. */}
       {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
-        <VisualizadorDeSolido componenteId={componenteId} />
+        <VisualizadorDeSolido key={versaoDoSolido} componenteId={componenteId} />
       )}
 
       <Secao

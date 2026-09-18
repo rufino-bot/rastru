@@ -102,9 +102,11 @@ public sealed class MontagemDeEstruturaUseCase
     if (agrupamento is null)
       return Result<EstruturaItemDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
-    // Regra 18, segunda metade. Depois do agrupamento de proposito: o tipo do erro nao deve
-    // distinguir "agrupamento existe" para quem so chuta ids. Usa `_catalogo`, que o caso de uso
-    // ja recebe — nenhuma dependencia nova.
+    // Regra 18, segunda metade. Depois do agrupamento por convencao — o recurso da ROTA antes do
+    // que o CORPO referencia, a mesma ordem de `AcrescentarFilho` —, nao por sigilo: Agrupamento e
+    // catalogo de Componentes sao legiveis por qualquer autenticado (`GET agrupamentos/{id}`,
+    // `GET componentes/{id}`), entao o tipo do erro nao revela nada que um GET ja nao revele. Usa
+    // `_catalogo`, que o caso de uso ja recebe — nenhuma dependencia nova.
     //
     // Vale so para a PECA (no raiz). `AcrescentarFilho` nao passa por aqui, e e por isso que Item
     // ad-hoc continua valido.

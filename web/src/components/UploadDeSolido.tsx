@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent } from 'react'
 import { apiFetch } from '../api/client'
-import { caminhoDoSolido, enviarSolido } from '../api/cadastros'
+import { caminhoDoSolido, enviarSolido, TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES } from '../api/cadastros'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import { BannerDeErro } from './BannerDeErro'
 import { Botao } from './Botao'
@@ -30,6 +30,15 @@ function formatarTamanho(bytes: number): string {
   return `${mib.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MiB`
 }
 
+/** "16 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
+const LIMITE_LEGIVEL = `${TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES / (1024 * 1024)} MiB`
+
+const MENSAGEM_DE_ARQUIVO_GRANDE_DEMAIS =
+  `O arquivo passa do limite de ${LIMITE_LEGIVEL} do sólido. Exporte o STL com uma malha menos `
+  + 'detalhada e envie de novo.'
+
+const FALLBACK_DO_ENVIO = `Não foi possível enviar o sólido. Envie um arquivo .stl de até ${LIMITE_LEGIVEL}.`
+
 /**
  * Upload (e substituição) do sólido STL de um Componente — Task 6 da Fase 2B. Visível só sob
  * `usePodeEscrever('componentes')` (§7.1 da spec, no chamador): quem não escreve vê o sólido pelo
@@ -39,7 +48,10 @@ export function UploadDeSolido({
   componenteId, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes, aoEnviar,
 }: Props) {
   const [enviando, setEnviando] = useState(false)
-  const [erroEnvio, setErroEnvio] = useState<unknown>(null)
+  // A frase pronta, e não o erro cru: o envio tem duas origens de recusa — o tamanho, checado aqui
+  // antes de enviar, e a falha da requisição, traduzida por `mensagemDeErro` —, e as duas saem pelo
+  // mesmo banner.
+  const [erroEnvio, setErroEnvio] = useState<string | null>(null)
   const [baixando, setBaixando] = useState(false)
   const [erroDownload, setErroDownload] = useState<unknown>(null)
 
@@ -51,13 +63,19 @@ export function UploadDeSolido({
     e.target.value = ''
     if (!arquivo) return
 
+    // Antes de qualquer requisição. `>` e não `>=`: o backend aceita o limite exato.
+    if (arquivo.size > TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES) {
+      setErroEnvio(MENSAGEM_DE_ARQUIVO_GRANDE_DEMAIS)
+      return
+    }
+
     setEnviando(true)
     setErroEnvio(null)
     try {
       await enviarSolido(componenteId, arquivo)
       aoEnviar()
     } catch (erro) {
-      setErroEnvio(erro)
+      setErroEnvio(mensagemDeErro(erro, FALLBACK_DO_ENVIO))
     } finally {
       setEnviando(false)
     }
@@ -106,11 +124,7 @@ export function UploadDeSolido({
       </Campo>
 
       {enviando && <p role="status" className="text-tinta-fraca">Enviando…</p>}
-      <BannerDeErro
-        mensagem={erroEnvio == null
-          ? null
-          : mensagemDeErro(erroEnvio, 'Não foi possível enviar o sólido. Envie um arquivo .stl de até 16 MiB.')}
-      />
+      <BannerDeErro mensagem={erroEnvio} />
 
       {!temSolido && <p className="text-tinta-fraca">Sem sólido.</p>}
       {temSolido && (

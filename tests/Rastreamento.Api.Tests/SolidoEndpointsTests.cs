@@ -246,6 +246,54 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 4096, limite!.MaxRequestBodySize);
   }
 
+  // ---------------------------------------------------------------- LISTAGEM
+
+  /// <summary>
+  /// O `temSolido` da LISTAGEM (`ComponenteDto`, projetado por `CadastroDeComponenteUseCase.Projetar`)
+  /// e o que liga a marca "sem solido" no seletor de Peca: se ele sair sempre `false`, todo
+  /// Componente aparece nao selecionavel e ninguem cria Peca pela tela. Os dois sentidos no mesmo
+  /// teste -- um com solido, um sem --, porque um valor fixo (`true` ou `false`) acerta um deles.
+  /// Escopado pelo PREFIXO dos dois codigos, nunca por contagem da tabela: `dbo.Componente` e
+  /// compartilhada com outras classes e com outros assemblies rodando ao mesmo tempo.
+  /// </summary>
+  [Fact]
+  public async Task Listagem_filtrada_traz_temSolido_certo_em_cada_item()
+  {
+    var cliente = ClienteComo("Administrador");
+    var prefixo = $"LS{Guid.NewGuid():N}"[..10];
+    var comSolido = await NovoComponenteComCodigo($"{prefixo}-C");
+    var semSolido = await NovoComponenteComCodigo($"{prefixo}-S");
+    Assert.Equal(
+        HttpStatusCode.NoContent,
+        (await EnviarSolido(cliente, comSolido, StlDeTesteDaApi.CuboBinario())).StatusCode);
+
+    var pagina = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&tamanho=100")).RootElement;
+    var itens = pagina.GetProperty("itens").EnumerateArray()
+        .ToDictionary(i => i.GetProperty("id").GetInt32(), i => i.GetProperty("temSolido").GetBoolean());
+
+    Assert.Equal(2, itens.Count);
+    Assert.True(itens[comSolido]);
+    Assert.False(itens[semSolido]);
+  }
+
+  private async Task<int> NovoComponenteComCodigo(string codigo)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var c = new Componente
+    {
+      Codigo = codigo,
+      Descricao = "Componente de teste da listagem",
+      Tipo = "Fabricado",
+      Ativo = true,
+    };
+    db.Componentes.Add(c);
+    await db.SaveChangesAsync();
+    _componentesCriados.Add(c.Id);
+    return c.Id;
+  }
+
   // ---------------------------------------------------------------- GET
 
   [Fact]

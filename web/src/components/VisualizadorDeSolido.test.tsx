@@ -25,10 +25,11 @@ import { inicializar, _resetParaTeste } from '../api/client'
 // `import()` a mais no mesmo clique, e regride para estático de forma independente dos demais.
 const importacoes = vi.hoisted(() => ({ three: 0, stlLoader: 0, orbitControls: 0, roomEnvironment: 0 }))
 
-/** Sequência de eventos, na ordem em que acontecem — usado para provar ORDEM (não só presença) do
-    recálculo de normais: `parse` (quando o STLLoader falso devolve a geometria), depois
+/** Sequência de eventos, na ordem em que acontecem — usado para provar ORDEM (não só presença): do
+    recálculo de normais, `parse` (quando o STLLoader falso devolve a geometria), depois
     `computeVertexNormals` (quando o componente recalcula), depois `malhaConstruida` (quando o
-    `Mesh` falso é construído com aquela geometria). Resetado a cada teste no `beforeEach`. */
+    `Mesh` falso é construído com aquela geometria); e da centralização, `center` antes de
+    `primeiroQuadro` (o primeiro `renderer.render`). Resetado a cada teste no `beforeEach`. */
 const ordemDeChamadas = vi.hoisted(() => ({ eventos: [] as string[] }))
 
 /** Sequência dos `dispose` chamados na limpeza, na ordem em que acontecem — usado para provar que
@@ -40,9 +41,10 @@ const ordemDeChamadas = vi.hoisted(() => ({ eventos: [] as string[] }))
 const ordemDeLiberacao = vi.hoisted(() => ({ eventos: [] as string[] }))
 
 /** Última geometria falsa devolvida pelo `STLLoader.parse()` — permite ao teste inspecionar
-    diretamente `computeVertexNormals` (um `vi.fn()`) sem precisar vasculhar o dublê do `Mesh`. */
+    diretamente `computeVertexNormals` e `center` (dois `vi.fn()`) sem precisar vasculhar o dublê
+    do `Mesh`. */
 const geometriasFalsas = vi.hoisted(() => ({
-  ultima: null as null | { computeVertexNormals: () => void },
+  ultima: null as null | { computeVertexNormals: () => void; center: () => void },
 }))
 
 /** Última malha falsa construída, com a geometria E o material que RECEBEU no construtor — achado
@@ -234,7 +236,11 @@ vi.mock('three', () => {
   class WebGLRendererFalso {
     domElement = document.createElement('canvas')
     setSize = vi.fn()
-    render = vi.fn()
+    // Registra só o PRIMEIRO quadro em `ordemDeChamadas` — é o marco que o teste da centralização
+    // usa: a geometria tem de estar centralizada antes de o primeiro quadro ser desenhado.
+    render = vi.fn(() => {
+      if (!ordemDeChamadas.eventos.includes('primeiroQuadro')) ordemDeChamadas.eventos.push('primeiroQuadro')
+    })
     // Registra em `ordemDeLiberacao` — é o que prova que a textura de ambiente, o
     // `PMREMGenerator` e o `RoomEnvironment` são liberados ANTES deste `dispose`, não depois.
     dispose = vi.fn(() => {
@@ -357,7 +363,12 @@ vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
           computeBoundingBox(this: { boundingBox?: CaixaEnvolventeDeTeste }) {
             this.boundingBox = caixaEnvolventeDeTeste
           },
-          center: () => {},
+          // Espião, não função vazia: sem ele, apagar `geometria.center()` do componente não
+          // derrubava teste nenhum — e é o `center()` que põe na origem o STL que o CAD exporta
+          // fora dela.
+          center: vi.fn(() => {
+            ordemDeChamadas.eventos.push('center')
+          }),
           // `vi.fn()` real (não só uma função comum) para o teste poder inspecionar quantas vezes
           // foi chamado, além de registrar o instante em `ordemDeChamadas`.
           computeVertexNormals: vi.fn(() => {
@@ -669,6 +680,33 @@ describe('VisualizadorDeSolido', () => {
     // outros testes do arquivo sem quebrar nenhum. A malha tem de guardar a MESMA instância que
     // `computeVertexNormals()` mutou, não uma cópia nem uma geometria nova.
     expect(malhasFalsas.ultima?.geometria).toBe(geometriasFalsas.ultima)
+  })
+
+  it('centraliza a geometria na origem uma vez, antes de o primeiro quadro ser desenhado', async () => {
+    // STL exportado de CAD raramente nasce centrado. Sem `center()`, a câmera mira a origem, o
+    // enquadramento calculado pelas meias-extensões fica deslocado e o giro automático orbita um
+    // ponto que não é o centro da peça — e nenhum outro teste deste arquivo percebe, porque o enquadramento é
+    // calculado das meias-extensões, que não mudam com a translação.
+    //
+    // A ordem que importa é só esta: centralizar antes do primeiro quadro. A ordem em relação a
+    // `computeBoundingBox` NÃO é afirmada de propósito: o `center()` do three.js mede a própria
+    // caixa antes de transladar, e a translação não muda as meias-extensões que o componente lê —
+    // chamar `center()` antes ou depois de `computeBoundingBox()` dá o mesmo enquadramento.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    render(<VisualizadorDeSolido componenteId={7} />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    // Mata a mutação de apagar `geometria.center()`.
+    expect(geometriasFalsas.ultima?.center).toHaveBeenCalledTimes(1)
+
+    const indiceDoCentro = ordemDeChamadas.eventos.indexOf('center')
+    const indiceDoPrimeiroQuadro = ordemDeChamadas.eventos.indexOf('primeiroQuadro')
+    // Sem esta, `center()` chamado depois do primeiro `renderer.render` passaria: o primeiro quadro
+    // sairia com a peça fora da origem.
+    expect(indiceDoPrimeiroQuadro).toBeGreaterThanOrEqual(0)
+    expect(indiceDoCentro).toBeLessThan(indiceDoPrimeiroQuadro)
   })
 
   it('enquadra a câmera pelo tamanho e formato do sólido em vez da distância fixa antiga', async () => {

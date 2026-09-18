@@ -28,9 +28,10 @@ public sealed class SolidoDoComponenteUseCase
   public async Task<Result> Enviar(
       int componenteId, string nomeOriginal, byte[] conteudo, int usuarioId, CancellationToken ct)
   {
-    // Valida ANTES de ler o componente, e a ordem e deliberada: se a existencia do componente
-    // fosse checada primeiro, mandar arquivo lixo para ids sequenciais distinguiria "existe" de
-    // "nao existe" pelo TIPO do erro, e o endpoint viraria oraculo de enumeracao de catalogo.
+    // Valida o arquivo ANTES de ler o componente. A ordem nao protege sigilo nenhum: o catalogo e
+    // legivel por qualquer autenticado (`GET componentes`, `GET componentes/{id}`), entao o tipo do
+    // erro nao revela a existencia de um id que um GET ja nao revele. O que ela faz e recusar
+    // arquivo invalido sem ida ao banco — o validador e puro.
     var invalido = ValidadorDeArquivoStl.Validar(nomeOriginal, conteudo);
     if (invalido is not null) return Result.Falha(invalido, TipoDeErro.Validacao);
 

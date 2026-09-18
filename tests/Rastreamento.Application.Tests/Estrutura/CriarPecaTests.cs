@@ -181,8 +181,10 @@ public class CriarPecaTests
   [Fact]
   public async Task A_guarda_de_solido_roda_DEPOIS_da_de_agrupamento()
   {
-    // Agrupamento inexistente + componente sem solido responde NaoEncontrado do AGRUPAMENTO.
-    // Ordem deliberada: sem ela, um cliente descobre se um agrupamento existe pelo tipo do erro.
+    // Agrupamento inexistente + componente sem solido responde NaoEncontrado do AGRUPAMENTO. A
+    // ordem e convencao (o recurso da rota antes do que o corpo referencia), e este teste a prende
+    // para ela nao mudar por acidente. Nao ha sigilo em jogo: a existencia de um Agrupamento ja e
+    // legivel por qualquer autenticado via `GET agrupamentos/{id}`.
     var (useCase, _, _, catalogo) = Montar();   // nenhum Agrupamento
     catalogo.Componentes.Clear();
     catalogo.Componentes.Add(ComponenteSemSolido(1));

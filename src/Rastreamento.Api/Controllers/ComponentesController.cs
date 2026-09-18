@@ -140,16 +140,25 @@ public class ComponentesController : CadastroControllerBase
   /// provada por
   /// `SolidoEndpointsTests.RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem`
   /// -- ela morre se o atributo for removido ou o valor mudar, mas nao prova o COMPORTAMENTO em
-  /// producao: `WebApplicationFactory`/`TestServer`, medido nesta task (2026-09-13), nao aplica a
-  /// mesma checagem de `IHttpMaxRequestBodySizeFeature` que o Kestrel real aplica antes do model
-  /// binding terminar de ler o form -- um corpo de 20 MiB passa direto ate o validador mesmo com o
-  /// atributo no lugar, sob o host de teste. A prova de COMPORTAMENTO e da review da Task 4, feita
-  /// contra a API real (`dotnet run` + curl): passar do limite responde SEMPRE 400, nunca 413.
-  /// Quando quem recusa e este atributo, a mensagem vem do model binding do ASP.NET ("Failed to
-  /// read the request form. Request body too large...", formato `ValidationProblemDetails`, chave
-  /// `errors`); quando o corpo cabe na margem mas o ARQUIVO em si passa dos 16 MiB, quem recusa e
-  /// `ValidadorDeArquivoStl`, com o formato `{ erro }` deste projeto -- as duas mensagens sao
-  /// distintas de proposito, e essa distincao e o que prova qual dos dois recusou.
+  /// producao: `WebApplicationFactory`/`TestServer`, medido em 2026-09-13, nao aplica a mesma
+  /// checagem de `IHttpMaxRequestBodySizeFeature` que o Kestrel real aplica antes do model binding
+  /// terminar de ler o form -- um corpo de 20 MiB passa direto ate o validador mesmo com o
+  /// atributo no lugar, sob o host de teste.
+  ///
+  /// <para>
+  /// O COMPORTAMENTO foi medido contra o Kestrel, por fora da suite, e depende do CLIENTE. Com
+  /// `curl` (2026-09-13; arquivos de 17 e 31 MiB, com e sem `Expect: 100-continue`) e com um
+  /// cliente Node que monta o multipart a mao, chega um 400 no formato `ValidationProblemDetails`
+  /// do model binding ("Failed to read the request form. Request body too large...", chave
+  /// `errors`) -- distinto do `{ erro }` que `ValidadorDeArquivoStl` devolve quando o corpo cabe na
+  /// margem mas o ARQUIVO passa dos 16 MiB, e e essa distincao que mostra qual dos dois recusou.
+  /// Com o `fetch` do Chromium e com o `HttpClient` do .NET (2026-09-18) NAO chega resposta: o
+  /// servidor fecha a conexao com o corpo ainda subindo, e o cliente ve erro de rede. Firefox,
+  /// Safari e o navegador do Android nao foram medidos, e por que os clientes diferem nao foi
+  /// isolado. Logo nao ha resposta garantida a prometer acima do limite deste atributo: quem
+  /// explica o tamanho ao usuario e a checagem que o front faz antes de enviar
+  /// (`TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES`, em `web/src/api/cadastros.ts`).
+  /// </para>
   /// </summary>
   [HttpPost("{id:int}/solido")]
   [Authorize(Roles = PerfisDeEscrita)]

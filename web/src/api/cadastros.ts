@@ -324,6 +324,19 @@ export function caminhoDoSolido(componenteId: number): string {
 }
 
 /**
+ * Maior sólido aceito, em bytes: 16 MiB. Espelha `ValidadorDeArquivoStl.TamanhoMaximoEmBytes` do
+ * backend — mudou lá, muda aqui — e com a mesma fronteira: lá o arquivo é recusado quando PASSA do
+ * limite, então um arquivo de exatamente este tamanho é aceito.
+ *
+ * Existe no front porque o 400 do backend não chega ao navegador quando o arquivo é grande: acima
+ * do `[RequestSizeLimit]` do endpoint o servidor fecha a conexão enquanto o corpo ainda sobe, e o
+ * `fetch` rejeita sem resposta (medido no Chromium; ver o XML doc de
+ * `ComponentesController.EnviarSolido`). Recusar aqui, antes de enviar, é o que deixa a tela dizer
+ * que o problema é o tamanho — e poupa subir dezenas de MB só para ouvir "não".
+ */
+export const TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES = 16 * 1024 * 1024
+
+/**
  * Envia (ou substitui) o sólido. `FormData` sem `Content-Type` explícito de propósito: quem põe o
  * boundary é o browser, e fixar o header à mão produz um corpo que o servidor não consegue
  * separar. O `apiFetch` não fixa `Content-Type`, então não há nada a remover.

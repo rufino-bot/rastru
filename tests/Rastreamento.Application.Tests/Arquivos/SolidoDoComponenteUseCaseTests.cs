@@ -112,9 +112,9 @@ public class SolidoDoComponenteUseCaseTests
   [Fact]
   public async Task Enviar_valida_ANTES_de_ler_o_componente()
   {
-    // Ordem que importa: arquivo invalido para componente inexistente responde VALIDACAO, nao
-    // NaoEncontrado. Sem isto, um cliente descobre quais ids de componente existem mandando
-    // arquivo lixo — o erro vira oraculo de enumeracao de catalogo.
+    // Arquivo invalido para componente inexistente responde VALIDACAO, nao NaoEncontrado: a
+    // validacao, pura, roda antes da leitura do componente. O teste prende essa ordem para ela nao
+    // mudar por acidente; ela nao protege sigilo — o catalogo e legivel por qualquer autenticado.
     var (useCase, _, _) = Montar();
 
     var resultado = await useCase.Enviar(
