@@ -177,11 +177,11 @@ resolvidos (ou conscientemente adiados).
 
 > **O que a fase custou, e onde:** a verificação em navegador achou o que as suítes verdes não
 > achavam — o viewer preso em "Carregando…" sob `<StrictMode>`, e uma câmera fixa que deixava peça
-> pequena minúscula e ficaria **dentro** de uma peça grande. Cada achado virou task própria, com teste
-> que morre sem a correção. E os recursos de GPU do viewer vazavam **um de cada vez**: cada review
-> achava o membro seguinte da mesma família, até uma delas enumerar todos numa tabela. O que fica
-> para as fases seguintes: diante de um vazamento, enumerar a família inteira antes de consertar a
-> instância.
+> pequena minúscula (e que, pela conta, ficaria **dentro** de uma peça grande). Cada achado virou
+> task própria, com teste que morre sem a correção. E os recursos de GPU do viewer vazavam **um de
+> cada vez**: cada review achava o membro seguinte da mesma família, até uma delas enumerar todos
+> numa tabela. O que fica para as fases seguintes: diante de um vazamento, enumerar a família
+> inteira antes de consertar a instância.
 
 - Upload e exibição de `Componente.ArquivoSolidoId` (sólido 3D, guardado em blob na tabela
   `dbo.ArquivoDeComponente`) e a regra de negócio que o exige por Peça de Pedido — segunda metade
