@@ -90,6 +90,39 @@ describe('UploadDeSolido', () => {
     expect(aoEnviar).not.toHaveBeenCalled()
   })
 
+  it('limpa o banner de erro de um envio anterior assim que um novo arquivo é escolhido', async () => {
+    const aoEnviar = vi.fn()
+    // A segunda tentativa nunca resolve, de propósito: a asserção mira o instante em que o NOVO
+    // envio começa, antes de qualquer resposta chegar — é aí que `setErroEnvio(null)` roda, e é
+    // esse `setErroEnvio(null)`, isolado, que este teste prova.
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(respostaJson({ erro: 'O arquivo nao e um STL valido.' }, 400))
+      .mockImplementationOnce(() => new Promise<Response>(() => {}))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={aoEnviar}
+      />,
+    )
+    const campo = screen.getByLabelText(/sólido/i) as HTMLInputElement
+
+    fireEvent.change(campo, { target: { files: [arquivoStl('ruim.stl')] } })
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+
+    fireEvent.change(campo, { target: { files: [arquivoStl('bom.stl')] } })
+
+    // Mata a mutação de apagar `setErroEnvio(null)` antes do envio: sem ela, o banner do envio
+    // ANTERIOR fica colado na tela indefinidamente — nada mais no caminho feliz jamais o limpa,
+    // nem quando a segunda resposta chega (aqui ela nunca chega).
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(await screen.findByRole('status')).toBeTruthy()
+  })
+
   /**
    * O limite do backend (`ValidadorDeArquivoStl.TamanhoMaximoEmBytes`, 16 MiB) escrito aqui como
    * número, e não importado da constante do front: é a comparação entre os dois lados. Se a
