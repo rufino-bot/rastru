@@ -275,9 +275,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   novo remede com o mesmo comando e diz a data nova.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
-  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
-  (a receita padrão em `ComponenteDetalhePage`) — o bastante para nomear a primitiva certa, não
-  para chamá-la de padrão já consolidado em várias telas.
+  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **duas** telas
+  consumidoras, com **três** usos (medido em 2026-09-18 com
+  `grep -rn "<SeletorComBusca" web/src --include=*.tsx | grep -v "\.test\."`): na
+  `AgrupamentoDetalhePage`, o formulário de criar Peça e o painel de acrescentar filho; na
+  `ComponenteDetalhePage`, a receita padrão — o bastante para nomear a primitiva certa, não para
+  chamá-la de padrão já consolidado.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
@@ -731,9 +734,16 @@ alguns segundos após a rotação) porque isso reabriria a mesma corrida que o `
 **Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
 frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
 o limite vira global por acidente. Com a hospedagem decidida como VPS pública (2026-09-12,
-`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), o proxy reverso deixou de ser hipotético —
-`ForwardedHeaders` está registrado como dívida com gatilho **"obrigatório antes do primeiro deploy
-público"** na seção "Pontos em aberto" do mesmo arquivo.
+`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), o proxy reverso deixa de ser hipotético
+**no caminho container + proxy** (nginx), um dos dois que aquela seção ainda admite — o outro é
+IIS. Nesse caminho, `ForwardedHeaders` está registrado como dívida com gatilho **"obrigatório antes
+do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo. Sob IIS com hosting
+out-of-process, a integração do IIS já liga esse middleware, restrito ao proxy local (documentação
+do ASP.NET Core; não medido aqui). Ligar `ForwardedHeaders` **não** fica burlável com os padrões:
+`KnownProxies` e `KnownNetworks` só aceitam loopback, e cabeçalho vindo de outro IP é ignorado. O
+risco nasce ao limpar essas listas — o exemplo da própria documentação para proxy que não é IIS faz
+isso — ou ao usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a documentação, não restringe
+de quais IPs os cabeçalhos são aceitos.
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
 `RefreshToken` expiradas; mensagem dedicada de 429 no front (hoje cai no erro genérico de auth — só
