@@ -15,6 +15,29 @@ export function respostaJson(corpo: unknown, status = 200): Response {
 }
 
 /**
+ * Resposta binária pronta para `vi.stubGlobal('fetch', ...)`. Existe porque `respostaJson` não
+ * serve ao sólido: o viewer consome `arrayBuffer()`, e um corpo JSON faria o loader receber texto.
+ *
+ * O `Content-Disposition` é opcional porque só o teste de download o afirma — os demais só olham
+ * os bytes. O corpo vai empacotado num `Blob` (e não passado direto): o `lib.dom` daqui não aceita
+ * `Uint8Array` como `BodyInit` de `Response`, e `Blob` é o tipo que os dois aceitam sem cast.
+ *
+ * `Uint8Array<ArrayBuffer>`, e não `Uint8Array` liso: sem o parâmetro de tipo, o `lib.dom` daqui
+ * infere `Uint8Array<ArrayBufferLike>` (que inclui `SharedArrayBuffer`), e `BlobPart` só aceita a
+ * variante apoiada em `ArrayBuffer`. `new Uint8Array(n)`, como os chamadores usam, já produz essa
+ * variante — o parâmetro só precisa deixar de alargar o tipo.
+ */
+export function respostaBinaria(
+  bytes: Uint8Array<ArrayBuffer>,
+  nomeDoArquivo?: string,
+  status = 200,
+): Response {
+  const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream' }
+  if (nomeDoArquivo) headers['Content-Disposition'] = `attachment; filename="${nomeDoArquivo}"`
+  return new Response(new Blob([bytes]), { status, headers })
+}
+
+/**
  * Mock de `fetch` roteado por caminho. A chave é o caminho COM o prefixo `/api` — é isso que o
  * `rota()` de `client.ts` monta, e escrever a chave sem o prefixo é o erro que faz o teste falhar
  * com "fetch não esperado" em vez de com a asserção.

@@ -14,6 +14,11 @@ public class CriarPecaTests
     var estruturas = new FakeEstruturaRepo();
     var agrupamentosRepo = new FakeAgrupamentoRepo(agrupamentos);
     var catalogo = new FakeReceitaPadraoRepo();
+    // Semeia o Componente 1 COM solido (regra 18, Task 5): sem isso, a guarda nova recusaria toda
+    // Peca criada por um teste que nao arranja o proprio catalogo, e o teste falharia por cenario
+    // incompleto, nao por regressao. Quem quer o caso negativo (sem solido) sobrescreve
+    // explicitamente com `catalogo.Componentes.Clear()` + `ComponenteSemSolido`.
+    catalogo.Componentes.Add(ComponenteComSolido(1));
     // FakePedidoRepo vazio: nenhum destes testes precisa de Pedido de verdade — `_pedidos` so e
     // consultado e descartado (ver comentario em MontagemDeEstruturaUseCase.CriarPeca), entao
     // devolver null e inocuo. `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido...` usa o helper
@@ -34,6 +39,9 @@ public class CriarPecaTests
     var estruturas = new FakeEstruturaRepo();
     var agrupamentosRepo = new FakeAgrupamentoRepo(agrupamento);
     var catalogo = new FakeReceitaPadraoRepo();
+    // Mesmo motivo do Componente 1 semeado em `Montar` (regra 18, Task 5): este teste cria uma
+    // Peca de verdade e morreria por cenario incompleto, nao pela guarda de status que ele quer provar.
+    catalogo.Componentes.Add(ComponenteComSolido(1));
     var pedidosRepo = new FakePedidoRepo(pedido);
     var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo);
     return (useCase, estruturas);
@@ -42,12 +50,36 @@ public class CriarPecaTests
   private static Componente NovoComponente(int id, string codigo, string descricao) =>
       new() { Id = id, Codigo = codigo, Descricao = descricao, Tipo = "Montagem", Ativo = true };
 
+  /// <summary>
+  /// Regra 18: Componente SEM solido — a guarda de `CriarPeca` recusa a Peca criada a partir dele.
+  /// </summary>
+  private static Componente ComponenteSemSolido(int id) =>
+      NovoComponente(id, $"CSS-{id}", "Componente sem solido");
+
+  /// <summary>
+  /// Regra 18: Componente COM solido — `ArquivoSolidoId` = 700 + id, faixa alta de proposito, fora
+  /// dos ids de catalogo usados nestes testes (1, 2, 5), para que uma projecao que devolva o campo
+  /// errado nao acerte por coincidencia numerica.
+  /// </summary>
+  private static Componente ComponenteComSolido(int id) =>
+      new()
+      {
+        Id = id, Codigo = $"CCS-{id}", Descricao = "Componente com solido", Tipo = "Montagem",
+        Ativo = true, ArquivoSolidoId = 700 + id,
+      };
+
   [Fact]
   public async Task Peca_e_criada_e_a_arvore_da_receita_vem_junto()
   {
     var (useCase, estruturas, _, catalogo) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
     estruturas.ReceitaFilhos.Add((1, 2, 4m));
-    catalogo.Componentes.Add(NovoComponente(1, "C1", "Peca Um"));
+    // Substitui o Componente 1 semeado por `Montar` (mesmo Id, com solido) em vez de adicionar um
+    // segundo: `Montar` ja semeia o Id 1, e o fake usa `SingleOrDefault` — adicionar de novo
+    // duplicaria o Id na lista. Codigo e descricao continuam "C1"/"Peca Um", que
+    // `raiz.CodigoDoComponente` e `raiz.Descricao` conferem.
+    catalogo.Componentes.Clear();
+    catalogo.Componentes.Add(new Componente
+    { Id = 1, Codigo = "C1", Descricao = "Peca Um", Tipo = "Montagem", Ativo = true, ArquivoSolidoId = 701 });
     catalogo.Componentes.Add(NovoComponente(2, "C2", "Item Dois"));
 
     var resultado = await useCase.CriarPeca(
@@ -70,8 +102,11 @@ public class CriarPecaTests
   [Fact]
   public async Task Peca_de_Componente_sem_receita_grava_um_no_so()
   {
-    var (useCase, estruturas, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Avulso" });
-    // Nenhuma aresta em estruturas.ReceitaFilhos: o Componente 5 nao tem receita cadastrada.
+    var (useCase, estruturas, _, catalogo) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Avulso" });
+    // Nenhuma aresta em estruturas.ReceitaFilhos: o Componente 5 nao tem receita cadastrada. Com
+    // solido (regra 18) para nao ser confundido com o caso, testado a parte, de Componente
+    // inexistente (Peca_de_Componente_inexistente_da_NaoEncontrado).
+    catalogo.Componentes.Add(ComponenteComSolido(5));
 
     var resultado = await useCase.CriarPeca(
         1, new NovaPecaDto(ComponenteId: 5, Quantidade: 3m, RequerRelatorioDimensional: false), CancellationToken.None);
@@ -79,6 +114,87 @@ public class CriarPecaTests
     Assert.True(resultado.Sucesso);
     Assert.Empty(resultado.Valor!.Filhos);
     Assert.Single(estruturas.Itens);
+  }
+
+  // ---- Regra 18, segunda metade (Task 5 da Fase 2B): Peca de Componente sem solido e recusada ----
+
+  [Fact]
+  public async Task Peca_de_Componente_sem_solido_e_recusada_regra_18()
+  {
+    var (useCase, estruturas, _, catalogo) = Montar(
+        new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    // Sobrescreve o componente semeado por `Montar`: este NAO tem solido.
+    catalogo.Componentes.Clear();
+    catalogo.Componentes.Add(ComponenteSemSolido(1));
+
+    var resultado = await useCase.CriarPeca(
+        1, new NovaPecaDto(ComponenteId: 1, Quantidade: 1m, RequerRelatorioDimensional: false),
+        CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    // A mensagem diz O QUE FAZER, nao so que falhou: sem isso o usuario sabe que nao pode e nao
+    // sabe por onde sair.
+    Assert.Contains("solido", resultado.Erro, StringComparison.OrdinalIgnoreCase);
+    Assert.Empty(estruturas.Itens);
+  }
+
+  [Fact]
+  public async Task Item_ad_hoc_continua_podendo_nascer_sem_solido_a_regra_18_e_so_da_Peca()
+  {
+    // A regra 18 vale para PECA (no raiz). `AcrescentarFilho` com ComponenteId nulo continua
+    // valido: e a constraint CK_EstruturaItem_PecaTemComponente que garante que a Peca tem
+    // Componente, e so a Peca.
+    var (useCase, _, _, _) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    var raiz = await useCase.CriarPeca(
+        1, new NovaPecaDto(ComponenteId: 1, Quantidade: 1m, RequerRelatorioDimensional: false),
+        CancellationToken.None);
+    Assert.True(raiz.Sucesso);
+
+    var resultado = await useCase.AcrescentarFilho(
+        raiz.Valor!.Id, new NovoFilhoDto(ComponenteId: null, Descricao: "Filho ad-hoc", Quantidade: 1m),
+        CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+  }
+
+  [Fact]
+  public async Task Peca_de_Componente_inexistente_da_NaoEncontrado()
+  {
+    // Lacuna PRE-EXISTENTE que esta guarda fecha de graca: antes dela, a Application aceitava um
+    // ComponenteId inexistente — `Peca_de_Componente_sem_receita_grava_um_no_so` usava justamente
+    // um Id fora do catalogo do fake e afirmava SUCESSO. O que acontecia depois, no banco, NAO foi
+    // medido: nao afirme 500 sem medir.
+    var (useCase, estruturas, _, catalogo) = Montar(
+        new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    catalogo.Componentes.Clear();
+
+    var resultado = await useCase.CriarPeca(
+        1, new NovaPecaDto(ComponenteId: 999, Quantidade: 1m, RequerRelatorioDimensional: false),
+        CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
+    Assert.Empty(estruturas.Itens);
+  }
+
+  [Fact]
+  public async Task A_guarda_de_solido_roda_DEPOIS_da_de_agrupamento()
+  {
+    // Agrupamento inexistente + componente sem solido responde NaoEncontrado do AGRUPAMENTO. A
+    // ordem e convencao (o recurso da rota antes do que o corpo referencia), e este teste a prende
+    // para ela nao mudar por acidente. Nao ha sigilo em jogo: a existencia de um Agrupamento ja e
+    // legivel por qualquer autenticado via `GET agrupamentos/{id}`.
+    var (useCase, _, _, catalogo) = Montar();   // nenhum Agrupamento
+    catalogo.Componentes.Clear();
+    catalogo.Componentes.Add(ComponenteSemSolido(1));
+
+    var resultado = await useCase.CriarPeca(
+        99, new NovaPecaDto(ComponenteId: 1, Quantidade: 1m, RequerRelatorioDimensional: false),
+        CancellationToken.None);
+
+    Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
+    Assert.Contains("Agrupamento", resultado.Erro);
   }
 
   [Fact]

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   obterComponente, listarMateriais, listarSetores,
-  type ComponenteDto, type MaterialDto, type SetorDto,
+  type ComponenteDto, type ComponenteDetalheDto, type MaterialDto, type SetorDto,
 } from '../api/cadastros'
 import {
   listarFilhosPadrao, listarMateriaisPadrao, listarRoteiroPadrao,
@@ -21,6 +21,8 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { SeletorComBusca } from '../components/SeletorComBusca'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
+import { UploadDeSolido } from '../components/UploadDeSolido'
+import { VisualizadorDeSolido } from '../components/VisualizadorDeSolido'
 
 interface PropsDaSecao {
   idTitulo: string
@@ -115,9 +117,11 @@ export function ComponenteDetalhePage() {
 
   const podeEscrever = usePodeEscrever('componentes')
 
-  const [componente, setComponente] = useState<ComponenteDto | null>(null)
+  const [componente, setComponente] = useState<ComponenteDetalheDto | null>(null)
   const [carregandoComponente, setCarregandoComponente] = useState(true)
   const [erroComponente, setErroComponente] = useState<unknown>(null)
+  // Sobe a cada envio de sólido — ver `aoEnviarSolido`.
+  const [versaoDoSolido, setVersaoDoSolido] = useState(0)
 
   const [filhos, setFilhos] = useState<FilhoPadraoDto[]>([])
   const [carregandoFilhos, setCarregandoFilhos] = useState(true)
@@ -228,6 +232,26 @@ export function ComponenteDetalhePage() {
     listarSetores(false).then((s) => { if (!cancelado) setSetoresCadastro(s) }).catch(() => {})
     return () => { cancelado = true }
   }, [idValido, podeEscrever])
+
+  // Depois de um upload de sólido com sucesso, `temSolido`/nome/tamanho do estado ficam velhos —
+  // esta função relê o Componente, chamada por `aoEnviarSolido` (o `aoEnviar` do `UploadDeSolido`).
+  // Falha aqui é engolida de propósito: o upload em si já teve sucesso (é ele quem chamou `aoEnviar`), e
+  // um erro nesta releitura não desfaz isso — na pior hipótese a tela mostra os dados de antes até
+  // a próxima ação recarregar a página.
+  function recarregarComponente() {
+    obterComponente(componenteId).then(setComponente).catch(() => {})
+  }
+
+  // `versaoDoSolido` é a `key` do `VisualizadorDeSolido`. Substituir o sólido não muda `temSolido`
+  // (continua `true`), então sem a `key` o viewer aberto seguiria mostrando a geometria ANTIGA ao
+  // lado do nome do arquivo novo. Trocar a `key` desmonta o viewer velho — a limpeza dele libera os
+  // recursos de GPU — e monta um novo no estado inicial, que busca o arquivo novo no próximo clique
+  // em "Visualizar". Contador, e não nome/tamanho do arquivo: dois STL diferentes podem ter o mesmo
+  // nome e o mesmo tamanho.
+  function aoEnviarSolido() {
+    setVersaoDoSolido((versao) => versao + 1)
+    recarregarComponente()
+  }
 
   function aoAdicionarFilho() {
     const quantidade = Number(quantidadeFilho)
@@ -377,6 +401,28 @@ export function ComponenteDetalhePage() {
           </p>
         )}
       </div>
+
+      {/* O UploadDeSolido inteiro só renderiza sob `podeEscrever` (§7.1 da spec): quem não
+          escreve vê o sólido pelo VisualizadorDeSolido (Task 7), não por aqui. Gated também por
+          `componente` carregado — as props exigem `temSolido`/nome/tamanho, que só existem
+          depois da busca do componente (`obterComponente`) assentar. */}
+      {podeEscrever && !carregandoComponente && erroComponente === null && componente && (
+        <UploadDeSolido
+          componenteId={componenteId}
+          temSolido={componente.temSolido}
+          nomeDoSolido={componente.nomeDoSolido}
+          tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
+          aoEnviar={aoEnviarSolido}
+        />
+      )}
+
+      {/* FORA da guarda `podeEscrever` de propósito: o `GET /componentes/{id}/solido` que o
+          viewer consome é de qualquer perfil autenticado, e quem não escreve enxerga o sólido
+          por aqui, não pelo `UploadDeSolido`. Condicionado só a `temSolido` — sem arquivo, não
+          há o que visualizar. */}
+      {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
+        <VisualizadorDeSolido key={versaoDoSolido} componenteId={componenteId} />
+      )}
 
       <Secao
         idTitulo="titulo-filhos"

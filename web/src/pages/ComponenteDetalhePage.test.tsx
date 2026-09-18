@@ -4,9 +4,73 @@ import { render, screen, within, cleanup, fireEvent } from '@testing-library/rea
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { ComponenteDetalhePage } from './ComponenteDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
-import { respostaJson, fetchPorRota } from '../testes/api'
+import { respostaBinaria, respostaJson, fetchPorRota } from '../testes/api'
 
 afterEach(cleanup)
+
+// Dublês mínimos do three.js e dos três módulos de exemplo que o `VisualizadorDeSolido` importa
+// sob demanda — só o bastante para o viewer chegar ao estado pronto dentro da página (o jsdom não
+// tem WebGL). Quem prova o viewer em detalhe é `VisualizadorDeSolido.test.tsx`; aqui só importa o
+// que a PÁGINA faz com ele. Nenhum teste deste arquivo carrega os módulos sem clicar em
+// "Visualizar".
+vi.mock('three', () => {
+  class Objeto3D { position = { set: () => {} }; add() {} }
+  class Camera {
+    position = { set: () => {} }
+    aspect = 1
+    near = 0.1
+    far = 1
+    updateProjectionMatrix() {}
+  }
+  class Renderer {
+    domElement = document.createElement('canvas')
+    setSize() {}
+    render() {}
+    dispose() {}
+  }
+  class Cena extends Objeto3D { environment: unknown = null }
+  class Material { dispose() {} }
+  class Gerador { fromScene() { return { texture: { dispose() {} }, dispose() {} } } dispose() {} }
+  return {
+    Scene: Cena,
+    PerspectiveCamera: Camera,
+    DirectionalLight: Objeto3D,
+    Mesh: Objeto3D,
+    MeshStandardMaterial: Material,
+    WebGLRenderer: Renderer,
+    PMREMGenerator: Gerador,
+  }
+})
+vi.mock('three/examples/jsm/loaders/STLLoader.js', () => ({
+  STLLoader: class {
+    parse() {
+      const caixa = { min: { x: -1, y: -1, z: -1 }, max: { x: 1, y: 1, z: 1 } }
+      return {
+        boundingBox: caixa,
+        computeBoundingBox() {},
+        center() {},
+        computeVertexNormals() {},
+        dispose() {},
+      }
+    }
+  },
+}))
+vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
+  OrbitControls: class {
+    autoRotate = false
+    minDistance = 0
+    maxDistance = 0
+    update() {}
+    dispose() {}
+    reset() {}
+    position0 = { set() {} }
+    addEventListener() {}
+    removeEventListener() {}
+  },
+}))
+vi.mock('three/examples/jsm/environments/RoomEnvironment.js', () => ({
+  RoomEnvironment: class { dispose() {} },
+}))
 
 // O perfil da sessão governa o que a tela mostra (Task 11): `usePodeEscrever('componentes')`
 // esconde formulário e Salvar de cada seção. Molde de `PedidoDetalhePage.test.tsx`/`SetoresPage.test.tsx`
@@ -20,7 +84,10 @@ vi.mock('../auth/AuthContext', () => ({
   }),
 }))
 
-const COMPONENTE = { id: 7, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true }
+const COMPONENTE = {
+  id: 7, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true,
+  temSolido: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+}
 const FILHOS = [{ id: 1, componenteFilhoId: 3, codigo: 'PA-010', descricao: 'Parafuso M8', quantidadePadrao: 4 }]
 const MATERIAIS = [{ id: 2, materialId: 5, codigo: 'CH-3', descricao: 'Chapa 3mm', unidadeMedida: 'KG', quantidadePadrao: 1.5 }]
 const ROTEIRO = [
@@ -569,6 +636,126 @@ describe('ComponenteDetalhePage — escrita', () => {
     expect(await screen.findByText('PA-010')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /salvar/i })).toBeNull()
     expect(screen.queryByRole('combobox')).toBeNull()
+  })
+
+  /**
+   * Task 6 (Fase 2B): o `UploadDeSolido` inteiro é gated por `podeEscrever` (§7.1 da spec) — quem
+   * não escreve vê o sólido pelo `VisualizadorDeSolido` (Task 7), não por aqui. Mata se a guarda
+   * de `podeEscrever` em volta dele for removida.
+   */
+  it('Operador não vê o upload do sólido', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    await screen.findByText('PA-010')
+    expect(screen.queryByLabelText(/sólido/i)).toBeNull()
+  })
+
+  /**
+   * Task 7 (Fase 2B): o `VisualizadorDeSolido` fica FORA da guarda `podeEscrever` — o `GET` do
+   * sólido é de qualquer perfil autenticado, e quem não escreve enxerga o sólido pelo viewer, não
+   * pelo `UploadDeSolido`. Mata se o viewer entrar dentro da guarda `podeEscrever`.
+   */
+  it('Operador com sólido vê o botão de Visualizar, mas não o upload', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684 }) }))
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    await screen.findByText('PA-010')
+    expect(screen.getByRole('button', { name: /visualizar/i })).toBeTruthy()
+    expect(screen.queryByLabelText(/sólido/i)).toBeNull()
+  })
+
+  /**
+   * Mata se a condição `componente.temSolido` sumir do gating do viewer na tela: sem sólido não
+   * há o que visualizar, e o botão não deveria aparecer.
+   */
+  it('sem sólido, não mostra o botão de Visualizar', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+    renderizarNaRota('/componentes/7')
+
+    await screen.findByText('PA-010')
+    expect(screen.queryByRole('button', { name: /visualizar/i })).toBeNull()
+  })
+
+  /**
+   * A tela precisa RELER o Componente depois de um upload com sucesso — sem isso,
+   * `temSolido`/nome/tamanho ficam com os dados de antes (a interface mente). A prova é o efeito
+   * VISÍVEL: depois do envio, a tela mostra o que o SEGUNDO `GET /componentes/7` devolveu (nome de
+   * sólido que antes não existia), não só que algum `fetch` foi chamado. `/api/componentes/7`
+   * responde por um contador — 1ª chamada sem sólido, 2ª (e seguintes) com. Mata se
+   * `aoEnviarSolido` deixar de chamar `recarregarComponente`.
+   */
+  it('relê o componente depois de um upload de sólido com sucesso', async () => {
+    let chamadasComponente = 0
+    vi.stubGlobal('fetch', fetchPorRota({
+      ...LEITURAS,
+      '/api/componentes/7': () => {
+        chamadasComponente += 1
+        return chamadasComponente === 1
+          ? respostaJson(COMPONENTE)
+          : respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte-novo.stl', tamanhoDoSolidoEmBytes: 2048 })
+      },
+      '/api/componentes/7/solido': () => respostaJson({}),
+    }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+    expect(screen.getByText(/sem sólido/i)).toBeTruthy()
+
+    const arquivo = new File([new Uint8Array(10)], 'suporte-novo.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivo] } })
+
+    expect(await screen.findByText(/suporte-novo\.stl/)).toBeTruthy()
+    expect(chamadasComponente).toBeGreaterThanOrEqual(2)
+  })
+
+  /**
+   * Substituir o sólido com o viewer aberto: a tela relê o Componente, mas `temSolido` continua
+   * `true` — sem nada que reinicie o viewer, ele seguiria mostrando a geometria ANTIGA ao lado do
+   * nome do arquivo novo, e quem trocou o arquivo errado pelo certo concluiria que a troca não
+   * pegou. A prova é o viewer voltar ao estado inicial ("Visualizar" de novo, "Recentralizar" e o
+   * canvas fora da tela) e o sólido NÃO ser buscado de novo por conta própria — quem pede a
+   * geometria nova é o próximo clique.
+   */
+  it('substituir o sólido com o viewer aberto devolve o viewer ao estado inicial', async () => {
+    let chamadasComponente = 0
+    const metodosDoSolido: string[] = []
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido') {
+        metodosDoSolido.push(init?.method ?? 'GET')
+        return Promise.resolve(ehLeitura(init)
+          ? respostaBinaria(new Uint8Array(684), 'antigo.stl')
+          : new Response(null, { status: 204 }))
+      }
+      if (caminho === '/api/componentes/7') {
+        chamadasComponente += 1
+        return Promise.resolve(respostaJson({
+          ...COMPONENTE,
+          temSolido: true,
+          nomeDoSolido: chamadasComponente === 1 ? 'antigo.stl' : 'novo.stl',
+          tamanhoDoSolidoEmBytes: 684,
+        }))
+      }
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+
+    fireEvent.click(await screen.findByRole('button', { name: /visualizar/i }))
+    expect(await screen.findByRole('button', { name: /recentralizar/i })).toBeTruthy()
+    expect(screen.getByLabelText(/visualização 3d do sólido/i)).toBeTruthy()
+
+    const novo = new File([new Uint8Array(684)], 'novo.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido \(\.stl\)/i), { target: { files: [novo] } })
+
+    expect(await screen.findByText(/novo\.stl/)).toBeTruthy()
+    expect(await screen.findByRole('button', { name: /visualizar/i })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /recentralizar/i })).toBeNull()
+    expect(screen.queryByLabelText(/visualização 3d do sólido/i)).toBeNull()
+    expect(metodosDoSolido).toEqual(['GET', 'POST'])
   })
 
   /**

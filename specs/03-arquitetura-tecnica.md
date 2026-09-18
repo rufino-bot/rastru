@@ -118,22 +118,28 @@ reais de frequência.
 
 ## Banco de dados
 
-- SQL Server on-premise, conforme `02-modelo-de-dados.sql`.
+- SQL Server na VPS, conforme `02-modelo-de-dados.sql`.
 - Sugestão: ambiente de desenvolvimento local via Docker (`mcr.microsoft.com/mssql/server`)
-  para os agents/desenvolvedores rodarem o schema sem depender do servidor da empresa
-  durante o desenvolvimento; deploy final aponta para o servidor on-premise real.
+  para os agents/desenvolvedores rodarem o schema sem depender do banco da VPS
+  durante o desenvolvimento; deploy final aponta para a VPS.
 
-## Hospedagem on-premise
+## Hospedagem
+
+VPS paga com domínio próprio, escolhida em 2026-09-12. Motivo declarado pelo usuário: deixar o
+link de acesso do Rastru mais "produto" — em vez de um endereço de rede interna, um domínio
+próprio.
 
 - Backend: IIS (hosting model padrão .NET) ou container Docker + reverse proxy
-  (ex.: nginx), a definir conforme o que já existe de infraestrutura na empresa.
+  (ex.: nginx), a definir conforme o que a VPS oferecer.
 - Frontend: build estático (Vite build) servido pelo próprio IIS/nginx, ou embutido como
-  arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy on-premise
+  arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy numa VPS
   com uma única aplicação publicada. **Atenção de ordem de pipeline se for este o caminho:**
   `UseStaticFiles` / `MapFallbackToFile` precisam ser registrados **antes** da guarda do prefixo
   `/api` (ver abaixo e `Program.cs`) — ela é um 404 cego para tudo que não começa com `/api`, e
-  registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA. Hoje não se
-  aplica: não há `UseStaticFiles` em `src/`.
+  registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA. Numa VPS de
+  origem única (SPA e API na mesma aplicação publicada) esse caminho fica **mais** provável do
+  que quando a infraestrutura era decidida pela empresa. Hoje não se aplica: não há
+  `UseStaticFiles` em `src/`.
 - **Se o SPA e a API ficarem na mesma origem** (o segundo caso acima, e o mais provável: o cookie
   de refresh é `SameSite=Strict`, que inviabiliza cross-site), era obrigatório que os caminhos nus
   da API tivessem parado de responder antes do deploy — senão a colisão entre rota de SPA e rota
@@ -145,11 +151,56 @@ reais de frequência.
 ## CI/CD
 
 - **Não existe pipeline hoje.** Deploy inicial será manual — publicar build do backend
-  (IIS ou container) e do frontend direto no servidor on-premise. Automatizar (Azure
-  DevOps, GitHub Actions self-hosted, etc.) fica como melhoria futura, fora do MVP.
+  (IIS ou container) e do frontend direto na VPS. Automatizar (Azure DevOps, GitHub
+  Actions self-hosted, etc.) fica como melhoria futura, fora do MVP.
 
 ## Pontos em aberto
 
-Biblioteca de componentes React e estratégia de auth já resolvidas (ver acima). Resta apenas
-o hosting exato (IIS vs. container), que pode ser decidido no deploy sem bloquear o
-desenvolvimento.
+Biblioteca de componentes React (ver a seção "Frontend — React + TypeScript") e estratégia de auth
+(ver a seção "Autenticação e Autorização") já resolvidas. O hosting exato (IIS vs. container)
+dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento — mas não é mais o único
+ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem") torna exigíveis três itens de
+dívida de endurecimento — os dois primeiros porque é a **exposição pública** que os cria, o
+terceiro porque é um **deploy real** que o cobra, com ou sem exposição —, e os três carregam o
+mesmo gatilho, **obrigatório antes do primeiro deploy público**. O item 4 carrega o mesmo gatilho
+sem ser endurecimento: é condição para o upload de sólido funcionar atrás de um proxy.
+
+1. **TLS é pré-requisito de funcionamento, não melhoria.** O cookie de refresh é gravado com
+   `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP — **exceto em
+   `localhost`, que os navegadores tratam como contexto seguro mesmo sem TLS** (é por isso que o
+   refresh funciona em desenvolvimento; ver o comentário da entrada `/api` do proxy em
+   `web/vite.config.ts`). Um domínio próprio numa VPS não tem essa isenção: sem TLS ali, o login
+   funciona e o refresh **nunca**: a sessão morre em 15 minutos sem renovar, e o sintoma não aponta
+   para a causa. `UseHttpsRedirection` não existe em `src/`.
+2. **`ForwardedHeaders` não está configurado.** Com um proxy reverso na frente (nginx/Caddy), o
+   rate limit por IP do `/auth/login` vira global — todos os clientes passam a compartilhar o IP
+   do proxy — e o log de auth grava o IP do proxy em vez do cliente. As duas defesas continuam de
+   pé, mas passam a medir a coisa errada.
+3. **A `SigningKey` já tem o procedimento de validação certo — falta o de deploy.** O
+   `JwtOptionsValidator` já recusa, no startup (`.ValidateOnStart()`), o valor de placeholder
+   commitado e exige no mínimo 32 bytes: esquecer de trocá-la **derruba a aplicação ao subir**, não
+   fica como chave fraca em silêncio — o requisito de fornecê-la por variável de ambiente na VPS
+   continua valendo, com o mesmo gatilho de TLS e `ForwardedHeaders`; o que muda é o risco de
+   esquecer, não a obrigação.
+4. **O limite de corpo do proxy barra o upload de sólido.** Se o caminho for container + nginx, o
+   `client_max_body_size` do nginx tem de ser elevado acima do limite do endpoint de upload
+   (`POST /componentes/{id}/solido`: 16 MiB mais uma margem de 4 KiB). O padrão do nginx é **1 MiB**,
+   e acima dele o nginx responde 413 — isto é **documentação do nginx, não medição** (não houve
+   nginx no ambiente da Fase 2B). Sem o ajuste, todo upload com corpo acima de 1 MiB seria recusado
+   pelo proxy antes de chegar à API, e a tela não apontaria o proxy: mostraria o fallback "Envie um
+   arquivo .stl de até 16 MiB" se o 413 chegar ao navegador, ou "Sem conexão com o servidor" se não
+   chegar (a própria documentação do nginx avisa que navegadores não exibem esse erro corretamente)
+   — nos dois casos para quem enviou, digamos, 5 MB. É configuração de deploy, não código. Sob IIS,
+   o equivalente é o `maxAllowedContentLength` da filtragem de requisição, cujo padrão documentado
+   (30.000.000 bytes) já comporta o limite do endpoint — também não medido.
+
+**Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
+fila, em branch separada — decisão do usuário: misturar infraestrutura na branch da Fase 2B
+poluiria a review dela.
+
+Um último ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
+(seção "Defesas de autenticação em vigor", bullet "Lockout de conta") que retrancar conta não tem
+limite. Era risco de alguém na rede interna da empresa; numa VPS pública o mesmo ataque fica
+disponível a qualquer um na internet — a mudança de exposição está anotada junto daquele bullet.
+Não é para consertar nesta fase, e não carrega o gatilho de pré-deploy de TLS, `ForwardedHeaders`
+e `SigningKey`.

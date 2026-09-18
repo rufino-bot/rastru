@@ -67,11 +67,35 @@ reenvia e a sessão morre no primeiro refresh.
   `?pagina=1`, `?tamanho=20` (teto 100) *(qualquer perfil autenticado)*. Responde
   `{ itens, total, pagina, tamanho }`; `total` é contado com os mesmos filtros da página.
   Faixa fora do permitido responde 400; página além do fim responde 200 com `itens` vazio.
+  **Este documento não detalha os campos de cada item de `itens`** (nem detalhava antes da Fase
+  2B) — só o envelope da paginação; por isso `temSolido`, que o item de listagem carrega desde a
+  Fase 2B, não ganha bullet próprio aqui.
+- `GET /componentes/{id}` *(qualquer perfil autenticado)* — detalhe do Componente:
+  `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes }`
+  (os três últimos entraram na Fase 2B; antes só havia os cinco primeiros). `nomeDoSolido` e
+  `tamanhoDoSolidoEmBytes` são nulos **juntos** quando o Componente não tem sólido enviado, e
+  preenchidos **juntos** quando tem — nunca um só. `404` se o Componente não existir.
 - `POST /componentes` *(Administrador, PCP)* — `{ codigo, descricao, tipo }`, `tipo` em
   `Bruto | Fabricado | Montagem`
 - `PUT /componentes/{id}` *(Administrador, PCP)* — idem
 - `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
   Não existe `DELETE`: catálogo se inativa, não se exclui.
+- `POST /componentes/{id}/solido` *(Administrador, PCP)* — envia (ou **substitui**) o sólido 3D do
+  Componente. `multipart/form-data`, campo `arquivo`. Resposta **204**, sem corpo — o front busca
+  o detalhe de novo via `GET /componentes/{id}` para mostrar nome e tamanho. Falhas: `400`
+  (arquivo inválido — extensão, tamanho acima de 16 MiB ou estrutura de STL inválida; ver §5.1 de
+  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md`), `404` (Componente
+  inexistente), `403` (perfil sem escrita). **Corpo acima do limite do endpoint** (16 MiB mais uma
+  margem de 4 KiB para o overhead do multipart) **não tem uma resposta garantida**: o servidor
+  recusa, mas o que chega depende do cliente — com `curl` chega um 400 (medido em 2026-09-13); com
+  o `fetch` do Chromium e o `HttpClient` do .NET a conexão cai com o corpo ainda subindo e não
+  chega resposta nenhuma (medido em 2026-09-18); Firefox, Safari e o navegador do Android não
+  foram medidos. Por isso o front recusa o arquivo acima de 16 MiB antes de enviar — é essa
+  checagem, e não a resposta do servidor, que explica o tamanho ao usuário.
+- `GET /componentes/{id}/solido` *(qualquer perfil autenticado)* — `application/octet-stream`, com
+  `Content-Disposition` carregando o nome original do arquivo enviado. Serve o download **e** o
+  viewer 3D — um endpoint, dois consumidores. `404` quando o Componente não existe **ou** quando
+  existe mas não tem sólido enviado.
 - `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
   Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
   quantidadePadrao }[]`
@@ -170,7 +194,9 @@ perfil autenticado.)*
 - `POST /agrupamentos/{id}/estrutura` *(PCP, Administrador)* — cria a Peça (nó de topo), copiando a
   receita padrão a partir de um `Componente`. Body: `{ componenteId, quantidade,
   requerRelatorioDimensional }`. Sem opção de nó ad-hoc aqui: pela regra 18 toda Peça referencia um
-  `Componente` — só um Item (nó com pai) pode ser ad-hoc
+  `Componente` — só um Item (nó com pai) pode ser ad-hoc. Regra 18, segunda metade (cobrada desde
+  a Fase 2B): o `Componente` de origem precisa ter sólido 3D (`ArquivoSolidoId` preenchido) — sem
+  ele, 400; se o `Componente` não existir, 404 (ver "Contrato de erro da Estrutura")
 - `POST /estrutura/{id}/filhos` *(PCP, Administrador)* — acrescenta um Item filho ao nó `{id}`
   (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade }`.
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
@@ -237,7 +263,12 @@ de uma vez.
     o anterior, com mensagem genérica ("a quantidade informada, multiplicada pela receita,
     ultrapassa o que o sistema suporta", sem números); **não** é o mesmo caso do teto da coluna, e
     as duas frases não devem ser lidas como sinônimas;
-  - nó ad-hoc sem `Descricao`.
+  - nó ad-hoc sem `Descricao`;
+  - regra 18, segunda metade (cobrada desde a Fase 2B), só no
+    `POST /agrupamentos/{id}/estrutura`: o `Componente` de origem da Peça não tem sólido 3D. Corpo
+    `{ "erro": "Este Componente nao tem solido 3D (regra 18). Envie o arquivo STL no cadastro do
+    Componente antes de criar a Peca." }`
+    — sem `mensagem`, porque a falha não tem `Detalhe` (ver `Recusar` em `EstruturaController`).
 
   **Da validação de formato e de binding** (corpo malformado, `"quantidade": "abc"`), que é
   recusada antes de chegar ao caso de uso: o formato do ASP.NET, o mesmo que a seção "Contrato de
@@ -247,7 +278,10 @@ de uma vez.
 - **403** — perfil sem permissão, do `[Authorize(Roles = "PCP,Administrador")]` nas quatro rotas de
   escrita (os dois `POST`, o `PUT` e o `DELETE`) — mesmo formato do "Contrato de erro dos
   cadastros".
-- **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`) ou nó inexistente
+- **404** — Agrupamento inexistente (`GET`/`POST /agrupamentos/{id}/estrutura`), `Componente`
+  inexistente (`POST /agrupamentos/{id}/estrutura` — checado depois do Agrupamento, por convenção:
+  o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
+  e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
 - **409** — quatro códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do

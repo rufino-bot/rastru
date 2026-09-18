@@ -13,6 +13,7 @@ public class RastreamentoDbContext : DbContext
   public DbSet<Setor> Setores => Set<Setor>();
   public DbSet<Material> Materiais => Set<Material>();
   public DbSet<Componente> Componentes => Set<Componente>();
+  public DbSet<ArquivoDeComponente> ArquivosDeComponente => Set<ArquivoDeComponente>();
   public DbSet<ComponenteFilhoPadrao> FilhosPadrao => Set<ComponenteFilhoPadrao>();
   public DbSet<ComponenteMaterialPadrao> MateriaisPadrao => Set<ComponenteMaterialPadrao>();
   public DbSet<ComponenteRoteiroPadrao> RoteirosPadrao => Set<ComponenteRoteiroPadrao>();

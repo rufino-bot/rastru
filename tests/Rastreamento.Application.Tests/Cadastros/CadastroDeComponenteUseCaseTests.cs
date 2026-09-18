@@ -1,5 +1,6 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Tests.Arquivos;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -13,11 +14,21 @@ public class CadastroDeComponenteUseCaseTests
   private static Componente Linha(int id, string codigo, bool ativo = true) =>
       new() { Id = id, Codigo = codigo, Descricao = "Suporte", Tipo = "Fabricado", Ativo = ativo };
 
+  /// <summary>
+  /// Ponto unico de construcao do caso de uso. Nasceu na Task 4 da Fase 2B: quando o construtor
+  /// ganhou o repositorio de arquivos, 21 testes deste arquivo o instanciavam literalmente. O
+  /// helper existe para que a PROXIMA dependencia nova toque uma linha, nao vinte e uma -- o mesmo
+  /// papel do `Montar` de CriarPecaTests, e pelo mesmo motivo.
+  /// </summary>
+  private static CadastroDeComponenteUseCase Montar(
+      FakeComponenteRepo repo, FakeArquivoDeComponenteRepo? arquivos = null) =>
+      new(repo, arquivos ?? new FakeArquivoDeComponenteRepo());
+
   [Fact]
   public async Task Cadastra_componente_novo_ativo()
   {
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Cadastrar(Suporte(), CancellationToken.None);
 
@@ -41,7 +52,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Aceita_os_tres_tipos_do_check(string tipo)
   {
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Cadastrar(Suporte(tipo: tipo), CancellationToken.None);
 
@@ -59,7 +70,7 @@ public class CadastroDeComponenteUseCaseTests
     // errada e recusa. Se um dia isso virar comparacao case-insensitive, este caso morre e
     // obriga a decisao a ser explicita em vez de silenciosa.
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Cadastrar(Suporte(tipo: tipo), CancellationToken.None);
 
@@ -75,7 +86,7 @@ public class CadastroDeComponenteUseCaseTests
       string codigo, string descricao, string tipo)
   {
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Cadastrar(
         new NovoComponenteDto(codigo, descricao, tipo), CancellationToken.None);
@@ -89,7 +100,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Codigo_duplicado_e_conflito_e_nao_escreve_nada()
   {
     var repo = new FakeComponenteRepo(Linha(3, "SUP-001"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Cadastrar(Suporte(), CancellationToken.None);
 
@@ -102,7 +113,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Editar_componente_inexistente_e_nao_encontrado()
   {
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Editar(99, Suporte(), CancellationToken.None);
 
@@ -115,7 +126,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Editar_mantendo_o_proprio_codigo_nao_e_conflito_e_persiste()
   {
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Editar(
         1, new NovoComponenteDto("SUP-001", "Suporte reforcado", "Montagem"),
@@ -136,7 +147,7 @@ public class CadastroDeComponenteUseCaseTests
     // a atribuicao `componente.Codigo = codigo;`. Este troca para um codigo LIVRE e assere que o
     // codigo novo persistiu — sem isto, apagar aquela linha ainda passa em 128/128.
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Editar(
         1, new NovoComponenteDto("SUP-009", "Suporte lateral", "Fabricado"), CancellationToken.None);
@@ -150,7 +161,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Editar_para_codigo_de_outro_componente_e_conflito()
   {
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"), Linha(2, "SUP-002"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Editar(2, Suporte(), CancellationToken.None);
 
@@ -163,7 +174,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Editar_com_tipo_invalido_e_erro_de_validacao()
   {
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Editar(1, Suporte(tipo: "Errado"), CancellationToken.None);
 
@@ -176,7 +187,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Definir_ativo_false_inativa_e_persiste()
   {
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.DefinirAtivo(1, false, CancellationToken.None);
 
@@ -192,7 +203,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Definir_ativo_true_reativa_e_persiste()
   {
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001", ativo: false));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.DefinirAtivo(1, true, CancellationToken.None);
 
@@ -206,7 +217,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Definir_ativo_em_componente_inexistente_e_nao_encontrado()
   {
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.DefinirAtivo(99, true, CancellationToken.None);
 
@@ -222,7 +233,7 @@ public class CadastroDeComponenteUseCaseTests
     // — ou um id preso — passaria verde. `Saves == 0` porque leitura nao commita: sem isso,
     // acrescentar um `SalvarAlteracoesAsync` ao caminho de leitura ficaria despercebido.
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"), Linha(2, "SUP-002", ativo: false));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Obter(2, CancellationToken.None);
 
@@ -237,11 +248,57 @@ public class CadastroDeComponenteUseCaseTests
     Assert.Equal(0, repo.Saves);
   }
 
+  /// <summary>
+  /// FakeComponenteRepo NAO expoe um indexador `Componentes` (ele guarda as linhas numa lista
+  /// privada) -- por isso o `ArquivoSolidoId` e atribuido no objeto ANTES de construir o repo, e
+  /// nao depois por um `repo.Componentes[7]...` que nao compilaria. O
+  /// objeto passado ao construtor e o MESMO que a lista interna referencia, entao a mutacao previa
+  /// e visivel para o caso de uso do mesmo jeito.
+  /// </summary>
+  [Fact]
+  public async Task Obter_de_componente_com_solido_traz_nome_e_tamanho()
+  {
+    var componente = Linha(7, "PEC-007");
+    componente.ArquivoSolidoId = 99;
+    var repo = new FakeComponenteRepo(componente);
+    var arquivos = new FakeArquivoDeComponenteRepo();
+    // SolidoPorComponente, e nao MetadadoPorComponente (que nao existe no fake da Task 3):
+    // ObterMetadadoDoSolidoAsync ja deriva o metadado a partir deste dicionario.
+    arquivos.SolidoPorComponente[7] = new ArquivoDeComponente
+    {
+      NomeOriginal = "cubo.stl",
+      Conteudo = new byte[684],
+      CriadoPorUsuarioId = 1,
+    };
+
+    var resultado = await Montar(repo, arquivos).Obter(7, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.True(resultado.Valor!.TemSolido);
+    Assert.Equal("cubo.stl", resultado.Valor.NomeDoSolido);
+    Assert.Equal(684, resultado.Valor.TamanhoDoSolidoEmBytes);
+  }
+
+  [Fact]
+  public async Task Obter_de_componente_sem_solido_deixa_os_dois_campos_nulos()
+  {
+    var repo = new FakeComponenteRepo(Linha(7, "PEC-007"));
+
+    var resultado = await Montar(repo).Obter(7, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.False(resultado.Valor!.TemSolido);
+    // Os DOIS nulos, nao so um: campo de solido preenchido sem TemSolido (ou o inverso) seria
+    // estado impossivel vazando no contrato.
+    Assert.Null(resultado.Valor.NomeDoSolido);
+    Assert.Null(resultado.Valor.TamanhoDoSolidoEmBytes);
+  }
+
   [Fact]
   public async Task Obter_componente_inexistente_e_nao_encontrado()
   {
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Obter(99, CancellationToken.None);
 
@@ -262,7 +319,7 @@ public class CadastroDeComponenteUseCaseTests
     // O banco NAO tem rede de seguranca nenhuma para isto (nao ha CHECK de faixa), entao pelo
     // adendo B14 a mesma propriedade tambem ganha teste no nivel HTTP na Task 3.
     var repo = new FakeComponenteRepo();
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var resultado = await useCase.Listar(null, false, pagina, tamanho, CancellationToken.None);
 
@@ -275,7 +332,7 @@ public class CadastroDeComponenteUseCaseTests
   {
     // Controle de escopo do teste acima: 100 exato PASSA. Sem este par, trocar `> 100` por
     // `>= 100` ficaria verde.
-    var useCase = new CadastroDeComponenteUseCase(new FakeComponenteRepo());
+    var useCase = Montar(new FakeComponenteRepo());
 
     var resultado = await useCase.Listar(null, false, 1, 100, CancellationToken.None);
 
@@ -289,7 +346,7 @@ public class CadastroDeComponenteUseCaseTests
     // Prova o que o caso de uso TRADUZ, nao o que o fake devolve: sem isto, ignorar `busca` ou
     // trocar `pagina` por 1 fixo passaria despercebido.
     var repo = new FakeComponenteRepo(Linha(1, "SUP-001"), Linha(2, "SUP-002"), Linha(3, "SUP-003"));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     // Pagina e tamanho DIFERENTES de proposito (adendo B15): com o mesmo numero nos dois, uma
     // transposicao de `pagina`/`tamanho` na montagem do FiltroDeComponente fica invisivel aqui.
@@ -311,7 +368,7 @@ public class CadastroDeComponenteUseCaseTests
   public async Task Localiza_duplicado_inativo_apontando_o_campo_codigo()
   {
     var repo = new FakeComponenteRepo(Linha(9, "SUP-001", ativo: false));
-    var useCase = new CadastroDeComponenteUseCase(repo);
+    var useCase = Montar(repo);
 
     var duplicado = await useCase.LocalizarDuplicado("SUP-001", CancellationToken.None);
 
@@ -324,7 +381,7 @@ public class CadastroDeComponenteUseCaseTests
   [Fact]
   public async Task Localiza_duplicado_devolve_nulo_quando_codigo_e_livre()
   {
-    var useCase = new CadastroDeComponenteUseCase(new FakeComponenteRepo());
+    var useCase = Montar(new FakeComponenteRepo());
 
     Assert.Null(await useCase.LocalizarDuplicado("SUP-001", CancellationToken.None));
   }
@@ -335,7 +392,7 @@ public class CadastroDeComponenteUseCaseTests
     // Adendo B9: o `?? string.Empty` de `Normalizar` existe porque o desserializador de JSON
     // entrega null mesmo em propriedade nao-anulavel. Sem esta assercao a guarda vira disciplina
     // de codigo — trocar `Normalizar(codigo)` por `codigo.Trim()` pelado nao quebraria nada.
-    var useCase = new CadastroDeComponenteUseCase(new FakeComponenteRepo());
+    var useCase = Montar(new FakeComponenteRepo());
 
     Assert.Null(await useCase.LocalizarDuplicado(null!, CancellationToken.None));
   }

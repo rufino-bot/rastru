@@ -222,6 +222,17 @@ export interface ComponenteDto {
   descricao: string
   tipo: string
   ativo: boolean
+  temSolido: boolean
+}
+
+/**
+ * Detalhe de um Componente — o `GET /componentes/{id}` devolve isto, não `ComponenteDto` (que
+ * segue servindo a listagem). Espelha `ComponenteDetalheDto` do backend (Task 4): os dois campos
+ * novos são anuláveis JUNTOS — nulos quando o Componente não tem sólido.
+ */
+export interface ComponenteDetalheDto extends ComponenteDto {
+  nomeDoSolido: string | null
+  tamanhoDoSolidoEmBytes: number | null
 }
 
 /** Lista fechada de `CK_Componente_Tipo` — diferente de `unidadeMedida`, que é texto livre. */
@@ -272,10 +283,10 @@ export async function listarComponentes(
  * Componente inativo responde 200 (o backend não filtra por `Ativo` aqui), então a tela decide
  * o que mostrar; quem esconde inativo é a listagem, via `incluirInativos`.
  */
-export async function obterComponente(id: number): Promise<ComponenteDto> {
+export async function obterComponente(id: number): Promise<ComponenteDetalheDto> {
   const resp = await apiFetch(`/componentes/${id}`)
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o componente (${resp.status}).`)
-  return (await resp.json()) as ComponenteDto
+  return (await resp.json()) as ComponenteDetalheDto
 }
 
 /** O único 409 possível aqui é `ValorDuplicado` sobre `codigo` (UQ_Componente_Codigo). */
@@ -302,3 +313,41 @@ export async function definirAtivoComponente(id: number, ativo: boolean): Promis
 // PUT /componentes/{id} existe e esta testado no backend (Task 3), mas a tela de Componentes nao
 // tem UI de edicao — exportar a funcao sem chamador seria codigo morto. Ela nasce junto com a
 // tela que a usar.
+
+/**
+ * O caminho do binário do sólido, SEM o prefixo `/api` — quem o aplica é o `rota()` de
+ * `client.ts`. Exportado em vez de embutido nos dois consumidores (upload e viewer) para a rota
+ * existir num lugar só.
+ */
+export function caminhoDoSolido(componenteId: number): string {
+  return `/componentes/${componenteId}/solido`
+}
+
+/**
+ * Maior sólido aceito, em bytes: 16 MiB. Espelha `ValidadorDeArquivoStl.TamanhoMaximoEmBytes` do
+ * backend — mudou lá, muda aqui — e com a mesma fronteira: lá o arquivo é recusado quando PASSA do
+ * limite, então um arquivo de exatamente este tamanho é aceito.
+ *
+ * Existe no front porque o 400 do backend não chega ao navegador quando o arquivo é grande: acima
+ * do `[RequestSizeLimit]` do endpoint o servidor fecha a conexão enquanto o corpo ainda sobe, e o
+ * `fetch` rejeita sem resposta (medido no Chromium; ver o XML doc de
+ * `ComponentesController.EnviarSolido`). Recusar aqui, antes de enviar, é o que deixa a tela dizer
+ * que o problema é o tamanho — e poupa subir dezenas de MB só para ouvir "não".
+ */
+export const TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES = 16 * 1024 * 1024
+
+/**
+ * Envia (ou substitui) o sólido. `FormData` sem `Content-Type` explícito de propósito: quem põe o
+ * boundary é o browser, e fixar o header à mão produz um corpo que o servidor não consegue
+ * separar. O `apiFetch` não fixa `Content-Type`, então não há nada a remover.
+ *
+ * Sem `detalhe` no `ErroDeApi` de propósito: as mensagens do `ValidadorDeArquivoStl` são ASCII sem
+ * acento ("extensao", "esta vazio"), e mostrá-las na tela poria português errado na interface —
+ * quem explica o 400 ao usuário é o fallback de `UploadDeSolido`, não o servidor.
+ */
+export async function enviarSolido(componenteId: number, arquivo: File): Promise<void> {
+  const corpo = new FormData()
+  corpo.append('arquivo', arquivo)
+  const resp = await apiFetch(caminhoDoSolido(componenteId), { method: 'POST', body: corpo })
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao enviar o sólido (${resp.status}).`)
+}

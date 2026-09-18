@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 
 namespace Rastreamento.Api.Tests;
@@ -26,9 +27,23 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
   {
     using var escopo = _factory.Services.CreateScope();
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+
+    var componentes = new List<Componente>();
     foreach (var prefixo in _prefixosCriados)
-      db.Componentes.RemoveRange(
-          await db.Componentes.Where(c => c.Codigo.StartsWith(prefixo)).ToListAsync());
+      componentes.AddRange(await db.Componentes.Where(c => c.Codigo.StartsWith(prefixo)).ToListAsync());
+    // Ids do solido ANTES de apagar o Componente (Task 4 da Fase 2B): sem navegacao entre as duas
+    // entidades o EF nao ordena os deletes sozinho -- mesmo motivo de
+    // ArquivoDeComponenteRepositoryTests.LimparAsync e de SolidoEndpointsTests.DisposeAsync.
+    var arquivoIds = componentes
+        .Where(c => c.ArquivoSolidoId is not null)
+        .Select(c => c.ArquivoSolidoId!.Value)
+        .ToList();
+
+    db.Componentes.RemoveRange(componentes);
+    await db.SaveChangesAsync();
+
+    db.ArquivosDeComponente.RemoveRange(
+        await db.ArquivosDeComponente.Where(a => arquivoIds.Contains(a.Id)).ToListAsync());
     await db.SaveChangesAsync();
   }
 
@@ -105,14 +120,57 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
-    // Os CINCO campos do ComponenteDto, nao so um: e a unica prova ponta a ponta de que o
-    // `Obter` reusa a mesma projecao da listagem. Um campo faltando no JSON quebra a Task 10,
-    // que le o cabecalho da tela de detalhe daqui.
+    // Os OITO campos do ComponenteDetalheDto (a Task 4 da Fase 2B trocou o tipo de retorno de
+    // `Obter`, de `ComponenteDto` para `ComponenteDetalheDto`), nao so os cinco antigos: e a
+    // unica prova ponta a ponta de que o `Obter` monta o detalhe certo. Um campo faltando no JSON
+    // quebra a tela de detalhe do Componente, que le o cabecalho daqui (quem a construiu foi a
+    // Task 10 da FASE 1C -- nao existe Task 10 na Fase 2B).
     Assert.Equal(id, corpo.GetProperty("id").GetInt32());
     Assert.Equal(codigo, corpo.GetProperty("codigo").GetString());
     Assert.Equal("Suporte lateral", corpo.GetProperty("descricao").GetString());
     Assert.Equal("Fabricado", corpo.GetProperty("tipo").GetString());
     Assert.True(corpo.GetProperty("ativo").GetBoolean());
+    // Par negativo do caso "com solido" de SolidoEndpointsTests: componente recem-cadastrado NAO
+    // tem solido, e os dois campos de nome/tamanho devem vir nulos
+    // (`CadastroDeComponenteUseCaseTests.Obter_de_componente_sem_solido_deixa_os_dois_campos_nulos`
+    // ja prova isso no nivel de Application -- aqui e o mesmo contrato
+    // ponta a ponta, pelo JSON de verdade).
+    Assert.False(corpo.GetProperty("temSolido").GetBoolean());
+    Assert.Equal(JsonValueKind.Null, corpo.GetProperty("nomeDoSolido").ValueKind);
+    Assert.Equal(JsonValueKind.Null, corpo.GetProperty("tamanhoDoSolidoEmBytes").ValueKind);
+  }
+
+  /// <summary>
+  /// O caminho HTTP inteiro do detalhe COM solido -- par positivo de
+  /// `Obter_componente_devolve_o_que_foi_cadastrado` (que prova o caso SEM solido). Prova que
+  /// `ComponentesController.Obter` devolve `ComponenteDetalheDto` serializado com os campos de
+  /// solido preenchidos quando o Componente aponta para um `ArquivoDeComponente` de verdade, e nao
+  /// so o caso de uso isolado (que ja tem cobertura em
+  /// `CadastroDeComponenteUseCaseTests.Obter_de_componente_com_solido_traz_nome_e_tamanho`).
+  /// </summary>
+  [Fact]
+  public async Task Obter_de_componente_com_solido_traz_temSolido_e_metadado_no_JSON()
+  {
+    var cliente = ClienteComo("Administrador");
+    var codigo = $"{NovoPrefixo()}-a";
+    var criado = await cliente.PostAsJsonAsync("/api/componentes", CorpoValido(codigo));
+    var id = await IdDaResposta(criado);
+    using (var corpoMultipart = new MultipartFormDataContent())
+    {
+      var arquivo = new ByteArrayContent(StlDeTesteDaApi.CuboBinario());
+      arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+      corpoMultipart.Add(arquivo, "arquivo", "cubo.stl");
+      var envio = await cliente.PostAsync($"/api/componentes/{id}/solido", corpoMultipart);
+      Assert.Equal(HttpStatusCode.NoContent, envio.StatusCode);
+    }
+
+    var resposta = await cliente.GetAsync($"/api/componentes/{id}");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.True(corpo.GetProperty("temSolido").GetBoolean());
+    Assert.Equal("cubo.stl", corpo.GetProperty("nomeDoSolido").GetString());
+    Assert.Equal(684, corpo.GetProperty("tamanhoDoSolidoEmBytes").GetInt32());
   }
 
   [Fact]

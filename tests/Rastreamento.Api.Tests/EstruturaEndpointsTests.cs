@@ -66,7 +66,21 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     db.Agrupamentos.RemoveRange(await db.Agrupamentos.Where(a => pedidoIds.Contains(a.PedidoId)).ToListAsync());
     await db.SaveChangesAsync();
 
-    db.Componentes.RemoveRange(await db.Componentes.Where(c => _componentesCriados.Contains(c.Id)).ToListAsync());
+    // Componente antes de ArquivoDeComponente: quem tem a FK e Componente
+    // (FK_Componente_ArquivoSolido), mesma ordem de SolidoEndpointsTests.DisposeAsync. Os
+    // ArquivoSolidoId sao capturados ANTES do RemoveRange -- as instancias em memoria continuam
+    // legiveis depois, mas capturar antes deixa a intencao explicita.
+    var componentes = await db.Componentes.Where(c => _componentesCriados.Contains(c.Id)).ToListAsync();
+    var arquivoIds = componentes
+        .Where(c => c.ArquivoSolidoId is not null)
+        .Select(c => c.ArquivoSolidoId!.Value)
+        .ToList();
+
+    db.Componentes.RemoveRange(componentes);
+    await db.SaveChangesAsync();
+
+    db.ArquivosDeComponente.RemoveRange(
+        await db.ArquivosDeComponente.Where(a => arquivoIds.Contains(a.Id)).ToListAsync());
     await db.SaveChangesAsync();
 
     db.Pedidos.RemoveRange(pedidos);
@@ -81,14 +95,51 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     return cliente;
   }
 
+  /// <summary>
+  /// COM solido (regra 18, Task 5): ponto unico, entao toda Peca criada por um teste desta classe
+  /// que nao arranja o proprio cenario tem de onde nascer sem a guarda nova recusar. Grava o
+  /// `ArquivoDeComponente` primeiro (`CriadoPorUsuarioId = 1`, o `admin` do seed -- mesmo usuario
+  /// que `TokenDeTeste.Emitir` usa por padrao para o `sub` da autoria de Pedido) e liga
+  /// `ArquivoSolidoId` ao Componente. Quem quer o caso negativo (sem solido) usa
+  /// <see cref="NovoComponenteSemSolido"/>.
+  /// </summary>
   private async Task<int> NovoComponente(string prefixo = "ES")
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var arquivo = new ArquivoDeComponente
+    {
+      NomeOriginal = "cubo.stl", Conteudo = StlDeTesteDaApi.CuboBinario(), CriadoPorUsuarioId = 1,
+    };
+    db.ArquivosDeComponente.Add(arquivo);
+    await db.SaveChangesAsync();
+
+    var c = new Componente
+    {
+      Codigo = $"{prefixo}-{Guid.NewGuid():N}"[..12],
+      Descricao = "Componente de teste da estrutura",
+      Tipo = "Fabricado",
+      Ativo = true,
+      ArquivoSolidoId = arquivo.Id,
+    };
+    db.Componentes.Add(c);
+    await db.SaveChangesAsync();
+    _componentesCriados.Add(c.Id);
+    return c.Id;
+  }
+
+  /// <summary>
+  /// SEM solido -- usado so por `Post_de_Peca_com_Componente_sem_solido_da_400_regra_18`, para
+  /// provar a regra 18 no nivel HTTP e nao so no caso de uso.
+  /// </summary>
+  private async Task<int> NovoComponenteSemSolido(string prefixo = "ES")
   {
     using var escopo = _factory.Services.CreateScope();
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
     var c = new Componente
     {
       Codigo = $"{prefixo}-{Guid.NewGuid():N}"[..12],
-      Descricao = "Componente de teste da estrutura",
+      Descricao = "Componente de teste da estrutura, sem solido",
       Tipo = "Fabricado",
       Ativo = true,
     };
@@ -144,6 +195,24 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal("Peca", corpo.GetProperty("nivelHierarquico").GetString());
     Assert.True(corpo.GetProperty("requerRelatorioDimensional").GetBoolean());
     Assert.Empty(corpo.GetProperty("filhos").EnumerateArray());
+  }
+
+  [Fact]
+  public async Task Post_de_Peca_com_Componente_sem_solido_da_400_regra_18()
+  {
+    // Componente criado SEM passar pelo helper `NovoComponente` (que liga ArquivoSolidoId), para
+    // provar a regra no nivel HTTP e nao so no caso de uso.
+    var cliente = ClienteComo("PCP");
+    var pedidoId = await NovoPedido(cliente);
+    var agrupamentoId = await NovoAgrupamento(cliente, pedidoId);
+    var componenteId = await NovoComponenteSemSolido();
+
+    var resposta = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId));
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Contains("solido", corpo.GetProperty("erro").GetString(), StringComparison.OrdinalIgnoreCase);
   }
 
   [Fact]

@@ -34,9 +34,14 @@ public sealed class CadastroDeComponenteUseCase
       "Pagina deve ser 1 ou maior e tamanho deve estar entre 1 e 100.";
 
   private readonly IComponenteRepository _repositorio;
+  private readonly IArquivoDeComponenteRepository _arquivos;
 
-  public CadastroDeComponenteUseCase(IComponenteRepository repositorio) =>
-      _repositorio = repositorio;
+  public CadastroDeComponenteUseCase(
+      IComponenteRepository repositorio, IArquivoDeComponenteRepository arquivos)
+  {
+    _repositorio = repositorio;
+    _arquivos = arquivos;
+  }
 
   public async Task<Result<ComponenteDto>> Cadastrar(NovoComponenteDto novo, CancellationToken ct)
   {
@@ -116,12 +121,24 @@ public sealed class CadastroDeComponenteUseCase
   /// componente inativo responde 200, nao 404.
   /// </para>
   /// </summary>
-  public async Task<Result<ComponenteDto>> Obter(int id, CancellationToken ct)
+  public async Task<Result<ComponenteDetalheDto>> Obter(int id, CancellationToken ct)
   {
     var componente = await _repositorio.ObterPorIdAsync(id, ct);
-    return componente is null
-        ? Result<ComponenteDto>.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado)
-        : Result<ComponenteDto>.Ok(Projetar(componente));
+    if (componente is null)
+      return Result<ComponenteDetalheDto>.Falha(
+          ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
+
+    // Segunda consulta so no DETALHE, nunca na listagem, e so quando ha solido: o curto-circuito
+    // pelo ArquivoSolidoId poupa a ida ao banco no caso comum de componente sem solido. Quem traz
+    // nome e tamanho SEM tocar no blob e ObterMetadadoDoSolidoAsync, que projeta em vez de
+    // materializar a entidade.
+    var metadado = componente.ArquivoSolidoId is null
+        ? null
+        : await _arquivos.ObterMetadadoDoSolidoAsync(id, ct);
+
+    return Result<ComponenteDetalheDto>.Ok(new ComponenteDetalheDto(
+        componente.Id, componente.Codigo, componente.Descricao, componente.Tipo, componente.Ativo,
+        componente.ArquivoSolidoId is not null, metadado?.NomeOriginal, metadado?.TamanhoEmBytes));
   }
 
   /// <summary>Cobre inativar e reativar — o mesmo endpoint `PATCH /componentes/{id}/ativo`.</summary>
@@ -173,5 +190,5 @@ public sealed class CadastroDeComponenteUseCase
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
   private static ComponenteDto Projetar(Componente c) =>
-      new(c.Id, c.Codigo, c.Descricao, c.Tipo, c.Ativo);
+      new(c.Id, c.Codigo, c.Descricao, c.Tipo, c.Ativo, c.ArquivoSolidoId is not null);
 }

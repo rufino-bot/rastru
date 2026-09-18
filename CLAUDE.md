@@ -17,9 +17,9 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 
 - **Backend**: .NET (C#), ASP.NET Core Web API
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA no MVP)
-- **Banco**: SQL Server, on-premise
+- **Banco**: SQL Server, numa VPS paga com domínio próprio
 - **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
-- **CI/CD**: nenhum ainda — deploy manual no MVP
+- **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
 
 ## Mapa da pasta `specs/`
 
@@ -262,17 +262,25 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   leitor de tela vê, e um `data-testid` no lugar dele esconde regressão de acessibilidade. É
   aceitável quando o alvo é um **contêiner sem papel** que o teste precisa nomear — a `div` de uma
   linha ou do bloco de ações —, ou um elemento cujo papel existe mas **não distingue** (um `<form>`
-  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **4 usos em 2 arquivos**
-  (medido em 2026-09-07 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`):
-  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, e `painel-de-escrita` na
-  `AgrupamentoDetalhePage`. A regra é escrita porque o segundo consumidor **já chegou** e nada no
-  documento dizia quando o primeiro valia — mesmo desenho de risco da exceção do "botão de chrome",
-  resolvido do mesmo jeito: escrevendo.
+  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **5 usos em 3 arquivos**
+  (medido em 2026-09-17 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`,
+  remedido depois de 2026-09-07 porque um terceiro arquivo passou a usar o atributo):
+  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, `painel-de-escrita` na
+  `AgrupamentoDetalhePage`, e `container-do-visualizador` na `VisualizadorDeSolido` (nomeia o `<div>`
+  contêiner que recebe o `<canvas>` do Three.js — sem papel ARIA nem texto estável antes do clique em
+  "Visualizar", quando o `<canvas>` com `aria-label` ainda não existe). A regra é escrita porque o
+  segundo consumidor **já chegou** e nada no documento dizia quando o primeiro valia — mesmo desenho
+  de risco da exceção do "botão de chrome", resolvido do mesmo jeito: escrevendo. O terceiro
+  consumidor é só mais uma medição — a contagem é de uma data, não uma cota, e quem a atualizar de
+  novo remede com o mesmo comando e diz a data nova.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
-  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **um** consumidor
-  (a receita padrão em `ComponenteDetalhePage`) — o bastante para nomear a primitiva certa, não
-  para chamá-la de padrão já consolidado em várias telas.
+  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **duas** telas
+  consumidoras, com **três** usos (medido em 2026-09-18 com
+  `grep -rn "<SeletorComBusca" web/src --include=*.tsx | grep -v "\.test\."`): na
+  `AgrupamentoDetalhePage`, o formulário de criar Peça e o painel de acrescentar filho; na
+  `ComponenteDetalhePage`, a receita padrão — o bastante para nomear a primitiva certa, não para
+  chamá-la de padrão já consolidado.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
@@ -603,6 +611,49 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_EstruturaItem_PecaTemComponente') ALTER TABLE dbo.EstruturaItem ADD CONSTRAINT CK_EstruturaItem_PecaTemComponente CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL);"
 ```
 
+Na Fase 2B entra o schema do sólido em blob (ver `02-modelo-de-dados.sql`, tabela
+`dbo.ArquivoDeComponente`). **Estes três blocos também NÃO são no-op nesta máquina**, pelo mesmo
+motivo do bloco da constraint `CK_EstruturaItem_PecaTemComponente`: o banco foi regenerado em
+2026-08-04, antes de este schema existir. **`TamanhoEmBytes` e `Sha256` já nascem como colunas
+calculadas** no `CREATE TABLE` abaixo — quem aplicar este bloco pela primeira vez não precisa do
+bloco de conversão seguinte.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF OBJECT_ID('dbo.ArquivoDeComponente') IS NULL CREATE TABLE dbo.ArquivoDeComponente (Id INT IDENTITY(1,1) NOT NULL, NomeOriginal NVARCHAR(260) NOT NULL, Conteudo VARBINARY(MAX) NOT NULL, TamanhoEmBytes AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED, Sha256 AS CAST(HASHBYTES('SHA2_256', Conteudo) AS BINARY(32)) PERSISTED, CriadoEm DATETIME2 NOT NULL CONSTRAINT DF_ArquivoDeComponente_CriadoEm DEFAULT (SYSUTCDATETIME()), CriadoPorUsuarioId INT NOT NULL, CONSTRAINT PK_ArquivoDeComponente PRIMARY KEY CLUSTERED (Id), CONSTRAINT FK_ArquivoDeComponente_CriadoPorUsuario FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario(Id), CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0));"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Componente','ArquivoSolidoId') IS NULL ALTER TABLE dbo.Componente ADD ArquivoSolidoId INT NULL CONSTRAINT FK_Componente_ArquivoSolido FOREIGN KEY REFERENCES dbo.ArquivoDeComponente(Id);"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.Componente','ArquivoSolido') IS NOT NULL ALTER TABLE dbo.Componente DROP COLUMN ArquivoSolido;"
+```
+
+**Emenda de 2026-09-12** (decisão do usuário, durante o fix pass da Task 2 da Fase 2B):
+`TamanhoEmBytes` e `Sha256` viraram colunas **calculadas `PERSISTED`** — ver §4.1 da spec de Fase 2B
+para o raciocínio. Quem tiver um banco em que a Task 1 já rodou com as duas como colunas comuns
+converte com o bloco abaixo, **nesta ordem** (o `CHECK` depende da coluna, por isso vem primeiro o
+`DROP CONSTRAINT` e por último o `ADD CONSTRAINT`). Idempotente: uma coluna já computed não é
+recriada. **Medido nesta máquina, 2026-09-12** — `HASHBYTES('SHA2_256', ...)` sem `CAST` produz
+`VARBINARY(8000)`, não `BINARY(32)`; o `CAST` para `BINARY(32)` é o que preserva o tipo fixo que o
+mapeamento EF espera (achado além das cinco medições que a spec já trazia).
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ArquivoDeComponente_Tamanho') ALTER TABLE dbo.ArquivoDeComponente DROP CONSTRAINT CK_ArquivoDeComponente_Tamanho;"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COLUMNPROPERTY(OBJECT_ID('dbo.ArquivoDeComponente'), 'TamanhoEmBytes', 'IsComputed') = 0 ALTER TABLE dbo.ArquivoDeComponente DROP COLUMN TamanhoEmBytes; IF COLUMNPROPERTY(OBJECT_ID('dbo.ArquivoDeComponente'), 'Sha256', 'IsComputed') = 0 ALTER TABLE dbo.ArquivoDeComponente DROP COLUMN Sha256;"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF COL_LENGTH('dbo.ArquivoDeComponente', 'TamanhoEmBytes') IS NULL ALTER TABLE dbo.ArquivoDeComponente ADD TamanhoEmBytes AS CAST(DATALENGTH(Conteudo) AS INT) PERSISTED; IF COL_LENGTH('dbo.ArquivoDeComponente', 'Sha256') IS NULL ALTER TABLE dbo.ArquivoDeComponente ADD Sha256 AS CAST(HASHBYTES('SHA2_256', Conteudo) AS BINARY(32)) PERSISTED;"
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
+  -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ArquivoDeComponente_Tamanho') ALTER TABLE dbo.ArquivoDeComponente ADD CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0);"
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
@@ -635,7 +686,13 @@ First, o `.sql` é a fonte de verdade.
   apagando uma trava recém-criada; benigno, porque quem venceu a race provou a senha certa. O que
   **não** acontece: uma trava que nunca libera. O timestamp da trava é capturado antes do BCrypt
   rodar, então uma requisição atrasada só consegue estender a trava pela duração dela mesma, nunca
-  travar por mais tempo que isso.
+  travar por mais tempo que isso. **Exposição mudou de tamanho com a VPS pública (2026-09-12):** o
+  retrancamento sem limite descrito neste bullet ("de um único IP") descrevia alguém na rede
+  interna da empresa; numa VPS com domínio próprio (ver a seção "Hospedagem" de
+  `specs/03-arquitetura-tecnica.md`) o mesmo ataque fica disponível a qualquer um na internet. Não
+  é para consertar nesta fase — diferente de TLS, `ForwardedHeaders` e `SigningKey`, que a seção
+  "Pontos em aberto" do mesmo arquivo lista com gatilho de pré-deploy, este é só o registro de que
+  o risco cresceu, sem prazo associado.
 - **Rate limit por IP no `/auth/login`:** `RateLimit:PermitLimit` (10) por
   `RateLimit:WindowSeconds` (60), janela fixa, 429 com `Retry-After`. O `/auth/refresh` fica de
   fora de propósito — ver `specs/05-api-endpoints.md`, que registra a isenção e a consequência dela
@@ -676,8 +733,35 @@ alguns segundos após a rotação) porque isso reabriria a mesma corrida que o `
 
 **Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
 frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
-o limite vira global por acidente. Flag de deploy, ainda não necessária (deploy manual, sem proxy).
+o limite vira global por acidente. Com a hospedagem decidida como VPS pública (2026-09-12,
+`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), o proxy reverso deixa de ser hipotético
+**no caminho container + proxy** (nginx), um dos dois que aquela seção ainda admite — o outro é
+IIS. Nesse caminho, `ForwardedHeaders` está registrado como dívida com gatilho **"obrigatório antes
+do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo. Sob IIS com hosting
+out-of-process, a integração do IIS já liga esse middleware, restrito ao proxy local (documentação
+do ASP.NET Core; não medido aqui). Ligar `ForwardedHeaders` **não** fica burlável com os padrões:
+`KnownProxies` e `KnownNetworks` só aceitam loopback, e cabeçalho vindo de outro IP é ignorado. O
+risco nasce ao limpar essas listas — o exemplo da própria documentação para proxy que não é IIS faz
+isso — ou ao usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a documentação, não restringe
+de quais IPs os cabeçalhos são aceitos.
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
-`RefreshToken` expiradas; `SigningKey` como segredo de ambiente e `UseHttpsRedirection`; mensagem
-dedicada de 429 no front (hoje cai no erro genérico de auth — só dispara sob abuso).
+`RefreshToken` expiradas; mensagem dedicada de 429 no front (hoje cai no erro genérico de auth — só
+dispara sob abuso). **`UseHttpsRedirection` saiu desta lista em 2026-09-12:** com a hospedagem
+decidida como VPS pública (`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), TLS deixou de
+ser melhoria deferida e passou a pré-requisito de funcionamento — está registrado com gatilho
+**"obrigatório antes do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo,
+junto de `ForwardedHeaders` e da `SigningKey`.
+
+**Correção sobre a `SigningKey` (2026-09-12):** o parágrafo "Ainda em aberto (deferido de
+propósito)" listava "`SigningKey` como segredo de ambiente" como dívida de código, e isso é
+impreciso — o `JwtOptionsValidator` **já recusa no startup** o valor de placeholder commitado
+(`JwtOptions.SigningKeyPlaceholder`) e exige no mínimo `TamanhoMinimoDaSigningKeyEmBytes` (32)
+bytes. O que falta não é código: é **procedimento de deploy** — fornecer a `SigningKey` por
+variável de ambiente na VPS, em vez de deixar o `appsettings.json` com o placeholder. Listá-la
+como dívida de código faria alguém reimplementar uma guarda que já existe. Esse procedimento de
+deploy está registrado com o mesmo gatilho de TLS e `ForwardedHeaders` — **"obrigatório antes do
+primeiro deploy público"** — na seção "Pontos em aberto" de `specs/03-arquitetura-tecnica.md`; o
+atenuante que essa lista registra e vale repetir aqui: como o validador roda em
+`.ValidateOnStart()`, esquecer o procedimento **derruba a aplicação no startup** (falha alta e
+imediata), não deixa uma chave fraca passar em silêncio.

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
@@ -117,6 +118,8 @@ builder.Services.AddScoped<IAgrupamentoRepository, AgrupamentoRepository>();
 builder.Services.AddScoped<CadastroDeAgrupamentoUseCase>();
 builder.Services.AddScoped<IComponenteRepository, ComponenteRepository>();
 builder.Services.AddScoped<CadastroDeComponenteUseCase>();
+builder.Services.AddScoped<IArquivoDeComponenteRepository, ArquivoDeComponenteRepository>();
+builder.Services.AddScoped<SolidoDoComponenteUseCase>();
 
 // Receita padrao do Componente (Fase 1C): UM repositorio para as tres tabelas, e um caso de uso
 // para os tres sub-recursos — ver o summary de IReceitaPadraoRepository.

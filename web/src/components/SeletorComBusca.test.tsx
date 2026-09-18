@@ -19,11 +19,35 @@ beforeEach(() => {
 /** Três componentes, o suficiente para navegar com o teclado e provar a seleção. */
 const PAGINA = {
   itens: [
-    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true },
-    { id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Fabricado', ativo: true },
-    { id: 3, codigo: 'PA-010', descricao: 'Parafuso M8', tipo: 'Bruto', ativo: true },
+    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false },
+    { id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Fabricado', ativo: true, temSolido: false },
+    { id: 3, codigo: 'PA-010', descricao: 'Parafuso M8', tipo: 'Bruto', ativo: true, temSolido: false },
   ],
   total: 3,
+  pagina: 1,
+  tamanho: 20,
+}
+
+/** Página com um item COM sólido, só para os testes de `exigirSolido` (regra 18). */
+const PAGINA_COM_SOLIDO = {
+  itens: [
+    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false },
+    { id: 4, codigo: 'CH-300', descricao: 'Chapa traseira', tipo: 'Fabricado', ativo: true, temSolido: true },
+  ],
+  total: 2,
+  pagina: 1,
+  tamanho: 20,
+}
+
+/**
+ * Sem o campo `temSolido` na resposta — não é o mesmo caso de `temSolido: false`. O dado chega
+ * como `unknown` via `respostaJson`, sem precisar burlar `ComponenteDto` no componente: a API
+ * real pode omitir o campo (contrato antigo, serialização que descarta booleano falso), e a
+ * guarda tem de tratar a ausência como bloqueio, o lado seguro.
+ */
+const PAGINA_SEM_CAMPO_TEMSOLIDO = {
+  itens: [{ id: 5, codigo: 'CH-400', descricao: 'Chapa sem campo', tipo: 'Fabricado', ativo: true }],
+  total: 1,
   pagina: 1,
   tamanho: 20,
 }
@@ -288,5 +312,111 @@ describe('SeletorComBusca', () => {
     await waitFor(() =>
       expect(String(fetchFalso.mock.calls.at(-1)?.[0])).toContain('busca=&'),
     )
+  })
+
+  // Comportamento de `exigirSolido` (regra 18: Peça exige sólido no Componente de origem): sem a
+  // prop nada muda; com a prop, item sem sólido fica bloqueado por clique e por Enter; item com
+  // sólido continua selecionável. A marca é aviso de tela, não validação — a fronteira real
+  // continua sendo o 400 de `CriarPeca` no backend.
+
+  it('sem exigirSolido, componente sem sólido é selecionável — o comportamento de hoje não muda', async () => {
+    const aoSelecionar = vi.fn()
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA) }))
+    render(
+      <SeletorComBusca rotulo="Componente filho" valorSelecionado={null} aoSelecionar={aoSelecionar} />,
+    )
+    abrir()
+
+    fireEvent.click(await screen.findByText('CH-100'))
+
+    expect(aoSelecionar).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }))
+  })
+
+  it('com exigirSolido, o item sem sólido aparece marcado e não é selecionável', async () => {
+    const aoSelecionar = vi.fn()
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA_COM_SOLIDO) }))
+    render(
+      <SeletorComBusca
+        rotulo="Componente filho"
+        valorSelecionado={null}
+        aoSelecionar={aoSelecionar}
+        exigirSolido
+      />,
+    )
+    abrir()
+    await screen.findByText('CH-100')
+
+    const opcaoSemSolido = screen.getByRole('option', { name: /CH-100/ })
+    expect(opcaoSemSolido.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByText(/sem sólido/i)).toBeTruthy()
+
+    fireEvent.click(opcaoSemSolido)
+
+    expect(aoSelecionar).not.toHaveBeenCalled()
+  })
+
+  it('com exigirSolido, Enter no item sem sólido também não seleciona', async () => {
+    const aoSelecionar = vi.fn()
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA_COM_SOLIDO) }))
+    render(
+      <SeletorComBusca
+        rotulo="Componente filho"
+        valorSelecionado={null}
+        aoSelecionar={aoSelecionar}
+        exigirSolido
+      />,
+    )
+    const campo = abrir()
+    await screen.findByText('CH-100')
+
+    // CH-100 (sem sólido) é o primeiro item — uma seta para baixo já o destaca.
+    fireEvent.keyDown(campo, { key: 'ArrowDown' })
+    fireEvent.keyDown(campo, { key: 'Enter' })
+
+    expect(aoSelecionar).not.toHaveBeenCalled()
+  })
+
+  it('com exigirSolido, item COM sólido continua selecionável', async () => {
+    const aoSelecionar = vi.fn()
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA_COM_SOLIDO) }))
+    render(
+      <SeletorComBusca
+        rotulo="Componente filho"
+        valorSelecionado={null}
+        aoSelecionar={aoSelecionar}
+        exigirSolido
+      />,
+    )
+    abrir()
+
+    fireEvent.click(await screen.findByText('CH-300'))
+
+    expect(aoSelecionar).toHaveBeenCalledWith(expect.objectContaining({ id: 4 }))
+  })
+
+  it('com exigirSolido, item sem o campo temSolido na resposta aparece marcado e não é selecionável', async () => {
+    const aoSelecionar = vi.fn()
+    vi.stubGlobal(
+      'fetch',
+      fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA_SEM_CAMPO_TEMSOLIDO) }),
+    )
+    render(
+      <SeletorComBusca
+        rotulo="Componente filho"
+        valorSelecionado={null}
+        aoSelecionar={aoSelecionar}
+        exigirSolido
+      />,
+    )
+    abrir()
+    await screen.findByText('CH-400')
+
+    const opcaoSemCampo = screen.getByRole('option', { name: /CH-400/ })
+    expect(opcaoSemCampo.getAttribute('aria-disabled')).toBe('true')
+    expect(screen.getByText(/sem sólido/i)).toBeTruthy()
+
+    fireEvent.click(opcaoSemCampo)
+
+    expect(aoSelecionar).not.toHaveBeenCalled()
   })
 })
