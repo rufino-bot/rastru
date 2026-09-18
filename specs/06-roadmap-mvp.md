@@ -164,6 +164,25 @@ resolvidos (ou conscientemente adiados).
 
 ## Fase 2B — Sólido 3D da Peça
 
+> **2B concluída em 2026-09-18**, com o merge do PR #13: o sólido guardado em blob em
+> `dbo.ArquivoDeComponente`, com tamanho e SHA-256 calculados pelo próprio banco (colunas
+> `PERSISTED`); o formato STL, conferido pelo `ValidadorDeArquivoStl`; o envio — ou a substituição —
+> e a leitura do sólido sob `/api`, com limite de 16 MiB cobrado também no cliente, e `TemSolido` nos
+> DTOs de Componente. A regra 18 passou a ser cobrada de verdade: Peça criada a partir de um
+> `Componente` sem sólido é recusada, e o seletor marca esses Componentes. No front, `UploadDeSolido`
+> na tela do Componente e `VisualizadorDeSolido`: three.js carregado sob demanda, enquadramento pelo
+> tamanho da peça e pela proporção do quadro, zoom, rotação e pan com "Recentralizar", acabamento
+> metálico e liberação dos recursos de GPU ao desmontar. Suítes medidas depois do merge: backend
+> **582**, front **557 / 42 arquivos**, os dois builds limpos.
+
+> **O que a fase custou, e onde:** a verificação em navegador achou o que as suítes verdes não
+> achavam — o viewer preso em "Carregando…" sob `<StrictMode>`, e uma câmera fixa que deixava peça
+> pequena minúscula e ficaria **dentro** de uma peça grande. Cada achado virou task própria, com teste
+> que morre sem a correção. E os recursos de GPU do viewer vazavam **um de cada vez**: cada review
+> achava o membro seguinte da mesma família, até uma delas enumerar todos numa tabela. O que fica
+> para as fases seguintes: diante de um vazamento, enumerar a família inteira antes de consertar a
+> instância.
+
 - Upload e exibição de `Componente.ArquivoSolidoId` (sólido 3D, guardado em blob na tabela
   `dbo.ArquivoDeComponente`) e a regra de negócio que o exige por Peça de Pedido — segunda metade
   da regra 18 de `01`: a Fase 2 fechou só o **gancho** (a constraint
