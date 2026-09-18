@@ -62,26 +62,21 @@ export const ROUGHNESS_DO_ACABAMENTO = 0.4
 const COR_DO_ACABAMENTO_METALICO = 0x9ca3af
 
 /**
- * Intensidades de luz revisadas para o acabamento metálico — por motivos DIFERENTES para cada
- * luz, apesar de as duas terem mudado juntas quando o material ganhou `metalness`/`roughness`.
+ * Intensidade da luz direcional, revisada para o acabamento metálico. O reflexo especular direto
+ * de um material com `metalness = 1` é concentrado num lóbulo estreito ao redor da direção de
+ * reflexão (diferente da difusão ampla de um material sem `metalness`), então a MESMA intensidade
+ * calibrada para difusão estouraria o ponto de brilho da peça. Reduzida para complementar o
+ * reflexo do mapa de ambiente (`RoomEnvironment`/`PMREMGenerator` — ver `montarCena`), que marca
+ * uma direção de luz sem ser a fonte principal, não para substituí-lo.
  *
- * `INTENSIDADE_DA_LUZ_AMBIENTE`: com `metalness = 1`, `material.diffuseContribution` (no shader
- * físico do three.js) é `diffuseColor * (1 - metalness)` — exatamente zero, não só pequeno. A
- * irradiância da `AmbientLight` só alimenta essa parcela difusa neste material
- * (`MeshStandardMaterial`, que define `STANDARD`): o termo de compensação de multiespalhamento do
- * especular indireto usa `getIBLIrradiance`, a irradiância do MAPA de ambiente
- * (`RoomEnvironment`/`PMREMGenerator`) — uma variável separada, que só se soma à da `AmbientLight`
- * para os defines `LAMBERT`/`PHONG`, nunca para `STANDARD`. Ou seja: com `metalness = 1`, esta luz
- * não chega a contribuir nada ao pixel final — reduzi-la de 0,6 para 0,3 é inofensivo, não uma
- * correção de brilho medida.
- *
- * `INTENSIDADE_DA_LUZ_DIRECIONAL`: aqui o efeito é real. O reflexo especular direto de um material
- * com `metalness = 1` é concentrado num lóbulo estreito ao redor da direção de reflexão (diferente
- * da difusão ampla de um material sem `metalness`), então a MESMA intensidade calibrada para
- * difusão estouraria o ponto de brilho da peça. Reduzida para complementar o ambiente (marca uma
- * direção de luz, sem ser a fonte principal), não para substituí-lo.
+ * Não há `AmbientLight` nesta cena. Com `metalness = 1`, `material.diffuseContribution` (no shader
+ * físico do three.js) é `diffuseColor * (1 - metalness)` — exatamente zero, não só pequeno — e a
+ * irradiância de uma `AmbientLight` só alimenta essa parcela difusa em `MeshStandardMaterial`
+ * (que define `STANDARD`): o especular indireto usa `getIBLIrradiance`, a irradiância do MAPA de
+ * ambiente, uma variável separada, que só se soma à da `AmbientLight` para os defines
+ * `LAMBERT`/`PHONG`, nunca para `STANDARD`. Ou seja: ela não chegava a contribuir nada ao pixel
+ * final.
  */
-const INTENSIDADE_DA_LUZ_AMBIENTE = 0.3
 const INTENSIDADE_DA_LUZ_DIRECIONAL = 0.6
 
 /**
@@ -247,7 +242,6 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       }),
     )
     cena.add(malha)
-    cena.add(new THREE.AmbientLight(0xffffff, INTENSIDADE_DA_LUZ_AMBIENTE))
     const luz = new THREE.DirectionalLight(0xffffff, INTENSIDADE_DA_LUZ_DIRECIONAL)
     luz.position.set(1, 1, 1)
     cena.add(luz)
@@ -345,13 +339,16 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       const geometria = new STLLoader().parse(binario)
       // O `STLLoader` devolve geometria NÃO indexada (cada triângulo com os próprios três
       // vértices, sem compartilhar nenhum com a face vizinha) e copia a normal do arquivo como
-      // está, sem recalcular nada — um exportador que grava normal zerada (ou errada) faz a
-      // parcela difusa da luz sumir em toda face, sobrando só a luz ambiente uniforme, e a peça
-      // perde a distinção entre faces. `computeVertexNormals()`, numa geometria sem índice, produz
-      // normal por face (cada "vértice" só pertence a UM triângulo), que é o sombreamento
-      // facetado correto para peça mecânica — precisa rodar aqui, depois do `parse` e antes de
-      // montar a malha, nunca depois: a malha guarda a MESMA geometria por referência, mas o
-      // primeiro quadro já é desenhado dentro de `montarCena`.
+      // está, sem recalcular nada — um exportador que grava normal zerada (ou errada) faz toda
+      // iluminação que depende da orientação da face parar de distinguir uma face da outra: no
+      // shader físico do three.js, `dot(normal, direção)` zera a `DirectionalLight`
+      // (`RE_Direct_Physical`), e o reflexo do mapa de ambiente colapsa em espelhar a própria
+      // câmera em vez da face (`reflect(-viewDir, normal)` com normal nulo é `-viewDir`, em
+      // `getIBLRadiance`) — a peça perde a distinção entre faces. `computeVertexNormals()`, numa
+      // geometria sem índice, produz normal por face (cada "vértice" só pertence a UM triângulo),
+      // que é o sombreamento facetado correto para peça mecânica — precisa rodar aqui, depois do
+      // `parse` e antes de montar a malha, nunca depois: a malha guarda a MESMA geometria por
+      // referência, mas o primeiro quadro já é desenhado dentro de `montarCena`.
       geometria.computeVertexNormals()
       montarCena(THREE, geometria, OrbitControls, RoomEnvironment)
       if (desmontadoRef.current) return

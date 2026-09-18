@@ -314,7 +314,6 @@ vi.mock('three', () => {
   return {
     Scene: SceneFalso,
     PerspectiveCamera: PerspectiveCameraFalsa,
-    AmbientLight: Object3DFalso,
     DirectionalLight: Object3DFalso,
     Mesh: MeshFalso,
     MeshStandardMaterial: MeshStandardMaterialFalso,
@@ -642,8 +641,9 @@ describe('VisualizadorDeSolido', () => {
 
   it('recalcula as normais da geometria depois do parse do STLLoader e antes de montar a malha', async () => {
     // Os STL de teste desta suíte têm normal zerada, e o `STLLoader` copia a normal do arquivo sem
-    // recalcular nada — sem este recálculo, a parcela difusa da luz direcional fica zero em toda
-    // face e só a luz ambiente (uniforme) sobra, apagando as arestas.
+    // recalcular nada — sem este recálculo, toda iluminação que depende da orientação da face
+    // deixa de distinguir uma face da outra (a `DirectionalLight` zera por `dot(normal, direção)`
+    // e o reflexo do mapa de ambiente colapsa em espelhar a própria câmera), apagando as arestas.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     render(<VisualizadorDeSolido componenteId={7} />)
