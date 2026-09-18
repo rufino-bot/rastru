@@ -109,9 +109,9 @@ function medirLarguraDoContainer(container: HTMLDivElement): number {
  * canvas quadrado com distância fixa — um STL não carrega unidade, e uma peça comprida deve
  * aproveitar a largura do quadro em vez de ser limitada pelo lado menor. O canvas ocupa a largura
  * do card (um `ResizeObserver` refaz o enquadramento quando ela muda) com altura fixa. O
- * `OrbitControls` dá zoom, pan e rotação por arraste, mais um botão "Recentralizar" que restaura a
- * vista inicial; o sólido também gira sozinho até a primeira interação do usuário (incluindo o
- * próprio "Recentralizar"), e para de vez a partir daí.
+ * `OrbitControls` dá zoom, pan e rotação por arraste, mais um botão "Recentralizar" que volta à
+ * vista centralizada do tamanho atual do quadro; o sólido também gira sozinho até a primeira
+ * interação do usuário (incluindo o próprio "Recentralizar"), e para de vez a partir daí.
  *
  * O jsdom não implementa WebGL: nenhum teste deste componente prova que o sólido aparece girando
  * na tela — isso fica para a verificação manual em navegador. O que a suíte prova é o que o
@@ -129,6 +129,8 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   const pmremGeneratorRef = useRef<ThreeModulo.PMREMGenerator | null>(null)
   const texturaDeAmbienteRef = useRef<ThreeModulo.Texture | null>(null)
   const roomEnvironmentRef = useRef<RoomEnvironmentModulo | null>(null)
+  const geometriaRef = useRef<ThreeModulo.BufferGeometry | null>(null)
+  const materialRef = useRef<ThreeModulo.MeshStandardMaterial | null>(null)
   const quadroRef = useRef<number | null>(null)
   // Guarda a MESMA função que o ouvinte de `start` usa para parar a rotação automática — o botão
   // "Recentralizar" reusa esta referência em vez de duplicar a lógica de parar, porque clicar nele
@@ -169,9 +171,17 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       // nada fora desta cena isolada, o esperado é chegar a zero já na primeira liberação, mas a
       // garantia que chamar `dispose()` nesta ordem oferece é a de DISPARAR a liberação, não a de
       // destruir o programa incondicionalmente.
+      //
+      // A malha do sólido entra na mesma leva. O material dela tem a mesma restrição dos 8 materiais
+      // do `RoomEnvironment` (o programa GL compilado vive no mapa que o renderer recicla). A
+      // geometria não — os buffers de atributo dela vivem em `WebGLAttributes`, como os da geometria
+      // do `RoomEnvironment` —, mas é o maior recurso de GPU do viewer e `renderer.dispose()` não a
+      // libera; vai junto, antes, sem que a ordem dela importe.
       texturaDeAmbienteRef.current?.dispose()
       pmremGeneratorRef.current?.dispose()
       roomEnvironmentRef.current?.dispose()
+      geometriaRef.current?.dispose()
+      materialRef.current?.dispose()
       rendererRef.current?.dispose()
     }
   }, [])
@@ -234,15 +244,16 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     const larguraInicial = medirLarguraDoContainer(container)
     const enquadramentoInicial = aplicarEnquadramento(larguraInicial / ALTURA_DO_CANVAS_EM_PIXELS)
 
-    const malha = new THREE.Mesh(
-      geometria,
-      new THREE.MeshStandardMaterial({
-        color: COR_DO_ACABAMENTO_METALICO,
-        metalness: METALNESS_DO_ACABAMENTO,
-        roughness: ROUGHNESS_DO_ACABAMENTO,
-      }),
-    )
+    const material = new THREE.MeshStandardMaterial({
+      color: COR_DO_ACABAMENTO_METALICO,
+      metalness: METALNESS_DO_ACABAMENTO,
+      roughness: ROUGHNESS_DO_ACABAMENTO,
+    })
+    const malha = new THREE.Mesh(geometria, material)
     cena.add(malha)
+    // Guardados para a limpeza do `useEffect` — ver o comentário da ordem dos `dispose` lá.
+    geometriaRef.current = geometria
+    materialRef.current = material
     const luz = new THREE.DirectionalLight(0xffffff, INTENSIDADE_DA_LUZ_DIRECIONAL)
     luz.position.set(1, 1, 1)
     cena.add(luz)
@@ -292,6 +303,12 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       const novoEnquadramento = aplicarEnquadramento(novaLargura / ALTURA_DO_CANVAS_EM_PIXELS)
       controls.minDistance = novoEnquadramento.distanciaMinima
       controls.maxDistance = novoEnquadramento.distancia * FATOR_DE_ZOOM_MAXIMO
+      // "Recentralizar" (`controls.reset()`) volta a `position0`, que o `OrbitControls` captura na
+      // construção — sem reescrevê-la aqui, depois de um redimensionamento ele devolveria a câmera à
+      // distância do tamanho ANTIGO. Só a posição é atualizada, e não `saveState()`: este copiaria
+      // também o `target` atual, e um pan feito antes do redimensionamento deixaria de ser desfeito
+      // por "Recentralizar". O `target0` continua sendo a origem, onde o sólido está centralizado.
+      controls.position0.set(0, 0, novoEnquadramento.distancia)
     })
     resizeObserver.observe(container)
     resizeObserverRef.current = resizeObserver
@@ -353,7 +370,6 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       // referência, mas o primeiro quadro já é desenhado dentro de `montarCena`.
       geometria.computeVertexNormals()
       montarCena(THREE, geometria, OrbitControls, RoomEnvironment)
-      if (desmontadoRef.current) return
       setEstado({ tipo: 'pronto' })
     } catch (erro) {
       if (!desmontadoRef.current) setEstado({ tipo: 'erro', erro })
@@ -361,11 +377,13 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   }
 
   function aoClicarRecentralizar() {
-    // `reset()` do `OrbitControls` real restaura ângulo e zoom à vista capturada na CONSTRUÇÃO dos
-    // controles (`target0`/`position0`), mas despacha só o evento `change` — nunca `start`. Sem a
-    // chamada a `pararDeGirarSozinhoRef.current`, um clique aqui antes de qualquer outra interação
-    // devolveria o sólido à vista inicial e ele continuaria girando sozinho, contrariando a regra de
-    // que a rotação para DE VEZ na primeira manipulação.
+    // `reset()` do `OrbitControls` real restaura ângulo e zoom à vista guardada em
+    // `target0`/`position0` — capturada na construção dos controles e com `position0` refeita a cada
+    // redimensionamento (ver o `ResizeObserver` em `montarCena`), então a vista é a do enquadramento
+    // do tamanho ATUAL —, mas despacha só o evento `change`, nunca `start`. Sem a chamada a
+    // `pararDeGirarSozinhoRef.current`, um clique aqui antes de qualquer outra interação devolveria
+    // o sólido à vista centralizada e ele continuaria girando sozinho, contrariando a regra de que a
+    // rotação para DE VEZ na primeira manipulação.
     controlsRef.current?.reset()
     pararDeGirarSozinhoRef.current?.()
   }

@@ -63,7 +63,7 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
     update() {}
     dispose() {}
     reset() {}
-    saveState() {}
+    position0 = { set() {} }
     addEventListener() {}
     removeEventListener() {}
   },

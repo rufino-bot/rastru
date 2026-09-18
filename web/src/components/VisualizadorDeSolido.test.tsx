@@ -121,6 +121,7 @@ const controlsFalsos = vi.hoisted(() => ({
     update: () => void
     dispose: () => void
     reset: () => void
+    position0: { set: (...args: number[]) => void }
     disparar: (tipo: string) => void
     ouvintesPorTipo: Record<string, Array<() => void>>
   },
@@ -282,6 +283,11 @@ vi.mock('three', () => {
     color?: number
     metalness?: number
     roughness?: number
+    // Registra em `ordemDeLiberacao` — o material da malha tem a mesma restrição de ordem que os
+    // materiais do `RoomEnvironment`: liberado depois do renderer, o programa GL dele não é solto.
+    dispose = vi.fn(() => {
+      ordemDeLiberacao.eventos.push('material')
+    })
     constructor(parametros: { color?: number; metalness?: number; roughness?: number } = {}) {
       this.color = parametros.color
       this.metalness = parametros.metalness
@@ -373,6 +379,9 @@ vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
           computeVertexNormals: vi.fn(() => {
             ordemDeChamadas.eventos.push('computeVertexNormals')
           }),
+          dispose: vi.fn(() => {
+            ordemDeLiberacao.eventos.push('geometria')
+          }),
         }
         geometriasFalsas.ultima = geometria
         return geometria
@@ -382,7 +391,7 @@ vi.mock('three/examples/jsm/loaders/STLLoader.js', () => {
 })
 
 // Dublê do OrbitControls: expõe só o que `montarCena` usa (`autoRotate`, `enablePan`,
-// `minDistance`, `maxDistance`, `update`, `dispose`, `reset`) e um
+// `minDistance`, `maxDistance`, `update`, `dispose`, `reset`, `position0`) e um
 // `addEventListener`/`removeEventListener` mínimo o bastante para o componente se inscrever e
 // cancelar a inscrição do evento `start` — `disparar` é o gancho de teste para simular o evento
 // sem precisar de um `PointerEvent` de verdade.
@@ -403,6 +412,9 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => {
     // isso não fazendo nada além de registrar a chamada, para o teste do botão "Recentralizar"
     // provar que É O COMPONENTE, e não o `OrbitControls`, quem para a rotação automática.
     reset = vi.fn()
+    // A posição que o `reset()` real restaura. O real a captura no construtor; o dublê só registra
+    // quando o COMPONENTE a reescreve (no redimensionamento).
+    position0 = { set: vi.fn() }
     ouvintesPorTipo: Record<string, Array<() => void>> = {}
 
     constructor() {
@@ -562,6 +574,13 @@ describe('VisualizadorDeSolido', () => {
     // ver o comentário de `ambienteRecebidoPorFromScene` no topo do arquivo para o motivo (mesma
     // classe de buraco que a captura por uso real já fecha para `malhasFalsas.ultima?.material`).
     const disposeDoRoomEnvironment = ambienteRecebidoPorFromScene.ultima?.dispose
+    // A geometria e o material que a MALHA de fato recebeu, não "os últimos construídos" — mesma
+    // captura por uso real de `malhasFalsas.ultima?.material` no teste do acabamento metálico: um
+    // segundo material (ou geometria) construído e liberado no lugar do usado passaria despercebido.
+    const disposeDaGeometria = (malhasFalsas.ultima?.geometria as { dispose: () => void } | undefined)?.dispose
+    const disposeDoMaterial = (malhasFalsas.ultima?.material as { dispose: () => void } | undefined)?.dispose
+    expect(disposeDaGeometria).not.toHaveBeenCalled()
+    expect(disposeDoMaterial).not.toHaveBeenCalled()
     expect(dispose).not.toHaveBeenCalled()
     expect(disposeDosControles).not.toHaveBeenCalled()
     expect(desconectarObservador).not.toHaveBeenCalled()
@@ -593,6 +612,11 @@ describe('VisualizadorDeSolido', () => {
     // `disposeDoGerador`/`disposeDaTextura` já cobrem para o gerador e a textura, desta vez na
     // cena de origem.
     expect(disposeDoRoomEnvironment).toHaveBeenCalledTimes(1)
+    // Mata a mutação de deixar a malha do sólido fora da limpeza: a geometria segura os buffers de
+    // atributo (o maior recurso de GPU do viewer) e o material, o programa GL compilado —
+    // `renderer.dispose()` não libera nenhum dos dois.
+    expect(disposeDaGeometria).toHaveBeenCalledTimes(1)
+    expect(disposeDoMaterial).toHaveBeenCalledTimes(1)
 
     // Mata a mutação de voltar a liberar a textura de ambiente, o `PMREMGenerator` e o
     // `RoomEnvironment` DEPOIS do renderer: `renderer.dispose()` recicla o WeakMap de propriedades
@@ -608,6 +632,10 @@ describe('VisualizadorDeSolido', () => {
     expect(indiceGerador).toBeLessThan(indiceRenderer)
     expect(indiceTextura).toBeLessThan(indiceRenderer)
     expect(indiceAmbiente).toBeLessThan(indiceRenderer)
+    // O material da malha tem a mesma restrição (programa GL no mapa que o renderer recicla). A
+    // geometria NÃO: os buffers dela vivem no WeakMap de `WebGLAttributes`, que `renderer.dispose()`
+    // não recicla — por isso a ordem dela não é afirmada, só a presença.
+    expect(ordemDeLiberacao.eventos.indexOf('material')).toBeLessThan(indiceRenderer)
 
     cancelarQuadro.mockRestore()
   })
@@ -891,7 +919,7 @@ describe('VisualizadorDeSolido', () => {
     // Mata a mutação de a rotação automática NÃO parar ao clicar em Recentralizar: o `reset()` do
     // `OrbitControls` real dispara só o evento `change`, nunca `start` (conferido no código-fonte
     // do `OrbitControls` antes de escrever este teste) — sem o componente parar a rotação por
-    // conta própria, a peça voltaria à vista inicial e continuaria girando sozinho.
+    // conta própria, a peça voltaria à vista centralizada e continuaria girando sozinho.
     expect(controles?.autoRotate).toBe(false)
 
     // O clique também conta como a PRIMEIRA interação: disparar `start` depois não deveria religar
@@ -982,5 +1010,32 @@ describe('VisualizadorDeSolido', () => {
     ).toBeGreaterThan(chamadasDeUpdateAntes)
     expect(controlsFalsos.ultimo?.minDistance).toBeCloseTo(esperado.distanciaMinima, 6)
     expect(controlsFalsos.ultimo?.maxDistance).toBeCloseTo(esperado.distancia * FATOR_DE_ZOOM_MAXIMO, 6)
+  })
+
+  it('depois de redimensionar, Recentralizar volta à distância do tamanho novo, não à da montagem', async () => {
+    // O `reset()` real volta a `position0`, capturada no construtor do `OrbitControls` — com a
+    // largura da montagem. Sem o componente reescrevê-la no redimensionamento, "Recentralizar"
+    // devolveria a câmera à distância de um quadro que não existe mais.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
+
+    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    const medidaDeLargura = vi.spyOn(getByTestId('container-do-visualizador'), 'getBoundingClientRect')
+    medidaDeLargura.mockReturnValue({ width: 700 } as DOMRect)
+
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+    await screen.findByLabelText(/visualização 3d do sólido/i)
+
+    medidaDeLargura.mockReturnValue({ width: 350 } as DOMRect)
+    ultimoResizeObserverFalso?.disparar()
+
+    const doTamanhoNovo = enquadramentoDoSolido(
+      RAIO_NO_PLANO_DE_GIRO_DE_TESTE,
+      MEIA_EXTENSAO_Y_DE_TESTE,
+      ABERTURA_VERTICAL_EM_GRAUS,
+      350 / ALTURA_DO_CANVAS_EM_PIXELS,
+      MARGEM_DE_ENQUADRAMENTO,
+    )
+    // O centro continua a origem (onde `center()` pôs o sólido); só a distância muda.
+    expect(controlsFalsos.ultimo?.position0.set).toHaveBeenLastCalledWith(0, 0, doTamanhoNovo.distancia)
   })
 })

@@ -220,6 +220,84 @@ describe('UploadDeSolido', () => {
     expect(screen.getByRole('button', { name: /baixar/i })).toBeTruthy()
   })
 
+  it('zera o campo depois de uma falha, para escolher o MESMO arquivo de novo disparar outro envio', async () => {
+    // No navegador, `change` só dispara quando o valor do `<input type="file">` muda: sem zerá-lo,
+    // escolher de novo o mesmo arquivo (o caso típico depois de uma falha de rede) não faz nada. No
+    // jsdom não há seletor de arquivo (o `fireEvent` dispara o `change` direto), então o teste olha
+    // a causa — o componente escrever '' no `value` — num `value` instrumentado, que começa com o
+    // caminho que o navegador poria ali.
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={() => {}}
+      />,
+    )
+    const campo = screen.getByLabelText(/sólido/i) as HTMLInputElement
+    let valor = 'C:\\fakepath\\cubo.stl'
+    Object.defineProperty(campo, 'value', {
+      configurable: true,
+      get: () => valor,
+      set: (novo: string) => { valor = novo },
+    })
+    fireEvent.change(campo, { target: { files: [arquivoStl()] } })
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Sem conexão')
+    expect(valor).toBe('')
+  })
+
+  it('o download usa o nome original do arquivo', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(respostaBinaria(new Uint8Array(684), 'suporte.stl'))))
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:http://localhost/x'), revokeObjectURL: vi.fn() })
+    // O `<a download>` criado na hora nunca é renderizado: o nome só é observável no instante do
+    // `click()`. O espião registra o `download` do link clicado e não navega (o jsdom não navega).
+    const nomesBaixados: string[] = []
+    const clicar = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      nomesBaixados.push(this.download)
+    })
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido
+        nomeDoSolido="suporte-lateral.stl"
+        tamanhoDoSolidoEmBytes={684}
+        aoEnviar={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    await waitFor(() => expect(nomesBaixados).toHaveLength(1))
+    // O nome da PROP (o que o backend guardou como `NomeOriginal`), não um nome fixo.
+    expect(nomesBaixados[0]).toBe('suporte-lateral.stl')
+    clicar.mockRestore()
+  })
+
+  it('mostra erro quando o download falha', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(respostaBinaria(new Uint8Array(0), undefined, 404))))
+
+    render(
+      <UploadDeSolido
+        componenteId={7}
+        temSolido
+        nomeDoSolido="suporte.stl"
+        tamanhoDoSolidoEmBytes={684}
+        aoEnviar={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /baixar/i }))
+
+    // Pelo `mensagemDeErro`: 404 tem frase própria. Sem o `setErroDownload`, a falha fica muda.
+    expect((await screen.findByRole('alert')).textContent).toContain('Este registro não existe mais.')
+    expect((screen.getByRole('button', { name: /baixar/i }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('baixar busca o binário autenticado e revoga o object URL', async () => {
     vi.stubGlobal('fetch', vi.fn(() =>
       Promise.resolve(respostaBinaria(new Uint8Array(684), 'suporte.stl'))))
