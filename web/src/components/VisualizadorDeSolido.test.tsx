@@ -643,7 +643,8 @@ describe('VisualizadorDeSolido', () => {
     // Os STL de teste desta suíte têm normal zerada, e o `STLLoader` copia a normal do arquivo sem
     // recalcular nada — sem este recálculo, toda iluminação que depende da orientação da face
     // deixa de distinguir uma face da outra (a `DirectionalLight` zera por `dot(normal, direção)`
-    // e o reflexo do mapa de ambiente colapsa em espelhar a própria câmera), apagando as arestas.
+    // e o reflexo do mapa de ambiente colapsa na própria direção de incidência do olhar, não na
+    // volta para a câmera), apagando as arestas.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
     render(<VisualizadorDeSolido componenteId={7} />)

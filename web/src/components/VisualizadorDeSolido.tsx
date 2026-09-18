@@ -65,17 +65,18 @@ const COR_DO_ACABAMENTO_METALICO = 0x9ca3af
  * Intensidade da luz direcional, revisada para o acabamento metálico. O reflexo especular direto
  * de um material com `metalness = 1` é concentrado num lóbulo estreito ao redor da direção de
  * reflexão (diferente da difusão ampla de um material sem `metalness`), então a MESMA intensidade
- * calibrada para difusão estouraria o ponto de brilho da peça. Reduzida para complementar o
- * reflexo do mapa de ambiente (`RoomEnvironment`/`PMREMGenerator` — ver `montarCena`), que marca
- * uma direção de luz sem ser a fonte principal, não para substituí-lo.
+ * calibrada para difusão estouraria o ponto de brilho da peça. Reduzida para complementar, não
+ * substituir, o reflexo do mapa de ambiente (`RoomEnvironment`/`PMREMGenerator` — ver
+ * `montarCena`): a luz direcional marca uma direção de luz sem ser a fonte principal — esse papel
+ * é do mapa de ambiente.
  *
  * Não há `AmbientLight` nesta cena. Com `metalness = 1`, `material.diffuseContribution` (no shader
  * físico do three.js) é `diffuseColor * (1 - metalness)` — exatamente zero, não só pequeno — e a
  * irradiância de uma `AmbientLight` só alimenta essa parcela difusa em `MeshStandardMaterial`
  * (que define `STANDARD`): o especular indireto usa `getIBLIrradiance`, a irradiância do MAPA de
  * ambiente, uma variável separada, que só se soma à da `AmbientLight` para os defines
- * `LAMBERT`/`PHONG`, nunca para `STANDARD`. Ou seja: ela não chegava a contribuir nada ao pixel
- * final.
+ * `LAMBERT`/`PHONG`, nunca para `STANDARD`. Ou seja: se existisse, uma `AmbientLight` não
+ * contribuiria nada ao pixel final.
  */
 const INTENSIDADE_DA_LUZ_DIRECIONAL = 0.6
 
@@ -342,8 +343,9 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       // está, sem recalcular nada — um exportador que grava normal zerada (ou errada) faz toda
       // iluminação que depende da orientação da face parar de distinguir uma face da outra: no
       // shader físico do three.js, `dot(normal, direção)` zera a `DirectionalLight`
-      // (`RE_Direct_Physical`), e o reflexo do mapa de ambiente colapsa em espelhar a própria
-      // câmera em vez da face (`reflect(-viewDir, normal)` com normal nulo é `-viewDir`, em
+      // (`RE_Direct_Physical`), e o reflexo do mapa de ambiente colapsa na própria direção de
+      // incidência do olhar, e não na da face (`reflect(-viewDir, normal)` com normal nulo devolve
+      // `-viewDir` — a continuação do raio câmera→ponto, não a volta para a câmera — em
       // `getIBLRadiance`) — a peça perde a distinção entre faces. `computeVertexNormals()`, numa
       // geometria sem índice, produz normal por face (cada "vértice" só pertence a UM triângulo),
       // que é o sombreamento facetado correto para peça mecânica — precisa rodar aqui, depois do
