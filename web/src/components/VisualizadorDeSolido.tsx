@@ -127,7 +127,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   const controlsRef = useRef<OrbitControlsModulo | null>(null)
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const pmremGeneratorRef = useRef<ThreeModulo.PMREMGenerator | null>(null)
-  const texturaDeAmbienteRef = useRef<ThreeModulo.Texture | null>(null)
+  const renderTargetDeAmbienteRef = useRef<ThreeModulo.WebGLRenderTarget | null>(null)
   const roomEnvironmentRef = useRef<RoomEnvironmentModulo | null>(null)
   const geometriaRef = useRef<ThreeModulo.BufferGeometry | null>(null)
   const materialRef = useRef<ThreeModulo.MeshStandardMaterial | null>(null)
@@ -154,17 +154,18 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       resizeObserverRef.current?.disconnect()
       controlsRef.current?.dispose()
       // Ordem importa, e é ao contrário do que pareceria natural: os `dispose` de
-      // `texturaDeAmbienteRef`, `pmremGeneratorRef` e `roomEnvironmentRef` têm de rodar ANTES de
-      // `rendererRef.current?.dispose()`, nunca depois. `WebGLRenderer.dispose()` chama
+      // `renderTargetDeAmbienteRef`, `pmremGeneratorRef` e `roomEnvironmentRef` têm de rodar ANTES
+      // de `rendererRef.current?.dispose()`, nunca depois. `WebGLRenderer.dispose()` chama
       // `properties.dispose()`, que troca o WeakMap inteiro de propriedades internas por um vazio
-      // — e é NESSE mapa que tanto `releaseMaterialProgramReferences` (para os 8 materiais que o
-      // `RoomEnvironment` cria) quanto `WebGLTextures.deallocateTexture` (para a textura e os
-      // render targets internos do `PMREMGenerator`) leem o estado já alocado (`.programs`,
-      // `.__webglInit`) para decidir o que liberar. Com o mapa já reciclado, cada `dispose()`
-      // ainda dispara o evento, mas o ouvinte do renderer encontra um objeto novo e vazio e pula o
-      // corpo inteiro — o programa GL compilado nunca chega a `programCache.releaseProgram`, que é
-      // o único lugar que de fato chama `program.destroy()`. A geometria do `RoomEnvironment` não
-      // sofre disso (usa o WeakMap próprio de `WebGLAttributes`, nunca reciclado por
+      // — e é NESSE mapa que `releaseMaterialProgramReferences` (para os 8 materiais que o
+      // `RoomEnvironment` cria, lendo `.programs`) e `WebGLTextures.deallocateRenderTarget` (para o
+      // render target do PMREM, lendo `__webglFramebuffer`/`__webglDepthbuffer` e o `__webglTexture`
+      // da textura dele) leem o estado já alocado para decidir o que liberar. Com o mapa já
+      // reciclado, cada `dispose()` ainda dispara o evento, mas o ouvinte do renderer encontra um
+      // objeto novo e vazio e pula o corpo inteiro — o programa GL compilado nunca chega a
+      // `programCache.releaseProgram`, que é o único lugar que de fato chama `program.destroy()`, e
+      // o render target não acha framebuffer nenhum para apagar. A geometria do `RoomEnvironment`
+      // não sofre disso (usa o WeakMap próprio de `WebGLAttributes`, nunca reciclado por
       // `renderer.dispose()`), então na ordem antiga só ela era liberada de forma garantida.
       // `releaseProgram` decrementa uma contagem de referência (`usedTimes`) e só destrói o
       // programa quando ela chega a zero — para estes materiais, que não compartilham cacheKey com
@@ -177,7 +178,15 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
       // geometria não — os buffers de atributo dela vivem em `WebGLAttributes`, como os da geometria
       // do `RoomEnvironment` —, mas é o maior recurso de GPU do viewer e `renderer.dispose()` não a
       // libera; vai junto, antes, sem que a ordem dela importe.
-      texturaDeAmbienteRef.current?.dispose()
+      //
+      // `renderTargetDeAmbienteRef` guarda o `WebGLRenderTarget` inteiro que
+      // `PMREMGenerator.fromScene()` devolve, não só a `.texture` dele: `PMREMGenerator.dispose()`
+      // nunca libera esse render target, só o `_pingPongRenderTarget` interno que o blur usa. O
+      // `dispose()` do PRÓPRIO render target dispara `WebGLTextures.deallocateRenderTarget`, que
+      // libera os framebuffers dele e, na mesma passada, apaga o handle GL de
+      // `renderTarget.textures[0]` (o mesmo objeto que `.texture` devolve) diretamente — chamar
+      // `texture.dispose()` à parte, além deste `dispose()`, seria redundante, não incorreto.
+      renderTargetDeAmbienteRef.current?.dispose()
       pmremGeneratorRef.current?.dispose()
       roomEnvironmentRef.current?.dispose()
       geometriaRef.current?.dispose()
@@ -274,10 +283,10 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
     // guardar a referência aqui, ninguém poderia chamá-lo na limpeza.
     const pmremGenerator = new THREE.PMREMGenerator(renderer)
     const ambiente = new RoomEnvironment()
-    const texturaDeAmbiente = pmremGenerator.fromScene(ambiente).texture
-    cena.environment = texturaDeAmbiente
+    const renderTargetDeAmbiente = pmremGenerator.fromScene(ambiente)
+    cena.environment = renderTargetDeAmbiente.texture
     pmremGeneratorRef.current = pmremGenerator
-    texturaDeAmbienteRef.current = texturaDeAmbiente
+    renderTargetDeAmbienteRef.current = renderTargetDeAmbiente
     roomEnvironmentRef.current = ambiente
 
     const controls = new OrbitControls(camera, renderer.domElement)

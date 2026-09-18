@@ -77,6 +77,19 @@ const geradorQueChamouFromScene = vi.hoisted(() => ({ ultima: null as null | { d
     guardada à parte do gerador porque a limpeza do componente libera os dois separadamente. */
 const texturasDeAmbienteFalsas = vi.hoisted(() => ({ ultima: null as null | { dispose: () => void } }))
 
+/** Todo `WebGLRenderTarget` falso que `PMREMGeneratorFalso.fromScene(...)` já devolveu, não só o
+    último — o teste de limpeza não pode assumir que o componente só chama `fromScene` uma vez.
+    Achar "o render target que o componente de fato usou" é procurar, nesta lista, o item cuja
+    `.texture` é a MESMA que `cenasFalsas.ultima?.environment` (o que de fato foi atribuído a
+    `scene.environment`) — mesmo raciocínio de captura por USO REAL que `ambienteRecebidoPorFromScene`
+    e `malhasFalsas.ultima?.material` já aplicam, adaptado porque aqui não há um construtor de
+    terceiro para interceptar: o render target nunca é passado a mais nada, só guardado. Capturar
+    só "o último devolvido" deixaria passar um SEGUNDO render target, nunca usado para
+    `scene.environment`, se o ref do componente fosse atribuído a ele por engano. */
+const renderTargetsDeAmbienteFalsos = vi.hoisted(() => ({
+  todos: [] as Array<{ texture: unknown; dispose: () => void }>,
+}))
+
 /** `RoomEnvironment` falso que `PMREMGeneratorFalso.fromScene(...)` de fato RECEBEU como argumento
     — não a última instância CONSTRUÍDA. Mesmo raciocínio que `malhasFalsas.ultima?.material` já
     aplica ao material (ver comentário de `MeshStandardMaterialFalso`), transportado para o
@@ -181,6 +194,7 @@ beforeEach(() => {
   cenasFalsas.ultima = null
   geradorQueChamouFromScene.ultima = null
   texturasDeAmbienteFalsas.ultima = null
+  renderTargetsDeAmbienteFalsos.todos = []
   ambienteRecebidoPorFromScene.ultima = null
   // `ResizeObserver` não existe no jsdom (só em navegador de verdade) — sem este stub, TODO teste
   // que chega a `montarCena` (ou seja, quase todos) lançaria `ReferenceError` ao clicar em
@@ -312,13 +326,23 @@ vi.mock('three', () => {
     // Captura `this` (a própria instância que está executando `fromScene`) em
     // `geradorQueChamouFromScene`, e o argumento RECEBIDO (a instância de `RoomEnvironment` que o
     // componente de fato passou) em `ambienteRecebidoPorFromScene` — ver o comentário dela no topo
-    // do arquivo para o motivo.
+    // do arquivo para o motivo. O objeto devolvido imita um `WebGLRenderTarget`: tem `.texture`
+    // (o que o componente lê para `scene.environment`) e `dispose` (o que a limpeza do componente
+    // chama no render target inteiro, não só na textura — ver `renderTargetsDeAmbienteFalsos`).
     fromScene(cena: unknown) {
       geradorQueChamouFromScene.ultima = this
       ambienteRecebidoPorFromScene.ultima = cena as { dispose: () => void }
       const textura = { dispose: vi.fn(() => ordemDeLiberacao.eventos.push('textura')) }
       texturasDeAmbienteFalsas.ultima = textura
-      return { texture: textura }
+      const alvoDeRenderizacao = {
+        texture: textura,
+        // Registra em `ordemDeLiberacao` — prova que o render target do PMREM é liberado ANTES
+        // do renderer, mesmo motivo dos outros membros da família (ver o comentário da limpeza em
+        // `VisualizadorDeSolido.tsx`).
+        dispose: vi.fn(() => ordemDeLiberacao.eventos.push('renderTargetDeAmbiente')),
+      }
+      renderTargetsDeAmbienteFalsos.todos.push(alvoDeRenderizacao)
+      return alvoDeRenderizacao
     }
   }
 
@@ -569,7 +593,12 @@ describe('VisualizadorDeSolido', () => {
     // classe de buraco que a captura por uso real já fecha para `ambienteRecebidoPorFromScene` e
     // `malhasFalsas.ultima?.material`).
     const disposeDoGerador = geradorQueChamouFromScene.ultima?.dispose
-    const disposeDaTextura = texturasDeAmbienteFalsas.ultima?.dispose
+    // O render target cuja `.texture` é a que de fato foi para `scene.environment` — não "o
+    // último devolvido por `fromScene`" — ver o comentário de `renderTargetsDeAmbienteFalsos` no
+    // topo do arquivo para o motivo.
+    const disposeDoAlvoDeAmbiente = renderTargetsDeAmbienteFalsos.todos.find(
+      (alvo) => alvo.texture === cenasFalsas.ultima?.environment,
+    )?.dispose
     // A instância que `fromScene` de fato RECEBEU, não "a última `RoomEnvironment` construída" —
     // ver o comentário de `ambienteRecebidoPorFromScene` no topo do arquivo para o motivo (mesma
     // classe de buraco que a captura por uso real já fecha para `malhasFalsas.ultima?.material`).
@@ -586,7 +615,7 @@ describe('VisualizadorDeSolido', () => {
     expect(desconectarObservador).not.toHaveBeenCalled()
     expect(cancelarQuadro).not.toHaveBeenCalled()
     expect(disposeDoGerador).not.toHaveBeenCalled()
-    expect(disposeDaTextura).not.toHaveBeenCalled()
+    expect(disposeDoAlvoDeAmbiente).not.toHaveBeenCalled()
     expect(disposeDoRoomEnvironment).not.toHaveBeenCalled()
 
     unmount()
@@ -601,16 +630,17 @@ describe('VisualizadorDeSolido', () => {
     expect(dispose).toHaveBeenCalledTimes(1)
     expect(disposeDosControles).toHaveBeenCalledTimes(1)
     expect(desconectarObservador).toHaveBeenCalledTimes(1)
-    // Mata a mutação de deixar o `PMREMGenerator` ou a textura de ambiente fora da limpeza: os
-    // dois seguram recurso de GPU (render targets internos do PMREM, a textura prefiltrada) que
-    // vazariam a cada vez que o viewer fosse aberto e fechado.
+    // Mata a mutação de deixar o `PMREMGenerator` ou o render target de ambiente fora da limpeza:
+    // os dois seguram recurso de GPU (render targets internos do PMREM; framebuffers e a textura do
+    // render target que `fromScene` devolveu) que vazariam a cada vez que o viewer fosse aberto e
+    // fechado.
     expect(disposeDoGerador).toHaveBeenCalledTimes(1)
-    expect(disposeDaTextura).toHaveBeenCalledTimes(1)
+    expect(disposeDoAlvoDeAmbiente).toHaveBeenCalledTimes(1)
     // Mata a mutação de deixar a instância de `RoomEnvironment` fora da limpeza: ela tem
     // `dispose()` próprio (1 geometria + 8 materiais que ela mesma cria ao ser construída) e,
     // criada inline sem referência guardada, nada a liberaria — o mesmo vazamento de GPU que
-    // `disposeDoGerador`/`disposeDaTextura` já cobrem para o gerador e a textura, desta vez na
-    // cena de origem.
+    // `disposeDoGerador`/`disposeDoAlvoDeAmbiente` já cobrem para o gerador e o render target de
+    // ambiente, desta vez na cena de origem.
     expect(disposeDoRoomEnvironment).toHaveBeenCalledTimes(1)
     // Mata a mutação de deixar a malha do sólido fora da limpeza: a geometria segura os buffers de
     // atributo (o maior recurso de GPU do viewer) e o material, o programa GL compilado —
@@ -618,19 +648,19 @@ describe('VisualizadorDeSolido', () => {
     expect(disposeDaGeometria).toHaveBeenCalledTimes(1)
     expect(disposeDoMaterial).toHaveBeenCalledTimes(1)
 
-    // Mata a mutação de voltar a liberar a textura de ambiente, o `PMREMGenerator` e o
+    // Mata a mutação de voltar a liberar o render target de ambiente, o `PMREMGenerator` e o
     // `RoomEnvironment` DEPOIS do renderer: `renderer.dispose()` recicla o WeakMap de propriedades
-    // internas que a liberação do programa GL compilado (dos materiais) e da textura precisa achar
-    // populado — nessa ordem errada, cada um ainda dispara `dispose`, mas o ouvinte do renderer
-    // encontra o mapa já vazio e pula a liberação de verdade (ver o comentário da limpeza no
-    // componente). Afirma a ORDEM relativa, não só que cada `dispose` aconteceu — as chamadas a
+    // internas que a liberação do programa GL compilado (dos materiais) e do render target precisa
+    // achar populado — nessa ordem errada, cada um ainda dispara `dispose`, mas o ouvinte do
+    // renderer encontra o mapa já vazio e pula a liberação de verdade (ver o comentário da limpeza
+    // no componente). Afirma a ORDEM relativa, não só que cada `dispose` aconteceu — as chamadas a
     // `toHaveBeenCalledTimes` já cobrem a presença de cada uma.
     const indiceRenderer = ordemDeLiberacao.eventos.indexOf('renderer')
     const indiceGerador = ordemDeLiberacao.eventos.indexOf('pmremGenerator')
-    const indiceTextura = ordemDeLiberacao.eventos.indexOf('textura')
+    const indiceAlvoDeAmbiente = ordemDeLiberacao.eventos.indexOf('renderTargetDeAmbiente')
     const indiceAmbiente = ordemDeLiberacao.eventos.indexOf('roomEnvironment')
     expect(indiceGerador).toBeLessThan(indiceRenderer)
-    expect(indiceTextura).toBeLessThan(indiceRenderer)
+    expect(indiceAlvoDeAmbiente).toBeLessThan(indiceRenderer)
     expect(indiceAmbiente).toBeLessThan(indiceRenderer)
     // O material da malha tem a mesma restrição (programa GL no mapa que o renderer recicla). A
     // geometria NÃO: os buffers dela vivem no WeakMap de `WebGLAttributes`, que `renderer.dispose()`

@@ -30,7 +30,7 @@ vi.mock('three', () => {
   }
   class Cena extends Objeto3D { environment: unknown = null }
   class Material { dispose() {} }
-  class Gerador { fromScene() { return { texture: { dispose() {} } } } dispose() {} }
+  class Gerador { fromScene() { return { texture: { dispose() {} }, dispose() {} } } dispose() {} }
   return {
     Scene: Cena,
     PerspectiveCamera: Camera,
