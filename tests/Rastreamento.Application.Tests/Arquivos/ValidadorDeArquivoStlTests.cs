@@ -28,9 +28,11 @@ public class ValidadorDeArquivoStlTests
   [Fact]
   public void Binario_cujo_cabecalho_comeca_com_solid_passa_como_binario()
   {
-    // A armadilha que obriga a tentar a forma binaria ANTES da ASCII: este arquivo satisfaz
-    // "comeca com solid" e NAO e ASCII. Se a ordem inverter, ele e lido como ASCII e a fórmula
-    // 84+50n nunca e conferida.
+    // Binario valido cujo cabecalho comeca com "solid" (o exportador escreve texto livre ali). O
+    // que este teste prova e que "comeca com solid" NAO decide a forma: um validador que, ao ver
+    // "solid", aplicasse so a checagem ASCII recusaria este arquivo, que nao tem "facet normal". A
+    // ORDEM das duas checagens em `Validar` nao importa aqui -- o resultado e um OU, e as duas
+    // devolvem o mesmo null.
     Assert.Null(ValidadorDeArquivoStl.Validar(
         "cubo.stl", StlDeTeste.BinarioComCabecalhoQueDizSolid()));
   }
@@ -69,13 +71,13 @@ public class ValidadorDeArquivoStlTests
   [Fact]
   public void No_limite_exato_de_16_MiB_e_aceito()
   {
-    // Fecha a lacuna achada na review: so existia teste para 16 MiB + 1 (recusado). Um STL
-    // binario de EXATAMENTE 16 MiB nao existe pela formula 84+50n -- (16*1024*1024 - 84) / 50 nao
-    // e inteiro -- entao a fixture precisa ser ASCII. EhAsciiCoerente le os 4096 primeiros bytes
-    // (StartsWith "solid" e Contains "facet normal"), e a re-review mediu que 3.956 bytes do
-    // preenchimento caem DENTRO dessa amostra -- nao e a POSICAO que os torna inofensivos, como
-    // uma versao anterior deste comentario afirmava. E o CONTEUDO: 0x00 e UTF-8 valido, e as duas
-    // checagens olham o cabecalho, que os zeros nao perturbam.
+    // O par de Acima_do_limite_de_16_MiB_e_recusado: sem este, so o lado recusado da fronteira
+    // estaria provado. Um STL binario de EXATAMENTE 16 MiB nao existe pela formula 84+50n --
+    // (16*1024*1024 - 84) / 50 nao e inteiro -- entao a fixture precisa ser ASCII.
+    // EhAsciiCoerente le os 4096 primeiros bytes (StartsWith "solid" e Contains "facet normal"),
+    // e tudo o que vem depois da fixture ASCII dentro dessa amostra e preenchimento -- nao e a
+    // POSICAO que o torna inofensivo, e o CONTEUDO: 0x00 e UTF-8 valido, e as duas checagens olham
+    // o cabecalho, que os zeros nao perturbam.
     var conteudo = new byte[ValidadorDeArquivoStl.TamanhoMaximoEmBytes];
     StlDeTeste.Ascii().CopyTo(conteudo, 0);
     // Comprimento afirmado explicitamente, nao presumido da alocacao: deixa claro que a fixture
@@ -88,9 +90,9 @@ public class ValidadorDeArquivoStlTests
   [Fact]
   public void Ascii_com_espaco_em_branco_antes_do_cabecalho_e_aceito()
   {
-    // Fecha a lacuna achada na review: nenhuma fixture tinha espaco em branco antes de "solid",
-    // entao a robustez que o TrimStart() promete (aceitar STL ASCII com espaco/quebra de linha
-    // antes do cabecalho) nao estava provada por nenhum teste.
+    // Sem este, nenhuma fixture teria espaco em branco antes de "solid", e a robustez que o
+    // TrimStart() promete (aceitar STL ASCII com espaco/quebra de linha antes do cabecalho) nao
+    // estaria provada por nenhum teste.
     var comEspaco = System.Text.Encoding.UTF8.GetBytes("   \n")
         .Concat(StlDeTeste.Ascii())
         .ToArray();
@@ -111,7 +113,7 @@ public class ValidadorDeArquivoStlTests
   public void Binario_com_bytes_de_sobra_no_fim_e_recusado()
   {
     // O caso que so a comparacao "==" (contra "84+50n") pega: a contagem de triangulos do
-    // cabecalho bate com um arquivo MENOR do que o real. Achado por mutacao (Step 6.2 do plano):
+    // cabecalho bate com um arquivo MENOR do que o real. Achado por mutacao:
     // trocar "==" por ">=" no validador nao quebra nenhum outro teste da suite, porque truncar
     // sempre deixa o arquivo MENOR, nunca maior -- so bytes de sobra no FIM expoem essa mutacao.
     var comSobra = StlDeTeste.CuboBinario().Concat(new byte[10]).ToArray();

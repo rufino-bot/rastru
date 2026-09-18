@@ -12,7 +12,7 @@ namespace Rastreamento.Api.Tests;
 /// (<c>Rastreamento.Application.Tests.Arquivos</c>): a Task 4 mediu que <c>Api.Tests</c> nao
 /// referencia o projeto de teste `Application.Tests`, e os dois projetos de teste nao compartilham
 /// nenhuma pasta/projeto de fixtures (nenhum `.csproj` de teste referencia outro). Criar um projeto
-/// novo so para ~15 linhas de fixture seria caro demais -- decisao do proprio brief da Task 4.
+/// novo so para ~15 linhas de fixture seria caro demais.
 /// So o CUBO valido e um invalido entram aqui: as variantes ASCII/cabecalho-mentiroso so importam
 /// para <c>ValidadorDeArquivoStlTests</c>, que ja vive em `Application.Tests`.
 /// </para>

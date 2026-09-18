@@ -42,10 +42,10 @@ const FATOR_DE_FOLGA_DISTANTE = 50
  * `distanciaMinima = esfera do volume varrido (já com o piso de degenerescência em cada dimensão) ×
  * esta margem`. O `OrbitControls` deixa `minPolarAngle = 0` e `maxPolarAngle = Math.PI` (conferido
  * no fonte de `node_modules/three/examples/jsm/controls/OrbitControls.js`) — o usuário orbita até a
- * vista de cima ou de baixo, não só ao redor do eixo Y — então proteger só `raioNoPlanoDeGiro`, como
- * o piso do primeiro fix pass fazia, deixa a câmera atravessar uma peça alta ao orbitar por cima:
- * uma barra de 6 m em pé, por exemplo, tem `raioNoPlanoDeGiro` pequeno e `meiaAlturaEmY` grande, e
- * aquele piso (`raio × margem`) ficava bem MENOR que a própria peça. Como a geometria é centralizada
+ * vista de cima ou de baixo, não só ao redor do eixo Y — então um piso que protegesse só
+ * `raioNoPlanoDeGiro` deixaria a câmera atravessar uma peça alta ao orbitar por cima: uma barra de
+ * 6 m em pé, por exemplo, tem `raioNoPlanoDeGiro` pequeno e `meiaAlturaEmY` grande, e um piso de
+ * `raio × margem` ficaria bem MENOR que a própria peça. Como a geometria é centralizada
  * (`center()` sobre a caixa), todo ponto dela fica a no máximo `√(raio² + meiaAltura²)` do centro,
  * em QUALQUER direção de órbita — a esfera que envolve o volume, não o cilindro que ele varre só ao
  * redor do eixo Y. Ver os três testes cujo nome começa por "mantém distanciaMinima estritamente

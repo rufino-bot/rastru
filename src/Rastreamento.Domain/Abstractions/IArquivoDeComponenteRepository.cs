@@ -22,8 +22,10 @@ public interface IArquivoDeComponenteRepository
   ///
   /// <para>
   /// Precisa de transacao porque sao dois <c>SaveChanges</c>: o Id do arquivo so existe depois do
-  /// primeiro, e sem navegacao (deliberado) o EF nao resolve a ligacao sozinho. Meio-termo —
-  /// arquivo gravado sem ninguem apontando para ele — nao e estado alcancavel.
+  /// primeiro, e sem navegacao (deliberado) o EF nao resolve a ligacao sozinho. O que a transacao
+  /// torna inalcancavel e o meio-termo de UMA chamada que falha entre os dois <c>SaveChanges</c>;
+  /// arquivo sem ninguem apontando para ele continua existindo por outro caminho, e por desenho —
+  /// o anterior de toda substituicao e, em duas substituicoes simultaneas, o de quem perdeu.
   /// </para>
   ///
   /// <para>

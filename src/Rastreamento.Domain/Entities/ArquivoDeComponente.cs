@@ -15,7 +15,7 @@ public class ArquivoDeComponente
   public byte[] Conteudo { get; set; } = [];
 
   /// <summary>
-  /// CALCULADA PELO BANCO (emenda de 2026-09-12, apos review da Task 2): coluna computada
+  /// CALCULADA PELO BANCO (emenda de 2026-09-12): coluna computada
   /// <c>PERSISTED</c> sobre <c>DATALENGTH(Conteudo)</c> -- ninguem em C# preenche isto. O `set`
   /// continua publico porque o EF Core precisa dele para materializar a entidade ao ler; atribuir
   /// um valor aqui antes de <c>SaveChanges</c> nao tem efeito nenhum sobre o que fica gravado, e o

@@ -49,8 +49,9 @@ public sealed class SolidoDoComponenteUseCase
     // a checagem de existencia do componente, via _componentes.ObterPorIdAsync, ja descartou esse
     // caso, e so um componente que desaparecesse entre as duas chamadas chegaria aqui. Nao ha
     // teste que mate este `if` -- o dominio DESATIVA
-    // Componente, nunca apaga (medido na re-review da Task 2), entao o cenario nao e alcancavel
-    // sem injetar falha. Ignorar o retorno e que seria errado: devolveria Ok() sem ter gravado.
+    // Componente, nunca apaga (nao existe `DELETE /componentes/{id}`, e nenhum codigo de `src/`
+    // remove Componente), entao o cenario nao e alcancavel sem injetar falha. Ignorar o retorno e
+    // que seria errado: devolveria Ok() sem ter gravado.
     if (await _arquivos.GravarEVincularComoSolidoAsync(componenteId, arquivo, ct) is null)
       return Result.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
 

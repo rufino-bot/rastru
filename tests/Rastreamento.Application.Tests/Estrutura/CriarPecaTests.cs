@@ -105,7 +105,7 @@ public class CriarPecaTests
     var (useCase, estruturas, _, catalogo) = Montar(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Avulso" });
     // Nenhuma aresta em estruturas.ReceitaFilhos: o Componente 5 nao tem receita cadastrada. Com
     // solido (regra 18) para nao ser confundido com o caso, testado a parte, de Componente
-    // inexistente (Peca_de_Componente_inexistente_da_NaoEncontrado_e_nao_500).
+    // inexistente (Peca_de_Componente_inexistente_da_NaoEncontrado).
     catalogo.Componentes.Add(ComponenteComSolido(5));
 
     var resultado = await useCase.CriarPeca(
@@ -159,7 +159,7 @@ public class CriarPecaTests
   }
 
   [Fact]
-  public async Task Peca_de_Componente_inexistente_da_NaoEncontrado_e_nao_500()
+  public async Task Peca_de_Componente_inexistente_da_NaoEncontrado()
   {
     // Lacuna PRE-EXISTENTE que esta guarda fecha de graca: antes dela, a Application aceitava um
     // ComponenteId inexistente — `Peca_de_Componente_sem_receita_grava_um_no_so` usava justamente

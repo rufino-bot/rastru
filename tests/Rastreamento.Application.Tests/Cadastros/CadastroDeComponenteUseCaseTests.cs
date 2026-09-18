@@ -17,8 +17,8 @@ public class CadastroDeComponenteUseCaseTests
   /// <summary>
   /// Ponto unico de construcao do caso de uso. Nasceu na Task 4 da Fase 2B: quando o construtor
   /// ganhou o repositorio de arquivos, 21 testes deste arquivo o instanciavam literalmente. O
-  /// helper existe para que a PROXIMA dependencia nova toque uma linha, nao vinte e uma -- mesmo
-  /// conserto que a Fase 2 aplicou em CriarPecaTests, e pelo mesmo motivo.
+  /// helper existe para que a PROXIMA dependencia nova toque uma linha, nao vinte e uma -- o mesmo
+  /// papel do `Montar` de CriarPecaTests, e pelo mesmo motivo.
   /// </summary>
   private static CadastroDeComponenteUseCase Montar(
       FakeComponenteRepo repo, FakeArquivoDeComponenteRepo? arquivos = null) =>
@@ -251,7 +251,7 @@ public class CadastroDeComponenteUseCaseTests
   /// <summary>
   /// FakeComponenteRepo NAO expoe um indexador `Componentes` (ele guarda as linhas numa lista
   /// privada) -- por isso o `ArquivoSolidoId` e atribuido no objeto ANTES de construir o repo, e
-  /// nao depois, como o brief desta task escreveu literalmente (`repo.Componentes[7]...`). O
+  /// nao depois por um `repo.Componentes[7]...` que nao compilaria. O
   /// objeto passado ao construtor e o MESMO que a lista interna referencia, entao a mutacao previa
   /// e visivel para o caso de uso do mesmo jeito.
   /// </summary>

@@ -72,7 +72,7 @@ reenvia e a sessão morre no primeiro refresh.
   Fase 2B, não ganha bullet próprio aqui.
 - `GET /componentes/{id}` *(qualquer perfil autenticado)* — detalhe do Componente:
   `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes }`
-  (Fase 2B, Task 4 — antes só tinha os cinco primeiros campos). `nomeDoSolido` e
+  (os três últimos entraram na Fase 2B; antes só havia os cinco primeiros). `nomeDoSolido` e
   `tamanhoDoSolidoEmBytes` são nulos **juntos** quando o Componente não tem sólido enviado, e
   preenchidos **juntos** quando tem — nunca um só. `404` se o Componente não existir.
 - `POST /componentes` *(Administrador, PCP)* — `{ codigo, descricao, tipo }`, `tipo` em
@@ -194,9 +194,9 @@ perfil autenticado.)*
 - `POST /agrupamentos/{id}/estrutura` *(PCP, Administrador)* — cria a Peça (nó de topo), copiando a
   receita padrão a partir de um `Componente`. Body: `{ componenteId, quantidade,
   requerRelatorioDimensional }`. Sem opção de nó ad-hoc aqui: pela regra 18 toda Peça referencia um
-  `Componente` — só um Item (nó com pai) pode ser ad-hoc. Regra 18, segunda metade (Fase 2B, Task
-  5): o `Componente` de origem precisa ter sólido 3D (`ArquivoSolidoId` preenchido) — sem ele, 400;
-  se o `Componente` não existir, 404 (ver "Contrato de erro da Estrutura")
+  `Componente` — só um Item (nó com pai) pode ser ad-hoc. Regra 18, segunda metade (cobrada desde
+  a Fase 2B): o `Componente` de origem precisa ter sólido 3D (`ArquivoSolidoId` preenchido) — sem
+  ele, 400; se o `Componente` não existir, 404 (ver "Contrato de erro da Estrutura")
 - `POST /estrutura/{id}/filhos` *(PCP, Administrador)* — acrescenta um Item filho ao nó `{id}`
   (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade }`.
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
@@ -264,9 +264,10 @@ de uma vez.
     ultrapassa o que o sistema suporta", sem números); **não** é o mesmo caso do teto da coluna, e
     as duas frases não devem ser lidas como sinônimas;
   - nó ad-hoc sem `Descricao`;
-  - regra 18, segunda metade (Fase 2B, Task 5), só no `POST /agrupamentos/{id}/estrutura`: o
-    `Componente` de origem da Peça não tem sólido 3D. Corpo `{ "erro": "Este Componente nao tem
-    solido 3D (regra 18). Envie o arquivo STL no cadastro do Componente antes de criar a Peca." }`
+  - regra 18, segunda metade (cobrada desde a Fase 2B), só no
+    `POST /agrupamentos/{id}/estrutura`: o `Componente` de origem da Peça não tem sólido 3D. Corpo
+    `{ "erro": "Este Componente nao tem solido 3D (regra 18). Envie o arquivo STL no cadastro do
+    Componente antes de criar a Peca." }`
     — sem `mensagem`, porque a falha não tem `Detalhe` (ver `Recusar` em `EstruturaController`).
 
   **Da validação de formato e de binding** (corpo malformado, `"quantidade": "abc"`), que é

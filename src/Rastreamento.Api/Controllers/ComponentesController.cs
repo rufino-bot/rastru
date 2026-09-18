@@ -22,9 +22,9 @@ public class ComponentesController : CadastroControllerBase
   /// `[RequestSizeLimit]` mede o CORPO MULTIPART INTEIRO (boundary + cabecalhos da parte), nao so
   /// o arquivo -- por isso o limite do endpoint e `ValidadorDeArquivoStl.TamanhoMaximoEmBytes`
   /// MAIS esta margem, nao o valor cru do validador. Sem ela, um STL de exatamente 16 MiB (que o
-  /// validador aceita) seria recusado pelo pipeline antes de chegar ao codigo -- achado da review
-  /// da Task 4 (Critical 1), medido por HTTP real: overhead de 221 bytes so para o boundary e os
-  /// cabecalhos da parte com o nome "cubo.stl".
+  /// validador aceita) seria recusado pelo pipeline antes de chegar ao codigo -- medido por HTTP
+  /// real em 2026-09-13: overhead de 221 bytes so para o boundary e os cabecalhos da parte com o
+  /// nome "cubo.stl".
   ///
   /// <para>
   /// Medido em 2026-09-13 com o `MultipartFormDataContent` do proprio .NET (o client que
@@ -38,15 +38,20 @@ public class ComponentesController : CadastroControllerBase
   /// </para>
   ///
   /// <para>
-  /// Esse e o pior caso do cliente de TESTE, nao do de producao. A re-review da Task 4 mediu o que
+  /// Esse e o pior caso do cliente de TESTE, nao do de producao. Medido tambem, no mesmo dia, o que
   /// um navegador envia com `fetch` + `FormData` para o mesmo nome de 260 caracteres acentuados:
   /// <b>558 bytes</b> de overhead. A margem foi dimensionada pelo maior dos dois clientes medidos.
   /// </para>
   ///
   /// <para>
-  /// 4096 bytes cobrem o pior caso medido (2.444) com ~65% de folga, sem empurrar o limite para
-  /// perto do teto default do Kestrel (30.000.000 bytes): 16 MiB + 4096 = 16.781.312, e a folga
-  /// ate esse teto e de 13.218.688 bytes (~12,6 MiB) -- a spec exige nao encostar nele.
+  /// 4096 bytes cobrem o pior caso medido (2.444) com ~65% de folga: 16 MiB + 4096 = 16.781.312.
+  /// O `[RequestSizeLimit]` SUBSTITUI, para este endpoint, o `MaxRequestBodySize` padrao do
+  /// Kestrel (30.000.000 bytes) -- e o caminho que a documentacao do ASP.NET Core recomenda para
+  /// mudar o limite de uma acao --, entao o padrao do Kestrel nao e teto aqui. O que continua
+  /// valendo por fora do atributo e o limite de quem estiver NA FRENTE da aplicacao: sob IIS, o
+  /// `maxAllowedContentLength` da filtragem de requisicao (30.000.000 bytes por padrao); atras de
+  /// nginx, o `client_max_body_size` (1 MiB por padrao). Os dois sao contrato documentado, NAO
+  /// medido aqui -- nao ha IIS nem nginx neste ambiente.
   /// </para>
   /// </summary>
   private const int MargemDoCorpoMultipartEmBytes = 4096;

@@ -172,13 +172,13 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     // `ValidadorDeArquivoStlTests.No_limite_exato_de_16_MiB_e_aceito`: prova que a fixture tem o
     // tamanho EXATO do limite do validador, nem um byte a menos nem a mais.
     //
-    // O QUE ESTE TESTE NAO PROVA, medido na re-review da Task 4: ele NAO cobre a margem do
+    // O QUE ESTE TESTE NAO PROVA, medido em 2026-09-13: ele NAO cobre a margem do
     // `RequestSizeLimit`. Sob `WebApplicationFactory` o `TestServer` nao aplica esse atributo, e
-    // este teste passa IDENTICO contra o controller de antes do conserto -- em que um STL de
-    // exatamente 16 MiB era recusado pelo Kestrel real. O que ele prova e o limite do VALIDADOR
-    // pelo caminho HTTP inteiro. Quem guarda a margem e
+    // este teste passa IDENTICO contra um controller cujo limite e o do validador SEM a margem --
+    // em que um STL de exatamente 16 MiB e recusado pelo Kestrel real. O que ele prova e o limite
+    // do VALIDADOR pelo caminho HTTP inteiro. Quem guarda a margem e
     // `RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem`, que falha
-    // contra aquele controller; o comportamento do Kestrel foi medido por HTTP real, na review.
+    // contra esse controller; o comportamento do Kestrel foi medido por HTTP real, fora da suite.
     Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes, conteudo.Length);
 
     var resposta = await EnviarSolido(
@@ -207,13 +207,14 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
   }
 
   /// <summary>
-  /// LACUNA DECLARADA, medida nesta task (fix pass do Critical 1 da review): a mutacao que a
-  /// review descreveu -- remover `[RequestSizeLimit]` e subir um corpo grande pelo caminho HTTP --
-  /// nao e provavel de matar via `WebApplicationFactory`/`TestServer`, e isso foi MEDIDO, nao
-  /// suposto. Tentei um `POST` de 20 MiB (acima de `TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes`,
-  /// abaixo do teto do Kestrel) COM o atributo no lugar: a resposta foi 400 vindo do
+  /// LACUNA DECLARADA, medida em 2026-09-13: a mutacao de remover `[RequestSizeLimit]` e subir um
+  /// corpo grande pelo caminho HTTP nao e provavel de matar via
+  /// `WebApplicationFactory`/`TestServer`, e isso foi MEDIDO, nao suposto. Tentei um `POST` de
+  /// 20 MiB (acima de `TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes`, abaixo do
+  /// `MaxRequestBodySize` padrao do Kestrel) COM o atributo no lugar: a resposta foi 400 vindo do
   /// `ValidadorDeArquivoStl` ("O arquivo passa de 16 MiB..."), NAO a mensagem de model binding do
-  /// ASP.NET que a review observou contra a API real (`dotnet run` + curl). Ou seja: sob
+  /// ASP.NET que o Kestrel real devolve ao `curl` (ver o XML doc de
+  /// `ComponentesController.EnviarSolido`). Ou seja: sob
   /// `TestServer`, o corpo de 20 MiB e lido por INTEIRO e chega ao caso de uso mesmo com o
   /// atributo presente -- `TestServer` nao implementa a mesma checagem de `IHttpMaxRequestBodySizeFeature`
   /// que o Kestrel real aplica antes do model binding terminar de ler o form. Removendo o
@@ -224,7 +225,8 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
   /// limite na tabela de roteamento real (o mesmo `EndpointDataSource` que
   /// `PerfisDeEscritaDeclaradosTests` usa), que MORRE se o atributo for removido ou o valor for
   /// trocado -- mas nao prova que o Kestrel de producao vai de fato interromper a leitura do
-  /// corpo antes de materializa-lo em memoria; essa prova e da review, contra a API real.
+  /// corpo antes de materializa-lo em memoria; essa prova foi feita por HTTP real, contra o
+  /// Kestrel, fora da suite.
   /// </summary>
   [Fact]
   public void RequestSizeLimit_do_envio_de_solido_usa_o_limite_do_validador_mais_a_margem()

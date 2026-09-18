@@ -19,8 +19,9 @@ public static class StlDeTeste
   {
     var bytes = new byte[84 + 50 * triangulos];
     // Os 80 bytes de cabecalho ficam zerados de proposito: um STL binario de verdade costuma
-    // trazer texto ali, e ha arquivos reais cujo cabecalho comeca com "solid" — e por isso que o
-    // validador tenta a forma BINARIA primeiro.
+    // trazer texto ali, e ha arquivos reais cujo cabecalho comeca com "solid" — o caso que
+    // BinarioComCabecalhoQueDizSolid monta a parte. Os vertices tambem ficam zerados: para o
+    // validador so a contagem e o tamanho importam, e o "cubo" nao desenha nada num viewer.
     BitConverter.GetBytes(triangulos).CopyTo(bytes, 80);
     return bytes;
   }

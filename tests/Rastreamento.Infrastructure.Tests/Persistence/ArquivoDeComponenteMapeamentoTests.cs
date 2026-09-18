@@ -46,7 +46,7 @@ public class ArquivoDeComponenteMapeamentoTests : TesteComBanco
       // Sha256 e TamanhoEmBytes sao CALCULADOS pelo banco (colunas PERSISTED sobre Conteudo):
       // comparar contra o hash calculado em C# prova a coluna computada de verdade, nao so o
       // comprimento -- `Assert.Equal(32, lido.Sha256.Length)` passaria igual com os bytes
-      // trocados (Minor 1 da review da Task 2).
+      // trocados.
       Assert.Equal(SHA256.HashData(ConteudoDeTeste()), lido.Sha256);
       Assert.Equal(ConteudoDeTeste().Length, lido.TamanhoEmBytes);
       Assert.Equal(usuarioId, lido.CriadoPorUsuarioId);
@@ -96,8 +96,8 @@ public class ArquivoDeComponenteMapeamentoTests : TesteComBanco
       // navegacao para `ArquivoDeComponente`, entao nao existe `Include` a escrever aqui. A
       // guarda interroga o MODELO do EF em tempo de EXECUCAO -- acrescentar
       // `public ArquivoDeComponente? ArquivoSolido { get; set; }` em Componente COMPILA
-      // normalmente, e so este Assert, rodado, discorda (medido por mutacao no fix pass da Task
-      // 2: a falha e `Assert... Failure`, nao erro do compilador). Afirma sobre o
+      // normalmente, e so este Assert, rodado, discorda (medido por mutacao em 2026-09-12: a falha
+      // e `Assert... Failure`, nao erro do compilador). Afirma sobre o
       // TargetEntityType de cada navegacao, nao sobre a colecao estar vazia: uma navegacao
       // legitima futura que NAO aponte para ArquivoDeComponente nao deveria reprovar aqui.
       Assert.DoesNotContain(

@@ -90,7 +90,7 @@ CREATE TABLE dbo.ArquivoDeComponente (
     Id                  INT IDENTITY(1,1)   NOT NULL,
     NomeOriginal        NVARCHAR(260)       NOT NULL, -- o nome que o usuario subiu: exibicao na tela e Content-Disposition do download
     Conteudo            VARBINARY(MAX)      NOT NULL,
-    -- Calculada pelo banco (emenda de 2026-09-12, apos review da Task 2 da Fase 2B): enquanto era
+    -- Calculada pelo banco (emenda de 2026-09-12, na Fase 2B): enquanto era
     -- coluna comum, o invariante TamanhoEmBytes == DATALENGTH(Conteudo) nao tinha dono nem guarda --
     -- se o caso de uso do upload errasse, o tamanho exibido mentia em silencio. O SQL Server recusa
     -- escrita nela (Msg 271), o que torna o invariante inviolavel em vez de apenas disciplinado.

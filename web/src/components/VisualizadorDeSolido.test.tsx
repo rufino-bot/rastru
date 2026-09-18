@@ -204,7 +204,7 @@ afterEach(() => {
 // canvas renderizado de verdade é coberto pela verificação manual em navegador (Task 9 da spec).
 //
 // O dublê de `three` é o mínimo que `VisualizadorDeSolido.montarCena` usa: `Object3D`-like com
-// `position.set`/`rotation`/`add`, e um `WebGLRenderer` cujo `domElement` é um `<canvas>` REAL do
+// `position.set`/`add`, e um `WebGLRenderer` cujo `domElement` é um `<canvas>` REAL do
 // jsdom (não um objeto qualquer) — é nele que o componente escreve o `aria-label` que o teste do
 // estado pronto procura.
 vi.mock('three', () => {
@@ -212,13 +212,12 @@ vi.mock('three', () => {
 
   class Object3DFalso {
     position = { set: vi.fn() }
-    rotation = { y: 0 }
     add = vi.fn()
   }
 
-  // Não herda de `Object3DFalso`: a câmera real não tem `rotation.y`/`add` relevantes aqui, e o que
-  // o componente de fato usa nela (`position.set`, `aspect`, `near`, `far`,
-  // `updateProjectionMatrix`) é tudo que este dublê precisa expor.
+  // Não herda de `Object3DFalso`: o componente não chama `add` na câmera, e o que ele de fato usa
+  // nela (`position.set`, `aspect`, `near`, `far`, `updateProjectionMatrix`) é tudo que este dublê
+  // precisa expor.
   class PerspectiveCameraFalsa {
     position = { set: vi.fn() }
     aspect: number

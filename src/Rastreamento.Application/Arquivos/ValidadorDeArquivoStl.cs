@@ -16,9 +16,14 @@ public static class ValidadorDeArquivoStl
 {
   /// <summary>
   /// 16 MiB. Raciocinio: /50 bytes por triangulo = ~335 mil triangulos, malha fina de sobra para
-  /// peca de metalurgia, e cabe no limite default do corpo de requisicao do Kestrel (30.000.000
-  /// bytes). A folga e pequena — dobrar este numero ultrapassa o teto do Kestrel, e ai deixa de
-  /// ser constante e passa a ser configuracao de pipeline.
+  /// peca de metalurgia. O limite do corpo no endpoint (`[RequestSizeLimit]` de
+  /// `ComponentesController.EnviarSolido`) deriva deste numero e SUBSTITUI, para aquela rota, o
+  /// padrao do Kestrel (30.000.000 bytes) -- entao o Kestrel nao e teto para aumenta-lo. O que
+  /// continua valendo por fora e o limite de quem estiver na frente da aplicacao: sob IIS, o
+  /// `maxAllowedContentLength` (30.000.000 bytes por padrao); atras de nginx, o
+  /// `client_max_body_size` (1 MiB por padrao). Contrato documentado dos dois, NAO medido aqui.
+  /// Mudou este numero, mude junto `TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES` (`web/src/api/cadastros.ts`),
+  /// que o espelha no front.
   /// </summary>
   public const int TamanhoMaximoEmBytes = 16 * 1024 * 1024;
 
@@ -50,9 +55,11 @@ public static class ValidadorDeArquivoStl
     if (conteudo.Length == 0) return ErroDeArquivoVazio;
     if (conteudo.Length > TamanhoMaximoEmBytes) return ErroDeTamanho;
 
-    // BINARIO PRIMEIRO, e a ordem e a regra, nao preferencia: ha STL binario de verdade cujos 80
-    // bytes de cabecalho comecam com "solid" (o exportador escreve um texto livre ali). Testando
-    // ASCII primeiro, esse arquivo seria lido como ASCII e a formula 84+50n nunca seria conferida.
+    // As duas formas sao tentadas e basta uma: o resultado e um OU, e a ordem destas duas linhas
+    // nao muda veredito nenhum. O que importa e que "comeca com solid" NAO decide a forma sozinho:
+    // ha STL binario de verdade cujos 80 bytes de cabecalho comecam com "solid" (o exportador
+    // escreve um texto livre ali), e ele passa pela checagem binaria mesmo sem ter "facet normal"
+    // (ver `Binario_cujo_cabecalho_comeca_com_solid_passa_como_binario`).
     if (EhBinarioCoerente(conteudo)) return null;
     if (EhAsciiCoerente(conteudo)) return null;
 

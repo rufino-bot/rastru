@@ -162,7 +162,8 @@ dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento — mas
 ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem") torna exigíveis três itens de
 dívida de endurecimento — os dois primeiros porque é a **exposição pública** que os cria, o
 terceiro porque é um **deploy real** que o cobra, com ou sem exposição —, e os três carregam o
-mesmo gatilho, **obrigatório antes do primeiro deploy público**:
+mesmo gatilho, **obrigatório antes do primeiro deploy público**. O item 4 carrega o mesmo gatilho
+sem ser endurecimento: é condição para o upload de sólido funcionar atrás de um proxy.
 
 1. **TLS é pré-requisito de funcionamento, não melhoria.** O cookie de refresh é gravado com
    `Secure = true` (`AuthController`), e navegador não grava cookie `Secure` em HTTP — **exceto em
@@ -181,12 +182,23 @@ mesmo gatilho, **obrigatório antes do primeiro deploy público**:
    fica como chave fraca em silêncio — o requisito de fornecê-la por variável de ambiente na VPS
    continua valendo, com o mesmo gatilho de TLS e `ForwardedHeaders`; o que muda é o risco de
    esquecer, não a obrigação.
+4. **O limite de corpo do proxy barra o upload de sólido.** Se o caminho for container + nginx, o
+   `client_max_body_size` do nginx tem de ser elevado acima do limite do endpoint de upload
+   (`POST /componentes/{id}/solido`: 16 MiB mais uma margem de 4 KiB). O padrão do nginx é **1 MiB**,
+   e acima dele o nginx responde 413 — isto é **documentação do nginx, não medição** (não houve
+   nginx no ambiente da Fase 2B). Sem o ajuste, todo upload com corpo acima de 1 MiB seria recusado
+   pelo proxy antes de chegar à API, e a tela não apontaria o proxy: mostraria o fallback "Envie um
+   arquivo .stl de até 16 MiB" se o 413 chegar ao navegador, ou "Sem conexão com o servidor" se não
+   chegar (a própria documentação do nginx avisa que navegadores não exibem esse erro corretamente)
+   — nos dois casos para quem enviou, digamos, 5 MB. É configuração de deploy, não código. Sob IIS,
+   o equivalente é o `maxAllowedContentLength` da filtragem de requisição, cujo padrão documentado
+   (30.000.000 bytes) já comporta o limite do endpoint — também não medido.
 
 **Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
 fila, em branch separada — decisão do usuário: misturar infraestrutura na branch da Fase 2B
 poluiria a review dela.
 
-Um quarto ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
+Um último ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
 (seção "Defesas de autenticação em vigor", bullet "Lockout de conta") que retrancar conta não tem
 limite. Era risco de alguém na rede interna da empresa; numa VPS pública o mesmo ataque fica
 disponível a qualquer um na internet — a mudança de exposição está anotada junto daquele bullet.

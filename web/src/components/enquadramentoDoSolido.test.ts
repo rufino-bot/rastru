@@ -84,7 +84,7 @@ describe('enquadramentoDoSolido', () => {
   })
 
   it('mantém distanciaMinima estritamente maior que a esfera do volume para peça DEITADA (raio bem maior que a meia altura), em duas proporções bem separadas', () => {
-    // O piso de zoom do primeiro fix pass (`raio × 1,1`, sem a meia altura) só protegia contra a
+    // Um piso de zoom de `raio × 1,1`, sem a meia altura, só protegeria contra a
     // câmera entrar no CILINDRO que a peça varre girando ao redor do eixo Y — e o `OrbitControls`
     // deixa `minPolarAngle = 0` / `maxPolarAngle = Math.PI` (conferido no fonte de
     // `OrbitControls.js`), então o usuário orbita também até a vista de cima ou de baixo, onde o que
@@ -92,7 +92,7 @@ describe('enquadramentoDoSolido', () => {
     // Números redondos com raiz exata (triângulo 500-1200-1300, escala de 5-12-13): raio = 1.200,
     // meiaAltura = 500 → esfera = 1.300 (exata), `distanciaMinima = 1.300 × 1,1 = 1.430`. Independe
     // da proporção do quadro porque não entra na fórmula — as duas proporções (0,5 estreita e 1,75
-    // larga, a mesma faixa que expôs o defeito original) produzem o MESMO valor.
+    // larga) produzem o MESMO valor.
     const estreita = enquadramentoDoSolido(1200, 500, 90, 0.5, 1)
     const larga = enquadramentoDoSolido(1200, 500, 90, 1.75, 1)
 
@@ -105,9 +105,9 @@ describe('enquadramentoDoSolido', () => {
   it('mantém distanciaMinima estritamente maior que a esfera do volume para peça EM PÉ (meia altura bem maior que o raio), nas mesmas duas proporções', () => {
     // Complementa a peça DEITADA: mesmo triângulo 500-1200-1300, com os papéis trocados — raio =
     // 500, meiaAltura = 1.200 → a mesma esfera = 1.300 e a mesma `distanciaMinima = 1.430`. É
-    // exatamente este o caso que o piso do primeiro fix pass deixava passar: uma peça comprida
+    // exatamente este o caso que um piso de `raio × 1,1` deixaria passar: uma peça comprida
     // modelada ao longo do eixo Y do CAD chega em pé no viewer, com raio no plano de giro pequeno e
-    // meia altura grande — aquele piso (`raio × 1,1 = 550`) ficava bem MENOR que a própria peça
+    // meia altura grande — esse piso (`raio × 1,1 = 550`) ficaria bem MENOR que a própria peça
     // (esfera 1.300), deixando a câmera atravessá-la ao orbitar por cima.
     const estreita = enquadramentoDoSolido(500, 1200, 90, 0.5, 1)
     const larga = enquadramentoDoSolido(500, 1200, 90, 1.75, 1)
@@ -131,14 +131,14 @@ describe('enquadramentoDoSolido', () => {
     expect(larga.distanciaMinima).toBeGreaterThan(29)
   })
 
-  it('reproduz o cenário real que atravessava a peça antes do PRIMEIRO conserto (bloco 6.000×400×300, proporção 1,75) e prova a câmera fora da esfera do volume', () => {
+  it('reproduz o bloco 6.000×400×300 em que um piso de metade da distância deixava a câmera entrar na peça (proporção 1,75), e prova a câmera fora da esfera do volume', () => {
     // Números medidos: bloco com meia-extensão X = 3.000, Z = 150 dá raioNoPlanoDeGiro =
     // √(3.000² + 150²) = 3.003,747659175118, e meia-extensão Y = 200 (meiaAlturaEmY) — a peça está
-    // DEITADA, raio bem maior que a meia altura. Antes do primeiro conserto, o piso multiplicava a
-    // distância final (≈5.463,58, dominada pela largura nesta proporção) por 0,5, dando minDistance
-    // ≈ 2.731,79 — MENOR que o raio, então a câmera entrava na peça ao orbitar. O primeiro conserto
-    // (`raio × 1,1 ≈ 3.304,12`) fechou este caso específico, mas não o caso da peça EM PÉ — ver os
-    // testes "mantém distanciaMinima estritamente maior que a esfera do volume para peça...". A
+    // DEITADA, raio bem maior que a meia altura. Um piso que multiplicasse a distância final
+    // (≈5.463,58, dominada pela largura nesta proporção) por 0,5 daria minDistance ≈ 2.731,79 —
+    // MENOR que o raio, e a câmera entraria na peça ao orbitar. Um piso de `raio × 1,1 ≈ 3.304,12`
+    // fecharia este caso específico, mas não o da peça EM PÉ — ver os testes "mantém
+    // distanciaMinima estritamente maior que a esfera do volume para peça...". A
     // esfera do volume aqui é `√(3.003,747659175118² + 200²) = 3.010,398644698074` (só um pouco maior
     // que o raio isolado, porque a meia altura é pequena perto dele), e `distanciaMinima =
     // 3.010,398644698074 × 1,1 = 3.311,4385091678814` fica acima do raio E da esfera.

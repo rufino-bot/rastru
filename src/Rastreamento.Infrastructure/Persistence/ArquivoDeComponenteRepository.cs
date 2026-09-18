@@ -11,25 +11,24 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
   public ArquivoDeComponenteRepository(RastreamentoDbContext db) => _db = db;
 
   /// <summary>
-  /// Sem isolamento SERIALIZABLE, diferente do molde de <c>ReceitaPadraoRepository.Substituir</c>
-  /// (o XML doc da interface citava "mesmo molde" ate a review da Task 2 apontar que isso nao e
-  /// verdade -- corrigido aqui, na frase, nao no codigo): READ COMMITTED basta porque cada
-  /// escritor insere a PROPRIA linha em <c>ArquivoDeComponente</c> (sem disputa possivel) e depois
-  /// faz um UPDATE na mesma linha de <c>Componente</c> por Id, que o lock exclusivo ja serializa.
-  /// Duas substituicoes simultaneas do mesmo Componente terminam em ultimo-escritor-vence -- um
-  /// arquivo grava sem ninguem apontar para ele -- que e exatamente a consequencia aceita em §2.5
-  /// da spec, nao uma corrida a fechar.
+  /// Sem isolamento SERIALIZABLE, diferente do molde de <c>ReceitaPadraoRepository.Substituir</c>:
+  /// READ COMMITTED basta porque cada escritor insere a PROPRIA linha em
+  /// <c>ArquivoDeComponente</c> (sem disputa possivel) e depois faz um UPDATE na mesma linha de
+  /// <c>Componente</c> por Id, que o lock exclusivo ja serializa. Duas substituicoes simultaneas do
+  /// mesmo Componente terminam em ultimo-escritor-vence -- o arquivo de quem perdeu fica gravado
+  /// sem ninguem apontar para ele, o mesmo estado em que toda substituicao ja deixa o arquivo
+  /// anterior, por desenho (ver o XML doc da interface) -- e por isso nao e uma corrida a fechar.
   /// </summary>
   public async Task<int?> GravarEVincularComoSolidoAsync(
       int componenteId, ArquivoDeComponente arquivo, CancellationToken ct)
   {
     await using var transacao = await _db.Database.BeginTransactionAsync(ct);
 
-    // A checagem vem ANTES do primeiro SaveChanges de proposito (Important 3 da review da Task
-    // 2): antes, SingleAsync lancava InvalidOperationException para componente inexistente, que
-    // subia crua ate a API e virava 500 -- a spec (§5) exige 404. Fazendo a checagem aqui, com
-    // SingleOrDefaultAsync, o metodo devolve null SEM gravar nada: nao ha arquivo orfao para a
-    // transacao desfazer no rollback.
+    // A checagem vem ANTES do primeiro SaveChanges de proposito: com SingleAsync no lugar,
+    // componente inexistente lancaria InvalidOperationException, que subiria crua ate a API e
+    // viraria 500 -- a spec (§5) exige 404. Fazendo a checagem aqui, com SingleOrDefaultAsync, o
+    // metodo devolve null SEM gravar nada: nao ha arquivo orfao para a transacao desfazer no
+    // rollback.
     var componente = await _db.Componentes.SingleOrDefaultAsync(c => c.Id == componenteId, ct);
     if (componente is null) return null;
 
@@ -50,7 +49,7 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
     // Colapsa "componente inexistente" e "componente sem solido" no mesmo null -- declarado no
     // XML doc da interface, e aqui esta o mecanismo: default(int?) devolvido por
     // SingleOrDefaultAsync (sem linha) coincide com o ArquivoSolidoId NULL de uma linha que
-    // existe. Os dois casos produzem o mesmo `arquivoId is null` (Minor 4 da review da Task 2).
+    // existe. Os dois casos produzem o mesmo `arquivoId is null`.
     if (arquivoId is null) return null;
 
     return await _db.ArquivosDeComponente.AsNoTracking()

@@ -319,9 +319,15 @@ para leitura, `[Authorize(Roles = PerfisDeEscrita)]` — `Administrador,PCP` —
 
 1. **Extensão** `.stl`.
 2. **Tamanho** ≤ **16 MiB** (16.777.216 bytes). O número tem raciocínio: 16 MiB / 50 bytes por triângulo ≈ 335 mil
-   triângulos, malha fina de sobra para peça de metalurgia, e cabe no limite default do corpo de
-   requisição do Kestrel — que é 30.000.000 bytes, ou ≈ 28,6 MiB — sem reconfiguração. A folga é
-   real mas não é grande: dobrar o limite desta fase já ultrapassaria o teto do Kestrel.
+   triângulos, malha fina de sobra para peça de metalurgia. *(Corrigido: esta linha dizia que dobrar
+   o limite ultrapassaria o "teto do Kestrel" de 30.000.000 bytes.)* O `[RequestSizeLimit]` do
+   endpoint **substitui**, para aquela rota, o `MaxRequestBodySize` padrão do Kestrel — é o caminho
+   que a documentação do ASP.NET Core recomenda para mudar o limite de uma ação —, então o padrão do
+   Kestrel não é teto para este número. O que continua valendo por fora é o limite de quem estiver
+   na frente da aplicação: sob IIS, o `maxAllowedContentLength` da filtragem de requisição
+   (30.000.000 bytes por padrão); atrás de nginx, o `client_max_body_size` (1 MiB por padrão — ver
+   "Pontos em aberto" de `specs/03-arquitetura-tecnica.md`). **Os dois são contrato documentado,
+   não medido** — não houve IIS nem nginx no ambiente desta fase.
 3. **Estrutura de STL de verdade.** No binário: 80 bytes de cabeçalho, `uint32` com a contagem de
    triângulos, 50 bytes por triângulo — então o arquivo válido satisfaz **`tamanho == 84 + 50 × n`**,
    com `n` lido do próprio arquivo. No ASCII: abre com `solid` e contém `facet normal`.
@@ -435,8 +441,11 @@ O que a suíte cobre:
 - **Validação de STL**, nas três camadas, com ênfase na terceira: arquivo com `tamanho != 84 + 50n`
   recusado, ASCII sem `facet normal` recusado, PDF renomeado recusado.
 - **Fixture gerada em código**, não arquivo binário commitado: um cubo STL binário de 12 triângulos
-  = **684 bytes exatos** (84 + 50 × 12). Serve aos testes e à verificação manual, e de quebra
-  exercita a própria fórmula da terceira camada.
+  = **684 bytes exatos** (84 + 50 × 12). Serve aos testes, e de quebra exercita a própria fórmula
+  da terceira camada. *(Corrigido: esta linha dizia que a fixture servia também à verificação
+  manual. Não serve: os 12 triângulos têm todas as coordenadas zeradas — para o validador só a
+  contagem e o tamanho importam —, então, subida no viewer, não mostra nada. A verificação manual
+  precisa de um STL com geometria de verdade.)*
 - **Endpoints**: perfis (403 para quem não escreve), 404, substituição, `Content-Disposition` do
   download.
 - **Mapeamento EF** da tabela nova, contra o SQL Server real, como o resto do projeto. Teste novo
@@ -498,11 +507,15 @@ usuário real percorre é o mesmo.
 ## 11. Riscos
 
 - **Nenhum Componente do `seed-demo` tem sólido, e isso é permanente** — o seed não muda nesta
-  fase. Quem for verificar manualmente **precisa subir um STL primeiro**. A fixture de 684 bytes
-  serve, e usá-la é parte da verificação, não um atalho.
+  fase. Quem for verificar manualmente **precisa subir um STL primeiro** — com geometria de verdade:
+  a fixture de 684 bytes da suíte passa no validador, mas tem os vértices zerados e não desenha
+  nada no viewer (ver §8). *(Corrigido: esta linha dizia que a fixture servia.)*
 - **STL real de fábrica pode passar de 16 MiB.** O limite é escolha, não lei da física: se um arquivo
-  real for recusado, o número se ajusta — mas o teto do Kestrel (30 MB) entra em jogo acima disso, e
-  aí deixa de ser uma constante e passa a ser configuração de pipeline.
+  real for recusado, o número se ajusta — em `ValidadorDeArquivoStl.TamanhoMaximoEmBytes` (o
+  `[RequestSizeLimit]` do endpoint deriva dele) e no espelho `TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES` do
+  front, que não o importa. O padrão do Kestrel não é teto (ver §5.1); o que
+  entra em jogo é o limite do servidor da frente — IIS ou nginx —, contrato documentado e não
+  medido. *(Corrigido: este item dizia que o "teto do Kestrel (30 MB)" entraria em jogo.)*
 - **O viewer é a única parte sem cobertura de suíte** (§8). Se a verificação manual for pulada,
   ninguém sabe se o sólido aparece.
 - **`ComponenteDto` toca muita coisa** (§5.2): é onde o delta de teste desta fase vai concentrar.

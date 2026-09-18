@@ -11,7 +11,7 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// certos); nenhum deles chamava o repositorio -- o que este arquivo fecha e o REPOSITORIO em si:
 /// a transacao que liga arquivo a Componente, o colapso null de "componente inexistente" e "sem
 /// solido", a substituicao (historico, nao remocao) e a projecao de metadado que nunca traz o
-/// blob. (Important 1 da review da Task 2 -- ver <c>fase2b-task-2-review-report.md</c>.)
+/// blob.
 /// </summary>
 [Collection(ColecaoQueEscreveEmComponente.Nome)]
 public class ArquivoDeComponenteRepositoryTests : TesteComBanco
@@ -106,7 +106,7 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
       Assert.NotNull(lido);
       Assert.Equal(conteudo, lido!.Conteudo);
       Assert.Equal("peca.stl", lido.NomeOriginal);
-      // Prova a coluna calculada de verdade (Minor 1 da review), nao so o comprimento.
+      // Prova a coluna calculada de verdade, nao so o comprimento.
       Assert.Equal(SHA256.HashData(conteudo), lido.Sha256);
       Assert.Equal(conteudo.Length, lido.TamanhoEmBytes);
       Assert.Equal(usuarioId, lido.CriadoPorUsuarioId);
@@ -263,8 +263,8 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
       Assert.Equal(conteudo.Length, metadado.TamanhoEmBytes);
       // A garantia de que o blob NAO vem e de TIPO, nao de execucao: MetadadoDeSolido nao tem
       // propriedade Conteudo, entao nao ha campo aqui para afirmar "esta vazio" -- so a ausencia
-      // do proprio campo. Trocar a projecao por materializar ArquivoDeComponente inteiro (a
-      // mutacao 4 do fix pass) ainda compila e ainda passa neste teste: essa mutacao mede se a
+      // do proprio campo. Trocar a projecao por materializar ArquivoDeComponente inteiro (medido
+      // por mutacao) ainda compila e ainda passa neste teste: essa mutacao mede se a
       // garantia e estrutural (que e), nao se este teste a fiscaliza em runtime.
     }
     finally

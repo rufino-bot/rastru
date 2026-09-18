@@ -18,8 +18,9 @@ public class FakeArquivoDeComponenteRepo : IArquivoDeComponenteRepository
 
   public List<int> VinculadosA { get; } = [];
 
-  // Task<int?> e nao Task<int>: o null e "o componente nao existe", contrato que a Task 2 ganhou
-  // no fix pass dela. Este fake NAO modela esse null -- ele grava para qualquer id que lhe pecam,
+  // Task<int?> e nao Task<int>: o null e "o componente nao existe", contrato do repositorio real
+  // (a checagem roda dentro da transacao). Este fake NAO modela esse null -- ele grava para
+  // qualquer id que lhe pecam,
   // e quem barra componente inexistente e o caso de uso, antes de chegar aqui.
   public Task<int?> GravarEVincularComoSolidoAsync(
       int componenteId, ArquivoDeComponente arquivo, CancellationToken ct)
@@ -77,7 +78,8 @@ public class SolidoDoComponenteUseCaseTests
     // ArquivoDeComponenteMapeamentoTests, contra o SQL Server real, na Task 2.
     Assert.Equal(UsuarioId, gravado.CriadoPorUsuarioId);
     // Vinculado ao componente PEDIDO, nao a qualquer um: com um componente so no fake, um literal
-    // no lugar do parametro passaria (achado B11 da Fase 1A).
+    // no lugar do parametro passaria -- quem fecha isso e
+    // Enviar_grava_no_componente_pedido_mesmo_com_outro_no_catalogo.
     Assert.Equal(10, Assert.Single(arquivos.VinculadosA));
     Assert.Equal(StlDeTeste.CuboBinario(), gravado.Conteudo);
     _ = componentes;
@@ -162,7 +164,7 @@ public class SolidoDoComponenteUseCaseTests
   [Fact]
   public async Task Enviar_grava_no_componente_pedido_mesmo_com_outro_no_catalogo()
   {
-    // Achado por mutacao (Step 11.2 do plano): com um componente so no fake,
+    // Achado por mutacao: com um componente so no fake,
     // Enviar_grava_o_arquivo_e_vincula_ao_componente passa mesmo com um LITERAL 10 no lugar do
     // parametro componenteId na chamada a GravarEVincularComoSolidoAsync -- medido rodando essa
     // mutacao de verdade (7/7 continuaram passando). Com dois componentes no fake, enviar para o
