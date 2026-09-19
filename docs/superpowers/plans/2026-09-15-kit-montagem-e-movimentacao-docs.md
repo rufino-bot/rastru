@@ -272,8 +272,8 @@ Expected: `≥ 4` (glossário, regra 15, regra 22, regra 23).
 Run: `cd C:/wt-kit && grep -nE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" specs/01-dominio-e-regras-de-negocio.md`
 Expected: a **mesma 1 linha** do Step 1 — nenhuma citação nova por número de linha.
 
-Run (mojibake, com controle positivo): `cd C:/wt-kit && printf 'aÃ§' | grep -c "Ã" && grep -c "Ã" specs/01-dominio-e-regras-de-negocio.md`
-Expected: `1` (o controle acha) e depois `0` (o arquivo não tem).
+Run (mojibake, com controle positivo): `cd C:/wt-kit && printf 'aÃ§Ã£o\n' | grep -cE 'Ã[§£©¡³ªº­‰‡•]|â€' && grep -cE 'Ã[§£©¡³ªº­‰‡•]|â€' specs/01-dominio-e-regras-de-negocio.md`
+Expected: `1` (o controle acha) e depois `0` (o arquivo não tem). (Um `grep "Ã"` sozinho não serve: casa maiúscula acentuada legítima, como "NÃO" — corrigido em 2026-09-19, depois de dar falso positivo na Task 2.)
 
 Releia a lista de regras de 9 a 27 inteira e o bloco "Pontos ainda em aberto": nenhuma regra antiga pode contradizer as novas (em especial a 13, que continua falando só de Peça, e isso é correto).
 
@@ -540,8 +540,8 @@ Expected: `4` — a lista numerada não ganhou item. (Controle positivo: o mesmo
 Run: o comando do Step 1 de novo.
 Expected: os **mesmos três números**.
 
-Run (mojibake): `cd C:/wt-kit && grep -c "Ã" specs/06-roadmap-mvp.md specs/00-visao-geral.md specs/03-arquitetura-tecnica.md`
-Expected: `0` nos três.
+Run (mojibake): `cd C:/wt-kit && grep -cE 'Ã[§£©¡³ªº­‰‡•]|â€' specs/06-roadmap-mvp.md specs/00-visao-geral.md specs/03-arquitetura-tecnica.md`
+Expected: `0` nos três. (Controle positivo e motivo do padrão: ver o Step 9 da Task 1.)
 
 Releia o topo de `06-roadmap-mvp.md` ("executadas em sequência"): a nota da 3C precisa ser a exceção explícita a ele, não uma contradição silenciosa.
 
@@ -800,8 +800,8 @@ Expected: `0`, `0` e `0` — nenhuma lista de perfis ficou sem o Movimentador, e
 Run: o comando do Step 1 de novo.
 Expected: os **mesmos cinco números**.
 
-Run (mojibake): `cd C:/wt-kit && grep -c "Ã" CLAUDE.md README.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`
-Expected: `0` nos cinco.
+Run (mojibake, com controle positivo): `cd C:/wt-kit && printf 'aÃ§Ã£o\n' | grep -cE 'Ã[§£©¡³ªº­‰‡•]|â€' && grep -cE 'Ã[§£©¡³ªº­‰‡•]|â€' CLAUDE.md README.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`
+Expected: `1` (o controle acha) e depois `0` nos cinco. (Um `grep "Ã"` sozinho dá falso positivo aqui: o `CLAUDE.md` e a spec da Fase 2 têm maiúscula acentuada legítima, como "NÃO".)
 
 Releia a seção "Invariantes de negócio que não podem ser violadas" inteira do `CLAUDE.md`: o bullet de conclusão de Pedido/Agrupamento ("toda a quantidade expedida ou perdida") fala de **Peça** e continua correto; confirme que nada ali passou a contradizer o bullet novo.
 
