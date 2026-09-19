@@ -308,10 +308,11 @@ de uma vez.
 `estrutura/{id}` que a Fase 2 já implementou; a quinta, `GET /setores/{id}/fila`, é indexada pelo
 Setor e não usa prefixo nenhum de nó.)*
 
-> **Nota (2026-09-15).** As rotas abaixo são anteriores às regras 22 a 25 de
+> **Nota (2026-09-15).** As rotas de entrada, saída, histórico e fila de setor desta seção — todas
+> menos `separacoes-material`, que é da Fase 4 — são anteriores às regras 22 a 25 de
 > `01-dominio-e-regras-de-negocio.md` (terminar ≠ mover com aguardando coleta, tarefas do
-> Movimentador, registro de montagem e conjunto completo). Os contratos são redesenhados nas specs
-> das Fases 3 e 3B.
+> Movimentador, registro de montagem e conjunto completo). Os contratos delas são redesenhados nas
+> specs das Fases 3 e 3B.
 
 - `POST /estrutura-itens/{id}/entradas-setor` — registra entrada no setor atual
 - `POST /estrutura-itens/{id}/saidas-setor` — registra saída do setor atual

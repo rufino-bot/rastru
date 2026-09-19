@@ -119,7 +119,7 @@ cálculo recursivo em cada apontamento.
 > parágrafo *"Descartado: guardar a razão e derivar o absoluto"* é **parcialmente revertido**, e
 > fica **anotado e não reescrito**, porque este documento é o registro datado do desenho aprovado
 > em 2026-08-29. A quantidade absoluta continua guardada e continua sendo o que o apontamento
-> movimenta — nada é derivado dela. O que muda: a razão por unidade do pai **passa a ser guardada
+> movimenta — ela não é derivada da razão. O que muda: a razão por unidade do pai **passa a ser guardada
 > também**, em `EstruturaItem.QuantidadePorPai` (regra 26 de `specs/01-dominio-e-regras-de-negocio.md`).
 > O motivo não é erro de raciocínio da época, e sim informação que esta fase não tinha: a Solda
 > **monta parcialmente** (monta 6 de 10 se só há partes para 6), amarrada à expedição parcial, e a
@@ -131,7 +131,8 @@ cálculo recursivo em cada apontamento.
 ### 2.2 Editar a quantidade de uma Peça **não** cascateia nos filhos
 
 A cópia da receita é **pré-preenchimento, não automação** — a mesma filosofia que o roadmap já
-escreveu para o import de BOM (`06-roadmap-mvp.md:246-250`). Depois de copiada, cada nó é dado que o
+escreveu para o import de BOM (seção "Fora das fases — importar a estrutura a partir do CAD" de
+`06-roadmap-mvp.md`). Depois de copiada, cada nó é dado que o
 usuário mantém.
 
 **A premissa que sustenta isso, e que precisa sobreviver a qualquer revisão futura:** com quantidade

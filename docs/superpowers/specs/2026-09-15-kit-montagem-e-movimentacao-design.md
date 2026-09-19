@@ -40,7 +40,7 @@ com D de 40 (4 por C).
 | `specs/00-visao-geral.md` | Perfil Movimentador (seção 7) |
 | Spec da Fase 2 (`2026-08-29-fase-2-estrutura-recursiva-design.md`) | Errata datada na §2.1, sem reescrever o texto original (seção 6) |
 | `specs/04-fluxos-de-usuario.md` e `specs/05-api-endpoints.md` | **Nota datada** nas seções que esta spec contradiz (apontamento em setor, retrabalho, perda) apontando para cá; o texto delas é revisto na spec da fase correspondente (seção 7) |
-| `CLAUDE.md` | Invariante de conservação de quantidade alinhado à regra 9 nova, um invariante para o Kit, o Movimentador na lista de perfis e a ressalva do PWA mínimo para push na linha do Frontend (seção 7) |
+| `CLAUDE.md` | Invariante de conservação de quantidade alinhado à regra 9 nova, um invariante para o Kit, o Movimentador na lista de perfis e a ressalva do PWA mínimo para push na linha do Frontend e em "O que evitar" (seção 7) |
 | `README.md` | Movimentador na lista de perfis (seção 7) |
 
 (As linhas do `04`/`05` e do `CLAUDE.md` entraram depois da aprovação, no preparo do plano, em
@@ -353,9 +353,9 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
   mudou e que o texto é revisto na spec da Fase 3 ou da Fase 5.
 - **`CLAUDE.md`:** o invariante de conservação passa a dizer "em produção + montado + expedido +
   perdido = total, para todo `EstruturaItem`"; entra um invariante para a trava de montagem e o
-  conjunto completo do Kit. Na seção "Stack", a lista de perfis ganha o **Movimentador**, e a linha
-  do Frontend ("sem PWA no MVP") ganha a ressalva do PWA mínimo para push da Fase 3C. (Acrescentado
-  em 2026-09-19.)
+  conjunto completo do Kit. Na seção "Stack", a lista de perfis ganha o **Movimentador**; a linha do
+  Frontend ("sem PWA no MVP") e o item "PWA/offline no MVP" de "O que evitar" ganham a ressalva do
+  PWA mínimo para push da Fase 3C. (Acrescentado em 2026-09-19.)
 - **`README.md`:** a lista de perfis da seção "Stack" ganha o **Movimentador**. (Acrescentado em
   2026-09-19.)
 

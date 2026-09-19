@@ -23,10 +23,10 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 *Perfil: Operador*
 
 > **Nota (2026-09-15).** Este fluxo é anterior à regra 22 de `01-dominio-e-regras-de-negocio.md`:
-> terminar e mover passaram a ser ações separadas, de pessoas diferentes — o operador registra que
-> terminou, a quantidade aguarda coleta, e o **Movimentador** registra a entrada no próximo
-> destino. Em Agrupamento Kit valem ainda a trava de montagem e o conjunto completo (regras 24 e
-> 25). O passo a passo abaixo fica como está até a spec da Fase 3 (e da 3B) revê-lo.
+> terminar e mover passaram a ser ações separadas — na fábrica, de pessoas diferentes: o operador
+> registra que terminou, a quantidade aguarda coleta, e o **Movimentador** registra a entrada no
+> próximo destino. Em Agrupamento Kit valem ainda a trava de montagem e o conjunto completo (regras
+> 24 e 25). O passo a passo desta seção fica como está até a spec da Fase 3 (e da 3B) revê-lo.
 
 1. Operador do setor abre a tela do seu Setor e vê os itens aguardando entrada.
 2. Ao iniciar o trabalho em um `EstruturaItem`, registra entrada
@@ -89,8 +89,8 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 > **Nota (2026-09-15).** A perda passou a valer para **qualquer** `EstruturaItem`, não só Peça, e
 > ganhou o motivo `Descarte` (regra 17 de `01-dominio-e-regras-de-negocio.md`); quando a perda de
-> uma parte impede montar o pai, a perda sobe até a Peça do topo (regra 27). O passo a passo abaixo
-> é revisto na spec da Fase 5.
+> uma parte impede montar o pai, a perda sobe até a Peça do topo (regra 27). O passo a passo desta
+> seção é revisto na spec da Fase 5.
 
 1. Quando uma quantidade se perde em produção (some no armazém = PerdaArmazem, ou morre
    após um processo = MortaEmProcesso), registra-se uma Perda (Peça, quantidade, motivo,

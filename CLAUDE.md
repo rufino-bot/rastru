@@ -384,7 +384,8 @@ build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `s
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
 - Windows Authentication (decidido: login próprio + JWT)
-- PWA/offline no MVP (decidido: não necessário agora)
+- PWA/offline no MVP (decidido: não necessário agora — o PWA mínimo para notificação push da Fase
+  3C, sem cache de API, não reabre esta decisão; ver `specs/03-arquitetura-tecnica.md`)
 - Rastreamento por serial individual (decidido: lote agregado)
 - Criar Peça e Item como tabelas separadas (decidido: tabela recursiva única)
 - Roteiro de setores fixo por tipo de peça (decidido: pode variar por pedido/agrupamento)
