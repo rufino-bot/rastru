@@ -36,20 +36,29 @@ com D de 40 (4 por C).
 |---|---|
 | `specs/01-dominio-e-regras-de-negocio.md` | Glossário do Agrupamento, regras 9, 15 e 17 alteradas, regras 22 a 27 novas (seção 4) |
 | `specs/06-roadmap-mvp.md` | Fase 3 ampliada, Fase 3B e Fase 3C novas, Fase 5 ampliada, dívida de CRUD (seção 5) |
-| `specs/03-arquitetura-tecnica.md` | Separar "PWA/offline" (continua descartado) de "PWA mínimo para push" (seção 7) |
+| `specs/03-arquitetura-tecnica.md` | Separar "PWA/offline" (continua descartado) de "PWA mínimo para push", e o Movimentador na lista de perfis do MVP (seção 7) |
 | `specs/00-visao-geral.md` | Perfil Movimentador (seção 7) |
 | Spec da Fase 2 (`2026-08-29-fase-2-estrutura-recursiva-design.md`) | Errata datada na §2.1, sem reescrever o texto original (seção 6) |
 | `specs/04-fluxos-de-usuario.md` e `specs/05-api-endpoints.md` | **Nota datada** nas seções que esta spec contradiz (apontamento em setor, retrabalho, perda) apontando para cá; o texto delas é revisto na spec da fase correspondente (seção 7) |
-| `CLAUDE.md` | Invariante de conservação de quantidade alinhado à regra 9 nova, e um invariante para o Kit (seção 7) |
+| `CLAUDE.md` | Invariante de conservação de quantidade alinhado à regra 9 nova, um invariante para o Kit, o Movimentador na lista de perfis e a ressalva do PWA mínimo para push na linha do Frontend (seção 7) |
+| `README.md` | Movimentador na lista de perfis (seção 7) |
 
-(As três últimas linhas entraram depois da aprovação, no preparo do plano, em 2026-09-15: sem elas,
-o `04`, o `05` e o resumo de invariantes do `CLAUDE.md` passariam a contradizer o `01` em silêncio.)
+(As linhas do `04`/`05` e do `CLAUDE.md` entraram depois da aprovação, no preparo do plano, em
+2026-09-15: sem elas, o `04`, o `05` e o resumo de invariantes do `CLAUDE.md` passariam a
+contradizer o `01` em silêncio. Pelo mesmo motivo entraram em 2026-09-19 a linha do `README.md`, o
+Movimentador nas listas de perfis do `03` e do `CLAUDE.md` e, no `CLAUDE.md`, a ressalva do PWA.)
 
 **Fica para o início de cada fase:** as mudanças em `specs/02-modelo-de-dados.sql` —
 `Setor.UtilizaKit`, `EstruturaItem.QuantidadePorPai`, o destino "montado", o motivo `Descarte` em
 `CK_Perda_Motivo` e a tabela de inscrição de push. Segue o precedente da Fase 2, cuja constraint
 entrou no schema ao iniciar a fase, e evita um schema três fases à frente do código. As **regras**
 entram no `01` já.
+
+Junto das mudanças de schema de cada fase vão os **comentários do `02`** que esta spec deixa
+desatualizados: na Fase 3, o de `dbo.Perfil.Nome`, que ganha o Movimentador (e já não listava o
+Almoxarifado antes desta spec); na 3B, o de `dbo.Agrupamento.Tipo` ("descritivo") e o cabeçalho de
+`dbo.Perda` (a conservação "= total da Peça", que ganha o "montado"); na 5, o de
+`dbo.Perda.EstruturaItemId` ("Peça que sofreu a perda"). (Acrescentado em 2026-09-19.)
 
 **Não muda:** a regra 13 (conclusão pela Peça), a regra 17 no que tem de essencial (reposição é
 sempre Pedido de Retrabalho separado) e o rastreamento por lote agregado, sem serial.
@@ -85,7 +94,8 @@ Duas seções, com papéis diferentes:
   filho não vai sozinho (seção 3.5).
 - **Kit pronto para montagem** — é a **tarefa** do movimentador com Kits: levar tudo até a Solda.
   Aparece quando os filhos diretos aguardando coleta formam ao menos um **conjunto completo** do pai
-  e informa quantos conjuntos dá para levar.
+  e informa quantos conjuntos dá para levar, sem passar do que ainda falta montar do nó (seção 3.3,
+  item 1).
 
 Descartadas: tabela de notificação persistida (duplica o estado e mostraria "Kit pronto" de um Kit
 que outro movimentador já levou) e tempo real por WebSocket (infraestrutura na VPS para ganhar
@@ -110,7 +120,9 @@ ordem de baixo para cima é consequência.
 **Montar é registro próprio**, separado de mover ("montar e mover precisam ser ações diferentes"). Na
 Solda, o operador registra "montei N de C". O sistema:
 
-1. aceita se `N ≤ mínimo, entre os filhos diretos, de ⌊quantidade no Setor ÷ QuantidadePorPai⌋`;
+1. aceita se `N ≤ mínimo, entre os filhos diretos, de ⌊quantidade no Setor ÷ QuantidadePorPai⌋`,
+   sem passar do que ainda falta montar de C — sem esse teto, a sobra de refugo da seção 3.4 (D de
+   45 sob uma C de 10) daria ⌊45 ÷ 4⌋ = 11 montagens;
 2. baixa `N × QuantidadePorPai` de cada filho para o destino terminal **"montado"**, **gravando a
    baixa por filho** — assim, editar a razão depois não reescreve o passado;
 3. soma N ao **total montado** de C.
@@ -183,7 +195,7 @@ produção para sempre, travando Agrupamento e Pedido.
 normalmente. As partes daquela unidade que existem e ainda não foram montadas nela (no exemplo, o E
 e os D que seriam da 10ª C, e as demais partes já prontas da 10ª B e da 10ª A) **saem junto como
 perda**. A reposição é um **Pedido de Retrabalho**, como a regra 17 já
-manda, e o PCP o monta para a peça faltante.
+manda, e o PCP o cadastra para a peça faltante.
 
 Parar a perda em C foi descartado: a 10ª A do original continuaria esperando uma C que, pela regra
 17, nunca volta para aquele Pedido; e a Peça do Retrabalho seria C, que pela regra 18 precisaria de
@@ -238,6 +250,11 @@ troca a cada turno.
   **em produção + montado + expedido + perdido = total**. "Aguardando coleta" conta como em produção.
 - **Regra 15:** a lista de perfis ganha o **Movimentador**.
 - **Regra 17:** a perda pode ser registrada em qualquer `EstruturaItem`, e ganha o motivo `Descarte`.
+- **Glossário, entradas novas:** `EstruturaItem.QuantidadePorPai`, `Setor.UtilizaKit`, "aguardando
+  coleta", Movimentador e "montado" — este distinto do **total montado** do pai. (Acrescentado em
+  2026-09-19.)
+- **"Pontos ainda em aberto":** como sai de "em produção" o filho de um nó que não passa pela trava
+  de montagem (seção 9, Fase 3). (Acrescentado em 2026-09-19.)
 
 ### 4.2 Regras novas
 
@@ -247,11 +264,12 @@ troca a cada turno.
 - **23. Tarefas do Movimentador**, calculadas do estado: **Item pronto** (tarefa; só informativo para
   filho de Kit a caminho de Setor `UtilizaKit`) e **Kit pronto** (tarefa, quando os filhos diretos
   aguardando coleta formam ao menos um conjunto completo; conjuntos = mínimo, entre os filhos, de
-  ⌊aguardando coleta ÷ `QuantidadePorPai`⌋).
+  ⌊aguardando coleta ÷ `QuantidadePorPai`⌋, sem passar do que ainda falta montar do nó).
 - **24. Trava de montagem**, quando o Agrupamento é Kit, o Setor tem `UtilizaKit` e o nó tem filhos.
   Montar é registro próprio ("montei N"), aceito se `N ≤ mínimo, entre os filhos diretos, de
-  ⌊quantidade no Setor ÷ QuantidadePorPai⌋`; grava a baixa de cada filho para "montado". A saída do nó
-  de Setor `UtilizaKit` é limitada ao total montado, em qualquer passagem.
+  ⌊quantidade no Setor ÷ QuantidadePorPai⌋`, sem passar do que ainda falta montar do nó; grava a baixa
+  de cada filho para "montado". A saída do nó de Setor `UtilizaKit` é limitada ao total montado, em
+  qualquer passagem.
 - **25. Conjunto completo.** Filhos de Kit só entram em Setor `UtilizaKit` em conjuntos completos —
   todos os filhos diretos, na proporção, na mesma movimentação. Sobra que não fecha conjunto sai como
   `Descarte`.
@@ -305,7 +323,8 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
   aberto" como **parágrafo próprio**, com gatilho "início da Fase 3C" e procedimento igual ao da
   `SigningKey` (variável de ambiente na VPS) — e **não** como mais um item da lista numerada, porque
   todos os itens daquela lista carregam o mesmo gatilho, "obrigatório antes do primeiro deploy
-  público". (Correção de 2026-09-15, no preparo do plano.)
+  público". (Correção de 2026-09-15, no preparo do plano.) A lista "Perfis do MVP" ganha o
+  **Movimentador**. (Acrescentado em 2026-09-19.)
 - **`00`:** a lista de perfis ganha o **Movimentador** — leva Itens prontos ao próximo Setor e Kits
   completos à Solda.
 - **`04` e `05`:** nota datada, sem reescrever, no topo de "2. Apontamento em Setor", "5. Retrabalho" e
@@ -313,7 +332,11 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
   mudou e que o texto é revisto na spec da Fase 3 ou da Fase 5.
 - **`CLAUDE.md`:** o invariante de conservação passa a dizer "em produção + montado + expedido +
   perdido = total, para todo `EstruturaItem`"; entra um invariante para a trava de montagem e o
-  conjunto completo do Kit.
+  conjunto completo do Kit. Na seção "Stack", a lista de perfis ganha o **Movimentador**, e a linha
+  do Frontend ("sem PWA no MVP") ganha a ressalva do PWA mínimo para push da Fase 3C. (Acrescentado
+  em 2026-09-19.)
+- **`README.md`:** a lista de perfis da seção "Stack" ganha o **Movimentador**. (Acrescentado em
+  2026-09-19.)
 
 ## 8. Dívida registrada: CRUD de Usuário e permissão por Perfil
 
@@ -333,8 +356,22 @@ Sem fase e sem data.
 ## 9. Deixado para a spec de cada fase
 
 - **Fase 3:** como "aguardando coleta" é representado no banco, com o lote divisível entre Setores.
+  Acrescentados em 2026-09-19: quando a quantidade de um nó passa a contar como "em produção" —
+  antes da primeira entrada num Setor, e no Kit antes de o nó ser montado, ela não cabe em nenhum
+  dos quatro termos da regra 9 (o item "Descontinuar" de "Pontos ainda em aberto" do `01` esbarra
+  no mesmo buraco); e como sai de "em produção" o filho de um nó que não passa pela trava de
+  montagem (registrado em "Pontos ainda em aberto" do `01`).
 - **Fase 3B:** trocar o Tipo do Agrupamento ou a marca `UtilizaKit` com produção em andamento; filho que
   conclui a própria montagem na mesma Solda em que o pai será montado (a "movimentação" seria de Solda
-  para Solda); o que a edição de nó da Fase 2 faz com `QuantidadePorPai`.
+  para Solda); o que a edição de nó da Fase 2 faz com `QuantidadePorPai`. Acrescentados em
+  2026-09-19: qual das duas ações da regra 22 — terminar ou mover — o limite pelo total montado
+  trava; a entrada de uma folha de Kit cujo próprio Roteiro tem passo num Setor `UtilizaKit` (lida
+  ao pé da letra, a regra 25 exigiria conjunto completo dela também); e a conta exata do teto "o
+  que ainda falta montar do nó" das regras 23 e 24 — o total montado, o que já está no Setor de
+  montagem sem ter sido montado, e a perda do próprio nó.
 - **Fase 5:** de qual Setor sai a parte que acompanha a perda, com o lote dividido entre Setores.
+  Acrescentados em 2026-09-19: o motivo da perda que sobe até a Peça do topo e o das partes que
+  saem junto (nenhum dos três motivos da regra 17 descreve o caso); e se essas linhas preenchem
+  `dbo.Perda.PedidoRetrabalhoId`, que já existe e pode ser lida como o vínculo por nó que a regra
+  27 diz não haver.
 - **Fase 3C:** tudo de implementação do push.
