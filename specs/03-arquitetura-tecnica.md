@@ -204,8 +204,9 @@ poluiria a review dela.
 
 Um quinto ponto, com **gatilho próprio — início da Fase 3C** —, e por isso fora da lista numerada,
 cujos quatro itens carregam todos o gatilho de pré-deploy: as **chaves VAPID** da notificação push
-(`06-roadmap-mvp.md`, Fase 3C). Procedimento igual ao da `SigningKey`: fornecidas por variável de
-ambiente na VPS, nunca commitadas. Antes da Fase 3C elas não existem, e não há o que configurar.
+(`06-roadmap-mvp.md`, Fase 3C). Procedimento igual ao da `SigningKey`: as de produção são fornecidas
+por variável de ambiente na VPS e nunca commitadas. Antes da Fase 3C elas não existem, e não há o
+que configurar.
 
 Um último ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
 (seção "Defesas de autenticação em vigor", bullet "Lockout de conta") que retrancar conta não tem

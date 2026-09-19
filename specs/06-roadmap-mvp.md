@@ -247,8 +247,9 @@ resolvidos (ou conscientemente adiados).
 - Tabela de inscrição (usuário, endpoint, chaves do navegador), inscrever e cancelar, chaves VAPID
   como segredo de ambiente, envio e limpeza de inscrição morta.
 - Disparo por evento no servidor: ao registrar "terminei", recalcular se formou conjunto completo
-  que o nó ainda precisa receber (regras 23 e 25) e notificar os Movimentadores. Tocar na notificação abre a tela Tarefas, que continua sendo a fonte
-  da verdade; entrega de push não é garantida.
+  que o nó ainda precisa receber (regras 23 e 25) e notificar os Movimentadores. Tocar na
+  notificação abre a tela Tarefas, que continua sendo a fonte da verdade; entrega de push não é
+  garantida.
 - Verificação manual num Android real por HTTPS (service worker não roda no jsdom).
 - Critério de pronto: um Movimentador com o celular bloqueado recebe o aviso de Kit pronto, e tocar
   nele abre a tela Tarefas.
@@ -263,12 +264,12 @@ resolvidos (ou conscientemente adiados).
 
 - Registro opcional de `RelatorioDimensional` por Peça (perfil Qualidade), avaliado por
   quantidade (`RelatorioDimensionalAvaliacao`).
-- Registro de `Expedicao` (remessas parciais) e de `Perda` — por Peça e, desde 2026-09-15, também
-  por Item, com o motivo `Descarte` (regra 17 de `01`).
+- Registro de `Expedicao` (remessas parciais), só de Peça, e de `Perda`, de Peça e — desde
+  2026-09-15 — também de Item; a perda ganha o motivo `Descarte` (regra 17 de `01`).
 - Perda que impede montar (regra 27): a perda sobe até a Peça do topo, as partes não montadas daquela
-  unidade saem junto, e o Pedido de Retrabalho marca como **pronto** o que já existe. A decidir na
-  spec desta fase: as perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md`
-  deixa para a Fase 5.
+  unidade saem junto, e, no Pedido de Retrabalho que o PCP cadastra para repor, o que já existe é
+  marcado **pronto**. A decidir na spec desta fase: as perguntas que a seção 9 da spec
+  `2026-09-15-kit-montagem-e-movimentacao-design.md` deixa para a Fase 5.
 - Regra de fechamento de Agrupamento (todas as Peças concluídas — expedidas ou
   perdidas) e de Pedido (último Agrupamento concluído).
 - Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
@@ -366,9 +367,9 @@ caso de uso quando o import chegar; a tela continua digitando linha a linha.
 
 ## Fora das fases — dívida: CRUD de Usuário e permissão por Perfil (registrada em 2026-09-15)
 
-`GET/POST /usuarios` consta em `05-api-endpoints.md`, mas não tem implementação, e nenhuma fase acima
-o implementa: hoje um usuário só nasce por SQL. São **duas dívidas de custo diferente**, sem fase e
-sem data, por decisão do usuário:
+`GET/POST /usuarios` consta em `05-api-endpoints.md`, mas não tem implementação, e nenhuma fase do
+roadmap o implementa: hoje um usuário só nasce por SQL. São **duas dívidas de custo diferente**, sem
+fase e sem data, por decisão do usuário:
 
 - **CRUD de Usuário** (criar conta, ativar, atribuir perfil existente) — **barata**. Fica mais urgente
   com a Fase 3: até existir, cada conta de Movimentador nasce por SQL na VPS.
