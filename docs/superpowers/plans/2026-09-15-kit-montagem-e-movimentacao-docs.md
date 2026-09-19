@@ -373,8 +373,8 @@ por:
   "PWA/offline" de `03-arquitetura-tecnica.md`.
 - Tabela de inscrição (usuário, endpoint, chaves do navegador), inscrever e cancelar, chaves VAPID
   como segredo de ambiente, envio e limpeza de inscrição morta.
-- Disparo por evento no servidor: ao registrar "terminei", recalcular se formou conjunto completo e
-  notificar os Movimentadores. Tocar na notificação abre a tela Tarefas, que continua sendo a fonte
+- Disparo por evento no servidor: ao registrar "terminei", recalcular se formou conjunto completo
+  que o nó ainda precisa receber (regras 23 e 25) e notificar os Movimentadores. Tocar na notificação abre a tela Tarefas, que continua sendo a fonte
   da verdade; entrega de push não é garantida.
 - Verificação manual num Android real por HTTPS (service worker não roda no jsdom).
 - Critério de pronto: um Movimentador com o celular bloqueado recebe o aviso de Kit pronto, e tocar
@@ -449,8 +449,9 @@ por:
 - **Operador** de setor (registra o trabalho no seu setor, inclusive que terminou — ver regra 22 de
   `01-dominio-e-regras-de-negocio.md`)
 - **Almoxarifado** / Separação (registra separação de materiais)
-- **Movimentador** (leva os Itens prontos ao próximo Setor e os Kits completos à Solda; perfil
-  decidido em 2026-09-15)
+- **Movimentador** (leva ao próximo destino o que aguarda coleta — em Agrupamento Kit, os filhos
+  vão ao Setor de montagem, hoje a Solda, em conjuntos completos; ver regras 22 e 25 de
+  `01-dominio-e-regras-de-negocio.md`; perfil decidido em 2026-09-15)
 ````
 
 E em `specs/03-arquitetura-tecnica.md`, seção "Autenticação e Autorização", trocar:
@@ -740,9 +741,10 @@ por:
   perdido (`Perda`) = quantidade total do nó (validado na aplicação; regra 9).
 - Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
   montado**, e a montagem só aceita o que os filhos diretos presentes permitem
-  (`QuantidadePorPai`); filhos só entram nesse Setor em **conjuntos completos**, e nunca além do
-  que o nó ainda precisa receber. Terminar e mover são ações separadas, para Kit e Avulso. (Regras
-  22 a 27, decididas em 2026-09-15 e implementadas a partir da Fase 3.)
+  (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram nesse Setor em
+  **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar e mover são
+  ações separadas, para Kit e Avulso. (Regras 22 a 27, decididas em 2026-09-15 — os tetos das
+  regras 23 a 25, em 2026-09-19 — e implementadas a partir da Fase 3.)
 ````
 
 Ainda no `CLAUDE.md`, seção "Stack", trocar:
