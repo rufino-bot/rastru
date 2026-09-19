@@ -202,10 +202,56 @@ resolvidos (ou conscientemente adiados).
 ## Fase 3 — Rastreamento de setor
 
 - Apontamento de entrada/saída de `EstruturaItem` em `Setor`.
-- Validação de conservação de quantidade (soma em setores + expedido + perdido = total
-  da Peça; na aplicação, não por índice filtrado).
+- **Terminar e mover como ações separadas** (regra 22 de `01`): o operador registra que terminou,
+  a quantidade passa a **aguardar coleta**, e o **Movimentador** registra a entrada no próximo
+  destino. Perfil novo `Movimentador` — linha em `dbo.Perfil`, na tabela
+  `web/src/auth/permissoes.ts` e nos `[Authorize(Roles)]`; perfil novo exige código e deploy.
+- Validação de conservação de quantidade (regra 9: em produção + montado + expedido + perdido =
+  total, para todo `EstruturaItem`; na aplicação, não por índice filtrado). O termo "montado" só
+  ganha valor na Fase 3B.
 - Tela de "fila do setor" para o operador.
-- Critério de pronto: dá para acompanhar, item por item, em qual setor cada peça está.
+- Tela **Tarefas** do Movimentador com os **Itens prontos** (regra 23), calculada a partir do
+  estado e atualizada periodicamente — sem tabela de aviso.
+- Critério de pronto: dá para acompanhar, item por item, em qual setor cada peça está **e** se ela
+  aguarda coleta; o Movimentador vê o que tem a levar e registra a entrega.
+
+> **Ampliada em 2026-09-15** pela spec `2026-09-15-kit-montagem-e-movimentacao-design.md`: terminar ≠
+> mover, "aguardando coleta", o perfil Movimentador e a tela Tarefas entraram aqui, e não na 3B,
+> porque são como a movimentação funciona para **tudo**, Kit ou Avulso. Como "aguardando coleta" é
+> representado no banco, com o lote divisível, é decisão da spec desta fase, junto das demais
+> perguntas que a seção 9 daquela spec ("Deixado para a spec de cada fase") deixa para a Fase 3.
+
+## Fase 3B — Kit e montagem
+
+- `Setor.UtilizaKit` e `EstruturaItem.QuantidadePorPai` (regras 24 e 26 de `01`); o schema entra no
+  início desta fase, e a cópia da receita passa a preencher a razão.
+- Registro de montagem ("montei N") com baixa por filho para o destino "montado", trava de montagem
+  por nó e limite de saída pelo total montado (regra 24).
+- Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
+  receber (regra 25).
+- Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).
+- A decidir na spec desta fase: as perguntas que a seção 9 da spec
+  `2026-09-15-kit-montagem-e-movimentacao-design.md` ("Deixado para a spec de cada fase") deixa
+  para a Fase 3B.
+- Critério de pronto: um Kit de três níveis é montado de baixo para cima com montagem parcial; o
+  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e saída acima do
+  montado; a tarefa Kit pronto aparece e some quando o Kit é levado.
+
+## Fase 3C — Notificação push
+
+> **Executada depois da Fase 5**, fora da ordem das letras: o fluxo ponta a ponta vem primeiro, e o
+> push é reforço de uma lista que já funciona (a tela Tarefas). Fica numerada como 3C por tema.
+
+- PWA **mínimo**: manifesto, ícones e service worker **sem cache de API** — não reabre a decisão
+  "PWA/offline" de `03-arquitetura-tecnica.md`.
+- Tabela de inscrição (usuário, endpoint, chaves do navegador), inscrever e cancelar, chaves VAPID
+  como segredo de ambiente, envio e limpeza de inscrição morta.
+- Disparo por evento no servidor: ao registrar "terminei", recalcular se formou conjunto completo
+  que o nó ainda precisa receber (regras 23 e 25) e notificar os Movimentadores. Tocar na notificação abre a tela Tarefas, que continua sendo a fonte
+  da verdade; entrega de push não é garantida.
+- Verificação manual num Android real por HTTPS (service worker não roda no jsdom).
+- Critério de pronto: um Movimentador com o celular bloqueado recebe o aviso de Kit pronto, e tocar
+  nele abre a tela Tarefas.
 
 ## Fase 4 — Separação de materiais
 
@@ -217,7 +263,12 @@ resolvidos (ou conscientemente adiados).
 
 - Registro opcional de `RelatorioDimensional` por Peça (perfil Qualidade), avaliado por
   quantidade (`RelatorioDimensionalAvaliacao`).
-- Registro de `Expedicao` (remessas parciais) e de `Perda` por Peça.
+- Registro de `Expedicao` (remessas parciais) e de `Perda` — por Peça e, desde 2026-09-15, também
+  por Item, com o motivo `Descarte` (regra 17 de `01`).
+- Perda que impede montar (regra 27): a perda sobe até a Peça do topo, as partes não montadas daquela
+  unidade saem junto, e o Pedido de Retrabalho marca como **pronto** o que já existe. A decidir na
+  spec desta fase: as perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md`
+  deixa para a Fase 5.
 - Regra de fechamento de Agrupamento (todas as Peças concluídas — expedidas ou
   perdidas) e de Pedido (último Agrupamento concluído).
 - Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
@@ -312,3 +363,14 @@ entrega valor, e a fase não carrega o requisito de resolver o caso ambíguo.
 **Efeito único sobre a Fase 1C:** o caso de uso que grava a receita padrão deve aceitar **uma lista
 de linhas de uma vez**, e não só uma linha por chamada. É quase de graça agora e evita reescrever o
 caso de uso quando o import chegar; a tela continua digitando linha a linha.
+
+## Fora das fases — dívida: CRUD de Usuário e permissão por Perfil (registrada em 2026-09-15)
+
+`GET/POST /usuarios` consta em `05-api-endpoints.md`, mas não tem implementação, e nenhuma fase acima
+o implementa: hoje um usuário só nasce por SQL. São **duas dívidas de custo diferente**, sem fase e
+sem data, por decisão do usuário:
+
+- **CRUD de Usuário** (criar conta, ativar, atribuir perfil existente) — **barata**. Fica mais urgente
+  com a Fase 3: até existir, cada conta de Movimentador nasce por SQL na VPS.
+- **Permissão por Perfil fora do código** (o mapeamento perfil → ação sair dos `[Authorize(Roles)]`
+  literais) — **cara**; é ela que faz perfil novo exigir código e deploy.

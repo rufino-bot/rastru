@@ -25,8 +25,12 @@ cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
 Confirmado com o negócio: o MVP já precisa de perfis distintos, com telas restritas por
 perfil (não é "todo usuário vê tudo").
 
-- **Operador** de setor (registra entrada/saída de componentes no seu setor)
+- **Operador** de setor (registra o trabalho no seu setor, inclusive que terminou — ver regra 22 de
+  `01-dominio-e-regras-de-negocio.md`)
 - **Almoxarifado** / Separação (registra separação de materiais)
+- **Movimentador** (leva ao próximo destino o que aguarda coleta — em Agrupamento Kit, os filhos
+  vão ao Setor de montagem, hoje a Solda, em conjuntos completos; ver regras 22 e 25 de
+  `01-dominio-e-regras-de-negocio.md`; perfil decidido em 2026-09-15)
 - **PCP** / Planejamento (cadastra Pedidos, Agrupamentos, estrutura)
 - **Qualidade** (preenche relatório dimensional, aprova/reprova, abre retrabalho)
 - **Gestão** (consulta KPIs)

@@ -39,8 +39,9 @@ tests/
 
 - **Login próprio** (usuário/senha) com **JWT** — não usar Windows Authentication.
 - Tabelas `Usuario` e `Perfil` já estão no DDL (`02-modelo-de-dados.sql`).
-- Perfis do MVP: Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador (ver
-  `00-visao-geral.md`).
+- Perfis do MVP: Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador
+  (ver `00-visao-geral.md`). O Movimentador foi decidido em 2026-09-15 e passa a existir no
+  sistema na Fase 3.
 - **Decidido na Fase 0:** hash de senha com **BCrypt** (`BCrypt.Net-Next`) — não ASP.NET
   Core Identity (mais enxuto e compatível com o Database First das tabelas `Usuario`/`Perfil`).
   Emissão de JWT manual contendo `PerfilNome` como claim `role`; autorização por perfil via
@@ -114,7 +115,10 @@ reais de frequência.
 - **PWA/offline: não é necessário no MVP.** Confirmado com o negócio — pode entrar depois
   se o uso em campo mostrar necessidade real (ex.: instabilidade de wifi na fábrica). Não
   desenhar a camada de estado pensando nisso agora, para não adicionar complexidade
-  desnecessária cedo.
+  desnecessária cedo. **Ressalva de 2026-09-15:** o **PWA mínimo para notificação push**
+  (manifesto, ícones e service worker **sem cache de API**) está previsto na Fase 3C de
+  `06-roadmap-mvp.md` e **não reabre** esta decisão — ela trata de funcionar sem rede, e o push
+  não precisa disso.
 
 ## Banco de dados
 
@@ -197,6 +201,11 @@ sem ser endurecimento: é condição para o upload de sólido funcionar atrás d
 **Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
 fila, em branch separada — decisão do usuário: misturar infraestrutura na branch da Fase 2B
 poluiria a review dela.
+
+Um quinto ponto, com **gatilho próprio — início da Fase 3C** —, e por isso fora da lista numerada,
+cujos quatro itens carregam todos o gatilho de pré-deploy: as **chaves VAPID** da notificação push
+(`06-roadmap-mvp.md`, Fase 3C). Procedimento igual ao da `SigningKey`: fornecidas por variável de
+ambiente na VPS, nunca commitadas. Antes da Fase 3C elas não existem, e não há o que configurar.
 
 Um último ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
 (seção "Defesas de autenticação em vigor", bullet "Lockout de conta") que retrancar conta não tem
