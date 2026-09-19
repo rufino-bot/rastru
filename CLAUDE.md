@@ -16,9 +16,9 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 ## Stack
 
 - **Backend**: .NET (C#), ASP.NET Core Web API
-- **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA no MVP)
+- **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
-- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
+- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
 - **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
 
 ## Mapa da pasta `specs/`
@@ -326,8 +326,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 
 - Um `EstruturaItem` (lote) é **divisível por quantidades livres**: pode ter quantidades em
   Setores diferentes ao mesmo tempo. Não há identidade de sub-lote (sem serial). O
-  invariante a preservar é **conservação de quantidade**: soma em Setores + expedido
-  (`Expedicao`) + perdido (`Perda`) = quantidade total da Peça (validado na aplicação).
+  invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
+  produção (inclusive aguardando coleta) + montado dentro do pai + expedido (`Expedicao`) +
+  perdido (`Perda`) = quantidade total do nó (validado na aplicação; regra 9).
+- Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
+  montado**, e a montagem só aceita o que os filhos diretos presentes permitem
+  (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram nesse Setor em
+  **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar e mover são
+  ações separadas, para Kit e Avulso. (Regras 22 a 27, decididas em 2026-09-15 — os tetos das
+  regras 23 a 25, em 2026-09-19 — e implementadas a partir da Fase 3.)
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma

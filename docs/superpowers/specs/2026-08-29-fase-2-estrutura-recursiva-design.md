@@ -115,6 +115,19 @@ número absoluto guardado.
 diante subiria a árvore para saber quanto "4" é de verdade, e a conservação de quantidade viraria
 cálculo recursivo em cada apontamento.
 
+> **ERRATA (2026-09-15, esclarecimento do processo da fábrica).** O descarte registrado no
+> parágrafo *"Descartado: guardar a razão e derivar o absoluto"* é **parcialmente revertido**, e
+> fica **anotado e não reescrito**, porque este documento é o registro datado do desenho aprovado
+> em 2026-08-29. A quantidade absoluta continua guardada e continua sendo o que o apontamento
+> movimenta — nada é derivado dela. O que muda: a razão por unidade do pai **passa a ser guardada
+> também**, em `EstruturaItem.QuantidadePorPai` (regra 26 de `specs/01-dominio-e-regras-de-negocio.md`).
+> O motivo não é erro de raciocínio da época, e sim informação que esta fase não tinha: a Solda
+> **monta parcialmente** (monta 6 de 10 se só há partes para 6), amarrada à expedição parcial, e a
+> trava de montagem precisa da razão para saber quantas unidades as partes presentes permitem.
+> Derivar a razão como filho ÷ pai não serve, porque a sobra de refugo viraria exigência. A §2.2
+> continua valendo: **não existe invariante** entre as duas quantidades. Desenho completo em
+> `docs/superpowers/specs/2026-09-15-kit-montagem-e-movimentacao-design.md`.
+
 ### 2.2 Editar a quantidade de uma Peça **não** cascateia nos filhos
 
 A cópia da receita é **pré-preenchimento, não automação** — a mesma filosofia que o roadmap já

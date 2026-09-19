@@ -16,7 +16,7 @@ unidades em todos os Setores + expedido + perdido = quantidade total da Peça.
 - **Backend:** .NET (C#), ASP.NET Core Web API, Clean Architecture (Domain / Application / Infrastructure / Api)
 - **Banco:** SQL Server numa VPS paga com domínio próprio, EF Core em modo **Database First**
 - **Frontend:** React + TypeScript (Vite) + Tailwind CSS, mobile-first, com three.js (carregado sob demanda) no visualizador de sólido 3D
-- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
+- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
 
 ## Estrutura do repositório
 
