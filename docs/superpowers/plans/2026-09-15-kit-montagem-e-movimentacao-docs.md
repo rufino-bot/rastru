@@ -22,6 +22,14 @@ rebaseada sobre a `main` nova. Antes do primeiro despacho, remeça cada âncora 
 `grep -cF -- "<trecho>" <arquivo>` (esperado: `1`); âncora que não bater é defeito do plano a
 corrigir aqui, não a improvisar na task.
 
+> **Remedido em 2026-09-19**, com a branch rebaseada sobre a `main` pós-2B (`65bbc19`): os 20
+> trechos de "Trocar" aparecem **uma vez** cada, e nenhum texto novo já está presente. A contagem
+> foi conferida contra um negativo conhecido: na `main` de antes da 2B (`f2ee813`), a âncora da
+> Task 2, Step 7, devolve `0`. A âncora bater não bastou: depois do commit deste plano a 2B pôs um
+> **item 4** na lista numerada de "Pontos em aberto" do `03` e um parágrafo "Um último ponto" depois
+> dela, o que tornava errados o "quinto ponto" e o lugar da inserção. O Step 7 e a verificação do
+> Step 8 da Task 2 foram reescritos por isso.
+
 ## Global Constraints
 
 - Idioma: português brasileiro com acentuação completa; identificadores de código como estão (`QuantidadePorPai`, `UtilizaKit`, `EstruturaItem`, `MotivoPerda`, `Descarte`, `Movimentador`).
@@ -462,23 +470,30 @@ por:
 
 - [ ] **Step 7: Chaves VAPID em "Pontos em aberto" de `specs/03-arquitetura-tecnica.md`**
 
-Trocar o fim da seção "Pontos em aberto":
+Inserir o parágrafo novo **antes** do parágrafo que começa com "Um último ponto" — o "último" dele
+precisa continuar verdadeiro. Trocar:
 
 ````markdown
-Não é para consertar nesta fase, e não carrega o gatilho de pré-deploy de TLS, `ForwardedHeaders`
-e `SigningKey`.
+**Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
+fila, em branch separada — decisão do usuário: misturar infraestrutura na branch da Fase 2B
+poluiria a review dela.
+
+Um último ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
 ````
 
 por:
 
 ````markdown
-Não é para consertar nesta fase, e não carrega o gatilho de pré-deploy de TLS, `ForwardedHeaders`
-e `SigningKey`.
+**Os três itens de dívida de endurecimento não são desta fase.** Cada um vira item próprio na
+fila, em branch separada — decisão do usuário: misturar infraestrutura na branch da Fase 2B
+poluiria a review dela.
 
-Um quinto ponto, com **gatilho próprio — início da Fase 3C** —, e por isso fora da lista numerada
-de endurecimento: as **chaves VAPID** da notificação push (`06-roadmap-mvp.md`, Fase 3C).
-Procedimento igual ao da `SigningKey`: fornecidas por variável de ambiente na VPS, nunca
-commitadas. Antes da Fase 3C elas não existem, e não há o que configurar.
+Um quinto ponto, com **gatilho próprio — início da Fase 3C** —, e por isso fora da lista numerada,
+cujos quatro itens carregam todos o gatilho de pré-deploy: as **chaves VAPID** da notificação push
+(`06-roadmap-mvp.md`, Fase 3C). Procedimento igual ao da `SigningKey`: fornecidas por variável de
+ambiente na VPS, nunca commitadas. Antes da Fase 3C elas não existem, e não há o que configurar.
+
+Um último ponto, que não é dívida nova e sim risco que muda de tamanho: o `CLAUDE.md` já registra
 ````
 
 - [ ] **Step 8: Verificar**
@@ -489,8 +504,11 @@ Expected: três linhas, nesta ordem — `Fase 3 — Rastreamento de setor`, `Fas
 Run: `cd C:/wt-kit && grep -n "Movimentador" specs/00-visao-geral.md specs/06-roadmap-mvp.md specs/03-arquitetura-tecnica.md`
 Expected: ao menos uma linha em `00` e várias em `06`; nenhuma obrigatória em `03`.
 
-Run: `cd C:/wt-kit && grep -n "VAPID" specs/03-arquitetura-tecnica.md`
-Expected: a linha do parágrafo novo; e o parágrafo que abre "Pontos em aberto" continua dizendo "três itens" (a lista numerada não ganhou item).
+Run: `cd C:/wt-kit && grep -nE "VAPID|^Um quinto ponto|^Um último ponto" specs/03-arquitetura-tecnica.md`
+Expected: a linha de "Um quinto ponto" vem **antes** da de "Um último ponto", e as de "VAPID" estão entre as duas.
+
+Run: `cd C:/wt-kit && awk '/^## Pontos em aberto/{p=1} p' specs/03-arquitetura-tecnica.md | grep -cE '^[0-9]+\. \*\*'`
+Expected: `4` — a lista numerada não ganhou item. (Controle positivo: o mesmo comando sem o `awk`, sobre o arquivo inteiro, devolve um número ≥ 4.)
 
 Run: o comando do Step 1 de novo.
 Expected: os **mesmos três números**.

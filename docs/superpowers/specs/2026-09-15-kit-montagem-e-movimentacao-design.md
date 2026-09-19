@@ -303,9 +303,9 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
   rede. Ganha a ressalva de que o **PWA mínimo para push** (manifesto, service worker sem cache de
   API) está previsto na Fase 3C e não reabre aquela decisão. As **chaves VAPID** entram em "Pontos em
   aberto" como **parágrafo próprio**, com gatilho "início da Fase 3C" e procedimento igual ao da
-  `SigningKey` (variável de ambiente na VPS) — e **não** como quarto item da lista numerada, porque
-  aquela lista declara que seus itens carregam todos o mesmo gatilho, "obrigatório antes do primeiro
-  deploy público". (Correção de 2026-09-15, no preparo do plano.)
+  `SigningKey` (variável de ambiente na VPS) — e **não** como mais um item da lista numerada, porque
+  todos os itens daquela lista carregam o mesmo gatilho, "obrigatório antes do primeiro deploy
+  público". (Correção de 2026-09-15, no preparo do plano.)
 - **`00`:** a lista de perfis ganha o **Movimentador** — leva Itens prontos ao próximo Setor e Kits
   completos à Solda.
 - **`04` e `05`:** nota datada, sem reescrever, no topo de "2. Apontamento em Setor", "5. Retrabalho" e
