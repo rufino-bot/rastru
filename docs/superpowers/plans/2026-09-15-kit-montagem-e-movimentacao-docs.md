@@ -345,7 +345,8 @@ por:
 > **Ampliada em 2026-09-15** pela spec `2026-09-15-kit-montagem-e-movimentacao-design.md`: terminar ≠
 > mover, "aguardando coleta", o perfil Movimentador e a tela Tarefas entraram aqui, e não na 3B,
 > porque são como a movimentação funciona para **tudo**, Kit ou Avulso. Como "aguardando coleta" é
-> representado no banco, com o lote divisível, é decisão da spec desta fase.
+> representado no banco, com o lote divisível, é decisão da spec desta fase, junto das demais
+> perguntas que a seção 9 daquela spec ("Deixado para a spec de cada fase") deixa para a Fase 3.
 
 ## Fase 3B — Kit e montagem
 
@@ -353,14 +354,15 @@ por:
   início desta fase, e a cópia da receita passa a preencher a razão.
 - Registro de montagem ("montei N") com baixa por filho para o destino "montado", trava de montagem
   por nó e limite de saída pelo total montado (regra 24).
-- Conjunto completo na entrada de Setor com `UtilizaKit` (regra 25).
+- Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
+  receber (regra 25).
 - Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).
-- A decidir na spec desta fase: trocar o Tipo do Agrupamento ou a marca `UtilizaKit` com produção
-  em andamento; filho que conclui a própria montagem na mesma Solda em que o pai será montado; o que
-  a edição de nó da Fase 2 faz com `QuantidadePorPai`.
+- A decidir na spec desta fase: as perguntas que a seção 9 da spec
+  `2026-09-15-kit-montagem-e-movimentacao-design.md` ("Deixado para a spec de cada fase") deixa
+  para a Fase 3B.
 - Critério de pronto: um Kit de três níveis é montado de baixo para cima com montagem parcial; o
-  sistema recusa conjunto incompleto e saída acima do montado; a tarefa Kit pronto aparece e some
-  quando o Kit é levado.
+  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e saída acima do
+  montado; a tarefa Kit pronto aparece e some quando o Kit é levado.
 
 ## Fase 3C — Notificação push
 
@@ -394,7 +396,8 @@ por:
   por Item, com o motivo `Descarte` (regra 17 de `01`).
 - Perda que impede montar (regra 27): a perda sobe até a Peça do topo, as partes não montadas daquela
   unidade saem junto, e o Pedido de Retrabalho marca como **pronto** o que já existe. A decidir na
-  spec desta fase: de qual Setor sai a parte que acompanha a perda, com o lote dividido entre Setores.
+  spec desta fase: as perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md`
+  deixa para a Fase 5.
 ````
 
 - [ ] **Step 4: Dívida de CRUD no fim do roadmap**
@@ -737,9 +740,9 @@ por:
   perdido (`Perda`) = quantidade total do nó (validado na aplicação; regra 9).
 - Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
   montado**, e a montagem só aceita o que os filhos diretos presentes permitem
-  (`QuantidadePorPai`); filhos só entram nesse Setor em **conjuntos completos**. Terminar e mover
-  são ações separadas, para Kit e Avulso. (Regras 22 a 27, decididas em 2026-09-15 e implementadas
-  a partir da Fase 3.)
+  (`QuantidadePorPai`); filhos só entram nesse Setor em **conjuntos completos**, e nunca além do
+  que o nó ainda precisa receber. Terminar e mover são ações separadas, para Kit e Avulso. (Regras
+  22 a 27, decididas em 2026-09-15 e implementadas a partir da Fase 3.)
 ````
 
 Ainda no `CLAUDE.md`, seção "Stack", trocar:
