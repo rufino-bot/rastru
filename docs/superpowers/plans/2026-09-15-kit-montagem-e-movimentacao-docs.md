@@ -29,6 +29,11 @@ corrigir aqui, não a improvisar na task.
 > **item 4** na lista numerada de "Pontos em aberto" do `03` e um parágrafo "Um último ponto" depois
 > dela, o que tornava errados o "quinto ponto" e o lugar da inserção. O Step 7 e a verificação do
 > Step 8 da Task 2 foram reescritos por isso.
+>
+> **Ampliado em 2026-09-19, por decisão do usuário, depois da review da Task 1:** o Movimentador
+> entra também nas listas de perfis do `03` ("Perfis do MVP", Task 2, Step 5), do `CLAUDE.md` e do
+> `README.md` (Task 3, Step 8), e a linha do Frontend do `CLAUDE.md` ("sem PWA no MVP") ganha a
+> ressalva do PWA mínimo para push (Task 3, Step 8). Sem isso, as quatro frases contradiriam o `01`.
 
 ## Global Constraints
 
@@ -293,7 +298,7 @@ EOF
 **Files:**
 - Modify: `specs/06-roadmap-mvp.md` (Fase 3, novas Fase 3B e 3C, Fase 5, nova seção de dívida no fim)
 - Modify: `specs/00-visao-geral.md` (lista de perfis)
-- Modify: `specs/03-arquitetura-tecnica.md` (item "PWA/offline", parágrafo de chaves VAPID em "Pontos em aberto")
+- Modify: `specs/03-arquitetura-tecnica.md` (lista "Perfis do MVP", item "PWA/offline", parágrafo de chaves VAPID em "Pontos em aberto")
 
 **Interfaces:**
 - Consumes: regras 9, 17, 22 a 27 da Task 1 (citadas por número).
@@ -445,6 +450,21 @@ por:
   decidido em 2026-09-15)
 ````
 
+E em `specs/03-arquitetura-tecnica.md`, seção "Autenticação e Autorização", trocar:
+
+````markdown
+- Perfis do MVP: Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador (ver
+  `00-visao-geral.md`).
+````
+
+por:
+
+````markdown
+- Perfis do MVP: Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador
+  (ver `00-visao-geral.md`). O Movimentador foi decidido em 2026-09-15 e passa a existir no
+  sistema na Fase 3.
+````
+
 - [ ] **Step 6: PWA em `specs/03-arquitetura-tecnica.md`**
 
 Trocar:
@@ -502,7 +522,10 @@ Run: `cd C:/wt-kit && grep -n "^## Fase 3" specs/06-roadmap-mvp.md`
 Expected: três linhas, nesta ordem — `Fase 3 — Rastreamento de setor`, `Fase 3B — Kit e montagem`, `Fase 3C — Notificação push` — e todas antes de `## Fase 4`.
 
 Run: `cd C:/wt-kit && grep -n "Movimentador" specs/00-visao-geral.md specs/06-roadmap-mvp.md specs/03-arquitetura-tecnica.md`
-Expected: ao menos uma linha em `00` e várias em `06`; nenhuma obrigatória em `03`.
+Expected: ao menos uma linha em `00`, várias em `06` e ao menos uma em `03` (a de "Perfis do MVP").
+
+Run: `cd C:/wt-kit && grep -c "Almoxarifado, PCP" specs/03-arquitetura-tecnica.md`
+Expected: `0` — a lista inline ficou com o Movimentador. (Controle positivo: antes da troca do Step 5, o mesmo comando devolve `1`.)
 
 Run: `cd C:/wt-kit && grep -nE "VAPID|^Um quinto ponto|^Um último ponto" specs/03-arquitetura-tecnica.md`
 Expected: a linha de "Um quinto ponto" vem **antes** da de "Um último ponto", e as de "VAPID" estão entre as duas.
@@ -524,8 +547,8 @@ Releia o topo de `06-roadmap-mvp.md` ("executadas em sequência"): a nota da 3C 
 cd C:/wt-kit && git add specs/06-roadmap-mvp.md specs/00-visao-geral.md specs/03-arquitetura-tecnica.md && git commit -F - <<'EOF'
 docs(roadmap): Fase 3 ampliada, Fases 3B (Kit e montagem) e 3C (push), Fase 5 ampliada, divida de CRUD
 
-Perfil Movimentador na visao geral; ressalva de PWA minimo para push e chaves VAPID
-com gatilho proprio na arquitetura. Aplica a spec 2026-09-15-kit-montagem-e-movimentacao-design.
+Perfil Movimentador na visao geral e na lista de perfis da arquitetura; ressalva de PWA
+minimo para push e chaves VAPID com gatilho proprio na arquitetura. Aplica a spec 2026-09-15-kit-montagem-e-movimentacao-design.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
@@ -539,7 +562,8 @@ EOF
 - Modify: `docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md` (bloco de errata ao fim da §2.1)
 - Modify: `specs/04-fluxos-de-usuario.md` (notas em "2. Apontamento em Setor", "5. Retrabalho", "6. Perda de peças")
 - Modify: `specs/05-api-endpoints.md` (notas em "Execução / Rastreamento" e "Perdas")
-- Modify: `CLAUDE.md` (seção "Invariantes de negócio que não podem ser violadas")
+- Modify: `CLAUDE.md` (seção "Invariantes de negócio que não podem ser violadas"; linhas "Frontend" e "Auth" da seção "Stack")
+- Modify: `README.md` (linha "Auth" da seção "Stack")
 
 **Interfaces:**
 - Consumes: regras 9, 17, 22 a 27 (Task 1) e os nomes das Fases 3, 3B, 5 (Task 2).
@@ -547,8 +571,8 @@ EOF
 
 - [ ] **Step 1: Medir a linha de base da citação por número de linha**
 
-Run: `cd C:/wt-kit && grep -cE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" CLAUDE.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`
-Expected: anote os quatro números (o `CLAUDE.md` tem passivo anterior; o que importa é não mudar).
+Run: `cd C:/wt-kit && grep -cE "[A-Za-z0-9_./-]+\.(cs|ts|tsx|css|sql|json|md|html):[0-9]+" CLAUDE.md README.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`
+Expected: anote os cinco números (o `CLAUDE.md` tem passivo anterior; o que importa é não mudar).
 
 - [ ] **Step 2: Errata na §2.1 da spec da Fase 2**
 
@@ -692,7 +716,7 @@ por:
 - `POST /pecas/{estruturaItemId}/perdas` — registra uma Perda.
 ````
 
-- [ ] **Step 8: Invariantes do `CLAUDE.md`**
+- [ ] **Step 8: Invariantes e "Stack" do `CLAUDE.md`; "Stack" do `README.md`**
 
 Trocar:
 
@@ -718,6 +742,42 @@ por:
   a partir da Fase 3.)
 ````
 
+Ainda no `CLAUDE.md`, seção "Stack", trocar:
+
+````markdown
+- **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA no MVP)
+````
+
+por:
+
+````markdown
+- **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
+````
+
+e trocar:
+
+````markdown
+- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
+````
+
+por:
+
+````markdown
+- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
+````
+
+Em `README.md`, seção "Stack", trocar:
+
+````markdown
+- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
+````
+
+por:
+
+````markdown
+- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
+````
+
 - [ ] **Step 9: Verificar**
 
 Run: `cd C:/wt-kit && grep -c "Nota (2026-09-15)" specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md`
@@ -729,23 +789,28 @@ Expected: `1`, e o bloco fica **entre** o parágrafo "Descartado: guardar a raz�
 Run: `cd C:/wt-kit && grep -n "quantidade total da Peça (validado" CLAUDE.md; echo "exit=$?"`
 Expected: nenhuma linha, `exit=1` (a redação antiga saiu).
 
-Run: o comando do Step 1 de novo.
-Expected: os **mesmos quatro números**.
+Run: `cd C:/wt-kit && grep -c "Almoxarifado, PCP" CLAUDE.md README.md && grep -c "sem PWA no MVP)" CLAUDE.md`
+Expected: `0`, `0` e `0` — nenhuma lista de perfis ficou sem o Movimentador, e a linha do Frontend ganhou a ressalva. (Controle positivo: antes das trocas do Step 8, os três devolvem `1`.)
 
-Run (mojibake): `cd C:/wt-kit && grep -c "Ã" CLAUDE.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`
-Expected: `0` nos quatro.
+Run: o comando do Step 1 de novo.
+Expected: os **mesmos cinco números**.
+
+Run (mojibake): `cd C:/wt-kit && grep -c "Ã" CLAUDE.md README.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`
+Expected: `0` nos cinco.
 
 Releia a seção "Invariantes de negócio que não podem ser violadas" inteira do `CLAUDE.md`: o bullet de conclusão de Pedido/Agrupamento ("toda a quantidade expedida ou perdida") fala de **Peça** e continua correto; confirme que nada ali passou a contradizer o bullet novo.
 
 - [ ] **Step 10: Commit**
 
 ```bash
-cd C:/wt-kit && git add docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md CLAUDE.md && git commit -F - <<'EOF'
+cd C:/wt-kit && git add docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md specs/04-fluxos-de-usuario.md specs/05-api-endpoints.md CLAUDE.md README.md && git commit -F - <<'EOF'
 docs: errata da Fase 2 (QuantidadePorPai), notas em 04 e 05, invariantes do CLAUDE.md
 
 A razao por unidade do pai passa a ser guardada ao lado do absoluto, por esclarecimento
 do processo (montagem parcial). Fluxos e endpoints anteriores as regras 22 a 27 ganham
-nota datada, sem reescrita. Aplica a spec 2026-09-15-kit-montagem-e-movimentacao-design.
+nota datada, sem reescrita. Movimentador nas listas de perfis do CLAUDE.md e do README,
+e a linha do Frontend do CLAUDE.md ganha a ressalva do PWA minimo para push.
+Aplica a spec 2026-09-15-kit-montagem-e-movimentacao-design.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 EOF
