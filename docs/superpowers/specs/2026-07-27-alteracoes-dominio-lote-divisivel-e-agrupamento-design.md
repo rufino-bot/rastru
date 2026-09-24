@@ -168,6 +168,14 @@ Nada de `Add-Migration` (decisão reconfirmada nesta conversa).
   expedição total).
 - **Glossário:** `Kit` → `Agrupamento` (com Tipo).
 
+> **ERRATA (2026-09-15, esclarecimento do processo da fábrica).** O "Tipo descritivo, não impõe
+> roteiro" desta seção é **parcialmente revertido**, e fica **anotado e não reescrito**, porque este
+> documento é o registro datado do desenho aprovado em 2026-07-27. O Tipo continua **não impondo
+> roteiro**. O que muda: um Agrupamento **Kit** passa a ficar sujeito à trava de montagem e ao
+> conjunto completo (regras 24 e 25 de `specs/01-dominio-e-regras-de-negocio.md`); um **Avulso**,
+> não. Desenho completo em
+> `docs/superpowers/specs/2026-09-15-kit-montagem-e-movimentacao-design.md`.
+
 ---
 
 ## Mudança #3 — Perda de peças (bucket terminal) + retrabalho de reposição
@@ -215,6 +223,12 @@ Nada de `Add-Migration` (decisão reconfirmada nesta conversa).
 
 - **Conservação de quantidade — atualizada:** `em setores + expedido + perdido = total da
   Peça`. "Perdido" é terminal, igual "expedido". (Estende o invariante da Mudança #1.)
+
+  > **ERRATA (2026-09-15).** O invariante ganhou um quarto termo e passou a valer para **todo**
+  > `EstruturaItem`, não só para a Peça: em produção (nos Setores ou aguardando coleta) + montado
+  > dentro do pai + expedido + perdido = total do nó (regra 9 de
+  > `specs/01-dominio-e-regras-de-negocio.md`). Anotado e não reescrito, pelo mesmo motivo da errata
+  > da "Mudança #2".
 - **Nova regra — perda:** registra baixa de quantidade em produção (armazém / morta em
   processo); para repor, abre-se um Pedido Retrabalho separado (`MotivoRetrabalho='Perda'`),
   manual/opcional — nunca reabre a Peça.

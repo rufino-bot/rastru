@@ -16,9 +16,9 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 ## Stack
 
 - **Backend**: .NET (C#), ASP.NET Core Web API
-- **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA no MVP)
+- **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
-- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
+- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
 - **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
 
 ## Mapa da pasta `specs/`
@@ -41,6 +41,11 @@ todos de uma vez.
 Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implementar
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
+
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito; a mais recente é a **Fase
+3C — Notificação push**, executada **depois da Fase 5**, porque o fluxo ponta a ponta vem primeiro e
+o push é reforço de uma lista de tarefas que precisa existir antes. A posição dela em relação à Fase
+6 **não está decidida**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -326,8 +331,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 
 - Um `EstruturaItem` (lote) é **divisível por quantidades livres**: pode ter quantidades em
   Setores diferentes ao mesmo tempo. Não há identidade de sub-lote (sem serial). O
-  invariante a preservar é **conservação de quantidade**: soma em Setores + expedido
-  (`Expedicao`) + perdido (`Perda`) = quantidade total da Peça (validado na aplicação).
+  invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
+  produção (inclusive aguardando coleta) + montado dentro do pai + expedido (`Expedicao`) +
+  perdido (`Perda`) = quantidade total do nó (validado na aplicação; regra 9).
+- Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
+  montado**, e a montagem só aceita o que os filhos diretos presentes permitem
+  (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram nesse Setor em
+  **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar e mover são
+  ações separadas, para Kit e Avulso. (Regras 22 a 27, decididas em 2026-09-15 — os tetos das
+  regras 23 a 25, em 2026-09-19 — e implementadas a partir da Fase 3.)
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma
@@ -377,7 +389,8 @@ build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `s
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
 - Windows Authentication (decidido: login próprio + JWT)
-- PWA/offline no MVP (decidido: não necessário agora)
+- PWA/offline no MVP (decidido: não necessário agora — o PWA mínimo para notificação push da Fase
+  3C, sem cache de API, não reabre esta decisão; ver `specs/03-arquitetura-tecnica.md`)
 - Rastreamento por serial individual (decidido: lote agregado)
 - Criar Peça e Item como tabelas separadas (decidido: tabela recursiva única)
 - Roteiro de setores fixo por tipo de peça (decidido: pode variar por pedido/agrupamento)

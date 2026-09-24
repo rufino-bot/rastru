@@ -308,6 +308,12 @@ de uma vez.
 `estrutura/{id}` que a Fase 2 já implementou; a quinta, `GET /setores/{id}/fila`, é indexada pelo
 Setor e não usa prefixo nenhum de nó.)*
 
+> **Nota (2026-09-15).** As rotas de entrada, saída, histórico e fila de setor desta seção — todas
+> menos `separacoes-material`, que é da Fase 4 — são anteriores às regras 22 a 25 de
+> `01-dominio-e-regras-de-negocio.md` (terminar ≠ mover com aguardando coleta, tarefas do
+> Movimentador, registro de montagem e conjunto completo). Os contratos delas são redesenhados nas
+> specs das Fases 3 e 3B.
+
 - `POST /estrutura-itens/{id}/entradas-setor` — registra entrada no setor atual
 - `POST /estrutura-itens/{id}/saidas-setor` — registra saída do setor atual
 - `GET /estrutura-itens/{id}/historico-setor`
@@ -338,6 +344,10 @@ nomes definitivos podem ser afinados na fase de implementação da API.)*
 
 *(Rotas em nível de Peça, `estruturaItemId`; nomes definitivos podem ser afinados na
 fase de implementação da API.)*
+
+> **Nota (2026-09-15).** O `motivoPerda` ganha `'Descarte'`, e a perda passa a valer para Item, não
+> só Peça — o prefixo `/pecas/` deixa de descrever o recurso (regras 17 e 27 de
+> `01-dominio-e-regras-de-negocio.md`). Contrato redesenhado na spec da Fase 5.
 
 - `POST /pecas/{estruturaItemId}/perdas` — registra uma Perda.
   Body: `{ quantidade, motivoPerda: 'PerdaArmazem' | 'MortaEmProcesso', setorId?, observacao?, responsavel }`
