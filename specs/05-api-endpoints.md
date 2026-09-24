@@ -247,7 +247,7 @@ Materiais do nó e `separacoes-material`, da Fase 4 —, e quem as implementar d
 
   **Do caso de uso**, só nas três rotas com corpo: `{ "erro": "<mensagem em português>" }` — aqui o
   mesmo campo `erro` que no 409 carrega um código estável (`CicloNaReceita` etc.) carrega uma frase
-  pronta para o operador ler. São cinco as causas de negócio:
+  pronta para o operador ler. São seis as causas de negócio:
   - `quantidadePorPai` ausente ou ≤ 0 num Item, ou informada numa Peça (regra 26, desde a Fase 3);
   - quantidade **digitada** abaixo do piso da coluna (`0,0001`);
   - na cópia da receita, uma quantidade calculada sai da faixa da coluna (`DECIMAL(18,4)`) —
