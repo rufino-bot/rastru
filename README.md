@@ -121,11 +121,11 @@ Concluídas até aqui:
 - **Fase 2B:** o sólido 3D da Peça — arquivo STL guardado em blob, enviado e lido sob `/api`, com
   upload e visualizador no navegador.
 
-A seguir vêm a **Fase 3** (rastreamento de setor: apontamento de entrada e saída de
-`EstruturaItem` em `Setor`, terminar e mover como ações separadas — com o perfil **Movimentador** e a
-tela de tarefas dele —, validação da conservação de quantidade e fila do setor para o operador) e a
-**Fase 3B** (Kit e montagem: trava de montagem por nó, com conjunto completo na entrada do Setor
-marcado como de montagem — hoje, a Solda). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+A seguir vêm a **Fase 3** (rastreamento de setor: livro de movimentações, terminar e mover como
+ações separadas — com o perfil **Movimentador** e a tela de tarefas dele —, montagem de todo nó com
+filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao local de expedição) e a
+**Fase 3B** (Kit: trava de montagem por nó, com conjunto completo na entrada do Setor marcado como
+de montagem — hoje, a Solda). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido.
 

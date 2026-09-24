@@ -338,8 +338,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   montado**, e a montagem só aceita o que os filhos diretos presentes permitem
   (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram nesse Setor em
   **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar e mover são
-  ações separadas, para Kit e Avulso. (Regras 22 a 27, decididas em 2026-09-15 — os tetos das
-  regras 23 a 25, em 2026-09-19 — e implementadas a partir da Fase 3.)
+  ações separadas, para Kit e Avulso. Montar é registro de **todo** nó com filhos (Kit ou Avulso);
+  só a trava é do Kit. (Regras 22 a 27, decididas em 2026-09-15 — os tetos das regras 23 a 25, em
+  2026-09-19 — e implementadas a partir da Fase 3.)
+- **O livro de movimentações (`dbo.Movimentacao`) é só de inclusão.** Correção é estorno — um
+  movimento inverso que aponta o original —, nunca `UPDATE` nem `DELETE` numa linha dele. A
+  conservação de quantidade (regra 9) sai por construção justamente porque cada linha tira de uma
+  posição e põe em outra; editar uma linha quebra isso em silêncio. (Regras 28 a 30, Fase 3.)
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma

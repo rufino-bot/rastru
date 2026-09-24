@@ -10,6 +10,10 @@
   Fase 3".
 - **Registro do brainstorm:** `.superpowers/sdd/fase3-brainstorm-estado.md` (ledger privado), com a
   resposta verbatim do usuário a cada decisão.
+- **Corrigida no preparo do plano (2026-09-24):** saiu o código `NoComMovimentacao` (seções 4.7, 5.3,
+  8.1 e 8.2). O `PedidoNaoAberto` da Fase 2 já recusa excluir nó com movimento, porque o primeiro
+  `Inicio` põe o Pedido em `EmProducao` e o status não volta (seção 4.1); o código novo seria uma
+  guarda que nenhum teste consegue fazer disparar.
 
 ## 1. Contexto e escopo
 
@@ -383,7 +387,7 @@ filhos entrem juntos. O destino de cada item:
 
 | Edição | Regra nova |
 |---|---|
-| Excluir nó | recusado se ele ou alguém da subárvore tem movimento ou montagem (`NoComMovimentacao`) |
+| Excluir nó | já recusado pelo `PedidoNaoAberto` da Fase 2: nó com movimento está sempre num Pedido `EmProducao` ou além (seção 4.1) — nenhum código novo |
 | Reduzir `Quantidade` | recusado abaixo do que já saiu de `AIniciar` e, se for pai, abaixo do total montado (`QuantidadeAbaixoDoMovimentado`) |
 | Editar `QuantidadePorPai` | livre: a baixa já gravada não muda; afeta montagens futuras, sobra e "falta" |
 | Acrescentar filho | livre; `QuantidadePorPai` obrigatória no corpo |
@@ -435,7 +439,7 @@ hoje o `Result` só conhece 400, 404 e 409.
 
 - `GET /agrupamentos/{id}/estrutura`: cada nó ganha `quantidadePorPai` e `semRoteiro`.
 - `POST /estrutura/{id}/filhos` e `PUT /estrutura/{id}`: ganham `quantidadePorPai` (obrigatória no
-  Item); o `PUT` e o `DELETE` passam a recusar pelas regras da seção 4.7.
+  Item); o `PUT` passa a recusar pela regra da seção 4.7.
 
 Sem paginação na fila e nas tarefas: elas mostram só o que está em produção agora, e o volume de uma
 fábrica cabe numa página. Se um dia não couber, o padrão `useBuscaPaginada` já existe.
@@ -565,7 +569,7 @@ número.
   montagem; todos os nós da lista, na entrega. A ordem fixa torna deadlock raro, em vez de rotineiro.
 - Deadlock ou lock timeout (1205/1222) viram `ConflitoDeConcorrenciaException` → 409, no padrão que o
   `ReceitaPadraoRepository` já tem.
-- **As edições da Fase 2** que a seção 4.7 passa a validar contra o livro (excluir nó, reduzir quantidade)
+- **As edições da Fase 2** que a seção 4.7 passa a validar contra o livro (reduzir quantidade)
   e a edição de Roteiro entram no mesmo esquema. Sem isso, um "reduzir quantidade" passaria no meio de um
   "iniciar". Fecha o residual que o comentário de `GravarArvoreAsync`, no `EstruturaRepository`, registra
   ("considerar extrair o mesmo padrão").
@@ -594,7 +598,6 @@ números quando ajuda.
 | 409 | `DestinoForaDoRoteiroDoPai` | Setor de montagem que não está no Roteiro do pai |
 | 409 | `PaiSemRoteiro` | entrega para montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de um passo que já é histórico |
-| 409 | `NoComMovimentacao` | excluir nó (ou subárvore) com movimento |
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir quantidade abaixo do que já andou ou foi montado |
 | 409 | `EstornoImpossivel` | a quantidade já foi movida depois; estorno de estorno; baixa de montagem avulsa |
 | 409 | `JaEstornado` | o movimento ou a montagem já foi estornado |
