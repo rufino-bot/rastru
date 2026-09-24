@@ -36,10 +36,10 @@ TO=${ESTADO_DOCKER_TIMEOUT:-25}
 # re-execução em vez de um `if` por linha de saída — assim existe UM caminho de impressão, e o que
 # o hook entrega é, byte a byte, o que o terminal mostra.
 #
-# A reexecução passa pelo interpretador (`"${BASH:-bash}" "$EU"`), não executa `$EU` direto: o
-# arquivo está no índice do git como 100644, sem bit de execução, e a execução direta dava
-# `Permission denied` num checkout Linux — com saída 0 e JSON válido, então o hook injetava a
-# mensagem de erro como se fosse o estado medido.
+# A reexecução passa pelo interpretador (`"${BASH:-bash}" "$EU"`), não executa `$EU` direto — assim
+# não depende do bit de execução do arquivo. Estava 100644 no índice do git quando o bug foi achado
+# (medido em 2026-09-24); a execução direta dava `Permission denied` num checkout Linux — com saída
+# 0 e JSON válido, então o hook injetava a mensagem de erro como se fosse o estado medido.
 #
 # O codificador é `node`, não `jq`: MEDIDO em 2026-08-25, `jq` não existe nesta máquina, e o
 # exemplo canônico de hook depende dele. `node` é dependência real deste repositório (o front é
@@ -48,13 +48,16 @@ if [ "${1:-}" = "--json" ]; then
   shift
   saida=$("${BASH:-bash}" "$EU" "$@" 2>&1)
   status=$?
-  # O código de saída da reexecução NÃO é engolido: medido que o caminho normal (Docker fora, caso
-  # comum neste container) sai 0, então propagar cru não faz o hook "falhar" numa abertura comum.
-  # Se a reexecução sair != 0, o `additionalContext` ganha uma linha dizendo isso ANTES do resto —
-  # o `settings.json` chama o hook com `|| true`, então sair != 0 não quebra a sessão, mas também
-  # não mostra nada por si só; a linha é o que torna a falha visível.
+  # O código de saída da reexecução NÃO é engolido. O caminho normal termina num `echo`
+  # incondicional e não tem `set -e`, então qualquer execução que chegue ao fim sai 0 — o único
+  # `exit` explícito no caminho normal é o do `cd` de resolução do `EU`, antes deste bloco; ≠ 0 aqui
+  # significa que a reexecução não chegou ao fim (ela morreu antes, ou saiu pelo próprio `exit 1` do
+  # `cd`). Por isso propagar cru não faz o hook "falhar" numa abertura comum. Se a reexecução sair
+  # != 0, o `additionalContext` ganha uma linha dizendo isso ANTES do resto — o `settings.json` chama
+  # o hook com `|| true`, então sair != 0 não quebra a sessão, mas também não mostra nada por si só;
+  # a linha é o que torna a falha visível.
   if [ "$status" -ne 0 ]; then
-    saida="[scripts/estado --json saiu com codigo $status]
+    saida="[reexecução de scripts/estado saiu com código $status; saída abaixo]
 $saida"
   fi
   printf '%s' "$saida" | node -e "
