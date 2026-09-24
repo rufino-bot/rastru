@@ -6,12 +6,15 @@ por Setores de produção, pela separação de Materiais e pelo Relatório Dimen
 possibilidade de abrir Retrabalho em caso de reprovação).
 
 Projeto de TCC. O rastreamento é por **lote agregado** (não por unidade física individual),
-e um lote é indivisível — nunca está em dois Setores ao mesmo tempo.
+e o lote é **divisível por quantidades livres**: parte dele pode estar num Setor e parte em
+outro ao mesmo tempo. Não há identidade de sub-lote (sem etiqueta/serial) — controla-se
+apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**: soma das
+unidades em todos os Setores + expedido + perdido = quantidade total da Peça.
 
 ## Stack
 
 - **Backend:** .NET (C#), ASP.NET Core Web API, Clean Architecture (Domain / Application / Infrastructure / Api)
-- **Banco:** SQL Server (on-premise), EF Core em modo **Database First**
+- **Banco:** SQL Server numa VPS paga com domínio próprio, EF Core em modo **Database First**
 - **Frontend:** React + TypeScript (Vite) + Tailwind CSS, mobile-first
 - **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
 
