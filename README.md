@@ -6,13 +6,16 @@ por Setores de produção, pela separação de Materiais e pelo Relatório Dimen
 possibilidade de abrir Retrabalho em caso de reprovação).
 
 Projeto de TCC. O rastreamento é por **lote agregado** (não por unidade física individual),
-e um lote é indivisível — nunca está em dois Setores ao mesmo tempo.
+e o lote é **divisível por quantidades livres**: parte dele pode estar num Setor e parte em
+outro ao mesmo tempo. Não há identidade de sub-lote (sem etiqueta/serial) — controla-se
+apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**: soma das
+unidades em todos os Setores + expedido + perdido = quantidade total da Peça.
 
 ## Stack
 
 - **Backend:** .NET (C#), ASP.NET Core Web API, Clean Architecture (Domain / Application / Infrastructure / Api)
-- **Banco:** SQL Server (on-premise), EF Core em modo **Database First**
-- **Frontend:** React + TypeScript (Vite) + Tailwind CSS, mobile-first
+- **Banco:** SQL Server numa VPS paga com domínio próprio, EF Core em modo **Database First**
+- **Frontend:** React + TypeScript (Vite) + Tailwind CSS, mobile-first, com three.js (carregado sob demanda) no visualizador de sólido 3D
 - **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, PCP, Qualidade, Gestão, Administrador)
 
 ## Estrutura do repositório
@@ -23,7 +26,7 @@ e um lote é indivisível — nunca está em dois Setores ao mesmo tempo.
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco (seed de perfis + usuário admin) |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional) |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -46,7 +49,12 @@ docker compose up -d
 Aplicar uma vez no banco `Rastreamento` de `localhost:1433`:
 
 - `specs/02-modelo-de-dados.sql` — schema (fonte da verdade)
-- `db/seed.sql` — perfis + usuário administrador
+- `db/seed.sql` — perfis + os dois usuários de desenvolvimento
+- `db/seed-demo.sql` — **opcional**: catálogo de demonstração (Setores, Materiais e Componentes,
+  com receitas padrão). Nenhum teste depende dele — é a suíte que cria a própria massa, e é isso
+  que a torna determinística numa máquina qualquer. Sem ele, porém, as telas de catálogo ficam
+  vazias e parecem quebradas. Carregue-o com `-f 65001`: os nomes são `NVARCHAR` acentuados e, se
+  a codepage se perder na carga, os dados entram corrompidos sem o banco acusar nada.
 
 ### 2. Backend (API)
 
@@ -70,8 +78,13 @@ dotnet test Rastreamento.slnx
 cd web
 npm install
 npm run dev          # http://localhost:5173, com proxy de /api para a API
-npm run test         # testes Vitest da lógica de auth
+npm run test         # suíte Vitest: telas, primitivas de interface, camada de API e guardas de tema
+npm run build        # tsc -b + vite build
+npm run lint         # oxlint
 ```
+
+> `npm run build` faz parte do ciclo, não só `npm test`: o Vitest não faz typecheck, então um erro
+> de tipo num arquivo `.test.tsx` quebra o build sem quebrar a suíte.
 
 Em desenvolvimento, front e API ficam na **mesma origem** via proxy do Vite — necessário
 para o cookie `SameSite=Strict` do refresh token funcionar. O access token vive só em
@@ -79,19 +92,38 @@ memória; o refresh token só em cookie httpOnly + Secure + SameSite=Strict.
 
 ### Credenciais de desenvolvimento
 
-`admin` / `Admin@123` (usuário do seed) e a senha do SA do SQL Server local são **apenas
-para desenvolvimento**. A `SigningKey` de exemplo commitada precisa virar um segredo de
-ambiente real antes de qualquer deploy.
+Os dois usuários do seed — `admin` / `Admin@123` (perfil Administrador) e `pcp` / `Pcp@123`
+(perfil PCP) — e a senha do SA do SQL Server local são **apenas para desenvolvimento**.
+
+A `SigningKey` de exemplo commitada precisa virar um segredo de ambiente real antes de qualquer
+deploy. Isso é procedimento de deploy, não dívida de código: o `JwtOptionsValidator` recusa o
+valor de exemplo já no startup (e exige no mínimo 32 bytes), então esquecer de trocá-la derruba a
+aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 
 ## Roadmap
 
-O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência (Fase 0 → 6).
+O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E e 2B como fases próprias.
 
-- **Fase 0 — concluída:** autenticação ponta a ponta (backend JWT com access + refresh
-  token rotacionado e revogável; frontend React com login, sessão sustentada por refresh e
-  tela protegida).
-- **Fase 1 em diante:** funcionalidades de domínio (Pedidos, Kits, Estrutura de Peças/Itens,
-  Setores, Materiais, Relatório Dimensional, Retrabalho).
+Concluídas até aqui:
+
+- **Fase 0:** autenticação ponta a ponta (backend JWT com access + refresh token rotacionado e
+  revogável; frontend React com login, sessão sustentada por refresh e tela protegida).
+- **Fases 1A, 1B e 1C:** cadastros básicos — `Setor`, `Material`, `Pedido` e `Agrupamento`; o
+  catálogo de `Componente`, com busca e paginação no servidor; e a receita padrão do Componente
+  (filhos, materiais e roteiro).
+- **Fases 1D e 1E:** identidade visual e UX — tokens de tema, primitivas de interface próprias e
+  shell de navegação; depois, tipografia auto-hospedada e o resumo de Pedidos na Home.
+- **Fase 2:** a estrutura recursiva — `EstruturaItem` sem pai é Peça, com pai é Item —, com a
+  cópia da receita do Componente e a árvore editável na tela do Agrupamento.
+- **Fase 2B:** o sólido 3D da Peça — arquivo STL guardado em blob, enviado e lido sob `/api`, com
+  upload e visualizador no navegador.
+
+A seguir vem a **Fase 3** (rastreamento de setor: apontamento de entrada e saída de
+`EstruturaItem` em `Setor`, validação da conservação de quantidade e fila do setor para o
+operador), e depois as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
+e por pedido.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).
