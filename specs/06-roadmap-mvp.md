@@ -274,7 +274,7 @@ resolvidos (ou conscientemente adiados).
 - Regra de fechamento de Agrupamento (todas as Peças concluídas — expedidas ou
   perdidas) e de Pedido (último Agrupamento concluído).
 - Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
-  de uma reprovação, com `MotivoRetrabalho` obrigatório
+  de uma reprovação **ou de uma perda** (regras 17 e 27 de `01`), com `MotivoRetrabalho` obrigatório
   (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`).
 - Critério de pronto: fluxo ponta a ponta funcionando — cadastro → produção →
   expedição/perda → aprovação/reprovação → (se aplicável, e só quando o usuário decidir)

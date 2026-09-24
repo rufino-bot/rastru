@@ -399,9 +399,12 @@ Sem fase e sem data.
   Roteiro tem passo ali, ou um nó com filhos que volta à Solda para seguir o próprio Roteiro
   (regras 21 e 24) —, que a regra 25, lida ao pé da letra, só aceitaria como conjunto completo do
   pai; e como a perda do próprio nó entra nos dois tetos, que são contas diferentes: "o que o nó
-  ainda precisa receber" (regras 23 e 25, que descontam os conjuntos já à espera em Setor com
-  `UtilizaKit`) e "o
-  que ainda falta montar" (regra 24, que não os desconta).
+  ainda precisa receber" (regras 23 e 25, que descontam os conjuntos que entraram e ainda não foram
+  montados, em qualquer Setor com `UtilizaKit`) e "o que ainda falta montar" (regra 24, que não os
+  desconta). Na mesma pergunta da entrada que não é para a montagem do pai, decidir também se aquela
+  quantidade conta como conjunto à espera no teto: uma folha que entrasse para o próprio passo na
+  Solda, contada assim, zeraria o teto do pai — um pai de 10 com um filho de 40 e razão 4 daria
+  10 − 0 − 10 = 0, e os outros filhos nunca entrariam.
 - **Fase 5:** de qual Setor sai a parte que acompanha a perda, com o lote dividido entre Setores.
   Acrescentados em 2026-09-19: o motivo da perda que sobe até a Peça do topo e o das partes que
   saem junto (nenhum dos três motivos da regra 17 descreve o caso); e se essas linhas preenchem

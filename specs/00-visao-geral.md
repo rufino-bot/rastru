@@ -31,7 +31,9 @@ perfil (não é "todo usuário vê tudo").
 - **Movimentador** (leva ao próximo destino o que aguarda coleta — em Agrupamento Kit, os filhos
   vão ao Setor de montagem, hoje a Solda, em conjuntos completos; ver regras 22 e 25 de
   `01-dominio-e-regras-de-negocio.md`; perfil decidido em 2026-09-15)
-- **PCP** / Planejamento (cadastra Pedidos, Agrupamentos, estrutura)
+- **PCP** / Planejamento (cadastra Pedidos, Agrupamentos, estrutura — inclusive a do Pedido de
+  Retrabalho que repõe perda, que Qualidade ou PCP abre; ver regra 27 de
+  `01-dominio-e-regras-de-negocio.md`)
 - **Qualidade** (preenche relatório dimensional, aprova/reprova, abre retrabalho)
 - **Gestão** (consulta KPIs)
 - **Administrador** (cadastros de catálogo, usuários e perfis)
