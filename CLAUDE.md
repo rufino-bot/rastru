@@ -417,6 +417,25 @@ esse (implementer, fix pass e review despachados sobre a árvore de trabalho). C
 mesmo fluxo precisa dos dois; por isso o arquivo é versionado inteiro. O que **não** entra nele é
 credencial ou caminho de máquina — para isso existe `.claude/settings.local.json`.
 
+### Sessão na nuvem (claude.ai/code): o que o container não traz
+
+Um container de cloud nasce com **este** repositório e nada mais. Antes de qualquer tarefa, duas
+coisas, nesta ordem:
+
+1. **O ledger.** Anexe `rufino-bot/rastru-tcc` à sessão (pelo nome **atual** — ver a seção do ledger
+   logo a seguir) e clone-o **direto** como `.superpowers/` na raiz deste checkout. Clonado como
+   diretório, ele cai no `.superpowers/` do `.gitignore`; um symlink não cai (a regra só casa
+   diretório), e aí seria preciso excluí-lo em `.git/info/exclude`. Medido em 2026-09-24: anexado pelo
+   nome antigo (`rastru-ledger`, que o GitHub redireciona), o clone funcionou mas o push veio
+   recusado; pelo nome atual, o push funcionou. Depois de clonado, leia o cartão de retomada no topo
+   de `.superpowers/sdd/progress.md`.
+2. **As skills `superpowers`** (`brainstorming`, `writing-plans`, `subagent-driven-development`…). O
+   fluxo deste projeto depende delas, e elas **não** vêm no container: quem as instala é o setup
+   script do ambiente de cloud, configurado pelo dono do projeto. Se `brainstorming` e
+   `subagent-driven-development` não aparecem entre as skills disponíveis na abertura, **pare e
+   avise** — não as instale por conta própria no meio da sessão, e não siga o fluxo "de cabeça"
+   sem elas: a regra do gate de review exige a skill invocada.
+
 ### O ledger tem repositório próprio, e o script vigia isso
 
 `.superpowers/` — ledger, briefs, relatórios, histórico de fase — é um **repositório git separado e
