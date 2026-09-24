@@ -12,19 +12,22 @@
 | **Componente.ArquivoSolidoId** | Referência (FK para `dbo.ArquivoDeComponente`) ao arquivo de **sólido 3D** (CAD) da peça de catálogo — **STL**, e só (decisão de 2026-09-12, do usuário: o three.js lê STL nativamente, enquanto STEP exigiria parser de terceiros no navegador; `.SLDPRT` continua fora, por ser proprietário). É obrigação de negócio para toda Peça de Pedido, mas coluna **nullable** por não valer para todo Componente; ver regra 18. `Componente.ArquivoFoto`, ao lado, é uma foto de referência **opcional**. |
 | **EstruturaItem** | A árvore **real** usada em um Agrupamento específico, podendo ter sido copiada do catálogo (`Componente`) e customizada. É recursiva: um `EstruturaItem` pode ter `EstruturaItem` filhos. O nó de topo (sem pai) é chamado de **Peça**; os nós com pai são chamados de **Item**. Representa um **lote agregado** (quantidade), não uma unidade física individual — e esse lote é divisível por quantidades livres (ver regra 9). |
 | **EstruturaItem.Descricao** | Nome próprio do nó dentro do Agrupamento. NULL = usa a descrição do `Componente` de origem. Serve ao item **ad-hoc** (`ComponenteId` NULL), que sem ela chega sem nome nenhum à tela do operador; ver regra 19. |
-| **EstruturaItem.QuantidadePorPai** | Quantos daquele nó entram em **uma** unidade do pai, guardado ao lado da quantidade absoluta (`EstruturaItem.Quantidade`). Obrigatória em todo Item, nula na Peça. Serve à trava de montagem, ao conjunto completo e às tarefas do Movimentador (regras 23 a 25); o apontamento continua movimentando a quantidade absoluta. Ver regra 26. Decidida em 2026-09-15; a coluna entra no schema no início da Fase 3B. |
+| **EstruturaItem.QuantidadePorPai** | Quantos daquele nó entram em **uma** unidade do pai, guardado ao lado da quantidade absoluta (`EstruturaItem.Quantidade`). Obrigatória em todo Item, nula na Peça. Serve à montagem de todo nó com filhos, às tarefas do Movimentador e à sobra (regras 23, 24 e 30) e, no Kit, à trava e ao conjunto completo (regras 24 e 25); o apontamento continua movimentando a quantidade absoluta. Ver regra 26. Decidida em 2026-09-15; a coluna entra no schema na Fase 3 (decisão de 2026-09-24, que trouxe a montagem da 3B para a 3). |
 | **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
 | **Material.Codigo** | O **identificador único do material** dentro deste sistema. **Mesma regra do `Componente.Codigo`**, por decisão explícita: alfanumérico (`NVARCHAR(50)`), **único global** (`UQ_Material_Codigo`), atribuído por quem cadastra, sem geração nem validação de formato pelo sistema. A numeração de fornecedor **não** é modelada aqui. |
 | **Setor** | Departamento de produção (ex.: Corte e Dobra, Usinagem) pelo qual um `EstruturaItem` pode passar. |
 | **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa a trava de montagem e o conjunto completo (regras 24 e 25). Decidida em 2026-09-15; a coluna entra no schema no início da Fase 3B. |
 | **Roteiro** | Sequência de Setores que um `EstruturaItem` percorre. Pode ser padrão (catálogo) ou específico daquele Pedido/Agrupamento. |
-| **Aguardando coleta** | Estado da quantidade que ainda não foi levada ao próximo destino depois de o operador dá-la como terminada num Setor (regra 22) — ou, no Pedido de Retrabalho, depois de nascer marcada **pronta** (regra 27). Conta como **em produção** para a conservação de quantidade (regra 9) e é o que alimenta as tarefas do Movimentador (regra 23). Como é representado no banco é decisão da Fase 3. |
+| **Aguardando coleta** | Estado da quantidade que ainda não foi levada ao próximo destino depois de o operador dá-la como terminada num Setor (regra 22) — ou, no Pedido de Retrabalho, depois de nascer marcada **pronta** (regra 27). Conta como **em produção** para a conservação de quantidade (regra 9) e é o que alimenta as tarefas do Movimentador (regra 23). No banco, é uma posição do livro de movimentações (`dbo.Movimentacao`), guardada no Setor e no passo em que a quantidade terminou; o destino é calculado (regra 29). |
 | **Relatório Dimensional** | Avaliação de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado no cadastro via EstruturaItem.RequerRelatorioDimensional). Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada gera uma RelatorioDimensionalAvaliacao com quantidade aprovada/reprovada. Aprovação/reprovação é por quantidade. Reprovação não exige retrabalho imediato. |
 | **Usuário / Perfil** | Login próprio (usuário/senha + JWT). Cada Usuário tem um Perfil (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador) que restringe telas/ações — ver `00-visao-geral.md`. |
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
 | **Expedição (remessa)** | Saída de uma quantidade de uma Peça para o cliente. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Cada remessa é uma linha em Expedicao. |
 | **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regra 25). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
-| **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao registrar "montei N", baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). Pelas regras atuais, o registro de montagem só existe sob a trava da regra 24 — como sai o filho de um nó sem trava está em "Pontos ainda em aberto". O destino entra no schema no início da Fase 3B. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor com `UtilizaKit` (regra 24). |
+| **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao registrar "montei N", baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso; só a validação da trava é restrita ao Kit (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor com `UtilizaKit` (regra 24). |
+| **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
+| **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição (Fase 5). |
+| **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa: `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
 
 ## Regras de negócio
 
@@ -46,14 +49,20 @@
    num Setor e outra parte em outro Setor ao mesmo tempo (ex.: 6 na Usinagem, 4 na Corte).
    Não há identidade de sub-lote (sem etiqueta/serial) — controla-se apenas *quanto* está
    *onde*. Invariante: **conservação de quantidade**, para **todo** `EstruturaItem` (Peça ou
-   Item) — em produção (nos Setores ou aguardando coleta — regra 22) + montado dentro do
-   pai (regra 24) + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó.
+   Item) — em produção (a iniciar, nos Setores, aguardando coleta, aguardando montagem ou no
+   local de expedição — regras 22, 28 e 29) + montado dentro do pai (regra 24) + expedido
+   (`Expedicao`) + perdido (`Perda`) = quantidade total do nó.
    "Montado" só existe para Item, e expedição só para Peça. (A divisão física entre pinturas
    terceirizadas no fim do processo segue controlada fora do sistema.)
 
    **Alterada pela decisão de 2026-09-15:** até então o invariante falava só da Peça e não tinha
    o termo "montado" — um Item soldado dentro do pai não era nenhum dos três termos antigos. O
    destino "montado" só entra no schema (`02-modelo-de-dados.sql`) no início da Fase 3B.
+
+   **Alterada de novo em 2026-09-24** (spec da Fase 3): "em produção" ganhou as posições a
+   iniciar, aguardando montagem e no local de expedição (regras 28 e 29), e o destino "montado"
+   entrou no schema na **Fase 3**, não na 3B, porque montar passou a valer para todo nó com filhos
+   (regra 24).
 10. O Relatório Dimensional é **opcional**: só quando o cliente exige, em Peças específicas
     (ex.: primeira manufatura, primeiro trabalho após reprovação no cliente). Isso é sabido
     no cadastro do Pedido e marcado **por Peça** em `EstruturaItem.RequerRelatorioDimensional`.
@@ -73,12 +82,14 @@
     todas as suas Peças concluem (`Agrupamento.DataConclusao`), e um Pedido conclui quando o
     **último** Agrupamento conclui (`Pedido.DataConclusao`). Não depende mais de "avaliado",
     já que o Relatório Dimensional é opcional.
-14. O início real de produção de um Pedido é derivado (não armazenado) como o menor
-    `DataEntrada` entre todos os `EstruturaSetorHistorico` dos itens daquele Pedido —
-    usado para separar tempo em fila de tempo de produção. `DataEntrada` representa a
-    **chegada** no setor (pode ficar esperando antes de começar); o início real da
-    execução é opcionalmente registrado em `DataInicioExecucao`, no mesmo registro, sem
-    afetar o cálculo de tempo em fila.
+14. O início real de produção de um Pedido é derivado (não armazenado) como a menor data entre
+    as primeiras entradas (regra 28) dos nós daquele Pedido, no livro de movimentações — usado
+    para separar tempo em fila de tempo de produção. A primeira entrada é o início do trabalho,
+    porque o operador a registra ao pegar o material; as entradas seguintes, registradas pelo
+    Movimentador ao entregar, são **chegada** no Setor (a peça pode esperar antes de começar).
+    Separar fila de execução dentro do Setor é decisão da Fase 6. **Alterada em 2026-09-24**
+    (spec da Fase 3): antes, o início vinha de `EstruturaSetorHistorico.DataEntrada`, tabela que
+    o livro de movimentações substituiu.
 15. Cada Usuário tem um Perfil (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão,
     Administrador) que restringe quais telas e ações ele acessa. O **Movimentador** entrou pela
     decisão de 2026-09-15 (regra 22) e passa a existir no sistema na Fase 3.
@@ -209,15 +220,16 @@
 
 *As regras 22 a 27 foram decididas em 2026-09-15 (spec
 `docs/superpowers/specs/2026-09-15-kit-montagem-e-movimentacao-design.md`) — os tetos das regras 23
-a 25, em 2026-09-19 — e são implementadas nas Fases 3, 3B e 5 de `06-roadmap-mvp.md`; o schema
-correspondente entra no início de cada fase.*
+a 25, em 2026-09-19 — e são implementadas nas Fases 3, 3B e 5 de `06-roadmap-mvp.md` (a montagem
+de todo nó e `QuantidadePorPai`, na Fase 3, por decisão de 2026-09-24); o schema correspondente
+entra no início de cada fase.*
 
 22. **Terminar e mover são ações separadas** — na fábrica, feitas por pessoas diferentes. O
     operador registra que terminou o trabalho num Setor, e aquela quantidade passa a **aguardar
     coleta**; o **Movimentador** a leva e registra a entrada no próximo destino. Vale para todo
     `EstruturaItem`, de Agrupamento Kit ou Avulso. Um filho que concluiu o próprio Roteiro aguarda
     coleta para a montagem do pai. Para a conservação de quantidade (regra 9), aguardar coleta
-    conta como em produção; como esse estado é representado no banco é decisão da Fase 3.
+    conta como em produção; no banco, ele é uma posição do livro de movimentações (spec da Fase 3).
 23. **As tarefas do Movimentador são calculadas a partir do estado**, não gravadas como aviso:
     quando alguém leva, a tarefa some sozinha. São duas:
     - **Item pronto** — quantidade aguardando coleta. É tarefa, exceto para filho de Agrupamento
@@ -232,7 +244,11 @@ correspondente entra no início de cada fase.*
       conjuntos.
 
     Notificação no celular é reforço desta lista, não substituto (Fase 3C).
-24. **Trava de montagem.** Vale quando as três condições valem juntas: o Agrupamento é **Kit**, o
+24. **Trava de montagem.** Montar é registro de **todo** nó com filhos, de Agrupamento Kit ou
+    Avulso: o operador registra "montei N" no Setor onde os filhos estão (regra 29), e baixa-se
+    `N × QuantidadePorPai` de cada filho direto para "montado" — até 2026-09-24, montar só existia
+    sob a trava (spec da Fase 3). A **trava** restringe essa montagem no Kit. Ela vale quando as
+    três condições valem juntas: o Agrupamento é **Kit**, o
     Setor tem **`UtilizaKit`** (marca no cadastro do Setor — hoje, a Solda), e o nó **tem filhos**
     (Peça ou Item de submontagem). Olha só os **filhos diretos** do nó.
     - **Montar é registro próprio**, separado de mover. O operador registra "montei N"; o sistema
@@ -267,8 +283,8 @@ correspondente entra no início de cada fase.*
     pai, **ao lado** da quantidade absoluta (`EstruturaItem.Quantidade`). É **obrigatória em todo
     Item e nula na Peça**. A cópia da receita a preenche com
     `ComponenteFilhoPadrao.QuantidadePadrao`; num Item ad-hoc, quem cadastra informa. A quantidade
-    absoluta continua sendo o que o apontamento movimenta; a razão serve à trava, ao conjunto
-    completo e às tarefas.
+    absoluta continua sendo o que o apontamento movimenta; a razão serve à montagem de todo nó
+    (regra 24), às tarefas e à sobra (regra 30) e, no Kit, à trava e ao conjunto completo.
     **Não existe invariante entre as duas**: um Item de 45 com razão 4 sob um pai de 10 é legítimo
     (sobra de refugo). A Fase 2 havia decidido não guardar a razão; ver a errata na §2.1 da spec da
     Fase 2 (`docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`).
@@ -286,6 +302,32 @@ correspondente entra no início de cada fase.*
       nasce ligado ao original (`PedidoOrigemId`, `MotivoRetrabalho = 'Perda'`), e confrontar os
       dois mostra o destino do saldo — perdido ou descartado de fato, ou reposto e expedido depois.
 
+*As regras 28 a 30 foram decididas em 2026-09-24, no brainstorm da Fase 3 (spec
+`docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`), e são implementadas na
+Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
+
+28. **Todo nó nasce a iniciar, e a primeira entrada é do operador.** A quantidade inteira de um nó
+    nasce **a iniciar**, que conta como em produção (regra 9). A fabricação começa quando o operador
+    do primeiro Setor do Roteiro pega o material para trabalhar — parte do material já está no Setor,
+    parte é levada pelo almoxarifado —, e é esse operador quem registra a primeira entrada, sem o
+    Movimentador: não há o que levar. A primeira entrada **exige Roteiro**; nó sem Roteiro é
+    pendência do PCP, que edita o Roteiro de qualquer nó (regra 7). Depois que o nó começa a andar,
+    os passos já alcançados são histórico e não se editam. O Pedido passa a `EmProducao` na primeira
+    entrada de qualquer nó dele.
+29. **O fim do Roteiro.** O que termina um passo que não é o último vai para o próximo passo, sem
+    escolha. O que termina o **último** passo aguarda coleta com um destino que depende do nó:
+    - **Item** — a montagem do pai, num Setor do Roteiro do pai que o **Movimentador escolhe** ao
+      entregar, com sugestão do sistema; a montagem é registrada pelo operador daquele Setor (regra
+      24). Entregue no Setor errado, redireciona-se com outra entrega.
+    - **Peça** — o **local de expedição**, levada pelo Movimentador como tarefa; a expedição (Fase 5)
+      sai de lá.
+30. **A sobra é identificada, não é tarefa, e só sai por descarte.** O que um Item tem, no fim do
+    Roteiro ou entregue para a montagem, além do que o pai ainda precisa, é **sobra**: sai da lista
+    de tarefas do Movimentador e aparece à parte, no Setor onde está. Só deixa de estar em produção
+    por uma perda de motivo `Descarte` (regra 17), registrada pelo mesmo ator da perda — Qualidade ou
+    PCP — a qualquer momento depois de virar sobra. A regra 13 não muda: o Pedido conclui com sobra
+    viva, que continua listada até ser descartada.
+
 ## Pontos ainda em aberto
 
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
@@ -298,13 +340,12 @@ correspondente entra no início de cada fase.*
   conclui, o Agrupamento nunca conclui, e o Pedido nunca fecha. Descontinuar precisa de um **bucket
   terminal** próprio ou de uma exceção explícita na regra 13. Levantado na Fase 2 e deliberadamente
   não decidido lá: tem efeito na Fase 5 (fechamento), não só na 3.
-- **Como sai de "em produção" o filho de um nó que não passa pela trava de montagem.** A regra 9
-  vale para todo `EstruturaItem`, e a saída que ela dá a um Item, fora a perda, é "montado" — mas
-  montar (regra 24) só existe quando as três condições da trava valem juntas: Agrupamento Kit,
-  Setor com `UtilizaKit` e nó com filhos. O filho de um Agrupamento Avulso, que pode ser unido ao
-  pai de outro jeito (parafusado, por exemplo), ou o de um nó de Kit unido ao pai fora de um Setor
-  com `UtilizaKit`, não tem registro que o tire de "em produção". Uma saída levantada, não
-  decidida: montar passa a ser registro de todo nó com filhos, e só a validação da trava fica
-  restrita ao Kit. Levantado em 2026-09-19; a decidir no brainstorming da Fase 3.
+  *Nota (2026-09-24):* desde a regra 28, a quantidade que nunca entrou num Setor está **a
+  iniciar**, que conta como em produção. O buraco continua o mesmo: ela nunca vira expedido nem
+  perdido.
+
+> **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
+> produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro
+> de todo nó com filhos, e só a validação da trava ficou restrita ao Kit (regra 24).
 
 Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.
