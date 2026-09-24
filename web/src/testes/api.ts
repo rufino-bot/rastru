@@ -19,13 +19,19 @@ export function respostaJson(corpo: unknown, status = 200): Response {
  * serve ao sólido: o viewer consome `arrayBuffer()`, e um corpo JSON faria o loader receber texto.
  *
  * O `Content-Disposition` é opcional porque só o teste de download o afirma — os demais só olham
- * os bytes. O corpo vai empacotado num `Blob` (e não passado direto): o `lib.dom` daqui não aceita
- * `Uint8Array` como `BodyInit` de `Response`, e `Blob` é o tipo que os dois aceitam sem cast.
+ * os bytes. O corpo é passado direto como `Uint8Array`, e não empacotado num `Blob`: o `Blob` do
+ * jsdom não implementa `stream()`, e o `undici` do Node 22 reconhece o objeto como blob-like (pelo
+ * `arrayBuffer()` e pelo `Symbol.toStringTag`) e chama `stream()` nele, o que fazia o construtor de
+ * `Response` lançar `TypeError` dentro do stub de `fetch`. No Node 24 o `undici` não reconhece o
+ * mesmo objeto como blob-like e o converte em texto: o corpo virava a string `"[object Blob]"` (13
+ * bytes), não os bytes do teste — verde ali, mas com o corpo errado, porque nenhum teste do sólido
+ * afirma o conteúdo nem o tamanho dos bytes recebidos. Um `Uint8Array` é `BufferSource`: o `undici`
+ * o consome direto pelo buffer, sem passar por nenhum dos dois ramos.
  *
- * `Uint8Array<ArrayBuffer>`, e não `Uint8Array` liso: sem o parâmetro de tipo, o `lib.dom` daqui
- * infere `Uint8Array<ArrayBufferLike>` (que inclui `SharedArrayBuffer`), e `BlobPart` só aceita a
- * variante apoiada em `ArrayBuffer`. `new Uint8Array(n)`, como os chamadores usam, já produz essa
- * variante — o parâmetro só precisa deixar de alargar o tipo.
+ * `Uint8Array<ArrayBuffer>`, e não `Uint8Array` liso: sem o parâmetro de tipo, `Uint8Array` vale
+ * `Uint8Array<ArrayBufferLike>` por padrão (que inclui `SharedArrayBuffer`), e o `BodyInit` de
+ * `Response` só aceita a variante apoiada em `ArrayBuffer`. `new Uint8Array(n)`, como os chamadores
+ * usam, já produz essa variante — o parâmetro só precisa deixar de alargar o tipo.
  */
 export function respostaBinaria(
   bytes: Uint8Array<ArrayBuffer>,
@@ -34,7 +40,7 @@ export function respostaBinaria(
 ): Response {
   const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream' }
   if (nomeDoArquivo) headers['Content-Disposition'] = `attachment; filename="${nomeDoArquivo}"`
-  return new Response(new Blob([bytes]), { status, headers })
+  return new Response(bytes, { status, headers })
 }
 
 /**
