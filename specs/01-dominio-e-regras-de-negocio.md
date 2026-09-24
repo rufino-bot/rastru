@@ -46,7 +46,7 @@
    num Setor e outra parte em outro Setor ao mesmo tempo (ex.: 6 na Usinagem, 4 na Corte).
    Não há identidade de sub-lote (sem etiqueta/serial) — controla-se apenas *quanto* está
    *onde*. Invariante: **conservação de quantidade**, para **todo** `EstruturaItem` (Peça ou
-   Item) — em produção (nos Setores, inclusive aguardando coleta — regra 22) + montado dentro do
+   Item) — em produção (nos Setores ou aguardando coleta — regra 22) + montado dentro do
    pai (regra 24) + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó.
    "Montado" só existe para Item, e expedição só para Peça. (A divisão física entre pinturas
    terceirizadas no fim do processo segue controlada fora do sistema.)

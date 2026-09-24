@@ -30,7 +30,7 @@ corrigir aqui, não a improvisar na task.
 > dela, o que tornava errados o "quinto ponto" e o lugar da inserção. O Step 7 e a verificação do
 > Step 8 da Task 2 foram reescritos por isso.
 >
-> **Ampliado em 2026-09-19, por decisão do usuário, depois da review da Task 1:** o Movimentador
+> **Ampliado em 2026-09-19, por decisão do usuário:** o Movimentador
 > entra também nas listas de perfis do `03` ("Perfis do MVP", Task 2, Step 5), do `CLAUDE.md` e do
 > `README.md` (Task 3, Step 8), e a linha do Frontend do `CLAUDE.md` ("sem PWA no MVP") ganha a
 > ressalva do PWA mínimo para push (Task 3, Step 8). Sem isso, as quatro frases contradiriam o `01`.

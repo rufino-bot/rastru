@@ -42,6 +42,10 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito. Hoje há uma: a **Fase
+3C — Notificação push**, executada **depois da Fase 5**, porque ela é reforço de uma lista de
+tarefas que precisa existir antes. A posição dela em relação à Fase 6 **não está decidida**.
+
 ## Como este projeto executa plano — o gate de review não é opcional
 
 Task de plano executa pelo fluxo de **`superpowers:subagent-driven-development`**, inteiro:

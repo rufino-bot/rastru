@@ -317,8 +317,9 @@ troca a cada turno.
 - **Fase 3B — Kit e montagem (nova), logo depois da Fase 3.** Regras 24 a 26: `Setor.UtilizaKit`,
   `EstruturaItem.QuantidadePorPai`, registro de montagem e destino "montado", conjunto completo na
   entrada, aviso Kit pronto na tela Tarefas. Critério de pronto: um Kit de três níveis (o exemplo da
-  seção 1) é montado de baixo para cima com montagem parcial; o sistema recusa conjunto incompleto e
-  saída acima do montado; o aviso de Kit pronto aparece e some quando o Kit é levado.
+  seção 1) é montado de baixo para cima com montagem parcial; o sistema recusa conjunto incompleto,
+  entrada além do que o nó precisa receber e saída acima do montado; o aviso de Kit pronto aparece e
+  some quando o Kit é levado.
 - **Fase 5 — ampliada.** Regra 27 (perda que sobe até a Peça, nó pronto no Retrabalho), perda de Item e
   motivo `Descarte`.
 - **Fase 3C — Notificação push (nova).** Nota no topo: **executada depois da Fase 5**, fora da ordem
@@ -353,8 +354,8 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
   todos os itens daquela lista carregam o mesmo gatilho, "obrigatório antes do primeiro deploy
   público". (Correção de 2026-09-15, no preparo do plano.) A lista "Perfis do MVP" ganha o
   **Movimentador**. (Acrescentado em 2026-09-19.)
-- **`00`:** a lista de perfis ganha o **Movimentador** — leva Itens prontos ao próximo Setor e Kits
-  completos à Solda.
+- **`00`:** a lista de perfis ganha o **Movimentador** — leva ao próximo destino o que aguarda
+  coleta e, em Agrupamento Kit, os filhos em conjuntos completos ao Setor de montagem.
 - **`04` e `05`:** nota datada, sem reescrever, no topo de "2. Apontamento em Setor", "5. Retrabalho" e
   "6. Perda de peças" (`04`) e de "Execução / Rastreamento" e "Perdas" (`05`), dizendo o que esta spec
   mudou e que o texto é revisto na spec da Fase 3 ou da Fase 5.

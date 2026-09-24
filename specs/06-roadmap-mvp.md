@@ -207,8 +207,8 @@ resolvidos (ou conscientemente adiados).
   destino. Perfil novo `Movimentador` — linha em `dbo.Perfil`, na tabela
   `web/src/auth/permissoes.ts` e nos `[Authorize(Roles)]`; perfil novo exige código e deploy.
 - Validação de conservação de quantidade (regra 9: em produção + montado + expedido + perdido =
-  total, para todo `EstruturaItem`; na aplicação, não por índice filtrado). O termo "montado" só
-  ganha valor na Fase 3B.
+  total, para todo `EstruturaItem`; na aplicação, não por índice filtrado). O destino "montado" só
+  entra no schema no início da Fase 3B.
 - Tela de "fila do setor" para o operador.
 - Tela **Tarefas** do Movimentador com os **Itens prontos** (regra 23), calculada a partir do
   estado e atualizada periodicamente — sem tabela de aviso.
@@ -240,7 +240,8 @@ resolvidos (ou conscientemente adiados).
 ## Fase 3C — Notificação push
 
 > **Executada depois da Fase 5**, fora da ordem das letras: o fluxo ponta a ponta vem primeiro, e o
-> push é reforço de uma lista que já funciona (a tela Tarefas). Fica numerada como 3C por tema.
+> push é reforço de uma lista que já funciona (a tela Tarefas). Fica numerada como 3C por tema. A
+> posição em relação à **Fase 6** não está decidida.
 
 - PWA **mínimo**: manifesto, ícones e service worker **sem cache de API** — não reabre a decisão
   "PWA/offline" de `03-arquitetura-tecnica.md`.
