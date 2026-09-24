@@ -220,7 +220,8 @@ perfil autenticado.)*
   acrescentar estrutura a um Pedido em execução é o comportamento padrão da fábrica (decisão do usuário,
   2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada. Esta guarda também
   impede apagar nó que já tem movimento no livro (Fase 3): o primeiro `Inicio` de qualquer nó põe o
-  Pedido em `EmProducao`, e o status não volta, nem com o estorno (regra 28)
+  Pedido em `EmProducao`, e o status não volta, nem com o estorno (regra 28 e spec da Fase 3, seção
+  4.1)
 
 **Roteiro e Materiais do nó depois da cópia.** As cinco rotas de `EstruturaController` cobrem criar,
 ler, editar e excluir o nó — nenhuma cobre **editar** o Roteiro ou os Materiais de um nó já
@@ -238,7 +239,7 @@ catálogo (`Componente`), mas pode ser customizado por Pedido/Agrupamento, não 
 
 Note o prefixo: `estrutura/{id}` (sem "itens") é o real, implementado na Fase 2 e usado também pelas
 rotas de nó da Fase 3. `estrutura-itens/{id}` sobra só nas duas rotas ainda planejadas — os
-Materiais do nó e `separacoes-material`, da Fase 4 —, e quem as implementar deve passá-las para
+Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as implementar deve passá-las para
 `estrutura/{id}`.
 
 ### Contrato de erro da Estrutura
@@ -305,9 +306,9 @@ Materiais do nó e `separacoes-material`, da Fase 4 —, e quem as implementar d
 ## Execução / Rastreamento
 
 *(Fase 3, redesenhada pela spec `docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`
-sobre as regras 22 a 30 de `01-dominio-e-regras-de-negocio.md`. Rotas de nó no prefixo
-`estrutura/{id}`, o da Fase 2. Leitura liberada a qualquer perfil autenticado; cada rota de escrita
-declara os perfis, sempre com `Administrador`.)*
+sobre as regras 22 a 30 de `01-dominio-e-regras-de-negocio.md`. Contrato da fase; a implementação é
+o plano 2 da Fase 3. Rotas de nó no prefixo `estrutura/{id}`, o da Fase 2. Leitura liberada a
+qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com `Administrador`.)*
 
 **Escrita**
 
@@ -335,9 +336,11 @@ declara os perfis, sempre com `Administrador`.)*
 
 - `GET /setores/{id}/fila` — a iniciar aqui, em trabalho, aguardando coleta, aguardando montagem
   (por pai, com "dá para montar N; falta X de Y") e sobra.
-- `GET /tarefas` — os Itens prontos, com destino calculado, agrupados pelo Setor de origem.
+- `GET /tarefas` — os Itens prontos, com destino calculado (e, quando é montagem, a sugestão e os
+  Setores possíveis), agrupados pelo Setor de origem.
 - `GET /tarefas/contagem` — só o número, para o contador do menu.
-- `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento.
+- `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total
+  montado dos nós com filhos.
 - `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno.
 - `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
 

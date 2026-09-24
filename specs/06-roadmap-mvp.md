@@ -237,8 +237,9 @@ resolvidos (ou conscientemente adiados).
 
 - `Setor.UtilizaKit` (regra 24 de `01`); o schema entra no início desta fase. A montagem, o destino
   "montado" e `QuantidadePorPai` já existem desde a Fase 3.
-- **Trava de montagem** por nó (regra 24): no Kit, em Setor com `UtilizaKit`, a montagem só aceita o
-  que os filhos diretos presentes permitem, e a saída do nó é limitada ao total montado.
+- **Trava de montagem** por nó (regra 24): no Kit, em Setor com `UtilizaKit`, a saída do nó é
+  limitada ao total montado. Os tetos da montagem (filhos presentes, o que falta montar) já valem
+  para todo nó desde a Fase 3.
 - Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
   receber (regra 25).
 - Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).

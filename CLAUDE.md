@@ -332,19 +332,23 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - Um `EstruturaItem` (lote) é **divisível por quantidades livres**: pode ter quantidades em
   Setores diferentes ao mesmo tempo. Não há identidade de sub-lote (sem serial). O
   invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
-  produção (inclusive aguardando coleta) + montado dentro do pai + expedido (`Expedicao`) +
-  perdido (`Perda`) = quantidade total do nó (validado na aplicação; regra 9).
+  produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição) + montado
+  dentro do pai + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó (validado na
+  aplicação; regra 9).
 - Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
-  montado**, e a montagem só aceita o que os filhos diretos presentes permitem
-  (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram nesse Setor em
-  **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar e mover são
-  ações separadas, para Kit e Avulso. Montar é registro de **todo** nó com filhos (Kit ou Avulso);
-  só a trava é do Kit. (Regras 22 a 27, decididas em 2026-09-15 — os tetos das regras 23 a 25, em
-  2026-09-19 — e implementadas a partir da Fase 3.)
+  montado**. Para **todo** nó com filhos, a montagem só aceita o que os filhos diretos presentes
+  permitem (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram
+  nesse Setor em **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar
+  e mover são ações separadas, para Kit e Avulso. Montar é registro de **todo** nó com filhos (Kit
+  ou Avulso); só a saída limitada ao total montado e o conjunto completo são do Kit. (Regras 22 a
+  27, decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a
+  partir da Fase 3.)
 - **O livro de movimentações (`dbo.Movimentacao`) é só de inclusão.** Correção é estorno — um
-  movimento inverso que aponta o original —, nunca `UPDATE` nem `DELETE` numa linha dele. A
-  conservação de quantidade (regra 9) sai por construção justamente porque cada linha tira de uma
-  posição e põe em outra; editar uma linha quebra isso em silêncio. (Regras 28 a 30, Fase 3.)
+  movimento inverso que aponta o original —, nunca `UPDATE` nem `DELETE` numa linha dele. Editar uma
+  linha não desequilibra a soma (cada linha continua tirando de uma posição e pondo em outra), e é
+  por isso que o estrago é silencioso: o saldo de uma posição pode ficar negativo, a baixa de filho
+  de uma `Montagem` perde o vínculo com ela, e o histórico — quem fez o quê, quando — deixa de ser
+  verdade. (Spec da Fase 3, seções 3.3 e 4.5.)
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma

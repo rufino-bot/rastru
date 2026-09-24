@@ -23,11 +23,11 @@
 | **Usuário / Perfil** | Login próprio (usuário/senha + JWT). Cada Usuário tem um Perfil (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador) que restringe telas/ações — ver `00-visao-geral.md`. |
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
 | **Expedição (remessa)** | Saída de uma quantidade de uma Peça para o cliente. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Cada remessa é uma linha em Expedicao. |
-| **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regra 25). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
+| **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regras 25 e 30). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
 | **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao registrar "montei N", baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso; só a validação da trava é restrita ao Kit (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor com `UtilizaKit` (regra 24). |
 | **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
 | **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição (Fase 5). |
-| **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa: `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
+| **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
 
 ## Regras de negócio
 
@@ -101,7 +101,7 @@
     **qualquer** `EstruturaItem`, Peça ou Item. Para repor, abre-se um Pedido de Retrabalho
     separado (`MotivoRetrabalho='Perda'`) — **nunca** reabre a Peça original. Como na reprovação,
     registrar a perda **não** abre retrabalho automaticamente. `Descarte` é a sobra que nunca foi
-    usada (regra 25) e não se repõe. Quando a perda de uma parte impede montar o pai, vale a
+    usada (regras 25 e 30) e não se repõe. Quando a perda de uma parte impede montar o pai, vale a
     regra 27.
 
     **Alterada pela decisão de 2026-09-15:** entraram o motivo `Descarte` e a perda de Item. No
@@ -232,9 +232,9 @@ entra no início de cada fase.*
     conta como em produção; no banco, ele é uma posição do livro de movimentações (spec da Fase 3).
 23. **As tarefas do Movimentador são calculadas a partir do estado**, não gravadas como aviso:
     quando alguém leva, a tarefa some sozinha. São duas:
-    - **Item pronto** — quantidade aguardando coleta. É tarefa, exceto para filho de Agrupamento
-      Kit a caminho de Setor com `UtilizaKit`, em que é só informativo, porque esse filho não vai
-      sozinho (regra 25).
+    - **Item pronto** — quantidade aguardando coleta, menos a sobra (regra 30). É tarefa, exceto
+      para filho de Agrupamento Kit a caminho de Setor com `UtilizaKit`, em que é só informativo,
+      porque esse filho não vai sozinho (regra 25).
     - **Kit pronto para montagem** — tarefa que aparece quando os filhos diretos de um nó,
       aguardando coleta, formam ao menos um conjunto completo **que o nó ainda precisa receber**
       (regra 25). O número de conjuntos é o mínimo, entre os filhos diretos, de
@@ -244,14 +244,14 @@ entra no início de cada fase.*
       conjuntos.
 
     Notificação no celular é reforço desta lista, não substituto (Fase 3C).
-24. **Trava de montagem.** Montar é registro de **todo** nó com filhos, de Agrupamento Kit ou
-    Avulso: o operador registra "montei N" no Setor onde os filhos estão (regra 29), e baixa-se
-    `N × QuantidadePorPai` de cada filho direto para "montado" — até 2026-09-24, montar só existia
-    sob a trava (spec da Fase 3). A **trava** restringe essa montagem no Kit. Ela vale quando as
-    três condições valem juntas: o Agrupamento é **Kit**, o
-    Setor tem **`UtilizaKit`** (marca no cadastro do Setor — hoje, a Solda), e o nó **tem filhos**
-    (Peça ou Item de submontagem). Olha só os **filhos diretos** do nó.
-    - **Montar é registro próprio**, separado de mover. O operador registra "montei N"; o sistema
+24. **Montagem e trava de montagem.** Montar é registro de **todo** nó com filhos, de Agrupamento
+    Kit ou Avulso — até 2026-09-24, montar só existia sob a trava (spec da Fase 3). Olha só os
+    **filhos diretos** do nó. O registro, os dois tetos e a baixa dos três primeiros itens valem
+    para todo nó; a **trava**, dos dois últimos, só quando três condições valem juntas: o
+    Agrupamento é **Kit**, o Setor tem **`UtilizaKit`** (marca no cadastro do Setor — hoje, a
+    Solda), e o nó **tem filhos** (Peça ou Item de submontagem).
+    - **Montar é registro próprio**, separado de mover. O operador registra "montei N" no Setor
+      onde os filhos estão (regra 29); o sistema
       aceita se N não passar do mínimo, entre os filhos diretos, de
       ⌊quantidade do filho no Setor ÷ `QuantidadePorPai`⌋, **nem do que ainda falta montar do
       nó** — a quantidade dele menos o total já montado. Este teto é outro que o da regra 25, e
@@ -343,6 +343,10 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
   *Nota (2026-09-24):* desde a regra 28, a quantidade que nunca entrou num Setor está **a
   iniciar**, que conta como em produção. O buraco continua o mesmo: ela nunca vira expedido nem
   perdido.
+  *Nota (2026-09-24, revisão da Fase 3):* a Fase 2 havia empurrado o descarte em Pedido rodando
+  para a Fase 3, e a Fase 3 não o resolveu; com a montagem de todo nó, um filho acrescentado por
+  engano a um Pedido rodando, que não se apaga, trava a montagem do pai até ser fabricado. A fase
+  continua a decidir.
 
 > **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
 > produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro

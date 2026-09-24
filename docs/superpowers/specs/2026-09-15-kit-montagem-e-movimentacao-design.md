@@ -418,7 +418,7 @@ Sem fase e sem data.
 Anexada sem reescrever o texto acima (precedente da errata da §2.1 da spec da Fase 2). Fonte:
 `docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`.
 
-- **§2, "Fica para o início de cada fase":** `EstruturaItem.QuantidadePorPai` e o destino "montado"
+- **§2, "Fica para o início de cada fase", e §5 (a Fase 3B do roadmap):** `EstruturaItem.QuantidadePorPai` e o destino "montado"
   entraram no schema na **Fase 3**, não na 3B: a spec da Fase 3 fez de montar um registro de todo nó
   com filhos (regra 24), e a baixa `N × QuantidadePorPai` precisa da razão.
 - **§9, "Fase 3":** as três perguntas foram respondidas pela spec da Fase 3 — "aguardando coleta" é

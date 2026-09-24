@@ -1,8 +1,8 @@
 # Fase 3 — Rastreamento de setor — design
 
 - **Data:** 2026-09-24
-- **Status:** design aprovado pelo usuário, seção a seção (seções 1 a 8 do brainstorm); **spec escrita
-  aguardando a revisão dele**
+- **Status:** design aprovado pelo usuário, seção a seção (seções 1 a 8 do brainstorm); **spec escrita aprovada
+  pelo usuário em 2026-09-24**
 - **Natureza:** spec de **fase** — domínio, schema, operações, API, telas e testes da Fase 3 de
   `specs/06-roadmap-mvp.md`, mais o texto das mudanças que ela impõe às specs de domínio. Parte da
   spec do Kit (`2026-09-15-kit-montagem-e-movimentacao-design.md`), que deixou para esta fase as
@@ -307,14 +307,21 @@ estorno se corrige registrando de novo a operação original.
   `IX_EstruturaSetorHistorico_Setor`. O comentário do `CadastroDeSetorUseCase` ("Setor não se exclui —
   linhas de `EstruturaSetorHistorico` apontam para ele") passa a citar `Movimentacao` e `Montagem`.
 - **Consultas de KPI de exemplo** no fim do `02`: as duas que leem `EstruturaSetorHistorico` viram nota
-  "reescrever na Fase 6 sobre `dbo.Movimentacao`, pareando entradas e saídas por ordem de chegada".
+  "reescrever na Fase 6 sobre `dbo.Movimentacao`, pareando entradas e saídas por ordem de chegada". O
+  fluxo "7. Consulta de KPIs" do `04` aponta para essa consulta ("ver query de exemplo em
+  `02-modelo-de-dados.sql`"); o apontador continua certo, porque a nota fica no mesmo lugar.
 - **Sem mudança:** `EstruturaRoteiro` (editar por nó não exige coluna), `Pedido` (`Status =
   'EmProducao'` já existe), `Agrupamento`, `Perda`.
+- **Comentário de cabeçalho de `dbo.Perda`** ("em setores + expedido + perdido = total da Peça"): passa a
+  listar as posições da regra 9 e o "montado", e a valer para todo nó — a spec do Kit o marcava para a 3B,
+  mas ele fica errado já nesta fase.
 
 ## 4. Operações e regras
 
 Toda escrita roda numa transação e valida o saldo da origem antes de gravar (concorrência na seção 8).
-Os limites são os mesmos que a leitura mostra: a validação usa a calculadora da seção 7.
+Os limites são os mesmos que a leitura mostra: a validação usa a calculadora da seção 7. Toda escrita
+desta seção — menos a edição de Roteiro — recusa nó de Pedido `Concluido` ou `Cancelado`
+(`PedidoFechado`).
 
 ### 4.1 Iniciar (Operador, no Setor S): nó X, quantidade N
 
@@ -573,6 +580,12 @@ número.
   e a edição de Roteiro entram no mesmo esquema. Sem isso, um "reduzir quantidade" passaria no meio de um
   "iniciar". Fecha o residual que o comentário de `GravarArvoreAsync`, no `EstruturaRepository`, registra
   ("considerar extrair o mesmo padrão").
+  O `DELETE /estrutura/{id}` entra no mesmo esquema, embora não ganhe código novo: hoje ele lê o
+  status do Pedido fora de transação e depois apaga, e, se correr contra o primeiro `Inicio` do
+  Pedido, o apagar esbarra em `FK_Movimentacao_EstruturaItem` e o cliente recebe 500 em vez de 409.
+  A leitura do status passa para dentro da transação, com a trava, e o comentário de
+  `RemoverSubarvoreAsync` ("sem `Serializable`: apagar não disputa a mesma corrida") deixa de ser
+  verdade e é reescrito.
 - **Toque duplo no celular:** o botão fica desabilitado enquanto envia; se o segundo envio passar, a
   validação de saldo limita o estrago, e o estorno corrige.
 
@@ -904,6 +917,11 @@ por nó, com conjunto completo na entrada do Setor marcado como de montagem — 
 
 ## 11. Deixado para outras fases
 
+- **Sem fase — decisão do usuário pendente:** descartar (parar de produzir) Peça ou Item em Pedido
+  rodando. A spec da Fase 2 (§5.2) o empurrou para a Fase 3, e esta spec não o resolve: é a mesma
+  pergunta do ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do `01`. Até
+  ser decidido, um filho acrescentado por engano a um Pedido rodando não se apaga
+  (`PedidoNaoAberto`) e trava a montagem do pai (regra 24) até ser fabricado.
 - **3B:** trocar o Tipo do Agrupamento ou a `UtilizaKit` com produção em andamento; filho que conclui a
   própria montagem na mesma Solda do pai; qual ação da regra 22 o limite pelo total montado trava; a
   entrada num Setor `UtilizaKit` que não é para a montagem do pai; como a perda do próprio nó entra nos
