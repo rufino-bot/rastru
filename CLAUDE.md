@@ -420,7 +420,7 @@ credencial ou caminho de máquina — para isso existe `.claude/settings.local.j
 ### O ledger tem repositório próprio, e o script vigia isso
 
 `.superpowers/` — ledger, briefs, relatórios, histórico de fase — é um **repositório git separado e
-privado** (`rufino-bot/rastru-ledger`), desde 2026-08-25. Não é submodule: são dois repos
+privado** (`rufino-bot/rastru-tcc`), desde 2026-08-25. Não é submodule: são dois repos
 independentes na mesma árvore, e este aqui ignora `.superpowers/` na raiz (`.gitignore:6`). Nada do
 código muda por causa disso.
 
