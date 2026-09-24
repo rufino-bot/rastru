@@ -124,8 +124,8 @@ Concluídas até aqui:
 A seguir vêm a **Fase 3** (rastreamento de setor: apontamento de entrada e saída de
 `EstruturaItem` em `Setor`, terminar e mover como ações separadas — com o perfil **Movimentador** e a
 tela de tarefas dele —, validação da conservação de quantidade e fila do setor para o operador) e a
-**Fase 3B** (Kit e montagem: trava de montagem por nó, com conjunto completo na entrada do Setor de
-montagem). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+**Fase 3B** (Kit e montagem: trava de montagem por nó, com conjunto completo na entrada do Setor
+marcado como de montagem — hoje, a Solda). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido.
 

@@ -355,7 +355,8 @@ precedente da nota R2 de 2026-09-11), inserido logo abaixo da §2.1, com rótulo
   público". (Correção de 2026-09-15, no preparo do plano.) A lista "Perfis do MVP" ganha o
   **Movimentador**. (Acrescentado em 2026-09-19.)
 - **`00`:** a lista de perfis ganha o **Movimentador** — leva ao próximo destino o que aguarda
-  coleta e, em Agrupamento Kit, os filhos em conjuntos completos ao Setor de montagem.
+  coleta e, em Agrupamento Kit, os filhos em conjuntos completos ao Setor com `UtilizaKit` (hoje, a
+  Solda).
 - **`04` e `05`:** nota datada, sem reescrever, no topo de "2. Apontamento em Setor", "5. Retrabalho" e
   "6. Perda de peças" (`04`) e de "Execução / Rastreamento" e "Perdas" (`05`), dizendo o que esta spec
   mudou e que o texto é revisto na spec da Fase 3 ou da Fase 5.
