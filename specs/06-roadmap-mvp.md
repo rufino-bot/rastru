@@ -201,32 +201,44 @@ resolvidos (ou conscientemente adiados).
 
 ## Fase 3 — Rastreamento de setor
 
-- Apontamento de entrada/saída de `EstruturaItem` em `Setor`.
-- **Terminar e mover como ações separadas** (regra 22 de `01`): o operador registra que terminou,
-  a quantidade passa a **aguardar coleta**, e o **Movimentador** registra a entrada no próximo
-  destino. Perfil novo `Movimentador` — linha em `dbo.Perfil`, na tabela
-  `web/src/auth/permissoes.ts` e nos `[Authorize(Roles)]`; perfil novo exige código e deploy.
-- Validação de conservação de quantidade (regra 9: em produção + montado + expedido + perdido =
-  total, para todo `EstruturaItem`; na aplicação, não por índice filtrado). O destino "montado" só
-  entra no schema no início da Fase 3B.
-- Tela de "fila do setor" para o operador.
+- **Livro de movimentações** (`dbo.Movimentacao`): a quantidade de cada `EstruturaItem` repartida
+  entre a iniciar, no Setor (por passo do Roteiro), aguardando coleta, aguardando montagem, no local
+  de expedição e montado; conservação de quantidade (regra 9) por construção, validada na
+  aplicação, não por índice filtrado.
+- **Terminar e mover como ações separadas** (regra 22 de `01`): o operador inicia (primeira entrada,
+  regra 28) e termina; o **Movimentador** entrega no próximo destino. Perfil novo `Movimentador` —
+  linha em `dbo.Perfil`, na tabela `web/src/auth/permissoes.ts` e nos `[Authorize(Roles)]`; perfil
+  novo exige código e deploy.
+- **Montagem de todo nó com filhos** (regra 24): registro "montei N", destino "montado" e
+  `EstruturaItem.QuantidadePorPai` (regra 26), sem a trava, que é da 3B.
+- **Roteiro editável por nó** (regras 7 e 28), pelo PCP; passo alcançado não se edita.
+- Fim do Roteiro (regra 29): Item vai à montagem do pai, num Setor que o Movimentador escolhe; Peça
+  vai ao local de expedição.
+- **Estorno** de registro errado, pelo autor ou pelo PCP.
+- Tela de "fila do setor" para o operador: a iniciar, em trabalho, aguardando coleta, aguardando
+  montagem com "dá para montar N; falta X de Y", e **sobra** (regra 30).
 - Tela **Tarefas** do Movimentador com os **Itens prontos** (regra 23), calculada a partir do
   estado e atualizada periodicamente — sem tabela de aviso.
-- Critério de pronto: dá para acompanhar, item por item, em qual setor cada peça está **e** se ela
-  aguarda coleta; o Movimentador vê o que tem a levar e registra a entrega.
+- Critério de pronto: dá para acompanhar, item por item, em qual posição cada peça está — inclusive
+  se aguarda coleta —; o Movimentador vê o que tem a levar e registra a entrega; um Pedido percorre
+  iniciar, terminar, entregar, montar e chegar ao local de expedição.
 
 > **Ampliada em 2026-09-15** pela spec `2026-09-15-kit-montagem-e-movimentacao-design.md`: terminar ≠
 > mover, "aguardando coleta", o perfil Movimentador e a tela Tarefas entraram aqui, e não na 3B,
 > porque são como a movimentação funciona para **tudo**, Kit ou Avulso. Como "aguardando coleta" é
 > representado no banco, com o lote divisível, é decisão da spec desta fase, junto das demais
 > perguntas que a seção 9 daquela spec ("Deixado para a spec de cada fase") deixa para a Fase 3.
+>
+> **Ampliada de novo em 2026-09-24** pela spec `2026-09-24-fase-3-rastreamento-de-setor-design.md`,
+> que respondeu essas perguntas: a montagem de todo nó e `QuantidadePorPai` vieram da 3B, e o
+> Roteiro editável por nó, que o `05` listava sem fase, entrou aqui.
 
 ## Fase 3B — Kit e montagem
 
-- `Setor.UtilizaKit` e `EstruturaItem.QuantidadePorPai` (regras 24 e 26 de `01`); o schema entra no
-  início desta fase, e a cópia da receita passa a preencher a razão.
-- Registro de montagem ("montei N") com baixa por filho para o destino "montado", trava de montagem
-  por nó e limite de saída pelo total montado (regra 24).
+- `Setor.UtilizaKit` (regra 24 de `01`); o schema entra no início desta fase. A montagem, o destino
+  "montado" e `QuantidadePorPai` já existem desde a Fase 3.
+- **Trava de montagem** por nó (regra 24): no Kit, em Setor com `UtilizaKit`, a montagem só aceita o
+  que os filhos diretos presentes permitem, e a saída do nó é limitada ao total montado.
 - Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
   receber (regra 25).
 - Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).
@@ -258,6 +270,9 @@ resolvidos (ou conscientemente adiados).
 ## Fase 4 — Separação de materiais
 
 - Registro de `MaterialSeparacao` vinculado a um `EstruturaItem`.
+- **Onde cada material fica** — no almoxarifado, ou estocado num Setor (as chapas no Corte) —, e a
+  **requisição de material** que o operador abre para o que falta e o Almoxarifado atende (decisão
+  de 2026-09-24, no brainstorm da Fase 3).
 - Critério de pronto: dá para saber quais materiais já foram separados/entregues para
   cada item em fabricação.
 
@@ -265,8 +280,12 @@ resolvidos (ou conscientemente adiados).
 
 - Registro opcional de `RelatorioDimensional` por Peça (perfil Qualidade), avaliado por
   quantidade (`RelatorioDimensionalAvaliacao`).
-- Registro de `Expedicao` (remessas parciais), só de Peça, e de `Perda`, de Peça e — desde
-  2026-09-15 — também de Item; a perda ganha o motivo `Descarte` (regra 17 de `01`).
+- Registro de `Expedicao` (remessas parciais), só de Peça — a expedição baixa do **local de
+  expedição** (regra 29 de `01`) —, e de `Perda`, de Peça e — desde 2026-09-15 — também de Item; a
+  perda ganha o motivo `Descarte` (regra 17 de `01`).
+- O nó **pronto** do Retrabalho (regra 27) nasce aguardando coleta pelo tipo de movimento `Pronto`;
+  `Expedido` e `Perdido` entram como posições do livro de movimentações; o `Descarte` da sobra é
+  registrado pelo ator da perda (regra 30).
 - Perda que impede montar (regra 27): a perda sobe até a Peça do topo, as partes não montadas daquela
   unidade saem junto, e, no Pedido de Retrabalho que o PCP cadastra para repor, o que já existe é
   marcado **pronto**. A decidir na spec desta fase: as perguntas que a seção 9 da spec
@@ -282,9 +301,10 @@ resolvidos (ou conscientemente adiados).
 
 ## Fase 6 — KPIs
 
-- Endpoint e tela de tempo médio por setor, calculado a partir de `DataEntrada`
-  (chegada) até `DataSaida`. `DataInicioExecucao` já existe no schema e pode ser
-  adotado depois, sem migração, caso o negócio queira decompor fila x execução.
+- Endpoint e tela de tempo médio por setor, calculado sobre o livro de movimentações
+  (`dbo.Movimentacao`), pareando entradas e saídas de cada Setor por ordem de chegada. Separar fila
+  de execução dentro do Setor exigiria uma posição a mais no livro — decidir nesta fase, se o
+  negócio pedir.
 - Endpoint e tela de tempo total/fila/produção por pedido.
 - Perfil Gestão tem acesso a essas telas; demais perfis não.
 

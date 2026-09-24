@@ -190,7 +190,9 @@ perfil autenticado.)*
 
 - `GET /agrupamentos/{id}/estrutura` *(qualquer perfil autenticado)* — árvore completa de
   `EstruturaItem` do Agrupamento. Cada nó já sai com `Materiais` e `Roteiro` resolvidos e
-  `Descricao` já com o fallback do Componente aplicado — o front nunca recebe `Descricao` nula
+  `Descricao` já com o fallback do Componente aplicado — o front nunca recebe `Descricao` nula.
+  Desde a Fase 3, cada nó traz também `quantidadePorPai` (nula na Peça) e `semRoteiro` (a pendência
+  da regra 28)
 - `POST /agrupamentos/{id}/estrutura` *(PCP, Administrador)* — cria a Peça (nó de topo), copiando a
   receita padrão a partir de um `Componente`. Body: `{ componenteId, quantidade,
   requerRelatorioDimensional }`. Sem opção de nó ad-hoc aqui: pela regra 18 toda Peça referencia um
@@ -198,12 +200,17 @@ perfil autenticado.)*
   a Fase 2B): o `Componente` de origem precisa ter sólido 3D (`ArquivoSolidoId` preenchido) — sem
   ele, 400; se o `Componente` não existir, 404 (ver "Contrato de erro da Estrutura")
 - `POST /estrutura/{id}/filhos` *(PCP, Administrador)* — acrescenta um Item filho ao nó `{id}`
-  (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade }`.
+  (Peça ou Item; os dois podem ganhar filho). Body: `{ componenteId?, descricao?, quantidade,
+  quantidadePorPai }` — `quantidadePorPai` obrigatória e maior que zero desde a Fase 3 (regra 26);
+  os filhos copiados da receita abaixo dele a recebem de `ComponenteFilhoPadrao.QuantidadePadrao`.
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
   `descricao`, se informada, sobrepõe a herdada (regra 19). Sem `componenteId` (ad-hoc):
   `descricao` é obrigatória
-- `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao` e `Quantidade` do nó `{id}`.
-  Body: `{ descricao?, quantidade }`. Não cascateia a quantidade para os filhos — decisão de
+- `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao`, `Quantidade` e, num Item,
+  `QuantidadePorPai` do nó `{id}`. Body: `{ descricao?, quantidade, quantidadePorPai? }`
+  (`quantidadePorPai` obrigatória no Item, proibida na Peça). Desde a Fase 3, a quantidade não desce
+  abaixo do que já saiu de "a iniciar" nem, num nó com filhos, abaixo do total montado; editar a
+  razão é livre, porque a baixa já gravada não muda. Não cascateia a quantidade para os filhos — decisão de
   domínio, não lacuna (a cópia da receita é pré-preenchimento, não automação). `Descricao`
   vazia/só espaço grava `null`, que volta a herdar a do Componente — exceto num nó ad-hoc, que não
   tem de onde herdar e recusa a edição
@@ -211,36 +218,28 @@ perfil autenticado.)*
   (Material e Roteiro de cada nó, filhos antes de pais). Só permitido com o Pedido `Aberto` — ver
   "Contrato de erro da Estrutura". **Sem** essa guarda nos dois `POST` acima, de propósito:
   acrescentar estrutura a um Pedido em execução é o comportamento padrão da fábrica (decisão do usuário,
-  2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada
+  2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada. Esta guarda também
+  impede apagar nó que já tem movimento no livro (Fase 3): o primeiro `Inicio` de qualquer nó põe o
+  Pedido em `EmProducao`, e o status não volta, nem com o estorno (regra 28)
 
-**Planejado, ainda sem rota decidida:** as cinco rotas de `EstruturaController` cobrem criar, ler,
-editar e excluir o nó — nenhuma cobre **editar** o Roteiro ou os Materiais de um nó já existente
-depois de copiados da receita. Isso não é lacuna esquecida: é o outro lado da regra 7 de
+**Roteiro e Materiais do nó depois da cópia.** As cinco rotas de `EstruturaController` cobrem criar,
+ler, editar e excluir o nó — nenhuma cobre **editar** o Roteiro ou os Materiais de um nó já
+existente depois de copiados da receita. É o outro lado da regra 7 de
 `01-dominio-e-regras-de-negocio.md` — o roteiro de Setores pode ser copiado de um padrão do
-catálogo (`Componente`), mas pode ser customizado por Pedido/Agrupamento, não é fixo — e do verbete
-**Roteiro** do glossário, que o descreve como padrão (catálogo) **ou** específico daquele
-Pedido/Agrupamento. Hoje não há endpoint nenhum para exercer essa customização depois da cópia
-inicial. As duas rotas de `estrutura-itens/{id}` deste bloco são o registro dessa decisão de
-domínio, **não** um contrato implementado — `grep -rn "estrutura-itens" src/ --include=*.cs`
-devolve vazio:
+catálogo (`Componente`), mas pode ser customizado por Pedido/Agrupamento, não é fixo.
 
-- `GET/POST /estrutura-itens/{id}/materiais` *(planejado — fase ainda não atribuída)*
-- `GET/POST /estrutura-itens/{id}/roteiro` *(planejado — fase ainda não atribuída)*
+- **Roteiro — Fase 3.** `GET` e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento":
+  sem ele, um Item ad-hoc nasce sem Roteiro e nunca pode ter a primeira entrada (regra 28).
+- **Materiais — sem fase atribuída.** `GET/POST /estrutura-itens/{id}/materiais` *(planejado)*.
+  `06-roadmap-mvp.md` não tem bullet para customizar os Materiais **por nó**; a Fase 4 (Separação de
+  materiais) é o registro de `MaterialSeparacao` e a requisição de material, e separar material não
+  é editar a lista de materiais do nó. Quem for atribuir a fase decide primeiro no roadmap, e só
+  depois aqui.
 
-**Sem fase atribuída, e isto foi medido, não esquecido.** `06-roadmap-mvp.md` não tem bullet para
-customizar Roteiro ou Materiais **por nó** em fase nenhuma: a Fase 3 (Rastreamento de setor) é
-apontamento de entrada/saída, conservação de quantidade e tela de fila; a Fase 4 (Separação de
-materiais) é o registro de `MaterialSeparacao`, que este documento já mapeia em
-`POST /estrutura-itens/{id}/separacoes-material` — separar material não é editar a lista de
-materiais do nó. Quem for atribuir a fase decide primeiro no roadmap, e só depois aqui.
-
-Note o prefixo: `estrutura/{id}` (sem "itens") é o real, implementado na Fase 2, e endereça o **nó**
-em três das cinco rotas de `EstruturaController` (`POST /estrutura/{id}/filhos`, `PUT` e `DELETE`);
-as outras duas penduram a árvore no Agrupamento, sob `/agrupamentos/{id}/estrutura`. Já
-`estrutura-itens/{id}` é o prefixo do rascunho ainda não implementado — o mesmo que a seção
-"Execução / Rastreamento" já usa para as rotas de nó dela, também todas planejadas (Fase 3/4). Se as duas
-rotas deste bloco saírem do papel, decidir ali o prefixo definitivo é decidir para as duas seções
-de uma vez.
+Note o prefixo: `estrutura/{id}` (sem "itens") é o real, implementado na Fase 2 e usado também pelas
+rotas de nó da Fase 3. `estrutura-itens/{id}` sobra só nas duas rotas ainda planejadas — os
+Materiais do nó e `separacoes-material`, da Fase 4 —, e quem as implementar deve passá-las para
+`estrutura/{id}`.
 
 ### Contrato de erro da Estrutura
 
@@ -248,7 +247,8 @@ de uma vez.
 
   **Do caso de uso**, só nas três rotas com corpo: `{ "erro": "<mensagem em português>" }` — aqui o
   mesmo campo `erro` que no 409 carrega um código estável (`CicloNaReceita` etc.) carrega uma frase
-  pronta para o operador ler. São quatro as causas de negócio:
+  pronta para o operador ler. São cinco as causas de negócio:
+  - `quantidadePorPai` ausente ou ≤ 0 num Item, ou informada numa Peça (regra 26, desde a Fase 3);
   - quantidade **digitada** abaixo do piso da coluna (`0,0001`);
   - na cópia da receita, uma quantidade calculada sai da faixa da coluna (`DECIMAL(18,4)`) —
     `QuantidadeForaDaColunaException`, com a frase nomeando o alvo e o valor. A mesma checagem corre
@@ -283,7 +283,7 @@ de uma vez.
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — quatro códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — cinco códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
   levam `mensagem` junto do `erro`; `PedidoNaoAberto` não — mesmo precedente do
@@ -295,6 +295,7 @@ de uma vez.
   | `EstruturaProfundaDemais` | idem | a cópia recursiva passaria de 20 níveis de profundidade |
   | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
   | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
+  | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
 
   `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas
   contra receita corrompida ou cópia recursiva desgovernada, por isso não entram em
@@ -303,22 +304,72 @@ de uma vez.
 
 ## Execução / Rastreamento
 
-*(Planejado — Fase 3/4, ainda sem controller. As quatro rotas de nó desta seção usam o prefixo
-`estrutura-itens/{id}`, o mesmo do bloco "Planejado" da seção Estrutura e diferente do
-`estrutura/{id}` que a Fase 2 já implementou; a quinta, `GET /setores/{id}/fila`, é indexada pelo
-Setor e não usa prefixo nenhum de nó.)*
+*(Fase 3, redesenhada pela spec `docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`
+sobre as regras 22 a 30 de `01-dominio-e-regras-de-negocio.md`. Rotas de nó no prefixo
+`estrutura/{id}`, o da Fase 2. Leitura liberada a qualquer perfil autenticado; cada rota de escrita
+declara os perfis, sempre com `Administrador`.)*
 
-> **Nota (2026-09-15).** As rotas de entrada, saída, histórico e fila de setor desta seção — todas
-> menos `separacoes-material`, que é da Fase 4 — são anteriores às regras 22 a 25 de
-> `01-dominio-e-regras-de-negocio.md` (terminar ≠ mover com aguardando coleta, tarefas do
-> Movimentador, registro de montagem e conjunto completo). Os contratos delas são redesenhados nas
-> specs das Fases 3 e 3B.
+**Escrita**
 
-- `POST /estrutura-itens/{id}/entradas-setor` — registra entrada no setor atual
-- `POST /estrutura-itens/{id}/saidas-setor` — registra saída do setor atual
-- `GET /estrutura-itens/{id}/historico-setor`
-- `POST /estrutura-itens/{id}/separacoes-material`
-- `GET /setores/{id}/fila` — itens aguardando/em execução naquele setor
+- `POST /estrutura/{id}/inicios` *(Operador)* — primeira entrada (regra 28). Body:
+  `{ setorId, quantidade }`. Exige Roteiro, o primeiro passo em `setorId` e saldo a iniciar; põe o
+  Pedido em `EmProducao` se ele estava `Aberto`.
+- `POST /estrutura/{id}/terminos` *(Operador)* — terminar. Body: `{ setorId, ordem, quantidade }`; a
+  quantidade passa a aguardar coleta no mesmo Setor e passo.
+- `POST /estrutura/{id}/montagens` *(Operador)* — "montei N" (regra 24). Body:
+  `{ setorId, quantidade }`. Baixa `N × QuantidadePorPai` de cada filho direto que aguarda montagem
+  naquele Setor.
+- `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
+  `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, destinoSetorId?, quantidade }] }`.
+  O destino é calculado (próximo passo, ou local de expedição para Peça no fim do Roteiro), exceto
+  na montagem do pai, em que `destinoSetorId` é obrigatório e precisa ser um Setor do Roteiro do pai
+  (regra 29) — inclusive para redirecionar o que aguarda montagem no Setor errado.
+- `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
+  `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
+  enquanto a quantidade não tiver andado. Só o autor, ou PCP ou Administrador (403 para os demais,
+  decidido no caso de uso).
+- `PUT /estrutura/{id}/roteiro` *(PCP)* — troca os passos do Roteiro do nó. Body:
+  `{ passos: [setorId, …] }`, em ordem. Passo já alcançado não muda.
+
+**Leitura**
+
+- `GET /setores/{id}/fila` — a iniciar aqui, em trabalho, aguardando coleta, aguardando montagem
+  (por pai, com "dá para montar N; falta X de Y") e sobra.
+- `GET /tarefas` — os Itens prontos, com destino calculado, agrupados pelo Setor de origem.
+- `GET /tarefas/contagem` — só o número, para o contador do menu.
+- `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento.
+- `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno.
+- `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
+
+**Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
+e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).
+
+### Contrato de erro da Execução
+
+Formato `{ erro, mensagem }`: `erro` é o código estável, `mensagem` a frase para o operador, com nó,
+Setor e números quando ajudam.
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna |
+| 400 | `DestinoIndevido` | `destinoSetorId` mandado quando o destino é calculado, ou faltando quando é montagem |
+| 400 | `EntregaVazia` | lista de entrega vazia |
+| 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
+| 403 | `Proibido` | estorno de registro alheio sem ser PCP nem Administrador |
+| 404 | — | nó, Setor, movimento ou montagem inexistente |
+| 409 | `SemRoteiro` | iniciar nó sem Roteiro |
+| 409 | `NaoEhOPrimeiroPasso` | iniciar num Setor que não é o do primeiro passo |
+| 409 | `SaldoInsuficiente` | a origem não tem a quantidade |
+| 409 | `SemFilhos` | montar nó sem filhos |
+| 409 | `MontagemAcimaDoQueFalta` | montar mais do que falta montar do nó |
+| 409 | `FilhosInsuficientes` | algum filho não tem, no Setor, o que N unidades pedem; a `mensagem` nomeia o filho |
+| 409 | `DestinoForaDoRoteiroDoPai` | Setor de montagem fora do Roteiro do pai |
+| 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
+| 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
+| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem estornada sozinha |
+| 409 | `JaEstornado` | o registro já foi estornado |
+| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado` |
+| 409 | `ConflitoDeConcorrencia` | outra pessoa registrou no mesmo item ao mesmo tempo |
 
 ## Expedição
 
