@@ -71,6 +71,10 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 > não percorre Roteiro e nasce aguardando coleta (regra 27 de `01-dominio-e-regras-de-negocio.md`).
 > Revisto na spec da Fase 5.
 
+> **Nota (2026-09-24).** Nesse caso, o Retrabalho é **aberto** por quem registra a perda — Qualidade
+> ou PCP, como a seção "6. Perda de peças" já admite — e **cadastrado** pelo PCP (regra 27). O
+> "*Perfil: Qualidade*" no alto desta seção descreve a abertura a partir de uma reprovação.
+
 1. Se uma Peça (ou parte de sua quantidade) é reprovada no Relatório Dimensional, o
    registro fica salvo normalmente — **não** abre retrabalho automaticamente.
 2. Quando (e se) Qualidade decidir abrir o retrabalho, cria um novo Pedido

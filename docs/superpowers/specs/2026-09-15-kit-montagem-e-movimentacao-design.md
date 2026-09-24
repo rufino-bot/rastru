@@ -186,12 +186,16 @@ serviria a outra coisa, e, se houver perda antes de o resto chegar, aquele espa�
 É **validação do sistema**, não só organização: a entrada de filhos de Kit num Setor `UtilizaKit` só
 é aceita em **conjuntos completos** — `N × QuantidadePorPai` de todos os filhos diretos, juntos, na
 mesma movimentação —, e **nunca além do que o pai ainda precisa receber**: a quantidade dele, menos
-o total já montado e os conjuntos que já estão no Setor à espera de montagem. Sem exceção para
-completar conjunto que perdeu parte dentro da Solda: isso é perda (seção 3.6).
+o total já montado e os conjuntos que já estão à espera de montagem em **qualquer** Setor com
+`UtilizaKit`, contados pelos que entraram e ainda não foram montados (não pelo mínimo por filho).
+Sem exceção para completar conjunto que perdeu parte dentro da Solda: isso é perda (seção 3.6).
 
 O teto na entrada foi acrescentado em 2026-09-19, por decisão do usuário. Sem ele, a sobra que
 fecha um conjunto a mais entraria na Solda: se D fosse o único filho de C, os 5 D de refugo
-fechariam um 11º conjunto para uma C de 10.
+fechariam um 11º conjunto para uma C de 10. Em 2026-09-24, também por decisão do usuário, o teto
+passou a descontar os conjuntos à espera em **qualquer** Setor com `UtilizaKit` (um Roteiro pode ter
+mais de um), e "conjuntos à espera" passou a ser definido como os que entraram e ainda não foram
+montados — a leitura que o "sem exceção" desta seção já implicava.
 
 **A sobra** — tudo o que passa do que o pai precisa, feche conjunto ou não (os 5 D de refugo) —
 nunca entra na Solda e, se não for usada, sai
@@ -211,7 +215,9 @@ produção para sempre, travando Agrupamento e Pedido.
 normalmente. As partes daquela unidade que existem e ainda não foram montadas nela (no exemplo, o E
 e os D que seriam da 10ª C, e as demais partes já prontas da 10ª B e da 10ª A) **saem junto como
 perda**. A reposição é um **Pedido de Retrabalho**, como a regra 17 já
-manda, e o PCP o cadastra para a peça faltante.
+manda: quem registra a perda o **abre** (Qualidade ou PCP) e o PCP o **cadastra** para a peça
+faltante. (Os dois passos foram escritos em 2026-09-24, por decisão do usuário: o `04` atribui a
+seção de Retrabalho ao perfil Qualidade, e a regra 27 nomeava só o PCP.)
 
 Parar a perda em C foi descartado: a 10ª A do original continuaria esperando uma C que, pela regra
 17, nunca volta para aquele Pedido; e a Peça do Retrabalho seria C, que pela regra 18 precisaria de
@@ -292,7 +298,8 @@ troca a cada turno.
   qualquer passagem.
 - **25. Conjunto completo.** Filhos de Kit só entram em Setor `UtilizaKit` em conjuntos completos —
   todos os filhos diretos, na proporção, na mesma movimentação — e nunca além do que o nó ainda
-  precisa receber (a quantidade dele, menos o total já montado e os conjuntos à espera no Setor).
+  precisa receber (a quantidade dele, menos o total já montado e os conjuntos que entraram e ainda
+  não foram montados, em qualquer Setor com `UtilizaKit`).
   Sobra — tudo o que passa do necessário, feche conjunto ou não — sai como `Descarte`.
 - **26. `QuantidadePorPai`.** Razão por unidade do pai, guardada ao lado da quantidade absoluta.
   Obrigatória em todo Item, nula na Peça. Preenchida pela cópia da receita ou informada no ad-hoc. Sem
@@ -391,7 +398,8 @@ Sem fase e sem data.
   Roteiro tem passo ali, ou um nó com filhos que volta à Solda para seguir o próprio Roteiro
   (regras 21 e 24) —, que a regra 25, lida ao pé da letra, só aceitaria como conjunto completo do
   pai; e como a perda do próprio nó entra nos dois tetos, que são contas diferentes: "o que o nó
-  ainda precisa receber" (regras 23 e 25, que descontam os conjuntos já à espera no Setor) e "o
+  ainda precisa receber" (regras 23 e 25, que descontam os conjuntos já à espera em Setor com
+  `UtilizaKit`) e "o
   que ainda falta montar" (regra 24, que não os desconta).
 - **Fase 5:** de qual Setor sai a parte que acompanha a perda, com o lote dividido entre Setores.
   Acrescentados em 2026-09-19: o motivo da perda que sobe até a Peça do topo e o das partes que

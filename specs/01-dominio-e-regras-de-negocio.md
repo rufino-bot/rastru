@@ -255,8 +255,10 @@ correspondente entra no início de cada fase.*
     com `UtilizaKit` só é aceita em conjuntos completos — `N × QuantidadePorPai` de **todos** os
     filhos diretos, juntos, na mesma movimentação —, e com N **sem passar do que o nó ainda
     precisa receber**: a quantidade dele, menos o total já montado e menos os conjuntos que já
-    estão no Setor à espera de montagem. (Como a perda do próprio nó entra nesta conta é decisão
-    da spec da Fase 3B.) O motivo é físico: peça solta ou a mais na Solda ocupa espaço, e, se
+    estão à espera de montagem em **qualquer** Setor com `UtilizaKit`. Esses conjuntos à espera são
+    os que **entraram e ainda não foram montados**, não o mínimo por filho: uma unidade que perdeu
+    parte dentro da Solda não se completa com refugo novo. (Como a perda do próprio nó entra nesta
+    conta é decisão da spec da Fase 3B.) O motivo é físico: peça solta ou a mais na Solda ocupa espaço, e, se
     houver perda antes de o resto chegar, aquele espaço fica sem destino. Não há exceção para
     completar conjunto que perdeu parte dentro da Solda — isso é perda (regra 27). A **sobra** —
     tudo o que passa do que o nó precisa, feche conjunto ou não (ex.: refugo além do necessário)
@@ -274,7 +276,8 @@ correspondente entra no início de cada fase.*
     perda **sobe até a Peça do topo**: registra-se a perda daquela unidade da Peça no Pedido
     original, que conclui normalmente (regra 13), e as partes daquela unidade que existem e ainda
     não foram montadas saem junto como perda. A reposição é um Pedido de Retrabalho (regra 17),
-    cadastrado pelo PCP para a Peça faltante, em que o que já existe é marcado **pronto** — só dentro
+    **aberto** por quem registra a perda (Qualidade ou PCP) e **cadastrado** pelo PCP para a Peça
+    faltante, em que o que já existe é marcado **pronto** — só dentro
     da árvore daquela unidade; o resto continua no Pedido original.
     - Nó **pronto** não percorre Roteiro: folha pronta já foi fabricada; nó com filhos pronto já
       foi montado (total montado = quantidade, e os filhos nem precisam existir no Retrabalho).
