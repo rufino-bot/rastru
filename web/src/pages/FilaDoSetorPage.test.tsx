@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, within, act } from '@testing-library/react'
+import { render, screen, cleanup, within, act, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { FilaDoSetorPage } from './FilaDoSetorPage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -261,5 +261,257 @@ describe('FilaDoSetorPage — leitura', () => {
 
     expect(screen.getByRole('alert').textContent).toBe('Sem conexão com o servidor. Verifique a rede e tente de novo.')
     expect(screen.getByText('10 a iniciar · passo 1')).toBeTruthy()
+  })
+})
+
+/**
+ * Mock desta tela com as escritas: a fila é servida em sequência (`filas[0]`, depois `filas[1]`…,
+ * repetindo a última), para provar que a tela RECARREGA depois de cada ação, e cada POST responde
+ * o que o teste mandar.
+ */
+function montarFetch(filas: ReturnType<typeof fila>[], escritas: Record<string, () => Response> = {}) {
+  let gets = 0
+  const fetchMock = vi.fn((url: string | URL, _init?: RequestInit) => {
+    const caminho = String(url).split('?')[0]
+    if (caminho === '/api/setores/1/fila') {
+      const f = filas[Math.min(gets, filas.length - 1)]
+      gets += 1
+      return Promise.resolve(respostaJson(f))
+    }
+    const escrita = escritas[caminho]
+    if (escrita) return Promise.resolve(escrita())
+    return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+  })
+  return { fetchMock, getsDaFila: () => gets }
+}
+
+function corpoDe(fetchMock: ReturnType<typeof vi.fn>, caminho: string): unknown {
+  const chamada = fetchMock.mock.calls.find((c) => String(c[0]) === caminho)
+  expect(chamada, `nenhuma chamada a ${caminho}`).toBeTruthy()
+  const init = chamada![1] as RequestInit
+  expect(init.method).toBe('POST')
+  return JSON.parse(init.body as string)
+}
+
+const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })
+
+describe('FilaDoSetorPage — ações', () => {
+  beforeEach(() => {
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  it('iniciar abre a quantidade com todo o disponível, envia e recarrega', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila()], {
+      '/api/estrutura/7/inicios': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '10')
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar' }))
+
+    expect(await screen.findByText('Nada neste Setor agora')).toBeTruthy()
+    expect(corpoDe(fetchMock, '/api/estrutura/7/inicios')).toEqual({ setorId: 1, quantidade: 4 })
+    expect(getsDaFila()).toBe(2)
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+  })
+
+  it('terminar manda o passo da linha', async () => {
+    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ no: SUPORTE, ordem: 3, quantidade: 6 }] })], {
+      '/api/estrutura/7/terminos': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Terminar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/estrutura/7/terminos')).toEqual({ setorId: 1, ordem: 3, quantidade: 6 }))
+  })
+
+  it('montar oferece o que dá para montar, e monta o pai', async () => {
+    const { fetchMock } = montarFetch([FILA_CHEIA], { '/api/estrutura/2/montagens': () => respostaJson({}, 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Montar CH-01 — Chassi' }))
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '2')
+    fireEvent.click(screen.getByRole('button', { name: 'Montar' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/estrutura/2/montagens')).toEqual({ setorId: 1, quantidade: 2 }))
+  })
+
+  it('"dá para montar 0" não oferece Montar', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        pai: CHASSI, faltaMontar: 10, daParaMontar: 0,
+        filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 }],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+    await screen.findByText('Dá para montar 0; falta montar 10.')
+
+    expect(screen.queryByRole('button', { name: 'Montar CH-01 — Chassi' })).toBeNull()
+  })
+
+  it('409 mostra a frase do servidor no formulário e recarrega a fila', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6 }] })], {
+      '/api/estrutura/7/inicios': () => respostaJson(
+        { erro: 'SaldoInsuficiente', mensagem: 'Só há 6 de Suporte a iniciar.' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar' }))
+
+    expect(await screen.findByText('Só há 6 de Suporte a iniciar.')).toBeTruthy()
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+    // A linha continua na fila (com o saldo novo), então o formulário continua aberto — e o 10 que
+    // estava no campo passa a ser recusado pelo limite novo, antes de chegar ao servidor de novo.
+    expect(await screen.findByText('No máximo 6.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Iniciar' })).toHaveProperty('disabled', true)
+  })
+
+  it('409 cuja recarga tira a linha da fila: o formulário fecha e a frase sobe para o topo', async () => {
+    const { fetchMock } = montarFetch([COM_A_INICIAR, fila()], {
+      '/api/estrutura/7/inicios': () => respostaJson(
+        { erro: 'ConflitoDeConcorrencia', mensagem: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar' }))
+
+    expect((await screen.findByRole('alert')).textContent)
+      .toBe('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+  })
+
+  it('atualização periódica que tira a linha aberta fecha o formulário com aviso', async () => {
+    // Review Focus 3.
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR, fila()]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByRole('alert').textContent)
+      .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
+  })
+
+  it('atualização periódica que mantém a linha preserva o que foi digitado', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '3' } })
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '3')
+  })
+
+  it('403 mostra a mensagem e não recarrega', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR], {
+      '/api/estrutura/7/inicios': () => respostaJson({}, 403),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar' }))
+
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
+    expect(getsDaFila()).toBe(1)
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+  })
+
+  it('abrir outra ação fecha a que estava aberta', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar BA-01 — Base' }))
+
+    expect(screen.getAllByLabelText('Quantidade')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Terminar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('levar para outro Setor oferece os outros Setores do Roteiro do pai e entrega', async () => {
+    const { fetchMock } = montarFetch([FILA_CHEIA], {
+      '/api/estrutura/2/roteiro': () => respostaJson({
+        estruturaItemId: 2,
+        passos: [
+          { setorId: 1, nome: 'Corte', ordem: 1, alcancado: true },
+          { setorId: 4, nome: 'Solda', ordem: 2, alcancado: false },
+          { setorId: 4, nome: 'Solda', ordem: 3, alcancado: false },
+          { setorId: 6, nome: 'Montagem final', ordem: 4, alcancado: false },
+        ],
+      }),
+      '/api/entregas': () => respostaJson([], 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' }))
+    const setor = await screen.findByLabelText('Setor de destino')
+    // O Setor atual (Corte) sai; o repetido (Solda) aparece uma vez.
+    expect(within(setor).getAllByRole('option').map((o) => o.textContent))
+      .toEqual(['Escolha o Setor', 'Solda', 'Montagem final'])
+    expect(screen.getByRole('button', { name: 'Levar' })).toHaveProperty('disabled', true)
+    fireEvent.change(setor, { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Levar' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/entregas')).toEqual({
+      itens: [{
+        estruturaItemId: 7, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null },
+        destinoSetorId: 4, quantidade: 5,
+      }],
+    }))
+  })
+
+  it('levar para outro Setor, com o Roteiro do pai só neste Setor, diz que não há para onde', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA], {
+      '/api/estrutura/2/roteiro': () => respostaJson({
+        estruturaItemId: 2, passos: [{ setorId: 1, nome: 'Corte', ordem: 1, alcancado: false }],
+      }),
+    }).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' }))
+
+    expect(await screen.findByText('O Roteiro de Chassi não tem outro Setor para onde levar.')).toBeTruthy()
+  })
+
+  it('filho ausente deste Setor não oferece "Levar"', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        pai: CHASSI, faltaMontar: 10, daParaMontar: 0,
+        filhos: [
+          { no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 },
+          { no: PARAFUSO, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 1, faltaParaProxima: 1 },
+        ],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })
+
+    expect(screen.queryByRole('button', { name: 'Levar para outro Setor Parafuso' })).toBeNull()
   })
 })
