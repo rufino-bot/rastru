@@ -498,6 +498,24 @@ describe('FilaDoSetorPage — ações', () => {
     expect(await screen.findByText('O Roteiro de Chassi não tem outro Setor para onde levar.')).toBeTruthy()
   })
 
+  it('falha ao buscar o Roteiro mostra o erro e deixa cancelar', async () => {
+    // Achado da review da Task 5: o estado de erro do `FormularioDeRedirecionamento` não tinha
+    // teste — sem ele, um 500 (ou uma rejeição) na busca do Roteiro deixava o Movimentador em
+    // "Carregando…" para sempre, sem mensagem e sem "Cancelar".
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA], {
+      '/api/estrutura/2/roteiro': () => respostaJson({}, 500),
+    }).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' }))
+
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })).toBeTruthy()
+  })
+
   it('filho ausente deste Setor não oferece "Levar"', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
