@@ -227,7 +227,7 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     await cliente.PostAsJsonAsync(
         $"/api/estrutura/{raizId}/filhos",
-        new { componenteId = (int?)null, descricao = "Sub-item ad-hoc", quantidade = 2m });
+        new { componenteId = (int?)null, descricao = "Sub-item ad-hoc", quantidade = 2m, quantidadePorPai = 2m });
 
     var resposta = await cliente.GetAsync($"/api/agrupamentos/{agrupamentoId}/estrutura");
 
@@ -237,6 +237,49 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(raizId, raiz.GetProperty("id").GetInt32());
     var filho = Assert.Single(raiz.GetProperty("filhos").EnumerateArray());
     Assert.Equal("Sub-item ad-hoc", filho.GetProperty("descricao").GetString());
+  }
+
+  [Fact]
+  public async Task Filho_leva_quantidadePorPai_e_a_arvore_mostra_semRoteiro()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId, 10m));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var filho = await cliente.PostAsJsonAsync(
+        $"/api/estrutura/{raizId}/filhos",
+        new { componenteId = (int?)null, descricao = "Calço", quantidade = 25m, quantidadePorPai = 2.5m });
+    Assert.Equal(HttpStatusCode.Created, filho.StatusCode);
+
+    var arvore = JsonDocument.Parse(await (await cliente.GetAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura")).Content.ReadAsStringAsync()).RootElement;
+    var raiz = Assert.Single(arvore.EnumerateArray());
+    Assert.Equal(JsonValueKind.Null, raiz.GetProperty("quantidadePorPai").ValueKind);
+    Assert.True(raiz.GetProperty("semRoteiro").GetBoolean());   // Componente de teste sem roteiro padrao
+    var item = Assert.Single(raiz.GetProperty("filhos").EnumerateArray());
+    Assert.Equal(2.5m, item.GetProperty("quantidadePorPai").GetDecimal());
+    Assert.True(item.GetProperty("semRoteiro").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Filho_sem_quantidadePorPai_devolve_400_com_a_regra_26()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var resposta = await cliente.PostAsJsonAsync(
+        $"/api/estrutura/{raizId}/filhos", new { componenteId = (int?)null, descricao = "Calço", quantidade = 1m });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Contains("regra 26", corpo.GetProperty("erro").GetString());
   }
 
   /// <summary>
@@ -305,7 +348,7 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     var resposta = await cliente.PostAsJsonAsync(
         $"/api/estrutura/{raizId}/filhos",
-        new { componenteId = (int?)null, descricao = (string?)null, quantidade = 1m });
+        new { componenteId = (int?)null, descricao = (string?)null, quantidade = 1m, quantidadePorPai = 1m });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }

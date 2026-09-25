@@ -152,7 +152,7 @@ public class CriarPecaTests
     Assert.True(raiz.Sucesso);
 
     var resultado = await useCase.AcrescentarFilho(
-        raiz.Valor!.Id, new NovoFilhoDto(ComponenteId: null, Descricao: "Filho ad-hoc", Quantidade: 1m),
+        raiz.Valor!.Id, new NovoFilhoDto(ComponenteId: null, Descricao: "Filho ad-hoc", Quantidade: 1m, QuantidadePorPai: 1m),
         CancellationToken.None);
 
     Assert.True(resultado.Sucesso);

@@ -262,6 +262,7 @@ CREATE TABLE dbo.EstruturaItem (
     EstruturaPaiId              INT                 NULL,       -- self-FK: recursão Peça -> Item -> ... -> Item
     NivelHierarquico            NVARCHAR(10)        NOT NULL,   -- Peca | Item (denormalizado p/ consulta rápida)
     Quantidade                  DECIMAL(18,4)       NOT NULL,   -- lote agregado (divisível por quantidades livres)
+    QuantidadePorPai            DECIMAL(18,4)       NULL,       -- regra 26: quantos entram em UMA unidade do pai (só Item)
     RequerRelatorioDimensional  BIT                 NOT NULL
         CONSTRAINT DF_EstruturaItem_RequerRelatorio DEFAULT (0), -- vale p/ Peça (topo); cliente exige no cadastro
     CONSTRAINT PK_EstruturaItem PRIMARY KEY CLUSTERED (Id),
@@ -275,7 +276,11 @@ CREATE TABLE dbo.EstruturaItem (
         CHECK ((NivelHierarquico = 'Peca' AND EstruturaPaiId IS NULL)
             OR (NivelHierarquico = 'Item' AND EstruturaPaiId IS NOT NULL)),
     CONSTRAINT CK_EstruturaItem_PecaTemComponente
-        CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL)
+        CHECK (NivelHierarquico = 'Item' OR ComponenteId IS NOT NULL),
+    -- Regra 26 (Fase 3): a montagem baixa N x QuantidadePorPai de cada filho. Peça não tem pai.
+    CONSTRAINT CK_EstruturaItem_QuantidadePorPai
+        CHECK ((NivelHierarquico = 'Peca' AND QuantidadePorPai IS NULL)
+            OR (NivelHierarquico = 'Item' AND QuantidadePorPai IS NOT NULL AND QuantidadePorPai > 0))
 );
 
 CREATE TABLE dbo.EstruturaMaterial (

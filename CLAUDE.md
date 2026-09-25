@@ -704,6 +704,19 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ArquivoDeComponente_Tamanho') ALTER TABLE dbo.ArquivoDeComponente ADD CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0);"
 ```
 
+**Fase 3 — `db/alter-fase-3.sql`.** Daqui em diante a migração de banco anterior vive num arquivo
+idempotente versionado, e não em linhas de `sqlcmd -Q` como os blocos acima: são tabelas inteiras com
+vários `CHECK`, e uma linha só com elas seria impossível de revisar. Ele leva um banco anterior à Fase 3
+até o `02-modelo-de-dados.sql` — hoje, a coluna `EstruturaItem.QuantidadePorPai`, com o preenchimento
+da seção 3.4 da spec da Fase 3. Rodar de novo não muda nada. `-b` aborta no primeiro erro, e `-f 65001`
+pelo mesmo motivo do `seed-demo.sql`:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3.sql sqlserver:/tmp/alter-fase-3.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

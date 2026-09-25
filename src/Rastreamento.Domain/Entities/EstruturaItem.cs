@@ -31,6 +31,13 @@ public class EstruturaItem
 
   public decimal Quantidade { get; set; }
 
+  /// <summary>
+  /// Regra 26: quantas unidades deste no entram em UMA unidade do pai. NULL na Peca, obrigatoria e
+  /// positiva no Item (`CK_EstruturaItem_QuantidadePorPai`). A montagem baixa `N x QuantidadePorPai`
+  /// de cada filho (Fase 3); editar a razao nao reescreve baixa ja gravada.
+  /// </summary>
+  public decimal? QuantidadePorPai { get; set; }
+
   /// <summary>Vale para Peca; o cliente exige no cadastro do Pedido (regra 10).</summary>
   public bool RequerRelatorioDimensional { get; set; }
 }

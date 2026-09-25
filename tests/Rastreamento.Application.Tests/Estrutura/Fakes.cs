@@ -63,6 +63,7 @@ public class FakeEstruturaRepo : IEstruturaRepository
       EstruturaPaiId = paiId,
       NivelHierarquico = paiId is null ? "Peca" : "Item",
       Quantidade = no.Quantidade,
+      QuantidadePorPai = no.QuantidadePorPai,
       RequerRelatorioDimensional = no.RequerRelatorioDimensional,
     };
     Itens.Add(item);

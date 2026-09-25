@@ -45,9 +45,14 @@ public interface IEstruturaRepository
   Task SalvarAlteracoesAsync(CancellationToken ct);
 }
 
-/// <summary>Espelho de `NoPlanejado` na fronteira do dominio, para a Application nao vazar tipo.</summary>
+/// <summary>
+/// Espelho de `NoPlanejado` na fronteira do dominio, para a Application nao vazar tipo.
+/// `QuantidadePorPai` e opcional e fica no FIM de proposito: a raiz de uma Peca nao tem razao, e
+/// assim as construcoes posicionais que ja existiam continuam compilando.
+/// </summary>
 public sealed record NoParaGravar(
     int? ComponenteId, string? Descricao, decimal Quantidade, bool RequerRelatorioDimensional,
     IReadOnlyList<(int MaterialId, decimal Quantidade)> Materiais,
     IReadOnlyList<(int SetorId, int Ordem)> Roteiro,
-    IReadOnlyList<NoParaGravar> Filhos);
+    IReadOnlyList<NoParaGravar> Filhos,
+    decimal? QuantidadePorPai = null);

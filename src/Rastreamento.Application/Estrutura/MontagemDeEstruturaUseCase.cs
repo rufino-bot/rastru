@@ -64,6 +64,23 @@ public sealed class MontagemDeEstruturaUseCase
 
   private const string ErroDeComponenteNaoEncontrado = "Componente nao encontrado.";
 
+  /// <summary>
+  /// Regra 26: todo Item tem razao, e ela cabe na coluna `DECIMAL(18,4)` — mesmo piso e mesmo teto da
+  /// quantidade, pelo mesmo motivo (abaixo do piso a coluna arredonda para zero, e o CHECK recusa).
+  /// Frase no `erro`, como as outras validacoes deste caso de uso (contrato de erro da Estrutura).
+  /// </summary>
+  private const string ErroDeRazaoInvalida =
+      "Quantidade por pai e obrigatoria num Item e deve ficar entre 0,0001 e o maximo da coluna (regra 26).";
+
+  private const string ErroDeRazaoNaPeca =
+      "Peca nao tem pai: quantidade por pai so se informa num Item (regra 26).";
+
+  private static bool RazaoValida(decimal? razao) =>
+      razao is decimal r
+      && r >= PlanejadorDeCopia.QuantidadeMinimaDaColuna
+      && r <= PlanejadorDeCopia.QuantidadeMaximaDaColuna
+      && decimal.Round(r, 4) == r;
+
   private readonly IEstruturaRepository _estruturas;
   private readonly IAgrupamentoRepository _agrupamentos;
   private readonly IReceitaPadraoRepository _catalogo;
@@ -182,6 +199,9 @@ public sealed class MontagemDeEstruturaUseCase
     if (novo.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
       return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
 
+    if (!RazaoValida(novo.QuantidadePorPai))
+      return Result<EstruturaItemDto>.Falha(ErroDeRazaoInvalida, TipoDeErro.Validacao);
+
     var pai = await _estruturas.ObterPorIdAsync(paiId, ct);
     if (pai is null)
       return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
@@ -194,6 +214,8 @@ public sealed class MontagemDeEstruturaUseCase
 
       // ehRaiz sempre false: um sub-Item pendurado num no existente nunca e a raiz da Peca.
       paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: false, requerRelatorioDaRaiz: false);
+      // O topo do filho acrescentado usa a razao do CORPO; os nos abaixo dele ja trazem a da receita.
+      paraGravar = paraGravar with { QuantidadePorPai = novo.QuantidadePorPai };
 
       // Minor 2 da review da Task 4: antes, uma `Descricao` digitada junto de `ComponenteId` era
       // descartada em silencio (so o plano da receita ia pro no). Decisao do fix pass: HONRAR —
@@ -215,7 +237,8 @@ public sealed class MontagemDeEstruturaUseCase
           RequerRelatorioDimensional: false,
           Materiais: [],
           Roteiro: [],
-          Filhos: []);
+          Filhos: [],
+          QuantidadePorPai: novo.QuantidadePorPai);
     }
 
     var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
@@ -246,12 +269,19 @@ public sealed class MontagemDeEstruturaUseCase
     if (no is null)
       return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
+    // Regra 26: a razao acompanha o nivel do no — obrigatoria no Item, proibida na Peca.
+    if (no.NivelHierarquico == "Item" && !RazaoValida(edicao.QuantidadePorPai))
+      return Result<EstruturaItemDto>.Falha(ErroDeRazaoInvalida, TipoDeErro.Validacao);
+    if (no.NivelHierarquico == "Peca" && edicao.QuantidadePorPai is not null)
+      return Result<EstruturaItemDto>.Falha(ErroDeRazaoNaPeca, TipoDeErro.Validacao);
+
     var descricao = string.IsNullOrWhiteSpace(edicao.Descricao) ? null : edicao.Descricao.Trim();
     if (no.ComponenteId is null && descricao is null)
       return Result<EstruturaItemDto>.Falha(ErroDeDescricaoObrigatoria, TipoDeErro.Validacao);
 
     no.Descricao = descricao;
     no.Quantidade = edicao.Quantidade;
+    no.QuantidadePorPai = edicao.QuantidadePorPai;
     await _estruturas.SalvarAlteracoesAsync(ct);
 
     var arvore = await _montador.MontarAsync(no.AgrupamentoId, ct);
@@ -349,7 +379,8 @@ public sealed class MontagemDeEstruturaUseCase
           RequerRelatorioDimensional: ehRaiz && requerRelatorioDaRaiz,
           Materiais: no.Materiais,
           Roteiro: no.Roteiro,
-          Filhos: no.Filhos.Select(f => ConverterParaGravar(f, ehRaiz: false, requerRelatorioDaRaiz)).ToList());
+          Filhos: no.Filhos.Select(f => ConverterParaGravar(f, ehRaiz: false, requerRelatorioDaRaiz)).ToList(),
+          QuantidadePorPai: no.QuantidadePorPai);
 
   /// <summary>Busca por Id em profundidade na arvore de DTOs ja montada — usado por `AcrescentarFilho`/`EditarNo` para projetar o no alterado, que nao e necessariamente uma raiz (diferente do `raizId` de `CriarPeca`).</summary>
   private static EstruturaItemDto? BuscarNo(IEnumerable<EstruturaItemDto> nos, int id)

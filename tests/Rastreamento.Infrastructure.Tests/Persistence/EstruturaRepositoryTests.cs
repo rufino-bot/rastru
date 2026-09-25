@@ -136,7 +136,7 @@ public class EstruturaRepositoryTests : TesteComBanco
       var no = new NoParaGravar(
           ComponenteId: componenteRaiz, Descricao: null, Quantidade: 10m, RequerRelatorioDimensional: true,
           Materiais: [], Roteiro: [],
-          Filhos: [new NoParaGravar(componenteFilho, null, 40m, false, [], [], [])]);
+          Filhos: [new NoParaGravar(componenteFilho, null, 40m, false, [], [], [], QuantidadePorPai: 4m)]);
 
       var raizId = await repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None);
 
@@ -188,11 +188,14 @@ public class EstruturaRepositoryTests : TesteComBanco
           [
             new NoParaGravar(
                 ComponenteId: componenteFilho, Descricao: null, Quantidade: 40m, RequerRelatorioDimensional: false,
-                Materiais: [(materialInexistente, 1m)], Roteiro: [], Filhos: [])
+                Materiais: [(materialInexistente, 1m)], Roteiro: [], Filhos: [], QuantidadePorPai: 4m)
           ]);
 
-      await Assert.ThrowsAsync<DbUpdateException>(
+      var erro = await Assert.ThrowsAsync<DbUpdateException>(
           () => repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None));
+      // Recusado pela FK do material, e nao pelo CK da razao: e a FK no MEIO da arvore que prova a
+      // atomicidade (o filho ja estava gravado quando ela estourou).
+      Assert.Contains("FK_EstruturaMaterial_Material", erro.InnerException!.Message);
 
       await using var dbLeitura = NovoContexto();
       var sobrouAlgumaLinha = await dbLeitura.Estruturas.AsNoTracking()
@@ -246,13 +249,13 @@ public class EstruturaRepositoryTests : TesteComBanco
           [
             new NoParaGravar(
                 ComponenteId: componenteMeio, Descricao: null, Quantidade: 40m, RequerRelatorioDimensional: false,
-                Materiais: [(material.Id, 1m)], Roteiro: [(setor.Id, 1)],
+                Materiais: [(material.Id, 1m)], Roteiro: [(setor.Id, 1)], QuantidadePorPai: 4m,
                 Filhos:
                 [
                   new NoParaGravar(
                       ComponenteId: componenteFolha, Descricao: null, Quantidade: 5m,
                       RequerRelatorioDimensional: false,
-                      Materiais: [(material.Id, 2m)], Roteiro: [(setor.Id, 1)], Filhos: [])
+                      Materiais: [(material.Id, 2m)], Roteiro: [(setor.Id, 1)], Filhos: [], QuantidadePorPai: 0.125m)
                 ])
           ]);
 
@@ -314,7 +317,7 @@ public class EstruturaRepositoryTests : TesteComBanco
       var noA = new NoParaGravar(
           ComponenteId: componenteA, Descricao: null, Quantidade: 1m, RequerRelatorioDimensional: false,
           Materiais: [], Roteiro: [],
-          Filhos: [new NoParaGravar(componenteB, null, 1m, false, [], [], [])]);
+          Filhos: [new NoParaGravar(componenteB, null, 1m, false, [], [], [], QuantidadePorPai: 1m)]);
       var idA = await repo.GravarArvoreAsync(agrupamentoId, null, noA, CancellationToken.None);
 
       await using var dbLeitura = NovoContexto();
@@ -327,6 +330,7 @@ public class EstruturaRepositoryTests : TesteComBanco
       var linhaA = await dbCiclo.Estruturas.SingleAsync(e => e.Id == idA);
       linhaA.EstruturaPaiId = idB;
       linhaA.NivelHierarquico = "Item";
+      linhaA.QuantidadePorPai = 1m;   // CK_EstruturaItem_QuantidadePorPai: todo Item tem razao
       await dbCiclo.SaveChangesAsync();
 
       await using var dbExclusao = NovoContexto();
@@ -344,6 +348,7 @@ public class EstruturaRepositoryTests : TesteComBanco
       {
         linhaA.EstruturaPaiId = null;
         linhaA.NivelHierarquico = "Peca";
+        linhaA.QuantidadePorPai = null;   // CK_EstruturaItem_QuantidadePorPai: Peca nao tem razao (B2)
         await dbDesfaz.SaveChangesAsync();
       }
       await LimparAsync(pedidoId, agrupamentoId, componenteA, componenteB);
