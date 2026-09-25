@@ -444,6 +444,15 @@ coisas, nesta ordem:
    `subagent-driven-development` não aparecem entre as skills disponíveis na abertura, **pare e
    avise** — não as instale por conta própria no meio da sessão, e não siga o fluxo "de cabeça"
    sem elas: a regra do gate de review exige a skill invocada.
+3. **O backend, quando a tarefa toca `src/` ou `tests/`:** rode `bash scripts/backend-na-nuvem`. O
+   container nasce sem `dotnet` e com o Docker parado; o script instala o SDK se faltar, sobe o
+   `dockerd`, o SQL Server do `docker compose` e cria o banco com schema e seed. É idempotente. Medido
+   em 2026-09-25: depois dele, `dotnet build -warnaserror` sai com 0 warnings e `dotnet test` passa
+   582 de 582 (279 Application, 77 Infrastructure, 226 Api). O SDK vem do arquivo do Ubuntu
+   (`dotnet-sdk-10.0`), não do `dotnet-install.sh`, cujo host de download a rede do ambiente recusa.
+   O setup script do ambiente pode instalar o SDK de antemão (`apt-get update -qq || true;
+   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dotnet-sdk-10.0`), o que só poupa ~1 min;
+   Docker e banco sobem na sessão, pelo script.
 
 ### O ledger tem repositório próprio, e o script vigia isso
 

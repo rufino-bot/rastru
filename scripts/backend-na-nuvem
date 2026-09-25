@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Prepara o backend numa sessão de nuvem (claude.ai/code): SDK do .NET, Docker, SQL Server e banco.
+#
+# Existe porque o container de nuvem nasce sem `dotnet` e com o Docker parado, e a suíte do backend
+# precisa dos dois. Na máquina do dono do projeto nada disto se aplica — lá o Docker Desktop e o SDK
+# já existem, e este script não deve rodar.
+#
+#   bash scripts/backend-na-nuvem            # tudo; idempotente, pode rodar de novo
+#   bash scripts/backend-na-nuvem --so-sdk   # só instala o SDK (é o que o setup script do ambiente roda)
+#
+# Medido em 2026-09-25, num container Ubuntu 24.04 como root:
+#   - `dot.net/v1/dotnet-install.sh` NÃO serve: o download vem de `builds.dotnet.microsoft.com`, que a
+#     política de rede do ambiente recusa. O SDK vem do arquivo do próprio Ubuntu
+#     (`dotnet-sdk-10.0`, 10.0.112), que o proxy deixa passar;
+#   - `apt-get update` falha em dois PPAs de terceiros (deadsnakes, ondrej/php) e segue com o resto,
+#     por isso o `|| true`;
+#   - `dockerd` existe no container mas não está rodando; sobe em segundo plano e responde em ~2s;
+#   - a imagem `mcr.microsoft.com/mssql/server:2022-latest` baixa pelo proxy; o servidor aceita
+#     conexão ~5s depois de o container subir.
+#
+# O que ele deliberadamente NÃO faz: não carrega `db/seed-demo.sql` (a suíte ignora que ele existe —
+# ver CLAUDE.md) e não recria banco que já existe (o schema só é aplicado quando `dbo.Usuario` falta).
+
+set -euo pipefail
+
+RAIZ=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$RAIZ"
+
+SENHA='Your_strong_Pass123'
+SQLCMD=(docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SENHA" -C -I -b)
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "backend-na-nuvem: precisa de root (o container de nuvem roda como root)." >&2
+  exit 1
+fi
+
+# --- 1. SDK -----------------------------------------------------------------------------------------
+if ! command -v dotnet >/dev/null 2>&1 || ! dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
+  echo "== instalando dotnet-sdk-10.0 (arquivo do Ubuntu)"
+  apt-get update -qq || true
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dotnet-sdk-10.0
+fi
+echo "sdk      : $(dotnet --version)"
+
+[ "${1:-}" = "--so-sdk" ] && exit 0
+
+# --- 2. Docker --------------------------------------------------------------------------------------
+if ! docker info >/dev/null 2>&1; then
+  echo "== subindo dockerd"
+  nohup dockerd >/tmp/dockerd.log 2>&1 &
+  for _ in $(seq 1 30); do docker info >/dev/null 2>&1 && break; sleep 1; done
+  docker info >/dev/null 2>&1 || { echo "dockerd não respondeu; ver /tmp/dockerd.log" >&2; exit 1; }
+fi
+echo "docker   : $(docker version --format '{{.Server.Version}}')"
+
+# --- 3. SQL Server ----------------------------------------------------------------------------------
+docker compose up -d
+echo "== esperando o SQL Server aceitar conexão"
+for _ in $(seq 1 60); do
+  "${SQLCMD[@]}" -Q "SELECT 1" >/dev/null 2>&1 && break
+  sleep 2
+done
+"${SQLCMD[@]}" -Q "SELECT 1" >/dev/null
+
+# --- 4. Banco ---------------------------------------------------------------------------------------
+"${SQLCMD[@]}" -Q "IF DB_ID('Rastreamento') IS NULL CREATE DATABASE Rastreamento;"
+tem_schema=$("${SQLCMD[@]}" -d Rastreamento -h -1 -W -Q "SET NOCOUNT ON; SELECT CASE WHEN OBJECT_ID('dbo.Usuario') IS NULL THEN 0 ELSE 1 END")
+if [ "$(echo "$tem_schema" | tr -d '[:space:]')" = "0" ]; then
+  echo "== aplicando specs/02-modelo-de-dados.sql e db/seed.sql"
+  # `-f 65001` e cópia para dentro do container: sem isso a acentuação dos NVARCHAR se perde e o
+  # banco fica verde assim mesmo (ver CLAUDE.md, seção do seed-demo).
+  for arq in specs/02-modelo-de-dados.sql db/seed.sql; do
+    docker compose cp "$arq" "sqlserver:/tmp/$(basename "$arq")"
+    "${SQLCMD[@]}" -d Rastreamento -f 65001 -i "/tmp/$(basename "$arq")" >/dev/null
+  done
+fi
+echo "banco    : Rastreamento pronto em localhost:1433"
+echo
+echo "Próximo: dotnet build Rastreamento.slnx -warnaserror && dotnet test Rastreamento.slnx"
