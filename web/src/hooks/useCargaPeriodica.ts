@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { mensagemDeErro } from '../api/erros'
 
+/** Fila, tarefas e o contador do menu se atualizam a cada 30 s (spec da Fase 3 §6.2). */
+export const INTERVALO_DA_EXECUCAO_MS = 30_000
+
 export interface CargaPeriodica<T> {
   /** `null` até a primeira resposta boa da `chave` atual. */
   dados: T | null
