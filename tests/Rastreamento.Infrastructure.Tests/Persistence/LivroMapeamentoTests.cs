@@ -71,7 +71,8 @@ public class LivroMapeamentoTests : TesteComBanco
   [Fact]
   public Task Movimentacao_faz_a_volta_completa() => NoCenarioAsync(async c =>
   {
-    var id = await GravarAsync(Inicio(c, 2.5025m));
+    var movimentacao = Inicio(c, 2.5025m);
+    var id = await GravarAsync(movimentacao);
 
     await using var leitura = NovoContexto();
     var lida = await leitura.Movimentacoes.AsNoTracking().SingleAsync(m => m.Id == id);
@@ -86,6 +87,9 @@ public class LivroMapeamentoTests : TesteComBanco
     Assert.Null(lida.MontagemId);
     Assert.Null(lida.EstornoDeId);
     Assert.Equal(c.Arvore.AutorId, lida.UsuarioId);
+    // DataHora explicita: ValueGeneratedOnAdd (fix pass do achado da review) nao a sobrescreve
+    // quando o valor nao e o default de DateTime — o caso de uso continua no controle.
+    Assert.Equal(movimentacao.DataHora, lida.DataHora, TimeSpan.FromSeconds(1));
   });
 
   [Fact]
@@ -114,6 +118,41 @@ public class LivroMapeamentoTests : TesteComBanco
     Assert.Null(lida.EstornadaEm);
     Assert.Null(lida.EstornadaPorUsuarioId);
     Assert.Equal(montagem.Id, (await leitura.Movimentacoes.AsNoTracking().SingleAsync(m => m.Id == baixa)).MontagemId);
+    // DataHora explicita: mesma garantia de Movimentacao_faz_a_volta_completa.
+    Assert.Equal(montagem.DataHora, lida.DataHora, TimeSpan.FromSeconds(1));
+  });
+
+  [Fact]
+  public Task DataHora_nao_preenchida_e_gravada_pelo_DEFAULT_do_banco() => NoCenarioAsync(async c =>
+  {
+    // Achado da review da Task 2: sem ValueGeneratedOnAdd() em DataHora, o EF sempre mandava o
+    // valor CLR — inclusive 0001-01-01 quando o caso de uso esquece de preencher — e
+    // DF_Movimentacao_DataHora / DF_Montagem_DataHora nunca disparavam. Aqui as duas linhas
+    // nascem SEM DataHora, de proposito, para provar que o DEFAULT do banco e quem preenche.
+    var movimentacaoId = await GravarAsync(new Movimentacao
+    {
+      EstruturaItemId = c.PecaId, Tipo = TiposDeMovimentacao.Inicio, Quantidade = 1m,
+      OrigemPosicao = Posicoes.AIniciar,
+      DestinoPosicao = Posicoes.NoSetor, DestinoSetorId = c.SetorId, DestinoOrdem = 1,
+      UsuarioId = c.Arvore.AutorId,
+    });
+
+    await using var db = NovoContexto();
+    var montagem = new Montagem
+    {
+      EstruturaItemId = c.PecaId, SetorId = c.SetorId, Quantidade = 1m, UsuarioId = c.Arvore.AutorId,
+    };
+    db.Montagens.Add(montagem);
+    await db.SaveChangesAsync();
+
+    var antesDoAno2000 = new DateTime(2000, 1, 1);
+    await using var leitura = NovoContexto();
+    var movimentacaoLida = await leitura.Movimentacoes.AsNoTracking().SingleAsync(m => m.Id == movimentacaoId);
+    var montagemLida = await leitura.Montagens.AsNoTracking().SingleAsync(m => m.Id == montagem.Id);
+    Assert.True(movimentacaoLida.DataHora > antesDoAno2000,
+        $"esperava DataHora gravada pelo DEFAULT do banco; leu {movimentacaoLida.DataHora:O}");
+    Assert.True(montagemLida.DataHora > antesDoAno2000,
+        $"esperava DataHora gravada pelo DEFAULT do banco; leu {montagemLida.DataHora:O}");
   });
 
   [Fact]
