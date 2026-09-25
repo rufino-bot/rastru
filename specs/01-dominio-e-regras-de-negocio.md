@@ -347,6 +347,11 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
   para a Fase 3, e a Fase 3 não o resolveu; com a montagem de todo nó, um filho acrescentado por
   engano a um Pedido rodando, que não se apaga, trava a montagem do pai até ser fabricado. A fase
   continua a decidir.
+  *Nota (2026-09-25):* o usuário decidiu a **fase**: o descarte em Pedido rodando é da **Fase 5**,
+  junto da perda e do `Descarte` da sobra (regra 30) — a quantidade descartada precisa de um destino
+  no livro, e `Perdido` só nasce lá. Tem de existir antes do primeiro uso real. **Como** o descarte
+  fecha a regra 13 (bucket próprio ou `Perda` com motivo `Descarte`) continua a decidir, na spec da
+  Fase 5.
 
 > **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
 > produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro

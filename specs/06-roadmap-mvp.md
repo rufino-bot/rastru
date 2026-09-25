@@ -287,6 +287,11 @@ resolvidos (ou conscientemente adiados).
 - O nó **pronto** do Retrabalho (regra 27) nasce aguardando coleta pelo tipo de movimento `Pronto`;
   `Expedido` e `Perdido` entram como posições do livro de movimentações; o `Descarte` da sobra é
   registrado pelo ator da perda (regra 30).
+- **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): parar de
+  produzir o que saiu do projeto do cliente, pelo mesmo ator e pelo mesmo destino do `Descarte` da
+  sobra. Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do `01`, e
+  o filho acrescentado por engano que trava a montagem do pai (spec da Fase 3, seção 11).
+  **Obrigatório antes do primeiro uso real.**
 - Perda que impede montar (regra 27): a perda sobe até a Peça do topo, as partes não montadas daquela
   unidade saem junto, e, no Pedido de Retrabalho que o PCP cadastra para repor, o que já existe é
   marcado **pronto**. A decidir na spec desta fase: as perguntas que a seção 9 da spec
