@@ -49,8 +49,11 @@ public class ExecucaoRepository : IExecucaoRepository
   /// Uma linha por comando, em ordem crescente de Id: a ordem fixa de aquisicao e o que torna deadlock
   /// raro em vez de rotineiro (spec secao 8.1). Um `WHERE Id IN (...)` so deixaria a ordem por conta do
   /// plano de execucao. `UPDLOCK` deixa leitores passarem e faz o segundo escritor esperar; e o
-  /// `UPDLOCK` combinado com a transacao (nao o `HOLDLOCK` sozinho) que segura a trava ate o commit —
-  /// `HOLDLOCK` so evita que o SELECT solte a trava de leitura no fim do proprio comando.
+  /// `UPDLOCK` combinado com a transacao (nao o `HOLDLOCK` sozinho) que segura a trava ate o commit.
+  /// Sob a transacao Serializable de <see cref="EmTransacaoAsync{T}"/>, `HOLDLOCK` e redundante: nao
+  /// muda quanto a trava dura. Fica como defesa caso o metodo seja chamado numa transacao de
+  /// isolamento menor, dando a leitura semantica serializable (range lock, inclusive para Id
+  /// inexistente).
   /// </summary>
   public async Task<IReadOnlyList<EstruturaItem>> TravarNosAsync(IEnumerable<int> ids, CancellationToken ct)
   {
