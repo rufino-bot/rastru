@@ -22,3 +22,14 @@ public sealed record InicioDto(int SetorId, decimal Quantidade);
 public sealed record TerminoDto(int SetorId, int Ordem, decimal Quantidade);
 
 public sealed record MontagemNovaDto(int SetorId, decimal Quantidade);
+
+/// <summary>
+/// `Posicao`: `AguardandoColeta` (com `SetorId` e `Ordem`) ou `AguardandoMontagem` (com `SetorId`, sem
+/// `Ordem`). Tudo anulavel de proposito: um corpo incompleto vira 400 `OrigemInvalida` com frase, e nao
+/// um erro de binding sem codigo.
+/// </summary>
+public sealed record OrigemDaEntregaDto(string? Posicao, int? SetorId, int? Ordem);
+
+public sealed record ItemDaEntregaDto(int EstruturaItemId, OrigemDaEntregaDto? Origem, int? DestinoSetorId, decimal Quantidade);
+
+public sealed record EntregaDto(IReadOnlyList<ItemDaEntregaDto>? Itens);

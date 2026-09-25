@@ -68,4 +68,6 @@ internal sealed class CenarioDeExecucao
       });
 
   public ApontamentoUseCase Apontamento() => new(Execucao, Estruturas, Setores, Catalogo);
+
+  public EntregaUseCase Entrega() => new(Execucao, Estruturas, Catalogo);
 }
