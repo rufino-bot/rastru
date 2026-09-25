@@ -128,6 +128,9 @@ builder.Services.AddScoped<ReceitaPadraoUseCase>();
 
 // Estrutura real (Fase 2): a arvore EstruturaItem, copiada da receita padrao do catalogo.
 builder.Services.AddScoped<IEstruturaRepository, EstruturaRepository>();
+
+// Execucao (Fase 3): o livro de movimentacoes e o que as escritas precisam em volta dele.
+builder.Services.AddScoped<IExecucaoRepository, ExecucaoRepository>();
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

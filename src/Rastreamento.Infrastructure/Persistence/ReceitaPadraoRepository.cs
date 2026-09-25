@@ -1,6 +1,5 @@
 using System.Data;
 using System.Linq.Expressions;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -157,11 +156,5 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
   /// <c>InvalidOperationException</c> de "transient failure" quando reconhece o erro como
   /// transitorio — medido, e foi o que reprovou a primeira versao desta guarda.
   /// </summary>
-  private static bool EhConflitoDeConcorrencia(Exception e)
-  {
-    for (Exception? atual = e; atual is not null; atual = atual.InnerException)
-      if (atual is SqlException sql && sql.Number is 1205 or 1222) return true;
-
-    return false;
-  }
+  private static bool EhConflitoDeConcorrencia(Exception e) => ErrosDoSqlServer.EhConflitoDeConcorrencia(e);
 }
