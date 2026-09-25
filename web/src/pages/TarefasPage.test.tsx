@@ -227,6 +227,69 @@ describe('TarefasPage', () => {
     expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
   })
 
+  // Contraparte do '403 mostra a mensagem e não recarrega' de FilaDoSetorPage.test.tsx: aqui
+  // recarregar SÓ no 409 (spec §8.3) é o que faz `getsDasTarefas()` ficar em 1 — mudar o `if
+  // (ehConflito(e))` para incondicional deixaria este teste vermelho (achado Important #1 da
+  // review da Task 6).
+  it('403 mostra a mensagem e não recarrega', async () => {
+    const { fetchMock, getsDasTarefas } = montarFetch([TAREFAS], () => respostaJson(
+      { erro: 'Proibido', mensagem: 'Só o Movimentador pode registrar entregas.' }, 403))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 1 item' }))
+
+    expect(await screen.findByText('Só o Movimentador pode registrar entregas.')).toBeTruthy()
+    expect(getsDasTarefas()).toBe(1)
+    // A seleção continua intacta: nem recarregou, nem limpou.
+    expect(screen.getByLabelText('Levar SUP-01 — Suporte')).toHaveProperty('checked', true)
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+  })
+
+  it('item marcado que fica sem Roteiro no meio do caminho pode ser desmarcado', async () => {
+    // Achado Important #2 da review da Task 6: o Movimentador marca o Parafuso; o PCP tira o
+    // Roteiro do pai (Chassi) antes da próxima atualização periódica; a tarefa continua vindo,
+    // agora com `paiSemRoteiro: true`, sem sair da lista (ela continua pronta — só o destino
+    // ficou inválido).
+    vi.useFakeTimers()
+    let gets = 0
+    const fetchMock = vi.fn((url: string | URL) => {
+      if (String(url) !== '/api/tarefas') return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      gets += 1
+      const semRoteiro = gets > 1
+      const destinoParafuso = semRoteiro
+        ? { ...DESTINO_MONTAGEM, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: true }
+        : DESTINO_MONTAGEM
+      return Promise.resolve(respostaJson([{
+        setorId: 4, setorNome: 'Solda',
+        itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: destinoParafuso }],
+      }]))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByLabelText('Levar Parafuso'))
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    const checkbox = screen.getByLabelText('Levar Parafuso')
+    expect(checkbox).toHaveProperty('checked', true)
+    // Continua marcável de desmarcar: travar só quem ainda NÃO marcou (`travaOMarcar`), não
+    // quem já marcou e ficou bloqueado depois.
+    expect(checkbox).toHaveProperty('disabled', false)
+    // A mesma frase aparece duas vezes: no aviso sempre visível do item, e na dica do painel —
+    // é esta segunda ocorrência que prova que `erroDaEscolha` passou a considerar `paiSemRoteiro`.
+    expect(screen.getAllByText('Peça ao PCP o Roteiro do pai antes de levar.')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toHaveProperty('disabled', true)
+
+    fireEvent.click(checkbox)
+
+    expect(screen.getAllByText('Peça ao PCP o Roteiro do pai antes de levar.')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Entregar' })).toHaveProperty('disabled', true)
+  })
+
   it('a atualização periódica preserva a seleção e o que foi digitado', async () => {
     vi.useFakeTimers()
     vi.stubGlobal('fetch', montarFetch([TAREFAS]).fetchMock)

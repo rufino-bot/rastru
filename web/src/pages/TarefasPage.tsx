@@ -28,8 +28,21 @@ const chaveDoItem = (setorId: number, item: ItemDeTarefa) => `${item.no.id}:${se
 
 const SAIU_DA_LISTA = 'Um item que você tinha marcado não está mais pronto: outra pessoa o moveu. Confira a seleção.'
 
-/** Recusa local de um item marcado — o mesmo que o backend recusaria, antes da rede. */
+const SEM_ROTEIRO_NO_PAI = 'Peça ao PCP o Roteiro do pai antes de levar.'
+
+/**
+ * Recusa local de um item marcado — o mesmo que o backend recusaria, antes da rede.
+ *
+ * `paiSemRoteiro` entra AQUI, e não só no aviso sob o item (achado Important #2 da review da
+ * Task 6): um item pode ficar marcado e só DEPOIS perder o Roteiro do pai — a atualização
+ * periódica devolve o mesmo item, agora bloqueado, sem tirá-lo da seleção (ele continua pronto,
+ * só o destino ficou inválido). Sem esta linha, `algumInvalido` não via o bloqueio, Entregar
+ * continuava liberado, e a entrega ia para o servidor só para voltar em 409 — sem o usuário
+ * conseguir desmarcar, porque o checkbox também estava desabilitado (ver `bloqueado &&
+ * escolha === undefined` em `GrupoDeTarefas`).
+ */
 function erroDaEscolha(item: ItemDeTarefa, escolha: Escolha): string | null {
+  if (item.destino.paiSemRoteiro) return SEM_ROTEIRO_NO_PAI
   const leitura = lerQuantidade(escolha.quantidade, item.quantidade)
   if (leitura.erro) return leitura.erro
   if (item.destino.tipo === 'Montagem' && escolha.destinoSetorId === null) return 'Escolha o Setor de montagem.'
@@ -171,6 +184,11 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
           // Pai sem Roteiro: a entrega seria recusada (`PaiSemRoteiro`); o item aparece para o
           // Movimentador saber que existe (desvio D7 do plano 2), mas não se marca.
           const bloqueado = item.destino.paiSemRoteiro
+          // Só trava o checkbox de quem ainda NÃO marcou. Um item já marcado que fica sem
+          // Roteiro no meio do caminho (achado Important #2 da review da Task 6) continua
+          // desmarcável — travá-lo junto prenderia a seleção sem saída, porque `erroDaEscolha`
+          // (acima) já barra o Entregar enquanto ele estiver marcado.
+          const travaOMarcar = bloqueado && escolha === undefined
           return (
             <ItemComAcao
               key={chave}
@@ -179,7 +197,7 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
                   <input
                     type="checkbox"
                     checked={escolha !== undefined}
-                    disabled={bloqueado}
+                    disabled={travaOMarcar}
                     onChange={(e) => aoAlternar(chave, item, e.target.checked)}
                     aria-label={`Levar ${rotuloDoNo(item.no)}`}
                     className="size-5 accent-acao"
@@ -194,7 +212,7 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
               <span className="text-sm text-tinta">{`${formatarQuantidade(item.quantidade)} pronto(s) · passo ${item.ordem}`}</span>
               <span className="text-sm text-tinta">{`Destino: ${descreverDestino(item.destino, item.no)}`}</span>
               {bloqueado && (
-                <span className="text-xs text-tinta-fraca">Peça ao PCP o Roteiro do pai antes de levar.</span>
+                <span className="text-xs text-tinta-fraca">{SEM_ROTEIRO_NO_PAI}</span>
               )}
             </ItemComAcao>
           )
