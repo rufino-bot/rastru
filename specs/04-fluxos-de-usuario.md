@@ -20,23 +20,28 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 ## 2. Apontamento em Setor
 
-*Perfil: Operador*
+*Perfis: Operador, Movimentador e PCP*
 
-> **Nota (2026-09-15).** Este fluxo é anterior à regra 22 de `01-dominio-e-regras-de-negocio.md`:
-> terminar e mover passaram a ser ações separadas — na fábrica, de pessoas diferentes: o operador
-> registra que terminou, a quantidade aguarda coleta, e o **Movimentador** registra a entrada no
-> próximo destino. Em Agrupamento Kit valem ainda a trava de montagem e o conjunto completo (regras
-> 24 e 25). O passo a passo desta seção fica como está até a spec da Fase 3 (e da 3B) revê-lo.
+> **Reescrito em 2026-09-24** pela spec da Fase 3
+> (`docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`), que decidiu o que a
+> nota de 2026-09-15 deixava em aberto. Em Agrupamento Kit, a trava de montagem e o conjunto
+> completo (regras 24 e 25) entram na Fase 3B.
 
-1. Operador do setor abre a tela do seu Setor e vê os itens aguardando entrada.
-2. Ao iniciar o trabalho em um `EstruturaItem`, registra entrada
-   (`EstruturaSetorHistorico.DataEntrada`).
-3. Ao concluir, registra saída (`DataSaida`) de uma quantidade; o sistema permite que a
-   Peça tenha quantidades em setores diferentes ao mesmo tempo (lote divisível). O que se
-   valida é a conservação de quantidade (nunca movimentar mais do que existe naquele ponto).
-4. Sistema direciona o item para o próximo Setor do roteiro (`EstruturaRoteiro`), ou
-   marca como pronto para virar parte da Peça-pai / seguir para Expedição, se for o
-   último passo.
+1. **PCP** confere que todo nó tem Roteiro; nó sem Roteiro aparece como pendência na árvore, e o PCP
+   o edita (regra 28).
+2. **Operador** abre a fila do seu Setor e vê o que está a iniciar ali, em trabalho, aguardando
+   coleta, aguardando montagem e a sobra.
+3. Ao pegar o material para trabalhar num nó cujo primeiro passo é ali, **inicia** uma quantidade
+   (regra 28). Ao terminar, **termina** a quantidade feita: ela passa a aguardar coleta. O lote é
+   divisível, e o que se valida é a conservação de quantidade (nunca movimentar mais do que existe
+   naquele ponto).
+4. **Movimentador** abre Tarefas, vê os Itens prontos com o destino de cada um e **entrega**: no
+   próximo passo; na montagem do pai, num Setor do Roteiro dele que escolhe; ou, se for Peça no fim
+   do Roteiro, no local de expedição (regra 29).
+5. **Operador** do Setor de montagem vê "dá para montar N; falta X de Y" e **monta** o que dá (regra
+   24).
+6. Registro errado se corrige por **estorno**, pelo autor ou pelo PCP, enquanto a quantidade não
+   tiver andado.
 
 ## 3. Separação de Material
 
@@ -107,8 +112,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 *Perfil: Gestão*
 
-1. Tempo médio de liberação por Setor (`EstruturaSetorHistorico`, `DataSaida - DataEntrada`,
-   a partir da chegada — `DataInicioExecucao` fica disponível para refinar esse cálculo
-   separando fila de execução, quando/se for preenchido).
+1. Tempo médio de liberação por Setor (sobre o livro de movimentações, pareando entradas e saídas
+   de cada Setor por ordem de chegada — ver Fase 6 em `06-roadmap-mvp.md`).
 2. Tempo total, tempo em fila e tempo de produção por Pedido (ver query de exemplo em
    `02-modelo-de-dados.sql`).
