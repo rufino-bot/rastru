@@ -21,9 +21,14 @@ a 10.1. Os textos de `specs/01`, `04`, `05` e `06` já foram aplicados pelo plan
 (`docs/superpowers/plans/2026-09-24-fase-3-docs.md`, mesclado em `80e11a0`). Leia também, na raiz do
 ledger, `sdd/fase3-plano2-preparo.md` — os achados da leitura do código que este plano carrega.
 
-**Bancada:** este plano **não roda** no container de nuvem (sem `dotnet`, Docker sem resposta). Precisa
-de .NET 10 SDK, Docker com o SQL Server do `docker-compose.yml` e Node 22 (a Task 10 mexe em
-`web/src/auth/`). Branch nova a partir da `main` que já tenha este plano mesclado.
+**Bancada:** este plano precisa de .NET 10 SDK, Docker com o SQL Server do `docker-compose.yml` e Node 22
+(a Task 10 mexe em `web/src/auth/`). Roda na máquina do usuário ou numa **sessão de nuvem**. Na nuvem,
+antes da primeira task, rode `bash scripts/backend-na-nuvem`, que instala o SDK, sobe o `dockerd` e o
+SQL Server e cria o banco com schema e seed (ver o item 3 da seção "Sessão na nuvem" do `CLAUDE.md`).
+Medido em 2026-09-25, depois do script: `dotnet build -warnaserror` com 0 warnings e `dotnet test` com
+582 de 582, a linha de base deste plano. O Docker e o banco duram o que dura o container. Se ele
+reiniciar, rode o script de novo: ele é idempotente. Branch nova a partir da `main` que já tenha este
+plano mesclado.
 
 **Ordem de merge:** este plano mescla **antes** do plano 3 (front). A última task do plano 3 (gating por
 perfil) depende das chaves de `permissoes.ts` que a Task 10 daqui cria.
