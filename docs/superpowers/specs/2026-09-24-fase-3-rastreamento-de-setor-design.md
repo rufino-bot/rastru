@@ -917,11 +917,15 @@ por nó, com conjunto completo na entrada do Setor marcado como de montagem — 
 
 ## 11. Deixado para outras fases
 
-- **Sem fase — decisão do usuário pendente:** descartar (parar de produzir) Peça ou Item em Pedido
-  rodando. A spec da Fase 2 (§5.2) o empurrou para a Fase 3, e esta spec não o resolve: é a mesma
-  pergunta do ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do `01`. Até
-  ser decidido, um filho acrescentado por engano a um Pedido rodando não se apaga
-  (`PedidoNaoAberto`) e trava a montagem do pai (regra 24) até ser fabricado.
+- **5 — decidido pelo usuário em 2026-09-25:** descartar (parar de produzir) Peça ou Item em
+  Pedido rodando. A spec da Fase 2 (§5.2) o empurrou para a Fase 3, e esta spec não o resolve: é a
+  mesma pergunta do ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do `01`.
+  Vai para a Fase 5 porque a quantidade descartada precisa de um destino no livro, e o destino
+  (`Perdido`, com `Perda` e `Descarte`) só nasce lá; é a mesma ação do descarte da sobra (regra 30),
+  pelo mesmo ator. Até lá, um filho acrescentado por engano a um Pedido rodando não se apaga
+  (`PedidoNaoAberto`) e trava a montagem do pai (regra 24) até ser fabricado — custo aceito porque
+  não há deploy antes da Fase 5; **tem de existir antes do primeiro uso real**, senão a única saída
+  para o filho errado seria mexer no livro, que é só de inclusão.
 - **3B:** trocar o Tipo do Agrupamento ou a `UtilizaKit` com produção em andamento; filho que conclui a
   própria montagem na mesma Solda do pai; qual ação da regra 22 o limite pelo total montado trava; a
   entrada num Setor `UtilizaKit` que não é para a montagem do pai; como a perda do próprio nó entra nos
