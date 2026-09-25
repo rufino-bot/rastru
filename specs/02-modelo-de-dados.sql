@@ -35,7 +35,7 @@ CREATE TABLE dbo.Material (
 
 CREATE TABLE dbo.Perfil (
     Id      INT IDENTITY(1,1) NOT NULL,
-    Nome    NVARCHAR(30)      NOT NULL, -- Operador | Qualidade | PCP | Gestao | Administrador
+    Nome    NVARCHAR(30)      NOT NULL, -- Operador | Almoxarifado | Movimentador | PCP | Qualidade | Gestao | Administrador
     CONSTRAINT PK_Perfil PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Perfil_Nome UNIQUE (Nome)
 );
@@ -313,23 +313,92 @@ CREATE TABLE dbo.EstruturaRoteiro (
    EXECUÇÃO / RASTREAMENTO
    --------------------------------------------------------------------- */
 
-CREATE TABLE dbo.EstruturaSetorHistorico (
-    Id                  INT IDENTITY(1,1)  NOT NULL,
-    EstruturaItemId     INT                 NOT NULL,
-    SetorId             INT                 NOT NULL,
-    QuantidadeMovimentada DECIMAL(18,4)     NOT NULL,
-    DataEntrada         DATETIME2           NOT NULL,   -- chegada no setor (pode ficar em fila)
-    DataInicioExecucao  DATETIME2           NULL,       -- início real do trabalho (opcional, p/ KPI de fila x capacidade)
-    DataSaida           DATETIME2           NULL,       -- NULL = ainda está nesse setor (várias passagens abertas por item são permitidas: lote divisível)
-    CONSTRAINT PK_EstruturaSetorHistorico PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_EstruturaSetorHistorico_EstruturaItem
-        FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
-    CONSTRAINT FK_EstruturaSetorHistorico_Setor
-        FOREIGN KEY (SetorId) REFERENCES dbo.Setor (Id),
-    CONSTRAINT CK_EstruturaSetorHistorico_InicioAposEntrada
-        CHECK (DataInicioExecucao IS NULL OR DataInicioExecucao >= DataEntrada),
-    CONSTRAINT CK_EstruturaSetorHistorico_SaidaAposEntrada
-        CHECK (DataSaida IS NULL OR DataSaida >= DataEntrada)
+-- Registro de "montei N" de um nó com filhos (regra 24). O total montado do nó é a soma de
+-- Quantidade das montagens não estornadas. A baixa de CADA filho fica em dbo.Movimentacao
+-- (Tipo = 'Montagem', MontagemId = esta linha), com N × QuantidadePorPai gravado: editar a
+-- razão depois não reescreve o passado.
+CREATE TABLE dbo.Montagem (
+    Id                     INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId        INT                 NOT NULL, -- o pai montado (nó com filhos)
+    SetorId                INT                 NOT NULL, -- onde foi montado
+    Quantidade             DECIMAL(18,4)       NOT NULL, -- N unidades do pai
+    DataHora               DATETIME2           NOT NULL CONSTRAINT DF_Montagem_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId              INT                 NOT NULL,
+    EstornadaEm            DATETIME2           NULL,     -- NULL = vale; preenchida = estornada (spec da Fase 3, seção 4.5)
+    EstornadaPorUsuarioId  INT                 NULL,
+    CONSTRAINT PK_Montagem PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Montagem_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_Montagem_Setor FOREIGN KEY (SetorId) REFERENCES dbo.Setor (Id),
+    CONSTRAINT FK_Montagem_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT FK_Montagem_EstornadaPorUsuario FOREIGN KEY (EstornadaPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_Montagem_QuantidadePositiva CHECK (Quantidade > 0),
+    CONSTRAINT CK_Montagem_EstornoCompleto
+        CHECK ((EstornadaEm IS NULL AND EstornadaPorUsuarioId IS NULL)
+            OR (EstornadaEm IS NOT NULL AND EstornadaPorUsuarioId IS NOT NULL)),
+    CONSTRAINT CK_Montagem_EstornoAposMontagem CHECK (EstornadaEm IS NULL OR EstornadaEm >= DataHora)
+);
+
+-- Livro de movimentações: cada linha move Quantidade de um nó de uma posição para outra.
+-- SÓ INSERÇÃO: não se edita nem se apaga; correção é um Estorno (movimento inverso que aponta o
+-- original). Saldo de uma posição = Σ Quantidade onde ela é destino − Σ onde ela é origem;
+-- AIniciar = EstruturaItem.Quantidade − Σ onde ela é origem + Σ onde ela é destino (estorno).
+-- Conservação (regra 9) por construção: todo movimento tira de uma posição e põe em outra.
+CREATE TABLE dbo.Movimentacao (
+    Id               INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId  INT                 NOT NULL,
+    Tipo             NVARCHAR(20)        NOT NULL, -- Inicio | Termino | Entrega | Montagem | Estorno
+    Quantidade       DECIMAL(18,4)       NOT NULL,
+    OrigemPosicao    NVARCHAR(20)        NOT NULL,
+    OrigemSetorId    INT                 NULL,
+    OrigemOrdem      INT                 NULL,     -- passo do Roteiro do próprio nó
+    DestinoPosicao   NVARCHAR(20)        NOT NULL,
+    DestinoSetorId   INT                 NULL,
+    DestinoOrdem     INT                 NULL,
+    MontagemId       INT                 NULL,     -- baixa de filho (e o estorno dela)
+    EstornoDeId      INT                 NULL,     -- só no Estorno: o movimento que ele desfaz
+    DataHora         DATETIME2           NOT NULL CONSTRAINT DF_Movimentacao_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId        INT                 NOT NULL, -- autor
+    CONSTRAINT PK_Movimentacao PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Movimentacao_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_Movimentacao_OrigemSetor FOREIGN KEY (OrigemSetorId) REFERENCES dbo.Setor (Id),
+    CONSTRAINT FK_Movimentacao_DestinoSetor FOREIGN KEY (DestinoSetorId) REFERENCES dbo.Setor (Id),
+    CONSTRAINT FK_Movimentacao_Montagem FOREIGN KEY (MontagemId) REFERENCES dbo.Montagem (Id),
+    CONSTRAINT FK_Movimentacao_EstornoDe FOREIGN KEY (EstornoDeId) REFERENCES dbo.Movimentacao (Id),
+    CONSTRAINT FK_Movimentacao_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_Movimentacao_QuantidadePositiva CHECK (Quantidade > 0),
+    CONSTRAINT CK_Movimentacao_Tipo
+        CHECK (Tipo IN ('Inicio', 'Termino', 'Entrega', 'Montagem', 'Estorno')),
+    CONSTRAINT CK_Movimentacao_OrigemPosicao
+        CHECK (OrigemPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'NaExpedicao', 'Montado')),
+    CONSTRAINT CK_Movimentacao_DestinoPosicao
+        CHECK (DestinoPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'NaExpedicao', 'Montado')),
+    -- Setor e passo combinam com a posição (tabela da seção 3.1 da spec da Fase 3)
+    CONSTRAINT CK_Movimentacao_OrigemCoerente
+        CHECK ((OrigemPosicao IN ('AIniciar', 'NaExpedicao', 'Montado') AND OrigemSetorId IS NULL AND OrigemOrdem IS NULL)
+            OR (OrigemPosicao IN ('NoSetor', 'AguardandoColeta') AND OrigemSetorId IS NOT NULL AND OrigemOrdem IS NOT NULL)
+            OR (OrigemPosicao = 'AguardandoMontagem' AND OrigemSetorId IS NOT NULL AND OrigemOrdem IS NULL)),
+    CONSTRAINT CK_Movimentacao_DestinoCoerente
+        CHECK ((DestinoPosicao IN ('AIniciar', 'NaExpedicao', 'Montado') AND DestinoSetorId IS NULL AND DestinoOrdem IS NULL)
+            OR (DestinoPosicao IN ('NoSetor', 'AguardandoColeta') AND DestinoSetorId IS NOT NULL AND DestinoOrdem IS NOT NULL)
+            OR (DestinoPosicao = 'AguardandoMontagem' AND DestinoSetorId IS NOT NULL AND DestinoOrdem IS NULL)),
+    -- Cada tipo só faz as transições dele; o Estorno é o inverso de um dos outros
+    CONSTRAINT CK_Movimentacao_Transicao
+        CHECK ((Tipo = 'Inicio'   AND OrigemPosicao = 'AIniciar' AND DestinoPosicao = 'NoSetor')
+            OR (Tipo = 'Termino'  AND OrigemPosicao = 'NoSetor' AND DestinoPosicao = 'AguardandoColeta'
+                                  AND OrigemSetorId = DestinoSetorId AND OrigemOrdem = DestinoOrdem)
+            OR (Tipo = 'Entrega'  AND OrigemPosicao = 'AguardandoColeta'
+                                  AND DestinoPosicao IN ('NoSetor', 'AguardandoMontagem', 'NaExpedicao'))
+            OR (Tipo = 'Entrega'  AND OrigemPosicao = 'AguardandoMontagem'   -- redirecionamento
+                                  AND DestinoPosicao = 'AguardandoMontagem')
+            OR (Tipo = 'Montagem' AND OrigemPosicao = 'AguardandoMontagem' AND DestinoPosicao = 'Montado')
+            OR (Tipo = 'Estorno')),
+    CONSTRAINT CK_Movimentacao_MontagemSoNaBaixa
+        CHECK ((Tipo = 'Montagem' AND MontagemId IS NOT NULL)
+            OR (Tipo = 'Estorno')
+            OR (Tipo NOT IN ('Montagem', 'Estorno') AND MontagemId IS NULL)),
+    CONSTRAINT CK_Movimentacao_EstornoApontaOriginal
+        CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
+            OR (Tipo <> 'Estorno' AND EstornoDeId IS NULL))
 );
 GO
 
@@ -404,7 +473,8 @@ CREATE TABLE dbo.RelatorioDimensionalAvaliacao (
 GO
 
 -- Baixa de quantidade perdida em produção (some no armazém ou morre após processo).
--- Bucket terminal: em setores + expedido + perdido = total da Peça.
+-- Bucket terminal. Regra 9, para todo nó (Peça ou Item): a iniciar + nos Setores + aguardando
+-- coleta ou montagem + no local de expedição + montado dentro do pai + expedido + perdido = total do nó.
 -- Reposição = Pedido de Retrabalho separado (MotivoRetrabalho='Perda'), manual/opcional.
 CREATE TABLE dbo.Perda (
     Id                 INT IDENTITY(1,1)  NOT NULL,
@@ -431,8 +501,12 @@ GO
 
 CREATE INDEX IX_EstruturaItem_Agrupamento ON dbo.EstruturaItem (AgrupamentoId);
 CREATE INDEX IX_EstruturaItem_Pai ON dbo.EstruturaItem (EstruturaPaiId);
-CREATE INDEX IX_EstruturaSetorHistorico_Item ON dbo.EstruturaSetorHistorico (EstruturaItemId, DataEntrada);
-CREATE INDEX IX_EstruturaSetorHistorico_Setor ON dbo.EstruturaSetorHistorico (SetorId, DataEntrada);
+CREATE INDEX IX_Movimentacao_EstruturaItem ON dbo.Movimentacao (EstruturaItemId);
+CREATE INDEX IX_Movimentacao_DestinoSetor ON dbo.Movimentacao (DestinoSetorId) WHERE DestinoSetorId IS NOT NULL;
+CREATE INDEX IX_Movimentacao_OrigemSetor ON dbo.Movimentacao (OrigemSetorId) WHERE OrigemSetorId IS NOT NULL;
+-- Um movimento se estorna uma vez só: JaEstornado garantido pelo banco, não só pela aplicação.
+CREATE UNIQUE INDEX UX_Movimentacao_EstornoDe ON dbo.Movimentacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
+CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
 CREATE INDEX IX_Expedicao_EstruturaItem ON dbo.Expedicao (EstruturaItemId);
 CREATE INDEX IX_RDA_Relatorio ON dbo.RelatorioDimensionalAvaliacao (RelatorioDimensionalId);
@@ -443,27 +517,9 @@ GO
    EXEMPLOS DE CONSULTA (KPIs)
    ===================================================================== */
 
--- Tempo de liberação por setor (tempo médio que cada setor leva)
--- SELECT SetorId, AVG(DATEDIFF(MINUTE, DataEntrada, DataSaida)) AS MediaMinutos
--- FROM dbo.EstruturaSetorHistorico
--- WHERE DataSaida IS NOT NULL
--- GROUP BY SetorId;
-
--- Tempo total, tempo em fila e tempo de produção por pedido
--- SELECT
---     p.Id,
---     p.DataAbertura,
---     inicio_producao.InicioReal,
---     p.DataConclusao,
---     DATEDIFF(DAY, p.DataAbertura, inicio_producao.InicioReal)   AS DiasEmFila,
---     DATEDIFF(DAY, inicio_producao.InicioReal, p.DataConclusao) AS DiasProducao,
---     DATEDIFF(DAY, p.DataAbertura, p.DataConclusao)              AS DiasTotal
--- FROM dbo.Pedido p
--- CROSS APPLY (
---     SELECT MIN(esh.DataEntrada) AS InicioReal
---     FROM dbo.EstruturaSetorHistorico esh
---     JOIN dbo.EstruturaItem ei ON ei.Id = esh.EstruturaItemId
---     JOIN dbo.Agrupamento a ON a.Id = ei.AgrupamentoId
---     WHERE a.PedidoId = p.Id
--- ) inicio_producao
--- WHERE p.DataConclusao IS NOT NULL;
+-- As duas consultas de exemplo que viviam aqui liam dbo.EstruturaSetorHistorico, que saiu na
+-- Fase 3 (spec 2026-09-24-fase-3-rastreamento-de-setor-design.md, seção 2.7). Reescrever na Fase 6
+-- sobre dbo.Movimentacao, pareando entradas e saídas de cada Setor por ordem de chegada (FIFO):
+--   * tempo de liberação por setor: da chegada (destino NoSetor) à saída (origem AguardandoColeta);
+--   * tempo total, em fila e em produção por pedido: o início real é o MIN(DataHora) dos
+--     movimentos Inicio dos nós do Pedido (regra 14).

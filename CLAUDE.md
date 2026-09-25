@@ -707,9 +707,10 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
 **Fase 3 — `db/alter-fase-3.sql`.** Daqui em diante a migração de banco anterior vive num arquivo
 idempotente versionado, e não em linhas de `sqlcmd -Q` como os blocos acima: são tabelas inteiras com
 vários `CHECK`, e uma linha só com elas seria impossível de revisar. Ele leva um banco anterior à Fase 3
-até o `02-modelo-de-dados.sql` — hoje, a coluna `EstruturaItem.QuantidadePorPai`, com o preenchimento
-da seção 3.4 da spec da Fase 3. Rodar de novo não muda nada. `-b` aborta no primeiro erro, e `-f 65001`
-pelo mesmo motivo do `seed-demo.sql`:
+até o `02-modelo-de-dados.sql`: a coluna `EstruturaItem.QuantidadePorPai` (com o preenchimento da seção
+3.4 da spec da Fase 3), a saída de `dbo.EstruturaSetorHistorico`, o livro (`dbo.Montagem`,
+`dbo.Movimentacao` e os índices) e o perfil `Movimentador`. Rodar de novo não muda nada. `-b` aborta no
+primeiro erro, e `-f 65001` pelo mesmo motivo do `seed-demo.sql`:
 
 ```bash
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3.sql sqlserver:/tmp/alter-fase-3.sql

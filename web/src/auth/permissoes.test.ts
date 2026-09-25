@@ -24,7 +24,8 @@ describe('podeEscrever', () => {
   it('não deixa Operador, Almoxarifado, Qualidade nem Gestao escreverem em nada', () => {
     // `Gestao` sem acento: é o valor que está em `db/seed.sql`, e o perfil chega do backend como
     // claim. Escrever "Gestão" aqui faria a comparação falhar em silêncio.
-    // CONFERIDO no pré-flight de 2026-08-10: `db/seed.sql:3` traz os 6 perfis sem acento.
+    // CONFERIDO no pré-flight de 2026-08-10, remedido na Fase 3 (2026-09-25): o `MERGE` de perfis de
+    // `db/seed.sql` traz os 7 perfis sem acento — o Movimentador entrou na Fase 3.
     for (const p of ['Operador', 'Almoxarifado', 'Qualidade', 'Gestao']) {
       for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
