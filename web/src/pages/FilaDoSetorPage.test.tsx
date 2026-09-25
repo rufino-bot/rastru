@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, within, act } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { FilaDoSetorPage } from './FilaDoSetorPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
@@ -36,12 +36,20 @@ const FILA_CHEIA = fila({
   ],
 })
 
+// Lê o `state` da navegação, para o teste do "Trocar de Setor" provar que o link manda
+// `{ escolher: true }` — sem isto, a marca de rota era só um `<p>` fixo e não pegava a remoção
+// do `state={ESCOLHER}` de `TrocarDeSetor` (achado da review de Task 4).
+function MarcaDaEscolha() {
+  const { state } = useLocation()
+  return <p>{`escolha de setor — state: ${JSON.stringify(state)}`}</p>
+}
+
 function renderizar(caminho = '/fila/1') {
   return render(
     <MemoryRouter initialEntries={[caminho]}>
       <Routes>
         <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
-        <Route path="/fila" element={<p>escolha de setor</p>} />
+        <Route path="/fila" element={<MarcaDaEscolha />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -209,7 +217,10 @@ describe('FilaDoSetorPage — leitura', () => {
     await screen.findByRole('heading', { level: 1, name: 'Fila — Corte' })
     act(() => { screen.getByRole('link', { name: 'Trocar de Setor' }).click() })
 
-    expect(screen.getByText('escolha de setor')).toBeTruthy()
+    // Prova o `state`, não só a navegação: sem `state={ESCOLHER}` em `TrocarDeSetor`, `/fila`
+    // acharia o Setor lembrado (o 1, lembrado por esta mesma fila) e voltaria para a mesma fila,
+    // em vez de mostrar a escolha.
+    expect(screen.getByText('escolha de setor — state: {"escolher":true}')).toBeTruthy()
   })
 
   it('atualiza sozinha a cada 30 s', async () => {
