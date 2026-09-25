@@ -1,0 +1,71 @@
+using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Tests.Cadastros;
+using Rastreamento.Application.Tests.Estrutura;
+using Rastreamento.Domain.Entities;
+
+namespace Rastreamento.Application.Tests.Execucao;
+
+/// <summary>
+/// Uma fabrica em memoria para os casos de uso da Fase 3: um Pedido `Aberto` com um Agrupamento,
+/// cinco Setores (um inativo) e tres usuarios. Os nos se descrevem como "No {id}", o que deixa as
+/// mensagens conferiveis por texto. Cada task acrescenta aqui a fabrica do caso de uso que cria.
+/// </summary>
+internal sealed class CenarioDeExecucao
+{
+  public const int Corte = 1, Dobra = 2, Solda = 3, Pintura = 4, Inativo = 9;
+  public const int Operador = 10, Movimentador = 11, Pcp = 12;
+  public const int PedidoId = 1, AgrupamentoId = 1;
+
+  public FakeEstruturaRepo Estruturas { get; } = new();
+  public FakeExecucaoRepo Execucao { get; }
+  public FakeSetorRepo Setores { get; }
+  public FakeReceitaPadraoRepo Catalogo { get; } = new();
+
+  public CenarioDeExecucao()
+  {
+    Execucao = new FakeExecucaoRepo(Estruturas);
+    var setores = new[]
+    {
+      new Setor { Id = Corte, Nome = "Corte", Ativo = true },
+      new Setor { Id = Dobra, Nome = "Dobra", Ativo = true },
+      new Setor { Id = Solda, Nome = "Solda", Ativo = true },
+      new Setor { Id = Pintura, Nome = "Pintura", Ativo = true },
+      new Setor { Id = Inativo, Nome = "Serra antiga", Ativo = false },
+    };
+    Setores = new FakeSetorRepo(setores);
+    Catalogo.Setores.AddRange(setores);
+    Execucao.Agrupamentos[AgrupamentoId] = ("AG-01", PedidoId, "PED-01");
+    Execucao.StatusDoPedido[PedidoId] = "Aberto";
+    Execucao.Usuarios[Operador] = "Operador do Corte";
+    Execucao.Usuarios[Movimentador] = "Movimentador";
+    Execucao.Usuarios[Pcp] = "PCP";
+  }
+
+  /// <summary>Um no com Roteiro de um passo por Setor, `Ordem` 1, 2, 3... Sem Setor: sem Roteiro.</summary>
+  public int No(int id, int? pai, decimal quantidade, decimal? razao, params int[] setores)
+  {
+    Estruturas.Itens.Add(new EstruturaItem
+    {
+      Id = id, AgrupamentoId = AgrupamentoId, Descricao = $"No {id}", EstruturaPaiId = pai,
+      NivelHierarquico = pai is null ? "Peca" : "Item", Quantidade = quantidade, QuantidadePorPai = razao,
+    });
+    for (var i = 0; i < setores.Length; i++)
+      Estruturas.Roteiros.Add(new EstruturaRoteiro
+      {
+        Id = 100 * id + i + 1, EstruturaItemId = id, SetorId = setores[i], Ordem = i + 1,
+      });
+    return id;
+  }
+
+  /// <summary>Arranjo direto no livro, sem caso de uso.</summary>
+  public Movimentacao Mover(int item, string tipo, Local de, Local para, decimal quantidade, int usuario = Operador) =>
+      Execucao.Semear(new Movimentacao
+      {
+        EstruturaItemId = item, Tipo = tipo, Quantidade = quantidade,
+        OrigemPosicao = de.Posicao, OrigemSetorId = de.SetorId, OrigemOrdem = de.Ordem,
+        DestinoPosicao = para.Posicao, DestinoSetorId = para.SetorId, DestinoOrdem = para.Ordem,
+        DataHora = DateTime.UtcNow, UsuarioId = usuario,
+      });
+
+  public ApontamentoUseCase Apontamento() => new(Execucao, Estruturas, Setores, Catalogo);
+}

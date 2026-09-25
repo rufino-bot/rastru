@@ -12,6 +12,7 @@ using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
+using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
@@ -132,6 +133,7 @@ builder.Services.AddScoped<IEstruturaRepository, EstruturaRepository>();
 // Execucao (Fase 3): o livro de movimentacoes e o que as escritas precisam em volta dele.
 builder.Services.AddScoped<IExecucaoRepository, ExecucaoRepository>();
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
+builder.Services.AddScoped<ApontamentoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
