@@ -164,16 +164,50 @@ describe('HistoricoDoNo', () => {
     expect(aoEstornar).toHaveBeenCalledTimes(1)
   })
 
-  it('403 sem frase diz quem pode estornar', async () => {
-    vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [INICIO], montagens: [] }], {
+  it('403 sem frase diz quem pode estornar, e NÃO recarrega (só o 409 recarrega)', async () => {
+    const { fetchMock, getsDoLivro } = montarFetch([{ movimentacoes: [INICIO], montagens: [] }], {
       '/api/movimentacoes/41/estorno': () => respostaJson({ erro: 'Proibido' }, 403),
-    }).fetchMock)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { aoEstornar } = renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.')).toBeTruthy()
+    // Fix pass (review Important 2): recusa que NÃO é 409 não recarrega o livro nem avisa a tela —
+    // mutar `if (ehConflito(e))` para `if (true)` fazia os 12 testes deste arquivo passarem do mesmo
+    // jeito, porque nenhum media isto.
+    expect(getsDoLivro()).toBe(1)
+    expect(aoEstornar).not.toHaveBeenCalled()
+  })
+
+  it('toque duplo em "Estornar" manda um POST só', async () => {
+    // Fix pass (review Important 1): sem o `ref`/`estornando`, o diálogo fecha antes do POST
+    // responder e a linha continua com "Estornar" ativo — um segundo toque reabre a confirmação e
+    // manda um segundo POST enquanto o primeiro está em voo.
+    let resolver: (r: Response) => void = () => {}
+    const fetchMock = vi.fn((url: string | URL) => {
+      const caminho = String(url)
+      if (caminho === '/api/estrutura/7/movimentacoes') return Promise.resolve(respostaJson({ movimentacoes: [INICIO], montagens: [] }))
+      if (caminho === '/api/movimentacoes/41/estorno') return new Promise<Response>((r) => { resolver = r })
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
     fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
 
-    expect(await screen.findByText('Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.')).toBeTruthy()
+    // O pedido ainda está em voo: a linha não oferece mais "Estornar" para um segundo toque.
+    const botaoDaLinha = screen.queryByRole('button', { name: 'Estornar o registro nº 41' })!
+    expect(botaoDaLinha).toHaveProperty('disabled', true)
+    // O segundo toque (botão desabilitado) não abre uma segunda confirmação.
+    fireEvent.click(botaoDaLinha)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    resolver(respostaJson(movimentacao({ id: 46, tipo: 'Estorno' }), 201))
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/movimentacoes/41/estorno')).toHaveLength(1))
   })
 
   it('as montagens deste nó se estornam inteiras', async () => {

@@ -54,6 +54,13 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
   const [setorEscolhido, setSetorEscolhido] = useState<number | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erroAoSalvar, setErroAoSalvar] = useState<string | null>(null)
+  const [erroDosSetores, setErroDosSetores] = useState<string | null>(null)
+  // Fix pass (review Important 1): mesmo padrão de `FormularioDeQuantidade` — o `ref` fecha a janela
+  // que sobra entre dois toques no mesmo quadro, antes de o React redesenhar o botão desabilitado
+  // (spec §8.1). `salvando` sozinho já desabilita "Salvar roteiro" (via `carregando` do `Botao`), mas
+  // não "Remover"/"Adicionar passo" — o `ref` guarda a função inteira, os dois `disabled` abaixo
+  // guardam a interação.
+  const enviandoRef = useRef(false)
 
   // Recebe o id como argumento (molde de `PedidoDetalhePage`): o exhaustive-deps cobraria
   // `carregar` como dependência do efeito se o corpo fechasse sobre `noId`.
@@ -72,7 +79,9 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
   useEffect(() => {
     if (!podeEditar) return
     let cancelado = false
-    listarSetores(false).then((s) => { if (!cancelado) setSetores(s) }).catch(() => {})
+    listarSetores(false)
+      .then((s) => { if (!cancelado) setSetores(s) })
+      .catch((e) => { if (!cancelado) setErroDosSetores(mensagemDeErro(e, 'Não foi possível carregar os setores.')) })
     return () => { cancelado = true }
   }, [podeEditar])
 
@@ -91,7 +100,8 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
   }
 
   async function salvar() {
-    if (passos === null) return
+    if (passos === null || enviandoRef.current) return
+    enviandoRef.current = true
     setSalvando(true)
     setErroAoSalvar(null)
     try {
@@ -100,8 +110,16 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
       aoSalvar()
     } catch (e) {
       setErroAoSalvar(mensagemDeErro(e, 'Não foi possível salvar o roteiro.'))
-      if (ehConflito(e)) await carregar(noId)
+      if (ehConflito(e)) {
+        // 409 é escrita obsoleta (spec §8.3): não só o Roteiro recarrega — a árvore e as posições
+        // também ficaram velhas (o `PassoJaAlcancado` típico é outra pessoa ter andado com o nó
+        // enquanto a tela estava aberta), então o mesmo `aoSalvar` do caminho de sucesso dispara
+        // aqui também (Important 3 do fix pass: o irmão `HistoricoDoNo` já faz isso no estorno).
+        await carregar(noId)
+        aoSalvar()
+      }
     } finally {
+      enviandoRef.current = false
       setSalvando(false)
     }
   }
@@ -127,7 +145,12 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
                 {p.alcancado && <Pilula>alcançado</Pilula>}
               </span>
               {podeEditar && !p.alcancado && (
-                <Botao variante="secundario" aria-label={`Remover o passo ${i + 1} (${p.nome})`} onClick={() => remover(p.chave)}>
+                <Botao
+                  variante="secundario"
+                  aria-label={`Remover o passo ${i + 1} (${p.nome})`}
+                  onClick={() => remover(p.chave)}
+                  disabled={salvando}
+                >
                   Remover
                 </Botao>
               )}
@@ -151,10 +174,11 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
                 </select>
               )}
             </Campo>
-            <Botao variante="secundario" onClick={adicionar} disabled={setorEscolhido === null}>
+            <Botao variante="secundario" onClick={adicionar} disabled={setorEscolhido === null || salvando}>
               Adicionar passo
             </Botao>
           </div>
+          <BannerDeErro mensagem={erroDosSetores} />
           <BannerDeErro mensagem={erroAoSalvar} />
           <Botao
             onClick={salvar}

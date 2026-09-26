@@ -123,12 +123,13 @@ describe('EditorDeRoteiroDoNo', () => {
       .toBe('/api/setores?incluirInativos=false')
   })
 
-  it('409 mostra a frase do servidor e recarrega o roteiro', async () => {
+  it('409 mostra a frase do servidor e recarrega o roteiro, e a tela junto', async () => {
+    const aoSalvar = vi.fn()
     const { fetchMock, getsDoRoteiro } = montarFetch([ROTEIRO], () => respostaJson(
       { erro: 'PassoJaAlcancado', mensagem: 'O passo 2 (Dobra) já foi alcançado.' }, 409))
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<EditorDeRoteiroDoNo noId={7} podeEditar aoSalvar={vi.fn()} />)
+    render(<EditorDeRoteiroDoNo noId={7} podeEditar aoSalvar={aoSalvar} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Remover o passo 2 (Dobra)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Salvar roteiro' }))
 
@@ -136,6 +137,80 @@ describe('EditorDeRoteiroDoNo', () => {
     await waitFor(() => expect(getsDoRoteiro()).toBe(2))
     // Recarregado: o passo removido volta, porque o servidor não aceitou.
     await waitFor(() => expect(passos()).toHaveLength(3))
+    // Fix pass (review Important 3): 409 é escrita obsoleta (spec §8.3) — não só o Roteiro
+    // recarrega, a árvore e as posições da tela também, pelo MESMO `aoSalvar` do caminho de
+    // sucesso (o irmão `HistoricoDoNo` já chama `aoEstornar` no 409 dele).
+    expect(aoSalvar).toHaveBeenCalledTimes(1)
+  })
+
+  it('recusa que não é 409 mostra a frase, NÃO recarrega e mantém a edição', async () => {
+    // Fix pass (review Important 2): mutar `if (ehConflito(e))` para `if (true)` fazia os 8 testes
+    // originais passarem do mesmo jeito, porque nenhum media isto.
+    const aoSalvar = vi.fn()
+    const { fetchMock, getsDoRoteiro } = montarFetch([ROTEIRO], () => respostaJson(
+      { erro: 'RoteiroInvalido', mensagem: 'Setor inativo não pode entrar no Roteiro.' }, 400))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<EditorDeRoteiroDoNo noId={7} podeEditar aoSalvar={aoSalvar} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Remover o passo 2 (Dobra)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar roteiro' }))
+
+    expect(await screen.findByText('Setor inativo não pode entrar no Roteiro.')).toBeTruthy()
+    await waitFor(() => expect(getsDoRoteiro()).toBe(1))
+    // Não recarregado: a remoção continua na tela, ao contrário do 409 acima.
+    expect(textos()).toEqual(['1. Cortealcançado', '2. Solda'])
+    expect(aoSalvar).not.toHaveBeenCalled()
+  })
+
+  it('toque duplo em "Salvar roteiro" manda um PUT só', async () => {
+    // Fix pass (review Important 1): mesmo padrão de `toque duplo envia uma vez só`
+    // (`FormularioDeQuantidade.test.tsx`) — dois toques no botão persistente, sem esperar o
+    // primeiro responder.
+    let resolver: (r: Response) => void = () => {}
+    const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/setores') return Promise.resolve(respostaJson(SETORES))
+      if (caminho === '/api/estrutura/7/roteiro') {
+        if (init?.method === 'PUT') return new Promise<Response>((r) => { resolver = r })
+        return Promise.resolve(respostaJson(ROTEIRO))
+      }
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<EditorDeRoteiroDoNo noId={7} podeEditar aoSalvar={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Remover o passo 2 (Dobra)' }))
+    // Referência ao MESMO nó (React reaproveita o elemento ao redesenhar, não o recria) — assim a
+    // segunda checagem de `disabled` vale mesmo depois de o rótulo virar "Salvando…".
+    const salvar = screen.getByRole('button', { name: 'Salvar roteiro' })
+    fireEvent.click(salvar)
+    fireEvent.click(salvar)
+
+    expect(salvar).toHaveProperty('disabled', true)
+    // "Remover"/"Adicionar passo" também ficam presos enquanto salva — uma edição no meio do
+    // salvamento não é silenciosamente sobrescrita pela lista que o servidor devolver.
+    expect(screen.getByRole('button', { name: 'Remover o passo 2 (Solda)' })).toHaveProperty('disabled', true)
+    resolver(respostaJson(ROTEIRO))
+    await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'PUT')).toHaveLength(1))
+  })
+
+  it('falha ao carregar os Setores avisa o PCP, sem derrubar o roteiro', async () => {
+    // Fix pass (review Important 4): antes, `.catch(() => {})` engolia o erro — o PCP via um
+    // seletor vazio, sem explicação nenhuma.
+    const fetchMock = vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/setores') return Promise.resolve(respostaJson({}, 500))
+      if (caminho === '/api/estrutura/7/roteiro') return Promise.resolve(respostaJson(ROTEIRO))
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<EditorDeRoteiroDoNo noId={7} podeEditar aoSalvar={vi.fn()} />)
+    await screen.findByRole('list', { name: 'Passos do roteiro' })
+
+    // 500 sem corpo cai no ramo genérico de `mensagemDeErro` (`e.status >= 500`), que ganha do
+    // `fallback` desta tela — a mesma frase que `HistoricoDoNo` já usa para o mesmo status.
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
   it('sem Roteiro, o PCP lê o que fazer e quem não é PCP lê a quem pedir', async () => {

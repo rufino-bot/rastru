@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   obterLivroDoNo, estornarMovimentacao, estornarMontagem, ehConflito,
   type LivroDoNoDto, type MontagemDto, type MovimentacaoDto,
@@ -41,6 +41,14 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
   const [erroDeCarga, setErroDeCarga] = useState<string | null>(null)
   const [aConfirmar, setAConfirmar] = useState<Estornavel | null>(null)
   const [erroDoEstorno, setErroDoEstorno] = useState<string | null>(null)
+  // Fix pass (review Important 1): sem isto, o diálogo fecha antes do POST responder e a linha
+  // continua com "Estornar" ativo — um segundo toque reabre a confirmação e manda um segundo
+  // `POST /movimentacoes/:id/estorno` (o servidor recusa com `JaEstornado`, mas o operador lê como
+  // se o estorno tivesse falhado). Mesmo padrão de `FormularioDeQuantidade`: `enviandoRef` guarda a
+  // função inteira (o toque no mesmo quadro, antes do React redesenhar); `estornando` desabilita
+  // TODO "Estornar" — de movimentação e de montagem — enquanto o pedido está em voo (spec §8.1).
+  const [estornando, setEstornando] = useState(false)
+  const enviandoRef = useRef(false)
 
   async function carregar(id: number) {
     setErroDeCarga(null)
@@ -54,7 +62,9 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
   useEffect(() => { carregar(noId) }, [noId])
 
   async function confirmar() {
-    if (!aConfirmar) return
+    if (!aConfirmar || enviandoRef.current) return
+    enviandoRef.current = true
+    setEstornando(true)
     const alvo = aConfirmar
     setAConfirmar(null)
     setErroDoEstorno(null)
@@ -69,6 +79,9 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
         await carregar(noId)
         aoEstornar()
       }
+    } finally {
+      enviandoRef.current = false
+      setEstornando(false)
     }
   }
 
@@ -93,6 +106,7 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                     variante="secundario"
                     aria-label={`Estornar o registro nº ${m.id}`}
                     onClick={() => setAConfirmar({ tipo: 'movimentacao', registro: m })}
+                    disabled={estornando}
                   >
                     Estornar
                   </Botao>
@@ -125,6 +139,7 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                   variante="secundario"
                   aria-label={`Estornar a montagem nº ${mo.id}`}
                   onClick={() => setAConfirmar({ tipo: 'montagem', registro: mo })}
+                  disabled={estornando}
                 >
                   Estornar
                 </Botao>
