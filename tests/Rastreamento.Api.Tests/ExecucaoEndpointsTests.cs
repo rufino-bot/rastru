@@ -17,9 +17,9 @@ namespace Rastreamento.Api.Tests;
 /// action: Ids inexistentes de proposito, sem tocar o banco. O comportamento de cada rota esta em
 /// `ExecucaoEndpointsTests.Comportamento` (Task 11) — com UMA exceção, o `[Fact]`
 /// `Movimentador_que_nao_e_autor_da_montagem_recebe_403_Proibido`: o 403 do CASO DE USO (`Proibido`,
-/// estorno alheio) precisa de pelo menos uma prova NO NIVEL HTTP nesta task (ruling do controlador
-/// sobre a review da Task 7), porque `ExecucaoControllerBase.Recusar` mapear `TipoDeErro.Proibido`
-/// certo é comportamento do CONTROLLER, não só do caso de uso, e a Task 11 não é obrigada a cobrir
+/// estorno alheio) precisa de pelo menos uma prova NO NIVEL HTTP nesta task, porque
+/// `ExecucaoControllerBase.Recusar` mapear `TipoDeErro.Proibido` certo é comportamento do
+/// CONTROLLER, não só do caso de uso, e a Task 11 não é obrigada a cobrir
 /// 403 especificamente. Esse `[Fact]`, diferente dos `[Theory]` desta classe, cria estado real no
 /// banco (Setor, Pedido, Agrupamento, Componente, Peça, Montagem, dois usuários).
 /// </summary>
@@ -85,8 +85,8 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   }
 
   /// <summary>
-  /// Ruling do controlador sobre a review da Task 7: `ExecucaoControllerBase.Recusar` mapeia
-  /// `TipoDeErro.Proibido` para 403 com corpo `{ erro: "Proibido" }` — e nenhum teste desta task
+  /// `ExecucaoControllerBase.Recusar` mapeia `TipoDeErro.Proibido` para 403 com corpo
+  /// `{ erro: "Proibido" }` — e nenhum teste desta task
   /// provava isso NO NIVEL HTTP sem este caso (a Task 11, dona do comportamento das rotas, nao e
   /// obrigada a cobrir especificamente o 403 do caso de uso). Prova o MAPEAMENTO do controller, nao
   /// o fluxo de negocio inteiro (isso e da Task 11): a `Montagem` nasce por insercao direta no banco

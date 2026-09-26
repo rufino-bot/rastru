@@ -129,15 +129,15 @@ BEGIN
 END;
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Movimentacao_EstruturaItem')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Movimentacao_EstruturaItem' AND object_id = OBJECT_ID('dbo.Movimentacao'))
     CREATE INDEX IX_Movimentacao_EstruturaItem ON dbo.Movimentacao (EstruturaItemId);
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Movimentacao_DestinoSetor')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Movimentacao_DestinoSetor' AND object_id = OBJECT_ID('dbo.Movimentacao'))
     CREATE INDEX IX_Movimentacao_DestinoSetor ON dbo.Movimentacao (DestinoSetorId) WHERE DestinoSetorId IS NOT NULL;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Movimentacao_OrigemSetor')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Movimentacao_OrigemSetor' AND object_id = OBJECT_ID('dbo.Movimentacao'))
     CREATE INDEX IX_Movimentacao_OrigemSetor ON dbo.Movimentacao (OrigemSetorId) WHERE OrigemSetorId IS NOT NULL;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Movimentacao_EstornoDe')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Movimentacao_EstornoDe' AND object_id = OBJECT_ID('dbo.Movimentacao'))
     CREATE UNIQUE INDEX UX_Movimentacao_EstornoDe ON dbo.Movimentacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Montagem_EstruturaItem')
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Montagem_EstruturaItem' AND object_id = OBJECT_ID('dbo.Montagem'))
     CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 GO
 

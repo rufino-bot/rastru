@@ -42,8 +42,8 @@ public class ExecucaoRepository : IExecucaoRepository
   /// tentativas diferente do de producao (`InternalsVisibleTo` para `Rastreamento.Infrastructure.Tests`,
   /// em `AssemblyInfo.cs`). Nunca visivel ao DI: o container so enumera construtores PUBLICOS
   /// (`Type.GetConstructors()` sem `BindingFlags.NonPublic`), entao `AddScoped&lt;IExecucaoRepository,
-  /// ExecucaoRepository&gt;()` sempre resolve o construtor de dois parametros acima, com
-  /// <see cref="TentativasMaximasPadrao"/> — nunca este. Existe para
+  /// ExecucaoRepository&gt;()` sempre resolve o construtor publico de dois parametros (`db`, `logger`),
+  /// com <see cref="TentativasMaximasPadrao"/> — nunca este. Existe para
   /// `CorridaDeIniciarNoMesmoPedidoTests` e `RetryDeDeadlockEmTransacaoAsyncTests` provarem o retry
   /// (ou a ausencia dele) sem esperar um deadlock de verdade sobreviver a `TentativasMaximasPadrao`
   /// tentativas, e sem tocar o valor de producao.

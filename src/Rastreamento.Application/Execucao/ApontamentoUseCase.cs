@@ -51,7 +51,7 @@ public sealed class ApontamentoUseCase
             $"{nome} não tem Roteiro: o PCP precisa definir os passos antes da primeira entrada.");
       if (primeiro.SetorId != dto.SetorId)
         return Falhas.Conflito<MovimentacaoDto>(CodigosDaExecucao.NaoEhOPrimeiroPasso,
-            $"O primeiro passo de {nome} não é no {setor.Nome}.");
+            $"O primeiro passo de {nome} não é no Setor {setor.Nome}.");
 
       var disponivel = estado.Calc.Saldo(noId, Local.AIniciar);
       if (dto.Quantidade > disponivel)
@@ -86,7 +86,7 @@ public sealed class ApontamentoUseCase
       var disponivel = estado.Calc.Saldo(noId, origem);
       if (dto.Quantidade > disponivel)
         return Falhas.Conflito<MovimentacaoDto>(CodigosDaExecucao.SaldoInsuficiente,
-            $"Só há {Quantidades.Formatar(disponivel)} de {estado.Nome(noId)} no {setor.Nome} (passo {dto.Ordem}).");
+            $"Só há {Quantidades.Formatar(disponivel)} de {estado.Nome(noId)} no Setor {setor.Nome} (passo {dto.Ordem}).");
 
       var movimento = NovoMovimento.De(noId, TiposDeMovimentacao.Termino, dto.Quantidade,
           origem, Local.AguardandoColeta(dto.SetorId, dto.Ordem), usuarioId);
@@ -129,7 +129,7 @@ public sealed class ApontamentoUseCase
         if (!Quantidades.CabeNaColuna(necessario))
           return Falhas.Validacao<MontagemDto>(CodigosDaExecucao.QuantidadeInvalida,
               $"{Quantidades.Formatar(dto.Quantidade)} × {Quantidades.Formatar(filho.QuantidadePorPai ?? 0m)} de "
-              + $"{estado.Nome(filho.Id)} dá {necessario}, que não cabe em quatro casas decimais.");
+              + $"{estado.Nome(filho.Id)} dá {Quantidades.FormatarExato(necessario)}, que não cabe em quatro casas decimais.");
         var presente = estado.Calc.AguardandoMontagem(filho.Id, dto.SetorId);
         if (necessario > presente)
           insuficientes.Add($"{estado.Nome(filho.Id)}: {Quantidades.Formatar(presente)} aqui, "

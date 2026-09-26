@@ -20,4 +20,11 @@ public static class Quantidades
 
   /// <summary>Para a frase do operador: "2,5", "6", sem zeros a direita.</summary>
   public static string Formatar(decimal quantidade) => quantidade.ToString("0.####", PtBr);
+
+  /// <summary>
+  /// Como <see cref="Formatar"/>, mas SEM arredondar para quatro casas: usada na mensagem de N x
+  /// razao de `ApontamentoUseCase.Montar`, onde o ponto e mostrar a quinta casa que faz o valor nao
+  /// caber na coluna — arredondar aqui esconderia exatamente o defeito que a mensagem denuncia.
+  /// </summary>
+  public static string FormatarExato(decimal quantidade) => quantidade.ToString(PtBr);
 }

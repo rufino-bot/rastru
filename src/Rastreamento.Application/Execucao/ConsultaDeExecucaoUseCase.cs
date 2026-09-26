@@ -119,7 +119,10 @@ public sealed class ConsultaDeExecucaoUseCase
         .ToList());
   }
 
-  /// <summary>A mesma conta de `Tarefas` (spec secao 7.7), sem montar os DTOs. Ver C1 (nota do controlador).</summary>
+  /// <summary>
+  /// A mesma conta de `Tarefas` (spec secao 7.7), sem montar os DTOs — ver `CarregarEmProducaoAsync`
+  /// para o motivo de nao repetir a carga do estado.
+  /// </summary>
   public Task<Result<ContagemDeTarefasDto>> ContagemDeTarefas(CancellationToken ct) =>
       _execucao.ConsultarAsync(async () =>
       {
@@ -164,9 +167,9 @@ public sealed class ConsultaDeExecucaoUseCase
 
   /// <summary>
   /// Os nos de todo Pedido em producao, a calculadora sobre eles e o `NoResumoDto` de cada um. Unica
-  /// carga do estado em producao — `Fila`, `Tarefas` e `ContagemDeTarefas` passam por aqui (C1 da nota
-  /// do controlador: nao repetir as duas linhas de carga entre `ContagemDeTarefas` e as demais).
-  /// `ContagemDeTarefas` descarta os resumos, que ela nao precisa.
+  /// carga do estado em producao — `Fila`, `Tarefas` e `ContagemDeTarefas` passam por aqui, para nao
+  /// repetir as duas linhas de carga entre elas. `ContagemDeTarefas` descarta os resumos, que ela nao
+  /// precisa.
   /// </summary>
   private async Task<(EstadoDeExecucao Estado, IReadOnlyDictionary<int, NoResumoDto> Resumos)> CarregarEmProducaoAsync(
       CancellationToken ct)

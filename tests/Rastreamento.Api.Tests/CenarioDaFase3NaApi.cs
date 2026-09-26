@@ -41,7 +41,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
   private CenarioDaFase3NaApi(WebApplicationFactory<Program> factory) => _factory = factory;
 
   /// <summary>
-  /// Ruling R11 do controlador: o arranjo inteiro corre num try/catch que descarta o cenario (o que
+  /// O arranjo inteiro corre num try/catch que descarta o cenario (o que
   /// ja foi criado at aquele ponto) antes de relancar. Sem isso, uma falha no meio — por exemplo um
   /// `Garantir` que estoura porque o Roteiro recusou um Setor — deixaria usuarios, Setores, Componente
   /// e Pedido como lixo no banco compartilhado, sem nenhum `[Fact]` para limpar depois (o `await using`
@@ -67,7 +67,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
         var setores = new[] { "Corte", "Dobra", "Solda", "Pintura" }
             .Select(n => new Setor { Nome = $"f3-{rotulo}-{n}", Ativo = true }).ToArray();
         db.Setores.AddRange(setores);
-        // C7: o autor do arquivo e um usuario do PROPRIO cenario (c.Pcp), nao o admin do seed
+        // O autor do arquivo e um usuario do PROPRIO cenario (c.Pcp), nao o admin do seed
         // (CriadoPorUsuarioId = 1) — spec 9.3, "sem depender do seed".
         var arquivo = new ArquivoDeComponente
         {
@@ -75,7 +75,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
         };
         db.ArquivosDeComponente.Add(arquivo);
         await db.SaveChangesAsync();
-        // Atribuir AQUI, logo depois do PRIMEIRO SaveChanges (fix pass, ruling do controlador): se o
+        // Atribuir AQUI, logo depois do PRIMEIRO SaveChanges: se o
         // Componente a seguir falhar, DisposeAsync ainda sabe apagar os Setores e o
         // ArquivoDeComponente que JA foram gravados — antes, os quatro campos so eram atribuidos
         // juntos DEPOIS do segundo SaveChanges, e uma falha no meio vazava as duas linhas.
@@ -110,7 +110,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
     }
     catch (Exception original)
     {
-      // Fix pass (ruling do controlador): um DisposeAsync que FALHA aqui nao pode substituir a
+      // Um DisposeAsync que FALHA aqui nao pode substituir a
       // excecao original — quem le a falha do teste precisa ver o defeito do ARRANJO, nao um erro
       // de limpeza por cima dele. `throw;` (bare, no fim do catch) relanca a original com o stack
       // trace intacto; o erro de dispose, se houver, fica anexado a ela em vez de escondida.
@@ -165,9 +165,9 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
     {
       var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
       var ag = AgrupamentoId;
-      // Ruling "Ledger cleanup by tree" (Task 10): `UsuarioDeTeste.DisposeAsync` so apaga o proprio
-      // usuario e os proprios RefreshToken — nunca o livro. Por isso o livro dos nos deste cenario e
-      // apagado AQUI, antes da arvore, e os usuarios sao descartados por ULTIMO (foreach abaixo):
+      // `UsuarioDeTeste.DisposeAsync` so apaga o proprio usuario e os proprios RefreshToken — nunca o
+      // livro. Por isso o livro dos nos deste cenario e apagado AQUI, antes da arvore, e os usuarios
+      // sao descartados por ULTIMO, no `foreach (var usuario in _usuarios)` no fim deste metodo:
       // estornos primeiro (EstornoDeId nao nulo), depois os demais movimentos, depois Montagem.
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Movimentacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");

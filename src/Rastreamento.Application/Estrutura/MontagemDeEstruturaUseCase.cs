@@ -89,11 +89,11 @@ public sealed class MontagemDeEstruturaUseCase
   private readonly IExecucaoRepository _execucao;
   private readonly MontadorDeArvoreDeEstrutura _montador;
 
-  // Desvio do brief da Task 8 (ver relatorio, ruling R6 do controlador): `EditarNo` valida a
-  // quantidade contra o livro com as MESMAS funcoes que a calculadora ja expoe (SaidoDeAIniciar,
-  // TotalMontado) em vez de recalcular a partir de ListarSaldosAsync/ListarTotaisMontadosAsync na
-  // mao — espirito da spec §7.2 ("escritas validam com as mesmas funcoes que a leitura mostra").
-  // Colaborador interno, mesmo criterio do `_montador` acima.
+  // EditarNo valida a quantidade contra o livro com as MESMAS funcoes que a calculadora ja expoe
+  // (SaidoDeAIniciar, TotalMontado) em vez de recalcular a partir de
+  // ListarSaldosAsync/ListarTotaisMontadosAsync na mao — espirito da spec secao 7.2 ("escritas
+  // validam com as mesmas funcoes que a leitura mostra").
+  // Colaborador interno, mesmo criterio do `_montador`.
   private readonly LeitorDeEstado _leitor;
 
   public MontagemDeEstruturaUseCase(
@@ -272,8 +272,8 @@ public sealed class MontagemDeEstruturaUseCase
   /// num pai, abaixo do total montado — e roda no esquema de trava da execucao (secao 8.1): sem ele, um
   /// "reduzir" passaria no meio de um "iniciar" do mesmo no. A validacao usa as MESMAS funcoes que a
   /// calculadora da leitura (`SaidoDeAIniciar`, `TotalMontado`), via `LeitorDeEstado` — nao um recalculo
-  /// direto de `ListarSaldosAsync`/`ListarTotaisMontadosAsync` (ruling R6 do controlador sobre o brief:
-  /// espirito da spec §7.2, "escritas validam com as mesmas funcoes que a leitura mostra").
+  /// direto de `ListarSaldosAsync`/`ListarTotaisMontadosAsync` (espirito da spec secao 7.2, "escritas
+  /// validam com as mesmas funcoes que a leitura mostra").
   /// </summary>
   public async Task<Result<EstruturaItemDto>> EditarNo(int id, EdicaoDeNoDto edicao, CancellationToken ct)
   {

@@ -16,10 +16,10 @@ namespace Rastreamento.Application.Execucao;
 /// de qualquer outra lista — com algum passo ja alcancado, [] omite esse prefixo e da o mesmo 409
 /// `PassoJaAlcancado` de uma lista truncada qualquer (o corpo tem de REENVIAR os passos ja alcancados
 /// para so trocar o que vem depois deles). So quando NADA foi alcancado ainda (`travados == 0`) e que
-/// [] de fato limpa o Roteiro inteiro, porque nesse caso nao ha prefixo pra reenviar. (Ruling do
-/// controlador sobre a review da Task 8, achado 2 do fix pass: a redacao anterior deste doc e da
-/// mensagem de erro de `Substituir` para `Passos` nulo afirmava que [] "limpa o que ainda nao foi
-/// alcancado" sem essa condicao, o que e falso quando ha passo alcancado.)
+/// [] de fato limpa o Roteiro inteiro, porque nesse caso nao ha prefixo pra reenviar. (Correcao: a
+/// redacao anterior deste doc e da mensagem de erro de `Substituir` para `Passos` nulo afirmava que
+/// [] "limpa o que ainda nao foi alcancado" sem essa condicao, o que e falso quando ha passo
+/// alcancado.)
 /// </summary>
 public sealed class RoteiroDoNoUseCase
 {
@@ -75,7 +75,7 @@ public sealed class RoteiroDoNoUseCase
           return Falhas.Validacao<RoteiroDoNoDto>(CodigosDaExecucao.RoteiroInvalido,
               setor is null
                   ? $"O Setor {setorId} não existe."
-                  : $"O {setor.Nome} está inativo e não entra num Roteiro.");
+                  : $"O Setor {setor.Nome} está inativo e não entra num Roteiro.");
 
       int? ultimaTravada = travados == 0 ? null : atual[travados - 1].Ordem;
       var primeiraNova = (ultimaTravada ?? 0) + 1;

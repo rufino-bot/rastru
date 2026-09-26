@@ -20,8 +20,10 @@ public sealed record PedidoDoNo(int PedidoId, string Status);
 public interface IExecucaoRepository
 {
   /// <summary>
-  /// Roda `trabalho` numa transacao SERIALIZABLE e commita. Deadlock e lock timeout (1205/1222) sobem
-  /// como <see cref="ConflitoDeConcorrenciaException"/>. O `trabalho` so escreve depois de validar
+  /// Roda `trabalho` numa transacao SERIALIZABLE e commita. Deadlock (1205) tenta de novo, com
+  /// transacao nova a cada vez (3 tentativas no total: a inicial mais 2 retentativas em producao);
+  /// esgotadas as tentativas, ou num lock timeout (1222, que nunca tenta de novo), sobe
+  /// <see cref="ConflitoDeConcorrenciaException"/>. O `trabalho` so escreve depois de validar
   /// tudo: um `Result` de falha devolvido de dentro dele commita uma transacao sem escrita nenhuma.
   /// </summary>
   Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct);

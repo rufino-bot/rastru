@@ -96,13 +96,14 @@ public class ReceitaPadraoController : ControllerBase
   /// que e o build deste projeto, CS8509 e ERRO, nao aviso.
   ///
   /// Por que o `#pragma warning disable CS8524`: sao dois diagnosticos diferentes. CS8509 e "faltou
-  /// um membro NOMEADO" — o que se quer. CS8524 e "faltou o valor NAO NOMEADO", isto e, um
-  /// `(TipoDeErro)4` obtido por cast; ele dispara SEMPRE que um switch de enum nao tem `_`, entao
-  /// sem o pragma o build quebrava ja sem membro novo nenhum (medido: erro CS8524 citando o padrao
-  /// `(TipoDeErro)4`). Suprimir CS8524 aqui NAO enfraquece o CS8509, e isso foi medido: o
-  /// experimento do 5o membro acima rodou COM o pragma no lugar. O custo do pragma — este eu nao
-  /// medi, e semantica da linguagem — e que um valor sem arco correspondente passa a lancar
-  /// `SwitchExpressionException` em runtime, em vez de virar 400 pelo `_`.
+  /// um membro NOMEADO" — o que se quer. CS8524 e "faltou o valor NAO NOMEADO", isto e, um valor
+  /// fora dos membros do enum, obtido por cast; ele dispara SEMPRE que um switch de enum nao tem
+  /// `_`, entao sem o pragma o build quebrava ja sem membro novo nenhum (medido: erro CS8524
+  /// citando um valor fora dos membros, obtido por cast). Suprimir CS8524 aqui NAO enfraquece o
+  /// CS8509, e isso foi medido: o experimento do 5o membro acima rodou COM o pragma no lugar. O
+  /// custo do pragma — este eu nao medi, e semantica da linguagem — e que um valor sem arco
+  /// correspondente passa a lancar `SwitchExpressionException` em runtime, em vez de virar 400
+  /// pelo `_`.
   ///
   /// `null` esta na lista junto de `Validacao` e `NaoAutorizado` porque `TipoDoErro` e
   /// `TipoDeErro?`, nulo quando `Sucesso` (ver `Result{T}`). E preciso dizer o que MEDI: com o
@@ -115,9 +116,10 @@ public class ReceitaPadraoController : ControllerBase
   /// responde 401 e o middleware de autenticacao. Membro novo que precise de OUTRO status ganha
   /// ramo proprio; o compilador nao deixa esquecer.
   ///
-  /// MEDIDO de novo na Fase 3 (ruling B1 do plano 2, Task 7): acrescentar `TipoDeErro.Proibido` (o
-  /// estorno de registro alheio, spec secao 4.5) quebrou este `switch` com o mesmo CS8509 do paragrafo
-  /// acima, e o arco novo devolve 403 com `StatusCode(StatusCodes.Status403Forbidden, ...)`.
+  /// MEDIDO de novo na Fase 3 (spec secao 4.5, estorno de registro alheio): acrescentar
+  /// `TipoDeErro.Proibido` quebrou este `switch` com o mesmo CS8509 do paragrafo sobre "Por que nao
+  /// ha `_`" (o experimento do 5o membro, achado I2 da review da Task 6), e o arco novo devolve 403
+  /// com `StatusCode(StatusCodes.Status403Forbidden, ...)`.
   /// </remarks>
   private IActionResult Traduzir<T>(Result<T> resultado)
   {

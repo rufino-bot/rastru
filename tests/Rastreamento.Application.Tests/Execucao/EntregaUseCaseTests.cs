@@ -1,3 +1,4 @@
+using System.Globalization;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Entities;
@@ -90,7 +91,7 @@ public class EntregaUseCaseTests
   }
 
   /// <summary>
-  /// Ruling R12 (Task 6): a checagem de "pai sem Roteiro" vem ANTES da checagem de destino nulo em
+  /// Spec secao 4.3: a checagem de "pai sem Roteiro" vem ANTES da checagem de destino nulo em
   /// `ParaAMontagem`. Com D7 a tela mostra um Item pronto cujo pai nao tem Roteiro sem nenhum Setor
   /// para escolher, entao o pedido natural chega sem `destinoSetorId` e tem de cair aqui tambem, nao em
   /// `DestinoIndevido`.
@@ -154,6 +155,23 @@ public class EntregaUseCaseTests
         CodigosDaExecucao.EntregaVazia, TipoDeErro.Validacao);
     AfirmarFalha(await c.Entrega().Entregar(new EntregaDto(null), Movimentador, Ct),
         CodigosDaExecucao.EntregaVazia, TipoDeErro.Validacao);
+  }
+
+  [Theory]
+  [InlineData("0")]
+  [InlineData("-1")]
+  [InlineData("0.00001")]
+  [InlineData("1.00005")]
+  public async Task Quantidade_fora_da_faixa_da_QuantidadeInvalida(string quantidade)
+  {
+    var c = Cenario();
+
+    var r = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(2, Coleta(Corte, 1), null, decimal.Parse(quantidade, CultureInfo.InvariantCulture))),
+        Movimentador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.QuantidadeInvalida, TipoDeErro.Validacao);
+    Assert.Equal(0, c.Execucao.Transacoes);   // recusado antes de abrir transacao
   }
 
   [Theory]

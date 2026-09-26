@@ -255,6 +255,9 @@ public class ApontamentoUseCaseTests
 
     AfirmarFalha(r, CodigosDaExecucao.QuantidadeInvalida, TipoDeErro.Validacao);
     Assert.Contains("No 2", r.Detalhe);
+    // pt-BR e SEM arredondar para quatro casas: e a quinta casa que faz o valor nao caber na coluna,
+    // e arredondar aqui escondia o defeito que a mensagem denuncia.
+    Assert.Contains("0,00005", r.Detalhe);
   }
 
   [Fact]

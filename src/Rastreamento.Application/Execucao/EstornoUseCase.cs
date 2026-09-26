@@ -83,9 +83,9 @@ public sealed class EstornoUseCase
       var estado = await _leitor.CarregarAsync(nos, ct);
       foreach (var baixa in baixas)
         // Cinto de seguranca, e nao alcancavel hoje: o que uma montagem baixou (Montado) so sai por meio
-        // do estorno DESTA mesma montagem, e o `JaEstornado` acima ja bloqueia um segundo estorno dela —
-        // entao nao ha caminho para "Montado" cair abaixo do que ela mesma gravou. Sem teste porque nao
-        // ha como forcar esta condicao pelos casos de uso publicos.
+        // do estorno DESTA mesma montagem, e a checagem de `CodigosDaExecucao.JaEstornado` ja bloqueia
+        // um segundo estorno dela — entao nao ha caminho para "Montado" cair abaixo do que ela mesma
+        // gravou. Sem teste porque nao ha como forcar esta condicao pelos casos de uso publicos.
         if (estado.Calc.Saldo(baixa.EstruturaItemId, Local.Montado) < baixa.Quantidade)
           return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.EstornoImpossivel,
               $"{estado.Nome(baixa.EstruturaItemId)} não tem mais o que esta montagem baixou.");

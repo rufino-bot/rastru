@@ -348,7 +348,7 @@ public class EstruturaRepositoryTests : TesteComBanco
       {
         linhaA.EstruturaPaiId = null;
         linhaA.NivelHierarquico = "Peca";
-        linhaA.QuantidadePorPai = null;   // CK_EstruturaItem_QuantidadePorPai: Peca nao tem razao (B2)
+        linhaA.QuantidadePorPai = null;   // CK_EstruturaItem_QuantidadePorPai: Peca nao tem razao
         await dbDesfaz.SaveChangesAsync();
       }
       await LimparAsync(pedidoId, agrupamentoId, componenteA, componenteB);

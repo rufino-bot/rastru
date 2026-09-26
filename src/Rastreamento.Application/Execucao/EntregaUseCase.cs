@@ -104,8 +104,8 @@ public sealed class EntregaUseCase
 
   private static string Onde(Local origem, Func<int, string> nomeDoSetor) =>
       origem.Posicao == Posicoes.AguardandoColeta
-          ? $"aguardando coleta no {nomeDoSetor(origem.SetorId!.Value)} (passo {origem.Ordem})"
-          : $"aguardando montagem no {nomeDoSetor(origem.SetorId!.Value)}";
+          ? $"aguardando coleta no Setor {nomeDoSetor(origem.SetorId!.Value)} (passo {origem.Ordem})"
+          : $"aguardando montagem no Setor {nomeDoSetor(origem.SetorId!.Value)}";
 
   /// <summary>A tabela da spec secao 4.3, linha a linha.</summary>
   private static (Local? Destino, Recusa? Recusa) Destino(
@@ -134,7 +134,7 @@ public sealed class EntregaUseCase
 
     // Redirecionamento: o que ja aguarda montagem vai aguardar em outro Setor do Roteiro do pai.
     if (item.DestinoSetorId is int mesmo && mesmo == origem.SetorId)
-      return (null, Indevido($"{nome} já aguarda montagem no {nomeDoSetor(mesmo)}."));
+      return (null, Indevido($"{nome} já aguarda montagem no Setor {nomeDoSetor(mesmo)}."));
     if (estado.Calc.No(id).PaiId is not int paiId)
       return (null, new Recusa(CodigosDaExecucao.OrigemInvalida, TipoDeErro.Validacao,
           $"{nome} é uma Peça: não aguarda montagem de ninguém."));
@@ -142,7 +142,7 @@ public sealed class EntregaUseCase
   }
 
   /// <summary>
-  /// Ordem das duas checagens fixada pela ruling R12 (Task 6): pai sem Roteiro sai primeiro, mesmo com
+  /// Ordem das duas checagens fixada pela spec secao 4.3: pai sem Roteiro sai primeiro, mesmo com
   /// destino nulo — a tela de D7 mostra um Item pronto cujo pai nao tem Roteiro sem Setor nenhum para
   /// escolher, entao o pedido natural chega sem destino e tem de cair em `PaiSemRoteiro`, nao em
   /// `DestinoIndevido`.
@@ -161,7 +161,7 @@ public sealed class EntregaUseCase
 
     if (!possiveis.Contains(destinoSetorId))
       return (null, new Recusa(CodigosDaExecucao.DestinoForaDoRoteiroDoPai, TipoDeErro.Conflito,
-          $"O {nomeDoSetor(destinoSetorId)} não está no Roteiro de {estado.Nome(paiId)}."));
+          $"O Setor {nomeDoSetor(destinoSetorId)} não está no Roteiro de {estado.Nome(paiId)}."));
 
     return (Local.AguardandoMontagem(destinoSetorId), null);
   }

@@ -133,7 +133,8 @@ public class ConservacaoTests
       // Identidade por construcao, nao verificacao independente: todo movimento grava +q numa posicao e
       // -q noutra do MESMO no (ver `Livro.SomarSaldos`), entao a soma bate mesmo se o caso de uso deixar
       // passar algo indevido — a asercao fica so como documentacao viva do invariante. Quem pega defeito
-      // de verdade sao a nao-negatividade acima e o `montado == totalMontado(pai) x razao` abaixo.
+      // de verdade sao a asercao de nao-negatividade (`s.Quantidade >= 0m`, no `Assert.All` dos saldos)
+      // e a de `montado == totalMontado(pai) x razao` no bloco `if (calc.No(id).PaiId is int pai)`.
       Assert.Equal(calc.No(id).Quantidade, saldos.Sum(s => s.Quantidade));
       Assert.True(calc.TotalMontado(id) <= calc.No(id).Quantidade, $"passo {passo}: no {id} montado alem da quantidade");
 

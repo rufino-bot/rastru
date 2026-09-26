@@ -98,7 +98,7 @@ public class RoteiroDoNoUseCaseTests
   }
 
   /// <summary>
-  /// Ruling R3 do controlador sobre o brief: `passos` AUSENTE/nulo no corpo e 400 `RoteiroInvalido` —
+  /// Spec da Fase 3, secao 4.6: `passos` AUSENTE/nulo no corpo e 400 `RoteiroInvalido` —
   /// diferente de uma lista vazia explicita ([]), que
   /// `Lista_vazia_explicita_e_aceita_e_limpa_o_Roteiro_quando_nada_foi_alcancado` prova ser aceita.
   /// </summary>
@@ -119,8 +119,8 @@ public class RoteiroDoNoUseCaseTests
   /// NADA ainda alcançado (`travados` = 0), ela limpa o Roteiro inteiro. Com algo já alcançado, uma
   /// lista vazia cai no MESMO `PassoJaAlcancado` de omitir o passo alcançado
   /// (`Mexer_em_passo_alcancado_da_PassoJaAlcancado`, caso `[Corte]`): o corpo tem de reenviar o
-  /// prefixo travado para "limpar so o que falta" — o que a ruling R3 chama de "remove os passos
-  /// ainda nao alcancados" e exatamente essa mecanica quando NADA foi alcancado ainda.
+  /// prefixo travado para "limpar so o que falta" — o que a mensagem de `Substituir` chama de "os
+  /// que faltam são removidos" e exatamente essa mecanica quando NADA foi alcancado ainda.
   /// </summary>
   [Fact]
   public async Task Lista_vazia_explicita_e_aceita_e_limpa_o_Roteiro_quando_nada_foi_alcancado()

@@ -375,9 +375,9 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   /// <summary>
-  /// Achado da review da Task 8 (Important, mesmo grupo do teste acima): nenhum teste HTTP fazia um
-  /// PUT bem-sucedido -- so o caso de uso, em Rastreamento.Application.Tests, exercitava o caminho
-  /// feliz de `EditarNo` dentro do esquema de trava.
+  /// Achado da review da Task 8 (Important, mesmo grupo de `DELETE_com_Pedido_Aberto_remove_a_subarvore_e_devolve_204`):
+  /// nenhum teste HTTP fazia um PUT bem-sucedido -- so o caso de uso, em Rastreamento.Application.Tests,
+  /// exercitava o caminho feliz de `EditarNo` dentro do esquema de trava.
   /// </summary>
   [Fact]
   public async Task PUT_edita_descricao_e_quantidade_e_devolve_200()
