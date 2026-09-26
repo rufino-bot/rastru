@@ -23,6 +23,7 @@ namespace Rastreamento.Api.Tests;
 /// 403 especificamente. Esse `[Fact]`, diferente dos `[Theory]` desta classe, cria estado real no
 /// banco (Setor, Pedido, Agrupamento, Componente, Peça, Montagem, dois usuários).
 /// </summary>
+[Collection(ColecaoQueEscreveNoLivroDeExecucao.Nome)]
 public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
 {
   private readonly WebApplicationFactory<Program> _factory;
