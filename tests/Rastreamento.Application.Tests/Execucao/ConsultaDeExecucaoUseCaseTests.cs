@@ -123,8 +123,8 @@ public class ConsultaDeExecucaoUseCaseTests
     c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Dobra, 1), Local.AguardandoColeta(Dobra, 1), 3m);
     c.Mover(1, TiposDeMovimentacao.Termino, Local.NoSetor(Dobra, 2), Local.AguardandoColeta(Dobra, 2), 2m);
 
-    var tarefas = await c.Consulta().Tarefas(Ct);
-    var contagem = await c.Consulta().ContagemDeTarefas(Ct);
+    var tarefas = (await c.Consulta().Tarefas(Ct)).Valor!;
+    var contagem = (await c.Consulta().ContagemDeTarefas(Ct)).Valor!;
 
     Assert.Equal(new[] { Corte, Dobra }, tarefas.Select(t => t.SetorId).ToArray());
     // Na Dobra: o no 1 no passo 2 e o no 2 no passo 1, por Id do no.
@@ -140,7 +140,7 @@ public class ConsultaDeExecucaoUseCaseTests
     c.No(2, 1, 10m, 1m, Corte);
     c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 10m);
 
-    var tarefa = Assert.Single(Assert.Single(await c.Consulta().Tarefas(Ct)).Itens);
+    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!).Itens);
 
     Assert.True(tarefa.Destino.PaiSemRoteiro);
     Assert.Empty(tarefa.Destino.SetoresPossiveis);
@@ -159,8 +159,8 @@ public class ConsultaDeExecucaoUseCaseTests
 
     Assert.Empty(fila.AIniciar);
     Assert.Empty(fila.AguardandoColeta);
-    Assert.Empty(await c.Consulta().Tarefas(Ct));
-    Assert.Equal(0, (await c.Consulta().ContagemDeTarefas(Ct)).Total);
+    Assert.Empty((await c.Consulta().Tarefas(Ct)).Valor!);
+    Assert.Equal(0, (await c.Consulta().ContagemDeTarefas(Ct)).Valor!.Total);
   }
 
   [Fact]
@@ -207,4 +207,41 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Equal(TipoDeErro.NaoEncontrado, (await c.Consulta().Posicoes(77, Ct)).TipoDoErro);
     Assert.Equal(TipoDeErro.NaoEncontrado, (await c.Consulta().LivroDoNo(77, Ct)).TipoDoErro);
   }
+  /// <summary>
+  /// Fix round 4 da Task 11: uma leitura escolhida vitima de deadlock (esgotado o retry de
+  /// `IExecucaoRepository.LerAsync`) devolve o mesmo 409 `ConflitoDeConcorrencia` das escritas, em
+  /// vez de deixar a excecao subir crua (HTTP 500 medido na suite). Um metodo que NAO passasse por
+  /// `LerAsync` ignoraria a chave do fake e devolveria sucesso — e o teste morre.
+  /// </summary>
+  [Theory]
+  [InlineData("Fila")]
+  [InlineData("Tarefas")]
+  [InlineData("ContagemDeTarefas")]
+  [InlineData("Posicoes")]
+  [InlineData("LivroDoNo")]
+  [InlineData("Roteiro.Obter")]
+  public async Task Conflito_na_leitura_vira_ConflitoDeConcorrencia(string leitura)
+  {
+    var c = Kit();
+    c.Execucao.ConflitoNaProximaLeitura = true;
+
+    var (sucesso, erro, tipo, detalhe) = leitura switch
+    {
+      "Fila" => Desmontar(await c.Consulta().Fila(Corte, Ct)),
+      "Tarefas" => Desmontar(await c.Consulta().Tarefas(Ct)),
+      "ContagemDeTarefas" => Desmontar(await c.Consulta().ContagemDeTarefas(Ct)),
+      "Posicoes" => Desmontar(await c.Consulta().Posicoes(AgrupamentoId, Ct)),
+      "LivroDoNo" => Desmontar(await c.Consulta().LivroDoNo(1, Ct)),
+      "Roteiro.Obter" => Desmontar(await c.Roteiro().Obter(1, Ct)),
+      _ => throw new ArgumentOutOfRangeException(nameof(leitura)),
+    };
+
+    Assert.False(sucesso);
+    Assert.Equal((CodigosDaExecucao.ConflitoDeConcorrencia, (TipoDeErro?)TipoDeErro.Conflito), (erro, tipo));
+    Assert.Equal(CodigosDaExecucao.MensagemDeConflito, detalhe);
+    Assert.False(c.Execucao.ConflitoNaProximaLeitura);
+  }
+
+  private static (bool, string?, TipoDeErro?, string?) Desmontar<T>(Result<T> r) =>
+      (r.Sucesso, r.Erro, r.TipoDoErro, r.Detalhe);
 }

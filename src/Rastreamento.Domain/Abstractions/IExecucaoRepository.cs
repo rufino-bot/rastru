@@ -27,6 +27,14 @@ public interface IExecucaoRepository
   Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct);
 
   /// <summary>
+  /// Roda `leitura` SEM transacao explicita (fica no READ COMMITTED da conexao), com o mesmo retry de
+  /// deadlock (1205) de <see cref="EmTransacaoAsync"/>: uma leitura tambem pode ser escolhida vitima
+  /// contra um escritor Serializable. Esgotadas as tentativas, ou num lock timeout (1222), sobe
+  /// <see cref="ConflitoDeConcorrenciaException"/> — o caso de uso traduz para 409, como nas escritas.
+  /// </summary>
+  Task<T> LerAsync<T>(Func<Task<T>> leitura, CancellationToken ct);
+
+  /// <summary>
   /// Trava (UPDLOCK, HOLDLOCK) as linhas de `EstruturaItem`, UMA A UMA, em ordem crescente de Id, e as
   /// devolve. Id inexistente simplesmente nao volta. So vale dentro de <see cref="EmTransacaoAsync"/>:
   /// fora dela a trava acabaria no fim do SELECT, e o metodo lanca.

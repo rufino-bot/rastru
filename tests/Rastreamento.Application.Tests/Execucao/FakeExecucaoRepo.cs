@@ -62,6 +62,23 @@ public class FakeExecucaoRepo : IExecucaoRepository
     }
   }
 
+  /// <summary>A proxima leitura (`LerAsync`) sobe o que o repositorio real sobe ao esgotar o retry de deadlock.</summary>
+  public bool ConflitoNaProximaLeitura { get; set; }
+
+  public int Leituras { get; private set; }
+
+  public Task<T> LerAsync<T>(Func<Task<T>> leitura, CancellationToken ct)
+  {
+    if (ConflitoNaProximaLeitura)
+    {
+      ConflitoNaProximaLeitura = false;
+      throw new ConflitoDeConcorrenciaException(new InvalidOperationException("deadlock simulado"));
+    }
+
+    Leituras++;
+    return leitura();
+  }
+
   public Task<IReadOnlyList<EstruturaItem>> TravarNosAsync(IEnumerable<int> ids, CancellationToken ct)
   {
     if (!_emTransacao) throw new InvalidOperationException("TravarNosAsync fora de EmTransacaoAsync.");

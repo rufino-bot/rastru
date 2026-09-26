@@ -34,11 +34,13 @@ public sealed class RoteiroDoNoUseCase
     _catalogo = catalogo;
   }
 
-  public async Task<Result<RoteiroDoNoDto>> Obter(int noId, CancellationToken ct)
-  {
-    if ((await _execucao.ListarNosAsync([noId], ct)).Count == 0) return Falhas.NaoEncontrado<RoteiroDoNoDto>();
-    return Result<RoteiroDoNoDto>.Ok(await ProjetarAsync(noId, ct));
-  }
+  /// <summary>Leitura com o retry de deadlock e o 409 das escritas (`ConsultarAsync`; fix round 4 da Task 11).</summary>
+  public Task<Result<RoteiroDoNoDto>> Obter(int noId, CancellationToken ct) =>
+      _execucao.ConsultarAsync(async () =>
+      {
+        if ((await _execucao.ListarNosAsync([noId], ct)).Count == 0) return Falhas.NaoEncontrado<RoteiroDoNoDto>();
+        return Result<RoteiroDoNoDto>.Ok(await ProjetarAsync(noId, ct));
+      }, ct);
 
   public async Task<Result<RoteiroDoNoDto>> Substituir(int noId, RoteiroNovoDto dto, CancellationToken ct)
   {

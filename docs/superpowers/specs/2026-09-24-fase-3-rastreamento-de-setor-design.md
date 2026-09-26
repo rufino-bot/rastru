@@ -616,6 +616,11 @@ tentativa sobe 409 `ConflitoDeConcorrencia` mesmo sem nenhum erro de lógica —
 fábrica (poucos operadores concorrentes por Setor), mas possível. Não é um bug a corrigir: é o
 mesmo sinal de "tente de novo" que qualquer outro 409 desta seção já pede.
 
+**Acréscimo de 2026-09-26** (fix round 4 da Task 11): as leituras da execução (fila, tarefas e a
+contagem delas, posições, livro do nó, Roteiro do nó) também podem ser a vítima de um deadlock contra
+uma escrita, e têm o mesmo retry de 1205, sem transação explícita, com o mesmo 409
+`ConflitoDeConcorrencia` ao esgotar — antes, a vítima subia como 500 com a `SqlException` crua.
+
 ### 8.2 Catálogo de erros
 
 `erro` é o código pelo qual o front decide; `mensagem`, a frase para o operador, que nomeia nó, Setor e

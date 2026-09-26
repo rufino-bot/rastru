@@ -9,6 +9,9 @@ namespace Rastreamento.Application.Execucao;
 /// As leituras da Fase 3 (spec secoes 5.2, 6 e 7), todas pela mesma calculadora que as escritas usam.
 /// Fila e tarefas leem os nos de TODO Pedido que nao esta `Concluido` nem `Cancelado` — uma consulta
 /// de nos e uma de saldo, sem paginacao nem cache (secao 7.7: na escala de uma fabrica, cabe).
+/// Todo metodo publico passa por `ConsultarAsync` (`IExecucaoRepository.LerAsync`): um deadlock em que
+/// a leitura e a vitima tenta de novo, e o esgotamento vira 409 `ConflitoDeConcorrencia` em vez de uma
+/// `SqlException` crua (fix round 4 da Task 11).
 /// </summary>
 public sealed class ConsultaDeExecucaoUseCase
 {
@@ -34,7 +37,10 @@ public sealed class ConsultaDeExecucaoUseCase
     _projetor = new ProjetorDoLivro(execucao, catalogo);
   }
 
-  public async Task<Result<FilaDoSetorDto>> Fila(int setorId, CancellationToken ct)
+  public Task<Result<FilaDoSetorDto>> Fila(int setorId, CancellationToken ct) =>
+      _execucao.ConsultarAsync(() => FilaAsync(setorId, ct), ct);
+
+  private async Task<Result<FilaDoSetorDto>> FilaAsync(int setorId, CancellationToken ct)
   {
     var setor = await _setores.ObterPorIdAsync(setorId, ct);
     if (setor is null) return Falhas.NaoEncontrado<FilaDoSetorDto>();
@@ -96,28 +102,35 @@ public sealed class ConsultaDeExecucaoUseCase
         sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList()));
   }
 
-  public async Task<IReadOnlyList<TarefasDoSetorDto>> Tarefas(CancellationToken ct)
+  public Task<Result<IReadOnlyList<TarefasDoSetorDto>>> Tarefas(CancellationToken ct) =>
+      _execucao.ConsultarAsync(() => TarefasAsync(ct), ct);
+
+  private async Task<Result<IReadOnlyList<TarefasDoSetorDto>>> TarefasAsync(CancellationToken ct)
   {
     var (estado, resumos) = await CarregarEmProducaoAsync(ct);
     var nomes = await NomesDosSetoresAsync(ct);
 
-    return estado.Calc.ColetasPendentes()
+    return Result<IReadOnlyList<TarefasDoSetorDto>>.Ok(estado.Calc.ColetasPendentes()
         .GroupBy(p => p.SetorId)
         .OrderBy(g => g.Key)
         .Select(g => new TarefasDoSetorDto(g.Key, nomes.GetValueOrDefault(g.Key, string.Empty),
             g.Select(p => new TarefaDto(resumos[p.EstruturaItemId], p.Ordem, p.Tarefa,
                 Destino(estado.Calc.DestinoDaColeta(p.EstruturaItemId, p.Ordem), nomes))).ToList()))
-        .ToList();
+        .ToList());
   }
 
   /// <summary>A mesma conta de `Tarefas` (spec secao 7.7), sem montar os DTOs. Ver C1 (nota do controlador).</summary>
-  public async Task<ContagemDeTarefasDto> ContagemDeTarefas(CancellationToken ct)
-  {
-    var (estado, _) = await CarregarEmProducaoAsync(ct);
-    return new ContagemDeTarefasDto(estado.Calc.ColetasPendentes().Count);
-  }
+  public Task<Result<ContagemDeTarefasDto>> ContagemDeTarefas(CancellationToken ct) =>
+      _execucao.ConsultarAsync(async () =>
+      {
+        var (estado, _) = await CarregarEmProducaoAsync(ct);
+        return Result<ContagemDeTarefasDto>.Ok(new ContagemDeTarefasDto(estado.Calc.ColetasPendentes().Count));
+      }, ct);
 
-  public async Task<Result<IReadOnlyList<PosicoesDoNoDto>>> Posicoes(int agrupamentoId, CancellationToken ct)
+  public Task<Result<IReadOnlyList<PosicoesDoNoDto>>> Posicoes(int agrupamentoId, CancellationToken ct) =>
+      _execucao.ConsultarAsync(() => PosicoesAsync(agrupamentoId, ct), ct);
+
+  private async Task<Result<IReadOnlyList<PosicoesDoNoDto>>> PosicoesAsync(int agrupamentoId, CancellationToken ct)
   {
     if (await _agrupamentos.ObterPorIdAsync(agrupamentoId, ct) is null)
       return Falhas.NaoEncontrado<IReadOnlyList<PosicoesDoNoDto>>();
@@ -135,7 +148,10 @@ public sealed class ConsultaDeExecucaoUseCase
         estado.Calc.TemFilhos(n.Id) ? (decimal?)estado.Calc.TotalMontado(n.Id) : null)).ToList());
   }
 
-  public async Task<Result<LivroDoNoDto>> LivroDoNo(int noId, CancellationToken ct)
+  public Task<Result<LivroDoNoDto>> LivroDoNo(int noId, CancellationToken ct) =>
+      _execucao.ConsultarAsync(() => LivroDoNoAsync(noId, ct), ct);
+
+  private async Task<Result<LivroDoNoDto>> LivroDoNoAsync(int noId, CancellationToken ct)
   {
     if ((await _execucao.ListarNosAsync([noId], ct)).Count == 0) return Falhas.NaoEncontrado<LivroDoNoDto>();
 

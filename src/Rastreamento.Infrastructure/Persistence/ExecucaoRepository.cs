@@ -74,25 +74,41 @@ public class ExecucaoRepository : IExecucaoRepository
   /// timeout e o sinal de que ALGUEM esta com a trava por tempo demais (nao um ciclo), e reexecutar as
   /// cegas so atrasaria o 409 sem mudar o desfecho.
   /// </summary>
-  public async Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct)
-  {
-    for (var tentativa = 1; ; tentativa++)
-    {
-      try
+  public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct) =>
+      ComRetryDeDeadlockAsync(async () =>
       {
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var resultado = await trabalho();
         await tx.CommitAsync(ct);
         return resultado;
+      }, ct);
+
+  /// <summary>
+  /// Fix round 4 da Task 11: as leituras da execucao (fila, tarefas, posicoes, livro, roteiro) nao
+  /// abrem transacao — ficam no READ COMMITTED da conexao —, mas uma delas pode ser a vitima de um
+  /// deadlock contra uma escrita Serializable (medido: `GET .../posicoes` devolveu a `SqlException`
+  /// 1205 crua, HTTP 500, na suite inteira). Mesmo retry e mesma traducao de <see cref="EmTransacaoAsync{T}"/>,
+  /// pelo mesmo laco — nao ha segunda politica de retry.
+  /// </summary>
+  public Task<T> LerAsync<T>(Func<Task<T>> leitura, CancellationToken ct) => ComRetryDeDeadlockAsync(leitura, ct);
+
+  /// <summary>O laco de retry compartilhado por <see cref="EmTransacaoAsync{T}"/> e <see cref="LerAsync{T}"/>.</summary>
+  private async Task<T> ComRetryDeDeadlockAsync<T>(Func<Task<T>> tentativaUnica, CancellationToken ct)
+  {
+    for (var tentativa = 1; ; tentativa++)
+    {
+      try
+      {
+        return await tentativaUnica();
       }
       catch (Exception e) when (tentativa < _tentativasMaximas && ErrosDoSqlServer.EhDeadlock(e))
       {
         // O que o trabalho deixou no change tracker nao foi gravado (a transacao voltou); sem limpar,
         // a proxima tentativa tentaria gravar de novo por cima, e o SaveChanges veria linhas que ja
-        // acha que existem.
+        // acha que existem. Numa leitura (`LerAsync`, tudo AsNoTracking) o Clear e inocuo.
         _db.ChangeTracker.Clear();
         _logger?.LogWarning(e,
-            "Deadlock (1205) na tentativa {Tentativa} de {Maximo}; tentando de novo com transacao nova.",
+            "Deadlock (1205) na tentativa {Tentativa} de {Maximo}; tentando de novo do zero.",
             tentativa, _tentativasMaximas);
         await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(20, 81)), ct);
       }

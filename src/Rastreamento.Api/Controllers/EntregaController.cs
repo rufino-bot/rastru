@@ -30,8 +30,8 @@ public class EntregaController : ExecucaoControllerBase
   }
 
   [HttpGet("tarefas")]
-  public async Task<IActionResult> Tarefas(CancellationToken ct) => Ok(await _consulta.Tarefas(ct));
+  public async Task<IActionResult> Tarefas(CancellationToken ct) => Traduzir(await _consulta.Tarefas(ct));
 
   [HttpGet("tarefas/contagem")]
-  public async Task<IActionResult> Contagem(CancellationToken ct) => Ok(await _consulta.ContagemDeTarefas(ct));
+  public async Task<IActionResult> Contagem(CancellationToken ct) => Traduzir(await _consulta.ContagemDeTarefas(ct));
 }

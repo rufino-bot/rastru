@@ -45,6 +45,24 @@ internal static class Falhas
       return Conflito<T>(CodigosDaExecucao.ConflitoDeConcorrencia, CodigosDaExecucao.MensagemDeConflito);
     }
   }
+
+  /// <summary>
+  /// A leitura da execucao, com o deadlock/lock timeout traduzido para 409 — o par de
+  /// <see cref="ExecutarAsync{T}"/> para `IExecucaoRepository.LerAsync` (fix round 4 da Task 11). Nome
+  /// diferente de `LerAsync` pelo mesmo motivo de `ExecutarAsync`.
+  /// </summary>
+  public static async Task<Result<T>> ConsultarAsync<T>(
+      this IExecucaoRepository execucao, Func<Task<Result<T>>> leitura, CancellationToken ct)
+  {
+    try
+    {
+      return await execucao.LerAsync(leitura, ct);
+    }
+    catch (ConflitoDeConcorrenciaException)
+    {
+      return Conflito<T>(CodigosDaExecucao.ConflitoDeConcorrencia, CodigosDaExecucao.MensagemDeConflito);
+    }
+  }
 }
 
 internal static class NovoMovimento
