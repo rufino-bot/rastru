@@ -30,8 +30,9 @@ describe('podeEscrever', () => {
     // CONFERIDO no pré-flight de 2026-08-10, remedido na Fase 3 (2026-09-25): o `MERGE` de perfis de
     // `db/seed.sql` traz os 7 perfis sem acento — o Movimentador entrou na Fase 3.
     // Título reescrito na Task 10 da Fase 3: o Operador passou a escrever em `apontamento` e
-    // `estorno` (ver o teste "Fase 3" abaixo), então "em nada" ficou falso para ele — este `for`
-    // continua valendo, só que restrito aos CADASTROS (os cinco recursos de antes da Fase 3).
+    // `estorno` (ver `Fase 3: cada ação de execução é de quem a faz no chão de fábrica`), então
+    // "em nada" ficou falso para ele — este `for` continua valendo, só que restrito aos CADASTROS
+    // (os cinco recursos de antes da Fase 3).
     for (const p of ['Operador', 'Almoxarifado', 'Qualidade', 'Gestao']) {
       for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)

@@ -12,13 +12,16 @@ using Rastreamento.Infrastructure.Persistence;
 namespace Rastreamento.Api.Tests;
 
 /// <summary>
-/// Rotas da Fase 3 (spec secao 9.3). Os 403 desta classe sao do `[Authorize(Roles)]`, que roda antes do
-/// binding e da action: Ids inexistentes de proposito, sem tocar o banco. O comportamento de cada rota
-/// esta em `ExecucaoEndpointsTests.Comportamento` (Task 11) — com UMA exceção, medida abaixo: o 403 do
-/// CASO DE USO (`Proibido`, estorno alheio) precisa de pelo menos uma prova NO NIVEL HTTP nesta task
-/// (ruling do controlador sobre a review da Task 7 — ver `Movimentador_que_nao_e_autor_da_montagem_recebe_403_Proibido`),
-/// porque `ExecucaoControllerBase.Recusar` mapear `TipoDeErro.Proibido` certo é comportamento do
-/// CONTROLLER, não só do caso de uso, e a Task 11 não é obrigada a cobrir 403 especificamente.
+/// Rotas da Fase 3 (spec secao 9.3). Os 403 de `Perfil_sem_a_acao_recebe_403` e o 401 de
+/// `Sem_token_nenhuma_leitura_responde` sao do `[Authorize(Roles)]`, que roda antes do binding e da
+/// action: Ids inexistentes de proposito, sem tocar o banco. O comportamento de cada rota esta em
+/// `ExecucaoEndpointsTests.Comportamento` (Task 11) — com UMA exceção, o `[Fact]`
+/// `Movimentador_que_nao_e_autor_da_montagem_recebe_403_Proibido`: o 403 do CASO DE USO (`Proibido`,
+/// estorno alheio) precisa de pelo menos uma prova NO NIVEL HTTP nesta task (ruling do controlador
+/// sobre a review da Task 7), porque `ExecucaoControllerBase.Recusar` mapear `TipoDeErro.Proibido`
+/// certo é comportamento do CONTROLLER, não só do caso de uso, e a Task 11 não é obrigada a cobrir
+/// 403 especificamente. Esse `[Fact]`, diferente dos `[Theory]` desta classe, cria estado real no
+/// banco (Setor, Pedido, Agrupamento, Componente, Peça, Montagem, dois usuários).
 /// </summary>
 public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -89,60 +92,77 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   /// o fluxo de negocio inteiro (isso e da Task 11): a `Montagem` nasce por insercao direta no banco
   /// — `EstornoUseCase.EstornarMontagem` so precisa achar uma `Montagem` real e comparar autoria
   /// ANTES de qualquer escrita, entao nao ha necessidade de passar por Inicio/Termino/Entrega/Montar
-  /// para chegar la. Autor: usuarioId 1 (o `admin` real do seed — FK de autor exige linha real de
-  /// Usuario). Quem tenta estornar: Movimentador com OUTRO usuarioId (2, nunca grava nada: o
-  /// `Proibido` sai ANTES de qualquer escrita, entao nao precisa ser usuario real). O
-  /// `[Authorize(Roles)]` deixa o Movimentador passar (esta na lista, desvio D2), e o caso de uso
-  /// recusa por autoria — o Movimentador nunca e autor de uma Montagem (precedente do `05`).
+  /// para chegar la. Autor e requerente sao `UsuarioDeTeste` de perfil real (spec secao 9.3: cada
+  /// teste cria o proprio usuario por perfil, sem depender do seed) — o autor precisa ser um usuario
+  /// REAL por causa da FK de `Montagem.UsuarioId`, e usar o mesmo tipo para o requerente evita a
+  /// dependencia do `admin` do seed dos dois lados. O `[Authorize(Roles)]` deixa o Movimentador
+  /// passar (esta na lista, desvio D2), e o caso de uso recusa por autoria — o Movimentador nunca e
+  /// autor de uma Montagem (precedente do `05`).
   /// </summary>
   [Fact]
   public async Task Movimentador_que_nao_e_autor_da_montagem_recebe_403_Proibido()
   {
     var administrador = ClienteComo("Administrador");
     var pcp = ClienteComo("PCP");
-    var movimentador = ClienteComo("Movimentador", usuarioId: 2);
 
-    var nomeDoSetor = $"exec-proibido-{Guid.NewGuid():N}";
-    var respostaSetor = await administrador.PostAsJsonAsync("/api/setores", new { nome = nomeDoSetor });
-    Assert.Equal(HttpStatusCode.Created, respostaSetor.StatusCode);
-    var setorId = await IdDoCorpo(respostaSetor);
+    await using var autor = await UsuarioDeTeste.CriarAsync(_factory.Services, "exec-proib-op", "Operador");
+    await using var requerente = await UsuarioDeTeste.CriarAsync(_factory.Services, "exec-proib-mv", "Movimentador");
+    var movimentador = ClienteComo("Movimentador", requerente.Id);
 
-    var numeroDoPedido = $"ped-proibido-{Guid.NewGuid():N}"[..25];
-    var respostaPedido = await pcp.PostAsJsonAsync("/api/pedidos", new { numero = numeroDoPedido, cliente = "Cliente de teste" });
-    var pedidoId = await IdDoCorpo(respostaPedido);
-    var respostaAgrupamento = await pcp.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Kit" });
-    var agrupamentoId = await IdDoCorpo(respostaAgrupamento);
-
-    using var escopoDoComponente = _factory.Services.CreateScope();
-    var dbDoComponente = escopoDoComponente.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-    var arquivo = new ArquivoDeComponente { NomeOriginal = "cubo.stl", Conteudo = StlDeTesteDaApi.CuboBinario(), CriadoPorUsuarioId = 1 };
-    dbDoComponente.ArquivosDeComponente.Add(arquivo);
-    await dbDoComponente.SaveChangesAsync();
-    var componente = new Componente
-    {
-      Codigo = $"EX-{Guid.NewGuid():N}"[..12], Descricao = "Componente do teste de Proibido",
-      Tipo = "Fabricado", Ativo = true, ArquivoSolidoId = arquivo.Id,
-    };
-    dbDoComponente.Componentes.Add(componente);
-    await dbDoComponente.SaveChangesAsync();
-    var componenteId = componente.Id;
-
-    var respostaPeca = await pcp.PostAsJsonAsync(
-        $"/api/agrupamentos/{agrupamentoId}/estrutura",
-        new { componenteId, quantidade = 1m, requerRelatorioDimensional = false });
-    Assert.Equal(HttpStatusCode.Created, respostaPeca.StatusCode);
-    var pecaId = await IdDoCorpo(respostaPeca);
-
-    var montagem = new Montagem
-    {
-      EstruturaItemId = pecaId, SetorId = setorId, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = 1,
-    };
-    dbDoComponente.Montagens.Add(montagem);
-    await dbDoComponente.SaveChangesAsync();
-    var montagemId = montagem.Id;
-
+    // Nulos ate serem criados: um erro de arranjo no meio nao deixa Id nenhum sem entrada no
+    // `finally`, e a limpeza (por FK) so tenta apagar o que de fato foi gravado.
+    int? setorId = null, pedidoId = null, agrupamentoId = null, componenteId = null, arquivoId = null,
+        pecaId = null, montagemId = null;
     try
     {
+      var nomeDoSetor = $"exec-proibido-{Guid.NewGuid():N}";
+      var respostaSetor = await administrador.PostAsJsonAsync("/api/setores", new { nome = nomeDoSetor });
+      Assert.Equal(HttpStatusCode.Created, respostaSetor.StatusCode);
+      setorId = await IdDoCorpo(respostaSetor);
+
+      var numeroDoPedido = $"ped-proibido-{Guid.NewGuid():N}"[..25];
+      var respostaPedido = await pcp.PostAsJsonAsync("/api/pedidos", new { numero = numeroDoPedido, cliente = "Cliente de teste" });
+      Assert.Equal(HttpStatusCode.Created, respostaPedido.StatusCode);
+      pedidoId = await IdDoCorpo(respostaPedido);
+
+      var respostaAgrupamento = await pcp.PostAsJsonAsync($"/api/pedidos/{pedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Kit" });
+      Assert.Equal(HttpStatusCode.Created, respostaAgrupamento.StatusCode);
+      agrupamentoId = await IdDoCorpo(respostaAgrupamento);
+
+      using var escopoDoComponente = _factory.Services.CreateScope();
+      var dbDoComponente = escopoDoComponente.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var arquivo = new ArquivoDeComponente
+      {
+        NomeOriginal = "cubo.stl", Conteudo = StlDeTesteDaApi.CuboBinario(), CriadoPorUsuarioId = autor.Id,
+      };
+      dbDoComponente.ArquivosDeComponente.Add(arquivo);
+      await dbDoComponente.SaveChangesAsync();
+      arquivoId = arquivo.Id;
+
+      var componente = new Componente
+      {
+        Codigo = $"EX-{Guid.NewGuid():N}"[..12], Descricao = "Componente do teste de Proibido",
+        Tipo = "Fabricado", Ativo = true, ArquivoSolidoId = arquivo.Id,
+      };
+      dbDoComponente.Componentes.Add(componente);
+      await dbDoComponente.SaveChangesAsync();
+      componenteId = componente.Id;
+
+      var respostaPeca = await pcp.PostAsJsonAsync(
+          $"/api/agrupamentos/{agrupamentoId}/estrutura",
+          new { componenteId, quantidade = 1m, requerRelatorioDimensional = false });
+      Assert.Equal(HttpStatusCode.Created, respostaPeca.StatusCode);
+      pecaId = await IdDoCorpo(respostaPeca);
+
+      var montagem = new Montagem
+      {
+        EstruturaItemId = pecaId.Value, SetorId = setorId.Value, Quantidade = 1m,
+        DataHora = DateTime.UtcNow, UsuarioId = autor.Id,
+      };
+      dbDoComponente.Montagens.Add(montagem);
+      await dbDoComponente.SaveChangesAsync();
+      montagemId = montagem.Id;
+
       var respostaEstorno = await movimentador.PostAsync($"/api/montagens/{montagemId}/estorno", null);
 
       Assert.Equal(HttpStatusCode.Forbidden, respostaEstorno.StatusCode);
@@ -154,23 +174,47 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
       using var escopo = _factory.Services.CreateScope();
       var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
 
-      // Ordem por FK: Montagem antes de EstruturaItem/Setor; Agrupamento/Pedido por ultimo; e
-      // Componente/ArquivoDeComponente por fora da arvore do Pedido (mesma ordem de
-      // EstruturaEndpointsTests.DisposeAsync).
-      db.Montagens.RemoveRange(await db.Montagens.Where(m => m.Id == montagemId).ToListAsync());
-      await db.SaveChangesAsync();
-      db.Estruturas.RemoveRange(await db.Estruturas.Where(e => e.Id == pecaId).ToListAsync());
-      await db.SaveChangesAsync();
-      db.Agrupamentos.RemoveRange(await db.Agrupamentos.Where(a => a.Id == agrupamentoId).ToListAsync());
-      await db.SaveChangesAsync();
-      db.Pedidos.RemoveRange(await db.Pedidos.Where(p => p.Id == pedidoId).ToListAsync());
-      await db.SaveChangesAsync();
-      db.Componentes.RemoveRange(await db.Componentes.Where(c => c.Id == componenteId).ToListAsync());
-      await db.SaveChangesAsync();
-      db.ArquivosDeComponente.RemoveRange(await db.ArquivosDeComponente.Where(a => a.Id == arquivo.Id).ToListAsync());
-      await db.SaveChangesAsync();
-      db.Setores.RemoveRange(await db.Setores.Where(s => s.Id == setorId).ToListAsync());
-      await db.SaveChangesAsync();
+      // Por FK, e so o que de fato foi criado: Montagem antes de EstruturaItem/Setor;
+      // Agrupamento/Pedido por ultimo; Componente/ArquivoDeComponente por fora da arvore do
+      // Pedido (mesma ordem de EstruturaEndpointsTests.DisposeAsync). Isto roda ANTES do
+      // `await using` de `autor`/`requerente` descartar os dois usuarios — a `Montagem` tem FK
+      // para `Usuario` (autor.Id), e apagar o usuario antes dela estouraria
+      // `FK_Montagem_Usuario`.
+      if (montagemId is int mId)
+      {
+        db.Montagens.RemoveRange(await db.Montagens.Where(m => m.Id == mId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
+      if (pecaId is int pId)
+      {
+        db.Estruturas.RemoveRange(await db.Estruturas.Where(e => e.Id == pId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
+      if (agrupamentoId is int agId)
+      {
+        db.Agrupamentos.RemoveRange(await db.Agrupamentos.Where(a => a.Id == agId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
+      if (pedidoId is int pdId)
+      {
+        db.Pedidos.RemoveRange(await db.Pedidos.Where(p => p.Id == pdId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
+      if (componenteId is int cId)
+      {
+        db.Componentes.RemoveRange(await db.Componentes.Where(c => c.Id == cId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
+      if (arquivoId is int aId)
+      {
+        db.ArquivosDeComponente.RemoveRange(await db.ArquivosDeComponente.Where(a => a.Id == aId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
+      if (setorId is int sId)
+      {
+        db.Setores.RemoveRange(await db.Setores.Where(s => s.Id == sId).ToListAsync());
+        await db.SaveChangesAsync();
+      }
     }
   }
 
