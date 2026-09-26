@@ -132,13 +132,13 @@ describe('estrutura', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(filhoCriado), { status: 201 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const resultado = await acrescentarFilho(7, { componenteId: null, descricao: 'Sub-item ad-hoc', quantidade: 3 })
+    const resultado = await acrescentarFilho(7, { componenteId: null, descricao: 'Sub-item ad-hoc', quantidade: 3, quantidadePorPai: 1.5 })
 
     expect(resultado).toEqual(filhoCriado)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/api/estrutura/7/filhos')
     expect(init.method).toBe('POST')
-    expect(init.body).toBe(JSON.stringify({ componenteId: null, descricao: 'Sub-item ad-hoc', quantidade: 3 }))
+    expect(init.body).toBe(JSON.stringify({ componenteId: null, descricao: 'Sub-item ad-hoc', quantidade: 3, quantidadePorPai: 1.5 }))
   })
 
   it('acrescentarFilho devolve o conflito no 409', async () => {
@@ -146,7 +146,7 @@ describe('estrutura', () => {
       new Response(JSON.stringify({ erro: 'EstruturaProfundaDemais', mensagem: 'A receita passa de 20 niveis.' }), { status: 409 }),
     ))
 
-    const resultado = await acrescentarFilho(7, { componenteId: 2, descricao: null, quantidade: 3 })
+    const resultado = await acrescentarFilho(7, { componenteId: 2, descricao: null, quantidade: 3, quantidadePorPai: 1 })
 
     expect(ehConflitoDeEstrutura(resultado)).toBe(true)
     expect(ehConflitoDeEstrutura(resultado) && resultado.erro).toBe('EstruturaProfundaDemais')
@@ -162,19 +162,42 @@ describe('estrutura', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(noEditado), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const resultado = await editarNo(7, { descricao: 'Suporte revisado', quantidade: 8 })
+    const resultado = await editarNo(7, { descricao: 'Suporte revisado', quantidade: 8, quantidadePorPai: null })
 
     expect(resultado).toEqual(noEditado)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/api/estrutura/7')
     expect(init.method).toBe('PUT')
-    expect(init.body).toBe(JSON.stringify({ descricao: 'Suporte revisado', quantidade: 8 }))
+    expect(init.body).toBe(JSON.stringify({ descricao: 'Suporte revisado', quantidade: 8, quantidadePorPai: null }))
   })
 
   it('editarNo lanca quando o backend responde erro nao tratado', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 400 })))
 
-    await expect(editarNo(7, { descricao: null, quantidade: 8 })).rejects.toMatchObject({ name: 'ErroDeApi', status: 400 })
+    await expect(editarNo(7, { descricao: null, quantidade: 8, quantidadePorPai: 2 })).rejects.toMatchObject({ name: 'ErroDeApi', status: 400 })
+  })
+
+  // Fase 3: `EditarNo` passa a recusar reduzir abaixo do que ja andou (spec secao 4.7), e roda no
+  // esquema de trava da execucao. Os dois 409 novos chegam como conflito, com a frase do servidor.
+  it.each(['QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia'])(
+    'editarNo devolve o conflito %s com a frase do servidor',
+    async (codigo) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: codigo, mensagem: 'frase do servidor' }), { status: 409 }),
+      ))
+
+      const resultado = await editarNo(7, { descricao: null, quantidade: 1, quantidadePorPai: 2 })
+
+      expect(resultado).toEqual({ erro: codigo, mensagem: 'frase do servidor' })
+    },
+  )
+
+  it('excluirNo devolve ConflitoDeConcorrencia como desfecho', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'ConflitoDeConcorrencia' }), { status: 409 }),
+    ))
+
+    expect(await excluirNo(7)).toBe('ConflitoDeConcorrencia')
   })
 
   it('lanca quando o 409 nao esta no formato de conflito de estrutura', async () => {

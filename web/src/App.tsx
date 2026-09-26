@@ -8,6 +8,9 @@ import { ComponenteDetalhePage } from './pages/ComponenteDetalhePage'
 import { PedidosPage } from './pages/PedidosPage'
 import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
 import { AgrupamentoDetalhePage } from './pages/AgrupamentoDetalhePage'
+import { FilaPage } from './pages/FilaPage'
+import { FilaDoSetorPage } from './pages/FilaDoSetorPage'
+import { TarefasPage } from './pages/TarefasPage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './components/AppShell'
 
@@ -30,6 +33,9 @@ export default function App() {
         <Route path="/pedidos" element={<PedidosPage />} />
         <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
         <Route path="/agrupamentos/:id" element={<AgrupamentoDetalhePage />} />
+        <Route path="/fila" element={<FilaPage />} />
+        <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
+        <Route path="/tarefas" element={<TarefasPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

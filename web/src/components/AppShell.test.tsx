@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, within, cleanup, fireEvent, act, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, Link } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { Pagina } from './Pagina'
 import { useAuth } from '../auth/AuthContext'
+import { contarTarefas } from '../api/execucao'
 
 const logout = vi.fn()
 
-afterEach(() => { cleanup(); logout.mockClear() })
+afterEach(() => { cleanup(); logout.mockClear(); vi.useRealTimers() })
 
 // O `AuthProvider` de verdade dispara init-refresh no mount; aqui só interessa o que o shell faz
 // com a sessão já resolvida. `useAuth` é um mock por si (`vi.fn`), não uma factory fixa, porque o
@@ -17,7 +18,15 @@ vi.mock('../auth/AuthContext', () => ({
   useAuth: vi.fn(),
 }))
 
+// O contador de Tarefas (Fase 3) consulta a API no mount de TODO shell; sem este mock, cada caso
+// daqui dispararia uma requisição de verdade.
+vi.mock('../api/execucao', () => ({
+  contarTarefas: vi.fn(),
+}))
+
 beforeEach(() => {
+  vi.mocked(contarTarefas).mockReset()
+  vi.mocked(contarTarefas).mockResolvedValue(0)
   vi.mocked(useAuth).mockReturnValue({
     estado: {
       status: 'autenticado',
@@ -71,7 +80,7 @@ describe('AppShell', () => {
     renderizarShell()
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
-    for (const d of ['/', '/pedidos', '/componentes', '/materiais', '/setores']) {
+    for (const d of ['/', '/fila', '/tarefas', '/pedidos', '/componentes', '/materiais', '/setores']) {
       expect(destinos, `link para ${d}`).toContain(d)
     }
   })
@@ -183,7 +192,7 @@ describe('AppShell', () => {
   })
 
   it('sai da sessão pelo "Sair" da gaveta', () => {
-    // Abaixo de 768px a barra some (`hidden md:flex`); o "Sair" da gaveta é o único logout que o
+    // Abaixo de 1024px a barra some (`hidden lg:flex`); o "Sair" da gaveta é o único logout que o
     // celular alcança.
     renderizarShell()
 
@@ -256,5 +265,80 @@ describe('AppShell', () => {
     expect(screen.getByText('Planejamento e Controle').getAttribute('title')).toBe(
       'Planejamento e Controle',
     )
+  })
+
+  it('mostra no item Tarefas quantas há', async () => {
+    vi.mocked(contarTarefas).mockResolvedValue(3)
+
+    renderizarShell()
+
+    expect(await screen.findByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+  })
+
+  it('sem tarefa, o item Tarefas não mostra "0"', async () => {
+    renderizarShell()
+
+    await waitFor(() => expect(contarTarefas).toHaveBeenCalled())
+    expect(screen.getByRole('link', { name: 'Tarefas' })).toBeTruthy()
+  })
+
+  it('falha ao contar não vira banner no shell', async () => {
+    vi.mocked(contarTarefas).mockRejectedValue(new TypeError('Failed to fetch'))
+
+    renderizarShell()
+
+    await waitFor(() => expect(contarTarefas).toHaveBeenCalled())
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('link', { name: 'Tarefas' })).toBeTruthy()
+  })
+
+  it('o contador se atualiza a cada 30 s', async () => {
+    vi.useFakeTimers()
+    vi.mocked(contarTarefas).mockResolvedValueOnce(1).mockResolvedValueOnce(4)
+
+    renderizarShell()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(screen.getByRole('link', { name: 'Tarefas 1' })).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.getByRole('link', { name: 'Tarefas 4' })).toBeTruthy()
+  })
+
+  it('falha numa atualização periódica mantém o último número (D5)', async () => {
+    // Achado da review da Task 7: falha na atualização (depois de um sucesso) não zera o
+    // contador — quem faz isso é `useCargaPeriodica`, que só troca `dados` por `null` numa `chave`
+    // nova, nunca no `catch`. Distingue do caso já coberto por "falha ao contar não vira banner no
+    // shell", que só cobre a falha da carga INICIAL, onde não há número anterior a manter.
+    vi.useFakeTimers()
+    vi.mocked(contarTarefas).mockResolvedValueOnce(3).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    renderizarShell()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(screen.getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+  })
+
+  it('a barra dá lugar à gaveta abaixo de 1024px, não de 768px', () => {
+    // Desvio D4 do plano 3 da Fase 3: com Fila e Tarefas o cabeçalho pede 888px (MEDIDO em Chromium
+    // contra o CSS do build). O jsdom não calcula layout, então este teste prende a DECLARAÇÃO —
+    // as classes —, e a medida em si está no comentário de `ITENS`.
+    renderizarShell()
+
+    // Nenhuma classe cujo prefixo de variante seja "md" — escrita como PADRÃO, não como literal:
+    // Tailwind 4 varre QUALQUER arquivo (este `.test.tsx` incluído) atrás de um nome de classe
+    // completo, e escrever aqui a versão "md" dos dois pares "lg" acima geraria CSS morto no build
+    // (achado do Lote B da review de branch da Fase 3, medido em `web/dist`).
+    const semVarianteMd = (classes: string[]) => !classes.some((c) => /^md\W/.test(c))
+
+    const barra = screen.getByRole('navigation', { name: 'Principal' }).className.split(/\s+/)
+    expect(barra).toContain('lg:flex')
+    expect(semVarianteMd(barra)).toBe(true)
+    const botaoDoMenu = screen.getByRole('button', { name: 'Abrir menu' }).className.split(/\s+/)
+    expect(botaoDoMenu).toContain('lg:hidden')
+    expect(semVarianteMd(botaoDoMenu)).toBe(true)
   })
 })

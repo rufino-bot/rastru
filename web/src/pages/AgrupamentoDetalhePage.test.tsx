@@ -7,6 +7,9 @@ import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
 import type { NoDaEstrutura } from '../api/estrutura'
 import type { AgrupamentoDto, ComponenteDto } from '../api/cadastros'
+import type { LivroDoNoDto, PosicoesDoNoDto } from '../api/execucao'
+import { movimentacao } from '../testes/execucao'
+import type { FilhoPadraoDto } from '../api/receitaPadrao'
 
 afterEach(cleanup)
 
@@ -32,6 +35,8 @@ const PECA: NoDaEstrutura = {
   materiais: [],
   roteiro: [],
   filhos: [],
+  quantidadePorPai: null,
+  semRoteiro: true,
 }
 
 // `temSolido: true` preserva a intenção original da fixture: com `exigirSolido` ligado no
@@ -61,6 +66,8 @@ const ITEM_FILHO: NoDaEstrutura = {
   materiais: [],
   roteiro: [],
   filhos: [],
+  quantidadePorPai: 3,
+  semRoteiro: true,
 }
 const PECA_COM_FILHO: NoDaEstrutura = { ...PECA, filhos: [ITEM_FILHO] }
 
@@ -93,6 +100,13 @@ const COMPONENTES_BUSCA = {
  * continua funcionando sem tocar nestes quatro parâmetros: a Task 8b faz a tela buscar
  * `GET /agrupamentos/21` incondicionalmente no mount (para o cabeçalho), e sem este caso aqui TODOS
  * os testes anteriores quebrariam com "fetch não esperado".
+ *
+ * Fase 3: `posicoes` é o que `GET /agrupamentos/21/posicoes` devolve (a carga busca as duas juntas),
+ * e `receitaDoPai`, o que `GET /componentes/10/filhos-padrao` devolve — a receita do Componente de
+ * `PECA`, que o painel de acrescentar filho busca para pré-preencher a razão. `livro` é o histórico
+ * de QUALQUER nó (`GET /estrutura/:id/movimentacoes`) e o Roteiro de qualquer nó vem vazio — o
+ * painel de detalhes (Task 9 do plano 3) busca os dois ao abrir; `respostaEstorno` é o desfecho de
+ * `POST /movimentacoes/:id/estorno`.
  */
 function montarFetch({
   estruturaInicial,
@@ -102,6 +116,10 @@ function montarFetch({
   respostaFilhos = null,
   respostaEditar = null,
   respostaExcluir = null,
+  posicoes = [],
+  receitaDoPai = [],
+  livro = { movimentacoes: [], montagens: [] },
+  respostaEstorno = null,
 }: {
   estruturaInicial: NoDaEstrutura[]
   estruturaAposCriar?: NoDaEstrutura[] | null
@@ -110,12 +128,27 @@ function montarFetch({
   respostaFilhos?: { status: number; corpo: unknown } | null
   respostaEditar?: { status: number; corpo: unknown } | null
   respostaExcluir?: { status: number; corpo: unknown } | null
+  posicoes?: PosicoesDoNoDto[]
+  receitaDoPai?: FilhoPadraoDto[]
+  livro?: LivroDoNoDto
+  respostaEstorno?: { status: number; corpo: unknown } | null
 }) {
   let getsDeEstrutura = 0
   return vi.fn((url: string | URL, init?: RequestInit) => {
     const caminho = String(url).split('?')[0]
     const metodo = init?.method ?? 'GET'
     if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
+    if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson(posicoes))
+    if (caminho === '/api/componentes/10/filhos-padrao') return Promise.resolve(respostaJson(receitaDoPai))
+    if (caminho === '/api/setores') return Promise.resolve(respostaJson([]))
+    if (/^\/api\/estrutura\/\d+\/movimentacoes$/.test(caminho)) return Promise.resolve(respostaJson(livro))
+    if (/^\/api\/estrutura\/\d+\/roteiro$/.test(caminho)) {
+      return Promise.resolve(respostaJson({ estruturaItemId: Number(caminho.split('/')[3]), passos: [] }))
+    }
+    if (/^\/api\/movimentacoes\/\d+\/estorno$/.test(caminho) && metodo === 'POST') {
+      if (respostaEstorno) return Promise.resolve(respostaJson(respostaEstorno.corpo, respostaEstorno.status))
+      return Promise.resolve(respostaJson({}, 201))
+    }
     if (caminho === '/api/agrupamentos/21') {
       if (respostaAgrupamento) return Promise.resolve(respostaJson(respostaAgrupamento.corpo, respostaAgrupamento.status))
       return Promise.resolve(respostaJson(AGRUPAMENTO))
@@ -422,6 +455,8 @@ describe('AgrupamentoDetalhePage', () => {
       // esperado" assim que a Task 8b entrou (medido: os 12 testes anteriores usavam `montarFetch`,
       // que já ganhou a rota; estes três montam o `fetch` à mão, então precisam dela também).
       if (caminho === '/api/agrupamentos/21') return Promise.resolve(respostaJson(AGRUPAMENTO))
+      // Fase 3: a carga busca as posições junto da estrutura (as duas falham juntas).
+      if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson([]))
       if (caminho === '/api/agrupamentos/21/estrutura') {
         if (metodo === 'POST') return Promise.resolve(respostaJson({ ...PECA, id: 101 }, 201))
         getsDeEstrutura += 1
@@ -460,6 +495,8 @@ describe('AgrupamentoDetalhePage', () => {
       // esperado" assim que a Task 8b entrou (medido: os 12 testes anteriores usavam `montarFetch`,
       // que já ganhou a rota; estes três montam o `fetch` à mão, então precisam dela também).
       if (caminho === '/api/agrupamentos/21') return Promise.resolve(respostaJson(AGRUPAMENTO))
+      // Fase 3: a carga busca as posições junto da estrutura (as duas falham juntas).
+      if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson([]))
       if (caminho === '/api/agrupamentos/21/estrutura') {
         if (metodo === 'POST') return Promise.resolve(respostaJson({}, 403))
         return Promise.reject(new TypeError('failed to fetch'))
@@ -497,6 +534,8 @@ describe('AgrupamentoDetalhePage', () => {
       // esperado" assim que a Task 8b entrou (medido: os 12 testes anteriores usavam `montarFetch`,
       // que já ganhou a rota; estes três montam o `fetch` à mão, então precisam dela também).
       if (caminho === '/api/agrupamentos/21') return Promise.resolve(respostaJson(AGRUPAMENTO))
+      // Fase 3: a carga busca as posições junto da estrutura (as duas falham juntas).
+      if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson([]))
       if (caminho === '/api/agrupamentos/21/estrutura') {
         if (metodo === 'POST') return Promise.resolve(respostaJson({ ...PECA, id: 101 }, 201))
         getsDeEstrutura += 1
@@ -593,6 +632,7 @@ describe('AgrupamentoDetalhePage', () => {
     const listbox = await within(painel).findByRole('listbox')
     fireEvent.click(await within(listbox).findByText('CH-100'))
     fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
     fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
 
     await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
@@ -605,6 +645,7 @@ describe('AgrupamentoDetalhePage', () => {
       componenteId: 10,
       descricao: null,
       quantidade: 3,
+      quantidadePorPai: 2,
     })
   })
 
@@ -641,6 +682,7 @@ describe('AgrupamentoDetalhePage', () => {
     fireEvent.click(within(painel).getByLabelText('Ad-hoc'))
     fireEvent.change(within(painel).getByLabelText('Descrição'), { target: { value: 'Parafuso especial' } })
     fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '10' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
     fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
 
     await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
@@ -653,6 +695,7 @@ describe('AgrupamentoDetalhePage', () => {
       componenteId: null,
       descricao: 'Parafuso especial',
       quantidade: 10,
+      quantidadePorPai: 2,
     })
   })
 
@@ -670,6 +713,7 @@ describe('AgrupamentoDetalhePage', () => {
     const listbox = await within(painel).findByRole('listbox')
     fireEvent.click(await within(listbox).findByText('CH-100'))
     fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
     fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
 
     expect(await screen.findByText('Sub-item')).toBeTruthy()
@@ -693,6 +737,7 @@ describe('AgrupamentoDetalhePage', () => {
     const listbox = await within(painel).findByRole('listbox')
     fireEvent.click(await within(listbox).findByText('CH-100'))
     fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
     fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
 
     const bannerDoPainel = await screen.findByText(mensagemDoServidor)
@@ -705,8 +750,9 @@ describe('AgrupamentoDetalhePage', () => {
     expect(bannerDoPainel.closest('form')).toBe(screen.getByTestId('painel-de-escrita'))
   })
 
-  // Teste 5. D4 por asserção de corpo: nenhum terceiro campo (nem `componenteId`) vaza no PUT.
-  it('editar um nó envia apenas descrição e quantidade', async () => {
+  // Teste 5. D4 por asserção de corpo: nenhum campo além de descrição, quantidade e razão (nem
+  // `componenteId`) vaza no PUT. Na Peça a razão vai `null` — é o que o backend exige (regra 26).
+  it('editar uma Peça envia descrição, quantidade e a razão nula', async () => {
     const fetchMock = montarFetch({ estruturaInicial: [PECA] })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -732,6 +778,7 @@ describe('AgrupamentoDetalhePage', () => {
     expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toEqual({
       descricao: 'Chassi reforçado',
       quantidade: 2,
+      quantidadePorPai: null,
     })
   })
 
@@ -847,6 +894,7 @@ describe('AgrupamentoDetalhePage', () => {
     const listbox = await within(painel).findByRole('listbox')
     fireEvent.click(await within(listbox).findByText('CH-100'))
     fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
     fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
 
     expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
@@ -898,6 +946,7 @@ describe('AgrupamentoDetalhePage', () => {
     expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toEqual({
       descricao: null,
       quantidade: 2,
+      quantidadePorPai: null,
     })
   })
 
@@ -983,6 +1032,8 @@ describe('AgrupamentoDetalhePage', () => {
       const metodo = init?.method ?? 'GET'
       if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
       if (caminho === '/api/agrupamentos/21') return Promise.resolve(respostaJson(AGRUPAMENTO))
+      // Fase 3: a carga busca as posições junto da estrutura (as duas falham juntas).
+      if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson([]))
       if (caminho === '/api/agrupamentos/21/estrutura') {
         if (metodo === 'POST') {
           tentativasDePost += 1
@@ -1022,6 +1073,8 @@ describe('AgrupamentoDetalhePage', () => {
       const metodo = init?.method ?? 'GET'
       if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
       if (caminho === '/api/agrupamentos/21') return Promise.resolve(respostaJson(AGRUPAMENTO))
+      // Fase 3: a carga busca as posições junto da estrutura (as duas falham juntas).
+      if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson([]))
       if (caminho === '/api/agrupamentos/21/estrutura') {
         if (metodo === 'POST') return Promise.resolve(respostaJson({}, 403))
         return Promise.reject(new TypeError('failed to fetch'))
@@ -1038,5 +1091,253 @@ describe('AgrupamentoDetalhePage', () => {
 
     const bannerDeEscrita = await screen.findByText('Seu perfil não tem permissão para esta ação.')
     expect(bannerDeEscrita.closest('form')).toBeTruthy()
+  })
+  // ---------------------------------------------------------------------------------------------
+  // Fase 3: a razão (regra 26), o "Sem Roteiro" e onde está cada nó.
+  // ---------------------------------------------------------------------------------------------
+
+  it('acrescentar filho exige a Quantidade por pai', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByLabelText('Ad-hoc'))
+    fireEvent.change(within(painel).getByLabelText('Descrição'), { target: { value: 'Calço' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '20' } })
+
+    expect(within(painel).getByRole('button', { name: 'Acrescentar' })).toHaveProperty('disabled', true)
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
+    expect(within(painel).getByRole('button', { name: 'Acrescentar' })).toHaveProperty('disabled', false)
+  })
+
+  it('a razão vem preenchida quando a receita do pai lista o filho escolhido', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      receitaDoPai: [{ id: 1, componenteFilhoId: 10, codigo: 'CH-100', descricao: 'Chassi', quantidadePadrao: 4 }],
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    // A receita chega depois da abertura do painel; a escolha do Componente vem depois dela.
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some((c) => String(c[0]) === '/api/componentes/10/filhos-padrao')).toBe(true))
+    fireEvent.click(within(painel).getByRole('combobox'))
+    const listbox = await within(painel).findByRole('listbox')
+    fireEvent.click(await within(listbox).findByText('CH-100'))
+
+    await waitFor(() => expect(within(painel).getByLabelText('Quantidade por pai')).toHaveProperty('value', '4'))
+  })
+
+  it('Componente fora da receita do pai deixa a razão para quem cadastra', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      receitaDoPai: [{ id: 1, componenteFilhoId: 99, codigo: 'X-99', descricao: 'Outro', quantidadePadrao: 4 }],
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByRole('combobox'))
+    const listbox = await within(painel).findByRole('listbox')
+    fireEvent.click(await within(listbox).findByText('CH-100'))
+
+    expect(within(painel).getByLabelText('Quantidade por pai')).toHaveProperty('value', '')
+  })
+
+  it('editar um Item mostra a razão dele e envia a nova', async () => {
+    const fetchMock = montarFetch({ estruturaInicial: [PECA_COM_FILHO] })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Sub-item')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-150')).getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    expect(within(painel).getByLabelText('Quantidade por pai')).toHaveProperty('value', '3')
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '5' } })
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar edição' }))
+
+    await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
+    const chamadaPut = fetchMock.mock.calls.find(
+      (c) => String(c[0]) === '/api/estrutura/150' && (c[1] as RequestInit | undefined)?.method === 'PUT',
+    )
+    expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toEqual({
+      descricao: 'Sub-item', quantidade: 3, quantidadePorPai: 5,
+    })
+  })
+
+  it('editar a Peça não pede razão', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(within(screen.getByTestId('painel-de-escrita')).queryByLabelText('Quantidade por pai')).toBeNull()
+  })
+
+  it('reduzir abaixo do que já andou mostra a frase do servidor', async () => {
+    const frase = 'Já saíram 4 de "a iniciar" e 0 foram montados: a quantidade não pode ficar abaixo de 4.'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaEditar: { status: 409, corpo: { erro: 'QuantidadeAbaixoDoMovimentado', mensagem: frase } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Quantidade'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    expect(await screen.findByText(frase)).toBeTruthy()
+  })
+
+  // Fix round 1 (Important da review da Task 8): um 409 de editar significa que a tela ficou
+  // velha (spec §8.3) — a árvore e as posições recarregam, sem fechar o painel nem apagar a frase.
+  it('editar com 409 mantém o painel aberto e recarrega a árvore e as posições', async () => {
+    const frase = 'Já saíram 4 de "a iniciar" e 0 foram montados: a quantidade não pode ficar abaixo de 4.'
+    const fetchMock = montarFetch({
+      estruturaInicial: [PECA],
+      respostaEditar: { status: 409, corpo: { erro: 'QuantidadeAbaixoDoMovimentado', mensagem: frase } },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    const getsDeEstrutura = () => fetchMock.mock.calls.filter(
+      (c) => String(c[0]) === '/api/agrupamentos/21/estrutura',
+    ).length
+    const getsDePosicoes = () => fetchMock.mock.calls.filter(
+      (c) => String(c[0]) === '/api/agrupamentos/21/posicoes',
+    ).length
+    const getsDeEstruturaAntes = getsDeEstrutura()
+    const getsDePosicoesAntes = getsDePosicoes()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Quantidade'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    expect(await screen.findByText(frase)).toBeTruthy()
+    // O painel continua aberto — o 409 não fecha (só recarrega por baixo).
+    expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
+    await waitFor(() => expect(getsDeEstrutura()).toBe(getsDeEstruturaAntes + 1))
+    expect(getsDePosicoes()).toBe(getsDePosicoesAntes + 1)
+  })
+
+  it('excluir em conflito de concorrência diz para tentar de novo', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaExcluir: { status: 409, corpo: { erro: 'ConflitoDeConcorrencia' } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-100')).getByRole('button', { name: 'Excluir' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByText('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')).toBeTruthy()
+  })
+
+  it('mostra onde está cada nó, e o "Sem Roteiro"', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      posicoes: [{ estruturaItemId: 100, totalMontado: null, saldos: [
+        { posicao: 'NoSetor', setorId: 1, setorNome: 'Corte', ordem: 1, quantidade: 1 },
+      ] }],
+    }))
+
+    renderizarDetalhe()
+
+    const linha = await screen.findByTestId('linha-no-100')
+    expect(within(linha).getByText('1 em Corte (passo 1)')).toBeTruthy()
+    expect(within(linha).getByText('Sem Roteiro')).toBeTruthy()
+  })
+
+  it('falha ao carregar as posições é falha de carga: banner, sem árvore', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
+      if (caminho === '/api/agrupamentos/21') return Promise.resolve(respostaJson(AGRUPAMENTO))
+      if (caminho === '/api/agrupamentos/21/estrutura') return Promise.resolve(respostaJson([PECA]))
+      if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson({}, 500))
+      return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+    }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
+    expect(screen.queryByRole('list', { name: 'Estrutura do agrupamento' })).toBeNull()
+  })
+  it('"Detalhes" abre o Roteiro e o histórico do nó, para todo perfil', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+
+    const painel = screen.getByRole('region', { name: 'Detalhes de Chassi' })
+    expect(await within(painel).findByText('Nenhum registro ainda.')).toBeTruthy()
+    expect(within(painel).getByText(/Este nó não tem Roteiro/)).toBeTruthy()
+    fireEvent.click(within(painel).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
+  })
+
+  it('"Detalhes" move o foco para o título do painel, para o celular rolar até ele (I3 da review de branch da Fase 3)', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { level: 2, name: 'Detalhes de Chassi' }))
+  })
+
+  it('estornar no detalhe recarrega a árvore e onde está cada nó', async () => {
+    const fetchMock = montarFetch({
+      estruturaInicial: [PECA],
+      livro: { movimentacoes: [movimentacao({ id: 41, estruturaItemId: 100, usuarioId: 1 })], montagens: [] },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const getsDePosicoes = () => fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/agrupamentos/21/posicoes').length
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(getsDePosicoes()).toBe(2))
+  })
+
+  it('abrir "Editar" fecha o detalhe aberto', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
+    expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
+  })
+  it('o PCP edita o Roteiro no detalhe; o Operador só lê', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    expect(await screen.findByRole('button', { name: 'Adicionar passo' })).toBeTruthy()
+    cleanup()
+
+    perfil = 'Operador'
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    expect(await screen.findByText(/Quem cadastra o Roteiro é o PCP/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Adicionar passo' })).toBeNull()
   })
 })

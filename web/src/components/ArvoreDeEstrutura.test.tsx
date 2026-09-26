@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import { ArvoreDeEstrutura } from './ArvoreDeEstrutura'
 import type { NoDaEstrutura } from '../api/estrutura'
+import type { PosicoesDoNoDto } from '../api/execucao'
 
 afterEach(cleanup)
 
@@ -19,6 +20,8 @@ const folha: NoDaEstrutura = {
   materiais: [],
   roteiro: [],
   filhos: [],
+  quantidadePorPai: 3,
+  semRoteiro: true,
 }
 
 const filho: NoDaEstrutura = {
@@ -41,6 +44,8 @@ const filho: NoDaEstrutura = {
     { setorId: 2, nome: 'Solda', ordem: 2 },
   ],
   filhos: [folha],
+  quantidadePorPai: 4,
+  semRoteiro: false,
 }
 
 const peca: NoDaEstrutura = {
@@ -54,6 +59,8 @@ const peca: NoDaEstrutura = {
   materiais: [],
   roteiro: [],
   filhos: [filho],
+  quantidadePorPai: null,
+  semRoteiro: true,
 }
 
 const adHoc: NoDaEstrutura = {
@@ -67,6 +74,8 @@ const adHoc: NoDaEstrutura = {
   materiais: [],
   roteiro: [],
   filhos: [],
+  quantidadePorPai: 2,
+  semRoteiro: true,
 }
 
 describe('ArvoreDeEstrutura', () => {
@@ -276,8 +285,12 @@ describe('ArvoreDeEstrutura', () => {
           materiais: [],
           roteiro: [],
           filhos: [],
+          quantidadePorPai: 4,
+          semRoteiro: true,
         },
       ],
+      quantidadePorPai: null,
+      semRoteiro: true,
     }
 
     render(<ArvoreDeEstrutura nos={[peca, outraPeca]} podeEscrever={false} />)
@@ -292,5 +305,79 @@ describe('ArvoreDeEstrutura', () => {
 
     // Cada Peça é um `<ul>` de topo próprio, e as duas aparecem como itens de nível 0 da lista raiz.
     expect(screen.getAllByRole('list')[0].children).toHaveLength(2)
+  })
+  // Fase 3 --------------------------------------------------------------------------------------
+
+  it('marca "Sem Roteiro" só no nó que não tem Roteiro', () => {
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever={false} />)
+
+    // `peca` e `folha` não têm Roteiro; `filho` tem.
+    expect(within(screen.getByTestId('linha-no-1')).getByText('Sem Roteiro')).toBeTruthy()
+    expect(within(screen.getByTestId('linha-no-3')).getByText('Sem Roteiro')).toBeTruthy()
+    expect(within(screen.getByTestId('linha-no-2')).queryByText('Sem Roteiro')).toBeNull()
+  })
+
+  it('"Sem Roteiro" é neutro, não vermelho — é pendência, não erro', () => {
+    render(<ArvoreDeEstrutura nos={[adHoc]} podeEscrever={false} />)
+
+    const classes = screen.getByText('Sem Roteiro').className.split(/\s+/)
+    expect(classes).toContain('bg-acao-fundo')
+    expect(classes.some((c) => c.includes('negativo'))).toBe(false)
+  })
+
+  it('mostra a razão no Item, e não na Peça', () => {
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever={false} />)
+
+    expect(within(screen.getByTestId('linha-no-2')).getByText('Por pai: 4')).toBeTruthy()
+    expect(within(screen.getByTestId('linha-no-1')).queryByText(/Por pai/)).toBeNull()
+  })
+
+  it('mostra onde está cada nó, pelas posições recebidas', () => {
+    const posicoes = new Map<number, PosicoesDoNoDto>([
+      [1, { estruturaItemId: 1, totalMontado: 0, saldos: [
+        { posicao: 'AIniciar', setorId: null, setorNome: null, ordem: null, quantidade: 1 },
+      ] }],
+      [2, { estruturaItemId: 2, totalMontado: 1, saldos: [
+        { posicao: 'NoSetor', setorId: 1, setorNome: 'Corte', ordem: 1, quantidade: 3 },
+        { posicao: 'AguardandoColeta', setorId: 1, setorNome: 'Corte', ordem: 1, quantidade: 1 },
+      ] }],
+    ])
+
+    render(<ArvoreDeEstrutura nos={[peca]} posicoes={posicoes} podeEscrever={false} />)
+
+    const doFilho = within(screen.getByTestId('linha-no-2')).getByRole('list', { name: 'Onde está' })
+    expect(within(doFilho).getAllByRole('listitem').map((i) => i.textContent)).toEqual([
+      '3 em Corte (passo 1)', '1 aguardando coleta em Corte (passo 1)', 'total montado: 1',
+    ])
+    expect(within(screen.getByTestId('linha-no-1')).getByText('1 a iniciar')).toBeTruthy()
+    // Nó sem entrada no mapa (a folha, id 3): nenhuma pílula de posição.
+    expect(within(screen.getByTestId('linha-no-3')).queryByRole('list', { name: 'Onde está' })).toBeNull()
+  })
+
+  it('sem posições, nenhuma pílula de posição', () => {
+    render(<ArvoreDeEstrutura nos={[peca]} podeEscrever={false} />)
+
+    expect(screen.queryByRole('list', { name: 'Onde está' })).toBeNull()
+  })
+  it('"Detalhes" aparece para quem não escreve, sem trazer as ações de escrita junto', () => {
+    // Histórico e Roteiro são leitura de todo perfil (spec da Fase 3 §5.2); o `podeEscrever` continua
+    // governando só acrescentar/editar/excluir.
+    const onDetalhe = vi.fn()
+    render(
+      <ArvoreDeEstrutura
+        nos={[peca]}
+        podeEscrever={false}
+        onAcrescentarFilho={vi.fn()}
+        onEditar={vi.fn()}
+        onExcluir={vi.fn()}
+        onDetalhe={onDetalhe}
+      />,
+    )
+
+    const acoes = screen.getByTestId('acoes-do-no-2')
+    fireEvent.click(within(acoes).getByRole('button', { name: 'Detalhes' }))
+    expect(onDetalhe).toHaveBeenCalledWith(filho)
+    expect(within(acoes).queryByRole('button', { name: /^editar/i })).toBeNull()
+    expect(within(acoes).queryByRole('button', { name: /excluir/i })).toBeNull()
   })
 })

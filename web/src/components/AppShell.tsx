@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { contarTarefas } from '../api/execucao'
+import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
 
 interface ItemDeNavegacao {
   para: string
@@ -13,10 +15,16 @@ interface ItemDeNavegacao {
  * perfil vive na AÇÃO — formulário e botões de (in)ativar —, não aqui.
  *
  * Medido em 2026-08-10, Chrome headless contra o CSS do build, em 768px (a âncora que a spec §11
- * exige): os 5 links de hoje cabem sem estourar; a barra estoura na horizontal a partir do
- * **sétimo** link (86px de estouro), não de "10+" — Qualidade (Fase 5) e Expedição (Fase 6) são o
- * sexto e o sétimo link, não uma hipótese distante. O agrupamento (ex.: "Cadastros" com submenu,
- * spec §6) entra quando o sétimo link chegar, não antes; até lá o custo é conhecido e aceito.
+ * exige): os 5 links de então cabiam sem estourar; a barra estourava na horizontal a partir do
+ * **sétimo** link (86px de estouro).
+ *
+ * **O sétimo link chegou na Fase 3** (Fila e Tarefas, spec da Fase 3 §6.1 e §6.2), e a saída foi
+ * mover a troca barra → gaveta de `md` (768px) para `lg` (1024px), não o agrupamento com submenu
+ * que este comentário previa (desvio D4 do plano 3). Remedido em 2026-09-25, Chromium headless
+ * contra o CSS do build, com os sete links e o contador "Tarefas 12": o cabeçalho pede **888px**;
+ * em 768px estourava 120px, e em 1024px sobram 136px. O celular e o tablet em retrato já usavam a
+ * gaveta, e continuam usando. O oitavo link (Qualidade, Fase 5) deve caber nos 136px — remeça
+ * quando ele chegar; o agrupamento continua sendo a saída se não couber.
  *
  * **O `end` do item `/` é REDUNDANTE nesta versão, e isso foi medido — não suposto.** Apagar os
  * dois `end={i.para === '/'}` deixa a suíte 10/10 VERDE (mutação M7, medida em 2026-08-10 com
@@ -31,6 +39,10 @@ interface ItemDeNavegacao {
  */
 const ITENS: ItemDeNavegacao[] = [
   { para: '/', rotulo: 'Início' },
+  // Fila e Tarefas logo depois do Início: são as telas do chão de fábrica, abertas o dia inteiro
+  // no celular — os cadastros são do escritório.
+  { para: '/fila', rotulo: 'Fila' },
+  { para: '/tarefas', rotulo: 'Tarefas' },
   { para: '/pedidos', rotulo: 'Pedidos' },
   { para: '/componentes', rotulo: 'Componentes' },
   { para: '/materiais', rotulo: 'Materiais' },
@@ -49,6 +61,26 @@ const CONTROLE_BASE =
 // `marca` dá 6,405. É por isto que o `Botao` da Task 5 não serve aqui sem uma variante nova.
 const BOTAO_DO_CHROME =
   `${CONTROLE_BASE} font-medium border border-chrome-borda text-superficie hover:bg-chrome-hover`
+
+/**
+ * O contador do item Tarefas (spec §6.2). Branco sobre o chrome: é o par `superficie`/`chrome` já
+ * medido em `contraste.test.ts` ("texto da barra de navegação"), com os papéis trocados — razão de
+ * contraste é simétrica. Nem verde nem vermelho: um número de tarefas não é estado de aprovação.
+ */
+const CONTADOR =
+  'inline-flex min-w-5 items-center justify-center rounded-full bg-superficie px-1.5 text-xs font-semibold text-chrome'
+
+function RotuloDoItem({ item, totalDeTarefas }: { item: ItemDeNavegacao; totalDeTarefas: number | null }) {
+  if (item.para !== '/tarefas' || totalDeTarefas === null || totalDeTarefas === 0) return <>{item.rotulo}</>
+  return (
+    <>
+      {/* O espaço é texto de verdade, não só a margem: sem ele o nome acessível do link vira
+          "Tarefas3" — o leitor de tela lê a margem como nada. */}
+      {`${item.rotulo} `}
+      <span className={CONTADOR}>{totalDeTarefas}</span>
+    </>
+  )
+}
 
 function classesDoLink({ isActive }: { isActive: boolean }): string {
   // Três dimensões de distinção: fundo, tinta e PESO. O peso entrou por decisão do usuário em
@@ -70,6 +102,17 @@ export function AppShell() {
 
   const usuario = estado.status === 'autenticado' ? estado.usuario : null
 
+  // O contador é de TODO perfil, como o link (gating vai na ação, não no link). O `erro` do hook
+  // nunca é lido aqui, então falha de rede não vira banner no shell — em NENHUM dos dois casos
+  // abaixo, porque quem mostra os três estados é a tela de Tarefas, não o menu.
+  // Falha na carga INICIAL: sem dado nenhum ainda, o número fica ausente (mostra só "Tarefas").
+  // Falha numa atualização PERIÓDICA, depois de um sucesso anterior: o hook mantém o último número
+  // na tela (D5, herdado de `useCargaPeriodica`) — o contador NÃO some, fica com um valor
+  // possivelmente velho até a próxima consulta dar certo.
+  const { dados: totalDeTarefas } = useCargaPeriodica(
+    contarTarefas, 'contagem-de-tarefas', INTERVALO_DA_EXECUCAO_MS, 'Não foi possível contar as tarefas.',
+  )
+
   // A gaveta fecha num efeito sobre `location.key`, não no `onClick` de cada link dela: o `onClick`
   // só reage ao clique NAQUELES links, e deixa aberta a gaveta quando a navegação vem de um link no
   // CONTEÚDO (a HomePage tem quatro), do botão voltar do navegador, ou de um redirecionamento
@@ -89,16 +132,16 @@ export function AppShell() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <span className="text-lg font-semibold tracking-tight text-marca">Rastru</span>
 
-          {/* Barra: some abaixo de 768px, onde a gaveta assume. */}
-          <nav aria-label="Principal" className="hidden md:flex md:items-center md:gap-1">
+          {/* Barra: some abaixo de 1024px, onde a gaveta assume (desvio D4 do plano 3 da Fase 3). */}
+          <nav aria-label="Principal" className="hidden lg:flex lg:items-center lg:gap-1">
             {ITENS.map((i) => (
               <NavLink key={i.para} to={i.para} end={i.para === '/'} className={classesDoLink}>
-                {i.rotulo}
+                <RotuloDoItem item={i} totalDeTarefas={totalDeTarefas} />
               </NavLink>
             ))}
           </nav>
 
-          <div className="hidden md:flex md:items-center md:gap-3">
+          <div className="hidden lg:flex lg:items-center lg:gap-3">
             {usuario && (
               <span className="min-w-0 text-right text-sm leading-tight text-chrome-tinta-apagada">
                 <span
@@ -120,19 +163,19 @@ export function AppShell() {
             onClick={() => setGavetaAberta((a) => !a)}
             aria-expanded={gavetaAberta}
             aria-label={gavetaAberta ? 'Fechar menu' : 'Abrir menu'}
-            className={`${BOTAO_DO_CHROME} md:hidden`}
+            className={`${BOTAO_DO_CHROME} lg:hidden`}
           >
             {gavetaAberta ? '✕' : '☰'}
           </button>
         </div>
 
-        {/* Gaveta: mesma lista, empilhada, só abaixo de 768px. O celular Android da fábrica é uso
+        {/* Gaveta: mesma lista, empilhada, só abaixo de 1024px. O celular Android da fábrica é uso
             declarado, não hipótese. */}
         {gavetaAberta && (
-          <nav aria-label="Menu" className="flex flex-col gap-1 border-t border-chrome-ativo px-4 pb-4 md:hidden">
+          <nav aria-label="Menu" className="flex flex-col gap-1 border-t border-chrome-ativo px-4 pb-4 lg:hidden">
             {ITENS.map((i) => (
               <NavLink key={i.para} to={i.para} end={i.para === '/'} className={classesDoLink}>
-                {i.rotulo}
+                <RotuloDoItem item={i} totalDeTarefas={totalDeTarefas} />
               </NavLink>
             ))}
 

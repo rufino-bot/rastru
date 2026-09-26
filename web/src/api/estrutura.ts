@@ -31,6 +31,10 @@ export interface NoDaEstrutura {
   materiais: MaterialDoNo[]
   roteiro: PassoDoRoteiro[]
   filhos: NoDaEstrutura[]
+  /** Regra 26: quantos entram em UMA unidade do pai. Número no Item, `null` na Peça (Fase 3). */
+  quantidadePorPai: number | null
+  /** Sem Roteiro o nó não pode ser iniciado (regra 28) — pendência do PCP na árvore (Fase 3). */
+  semRoteiro: boolean
 }
 
 /** Espelha `NovaPecaDto` (backend): cria a Peça (nó de topo) copiando a receita do catálogo. */
@@ -48,26 +52,37 @@ export interface NovoFilho {
   componenteId: number | null
   descricao: string | null
   quantidade: number
+  /** Obrigatória: todo filho é Item, e todo Item tem razão (regra 26). */
+  quantidadePorPai: number
 }
 
 /** Espelha `EdicaoDeNoDto`. `descricao` vazia/nula volta a herdar a do Componente (regra 19). */
 export interface EdicaoDeNo {
   descricao: string | null
   quantidade: number
+  /** Obrigatória no Item e `null` na Peça (regra 26) — o backend recusa com 400 o contrário. */
+  quantidadePorPai: number | null
 }
 
 /**
- * Os quatro códigos de conflito (409) que `EstruturaController.Recusar` pode emitir para os
- * endpoints de escrita. Nem toda função pode devolver todos: `CriarPeca`/`AcrescentarFilho` só
- * emitem os três de `PlanejadorDeCopia` (ciclo/profundidade/tamanho); `ExcluirNo` só emite
- * `PedidoNaoAberto`; `EditarNo` nunca emite 409. O tipo fica genérico porque o formato do corpo é
- * o mesmo `{ erro, mensagem? }` nos quatro casos — restringir por função não ganharia nada.
+ * Os códigos de conflito (409) que `EstruturaController.Recusar` pode emitir para os endpoints de
+ * escrita. Nem toda função pode devolver todos: `CriarPeca`/`AcrescentarFilho` só emitem os três
+ * de `PlanejadorDeCopia` (ciclo/profundidade/tamanho); `ExcluirNo` emite `PedidoNaoAberto`. O tipo
+ * fica genérico porque o formato do corpo é o mesmo `{ erro, mensagem? }` em todos — restringir por
+ * função não ganharia nada.
+ *
+ * Desde a Fase 3, `EditarNo` e `ExcluirNo` rodam no esquema de trava da execução (spec da Fase 3
+ * §8.1): os dois podem responder `ConflitoDeConcorrencia`, e `EditarNo` também
+ * `QuantidadeAbaixoDoMovimentado` (reduzir abaixo do que já andou, spec §4.7). Sem os dois aqui,
+ * `lerNoOuConflito` trataria esse 409 como "formato inesperado" e a frase do servidor se perderia.
  */
 export type CodigoDeConflitoDeEstrutura =
   | 'CicloNaReceita'
   | 'EstruturaProfundaDemais'
   | 'EstruturaGrandeDemais'
   | 'PedidoNaoAberto'
+  | 'QuantidadeAbaixoDoMovimentado'
+  | 'ConflitoDeConcorrencia'
 
 /**
  * Corpo do 409 dos endpoints de escrita da árvore: `{ "erro": "<código>", "mensagem": "<frase>" }`.
@@ -89,6 +104,7 @@ export interface ConflitoDeEstrutura {
 
 const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
+  'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia',
 ]
 
 export function ehConflitoDeEstrutura(r: unknown): r is ConflitoDeEstrutura {
@@ -145,7 +161,7 @@ export function acrescentarFilho(
   }).then(lerNoOuConflito)
 }
 
-/** `PUT /estrutura/{id}` — edita descrição/quantidade de um nó já existente. */
+/** `PUT /estrutura/{id}` — edita descrição, quantidade e (no Item) a razão de um nó já existente. */
 export function editarNo(
   id: number,
   e: EdicaoDeNo,
@@ -160,10 +176,7 @@ export function editarNo(
 /** Desfechos do DELETE. A tela precisa distinguir para explicar o que houve. */
 export type ResultadoDeEstrutura =
   | 'ok'
-  | 'PedidoNaoAberto'
-  | 'CicloNaReceita'
-  | 'EstruturaProfundaDemais'
-  | 'EstruturaGrandeDemais'
+  | CodigoDeConflitoDeEstrutura
   | 'NaoEncontrado'
 
 /**
@@ -171,9 +184,10 @@ export type ResultadoDeEstrutura =
  * (mesmo padrão de `excluirAgrupamento`): a tela não pode tratar "o nó já não existe" lançando uma
  * exceção que o catch dela nunca esperou.
  *
- * Na prática `ExcluirNo` só emite `PedidoNaoAberto` no 409 (não chama `PlanejadorDeCopia`), mas a
- * tradução reaproveita `ehConflitoDeEstrutura`/`ConflitoDeEstrutura` em vez de comparar o literal
- * à mão — um único lugar decide o que é um código de conflito válido.
+ * No 409, `ExcluirNo` emite `PedidoNaoAberto` ou `ConflitoDeConcorrencia` (não chama
+ * `PlanejadorDeCopia`, então os três códigos dele nunca ocorrem aqui), mas a tradução reaproveita
+ * `ehConflitoDeEstrutura`/`ConflitoDeEstrutura` em vez de comparar o literal à mão — um único lugar
+ * decide o que é um código de conflito válido.
  */
 export async function excluirNo(id: number): Promise<ResultadoDeEstrutura> {
   const resp = await apiFetch(`/estrutura/${id}`, { method: 'DELETE' })

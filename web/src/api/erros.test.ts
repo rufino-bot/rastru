@@ -42,6 +42,31 @@ describe('mensagemDeErro', () => {
       .toBe('Sem conexão com o servidor. Verifique a rede e tente de novo.')
   })
 
+  it('traduz o código da execução quando o servidor não mandou frase', () => {
+    // Spec da Fase 3 §8.3: cada código tem tradução. Vem ANTES do texto do status — o 403
+    // `Proibido` diz quem pode estornar, e o genérico do 403 só diria "seu perfil".
+    expect(mensagemDeErro(new ErroDeApi(403, 'x', undefined, 'Proibido'), PADRAO))
+      .toBe('Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'ConflitoDeConcorrencia'), PADRAO))
+      .toBe('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')
+  })
+
+  it('a frase do servidor ganha da tradução do código', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', '*D*: 12 aqui, 16 necessários.', 'FilhosInsuficientes'), PADRAO))
+      .toBe('*D*: 12 aqui, 16 necessários.')
+  })
+
+  it('código desconhecido não inventa frase: cai no status', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'CodigoQueNaoExiste'), PADRAO)).toBe(PADRAO)
+    // `toString` existe em todo objeto; a busca é por chave PRÓPRIA da tabela, não herdada.
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'toString'), PADRAO)).toBe(PADRAO)
+  })
+
+  it('o 401 continua dizendo que a sessão expirou, mesmo com código', () => {
+    expect(mensagemDeErro(new ErroDeApi(401, 'x', undefined, 'Proibido'), PADRAO))
+      .toBe('Sua sessão expirou. Entre novamente.')
+  })
+
   it('cai no texto da tela para erro que não é de API nem de rede', () => {
     expect(mensagemDeErro(new Error('qualquer outra coisa'), PADRAO)).toBe(PADRAO)
     expect(mensagemDeErro('nem erro é', PADRAO)).toBe(PADRAO)

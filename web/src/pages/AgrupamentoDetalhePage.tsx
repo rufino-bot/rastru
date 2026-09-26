@@ -5,6 +5,8 @@ import {
   type NoDaEstrutura, type NovoFilho, type EdicaoDeNo, type ResultadoDeEstrutura,
 } from '../api/estrutura'
 import { obterAgrupamento, type ComponenteDto, type AgrupamentoDto } from '../api/cadastros'
+import { obterPosicoes, type PosicoesDoNoDto } from '../api/execucao'
+import { listarFilhosPadrao, type FilhoPadraoDto } from '../api/receitaPadrao'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { Pagina } from '../components/Pagina'
@@ -16,6 +18,7 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { SeletorComBusca } from '../components/SeletorComBusca'
 import { ArvoreDeEstrutura } from '../components/ArvoreDeEstrutura'
 import { Confirmacao } from '../components/Confirmacao'
+import { PainelDoNo } from '../execucao/PainelDoNo'
 
 /** O que o painel de escrita combinado (acrescentar filho / editar nó) está fazendo agora. Os dois
     modos nunca coexistem — um único painel, uma única `<form>` — então um estado discriminado é
@@ -37,8 +40,10 @@ function localizarNo(lista: NoDaEstrutura[], id: number): NoDaEstrutura | null {
   return null
 }
 
-/** Desfechos não-`'ok'` de `excluirNo`. Na prática só `PedidoNaoAberto` e `NaoEncontrado` ocorrem
-    (`ExcluirNo` não chama `PlanejadorDeCopia`), mas o `Record` é exaustivo sobre o tipo inteiro —
+/** Desfechos não-`'ok'` de `excluirNo`. `ExcluirNo` não chama `PlanejadorDeCopia`, então os três
+    códigos dele nunca ocorrem aqui — mas `NaoEncontrado`, `PedidoNaoAberto` e `ConflitoDeConcorrencia`
+    ocorrem de verdade (este último tem teste próprio, "excluir em conflito de concorrência diz para
+    tentar de novo"). O `Record` é exaustivo sobre o tipo inteiro —
     se o backend um dia passar a emitir um dos três códigos de `PlanejadorDeCopia` aqui, o `tsc`
     cobra a frase em vez de a tela ficar muda no `catch`-all silencioso de um índice ausente. */
 const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, string> = {
@@ -47,6 +52,10 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   CicloNaReceita: 'Não foi possível excluir: conflito na estrutura.',
   EstruturaProfundaDemais: 'Não foi possível excluir: conflito na estrutura.',
   EstruturaGrandeDemais: 'Não foi possível excluir: conflito na estrutura.',
+  // Fase 3: `ExcluirNo` roda no esquema de trava da execução (spec §8.1). `QuantidadeAbaixoDoMovimentado`
+  // só existe no `EditarNo`, mas o `Record` é exaustivo sobre o tipo inteiro.
+  QuantidadeAbaixoDoMovimentado: 'Não foi possível excluir: conflito na estrutura.',
+  ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 
 /**
@@ -102,6 +111,7 @@ export function AgrupamentoDetalhePage() {
   const idValido = !Number.isNaN(agrupamentoId)
 
   const [nos, setNos] = useState<NoDaEstrutura[]>([])
+  const [posicoes, setPosicoes] = useState<ReadonlyMap<number, PosicoesDoNoDto>>(new Map())
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
 
@@ -118,10 +128,15 @@ export function AgrupamentoDetalhePage() {
   const [componenteNovoFilho, setComponenteNovoFilho] = useState<ComponenteDto | null>(null)
   const [descricaoPainel, setDescricaoPainel] = useState('')
   const [quantidadePainel, setQuantidadePainel] = useState('')
+  const [razaoPainel, setRazaoPainel] = useState('')
+  const [receitaDoPai, setReceitaDoPai] = useState<FilhoPadraoDto[] | null>(null)
   const [enviandoPainel, setEnviandoPainel] = useState(false)
   const [erroPainel, setErroPainel] = useState<string | null>(null)
 
   const [noParaExcluir, setNoParaExcluir] = useState<NoDaEstrutura | null>(null)
+  // Fase 3: o detalhe do nó (histórico e Roteiro). Exclusivo com o painel de escrita e com a
+  // confirmação de exclusão, pelo mesmo motivo que os dois já são exclusivos entre si.
+  const [noEmDetalhe, setNoEmDetalhe] = useState<NoDaEstrutura | null>(null)
   const [erroExcluir, setErroExcluir] = useState<string | null>(null)
 
   const podeEscrever = usePodeEscrever('estrutura')
@@ -138,8 +153,12 @@ export function AgrupamentoDetalhePage() {
     // de carga do componente, no INÍCIO de cada carga, não só no `catch`.
     setErro(null)
     try {
-      const dados = await obterEstrutura(id)
+      // Fase 3: a árvore e onde está cada nó chegam juntas, e falham juntas — uma árvore sem as
+      // pílulas de posição mentiria sobre o critério de pronto da fase ("dá para acompanhar, item
+      // por item, onde cada peça está"). Um banner só, o de carga.
+      const [dados, saldos] = await Promise.all([obterEstrutura(id), obterPosicoes(id)])
       setNos(dados)
+      setPosicoes(new Map(saldos.map((p) => [p.estruturaItemId, p])))
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível carregar a estrutura.'))
     } finally {
@@ -164,6 +183,29 @@ export function AgrupamentoDetalhePage() {
       .catch(() => {})
     return () => { cancelado = true }
   }, [agrupamentoId, idValido])
+
+  // A razão do filho vem PRÉ-PREENCHIDA quando a receita do Componente do pai lista aquele filho
+  // (spec da Fase 3 §3.4) — é a mesma `QuantidadePadrao` que a cópia da receita usaria. A receita é
+  // buscada quando o painel abre sobre um pai de catálogo; um pai ad-hoc não tem receita. Falha
+  // aqui é silenciosa: o pré-preenchimento é conveniência, e o campo continua editável e exigido.
+  const paiIdDoPainel = painel?.tipo === 'acrescentarFilho' ? painel.paiId : null
+  useEffect(() => {
+    setReceitaDoPai(null)
+    if (paiIdDoPainel === null) return
+    const componenteDoPai = localizarNo(nos, paiIdDoPainel)?.componenteId ?? null
+    if (componenteDoPai === null) return
+    let cancelado = false
+    listarFilhosPadrao(componenteDoPai)
+      .then((r) => { if (!cancelado) setReceitaDoPai(r) })
+      .catch(() => {})
+    return () => { cancelado = true }
+  }, [paiIdDoPainel, nos])
+
+  function escolherComponenteNovoFilho(c: ComponenteDto | null) {
+    setComponenteNovoFilho(c)
+    const daReceita = c && receitaDoPai?.find((f) => f.componenteFilhoId === c.id)
+    if (daReceita) setRazaoPainel(String(daReceita.quantidadePadrao))
+  }
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
@@ -203,16 +245,19 @@ export function AgrupamentoDetalhePage() {
   // "Cancelar" com o mesmo nome acessível, o tipo de colisão que `getByRole` rejeita.
   function abrirAcrescentarFilho(paiId: number) {
     setNoParaExcluir(null)
+    setNoEmDetalhe(null)
     setPainel({ tipo: 'acrescentarFilho', paiId })
     setModoNovoFilho('catalogo')
     setComponenteNovoFilho(null)
     setDescricaoPainel('')
     setQuantidadePainel('')
+    setRazaoPainel('')
     setErroPainel(null)
   }
 
   function abrirEditar(no: NoDaEstrutura) {
     setNoParaExcluir(null)
+    setNoEmDetalhe(null)
     setPainel({ tipo: 'editar', no })
     // Pré-preenchido com a descrição JÁ RESOLVIDA pelo backend (regra 19) — o usuário edita a
     // partir do que vê na tela, não de um campo em branco que ele não sabe se está herdando ou não.
@@ -227,6 +272,7 @@ export function AgrupamentoDetalhePage() {
     // task.
     setDescricaoPainel(no.descricao)
     setQuantidadePainel(String(no.quantidade))
+    setRazaoPainel(no.quantidadePorPai === null ? '' : String(no.quantidadePorPai))
     setErroPainel(null)
   }
 
@@ -234,7 +280,14 @@ export function AgrupamentoDetalhePage() {
   // exclusão de um nó fecha o painel de acrescentar/editar que porventura esteja aberto.
   function pedirExclusao(no: NoDaEstrutura) {
     fecharPainel()
+    setNoEmDetalhe(null)
     setNoParaExcluir(no)
+  }
+
+  function abrirDetalhe(no: NoDaEstrutura) {
+    fecharPainel()
+    setNoParaExcluir(null)
+    setNoEmDetalhe(no)
   }
 
   function fecharPainel() {
@@ -243,6 +296,7 @@ export function AgrupamentoDetalhePage() {
     setComponenteNovoFilho(null)
     setDescricaoPainel('')
     setQuantidadePainel('')
+    setRazaoPainel('')
     setErroPainel(null)
   }
 
@@ -266,12 +320,21 @@ export function AgrupamentoDetalhePage() {
     try {
       const resultado = painel.tipo === 'acrescentarFilho'
         ? await acrescentarFilho(painel.paiId, corpoDoNovoFilho())
-        : await editarNo(painel.no.id, corpoDaEdicao())
+        : await editarNo(painel.no.id, corpoDaEdicao(painel.no))
       if (ehConflitoDeEstrutura(resultado)) {
         const fallback = painel.tipo === 'acrescentarFilho'
           ? 'Não foi possível acrescentar o item: conflito na estrutura.'
           : 'Não foi possível editar o nó: conflito na estrutura.'
         setErroPainel(resultado.mensagem ?? fallback)
+        // Fix round 1 (Important da review da Task 8): um 409 de EDITAR quase sempre significa que
+        // a tela ficou velha (spec §8.3) — os dois códigos novos desta task
+        // (`QuantidadeAbaixoDoMovimentado`, `ConflitoDeConcorrencia`) são exatamente esse caso, e
+        // as pílulas de posição ficariam com saldo velho ao lado da frase do servidor. Recarrega
+        // SEM fechar o painel (`fecharPainel` não é chamado): o operador vê a frase e não perde o
+        // que digitou. Só no `editar` — `acrescentarFilho` não estava no achado da review, e os
+        // três conflitos que ele emite (`CicloNaReceita`/`EstruturaProfundaDemais`/
+        // `EstruturaGrandeDemais`) não são do tipo "dado ficou velho".
+        if (painel.tipo === 'editar') await carregar(agrupamentoId)
         return
       }
       fecharPainel()
@@ -287,18 +350,21 @@ export function AgrupamentoDetalhePage() {
   }
 
   function corpoDoNovoFilho(): NovoFilho {
+    const quantidadePorPai = Number(razaoPainel)
     return modoNovoFilho === 'catalogo'
-      ? { componenteId: componenteNovoFilho!.id, descricao: null, quantidade: Number(quantidadePainel) }
-      : { componenteId: null, descricao: descricaoPainel, quantidade: Number(quantidadePainel) }
+      ? { componenteId: componenteNovoFilho!.id, descricao: null, quantidade: Number(quantidadePainel), quantidadePorPai }
+      : { componenteId: null, descricao: descricaoPainel, quantidade: Number(quantidadePainel), quantidadePorPai }
   }
 
-  // D4: só estes dois campos, por asserção de corpo (teste 5) — nenhum terceiro campo "vazando" no
-  // PUT. Descrição vazia/nula volta a herdar a do Componente (regra 19); o campo aceita os dois
-  // porque o `<input>` só produz string, nunca `null` sozinho.
-  function corpoDaEdicao(): EdicaoDeNo {
+  // D4 da Fase 2, estendido na Fase 3: descrição, quantidade e a razão — por asserção de corpo,
+  // nenhum quarto campo "vazando" no PUT. A razão é do Item; na Peça vai `null`, que é o que o
+  // backend exige (regra 26). Descrição vazia/nula volta a herdar a do Componente (regra 19); o
+  // campo aceita os dois porque o `<input>` só produz string, nunca `null` sozinho.
+  function corpoDaEdicao(no: NoDaEstrutura): EdicaoDeNo {
     return {
       descricao: descricaoPainel.trim() === '' ? null : descricaoPainel,
       quantidade: Number(quantidadePainel),
+      quantidadePorPai: no.nivelHierarquico === 'Item' ? Number(razaoPainel) : null,
     }
   }
 
@@ -307,7 +373,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   // `excluirNo` só lança para status fora de 204/404/409 — o 404 (NaoEncontrado) e o 409
-  // (PedidoNaoAberto, na prática) chegam como retorno normal, tratados por MOTIVO_DA_RECUSA_EXCLUSAO
+  // (PedidoNaoAberto ou ConflitoDeConcorrencia) chegam como retorno normal, tratados por MOTIVO_DA_RECUSA_EXCLUSAO
   // — mesmo molde de `excluir`/`MOTIVO_DA_RECUSA` em `PedidoDetalhePage.tsx`: recarrega mesmo na
   // recusa (a árvore pode ter mudado sob os pés do usuário), só não recarrega se a chamada lançar.
   async function confirmarExclusao() {
@@ -344,7 +410,11 @@ export function AgrupamentoDetalhePage() {
       : ''
 
   const quantidadePainelValida = Number(quantidadePainel) > 0
-  const painelInvalido = !painel || !quantidadePainelValida || (
+  // Regra 26: todo Item tem razão. Todo filho acrescentado é Item; na edição, só o Item a pede.
+  const pedeRazao = painel?.tipo === 'acrescentarFilho'
+    || (painel?.tipo === 'editar' && painel.no.nivelHierarquico === 'Item')
+  const razaoPainelValida = !pedeRazao || Number(razaoPainel) > 0
+  const painelInvalido = !painel || !quantidadePainelValida || !razaoPainelValida || (
     painel.tipo === 'acrescentarFilho'
       ? (modoNovoFilho === 'catalogo' ? !componenteNovoFilho : descricaoPainel.trim() === '')
       // m5 do fix pass da Task 8b: regra 19, mesma guarda do modo ad-hoc do acrescentar (linhas
@@ -462,7 +532,7 @@ export function AgrupamentoDetalhePage() {
               <SeletorComBusca
                 rotulo="Componente"
                 valorSelecionado={componenteNovoFilho}
-                aoSelecionar={setComponenteNovoFilho}
+                aoSelecionar={escolherComponenteNovoFilho}
               />
             )}
             {(painel.tipo === 'editar' || (painel.tipo === 'acrescentarFilho' && modoNovoFilho === 'adhoc')) && (
@@ -490,6 +560,21 @@ export function AgrupamentoDetalhePage() {
                 />
               )}
             </Campo>
+            {pedeRazao && (
+              <Campo rotulo="Quantidade por pai" dica="Quantos entram em uma unidade do pai (regra 26).">
+                {(idDoCampo, idDaDica) => (
+                  <input
+                    id={idDoCampo}
+                    type="number"
+                    step="any"
+                    value={razaoPainel}
+                    onChange={(e) => setRazaoPainel(e.target.value)}
+                    aria-describedby={idDaDica}
+                    className={CLASSES_DE_CONTROLE}
+                  />
+                )}
+              </Campo>
+            )}
           </div>
 
           <BannerDeErro mensagem={erroPainel} />
@@ -504,6 +589,16 @@ export function AgrupamentoDetalhePage() {
             {painel.tipo === 'acrescentarFilho' ? 'Acrescentar' : 'Salvar edição'}
           </Botao>
         </form>
+      )}
+
+      {noEmDetalhe && (
+        <PainelDoNo
+          // `key`: trocar de nó recomeça o painel do zero — roteiro e histórico são de OUTRO nó.
+          key={noEmDetalhe.id}
+          no={noEmDetalhe}
+          aoFechar={() => setNoEmDetalhe(null)}
+          aoMudar={() => carregar(agrupamentoId)}
+        />
       )}
 
       {/* m5 do segundo fix pass da Task 8: `erro` (carga) e `erroEscrita` (escrita) PODEM
@@ -529,6 +624,7 @@ export function AgrupamentoDetalhePage() {
         erro === null && (
           <ArvoreDeEstrutura
             nos={nos}
+            posicoes={posicoes}
             podeEscrever={podeEscrever}
             // Gating na AÇÃO por duas camadas: `ArvoreDeEstrutura` já esconde os botões quando o
             // PRÓPRIO `podeEscrever` que ela recebe é falso, mas a TELA também só passa os
@@ -542,6 +638,8 @@ export function AgrupamentoDetalhePage() {
             onAcrescentarFilho={podeEscrever ? abrirAcrescentarFilho : undefined}
             onEditar={podeEscrever ? abrirEditar : undefined}
             onExcluir={podeEscrever ? pedirExclusao : undefined}
+            // Leitura: todo perfil abre o detalhe. As escritas dentro dele têm o gating delas.
+            onDetalhe={abrirDetalhe}
           />
         )
       )}
