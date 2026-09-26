@@ -114,6 +114,10 @@ public class ReceitaPadraoController : ControllerBase
   /// `NaoAutorizado` divide o 400 com `Validacao` porque estes casos de uso nao o produzem: quem
   /// responde 401 e o middleware de autenticacao. Membro novo que precise de OUTRO status ganha
   /// ramo proprio; o compilador nao deixa esquecer.
+  ///
+  /// MEDIDO de novo na Fase 3 (ruling B1 do plano 2, Task 7): acrescentar `TipoDeErro.Proibido` (o
+  /// estorno de registro alheio, spec secao 4.5) quebrou este `switch` com o mesmo CS8509 do paragrafo
+  /// acima, e o arco novo devolve 403 com `StatusCode(StatusCodes.Status403Forbidden, ...)`.
   /// </remarks>
   private IActionResult Traduzir<T>(Result<T> resultado)
   {
@@ -124,6 +128,7 @@ public class ReceitaPadraoController : ControllerBase
     {
       TipoDeErro.NaoEncontrado => NotFound(new { erro = resultado.Erro }),
       TipoDeErro.Conflito => Conflict(new { erro = resultado.Erro }),
+      TipoDeErro.Proibido => StatusCode(StatusCodes.Status403Forbidden, new { erro = resultado.Erro }),
       TipoDeErro.Validacao or TipoDeErro.NaoAutorizado or null => BadRequest(new { erro = resultado.Erro }),
     };
 #pragma warning restore CS8524

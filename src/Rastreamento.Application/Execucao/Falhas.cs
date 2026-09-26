@@ -22,6 +22,10 @@ internal static class Falhas
   public static Result<T> PedidoFechado<T>() =>
       Conflito<T>(CodigosDaExecucao.PedidoFechado, "O Pedido deste item já foi concluído ou cancelado.");
 
+  public static Result<T> Proibido<T>() =>
+      Result<T>.Falha(CodigosDaExecucao.Proibido, TipoDeErro.Proibido,
+          "Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.");
+
   public static bool EstaFechado(PedidoDoNo? pedido) =>
       pedido is null || pedido.Status is "Concluido" or "Cancelado";
 

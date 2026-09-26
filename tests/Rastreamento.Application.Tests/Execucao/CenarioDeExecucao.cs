@@ -70,4 +70,24 @@ internal sealed class CenarioDeExecucao
   public ApontamentoUseCase Apontamento() => new(Execucao, Estruturas, Setores, Catalogo);
 
   public EntregaUseCase Entrega() => new(Execucao, Estruturas, Catalogo);
+
+  public EstornoUseCase Estorno() => new(Execucao, Estruturas, Catalogo);
+
+  /// <summary>
+  /// A calculadora sobre o estado inteiro do cenario, lida direto dos fakes — para os testes afirmarem
+  /// o saldo depois de uma operacao sem passar pelo caso de uso que acabaram de exercitar.
+  /// </summary>
+  public CalculadoraDeExecucao Calcular() =>
+      new(Estruturas.Itens.Select(i => new NoDoCalculo(i.Id, i.EstruturaPaiId, i.Quantidade, i.QuantidadePorPai,
+              Estruturas.Roteiros.Where(r => r.EstruturaItemId == i.Id).OrderBy(r => r.Ordem)
+                  .Select(r => new PassoDoCalculo(r.SetorId, r.Ordem)).ToList())),
+          Livro.SomarSaldos(Execucao.Movimentacoes),
+          Execucao.Montagens.Where(g => g.EstornadaEm is null).GroupBy(g => g.EstruturaItemId)
+              .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantidade)),
+          Execucao.Movimentacoes
+              .SelectMany(m => new[] { (m.EstruturaItemId, m.OrigemOrdem), (m.EstruturaItemId, m.DestinoOrdem) })
+              .Where(p => p.Item2 is not null)
+              .Select(p => (p.Item1, p.Item2!.Value))
+              .Distinct()
+              .ToList());
 }

@@ -32,6 +32,7 @@ public class ResultTests
   [InlineData(TipoDeErro.NaoEncontrado)]
   [InlineData(TipoDeErro.Conflito)]
   [InlineData(TipoDeErro.NaoAutorizado)]
+  [InlineData(TipoDeErro.Proibido)]
   public void Falha_preserva_o_tipo_informado(TipoDeErro tipo)
   {
     Assert.Equal(tipo, Result<int>.Falha("x", tipo).TipoDoErro);
