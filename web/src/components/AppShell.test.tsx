@@ -305,6 +305,23 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Tarefas 4' })).toBeTruthy()
   })
 
+  it('falha numa atualização periódica mantém o último número (D5)', async () => {
+    // Achado da review da Task 7: falha na atualização (depois de um sucesso) não zera o
+    // contador — quem faz isso é `useCargaPeriodica`, que só troca `dados` por `null` numa `chave`
+    // nova, nunca no `catch`. Distingue do caso já coberto por "falha ao contar não vira banner no
+    // shell", que só cobre a falha da carga INICIAL, onde não há número anterior a manter.
+    vi.useFakeTimers()
+    vi.mocked(contarTarefas).mockResolvedValueOnce(3).mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+    renderizarShell()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(screen.getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+  })
+
   it('a barra dá lugar à gaveta abaixo de 1024px, não de 768px', () => {
     // Desvio D4 do plano 3 da Fase 3: com Fila e Tarefas o cabeçalho pede 888px (MEDIDO em Chromium
     // contra o CSS do build). O jsdom não calcula layout, então este teste prende a DECLARAÇÃO —

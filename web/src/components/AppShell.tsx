@@ -102,9 +102,13 @@ export function AppShell() {
 
   const usuario = estado.status === 'autenticado' ? estado.usuario : null
 
-  // O contador é de TODO perfil, como o link (gating vai na ação, não no link). Falha de rede não
-  // vira banner no shell: o número só some até a próxima consulta dar certo — ele é lembrete, e a
-  // tela de Tarefas tem os três estados dela.
+  // O contador é de TODO perfil, como o link (gating vai na ação, não no link). O `erro` do hook
+  // nunca é lido aqui, então falha de rede não vira banner no shell — em NENHUM dos dois casos
+  // abaixo, porque quem mostra os três estados é a tela de Tarefas, não o menu.
+  // Falha na carga INICIAL: sem dado nenhum ainda, o número fica ausente (mostra só "Tarefas").
+  // Falha numa atualização PERIÓDICA, depois de um sucesso anterior: o hook mantém o último número
+  // na tela (D5, herdado de `useCargaPeriodica`) — o contador NÃO some, fica com um valor
+  // possivelmente velho até a próxima consulta dar certo.
   const { dados: totalDeTarefas } = useCargaPeriodica(
     contarTarefas, 'contagem-de-tarefas', INTERVALO_DA_EXECUCAO_MS, 'Não foi possível contar as tarefas.',
   )
