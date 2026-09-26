@@ -328,7 +328,9 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
   enquanto a quantidade não tiver andado. Só o autor, ou PCP ou Administrador (403 para os demais,
-  decidido no caso de uso).
+  decidido no caso de uso). As duas rotas declaram os mesmos perfis no `[Authorize]` — Operador,
+  Movimentador e PCP —, porque vivem no mesmo controller; na de montagem, o Movimentador, que nunca é
+  autor de uma, recebe o 403 do caso de uso.
 - `PUT /estrutura/{id}/roteiro` *(PCP)* — troca os passos do Roteiro do nó. Body:
   `{ passos: [setorId, …] }`, em ordem. Passo já alcançado não muda.
 
@@ -344,6 +346,9 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno.
 - `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
 
+O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON" do plano 2 da Fase 3
+(`docs/superpowers/plans/2026-09-25-fase-3-backend.md`), que é o que o front consome.
+
 **Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
 e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).
 
@@ -358,6 +363,7 @@ Setor e números quando ajudam.
 | 400 | `DestinoIndevido` | `destinoSetorId` mandado quando o destino é calculado, ou faltando quando é montagem |
 | 400 | `EntregaVazia` | lista de entrega vazia |
 | 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
+| 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`, ou com Setor e passo que não combinam com a posição |
 | 403 | `Proibido` | estorno de registro alheio sem ser PCP nem Administrador |
 | 404 | — | nó, Setor, movimento ou montagem inexistente |
 | 409 | `SemRoteiro` | iniciar nó sem Roteiro |
@@ -369,6 +375,7 @@ Setor e números quando ajudam.
 | 409 | `DestinoForaDoRoteiroDoPai` | Setor de montagem fora do Roteiro do pai |
 | 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
+| 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |
 | 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem estornada sozinha |
 | 409 | `JaEstornado` | o registro já foi estornado |
 | 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado` |

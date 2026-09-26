@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
+using Rastreamento.Application.Execucao;
 
 namespace Rastreamento.Api.Controllers;
 
@@ -22,12 +23,22 @@ public class EstruturaController : ControllerBase
   private const string PerfisDeEscrita = "PCP,Administrador";
 
   private readonly MontagemDeEstruturaUseCase _montagem;
+  private readonly ConsultaDeExecucaoUseCase _consulta;
 
-  public EstruturaController(MontagemDeEstruturaUseCase montagem) => _montagem = montagem;
+  public EstruturaController(MontagemDeEstruturaUseCase montagem, ConsultaDeExecucaoUseCase consulta)
+  {
+    _montagem = montagem;
+    _consulta = consulta;
+  }
 
   [HttpGet("agrupamentos/{agrupamentoId:int}/estrutura")]
   public async Task<IActionResult> Obter(int agrupamentoId, CancellationToken ct) =>
       Traduzir(await _montagem.ObterArvore(agrupamentoId, ct));
+
+  /// <summary>Saldo por posicao de cada no do Agrupamento (spec secao 5.2). Leitura de qualquer autenticado.</summary>
+  [HttpGet("agrupamentos/{agrupamentoId:int}/posicoes")]
+  public async Task<IActionResult> Posicoes(int agrupamentoId, CancellationToken ct) =>
+      Traduzir(await _consulta.Posicoes(agrupamentoId, ct));
 
   [HttpPost("agrupamentos/{agrupamentoId:int}/estrutura")]
   [Authorize(Roles = PerfisDeEscrita)]
