@@ -1178,6 +1178,38 @@ describe('AgrupamentoDetalhePage', () => {
     expect(await screen.findByText(frase)).toBeTruthy()
   })
 
+  // Fix round 1 (Important da review da Task 8): um 409 de editar significa que a tela ficou
+  // velha (spec §8.3) — a árvore e as posições recarregam, sem fechar o painel nem apagar a frase.
+  it('editar com 409 mantém o painel aberto e recarrega a árvore e as posições', async () => {
+    const frase = 'Já saíram 4 de "a iniciar" e 0 foram montados: a quantidade não pode ficar abaixo de 4.'
+    const fetchMock = montarFetch({
+      estruturaInicial: [PECA],
+      respostaEditar: { status: 409, corpo: { erro: 'QuantidadeAbaixoDoMovimentado', mensagem: frase } },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    const getsDeEstrutura = () => fetchMock.mock.calls.filter(
+      (c) => String(c[0]) === '/api/agrupamentos/21/estrutura',
+    ).length
+    const getsDePosicoes = () => fetchMock.mock.calls.filter(
+      (c) => String(c[0]) === '/api/agrupamentos/21/posicoes',
+    ).length
+    const getsDeEstruturaAntes = getsDeEstrutura()
+    const getsDePosicoesAntes = getsDePosicoes()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Quantidade'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    expect(await screen.findByText(frase)).toBeTruthy()
+    // O painel continua aberto — o 409 não fecha (só recarrega por baixo).
+    expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
+    await waitFor(() => expect(getsDeEstrutura()).toBe(getsDeEstruturaAntes + 1))
+    expect(getsDePosicoes()).toBe(getsDePosicoesAntes + 1)
+  })
+
   it('excluir em conflito de concorrência diz para tentar de novo', async () => {
     vi.stubGlobal('fetch', montarFetch({
       estruturaInicial: [PECA],

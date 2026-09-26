@@ -311,6 +311,15 @@ export function AgrupamentoDetalhePage() {
           ? 'Não foi possível acrescentar o item: conflito na estrutura.'
           : 'Não foi possível editar o nó: conflito na estrutura.'
         setErroPainel(resultado.mensagem ?? fallback)
+        // Fix round 1 (Important da review da Task 8): um 409 de EDITAR quase sempre significa que
+        // a tela ficou velha (spec §8.3) — os dois códigos novos desta task
+        // (`QuantidadeAbaixoDoMovimentado`, `ConflitoDeConcorrencia`) são exatamente esse caso, e
+        // as pílulas de posição ficariam com saldo velho ao lado da frase do servidor. Recarrega
+        // SEM fechar o painel (`fecharPainel` não é chamado): o operador vê a frase e não perde o
+        // que digitou. Só no `editar` — `acrescentarFilho` não estava no achado da review, e os
+        // três conflitos que ele emite (`CicloNaReceita`/`EstruturaProfundaDemais`/
+        // `EstruturaGrandeDemais`) não são do tipo "dado ficou velho".
+        if (painel.tipo === 'editar') await carregar(agrupamentoId)
         return
       }
       fecharPainel()
