@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import type { NoDaEstrutura } from '../api/estrutura'
+import type { PosicoesDoNoDto } from '../api/execucao'
 import { Botao } from './Botao'
 import { Pilula } from './Pilula'
+import { ResumoDePosicoes } from './ResumoDePosicoes'
 
 interface Props {
   nos: NoDaEstrutura[]
+  /**
+   * Onde está cada unidade de cada nó, pelo Id (Fase 3, spec §6.3). Ausente = a tela não carregou
+   * posições, e a linha não mostra pílula de posição nenhuma.
+   */
+  posicoes?: ReadonlyMap<number, PosicoesDoNoDto>
   podeEscrever: boolean
   onAcrescentarFilho?: (paiId: number) => void
   onEditar?: (no: NoDaEstrutura) => void
@@ -28,7 +35,7 @@ const RECUO_POR_NIVEL_PX = 20
  * Só constrói a lista a partir do que recebe; não busca dado, não sabe de rota, não sabe de
  * Agrupamento. Isso é da tela (Task 8).
  */
-export function ArvoreDeEstrutura({ nos, podeEscrever, onAcrescentarFilho, onEditar, onExcluir }: Props) {
+export function ArvoreDeEstrutura({ nos, posicoes, podeEscrever, onAcrescentarFilho, onEditar, onExcluir }: Props) {
   return (
     // Rótulo no PLURAL desde a Task 8 (Minor 4 da re-review da Task 7): um Agrupamento tem N
     // Peças (`nos` pode ter mais de uma raiz — o teste "um Agrupamento com duas Peças" da própria
@@ -41,6 +48,7 @@ export function ArvoreDeEstrutura({ nos, podeEscrever, onAcrescentarFilho, onEdi
           key={no.id}
           no={no}
           nivel={0}
+          posicoes={posicoes}
           podeEscrever={podeEscrever}
           onAcrescentarFilho={onAcrescentarFilho}
           onEditar={onEditar}
@@ -54,6 +62,7 @@ export function ArvoreDeEstrutura({ nos, podeEscrever, onAcrescentarFilho, onEdi
 function LinhaDoNo({
   no,
   nivel,
+  posicoes,
   podeEscrever,
   onAcrescentarFilho,
   onEditar,
@@ -61,6 +70,7 @@ function LinhaDoNo({
 }: {
   no: NoDaEstrutura
   nivel: number
+  posicoes?: ReadonlyMap<number, PosicoesDoNoDto>
   podeEscrever: boolean
   onAcrescentarFilho?: (paiId: number) => void
   onEditar?: (no: NoDaEstrutura) => void
@@ -79,6 +89,7 @@ function LinhaDoNo({
   const roteiroOrdenado = [...no.roteiro].sort((a, b) => a.ordem - b.ordem)
   const recuoPx = RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX
   const temAcao = podeEscrever && (onAcrescentarFilho || onEditar || onExcluir)
+  const posicao = posicoes?.get(no.id)
 
   return (
     <li>
@@ -134,7 +145,13 @@ function LinhaDoNo({
               Qualidade da Fase 5 vai dividir a linha com essa marca), e este rótulo é dado de
               cadastro, não resultado de avaliação. Exibição apenas — editar continua fora (D4). */}
           {no.requerRelatorioDimensional && <Pilula tom="neutro">Requer relatório dimensional</Pilula>}
+          {/* Pendência do PCP (spec §6.3, regra 28): sem Roteiro o nó não pode ser iniciado. Tom
+              neutro, como toda marca de execução que não é aprovação nem perda (spec §6.4). */}
+          {no.semRoteiro && <Pilula tom="neutro">Sem Roteiro</Pilula>}
           <span className="text-sm text-tinta-fraca">{`Qtd: ${no.quantidade}`}</span>
+          {no.quantidadePorPai !== null && (
+            <span className="text-sm text-tinta-fraca">{`Por pai: ${no.quantidadePorPai}`}</span>
+          )}
         </div>
 
         {temAcao && (
@@ -154,6 +171,14 @@ function LinhaDoNo({
                 Excluir
               </Botao>
             )}
+          </div>
+        )}
+
+        {/* Linha própria, que ocupa a largura toda da linha: as pílulas de posição de um nó em
+            três Setores não cabem ao lado da descrição num celular. */}
+        {posicao && (
+          <div className="basis-full">
+            <ResumoDePosicoes saldos={posicao.saldos} totalMontado={posicao.totalMontado} />
           </div>
         )}
       </div>
@@ -197,6 +222,7 @@ function LinhaDoNo({
               key={filho.id}
               no={filho}
               nivel={nivel + 1}
+              posicoes={posicoes}
               podeEscrever={podeEscrever}
               onAcrescentarFilho={onAcrescentarFilho}
               onEditar={onEditar}
