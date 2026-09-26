@@ -448,7 +448,8 @@ coisas, nesta ordem:
    container nasce sem `dotnet` e com o Docker parado; o script instala o SDK se faltar, sobe o
    `dockerd`, o SQL Server do `docker compose` e cria o banco com schema e seed. É idempotente. Medido
    em 2026-09-25: depois dele, `dotnet build -warnaserror` sai com 0 warnings e `dotnet test` passa
-   582 de 582 (279 Application, 77 Infrastructure, 226 Api). O SDK vem do arquivo do Ubuntu
+   582 de 582 (279 Application, 77 Infrastructure, 226 Api). Rode a suíte com o comando documentado,
+   `dotnet test Rastreamento.slnx -m:1` (ver "Processos de teste também competem pelo banco"). O SDK vem do arquivo do Ubuntu
    (`dotnet-sdk-10.0`), não do `dotnet-install.sh`, cujo host de download a rede do ambiente recusa.
    O setup script do ambiente pode instalar o SDK de antemão (`apt-get update -qq || true;
    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dotnet-sdk-10.0`), o que só poupa ~1 min;
@@ -505,7 +506,7 @@ Backend (solution `Rastreamento.slnx`, na raiz):
 ```bash
 docker compose up -d          # PRÉ-REQUISITO dos testes de integração (ver abaixo)
 dotnet build Rastreamento.slnx -warnaserror    # o build tem que ficar em 0 warnings
-dotnet test  Rastreamento.slnx                 # suíte inteira
+dotnet test  Rastreamento.slnx -m:1             # suíte inteira, um projeto de teste por vez (ver abaixo)
 ```
 
 Um projeto de teste por vez, enquanto se itera:
@@ -565,6 +566,17 @@ cair fora da página) em vez de comparar dois `Total` globais. A regra geral que
 sobre contagem global de tabela compartilhada é flaky por construção** — nenhuma `[Collection]`
 resolve, porque o outro escritor pode estar em outro processo. Escope, ou afirme só o que é monótono
 (`Total >= n` das linhas que o próprio teste inseriu).
+
+**Processos de teste também competem pelo banco — por isso `-m:1`.** A lição acima ("`[Collection]`
+não atravessa processo") vale igual entre PROJETOS de teste: por padrão o MSBuild roda os `dotnet
+test` de `Infrastructure.Tests` e `Api.Tests` em processos separados, em paralelo. Sob SERIALIZABLE
+(spec da Fase 3, seção 8.1), dois processos escrevendo no livro (`Movimentacao`) ou em
+`EstruturaRoteiro` deadlockam por range lock de fim de índice — um nó novo sempre cai no mesmo
+"gap". O retry de 1205 (`ExecucaoRepository.EmTransacaoAsync`, no máximo 3 tentativas no total)
+reduz isso, mas não elimina: quando as 3 terminam em deadlock a resposta é um 409 limpo, o risco
+residual aceito na spec — e um teste que o recebe fica vermelho. Medido na Task 11 (Fase 3, fix round 3): `-m:1` força o
+MSBuild a rodar um projeto de teste por vez (confirmado por amostragem de processo — nenhum
+`testhost` de dois projetos coexiste) e a suíte fica verde onde, sem `-m:1`, era intermitente.
 
 ```bash
 docker compose up -d
@@ -702,6 +714,20 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -d Rastreamento \
   -Q "IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_ArquivoDeComponente_Tamanho') ALTER TABLE dbo.ArquivoDeComponente ADD CONSTRAINT CK_ArquivoDeComponente_Tamanho CHECK (TamanhoEmBytes > 0);"
+```
+
+**Fase 3 — `db/alter-fase-3.sql`.** Daqui em diante a migração de banco anterior vive num arquivo
+idempotente versionado, e não em linhas de `sqlcmd -Q` como os blocos acima: são tabelas inteiras com
+vários `CHECK`, e uma linha só com elas seria impossível de revisar. Ele leva um banco anterior à Fase 3
+até o `02-modelo-de-dados.sql`: a coluna `EstruturaItem.QuantidadePorPai` (com o preenchimento da seção
+3.4 da spec da Fase 3), a saída de `dbo.EstruturaSetorHistorico`, o livro (`dbo.Montagem`,
+`dbo.Movimentacao` e os índices) e o perfil `Movimentador`. Rodar de novo não muda nada. `-b` aborta no
+primeiro erro, e `-f 65001` pelo mesmo motivo do `seed-demo.sql`:
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3.sql sqlserver:/tmp/alter-fase-3.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

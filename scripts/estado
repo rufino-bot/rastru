@@ -237,7 +237,11 @@ if [ "${1:-}" = "--testes" ]; then
   # de sessão), que é ruído em troca de feedback que o hook não vê. O que se paga então é a espera
   # sem sinal, e é ela que a linha abaixo cobre.
   echo "  medindo… (~2 min, sem saída até o fim — a captura é proposital; ver o comentário acima)"
-  saida_backend=$(DOTNET_CLI_UI_LANGUAGE=en dotnet test Rastreamento.slnx 2>&1)
+  # `-m:1`: sem ele, o MSBuild roda os projetos de teste em processos paralelos, e dois processos
+  # escrevendo no livro sob SERIALIZABLE (spec da Fase 3, secao 8.1) podem deadlockar por range
+  # lock entre si — [Collection] nao ajuda, porque so serializa DENTRO do mesmo processo (ver
+  # CLAUDE.md, "[Collection] nao atravessa processo" e o paragrafo do -m:1 logo depois dele).
+  saida_backend=$(DOTNET_CLI_UI_LANGUAGE=en dotnet test Rastreamento.slnx -m:1 2>&1)
   codigo_backend=$?
   # `total:`/`failed:` ANCORADOS. Desancorados (como estavam), uma linha de log qualquer que
   # contivesse `failed:` era impressa NO LUGAR do resumo e a guarda do "NÃO SEI" nem disparava —
@@ -266,7 +270,7 @@ else
   echo
   echo "## SUÍTES — não medidas (rode com --testes, ou à mão)"
   echo "  cd web && npm test -- --run   # e npm run build: 'npm test' verde NÃO prova que compila"
-  echo "  dotnet test Rastreamento.slnx # precisa do SQL Server no ar"
+  echo "  dotnet test Rastreamento.slnx -m:1 # precisa do SQL Server no ar; -m:1 evita deadlock entre processos"
 fi
 
 echo

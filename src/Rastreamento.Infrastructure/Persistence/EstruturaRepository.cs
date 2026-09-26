@@ -39,7 +39,10 @@ public class EstruturaRepository : IEstruturaRepository
   /// `ReceitaPadraoRepository.Substituir`, este metodo NAO traduz deadlock/lock-timeout (1205/1222)
   /// do SERIALIZABLE em `ConflitoDeConcorrenciaException` — nenhum teste desta task cobre essa
   /// corrida, e a traducao sem teste que a mate seria guarda encenada. Se a Task 4/5 tocar
-  /// concorrencia em `EstruturaItem`, considerar extrair o mesmo padrao.
+  /// concorrencia em `EstruturaItem`, considerar extrair o mesmo padrao. *Fase 3:* a edicao e a
+  /// exclusao de no entraram no esquema de trava da execucao (`IExecucaoRepository.EmTransacaoAsync`,
+  /// spec secao 8.1), que traduz 1205/1222; gravar arvore continua fora dele, porque so insere nos
+  /// NOVOS, que nenhuma escrita da execucao disputa.
   /// </summary>
   public async Task<int> GravarArvoreAsync(
       int agrupamentoId, int? estruturaPaiId, NoParaGravar raiz, CancellationToken ct)
@@ -61,6 +64,7 @@ public class EstruturaRepository : IEstruturaRepository
       EstruturaPaiId = paiId,
       NivelHierarquico = paiId is null ? "Peca" : "Item",
       Quantidade = no.Quantidade,
+      QuantidadePorPai = no.QuantidadePorPai,
       RequerRelatorioDimensional = no.RequerRelatorioDimensional,
     };
     _db.Estruturas.Add(item);
@@ -121,9 +125,11 @@ public class EstruturaRepository : IEstruturaRepository
   public Task SalvarAlteracoesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 
   /// <summary>
-  /// Transacao explicita, como `GravarArvoreAsync`, mas SEM `Serializable`: apagar nao disputa a
-  /// mesma corrida de insercao concorrente que motivou o isolamento la (residual documentado
-  /// naquele metodo, fora do escopo desta task). Reune a subarvore NIVEL POR NIVEL (largura),
+  /// Desde a Fase 3 roda DENTRO da transacao SERIALIZABLE de `MontagemDeEstruturaUseCase.ExcluirNo`,
+  /// que ja travou a subarvore inteira e leu o status do Pedido com a trava (spec da Fase 3, secao
+  /// 8.1): a frase antiga deste comentario — "apagar nao disputa a mesma corrida" — deixou de ser
+  /// verdade quando o primeiro `Inicio` passou a poder correr contra o apagar. Chamado fora de
+  /// transacao, abre a propria, como antes. Reune a subarvore NIVEL POR NIVEL (largura),
   /// comecando no proprio `id`, para poder apagar do nivel mais profundo para o mais raso — a FK
   /// self-referenciada em `EstruturaPaiId` exige filho antes de pai. `EstruturaMaterial`/
   /// `EstruturaRoteiro` saem primeiro, de TODOS os nos da subarvore de uma vez (a FK deles e para o
@@ -137,7 +143,9 @@ public class EstruturaRepository : IEstruturaRepository
   /// </summary>
   public async Task RemoverSubarvoreAsync(int id, CancellationToken ct)
   {
-    await using var tx = await _db.Database.BeginTransactionAsync(ct);
+    await using var propria = _db.Database.CurrentTransaction is null
+        ? await _db.Database.BeginTransactionAsync(ct)
+        : null;
 
     var visitados = new HashSet<int> { id };
     var niveis = new List<List<int>> { new() { id } };
@@ -181,6 +189,6 @@ public class EstruturaRepository : IEstruturaRepository
       await _db.SaveChangesAsync(ct);
     }
 
-    await tx.CommitAsync(ct);
+    if (propria is not null) await propria.CommitAsync(ct);
   }
 }

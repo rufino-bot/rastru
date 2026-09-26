@@ -162,6 +162,18 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST estrutura/{id:int}/filhos"] = ["PCP", "Administrador"],
     ["PUT estrutura/{id:int}"] = ["PCP", "Administrador"],
     ["DELETE estrutura/{id:int}"] = ["PCP", "Administrador"],
+
+    // Execucao (Fase 3): um controller por conjunto de perfis — a guarda do front compara todo
+    // `[Authorize(Roles)]` de um arquivo com UMA entrada de `permissoes.ts` (desvio D1 do plano 2).
+    ["POST estrutura/{id:int}/inicios"] = ["Operador", "Administrador"],
+    ["POST estrutura/{id:int}/terminos"] = ["Operador", "Administrador"],
+    ["POST estrutura/{id:int}/montagens"] = ["Operador", "Administrador"],
+    ["POST entregas"] = ["Movimentador", "Administrador"],
+    // Estorno: o `[Authorize]` deixa passar quem pode ser autor, mais o PCP; autor x PCP quem decide e o
+    // caso de uso (403 `Proibido`). O de montagem declara o Movimentador tambem (desvio D2 do plano 2).
+    ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
+    ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
+    ["PUT estrutura/{id:int}/roteiro"] = ["PCP", "Administrador"],
   };
 
   /// <summary>

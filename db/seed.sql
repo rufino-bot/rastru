@@ -1,6 +1,6 @@
 SET NOCOUNT ON;
 MERGE dbo.Perfil AS alvo
-USING (VALUES ('Operador'),('Almoxarifado'),('PCP'),('Qualidade'),('Gestao'),('Administrador')) AS origem(Nome)
+USING (VALUES ('Operador'),('Almoxarifado'),('Movimentador'),('PCP'),('Qualidade'),('Gestao'),('Administrador')) AS origem(Nome)
 ON alvo.Nome = origem.Nome
 WHEN NOT MATCHED THEN INSERT (Nome) VALUES (origem.Nome);
 

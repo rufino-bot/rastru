@@ -99,7 +99,8 @@ internal sealed class MontadorDeArvoreDeEstrutura
 
       return new EstruturaItemDto(
           item.Id, item.ComponenteId, codigo, descricao, item.Quantidade,
-          item.NivelHierarquico, item.RequerRelatorioDimensional, listaDeMateriais, listaDeRoteiro, filhos);
+          item.NivelHierarquico, item.RequerRelatorioDimensional, listaDeMateriais, listaDeRoteiro, filhos,
+          item.QuantidadePorPai, SemRoteiro: listaDeRoteiro.Count == 0);
     }
 
     var raizes = filhosPorPai[null].OrderBy(i => i.Id).Select(Montar).ToList();

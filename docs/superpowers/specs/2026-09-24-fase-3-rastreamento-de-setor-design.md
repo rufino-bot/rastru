@@ -589,6 +589,39 @@ número.
 - **Toque duplo no celular:** o botão fica desabilitado enquanto envia; se o segundo envio passar, a
   validação de saldo limita o estrago, e o estorno corrige.
 
+**Emenda de 2026-09-26** (decisão do usuário, Task 11 do plano de backend): a premissa do primeiro
+item acima — "a ordem fixa torna deadlock raro" — cobre só a disputa pelo MESMO nó (ou pelo mesmo
+conjunto pai+filhos, travado em ordem). Medido com deadlock graph real (`system_health`,
+SERIALIZABLE), ela NÃO cobre dois ciclos:
+
+- **Range lock de fim de índice, entre nós SEM RELAÇÃO nenhuma.** `Movimentacao` e
+  `EstruturaRoteiro` são tabelas esparsas: uma leitura serializable que varre até o fim do índice
+  (ou por uma faixa sem chave existente) trava o "gap" depois da última linha, e um nó NOVO
+  inserido por OUTRA transação cai sempre nesse mesmo gap — mesmo sem nenhuma relação lógica entre
+  os dois nós envolvidos.
+- **Conversão S→X na leitura do Pedido, dentro de `Iniciar`.** A leitura do Pedido tomava um lock S
+  antes de a marcação `Aberto` → `EmProducao` tentar converter para X; dois "iniciar" em nós
+  DIFERENTES do mesmo Pedido `Aberto` prendiam um no outro.
+
+Decisão do usuário: manter `Serializable` (nenhum índice resolve o ciclo de conversão) e tratar os
+dois com duas medidas, sem baixar o isolamento:
+1. A leitura do Pedido dentro de `Iniciar` usa UPDLOCK, não mais uma leitura comum — elimina o
+   ciclo de conversão na origem (UPDLOCK é exclusivo entre si: a segunda transação espera a
+   primeira, em vez de as duas seguirem com S e travarem juntas na conversão).
+2. A transação da escrita tenta no máximo 3 vezes no total (a primeira e até 2 repetições), e só
+   repete em 1205 (deadlock) — nunca em 1222 (lock timeout) —, com transação nova e um atraso curto
+   entre tentativas.
+
+**Risco residual, aceito**: se as 3 tentativas terminarem em deadlock, a resposta é 409
+`ConflitoDeConcorrencia` mesmo sem nenhum erro de lógica — raro na carga real de
+fábrica (poucos operadores concorrentes por Setor), mas possível. Não é um bug a corrigir: é o
+mesmo sinal de "tente de novo" que qualquer outro 409 desta seção já pede.
+
+**Acréscimo de 2026-09-26** (fix round 4 da Task 11): as leituras da execução (fila, tarefas e a
+contagem delas, posições, livro do nó, Roteiro do nó) também podem ser a vítima de um deadlock contra
+uma escrita, e têm o mesmo retry de 1205 (no máximo 3 tentativas no total), sem transação explícita,
+com o mesmo 409 `ConflitoDeConcorrencia` se as 3 terminarem em deadlock — antes, a vítima subia como 500 com a `SqlException` crua.
+
 ### 8.2 Catálogo de erros
 
 `erro` é o código pelo qual o front decide; `mensagem`, a frase para o operador, que nomeia nó, Setor e

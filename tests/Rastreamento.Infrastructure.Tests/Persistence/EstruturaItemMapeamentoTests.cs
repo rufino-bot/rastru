@@ -170,6 +170,7 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
         EstruturaPaiId = peca.Id,
         NivelHierarquico = "Item",
         Quantidade = 40,
+        QuantidadePorPai = 4,
       };
       db.Estruturas.Add(item);
       await db.SaveChangesAsync();
@@ -249,6 +250,7 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
         EstruturaPaiId = peca.Id,
         NivelHierarquico = "Item",
         Quantidade = 5,
+        QuantidadePorPai = 0.5m,
         Descricao = "Item ad-hoc, sem base no catalogo",
       };
       db.Estruturas.Add(itemAdHoc);

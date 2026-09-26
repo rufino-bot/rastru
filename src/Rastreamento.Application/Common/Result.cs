@@ -19,6 +19,13 @@ public enum TipoDeErro
 
   /// <summary>Credencial ou sessao invalida — normalmente 401.</summary>
   NaoAutorizado,
+
+  /// <summary>
+  /// Autenticado, com o perfil certo, mas a regra do caso de uso recusa QUEM pede — 403. Nasceu na
+  /// Fase 3 para o estorno de registro alheio (spec secao 4.5): o `[Authorize(Roles)]` deixa os perfis
+  /// passarem, e so o caso de uso sabe quem e o autor.
+  /// </summary>
+  Proibido,
 }
 
 /// <summary>Resultado de um caso de uso que devolve valor.</summary>

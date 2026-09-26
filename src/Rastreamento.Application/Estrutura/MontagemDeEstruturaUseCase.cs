@@ -1,4 +1,5 @@
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Abstractions;
 
 namespace Rastreamento.Application.Estrutura;
@@ -64,23 +65,50 @@ public sealed class MontagemDeEstruturaUseCase
 
   private const string ErroDeComponenteNaoEncontrado = "Componente nao encontrado.";
 
+  /// <summary>
+  /// Regra 26: todo Item tem razao, e ela cabe na coluna `DECIMAL(18,4)` — mesmo piso e mesmo teto da
+  /// quantidade, pelo mesmo motivo (abaixo do piso a coluna arredonda para zero, e o CHECK recusa).
+  /// Frase no `erro`, como as outras validacoes deste caso de uso (contrato de erro da Estrutura).
+  /// </summary>
+  private const string ErroDeRazaoInvalida =
+      "Quantidade por pai e obrigatoria num Item e deve ficar entre 0,0001 e o maximo da coluna (regra 26).";
+
+  private const string ErroDeRazaoNaPeca =
+      "Peca nao tem pai: quantidade por pai so se informa num Item (regra 26).";
+
+  private static bool RazaoValida(decimal? razao) =>
+      razao is decimal r
+      && r >= PlanejadorDeCopia.QuantidadeMinimaDaColuna
+      && r <= PlanejadorDeCopia.QuantidadeMaximaDaColuna
+      && decimal.Round(r, 4) == r;
+
   private readonly IEstruturaRepository _estruturas;
   private readonly IAgrupamentoRepository _agrupamentos;
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly IPedidoRepository _pedidos;
+  private readonly IExecucaoRepository _execucao;
   private readonly MontadorDeArvoreDeEstrutura _montador;
+
+  // EditarNo valida a quantidade contra o livro com as MESMAS funcoes que a calculadora ja expoe
+  // (SaidoDeAIniciar, TotalMontado) em vez de recalcular a partir de
+  // ListarSaldosAsync/ListarTotaisMontadosAsync na mao — espirito da spec secao 7.2 ("escritas
+  // validam com as mesmas funcoes que a leitura mostra").
+  // Colaborador interno, mesmo criterio do `_montador`.
+  private readonly LeitorDeEstado _leitor;
 
   public MontagemDeEstruturaUseCase(
       IEstruturaRepository estruturas, IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo,
-      IPedidoRepository pedidos)
+      IPedidoRepository pedidos, IExecucaoRepository execucao)
   {
     _estruturas = estruturas;
     _agrupamentos = agrupamentos;
     _catalogo = catalogo;
     _pedidos = pedidos;
-    // Instanciado direto, nao via DI: e um colaborador interno, sem estado proprio alem das duas
-    // dependencias que o caso de uso ja recebe — nao ha razao para o container conhecer o tipo.
+    _execucao = execucao;
+    // Instanciados direto, nao via DI: sao colaboradores internos, sem estado proprio alem das
+    // dependencias que o caso de uso ja recebe — nao ha razao para o container conhecer os tipos.
     _montador = new MontadorDeArvoreDeEstrutura(estruturas, catalogo);
+    _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
   }
 
   public async Task<Result<EstruturaItemDto>> CriarPeca(
@@ -182,6 +210,9 @@ public sealed class MontagemDeEstruturaUseCase
     if (novo.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
       return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
 
+    if (!RazaoValida(novo.QuantidadePorPai))
+      return Result<EstruturaItemDto>.Falha(ErroDeRazaoInvalida, TipoDeErro.Validacao);
+
     var pai = await _estruturas.ObterPorIdAsync(paiId, ct);
     if (pai is null)
       return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
@@ -194,6 +225,8 @@ public sealed class MontagemDeEstruturaUseCase
 
       // ehRaiz sempre false: um sub-Item pendurado num no existente nunca e a raiz da Peca.
       paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: false, requerRelatorioDaRaiz: false);
+      // O topo do filho acrescentado usa a razao do CORPO; os nos abaixo dele ja trazem a da receita.
+      paraGravar = paraGravar with { QuantidadePorPai = novo.QuantidadePorPai };
 
       // Minor 2 da review da Task 4: antes, uma `Descricao` digitada junto de `ComponenteId` era
       // descartada em silencio (so o plano da receita ia pro no). Decisao do fix pass: HONRAR —
@@ -215,7 +248,8 @@ public sealed class MontagemDeEstruturaUseCase
           RequerRelatorioDimensional: false,
           Materiais: [],
           Roteiro: [],
-          Filhos: []);
+          Filhos: [],
+          QuantidadePorPai: novo.QuantidadePorPai);
     }
 
     var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
@@ -229,64 +263,91 @@ public sealed class MontagemDeEstruturaUseCase
   }
 
   /// <summary>
-  /// Edita `Descricao` e `Quantidade` de um no ja existente (Peca ou Item). NAO cascateia a
-  /// quantidade para os filhos — decisao de dominio, nao lacuna: a copia da receita e
-  /// PRE-PREENCHIMENTO, nao automacao, e nao existe invariante "filho = pai x razao" (um filho pode
-  /// legitimamente divergir da proporcao original, por sobra de refugo). `Descricao` vazia/so
-  /// espaco grava `null`, que volta a herdar a descricao do Componente (regra 19) — MAS so quando o
-  /// no tem Componente para herdar dela: um no ad-hoc (`ComponenteId` nulo) nao pode ser esvaziado
-  /// de volta ao anonimato que a regra 19 existe para impedir.
+  /// Edita `Descricao`, `Quantidade` e, no Item, `QuantidadePorPai` (regra 26). NAO cascateia a
+  /// quantidade para os filhos — decisao de dominio, nao lacuna: a copia da receita e PRE-PREENCHIMENTO,
+  /// e nao existe invariante "filho = pai x razao". `Descricao` vazia/so espaco grava `null` (volta a
+  /// herdar a do Componente, regra 19), exceto no no ad-hoc, que nao tem de onde herdar.
+  ///
+  /// Desde a Fase 3 (spec secao 4.7), a quantidade nao desce abaixo do que ja saiu de "a iniciar" nem,
+  /// num pai, abaixo do total montado — e roda no esquema de trava da execucao (secao 8.1): sem ele, um
+  /// "reduzir" passaria no meio de um "iniciar" do mesmo no. A validacao usa as MESMAS funcoes que a
+  /// calculadora da leitura (`SaidoDeAIniciar`, `TotalMontado`), via `LeitorDeEstado` — nao um recalculo
+  /// direto de `ListarSaldosAsync`/`ListarTotaisMontadosAsync` (espirito da spec secao 7.2, "escritas
+  /// validam com as mesmas funcoes que a leitura mostra").
   /// </summary>
   public async Task<Result<EstruturaItemDto>> EditarNo(int id, EdicaoDeNoDto edicao, CancellationToken ct)
   {
     if (edicao.Quantidade < PlanejadorDeCopia.QuantidadeMinimaDaColuna)
       return Result<EstruturaItemDto>.Falha(ErroDeQuantidadeInvalida, TipoDeErro.Validacao);
 
-    var no = await _estruturas.ObterPorIdAsync(id, ct);
-    if (no is null)
-      return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+    return await _execucao.ExecutarAsync(async () =>
+    {
+      if ((await _execucao.TravarNosAsync([id], ct)).Count == 0)
+        return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+      // Rastreado, e lido DEPOIS da trava: e esta instancia que o SaveChanges grava.
+      var no = await _estruturas.ObterPorIdAsync(id, ct);
+      if (no is null) return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
-    var descricao = string.IsNullOrWhiteSpace(edicao.Descricao) ? null : edicao.Descricao.Trim();
-    if (no.ComponenteId is null && descricao is null)
-      return Result<EstruturaItemDto>.Falha(ErroDeDescricaoObrigatoria, TipoDeErro.Validacao);
+      if (no.NivelHierarquico == "Item" && !RazaoValida(edicao.QuantidadePorPai))
+        return Result<EstruturaItemDto>.Falha(ErroDeRazaoInvalida, TipoDeErro.Validacao);
+      if (no.NivelHierarquico == "Peca" && edicao.QuantidadePorPai is not null)
+        return Result<EstruturaItemDto>.Falha(ErroDeRazaoNaPeca, TipoDeErro.Validacao);
 
-    no.Descricao = descricao;
-    no.Quantidade = edicao.Quantidade;
-    await _estruturas.SalvarAlteracoesAsync(ct);
+      var descricao = string.IsNullOrWhiteSpace(edicao.Descricao) ? null : edicao.Descricao.Trim();
+      if (no.ComponenteId is null && descricao is null)
+        return Result<EstruturaItemDto>.Falha(ErroDeDescricaoObrigatoria, TipoDeErro.Validacao);
 
-    var arvore = await _montador.MontarAsync(no.AgrupamentoId, ct);
-    var noEditado = BuscarNo(arvore, id)
-        ?? throw new InvalidOperationException(
-            $"No {id} nao encontrado na arvore recem montada do Agrupamento {no.AgrupamentoId} "
-                + "(M1 da review da Task 4: editado e nao lido de volta — nunca deveria acontecer).");
-    return Result<EstruturaItemDto>.Ok(noEditado);
+      var estado = await _leitor.CarregarAsync([no], ct);
+      var saido = estado.Calc.SaidoDeAIniciar(id);
+      var montado = estado.Calc.TotalMontado(id);
+      var piso = Math.Max(saido, montado);
+      if (edicao.Quantidade < piso)
+        return Result<EstruturaItemDto>.Falha(CodigosDaExecucao.QuantidadeAbaixoDoMovimentado, TipoDeErro.Conflito,
+            $"Já saíram {Quantidades.Formatar(saido)} de \"a iniciar\" e {Quantidades.Formatar(montado)} foram montados: "
+            + $"a quantidade não pode ficar abaixo de {Quantidades.Formatar(piso)}.");
+
+      no.Descricao = descricao;
+      no.Quantidade = edicao.Quantidade;
+      no.QuantidadePorPai = edicao.QuantidadePorPai;
+      await _estruturas.SalvarAlteracoesAsync(ct);
+
+      var arvore = await _montador.MontarAsync(no.AgrupamentoId, ct);
+      var noEditado = BuscarNo(arvore, id)
+          ?? throw new InvalidOperationException(
+              $"No {id} nao encontrado na arvore recem montada do Agrupamento {no.AgrupamentoId} "
+                  + "(M1 da review da Task 4: editado e nao lido de volta — nunca deveria acontecer).");
+      return Result<EstruturaItemDto>.Ok(noEditado);
+    }, ct);
   }
 
   /// <summary>
-  /// Apaga um no e a subarvore inteira dele (Material/Roteiro de cada no, filhos antes de pais — a
-  /// FK self-referenciada em `EstruturaPaiId` exige). So permitido enquanto o Pedido esta `Aberto`.
+  /// Apaga um no e a subarvore inteira dele. So com o Pedido `Aberto` — e, desde a Fase 3, essa guarda
+  /// tambem impede apagar no com movimento, porque o primeiro `Inicio` poe o Pedido em `EmProducao` e o
+  /// status nao volta (regra 28). Trava a SUBARVORE inteira antes de ler o status (spec secao 8.1 e
+  /// desvio D5 do plano 2): travar so o no da rota deixaria um "iniciar" num descendente correr contra o
+  /// apagar e voltar 500 pela `FK_Movimentacao_EstruturaItem`.
   /// </summary>
   public async Task<Result> ExcluirNo(int id, CancellationToken ct)
   {
     // EXCLUIR e CORRECAO DE MONTAGEM, nao descarte — sao operacoes diferentes e tem palavras
-    // diferentes. Correcao so existe enquanto nada foi produzido, isto e, Pedido `Aberto`; e a
-    // mesma fronteira que `CadastroDeAgrupamentoUseCase.Excluir` ja usa, entao a Fase 2 estende um
-    // precedente em vez de inventar regra. DESCARTE ("saiu do projeto, para de ser produzido")
-    // preserva a historia e nasce na Fase 3 — ver §2.4 e §6 da spec.
-    var no = await _estruturas.ObterPorIdAsync(id, ct);
-    if (no is null)
-      return Result.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+    // diferentes. O descarte em Pedido rodando e da Fase 5 (decisao do usuario, 2026-09-25).
+    var r = await _execucao.ExecutarAsync(async () =>
+    {
+      var ids = await _execucao.ListarIdsDaSubarvoreAsync(id, ct);
+      var travados = await _execucao.TravarNosAsync(ids, ct);
+      var no = travados.SingleOrDefault(n => n.Id == id);
+      if (no is null) return Result<bool>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
-    // `no.AgrupamentoId` ja vem denormalizado em TODO EstruturaItem (Peca ou Item — ver o XML doc
-    // da entidade), entao chegar no Agrupamento nao exige subir a arvore ate a raiz: uma consulta
-    // direta basta.
-    var agrupamento = await _agrupamentos.ObterPorIdAsync(no.AgrupamentoId, ct);
-    var pedido = agrupamento is null ? null : await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
-    if (pedido is null || pedido.Status != StatusAberto)
-      return Result.Falha("PedidoNaoAberto", TipoDeErro.Conflito);
+      var agrupamento = await _agrupamentos.ObterPorIdAsync(no.AgrupamentoId, ct);
+      var pedido = agrupamento is null ? null : await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
+      if (pedido is null || pedido.Status != StatusAberto)
+        return Result<bool>.Falha("PedidoNaoAberto", TipoDeErro.Conflito);
 
-    await _estruturas.RemoverSubarvoreAsync(id, ct);
-    return Result.Ok();
+      await _estruturas.RemoverSubarvoreAsync(id, ct);
+      return Result<bool>.Ok(true);
+    }, ct);
+
+    return r.Sucesso ? Result.Ok() : Result.Falha(r.Erro!, r.TipoDoErro!.Value, r.Detalhe);
   }
 
   /// <summary>
@@ -349,7 +410,8 @@ public sealed class MontagemDeEstruturaUseCase
           RequerRelatorioDimensional: ehRaiz && requerRelatorioDaRaiz,
           Materiais: no.Materiais,
           Roteiro: no.Roteiro,
-          Filhos: no.Filhos.Select(f => ConverterParaGravar(f, ehRaiz: false, requerRelatorioDaRaiz)).ToList());
+          Filhos: no.Filhos.Select(f => ConverterParaGravar(f, ehRaiz: false, requerRelatorioDaRaiz)).ToList(),
+          QuantidadePorPai: no.QuantidadePorPai);
 
   /// <summary>Busca por Id em profundidade na arvore de DTOs ja montada — usado por `AcrescentarFilho`/`EditarNo` para projetar o no alterado, que nao e necessariamente uma raiz (diferente do `raizId` de `CriarPeca`).</summary>
   private static EstruturaItemDto? BuscarNo(IEnumerable<EstruturaItemDto> nos, int id)

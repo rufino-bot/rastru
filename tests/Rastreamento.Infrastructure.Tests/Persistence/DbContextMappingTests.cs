@@ -8,11 +8,12 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 public class DbContextMappingTests : TesteComBanco
 {
   [Fact]
-  public async Task Mapeia_seis_perfis_seedados()
+  public async Task Mapeia_sete_perfis_seedados()
   {
     await using var db = NovoContexto();
     var total = await db.Perfis.CountAsync();
-    Assert.Equal(6, total);
+    Assert.Equal(7, total);   // o Movimentador entrou na Fase 3
+    Assert.True(await db.Perfis.AnyAsync(p => p.Nome == "Movimentador"));
   }
 
   [Fact]
