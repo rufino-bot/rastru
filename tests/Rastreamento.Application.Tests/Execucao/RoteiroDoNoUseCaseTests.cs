@@ -99,8 +99,8 @@ public class RoteiroDoNoUseCaseTests
 
   /// <summary>
   /// Ruling R3 do controlador sobre o brief: `passos` AUSENTE/nulo no corpo e 400 `RoteiroInvalido` —
-  /// diferente de uma lista vazia explicita ([]), que `Lista_vazia_explicita_e_aceita_e_limpa_o_que_falta`
-  /// (par positivo, abaixo) prova ser aceita.
+  /// diferente de uma lista vazia explicita ([]), que
+  /// `Lista_vazia_explicita_e_aceita_e_limpa_o_Roteiro_quando_nada_foi_alcancado` prova ser aceita.
   /// </summary>
   [Fact]
   public async Task Passos_nulo_no_corpo_da_RoteiroInvalido()

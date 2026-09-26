@@ -11,10 +11,15 @@ namespace Rastreamento.Application.Execucao;
 /// Setor inativo nao entra no trecho novo; o que ja esta no trecho travado continua (o que esta nele
 /// continua andando). Nao ha `PedidoFechado` aqui: a spec o reserva para movimentar.
 ///
-/// `Passos` ausente/nulo no corpo (`dto.Passos is null`) e 400 `RoteiroInvalido`, distinto de uma lista
-/// VAZIA explicita ([]), que e aceita: e como o PCP limpa os passos ainda nao alcancados (ruling R3 do
-/// controlador sobre o brief da Task 8 — o brief original tratava os dois casos igual, com
-/// `dto.Passos ?? []`).
+/// `Passos` ausente/nulo no corpo (`dto.Passos is null`) e 400 `RoteiroInvalido`. Uma lista VAZIA
+/// explicita ([]) e ACEITA, mas nao tem tratamento especial: ela cai na MESMA regra de prefixo travado
+/// de qualquer outra lista — com algum passo ja alcancado, [] omite esse prefixo e da o mesmo 409
+/// `PassoJaAlcancado` de uma lista truncada qualquer (o corpo tem de REENVIAR os passos ja alcancados
+/// para so trocar o que vem depois deles). So quando NADA foi alcancado ainda (`travados == 0`) e que
+/// [] de fato limpa o Roteiro inteiro, porque nesse caso nao ha prefixo pra reenviar. (Ruling do
+/// controlador sobre a review da Task 8, achado 2 do fix pass: a redacao anterior deste doc e da
+/// mensagem de erro de `Substituir` para `Passos` nulo afirmava que [] "limpa o que ainda nao foi
+/// alcancado" sem essa condicao, o que e falso quando ha passo alcancado.)
 /// </summary>
 public sealed class RoteiroDoNoUseCase
 {
@@ -39,7 +44,8 @@ public sealed class RoteiroDoNoUseCase
   {
     if (dto.Passos is null)
       return Falhas.Validacao<RoteiroDoNoDto>(CodigosDaExecucao.RoteiroInvalido,
-          "Informe a lista de passos do Roteiro — vazia ([]) para limpar o que ainda não foi alcançado.");
+          "Informe a lista de passos do Roteiro — reenvie os que já foram alcançados; sem mais nada "
+          + "depois deles, os que faltam são removidos.");
     var passos = dto.Passos;
 
     return await _execucao.ExecutarAsync(async () =>
