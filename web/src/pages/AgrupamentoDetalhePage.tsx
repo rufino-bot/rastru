@@ -18,6 +18,7 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { SeletorComBusca } from '../components/SeletorComBusca'
 import { ArvoreDeEstrutura } from '../components/ArvoreDeEstrutura'
 import { Confirmacao } from '../components/Confirmacao'
+import { PainelDoNo } from '../execucao/PainelDoNo'
 
 /** O que o painel de escrita combinado (acrescentar filho / editar nó) está fazendo agora. Os dois
     modos nunca coexistem — um único painel, uma única `<form>` — então um estado discriminado é
@@ -131,6 +132,9 @@ export function AgrupamentoDetalhePage() {
   const [erroPainel, setErroPainel] = useState<string | null>(null)
 
   const [noParaExcluir, setNoParaExcluir] = useState<NoDaEstrutura | null>(null)
+  // Fase 3: o detalhe do nó (histórico e Roteiro). Exclusivo com o painel de escrita e com a
+  // confirmação de exclusão, pelo mesmo motivo que os dois já são exclusivos entre si.
+  const [noEmDetalhe, setNoEmDetalhe] = useState<NoDaEstrutura | null>(null)
   const [erroExcluir, setErroExcluir] = useState<string | null>(null)
 
   const podeEscrever = usePodeEscrever('estrutura')
@@ -239,6 +243,7 @@ export function AgrupamentoDetalhePage() {
   // "Cancelar" com o mesmo nome acessível, o tipo de colisão que `getByRole` rejeita.
   function abrirAcrescentarFilho(paiId: number) {
     setNoParaExcluir(null)
+    setNoEmDetalhe(null)
     setPainel({ tipo: 'acrescentarFilho', paiId })
     setModoNovoFilho('catalogo')
     setComponenteNovoFilho(null)
@@ -250,6 +255,7 @@ export function AgrupamentoDetalhePage() {
 
   function abrirEditar(no: NoDaEstrutura) {
     setNoParaExcluir(null)
+    setNoEmDetalhe(null)
     setPainel({ tipo: 'editar', no })
     // Pré-preenchido com a descrição JÁ RESOLVIDA pelo backend (regra 19) — o usuário edita a
     // partir do que vê na tela, não de um campo em branco que ele não sabe se está herdando ou não.
@@ -272,7 +278,14 @@ export function AgrupamentoDetalhePage() {
   // exclusão de um nó fecha o painel de acrescentar/editar que porventura esteja aberto.
   function pedirExclusao(no: NoDaEstrutura) {
     fecharPainel()
+    setNoEmDetalhe(null)
     setNoParaExcluir(no)
+  }
+
+  function abrirDetalhe(no: NoDaEstrutura) {
+    fecharPainel()
+    setNoParaExcluir(null)
+    setNoEmDetalhe(no)
   }
 
   function fecharPainel() {
@@ -576,6 +589,16 @@ export function AgrupamentoDetalhePage() {
         </form>
       )}
 
+      {noEmDetalhe && (
+        <PainelDoNo
+          // `key`: trocar de nó recomeça o painel do zero — roteiro e histórico são de OUTRO nó.
+          key={noEmDetalhe.id}
+          no={noEmDetalhe}
+          aoFechar={() => setNoEmDetalhe(null)}
+          aoMudar={() => carregar(agrupamentoId)}
+        />
+      )}
+
       {/* m5 do segundo fix pass da Task 8: `erro` (carga) e `erroEscrita` (escrita) PODEM
           coexistir — medido, não suposto. Um banner por estado, cada um no seu slot — nunca um
           `??` disputando um só. `erroExcluir` segue o mesmo molde: ação PRÓPRIA (o clique em
@@ -613,6 +636,8 @@ export function AgrupamentoDetalhePage() {
             onAcrescentarFilho={podeEscrever ? abrirAcrescentarFilho : undefined}
             onEditar={podeEscrever ? abrirEditar : undefined}
             onExcluir={podeEscrever ? pedirExclusao : undefined}
+            // Leitura: todo perfil abre o detalhe. As escritas dentro dele têm o gating delas.
+            onDetalhe={abrirDetalhe}
           />
         )
       )}

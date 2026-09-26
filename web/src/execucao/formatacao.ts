@@ -1,4 +1,4 @@
-import type { DestinoDto, NoResumoDto, SaldoDto } from '../api/execucao'
+import type { DestinoDto, LocalDto, NoResumoDto, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
 
 const NUMERO = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
 
@@ -54,5 +54,28 @@ export function rotuloDoSaldo(s: SaldoDto): string {
     case 'AguardandoMontagem': return `${q} aguardando montagem em ${s.setorNome}`
     case 'NaExpedicao': return `${q} no local de expedição`
     case 'Montado': return `${q} montados no pai`
+  }
+}
+
+/** Uma ponta de um movimento do livro, para o histórico do nó: "Corte (passo 1)", "a iniciar"… */
+export function rotuloDoLocal(l: LocalDto): string {
+  switch (l.posicao) {
+    case 'AIniciar': return 'a iniciar'
+    case 'NoSetor': return `${l.setorNome} (passo ${l.ordem})`
+    case 'AguardandoColeta': return `aguardando coleta em ${l.setorNome} (passo ${l.ordem})`
+    case 'AguardandoMontagem': return `aguardando montagem em ${l.setorNome}`
+    case 'NaExpedicao': return 'local de expedição'
+    case 'Montado': return 'montado no pai'
+  }
+}
+
+/** O tipo do movimento com acento, como o operador fala. `Montagem` no livro é a BAIXA do filho. */
+export function rotuloDoTipo(tipo: TipoDeMovimentacao): string {
+  switch (tipo) {
+    case 'Inicio': return 'Início'
+    case 'Termino': return 'Término'
+    case 'Entrega': return 'Entrega'
+    case 'Montagem': return 'Baixa de montagem'
+    case 'Estorno': return 'Estorno'
   }
 }

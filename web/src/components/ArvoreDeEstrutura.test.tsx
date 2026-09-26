@@ -359,4 +359,25 @@ describe('ArvoreDeEstrutura', () => {
 
     expect(screen.queryByRole('list', { name: 'Onde está' })).toBeNull()
   })
+  it('"Detalhes" aparece para quem não escreve, sem trazer as ações de escrita junto', () => {
+    // Histórico e Roteiro são leitura de todo perfil (spec da Fase 3 §5.2); o `podeEscrever` continua
+    // governando só acrescentar/editar/excluir.
+    const onDetalhe = vi.fn()
+    render(
+      <ArvoreDeEstrutura
+        nos={[peca]}
+        podeEscrever={false}
+        onAcrescentarFilho={vi.fn()}
+        onEditar={vi.fn()}
+        onExcluir={vi.fn()}
+        onDetalhe={onDetalhe}
+      />,
+    )
+
+    const acoes = screen.getByTestId('acoes-do-no-2')
+    fireEvent.click(within(acoes).getByRole('button', { name: 'Detalhes' }))
+    expect(onDetalhe).toHaveBeenCalledWith(filho)
+    expect(within(acoes).queryByRole('button', { name: /^editar/i })).toBeNull()
+    expect(within(acoes).queryByRole('button', { name: /excluir/i })).toBeNull()
+  })
 })

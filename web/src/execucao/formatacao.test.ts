@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { formatarQuantidade, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo } from './formatacao'
+import {
+  formatarQuantidade, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
+} from './formatacao'
 import type { DestinoDto, NoResumoDto } from '../api/execucao'
 
 const SUPORTE: NoResumoDto = {
@@ -86,5 +88,27 @@ describe('rotuloDoSaldo', () => {
     [{ ...base, posicao: 'Montado' as const, quantidade: 8 }, '8 montados no pai'],
   ])('%o vira "%s"', (saldo, texto) => {
     expect(rotuloDoSaldo(saldo)).toBe(texto)
+  })
+})
+
+describe('rotuloDoLocal', () => {
+  const vazio = { setorId: null, setorNome: null, ordem: null }
+
+  it.each([
+    [{ ...vazio, posicao: 'AIniciar' as const }, 'a iniciar'],
+    [{ posicao: 'NoSetor' as const, setorId: 1, setorNome: 'Corte', ordem: 1 }, 'Corte (passo 1)'],
+    [{ posicao: 'AguardandoColeta' as const, setorId: 1, setorNome: 'Corte', ordem: 1 }, 'aguardando coleta em Corte (passo 1)'],
+    [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null }, 'aguardando montagem em Solda'],
+    [{ ...vazio, posicao: 'NaExpedicao' as const }, 'local de expedição'],
+    [{ ...vazio, posicao: 'Montado' as const }, 'montado no pai'],
+  ])('%o vira "%s"', (local, texto) => {
+    expect(rotuloDoLocal(local)).toBe(texto)
+  })
+})
+
+describe('rotuloDoTipo', () => {
+  it('põe acento e chama a baixa de filho pelo que ela é', () => {
+    expect((['Inicio', 'Termino', 'Entrega', 'Montagem', 'Estorno'] as const).map(rotuloDoTipo))
+      .toEqual(['Início', 'Término', 'Entrega', 'Baixa de montagem', 'Estorno'])
   })
 })

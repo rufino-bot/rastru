@@ -16,6 +16,11 @@ interface Props {
   onAcrescentarFilho?: (paiId: number) => void
   onEditar?: (no: NoDaEstrutura) => void
   onExcluir?: (no: NoDaEstrutura) => void
+  /**
+   * Abre o detalhe do nó (histórico e Roteiro, Fase 3 §6.3). LEITURA, e por isso fora do
+   * `podeEscrever`: o botão aparece para todo perfil que recebe o callback.
+   */
+  onDetalhe?: (no: NoDaEstrutura) => void
 }
 
 const RECUO_BASE_PX = 12
@@ -35,7 +40,9 @@ const RECUO_POR_NIVEL_PX = 20
  * Só constrói a lista a partir do que recebe; não busca dado, não sabe de rota, não sabe de
  * Agrupamento. Isso é da tela (Task 8).
  */
-export function ArvoreDeEstrutura({ nos, posicoes, podeEscrever, onAcrescentarFilho, onEditar, onExcluir }: Props) {
+export function ArvoreDeEstrutura({
+  nos, posicoes, podeEscrever, onAcrescentarFilho, onEditar, onExcluir, onDetalhe,
+}: Props) {
   return (
     // Rótulo no PLURAL desde a Task 8 (Minor 4 da re-review da Task 7): um Agrupamento tem N
     // Peças (`nos` pode ter mais de uma raiz — o teste "um Agrupamento com duas Peças" da própria
@@ -53,6 +60,7 @@ export function ArvoreDeEstrutura({ nos, posicoes, podeEscrever, onAcrescentarFi
           onAcrescentarFilho={onAcrescentarFilho}
           onEditar={onEditar}
           onExcluir={onExcluir}
+          onDetalhe={onDetalhe}
         />
       ))}
     </ul>
@@ -67,6 +75,7 @@ function LinhaDoNo({
   onAcrescentarFilho,
   onEditar,
   onExcluir,
+  onDetalhe,
 }: {
   no: NoDaEstrutura
   nivel: number
@@ -75,6 +84,7 @@ function LinhaDoNo({
   onAcrescentarFilho?: (paiId: number) => void
   onEditar?: (no: NoDaEstrutura) => void
   onExcluir?: (no: NoDaEstrutura) => void
+  onDetalhe?: (no: NoDaEstrutura) => void
 }) {
   const [expandido, setExpandido] = useState(false)
   const temDetalhe = no.materiais.length > 0 || no.roteiro.length > 0
@@ -88,7 +98,8 @@ function LinhaDoNo({
   // destruiria a informação que ela carrega.
   const roteiroOrdenado = [...no.roteiro].sort((a, b) => a.ordem - b.ordem)
   const recuoPx = RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX
-  const temAcao = podeEscrever && (onAcrescentarFilho || onEditar || onExcluir)
+  const temAcaoDeEscrita = podeEscrever && (onAcrescentarFilho || onEditar || onExcluir)
+  const temAcao = temAcaoDeEscrita || onDetalhe
   const posicao = posicoes?.get(no.id)
 
   return (
@@ -156,17 +167,22 @@ function LinhaDoNo({
 
         {temAcao && (
           <div data-testid={`acoes-do-no-${no.id}`} className="flex flex-wrap items-center gap-2">
-            {onAcrescentarFilho && (
+            {onDetalhe && (
+              <Botao variante="secundario" onClick={() => onDetalhe(no)}>
+                Detalhes
+              </Botao>
+            )}
+            {temAcaoDeEscrita && onAcrescentarFilho && (
               <Botao variante="secundario" onClick={() => onAcrescentarFilho(no.id)}>
                 Acrescentar filho
               </Botao>
             )}
-            {onEditar && (
+            {temAcaoDeEscrita && onEditar && (
               <Botao variante="secundario" onClick={() => onEditar(no)}>
                 Editar
               </Botao>
             )}
-            {onExcluir && (
+            {temAcaoDeEscrita && onExcluir && (
               <Botao variante="perigo" onClick={() => onExcluir(no)}>
                 Excluir
               </Botao>
@@ -227,6 +243,7 @@ function LinhaDoNo({
               onAcrescentarFilho={onAcrescentarFilho}
               onEditar={onEditar}
               onExcluir={onExcluir}
+              onDetalhe={onDetalhe}
             />
           ))}
         </ul>

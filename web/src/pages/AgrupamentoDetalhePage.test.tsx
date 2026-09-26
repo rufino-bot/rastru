@@ -7,7 +7,8 @@ import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
 import type { NoDaEstrutura } from '../api/estrutura'
 import type { AgrupamentoDto, ComponenteDto } from '../api/cadastros'
-import type { PosicoesDoNoDto } from '../api/execucao'
+import type { LivroDoNoDto, PosicoesDoNoDto } from '../api/execucao'
+import { movimentacao } from '../testes/execucao'
 import type { FilhoPadraoDto } from '../api/receitaPadrao'
 
 afterEach(cleanup)
@@ -102,7 +103,10 @@ const COMPONENTES_BUSCA = {
  *
  * Fase 3: `posicoes` é o que `GET /agrupamentos/21/posicoes` devolve (a carga busca as duas juntas),
  * e `receitaDoPai`, o que `GET /componentes/10/filhos-padrao` devolve — a receita do Componente de
- * `PECA`, que o painel de acrescentar filho busca para pré-preencher a razão.
+ * `PECA`, que o painel de acrescentar filho busca para pré-preencher a razão. `livro` é o histórico
+ * de QUALQUER nó (`GET /estrutura/:id/movimentacoes`) e o Roteiro de qualquer nó vem vazio — o
+ * painel de detalhes (Task 9 do plano 3) busca os dois ao abrir; `respostaEstorno` é o desfecho de
+ * `POST /movimentacoes/:id/estorno`.
  */
 function montarFetch({
   estruturaInicial,
@@ -114,6 +118,8 @@ function montarFetch({
   respostaExcluir = null,
   posicoes = [],
   receitaDoPai = [],
+  livro = { movimentacoes: [], montagens: [] },
+  respostaEstorno = null,
 }: {
   estruturaInicial: NoDaEstrutura[]
   estruturaAposCriar?: NoDaEstrutura[] | null
@@ -124,6 +130,8 @@ function montarFetch({
   respostaExcluir?: { status: number; corpo: unknown } | null
   posicoes?: PosicoesDoNoDto[]
   receitaDoPai?: FilhoPadraoDto[]
+  livro?: LivroDoNoDto
+  respostaEstorno?: { status: number; corpo: unknown } | null
 }) {
   let getsDeEstrutura = 0
   return vi.fn((url: string | URL, init?: RequestInit) => {
@@ -132,6 +140,15 @@ function montarFetch({
     if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
     if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson(posicoes))
     if (caminho === '/api/componentes/10/filhos-padrao') return Promise.resolve(respostaJson(receitaDoPai))
+    if (caminho === '/api/setores') return Promise.resolve(respostaJson([]))
+    if (/^\/api\/estrutura\/\d+\/movimentacoes$/.test(caminho)) return Promise.resolve(respostaJson(livro))
+    if (/^\/api\/estrutura\/\d+\/roteiro$/.test(caminho)) {
+      return Promise.resolve(respostaJson({ estruturaItemId: Number(caminho.split('/')[3]), passos: [] }))
+    }
+    if (/^\/api\/movimentacoes\/\d+\/estorno$/.test(caminho) && metodo === 'POST') {
+      if (respostaEstorno) return Promise.resolve(respostaJson(respostaEstorno.corpo, respostaEstorno.status))
+      return Promise.resolve(respostaJson({}, 201))
+    }
     if (caminho === '/api/agrupamentos/21') {
       if (respostaAgrupamento) return Promise.resolve(respostaJson(respostaAgrupamento.corpo, respostaAgrupamento.status))
       return Promise.resolve(respostaJson(AGRUPAMENTO))
@@ -1253,5 +1270,48 @@ describe('AgrupamentoDetalhePage', () => {
 
     expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
     expect(screen.queryByRole('list', { name: 'Estrutura do agrupamento' })).toBeNull()
+  })
+  it('"Detalhes" abre o Roteiro e o histórico do nó, para todo perfil', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+
+    const painel = screen.getByRole('region', { name: 'Detalhes de Chassi' })
+    expect(await within(painel).findByText('Nenhum registro ainda.')).toBeTruthy()
+    expect(within(painel).getByText(/Este nó não tem Roteiro/)).toBeTruthy()
+    fireEvent.click(within(painel).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
+  })
+
+  it('estornar no detalhe recarrega a árvore e onde está cada nó', async () => {
+    const fetchMock = montarFetch({
+      estruturaInicial: [PECA],
+      livro: { movimentacoes: [movimentacao({ id: 41, estruturaItemId: 100, usuarioId: 1 })], montagens: [] },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const getsDePosicoes = () => fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/agrupamentos/21/posicoes').length
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(getsDePosicoes()).toBe(2))
+  })
+
+  it('abrir "Editar" fecha o detalhe aberto', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
+    expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
   })
 })
