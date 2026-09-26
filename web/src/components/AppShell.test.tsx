@@ -328,11 +328,17 @@ describe('AppShell', () => {
     // as classes —, e a medida em si está no comentário de `ITENS`.
     renderizarShell()
 
+    // Nenhuma classe cujo prefixo de variante seja "md" — escrita como PADRÃO, não como literal:
+    // Tailwind 4 varre QUALQUER arquivo (este `.test.tsx` incluído) atrás de um nome de classe
+    // completo, e escrever aqui a versão "md" dos dois pares "lg" acima geraria CSS morto no build
+    // (achado do Lote B da review de branch da Fase 3, medido em `web/dist`).
+    const semVarianteMd = (classes: string[]) => !classes.some((c) => /^md\W/.test(c))
+
     const barra = screen.getByRole('navigation', { name: 'Principal' }).className.split(/\s+/)
     expect(barra).toContain('lg:flex')
-    expect(barra).not.toContain('md:flex')
+    expect(semVarianteMd(barra)).toBe(true)
     const botaoDoMenu = screen.getByRole('button', { name: 'Abrir menu' }).className.split(/\s+/)
     expect(botaoDoMenu).toContain('lg:hidden')
-    expect(botaoDoMenu).not.toContain('md:hidden')
+    expect(semVarianteMd(botaoDoMenu)).toBe(true)
   })
 })
