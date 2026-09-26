@@ -88,6 +88,62 @@ describe('useCargaPeriodica', () => {
     expect(result.current.dados).toBe('fila do 2')
   })
 
+  it('tick periódico em voo que rejeita DEPOIS de uma recarga mais nova já ter tido sucesso não vira erro sobre os dados frescos (mesma chave)', async () => {
+    // I2 da review de branch da Fase 3: a mesma guarda de sequência do `catch` que o teste acima
+    // mede pela troca de CHAVE também importa sem troca nenhuma — o tick de 30s pode estar em voo
+    // quando uma ação chama `recarregar()`. Se a ação responde primeiro e o tick antigo rejeita
+    // depois, sem a guarda o banner "Não foi possível carregar a fila." apareceria sobre dados
+    // frescos e ficaria até o próximo tick.
+    const doTick = adiada<string>()
+    const doRecarga = adiada<string>()
+    const buscar = vi.fn()
+      .mockResolvedValueOnce('inicial')
+      .mockReturnValueOnce(doTick.promessa)
+      .mockReturnValueOnce(doRecarga.promessa)
+    const { result } = renderHook(() => useCargaPeriodica(buscar, 1, null, 'falhou'))
+    await waitFor(() => expect(result.current.dados).toBe('inicial'))
+
+    let prontoTick!: Promise<void>
+    let prontoRecarga!: Promise<void>
+    act(() => { prontoTick = result.current.recarregar() })
+    act(() => { prontoRecarga = result.current.recarregar() })
+
+    doRecarga.resolver('fila fresca')
+    await act(async () => { await prontoRecarga })
+    expect(result.current.dados).toBe('fila fresca')
+    expect(result.current.erro).toBeNull()
+
+    doTick.rejeitar(new Error('atrasado'))
+    await act(async () => { await prontoTick })
+
+    expect(result.current.dados).toBe('fila fresca')
+    expect(result.current.erro).toBeNull()
+  })
+
+  it('a resposta da chave antiga que chega depois da troca não apressa o "carregando" da chave nova', async () => {
+    // Cobertura cheap da guarda do `finally` (a mesma review, I2): a chamada de `chave` 1 fica em
+    // voo, a troca para `chave` 2 já pede o `carregando = true` de novo, e só a resposta da chave
+    // NOVA pode apagá-lo — a antiga, mesmo respondendo primeiro, não conta.
+    const daPrimeira = adiada<string>()
+    const daSegunda = adiada<string>()
+    const buscar = vi.fn((setor: number) => (setor === 1 ? daPrimeira.promessa : daSegunda.promessa))
+    const { result, rerender } = renderHook(
+      ({ setor }) => useCargaPeriodica(() => buscar(setor), setor, null, 'falhou'),
+      { initialProps: { setor: 1 } },
+    )
+
+    rerender({ setor: 2 })
+    expect(result.current.carregando).toBe(true)
+
+    await act(async () => { daPrimeira.resolver('fila do 1') })
+    expect(result.current.carregando).toBe(true)
+    expect(result.current.dados).toBeNull()
+
+    await act(async () => { daSegunda.resolver('fila do 2') })
+    expect(result.current.carregando).toBe(false)
+    expect(result.current.dados).toBe('fila do 2')
+  })
+
   it('chave nova zera os dados e volta a "carregando"', async () => {
     const segunda = adiada<string>()
     const buscar = vi.fn().mockResolvedValueOnce('fila do 1').mockReturnValueOnce(segunda.promessa)
