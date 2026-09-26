@@ -85,6 +85,11 @@ internal sealed class CenarioDeExecucao
           }),
           Execucao);
 
+  public ConsultaDeExecucaoUseCase Consulta() =>
+      new(Execucao, Estruturas, Setores,
+          new FakeAgrupamentoRepo(new Agrupamento { Id = AgrupamentoId, PedidoId = PedidoId, Codigo = "AG-01", Tipo = "Avulso" }),
+          Catalogo);
+
   /// <summary>
   /// A calculadora sobre o estado inteiro do cenario, lida direto dos fakes — para os testes afirmarem
   /// o saldo depois de uma operacao sem passar pelo caso de uso que acabaram de exercitar.
