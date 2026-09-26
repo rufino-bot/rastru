@@ -505,7 +505,7 @@ Backend (solution `Rastreamento.slnx`, na raiz):
 ```bash
 docker compose up -d          # PRÉ-REQUISITO dos testes de integração (ver abaixo)
 dotnet build Rastreamento.slnx -warnaserror    # o build tem que ficar em 0 warnings
-dotnet test  Rastreamento.slnx                 # suíte inteira
+dotnet test  Rastreamento.slnx -m:1             # suíte inteira, um projeto de teste por vez (ver abaixo)
 ```
 
 Um projeto de teste por vez, enquanto se itera:
@@ -565,6 +565,16 @@ cair fora da página) em vez de comparar dois `Total` globais. A regra geral que
 sobre contagem global de tabela compartilhada é flaky por construção** — nenhuma `[Collection]`
 resolve, porque o outro escritor pode estar em outro processo. Escope, ou afirme só o que é monótono
 (`Total >= n` das linhas que o próprio teste inseriu).
+
+**Processos de teste também competem pelo banco — por isso `-m:1`.** A lição acima ("`[Collection]`
+não atravessa processo") vale igual entre PROJETOS de teste: por padrão o MSBuild roda os `dotnet
+test` de `Infrastructure.Tests` e `Api.Tests` em processos separados, em paralelo. Sob SERIALIZABLE
+(spec da Fase 3, seção 8.1), dois processos escrevendo no livro (`Movimentacao`) ou em
+`EstruturaRoteiro` deadlockam por range lock de fim de índice — um nó novo sempre cai no mesmo
+"gap" — mesmo com o retry de 3 tentativas (`ExecucaoRepository.EmTransacaoAsync`) absorvendo o
+mesmo problema dentro de um processo só. Medido na Task 11 (Fase 3, fix round 3): `-m:1` força o
+MSBuild a rodar um projeto de teste por vez (confirmado por amostragem de processo — nenhum
+`testhost` de dois projetos coexiste) e a suíte fica verde onde, sem `-m:1`, era intermitente.
 
 ```bash
 docker compose up -d

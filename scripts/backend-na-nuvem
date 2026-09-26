@@ -76,4 +76,4 @@ if [ "$(echo "$tem_schema" | tr -d '[:space:]')" = "0" ]; then
 fi
 echo "banco    : Rastreamento pronto em localhost:1433"
 echo
-echo "Próximo: dotnet build Rastreamento.slnx -warnaserror && dotnet test Rastreamento.slnx"
+echo "Próximo: dotnet build Rastreamento.slnx -warnaserror && dotnet test Rastreamento.slnx -m:1"

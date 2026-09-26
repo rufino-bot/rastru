@@ -19,10 +19,13 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 /// sinalizar a dele antes de tentar o UPDATE): sem isto, a corrida entre duas conexoes separadas
 /// nao garante que as duas cheguem a fase de conversao S -&gt; X ao mesmo tempo, e o teste ficaria
 /// flaky por depender do agendamento do SO. Com o rendezvous, as duas SEMPRE tentam converter
-/// simultaneamente — e por isso o teste de 1 tentativa ainda assim repete
-/// (<see cref="TentativasParaReproduzir"/> vezes, Pedido novo a cada vez): o SQL Server escolhe o
-/// deadlock em cima de um relogio proprio (o monitor de deadlock, nao instantaneo), e a maquina de
-/// CI pode variar.
+/// simultaneamente, entao o deadlock em si nao e o que varia — a latencia do MONITOR de deadlock do
+/// SQL Server (ele nao e instantaneo) muda so QUANTO TEMPO o teste leva para observar o resultado,
+/// nunca SE ele acontece. Ainda assim o teste de 1 tentativa repete
+/// (<see cref="TentativasParaReproduzir"/> vezes, Pedido novo a cada vez) pela mesma razao defensiva
+/// de `CorridaNoIniciarTests`: uma anomalia rara de agendamento de thread poderia, em tese, deixar
+/// um lado terminar o proprio caminho antes do outro alcancar a conversao, e o cap da a esse caso
+/// raro uma segunda chance em vez de falhar por causa dele.
 /// </para>
 /// </summary>
 [Collection(ColecaoQueEscreveEmComponente.Nome)]
@@ -104,7 +107,16 @@ public class RetryDeDeadlockEmTransacaoAsyncTests : TesteComBanco
           await contexto.Pedidos.AsNoTracking().Where(p => p.Id == pedidoId)
               .Select(p => p.Status).SingleAsync();
           euLi.TrySetResult();
-          await esperarOOutroLer;
+          // Timeout no rendezvous (fix round 3, minor pedido pelo controlador): se o OUTRO lado
+          // falhar ANTES de sinalizar a propria leitura, o TCS dele nunca completa, e um `await` sem
+          // prazo aqui travaria o teste para sempre em vez de falhar com uma mensagem. 30s e
+          // generoso — o SQL Server nunca leva perto disso so para ler uma linha — e curto o
+          // bastante para nao travar a suite se isso um dia acontecer de verdade.
+          var sinal = await Task.WhenAny(esperarOOutroLer, Task.Delay(TimeSpan.FromSeconds(30)));
+          if (sinal != esperarOOutroLer)
+            throw new TimeoutException(
+                "O outro lado do rendezvous nao sinalizou a propria leitura em 30s — "
+                + "provavelmente falhou antes de chegar la.");
           // A conversao S -> X: os dois competem por ela ao mesmo tempo, forcado pelo rendezvous.
           await contexto.Pedidos.Where(p => p.Id == pedidoId && p.Status == "Aberto")
               .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "EmProducao"));
