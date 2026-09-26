@@ -3,7 +3,10 @@ import { podeEscrever } from './permissoes'
 
 describe('podeEscrever', () => {
   it('deixa Administrador escrever em tudo', () => {
-    for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos'] as const) {
+    for (const r of [
+      'setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos', 'estrutura',
+      'apontamento', 'entrega', 'roteiro', 'estorno',
+    ] as const) {
       expect(podeEscrever('Administrador', r), r).toBe(true)
     }
   })
@@ -21,12 +24,35 @@ describe('podeEscrever', () => {
     expect(podeEscrever('PCP', 'materiais')).toBe(false)
   })
 
-  it('não deixa Operador, Almoxarifado, Qualidade nem Gestao escreverem em nada', () => {
+  it('não deixa Operador, Almoxarifado, Qualidade nem Gestao escreverem em nenhum cadastro', () => {
     // `Gestao` sem acento: é o valor que está em `db/seed.sql`, e o perfil chega do backend como
     // claim. Escrever "Gestão" aqui faria a comparação falhar em silêncio.
-    // CONFERIDO no pré-flight de 2026-08-10: `db/seed.sql:3` traz os 6 perfis sem acento.
+    // CONFERIDO no pré-flight de 2026-08-10, remedido na Fase 3 (2026-09-25): o `MERGE` de perfis de
+    // `db/seed.sql` traz os 7 perfis sem acento — o Movimentador entrou na Fase 3.
+    // Título reescrito na Task 10 da Fase 3: o Operador passou a escrever em `apontamento` e
+    // `estorno` (ver `Fase 3: cada ação de execução é de quem a faz no chão de fábrica`), então
+    // "em nada" ficou falso para ele — este `for` continua valendo, só que restrito aos CADASTROS
+    // (os cinco recursos de antes da Fase 3).
     for (const p of ['Operador', 'Almoxarifado', 'Qualidade', 'Gestao']) {
       for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos'] as const) {
+        expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
+      }
+    }
+  })
+
+  it('Fase 3: cada ação de execução é de quem a faz no chão de fábrica', () => {
+    // Espelha os quatro controllers da execução (desvio D1 do plano 2 da Fase 3).
+    expect(podeEscrever('Operador', 'apontamento')).toBe(true)
+    expect(podeEscrever('Movimentador', 'apontamento')).toBe(false)
+    expect(podeEscrever('Movimentador', 'entrega')).toBe(true)
+    expect(podeEscrever('Operador', 'entrega')).toBe(false)
+    expect(podeEscrever('PCP', 'roteiro')).toBe(true)
+    expect(podeEscrever('Operador', 'roteiro')).toBe(false)
+    for (const p of ['Operador', 'Movimentador', 'PCP']) {
+      expect(podeEscrever(p, 'estorno'), p).toBe(true)
+    }
+    for (const p of ['Almoxarifado', 'Qualidade', 'Gestao']) {
+      for (const r of ['apontamento', 'entrega', 'roteiro', 'estorno'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
       }
     }

@@ -20,24 +20,31 @@ public sealed class UsuarioDeTeste : IAsyncDisposable
 
   public string NomeUsuario { get; }
 
+  public string Perfil { get; }
+
   public int Id { get; private set; }
 
-  private UsuarioDeTeste(IServiceProvider servicos, string nomeUsuario)
+  private UsuarioDeTeste(IServiceProvider servicos, string nomeUsuario, string perfil)
   {
     _servicos = servicos;
     NomeUsuario = nomeUsuario;
+    Perfil = perfil;
   }
 
   /// <param name="prefixo">Rotulo curto (ate 17 caracteres) para identificar o teste dono.</param>
-  public static async Task<UsuarioDeTeste> CriarAsync(IServiceProvider servicos, string prefixo)
+  /// <param name="perfil">
+  /// Nome do perfil, como esta em `db/seed.sql`. A Fase 3 precisa de usuario REAL por perfil: o autor de
+  /// um movimento e FK para `dbo.Usuario`, e o estorno compara o autor (spec secao 9.3).
+  /// </param>
+  public static async Task<UsuarioDeTeste> CriarAsync(IServiceProvider servicos, string prefixo, string perfil = "Administrador")
   {
     // Nome unico por execucao: UQ_Usuario_NomeUsuario nao perdoa sobra de uma execucao anterior
     // que tenha morrido antes da limpeza. prefixo(<=17) + '-' + 32 hex cabe no NVARCHAR(50).
-    var usuario = new UsuarioDeTeste(servicos, $"{prefixo}-{Guid.NewGuid():N}");
+    var usuario = new UsuarioDeTeste(servicos, $"{prefixo}-{Guid.NewGuid():N}", perfil);
 
     using var escopo = servicos.CreateScope();
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-    var perfil = await db.Perfis.SingleAsync(p => p.Nome == "Administrador");
+    var perfilDoBanco = await db.Perfis.SingleAsync(p => p.Nome == perfil);
 
     var linha = new Usuario
     {
@@ -45,7 +52,7 @@ public sealed class UsuarioDeTeste : IAsyncDisposable
       // BCrypt real: o login em producao roda o hasher de verdade, entao o hash tem que ser.
       SenhaHash = new BCryptPasswordHasher().Hash(Senha),
       NomeCompleto = "Usuario de Teste",
-      PerfilId = perfil.Id,
+      PerfilId = perfilDoBanco.Id,
       Ativo = true,
     };
 

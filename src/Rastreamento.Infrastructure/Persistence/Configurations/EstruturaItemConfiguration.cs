@@ -14,5 +14,6 @@ public class EstruturaItemConfiguration : IEntityTypeConfiguration<EstruturaItem
     b.Property(x => x.NivelHierarquico).HasMaxLength(10).IsRequired();
     // Espelha DECIMAL(18,4) do .sql. Sem isto o EF usa o default dele e trunca em silencio.
     b.Property(x => x.Quantidade).HasPrecision(18, 4);
+    b.Property(x => x.QuantidadePorPai).HasPrecision(18, 4);
   }
 }

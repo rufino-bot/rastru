@@ -6,7 +6,8 @@ namespace Rastreamento.Application.Cadastros;
 
 /// <summary>
 /// Cadastro de Setor: criar, editar, listar e (in)ativar. Setor nao se exclui — linhas de
-/// EstruturaSetorHistorico apontam para ele (ver a spec da Fase 1, "Politica de exclusao").
+/// Movimentacao, Montagem e EstruturaRoteiro apontam para ele (ver a spec da Fase 1, "Politica de
+/// exclusao"; a EstruturaSetorHistorico que a spec cita saiu na Fase 3).
 /// </summary>
 public sealed class CadastroDeSetorUseCase
 {

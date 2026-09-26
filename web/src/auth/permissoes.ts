@@ -1,7 +1,17 @@
-export type Recurso = 'setores' | 'materiais' | 'componentes' | 'pedidos' | 'agrupamentos' | 'estrutura'
+export type Recurso =
+  | 'setores'
+  | 'materiais'
+  | 'componentes'
+  | 'pedidos'
+  | 'agrupamentos'
+  | 'estrutura'
+  | 'apontamento'
+  | 'entrega'
+  | 'roteiro'
+  | 'estorno'
 
 /**
- * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-08-10.
+ * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-09-26.
  *
  * **Isto é conveniência de interface, não segurança.** A autorização real é do backend e continua
  * sendo: esconder um botão não impede requisição nenhuma. O que esta tabela evita é o usuário
@@ -31,6 +41,18 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   // árvore dele são ações distintas, e a primeira vez que os perfis divergirem (a Fase 3 mexe em
   // quem aponta setor) a carona seria descoberta como bug, não como decisão.
   estrutura: ['PCP', 'Administrador'],
+  // Fase 3 — execução. Um `Recurso` por conjunto de perfis, porque a guarda de espelhamento compara cada
+  // controller com UMA entrada daqui (desvio D1 do plano 2 da Fase 3; a spec previa três chaves).
+  // Iniciar, terminar e montar, no chão de fábrica.
+  apontamento: ['Operador', 'Administrador'],
+  // Levar o que aguarda coleta, e redirecionar o que aguarda montagem.
+  entrega: ['Movimentador', 'Administrador'],
+  // Editar o Roteiro de um nó. Não é `estrutura`, embora os perfis hoje coincidam — mesmo motivo do
+  // comentário de `estrutura`.
+  roteiro: ['PCP', 'Administrador'],
+  // Quem PODE ser autor de um registro, mais o PCP. O botão ainda compara o autor, e quem decide é o
+  // 403 `Proibido` do backend.
+  estorno: ['Operador', 'Movimentador', 'PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

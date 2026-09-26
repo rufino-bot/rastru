@@ -2,6 +2,7 @@ using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Domain.Entities;
+using Rastreamento.Application.Tests.Execucao;
 using Xunit;
 
 namespace Rastreamento.Application.Tests.Estrutura;
@@ -23,7 +24,7 @@ public class CriarPecaTests
     // consultado e descartado (ver comentario em MontagemDeEstruturaUseCase.CriarPeca), entao
     // devolver null e inocuo. `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido...` usa o helper
     // dedicado abaixo, com um Pedido de verdade.
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, new FakePedidoRepo());
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, new FakePedidoRepo(), new FakeExecucaoRepo(estruturas));
     return (useCase, estruturas, agrupamentosRepo, catalogo);
   }
 
@@ -43,7 +44,7 @@ public class CriarPecaTests
     // Peca de verdade e morreria por cenario incompleto, nao pela guarda de status que ele quer provar.
     catalogo.Componentes.Add(ComponenteComSolido(1));
     var pedidosRepo = new FakePedidoRepo(pedido);
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo);
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo, new FakeExecucaoRepo(estruturas));
     return (useCase, estruturas);
   }
 
@@ -152,7 +153,7 @@ public class CriarPecaTests
     Assert.True(raiz.Sucesso);
 
     var resultado = await useCase.AcrescentarFilho(
-        raiz.Valor!.Id, new NovoFilhoDto(ComponenteId: null, Descricao: "Filho ad-hoc", Quantidade: 1m),
+        raiz.Valor!.Id, new NovoFilhoDto(ComponenteId: null, Descricao: "Filho ad-hoc", Quantidade: 1m, QuantidadePorPai: 1m),
         CancellationToken.None);
 
     Assert.True(resultado.Sucesso);

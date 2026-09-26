@@ -40,6 +40,10 @@ const CONTROLLERS_POR_RECURSO: Record<Recurso, readonly string[]> = {
   pedidos: ['PedidosController.cs'],
   agrupamentos: ['AgrupamentosController.cs'],
   estrutura: ['EstruturaController.cs'],
+  apontamento: ['ApontamentoController.cs'],
+  entrega: ['EntregaController.cs'],
+  roteiro: ['RoteiroDoNoController.cs'],
+  estorno: ['EstornoController.cs'],
 }
 
 /**
@@ -63,6 +67,9 @@ const ISENTOS: Record<string, string> = {
     'base abstrata, sem rota própria — os perfis vivem nos controllers concretos que herdam dela, ' +
     'e cada um já está mapeado. Se um `[Authorize(Roles)]` nascer AQUI, ele passa a valer para os ' +
     'cinco de uma vez: é exatamente o que a asserção de "nenhum isento declara Roles" pega.',
+  'ExecucaoControllerBase.cs':
+    'base abstrata dos controllers da Fase 3, sem rota própria — só traduz Result em status e lê a ' +
+    'sessão. Perfil é decisão de cada controller concreto; um `Roles` aqui valeria para os quatro.',
 }
 
 /** `[Authorize(Roles = "A,B")]` e também `[Authorize(Roles = NomeDeConst)]`. */

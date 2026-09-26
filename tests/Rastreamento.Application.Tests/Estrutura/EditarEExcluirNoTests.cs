@@ -2,6 +2,7 @@ using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Domain.Entities;
+using Rastreamento.Application.Tests.Execucao;
 using Xunit;
 
 namespace Rastreamento.Application.Tests.Estrutura;
@@ -31,7 +32,7 @@ public class EditarEExcluirNoTests
     var agrupamentosRepo = new FakeAgrupamentoRepo(agrupamento);
     var catalogo = new FakeReceitaPadraoRepo();
     var pedidosRepo = pedido is null ? new FakePedidoRepo() : new FakePedidoRepo(pedido);
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo);
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo, new FakeExecucaoRepo(estruturas));
     return (useCase, estruturas, agrupamentosRepo, catalogo, pedidosRepo);
   }
 
@@ -69,7 +70,7 @@ public class EditarEExcluirNoTests
     catalogo.Componentes.Add(NovoComponente(11, "C11", "Sub Dois"));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: 10, Descricao: null, Quantidade: 5m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: 10, Descricao: null, Quantidade: 5m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     var novo = resultado.Valor!;
@@ -89,7 +90,7 @@ public class EditarEExcluirNoTests
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: null, Descricao: "   ", Quantidade: 5m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: null, Descricao: "   ", Quantidade: 5m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -103,7 +104,7 @@ public class EditarEExcluirNoTests
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: null, Descricao: "Suporte avulso", Quantidade: 3m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: null, Descricao: "Suporte avulso", Quantidade: 3m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Null(resultado.Valor!.ComponenteId);
@@ -199,7 +200,7 @@ public class EditarEExcluirNoTests
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: null, Descricao: "Ad hoc", Quantidade: 0.00001m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: null, Descricao: "Ad hoc", Quantidade: 0.00001m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -226,7 +227,7 @@ public class EditarEExcluirNoTests
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
     estruturas.Itens.Add(NovoNo(2, 1, 1, 3m, nivel: "Item", componenteId: null, descricao: "Ad hoc"));
 
-    var resultado = await useCase.EditarNo(2, new EdicaoDeNoDto("", 3m), CancellationToken.None);
+    var resultado = await useCase.EditarNo(2, new EdicaoDeNoDto("", 3m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -258,7 +259,7 @@ public class EditarEExcluirNoTests
     estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: null, Descricao: "Suporte avulso", Quantidade: 3m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: null, Descricao: "Suporte avulso", Quantidade: 3m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Contains(estruturas.Itens, i => i.EstruturaPaiId == 1);
@@ -283,7 +284,7 @@ public class EditarEExcluirNoTests
     catalogo.Componentes.Add(NovoComponente(11, "C11", "Sub Dois"));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: 10, Descricao: null, Quantidade: 1m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: 10, Descricao: null, Quantidade: 1m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
@@ -305,7 +306,7 @@ public class EditarEExcluirNoTests
     catalogo.Componentes.Add(NovoComponente(10, "C10", "Descricao do Componente"));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "Suporte lado esquerdo", Quantidade: 5m),
+        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "Suporte lado esquerdo", Quantidade: 5m, QuantidadePorPai: 1m),
         CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
@@ -326,7 +327,7 @@ public class EditarEExcluirNoTests
     catalogo.Componentes.Add(NovoComponente(10, "C10", "Descricao do Componente"));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "   ", Quantidade: 5m), CancellationToken.None);
+        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "   ", Quantidade: 5m, QuantidadePorPai: 1m), CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal("Descricao do Componente", resultado.Valor!.Descricao);
@@ -353,7 +354,7 @@ public class EditarEExcluirNoTests
     catalogo.Componentes.Add(NovoComponente(11, "C11", "Descricao do Filho da Receita"));
 
     var resultado = await useCase.AcrescentarFilho(
-        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "Suporte lado esquerdo", Quantidade: 5m),
+        1, new NovoFilhoDto(ComponenteId: 10, Descricao: "Suporte lado esquerdo", Quantidade: 5m, QuantidadePorPai: 1m),
         CancellationToken.None);
 
     Assert.True(resultado.Sucesso);

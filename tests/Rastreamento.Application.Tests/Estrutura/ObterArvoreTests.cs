@@ -2,6 +2,7 @@ using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Domain.Entities;
+using Rastreamento.Application.Tests.Execucao;
 using Xunit;
 
 namespace Rastreamento.Application.Tests.Estrutura;
@@ -36,7 +37,7 @@ public class ObterArvoreTests
     catalogo.Materiais.Add(new Material { Id = 90, Codigo = "M90", Descricao = "Chapa 2mm", UnidadeMedida = "UN", Ativo = true });
     catalogo.Setores.Add(new Setor { Id = 7, Nome = "Solda", Ativo = true });
 
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo());
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo(), new FakeExecucaoRepo(estruturas));
     var criado = await useCase.CriarPeca(
         1, new NovaPecaDto(ComponenteId: 1, Quantidade: 10m, RequerRelatorioDimensional: false), CancellationToken.None);
     Assert.True(criado.Sucesso);
@@ -62,7 +63,7 @@ public class ObterArvoreTests
   public async Task Agrupamento_inexistente_da_404_em_ObterArvore()
   {
     var useCase = new MontagemDeEstruturaUseCase(
-        new FakeEstruturaRepo(), new FakeAgrupamentoRepo(), new FakeReceitaPadraoRepo(), new FakePedidoRepo());
+        new FakeEstruturaRepo(), new FakeAgrupamentoRepo(), new FakeReceitaPadraoRepo(), new FakePedidoRepo(), new FakeExecucaoRepo(new FakeEstruturaRepo()));
 
     var resultado = await useCase.ObterArvore(999, CancellationToken.None);
 
@@ -76,7 +77,7 @@ public class ObterArvoreTests
     var useCase = new MontagemDeEstruturaUseCase(
         new FakeEstruturaRepo(),
         new FakeAgrupamentoRepo(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" }),
-        new FakeReceitaPadraoRepo(), new FakePedidoRepo());
+        new FakeReceitaPadraoRepo(), new FakePedidoRepo(), new FakeExecucaoRepo(new FakeEstruturaRepo()));
 
     var resultado = await useCase.ObterArvore(1, CancellationToken.None);
 
@@ -118,7 +119,7 @@ public class ObterArvoreTests
     catalogo.Componentes.Add(NovoComponente(2, "C2", "Filho Dois"));
     catalogo.Componentes.Add(NovoComponente(3, "C3", "Filho Tres"));
 
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo());
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo(), new FakeExecucaoRepo(estruturas));
 
     var resultado = await useCase.ObterArvore(1, CancellationToken.None);
 
@@ -142,7 +143,7 @@ public class ObterArvoreTests
 
     var useCase = new MontagemDeEstruturaUseCase(
         estruturas, new FakeAgrupamentoRepo(new Agrupamento { Id = 1, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" }),
-        new FakeReceitaPadraoRepo(), new FakePedidoRepo());
+        new FakeReceitaPadraoRepo(), new FakePedidoRepo(), new FakeExecucaoRepo(estruturas));
 
     await Assert.ThrowsAsync<ArvoreInconsistenteException>(() => useCase.ObterArvore(1, CancellationToken.None));
   }

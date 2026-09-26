@@ -6,7 +6,8 @@ public sealed record NoPlanejado(
     decimal Quantidade,
     IReadOnlyList<(int MaterialId, decimal Quantidade)> Materiais,
     IReadOnlyList<(int SetorId, int Ordem)> Roteiro,
-    IReadOnlyList<NoPlanejado> Filhos);
+    IReadOnlyList<NoPlanejado> Filhos,
+    decimal? QuantidadePorPai = null);
 
 public sealed record ReceitaDoCatalogo(
     ILookup<int, (int FilhoId, decimal QuantidadePadrao)> Filhos,
@@ -90,7 +91,9 @@ public static class PlanejadorDeCopia
 
     try
     {
-      var raiz = Descer(receita, componenteRaizId, quantidadeDaRaiz, caminho, noCaminho, ref nos);
+      // A raiz nao tem aresta de pai: razao nula. Quem pendura a raiz sob um no (AcrescentarFilho)
+      // poe a razao informada no corpo por cima (regra 26).
+      var raiz = Descer(receita, componenteRaizId, quantidadeDaRaiz, null, caminho, noCaminho, ref nos);
       return new PlanoDeCopia(raiz, null, null);
     }
     catch (CopiaRecusadaException e)
@@ -103,6 +106,7 @@ public static class PlanejadorDeCopia
       ReceitaDoCatalogo receita,
       int componenteId,
       decimal quantidade,
+      decimal? quantidadePorPai,
       List<int> caminho,
       HashSet<int> noCaminho,
       ref int nos)
@@ -140,7 +144,8 @@ public static class PlanejadorDeCopia
     // que quebraria em silencio a seguranca para chamadas concorrentes que este metodo precisa ter.
     var filhos = new List<NoPlanejado>();
     foreach (var f in receita.Filhos[componenteId])
-      filhos.Add(Descer(receita, f.FilhoId, quantidade * f.QuantidadePadrao, caminho, noCaminho, ref nos));
+      filhos.Add(Descer(
+          receita, f.FilhoId, quantidade * f.QuantidadePadrao, f.QuantidadePadrao, caminho, noCaminho, ref nos));
 
     caminho.RemoveAt(caminho.Count - 1);
     noCaminho.Remove(componenteId);
@@ -166,7 +171,8 @@ public static class PlanejadorDeCopia
         Materiais: materiais,
         Roteiro: receita.Roteiro[componenteId]
             .OrderBy(r => r.Ordem).Select(r => (r.SetorId, r.Ordem)).ToList(),
-        Filhos: filhos);
+        Filhos: filhos,
+        QuantidadePorPai: quantidadePorPai);
   }
 
   /// <summary>

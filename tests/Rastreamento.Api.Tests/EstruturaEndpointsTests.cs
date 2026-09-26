@@ -227,7 +227,7 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     await cliente.PostAsJsonAsync(
         $"/api/estrutura/{raizId}/filhos",
-        new { componenteId = (int?)null, descricao = "Sub-item ad-hoc", quantidade = 2m });
+        new { componenteId = (int?)null, descricao = "Sub-item ad-hoc", quantidade = 2m, quantidadePorPai = 2m });
 
     var resposta = await cliente.GetAsync($"/api/agrupamentos/{agrupamentoId}/estrutura");
 
@@ -237,6 +237,49 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(raizId, raiz.GetProperty("id").GetInt32());
     var filho = Assert.Single(raiz.GetProperty("filhos").EnumerateArray());
     Assert.Equal("Sub-item ad-hoc", filho.GetProperty("descricao").GetString());
+  }
+
+  [Fact]
+  public async Task Filho_leva_quantidadePorPai_e_a_arvore_mostra_semRoteiro()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId, 10m));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var filho = await cliente.PostAsJsonAsync(
+        $"/api/estrutura/{raizId}/filhos",
+        new { componenteId = (int?)null, descricao = "Calço", quantidade = 25m, quantidadePorPai = 2.5m });
+    Assert.Equal(HttpStatusCode.Created, filho.StatusCode);
+
+    var arvore = JsonDocument.Parse(await (await cliente.GetAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura")).Content.ReadAsStringAsync()).RootElement;
+    var raiz = Assert.Single(arvore.EnumerateArray());
+    Assert.Equal(JsonValueKind.Null, raiz.GetProperty("quantidadePorPai").ValueKind);
+    Assert.True(raiz.GetProperty("semRoteiro").GetBoolean());   // Componente de teste sem roteiro padrao
+    var item = Assert.Single(raiz.GetProperty("filhos").EnumerateArray());
+    Assert.Equal(2.5m, item.GetProperty("quantidadePorPai").GetDecimal());
+    Assert.True(item.GetProperty("semRoteiro").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Filho_sem_quantidadePorPai_devolve_400_com_a_regra_26()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var resposta = await cliente.PostAsJsonAsync(
+        $"/api/estrutura/{raizId}/filhos", new { componenteId = (int?)null, descricao = "Calço", quantidade = 1m });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Contains("regra 26", corpo.GetProperty("erro").GetString());
   }
 
   /// <summary>
@@ -293,6 +336,69 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal("PedidoNaoAberto", corpo.GetProperty("erro").GetString());
   }
 
+  /// <summary>
+  /// Par positivo de DELETE_em_Pedido_nao_Aberto_devolve_409_PedidoNaoAberto: com o Pedido `Aberto`
+  /// (o caso comum), o DELETE tem de ATRAVESSAR o esquema de trava inteiro da Task 8
+  /// (`_execucao.ExecutarAsync` -> `TravarNosAsync` da subarvore -> `RemoverSubarvoreAsync` DENTRO da
+  /// transacao Serializable ja aberta) e chegar a `SaveChangesAsync`/commit reais contra o SQL
+  /// Server. Achado da review da Task 8 (Important): antes deste teste, nenhum teste HTTP passava
+  /// por esse caminho de sucesso -- so o de 409, que retorna ANTES de `RemoverSubarvoreAsync` correr.
+  /// A prova de que ele bita esta na mutacao registrada no relatorio da Task 8 (fix pass): revertendo
+  /// o branch `propria` de `EstruturaRepository.RemoverSubarvoreAsync` para um
+  /// `BeginTransactionAsync` incondicional, este teste morre com 500 ("This SqlTransaction has
+  /// completed; it is no longer usable" / conexao ja em transacao) -- porque a chamada abre uma
+  /// SEGUNDA transacao sobre a mesma conexao, dentro da Serializable que `ExecutarAsync` ja tinha
+  /// aberto.
+  /// </summary>
+  [Fact]
+  public async Task DELETE_com_Pedido_Aberto_remove_a_subarvore_e_devolve_204()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+    var filho = await cliente.PostAsJsonAsync(
+        $"/api/estrutura/{raizId}/filhos",
+        new { componenteId = (int?)null, descricao = "Sub-item da subarvore", quantidade = 1m, quantidadePorPai = 1m });
+    var filhoId = JsonDocument.Parse(await filho.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var resposta = await cliente.DeleteAsync($"/api/estrutura/{raizId}");
+
+    Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    // Escopado aos DOIS Ids deste teste (raiz e filho) -- nunca uma contagem global da tabela.
+    Assert.False(await db.Estruturas.AnyAsync(i => i.Id == raizId || i.Id == filhoId));
+  }
+
+  /// <summary>
+  /// Achado da review da Task 8 (Important, mesmo grupo de `DELETE_com_Pedido_Aberto_remove_a_subarvore_e_devolve_204`):
+  /// nenhum teste HTTP fazia um PUT bem-sucedido -- so o caso de uso, em Rastreamento.Application.Tests,
+  /// exercitava o caminho feliz de `EditarNo` dentro do esquema de trava.
+  /// </summary>
+  [Fact]
+  public async Task PUT_edita_descricao_e_quantidade_e_devolve_200()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId, 5m));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    var resposta = await cliente.PutAsJsonAsync(
+        $"/api/estrutura/{raizId}", new { descricao = "Peca editada pelo PUT", quantidade = 9m });
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal(raizId, corpo.GetProperty("id").GetInt32());
+    Assert.Equal("Peca editada pelo PUT", corpo.GetProperty("descricao").GetString());
+    Assert.Equal(9m, corpo.GetProperty("quantidade").GetDecimal());
+  }
+
   [Fact]
   public async Task POST_de_filho_ad_hoc_sem_descricao_devolve_400()
   {
@@ -305,7 +411,7 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     var resposta = await cliente.PostAsJsonAsync(
         $"/api/estrutura/{raizId}/filhos",
-        new { componenteId = (int?)null, descricao = (string?)null, quantidade = 1m });
+        new { componenteId = (int?)null, descricao = (string?)null, quantidade = 1m, quantidadePorPai = 1m });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
