@@ -447,9 +447,10 @@ coisas, nesta ordem:
 3. **O backend, quando a tarefa toca `src/` ou `tests/`:** rode `bash scripts/backend-na-nuvem`. O
    container nasce sem `dotnet` e com o Docker parado; o script instala o SDK se faltar, sobe o
    `dockerd`, o SQL Server do `docker compose` e cria o banco com schema e seed. É idempotente. Medido
-   em 2026-09-25: depois dele, `dotnet build -warnaserror` sai com 0 warnings e `dotnet test` passa
-   582 de 582 (279 Application, 77 Infrastructure, 226 Api). Rode a suíte com o comando documentado,
-   `dotnet test Rastreamento.slnx -m:1` (ver "Processos de teste também competem pelo banco"). O SDK vem do arquivo do Ubuntu
+   em 2026-09-26, em `44b1d54` (merge da Fase 3 backend): depois dele, `dotnet build -warnaserror` sai
+   com 0 warnings e `dotnet test Rastreamento.slnx -m:1` passa 785 de 785 (403 Application, 115
+   Infrastructure, 267 Api). Rode a suíte sempre com esse comando (ver "Processos de teste também
+   competem pelo banco"). O SDK vem do arquivo do Ubuntu
    (`dotnet-sdk-10.0`), não do `dotnet-install.sh`, cujo host de download a rede do ambiente recusa.
    O setup script do ambiente pode instalar o SDK de antemão (`apt-get update -qq || true;
    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq dotnet-sdk-10.0`), o que só poupa ~1 min;
@@ -531,9 +532,10 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte tem **464 testes** (medido em 2026-08-26 com `dotnet test Rastreamento.slnx
---list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
-ar: 205 em `Api.Tests`, 201 em `Application.Tests`, 58 em `Infrastructure.Tests`). Quantos
+A suíte tem **785 testes** (medido em 2026-09-26, em `44b1d54`, com `dotnet test` de cada projeto e
+`--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
+ar: 267 em `Api.Tests`, 403 em `Application.Tests`, 115 em `Infrastructure.Tests`, 0 em
+`Domain.Tests`; a execução da suíte no mesmo commit deu os mesmos 785). Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
 exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
 falha por erro de conexão em vez de mensagem útil, e a task que escreveu este parágrafo é
