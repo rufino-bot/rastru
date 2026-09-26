@@ -39,4 +39,23 @@ describe('usePermissoesDaExecucao', () => {
 
     expect([p.apontar, p.entregar, p.editarRoteiro, p.podeEstornar(1)]).toEqual([false, false, false, false])
   })
+  it.each([
+    ['Operador', { apontar: true, entregar: false, editarRoteiro: false }],
+    ['Movimentador', { apontar: false, entregar: true, editarRoteiro: false }],
+    ['PCP', { apontar: false, entregar: false, editarRoteiro: true }],
+    ['Administrador', { apontar: true, entregar: true, editarRoteiro: true }],
+    ['Almoxarifado', { apontar: false, entregar: false, editarRoteiro: false }],
+    ['Qualidade', { apontar: false, entregar: false, editarRoteiro: false }],
+    ['Gestao', { apontar: false, entregar: false, editarRoteiro: false }],
+  ])('%s: cada ação é de quem a faz (spec §4.8)', (perfil, esperado) => {
+    const { apontar, entregar, editarRoteiro } = como(perfil)
+
+    expect({ apontar, entregar, editarRoteiro }).toEqual(esperado)
+  })
+
+  it('perfil fora da chave `estorno` não estorna nem o que seria "dele"', () => {
+    // Gestão só lê (spec §4.8): mesmo com o Id da sessão igual ao autor, o botão não aparece.
+    expect(como('Gestao', 12).podeEstornar(12)).toBe(false)
+    expect(como('Qualidade', 12).podeEstornar(12)).toBe(false)
+  })
 })

@@ -1,4 +1,5 @@
 import { useAuth } from '../auth/AuthContext'
+import { podeEscrever } from '../auth/permissoes'
 
 export interface PermissoesDaExecucao {
   /** Iniciar, terminar e montar — o Operador, no chão de fábrica. */
@@ -22,22 +23,23 @@ const NENHUMA: PermissoesDaExecucao = {
 const ESTORNAM_REGISTRO_ALHEIO: readonly string[] = ['PCP', 'Administrador']
 
 /**
- * O que a sessão pode fazer na execução, num lugar só — as telas perguntam aqui, e não a
- * `usePodeEscrever` direto, por um motivo de ORDEM DE MERGE: as chaves `apontamento`, `entrega`,
- * `roteiro` e `estorno` de `permissoes.ts` nascem na Task 10 do plano 2 (backend), e a guarda
- * `permissoesEspelhamOBackend.test.ts` só as aceita junto dos controllers delas. Até a Task 10
- * DESTE plano, que roda depois do merge do plano 2, as três ações ficam liberadas para todo
- * autenticado (desvio D2 deste plano) — e o 403 do backend continua sendo a fronteira real, que
- * toda tela da execução já traduz.
+ * O que a sessão pode fazer na execução, num lugar só — cada ação espelha UMA chave de
+ * `permissoes.ts`, que espelha UM controller (desvio D1 do plano 2 da Fase 3). Gating vai na ação,
+ * não no link (`CLAUDE.md`, Interface): quem não pode, lê.
+ *
+ * Isto é conveniência de interface: o 403 do backend continua sendo a fronteira real, e toda tela
+ * da execução o traduz. No estorno o backend decide ainda mais fino — o autor, ou PCP/Administrador
+ * —, e a tela repete a regra só para não oferecer o botão a quem receberia o 403 `Proibido`.
  */
 export function usePermissoesDaExecucao(): PermissoesDaExecucao {
   const { estado } = useAuth()
   if (estado.status !== 'autenticado') return NENHUMA
   const { id, perfil } = estado.usuario
+  const estorna = podeEscrever(perfil, 'estorno')
   return {
-    apontar: true,
-    entregar: true,
-    editarRoteiro: true,
-    podeEstornar: (autorId) => autorId === id || ESTORNAM_REGISTRO_ALHEIO.includes(perfil),
+    apontar: podeEscrever(perfil, 'apontamento'),
+    entregar: podeEscrever(perfil, 'entrega'),
+    editarRoteiro: podeEscrever(perfil, 'roteiro'),
+    podeEstornar: (autorId) => estorna && (autorId === id || ESTORNAM_REGISTRO_ALHEIO.includes(perfil)),
   }
 }

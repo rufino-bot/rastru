@@ -1314,4 +1314,20 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
     expect(screen.getByTestId('painel-de-escrita')).toBeTruthy()
   })
+  it('o PCP edita o Roteiro no detalhe; o Operador só lê', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    expect(await screen.findByRole('button', { name: 'Adicionar passo' })).toBeTruthy()
+    cleanup()
+
+    perfil = 'Operador'
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    expect(await screen.findByText(/Quem cadastra o Roteiro é o PCP/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Adicionar passo' })).toBeNull()
+  })
 })

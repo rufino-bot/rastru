@@ -10,9 +10,11 @@ import type { TarefasDoSetorDto } from '../api/execucao'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
+// O perfil governa a entrega (Task 10 do plano 3); `Movimentador` é o padrão dos testes.
+let perfil = 'Movimentador'
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({
-    estado: { status: 'autenticado', usuario: { id: 11, nomeUsuario: 'mov', nomeCompleto: 'Movimentador', perfil: 'Movimentador' } },
+    estado: { status: 'autenticado', usuario: { id: 11, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
     login: async () => {},
     logout: async () => {},
   }),
@@ -55,6 +57,7 @@ function renderizar() {
 
 describe('TarefasPage', () => {
   beforeEach(() => {
+    perfil = 'Movimentador'
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
@@ -304,5 +307,15 @@ describe('TarefasPage', () => {
     expect(screen.getByLabelText('Levar SUP-01 — Suporte')).toHaveProperty('checked', true)
     expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '3')
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+  it.each(['Operador', 'Gestao'])('%s lê as tarefas, sem marcar nem entregar', async (quem) => {
+    perfil = quem
+    vi.stubGlobal('fetch', montarFetch([TAREFAS]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('list', { name: 'Prontos em Corte' })).toBeTruthy()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
   })
 })

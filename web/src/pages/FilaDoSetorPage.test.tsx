@@ -9,9 +9,12 @@ import { CHASSI, PARAFUSO, SUPORTE, DESTINO_MONTAGEM, destino, fila, no } from '
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); localStorage.clear() })
 
+// O perfil governa as ações da fila (Task 10 do plano 3): `Administrador` faz todas, e é o padrão
+// dos testes que não são sobre perfil.
+let perfil = 'Administrador'
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({
-    estado: { status: 'autenticado', usuario: { id: 12, nomeUsuario: 'op', nomeCompleto: 'Operador', perfil: 'Operador' } },
+    estado: { status: 'autenticado', usuario: { id: 12, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
     login: async () => {},
     logout: async () => {},
   }),
@@ -57,6 +60,7 @@ function renderizar(caminho = '/fila/1') {
 
 describe('FilaDoSetorPage — leitura', () => {
   beforeEach(() => {
+    perfil = 'Administrador'
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
@@ -297,6 +301,7 @@ const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 
 
 describe('FilaDoSetorPage — ações', () => {
   beforeEach(() => {
+    perfil = 'Administrador'
     _resetParaTeste()
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
@@ -531,5 +536,48 @@ describe('FilaDoSetorPage — ações', () => {
     await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })
 
     expect(screen.queryByRole('button', { name: 'Levar para outro Setor Parafuso' })).toBeNull()
+  })
+})
+
+describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
+  beforeEach(() => {
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  it('o Operador inicia, termina e monta, e não redireciona', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Terminar BA-01 — Base' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Montar CH-01 — Chassi' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Levar para outro Setor/ })).toBeNull()
+  })
+
+  it('o Movimentador redireciona, e não inicia, termina nem monta', async () => {
+    perfil = 'Movimentador'
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Iniciar/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Terminar/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Montar/ })).toBeNull()
+  })
+
+  it('a Gestão lê a fila inteira, sem ação nenhuma', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('list', { name: 'A iniciar aqui' })).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Aguardando montagem' })).toBeTruthy()
+    // O único botão da tela é o link "Trocar de Setor" — que é link, não botão.
+    expect(screen.queryByRole('button')).toBeNull()
   })
 })
