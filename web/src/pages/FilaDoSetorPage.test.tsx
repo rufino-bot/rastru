@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, within, act, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { FilaDoSetorPage } from './FilaDoSetorPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
@@ -45,6 +45,12 @@ const FILA_CHEIA = fila({
 function MarcaDaEscolha() {
   const { state } = useLocation()
   return <p>{`escolha de setor — state: ${JSON.stringify(state)}`}</p>
+}
+
+/** Só para o teste do `key={id}` (I1): troca de Setor sem passar por "Trocar de Setor". */
+function Navegar({ para }: { para: string }) {
+  const navigate = useNavigate()
+  return <button type="button" onClick={() => navigate(para)}>{`ir para ${para}`}</button>
 }
 
 function renderizar(caminho = '/fila/1') {
@@ -347,6 +353,41 @@ describe('FilaDoSetorPage — ações', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Montar' }))
 
     await waitFor(() => expect(corpoDe(fetchMock, '/api/estrutura/2/montagens')).toEqual({ setorId: 1, quantidade: 2 }))
+  })
+
+  it('trocar de Setor com o MESMO pai aguardando montagem nos dois fecha o "Montar" que ficou aberto (o `key={id}` de FilaDoSetorPage, Review Focus 4)', async () => {
+    // I1 da review de branch da Fase 3: `chaveDeMontar(paiId)` não inclui o Setor, então o mesmo
+    // pai (CHASSI) com `daParaMontar > 0` em dois Setores tem a MESMA chave nos dois — sem o
+    // `key={id}` de `FilaDoSetorPage`, o guarda de "Review Focus 3" (que fecha o formulário cuja
+    // chave sumiu da fila NOVA) não dispara, porque a chave não sumiu: ela continua presente,
+    // agora com o `maximo` do Setor errado.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        setorId: 1, setorNome: 'Corte',
+        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, filhos: [] }],
+      })),
+      '/api/setores/2/fila': () => respostaJson(fila({
+        setorId: 2, setorNome: 'Dobra',
+        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 5, filhos: [] }],
+      })),
+    }))
+
+    render(
+      <MemoryRouter initialEntries={['/fila/1']}>
+        <Navegar para="/fila/2" />
+        <Routes>
+          <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Montar CH-01 — Chassi' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'ir para /fila/2' }))
+
+    await screen.findByRole('heading', { level: 1, name: 'Fila — Dobra' })
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
   })
 
   it('"dá para montar 0" não oferece Montar', async () => {
