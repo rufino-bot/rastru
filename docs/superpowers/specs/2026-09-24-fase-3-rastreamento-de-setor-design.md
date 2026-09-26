@@ -608,18 +608,19 @@ dois com duas medidas, sem baixar o isolamento:
 1. A leitura do Pedido dentro de `Iniciar` usa UPDLOCK, não mais uma leitura comum — elimina o
    ciclo de conversão na origem (UPDLOCK é exclusivo entre si: a segunda transação espera a
    primeira, em vez de as duas seguirem com S e travarem juntas na conversão).
-2. A transação da escrita tenta de novo, até 3 vezes, SÓ para 1205 (deadlock) — nunca para 1222
-   (lock timeout) — com transação nova e um atraso curto entre tentativas.
+2. A transação da escrita tenta no máximo 3 vezes no total (a primeira e até 2 repetições), e só
+   repete em 1205 (deadlock) — nunca em 1222 (lock timeout) —, com transação nova e um atraso curto
+   entre tentativas.
 
-**Risco residual, aceito**: depois de 3 deadlocks CONSECUTIVOS no mesmo par de transações, a quarta
-tentativa sobe 409 `ConflitoDeConcorrencia` mesmo sem nenhum erro de lógica — raro na carga real de
+**Risco residual, aceito**: se as 3 tentativas terminarem em deadlock, a resposta é 409
+`ConflitoDeConcorrencia` mesmo sem nenhum erro de lógica — raro na carga real de
 fábrica (poucos operadores concorrentes por Setor), mas possível. Não é um bug a corrigir: é o
 mesmo sinal de "tente de novo" que qualquer outro 409 desta seção já pede.
 
 **Acréscimo de 2026-09-26** (fix round 4 da Task 11): as leituras da execução (fila, tarefas e a
 contagem delas, posições, livro do nó, Roteiro do nó) também podem ser a vítima de um deadlock contra
-uma escrita, e têm o mesmo retry de 1205, sem transação explícita, com o mesmo 409
-`ConflitoDeConcorrencia` ao esgotar — antes, a vítima subia como 500 com a `SqlException` crua.
+uma escrita, e têm o mesmo retry de 1205 (no máximo 3 tentativas no total), sem transação explícita,
+com o mesmo 409 `ConflitoDeConcorrencia` se as 3 terminarem em deadlock — antes, a vítima subia como 500 com a `SqlException` crua.
 
 ### 8.2 Catálogo de erros
 
