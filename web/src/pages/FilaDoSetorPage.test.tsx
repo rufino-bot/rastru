@@ -359,8 +359,9 @@ describe('FilaDoSetorPage — ações', () => {
     // I1 da review de branch da Fase 3: `chaveDeMontar(paiId)` não inclui o Setor, então o mesmo
     // pai (CHASSI) com `daParaMontar > 0` em dois Setores tem a MESMA chave nos dois — sem o
     // `key={id}` de `FilaDoSetorPage`, o guarda de "Review Focus 3" (que fecha o formulário cuja
-    // chave sumiu da fila NOVA) não dispara, porque a chave não sumiu: ela continua presente,
-    // agora com o `maximo` do Setor errado.
+    // chave sumiu da fila NOVA) não dispara, porque a chave não sumiu da fila do Setor novo: o
+    // formulário reaparece aberto no Setor novo sem que o operador tenha pedido, agora com o
+    // `maximo` do Setor 2.
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorId: 1, setorNome: 'Corte',

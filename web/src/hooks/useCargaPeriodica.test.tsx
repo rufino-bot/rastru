@@ -89,11 +89,12 @@ describe('useCargaPeriodica', () => {
   })
 
   it('tick periódico em voo que rejeita DEPOIS de uma recarga mais nova já ter tido sucesso não vira erro sobre os dados frescos (mesma chave)', async () => {
-    // I2 da review de branch da Fase 3: a mesma guarda de sequência do `catch` que o teste acima
-    // mede pela troca de CHAVE também importa sem troca nenhuma — o tick de 30s pode estar em voo
-    // quando uma ação chama `recarregar()`. Se a ação responde primeiro e o tick antigo rejeita
-    // depois, sem a guarda o banner "Não foi possível carregar a fila." apareceria sobre dados
-    // frescos e ficaria até o próximo tick.
+    // I2 da review de branch da Fase 3: este teste mede a guarda de sequência do `catch` sem troca
+    // de chave — o tick de 30s pode estar em voo quando uma ação chama `recarregar()`. Se a ação
+    // responde primeiro e o tick antigo rejeita depois, sem a guarda o banner "Não foi possível
+    // carregar a fila." apareceria sobre dados frescos e ficaria até o próximo tick. O teste
+    // 'resposta atrasada da chave anterior não sobrescreve a da chave nova' mede a guarda do
+    // SUCESSO pela troca de chave — não a do `catch`.
     const doTick = adiada<string>()
     const doRecarga = adiada<string>()
     const buscar = vi.fn()
