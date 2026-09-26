@@ -18,10 +18,12 @@ public class ExecucaoRepository : IExecucaoRepository
   private const string StatusConcluido = "Concluido";
   private const string StatusCancelado = "Cancelado";
 
-  /// <summary>1 tentativa inicial + 2 retentativas de deadlock (1205) — nunca de lock timeout (1222).</summary>
-  private const int TentativasMaximas = 3;
+  /// <summary>1 tentativa inicial + 2 retentativas de deadlock (1205) — nunca de lock timeout (1222). Producao usa SEMPRE este valor.</summary>
+  private const int TentativasMaximasPadrao = 3;
 
   private readonly RastreamentoDbContext _db;
+  private readonly int _tentativasMaximas;
+  private readonly ILogger<ExecucaoRepository>? _logger;
 
   /// <summary>
   /// `ILogger` OPCIONAL, com default `null`: nenhum chamador existente (producao via DI, nem os
@@ -31,12 +33,27 @@ public class ExecucaoRepository : IExecucaoRepository
   /// retry so nao loga (`_logger?.`).
   /// </summary>
   public ExecucaoRepository(RastreamentoDbContext db, ILogger<ExecucaoRepository>? logger = null)
+      : this(db, TentativasMaximasPadrao, logger)
   {
-    _db = db;
-    _logger = logger;
   }
 
-  private readonly ILogger<ExecucaoRepository>? _logger;
+  /// <summary>
+  /// Fix pass da Task 11 (re-review): construtor INTERNAL so para teste injetar um numero de
+  /// tentativas diferente do de producao (`InternalsVisibleTo` para `Rastreamento.Infrastructure.Tests`,
+  /// em `AssemblyInfo.cs`). Nunca visivel ao DI: o container so enumera construtores PUBLICOS
+  /// (`Type.GetConstructors()` sem `BindingFlags.NonPublic`), entao `AddScoped&lt;IExecucaoRepository,
+  /// ExecucaoRepository&gt;()` sempre resolve o construtor de dois parametros acima, com
+  /// <see cref="TentativasMaximasPadrao"/> — nunca este. Existe para
+  /// `CorridaDeIniciarNoMesmoPedidoTests` e `RetryDeDeadlockEmTransacaoAsyncTests` provarem o retry
+  /// (ou a ausencia dele) sem esperar um deadlock de verdade sobreviver a `TentativasMaximasPadrao`
+  /// tentativas, e sem tocar o valor de producao.
+  /// </summary>
+  internal ExecucaoRepository(RastreamentoDbContext db, int tentativasMaximas, ILogger<ExecucaoRepository>? logger = null)
+  {
+    _db = db;
+    _tentativasMaximas = tentativasMaximas;
+    _logger = logger;
+  }
 
   /// <summary>
   /// SERIALIZABLE pelo mesmo motivo de `ReceitaPadraoRepository.Substituir`: a validacao le saldo e o
@@ -44,12 +61,16 @@ public class ExecucaoRepository : IExecucaoRepository
   /// de duas escritas no mesmo no (um espera o outro, ou um e derrubado) continua subindo como
   /// `ConflitoDeConcorrenciaException` — o caso de uso traduz para 409 (spec 8.1). O QUE MUDOU (review
   /// da Task 11, com deadlock graph do `system_health` medido no banco de dev): 1205 (deadlock) tem
-  /// ATE <see cref="TentativasMaximas"/> tentativas, cada com transacao NOVA (o `trabalho` inteiro
-  /// reexecuta, TravarNosAsync incluido) e um atraso curto e com jitter — o deadlock e um efeito
-  /// COLATERAL de duas transacoes serializable disputando um range lock esparso (achado: gaps de
-  /// proxima-chave em `EstruturaRoteiro`/`Movimentacao`, indice quase vazio no banco de teste), nao um
-  /// erro de logica; reexecutar do zero e uma resposta legitima, e o SQL Server ja escolheu uma
-  /// vitima (a transacao dela mesma foi desfeita). 1222 (lock timeout) NAO tenta de novo: um lock
+  /// ATE <see cref="_tentativasMaximas"/> tentativas (producao: <see cref="TentativasMaximasPadrao"/>;
+  /// teste pode injetar outro valor pelo construtor internal), cada com transacao NOVA (o `trabalho`
+  /// inteiro reexecuta, TravarNosAsync incluido) e um atraso curto e com jitter. O deadlock nao e
+  /// sempre um range lock esparso (achado da Task 11, fix round 1: `UQ_EstruturaRoteiro` e
+  /// `PK_Movimentacao` sao assim) — o de `PK_Pedido` era conversao U/X num recurso UNICO e existente
+  /// (duas transacoes com S na mesma linha, as duas tentando virar X ao mesmo tempo), sem faixa
+  /// nenhuma envolvida; o fix 1 daquele round (UPDLOCK no lugar de S) elimina ESSE ciclo na origem, e
+  /// o retry aqui e a rede para os outros dois, que nao tem um "UPDLOCK a mais" tao simples. Em
+  /// qualquer um dos casos, reexecutar do zero e uma resposta legitima: o SQL Server ja escolheu uma
+  /// vitima, e a transacao dela mesma foi desfeita. 1222 (lock timeout) NAO tenta de novo: um lock
   /// timeout e o sinal de que ALGUEM esta com a trava por tempo demais (nao um ciclo), e reexecutar as
   /// cegas so atrasaria o 409 sem mudar o desfecho.
   /// </summary>
@@ -64,7 +85,7 @@ public class ExecucaoRepository : IExecucaoRepository
         await tx.CommitAsync(ct);
         return resultado;
       }
-      catch (Exception e) when (tentativa < TentativasMaximas && ErrosDoSqlServer.EhDeadlock(e))
+      catch (Exception e) when (tentativa < _tentativasMaximas && ErrosDoSqlServer.EhDeadlock(e))
       {
         // O que o trabalho deixou no change tracker nao foi gravado (a transacao voltou); sem limpar,
         // a proxima tentativa tentaria gravar de novo por cima, e o SaveChanges veria linhas que ja
@@ -72,7 +93,7 @@ public class ExecucaoRepository : IExecucaoRepository
         _db.ChangeTracker.Clear();
         _logger?.LogWarning(e,
             "Deadlock (1205) na tentativa {Tentativa} de {Maximo}; tentando de novo com transacao nova.",
-            tentativa, TentativasMaximas);
+            tentativa, _tentativasMaximas);
         await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(20, 81)), ct);
       }
       catch (Exception e) when (ErrosDoSqlServer.EhConflitoDeConcorrencia(e))
