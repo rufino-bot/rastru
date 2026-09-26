@@ -11,7 +11,6 @@ namespace Rastreamento.Api.Tests;
 /// expedicao —, com `GET /agrupamentos/{id}/posicoes` dizendo, a cada passo, onde esta cada peca e se
 /// ela aguarda coleta, e `GET /tarefas` dizendo o que o Movimentador tem a levar.
 /// </summary>
-[Collection(ColecaoQueEscreveNoLivroDeExecucao.Nome)]
 public class CriterioDeProntoDaFase3Tests : IClassFixture<WebApplicationFactory<Program>>
 {
   private readonly WebApplicationFactory<Program> _factory;

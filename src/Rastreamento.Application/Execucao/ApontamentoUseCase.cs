@@ -38,7 +38,10 @@ public sealed class ApontamentoUseCase
     {
       var nos = await _execucao.TravarNosAsync([noId], ct);
       if (nos.Count == 0) return Falhas.NaoEncontrado<MovimentacaoDto>();
-      var pedido = await _execucao.ObterPedidoDoNoAsync(noId, ct);
+      // UPDLOCK (nao o ObterPedidoDoNoAsync comum dos outros metodos): este caminho ESCREVE no Pedido
+      // a seguir (MarcarPedidoEmProducaoAsync). Ver o XML doc de
+      // `ExecucaoRepository.ObterPedidoDoNoParaEscritaAsync` para o deadlock que isto evita.
+      var pedido = await _execucao.ObterPedidoDoNoParaEscritaAsync(noId, ct);
       if (Falhas.EstaFechado(pedido)) return Falhas.PedidoFechado<MovimentacaoDto>();
 
       var estado = await _leitor.CarregarAsync(nos, ct);

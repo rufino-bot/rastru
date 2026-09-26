@@ -45,6 +45,16 @@ public interface IExecucaoRepository
 
   Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct);
 
+  /// <summary>
+  /// Igual a <see cref="ObterPedidoDoNoAsync"/>, mas trava a linha do Pedido com UPDLOCK: uso exclusivo
+  /// do caminho que VAI escrever nela a seguir (hoje, so <c>ApontamentoUseCase.Iniciar</c>, antes de
+  /// <see cref="MarcarPedidoEmProducaoAsync"/>). Ver o XML doc de <c>ExecucaoRepository</c> para o
+  /// motivo: sem isto, duas transacoes que leem o mesmo Pedido com S e depois tentam converter para X
+  /// deadlockam (spec 8.1; achado de review da Task 11 com deadlock graph do
+  /// <c>system_health</c> — PK_Pedido).
+  /// </summary>
+  Task<PedidoDoNo?> ObterPedidoDoNoParaEscritaAsync(int estruturaItemId, CancellationToken ct);
+
   /// <summary>`Aberto` passa a `EmProducao`; qualquer outro status fica como esta (regra 28).</summary>
   Task MarcarPedidoEmProducaoAsync(int pedidoId, CancellationToken ct);
 

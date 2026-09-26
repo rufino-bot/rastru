@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -17,31 +18,68 @@ public class ExecucaoRepository : IExecucaoRepository
   private const string StatusConcluido = "Concluido";
   private const string StatusCancelado = "Cancelado";
 
+  /// <summary>1 tentativa inicial + 2 retentativas de deadlock (1205) — nunca de lock timeout (1222).</summary>
+  private const int TentativasMaximas = 3;
+
   private readonly RastreamentoDbContext _db;
 
-  public ExecucaoRepository(RastreamentoDbContext db) => _db = db;
+  /// <summary>
+  /// `ILogger` OPCIONAL, com default `null`: nenhum chamador existente (producao via DI, nem os
+  /// `new ExecucaoRepository(db)` dos testes de Infrastructure) precisa mudar. Em producao, o
+  /// container resolve `ILogger&lt;ExecucaoRepository&gt;` sozinho (o log generico ja vem registrado
+  /// pelo host) e injeta o logger de verdade; nos testes que constroem direto, fica `null` e o
+  /// retry so nao loga (`_logger?.`).
+  /// </summary>
+  public ExecucaoRepository(RastreamentoDbContext db, ILogger<ExecucaoRepository>? logger = null)
+  {
+    _db = db;
+    _logger = logger;
+  }
+
+  private readonly ILogger<ExecucaoRepository>? _logger;
 
   /// <summary>
   /// SERIALIZABLE pelo mesmo motivo de `ReceitaPadraoRepository.Substituir`: a validacao le saldo e o
   /// range lock impede que outro escritor insira na faixa lida antes do commit. O desfecho legitimo
-  /// de duas escritas no mesmo no (um espera o outro, ou um e derrubado) sobe como
-  /// `ConflitoDeConcorrenciaException`, que o caso de uso traduz para 409.
+  /// de duas escritas no mesmo no (um espera o outro, ou um e derrubado) continua subindo como
+  /// `ConflitoDeConcorrenciaException` — o caso de uso traduz para 409 (spec 8.1). O QUE MUDOU (review
+  /// da Task 11, com deadlock graph do `system_health` medido no banco de dev): 1205 (deadlock) tem
+  /// ATE <see cref="TentativasMaximas"/> tentativas, cada com transacao NOVA (o `trabalho` inteiro
+  /// reexecuta, TravarNosAsync incluido) e um atraso curto e com jitter — o deadlock e um efeito
+  /// COLATERAL de duas transacoes serializable disputando um range lock esparso (achado: gaps de
+  /// proxima-chave em `EstruturaRoteiro`/`Movimentacao`, indice quase vazio no banco de teste), nao um
+  /// erro de logica; reexecutar do zero e uma resposta legitima, e o SQL Server ja escolheu uma
+  /// vitima (a transacao dela mesma foi desfeita). 1222 (lock timeout) NAO tenta de novo: um lock
+  /// timeout e o sinal de que ALGUEM esta com a trava por tempo demais (nao um ciclo), e reexecutar as
+  /// cegas so atrasaria o 409 sem mudar o desfecho.
   /// </summary>
   public async Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct)
   {
-    try
+    for (var tentativa = 1; ; tentativa++)
     {
-      await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-      var resultado = await trabalho();
-      await tx.CommitAsync(ct);
-      return resultado;
-    }
-    catch (Exception e) when (ErrosDoSqlServer.EhConflitoDeConcorrencia(e))
-    {
-      // O que o trabalho deixou no change tracker nao foi gravado (a transacao voltou); sem limpar,
-      // o proximo SaveChanges deste contexto tentaria grava-lo de novo.
-      _db.ChangeTracker.Clear();
-      throw new ConflitoDeConcorrenciaException(e);
+      try
+      {
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        var resultado = await trabalho();
+        await tx.CommitAsync(ct);
+        return resultado;
+      }
+      catch (Exception e) when (tentativa < TentativasMaximas && ErrosDoSqlServer.EhDeadlock(e))
+      {
+        // O que o trabalho deixou no change tracker nao foi gravado (a transacao voltou); sem limpar,
+        // a proxima tentativa tentaria gravar de novo por cima, e o SaveChanges veria linhas que ja
+        // acha que existem.
+        _db.ChangeTracker.Clear();
+        _logger?.LogWarning(e,
+            "Deadlock (1205) na tentativa {Tentativa} de {Maximo}; tentando de novo com transacao nova.",
+            tentativa, TentativasMaximas);
+        await Task.Delay(TimeSpan.FromMilliseconds(Random.Shared.Next(20, 81)), ct);
+      }
+      catch (Exception e) when (ErrosDoSqlServer.EhConflitoDeConcorrencia(e))
+      {
+        _db.ChangeTracker.Clear();
+        throw new ConflitoDeConcorrenciaException(e);
+      }
     }
   }
 
@@ -120,6 +158,33 @@ public class ExecucaoRepository : IExecucaoRepository
        where e.Id == estruturaItemId
        select new PedidoDoNo(p.Id, p.Status))
           .SingleOrDefaultAsync(ct);
+
+  /// <summary>
+  /// Mesma consulta de <see cref="ObterPedidoDoNoAsync"/>, em dois passos: acha o PedidoId por um JOIN
+  /// comum (EstruturaItem/Agrupamento nao mudam depois de criados — nao ha nada a travar neles aqui) e
+  /// SO ENTAO le a linha do Pedido com o mesmo hint de <see cref="TravarNosAsync"/>
+  /// (UPDLOCK, HOLDLOCK, ROWLOCK). UPDLOCK e exclusivo entre si (dois leitores com UPDLOCK NAO
+  /// coexistem, ao contrario de dois S): a SEGUNDA transacao que chegar aqui espera a primeira
+  /// terminar, em vez de as duas seguirem com S e so travarem uma na outra na hora de converter para X
+  /// no UPDATE — essa conversao dos dois lados ao mesmo tempo era exatamente o deadlock PK_Pedido que
+  /// a review da Task 11 mediu (system_health, SERIALIZABLE) com dois "iniciar" em nos DIFERENTES do
+  /// MESMO Pedido Aberto.
+  /// </summary>
+  public async Task<PedidoDoNo?> ObterPedidoDoNoParaEscritaAsync(int estruturaItemId, CancellationToken ct)
+  {
+    var pedidoId = await (from e in _db.Estruturas.AsNoTracking()
+                          join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                          where e.Id == estruturaItemId
+                          select (int?)a.PedidoId)
+        .SingleOrDefaultAsync(ct);
+    if (pedidoId is null) return null;
+
+    var pedido = await _db.Pedidos
+        .FromSql($"SELECT * FROM dbo.Pedido WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE Id = {pedidoId}")
+        .AsNoTracking()
+        .SingleOrDefaultAsync(ct);
+    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Status);
+  }
 
   /// <summary>Conjuntista, com a condicao no WHERE: dois inicios paralelos nao disputam uma leitura.</summary>
   public Task MarcarPedidoEmProducaoAsync(int pedidoId, CancellationToken ct) =>

@@ -114,6 +114,14 @@ public class FakeExecucaoRepo : IExecucaoRepository
     return Task.FromResult<PedidoDoNo?>(new PedidoDoNo(ag.PedidoId, StatusDoPedido[ag.PedidoId]));
   }
 
+  /// <summary>
+  /// O fake nao tem lock de banco para diferenciar: mesma consulta de <see cref="ObterPedidoDoNoAsync"/>.
+  /// O UPDLOCK e um detalhe do SQL real (ver `ExecucaoRepository`) que nao existe neste modelo em
+  /// memoria — nada aqui precisaria mudar de comportamento por causa dele.
+  /// </summary>
+  public Task<PedidoDoNo?> ObterPedidoDoNoParaEscritaAsync(int estruturaItemId, CancellationToken ct) =>
+      ObterPedidoDoNoAsync(estruturaItemId, ct);
+
   public Task MarcarPedidoEmProducaoAsync(int pedidoId, CancellationToken ct)
   {
     if (StatusDoPedido.GetValueOrDefault(pedidoId) == "Aberto") StatusDoPedido[pedidoId] = "EmProducao";

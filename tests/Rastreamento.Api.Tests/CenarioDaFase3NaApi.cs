@@ -75,6 +75,13 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
         };
         db.ArquivosDeComponente.Add(arquivo);
         await db.SaveChangesAsync();
+        // Atribuir AQUI, logo depois do PRIMEIRO SaveChanges (fix pass, ruling do controlador): se o
+        // Componente a seguir falhar, DisposeAsync ainda sabe apagar os Setores e o
+        // ArquivoDeComponente que JA foram gravados — antes, os quatro campos so eram atribuidos
+        // juntos DEPOIS do segundo SaveChanges, e uma falha no meio vazava as duas linhas.
+        (c.Corte, c.Dobra, c.Solda, c.Pintura) = (setores[0].Id, setores[1].Id, setores[2].Id, setores[3].Id);
+        c._arquivoId = arquivo.Id;
+
         var componente = new Componente
         {
           Codigo = $"f3-{rotulo}", Descricao = "Chassi da Fase 3", Tipo = "Fabricado", Ativo = true,
@@ -82,8 +89,6 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
         };
         db.Componentes.Add(componente);
         await db.SaveChangesAsync();
-        (c.Corte, c.Dobra, c.Solda, c.Pintura) = (setores[0].Id, setores[1].Id, setores[2].Id, setores[3].Id);
-        c._arquivoId = arquivo.Id;
         c.ComponenteId = componente.Id;
       }
 
@@ -103,9 +108,20 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{c.C}/roteiro", new { passos = new[] { c.Dobra } }));
       return c;
     }
-    catch
+    catch (Exception original)
     {
-      await c.DisposeAsync();
+      // Fix pass (ruling do controlador): um DisposeAsync que FALHA aqui nao pode substituir a
+      // excecao original — quem le a falha do teste precisa ver o defeito do ARRANJO, nao um erro
+      // de limpeza por cima dele. `throw;` (bare, no fim do catch) relanca a original com o stack
+      // trace intacto; o erro de dispose, se houver, fica anexado a ela em vez de escondida.
+      try
+      {
+        await c.DisposeAsync();
+      }
+      catch (Exception erroAoDescartar)
+      {
+        original.Data["ErroAoDescartarCenario"] = erroAoDescartar.ToString();
+      }
       throw;
     }
   }
