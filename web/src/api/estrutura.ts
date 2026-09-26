@@ -184,9 +184,10 @@ export type ResultadoDeEstrutura =
  * (mesmo padrão de `excluirAgrupamento`): a tela não pode tratar "o nó já não existe" lançando uma
  * exceção que o catch dela nunca esperou.
  *
- * Na prática `ExcluirNo` só emite `PedidoNaoAberto` no 409 (não chama `PlanejadorDeCopia`), mas a
- * tradução reaproveita `ehConflitoDeEstrutura`/`ConflitoDeEstrutura` em vez de comparar o literal
- * à mão — um único lugar decide o que é um código de conflito válido.
+ * No 409, `ExcluirNo` emite `PedidoNaoAberto` ou `ConflitoDeConcorrencia` (não chama
+ * `PlanejadorDeCopia`, então os três códigos dele nunca ocorrem aqui), mas a tradução reaproveita
+ * `ehConflitoDeEstrutura`/`ConflitoDeEstrutura` em vez de comparar o literal à mão — um único lugar
+ * decide o que é um código de conflito válido.
  */
 export async function excluirNo(id: number): Promise<ResultadoDeEstrutura> {
   const resp = await apiFetch(`/estrutura/${id}`, { method: 'DELETE' })

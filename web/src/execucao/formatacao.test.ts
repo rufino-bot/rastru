@@ -16,7 +16,7 @@ const DESTINO_VAZIO: DestinoDto = {
 }
 
 describe('formatarQuantidade', () => {
-  it('usa vírgula decimal e corta em quatro casas', () => {
+  it('usa vírgula decimal, com até quatro casas', () => {
     expect(formatarQuantidade(6)).toBe('6')
     expect(formatarQuantidade(2.5)).toBe('2,5')
     expect(formatarQuantidade(0.1234)).toBe('0,1234')

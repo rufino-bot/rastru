@@ -103,9 +103,10 @@ function traducaoDoCodigo(codigo: string | undefined): string | undefined {
  * Traduz o que caiu no `catch` para uma frase que diga ao usuário o que fazer a seguir.
  *
  * `fallback` é o texto específico da tela ("Não foi possível carregar os setores.") e continua
- * sendo o destino de tudo que esta função não sabe explicar melhor — status de validação (400),
- * erro de programação, valor que nem erro é. A função nunca INVENTA explicação: ou reconhece o
- * caso, ou devolve o que a tela já diria.
+ * sendo o destino de tudo que esta função não sabe explicar melhor — 400 sem código conhecido (um
+ * 400 com código traduzido cai em `traducaoDoCodigo`, não aqui), erro de programação, valor que
+ * nem erro é. A função nunca INVENTA explicação: ou reconhece o caso, ou devolve o que a tela já
+ * diria.
  *
  * O 401 aqui é informativo, não corretivo: quem devolve o usuário ao login é o `onSessionLost` do
  * `client.ts`, depois de o refresh falhar. Esta mensagem cobre a janela em que a tela ainda está
@@ -117,8 +118,9 @@ export function mensagemDeErro(e: unknown, fallback: string): string {
     // preenchido por acidente — quem o popula leu o corpo de propósito. Isto vem ANTES dos ramos
     // por status porque a explicação específica é melhor que a genérica sempre que existe.
     //
-    // EXCETO no 401: hoje é inócuo (o backend só emite `{erro}` em 400/404/409, e o 401 vem do
-    // middleware com corpo vazio, então `detalhe` nunca populado aqui), mas se algum dia um
+    // EXCETO no 401: hoje é inócuo (o backend emite `{erro}` em vários status — 400, 403, 404,
+    // 409 —, mas nunca no 401, que vem do middleware com corpo vazio, então `detalhe` nunca
+    // populado aqui), mas se algum dia um
     // endpoint responder 401 com corpo, esta guarda impede que ele apague "Sua sessão expirou.
     // Entre novamente." — a única mensagem acionável do conjunto (achado da review Tasks 10-12).
     if (e.status !== 401 && e.detalhe) return e.detalhe

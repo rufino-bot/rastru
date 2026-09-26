@@ -577,7 +577,7 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
 
     expect(await screen.findByRole('list', { name: 'A iniciar aqui' })).toBeTruthy()
     expect(screen.getByRole('list', { name: 'Aguardando montagem' })).toBeTruthy()
-    // O único botão da tela é o link "Trocar de Setor" — que é link, não botão.
+    // Sem ação nenhuma: "Trocar de Setor" continua na tela, mas é um link, não conta aqui.
     expect(screen.queryByRole('button')).toBeNull()
   })
 })

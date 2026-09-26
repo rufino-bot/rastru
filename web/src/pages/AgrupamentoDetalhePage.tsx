@@ -40,8 +40,10 @@ function localizarNo(lista: NoDaEstrutura[], id: number): NoDaEstrutura | null {
   return null
 }
 
-/** Desfechos não-`'ok'` de `excluirNo`. Na prática só `PedidoNaoAberto` e `NaoEncontrado` ocorrem
-    (`ExcluirNo` não chama `PlanejadorDeCopia`), mas o `Record` é exaustivo sobre o tipo inteiro —
+/** Desfechos não-`'ok'` de `excluirNo`. `ExcluirNo` não chama `PlanejadorDeCopia`, então os três
+    códigos dele nunca ocorrem aqui — mas `NaoEncontrado`, `PedidoNaoAberto` e `ConflitoDeConcorrencia`
+    ocorrem de verdade (este último tem teste próprio, "excluir em conflito de concorrência diz para
+    tentar de novo"). O `Record` é exaustivo sobre o tipo inteiro —
     se o backend um dia passar a emitir um dos três códigos de `PlanejadorDeCopia` aqui, o `tsc`
     cobra a frase em vez de a tela ficar muda no `catch`-all silencioso de um índice ausente. */
 const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, string> = {
@@ -50,8 +52,8 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   CicloNaReceita: 'Não foi possível excluir: conflito na estrutura.',
   EstruturaProfundaDemais: 'Não foi possível excluir: conflito na estrutura.',
   EstruturaGrandeDemais: 'Não foi possível excluir: conflito na estrutura.',
-  // Fase 3: `ExcluirNo` roda no esquema de trava da execução (spec §8.1). O primeiro só existe no
-  // `EditarNo`, mas o `Record` é exaustivo sobre o tipo inteiro.
+  // Fase 3: `ExcluirNo` roda no esquema de trava da execução (spec §8.1). `QuantidadeAbaixoDoMovimentado`
+  // só existe no `EditarNo`, mas o `Record` é exaustivo sobre o tipo inteiro.
   QuantidadeAbaixoDoMovimentado: 'Não foi possível excluir: conflito na estrutura.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
@@ -371,7 +373,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   // `excluirNo` só lança para status fora de 204/404/409 — o 404 (NaoEncontrado) e o 409
-  // (PedidoNaoAberto, na prática) chegam como retorno normal, tratados por MOTIVO_DA_RECUSA_EXCLUSAO
+  // (PedidoNaoAberto ou ConflitoDeConcorrencia) chegam como retorno normal, tratados por MOTIVO_DA_RECUSA_EXCLUSAO
   // — mesmo molde de `excluir`/`MOTIVO_DA_RECUSA` em `PedidoDetalhePage.tsx`: recarrega mesmo na
   // recusa (a árvore pode ter mudado sob os pés do usuário), só não recarrega se a chamada lançar.
   async function confirmarExclusao() {

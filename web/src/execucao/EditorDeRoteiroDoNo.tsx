@@ -56,10 +56,11 @@ export function EditorDeRoteiroDoNo({ noId, podeEditar, aoSalvar }: Props) {
   const [erroAoSalvar, setErroAoSalvar] = useState<string | null>(null)
   const [erroDosSetores, setErroDosSetores] = useState<string | null>(null)
   // Fix pass (review Important 1): mesmo padrão de `FormularioDeQuantidade` — o `ref` fecha a janela
-  // que sobra entre dois toques no mesmo quadro, antes de o React redesenhar o botão desabilitado
-  // (spec §8.1). `salvando` sozinho já desabilita "Salvar roteiro" (via `carregando` do `Botao`), mas
-  // não "Remover"/"Adicionar passo" — o `ref` guarda a função inteira, os dois `disabled` abaixo
-  // guardam a interação.
+  // que sobra entre dois toques no mesmo quadro, antes de o React redesenhar o botão desabilitado.
+  // A guarda de `ref` vem da Global Constraint do plano (toda escrita da execução tem defesa de
+  // toque duplo), não da spec §8.1, que pede só o botão desabilitado. `salvando` sozinho já
+  // desabilita "Salvar roteiro" (via `carregando` do `Botao`), mas não "Remover"/"Adicionar passo"
+  // — o `ref` guarda a função inteira, os dois `disabled` abaixo guardam a interação.
   const enviandoRef = useRef(false)
 
   // Recebe o id como argumento (molde de `PedidoDetalhePage`): o exhaustive-deps cobraria

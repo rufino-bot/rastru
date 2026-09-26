@@ -128,7 +128,7 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   return (
     <Pagina titulo={titulo} acao={<TrocarDeSetor />}>
       {/* Com a fila já na tela, este banner é de uma ATUALIZAÇÃO que falhou: a lista abaixo é a da
-          última carga boa (decisão 2 de `useCargaPeriodica`). */}
+          última carga boa (a decisão "falha de atualização mantém os dados" de `useCargaPeriodica`). */}
       <BannerDeErro mensagem={erro} />
       <BannerDeErro mensagem={aviso} />
       {carregando && <EstadoCarregando />}

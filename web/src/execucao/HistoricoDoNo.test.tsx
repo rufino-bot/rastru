@@ -182,7 +182,7 @@ describe('HistoricoDoNo', () => {
     expect(aoEstornar).not.toHaveBeenCalled()
   })
 
-  it('toque duplo em "Estornar" manda um POST só', async () => {
+  it('em voo, o botão de "Estornar" desabilita e o segundo toque não reabre a confirmação', async () => {
     // Fix pass (review Important 1): sem o `ref`/`estornando`, o diálogo fecha antes do POST
     // responder e a linha continua com "Estornar" ativo — um segundo toque reabre a confirmação e
     // manda um segundo POST enquanto o primeiro está em voo.
@@ -206,6 +206,10 @@ describe('HistoricoDoNo', () => {
     fireEvent.click(botaoDaLinha)
     expect(screen.queryByRole('dialog')).toBeNull()
 
+    // Esta contagem não discrimina o `ref`/`estornando` sozinha: o segundo `fireEvent.click` acima
+    // já bate num `<button disabled>`, que o próprio DOM trata como inerte — então o teste prova o
+    // efeito visível (desabilitar + diálogo ausente) e esta é só a confirmação de que nenhum
+    // segundo POST saiu, não uma corrida real entre dois toques no mesmo quadro.
     resolver(respostaJson(movimentacao({ id: 46, tipo: 'Estorno' }), 201))
     await waitFor(() => expect(fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/movimentacoes/41/estorno')).toHaveLength(1))
   })

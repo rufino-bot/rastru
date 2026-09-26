@@ -14,7 +14,7 @@ interface Props {
  *
  * Por que não `ItemDeCadastro` (spec §6.4 manda conferir antes de criar): ele é uma linha só, com
  * o conteúdo dentro de um `<span>` e a noção de ativo/inativo riscado — e o painel de quantidade
- * não tem onde morar nele sem virar a primitiva de dentro para fora, nas quatro telas de cadastro.
+ * não tem onde morar nele sem virar a primitiva de dentro para fora, nas telas que já a usam.
  */
 export function ItemComAcao({ acao, painel, children }: Props) {
   return (
