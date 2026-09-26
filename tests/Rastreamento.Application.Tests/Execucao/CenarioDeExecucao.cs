@@ -1,3 +1,4 @@
+using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Estrutura;
@@ -72,6 +73,17 @@ internal sealed class CenarioDeExecucao
   public EntregaUseCase Entrega() => new(Execucao, Estruturas, Catalogo);
 
   public EstornoUseCase Estorno() => new(Execucao, Estruturas, Catalogo);
+
+  public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
+
+  public MontagemDeEstruturaUseCase Estrutura() =>
+      new(Estruturas, new FakeAgrupamentoRepo(new Agrupamento { Id = AgrupamentoId, PedidoId = PedidoId, Codigo = "AG-01", Tipo = "Avulso" }),
+          Catalogo, new FakePedidoRepo(new Pedido
+          {
+            Id = PedidoId, Numero = "PED-01", Cliente = "Cliente", Tipo = "Normal",
+            Status = Execucao.StatusDoPedido[PedidoId], DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = Pcp,
+          }),
+          Execucao);
 
   /// <summary>
   /// A calculadora sobre o estado inteiro do cenario, lida direto dos fakes — para os testes afirmarem

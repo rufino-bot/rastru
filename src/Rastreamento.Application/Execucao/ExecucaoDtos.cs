@@ -33,3 +33,10 @@ public sealed record OrigemDaEntregaDto(string? Posicao, int? SetorId, int? Orde
 public sealed record ItemDaEntregaDto(int EstruturaItemId, OrigemDaEntregaDto? Origem, int? DestinoSetorId, decimal Quantidade);
 
 public sealed record EntregaDto(IReadOnlyList<ItemDaEntregaDto>? Itens);
+
+/// <summary>Os Setores do Roteiro, em ordem; repetir um Setor e voltar a ele (regra 21).</summary>
+public sealed record RoteiroNovoDto(IReadOnlyList<int>? Passos);
+
+public sealed record PassoDoRoteiroDoNoDto(int SetorId, string Nome, int Ordem, bool Alcancado);
+
+public sealed record RoteiroDoNoDto(int EstruturaItemId, IReadOnlyList<PassoDoRoteiroDoNoDto> Passos);

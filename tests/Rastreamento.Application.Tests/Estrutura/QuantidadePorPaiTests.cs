@@ -3,6 +3,7 @@ using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Domain.Entities;
+using Rastreamento.Application.Tests.Execucao;
 using Xunit;
 
 namespace Rastreamento.Application.Tests.Estrutura;
@@ -26,7 +27,7 @@ public class QuantidadePorPaiTests
     });
     catalogo.Componentes.Add(new Componente { Id = 2, Codigo = "SUP", Descricao = "Suporte", Tipo = "Fabricado", Ativo = true });
     catalogo.Componentes.Add(new Componente { Id = 3, Codigo = "PAR", Descricao = "Parafuso", Tipo = "Fabricado", Ativo = true });
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo());
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo(), new FakeExecucaoRepo(estruturas));
     return (useCase, estruturas);
   }
 

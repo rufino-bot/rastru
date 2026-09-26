@@ -136,6 +136,7 @@ builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 builder.Services.AddScoped<ApontamentoUseCase>();
 builder.Services.AddScoped<EntregaUseCase>();
 builder.Services.AddScoped<EstornoUseCase>();
+builder.Services.AddScoped<RoteiroDoNoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

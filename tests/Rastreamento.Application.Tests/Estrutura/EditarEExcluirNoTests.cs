@@ -2,6 +2,7 @@ using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Domain.Entities;
+using Rastreamento.Application.Tests.Execucao;
 using Xunit;
 
 namespace Rastreamento.Application.Tests.Estrutura;
@@ -31,7 +32,7 @@ public class EditarEExcluirNoTests
     var agrupamentosRepo = new FakeAgrupamentoRepo(agrupamento);
     var catalogo = new FakeReceitaPadraoRepo();
     var pedidosRepo = pedido is null ? new FakePedidoRepo() : new FakePedidoRepo(pedido);
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo);
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo, new FakeExecucaoRepo(estruturas));
     return (useCase, estruturas, agrupamentosRepo, catalogo, pedidosRepo);
   }
 
