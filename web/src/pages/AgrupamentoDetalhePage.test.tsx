@@ -1286,6 +1286,16 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
   })
 
+  it('"Detalhes" move o foco para o título do painel, para o celular rolar até ele (I3 da review de branch da Fase 3)', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+
+    expect(document.activeElement).toBe(await screen.findByRole('heading', { level: 2, name: 'Detalhes de Chassi' }))
+  })
+
   it('estornar no detalhe recarrega a árvore e onde está cada nó', async () => {
     const fetchMock = montarFetch({
       estruturaInicial: [PECA],

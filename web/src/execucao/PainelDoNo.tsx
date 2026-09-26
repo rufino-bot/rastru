@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { NoDaEstrutura } from '../api/estrutura'
 import { Botao } from '../components/Botao'
 import { EditorDeRoteiroDoNo } from './EditorDeRoteiroDoNo'
@@ -20,6 +21,14 @@ interface Props {
  */
 export function PainelDoNo({ no, aoFechar, aoMudar }: Props) {
   const { editarRoteiro, podeEstornar } = usePermissoesDaExecucao()
+  const tituloRef = useRef<HTMLHeadingElement>(null)
+
+  // I3 da review de branch da Fase 3: o painel nasce no topo da tela (comentário acima), mas nada
+  // levava o celular até lá nem avisava o leitor de tela — num toque em "Detalhes" do fim de uma
+  // árvore longa em 360px, nada do que está visível muda. Focar o próprio título rola a página até
+  // ele e o anuncia. Depende de `no.id` (e não só do mount) para o `key` do chamador continuar
+  // sendo a única razão de remontar — se um dia esse `key` sair, o foco ainda acompanha a troca.
+  useEffect(() => { tituloRef.current?.focus() }, [no.id])
 
   return (
     <section
@@ -28,7 +37,7 @@ export function PainelDoNo({ no, aoFechar, aoMudar }: Props) {
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-medium text-tinta">{`Detalhes de ${no.descricao}`}</h2>
+          <h2 ref={tituloRef} tabIndex={-1} className="text-lg font-medium text-tinta">{`Detalhes de ${no.descricao}`}</h2>
           <p className="text-xs text-tinta-fraca">{`${no.codigoDoComponente ?? 'Ad-hoc'} (Id ${no.id})`}</p>
         </div>
         <Botao variante="secundario" onClick={aoFechar}>Fechar</Botao>
