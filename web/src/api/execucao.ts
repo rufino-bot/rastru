@@ -231,6 +231,28 @@ async function ler<T>(caminho: string, oQue: string): Promise<T> {
   return (await resp.json()) as T
 }
 
+type OuvinteDoLivro = () => void
+const ouvintesDoLivro = new Set<OuvinteDoLivro>()
+
+/**
+ * Escuta "o livro mudou": toda escrita da execução aceita pelo servidor, e todo 409 dela (o que
+ * estava na tela ficou velho, spec §8.3). Devolve a função que para de escutar.
+ *
+ * Existe para o contador de Tarefas do menu, que tem carga própria a cada 30 s: as telas recarregam
+ * os próprios dados depois de cada ação, mas ninguém avisava o contador, e a tela de Tarefas já dizia
+ * "Nenhum item pronto" com o menu ainda mostrando 1 (achado na verificação manual da Fase 3). Avisar
+ * aqui, em `enviar`, cobre toda escrita da execução de uma vez — inclusive a próxima que alguém criar.
+ * Ação feita em OUTRO aparelho não passa por aqui: para essa, continua valendo o ciclo de 30 s.
+ */
+export function aoMudarOLivro(ouvinte: OuvinteDoLivro): () => void {
+  ouvintesDoLivro.add(ouvinte)
+  return () => { ouvintesDoLivro.delete(ouvinte) }
+}
+
+function avisarQueOLivroMudou() {
+  for (const ouvinte of [...ouvintesDoLivro]) ouvinte()
+}
+
 async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown, oQue: string): Promise<T> {
   const init: RequestInit = { method: metodo }
   if (corpo !== undefined) {
@@ -238,8 +260,13 @@ async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown
     init.body = JSON.stringify(corpo)
   }
   const resp = await apiFetch(caminho, init)
-  if (!resp.ok) return falhar(resp, oQue)
-  return (await resp.json()) as T
+  if (!resp.ok) {
+    if (resp.status === 409) avisarQueOLivroMudou()
+    return falhar(resp, oQue)
+  }
+  const resposta = (await resp.json()) as T
+  avisarQueOLivroMudou()
+  return resposta
 }
 
 /**
