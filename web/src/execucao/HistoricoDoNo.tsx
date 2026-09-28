@@ -18,6 +18,25 @@ type Estornavel =
   | { tipo: 'movimentacao'; registro: MovimentacaoDto }
   | { tipo: 'montagem'; registro: MontagemDto }
 
+/**
+ * As duas coleções do livro numa lista só, do registro mais recente ao mais antigo — quem abre o
+ * histórico quer ver primeiro o que acabou de acontecer. O backend as devolve separadas e cada uma
+ * em ordem crescente; desenhá-las uma depois da outra deixava uma montagem das 09:33 abaixo de uma
+ * entrega das 09:40. A comparação é pelo instante (`Date.parse`, que respeita o offset), não pelo
+ * texto: duas strings ISO só se ordenam como texto com o mesmo offset e a mesma precisão de fração.
+ * No empate, o Id maior primeiro — dentro de cada coleção ele cresce com a inclusão. Entre uma
+ * movimentação e uma montagem no mesmo instante o desempate não diz nada sobre o tempo (as duas
+ * sequências de Id são independentes); só mantém a ordem determinística.
+ */
+function doMaisRecente(livro: LivroDoNoDto): Estornavel[] {
+  const registros: Estornavel[] = [
+    ...livro.movimentacoes.map((registro) => ({ tipo: 'movimentacao' as const, registro })),
+    ...livro.montagens.map((registro) => ({ tipo: 'montagem' as const, registro })),
+  ]
+  return registros.sort((a, b) =>
+    Date.parse(b.registro.dataHora) - Date.parse(a.registro.dataHora) || b.registro.id - a.registro.id)
+}
+
 interface Props {
   noId: number
   /** Autor, ou PCP/Administrador (spec §4.5). Quem decide é o 403 `Proibido` do backend. */
@@ -94,13 +113,40 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
       <BannerDeErro mensagem={erroDoEstorno} />
       {livro === null && erroDeCarga === null && <EstadoCarregando />}
       {vazio && <p className="text-sm text-tinta-fraca">Nenhum registro ainda.</p>}
-      {livro !== null && livro.movimentacoes.length > 0 && (
-        <ListaDeCadastro rotulo="Movimentações">
-          {livro.movimentacoes.map((m) => {
+      {livro !== null && !vazio && (
+        <ListaDeCadastro rotulo="Registros, do mais recente ao mais antigo">
+          {doMaisRecente(livro).map((r) => {
+            if (r.tipo === 'montagem') {
+              const mo = r.registro
+              return (
+                <ItemComAcao
+                  key={`montagem-${mo.id}`}
+                  acao={!mo.estornada && podeEstornar(mo.usuarioId) && (
+                    <Botao
+                      variante="secundario"
+                      aria-label={`Estornar a montagem nº ${mo.id}`}
+                      onClick={() => setAConfirmar({ tipo: 'montagem', registro: mo })}
+                      disabled={estornando}
+                    >
+                      Estornar
+                    </Botao>
+                  )}
+                >
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
+                    {`Montagem nº ${mo.id} de ${formatarQuantidade(mo.quantidade)} em ${mo.setorNome}`}
+                    {mo.estornada && <Pilula>estornada</Pilula>}
+                  </span>
+                  <span className="text-xs text-tinta-fraca">{`${mo.usuarioNome} · ${formatarDataHora(mo.dataHora)}`}</span>
+                </ItemComAcao>
+              )
+            }
+            const m = r.registro
             const estornavel = !m.estornada && m.tipo !== 'Estorno' && m.montagemId === null
             return (
               <ItemComAcao
-                key={m.id}
+                // Prefixo nas duas chaves: movimentação e montagem têm Ids de sequências distintas,
+                // e a movimentação nº 1 e a montagem nº 1 colidiriam numa lista só.
+                key={`movimentacao-${m.id}`}
                 acao={estornavel && podeEstornar(m.usuarioId) && (
                   <Botao
                     variante="secundario"
@@ -127,31 +173,6 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
               </ItemComAcao>
             )
           })}
-        </ListaDeCadastro>
-      )}
-      {livro !== null && livro.montagens.length > 0 && (
-        <ListaDeCadastro rotulo="Montagens deste nó">
-          {livro.montagens.map((mo) => (
-            <ItemComAcao
-              key={mo.id}
-              acao={!mo.estornada && podeEstornar(mo.usuarioId) && (
-                <Botao
-                  variante="secundario"
-                  aria-label={`Estornar a montagem nº ${mo.id}`}
-                  onClick={() => setAConfirmar({ tipo: 'montagem', registro: mo })}
-                  disabled={estornando}
-                >
-                  Estornar
-                </Botao>
-              )}
-            >
-              <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
-                {`Montagem nº ${mo.id} de ${formatarQuantidade(mo.quantidade)} em ${mo.setorNome}`}
-                {mo.estornada && <Pilula>estornada</Pilula>}
-              </span>
-              <span className="text-xs text-tinta-fraca">{`${mo.usuarioNome} · ${formatarDataHora(mo.dataHora)}`}</span>
-            </ItemComAcao>
-          ))}
         </ListaDeCadastro>
       )}
       <Confirmacao

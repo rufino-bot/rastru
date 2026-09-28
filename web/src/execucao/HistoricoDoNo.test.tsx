@@ -86,6 +86,37 @@ describe('HistoricoDoNo', () => {
     expect(within(linha).getByText('Operador do Corte · 25/09/2026 10:14')).toBeTruthy()
   })
 
+  it('movimentações e montagens numa lista só, do registro mais recente ao mais antigo', async () => {
+    // O backend devolve as duas coleções separadas, cada uma em ordem crescente. A montagem (11:00)
+    // cai entre movimentações de 10:20 e 12:00: só uma lista intercalada por horário a põe no meio.
+    const DEPOIS_DA_MONTAGEM = movimentacao({ id: 47, tipo: 'Termino', dataHora: '2026-09-25T12:00:00-03:00' })
+    const ANTES_DA_MONTAGEM = { ...TERMINO_DE_OUTRO, dataHora: '2026-09-25T10:20:00-03:00' }
+    vi.stubGlobal('fetch', montarFetch([{
+      movimentacoes: [INICIO, ANTES_DA_MONTAGEM, DEPOIS_DA_MONTAGEM], montagens: [MONTAGEM],
+    }]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
+    const titulos = within(lista).getAllByRole('listitem')
+      .map((li) => li.textContent ?? '')
+      .map((t) => t.match(/^(nº \d+|Montagem nº \d+)/)?.[1])
+    expect(titulos).toEqual(['nº 47', 'Montagem nº 5', 'nº 42', 'nº 41'])
+  })
+
+  it('no mesmo instante, o registro de Id maior vem primeiro', async () => {
+    // O backend manda cada coleção em Id crescente; sem o desempate, a ordenação estável manteria
+    // 41 antes de 50 e o registro mais novo ficaria embaixo.
+    const MESMO_INSTANTE = movimentacao({ id: 50, tipo: 'Termino' })
+    vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [INICIO, MESMO_INSTANTE], montagens: [] }]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
+    const titulos = within(lista).getAllByRole('listitem').map((li) => li.textContent?.match(/^nº \d+/)?.[0])
+    expect(titulos).toEqual(['nº 50', 'nº 41'])
+  })
+
   it('"Estornar" só aparece para quem pode, e só no que se estorna', async () => {
     vi.stubGlobal('fetch', montarFetch([{
       movimentacoes: [INICIO, TERMINO_DE_OUTRO, JA_ESTORNADO, ESTORNO, BAIXA], montagens: [],
@@ -221,7 +252,7 @@ describe('HistoricoDoNo', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
-    const montagens = await screen.findByRole('list', { name: 'Montagens deste nó' })
+    const montagens = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
     expect(within(montagens).getByText('Montagem nº 5 de 2 em Solda')).toBeTruthy()
     fireEvent.click(within(montagens).getByRole('button', { name: 'Estornar a montagem nº 5' }))
     expect(within(screen.getByRole('dialog')).getByText(/Os filhos voltam a aguardar montagem/)).toBeTruthy()
