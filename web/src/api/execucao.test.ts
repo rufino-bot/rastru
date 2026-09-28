@@ -4,6 +4,7 @@ import {
   iniciar, terminar, montar, entregar, estornarMovimentacao, estornarMontagem, substituirRoteiroDoNo,
   ehConflito,
 } from './execucao'
+import { aoMudarOLivro } from './sinalDoLivro'
 import { inicializar, _resetParaTeste } from './client'
 import { ErroDeApi, mensagemDeErro } from './erros'
 import { respostaJson } from '../testes/api'
@@ -129,5 +130,68 @@ describe('execucao', () => {
     expect(ehConflito(new ErroDeApi(409, 'x'))).toBe(true)
     expect(ehConflito(new ErroDeApi(400, 'x'))).toBe(false)
     expect(ehConflito(new TypeError('Failed to fetch'))).toBe(false)
+  })
+
+  describe('o aviso de que o livro mudou', () => {
+    it('toda escrita aceita avisa quem escuta, uma vez', async () => {
+      // Uma `Response` nova por chamada: o corpo de uma resposta só se lê uma vez.
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaJson({}, 201))))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await iniciar(7, { setorId: 1, quantidade: 4 })
+      await estornarMovimentacao(41)
+      // PUT também: editar o Roteiro muda o destino calculado, e com ele as Tarefas.
+      await substituirRoteiroDoNo(7, [1, 2])
+
+      expect(ouvinte).toHaveBeenCalledTimes(3)
+      parar()
+    })
+
+    it('escrita aceita com corpo ilegível avisa assim mesmo: o servidor já gravou', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('não é json', { status: 201 }))))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await expect(terminar(7, { setorId: 1, ordem: 1, quantidade: 4 })).rejects.toBeTruthy()
+
+      expect(ouvinte).toHaveBeenCalledTimes(1)
+      parar()
+    })
+
+    it('recusa comum não avisa: nada mudou', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({ erro: 'SaldoInsuficiente' }, 400)))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await expect(terminar(7, { setorId: 1, ordem: 1, quantidade: 4 })).rejects.toBeInstanceOf(ErroDeApi)
+
+      expect(ouvinte).not.toHaveBeenCalled()
+      parar()
+    })
+
+    it('409 avisa: o que estava na tela ficou velho', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({ erro: 'ConflitoDeConcorrencia' }, 409)))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await expect(entregar([])).rejects.toBeInstanceOf(ErroDeApi)
+
+      expect(ouvinte).toHaveBeenCalledTimes(1)
+      parar()
+    })
+
+    it('leitura não avisa, e quem parou de escutar não é mais chamado', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({ total: 0 })))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await contarTarefas()
+      parar()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({}, 201)))
+      await montar(7, { setorId: 1, quantidade: 1 })
+
+      expect(ouvinte).not.toHaveBeenCalled()
+    })
   })
 })

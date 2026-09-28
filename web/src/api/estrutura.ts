@@ -1,4 +1,5 @@
 import { apiFetch } from './client'
+import { avisarQueOLivroMudou } from './sinalDoLivro'
 import { ErroDeApi } from './erros'
 
 export type NivelHierarquico = 'Peca' | 'Item'
@@ -170,7 +171,16 @@ export function editarNo(
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(e),
-  }).then(lerNoOuConflito)
+  }).then((resp) => {
+    // Mudar a quantidade muda o que os filhos ainda precisam entregar — as Tarefas.
+    avisarSeMudou(resp)
+    return lerNoOuConflito(resp)
+  })
+}
+
+/** Mesma regra de `enviar` em `execucao.ts`: aceito, ou 409 (o que estava na tela ficou velho). */
+function avisarSeMudou(resp: Response) {
+  if (resp.ok || resp.status === 409) avisarQueOLivroMudou()
 }
 
 /** Desfechos do DELETE. A tela precisa distinguir para explicar o que houve. */
@@ -191,6 +201,7 @@ export type ResultadoDeEstrutura =
  */
 export async function excluirNo(id: number): Promise<ResultadoDeEstrutura> {
   const resp = await apiFetch(`/estrutura/${id}`, { method: 'DELETE' })
+  avisarSeMudou(resp)
   if (resp.status === 204) return 'ok'
   if (resp.status === 404) return 'NaoEncontrado'
   if (resp.status === 409) {

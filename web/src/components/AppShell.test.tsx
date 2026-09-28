@@ -6,6 +6,7 @@ import { AppShell } from './AppShell'
 import { Pagina } from './Pagina'
 import { useAuth } from '../auth/AuthContext'
 import { contarTarefas } from '../api/execucao'
+import { aoMudarOLivro } from '../api/sinalDoLivro'
 
 const logout = vi.fn()
 
@@ -22,6 +23,9 @@ vi.mock('../auth/AuthContext', () => ({
 // daqui dispararia uma requisição de verdade.
 vi.mock('../api/execucao', () => ({
   contarTarefas: vi.fn(),
+}))
+vi.mock('../api/sinalDoLivro', () => ({
+  aoMudarOLivro: vi.fn(() => () => {}),
 }))
 
 beforeEach(() => {
@@ -303,6 +307,33 @@ describe('AppShell', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
 
     expect(screen.getByRole('link', { name: 'Tarefas 4' })).toBeTruthy()
+  })
+
+  it('o contador reconta na hora quando o livro muda, sem esperar os 30 s', async () => {
+    // Achado na verificação manual da Fase 3: a tela de Tarefas já dizia "Nenhum item pronto" e o
+    // menu ainda mostrava 1, até o próximo ciclo. Relógio falso e parado: só o aviso pode recontar.
+    vi.useFakeTimers()
+    vi.mocked(contarTarefas).mockResolvedValueOnce(1).mockResolvedValueOnce(0)
+
+    renderizarShell()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(screen.getByRole('link', { name: 'Tarefas 1' })).toBeTruthy()
+
+    const avisar = vi.mocked(aoMudarOLivro).mock.lastCall![0]
+    await act(async () => { avisar(); await vi.advanceTimersByTimeAsync(0) })
+
+    expect(screen.getByRole('link', { name: 'Tarefas' })).toBeTruthy()
+    expect(contarTarefas).toHaveBeenCalledTimes(2)
+  })
+
+  it('para de escutar o livro quando o shell sai da tela', () => {
+    const parar = vi.fn()
+    vi.mocked(aoMudarOLivro).mockReturnValueOnce(parar)
+
+    const { unmount } = renderizarShell()
+    unmount()
+
+    expect(parar).toHaveBeenCalledTimes(1)
   })
 
   it('falha numa atualização periódica mantém o último número (D5)', async () => {

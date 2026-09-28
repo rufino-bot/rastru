@@ -1,5 +1,6 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
+import { avisarQueOLivroMudou } from './sinalDoLivro'
 
 /**
  * Cliente da execução (Fase 3). Os tipos espelham a seção "Contrato JSON" do plano 2 da Fase 3
@@ -231,6 +232,12 @@ async function ler<T>(caminho: string, oQue: string): Promise<T> {
   return (await resp.json()) as T
 }
 
+/**
+ * Toda escrita da execução passa por aqui, e é aqui que se avisa o contador de Tarefas
+ * (`avisarQueOLivroMudou`) — o que cobre de uma vez também a próxima escrita que alguém criar. O
+ * aviso sai no 409 (o que estava na tela ficou velho, spec §8.3) e no sucesso ANTES de ler o corpo:
+ * a escrita já foi gravada, e um corpo ilegível não pode esconder isso do contador.
+ */
 async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown, oQue: string): Promise<T> {
   const init: RequestInit = { method: metodo }
   if (corpo !== undefined) {
@@ -238,6 +245,7 @@ async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown
     init.body = JSON.stringify(corpo)
   }
   const resp = await apiFetch(caminho, init)
+  if (resp.ok || resp.status === 409) avisarQueOLivroMudou()
   if (!resp.ok) return falhar(resp, oQue)
   return (await resp.json()) as T
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { contarTarefas } from '../api/execucao'
+import { aoMudarOLivro } from '../api/sinalDoLivro'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
 
 interface ItemDeNavegacao {
@@ -109,9 +110,12 @@ export function AppShell() {
   // Falha numa atualização PERIÓDICA, depois de um sucesso anterior: o hook mantém o último número
   // na tela (D5, herdado de `useCargaPeriodica`) — o contador NÃO some, fica com um valor
   // possivelmente velho até a próxima consulta dar certo.
-  const { dados: totalDeTarefas } = useCargaPeriodica(
+  const { dados: totalDeTarefas, recarregar: recontarTarefas } = useCargaPeriodica(
     contarTarefas, 'contagem-de-tarefas', INTERVALO_DA_EXECUCAO_MS, 'Não foi possível contar as tarefas.',
   )
+  // Depois de uma ação NESTE aparelho, o número acompanha na hora, em vez de esperar o próximo
+  // ciclo de 30 s (ver `aoMudarOLivro`). `recarregar` é estável (`useCallback` sem dependências).
+  useEffect(() => aoMudarOLivro(() => { recontarTarefas() }), [recontarTarefas])
 
   // A gaveta fecha num efeito sobre `location.key`, não no `onClick` de cada link dela: o `onClick`
   // só reage ao clique NAQUELES links, e deixa aberta a gaveta quando a navegação vem de um link no

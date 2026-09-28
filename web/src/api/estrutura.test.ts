@@ -4,6 +4,7 @@ import {
   ehConflitoDeEstrutura,
 } from './estrutura'
 import { inicializar, _resetParaTeste } from './client'
+import { aoMudarOLivro } from './sinalDoLivro'
 
 describe('estrutura', () => {
   beforeEach(() => {
@@ -207,5 +208,46 @@ describe('estrutura', () => {
 
     await expect(criarPeca(4, { componenteId: 2, quantidade: 5, requerRelatorioDimensional: false }))
       .rejects.toMatchObject({ name: 'ErroDeApi', status: 409 })
+  })
+
+  // Editar a quantidade de um nó muda o que os filhos ainda precisam entregar, e excluir tira nós
+  // da conta: os dois mudam as Tarefas, e o contador do menu tem de saber na hora (achado da review
+  // das correções da verificação manual da Fase 3).
+  describe('o aviso de que o livro mudou', () => {
+    it('editarNo aceito avisa', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ id: 7 }), { status: 200 }))))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await editarNo(7, { descricao: 'x', quantidade: 8, quantidadePorPai: null })
+
+      expect(ouvinte).toHaveBeenCalledTimes(1)
+      parar()
+    })
+
+    it('excluirNo aceito avisa; o 404 não', async () => {
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(null, { status: 404 }))))
+      await excluirNo(999)
+      expect(ouvinte).not.toHaveBeenCalled()
+
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))))
+      await excluirNo(7)
+      expect(ouvinte).toHaveBeenCalledTimes(1)
+      parar()
+    })
+
+    it('editarNo recusado por 400 não avisa', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({ erro: 'x' }), { status: 400 }))))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await editarNo(7, { descricao: 'x', quantidade: 8, quantidadePorPai: null }).catch(() => {})
+
+      expect(ouvinte).not.toHaveBeenCalled()
+      parar()
+    })
   })
 })

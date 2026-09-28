@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { HomePage } from './HomePage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
+import { STATUS_DO_PEDIDO } from '../pedidos/statusDoPedido'
 
 afterEach(cleanup)
 
@@ -65,8 +66,10 @@ describe('HomePage', () => {
   })
 
   it('conta só os pedidos abertos', async () => {
-    // Cinco pedidos, DOIS Abertos: contar `.length` daria 5 e a tela mentiria.
-    // `within(cartao).getByText('2')`, não `textContent.toContain('2')`: o cartão de componentes
+    // Cinco pedidos: dois Abertos, um EmProducao, um Concluido e um Cancelado. Aberto é todo Pedido
+    // que não está encerrado, então são 3 — contar `.length` daria 5, e contar só `status ===
+    // 'Aberto'` daria 2 (o que a tela fazia até a Fase 3 começar a passar Pedido a EmProducao).
+    // `within(cartao).getByText('3')`, não `textContent.toContain('3')`: o cartão de componentes
     // mostra "41", e um `toContain` passaria com a fiação de pedidos e componentes trocada.
     // `getByText` casa o nó de texto inteiro, então discrimina.
     vi.stubGlobal('fetch', apiCompleta())
@@ -75,7 +78,25 @@ describe('HomePage', () => {
     await screen.findByText('41')
 
     const cartao = screen.getByText('pedidos abertos').closest('a')!
-    expect(within(cartao).getByText('2')).toBeTruthy()
+    expect(within(cartao).getByText('3')).toBeTruthy()
+  })
+
+  it('pedido aguardando expedição também está aberto', async () => {
+    // Um Pedido de cada status. A fixture de `apiCompleta` não tem AguardandoExpedicao, então só
+    // este teste separa "fora de Concluido e Cancelado" de uma lista que esqueça algum status aberto.
+    const umDeCada = STATUS_DO_PEDIDO.map((status, i) => ({ ...PEDIDOS[0], id: 100 + i, numero: `PED-${i}`, status }))
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
+      '/api/pedidos': () => respostaJson(umDeCada),
+      '/api/materiais': () => respostaJson([]),
+      '/api/setores': () => respostaJson([]),
+    }))
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    const cartao = screen.getByText('pedidos abertos').closest('a')!
+    expect(within(cartao).getByText('3')).toBeTruthy()
   })
 
   it('mostra as contagens de materiais e setores', async () => {
