@@ -90,8 +90,8 @@ export function HomePage() {
   // resumo NÃO renderiza nesse estado (nem com zeros, que seriam falsos, nem com traços, que
   // seriam ruído; o número grande do cartão já diz "—").
   //
-  // "Aberto" é todo Pedido fora de `ENCERRADOS` — o mesmo critério da lista de mais antigos logo
-  // abaixo —, não só o status `Aberto`: desde a Fase 3 o primeiro Início passa o Pedido a
+  // "Aberto" é todo Pedido fora de `ENCERRADOS` — o mesmo critério de `maisAntigos` —, não só o
+  // status `Aberto`: desde a Fase 3 o primeiro Início passa o Pedido a
   // `EmProducao`, e contar só `Aberto` fazia o cartão dizer "12 abertos" ao lado de "EmProducao 2".
   const abertos = pedidos === null ? null
     : pedidos.filter((p) => !ENCERRADOS.some((encerrado) => encerrado === p.status)).length

@@ -5,7 +5,8 @@ import { MemoryRouter, Routes, Route, Link } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { Pagina } from './Pagina'
 import { useAuth } from '../auth/AuthContext'
-import { contarTarefas, aoMudarOLivro } from '../api/execucao'
+import { contarTarefas } from '../api/execucao'
+import { aoMudarOLivro } from '../api/sinalDoLivro'
 
 const logout = vi.fn()
 
@@ -22,6 +23,8 @@ vi.mock('../auth/AuthContext', () => ({
 // daqui dispararia uma requisição de verdade.
 vi.mock('../api/execucao', () => ({
   contarTarefas: vi.fn(),
+}))
+vi.mock('../api/sinalDoLivro', () => ({
   aoMudarOLivro: vi.fn(() => () => {}),
 }))
 

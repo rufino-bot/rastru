@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { aoMudarOLivro, contarTarefas } from '../api/execucao'
+import { contarTarefas } from '../api/execucao'
+import { aoMudarOLivro } from '../api/sinalDoLivro'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
 
 interface ItemDeNavegacao {

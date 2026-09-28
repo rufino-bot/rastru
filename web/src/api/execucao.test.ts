@@ -2,8 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
   iniciar, terminar, montar, entregar, estornarMovimentacao, estornarMontagem, substituirRoteiroDoNo,
-  ehConflito, aoMudarOLivro,
+  ehConflito,
 } from './execucao'
+import { aoMudarOLivro } from './sinalDoLivro'
 import { inicializar, _resetParaTeste } from './client'
 import { ErroDeApi, mensagemDeErro } from './erros'
 import { respostaJson } from '../testes/api'
@@ -140,8 +141,21 @@ describe('execucao', () => {
 
       await iniciar(7, { setorId: 1, quantidade: 4 })
       await estornarMovimentacao(41)
+      // PUT também: editar o Roteiro muda o destino calculado, e com ele as Tarefas.
+      await substituirRoteiroDoNo(7, [1, 2])
 
-      expect(ouvinte).toHaveBeenCalledTimes(2)
+      expect(ouvinte).toHaveBeenCalledTimes(3)
+      parar()
+    })
+
+    it('escrita aceita com corpo ilegível avisa assim mesmo: o servidor já gravou', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response('não é json', { status: 201 }))))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await expect(terminar(7, { setorId: 1, ordem: 1, quantidade: 4 })).rejects.toBeTruthy()
+
+      expect(ouvinte).toHaveBeenCalledTimes(1)
       parar()
     })
 
