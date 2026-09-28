@@ -163,6 +163,32 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Inicio_da_montagem_e_o_do_pai_nunca_a_baixa_e_nulo_sem_ele() => NoCenarioAsync(async c =>
+  {
+    var naSolda = Local.AguardandoMontagem(c.Solda);
+    await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Corte, 1), 2m));
+    await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Termino, Local.NoSetor(c.Corte, 1), Local.AguardandoColeta(c.Corte, 1), 2m));
+    await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(c.Corte, 1), naSolda, 2m));
+    var comInicio = await GravarAsync(new Montagem
+    {
+      EstruturaItemId = c.Peca, SetorId = c.Solda, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    });
+    await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Montagem, naSolda, Local.Montado, 2m, montagemId: comInicio));
+    var inicio = await GravarAsync(Mov(c, c.Peca, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Solda, 1), 1m,
+        montagemId: comInicio));
+    var semInicio = await GravarAsync(new Montagem
+    {
+      EstruturaItemId = c.Peca, SetorId = c.Solda, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    });
+
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+
+    Assert.Equal(inicio, (await repo.ObterInicioDaMontagemAsync(comInicio, CancellationToken.None))!.Id);
+    Assert.Null(await repo.ObterInicioDaMontagemAsync(semInicio, CancellationToken.None));
+  });
+
+  [Fact]
   public Task Trava_segura_a_segunda_transacao_e_o_timeout_vira_conflito() => NoCenarioAsync(async c =>
   {
     await using var dbA = NovoContexto();

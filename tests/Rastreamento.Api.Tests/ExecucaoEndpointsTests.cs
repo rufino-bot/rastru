@@ -42,7 +42,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   [Theory]
   [InlineData("Movimentador", "POST", "/api/estrutura/999999/inicios")]
   [InlineData("PCP", "POST", "/api/estrutura/999999/terminos")]
-  [InlineData("Gestao", "POST", "/api/estrutura/999999/montagens")]
+  [InlineData("Gestao", "POST", "/api/estrutura/999999/inicios")]
   [InlineData("Operador", "POST", "/api/entregas")]
   [InlineData("PCP", "POST", "/api/entregas")]
   [InlineData("Operador", "PUT", "/api/estrutura/999999/roteiro")]

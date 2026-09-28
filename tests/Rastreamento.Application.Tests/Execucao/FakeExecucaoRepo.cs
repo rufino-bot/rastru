@@ -190,6 +190,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
           .OrderBy(m => m.Id)
           .ToList());
 
+  public Task<Movimentacao?> ObterInicioDaMontagemAsync(int montagemId, CancellationToken ct) =>
+      Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Tipo == TiposDeMovimentacao.Inicio && m.MontagemId == montagemId));
+
   public Task MarcarMontagemEstornadaAsync(int montagemId, int usuarioId, DateTime em, CancellationToken ct)
   {
     var montagem = Montagens.Single(g => g.Id == montagemId);

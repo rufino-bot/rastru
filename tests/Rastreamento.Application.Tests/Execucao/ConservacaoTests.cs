@@ -6,8 +6,9 @@ using static Rastreamento.Application.Tests.Execucao.CenarioDeExecucao;
 namespace Rastreamento.Application.Tests.Execucao;
 
 /// <summary>
-/// A regra 9 como PROPRIEDADE (spec da Fase 3, secao 9.1): uma sequencia aleatoria de iniciar, terminar,
-/// entregar, montar e estornar, com semente FIXA, sobre uma arvore de tres niveis. Depois de CADA passo:
+/// A regra 9 como PROPRIEDADE (spec da Fase 3, secao 9.1): uma sequencia aleatoria de iniciar (inclusive
+/// o pai, que consome os filhos), terminar, entregar e estornar, com semente FIXA, sobre uma arvore de
+/// tres niveis. Depois de CADA passo:
 /// nenhuma posicao negativa, a soma das posicoes de cada no igual a quantidade dele, o montado de cada
 /// filho igual as montagens validas do pai vezes a razao, e uma operacao recusada nao deixa rastro.
 /// Os sorteios escolhem sobretudo operacoes plausiveis a partir do estado — e tambem quantidades uma
@@ -34,7 +35,7 @@ public class ConservacaoTests
     var sorteio = new Random(20260925);
     var sucessos = new Dictionary<string, int>
     {
-      ["iniciar"] = 0, ["terminar"] = 0, ["entregar"] = 0, ["montar"] = 0, ["estornar"] = 0, ["estornar montagem"] = 0,
+      ["iniciar"] = 0, ["terminar"] = 0, ["entregar"] = 0, ["iniciar pai"] = 0, ["estornar"] = 0, ["estornar montagem"] = 0,
     };
 
     for (var passo = 0; passo < Passos; passo++)
@@ -85,10 +86,9 @@ public class ConservacaoTests
         case 7:
         {
           var pai = sorteio.Next(2) == 0 ? 1 : 2;
-          var setores = calc.Filhos(pai).SelectMany(f => calc.SetoresOndeAguardaMontagem(f.Id)).Distinct().ToList();
-          var setor = setores.Count > 0 ? setores[sorteio.Next(setores.Count)] : Solda;
-          operacao = "montar";
-          ok = (await apontamento.Montar(pai, new MontagemNovaDto(setor, 1m), Operador, Ct)).Sucesso;
+          var primeiro = calc.PrimeiroPasso(pai)!.Value;
+          operacao = "iniciar pai";
+          ok = (await apontamento.Iniciar(pai, new InicioDto(primeiro.SetorId, 1m), Operador, Ct)).Sucesso;
           break;
         }
         case 8:
@@ -143,6 +143,12 @@ public class ConservacaoTests
         var esperado = calc.TotalMontado(pai) * calc.No(id).QuantidadePorPai!.Value;
         Assert.Equal(esperado, calc.Saldo(id, Local.Montado));
       }
+
+      // Fase 3D: o pai so entra em producao consumindo os filhos, entao o que saiu de "a iniciar" e
+      // exatamente o total montado — e e isso que faz a trava da regra 24 valer por construcao.
+      if (calc.TemFilhos(id))
+        Assert.True(calc.SaidoDeAIniciar(id) == calc.TotalMontado(id),
+            $"passo {passo} ({operacao}): no {id} saiu {calc.SaidoDeAIniciar(id)} de a iniciar e montou {calc.TotalMontado(id)}");
     }
   }
 

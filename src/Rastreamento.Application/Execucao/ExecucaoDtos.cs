@@ -21,8 +21,6 @@ public sealed record InicioDto(int SetorId, decimal Quantidade);
 
 public sealed record TerminoDto(int SetorId, int Ordem, decimal Quantidade);
 
-public sealed record MontagemNovaDto(int SetorId, decimal Quantidade);
-
 /// <summary>
 /// `Posicao`: `AguardandoColeta` (com `SetorId` e `Ordem`) ou `AguardandoMontagem` (com `SetorId`, sem
 /// `Ordem`). Tudo anulavel de proposito: um corpo incompleto vira 400 `OrigemInvalida` com frase, e nao
@@ -63,8 +61,14 @@ public sealed record LinhaAguardandoColetaDto(NoResumoDto No, int Ordem, decimal
 public sealed record FilhoNaMontagemDto(
     NoResumoDto No, decimal QuantidadePorPai, decimal Presente, decimal? NecessarioParaProxima, decimal? FaltaParaProxima);
 
+/// <summary>
+/// Um pai com filhos aguardando neste Setor. `IniciaAqui`: este Setor e o primeiro passo do pai, onde
+/// iniciar o pai consome os filhos (spec da Fase 3D, secao 2.1). `PrimeiroPassoDoPai`: para onde levar
+/// os filhos quando nao e aqui; nulo se o pai nao tem Roteiro.
+/// </summary>
 public sealed record MontagemPendenteDto(
-    NoResumoDto Pai, decimal FaltaMontar, decimal DaParaMontar, IReadOnlyList<FilhoNaMontagemDto> Filhos);
+    NoResumoDto Pai, decimal FaltaMontar, decimal DaParaMontar, bool IniciaAqui, SetorResumoDto? PrimeiroPassoDoPai,
+    IReadOnlyList<FilhoNaMontagemDto> Filhos);
 
 /// <summary>`Origem`: UltimoPasso (com `Ordem`) | Montagem (sem `Ordem`; excesso no nivel do no).</summary>
 public sealed record LinhaDeSobraDto(NoResumoDto No, string Origem, int? Ordem, decimal Quantidade, bool EmMaisDeUmSetor);

@@ -224,6 +224,57 @@ public class LivroMapeamentoTests : TesteComBanco
       }, "CK_Movimentacao_Transicao"));
 
   [Fact]
+  public Task Inicio_de_pai_que_aponta_a_Montagem_e_aceito() => NoCenarioAsync(async c =>
+  {
+    var montagemId = await NovaMontagemAsync(c);
+    var inicio = Inicio(c);
+    inicio.MontagemId = montagemId;
+
+    var id = await GravarAsync(inicio);
+
+    await using var leitura = NovoContexto();
+    Assert.Equal(montagemId, (await leitura.Movimentacoes.AsNoTracking().SingleAsync(m => m.Id == id)).MontagemId);
+  });
+
+  [Fact]
+  public Task Segundo_inicio_na_mesma_Montagem_e_recusado_pelo_indice_unico() => NoCenarioAsync(async c =>
+  {
+    var montagemId = await NovaMontagemAsync(c);
+    var primeiro = Inicio(c);
+    primeiro.MontagemId = montagemId;
+    await GravarAsync(primeiro);
+    var segundo = Inicio(c);
+    segundo.MontagemId = montagemId;
+
+    await AfirmarRecusaAsync(segundo, "UX_Movimentacao_UmInicioPorMontagem");
+  });
+
+  [Fact]
+  public Task Termino_que_aponta_Montagem_e_recusado() => NoCenarioAsync(async c =>
+  {
+    var montagemId = await NovaMontagemAsync(c);
+    await AfirmarRecusaAsync(new Movimentacao
+    {
+      EstruturaItemId = c.PecaId, Tipo = TiposDeMovimentacao.Termino, Quantidade = 1m, MontagemId = montagemId,
+      OrigemPosicao = Posicoes.NoSetor, OrigemSetorId = c.SetorId, OrigemOrdem = 1,
+      DestinoPosicao = Posicoes.AguardandoColeta, DestinoSetorId = c.SetorId, DestinoOrdem = 1,
+      DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    }, "CK_Movimentacao_MontagemSoNaBaixa");
+  });
+
+  private async Task<int> NovaMontagemAsync(Cenario c)
+  {
+    await using var db = NovoContexto();
+    var montagem = new Montagem
+    {
+      EstruturaItemId = c.PecaId, SetorId = c.SetorId, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    };
+    db.Montagens.Add(montagem);
+    await db.SaveChangesAsync();
+    return montagem.Id;
+  }
+
+  [Fact]
   public Task Baixa_de_montagem_sem_Montagem_e_recusada() => NoCenarioAsync(c =>
       AfirmarRecusaAsync(new Movimentacao
       {

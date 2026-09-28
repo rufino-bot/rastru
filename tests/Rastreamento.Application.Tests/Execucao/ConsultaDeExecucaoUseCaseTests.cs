@@ -88,6 +88,49 @@ public class ConsultaDeExecucaoUseCaseTests
   }
 
   [Fact]
+  public async Task A_iniciar_nao_lista_no_com_filhos()
+  {
+    var c = Kit();   // pai 1 na Solda, filhos no Corte
+
+    var solda = (await c.Consulta().Fila(Solda, Ct)).Valor!;
+    var corte = (await c.Consulta().Fila(Corte, Ct)).Valor!;
+
+    Assert.Empty(solda.AIniciar);
+    Assert.Equal(new[] { 2, 3 }, corte.AIniciar.Select(l => l.No.Id).ToArray());
+  }
+
+  [Fact]
+  public async Task Aguardando_montagem_diz_se_o_pai_inicia_aqui_e_qual_e_o_primeiro_passo_dele()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda, Pintura);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 1m);
+
+    var naSolda = Assert.Single((await c.Consulta().Fila(Solda, Ct)).Valor!.AguardandoMontagem);
+    var naPintura = Assert.Single((await c.Consulta().Fila(Pintura, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.True(naSolda.IniciaAqui);
+    Assert.False(naPintura.IniciaAqui);
+    Assert.Equal(new SetorResumoDto(Solda, "Solda"), naPintura.PrimeiroPassoDoPai);
+  }
+
+  [Fact]
+  public async Task Pai_sem_Roteiro_nao_inicia_em_lugar_nenhum()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Solda, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.False(grupo.IniciaAqui);
+    Assert.Null(grupo.PrimeiroPassoDoPai);
+  }
+
+  [Fact]
   public async Task Excesso_em_montagem_aparece_na_sobra_e_diz_quando_o_filho_esta_em_mais_de_um_Setor()
   {
     var c = new CenarioDeExecucao();
@@ -194,17 +237,18 @@ public class ConsultaDeExecucaoUseCaseTests
     var c = new CenarioDeExecucao();
     c.No(1, null, 10m, null, Solda);
     c.No(2, 1, 10m, 1m, Corte);
-    var inicio = (await c.Apontamento().Iniciar(1, new InicioDto(Solda, 2m), Operador, Ct)).Valor!;
-    await c.Estorno().EstornarMovimentacao(inicio.Id, Operador, false, Ct);
     c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
-    await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 3m), Operador, Ct);
+    var inicio = (await c.Apontamento().Iniciar(1, new InicioDto(Solda, 2m), Operador, Ct)).Valor!;
+    await c.Estorno().EstornarMontagem(inicio.MontagemId!.Value, Operador, false, Ct);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+    await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct);
 
     var livro = (await c.Consulta().LivroDoNo(1, Ct)).Valor!;
 
-    Assert.Equal(new[] { (TiposDeMovimentacao.Inicio, true), (TiposDeMovimentacao.Estorno, false) },
+    Assert.Equal(
+        new[] { (TiposDeMovimentacao.Inicio, true), (TiposDeMovimentacao.Estorno, false), (TiposDeMovimentacao.Inicio, false) },
         livro.Movimentacoes.Select(m => (m.Tipo, m.Estornada)).ToArray());
-    var montagem = Assert.Single(livro.Montagens);
-    Assert.Equal(2, Assert.Single(montagem.Baixas).EstruturaItemId);
+    Assert.Equal(new[] { true, false }, livro.Montagens.Select(m => m.Estornada).ToArray());
   }
 
   [Fact]

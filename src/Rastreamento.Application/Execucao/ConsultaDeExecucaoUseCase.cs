@@ -56,7 +56,8 @@ public sealed class ConsultaDeExecucaoUseCase
 
     foreach (var no in calc.Nos)
     {
-      if (calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
+      // No com filhos inicia pelo card de montagem, consumindo os filhos (spec da Fase 3D, secao 6.1).
+      if (!calc.TemFilhos(no.Id) && calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
           && calc.Saldo(no.Id, Local.AIniciar) is var aIniciarAqui && aIniciarAqui > 0m)
         aIniciar.Add(new LinhaDaFilaDto(resumos[no.Id], primeiro.Ordem, aIniciarAqui));
 
@@ -91,7 +92,10 @@ public sealed class ConsultaDeExecucaoUseCase
         .Select(paiId =>
         {
           var m = calc.CalcularMontabilidade(paiId, setorId);
+          var primeiro = calc.PrimeiroPasso(paiId);
           return new MontagemPendenteDto(resumos[paiId], m.FaltaMontar, m.DaParaMontar,
+              primeiro?.SetorId == setorId,
+              primeiro is PassoDoCalculo p ? new SetorResumoDto(p.SetorId, nomes.GetValueOrDefault(p.SetorId, string.Empty)) : null,
               m.Filhos.Select(f => new FilhoNaMontagemDto(
                   resumos[f.FilhoId], f.QuantidadePorPai, f.Presente, f.NecessarioParaProxima, f.FaltaParaProxima)).ToList());
         })

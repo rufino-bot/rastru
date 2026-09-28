@@ -15,8 +15,6 @@ public static class CodigosDaExecucao
   public const string SemRoteiro = "SemRoteiro";
   public const string NaoEhOPrimeiroPasso = "NaoEhOPrimeiroPasso";
   public const string SaldoInsuficiente = "SaldoInsuficiente";
-  public const string SemFilhos = "SemFilhos";
-  public const string MontagemAcimaDoQueFalta = "MontagemAcimaDoQueFalta";
   public const string FilhosInsuficientes = "FilhosInsuficientes";
   public const string DestinoForaDoRoteiroDoPai = "DestinoForaDoRoteiroDoPai";
   public const string PaiSemRoteiro = "PaiSemRoteiro";

@@ -341,6 +341,10 @@ public class ExecucaoRepository : IExecucaoRepository
         .ToListAsync(ct);
   }
 
+  public Task<Movimentacao?> ObterInicioDaMontagemAsync(int montagemId, CancellationToken ct) =>
+      _db.Movimentacoes.AsNoTracking()
+          .SingleOrDefaultAsync(m => m.Tipo == TiposDeMovimentacao.Inicio && m.MontagemId == montagemId, ct);
+
   /// <summary>
   /// Conjuntista e condicionado a `EstornadaEm IS NULL`: e a unica escrita que uma `Montagem` recebe
   /// depois de nascer, e nunca sobrescreve um estorno anterior.

@@ -167,7 +167,6 @@ public class PerfisDeEscritaDeclaradosTests
     // `[Authorize(Roles)]` de um arquivo com UMA entrada de `permissoes.ts` (desvio D1 do plano 2).
     ["POST estrutura/{id:int}/inicios"] = ["Operador", "Administrador"],
     ["POST estrutura/{id:int}/terminos"] = ["Operador", "Administrador"],
-    ["POST estrutura/{id:int}/montagens"] = ["Operador", "Administrador"],
     ["POST entregas"] = ["Movimentador", "Administrador"],
     // Estorno: o `[Authorize]` deixa passar quem pode ser autor, mais o PCP; autor x PCP quem decide e o
     // caso de uso (403 `Proibido`). O de montagem declara o Movimentador tambem (desvio D2 do plano 2).

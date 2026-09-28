@@ -115,28 +115,41 @@ public partial class ExecucaoEndpointsTests
   }
 
   [Fact]
-  public async Task Montar_e_estornar_a_montagem()
+  public async Task Iniciar_o_pai_consome_os_filhos_e_estornar_a_montagem_desfaz_tudo()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
     await LevarParaAMontagemAsync(c, c.B, c.Corte, 6m);
     await LevarParaAMontagemAsync(c, c.C, c.Dobra, 3m);
 
-    var montagem = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/montagens", new { setorId = c.Solda, quantidade = 3m });
-    var montagemId = (await CorpoAsync(montagem)).GetProperty("id").GetInt32();
+    var inicio = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 3m });
+    var montagemId = (await CorpoAsync(inicio)).GetProperty("montagemId").GetInt32();
     var fila = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila"));
     var estorno = await c.Como(c.Operador).PostAsync($"/api/montagens/{montagemId}/estorno", null);
 
-    Assert.Equal(HttpStatusCode.Created, montagem.StatusCode);
-    Assert.Equal(2, (await CorpoAsync(montagem)).GetProperty("baixas").GetArrayLength());
-    Assert.Empty(fila.GetProperty("aguardandoMontagem").EnumerateArray());   // montou tudo o que havia
+    Assert.Equal(HttpStatusCode.Created, inicio.StatusCode);
+    Assert.Empty(fila.GetProperty("aguardandoMontagem").EnumerateArray());   // consumiu tudo o que havia
+    Assert.Equal(c.A, Assert.Single(fila.GetProperty("emTrabalho").EnumerateArray()).GetProperty("no").GetProperty("id").GetInt32());
+    Assert.DoesNotContain(fila.GetProperty("aIniciar").EnumerateArray(), l => l.GetProperty("no").GetProperty("id").GetInt32() == c.A);
     Assert.Equal(HttpStatusCode.Created, estorno.StatusCode);
-    Assert.Equal(2, (await CorpoAsync(estorno)).GetArrayLength());
+    Assert.Equal(3, (await CorpoAsync(estorno)).GetArrayLength());   // duas baixas e o Inicio do pai
+  }
+
+  [Fact]
+  public async Task A_rota_de_montar_nao_existe_mais()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+
+    var resposta = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/montagens", new { setorId = c.Solda, quantidade = 1m });
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
 
   [Fact]
   public async Task Roteiro_marca_o_alcancado_e_recusa_mexer_nele()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    await LevarParaAMontagemAsync(c, c.B, c.Corte, 2m);
+    await LevarParaAMontagemAsync(c, c.C, c.Dobra, 1m);
     await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 1m }));
 
     var lido = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/estrutura/{c.A}/roteiro"));

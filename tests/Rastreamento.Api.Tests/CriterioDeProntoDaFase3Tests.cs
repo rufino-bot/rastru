@@ -7,9 +7,9 @@ namespace Rastreamento.Api.Tests;
 
 /// <summary>
 /// O critério de pronto da Fase 3 (`specs/06-roadmap-mvp.md` e spec secao 9.3), ponta a ponta: um Pedido
-/// Avulso A &lt;- B, C percorrido inteiro — iniciar, terminar, entregar, montar, entregar a Peca no local de
-/// expedicao —, com `GET /agrupamentos/{id}/posicoes` dizendo, a cada passo, onde esta cada peca e se
-/// ela aguarda coleta, e `GET /tarefas` dizendo o que o Movimentador tem a levar.
+/// Avulso A &lt;- B, C percorrido inteiro — iniciar, terminar, entregar, iniciar A consumindo B e C,
+/// entregar a Peca no local de expedicao —, com `GET /agrupamentos/{id}/posicoes` dizendo, a cada passo,
+/// onde esta cada peca e se ela aguarda coleta, e `GET /tarefas` dizendo o que o Movimentador tem a levar.
 /// </summary>
 public class CriterioDeProntoDaFase3Tests : IClassFixture<WebApplicationFactory<Program>>
 {
@@ -53,13 +53,13 @@ public class CriterioDeProntoDaFase3Tests : IClassFixture<WebApplicationFactory<
     await AfirmarPosicoesAsync(c, c.B, ("AguardandoMontagem", c.Solda, null, 20m));
     Assert.Empty(await TarefasAsync(c));
 
-    // A entra na Solda e e montada com os dois filhos.
+    // A entra na Solda consumindo os dois filhos (regra 24, Fase 3D: iniciar e o unico jeito).
     await Garantir(await operador.PostAsJsonAsync($"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 10m }));
-    await Garantir(await operador.PostAsJsonAsync($"/api/estrutura/{c.A}/montagens", new { setorId = c.Solda, quantidade = 10m }));
     await AfirmarPosicoesAsync(c, c.B, ("Montado", null, null, 20m));
     await AfirmarPosicoesAsync(c, c.C, ("Montado", null, null, 10m));
     Assert.Equal(10m, (await PosicoesAsync(c)).Single(p => p.GetProperty("estruturaItemId").GetInt32() == c.A)
         .GetProperty("totalMontado").GetDecimal());
+    await AfirmarPosicoesAsync(c, c.A, ("NoSetor", c.Solda, 1, 10m));
 
     // A termina a Solda, vai para a Pintura, termina, e vai ao local de expedicao.
     await Garantir(await operador.PostAsJsonAsync($"/api/estrutura/{c.A}/terminos", new { setorId = c.Solda, ordem = 1, quantidade = 10m }));

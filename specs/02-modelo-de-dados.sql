@@ -316,10 +316,11 @@ CREATE TABLE dbo.EstruturaRoteiro (
    EXECUÇÃO / RASTREAMENTO
    --------------------------------------------------------------------- */
 
--- Registro de "montei N" de um nó com filhos (regra 24). O total montado do nó é a soma de
--- Quantidade das montagens não estornadas. A baixa de CADA filho fica em dbo.Movimentacao
--- (Tipo = 'Montagem', MontagemId = esta linha), com N × QuantidadePorPai gravado: editar a
--- razão depois não reescreve o passado.
+-- O inicio de um no com filhos (regra 24; spec da Fase 3D, secao 2.1): iniciar N do pai consome
+-- N x QuantidadePorPai de cada filho direto presente no Setor. Esta linha registra o consumo; a
+-- baixa de CADA filho fica em dbo.Movimentacao (Tipo = 'Montagem', MontagemId = esta linha) e o
+-- Inicio do pai tambem a aponta. O total montado do no e a soma de Quantidade das montagens nao
+-- estornadas. Editar a razao depois nao reescreve o passado.
 CREATE TABLE dbo.Montagem (
     Id                     INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId        INT                 NOT NULL, -- o pai montado (nó com filhos)
@@ -395,10 +396,12 @@ CREATE TABLE dbo.Movimentacao (
                                   AND DestinoPosicao = 'AguardandoMontagem')
             OR (Tipo = 'Montagem' AND OrigemPosicao = 'AguardandoMontagem' AND DestinoPosicao = 'Montado')
             OR (Tipo = 'Estorno')),
+    -- MontagemId: obrigatorio na baixa de filho; opcional no Inicio (so o inicio de um pai, que
+    -- consumiu os filhos, aponta a Montagem — spec da Fase 3D, secao 3.3); livre no Estorno.
     CONSTRAINT CK_Movimentacao_MontagemSoNaBaixa
         CHECK ((Tipo = 'Montagem' AND MontagemId IS NOT NULL)
-            OR (Tipo = 'Estorno')
-            OR (Tipo NOT IN ('Montagem', 'Estorno') AND MontagemId IS NULL)),
+            OR (Tipo IN ('Inicio', 'Estorno'))
+            OR (Tipo NOT IN ('Montagem', 'Inicio', 'Estorno') AND MontagemId IS NULL)),
     CONSTRAINT CK_Movimentacao_EstornoApontaOriginal
         CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
             OR (Tipo <> 'Estorno' AND EstornoDeId IS NULL))
@@ -509,6 +512,8 @@ CREATE INDEX IX_Movimentacao_DestinoSetor ON dbo.Movimentacao (DestinoSetorId) W
 CREATE INDEX IX_Movimentacao_OrigemSetor ON dbo.Movimentacao (OrigemSetorId) WHERE OrigemSetorId IS NOT NULL;
 -- Um movimento se estorna uma vez só: JaEstornado garantido pelo banco, não só pela aplicação.
 CREATE UNIQUE INDEX UX_Movimentacao_EstornoDe ON dbo.Movimentacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
+CREATE UNIQUE INDEX UX_Movimentacao_UmInicioPorMontagem
+    ON dbo.Movimentacao (MontagemId) WHERE Tipo = 'Inicio' AND MontagemId IS NOT NULL;
 CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
 CREATE INDEX IX_Expedicao_EstruturaItem ON dbo.Expedicao (EstruturaItemId);
