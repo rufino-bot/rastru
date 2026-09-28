@@ -35,7 +35,7 @@ export const DESTINO_MONTAGEM = destino({
 
 export function fila(parcial: Partial<FilaDoSetorDto> = {}): FilaDoSetorDto {
   return {
-    setorId: 1, setorNome: 'Corte',
+    setorId: 1, setorNome: 'Corte', setorAtividade: null,
     aIniciar: [], emTrabalho: [], aguardandoColeta: [], aguardandoMontagem: [], sobra: [],
     ...parcial,
   }

@@ -48,9 +48,14 @@ reenvia e a sessão morre no primeiro refresh.
 
 ## Catálogo
 
-- `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*
-- `POST /setores` *(Administrador)* — `{ nome }`
-- `PUT /setores/{id}` *(Administrador)* — `{ nome }`
+- `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*. Cada item
+  ganha `atividade` (spec da Fase 3D, §2.3): substantivo que nomeia os botões da fila
+  ("montagem" → "Iniciar montagem"/"Terminar montagem"); `null` quando o Setor não tem uma.
+- `POST /setores` *(Administrador)* — `{ nome, atividade? }`. `atividade` é opcional: ausente ou
+  só espaços grava `null`; espaços são aparados, mas o texto não é forçado a minúscula (desvio D5
+  do plano da Fase 3D — siglas como "CNC" são legítimas). A resposta ganha `atividade`.
+- `PUT /setores/{id}` *(Administrador)* — `{ nome, atividade? }`; substituição inteira — sem
+  `atividade` no corpo, ela é limpa. A resposta ganha `atividade`.
 - `PATCH /setores/{id}/ativo` *(Administrador)* — `{ ativo }`; cobre inativar **e** reativar.
   Não existe `DELETE`: catálogo se inativa, não se exclui (ver a política de exclusão na spec da
   Fase 1).
@@ -337,7 +342,10 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 **Leitura**
 
 - `GET /setores/{id}/fila` — a iniciar aqui, em trabalho, aguardando coleta, aguardando montagem
-  (por pai, com "dá para montar N; falta X de Y") e sobra.
+  (por pai, com "dá para montar N; falta X de Y") e sobra. A resposta ganha `setorAtividade` (spec
+  da Fase 3D, §2.3): a `atividade` do Setor da fila, que a tela usa para nomear os botões "Iniciar
+  montagem"/"Terminar montagem" — `null` quando o Setor não tem uma, e os botões ficam só
+  "Iniciar"/"Terminar".
 - `GET /tarefas` — os Itens prontos, com destino calculado (e, quando é montagem, a sugestão e os
   Setores possíveis), agrupados pelo Setor de origem.
 - `GET /tarefas/contagem` — só o número, para o contador do menu.

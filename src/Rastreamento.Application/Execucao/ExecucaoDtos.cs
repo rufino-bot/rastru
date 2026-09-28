@@ -70,7 +70,7 @@ public sealed record MontagemPendenteDto(
 public sealed record LinhaDeSobraDto(NoResumoDto No, string Origem, int? Ordem, decimal Quantidade, bool EmMaisDeUmSetor);
 
 public sealed record FilaDoSetorDto(
-    int SetorId, string SetorNome,
+    int SetorId, string SetorNome, string? SetorAtividade,
     IReadOnlyList<LinhaDaFilaDto> AIniciar,
     IReadOnlyList<LinhaDaFilaDto> EmTrabalho,
     IReadOnlyList<LinhaAguardandoColetaDto> AguardandoColeta,

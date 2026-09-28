@@ -164,6 +164,15 @@ public class ConsultaDeExecucaoUseCaseTests
   }
 
   [Fact]
+  public async Task A_fila_traz_a_atividade_do_Setor_ou_nula()
+  {
+    var c = new CenarioDeExecucao();
+
+    Assert.Equal("solda", (await c.Consulta().Fila(Solda, Ct)).Valor!.SetorAtividade);
+    Assert.Null((await c.Consulta().Fila(Corte, Ct)).Valor!.SetorAtividade);
+  }
+
+  [Fact]
   public async Task Posicoes_trazem_os_saldos_e_o_total_montado_so_de_quem_tem_filhos()
   {
     var c = Kit();

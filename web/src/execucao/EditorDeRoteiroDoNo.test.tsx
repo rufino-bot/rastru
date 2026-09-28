@@ -9,7 +9,9 @@ import type { RoteiroDoNoDto } from '../api/execucao'
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 const SETORES = [
-  { id: 1, nome: 'Corte', ativo: true }, { id: 3, nome: 'Dobra', ativo: true }, { id: 4, nome: 'Solda', ativo: true },
+  { id: 1, nome: 'Corte', ativo: true, atividade: null },
+  { id: 3, nome: 'Dobra', ativo: true, atividade: null },
+  { id: 4, nome: 'Solda', ativo: true, atividade: null },
 ]
 
 /** Corte (alcançado) → Dobra → Solda, na ordem 1-2-3; chega FORA de ordem de propósito. */

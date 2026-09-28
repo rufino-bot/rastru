@@ -79,3 +79,13 @@ export function rotuloDoTipo(tipo: TipoDeMovimentacao): string {
     case 'Estorno': return 'Estorno'
   }
 }
+
+/**
+ * O rótulo de um botão da fila: "Iniciar montagem" quando o Setor tem atividade, "Iniciar" quando não
+ * tem (spec da Fase 3D, §2.3). O verbo vem fixo — início ou fim —, e a atividade só completa: um verbo
+ * por Setor ("Soldar") não diria se o botão começa ou termina.
+ */
+export function rotuloDaAcao(verbo: 'Iniciar' | 'Terminar', atividade: string | null): string {
+  const a = atividade?.trim()
+  return a ? `${verbo} ${a}` : verbo
+}

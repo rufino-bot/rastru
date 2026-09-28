@@ -15,6 +15,9 @@ CREATE TABLE dbo.Setor (
     Id              INT IDENTITY(1,1)   NOT NULL,
     Nome            NVARCHAR(100)       NOT NULL,
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Setor_Ativo DEFAULT (1),
+    -- Substantivo que nomeia os botões da fila: 'montagem' -> "Iniciar montagem" / "Terminar montagem".
+    -- NULL = "Iniciar" / "Terminar" (spec da Fase 3D, seção 2.3).
+    Atividade       NVARCHAR(40)        NULL,
     CONSTRAINT PK_Setor PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Setor_Nome UNIQUE (Nome)
 );

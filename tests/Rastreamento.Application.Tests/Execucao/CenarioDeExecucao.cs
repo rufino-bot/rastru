@@ -29,7 +29,7 @@ internal sealed class CenarioDeExecucao
     {
       new Setor { Id = Corte, Nome = "Corte", Ativo = true },
       new Setor { Id = Dobra, Nome = "Dobra", Ativo = true },
-      new Setor { Id = Solda, Nome = "Solda", Ativo = true },
+      new Setor { Id = Solda, Nome = "Solda", Ativo = true, Atividade = "solda" },
       new Setor { Id = Pintura, Nome = "Pintura", Ativo = true },
       new Setor { Id = Inativo, Nome = "Serra antiga", Ativo = false },
     };

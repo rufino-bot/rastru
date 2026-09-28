@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  listarSetores, criarSetor, definirAtivoSetor, ehConflito,
+  listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, obterPedido, formatarDataHora,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
@@ -44,7 +44,7 @@ describe('cadastros', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const resultado = await criarSetor('Solda')
+    const resultado = await criarSetor({ nome: 'Solda', atividade: null })
 
     expect(ehConflito(resultado)).toBe(true)
     expect(ehConflito(resultado) && resultado.existeInativo).toBe(true)
@@ -52,7 +52,7 @@ describe('cadastros', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/api/setores')
     expect(init.method).toBe('POST')
-    expect(init.body).toBe(JSON.stringify({ nome: 'Solda' }))
+    expect(init.body).toBe(JSON.stringify({ nome: 'Solda', atividade: null }))
   })
 
   // O ramo que decide NAO oferecer "Reativar o existente": o homonimo esta ativo, entao
@@ -65,10 +65,27 @@ describe('cadastros', () => {
       ),
     ))
 
-    const resultado = await criarSetor('Solda')
+    const resultado = await criarSetor({ nome: 'Solda', atividade: null })
 
     expect(ehConflito(resultado)).toBe(true)
     expect(ehConflito(resultado) && resultado.existeInativo).toBe(false)
+  })
+
+  // F4: funcao nova do modulo nasce com prova de URL/metodo/corpo (adendo F4 no fix pass da
+  // review de branch, item A2) — molde do teste de criarSetor acima.
+  it('editarSetor manda PUT na rota do id com nome e atividade', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: 3, nome: 'Solda', ativo: true, atividade: 'montagem' }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resultado = await editarSetor(3, { nome: 'Solda', atividade: 'montagem' })
+
+    expect(ehConflito(resultado)).toBe(false)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/setores/3')
+    expect(init.method).toBe('PUT')
+    expect(init.body).toBe(JSON.stringify({ nome: 'Solda', atividade: 'montagem' }))
   })
 
   // A tela chama isto em dois lugares (inativar e reativar) e e a unica chamada com PATCH.
@@ -115,7 +132,7 @@ describe('cadastros', () => {
   it('lanca quando a resposta e erro nao tratado', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
 
-    await expect(criarSetor('Solda')).rejects.toThrow()
+    await expect(criarSetor({ nome: 'Solda', atividade: null })).rejects.toThrow()
   })
 
   it('lista setores incluindo inativos quando pedido', async () => {
@@ -146,7 +163,7 @@ describe('cadastros', () => {
       new Response(JSON.stringify({ erro: 'AgrupamentoNaoVazio' }), { status: 409 }),
     ))
 
-    await expect(criarSetor('Solda')).rejects.toThrow()
+    await expect(criarSetor({ nome: 'Solda', atividade: null })).rejects.toThrow()
   })
 
   it('lista materiais ativos por padrao', async () => {
@@ -808,12 +825,12 @@ describe('cadastros', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ erro: 'x' }), { status: 500 }),
       ))
-      await expect(criarSetor('Solda')).rejects.toMatchObject({ name: 'ErroDeApi', status: 500 })
+      await expect(criarSetor({ nome: 'Solda', atividade: null })).rejects.toMatchObject({ name: 'ErroDeApi', status: 500 })
 
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
         new Response(JSON.stringify({ erro: 'x' }), { status: 502 }),
       ))
-      await expect(criarSetor('Solda')).rejects.toMatchObject({ name: 'ErroDeApi', status: 502 })
+      await expect(criarSetor({ nome: 'Solda', atividade: null })).rejects.toMatchObject({ name: 'ErroDeApi', status: 502 })
     })
   })
 })

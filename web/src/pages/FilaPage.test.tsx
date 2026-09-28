@@ -16,7 +16,10 @@ vi.mock('../auth/AuthContext', () => ({
   }),
 }))
 
-const SETORES = [{ id: 1, nome: 'Corte', ativo: true }, { id: 3, nome: 'Dobra', ativo: true }]
+const SETORES = [
+  { id: 1, nome: 'Corte', ativo: true, atividade: null },
+  { id: 3, nome: 'Dobra', ativo: true, atividade: null },
+]
 
 function renderizar(estado: unknown = null) {
   return render(

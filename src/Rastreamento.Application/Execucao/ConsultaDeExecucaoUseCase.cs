@@ -98,7 +98,7 @@ public sealed class ConsultaDeExecucaoUseCase
         .ToList();
 
     return Result<FilaDoSetorDto>.Ok(new FilaDoSetorDto(
-        setorId, setor.Nome, aIniciar, emTrabalho, coleta, montagem,
+        setorId, setor.Nome, setor.Atividade, aIniciar, emTrabalho, coleta, montagem,
         sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList()));
   }
 

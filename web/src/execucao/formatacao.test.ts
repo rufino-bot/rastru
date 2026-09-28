@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatarQuantidade, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
+  rotuloDaAcao,
 } from './formatacao'
 import type { DestinoDto, NoResumoDto } from '../api/execucao'
 
@@ -110,5 +111,17 @@ describe('rotuloDoTipo', () => {
   it('põe acento e chama a baixa de filho pelo que ela é', () => {
     expect((['Inicio', 'Termino', 'Entrega', 'Montagem', 'Estorno'] as const).map(rotuloDoTipo))
       .toEqual(['Início', 'Término', 'Entrega', 'Baixa de montagem', 'Estorno'])
+  })
+})
+
+describe('rotuloDaAcao', () => {
+  it('compõe o verbo com a atividade do Setor', () => {
+    expect(rotuloDaAcao('Iniciar', 'montagem')).toBe('Iniciar montagem')
+    expect(rotuloDaAcao('Terminar', 'solda')).toBe('Terminar solda')
+  })
+
+  it('sem atividade, fica só o verbo', () => {
+    expect(rotuloDaAcao('Iniciar', null)).toBe('Iniciar')
+    expect(rotuloDaAcao('Terminar', '   ')).toBe('Terminar')
   })
 })

@@ -32,7 +32,7 @@ public sealed record DefinirAtivoDto([Required] bool? Ativo);
 // Setor
 // ---------------------------------------------------------------------------
 
-public sealed record SetorDto(int Id, string Nome, bool Ativo);
+public sealed record SetorDto(int Id, string Nome, bool Ativo, string? Atividade);
 
 /// <remarks>
 /// `MaxLength` espelha o NVARCHAR(100) de `dbo.Setor.Nome`: nome longo demais vira 400 do proprio
@@ -42,8 +42,11 @@ public sealed record SetorDto(int Id, string Nome, bool Ativo);
 /// InvalidOperationException ("validation metadata ... that will be ignored") e a requisicao vira
 /// 500. Mesmo formato do `LoginBody` do AuthController. Nome so de espacos continua sendo regra do
 /// use case: o atributo nao enxerga isso.
+///
+/// `Atividade` e opcional: ausente ou so com espacos grava NULL. `MaxLength` espelha o NVARCHAR(40)
+/// de `dbo.Setor.Atividade`.
 /// </remarks>
-public sealed record NovoSetorDto([MaxLength(100)] string Nome);
+public sealed record NovoSetorDto([MaxLength(100)] string Nome, [MaxLength(40)] string? Atividade = null);
 
 // ---------------------------------------------------------------------------
 // Material

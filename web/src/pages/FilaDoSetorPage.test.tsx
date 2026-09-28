@@ -102,6 +102,21 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(emTrabalho).getByText('PED-2026-01 › AG-01')).toBeTruthy()
   })
 
+  it('os botões levam a atividade do Setor quando ele tem uma', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        setorAtividade: 'corte',
+        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }],
+        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2 }],
+      })),
+    }))
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar corte SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Terminar corte SUP-01 — Suporte' })).toBeTruthy()
+  })
+
   it('aguardando coleta mostra o destino calculado', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({

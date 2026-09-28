@@ -220,4 +220,29 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
+
+  [Fact]
+  public async Task Cadastrar_e_editar_com_atividade_e_ela_volta_na_lista()
+  {
+    var admin = ClienteComo("Administrador");
+    var nome = NomeUnico();
+    var criado = await admin.PostAsJsonAsync("/api/setores", new { nome, atividade = " montagem " });
+    var id = (await criado.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+    var editado = await admin.PutAsJsonAsync($"/api/setores/{id}", new { nome, atividade = "solda" });
+    var lista = await admin.GetFromJsonAsync<JsonElement>("/api/setores");
+
+    Assert.Equal(HttpStatusCode.Created, criado.StatusCode);
+    Assert.Equal(HttpStatusCode.OK, editado.StatusCode);
+    Assert.Equal("solda", lista.EnumerateArray().Single(s => s.GetProperty("id").GetInt32() == id)
+        .GetProperty("atividade").GetString());
+  }
+
+  [Fact]
+  public async Task Atividade_com_mais_de_40_caracteres_da_400()
+  {
+    var resposta = await ClienteComo("Administrador")
+        .PostAsJsonAsync("/api/setores", new { nome = NomeUnico(), atividade = new string('a', 41) });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+  }
 }

@@ -139,6 +139,8 @@ export interface LinhaDeSobra {
 export interface FilaDoSetorDto {
   setorId: number
   setorNome: string
+  /** Substantivo que completa os botões ("Iniciar montagem"); `null` = "Iniciar"/"Terminar". */
+  setorAtividade: string | null
   aIniciar: LinhaDaFila[]
   emTrabalho: LinhaDaFila[]
   /** Só a parte que é tarefa (desvio D8 do plano 2); a sobra está em `sobra`. */

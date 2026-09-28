@@ -5,6 +5,14 @@ export interface SetorDto {
   id: number
   nome: string
   ativo: boolean
+  /** Completa os botões da fila ("Iniciar montagem"); `null` = "Iniciar"/"Terminar". */
+  atividade: string | null
+}
+
+export interface NovoSetor {
+  nome: string
+  /** Opcional; em branco, o servidor grava nula. */
+  atividade: string | null
 }
 
 /** Corpo do 409 de duplicidade. `existeInativo` habilita o botão de reativar. */
@@ -42,11 +50,20 @@ export async function listarSetores(incluirInativos: boolean): Promise<SetorDto[
   return (await resp.json()) as SetorDto[]
 }
 
-export function criarSetor(nome: string): Promise<SetorDto | ConflitoDeCadastro> {
+export function criarSetor(s: NovoSetor): Promise<SetorDto | ConflitoDeCadastro> {
   return apiFetch('/setores', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome }),
+    body: JSON.stringify(s),
+  }).then(lerOuFalhar<SetorDto>)
+}
+
+/** `PUT` é substituição inteira: nome e atividade vão sempre juntos. */
+export function editarSetor(id: number, s: NovoSetor): Promise<SetorDto | ConflitoDeCadastro> {
+  return apiFetch(`/setores/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(s),
   }).then(lerOuFalhar<SetorDto>)
 }
 

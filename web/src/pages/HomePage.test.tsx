@@ -30,8 +30,8 @@ function apiCompleta() {
     '/api/pedidos': () => respostaJson(PEDIDOS),
     '/api/materiais': () => respostaJson([{ id: 1, codigo: 'M1', descricao: 'Aço', unidadeMedida: 'KG', ativo: true }]),
     '/api/setores': () => respostaJson([
-      { id: 1, nome: 'Corte', ativo: true },
-      { id: 2, nome: 'Solda', ativo: true },
+      { id: 1, nome: 'Corte', ativo: true, atividade: null },
+      { id: 2, nome: 'Solda', ativo: true, atividade: null },
     ]),
   })
 }

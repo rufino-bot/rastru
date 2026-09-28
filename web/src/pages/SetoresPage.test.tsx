@@ -18,7 +18,7 @@ vi.mock('../auth/AuthContext', () => ({
   }),
 }))
 
-const CORTE = { id: 1, nome: 'Corte', ativo: true }
+const CORTE = { id: 1, nome: 'Corte', ativo: true, atividade: null }
 
 describe('SetoresPage', () => {
   beforeEach(() => {
@@ -130,7 +130,7 @@ describe('SetoresPage', () => {
         chamadas += 1
         if (chamadas === 1) return respostaJson([])
         if (chamadas === 2) return new Promise<Response>((r) => { liberar = r })
-        return respostaJson([{ id: 2, nome: 'Solda', ativo: true }])
+        return respostaJson([{ id: 2, nome: 'Solda', ativo: true, atividade: null }])
       },
     }))
 
@@ -141,7 +141,7 @@ describe('SetoresPage', () => {
     const botao = await screen.findByText('Salvando…')
     expect((botao as HTMLButtonElement).disabled).toBe(true)
 
-    liberar(respostaJson({ id: 2, nome: 'Solda', ativo: true }, 201))
+    liberar(respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201))
 
     const botaoDepois = await screen.findByText('Adicionar')
     expect((botaoDepois as HTMLButtonElement).disabled).toBe(false)
@@ -158,7 +158,7 @@ describe('SetoresPage', () => {
         // 1ª chamada = GET inicial; 2ª = POST do cadastro; 3ª = GET da recarga que `salvar`
         // dispara no sucesso — as duas GETs precisam devolver ARRAY, senão `setores.map`
         // quebra no próximo render.
-        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true }, 201)
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
         return respostaJson([])
       },
     }))
@@ -182,5 +182,79 @@ describe('SetoresPage', () => {
     expect(await screen.findByText('Corte')).toBeTruthy()
     expect(screen.queryByLabelText('Nome do setor')).toBeNull()
     expect(screen.queryByText('Inativar')).toBeNull()
+    expect(screen.queryByText('Editar')).toBeNull()
+  })
+
+  it('cadastrar manda a atividade nula quando o campo fica vazio, e o texto quando preenchido', async () => {
+    let chamadas = 0
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => {
+        chamadas += 1
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
+        return respostaJson([])
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await screen.findByText('Adicionar')
+    const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
+    expect(corpo).toEqual({ nome: 'Solda', atividade: null })
+  })
+
+  it('"Editar" carrega nome e atividade no formulário, e "Salvar alterações" faz PUT e recarrega', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    let chamadasDeLista = 0
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => {
+        chamadasDeLista += 1
+        return respostaJson([SOLDA])
+      },
+      '/api/setores/3': () => respostaJson({ ...SOLDA, atividade: 'montagem' }, 200),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+
+    expect((screen.getByLabelText('Nome do setor') as HTMLInputElement).value).toBe('Solda')
+    expect((screen.getByLabelText('Atividade (opcional)') as HTMLInputElement).value).toBe('solda')
+
+    fireEvent.change(screen.getByLabelText('Atividade (opcional)'), { target: { value: 'montagem' } })
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await screen.findByText('Adicionar')
+    const chamadaPut = fetchMock.mock.calls.find((c) => String(c[0]).endsWith('/api/setores/3'))!
+    expect((chamadaPut[1] as RequestInit).method).toBe('PUT')
+    expect(JSON.parse((chamadaPut[1] as RequestInit).body as string)).toEqual({ nome: 'Solda', atividade: 'montagem' })
+    expect(chamadasDeLista).toBe(2)
+  })
+
+  it('"Cancelar" volta a "Adicionar" com o formulário vazio', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+    expect(screen.getByText('Salvar alterações')).toBeTruthy()
+
+    fireEvent.click(screen.getByText('Cancelar'))
+
+    expect(screen.getByText('Adicionar')).toBeTruthy()
+    expect((screen.getByLabelText('Nome do setor') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Atividade (opcional)') as HTMLInputElement).value).toBe('')
+  })
+
+  it('a lista mostra a atividade ao lado do nome', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => respostaJson([{ id: 3, nome: 'Solda', ativo: true, atividade: 'montagem' }]),
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+
+    expect(await screen.findByText('· montagem')).toBeTruthy()
   })
 })

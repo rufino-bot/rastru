@@ -6,7 +6,7 @@ import {
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
-import { caminhoDoNo, descreverDestino, formatarQuantidade, rotuloDoNo } from '../execucao/formatacao'
+import { caminhoDoNo, descreverDestino, formatarQuantidade, rotuloDaAcao, rotuloDoNo } from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { FormularioDeQuantidade } from '../execucao/FormularioDeQuantidade'
@@ -154,6 +154,8 @@ interface AcoesDaFila {
 function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFila }) {
   const { apontar, entregar: podeEntregar } = usePermissoesDaExecucao()
   const { aberta, erroDaAcao, abrir, fechar, registrar, setorId } = acoes
+  const rotuloDeIniciar = rotuloDaAcao('Iniciar', fila.setorAtividade)
+  const rotuloDeTerminar = rotuloDaAcao('Terminar', fila.setorAtividade)
 
   /** O painel de uma linha: a recusa do servidor, e o formulário embaixo dela. */
   function painel(chave: string, formulario: ReactNode) {
@@ -194,10 +196,10 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           {fila.aIniciar.map((l) => (
             <ItemComAcao
               key={`${l.no.id}-${l.ordem}`}
-              acao={apontar && botao(chaveDeIniciar(l.no.id, l.ordem), 'Iniciar', l.no)}
+              acao={apontar && botao(chaveDeIniciar(l.no.id, l.ordem), rotuloDeIniciar, l.no)}
               painel={painel(chaveDeIniciar(l.no.id, l.ordem), (
                 <FormularioDeQuantidade
-                  rotulo="Iniciar"
+                  rotulo={rotuloDeIniciar}
                   maximo={l.quantidade}
                   aoConfirmar={(q) => registrar(() => iniciar(l.no.id, { setorId, quantidade: q }))}
                   aoCancelar={fechar}
@@ -215,10 +217,10 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           {fila.emTrabalho.map((l) => (
             <ItemComAcao
               key={`${l.no.id}-${l.ordem}`}
-              acao={apontar && botao(chaveDeTerminar(l.no.id, l.ordem), 'Terminar', l.no)}
+              acao={apontar && botao(chaveDeTerminar(l.no.id, l.ordem), rotuloDeTerminar, l.no)}
               painel={painel(chaveDeTerminar(l.no.id, l.ordem), (
                 <FormularioDeQuantidade
-                  rotulo="Terminar"
+                  rotulo={rotuloDeTerminar}
                   maximo={l.quantidade}
                   aoConfirmar={(q) => registrar(() => terminar(l.no.id, { setorId, ordem: l.ordem, quantidade: q }))}
                   aoCancelar={fechar}
