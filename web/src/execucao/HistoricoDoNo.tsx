@@ -24,7 +24,9 @@ type Estornavel =
  * em ordem crescente; desenhá-las uma depois da outra deixava uma montagem das 09:33 abaixo de uma
  * entrega das 09:40. A comparação é pelo instante (`Date.parse`, que respeita o offset), não pelo
  * texto: duas strings ISO só se ordenam como texto com o mesmo offset e a mesma precisão de fração.
- * No empate, o Id maior primeiro — dentro de cada coleção ele cresce com a inclusão.
+ * No empate, o Id maior primeiro — dentro de cada coleção ele cresce com a inclusão. Entre uma
+ * movimentação e uma montagem no mesmo instante o desempate não diz nada sobre o tempo (as duas
+ * sequências de Id são independentes); só mantém a ordem determinística.
  */
 function doMaisRecente(livro: LivroDoNoDto): Estornavel[] {
   const registros: Estornavel[] = [

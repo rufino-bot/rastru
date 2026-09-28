@@ -104,6 +104,19 @@ describe('HistoricoDoNo', () => {
     expect(titulos).toEqual(['nº 47', 'Montagem nº 5', 'nº 42', 'nº 41'])
   })
 
+  it('no mesmo instante, o registro de Id maior vem primeiro', async () => {
+    // O backend manda cada coleção em Id crescente; sem o desempate, a ordenação estável manteria
+    // 41 antes de 50 e o registro mais novo ficaria embaixo.
+    const MESMO_INSTANTE = movimentacao({ id: 50, tipo: 'Termino' })
+    vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [INICIO, MESMO_INSTANTE], montagens: [] }]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
+    const titulos = within(lista).getAllByRole('listitem').map((li) => li.textContent?.match(/^nº \d+/)?.[0])
+    expect(titulos).toEqual(['nº 50', 'nº 41'])
+  })
+
   it('"Estornar" só aparece para quem pode, e só no que se estorna', async () => {
     vi.stubGlobal('fetch', montarFetch([{
       movimentacoes: [INICIO, TERMINO_DE_OUTRO, JA_ESTORNADO, ESTORNO, BAIXA], montagens: [],
