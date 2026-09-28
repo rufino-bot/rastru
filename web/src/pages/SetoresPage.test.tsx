@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SetoresPage } from './SetoresPage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -185,7 +185,7 @@ describe('SetoresPage', () => {
     expect(screen.queryByText('Editar')).toBeNull()
   })
 
-  it('cadastrar manda a atividade nula quando o campo fica vazio, e o texto quando preenchido', async () => {
+  it('cadastrar manda a atividade nula quando o campo fica vazio', async () => {
     let chamadas = 0
     const fetchMock = fetchPorRota({
       '/api/setores': () => {
@@ -203,6 +203,27 @@ describe('SetoresPage', () => {
     await screen.findByText('Adicionar')
     const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
     expect(corpo).toEqual({ nome: 'Solda', atividade: null })
+  })
+
+  it('cadastrar manda o texto da atividade quando o campo está preenchido', async () => {
+    let chamadas = 0
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => {
+        chamadas += 1
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: 'montagem' }, 201)
+        return respostaJson([])
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.change(screen.getByLabelText('Atividade (opcional)'), { target: { value: 'montagem' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await screen.findByText('Adicionar')
+    const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
+    expect(corpo).toEqual({ nome: 'Solda', atividade: 'montagem' })
   })
 
   it('"Editar" carrega nome e atividade no formulário, e "Salvar alterações" faz PUT e recarrega', async () => {
@@ -233,6 +254,27 @@ describe('SetoresPage', () => {
     expect(chamadasDeLista).toBe(2)
   })
 
+  it('conflito ao editar com homônimo inativo não oferece "Reativar o existente"', async () => {
+    // A oferta de reativar é ação de CRIAÇÃO (o `!editando &&` de `salvar`): editar para um nome
+    // que colide com outro Setor inativo não é o mesmo caso — o `existeInativo` do 409 aqui se
+    // refere ao homônimo, não ao próprio Setor em edição, então reativá-lo não resolveria nada.
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => respostaJson([SOLDA]),
+      '/api/setores/3': () => respostaJson(
+        { erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 9 }, 409,
+      ),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    expect(await screen.findByText('Já existe um setor com este nome.')).toBeTruthy()
+    expect(screen.queryByText('Reativar o existente')).toBeNull()
+  })
+
   it('"Cancelar" volta a "Adicionar" com o formulário vazio', async () => {
     const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA]) }))
@@ -248,13 +290,18 @@ describe('SetoresPage', () => {
     expect((screen.getByLabelText('Atividade (opcional)') as HTMLInputElement).value).toBe('')
   })
 
-  it('a lista mostra a atividade ao lado do nome', async () => {
+  it('a lista mostra a atividade ao lado do nome, e nada ao lado de quem não tem uma', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
-      '/api/setores': () => respostaJson([{ id: 3, nome: 'Solda', ativo: true, atividade: 'montagem' }]),
+      '/api/setores': () => respostaJson([
+        { id: 3, nome: 'Solda', ativo: true, atividade: 'montagem' },
+        { id: 4, nome: 'Corte', ativo: true, atividade: null },
+      ]),
     }))
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
 
     expect(await screen.findByText('· montagem')).toBeTruthy()
+    const linhaDoCorte = screen.getByText('Corte').closest('li')!
+    expect(within(linhaDoCorte).queryByText(/·/)).toBeNull()
   })
 })

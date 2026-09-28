@@ -71,8 +71,8 @@ describe('cadastros', () => {
     expect(ehConflito(resultado) && resultado.existeInativo).toBe(false)
   })
 
-  // F4: funcao nova do modulo nasce com prova de URL/metodo/corpo (adendo F4 no fix pass da
-  // review de branch, item A2) — molde do teste de criarSetor acima.
+  // Funcao nova do modulo nasce com prova de URL/metodo/corpo (adendo F4, convencoes da Fase 1A),
+  // no molde do teste 'devolve o conflito quando o nome ja existe inativo'.
   it('editarSetor manda PUT na rota do id com nome e atividade', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ id: 3, nome: 'Solda', ativo: true, atividade: 'montagem' }), { status: 200 }),

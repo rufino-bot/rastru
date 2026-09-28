@@ -117,6 +117,25 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(screen.getByRole('button', { name: 'Terminar corte SUP-01 — Suporte' })).toBeTruthy()
   })
 
+  it('o botão de confirmar do formulário também leva a atividade do Setor', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        setorAtividade: 'corte',
+        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }],
+        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2 }],
+      })),
+    }))
+
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar corte SUP-01 — Suporte' }))
+    expect(screen.getByRole('button', { name: 'Iniciar corte' })).toBeTruthy()
+    fireEvent.click(screen.getByText('Cancelar'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar corte SUP-01 — Suporte' }))
+    expect(screen.getByRole('button', { name: 'Terminar corte' })).toBeTruthy()
+  })
+
   it('aguardando coleta mostra o destino calculado', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
