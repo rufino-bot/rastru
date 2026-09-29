@@ -197,6 +197,16 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(sobra).queryByRole('button')).toBeNull()
   })
 
+  it('as seções vêm na ordem de quem opera: em trabalho, a iniciar, aguardando montagem, aguardando coleta e sobra', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
+
+    renderizar()
+
+    await screen.findByRole('list', { name: 'Em trabalho' })
+    const secoes = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    expect(secoes).toEqual(['Em trabalho', 'A iniciar aqui', 'Aguardando montagem', 'Aguardando coleta', 'Sobra'])
+  })
+
   it('seção sem nada não aparece', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })),

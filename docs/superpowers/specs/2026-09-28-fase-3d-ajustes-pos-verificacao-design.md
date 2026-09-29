@@ -371,11 +371,13 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
 
 | Seção | Conteúdo | Ação |
 |---|---|---|
-| A iniciar aqui | nós **sem filhos** com primeiro passo aqui e saldo `AIniciar`; no fim, o grupo **"Pausados"** | **Iniciar {atividade}**; nenhuma nos Pausados |
 | Em trabalho | como hoje | **Terminar {atividade}**; **Estornar** (seção 2.4) |
-| Aguardando coleta | como hoje | **Estornar** |
+| A iniciar aqui | nós **sem filhos** com primeiro passo aqui e saldo `AIniciar`; no fim, o grupo **"Pausados"** | **Iniciar {atividade}**; nenhuma nos Pausados |
 | Aguardando montagem | agrupado por pai: filhos presentes, "dá para iniciar N; falta X de Y" | **Iniciar {atividade}** do pai quando este Setor é o primeiro passo dele; senão, **Levar ao Setor P1** (Movimentador) |
+| Aguardando coleta | como hoje | **Estornar** |
 | Sobra | como hoje | **Estornar**, na sobra do último passo |
+
+**Emenda de 2026-09-29** (verificação no celular): as seções aparecem na ordem da tabela — o que o operador está fazendo primeiro, o que tem a fazer depois, o que espera coleta por último; "Sobra" fecha a tela. O grupo "Pausados" continua no fim de "A iniciar aqui".
 
 - `{atividade}` é a do Setor da fila; sem atividade, os botões são "Iniciar" e "Terminar". A mensagem de
   confirmação e o campo de quantidade usam o mesmo texto.

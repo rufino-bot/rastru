@@ -291,39 +291,6 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
 
   return (
     <>
-      {fila.aIniciar.length > 0 && (
-        <Secao titulo="A iniciar aqui">
-          {fila.aIniciar.filter((l) => l.no.pausa === null).map((l) => (
-            <ItemComAcao
-              key={`${l.no.id}-${l.ordem}`}
-              acao={apontar && botao(chaveDeIniciar(l.no.id, l.ordem), rotuloDeIniciar, l.no)}
-              painel={painel(chaveDeIniciar(l.no.id, l.ordem), (
-                <FormularioDeQuantidade
-                  rotulo={rotuloDeIniciar}
-                  maximo={l.quantidade}
-                  aoConfirmar={(q) => registrar(() => iniciar(l.no.id, { setorId, quantidade: q }))}
-                  aoCancelar={fechar}
-                />
-              ))}
-            >
-              <CabecalhoDoNo no={l.no} />
-              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem}`}</Detalhe>
-            </ItemComAcao>
-          ))}
-          {/* O servidor manda os pausados no fim; a tela os separa por conta própria. Sem `acao`: a
-              pausa recusa o Iniciar. O título é `aria-hidden` porque cada linha já diz "Pedido
-              pausado" e traz a pílula — um `<li>` de título seria lido como item da lista. */}
-          {fila.aIniciar.some((l) => l.no.pausa !== null) && (
-            <li className="pt-2 text-sm font-medium text-tinta-fraca" aria-hidden="true">Pausados</li>
-          )}
-          {fila.aIniciar.filter((l) => l.no.pausa !== null).map((l) => (
-            <ItemComAcao key={`${l.no.id}-${l.ordem}`}>
-              <CabecalhoDoNo no={l.no} />
-              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem} · Pedido pausado`}</Detalhe>
-            </ItemComAcao>
-          ))}
-        </Secao>
-      )}
       {fila.emTrabalho.length > 0 && (
         <Secao titulo="Em trabalho">
           {fila.emTrabalho.map((l) => {
@@ -355,17 +322,35 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           })}
         </Secao>
       )}
-      {fila.aguardandoColeta.length > 0 && (
-        <Secao titulo="Aguardando coleta">
-          {fila.aguardandoColeta.map((l) => (
+      {fila.aIniciar.length > 0 && (
+        <Secao titulo="A iniciar aqui">
+          {fila.aIniciar.filter((l) => l.no.pausa === null).map((l) => (
             <ItemComAcao
               key={`${l.no.id}-${l.ordem}`}
-              acao={botaoDeEstorno(chaveDeEstornar('coleta', l.no.id, l.ordem), l.estornaveis, l.no)}
-              painel={listaDeEstorno(chaveDeEstornar('coleta', l.no.id, l.ordem), l.estornaveis)}
+              acao={apontar && botao(chaveDeIniciar(l.no.id, l.ordem), rotuloDeIniciar, l.no)}
+              painel={painel(chaveDeIniciar(l.no.id, l.ordem), (
+                <FormularioDeQuantidade
+                  rotulo={rotuloDeIniciar}
+                  maximo={l.quantidade}
+                  aoConfirmar={(q) => registrar(() => iniciar(l.no.id, { setorId, quantidade: q }))}
+                  aoCancelar={fechar}
+                />
+              ))}
             >
               <CabecalhoDoNo no={l.no} />
-              <Detalhe>{`${formatarQuantidade(l.quantidade)} aguardando coleta · passo ${l.ordem}`}</Detalhe>
-              <Detalhe>{`Destino: ${descreverDestino(l.destino, l.no)}`}</Detalhe>
+              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem}`}</Detalhe>
+            </ItemComAcao>
+          ))}
+          {/* O servidor manda os pausados no fim; a tela os separa por conta própria. Sem `acao`: a
+              pausa recusa o Iniciar. O título é `aria-hidden` porque cada linha já diz "Pedido
+              pausado" e traz a pílula — um `<li>` de título seria lido como item da lista. */}
+          {fila.aIniciar.some((l) => l.no.pausa !== null) && (
+            <li className="pt-2 text-sm font-medium text-tinta-fraca" aria-hidden="true">Pausados</li>
+          )}
+          {fila.aIniciar.filter((l) => l.no.pausa !== null).map((l) => (
+            <ItemComAcao key={`${l.no.id}-${l.ordem}`}>
+              <CabecalhoDoNo no={l.no} />
+              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem} · Pedido pausado`}</Detalhe>
             </ItemComAcao>
           ))}
         </Secao>
@@ -414,6 +399,21 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
               </ItemComAcao>
             )
           })}
+        </Secao>
+      )}
+      {fila.aguardandoColeta.length > 0 && (
+        <Secao titulo="Aguardando coleta">
+          {fila.aguardandoColeta.map((l) => (
+            <ItemComAcao
+              key={`${l.no.id}-${l.ordem}`}
+              acao={botaoDeEstorno(chaveDeEstornar('coleta', l.no.id, l.ordem), l.estornaveis, l.no)}
+              painel={listaDeEstorno(chaveDeEstornar('coleta', l.no.id, l.ordem), l.estornaveis)}
+            >
+              <CabecalhoDoNo no={l.no} />
+              <Detalhe>{`${formatarQuantidade(l.quantidade)} aguardando coleta · passo ${l.ordem}`}</Detalhe>
+              <Detalhe>{`Destino: ${descreverDestino(l.destino, l.no)}`}</Detalhe>
+            </ItemComAcao>
+          ))}
         </Secao>
       )}
       {fila.sobra.length > 0 && (
