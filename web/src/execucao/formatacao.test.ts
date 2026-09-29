@@ -9,7 +9,7 @@ import { destino, DESTINO_MONTAGEM } from '../testes/execucao'
 const SUPORTE: NoResumoDto = {
   id: 7, descricao: 'Suporte', codigoDoComponente: 'SUP-01',
   pedidoId: 1, pedidoNumero: 'PED-2026-01', agrupamentoId: 3, agrupamentoCodigo: 'AG-01',
-  paiId: 2, paiDescricao: 'Chassi',
+  paiId: 2, paiDescricao: 'Chassi', pausa: null,
 }
 
 const DESTINO_VAZIO: DestinoDto = {

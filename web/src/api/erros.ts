@@ -62,6 +62,10 @@ export type CodigoDeErroDaExecucao =
   | 'JaEstornado'
   | 'PedidoFechado'
   | 'ConflitoDeConcorrencia'
+  | 'PedidoPausado'
+  | 'PedidoJaPausado'
+  | 'PedidoNaoPausado'
+  | 'MotivoLongoDemais'
 
 /**
  * A tradução de cada código (spec §8.3: "cada código tem tradução em `mensagemDeErro`"). Só entra
@@ -88,6 +92,10 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   JaEstornado: 'Este registro já foi estornado.',
   PedidoFechado: 'O pedido deste item está concluído ou cancelado.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
+  PedidoPausado: 'O pedido deste item está pausado: nada dele começa até alguém retomá-lo.',
+  PedidoJaPausado: 'Este pedido já está pausado.',
+  PedidoNaoPausado: 'Este pedido não está pausado.',
+  MotivoLongoDemais: 'O motivo passa de 200 caracteres.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {

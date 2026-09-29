@@ -14,11 +14,11 @@ afterEach(cleanup)
 // nenhum pedido do fixture tem esse status — se alguém acrescentar um, o teste do zero morre e
 // aponta para cá.
 const PEDIDOS = [
-  { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Aberto', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1 },
-  { id: 2, numero: 'PED-002', cliente: 'Beta', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-05T09:00:00-03:00', criadoPorUsuarioId: 1 },
-  { id: 3, numero: 'PED-003', cliente: 'Gama', tipo: 'Normal', status: 'Aberto', dataAbertura: '2026-08-01T09:00:00-03:00', criadoPorUsuarioId: 1 },
-  { id: 4, numero: 'PED-004', cliente: 'Delta', tipo: 'Normal', status: 'EmProducao', dataAbertura: '2026-08-03T09:00:00-03:00', criadoPorUsuarioId: 1 },
-  { id: 5, numero: 'PED-005', cliente: 'Epsilon', tipo: 'Normal', status: 'Cancelado', dataAbertura: '2026-07-20T09:00:00-03:00', criadoPorUsuarioId: 1 },
+  { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Aberto', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
+  { id: 2, numero: 'PED-002', cliente: 'Beta', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-05T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
+  { id: 3, numero: 'PED-003', cliente: 'Gama', tipo: 'Normal', status: 'Aberto', dataAbertura: '2026-08-01T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
+  { id: 4, numero: 'PED-004', cliente: 'Delta', tipo: 'Normal', status: 'EmProducao', dataAbertura: '2026-08-03T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
+  { id: 5, numero: 'PED-005', cliente: 'Epsilon', tipo: 'Normal', status: 'Cancelado', dataAbertura: '2026-07-20T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
 ]
 
 function apiCompleta() {
@@ -283,7 +283,7 @@ describe('HomePage', () => {
       id: i + 1, numero: `PED-${String(i + 1).padStart(3, '0')}`, cliente: 'Cliente',
       tipo: 'Normal', status: 'Aberto',
       // Dias 01 a 08: o mais antigo é PED-001 e o corte tem de deixar PED-006..008 de fora.
-      dataAbertura: `2026-08-0${i + 1}T09:00:00-03:00`, criadoPorUsuarioId: 1,
+      dataAbertura: `2026-08-0${i + 1}T09:00:00-03:00`, criadoPorUsuarioId: 1, pausa: null,
     }))
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
@@ -319,7 +319,7 @@ describe('HomePage', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
       '/api/pedidos': () => respostaJson([
-        { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1 },
+        { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
       ]),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),

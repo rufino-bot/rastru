@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
   iniciar, terminar, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
-  ehConflito, type Estornavel,
+  ehConflito, pausarPedido, retomarPedido, type Estornavel,
 } from './execucao'
 import { aoMudarOLivro } from './sinalDoLivro'
 import { inicializar, _resetParaTeste } from './client'
@@ -96,6 +96,44 @@ describe('execucao', () => {
     expect(url).toBe(caminho)
     expect(init.method).toBe('POST')
     expect(init.body).toBeUndefined()
+  })
+
+  it.each([
+    ['com motivo', 'urgente', { motivo: 'urgente' }],
+    ['sem motivo', null, { motivo: null }],
+  ])('pausarPedido %s faz POST /pedidos/{id}/pausas com o motivo no corpo', async (_nome, motivo, corpo) => {
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson({}, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await pausarPedido(7, motivo)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/pedidos/7/pausas')
+    expect(init.method).toBe('POST')
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
+    expect(JSON.parse(init.body as string)).toEqual(corpo)
+  })
+
+  it('retomarPedido faz POST /pedidos/{id}/retomada, sem corpo', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson({}))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await retomarPedido(7)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/pedidos/7/retomada')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeUndefined()
+  })
+
+  it('a recusa da pausa carrega o código e a frase do servidor', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      respostaJson({ erro: 'PedidoJaPausado', mensagem: 'O Pedido PED-9 já está pausado.' }, 409),
+    ))
+
+    const erro = await pausarPedido(9, null).catch((e: unknown) => e)
+
+    expect(erro).toMatchObject({ status: 409, codigo: 'PedidoJaPausado', detalhe: 'O Pedido PED-9 já está pausado.' })
   })
 
   it('contarTarefas devolve só o número', async () => {

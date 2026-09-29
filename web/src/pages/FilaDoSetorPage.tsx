@@ -22,6 +22,7 @@ import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Botao } from '../components/Botao'
 import { Confirmacao } from '../components/Confirmacao'
+import { Pilula } from '../components/Pilula'
 
 const ESCOLHER: EstadoDaEscolhaDeSetor = { escolher: true }
 
@@ -65,10 +66,11 @@ const chaveDeEstornar = (secao: string, noId: number, ordem: number | null) => `
 /** Toda ação que a fila de agora ainda oferece — a que sumiu não pode continuar aberta. */
 function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   const chaves = new Set<string>()
-  for (const l of fila.aIniciar) chaves.add(chaveDeIniciar(l.no.id, l.ordem))
+  // A pausa tira o Iniciar da linha (e do pai): a chave dele não existe mais, e o formulário aberto fecha.
+  for (const l of fila.aIniciar) if (l.no.pausa === null) chaves.add(chaveDeIniciar(l.no.id, l.ordem))
   for (const l of fila.emTrabalho) chaves.add(chaveDeTerminar(l.no.id, l.ordem))
   for (const g of fila.aguardandoMontagem) {
-    if (g.iniciaAqui && g.daParaMontar > 0) chaves.add(chaveDeIniciarPai(g.pai.id))
+    if (g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null) chaves.add(chaveDeIniciarPai(g.pai.id))
     if (!g.iniciaAqui && g.primeiroPassoDoPai !== null) {
       for (const f of g.filhos) if (f.presente > 0) chaves.add(chaveDeLevar(g.pai.id, f.no.id))
     }
@@ -291,7 +293,7 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
     <>
       {fila.aIniciar.length > 0 && (
         <Secao titulo="A iniciar aqui">
-          {fila.aIniciar.map((l) => (
+          {fila.aIniciar.filter((l) => l.no.pausa === null).map((l) => (
             <ItemComAcao
               key={`${l.no.id}-${l.ordem}`}
               acao={apontar && botao(chaveDeIniciar(l.no.id, l.ordem), rotuloDeIniciar, l.no)}
@@ -306,6 +308,18 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
             >
               <CabecalhoDoNo no={l.no} />
               <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem}`}</Detalhe>
+            </ItemComAcao>
+          ))}
+          {/* O servidor manda os pausados no fim; a tela os separa por conta própria. Sem `acao`: a
+              pausa recusa o Iniciar. O título é `aria-hidden` porque cada linha já diz "Pedido
+              pausado" e traz a pílula — um `<li>` de título seria lido como item da lista. */}
+          {fila.aIniciar.some((l) => l.no.pausa !== null) && (
+            <li className="pt-2 text-sm font-medium text-tinta-fraca" aria-hidden="true">Pausados</li>
+          )}
+          {fila.aIniciar.filter((l) => l.no.pausa !== null).map((l) => (
+            <ItemComAcao key={`${l.no.id}-${l.ordem}`}>
+              <CabecalhoDoNo no={l.no} />
+              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem} · Pedido pausado`}</Detalhe>
             </ItemComAcao>
           ))}
         </Secao>
@@ -366,7 +380,7 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
                 key={g.pai.id}
                 // O pai começa aqui consumindo os filhos (spec da Fase 3D, §2.1). "Dá para iniciar 0"
                 // não oferece o botão: o backend recusaria qualquer N.
-                acao={apontar && g.iniciaAqui && g.daParaMontar > 0
+                acao={apontar && g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null
                   && botao(chaveDeIniciarPai(g.pai.id), rotuloDeIniciar, g.pai)}
                 painel={
                   painel(chaveDeIniciarPai(g.pai.id), (
@@ -433,8 +447,12 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
 function CabecalhoDoNo({ no }: { no: NoResumoDto }) {
   return (
     <>
-      <span className="font-medium text-tinta">{rotuloDoNo(no)}</span>
+      <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
+        {rotuloDoNo(no)}
+        {no.pausa && <Pilula>Pausado</Pilula>}
+      </span>
       <span className="text-xs text-tinta-fraca">{caminhoDoNo(no)}</span>
+      {no.pausa?.motivo && <span className="text-xs text-tinta-fraca">{`Pausa: ${no.pausa.motivo}`}</span>}
     </>
   )
 }

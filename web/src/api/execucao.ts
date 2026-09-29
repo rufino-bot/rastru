@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
 import { avisarQueOLivroMudou } from './sinalDoLivro'
+import type { PausaResumoDto } from './cadastros'
 
 /**
  * Cliente da execução (Fase 3). Os tipos espelham a seção "Contrato JSON" do plano 2 da Fase 3
@@ -74,6 +75,8 @@ export interface NoResumoDto {
   agrupamentoCodigo: string
   paiId: number | null
   paiDescricao: string | null
+  /** A pausa aberta do Pedido do nó; `null` quando o Pedido não está pausado. */
+  pausa: PausaResumoDto | null
 }
 
 export interface SetorResumidoDto {
@@ -278,6 +281,30 @@ async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown
  */
 export function ehConflito(e: unknown): boolean {
   return e instanceof ErroDeApi && e.status === 409
+}
+
+export interface PausaDto {
+  id: number
+  pedidoId: number
+  pausadoEm: string
+  pausadoPorUsuarioId: number
+  pausadoPorNome: string
+  motivo: string | null
+  retomadoEm: string | null
+  retomadoPorUsuarioId: number | null
+  retomadoPorNome: string | null
+}
+
+/**
+ * Pausar e retomar passam pelo `enviar` da execução (mesmo `{ erro, mensagem }`); o aviso de que o
+ * livro mudou, que ele dá, só faz o contador de Tarefas recontar — inofensivo aqui.
+ */
+export function pausarPedido(pedidoId: number, motivo: string | null): Promise<PausaDto> {
+  return enviar(`/pedidos/${pedidoId}/pausas`, 'POST', { motivo }, 'pausar o pedido')
+}
+
+export function retomarPedido(pedidoId: number): Promise<PausaDto> {
+  return enviar(`/pedidos/${pedidoId}/retomada`, 'POST', undefined, 'retomar o pedido')
 }
 
 export function obterFila(setorId: number): Promise<FilaDoSetorDto> {

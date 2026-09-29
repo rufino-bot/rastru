@@ -118,6 +118,13 @@ export async function definirAtivoMaterial(id: number, ativo: boolean): Promise<
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao alterar o material (${resp.status}).`)
 }
 
+/** A pausa aberta de um Pedido (spec da Fase 3D, §2.5). `desde`: ISO 8601 com offset -03:00. */
+export interface PausaResumoDto {
+  desde: string
+  porUsuarioNome: string
+  motivo: string | null
+}
+
 export interface PedidoDto {
   id: number
   numero: string
@@ -127,6 +134,8 @@ export interface PedidoDto {
   /** ISO 8601 com offset -03:00 — a API ja converteu (HorarioDeBrasiliaJsonConverter). */
   dataAbertura: string
   criadoPorUsuarioId: number
+  /** `null` quando o Pedido não está pausado. */
+  pausa: PausaResumoDto | null
 }
 
 export interface NovoPedido {

@@ -103,6 +103,28 @@ describe('TarefasPage', () => {
       .getByText('Destino: Local de expedição')).toBeTruthy()
   })
 
+  it('item de Pedido pausado mostra a pilula "Pausado" e continua marcavel (a pausa recusa so o Iniciar)', async () => {
+    const pausa = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
+    vi.stubGlobal('fetch', montarFetch([[
+      { setorId: 1, setorNome: 'Corte', itens: [
+        { no: { ...SUPORTE, pausa }, ordem: 1, quantidade: 4, destino: destino() },
+        { no: PARAFUSO, ordem: 1, quantidade: 6, destino: destino() },
+      ] },
+    ]]).fetchMock)
+
+    renderizar()
+
+    const pausado = (await screen.findByText('SUP-01 — Suporte')).closest('li')!
+    expect(within(pausado).getByText('Pausado')).toBeTruthy()
+    expect(within(pausado).getByText('Pausado').className).not.toMatch(/negativo-|positivo-/)
+    const livre = screen.getByText('Parafuso').closest('li')!
+    expect(within(livre).queryByText('Pausado')).toBeNull()
+    const caixa = screen.getByRole('checkbox', { name: 'Levar SUP-01 — Suporte' }) as HTMLInputElement
+    expect(caixa.disabled).toBe(false)
+    fireEvent.click(caixa)
+    expect(caixa.checked).toBe(true)
+  })
+
   it('entrega vários itens numa requisição só, sem escolher Setor, e recarrega', async () => {
     const { fetchMock, getsDasTarefas } = montarFetch([TAREFAS, []])
     vi.stubGlobal('fetch', fetchMock)

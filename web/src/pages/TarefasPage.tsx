@@ -16,6 +16,7 @@ import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Botao } from '../components/Botao'
+import { Pilula } from '../components/Pilula'
 
 /** O que o Movimentador marcou para levar, por item. `quantidade` é o TEXTO do campo. */
 interface Escolha {
@@ -205,7 +206,10 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
               )}
               painel={escolha && <EscolhaDoItem item={item} escolha={escolha} aoMudar={(p) => aoMudar(chave, p)} />}
             >
-              <span className="font-medium text-tinta">{rotuloDoNo(item.no)}</span>
+              <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
+                {rotuloDoNo(item.no)}
+                {item.no.pausa && <Pilula>Pausado</Pilula>}
+              </span>
               <span className="text-xs text-tinta-fraca">{caminhoDoNo(item.no)}</span>
               <span className="text-sm text-tinta">{`${formatarQuantidade(item.quantidade)} pronto(s) · passo ${item.ordem}`}</span>
               <span className="text-sm text-tinta">{`Destino: ${descreverDestino(item.destino, item.no)}`}</span>

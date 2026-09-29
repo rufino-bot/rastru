@@ -34,7 +34,7 @@ const PEDIDO = {
   tipo: 'Normal',
   status: 'Aberto',
   dataAbertura: '2026-08-06T09:30:00-03:00',
-  criadoPorUsuarioId: 1,
+  criadoPorUsuarioId: 1, pausa: null,
 }
 
 describe('PedidosPage', () => {

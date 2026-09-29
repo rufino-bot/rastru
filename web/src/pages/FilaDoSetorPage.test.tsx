@@ -894,3 +894,172 @@ describe('FilaDoSetorPage — estorno rápido', () => {
     expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/estorno'))).toBe(false)
   })
 })
+
+describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
+  beforeEach(() => {
+    perfil = 'Administrador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
+  const BASE_PAUSADA = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null, pausa: PAUSA })
+  const CHASSI_PAUSADO = no({ ...CHASSI, pausa: PAUSA })
+
+  // O pausado vem PRIMEIRO no array de propósito: quem separa os grupos é a tela, e não a ordem em
+  // que o servidor os manda.
+  const A_INICIAR_MISTA = fila({
+    aIniciar: [
+      { no: BASE_PAUSADA, ordem: 1, quantidade: 3, estornaveis: [] },
+      { no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] },
+    ],
+  })
+
+  it('o pausado vai depois do titulo "Pausados", com a pilula e o motivo, e sem Iniciar', async () => {
+    vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'A iniciar aqui' })
+    const itens = Array.from(lista.children).map((li) => li.textContent ?? '')
+    expect(itens).toHaveLength(3)
+    expect(itens[0]).toContain('SUP-01 — Suporte')
+    expect(itens[1]).toBe('Pausados')
+    expect(itens[2]).toContain('BA-01 — Base')
+    expect(itens[2]).toContain('Pausado')
+    expect(itens[2]).toContain('Pausa: PED-9 urgente')
+    expect(itens[2]).toContain('3 a iniciar · passo 1 · Pedido pausado')
+    expect(screen.queryByRole('button', { name: 'Iniciar BA-01 — Base' })).toBeNull()
+  })
+
+  it('o liberado da mesma seção continua com Iniciar, e sem pilula', async () => {
+    vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
+    const liberado = screen.getByText('SUP-01 — Suporte').closest('li')!
+    expect(within(liberado).queryByText('Pausado')).toBeNull()
+  })
+
+  it('sem nenhum pausado, o titulo "Pausados" nao aparece', async () => {
+    vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR]).fetchMock)
+
+    renderizar()
+
+    await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' })
+    expect(screen.queryByText('Pausados')).toBeNull()
+  })
+
+  it('a pilula "Pausado" e neutra', async () => {
+    vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
+
+    renderizar()
+
+    const classes = (await screen.findByText('Pausado')).className
+    expect(classes).not.toMatch(/negativo-|positivo-/)
+  })
+
+  it('o pai de Pedido pausado no card de montagem nao tem Iniciar, mas o card e os filhos continuam', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
+        filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+
+    const secao = await screen.findByRole('list', { name: 'Aguardando montagem' })
+    expect(within(secao).getByText('Pausado')).toBeTruthy()
+    expect(within(secao).getByText('Pausa: PED-9 urgente')).toBeTruthy()
+    expect(within(secao).getByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeNull()
+  })
+
+  it('o mesmo card com o Pedido livre oferece o Iniciar do pai', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeTruthy()
+  })
+
+  it('fora do primeiro passo, o filho de pai pausado continua levavel (a pausa recusa so o Iniciar)', async () => {
+    perfil = 'Movimentador'
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+        filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('a linha em trabalho de Pedido pausado continua com Terminar, e leva a pilula', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: BASE_PAUSADA, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Terminar BA-01 — Base' })).toBeTruthy()
+    const linha = screen.getByText('BA-01 — Base').closest('li')!
+    expect(within(linha).getByText('Pausado')).toBeTruthy()
+    expect(within(linha).getByText('Pausa: PED-9 urgente')).toBeTruthy()
+  })
+
+  it('pausa sem motivo mostra a pilula e nenhuma linha "Pausa:"', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: no({ pausa: { ...PAUSA, motivo: null } }), ordem: 1, quantidade: 2, estornaveis: [] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Pausado')).toBeTruthy()
+    expect(screen.queryByText(/^Pausa:/)).toBeNull()
+  })
+
+  it('o Pedido pausado enquanto o formulario de Iniciar esta aberto: a atualizacao fecha o formulario com aviso', async () => {
+    vi.useFakeTimers()
+    const pausado = fila({ aIniciar: [{ no: no({ pausa: PAUSA }), ordem: 1, quantidade: 10, estornaveis: [] }] })
+    vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR, pausado]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByText('Pausado')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent)
+      .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
+  })
+
+  it('a pausa do pai fecha o formulario de Iniciar do card de montagem', async () => {
+    vi.useFakeTimers()
+    const livre = fila({
+      aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+    })
+    const pausada = fila({
+      aguardandoMontagem: [{ pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+    })
+    vi.stubGlobal('fetch', montarFetch([livre, pausada]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar CH-01 — Chassi' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByRole('alert').textContent)
+      .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
+  })
+})

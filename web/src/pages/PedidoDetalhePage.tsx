@@ -15,6 +15,7 @@ import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
+import { ControleDePausa } from '../pedidos/ControleDePausa'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
 
@@ -110,8 +111,10 @@ export function PedidoDetalhePage() {
           <p className="flex flex-wrap items-center gap-2 text-sm text-tinta-fraca">
             <Pilula>{pedido.tipo}</Pilula>
             <Pilula>{pedido.status}</Pilula>
+            {pedido.pausa && <Pilula>Pausado</Pilula>}
             aberto em {formatarDataHora(pedido.dataAbertura)}
           </p>
+          <ControleDePausa pedido={pedido} aoMudar={() => carregar(pedidoId)} />
         </div>
       )}
 

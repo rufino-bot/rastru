@@ -38,6 +38,7 @@ export function LinhaDePedido({ pedido }: { pedido: PedidoDto }) {
       </span>
       <span className="flex items-center gap-2 text-sm text-tinta-fraca">
         <Pilula tom={tomDoStatus(pedido.status)}>{pedido.status}</Pilula>
+        {pedido.pausa && <Pilula>Pausado</Pilula>}
         aberto em {formatarDataHora(pedido.dataAbertura)}
       </span>
     </Link>

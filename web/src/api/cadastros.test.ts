@@ -294,7 +294,7 @@ describe('cadastros', () => {
       new Response(
         JSON.stringify([{
           id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
         }]),
         { status: 200 },
       ),
@@ -328,7 +328,7 @@ describe('cadastros', () => {
     const vinteECinco = Array.from({ length: 25 }, (_, i) => ({
       id: i + 1, numero: `PED-${String(i + 1).padStart(3, '0')}`, cliente: 'Cliente X',
       tipo: 'Fabricacao', status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00',
-      criadoPorUsuarioId: 1,
+      criadoPorUsuarioId: 1, pausa: null,
     }))
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify(vinteECinco), { status: 200 }),
@@ -378,7 +378,7 @@ describe('cadastros', () => {
       new Response(
         JSON.stringify({
           id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
         }),
         { status: 201 },
       ),
@@ -410,7 +410,7 @@ describe('cadastros', () => {
       new Response(
         JSON.stringify({
           id: 9, numero: 'PED-009', cliente: 'Cliente Y', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
         }),
         { status: 200 },
       ),
