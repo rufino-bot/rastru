@@ -319,12 +319,12 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 
 - `POST /estrutura/{id}/inicios` *(Operador)* — primeira entrada (regra 28). Body:
   `{ setorId, quantidade }`. Exige Roteiro, o primeiro passo em `setorId` e saldo a iniciar; põe o
-  Pedido em `EmProducao` se ele estava `Aberto`.
+  Pedido em `EmProducao` se ele estava `Aberto`. **Aceita nó com filhos** (spec da Fase 3D, §2.1):
+  iniciar N do pai consome `N × QuantidadePorPai` de cada filho direto que aguarda montagem naquele
+  Setor (regra 24), e exige que eles estejam lá (`FilhosInsuficientes`). A resposta é o movimento de
+  Início, com `montagemId` preenchido quando houve consumo.
 - `POST /estrutura/{id}/terminos` *(Operador)* — terminar. Body: `{ setorId, ordem, quantidade }`; a
   quantidade passa a aguardar coleta no mesmo Setor e passo.
-- `POST /estrutura/{id}/montagens` *(Operador)* — "montei N" (regra 24). Body:
-  `{ setorId, quantidade }`. Baixa `N × QuantidadePorPai` de cada filho direto que aguarda montagem
-  naquele Setor.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
   `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, destinoSetorId?, quantidade }] }`.
   O destino é calculado (próximo passo, ou local de expedição para Peça no fim do Roteiro), exceto
@@ -332,8 +332,10 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   (regra 29) — inclusive para redirecionar o que aguarda montagem no Setor errado.
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
-  enquanto a quantidade não tiver andado. Só o autor, ou PCP ou Administrador (403 para os demais,
-  decidido no caso de uso). As duas rotas declaram os mesmos perfis no `[Authorize]` — Operador,
+  enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que
+  ela gravou (Fase 3D), desde que o pai ainda esteja onde o início o pôs; o Início de um pai que
+  consumiu filhos não se estorna por `/movimentacoes/{id}/estorno` (`EstornoImpossivel`). Só o
+  autor, ou PCP ou Administrador (403 para os demais, decidido no caso de uso). As duas rotas declaram os mesmos perfis no `[Authorize]` — Operador,
   Movimentador e PCP —, porque vivem no mesmo controller; na de montagem, o Movimentador, que nunca é
   autor de uma, recebe o 403 do caso de uso.
 - `PUT /estrutura/{id}/roteiro` *(PCP)* — troca os passos do Roteiro do nó. Body:
@@ -342,10 +344,12 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 **Leitura**
 
 - `GET /setores/{id}/fila` — a iniciar aqui, em trabalho, aguardando coleta, aguardando montagem
-  (por pai, com "dá para montar N; falta X de Y") e sobra. A resposta ganha `setorAtividade` (spec
-  da Fase 3D, §2.3): a `atividade` do Setor da fila, que a tela usa para nomear os botões "Iniciar
-  montagem"/"Terminar montagem" — `null` quando o Setor não tem uma, e os botões ficam só
-  "Iniciar"/"Terminar".
+  (por pai, com "dá para montar N; falta X de Y") e sobra. "A iniciar aqui" **não lista nó com
+  filhos** (Fase 3D): o pai tem um lugar só, o grupo de montagem, que ganha `iniciaAqui` (este Setor
+  é o primeiro passo do pai) e `primeiroPassoDoPai` (`{ id, nome }`, `null` se o pai não tem
+  Roteiro). A resposta ganha `setorAtividade` (spec da Fase 3D, §2.3): a `atividade` do Setor da
+  fila, que a tela usa para nomear os botões "Iniciar montagem"/"Terminar montagem" — `null` quando
+  o Setor não tem uma, e os botões ficam só "Iniciar"/"Terminar".
 - `GET /tarefas` — os Itens prontos, com destino calculado (e, quando é montagem, a sugestão e os
   Setores possíveis), agrupados pelo Setor de origem.
 - `GET /tarefas/contagem` — só o número, para o contador do menu.
@@ -377,14 +381,12 @@ Setor e números quando ajudam.
 | 409 | `SemRoteiro` | iniciar nó sem Roteiro |
 | 409 | `NaoEhOPrimeiroPasso` | iniciar num Setor que não é o do primeiro passo |
 | 409 | `SaldoInsuficiente` | a origem não tem a quantidade |
-| 409 | `SemFilhos` | montar nó sem filhos |
-| 409 | `MontagemAcimaDoQueFalta` | montar mais do que falta montar do nó |
 | 409 | `FilhosInsuficientes` | algum filho não tem, no Setor, o que N unidades pedem; a `mensagem` nomeia o filho |
 | 409 | `DestinoForaDoRoteiroDoPai` | Setor de montagem fora do Roteiro do pai |
 | 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |
-| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem estornada sozinha |
+| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem, ou Início de pai que consumiu filhos, estornados sozinhos; estorno de montagem cujo pai já andou |
 | 409 | `JaEstornado` | o registro já foi estornado |
 | 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado` |
 | 409 | `ConflitoDeConcorrencia` | outra pessoa registrou no mesmo item ao mesmo tempo |

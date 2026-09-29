@@ -91,7 +91,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   /// obrigada a cobrir especificamente o 403 do caso de uso). Prova o MAPEAMENTO do controller, nao
   /// o fluxo de negocio inteiro (isso e da Task 11): a `Montagem` nasce por insercao direta no banco
   /// — `EstornoUseCase.EstornarMontagem` so precisa achar uma `Montagem` real e comparar autoria
-  /// ANTES de qualquer escrita, entao nao ha necessidade de passar por Inicio/Termino/Entrega/Montar
+  /// ANTES de qualquer escrita, entao nao ha necessidade de passar por Inicio/Termino/Entrega
   /// para chegar la. Autor e requerente sao `UsuarioDeTeste` de perfil real (spec secao 9.3: cada
   /// teste cria o proprio usuario por perfil, sem depender do seed) — o autor precisa ser um usuario
   /// REAL por causa da FK de `Montagem.UsuarioId`, e usar o mesmo tipo para o requerente evita a
