@@ -130,7 +130,8 @@ public sealed class CadastroDePedidoUseCase
     var materiais = new List<int>();
     foreach (var pedaco in SepararPedacos(material))
     {
-      // NumberStyles.None: so digitos. "-3", "1.5" e " 5" nao passam, e "0" cai no `<= 0`.
+      // NumberStyles.None: so digitos. "-3" e "1.5" nao passam, e "0" cai no `<= 0`. Espaco nas
+      // pontas nem chega aqui: `SepararPedacos` apara cada pedaco, entao " 5" vale como "5".
       if (!int.TryParse(pedaco, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
         return Result<PaginaDto<PedidoDto>>.Falha(ErroDeMaterialInvalido, TipoDeErro.Validacao);
       if (!materiais.Contains(id)) materiais.Add(id);

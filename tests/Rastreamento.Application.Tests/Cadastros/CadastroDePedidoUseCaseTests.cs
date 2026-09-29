@@ -238,6 +238,18 @@ public class CadastroDePedidoUseCaseTests
   }
 
   [Fact]
+  public async Task Listar_aceita_espaco_nas_pontas_de_cada_id_de_material()
+  {
+    var repo = new FakePedidoRepo();
+    var useCase = new CadastroDePedidoUseCase(repo);
+
+    var resultado = await useCase.Listar(null, null, " 5 , 3", 1, 20, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal([5, 3], repo.UltimoFiltro!.Materiais);
+  }
+
+  [Fact]
   public async Task Listar_traz_a_pausa_aberta_do_Pedido_pausado_e_nulo_nos_demais()
   {
     var repo = new FakePedidoRepo(
