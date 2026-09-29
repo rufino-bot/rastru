@@ -27,3 +27,21 @@ export function tomDoStatus(status: string): TomDePilula {
   if (status === 'Cancelado') return 'negativo'
   return 'neutro'
 }
+
+// `Map` e não objeto literal: um status como "constructor" não pode achar propriedade herdada.
+const ROTULOS_DO_STATUS = new Map<string, string>([
+  ['Aberto', 'Aberto'],
+  ['EmProducao', 'Em produção'],
+  ['AguardandoExpedicao', 'Aguardando expedição'],
+  ['Concluido', 'Concluído'],
+  ['Cancelado', 'Cancelado'],
+])
+
+/**
+ * O status como o usuário lê. O valor gravado (`EmProducao`) é identificador do domínio e do
+ * `CK_Pedido_Status`; a tela mostra a forma em português. Valor que o domínio não tem volta como
+ * veio, em vez de sumir ou virar texto vazio.
+ */
+export function rotuloDoStatus(status: string): string {
+  return ROTULOS_DO_STATUS.get(status) ?? status
+}

@@ -154,10 +154,63 @@ export function formatarDataHora(isoComOffset: string): string {
   return `${dia}/${mes}/${ano} ${hora.slice(0, 5)}`
 }
 
-export async function listarPedidos(): Promise<PedidoDto[]> {
-  const resp = await apiFetch('/pedidos')
+export interface FiltroDePedidos {
+  busca: string
+  /** Status marcados; vazio não manda o parâmetro. Só valores que o servidor aceita (400 senão). */
+  status: string[]
+  /** Ids de Material marcados (do nó, não do catálogo); vazio não manda o parâmetro. */
+  material: string[]
+  pagina: number
+  tamanho: number
+}
+
+/** Materiais que aparecem em algum nó de Pedido — as opções da faceta Material da tela de Pedidos. */
+export interface MaterialResumoDto {
+  id: number
+  codigo: string
+  descricao: string
+}
+
+export interface ContagemDeStatusDto {
+  status: string
+  quantidade: number
+}
+
+/**
+ * O que a Home mostra dos Pedidos, contado no servidor sobre TODOS eles: `porStatus` traz sempre os
+ * cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive; `maisAntigosAbertos` são até cinco
+ * Pedidos fora de `Concluido`/`Cancelado`, do mais antigo ao mais novo.
+ */
+export interface ResumoDePedidosDto {
+  porStatus: ContagemDeStatusDto[]
+  maisAntigosAbertos: PedidoDto[]
+}
+
+/**
+ * Como `listarComponentes`, a montagem da URL mora aqui para ser provável em teste. `status` e
+ * `material` só entram quando há algo marcado, e vão como lista separada por vírgula.
+ */
+export async function listarPedidos(f: FiltroDePedidos): Promise<PaginaDe<PedidoDto>> {
+  const params = new URLSearchParams({ busca: f.busca })
+  if (f.status.length > 0) params.set('status', f.status.join(','))
+  if (f.material.length > 0) params.set('material', f.material.join(','))
+  params.set('pagina', String(f.pagina))
+  params.set('tamanho', String(f.tamanho))
+  const resp = await apiFetch(`/pedidos?${params}`)
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar pedidos (${resp.status}).`)
-  return (await resp.json()) as PedidoDto[]
+  return (await resp.json()) as PaginaDe<PedidoDto>
+}
+
+export async function obterResumoDePedidos(): Promise<ResumoDePedidosDto> {
+  const resp = await apiFetch('/pedidos/resumo')
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o resumo de pedidos (${resp.status}).`)
+  return (await resp.json()) as ResumoDePedidosDto
+}
+
+export async function listarMateriaisDosPedidos(): Promise<MaterialResumoDto[]> {
+  const resp = await apiFetch('/pedidos/materiais')
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar os materiais dos pedidos (${resp.status}).`)
+  return (await resp.json()) as MaterialResumoDto[]
 }
 
 export async function obterPedido(id: number): Promise<PedidoDto> {

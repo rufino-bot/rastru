@@ -42,7 +42,7 @@ describe('LinhaDePedido', () => {
     // então achar a palavra "Concluido" na tela não prova tom nenhum. É a mesma forma que
     // `PedidosPage.test.tsx` já usa.
     renderizar({ ...PEDIDO, status: 'Concluido' })
-    expect(screen.getByText('Concluido').className).toMatch(/positivo-/)
+    expect(screen.getByText('Concluído').className).toMatch(/positivo-/)
     cleanup()
 
     renderizar({ ...PEDIDO, status: 'Cancelado' })
@@ -50,7 +50,7 @@ describe('LinhaDePedido', () => {
     cleanup()
 
     renderizar({ ...PEDIDO, status: 'EmProducao' })
-    const neutra = screen.getByText('EmProducao').className
+    const neutra = screen.getByText('Em produção').className
     // Neutro afirmado token a token: o âmbar (`atencao-`) também é cor de estado, e "nem verde nem
     // vermelho" não o vê.
     const classesNeutras = neutra.split(/\s+/)
@@ -58,6 +58,13 @@ describe('LinhaDePedido', () => {
     expect(classesNeutras).toContain('text-acao')
     expect(neutra).not.toMatch(/positivo-/)
     expect(neutra).not.toMatch(/negativo-/)
+  })
+
+  it('a pilula do status mostra o rotulo em portugues, e nao o nome do valor', () => {
+    renderizar({ ...PEDIDO, status: 'EmProducao' })
+
+    expect(screen.getByText('Em produção')).toBeTruthy()
+    expect(screen.queryByText('EmProducao')).toBeNull()
   })
 
   it('mostra a pilula "Pausado" so quando o Pedido tem pausa aberta, e so ela', () => {

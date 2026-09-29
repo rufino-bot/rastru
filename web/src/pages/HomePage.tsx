@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  listarComponentes, listarMateriais, listarSetores, listarPedidos,
-  type PedidoDto,
+  listarComponentes, listarMateriais, listarSetores, obterResumoDePedidos,
+  type ResumoDePedidosDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
-import { STATUS_DO_PEDIDO, ENCERRADOS } from '../pedidos/statusDoPedido'
+import { ENCERRADOS, rotuloDoStatus } from '../pedidos/statusDoPedido'
 import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { Pagina } from '../components/Pagina'
 import { Pilula } from '../components/Pilula'
@@ -14,12 +14,9 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { EstadoVazio } from '../components/EstadoVazio'
 
-/** Quantos pedidos a seção "há mais tempo" mostra. Cinco, pela spec §3.2. */
-const QUANTOS_MAIS_ANTIGOS = 5
-
-// `pedidosAbertos` saiu daqui na 1E: o array de pedidos vive em estado próprio (a Home deriva
-// TRÊS coisas dele agora), e guardar a contagem em paralelo criaria duas verdades sobre o mesmo
-// dado, que podem divergir.
+// Sem `pedidosAbertos` aqui: o resumo de pedidos vive em estado próprio (a Home deriva TRÊS coisas
+// dele), e guardar a contagem em paralelo criaria duas verdades sobre o mesmo dado, que podem
+// divergir.
 interface Contagens {
   componentes: number
   materiais: number
@@ -47,7 +44,7 @@ function CartaoDeContagem({ titulo, valor, para, resumo }: {
 }
 
 export function HomePage() {
-  const [pedidos, setPedidos] = useState<PedidoDto[] | null>(null)
+  const [resumo, setResumo] = useState<ResumoDePedidosDto | null>(null)
   const [contagens, setContagens] = useState<Contagens | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -57,27 +54,28 @@ export function HomePage() {
     setErro(null)
     try {
       // `tamanho: 1` no de componentes: só o `total` interessa, e assim nenhum item trafega. As
-      // outras três listagens ainda não são paginadas no backend (dívida rastreada da 1B: o
-      // `PaginaDto<T>` não foi migrado para Setor/Material) — quando forem, este cartão vira o
-      // molde das outras.
-      const [paginaDeComponentes, pedidos, materiais, setores] = await Promise.all([
+      // listagens de materiais e setores ainda não são paginadas no backend (dívida rastreada da
+      // 1B: o `PaginaDto<T>` não foi migrado para Setor/Material) — quando forem, este cartão vira
+      // o molde delas. Pedidos vêm pelo resumo, contado no servidor sobre todos eles: uma lista
+      // paginada de Pedidos daria "contagem da primeira página".
+      const [paginaDeComponentes, resumoDePedidos, materiais, setores] = await Promise.all([
         listarComponentes({ busca: '', incluirInativos: false, pagina: 1, tamanho: 1 }),
-        listarPedidos(),
+        obterResumoDePedidos(),
         listarMateriais(false),
         listarSetores(false),
       ])
-      setPedidos(pedidos)
+      setResumo(resumoDePedidos)
       setContagens({
         componentes: paginaDeComponentes.total,
         materiais: materiais.length,
         setores: setores.length,
       })
     } catch (e) {
-      // Sem isto, uma falha numa releitura futura deixaria a seção "há mais tempo" (Task 5)
-      // mostrando dado velho ao lado do banner de erro — o que a spec §3.4 proíbe. Hoje `carregar`
-      // roda uma vez só e não há caminho que exercite isto; está aqui porque a alternativa é
-      // depender de a Home nunca ganhar um botão de recarregar.
-      setPedidos(null)
+      // Sem isto, uma falha numa releitura futura deixaria a seção "há mais tempo" mostrando dado
+      // velho ao lado do banner de erro — o que a spec §3.4 proíbe. Hoje `carregar` roda uma vez só
+      // e não há caminho que exercite isto; está aqui porque a alternativa é depender de a Home
+      // nunca ganhar um botão de recarregar.
+      setResumo(null)
       setErro(mensagemDeErro(e, 'Não foi possível carregar os números do sistema.'))
     } finally {
       setCarregando(false)
@@ -90,33 +88,23 @@ export function HomePage() {
   // resumo NÃO renderiza nesse estado (nem com zeros, que seriam falsos, nem com traços, que
   // seriam ruído; o número grande do cartão já diz "—").
   //
-  // "Aberto" é todo Pedido fora de `ENCERRADOS` — o mesmo critério de `maisAntigos` —, não só o
-  // status `Aberto`: desde a Fase 3 o primeiro Início passa o Pedido a
-  // `EmProducao`, e contar só `Aberto` fazia o cartão dizer "12 abertos" ao lado de "EmProducao 2".
-  const abertos = pedidos === null ? null
-    : pedidos.filter((p) => !ENCERRADOS.some((encerrado) => encerrado === p.status)).length
-  const porStatus = pedidos === null ? null : STATUS_DO_PEDIDO.map((status) => ({
-    status,
-    quantidade: pedidos.filter((p) => p.status === status).length,
-  }))
+  // "Aberto" é todo Pedido fora de `ENCERRADOS`, não só o status `Aberto`: desde a Fase 3 o
+  // primeiro Início passa o Pedido a `EmProducao`, e contar só `Aberto` fazia o cartão dizer "12
+  // abertos" ao lado de "Em produção 2". `.some(===)` e não `.includes`: `ENCERRADOS` é tupla
+  // `readonly`, e `.includes` exigiria um cast para aceitar um `status` que pode não estar nela.
+  const porStatus = resumo?.porStatus ?? null
+  const abertos = porStatus === null ? null
+    : porStatus
+      .filter(({ status }) => !ENCERRADOS.some((encerrado) => encerrado === status))
+      .reduce((soma, { quantidade }) => soma + quantidade, 0)
 
-  // Ordenação pela string ISO, e não por `Date`: `dataAbertura` chega em GMT-3 com offset
-  // explícito (`HorarioDeBrasiliaJsonConverter`), e ISO 8601 com o mesmo offset ordena
-  // lexicograficamente na mesma ordem que cronologicamente. Passar por `new Date()` reconverteria
-  // para o fuso do aparelho — o mesmo motivo que fez `formatarDataHora` não usar `Date`.
-  //
-  // `.filter()` já devolve array novo, então o `.sort()` abaixo não ordena o estado no lugar.
-  //
-  // `.some(===)` e não `.includes`: `ENCERRADOS` é tupla `readonly`, e `.includes` exigiria um
-  // cast para aceitar um `status` que pode não estar nela.
-  const maisAntigos = pedidos === null ? null : pedidos
-    .filter((p) => !ENCERRADOS.some((encerrado) => encerrado === p.status))
-    .sort((a, b) => a.dataAbertura.localeCompare(b.dataAbertura))
-    .slice(0, QUANTOS_MAIS_ANTIGOS)
+  // Os mais antigos chegam prontos: a regra (só os não encerrados, do mais antigo ao mais novo, no
+  // máximo cinco) é do servidor, e a Home apresenta na ordem em que vieram.
+  const maisAntigos = resumo?.maisAntigosAbertos ?? null
 
-  // Derivado aqui, e não no JSX, porque lá dentro o TypeScript não estreita `pedidos` pela porta
-  // `maisAntigos !== null` — são duas variáveis diferentes para ele, mesmo que uma nasça da outra.
-  const cadastroVazio = pedidos !== null && pedidos.length === 0
+  // Derivado aqui, e não no JSX, porque lá dentro o TypeScript não estreita `porStatus` pela porta
+  // `maisAntigos !== null` — são duas variáveis diferentes para ele, mesmo que nasçam do mesmo dado.
+  const cadastroVazio = porStatus !== null && porStatus.every(({ quantidade }) => quantidade === 0)
 
   return (
     <Pagina titulo="Início">
@@ -150,7 +138,7 @@ export function HomePage() {
                 // `tom={tomDoStatus(status)}` aqui — mais o import de `tomDoStatus`, que este
                 // arquivo não tem, sem o qual a reposição nem compila — a suíte fecha com UMA
                 // vermelha, e a vermelha é esse teste.
-                <Pilula key={status}>{`${status} ${quantidade}`}</Pilula>
+                <Pilula key={status}>{`${rotuloDoStatus(status)} ${quantidade}`}</Pilula>
               ))}
             </div>
           )}
@@ -160,7 +148,7 @@ export function HomePage() {
         <CartaoDeContagem titulo="setores ativos" valor={contagens?.setores ?? null} para="/setores" />
       </div>
 
-      {/* `maisAntigos !== null` cobre carregando E erro de uma vez: nos dois casos `pedidos` é
+      {/* `maisAntigos !== null` cobre carregando E erro de uma vez: nos dois casos `resumo` é
           `null`. Não troque por `maisAntigos?.length` — durante o carregando isso renderizaria o
           `EstadoVazio`, que tem `role="status"` igual ao `EstadoCarregando`, e o teste
           `mostra o indicador de carregando` faz `getByRole('status')`, que LANÇA com dois. Além

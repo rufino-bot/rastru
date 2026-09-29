@@ -3,11 +3,13 @@ import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, obterPedido, formatarDataHora,
+  obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
   listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
-  type ConflitoDeCadastro, type PedidoDto,
+  type ConflitoDeCadastro, type FiltroDePedidos,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
+import { ErroDeApi } from './erros'
 
 describe('cadastros', () => {
   beforeEach(() => {
@@ -289,71 +291,102 @@ describe('cadastros', () => {
     await expect(definirAtivoMaterial(4, false)).rejects.toThrow()
   })
 
-  it('lista pedidos', async () => {
+  const FILTRO_DE_PEDIDOS: FiltroDePedidos = {
+    busca: 'CH', status: ['Aberto', 'EmProducao'], material: ['3'], pagina: 2, tamanho: 20,
+  }
+
+  it('listarPedidos manda busca, status, material, pagina e tamanho na URL', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify([{
-          id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
-        }]),
-        { status: 200 },
-      ),
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 2, tamanho: 20 }), { status: 200 }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const pedidos = await listarPedidos()
+    await listarPedidos(FILTRO_DE_PEDIDOS)
 
-    expect(pedidos[0].numero).toBe('PED-001')
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos')
+    const url = new URL(String(fetchMock.mock.calls[0][0]), 'http://x')
+    expect(url.pathname).toBe('/api/pedidos')
+    expect(url.searchParams.get('busca')).toBe('CH')
+    // Listas juntadas por vírgula, na ordem em que a tela as tem: é o formato que o servidor lê.
+    expect(url.searchParams.get('status')).toBe('Aberto,EmProducao')
+    expect(url.searchParams.get('material')).toBe('3')
+    expect(url.searchParams.get('pagina')).toBe('2')
+    expect(url.searchParams.get('tamanho')).toBe('20')
+    // A ordem dos parâmetros é determinística (URLSearchParams preserva a de inserção).
+    expect([...url.searchParams.keys()]).toEqual(['busca', 'status', 'material', 'pagina', 'tamanho'])
   })
 
-  // GUARDA DE DÍVIDA — Fase 1E. NÃO é teste de comportamento novo: é o alarme que dispara no dia
-  // em que `/pedidos` for paginado, como `/componentes` já foi na 1B.
-  //
-  // Hoje a `HomePage` deriva UMA coisa do array que esta função devolve: a contagem de "pedidos
-  // abertos". As Tasks 3 e 5 desta fase acrescentam outras duas — o resumo pelos 5 status e a
-  // lista "abertos há mais tempo". As três só são verdadeiras porque a resposta traz o conjunto
-  // INTEIRO. Se `listarPedidos` passar a devolver uma página, viram meia-verdade — "contagem da
-  // primeira página", "os mais antigos dos 20 primeiros" — e nenhuma delas fica vermelha sozinha,
-  // porque continuam sendo números plausíveis.
-  //
-  // Este teste morre de DOIS jeitos, de propósito: `Array.isArray` mata a troca do tipo de retorno
-  // em tempo de execução, e a anotação de tipo da variável `contrato` mata a mesma troca em
-  // `tsc -b`.
-  //
-  // Quando ele ficar vermelho, o conserto NÃO é apagá-lo: é decidir o que a Home passa a mostrar
-  // (endpoint de resumo no backend, ou pedir `tamanho` grande explicitamente) e só então
-  // reescrever esta guarda.
-  it('devolve o conjunto inteiro de pedidos, nao uma pagina — a HomePage depende disso', async () => {
-    const vinteECinco = Array.from({ length: 25 }, (_, i) => ({
-      id: i + 1, numero: `PED-${String(i + 1).padStart(3, '0')}`, cliente: 'Cliente X',
-      tipo: 'Fabricacao', status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00',
-      criadoPorUsuarioId: 1, pausa: null,
-    }))
+  it('listarPedidos sem status nem material nao manda os parametros', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarPedidos({ busca: '', status: [], material: [], pagina: 1, tamanho: 20 })
+
+    const url = new URL(String(fetchMock.mock.calls[0][0]), 'http://x')
+    expect(url.searchParams.has('status')).toBe(false)
+    expect(url.searchParams.has('material')).toBe(false)
+    expect([...url.searchParams.keys()]).toEqual(['busca', 'pagina', 'tamanho'])
+  })
+
+  it('listarPedidos devolve o envelope de pagina', async () => {
+    const pedido = {
+      id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
+      status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+    }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(vinteECinco), { status: 200 }),
+      new Response(JSON.stringify({ itens: [pedido], total: 57, pagina: 2, tamanho: 20 }), { status: 200 }),
     ))
 
-    // A anotação de tipo É a guarda de compilação, e a chamada abaixo é a de runtime — as duas
-    // na mesma linha, sem variável de enfeite. Se `listarPedidos` virar
-    // `Promise<PaginaDe<PedidoDto>>`, esta atribuição para de compilar e `npm run build` reprova
-    // (o Vitest não faz typecheck: `npm test` verde não prova que compila).
-    const contrato: () => Promise<PedidoDto[]> = listarPedidos
-    const pedidos = await contrato()
+    const pagina = await listarPedidos(FILTRO_DE_PEDIDOS)
 
-    // Vinte e cinco, e não vinte: 20 é o tamanho de página padrão de `listarComponentes`. Se
-    // alguém paginar `/pedidos` copiando aquele default, esta asserção é a que fica vermelha.
-    expect(Array.isArray(pedidos)).toBe(true)
-    expect(pedidos).toHaveLength(25)
+    expect(pagina.itens[0].numero).toBe('PED-001')
+    // `total` é sob o filtro, não `itens.length`.
+    expect(pagina.total).toBe(57)
   })
 
-  // GET /pedidos e so [Authorize] (nao role-protected), mas o par URL/erro e o molde do F4 mesmo
-  // assim: uma resposta nao-ok tem que lancar, nao devolver undefined/array vazio em silencio.
   // Corpo JSON nao-vazio (nao ''): ver nota em 'lanca quando a resposta e erro nao tratado'.
   it('lanca quando listar pedidos falha', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
 
-    await expect(listarPedidos()).rejects.toThrow()
+    await expect(listarPedidos(FILTRO_DE_PEDIDOS)).rejects.toBeInstanceOf(ErroDeApi)
+  })
+
+  it('obterResumoDePedidos le /pedidos/resumo', async () => {
+    const resumo = {
+      porStatus: [{ status: 'Aberto', quantidade: 12 }],
+      maisAntigosAbertos: [],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(resumo), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const lido = await obterResumoDePedidos()
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos/resumo')
+    expect(lido).toEqual(resumo)
+  })
+
+  it('obterResumoDePedidos lanca ErroDeApi quando a resposta nao e ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(obterResumoDePedidos()).rejects.toBeInstanceOf(ErroDeApi)
+  })
+
+  it('listarMateriaisDosPedidos le /pedidos/materiais', async () => {
+    const materiais = [{ id: 3, codigo: 'CH-300', descricao: 'Chapa SAE 1020 3,00 mm' }]
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(materiais), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const lidos = await listarMateriaisDosPedidos()
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos/materiais')
+    expect(lidos).toEqual(materiais)
+  })
+
+  it('listarMateriaisDosPedidos lanca ErroDeApi quando a resposta nao e ok', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 500 })))
+
+    await expect(listarMateriaisDosPedidos()).rejects.toBeInstanceOf(ErroDeApi)
   })
 
   it('devolve o conflito quando o numero do pedido ja existe', async () => {
