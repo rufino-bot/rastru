@@ -272,7 +272,8 @@ public class ExecucaoRepositoryTests : TesteComBanco
     var repo = new ExecucaoRepository(db);
 
     await repo.MarcarPedidoEmProducaoAsync(c.Arvore.PedidoId, CancellationToken.None);
-    Assert.Equal(new PedidoDoNo(c.Arvore.PedidoId, "EmProducao", false), await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None));
+    var numero = (await db.Pedidos.AsNoTracking().SingleAsync(p => p.Id == c.Arvore.PedidoId)).Numero;
+    Assert.Equal(new PedidoDoNo(c.Arvore.PedidoId, numero, "EmProducao", false), await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None));
 
     await db.Pedidos.Where(p => p.Id == c.Arvore.PedidoId)
         .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Concluido"));

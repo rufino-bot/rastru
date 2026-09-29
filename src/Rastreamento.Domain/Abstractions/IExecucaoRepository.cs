@@ -13,7 +13,7 @@ public sealed record ContextoDoNo(
 public sealed record PausaAberta(int PedidoId, DateTime PausadoEm, int PausadoPorUsuarioId, string PausadoPorNome, string? Motivo);
 
 /// <summary>`Pausado`: o Pedido tem pausa aberta — o Iniciar a recusa (spec da Fase 3D, secao 4.1).</summary>
-public sealed record PedidoDoNo(int PedidoId, string Status, bool Pausado);
+public sealed record PedidoDoNo(int PedidoId, string Numero, string Status, bool Pausado);
 
 public sealed record PedidoTravado(int Id, string Numero, string Status);
 

@@ -96,6 +96,7 @@ public class ApontamentoUseCaseTests
 
     AfirmarFalha(r, CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
     Assert.Empty(c.Execucao.Movimentacoes);
+    Assert.Equal("O Pedido PED-01 está pausado.", r.Detalhe);
   }
 
   [Fact]
@@ -104,8 +105,10 @@ public class ApontamentoUseCaseTests
     var c = ComFilhosNaSolda();
     await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
 
-    AfirmarFalha(await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct),
-        CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
+    Assert.Equal("O Pedido PED-01 está pausado.", r.Detalhe);
     Assert.Empty(c.Execucao.Montagens);
   }
 

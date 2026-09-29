@@ -54,7 +54,7 @@ public sealed class ApontamentoUseCase
       // registram algo que ja aconteceu no chao, e recusa-los deixaria o livro mentindo.
       if (pedido!.Pausado)
         return Falhas.Conflito<MovimentacaoDto>(CodigosDaExecucao.PedidoPausado,
-            "O Pedido deste item está pausado: nada dele começa até alguém retomá-lo.");
+            $"O Pedido {pedido.Numero} está pausado.");
 
       var estado = await _leitor.CarregarAsync([.. no, .. travados], ct);
       var nome = estado.Nome(noId);

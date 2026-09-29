@@ -129,7 +129,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
     var item = _estruturas.Itens.SingleOrDefault(i => i.Id == estruturaItemId);
     if (item is null || !Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag))
       return Task.FromResult<PedidoDoNo?>(null);
-    return Task.FromResult<PedidoDoNo?>(new PedidoDoNo(ag.PedidoId, StatusDoPedido[ag.PedidoId], PausaDoPedido(ag.PedidoId) is not null));
+    return Task.FromResult<PedidoDoNo?>(new PedidoDoNo(ag.PedidoId, ag.PedidoNumero, StatusDoPedido[ag.PedidoId], PausaDoPedido(ag.PedidoId) is not null));
   }
 
   /// <summary>

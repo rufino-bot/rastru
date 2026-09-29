@@ -199,9 +199,9 @@ public class ExecucaoRepository : IExecucaoRepository
                         join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
                         join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
                         where e.Id == estruturaItemId
-                        select new { p.Id, p.Status })
+                        select new { p.Id, p.Numero, p.Status })
         .SingleOrDefaultAsync(ct);
-    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Status, await PausadoAsync(pedido.Id, ct));
+    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Numero, pedido.Status, await PausadoAsync(pedido.Id, ct));
   }
 
   /// <summary>
@@ -230,7 +230,7 @@ public class ExecucaoRepository : IExecucaoRepository
         .SingleOrDefaultAsync(ct);
     // Sob a transacao Serializable do Iniciar, esta leitura tambem trava a faixa da pausa daquele
     // Pedido: um Pausar concorrente espera o Iniciar terminar (e ja esperaria pelo UPDLOCK no Pedido).
-    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Status, await PausadoAsync(pedido.Id, ct));
+    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Numero, pedido.Status, await PausadoAsync(pedido.Id, ct));
   }
 
   private Task<bool> PausadoAsync(int pedidoId, CancellationToken ct) =>

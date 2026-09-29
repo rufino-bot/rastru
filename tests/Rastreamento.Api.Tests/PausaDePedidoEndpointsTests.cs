@@ -28,12 +28,15 @@ public class PausaDePedidoEndpointsTests : IClassFixture<WebApplicationFactory<P
     var iniciarPausado = await operador.PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 1m });
     var terminarPausado = await operador.PostAsJsonAsync($"/api/estrutura/{c.B}/terminos", new { setorId = c.Corte, ordem = 1, quantidade = 5m });
     var pedido = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/pedidos/{c.PedidoId}"));
+    var numeroDoPedido = pedido.GetProperty("numero").GetString();
     var retomada = await c.Como(c.Gestao).PostAsync($"/api/pedidos/{c.PedidoId}/retomada", null);
     var iniciarDepois = await operador.PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 1m });
 
     Assert.Equal(HttpStatusCode.Created, pausa.StatusCode);
     Assert.Equal(HttpStatusCode.Conflict, iniciarPausado.StatusCode);
-    Assert.Equal("PedidoPausado", (await CorpoAsync(iniciarPausado)).GetProperty("erro").GetString());
+    var recusa = await CorpoAsync(iniciarPausado);
+    Assert.Equal("PedidoPausado", recusa.GetProperty("erro").GetString());
+    Assert.Equal($"O Pedido {numeroDoPedido} está pausado.", recusa.GetProperty("mensagem").GetString());
     Assert.Equal(HttpStatusCode.Created, terminarPausado.StatusCode);
     Assert.Equal("outro pedido urgente", pedido.GetProperty("pausa").GetProperty("motivo").GetString());
     Assert.Equal(HttpStatusCode.OK, retomada.StatusCode);
