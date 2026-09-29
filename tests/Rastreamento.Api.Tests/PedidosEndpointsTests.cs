@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 using Xunit;
 
@@ -125,6 +126,92 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
 
     Assert.Equal(HttpStatusCode.Forbidden, escrita.StatusCode);
     Assert.Equal(HttpStatusCode.OK, leitura.StatusCode);
+  }
+
+  /// <summary>Pedido gravado direto no banco (o cadastro pela API so cria `Aberto`), com numero limpo pelo `DisposeAsync`.</summary>
+  private async Task<int> GravarPedidoAsync(string cliente, string status)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var pedido = new Pedido
+    {
+      Numero = NumeroUnico(), Cliente = cliente, Tipo = "Fabricacao", Status = status,
+      DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = IdDeUsuarioReal(),
+    };
+    db.Pedidos.Add(pedido);
+    await db.SaveChangesAsync();
+    return pedido.Id;
+  }
+
+  [Fact]
+  public async Task Lista_paginada_responde_o_envelope_com_o_total_do_filtro()
+  {
+    var cliente = $"cli-{Guid.NewGuid():N}";
+    for (var i = 0; i < 3; i++) await GravarPedidoAsync(cliente, "Aberto");
+
+    var resposta = await ClienteComo("PCP").GetAsync($"/api/pedidos?busca={cliente}&tamanho=2");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal(2, corpo.GetProperty("itens").GetArrayLength());
+    Assert.Equal(3, corpo.GetProperty("total").GetInt32());
+    Assert.Equal(1, corpo.GetProperty("pagina").GetInt32());
+    Assert.Equal(2, corpo.GetProperty("tamanho").GetInt32());
+  }
+
+  [Theory]
+  [InlineData("?pagina=0")]
+  [InlineData("?tamanho=101")]
+  [InlineData("?status=Qualquer")]
+  [InlineData("?material=abc")]
+  public async Task Faixa_ou_filtro_invalido_responde_400_com_erro(string consulta)
+  {
+    var resposta = await ClienteComo("PCP").GetAsync($"/api/pedidos{consulta}");
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.False(string.IsNullOrWhiteSpace(corpo.GetProperty("erro").GetString()));
+  }
+
+  [Fact]
+  public async Task Resumo_conta_todos_os_Pedidos_alem_do_tamanho_de_pagina()
+  {
+    // Mais Pedidos do que cabem numa pagina (20): um resumo calculado sobre uma pagina daria <= 20.
+    // Monotono (>=) porque so as linhas deste teste sao garantidas no banco compartilhado.
+    var cliente = $"cli-{Guid.NewGuid():N}";
+    for (var i = 0; i < 25; i++) await GravarPedidoAsync(cliente, "Cancelado");
+
+    var resposta = await ClienteComo("PCP").GetAsync("/api/pedidos/resumo");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    var porStatus = corpo.GetProperty("porStatus").EnumerateArray()
+        .ToDictionary(c => c.GetProperty("status").GetString()!, c => c.GetProperty("quantidade").GetInt32());
+    Assert.True(porStatus["Cancelado"] >= 25);
+    Assert.Equal(
+        ["Aberto", "EmProducao", "AguardandoExpedicao", "Concluido", "Cancelado"],
+        corpo.GetProperty("porStatus").EnumerateArray().Select(c => c.GetProperty("status").GetString()));
+    Assert.True(corpo.GetProperty("maisAntigosAbertos").GetArrayLength() <= 5);
+  }
+
+  [Theory]
+  [InlineData("/api/pedidos/resumo")]
+  [InlineData("/api/pedidos/materiais")]
+  public async Task Resumo_e_materiais_sao_leitura_de_qualquer_perfil(string rota)
+  {
+    var resposta = await ClienteComo("Qualidade").GetAsync(rota);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+  }
+
+  [Theory]
+  [InlineData("/api/pedidos/resumo")]
+  [InlineData("/api/pedidos/materiais")]
+  public async Task Sem_token_nao_le_resumo_nem_materiais(string rota)
+  {
+    var resposta = await _factory.CreateClient().GetAsync(rota);
+
+    Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
 
   [Fact]

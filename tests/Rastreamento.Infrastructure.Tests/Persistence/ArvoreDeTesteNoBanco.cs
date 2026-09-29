@@ -20,6 +20,7 @@ internal sealed class ArvoreDeTesteNoBanco
   public int ComponenteId { get; private init; }
   public List<int> SetorIds { get; } = [];
   public List<int> MaterialIds { get; } = [];
+  public List<int> ComponenteExtraIds { get; } = [];
 
   private ArvoreDeTesteNoBanco(string prefixo) => _prefixo = prefixo;
 
@@ -88,6 +89,31 @@ internal sealed class ArvoreDeTesteNoBanco
   }
 
   /// <summary>
+  /// Um Item cujo no aponta para um Componente PROPRIO, de `Codigo` dado (unico no catalogo), e nao
+  /// para o da arvore. Apagado por <see cref="LimparAsync"/> depois dos nos.
+  /// </summary>
+  public async Task<int> NovoItemComComponenteAsync(
+      RastreamentoDbContext db, int paiId, string codigoDoComponente, decimal quantidade, decimal quantidadePorPai)
+  {
+    var componente = new Componente
+    {
+      Codigo = codigoDoComponente, Descricao = "Componente de Item de teste", Tipo = "Fabricado", Ativo = true,
+    };
+    db.Componentes.Add(componente);
+    await db.SaveChangesAsync();
+    ComponenteExtraIds.Add(componente.Id);
+
+    var item = new EstruturaItem
+    {
+      AgrupamentoId = AgrupamentoId, ComponenteId = componente.Id, EstruturaPaiId = paiId,
+      NivelHierarquico = "Item", Quantidade = quantidade, QuantidadePorPai = quantidadePorPai,
+    };
+    db.Estruturas.Add(item);
+    await db.SaveChangesAsync();
+    return item.Id;
+  }
+
+  /// <summary>
   /// Um Material do catalogo, de codigo unico (`Codigo` e UNIQUE) derivado do prefixo da arvore: a ordem
   /// de criacao e a ordem dos codigos. Apagado por <see cref="LimparAsync"/>.
   /// </summary>
@@ -142,6 +168,8 @@ internal sealed class ArvoreDeTesteNoBanco
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.PedidoPausa WHERE PedidoId = {PedidoId}");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {PedidoId}");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Componente WHERE Id = {ComponenteId}");
+    foreach (var componenteId in ComponenteExtraIds)
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Componente WHERE Id = {componenteId}");
     foreach (var materialId in MaterialIds)
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Material WHERE Id = {materialId}");
     foreach (var setorId in SetorIds)

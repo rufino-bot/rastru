@@ -154,6 +154,90 @@ public class CadastroDePedidoUseCaseTests
   }
 
   [Fact]
+  public async Task Listar_devolve_a_pagina_com_o_total_do_filtro()
+  {
+    var repo = new FakePedidoRepo(
+        new Pedido { Id = 1, Numero = "PED-001", Cliente = "A" },
+        new Pedido { Id = 2, Numero = "PED-002", Cliente = "B" },
+        new Pedido { Id = 3, Numero = "PED-003", Cliente = "C" });
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, 1, 2, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(2, resultado.Valor!.Itens.Count);
+    Assert.Equal(3, resultado.Valor.Total);
+    Assert.Equal(1, resultado.Valor.Pagina);
+    Assert.Equal(2, resultado.Valor.Tamanho);
+  }
+
+  [Theory]
+  [InlineData(0, 20)]
+  [InlineData(1, 0)]
+  [InlineData(1, 101)]
+  public async Task Listar_recusa_faixa_invalida(int pagina, int tamanho)
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, pagina, tamanho, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Null(repo.UltimoFiltro);
+  }
+
+  [Fact]
+  public async Task Listar_recusa_status_desconhecido_nomeando_o_valor()
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, "Aberto,Qualquer", null, 1, 20, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Contains("Qualquer", resultado.Erro);
+    Assert.Null(repo.UltimoFiltro);
+  }
+
+  [Theory]
+  [InlineData("abc")]
+  [InlineData("0")]
+  [InlineData("-3")]
+  [InlineData("1.5")]
+  public async Task Listar_recusa_material_que_nao_e_inteiro_positivo(string material)
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, material, 1, 20, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Null(repo.UltimoFiltro);
+  }
+
+  [Fact]
+  public async Task Listar_ignora_pedaco_vazio_e_colapsa_repetido()
+  {
+    var repo = new FakePedidoRepo();
+    var useCase = new CadastroDePedidoUseCase(repo);
+
+    await useCase.Listar("  CH  ", " Aberto,,Aberto ,EmProducao", "5,,5,3", 1, 20, CancellationToken.None);
+
+    Assert.Equal(["Aberto", "EmProducao"], repo.UltimoFiltro!.Status);
+    Assert.Equal([5, 3], repo.UltimoFiltro.Materiais);
+    Assert.Equal("CH", repo.UltimoFiltro.Busca);
+
+    await useCase.Listar("   ", null, null, 1, 20, CancellationToken.None);
+
+    Assert.Null(repo.UltimoFiltro.Busca);
+    Assert.Empty(repo.UltimoFiltro.Status);
+    Assert.Empty(repo.UltimoFiltro.Materiais);
+  }
+
+  [Fact]
   public async Task Listar_traz_a_pausa_aberta_do_Pedido_pausado_e_nulo_nos_demais()
   {
     var repo = new FakePedidoRepo(
@@ -162,10 +246,61 @@ public class CadastroDePedidoUseCaseTests
     var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
     repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "PED-9 urgente");
 
-    var pedidos = await new CadastroDePedidoUseCase(repo).Listar(CancellationToken.None);
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, 1, 20, CancellationToken.None);
 
+    var pedidos = resultado.Valor!.Itens;
     Assert.Null(pedidos.Single(p => p.Id == 1).Pausa);
     Assert.Equal(new PausaResumoDto(desde, "PCP", "PED-9 urgente"), pedidos.Single(p => p.Id == 2).Pausa);
+  }
+
+  [Fact]
+  public async Task Resumo_traz_os_cinco_status_na_ordem_do_DDL_com_zero_no_que_falta()
+  {
+    var repo = new FakePedidoRepo();
+    repo.ContagemPorStatus["Aberto"] = 2;
+    repo.ContagemPorStatus["Concluido"] = 1;
+
+    var resumo = await new CadastroDePedidoUseCase(repo).Resumo(CancellationToken.None);
+
+    Assert.Equal(
+        [
+          new ContagemDeStatusDto("Aberto", 2),
+          new ContagemDeStatusDto("EmProducao", 0),
+          new ContagemDeStatusDto("AguardandoExpedicao", 0),
+          new ContagemDeStatusDto("Concluido", 1),
+          new ContagemDeStatusDto("Cancelado", 0),
+        ],
+        resumo.PorStatus);
+  }
+
+  [Fact]
+  public async Task Resumo_pede_os_mais_antigos_fora_dos_encerrados_e_no_maximo_cinco()
+  {
+    var repo = new FakePedidoRepo();
+    var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
+    repo.MaisAntigos.Add(new Pedido { Id = 1, Numero = "PED-001", Cliente = "A", Status = "Aberto" });
+    repo.MaisAntigos.Add(new Pedido { Id = 2, Numero = "PED-002", Cliente = "B", Status = "EmProducao" });
+    repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "parado");
+
+    var resumo = await new CadastroDePedidoUseCase(repo).Resumo(CancellationToken.None);
+
+    Assert.Equal(["Cancelado", "Concluido"], repo.MaisAntigosForaDosStatus!.Order());
+    Assert.Equal(5, repo.MaisAntigosQuantos);
+    Assert.Equal([1, 2], resumo.MaisAntigosAbertos.Select(p => p.Id));
+    Assert.Null(resumo.MaisAntigosAbertos[0].Pausa);
+    Assert.Equal(new PausaResumoDto(desde, "PCP", "parado"), resumo.MaisAntigosAbertos[1].Pausa);
+  }
+
+  [Fact]
+  public async Task MateriaisEmUso_projeta_id_codigo_e_descricao()
+  {
+    var repo = new FakePedidoRepo();
+    repo.MateriaisEmUso.Add(new Material { Id = 3, Codigo = "CH-300", Descricao = "Chapa 3 mm", UnidadeMedida = "UN", Ativo = false });
+
+    var materiais = await new CadastroDePedidoUseCase(repo).MateriaisEmUso(CancellationToken.None);
+
+    Assert.Equal([new MaterialResumoDto(3, "CH-300", "Chapa 3 mm")], materiais);
   }
 
   [Fact]

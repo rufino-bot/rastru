@@ -1,3 +1,4 @@
+using System.Globalization;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Abstractions;
@@ -22,6 +23,27 @@ public sealed class CadastroDePedidoUseCase
 
   /// <summary>Todo Pedido nasce Aberto; quem muda o status e o primeiro apontamento (Fase 3).</summary>
   private const string StatusAberto = "Aberto";
+
+  /// <summary>Quantas linhas a listagem devolve quando o cliente nao pede tamanho.</summary>
+  public const int TamanhoDePaginaPadrao = 20;
+
+  /// <summary>Teto de linhas por pagina; nao ha CHECK equivalente no banco.</summary>
+  public const int TamanhoDePaginaMaximo = 100;
+
+  /// <summary>Status validos, na ordem do `CK_Pedido_Status`; e a ordem em que o resumo os devolve.</summary>
+  private static readonly string[] StatusValidos =
+      ["Aberto", "EmProducao", "AguardandoExpedicao", "Concluido", "Cancelado"];
+
+  /// <summary>Status em que o Pedido acabou; ficam fora dos "mais antigos abertos" do resumo.</summary>
+  private static readonly string[] StatusEncerrados = ["Concluido", "Cancelado"];
+
+  private const int QuantosMaisAntigos = 5;
+
+  private const string ErroDeFaixaInvalida =
+      "Pagina deve ser 1 ou maior e tamanho deve estar entre 1 e 100.";
+
+  private const string ErroDeMaterialInvalido =
+      "Material deve ser uma lista de numeros inteiros positivos separados por virgula.";
 
   private readonly IPedidoRepository _repositorio;
 
@@ -87,12 +109,75 @@ public sealed class CadastroDePedidoUseCase
     return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id)));
   }
 
-  public async Task<IReadOnlyList<PedidoDto>> Listar(CancellationToken ct)
+  /// <summary>
+  /// Devolve `Result` porque a faixa, o status e o material pedidos podem ser invalidos, e isso e
+  /// 400. Pagina ALEM do fim e sucesso com itens vazios. `status` e `material` chegam como listas
+  /// separadas por virgula: pedaco vazio e ignorado e valor repetido colapsa.
+  /// </summary>
+  public async Task<Result<PaginaDto<PedidoDto>>> Listar(
+      string? busca, string? status, string? material, int pagina, int tamanho, CancellationToken ct)
   {
-    var pedidos = await _repositorio.ListarAsync(ct);
+    if (pagina < 1 || tamanho < 1 || tamanho > TamanhoDePaginaMaximo)
+      return Result<PaginaDto<PedidoDto>>.Falha(ErroDeFaixaInvalida, TipoDeErro.Validacao);
+
+    var statusPedidos = SepararPedacos(status);
+    var desconhecido = statusPedidos.FirstOrDefault(s => !StatusValidos.Contains(s));
+    if (desconhecido is not null)
+      return Result<PaginaDto<PedidoDto>>.Falha(
+          $"Status '{desconhecido}' desconhecido. Aceitos: {string.Join(", ", StatusValidos)}.",
+          TipoDeErro.Validacao);
+
+    var materiais = new List<int>();
+    foreach (var pedaco in SepararPedacos(material))
+    {
+      // NumberStyles.None: so digitos. "-3", "1.5" e " 5" nao passam, e "0" cai no `<= 0`.
+      if (!int.TryParse(pedaco, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id <= 0)
+        return Result<PaginaDto<PedidoDto>>.Falha(ErroDeMaterialInvalido, TipoDeErro.Validacao);
+      if (!materiais.Contains(id)) materiais.Add(id);
+    }
+
+    var buscaAparada = busca?.Trim();
+    var (pedidos, total) = await _repositorio.ListarAsync(
+        new FiltroDePedidos(
+            string.IsNullOrEmpty(buscaAparada) ? null : buscaAparada, statusPedidos, materiais, pagina, tamanho),
+        ct);
+
+    return Result<PaginaDto<PedidoDto>>.Ok(
+        new PaginaDto<PedidoDto>(await ProjetarComPausas(pedidos, ct), total, pagina, tamanho));
+  }
+
+  /// <summary>
+  /// A contagem por status e sobre TODOS os Pedidos, nunca sobre uma pagina — e o que a Home
+  /// mostra. Os cinco status saem sempre, na ordem do DDL, com 0 no que nao tem Pedido.
+  /// </summary>
+  public async Task<ResumoDePedidosDto> Resumo(CancellationToken ct)
+  {
+    var contagem = await _repositorio.ContarPorStatusAsync(ct);
+    var maisAntigos = await _repositorio.ListarMaisAntigosAsync(StatusEncerrados, QuantosMaisAntigos, ct);
+
+    return new ResumoDePedidosDto(
+        StatusValidos.Select(s => new ContagemDeStatusDto(s, contagem.GetValueOrDefault(s))).ToList(),
+        await ProjetarComPausas(maisAntigos, ct));
+  }
+
+  public async Task<IReadOnlyList<MaterialResumoDto>> MateriaisEmUso(CancellationToken ct) =>
+      (await _repositorio.ListarMateriaisEmUsoAsync(ct))
+          .Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao))
+          .ToList();
+
+  private async Task<IReadOnlyList<PedidoDto>> ProjetarComPausas(
+      IReadOnlyList<Pedido> pedidos, CancellationToken ct)
+  {
     var pausas = await _repositorio.ListarPausasAbertasAsync(pedidos.Select(p => p.Id).ToList(), ct);
     return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id))).ToList();
   }
+
+  /// <summary>Lista separada por virgula: aparada, sem pedaco vazio e sem repetido (a ordem da primeira aparicao fica).</summary>
+  private static List<string> SepararPedacos(string? lista) =>
+      (lista ?? string.Empty)
+          .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+          .Distinct()
+          .ToList();
 
   public async Task<Result<PedidoDto>> Obter(int id, CancellationToken ct)
   {

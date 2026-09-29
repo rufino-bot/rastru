@@ -90,6 +90,16 @@ public sealed record PedidoDto(
     int CriadoPorUsuarioId,
     PausaResumoDto? Pausa);
 
+public sealed record ContagemDeStatusDto(string Status, int Quantidade);
+
+/// <remarks>
+/// `PorStatus` traz SEMPRE os cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive.
+/// `MaisAntigosAbertos` sao os Pedidos ainda nao encerrados, do mais antigo ao mais novo.
+/// </remarks>
+public sealed record ResumoDePedidosDto(
+    IReadOnlyList<ContagemDeStatusDto> PorStatus,
+    IReadOnlyList<PedidoDto> MaisAntigosAbertos);
+
 /// <remarks>
 /// So `Numero` e `Cliente`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem da claim
 /// da sessao. Nenhum dos tres se aceita do cliente. Os `MaxLength` espelham `dbo.Pedido`.

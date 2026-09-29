@@ -126,9 +126,51 @@ public class FakePedidoRepo : IPedidoRepository
   public Task<Pedido?> ObterPorNumeroAsync(string numero, CancellationToken ct) =>
       Task.FromResult(_linhas.SingleOrDefault(p => p.Numero == numero));
 
-  public Task<IReadOnlyList<Pedido>> ListarAsync(CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Pedido>>(
-          _linhas.OrderByDescending(p => p.DataAbertura).ToList());
+  /// <summary>O ultimo filtro recebido; nulo enquanto `ListarAsync` nao foi chamado.</summary>
+  public FiltroDePedidos? UltimoFiltro { get; private set; }
+
+  /// <summary>Status -> quantidade que `ContarPorStatusAsync` devolve. Arranjo do teste.</summary>
+  public Dictionary<string, int> ContagemPorStatus { get; } = new();
+
+  /// <summary>O que `ListarMaisAntigosAsync` devolve. Arranjo do teste.</summary>
+  public List<Pedido> MaisAntigos { get; } = [];
+
+  /// <summary>Os argumentos que `ListarMaisAntigosAsync` recebeu; nulos enquanto nao foi chamado.</summary>
+  public IReadOnlyCollection<string>? MaisAntigosForaDosStatus { get; private set; }
+  public int? MaisAntigosQuantos { get; private set; }
+
+  /// <summary>O que `ListarMateriaisEmUsoAsync` devolve. Arranjo do teste.</summary>
+  public List<Material> MateriaisEmUso { get; } = [];
+
+  /// <summary>
+  /// So a faixa: o fake guarda o filtro e pagina, e o `Total` e o de todas as linhas. Aplicar
+  /// busca, status e material em memoria seria reimplementar o repositorio real, que o teste de
+  /// banco (`PedidoRepositoryTests`) ja cobre.
+  /// </summary>
+  public Task<(IReadOnlyList<Pedido> Itens, int Total)> ListarAsync(FiltroDePedidos filtro, CancellationToken ct)
+  {
+    UltimoFiltro = filtro;
+    IReadOnlyList<Pedido> pagina = _linhas
+        .OrderByDescending(p => p.DataAbertura).ThenByDescending(p => p.Id)
+        .Skip((filtro.Pagina - 1) * filtro.Tamanho)
+        .Take(filtro.Tamanho)
+        .ToList();
+    return Task.FromResult((pagina, _linhas.Count));
+  }
+
+  public Task<IReadOnlyDictionary<string, int>> ContarPorStatusAsync(CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<string, int>>(ContagemPorStatus);
+
+  public Task<IReadOnlyList<Pedido>> ListarMaisAntigosAsync(
+      IReadOnlyCollection<string> foraDosStatus, int quantos, CancellationToken ct)
+  {
+    MaisAntigosForaDosStatus = foraDosStatus;
+    MaisAntigosQuantos = quantos;
+    return Task.FromResult<IReadOnlyList<Pedido>>(MaisAntigos);
+  }
+
+  public Task<IReadOnlyList<Material>> ListarMateriaisEmUsoAsync(CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Material>>(MateriaisEmUso);
 
   public Task AdicionarAsync(Pedido pedido, CancellationToken ct)
   {
