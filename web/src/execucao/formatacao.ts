@@ -1,4 +1,5 @@
-import type { DestinoDto, LocalDto, NoResumoDto, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
+import type { DestinoDto, Estornavel, LocalDto, NoResumoDto, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
+import { formatarDataHora } from '../api/cadastros'
 
 const NUMERO = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
 
@@ -27,16 +28,16 @@ export function caminhoDoNo(no: NoResumoDto): string {
 }
 
 /**
- * Para onde vai o que aguarda coleta (spec §7.3). O nome do pai vem do NÓ, não do destino: o
- * `DestinoDto` só traz `paiId`, e a linha da fila e da tarefa já carrega `paiDescricao`.
+ * Para onde vai o que aguarda coleta (spec da Fase 3, §7.3, com a emenda da Fase 3D, §2.2). O nome
+ * do pai vem do NÓ, não do destino: o `DestinoDto` só traz `paiId`, e a linha da fila e da tarefa já
+ * carrega `paiDescricao`.
  */
 export function descreverDestino(destino: DestinoDto, no: NoResumoDto): string {
   if (destino.tipo === 'ProximoPasso') return `${destino.setorNome} (passo ${destino.ordem})`
   if (destino.tipo === 'Expedicao') return 'Local de expedição'
   const pai = no.paiDescricao ?? 'o pai'
   if (destino.paiSemRoteiro) return `Montagem de ${pai} — o pai não tem Roteiro`
-  const sugestao = destino.setoresPossiveis.find((s) => s.id === destino.sugestaoSetorId)
-  return sugestao ? `Montagem de ${pai} (sugestão: ${sugestao.nome})` : `Montagem de ${pai}`
+  return `Montagem de ${pai} em ${destino.setorNome}`
 }
 
 /**
@@ -78,4 +79,41 @@ export function rotuloDoTipo(tipo: TipoDeMovimentacao): string {
     case 'Montagem': return 'Baixa de montagem'
     case 'Estorno': return 'Estorno'
   }
+}
+
+/**
+ * O rótulo de um botão da fila: "Iniciar montagem" quando o Setor tem atividade, "Iniciar" quando não
+ * tem (spec da Fase 3D, §2.3). O verbo vem fixo — início ou fim —, e a atividade só completa: um verbo
+ * por Setor ("Soldar") não diria se o botão começa ou termina.
+ */
+export function rotuloDaAcao(verbo: 'Iniciar' | 'Terminar', atividade: string | null): string {
+  const a = atividade?.trim()
+  return a ? `${verbo} ${a}` : verbo
+}
+
+const NOME_DO_ESTORNAVEL: Record<Estornavel['tipo'], string> = {
+  Inicio: 'início',
+  Termino: 'término',
+  Montagem: 'início',
+}
+
+/** A descrição do registro: o quê e quanto; o início de um pai diz também que consumiu os filhos. */
+function descricaoDoEstornavel(e: Estornavel): string {
+  const consumo = e.tipo === 'Montagem' ? ' (com o consumo dos filhos)' : ''
+  return `${NOME_DO_ESTORNAVEL[e.tipo]} de ${formatarQuantidade(e.quantidade)}${consumo}`
+}
+
+/** Uma linha da lista curta de estorno: "Término de 5 · Fulano · 28/09/2026 10:14". */
+export function rotuloDoEstornavel(e: Estornavel): string {
+  const descricao = descricaoDoEstornavel(e)
+  return `${descricao[0].toUpperCase()}${descricao.slice(1)} · ${e.usuarioNome} · ${formatarDataHora(e.dataHora)}`
+}
+
+/** A pergunta da confirmação: o que se desfaz, e o que acontece depois (spec da Fase 3D, §2.4). */
+export function mensagemDoEstorno(e: Estornavel): string {
+  const oQue = `Estornar o ${descricaoDoEstornavel(e)}, `
+    + `registrado por ${e.usuarioNome} em ${formatarDataHora(e.dataHora)}?`
+  return e.tipo === 'Montagem'
+    ? `${oQue} O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes; o estorno fica no histórico.`
+    : `${oQue} O movimento inverso fica no histórico.`
 }

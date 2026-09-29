@@ -42,7 +42,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   [Theory]
   [InlineData("Movimentador", "POST", "/api/estrutura/999999/inicios")]
   [InlineData("PCP", "POST", "/api/estrutura/999999/terminos")]
-  [InlineData("Gestao", "POST", "/api/estrutura/999999/montagens")]
+  [InlineData("Gestao", "POST", "/api/estrutura/999999/inicios")]
   [InlineData("Operador", "POST", "/api/entregas")]
   [InlineData("PCP", "POST", "/api/entregas")]
   [InlineData("Operador", "PUT", "/api/estrutura/999999/roteiro")]
@@ -50,6 +50,8 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   [InlineData("Gestao", "POST", "/api/movimentacoes/999999/estorno")]
   [InlineData("Qualidade", "POST", "/api/montagens/999999/estorno")]
   [InlineData("Almoxarifado", "POST", "/api/movimentacoes/999999/estorno")]
+  [InlineData("Operador", "POST", "/api/pedidos/999999/pausas")]
+  [InlineData("Movimentador", "POST", "/api/pedidos/999999/retomada")]
   public async Task Perfil_sem_a_acao_recebe_403(string perfil, string verbo, string rota)
   {
     var resposta = await ClienteComo(perfil).SendAsync(new HttpRequestMessage(new HttpMethod(verbo), rota)
@@ -91,7 +93,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   /// obrigada a cobrir especificamente o 403 do caso de uso). Prova o MAPEAMENTO do controller, nao
   /// o fluxo de negocio inteiro (isso e da Task 11): a `Montagem` nasce por insercao direta no banco
   /// — `EstornoUseCase.EstornarMontagem` so precisa achar uma `Montagem` real e comparar autoria
-  /// ANTES de qualquer escrita, entao nao ha necessidade de passar por Inicio/Termino/Entrega/Montar
+  /// ANTES de qualquer escrita, entao nao ha necessidade de passar por Inicio/Termino/Entrega
   /// para chegar la. Autor e requerente sao `UsuarioDeTeste` de perfil real (spec secao 9.3: cada
   /// teste cria o proprio usuario por perfil, sem depender do seed) — o autor precisa ser um usuario
   /// REAL por causa da FK de `Montagem.UsuarioId`, e usar o mesmo tipo para o requerente evita a

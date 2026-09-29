@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
 import { avisarQueOLivroMudou } from './sinalDoLivro'
+import type { PausaResumoDto } from './cadastros'
 
 /**
  * Cliente da execução (Fase 3). Os tipos espelham a seção "Contrato JSON" do plano 2 da Fase 3
@@ -74,6 +75,8 @@ export interface NoResumoDto {
   agrupamentoCodigo: string
   paiId: number | null
   paiDescricao: string | null
+  /** A pausa aberta do Pedido do nó; `null` quando o Pedido não está pausado. */
+  pausa: PausaResumoDto | null
 }
 
 export interface SetorResumidoDto {
@@ -85,8 +88,9 @@ export type TipoDeDestino = 'ProximoPasso' | 'Expedicao' | 'Montagem'
 
 /**
  * `ProximoPasso` traz `setorId`/`setorNome`/`ordem`; `Expedicao` não traz nada; `Montagem` traz
- * `paiId`, `sugestaoSetorId` (pode ser `null`) e `setoresPossiveis`. `paiSemRoteiro` só é `true` em
- * `Montagem` com a lista vazia (desvio D7 do plano 2).
+ * `paiId` e o Setor do PRIMEIRO passo do pai em `setorId`/`setorNome` (sem `ordem`), porque é lá que o
+ * pai começa consumindo os filhos (spec da Fase 3D, §2.2). `paiSemRoteiro` só é `true` em `Montagem`,
+ * e aí `setorId` é `null`.
  */
 export interface DestinoDto {
   tipo: TipoDeDestino
@@ -94,15 +98,31 @@ export interface DestinoDto {
   setorNome: string | null
   ordem: number | null
   paiId: number | null
-  sugestaoSetorId: number | null
-  setoresPossiveis: SetorResumidoDto[]
   paiSemRoteiro: boolean
+}
+
+/**
+ * Um registro por trás de uma linha da fila que ainda dá para estornar (spec da Fase 3D, §2.4). O
+ * servidor já filtrou: não estornado, cabe no saldo da posição, e quem lê pode estorná-lo.
+ * `Montagem` é o início de um pai, que consumiu os filhos: estorna-se pela rota da montagem.
+ * A quantidade do registro NÃO é limitada pela da linha (desvio D4 do plano da Fase 3D): um
+ * Término maior que a tarefa aparece na linha da tarefa.
+ */
+export interface Estornavel {
+  tipo: 'Inicio' | 'Termino' | 'Montagem'
+  id: number
+  quantidade: number
+  usuarioId: number
+  usuarioNome: string
+  /** ISO 8601 com offset -03:00 — mostrar com `formatarDataHora`. */
+  dataHora: string
 }
 
 export interface LinhaDaFila {
   no: NoResumoDto
   ordem: number
   quantidade: number
+  estornaveis: Estornavel[]
 }
 
 export interface LinhaAguardandoColeta extends LinhaDaFila {
@@ -122,6 +142,10 @@ export interface GrupoAguardandoMontagem {
   pai: NoResumoDto
   faltaMontar: number
   daParaMontar: number
+  /** Este Setor é o primeiro passo do pai: é aqui que "Iniciar" o pai consome os filhos. */
+  iniciaAqui: boolean
+  /** Para onde levar os filhos quando não é aqui; `null` se o pai não tem Roteiro. */
+  primeiroPassoDoPai: SetorResumidoDto | null
   /** TODOS os filhos diretos do pai, inclusive os ausentes deste Setor (`presente` 0). */
   filhos: FilhoNaMontagem[]
 }
@@ -134,11 +158,14 @@ export interface LinhaDeSobra {
   quantidade: number
   /** Só em `Montagem`: o filho aguarda montagem em mais de um Setor. */
   emMaisDeUmSetor: boolean
+  estornaveis: Estornavel[]
 }
 
 export interface FilaDoSetorDto {
   setorId: number
   setorNome: string
+  /** Substantivo que completa os botões ("Iniciar montagem"); `null` = "Iniciar"/"Terminar". */
+  setorAtividade: string | null
   aIniciar: LinhaDaFila[]
   emTrabalho: LinhaDaFila[]
   /** Só a parte que é tarefa (desvio D8 do plano 2); a sobra está em `sobra`. */
@@ -200,8 +227,6 @@ export interface OrigemDaEntrega {
 export interface ItemDaEntrega {
   estruturaItemId: number
   origem: OrigemDaEntrega
-  /** Só quando o destino é montagem (ou redirecionamento); `null` quando o destino é calculado. */
-  destinoSetorId: number | null
   quantidade: number
 }
 
@@ -258,6 +283,30 @@ export function ehConflito(e: unknown): boolean {
   return e instanceof ErroDeApi && e.status === 409
 }
 
+export interface PausaDto {
+  id: number
+  pedidoId: number
+  pausadoEm: string
+  pausadoPorUsuarioId: number
+  pausadoPorNome: string
+  motivo: string | null
+  retomadoEm: string | null
+  retomadoPorUsuarioId: number | null
+  retomadoPorNome: string | null
+}
+
+/**
+ * Pausar e retomar passam pelo `enviar` da execução (mesmo `{ erro, mensagem }`); o aviso de que o
+ * livro mudou, que ele dá, só faz o contador de Tarefas recontar — inofensivo aqui.
+ */
+export function pausarPedido(pedidoId: number, motivo: string | null): Promise<PausaDto> {
+  return enviar(`/pedidos/${pedidoId}/pausas`, 'POST', { motivo }, 'pausar o pedido')
+}
+
+export function retomarPedido(pedidoId: number): Promise<PausaDto> {
+  return enviar(`/pedidos/${pedidoId}/retomada`, 'POST', undefined, 'retomar o pedido')
+}
+
 export function obterFila(setorId: number): Promise<FilaDoSetorDto> {
   return ler(`/setores/${setorId}/fila`, 'carregar a fila')
 }
@@ -294,10 +343,6 @@ export function terminar(
   return enviar(`/estrutura/${noId}/terminos`, 'POST', corpo, 'terminar')
 }
 
-export function montar(paiId: number, corpo: { setorId: number; quantidade: number }): Promise<MontagemDto> {
-  return enviar(`/estrutura/${paiId}/montagens`, 'POST', corpo, 'montar')
-}
-
 /** Lista inteira numa requisição: tudo ou nada (spec §4.3). A resposta vem na ordem da lista. */
 export function entregar(itens: ItemDaEntrega[]): Promise<MovimentacaoDto[]> {
   return enviar('/entregas', 'POST', { itens }, 'entregar')
@@ -310,6 +355,11 @@ export function estornarMovimentacao(id: number): Promise<MovimentacaoDto> {
 /** Um estorno por baixa de filho. */
 export function estornarMontagem(id: number): Promise<MovimentacaoDto[]> {
   return enviar(`/montagens/${id}/estorno`, 'POST', undefined, 'estornar a montagem')
+}
+
+/** O estorno certo para o registro da fila: o início de um pai é a montagem inteira. */
+export function estornar(e: Estornavel): Promise<MovimentacaoDto | MovimentacaoDto[]> {
+  return e.tipo === 'Montagem' ? estornarMontagem(e.id) : estornarMovimentacao(e.id)
 }
 
 /** `passos` são SetorIds em ordem; quem numera é o servidor (mesma regra de `LinhaDeRoteiro`). */

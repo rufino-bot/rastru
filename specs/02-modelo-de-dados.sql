@@ -15,6 +15,9 @@ CREATE TABLE dbo.Setor (
     Id              INT IDENTITY(1,1)   NOT NULL,
     Nome            NVARCHAR(100)       NOT NULL,
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Setor_Ativo DEFAULT (1),
+    -- Substantivo que nomeia os botões da fila: 'montagem' -> "Iniciar montagem" / "Terminar montagem".
+    -- NULL = "Iniciar" / "Terminar" (spec da Fase 3D, seção 2.3).
+    Atividade       NVARCHAR(40)        NULL,
     CONSTRAINT PK_Setor PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Setor_Nome UNIQUE (Nome)
 );
@@ -244,6 +247,31 @@ CREATE TABLE dbo.Agrupamento (
 );
 
 /* ---------------------------------------------------------------------
+   PAUSA DE PEDIDO (Fase 3D)
+   --------------------------------------------------------------------- */
+
+-- Uma linha por intervalo em que o Pedido ficou pausado. SÓ INSERÇÃO, exceto o fecho do intervalo
+-- (RetomadoEm/RetomadoPorUsuarioId, gravados uma vez). Pausado = existe linha com RetomadoEm NULL.
+-- A pausa recusa só o Iniciar (spec da Fase 3D, seção 2.5).
+CREATE TABLE dbo.PedidoPausa (
+    Id                    INT IDENTITY(1,1)  NOT NULL,
+    PedidoId              INT                 NOT NULL,
+    PausadoEm             DATETIME2           NOT NULL CONSTRAINT DF_PedidoPausa_PausadoEm DEFAULT (SYSUTCDATETIME()),
+    PausadoPorUsuarioId   INT                 NOT NULL,
+    Motivo                NVARCHAR(200)       NULL,
+    RetomadoEm            DATETIME2           NULL,
+    RetomadoPorUsuarioId  INT                 NULL,
+    CONSTRAINT PK_PedidoPausa PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_PedidoPausa_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_PedidoPausa_PausadoPorUsuario FOREIGN KEY (PausadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT FK_PedidoPausa_RetomadoPorUsuario FOREIGN KEY (RetomadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_PedidoPausa_RetomadaCompleta
+        CHECK ((RetomadoEm IS NULL AND RetomadoPorUsuarioId IS NULL)
+            OR (RetomadoEm IS NOT NULL AND RetomadoPorUsuarioId IS NOT NULL)),
+    CONSTRAINT CK_PedidoPausa_RetomadaAposPausa CHECK (RetomadoEm IS NULL OR RetomadoEm >= PausadoEm)
+);
+
+/* ---------------------------------------------------------------------
    ESTRUTURA REAL (árvore recursiva efetivamente usada no Pedido/Agrupamento;
    pode ter sido copiada do catálogo e depois customizada)
    --------------------------------------------------------------------- */
@@ -313,10 +341,11 @@ CREATE TABLE dbo.EstruturaRoteiro (
    EXECUÇÃO / RASTREAMENTO
    --------------------------------------------------------------------- */
 
--- Registro de "montei N" de um nó com filhos (regra 24). O total montado do nó é a soma de
--- Quantidade das montagens não estornadas. A baixa de CADA filho fica em dbo.Movimentacao
--- (Tipo = 'Montagem', MontagemId = esta linha), com N × QuantidadePorPai gravado: editar a
--- razão depois não reescreve o passado.
+-- O inicio de um no com filhos (regra 24; spec da Fase 3D, secao 2.1): iniciar N do pai consome
+-- N x QuantidadePorPai de cada filho direto presente no Setor. Esta linha registra o consumo; a
+-- baixa de CADA filho fica em dbo.Movimentacao (Tipo = 'Montagem', MontagemId = esta linha) e o
+-- Inicio do pai tambem a aponta. O total montado do no e a soma de Quantidade das montagens nao
+-- estornadas. Editar a razao depois nao reescreve o passado.
 CREATE TABLE dbo.Montagem (
     Id                     INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId        INT                 NOT NULL, -- o pai montado (nó com filhos)
@@ -392,10 +421,12 @@ CREATE TABLE dbo.Movimentacao (
                                   AND DestinoPosicao = 'AguardandoMontagem')
             OR (Tipo = 'Montagem' AND OrigemPosicao = 'AguardandoMontagem' AND DestinoPosicao = 'Montado')
             OR (Tipo = 'Estorno')),
+    -- MontagemId: obrigatorio na baixa de filho; opcional no Inicio (so o inicio de um pai, que
+    -- consumiu os filhos, aponta a Montagem — spec da Fase 3D, secao 3.3); livre no Estorno.
     CONSTRAINT CK_Movimentacao_MontagemSoNaBaixa
         CHECK ((Tipo = 'Montagem' AND MontagemId IS NOT NULL)
-            OR (Tipo = 'Estorno')
-            OR (Tipo NOT IN ('Montagem', 'Estorno') AND MontagemId IS NULL)),
+            OR (Tipo IN ('Inicio', 'Estorno'))
+            OR (Tipo NOT IN ('Montagem', 'Inicio', 'Estorno') AND MontagemId IS NULL)),
     CONSTRAINT CK_Movimentacao_EstornoApontaOriginal
         CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
             OR (Tipo <> 'Estorno' AND EstornoDeId IS NULL))
@@ -506,8 +537,13 @@ CREATE INDEX IX_Movimentacao_DestinoSetor ON dbo.Movimentacao (DestinoSetorId) W
 CREATE INDEX IX_Movimentacao_OrigemSetor ON dbo.Movimentacao (OrigemSetorId) WHERE OrigemSetorId IS NOT NULL;
 -- Um movimento se estorna uma vez só: JaEstornado garantido pelo banco, não só pela aplicação.
 CREATE UNIQUE INDEX UX_Movimentacao_EstornoDe ON dbo.Movimentacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
+CREATE UNIQUE INDEX UX_Movimentacao_UmInicioPorMontagem
+    ON dbo.Movimentacao (MontagemId) WHERE Tipo = 'Inicio' AND MontagemId IS NOT NULL;
 CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
+-- No máximo uma pausa aberta por Pedido.
+CREATE UNIQUE INDEX UX_PedidoPausa_UmaAbertaPorPedido
+    ON dbo.PedidoPausa (PedidoId) WHERE RetomadoEm IS NULL;
 CREATE INDEX IX_Expedicao_EstruturaItem ON dbo.Expedicao (EstruturaItemId);
 CREATE INDEX IX_RDA_Relatorio ON dbo.RelatorioDimensionalAvaliacao (RelatorioDimensionalId);
 CREATE INDEX IX_Perda_EstruturaItem ON dbo.Perda (EstruturaItemId);

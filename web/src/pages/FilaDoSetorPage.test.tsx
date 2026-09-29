@@ -6,6 +6,7 @@ import { FilaDoSetorPage } from './FilaDoSetorPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
 import { CHASSI, PARAFUSO, SUPORTE, DESTINO_MONTAGEM, destino, fila, no } from '../testes/execucao'
+import type { Estornavel } from '../api/execucao'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); localStorage.clear() })
 
@@ -23,19 +24,19 @@ vi.mock('../auth/AuthContext', () => ({
 const PECA_B = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null })
 
 const FILA_CHEIA = fila({
-  aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }],
-  emTrabalho: [{ no: PECA_B, ordem: 1, quantidade: 2.5 }],
-  aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino() }],
+  aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+  emTrabalho: [{ no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+  aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
   aguardandoMontagem: [{
-    pai: CHASSI, faltaMontar: 10, daParaMontar: 2,
+    pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
     filhos: [
       { no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 },
       { no: PARAFUSO, quantidadePorPai: 1, presente: 5, necessarioParaProxima: 3, faltaParaProxima: 0 },
     ],
   }],
   sobra: [
-    { no: SUPORTE, origem: 'UltimoPasso', ordem: 2, quantidade: 5, emMaisDeUmSetor: false },
-    { no: PARAFUSO, origem: 'Montagem', ordem: null, quantidade: 1, emMaisDeUmSetor: true },
+    { no: SUPORTE, origem: 'UltimoPasso', ordem: 2, quantidade: 5, emMaisDeUmSetor: false, estornaveis: [] },
+    { no: PARAFUSO, origem: 'Montagem', ordem: null, quantidade: 1, emMaisDeUmSetor: true, estornaveis: [] },
   ],
 })
 
@@ -102,12 +103,46 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(emTrabalho).getByText('PED-2026-01 › AG-01')).toBeTruthy()
   })
 
+  it('os botões levam a atividade do Setor quando ele tem uma', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        setorAtividade: 'corte',
+        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
+      })),
+    }))
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar corte SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Terminar corte SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('o botão de confirmar do formulário também leva a atividade do Setor', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        setorAtividade: 'corte',
+        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
+      })),
+    }))
+
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar corte SUP-01 — Suporte' }))
+    expect(screen.getByRole('button', { name: 'Iniciar corte' })).toBeTruthy()
+    fireEvent.click(screen.getByText('Cancelar'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar corte SUP-01 — Suporte' }))
+    expect(screen.getByRole('button', { name: 'Terminar corte' })).toBeTruthy()
+  })
+
   it('aguardando coleta mostra o destino calculado', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoColeta: [
-          { no: SUPORTE, ordem: 1, quantidade: 4, destino: destino() },
-          { no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM },
+          { no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] },
+          { no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM, estornaveis: [] },
         ],
       })),
     }))
@@ -116,16 +151,16 @@ describe('FilaDoSetorPage — leitura', () => {
 
     const coleta = await screen.findByRole('list', { name: 'Aguardando coleta' })
     expect(within(coleta).getByText('Destino: Dobra (passo 2)')).toBeTruthy()
-    expect(within(coleta).getByText('Destino: Montagem de Chassi (sugestão: Solda)')).toBeTruthy()
+    expect(within(coleta).getByText('Destino: Montagem de Chassi em Solda')).toBeTruthy()
   })
 
-  it('aguardando montagem diz quanto dá para montar e o que falta para a próxima', async () => {
+  it('aguardando montagem diz quanto dá para iniciar e o que falta para a próxima', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
 
     renderizar()
 
     const montagem = await screen.findByRole('list', { name: 'Aguardando montagem' })
-    expect(within(montagem).getByText('Dá para montar 2; falta montar 10.')).toBeTruthy()
+    expect(within(montagem).getByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
     const filhos = within(montagem).getByRole('list', { name: 'Filhos de Chassi' })
     expect(within(filhos).getByText('SUP-01 — Suporte: 9 aqui, 4 por unidade — falta 3 de 12 para a próxima')).toBeTruthy()
     // Filho que já basta para a próxima unidade não mostra "falta 0".
@@ -136,7 +171,7 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoMontagem: [{
-          pai: CHASSI, faltaMontar: 2, daParaMontar: 2,
+          pai: CHASSI, faltaMontar: 2, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
           filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 8, necessarioParaProxima: null, faltaParaProxima: null }],
         }],
       })),
@@ -147,7 +182,7 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(await screen.findByText('SUP-01 — Suporte: 8 aqui, 4 por unidade')).toBeTruthy()
   })
 
-  it('a sobra é só informada, e diz quando não dá para saber em que Setor está', async () => {
+  it('a sobra informa o excesso, e diz quando não dá para saber em que Setor está', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
 
     renderizar()
@@ -156,13 +191,25 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(sobra).getByText('5 a mais no passo 2: o pai já tem o que precisa.')).toBeTruthy()
     expect(within(sobra).getByText('1 a mais aguardando montagem do que o pai precisa.')).toBeTruthy()
     expect(within(sobra).getByText(/não dá para saber em qual está a unidade a mais/)).toBeTruthy()
-    // O descarte é da Fase 5: nenhuma ação na seção.
+    // O descarte é da Fase 5, então a sobra não tem ação de descarte. Estas linhas vêm sem `estornaveis`,
+    // por isso também sem "Estornar"; com registro estornável ela ganha o botão (ver o teste
+    // 'a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna').
     expect(within(sobra).queryByRole('button')).toBeNull()
+  })
+
+  it('as seções vêm na ordem de quem opera: em trabalho, a iniciar, aguardando montagem, aguardando coleta e sobra', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
+
+    renderizar()
+
+    await screen.findByRole('list', { name: 'Em trabalho' })
+    const secoes = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    expect(secoes).toEqual(['Em trabalho', 'A iniciar aqui', 'Aguardando montagem', 'Aguardando coleta', 'Sobra'])
   })
 
   it('seção sem nada não aparece', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
-      '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })),
+      '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })),
     }))
 
     renderizar()
@@ -240,8 +287,8 @@ describe('FilaDoSetorPage — leitura', () => {
       '/api/setores/1/fila': () => {
         chamadas += 1
         return respostaJson(chamadas === 1
-          ? fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })
-          : fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6 }] }))
+          ? fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
+          : fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] }))
       },
     }))
 
@@ -260,7 +307,7 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => {
         chamadas += 1
-        if (chamadas === 1) return respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] }))
+        if (chamadas === 1) return respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] }))
         return Promise.reject(new TypeError('Failed to fetch'))
       },
     }))
@@ -303,7 +350,17 @@ function corpoDe(fetchMock: ReturnType<typeof vi.fn>, caminho: string): unknown 
   return JSON.parse(init.body as string)
 }
 
-const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })
+const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
+
+const FORA_DO_PRIMEIRO_PASSO = fila({
+  aguardandoMontagem: [{
+    pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+    filhos: [
+      { no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 },
+      { no: PARAFUSO, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 3, faltaParaProxima: 3 },
+    ],
+  }],
+})
 
 describe('FilaDoSetorPage — ações', () => {
   beforeEach(() => {
@@ -331,7 +388,7 @@ describe('FilaDoSetorPage — ações', () => {
   })
 
   it('terminar manda o passo da linha', async () => {
-    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ no: SUPORTE, ordem: 3, quantidade: 6 }] })], {
+    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ no: SUPORTE, ordem: 3, quantidade: 6, estornaveis: [] }] })], {
       '/api/estrutura/7/terminos': () => respostaJson({}, 201),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -343,20 +400,28 @@ describe('FilaDoSetorPage — ações', () => {
     await waitFor(() => expect(corpoDe(fetchMock, '/api/estrutura/7/terminos')).toEqual({ setorId: 1, ordem: 3, quantidade: 6 }))
   })
 
-  it('montar oferece o que dá para montar, e monta o pai', async () => {
-    const { fetchMock } = montarFetch([FILA_CHEIA], { '/api/estrutura/2/montagens': () => respostaJson({}, 201) })
+  it('o pai inicia no card de montagem com o que dá para iniciar, e a escrita é o início do pai', async () => {
+    const { fetchMock } = montarFetch([FILA_CHEIA], { '/api/estrutura/2/inicios': () => respostaJson({}, 201) })
     vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Montar CH-01 — Chassi' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar CH-01 — Chassi' }))
     expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '2')
-    fireEvent.click(screen.getByRole('button', { name: 'Montar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar' }))
 
-    await waitFor(() => expect(corpoDe(fetchMock, '/api/estrutura/2/montagens')).toEqual({ setorId: 1, quantidade: 2 }))
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/estrutura/2/inicios')).toEqual({ setorId: 1, quantidade: 2 }))
   })
 
-  it('trocar de Setor com o MESMO pai aguardando montagem nos dois fecha o "Montar" que ficou aberto (o `key={id}` de FilaDoSetorPage, Review Focus 4)', async () => {
-    // I1 da review de branch da Fase 3: `chaveDeMontar(paiId)` não inclui o Setor, então o mesmo
+  it('com atividade no Setor, o botão do pai também a leva', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ ...FILA_CHEIA, setorAtividade: 'montagem' })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar montagem CH-01 — Chassi' })).toBeTruthy()
+  })
+
+  it('trocar de Setor com o MESMO pai aguardando montagem nos dois fecha o "Iniciar" que ficou aberto (o `key={id}` de FilaDoSetorPage, Review Focus 4)', async () => {
+    // I1 da review de branch da Fase 3: `chaveDeIniciarPai(paiId)` não inclui o Setor, então o mesmo
     // pai (CHASSI) com `daParaMontar > 0` em dois Setores tem a MESMA chave nos dois — sem o
     // `key={id}` de `FilaDoSetorPage`, o guarda de "Review Focus 3" (que fecha o formulário cuja
     // chave sumiu da fila NOVA) não dispara, porque a chave não sumiu da fila do Setor novo: o
@@ -365,11 +430,11 @@ describe('FilaDoSetorPage — ações', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorId: 1, setorNome: 'Corte',
-        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, filhos: [] }],
+        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
       })),
       '/api/setores/2/fila': () => respostaJson(fila({
         setorId: 2, setorNome: 'Dobra',
-        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 5, filhos: [] }],
+        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 5, iniciaAqui: true, primeiroPassoDoPai: { id: 2, nome: 'Dobra' }, filhos: [] }],
       })),
     }))
 
@@ -382,7 +447,7 @@ describe('FilaDoSetorPage — ações', () => {
       </MemoryRouter>,
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Montar CH-01 — Chassi' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar CH-01 — Chassi' }))
     expect(screen.getByLabelText('Quantidade')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'ir para /fila/2' }))
@@ -391,22 +456,22 @@ describe('FilaDoSetorPage — ações', () => {
     expect(screen.queryByLabelText('Quantidade')).toBeNull()
   })
 
-  it('"dá para montar 0" não oferece Montar', async () => {
+  it('"dá para iniciar 0" não oferece Iniciar', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
-        pai: CHASSI, faltaMontar: 10, daParaMontar: 0,
+        pai: CHASSI, faltaMontar: 10, daParaMontar: 0, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 }],
       }],
     })]).fetchMock)
 
     renderizar()
-    await screen.findByText('Dá para montar 0; falta montar 10.')
+    await screen.findByText('Dá para iniciar 0; falta iniciar 10.')
 
-    expect(screen.queryByRole('button', { name: 'Montar CH-01 — Chassi' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeNull()
   })
 
   it('409 mostra a frase do servidor no formulário e recarrega a fila', async () => {
-    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6 }] })], {
+    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] })], {
       '/api/estrutura/7/inicios': () => respostaJson(
         { erro: 'SaldoInsuficiente', mensagem: 'Só há 6 de Suporte a iniciar.' }, 409),
     })
@@ -498,86 +563,48 @@ describe('FilaDoSetorPage — ações', () => {
     expect(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
   })
 
-  it('levar para outro Setor oferece os outros Setores do Roteiro do pai e entrega', async () => {
-    const { fetchMock } = montarFetch([FILA_CHEIA], {
-      '/api/estrutura/2/roteiro': () => respostaJson({
-        estruturaItemId: 2,
-        passos: [
-          { setorId: 1, nome: 'Corte', ordem: 1, alcancado: true },
-          { setorId: 4, nome: 'Solda', ordem: 2, alcancado: false },
-          { setorId: 4, nome: 'Solda', ordem: 3, alcancado: false },
-          { setorId: 6, nome: 'Montagem final', ordem: 4, alcancado: false },
-        ],
-      }),
-      '/api/entregas': () => respostaJson([], 201),
-    })
+  it('fora do primeiro passo do pai, não há Iniciar e o card diz onde o pai começa', async () => {
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeNull()
+  })
+
+  it('o Movimentador leva o filho para o primeiro passo do pai, sem escolher Setor', async () => {
+    const { fetchMock } = montarFetch([FORA_DO_PRIMEIRO_PASSO], { '/api/entregas': () => respostaJson([], 201) })
     vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' }))
-    const setor = await screen.findByLabelText('Setor de destino')
-    // O Setor atual (Corte) sai; o repetido (Solda) aparece uma vez.
-    expect(within(setor).getAllByRole('option').map((o) => o.textContent))
-      .toEqual(['Escolha o Setor', 'Solda', 'Montagem final'])
-    expect(screen.getByRole('button', { name: 'Levar' })).toHaveProperty('disabled', true)
-    fireEvent.change(setor, { target: { value: '4' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' }))
     fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Levar' }))
 
     await waitFor(() => expect(corpoDe(fetchMock, '/api/entregas')).toEqual({
-      itens: [{
-        estruturaItemId: 7, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null },
-        destinoSetorId: 4, quantidade: 5,
-      }],
+      itens: [{ estruturaItemId: 7, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null }, quantidade: 5 }],
     }))
+    expect(screen.queryByLabelText('Setor de destino')).toBeNull()
   })
 
-  it('levar para outro Setor, com o Roteiro do pai só neste Setor, diz que não há para onde', async () => {
-    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA], {
-      '/api/estrutura/2/roteiro': () => respostaJson({
-        estruturaItemId: 2, passos: [{ setorId: 1, nome: 'Corte', ordem: 1, alcancado: false }],
-      }),
-    }).fetchMock)
+  it('filho ausente não ganha Levar', async () => {
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
 
     renderizar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' }))
+    await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })
 
-    expect(await screen.findByText('O Roteiro de Chassi não tem outro Setor para onde levar.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Levar para Solda Parafuso' })).toBeNull()
   })
 
-  it('falha ao buscar o Roteiro mostra o erro e deixa cancelar', async () => {
-    // Achado da review da Task 5: o estado de erro do `FormularioDeRedirecionamento` não tinha
-    // teste — sem ele, um 500 (ou uma rejeição) na busca do Roteiro deixava o Movimentador em
-    // "Carregando…" para sempre, sem mensagem e sem "Cancelar".
-    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA], {
-      '/api/estrutura/2/roteiro': () => respostaJson({}, 500),
-    }).fetchMock)
-
-    renderizar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' }))
-
-    expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-
-    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })).toBeTruthy()
-  })
-
-  it('filho ausente deste Setor não oferece "Levar"', async () => {
+  it('pai sem Roteiro avisa e não oferece Levar', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
-      aguardandoMontagem: [{
-        pai: CHASSI, faltaMontar: 10, daParaMontar: 0,
-        filhos: [
-          { no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 },
-          { no: PARAFUSO, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 1, faltaParaProxima: 1 },
-        ],
-      }],
+      aguardandoMontagem: [{ ...FORA_DO_PRIMEIRO_PASSO.aguardandoMontagem[0], primeiroPassoDoPai: null }],
     })]).fetchMock)
 
     renderizar()
-    await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })
 
-    expect(screen.queryByRole('button', { name: 'Levar para outro Setor Parafuso' })).toBeNull()
+    expect(await screen.findByText('Chassi não tem Roteiro. Peça ao PCP para cadastrá-lo.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
   })
 })
 
@@ -587,7 +614,10 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
     inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
   })
 
-  it('o Operador inicia, termina e monta, e não redireciona', async () => {
+  // Cada ausência é afirmada numa fixture em que a mesma ação EXISTE para outro perfil, e o teste
+  // do outro perfil afirma essa presença: `FILA_CHEIA` mostra Iniciar/Terminar a quem apura,
+  // `FORA_DO_PRIMEIRO_PASSO` mostra Levar a quem entrega.
+  it('o Operador inicia e termina, o pai inclusive, e não leva', async () => {
     perfil = 'Operador'
     vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
 
@@ -595,20 +625,43 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
 
     expect(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Terminar BA-01 — Base' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Montar CH-01 — Chassi' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /^Levar para outro Setor/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeTruthy()
   })
 
-  it('o Movimentador redireciona, e não inicia, termina nem monta', async () => {
+  it('o Operador não leva o filho para o primeiro passo do pai', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+
+    // A fixture carregou e traz o filho presente: para o Movimentador o botão existe (ver o teste 'o Movimentador leva o filho para o primeiro passo do pai').
+    expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
+  })
+
+  it('o Movimentador leva o filho para o primeiro passo do pai', async () => {
+    perfil = 'Movimentador'
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('o Movimentador não inicia, termina nem leva onde o pai já começa', async () => {
     perfil = 'Movimentador'
     vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
 
     renderizar()
 
-    expect(await screen.findByRole('button', { name: 'Levar para outro Setor SUP-01 — Suporte' })).toBeTruthy()
+    // `FILA_CHEIA` tem Iniciar (filho e pai) e Terminar para o Operador (ver o teste 'o Operador inicia e termina, o pai inclusive, e não leva').
+    expect(await screen.findByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Iniciar/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Terminar/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: /^Montar/ })).toBeNull()
+    // No primeiro passo do pai (`iniciaAqui`) não há para onde levar: nem botão de Levar, nem o aviso
+    // "começa em". O par de presença é `FORA_DO_PRIMEIRO_PASSO`, onde este mesmo perfil vê os dois.
+    expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
+    expect(screen.queryByText(/começa em/)).toBeNull()
   })
 
   it('a Gestão lê a fila inteira, sem ação nenhuma', async () => {
@@ -621,5 +674,407 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
     expect(screen.getByRole('list', { name: 'Aguardando montagem' })).toBeTruthy()
     // Sem ação nenhuma: "Trocar de Setor" continua na tela, mas é um link, não conta aqui.
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('a Gestão também não leva o filho, onde o Movimentador leva', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+const ESTORNAVEL = (id: number, quantidade: number, usuarioId = 12): Estornavel => ({
+  tipo: 'Termino', id, quantidade, usuarioId, usuarioNome: 'Operador do Corte', dataHora: '2026-09-28T10:14:00-03:00',
+})
+
+const foiChamado = (fetchMock: ReturnType<typeof vi.fn>, caminho: string) =>
+  fetchMock.mock.calls.some((c) => String(c[0]) === caminho)
+
+describe('FilaDoSetorPage — estorno rápido', () => {
+  beforeEach(() => {
+    perfil = 'Operador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const COLETA = (estornaveis: Estornavel[]) => fila({
+    aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 8, destino: destino(), estornaveis }],
+  })
+
+  it('com um registro só, vai direto à confirmação e estorna o movimento', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COLETA([ESTORNAVEL(41, 5)]), fila()], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    expect(screen.getByText(/^Estornar o término de 5, registrado por Operador do Corte/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('Nada neste Setor agora')).toBeTruthy()
+    expect(foiChamado(fetchMock, '/api/movimentacoes/41/estorno')).toBe(true)
+    expect(getsDaFila()).toBe(2)
+  })
+
+  it('com vários, abre a lista curta e estorna o escolhido', async () => {
+    const { fetchMock } = montarFetch([COLETA([ESTORNAVEL(42, 3), ESTORNAVEL(41, 5)])], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    // A lista abre na linha, sem diálogo ainda: nada foi escolhido.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar Término de 5 · Operador do Corte · 28/09/2026 10:14' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/movimentacoes/41/estorno')).toBe(true))
+    expect(foiChamado(fetchMock, '/api/movimentacoes/42/estorno')).toBe(false)
+  })
+
+  it('a lista curta só traz os registros que a sessão pode estornar', async () => {
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(42, 3), ESTORNAVEL(41, 5), ESTORNAVEL(40, 2, 99)])]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+
+    expect(screen.getAllByRole('button', { name: /^Estornar Término/ })).toHaveLength(2)
+  })
+
+  it('com um registro meu e outro alheio, vai direto à confirmação do meu', async () => {
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(42, 3, 99), ESTORNAVEL(41, 5)])]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+
+    expect(screen.getByText(/^Estornar o término de 5, registrado por/)).toBeTruthy()
+    expect(screen.queryByText('Qual registro você quer estornar?')).toBeNull()
+  })
+
+  it('o registro maior que a linha (desvio D4) aparece e estorna com a quantidade dele', async () => {
+    const { fetchMock } = montarFetch([fila({
+      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 40, estornaveis: [ESTORNAVEL(41, 45)] }],
+    })], { '/api/movimentacoes/41/estorno': () => respostaJson({}, 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    expect(screen.getByText(/^Estornar o término de 45, registrado por/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/movimentacoes/41/estorno')).toBe(true))
+  })
+
+  it('a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [ESTORNAVEL(41, 5)] }],
+      sobra: [{ no: PARAFUSO, origem: 'UltimoPasso', ordem: 2, quantidade: 1, emMaisDeUmSetor: false, estornaveis: [ESTORNAVEL(50, 1)] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Terminar SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeTruthy()
+    expect(within(screen.getByRole('list', { name: 'Sobra' })).getByRole('button', { name: 'Estornar Parafuso' })).toBeTruthy()
+  })
+
+  it('o início de um pai estorna pela rota da montagem', async () => {
+    const { fetchMock } = montarFetch([fila({
+      emTrabalho: [{ no: CHASSI, ordem: 1, quantidade: 3, estornaveis: [{ ...ESTORNAVEL(9, 3), tipo: 'Montagem' }] }],
+    })], { '/api/montagens/9/estorno': () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar CH-01 — Chassi' }))
+    expect(screen.getByText(/^Estornar o início de 3 \(com o consumo dos filhos\), registrado por/)).toBeTruthy()
+    expect(screen.getByText(/O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/montagens/9/estorno')).toBe(true))
+    expect(foiChamado(fetchMock, '/api/movimentacoes/9/estorno')).toBe(false)
+  })
+
+  it('recusa do servidor vira aviso no topo e, no 409, recarrega', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COLETA([ESTORNAVEL(41, 5)])], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({ erro: 'EstornoImpossivel', mensagem: 'A quantidade já andou.' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('A quantidade já andou.')).toBeTruthy()
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('dois registros que cabem um a um e não juntos: o segundo é recusado e a fila recarrega com o que sobrou', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([
+      COLETA([ESTORNAVEL(42, 3), ESTORNAVEL(41, 5)]),
+      COLETA([ESTORNAVEL(41, 5)]),
+      COLETA([]),
+    ], {
+      '/api/movimentacoes/42/estorno': () => respostaJson({}, 201),
+      '/api/movimentacoes/41/estorno': () => respostaJson({ erro: 'EstornoImpossivel', mensagem: 'A quantidade já andou.' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar Término de 3 · Operador do Corte · 28/09/2026 10:14' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('A quantidade já andou.')).toBeTruthy()
+    await waitFor(() => expect(getsDaFila()).toBe(3))
+    expect(screen.queryByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeNull()
+  })
+
+  it('403 mostra a frase e NÃO recarrega (só o 409 recarrega)', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COLETA([ESTORNAVEL(41, 5)])], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({}, 403),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBeTruthy()
+    expect(getsDaFila()).toBe(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('sem registro que a sessão possa estornar, não há botão', async () => {
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(41, 5, 99)])]).fetchMock) // autor 99, sessão 12, Operador
+
+    renderizar()
+    await screen.findByText('8 aguardando coleta · passo 1')
+
+    expect(screen.queryByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeNull()
+  })
+
+  it('o PCP estorna o registro de outra pessoa', async () => {
+    perfil = 'PCP'
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(41, 5, 99)])]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('a Gestão não estorna, mesmo com registro na linha', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(41, 5)])]).fetchMock)
+
+    renderizar()
+    await screen.findByText('8 aguardando coleta · passo 1')
+
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('linha sem ação nenhuma não ganha o contêiner de ações vazio', async () => {
+    perfil = 'Movimentador' // não apura: sem Terminar; e sem registro estornável na linha
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    const linha = (await screen.findByText('6 em trabalho · passo 1')).closest('li')!
+    expect(linha.firstElementChild!.children).toHaveLength(1)
+  })
+
+  it('cancelar a confirmação não estorna', async () => {
+    const { fetchMock } = montarFetch([COLETA([ESTORNAVEL(41, 5)])])
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/estorno'))).toBe(false)
+  })
+})
+
+describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
+  beforeEach(() => {
+    perfil = 'Administrador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
+  const BASE_PAUSADA = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null, pausa: PAUSA })
+  const CHASSI_PAUSADO = no({ ...CHASSI, pausa: PAUSA })
+
+  // O pausado vem PRIMEIRO no array de propósito: quem separa os grupos é a tela, e não a ordem em
+  // que o servidor os manda.
+  const A_INICIAR_MISTA = fila({
+    aIniciar: [
+      { no: BASE_PAUSADA, ordem: 1, quantidade: 3, estornaveis: [] },
+      { no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] },
+    ],
+  })
+
+  it('o pausado vai depois do titulo "Pausados", com a pilula e o motivo, e sem Iniciar', async () => {
+    vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'A iniciar aqui' })
+    const itens = Array.from(lista.children).map((li) => li.textContent ?? '')
+    expect(itens).toHaveLength(3)
+    expect(itens[0]).toContain('SUP-01 — Suporte')
+    expect(itens[1]).toBe('Pausados')
+    expect(itens[2]).toContain('BA-01 — Base')
+    expect(itens[2]).toContain('Pausado')
+    expect(itens[2]).toContain('Pausa: PED-9 urgente')
+    expect(itens[2]).toContain('3 a iniciar · passo 1 · Pedido pausado')
+    expect(screen.queryByRole('button', { name: 'Iniciar BA-01 — Base' })).toBeNull()
+  })
+
+  it('o liberado da mesma seção continua com Iniciar, e sem pilula', async () => {
+    vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
+    const liberado = screen.getByText('SUP-01 — Suporte').closest('li')!
+    expect(within(liberado).queryByText('Pausado')).toBeNull()
+  })
+
+  it('sem nenhum pausado, o titulo "Pausados" nao aparece', async () => {
+    vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR]).fetchMock)
+
+    renderizar()
+
+    await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' })
+    expect(screen.queryByText('Pausados')).toBeNull()
+  })
+
+  it('a pilula "Pausado" usa o tom de atencao, nunca o de erro nem o de aprovado', async () => {
+    vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
+
+    renderizar()
+
+    const classes = (await screen.findByText('Pausado')).className.split(/\s+/)
+    expect(classes).toContain('bg-atencao-fundo')
+    expect(classes).toContain('text-atencao-texto')
+    expect(classes.some((c) => /negativo-|positivo-/.test(c))).toBe(false)
+  })
+
+  it('o pai de Pedido pausado no card de montagem nao tem Iniciar, mas o card e os filhos continuam', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
+        filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+
+    const secao = await screen.findByRole('list', { name: 'Aguardando montagem' })
+    expect(within(secao).getByText('Pausado')).toBeTruthy()
+    expect(within(secao).getByText('Pausa: PED-9 urgente')).toBeTruthy()
+    expect(within(secao).getByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeNull()
+  })
+
+  it('o mesmo card com o Pedido livre oferece o Iniciar do pai', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeTruthy()
+  })
+
+  it('fora do primeiro passo, o filho de pai pausado continua levavel (a pausa recusa so o Iniciar)', async () => {
+    perfil = 'Movimentador'
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+        filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('a linha em trabalho de Pedido pausado continua com Terminar, e leva a pilula', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: BASE_PAUSADA, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Terminar BA-01 — Base' })).toBeTruthy()
+    const linha = screen.getByText('BA-01 — Base').closest('li')!
+    expect(within(linha).getByText('Pausado')).toBeTruthy()
+    expect(within(linha).getByText('Pausa: PED-9 urgente')).toBeTruthy()
+  })
+
+  it('pausa sem motivo mostra a pilula e nenhuma linha "Pausa:"', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: no({ pausa: { ...PAUSA, motivo: null } }), ordem: 1, quantidade: 2, estornaveis: [] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Pausado')).toBeTruthy()
+    expect(screen.queryByText(/^Pausa:/)).toBeNull()
+  })
+
+  it('o Pedido pausado enquanto o formulario de Iniciar esta aberto: a atualizacao fecha o formulario com aviso', async () => {
+    vi.useFakeTimers()
+    const pausado = fila({ aIniciar: [{ no: no({ pausa: PAUSA }), ordem: 1, quantidade: 10, estornaveis: [] }] })
+    vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR, pausado]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByText('Pausado')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent)
+      .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
+  })
+
+  it('a pausa do pai fecha o formulario de Iniciar do card de montagem', async () => {
+    vi.useFakeTimers()
+    const livre = fila({
+      aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+    })
+    const pausada = fila({
+      aguardandoMontagem: [{ pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+    })
+    vi.stubGlobal('fetch', montarFetch([livre, pausada]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar CH-01 — Chassi' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByRole('alert').textContent)
+      .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
   })
 })

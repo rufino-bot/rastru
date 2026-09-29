@@ -105,6 +105,14 @@ public class FakePedidoRepo : IPedidoRepository
   /// <summary>Quantos commits o repositorio recebeu — prova que o caminho de erro nao escreve.</summary>
   public int Saves { get; private set; }
 
+  /// <summary>PedidoId -> pausa aberta. Arranjo do teste.</summary>
+  public Dictionary<int, PausaAberta> PausasAbertas { get; } = new();
+
+  public Task<IReadOnlyDictionary<int, PausaAberta>> ListarPausasAbertasAsync(
+      IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<int, PausaAberta>>(
+          PausasAbertas.Where(kv => pedidoIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
+
   public Task<Pedido?> ObterPorIdAsync(int id, CancellationToken ct) =>
       Task.FromResult(_linhas.SingleOrDefault(p => p.Id == id));
 

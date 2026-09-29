@@ -15,16 +15,18 @@ public static class CodigosDaExecucao
   public const string SemRoteiro = "SemRoteiro";
   public const string NaoEhOPrimeiroPasso = "NaoEhOPrimeiroPasso";
   public const string SaldoInsuficiente = "SaldoInsuficiente";
-  public const string SemFilhos = "SemFilhos";
-  public const string MontagemAcimaDoQueFalta = "MontagemAcimaDoQueFalta";
   public const string FilhosInsuficientes = "FilhosInsuficientes";
-  public const string DestinoForaDoRoteiroDoPai = "DestinoForaDoRoteiroDoPai";
+  public const string RedirecionamentoSemEfeito = "RedirecionamentoSemEfeito";
   public const string PaiSemRoteiro = "PaiSemRoteiro";
   public const string PassoJaAlcancado = "PassoJaAlcancado";
   public const string QuantidadeAbaixoDoMovimentado = "QuantidadeAbaixoDoMovimentado";
   public const string EstornoImpossivel = "EstornoImpossivel";
   public const string JaEstornado = "JaEstornado";
   public const string PedidoFechado = "PedidoFechado";
+  public const string PedidoPausado = "PedidoPausado";
+  public const string PedidoJaPausado = "PedidoJaPausado";
+  public const string PedidoNaoPausado = "PedidoNaoPausado";
+  public const string MotivoLongoDemais = "MotivoLongoDemais";
   public const string ConflitoDeConcorrencia = "ConflitoDeConcorrencia";
 
   public const string MensagemDeConflito =

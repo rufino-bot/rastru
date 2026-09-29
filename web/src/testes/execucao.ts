@@ -11,7 +11,7 @@ export function no(parcial: Partial<NoResumoDto> = {}): NoResumoDto {
   return {
     id: 7, descricao: 'Suporte', codigoDoComponente: 'SUP-01',
     pedidoId: 1, pedidoNumero: 'PED-2026-01', agrupamentoId: 3, agrupamentoCodigo: 'AG-01',
-    paiId: 2, paiDescricao: 'Chassi',
+    paiId: 2, paiDescricao: 'Chassi', pausa: null,
     ...parcial,
   }
 }
@@ -22,20 +22,16 @@ export const PARAFUSO = no({ id: 8, descricao: 'Parafuso', codigoDoComponente: n
 
 export function destino(parcial: Partial<DestinoDto> = {}): DestinoDto {
   return {
-    tipo: 'ProximoPasso', setorId: 3, setorNome: 'Dobra', ordem: 2,
-    paiId: null, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: false,
+    tipo: 'ProximoPasso', setorId: 3, setorNome: 'Dobra', ordem: 2, paiId: null, paiSemRoteiro: false,
     ...parcial,
   }
 }
 
-export const DESTINO_MONTAGEM = destino({
-  tipo: 'Montagem', setorId: null, setorNome: null, ordem: null,
-  paiId: 2, sugestaoSetorId: 4, setoresPossiveis: [{ id: 4, nome: 'Solda' }, { id: 6, nome: 'Montagem final' }],
-})
+export const DESTINO_MONTAGEM = destino({ tipo: 'Montagem', setorId: 4, setorNome: 'Solda', ordem: null, paiId: 2 })
 
 export function fila(parcial: Partial<FilaDoSetorDto> = {}): FilaDoSetorDto {
   return {
-    setorId: 1, setorNome: 'Corte',
+    setorId: 1, setorNome: 'Corte', setorAtividade: null,
     aIniciar: [], emTrabalho: [], aguardandoColeta: [], aguardandoMontagem: [], sobra: [],
     ...parcial,
   }

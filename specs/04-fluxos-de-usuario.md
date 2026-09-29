@@ -5,7 +5,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 ## 1. Cadastro de Pedido
 
-*Perfil: PCP*
+*Perfil: PCP (pausar e retomar o Pedido: PCP ou Gestão)*
 
 1. PCP cadastra Pedido (`Tipo = Fabricacao`), com Cliente e Número.
 2. PCP cadastra N Agrupamentos para o Pedido (cada um com Tipo `'Kit'` ou `'Avulso'`).
@@ -17,6 +17,11 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    - Para cada Peça (nó de topo do `EstruturaItem`), marca se ela `RequerRelatorioDimensional`.
 4. Pedido fica com `Status = Aberto` até o primeiro apontamento de setor
    (`Status = EmProducao`).
+5. Quando outro Pedido precisa passar na frente, **PCP ou Gestão pausam** o Pedido, com um motivo
+   opcional, e o **retomam** depois (regra 31). A pausa não muda o status; ela só recusa o início
+   de nós dele. A **lista** de Pedidos mostra só a pílula "Pausado", ao lado do status; quem
+   pausou, desde quando e por quê aparecem no **detalhe** do Pedido, onde também ficam os botões
+   Pausar e Retomar.
 
 ## 2. Apontamento em Setor
 
@@ -24,24 +29,38 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 > **Reescrito em 2026-09-24** pela spec da Fase 3
 > (`docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`), que decidiu o que a
-> nota de 2026-09-15 deixava em aberto. Em Agrupamento Kit, a trava de montagem e o conjunto
-> completo (regras 24 e 25) entram na Fase 3B.
+> nota de 2026-09-15 deixava em aberto. **Emendado em 2026-09-28** pela spec da Fase 3D
+> (`docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`): montar deixou de
+> ser ação — o pai é iniciado, e iniciá-lo consome os filhos (regra 24) —, o que torna a trava de
+> montagem estrutural para todo nó que já tem filhos quando entra em produção; o **conjunto
+> completo** na entrada de Setor com `UtilizaKit` (regra 25) e o caso do nó que ganha filho depois
+> de iniciado continuam na Fase 3B.
 
 1. **PCP** confere que todo nó tem Roteiro; nó sem Roteiro aparece como pendência na árvore, e o PCP
    o edita (regra 28).
-2. **Operador** abre a fila do seu Setor e vê o que está a iniciar ali, em trabalho, aguardando
-   coleta, aguardando montagem e a sobra.
+2. **Operador** abre a fila do seu Setor e vê, nesta ordem, o que está em trabalho, o que está a
+   iniciar ali, o que está aguardando montagem, o que está aguardando coleta e a sobra.
 3. Ao pegar o material para trabalhar num nó cujo primeiro passo é ali, **inicia** uma quantidade
    (regra 28). Ao terminar, **termina** a quantidade feita: ela passa a aguardar coleta. O lote é
    divisível, e o que se valida é a conservação de quantidade (nunca movimentar mais do que existe
-   naquele ponto).
+   naquele ponto). Quando o Setor tem uma **atividade** cadastrada, os botões levam o nome dela
+   ("Iniciar solda", "Terminar solda"); sem atividade, ficam "Iniciar" e "Terminar".
 4. **Movimentador** abre Tarefas, vê os Itens prontos com o destino de cada um e **entrega**: no
-   próximo passo; na montagem do pai, num Setor do Roteiro dele que escolhe; ou, se for Peça no fim
-   do Roteiro, no local de expedição (regra 29).
-5. **Operador** do Setor de montagem vê "dá para montar N; falta X de Y" e **monta** o que dá (regra
-   24).
+   próximo passo; na montagem do pai, no **primeiro passo do Roteiro do pai**, que o sistema calcula
+   — o Movimentador não escolhe o Setor —; ou, se for Peça no fim do Roteiro, no local de expedição
+   (regra 29).
+5. **Operador** do primeiro passo do pai vê "Dá para iniciar N; falta iniciar X" e **inicia** o pai:
+   iniciar é o que consome os filhos presentes no Setor e põe o pai em produção (regra 24). Não há
+   mais "montar". Em outro Setor que ainda tenha filhos aguardando (entregues antes de o PCP editar
+   o primeiro passo do pai), o card não oferece Iniciar: diz para onde levar os filhos.
 6. Registro errado se corrige por **estorno**, pelo autor ou pelo PCP, enquanto a quantidade não
-   tiver andado.
+   tiver andado. O operador estorna **na própria fila**: as linhas de "Em trabalho", "Aguardando
+   coleta" e a sobra do último passo oferecem "Estornar", que abre a lista curta dos registros que
+   ele ainda pode estornar (ou vai direto à confirmação quando há um só). Estornar o início de um
+   pai desfaz junto o consumo dos filhos.
+7. Se o Pedido de um nó está **pausado** (fluxo 1, passo 5), o operador o vê no fim de "A iniciar
+   aqui", marcado como pausado e sem o botão de iniciar — e o card de montagem do pai pausado
+   também fica sem Iniciar; terminar, entregar e estornar continuam valendo para o que já começou.
 
 ## 3. Separação de Material
 

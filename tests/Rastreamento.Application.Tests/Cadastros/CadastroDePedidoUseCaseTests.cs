@@ -1,5 +1,7 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Execucao;
+using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -149,6 +151,35 @@ public class CadastroDePedidoUseCaseTests
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
     Assert.Equal(0, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Listar_traz_a_pausa_aberta_do_Pedido_pausado_e_nulo_nos_demais()
+  {
+    var repo = new FakePedidoRepo(
+        new Pedido { Id = 1, Numero = "PED-001", Cliente = "A" },
+        new Pedido { Id = 2, Numero = "PED-002", Cliente = "B" });
+    var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
+    repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "PED-9 urgente");
+
+    var pedidos = await new CadastroDePedidoUseCase(repo).Listar(CancellationToken.None);
+
+    Assert.Null(pedidos.Single(p => p.Id == 1).Pausa);
+    Assert.Equal(new PausaResumoDto(desde, "PCP", "PED-9 urgente"), pedidos.Single(p => p.Id == 2).Pausa);
+  }
+
+  [Fact]
+  public async Task Obter_traz_a_pausa_aberta_e_nulo_sem_ela()
+  {
+    var repo = new FakePedidoRepo(
+        new Pedido { Id = 1, Numero = "PED-001", Cliente = "A" },
+        new Pedido { Id = 2, Numero = "PED-002", Cliente = "B" });
+    var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
+    repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", null);
+    var useCase = new CadastroDePedidoUseCase(repo);
+
+    Assert.Null((await useCase.Obter(1, CancellationToken.None)).Valor!.Pausa);
+    Assert.Equal(new PausaResumoDto(desde, "PCP", null), (await useCase.Obter(2, CancellationToken.None)).Valor!.Pausa);
   }
 
   [Fact]

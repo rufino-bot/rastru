@@ -5,14 +5,14 @@ using Rastreamento.Application.Execucao;
 namespace Rastreamento.Api.Controllers;
 
 /// <summary>
-/// O que o Operador registra no Setor — iniciar, terminar, montar — e a fila que ele le. Sem `[Route]`
-/// de classe: as rotas de no sao `estrutura/{id}/...` (o prefixo da Fase 2) e a fila e `setores/{id}/fila`.
+/// O que o Operador registra no Setor — iniciar, terminar — e a fila que ele le. Sem `[Route]` de
+/// classe: as rotas de no sao `estrutura/{id}/...` (o prefixo da Fase 2) e a fila e `setores/{id}/fila`.
 /// </summary>
 [ApiController]
 [Authorize]
 public class ApontamentoController : ExecucaoControllerBase
 {
-  /// <summary>Spec secao 4.8: iniciar, terminar e montar sao do Operador.</summary>
+  /// <summary>Spec secao 4.8: iniciar e terminar sao do Operador.</summary>
   private const string PerfisDeEscrita = "Operador,Administrador";
 
   private readonly ApontamentoUseCase _apontamento;
@@ -40,14 +40,10 @@ public class ApontamentoController : ExecucaoControllerBase
     return Traduzir(await _apontamento.Terminar(id, dto, usuarioId, ct), criado: true);
   }
 
-  [HttpPost("estrutura/{id:int}/montagens")]
-  [Authorize(Roles = PerfisDeEscrita)]
-  public async Task<IActionResult> Montar(int id, [FromBody] MontagemNovaDto dto, CancellationToken ct)
+  [HttpGet("setores/{id:int}/fila")]
+  public async Task<IActionResult> Fila(int id, CancellationToken ct)
   {
     if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
-    return Traduzir(await _apontamento.Montar(id, dto, usuarioId, ct), criado: true);
+    return Traduzir(await _consulta.Fila(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
   }
-
-  [HttpGet("setores/{id:int}/fila")]
-  public async Task<IActionResult> Fila(int id, CancellationToken ct) => Traduzir(await _consulta.Fila(id, ct));
 }

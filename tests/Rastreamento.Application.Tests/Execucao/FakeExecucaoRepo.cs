@@ -17,6 +17,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
   private readonly FakeEstruturaRepo _estruturas;
   private readonly List<Movimentacao> _movimentosPendentes = new();
   private readonly List<Montagem> _montagensPendentes = new();
+  private readonly List<PedidoPausa> _pausasPendentes = new();
   private int _proximoId = 5000;
   private bool _emTransacao;
 
@@ -24,6 +25,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
   public List<Movimentacao> Movimentacoes { get; } = new();
   public List<Montagem> Montagens { get; } = new();
+  public List<PedidoPausa> Pausas { get; } = new();
 
   /// <summary>AgrupamentoId -> (Codigo, PedidoId, PedidoNumero). Arranjo do teste.</summary>
   public Dictionary<int, (string Codigo, int PedidoId, string PedidoNumero)> Agrupamentos { get; } = new();
@@ -59,6 +61,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
       _emTransacao = false;
       _movimentosPendentes.Clear();
       _montagensPendentes.Clear();
+      _pausasPendentes.Clear();
     }
   }
 
@@ -115,7 +118,8 @@ public class FakeExecucaoRepo : IExecucaoRepository
       if (!Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag)) continue;
       var status = StatusDoPedido[ag.PedidoId];
       if (status is "Concluido" or "Cancelado") continue;
-      lista.Add(new ContextoDoNo(item, ag.PedidoId, ag.PedidoNumero, item.AgrupamentoId, ag.Codigo));
+      lista.Add(new ContextoDoNo(item, ag.PedidoId, ag.PedidoNumero, item.AgrupamentoId, ag.Codigo,
+          PausaDoPedido(ag.PedidoId)));
     }
     return Task.FromResult<IReadOnlyList<ContextoDoNo>>(lista);
   }
@@ -125,7 +129,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
     var item = _estruturas.Itens.SingleOrDefault(i => i.Id == estruturaItemId);
     if (item is null || !Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag))
       return Task.FromResult<PedidoDoNo?>(null);
-    return Task.FromResult<PedidoDoNo?>(new PedidoDoNo(ag.PedidoId, StatusDoPedido[ag.PedidoId]));
+    return Task.FromResult<PedidoDoNo?>(new PedidoDoNo(ag.PedidoId, ag.PedidoNumero, StatusDoPedido[ag.PedidoId], PausaDoPedido(ag.PedidoId) is not null));
   }
 
   /// <summary>
@@ -135,6 +139,34 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// </summary>
   public Task<PedidoDoNo?> ObterPedidoDoNoParaEscritaAsync(int estruturaItemId, CancellationToken ct) =>
       ObterPedidoDoNoAsync(estruturaItemId, ct);
+
+  private PausaAberta? PausaDoPedido(int pedidoId) =>
+      Pausas.Where(p => p.PedidoId == pedidoId && p.RetomadoEm is null)
+          .Select(p => new PausaAberta(p.PedidoId, p.PausadoEm, p.PausadoPorUsuarioId,
+              Usuarios.GetValueOrDefault(p.PausadoPorUsuarioId, string.Empty), p.Motivo))
+          .SingleOrDefault();
+
+  public Task<PedidoTravado?> TravarPedidoAsync(int pedidoId, CancellationToken ct)
+  {
+    if (!_emTransacao) throw new InvalidOperationException("TravarPedidoAsync fora de EmTransacaoAsync.");
+    if (!StatusDoPedido.TryGetValue(pedidoId, out var status)) return Task.FromResult<PedidoTravado?>(null);
+    var numero = Agrupamentos.Values.First(a => a.PedidoId == pedidoId).PedidoNumero;
+    return Task.FromResult<PedidoTravado?>(new PedidoTravado(pedidoId, numero, status));
+  }
+
+  public Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct) =>
+      Task.FromResult(Pausas.SingleOrDefault(p => p.PedidoId == pedidoId && p.RetomadoEm is null));
+
+  public Task FecharPausaAsync(int pausaId, int usuarioId, DateTime em, CancellationToken ct)
+  {
+    var pausa = Pausas.Single(p => p.Id == pausaId);
+    if (pausa.RetomadoEm is null)
+    {
+      pausa.RetomadoEm = em;
+      pausa.RetomadoPorUsuarioId = usuarioId;
+    }
+    return Task.CompletedTask;
+  }
 
   public Task MarcarPedidoEmProducaoAsync(int pedidoId, CancellationToken ct)
   {
@@ -190,6 +222,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
           .OrderBy(m => m.Id)
           .ToList());
 
+  public Task<Movimentacao?> ObterInicioDaMontagemAsync(int montagemId, CancellationToken ct) =>
+      Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Tipo == TiposDeMovimentacao.Inicio && m.MontagemId == montagemId));
+
   public Task MarcarMontagemEstornadaAsync(int montagemId, int usuarioId, DateTime em, CancellationToken ct)
   {
     var montagem = Montagens.Single(g => g.Id == montagemId);
@@ -205,6 +240,21 @@ public class FakeExecucaoRepo : IExecucaoRepository
       IReadOnlyCollection<int> ids, CancellationToken ct) =>
       Task.FromResult<IReadOnlyDictionary<int, string>>(
           Usuarios.Where(kv => ids.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
+
+  public Task<RegistrosDoSetor> ListarRegistrosEstornaveisDoSetorAsync(
+      int setorId, IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    var estornados = Movimentacoes.Where(m => m.EstornoDeId is not null).Select(m => m.EstornoDeId!.Value).ToHashSet();
+    var movimentos = Movimentacoes
+        .Where(m => ids.Contains(m.EstruturaItemId) && m.DestinoSetorId == setorId && m.MontagemId is null
+            && (m.Tipo == TiposDeMovimentacao.Inicio || m.Tipo == TiposDeMovimentacao.Termino)
+            && !estornados.Contains(m.Id))
+        .OrderBy(m => m.Id).ToList();
+    var montagens = Montagens
+        .Where(g => ids.Contains(g.EstruturaItemId) && g.SetorId == setorId && g.EstornadaEm is null)
+        .OrderBy(g => g.Id).ToList();
+    return Task.FromResult(new RegistrosDoSetor(movimentos, montagens));
+  }
 
   public Task SubstituirPassosNaoAlcancadosAsync(
       int estruturaItemId, int? ultimaOrdemTravada, IReadOnlyList<(int SetorId, int Ordem)> novos, CancellationToken ct)
@@ -223,6 +273,8 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
   public void Adicionar(Montagem montagem) => _montagensPendentes.Add(montagem);
 
+  public void Adicionar(PedidoPausa pausa) => _pausasPendentes.Add(pausa);
+
   public Task SalvarAlteracoesAsync(CancellationToken ct)
   {
     Saves++;
@@ -236,8 +288,14 @@ public class FakeExecucaoRepo : IExecucaoRepository
       movimento.Id = _proximoId++;
       Movimentacoes.Add(movimento);
     }
+    foreach (var pausa in _pausasPendentes)
+    {
+      pausa.Id = _proximoId++;
+      Pausas.Add(pausa);
+    }
     _montagensPendentes.Clear();
     _movimentosPendentes.Clear();
+    _pausasPendentes.Clear();
     return Task.CompletedTask;
   }
 

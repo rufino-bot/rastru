@@ -233,13 +233,57 @@ resolvidos (ou conscientemente adiados).
 > que respondeu essas perguntas: a montagem de todo nó e `QuantidadePorPai` vieram da 3B, e o
 > Roteiro editável por nó, que o `05` listava sem fase, entrou aqui.
 
+> **Emendada em 2026-09-28 pela Fase 3D (seção própria, neste arquivo):** montar deixou de ser ação — iniciar um nó com
+> filhos consome os filhos —, o destino do filho pronto passou a ser o primeiro passo do pai, e
+> entraram o estorno rápido na fila e a pausa de Pedido. Os bullets desta seção descrevem a Fase 3
+> como foi entregue; onde divergem da 3D, vale a 3D.
+
+## Fase 3D — Ajustes pós-verificação da Fase 3
+
+> **Executada antes da 3B**, por decisão de 2026-09-28 ("primeiro os 4 pontos, depois filtros, 1F e
+> 3B"). Nasceu dos pontos que o usuário levantou na verificação manual da Fase 3 (seção 9.5 da spec
+> dela). Spec: `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`.
+
+> **Ordem depois da 3D** (decisão do usuário de 2026-09-28, oficializada em 2026-09-29): primeiro os
+> **filtros da fila do Setor** (por Material e por Pedido), depois a **Fase 1F — Cadastro sob
+> demanda**, depois a **Fase 3B**. "Filtros" não é fase numerada deste roadmap e por isso não tem
+> seção própria: tudo o que está decidido é filtrar a fila por Material e por Pedido, e o desenho
+> ainda passa por brainstorm, sem spec. A Fase 1F tem spec
+> (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`), mas em 2026-09-29 o
+> arquivo vive só na branch `fase-1f-cadastro-sob-demanda` e não está na `main` — quem lê a `main`
+> não o encontra na pasta de specs. Ela também ainda não tem seção neste arquivo: a entrada vem com
+> a abertura da fase, como a própria spec prevê. A Fase 3B tem seção própria neste arquivo.
+
+- **Iniciar como verbo único** (regra 24 de `01`): iniciar um nó **com filhos** consome os filhos
+  presentes no Setor e põe o pai em produção no primeiro passo, na mesma transação. "Montar" deixa
+  de ser ação: `POST /estrutura/{id}/montagens` sai (404) e o pai tem um lugar só na fila, o card com
+  os filhos e o botão Iniciar.
+- **Atividade do Setor:** campo opcional `Setor.Atividade` (substantivo, até 40 caracteres) que dá
+  nome aos botões da fila — "Iniciar montagem" / "Terminar montagem", "Iniciar solda" / "Terminar
+  solda"; sem atividade, "Iniciar" / "Terminar".
+- **Destino do filho pronto calculado** (regra 29): o primeiro passo do Roteiro do pai, sem escolha
+  do Movimentador; `destinoSetorId` no corpo da entrega passa a ser recusado (`DestinoIndevido`).
+- **Estorno rápido na fila:** as linhas de "Em trabalho", "Aguardando coleta" e a sobra do último
+  passo trazem os registros que quem lê ainda pode estornar, e a tela abre uma lista curta deles (ou
+  vai direto à confirmação quando há um só).
+- **Pausa de Pedido** (regra 31): tabela própria `dbo.PedidoPausa`, só de inclusão, exceto o
+  fecho do intervalo (`RetomadoEm` e `RetomadoPorUsuarioId`, gravados uma vez, no Retomar); pausam e
+  retomam PCP, Gestão e Administrador (a primeira escrita da Gestão); a pausa recusa **só o Iniciar**
+  — terminar, entregar e estornar continuam valendo.
+- Critério de pronto: o da seção 9 da spec da Fase 3D, cujo último item é a **verificação manual no
+  celular**, como na seção 9.5 da spec da Fase 3.
+
 ## Fase 3B — Kit e montagem
 
-- `Setor.UtilizaKit` (regra 24 de `01`); o schema entra no início desta fase. A montagem, o destino
-  "montado" e `QuantidadePorPai` já existem desde a Fase 3.
-- **Trava de montagem** por nó (regra 24): no Kit, em Setor com `UtilizaKit`, a saída do nó é
-  limitada ao total montado. Os tetos da montagem (filhos presentes, o que falta montar) já valem
-  para todo nó desde a Fase 3.
+- `Setor.UtilizaKit` (regra 25 de `01`); o schema entra no início desta fase. A montagem, o destino
+  "montado" e `QuantidadePorPai` já existem desde a Fase 3, e o início de um nó com filhos consome os
+  filhos desde a 3D.
+- **A trava de montagem, em regra, já não é desta fase:** desde a **Fase 3D** ela é **estrutural**
+  para todo nó, Kit ou Avulso, **que já tem filhos quando entra em produção** — o pai só entra em
+  produção consumindo os filhos, então tudo o que ele termina, entrega ou leva à expedição já foi
+  montado. **Fica de fora um caso, devolvido à 3B por decisão do usuário de 2026-09-29:** acrescentar filho a um nó **já iniciado** é livre
+  (seção 4.7 da spec da Fase 3), e esse nó pode sair acima do montado. A 3B fica com `Setor.UtilizaKit`,
+  o conjunto completo (regra 25), a tarefa Kit pronto (regra 23) e esse caso.
 - Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
   receber (regra 25).
 - Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).
@@ -247,8 +291,9 @@ resolvidos (ou conscientemente adiados).
   `2026-09-15-kit-montagem-e-movimentacao-design.md` ("Deixado para a spec de cada fase") deixa
   para a Fase 3B.
 - Critério de pronto: um Kit de três níveis é montado de baixo para cima com montagem parcial; o
-  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e saída acima do
-  montado; a tarefa Kit pronto aparece e some quando o Kit é levado.
+  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e a saída acima do
+  montado — esta, **restrita ao nó que ganhou filho depois de iniciado**, o único a que a 3D não
+  chega —; a tarefa Kit pronto aparece e some quando o Kit é levado.
 
 ## Fase 3C — Notificação push
 

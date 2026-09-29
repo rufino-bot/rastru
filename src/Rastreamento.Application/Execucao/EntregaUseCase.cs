@@ -62,7 +62,9 @@ public sealed class EntregaUseCase
       var estado = await _leitor.CarregarAsync([.. travados, .. pais], ct);
 
       var setorIds = origens.Select(o => o.SetorId!.Value)
-          .Concat(itens.Where(i => i.DestinoSetorId is not null).Select(i => i.DestinoSetorId!.Value))
+          .Concat(travados.Where(n => n.EstruturaPaiId is not null)
+              .Select(n => estado.Calc.PrimeiroPasso(n.EstruturaPaiId!.Value)?.SetorId)
+              .OfType<int>())
           .Distinct().ToList();
       var nomes = (await _catalogo.ObterSetoresPorIdAsync(setorIds, ct)).ToDictionary(s => s.Id, s => s.Nome);
       string NomeDoSetor(int id) => nomes.TryGetValue(id, out var nome) ? nome : $"Setor {id}";
@@ -128,42 +130,40 @@ public sealed class EntregaUseCase
             return (null, Indevido($"{nome} terminou o Roteiro e vai para o local de expedição; esse destino não se escolhe."));
           return (Local.NaExpedicao, null);
         default:
-          return ParaAMontagem(estado, item, calculado.PaiId!.Value, nomeDoSetor);
+          return ParaAMontagem(estado, item, calculado.PaiId!.Value, origemEmMontagem: null, nomeDoSetor);
       }
     }
 
-    // Redirecionamento: o que ja aguarda montagem vai aguardar em outro Setor do Roteiro do pai.
-    if (item.DestinoSetorId is int mesmo && mesmo == origem.SetorId)
-      return (null, Indevido($"{nome} já aguarda montagem no Setor {nomeDoSetor(mesmo)}."));
+    // Redirecionamento: o que aguarda montagem fora do primeiro passo do pai vai para ele.
     if (estado.Calc.No(id).PaiId is not int paiId)
       return (null, new Recusa(CodigosDaExecucao.OrigemInvalida, TipoDeErro.Validacao,
           $"{nome} é uma Peça: não aguarda montagem de ninguém."));
-    return ParaAMontagem(estado, item, paiId, nomeDoSetor);
+    return ParaAMontagem(estado, item, paiId, origem, nomeDoSetor);
   }
 
   /// <summary>
-  /// Ordem das duas checagens fixada pela spec secao 4.3: pai sem Roteiro sai primeiro, mesmo com
-  /// destino nulo — a tela de D7 mostra um Item pronto cujo pai nao tem Roteiro sem Setor nenhum para
-  /// escolher, entao o pedido natural chega sem destino e tem de cair em `PaiSemRoteiro`, nao em
-  /// `DestinoIndevido`.
+  /// O destino da montagem e o primeiro passo do pai, sem escolha (spec da Fase 3D, secao 2.2). A
+  /// ordem das checagens e fixa: pai sem Roteiro sai primeiro, porque e a recusa que diz o que fazer;
+  /// depois o destino mandado (o contrato o aceita so para recusa-lo alto, em vez de o JSON o ignorar
+  /// em silencio — desvio D2 do plano da Fase 3D); por ultimo o redirecionamento que nao sairia do lugar.
   /// </summary>
   private static (Local? Destino, Recusa? Recusa) ParaAMontagem(
-      EstadoDeExecucao estado, ItemDaEntregaDto item, int paiId, Func<int, string> nomeDoSetor)
+      EstadoDeExecucao estado, ItemDaEntregaDto item, int paiId, Local? origemEmMontagem, Func<int, string> nomeDoSetor)
   {
-    var possiveis = estado.Calc.SetoresDoRoteiro(paiId);
-    if (possiveis.Count == 0)
+    var pai = estado.Nome(paiId);
+    if (estado.Calc.PrimeiroPasso(paiId) is not PassoDoCalculo primeiro)
       return (null, new Recusa(CodigosDaExecucao.PaiSemRoteiro, TipoDeErro.Conflito,
-          $"{estado.Nome(paiId)} não tem Roteiro: o PCP precisa defini-lo antes de receber os filhos."));
+          $"{pai} não tem Roteiro: o PCP precisa defini-lo antes de receber os filhos."));
 
-    if (item.DestinoSetorId is not int destinoSetorId)
+    if (item.DestinoSetorId is not null)
       return (null, Indevido(
-          $"Escolha em que Setor {estado.Nome(item.EstruturaItemId)} vai aguardar a montagem de {estado.Nome(paiId)}."));
+          $"{estado.Nome(item.EstruturaItemId)} vai para {nomeDoSetor(primeiro.SetorId)}, o primeiro passo de {pai}; esse destino não se escolhe."));
 
-    if (!possiveis.Contains(destinoSetorId))
-      return (null, new Recusa(CodigosDaExecucao.DestinoForaDoRoteiroDoPai, TipoDeErro.Conflito,
-          $"O Setor {nomeDoSetor(destinoSetorId)} não está no Roteiro de {estado.Nome(paiId)}."));
+    if (origemEmMontagem?.SetorId == primeiro.SetorId)
+      return (null, new Recusa(CodigosDaExecucao.RedirecionamentoSemEfeito, TipoDeErro.Conflito,
+          $"{estado.Nome(item.EstruturaItemId)} já aguarda montagem em {nomeDoSetor(primeiro.SetorId)}, o primeiro passo de {pai}."));
 
-    return (Local.AguardandoMontagem(destinoSetorId), null);
+    return (Local.AguardandoMontagem(primeiro.SetorId), null);
   }
 
   private static Recusa Indevido(string mensagem) =>

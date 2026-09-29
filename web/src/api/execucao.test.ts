@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
-  iniciar, terminar, montar, entregar, estornarMovimentacao, estornarMontagem, substituirRoteiroDoNo,
-  ehConflito,
+  iniciar, terminar, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
+  ehConflito, pausarPedido, retomarPedido, type Estornavel,
 } from './execucao'
 import { aoMudarOLivro } from './sinalDoLivro'
 import { inicializar, _resetParaTeste } from './client'
@@ -39,15 +39,11 @@ describe('execucao', () => {
       { setorId: 1, quantidade: 4 }],
     ['terminar', () => terminar(7, { setorId: 1, ordem: 2, quantidade: 4 }), '/api/estrutura/7/terminos', 'POST',
       { setorId: 1, ordem: 2, quantidade: 4 }],
-    ['montar', () => montar(2, { setorId: 4, quantidade: 2 }), '/api/estrutura/2/montagens', 'POST',
-      { setorId: 4, quantidade: 2 }],
     ['entregar', () => entregar([{
-      estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 },
-      destinoSetorId: null, quantidade: 4,
+      estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4,
     }]), '/api/entregas', 'POST', {
       itens: [{
-        estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 },
-        destinoSetorId: null, quantidade: 4,
+        estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4,
       }],
     }],
     ['substituirRoteiroDoNo', () => substituirRoteiroDoNo(7, [1, 3, 1]), '/api/estrutura/7/roteiro', 'PUT',
@@ -65,6 +61,28 @@ describe('execucao', () => {
     expect(JSON.parse(init.body as string)).toEqual(corpo)
   })
 
+  const REGISTRO: Estornavel = {
+    tipo: 'Termino', id: 41, quantidade: 5, usuarioId: 12, usuarioNome: 'Operador do Corte',
+    dataHora: '2026-09-28T10:14:00-03:00',
+  }
+
+  it.each([
+    ['um Término', REGISTRO, '/api/movimentacoes/41/estorno'],
+    ['um Início', { ...REGISTRO, tipo: 'Inicio' as const }, '/api/movimentacoes/41/estorno'],
+    ['o início de um pai (Montagem)', { ...REGISTRO, tipo: 'Montagem' as const, id: 9 }, '/api/montagens/9/estorno'],
+  ])('estornar %s faz POST no caminho certo, sem corpo', async (_nome, registro, caminho) => {
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson({}, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await estornar(registro)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe(caminho)
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeUndefined()
+  })
+
   it.each([
     ['estornarMovimentacao', () => estornarMovimentacao(41), '/api/movimentacoes/41/estorno'],
     ['estornarMontagem', () => estornarMontagem(5), '/api/montagens/5/estorno'],
@@ -78,6 +96,44 @@ describe('execucao', () => {
     expect(url).toBe(caminho)
     expect(init.method).toBe('POST')
     expect(init.body).toBeUndefined()
+  })
+
+  it.each([
+    ['com motivo', 'urgente', { motivo: 'urgente' }],
+    ['sem motivo', null, { motivo: null }],
+  ])('pausarPedido %s faz POST /pedidos/{id}/pausas com o motivo no corpo', async (_nome, motivo, corpo) => {
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson({}, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await pausarPedido(7, motivo)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/pedidos/7/pausas')
+    expect(init.method).toBe('POST')
+    expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
+    expect(JSON.parse(init.body as string)).toEqual(corpo)
+  })
+
+  it('retomarPedido faz POST /pedidos/{id}/retomada, sem corpo', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson({}))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await retomarPedido(7)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/pedidos/7/retomada')
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeUndefined()
+  })
+
+  it('a recusa da pausa carrega o código e a frase do servidor', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      respostaJson({ erro: 'PedidoJaPausado', mensagem: 'O Pedido PED-9 já está pausado.' }, 409),
+    ))
+
+    const erro = await pausarPedido(9, null).catch((e: unknown) => e)
+
+    expect(erro).toMatchObject({ status: 409, codigo: 'PedidoJaPausado', detalhe: 'O Pedido PED-9 já está pausado.' })
   })
 
   it('contarTarefas devolve só o número', async () => {
@@ -189,7 +245,7 @@ describe('execucao', () => {
       await contarTarefas()
       parar()
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({}, 201)))
-      await montar(7, { setorId: 1, quantidade: 1 })
+      await iniciar(7, { setorId: 1, quantidade: 1 })
 
       expect(ouvinte).not.toHaveBeenCalled()
     })

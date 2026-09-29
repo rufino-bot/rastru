@@ -7,7 +7,10 @@ using static Rastreamento.Application.Tests.Execucao.CenarioDeExecucao;
 
 namespace Rastreamento.Application.Tests.Execucao;
 
-/// <summary>Iniciar, terminar e montar (spec da Fase 3, secoes 4.1, 4.2 e 4.4): um teste por codigo de erro.</summary>
+/// <summary>
+/// Iniciar (regra 28, inclusive o no com filhos que consome os filhos — regra 24) e terminar (regra
+/// 22): um teste por codigo de erro.
+/// </summary>
 public class ApontamentoUseCaseTests
 {
   private static readonly CancellationToken Ct = CancellationToken.None;
@@ -80,6 +83,44 @@ public class ApontamentoUseCaseTests
     var r = await c.Apontamento().Iniciar(1, new InicioDto(Corte, 1m), Operador, Ct);
 
     AfirmarFalha(r, CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
+  }
+
+  [Fact]
+  public async Task Iniciar_em_Pedido_pausado_da_PedidoPausado_e_nao_grava_nada()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte);
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto("urgente"), Pcp, Ct);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Corte, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
+    Assert.Empty(c.Execucao.Movimentacoes);
+    Assert.Equal("O Pedido PED-01 está pausado.", r.Detalhe);
+  }
+
+  [Fact]
+  public async Task Iniciar_um_pai_em_Pedido_pausado_tambem_e_recusado()
+  {
+    var c = ComFilhosNaSolda();
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
+    Assert.Equal("O Pedido PED-01 está pausado.", r.Detalhe);
+    Assert.Empty(c.Execucao.Montagens);
+  }
+
+  [Fact]
+  public async Task Terminar_em_Pedido_pausado_continua_valendo()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 3m);
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
+
+    Assert.True((await c.Apontamento().Terminar(1, new TerminoDto(Corte, 1, 3m), Operador, Ct)).Sucesso);
   }
 
   [Theory]
@@ -169,7 +210,7 @@ public class ApontamentoUseCaseTests
     Assert.True(r.Sucesso);
   }
 
-  // ------------------------------------------------------------------ montar
+  // ------------------------------------------------------------------ iniciar um no com filhos
 
   private static CenarioDeExecucao PaiComDoisFilhos(decimal quantidadeDoPai = 10m)
   {
@@ -180,62 +221,60 @@ public class ApontamentoUseCaseTests
     return c;
   }
 
-  [Fact]
-  public async Task Montar_grava_a_montagem_e_baixa_N_vezes_a_razao_de_cada_filho()
+  /// <summary>Filhos 2 (razao 2) e 3 (razao 1) entregues para a montagem de 1 na Solda.</summary>
+  private static CenarioDeExecucao ComFilhosNaSolda(decimal presentes2 = 6m, decimal presentes3 = 3m, decimal quantidadeDoPai = 10m)
   {
-    var c = PaiComDoisFilhos();
-    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 6m);
-    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
+    var c = PaiComDoisFilhos(quantidadeDoPai);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), presentes2);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), presentes3);
+    return c;
+  }
 
-    var r = await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 3m), Operador, Ct);
+  [Fact]
+  public async Task Iniciar_no_com_filhos_consome_os_filhos_e_poe_o_pai_no_primeiro_passo()
+  {
+    var c = ComFilhosNaSolda();
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 3m), Operador, Ct);
 
     Assert.True(r.Sucesso);
-    Assert.Equal(3m, r.Valor!.Quantidade);
-    Assert.Equal("Solda", r.Valor.SetorNome);
-    Assert.Equal(new[] { (2, 6m), (3, 3m) }, r.Valor.Baixas.Select(b => (b.EstruturaItemId, b.Quantidade)).ToArray());
-    Assert.All(r.Valor.Baixas, b =>
-    {
-      Assert.Equal(TiposDeMovimentacao.Montagem, b.Tipo);
-      Assert.Equal(r.Valor.Id, b.MontagemId);
-      Assert.Equal(Posicoes.Montado, b.Destino.Posicao);
-    });
+    Assert.Equal(TiposDeMovimentacao.Inicio, r.Valor!.Tipo);
+    Assert.Equal(new LocalDto(Posicoes.NoSetor, Solda, "Solda", 1), r.Valor.Destino);
+    var montagem = Assert.Single(c.Execucao.Montagens);
+    Assert.Equal((1, Solda, 3m), (montagem.EstruturaItemId, montagem.SetorId, montagem.Quantidade));
+    Assert.Equal(montagem.Id, r.Valor.MontagemId);
+    var baixas = c.Execucao.Movimentacoes.Where(m => m.Tipo == TiposDeMovimentacao.Montagem).ToList();
+    Assert.Equal(new[] { (2, 6m), (3, 3m) }, baixas.Select(b => (b.EstruturaItemId, b.Quantidade)).ToArray());
+    Assert.All(baixas, b => Assert.Equal(montagem.Id, b.MontagemId));
+    var estado = c.Calcular();
+    Assert.Equal(7m, estado.Saldo(1, Local.AIniciar));
+    Assert.Equal(3m, estado.Saldo(1, Local.NoSetor(Solda, 1)));
+    Assert.Equal(3m, estado.TotalMontado(1));
+    Assert.Equal(estado.TotalMontado(1), estado.SaidoDeAIniciar(1));   // a invariante nova
+    Assert.Equal("EmProducao", c.Execucao.StatusDoPedido[PedidoId]);
     Assert.Equal(new[] { new[] { 1 }, new[] { 2, 3 } }, c.Execucao.Travas.Select(t => t.ToArray()).ToArray());
   }
 
   [Fact]
-  public async Task Montar_no_sem_filhos_da_SemFilhos()
-  {
-    var c = new CenarioDeExecucao();
-    c.No(1, null, 10m, null, Solda);
-
-    AfirmarFalha(await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 1m), Operador, Ct),
-        CodigosDaExecucao.SemFilhos, TipoDeErro.Conflito);
-  }
-
-  [Fact]
-  public async Task Montar_acima_do_que_falta_da_MontagemAcimaDoQueFalta()
-  {
-    var c = PaiComDoisFilhos(quantidadeDoPai: 2m);
-    c.Execucao.Montagens.Add(new Montagem
-    {
-      Id = 900, EstruturaItemId = 1, SetorId = Solda, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = Operador,
-    });
-
-    var r = await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 2m), Operador, Ct);
-
-    AfirmarFalha(r, CodigosDaExecucao.MontagemAcimaDoQueFalta, TipoDeErro.Conflito);
-    Assert.Contains("Falta montar 1 de No 1", r.Detalhe);
-  }
-
-  [Fact]
-  public async Task Montar_com_filho_insuficiente_nomeia_o_filho_e_nao_grava_nada()
+  public async Task Iniciar_no_com_filhos_sem_nenhum_presente_da_FilhosInsuficientes_e_nao_grava_nada()
   {
     var c = PaiComDoisFilhos();
-    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 6m);
-    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 1m);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.FilhosInsuficientes, TipoDeErro.Conflito);
+    Assert.Empty(c.Execucao.Movimentacoes);
+    Assert.Empty(c.Execucao.Montagens);
+    Assert.Equal("Aberto", c.Execucao.StatusDoPedido[PedidoId]);
+  }
+
+  [Fact]
+  public async Task Iniciar_no_com_filho_insuficiente_nomeia_o_filho_e_nao_grava_nada()
+  {
+    var c = ComFilhosNaSolda(presentes2: 6m, presentes3: 1m);
     var antes = c.Execucao.Movimentacoes.Count;
 
-    var r = await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 3m), Operador, Ct);
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 3m), Operador, Ct);
 
     AfirmarFalha(r, CodigosDaExecucao.FilhosInsuficientes, TipoDeErro.Conflito);
     Assert.Equal("No 3: 1 aqui, 3 necessários.", r.Detalhe);
@@ -244,43 +283,55 @@ public class ApontamentoUseCaseTests
   }
 
   [Fact]
-  public async Task Montar_recusa_quando_N_vezes_a_razao_passa_de_quatro_casas()
+  public async Task Iniciar_no_com_filhos_acima_do_a_iniciar_da_SaldoInsuficiente()
+  {
+    // O pai de 2 ja iniciou 1 (com os filhos); os filhos presentes dariam para mais 2, mas so resta 1.
+    var c = ComFilhosNaSolda(presentes2: 6m, presentes3: 3m, quantidadeDoPai: 2m);
+    c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Solda, 1), 1m);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 2m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.SaldoInsuficiente, TipoDeErro.Conflito);
+    Assert.Contains("Só há 1 de No 1 a iniciar", r.Detalhe);
+  }
+
+  [Fact]
+  public async Task Iniciar_no_com_filhos_fora_do_primeiro_passo_do_pai_da_NaoEhOPrimeiroPasso()
+  {
+    // Os filhos foram deixados na Pintura, que e o SEGUNDO passo do pai: la o pai nao comeca.
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda, Pintura);
+    c.No(2, 1, 10m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 5m);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Pintura, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.NaoEhOPrimeiroPasso, TipoDeErro.Conflito);
+  }
+
+  [Fact]
+  public async Task Iniciar_no_com_filhos_recusa_quando_N_vezes_a_razao_passa_de_quatro_casas()
   {
     var c = new CenarioDeExecucao();
     c.No(1, null, 10m, null, Solda);
     c.No(2, 1, 5m, 0.5m, Corte);
     c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 5m);
 
-    var r = await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 0.0001m), Operador, Ct);
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Solda, 0.0001m), Operador, Ct);
 
     AfirmarFalha(r, CodigosDaExecucao.QuantidadeInvalida, TipoDeErro.Validacao);
     Assert.Contains("No 2", r.Detalhe);
-    // pt-BR e SEM arredondar para quatro casas: e a quinta casa que faz o valor nao caber na coluna,
-    // e arredondar aqui escondia o defeito que a mensagem denuncia.
+    // pt-BR e SEM arredondar para quatro casas: e a quinta casa que faz o valor nao caber na coluna.
     Assert.Contains("0,00005", r.Detalhe);
   }
 
   [Fact]
-  public async Task Montar_nao_exige_que_o_Setor_seja_do_Roteiro_do_pai()
+  public async Task Iniciar_no_com_filhos_em_Pedido_fechado_da_PedidoFechado()
   {
-    // Spec secao 4.4: sem identidade de sub-lote, montar nao confere onde o pai esta.
-    var c = new CenarioDeExecucao();
-    c.No(1, null, 10m, null, Pintura);
-    c.No(2, 1, 10m, 1m, Corte);
-    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
-
-    var r = await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 2m), Operador, Ct);
-
-    Assert.True(r.Sucesso);
-  }
-
-  [Fact]
-  public async Task Montar_em_Pedido_fechado_da_PedidoFechado()
-  {
-    var c = PaiComDoisFilhos();
+    var c = ComFilhosNaSolda();
     c.Execucao.StatusDoPedido[PedidoId] = "Concluido";
 
-    AfirmarFalha(await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 1m), Operador, Ct),
+    AfirmarFalha(await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct),
         CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
   }
 

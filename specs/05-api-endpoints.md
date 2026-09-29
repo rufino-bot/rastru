@@ -48,9 +48,14 @@ reenvia e a sessão morre no primeiro refresh.
 
 ## Catálogo
 
-- `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*
-- `POST /setores` *(Administrador)* — `{ nome }`
-- `PUT /setores/{id}` *(Administrador)* — `{ nome }`
+- `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*. Cada item
+  ganha `atividade` (spec da Fase 3D, §2.3): substantivo que nomeia os botões da fila
+  ("montagem" → "Iniciar montagem"/"Terminar montagem"); `null` quando o Setor não tem uma.
+- `POST /setores` *(Administrador)* — `{ nome, atividade? }`. `atividade` é opcional: ausente ou
+  só espaços grava `null`; espaços são aparados, mas o texto não é forçado a minúscula (desvio D5
+  do plano da Fase 3D — siglas como "CNC" são legítimas). A resposta ganha `atividade`.
+- `PUT /setores/{id}` *(Administrador)* — `{ nome, atividade? }`; substituição inteira — sem
+  `atividade` no corpo, ela é limpa. A resposta ganha `atividade`.
 - `PATCH /setores/{id}/ativo` *(Administrador)* — `{ ativo }`; cobre inativar **e** reativar.
   Não existe `DELETE`: catálogo se inativa, não se exclui (ver a política de exclusão na spec da
   Fase 1).
@@ -134,11 +139,13 @@ mesmo status HTTP para coisas diferentes.
 
 ## Pedido / Agrupamento
 
-- `GET /pedidos` *(qualquer perfil autenticado)*
+- `GET /pedidos` *(qualquer perfil autenticado)* — cada Pedido traz `pausa`: `null`, ou
+  `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31)
 - `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente }`. `Tipo` nasce `Fabricacao`,
   `Status` nasce `Aberto` e o autor vem da claim `sub` da sessão — nenhum dos três se aceita do
   cliente
-- `GET /pedidos/{id}` — só o cabeçalho; os Agrupamentos saem pelo sub-recurso abaixo
+- `GET /pedidos/{id}` — só o cabeçalho, com `pausa` como em `GET /pedidos`; os Agrupamentos saem
+  pelo sub-recurso abaixo
 - `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente }`. Não existe `DELETE`:
   Pedido é documento e se corrige por edição
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
@@ -314,32 +321,68 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 
 - `POST /estrutura/{id}/inicios` *(Operador)* — primeira entrada (regra 28). Body:
   `{ setorId, quantidade }`. Exige Roteiro, o primeiro passo em `setorId` e saldo a iniciar; põe o
-  Pedido em `EmProducao` se ele estava `Aberto`.
+  Pedido em `EmProducao` se ele estava `Aberto`. **Aceita nó com filhos** (spec da Fase 3D, §2.1):
+  iniciar N do pai consome `N × QuantidadePorPai` de cada filho direto que aguarda montagem naquele
+  Setor (regra 24), e exige que eles estejam lá (`FilhosInsuficientes`). A resposta é o movimento de
+  Início, com `montagemId` preenchido quando houve consumo.
 - `POST /estrutura/{id}/terminos` *(Operador)* — terminar. Body: `{ setorId, ordem, quantidade }`; a
   quantidade passa a aguardar coleta no mesmo Setor e passo.
-- `POST /estrutura/{id}/montagens` *(Operador)* — "montei N" (regra 24). Body:
-  `{ setorId, quantidade }`. Baixa `N × QuantidadePorPai` de cada filho direto que aguarda montagem
-  naquele Setor.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
-  `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, destinoSetorId?, quantidade }] }`.
-  O destino é calculado (próximo passo, ou local de expedição para Peça no fim do Roteiro), exceto
-  na montagem do pai, em que `destinoSetorId` é obrigatório e precisa ser um Setor do Roteiro do pai
-  (regra 29) — inclusive para redirecionar o que aguarda montagem no Setor errado.
+  `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, quantidade }] }`.
+  **O destino é sempre calculado** (spec da Fase 3D, §2.2): o próximo passo, o local de expedição
+  para Peça no fim do Roteiro, ou, para Item no último passo, o **primeiro passo do Roteiro do pai**
+  (regra 29). `destinoSetorId` **não se manda**: o campo sobrevive no contrato só para ser recusado
+  — preenchido, dá 400 `DestinoIndevido`, mesmo que aponte o Setor certo. Redirecionar o que aguarda
+  montagem fora do primeiro passo do pai é uma entrega com origem `AguardandoMontagem`, e leva ao
+  primeiro passo de agora; se já está nele, 409 `RedirecionamentoSemEfeito`.
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
-  enquanto a quantidade não tiver andado. Só o autor, ou PCP ou Administrador (403 para os demais,
-  decidido no caso de uso). As duas rotas declaram os mesmos perfis no `[Authorize]` — Operador,
+  enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que
+  ela gravou (Fase 3D), desde que o pai ainda esteja onde o início o pôs; o Início de um pai que
+  consumiu filhos não se estorna por `/movimentacoes/{id}/estorno` (`EstornoImpossivel`). Só o
+  autor, ou PCP ou Administrador (403 para os demais, decidido no caso de uso). As duas rotas declaram os mesmos perfis no `[Authorize]` — Operador,
   Movimentador e PCP —, porque vivem no mesmo controller; na de montagem, o Movimentador, que nunca é
   autor de uma, recebe o 403 do caso de uso.
 - `PUT /estrutura/{id}/roteiro` *(PCP)* — troca os passos do Roteiro do nó. Body:
   `{ passos: [setorId, …] }`, em ordem. Passo já alcançado não muda.
+- `POST /pedidos/{id}/pausas` *(PCP, Gestão)* — pausa o Pedido (regra 31; spec da Fase 3D, §2.5).
+  Body: `{ motivo? }` — opcional, aparado, no máximo 200 caracteres (`MotivoLongoDemais`; texto em
+  branco vira `null`). 201 com a pausa:
+  `{ id, pedidoId, pausadoEm, pausadoPorUsuarioId, pausadoPorNome, motivo, retomadoEm, retomadoPorUsuarioId, retomadoPorNome }`.
+  409 `PedidoJaPausado` se já há pausa aberta; 409 `PedidoFechado` se o Pedido está `Concluido` ou
+  `Cancelado`. A pausa recusa só o Iniciar (409 `PedidoPausado` em `POST /estrutura/{id}/inicios`,
+  também para nó com filhos); terminar, entregar e estornar continuam valendo.
+- `POST /pedidos/{id}/retomada` *(PCP, Gestão)* — sem corpo; fecha a pausa aberta e responde 200 com
+  a mesma forma, agora com `retomadoEm`, `retomadoPorUsuarioId` e `retomadoPorNome`. 409
+  `PedidoNaoPausado` se não há pausa aberta. Retomar um Pedido que fechou com a pausa aberta é
+  permitido: só fecha o intervalo.
 
 **Leitura**
 
 - `GET /setores/{id}/fila` — a iniciar aqui, em trabalho, aguardando coleta, aguardando montagem
-  (por pai, com "dá para montar N; falta X de Y") e sobra.
-- `GET /tarefas` — os Itens prontos, com destino calculado (e, quando é montagem, a sugestão e os
-  Setores possíveis), agrupados pelo Setor de origem.
+  (por pai, com "Dá para iniciar N; falta iniciar X") e sobra. "A iniciar aqui" **não lista nó com
+  filhos** (Fase 3D): o pai tem um lugar só, o grupo de montagem, que ganha `iniciaAqui` (este Setor
+  é o primeiro passo do pai) e `primeiroPassoDoPai` (`{ id, nome }`, `null` se o pai não tem
+  Roteiro). A resposta ganha `setorAtividade` (spec da Fase 3D, §2.3): a `atividade` do Setor da
+  fila, que a tela usa para nomear os botões "Iniciar montagem"/"Terminar montagem" — `null` quando
+  o Setor não tem uma, e os botões ficam só "Iniciar"/"Terminar". As linhas de "em trabalho",
+  "aguardando coleta" e "sobra" trazem `estornaveis` (spec da Fase 3D, §2.4): os registros por trás
+  da linha que ainda dá para estornar — `{ tipo, id, quantidade, usuarioId, usuarioNome, dataHora }`,
+  do mais recente ao mais antigo. `tipo` é `Inicio` ou `Termino` (estornam-se por
+  `POST /movimentacoes/{id}/estorno`) ou `Montagem` (o início de um pai, que consumiu os filhos —
+  estorna-se por `POST /montagens/{id}/estorno`). A lista é filtrada por quem lê (o autor vê os
+  seus; PCP e Administrador, todos) e cortada pelo saldo da posição (só entra o registro cuja
+  quantidade ainda cabe no que está ali). Onde a mesma posição de coleta aparece em duas seções
+  (tarefa e sobra do último passo), os `Termino` vão só para "aguardando coleta"; a "sobra" os
+  recebe apenas quando não há tarefa (desvio D4 do plano da Fase 3D). Em "a iniciar" o campo vem
+  sempre vazio; "aguardando montagem" não o tem. Todo nó resumido (`no`, `pai`, `filhos`) ganha
+  `pausa`: `null`, ou `{ desde, porUsuarioNome, motivo }` quando o Pedido dele está pausado (regra
+  31). Em "a iniciar", o que é de Pedido pausado vem **depois** do resto, para a tela agrupá-lo em
+  "Pausados"; dentro de cada grupo a ordem é a de antes.
+- `GET /tarefas` — os Itens prontos (cada nó com `pausa`, como na fila), com destino calculado, agrupados pelo Setor de origem. Na
+  montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
+  traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
+  `setorId` nulo.
 - `GET /tarefas/contagem` — só o número, para o contador do menu.
 - `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total
   montado dos nós com filhos.
@@ -347,7 +390,10 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
 
 O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON" do plano 2 da Fase 3
-(`docs/superpowers/plans/2026-09-25-fase-3-backend.md`), que é o que o front consome.
+(`docs/superpowers/plans/2026-09-25-fase-3-backend.md`) **e** na seção "Contrato JSON novo" do plano da
+Fase 3D (`docs/superpowers/plans/2026-09-28-fase-3d-ajustes-pos-verificacao.md`), que é o que o front
+consome. O segundo traz só o que a 3D mudou (`atividade`, `estornaveis`, `pausa`, `iniciaAqui`,
+`primeiroPassoDoPai`, o destino calculado e as rotas de pausa); o resto continua no primeiro.
 
 **Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
 e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).
@@ -360,25 +406,27 @@ Setor e números quando ajudam.
 | Status | Código | Quando |
 |---|---|---|
 | 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna |
-| 400 | `DestinoIndevido` | `destinoSetorId` mandado quando o destino é calculado, ou faltando quando é montagem |
+| 400 | `DestinoIndevido` | `destinoSetorId` mandado — o destino da entrega é sempre calculado |
 | 400 | `EntregaVazia` | lista de entrega vazia |
 | 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
 | 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`, ou com Setor e passo que não combinam com a posição |
+| 400 | `MotivoLongoDemais` | motivo da pausa com mais de 200 caracteres (o `[MaxLength]` do corpo já dá 400 antes; o caso de uso repete a guarda) |
 | 403 | `Proibido` | estorno de registro alheio sem ser PCP nem Administrador |
 | 404 | — | nó, Setor, movimento ou montagem inexistente |
 | 409 | `SemRoteiro` | iniciar nó sem Roteiro |
 | 409 | `NaoEhOPrimeiroPasso` | iniciar num Setor que não é o do primeiro passo |
 | 409 | `SaldoInsuficiente` | a origem não tem a quantidade |
-| 409 | `SemFilhos` | montar nó sem filhos |
-| 409 | `MontagemAcimaDoQueFalta` | montar mais do que falta montar do nó |
 | 409 | `FilhosInsuficientes` | algum filho não tem, no Setor, o que N unidades pedem; a `mensagem` nomeia o filho |
-| 409 | `DestinoForaDoRoteiroDoPai` | Setor de montagem fora do Roteiro do pai |
+| 409 | `RedirecionamentoSemEfeito` | redirecionar para a montagem o que já aguarda no primeiro passo do pai |
 | 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |
-| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem estornada sozinha |
+| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem, ou Início de pai que consumiu filhos, estornados sozinhos; estorno de montagem cujo pai já andou |
 | 409 | `JaEstornado` | o registro já foi estornado |
-| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado` |
+| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado`, ou pausá-lo |
+| 409 | `PedidoPausado` | iniciar nó (ou pai) de Pedido pausado — só o Iniciar é recusado |
+| 409 | `PedidoJaPausado` | pausar Pedido que já tem pausa aberta |
+| 409 | `PedidoNaoPausado` | retomar Pedido sem pausa aberta |
 | 409 | `ConflitoDeConcorrencia` | outra pessoa registrou no mesmo item ao mesmo tempo |
 
 ## Expedição

@@ -6,17 +6,17 @@
 |---|---|
 | **Pedido** | Unidade máxima de trabalho, cadastrada no sistema. Tipo `Fabricacao` ou `Retrabalho`. Um Retrabalho referencia obrigatoriamente o Pedido original. |
 | **Pedido.Numero** | O **código identificador do Pedido**, e o campo pelo qual as pessoas se referem a ele. **Não é gerado por este sistema**: vem de um sistema externo, que o cria sequencialmente. Aqui ele é apenas registrado. Por isso é **único global** (`UQ_Pedido_Numero`) — a sequência é controlada na origem e não se repete. É texto (`NVARCHAR(30)`), não número: aceita prefixos e separadores, e o sistema não valida formato nem gera valor. Consequência prática: se a origem emitir um código já cadastrado, o cadastro é recusado com 409 — e isso é o comportamento desejado, não um defeito. |
-| **Agrupamento** | Agrupamento de Peças dentro de um Pedido. Um Pedido tem N Agrupamentos. Tem um **Tipo**: 'Kit' (peças que vão para a solda, juntas) ou 'Avulso' (peças que não passam por solda). O Tipo não impõe roteiro, mas **não é mais só descritivo**: um Agrupamento Kit fica sujeito à trava de montagem e ao conjunto completo (regras 24 e 25); um Avulso, não. Até 2026-09-15 o Tipo era só descritivo; a reversão parcial veio de esclarecimento do processo da fábrica — ver `docs/superpowers/specs/2026-09-15-kit-montagem-e-movimentacao-design.md`. |
+| **Agrupamento** | Agrupamento de Peças dentro de um Pedido. Um Pedido tem N Agrupamentos. Tem um **Tipo**: 'Kit' (peças que vão para a solda, juntas) ou 'Avulso' (peças que não passam por solda). O Tipo não impõe roteiro, mas **não é mais só descritivo**: um Agrupamento Kit fica sujeito ao conjunto completo (regra 25), e um Avulso, não; a trava de montagem (regra 24) vale, desde a Fase 3D, para todo nó que já tem filhos quando entra em produção. Até 2026-09-15 o Tipo era só descritivo; a reversão parcial veio de esclarecimento do processo da fábrica — ver `docs/superpowers/specs/2026-09-15-kit-montagem-e-movimentacao-design.md`. |
 | **Componente** | Registro de **catálogo** (receita padrão/template), reutilizável entre Pedidos. Não é a instância física — é a definição. |
 | **Componente.Codigo** | O **identificador único da peça de catálogo** dentro deste sistema. É **alfanumérico** (`NVARCHAR(50)`) e **único global** (`UQ_Componente_Codigo`). Decisão do dono do projeto (2026-08-03): **o sistema não modela a numeração do cliente.** Nem toda peça chega com código definido pelo cliente, e o critério varia de cliente para cliente — essa regra **não é absorvida aqui**. O que vale é que toda peça de catálogo tenha um identificador único neste sistema, o que é o que permite reconhecê-la quando ela é pedida **várias vezes ao longo do ano**. Quem cadastra atribui o valor (reaproveitando o código do cliente quando existir); o sistema não gera nem valida formato. Consequência operacional a vigiar: o ganho depende de a peça repetida ser **encontrada e reutilizada**, não recadastrada sob um código novo — cadastro duplicado sob códigos diferentes não viola nenhuma constraint e passa despercebido. |
 | **Componente.ArquivoSolidoId** | Referência (FK para `dbo.ArquivoDeComponente`) ao arquivo de **sólido 3D** (CAD) da peça de catálogo — **STL**, e só (decisão de 2026-09-12, do usuário: o three.js lê STL nativamente, enquanto STEP exigiria parser de terceiros no navegador; `.SLDPRT` continua fora, por ser proprietário). É obrigação de negócio para toda Peça de Pedido, mas coluna **nullable** por não valer para todo Componente; ver regra 18. `Componente.ArquivoFoto`, ao lado, é uma foto de referência **opcional**. |
 | **EstruturaItem** | A árvore **real** usada em um Agrupamento específico, podendo ter sido copiada do catálogo (`Componente`) e customizada. É recursiva: um `EstruturaItem` pode ter `EstruturaItem` filhos. O nó de topo (sem pai) é chamado de **Peça**; os nós com pai são chamados de **Item**. Representa um **lote agregado** (quantidade), não uma unidade física individual — e esse lote é divisível por quantidades livres (ver regra 9). |
 | **EstruturaItem.Descricao** | Nome próprio do nó dentro do Agrupamento. NULL = usa a descrição do `Componente` de origem. Serve ao item **ad-hoc** (`ComponenteId` NULL), que sem ela chega sem nome nenhum à tela do operador; ver regra 19. |
-| **EstruturaItem.QuantidadePorPai** | Quantos daquele nó entram em **uma** unidade do pai, guardado ao lado da quantidade absoluta (`EstruturaItem.Quantidade`). Obrigatória em todo Item, nula na Peça. Serve à montagem de todo nó com filhos, às tarefas do Movimentador e à sobra (regras 23, 24 e 30) e, no Kit, à trava e ao conjunto completo (regras 24 e 25); o apontamento continua movimentando a quantidade absoluta. Ver regra 26. Decidida em 2026-09-15; a coluna entra no schema na Fase 3 (decisão de 2026-09-24, que trouxe a montagem da 3B para a 3). |
+| **EstruturaItem.QuantidadePorPai** | Quantos daquele nó entram em **uma** unidade do pai, guardado ao lado da quantidade absoluta (`EstruturaItem.Quantidade`). Obrigatória em todo Item, nula na Peça. Serve à montagem de todo nó com filhos, às tarefas do Movimentador e à sobra (regras 23, 24 e 30) e, no Kit, ao conjunto completo (regra 25); o apontamento continua movimentando a quantidade absoluta. Ver regra 26. Decidida em 2026-09-15; a coluna entra no schema na Fase 3 (decisão de 2026-09-24, que trouxe a montagem da 3B para a 3). |
 | **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
 | **Material.Codigo** | O **identificador único do material** dentro deste sistema. **Mesma regra do `Componente.Codigo`**, por decisão explícita: alfanumérico (`NVARCHAR(50)`), **único global** (`UQ_Material_Codigo`), atribuído por quem cadastra, sem geração nem validação de formato pelo sistema. A numeração de fornecedor **não** é modelada aqui. |
 | **Setor** | Departamento de produção (ex.: Corte e Dobra, Usinagem) pelo qual um `EstruturaItem` pode passar. |
-| **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa a trava de montagem e o conjunto completo (regras 24 e 25). Decidida em 2026-09-15; a coluna entra no schema no início da Fase 3B. |
+| **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa o conjunto completo (regra 25); a trava de montagem deixou de depender dele na Fase 3D (regra 24). Decidida em 2026-09-15; a coluna entra no schema no início da Fase 3B. |
 | **Roteiro** | Sequência de Setores que um `EstruturaItem` percorre. Pode ser padrão (catálogo) ou específico daquele Pedido/Agrupamento. |
 | **Aguardando coleta** | Estado da quantidade que ainda não foi levada ao próximo destino depois de o operador dá-la como terminada num Setor (regra 22) — ou, no Pedido de Retrabalho, depois de nascer marcada **pronta** (regra 27). Conta como **em produção** para a conservação de quantidade (regra 9) e é o que alimenta as tarefas do Movimentador (regra 23). No banco, é uma posição do livro de movimentações (`dbo.Movimentacao`), guardada no Setor e no passo em que a quantidade terminou; o destino é calculado (regra 29). |
 | **Relatório Dimensional** | Avaliação de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado no cadastro via EstruturaItem.RequerRelatorioDimensional). Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada gera uma RelatorioDimensionalAvaliacao com quantidade aprovada/reprovada. Aprovação/reprovação é por quantidade. Reprovação não exige retrabalho imediato. |
@@ -24,7 +24,7 @@
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
 | **Expedição (remessa)** | Saída de uma quantidade de uma Peça para o cliente. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Cada remessa é uma linha em Expedicao. |
 | **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regras 25 e 30). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
-| **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao registrar "montei N", baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso; só a validação da trava é restrita ao Kit (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor com `UtilizaKit` (regra 24). |
+| **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao iniciar N do pai, baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso, e nasce do Iniciar do pai (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor, para todo nó que já tem filhos quando entra em produção (regra 24; a exceção é o nó que ganha filho depois de iniciado). |
 | **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
 | **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição (Fase 5). |
 | **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
@@ -244,28 +244,44 @@ entra no início de cada fase.*
       conjuntos.
 
     Notificação no celular é reforço desta lista, não substituto (Fase 3C).
-24. **Montagem e trava de montagem.** Montar é registro de **todo** nó com filhos, de Agrupamento
-    Kit ou Avulso — até 2026-09-24, montar só existia sob a trava (spec da Fase 3). Olha só os
-    **filhos diretos** do nó. O registro, os dois tetos e a baixa dos três primeiros itens valem
-    para todo nó; a **trava**, dos dois últimos, só quando três condições valem juntas: o
-    Agrupamento é **Kit**, o Setor tem **`UtilizaKit`** (marca no cadastro do Setor — hoje, a
-    Solda), e o nó **tem filhos** (Peça ou Item de submontagem).
-    - **Montar é registro próprio**, separado de mover. O operador registra "montei N" no Setor
-      onde os filhos estão (regra 29); o sistema
-      aceita se N não passar do mínimo, entre os filhos diretos, de
-      ⌊quantidade do filho no Setor ÷ `QuantidadePorPai`⌋, **nem do que ainda falta montar do
-      nó** — a quantidade dele menos o total já montado. Este teto é outro que o da regra 25, e
-      vale mesmo com ele, porque nem todo filho chega ao Setor por uma entrada: um filho pode ser
+24. **Montagem e trava de montagem.** A montagem é registro de **todo** nó com filhos, de Agrupamento
+    Kit ou Avulso — até 2026-09-24, só existia sob a trava (spec da Fase 3) —, mas **não é mais uma
+    ação própria**: desde a Fase 3D ela nasce do **Iniciar** do nó (spec
+    `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`, seção 2.1). Olha
+    só os **filhos diretos** do nó. O registro, os dois tetos e a baixa dos filhos valem para todo nó;
+    o que depende de Kit é só o **conjunto completo** na entrada (regra 25), e a **saída limitada ao
+    total montado** vale, por construção, para todo nó que já tem filhos quando entra em produção,
+    não por uma condição de Agrupamento ou de Setor (a exceção, do nó que ganha filho depois de
+    iniciado, está na "Exceção conhecida" do item sobre a saída do nó).
+    - **Montar não é ação.** O operador registra **iniciar N** do nó com filhos, no **primeiro
+      passo** do Roteiro dele, no Setor onde os filhos estão — e é esse início que grava
+      a montagem: consome `N × QuantidadePorPai` de cada filho direto presente e põe N do pai em
+      produção naquele passo, na mesma transação. Iniciar um nó com filhos **exige** os filhos: o
+      sistema aceita se N não passar do mínimo, entre os filhos diretos, de
+      ⌊quantidade do filho no Setor ÷ `QuantidadePorPai`⌋, **nem do que ainda falta iniciar do nó**
+      — a quantidade dele menos o que já saiu de "a iniciar". Este teto é outro que o da regra 25,
+      e vale mesmo com ele, porque nem todo filho chega ao Setor por uma entrada: um filho pode ser
       montado no mesmo Setor em que o pai será montado, caso que a spec da Fase 3B decide. A
-      montagem pode ser **parcial** (montar 6 de 10), o que casa com a expedição parcial (regra 16).
-    - Ao montar, baixa-se `N × QuantidadePorPai` de cada filho direto para o destino terminal
+      montagem pode ser **parcial** (iniciar 6 de 10), o que casa com a expedição parcial
+      (regra 16).
+    - Ao iniciar, baixa-se `N × QuantidadePorPai` de cada filho direto para o destino terminal
       **"montado"**, **gravando a baixa de cada filho**, e não só N — editar a razão depois não
-      reescreve o passado. N soma ao **total montado** do nó.
-    - A **saída** do nó de um Setor com `UtilizaKit` é limitada ao total montado, em **qualquer**
-      passagem: se o nó volta à Solda (regra 21), os filhos já viraram o nó, e é o total montado
-      que conta.
-    - A ordem de baixo para cima é consequência, não cálculo: um nó intermediário só existe na
-      Solda depois de montado, então o pai dele só monta depois.
+      reescreve o passado. N soma ao **total montado** do nó. O movimento de início do pai aponta a
+      montagem, e por isso a correção é **uma só**: estornar a montagem desfaz as baixas e o
+      início do pai juntos (enquanto o pai ainda estiver onde o início o pôs); o início do pai não
+      se estorna sozinho.
+    - A **saída** do nó é limitada ao total montado, em **qualquer** passagem: se o nó volta ao
+      Setor (regra 21), os filhos já viraram o nó, e é o total montado que conta. Desde a Fase 3D
+      isso **vale, sem validação própria, para todo nó que já tem filhos quando entra em
+      produção**, porque o pai só entra em produção consumindo os filhos: tudo o que ele termina,
+      entrega ou leva à expedição já foi montado (o que saiu de "a iniciar" é igual ao total
+      montado). **Exceção conhecida:** acrescentar filho a um nó **já iniciado** é livre (spec da
+      Fase 3, seção 4.7) — o nó saiu de "a iniciar" sem consumir o filho novo, a igualdade entre o que saiu de "a iniciar" e o
+      total montado não vale para ele, e a saída dele pode passar do total montado. A trava estava prevista só
+      para Kit num Setor com `UtilizaKit`, e a Fase 3 a deixara para a Fase 3B; o que sobra à 3B
+      são o conjunto completo (regra 25), a tarefa **Kit pronto** (regra 23) e esse caso.
+    - A ordem de baixo para cima é consequência, não cálculo: um nó intermediário só existe no
+      Setor depois de montado, então o pai dele só monta depois.
 25. **Conjunto completo.** Um Kit pode ir à Solda em parte do pai (os conjuntos de 7 de 10), mas
     **nunca incompleto nem além do necessário**: a entrada de filhos de Agrupamento Kit num Setor
     com `UtilizaKit` só é aceita em conjuntos completos — `N × QuantidadePorPai` de **todos** os
@@ -284,7 +300,7 @@ entra no início de cada fase.*
     Item e nula na Peça**. A cópia da receita a preenche com
     `ComponenteFilhoPadrao.QuantidadePadrao`; num Item ad-hoc, quem cadastra informa. A quantidade
     absoluta continua sendo o que o apontamento movimenta; a razão serve à montagem de todo nó
-    (regra 24), às tarefas e à sobra (regra 30) e, no Kit, à trava e ao conjunto completo.
+    (regra 24), às tarefas e à sobra (regra 30) e, no Kit, ao conjunto completo.
     **Não existe invariante entre as duas**: um Item de 45 com razão 4 sob um pai de 10 é legítimo
     (sobra de refugo). A Fase 2 havia decidido não guardar a razão; ver a errata na §2.1 da spec da
     Fase 2 (`docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`).
@@ -310,15 +326,19 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
     nasce **a iniciar**, que conta como em produção (regra 9). A fabricação começa quando o operador
     do primeiro Setor do Roteiro pega o material para trabalhar — parte do material já está no Setor,
     parte é levada pelo almoxarifado —, e é esse operador quem registra a primeira entrada, sem o
-    Movimentador: não há o que levar. A primeira entrada **exige Roteiro**; nó sem Roteiro é
-    pendência do PCP, que edita o Roteiro de qualquer nó (regra 7). Depois que o nó começa a andar,
+    Movimentador: não há o que levar. Para um nó **com filhos**, iniciar é o **consumo dos filhos**
+    (regra 24): o pai só entra em produção consumindo `N × QuantidadePorPai` de cada filho direto
+    presente no Setor, e esse é o único jeito de ele começar (spec da Fase 3D, seção 2.1). A
+    primeira entrada **exige Roteiro**; nó sem Roteiro é pendência do PCP, que edita o Roteiro de
+    qualquer nó (regra 7). Depois que o nó começa a andar,
     os passos já alcançados são histórico e não se editam. O Pedido passa a `EmProducao` na primeira
     entrada de qualquer nó dele.
 29. **O fim do Roteiro.** O que termina um passo que não é o último vai para o próximo passo, sem
     escolha. O que termina o **último** passo aguarda coleta com um destino que depende do nó:
-    - **Item** — a montagem do pai, num Setor do Roteiro do pai que o **Movimentador escolhe** ao
-      entregar, com sugestão do sistema; a montagem é registrada pelo operador daquele Setor (regra
-      24). Entregue no Setor errado, redireciona-se com outra entrega.
+    - **Item** — a montagem do pai, **no primeiro passo do Roteiro dele**, levada pelo Movimentador
+      **sem escolha**: é lá que o pai começa, consumindo os filhos (regra 24). Entregue antes de o
+      PCP mudar o primeiro passo, redireciona-se com outra entrega, que leva ao primeiro passo de
+      agora (spec da Fase 3D, seção 2.2 — revê a decisão 2.4 da Fase 3).
     - **Peça** — o **local de expedição**, levada pelo Movimentador como tarefa; a expedição (Fase 5)
       sai de lá.
 30. **A sobra é identificada, não é tarefa, e só sai por descarte.** O que um Item tem, no fim do
@@ -327,6 +347,16 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
     por uma perda de motivo `Descarte` (regra 17), registrada pelo mesmo ator da perda — Qualidade ou
     PCP — a qualquer momento depois de virar sobra. A regra 13 não muda: o Pedido conclui com sobra
     viva, que continua listada até ser descartada.
+
+*A regra 31 foi decidida em 2026-09-28, na spec da Fase 3D
+(`docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`, seção 2.5).*
+
+31. **Um Pedido pode ser pausado.** PCP ou Gestão pausam um Pedido quando outro mais urgente precisa
+    passar na frente, com um motivo opcional. A pausa recusa **só o início** de qualquer nó do
+    Pedido — inclusive o de um pai, que consome os filhos (regra 24) —; terminar, entregar e
+    estornar continuam, porque registram o que já aconteceu no chão. Cada pausa é um intervalo
+    guardado (quem pausou e retomou, e quando), para o tempo por Pedido poder descontá-la (Fase 6).
+    A pausa não muda o status do Pedido.
 
 ## Pontos ainda em aberto
 
@@ -356,5 +386,9 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
 > **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
 > produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro
 > de todo nó com filhos, e só a validação da trava ficou restrita ao Kit (regra 24).
+> **Atualizado em 2026-09-28** (spec da Fase 3D, seção 2.1): a trava deixou de ser restrita ao Kit — o
+> pai só entra em produção iniciando-o, o que consome os filhos, então a saída dele já é limitada ao
+> total montado, em qualquer Agrupamento (regra 24) — para o nó que já tem filhos ao entrar em
+> produção; o nó que ganha filho depois de iniciado é a exceção, da 3B.
 
 Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.

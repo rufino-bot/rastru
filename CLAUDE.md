@@ -42,10 +42,13 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito; a mais recente é a **Fase
-3C — Notificação push**, executada **depois da Fase 5**, porque o fluxo ponta a ponta vem primeiro e
-o push é reforço de uma lista de tarefas que precisa existir antes. A posição dela em relação à Fase
-6 **não está decidida**.
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são duas. A
+**Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
+2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
+a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
+da 3C em relação à Fase 6 **não está decidida**. Depois da 3D, a ordem é: filtros da fila do Setor →
+Fase 1F → Fase 3B (decisão de 2026-09-28, oficializada em 2026-09-29; ver a seção "Fase 3D" de
+`06-roadmap-mvp.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -306,8 +309,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   varredura**, e a diferença foi medida em 2026-08-28: com `lang="en"` no arquivo, os 374 testes de
   então ficavam **verdes**, porque teste de tela monta componente no jsdom e nunca olha o documento
   que hospeda o React.
-- **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`) e
-  vermelho (`negativo`) são reservados a aprovado/ativo e reprovado/perda/erro. É o que faz a tela
+- **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`),
+  vermelho (`negativo`) e âmbar (`atencao`) são reservados a aprovado/ativo, reprovado/perda/erro e atenção (hoje, Pedido pausado). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
@@ -335,14 +338,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição) + montado
   dentro do pai + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó (validado na
   aplicação; regra 9).
-- Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
-  montado**. Para **todo** nó com filhos, a montagem só aceita o que os filhos diretos presentes
-  permitem (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram
-  nesse Setor em **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar
-  e mover são ações separadas, para Kit e Avulso. Montar é registro de **todo** nó com filhos (Kit
-  ou Avulso); só a saída limitada ao total montado e o conjunto completo são do Kit. (Regras 22 a
-  27, decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a
-  partir da Fase 3.)
+- O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
+  Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
+  permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
+  produção assim, a **saída limitada ao total montado vale, sem validação própria, para todo nó que
+  já tem filhos quando entra em produção**, Kit ou Avulso. **Exceção conhecida:** acrescentar filho a
+  um nó **já iniciado** é livre (spec da Fase 3, seção 4.7), e esse nó pode sair acima do montado;
+  o caso é da Fase 3B. O que continua **só do Kit**: em Setor com `UtilizaKit`, os filhos só entram
+  em **conjuntos completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
+  Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,
+  decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a partir da
+  Fase 3; o início que consome os filhos, decidido em 2026-09-28, é da Fase 3D.)
 - **O livro de movimentações (`dbo.Movimentacao`) é só de inclusão.** Correção é estorno — um
   movimento inverso que aponta o original —, nunca `UPDATE` nem `DELETE` numa linha dele. Editar uma
   linha não desequilibra a soma (cada linha continua tirando de uma posição e pondo em outra), e é
@@ -730,6 +736,19 @@ primeiro erro, e `-f 65001` pelo mesmo motivo do `seed-demo.sql`:
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3.sql sqlserver:/tmp/alter-fase-3.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3.sql
+```
+
+**Fase 3D — `db/alter-fase-3d.sql`.** Mesmo formato do anterior (idempotente, `-b -f 65001`). Ele leva um
+banco anterior à Fase 3D até o `02-modelo-de-dados.sql` em três blocos: a coluna `Setor.Atividade`; o
+`Inicio` do pai apontando a `Montagem` (a constraint `CK_Movimentacao_MontagemSoNaBaixa` reescrita e o
+índice `UX_Movimentacao_UmInicioPorMontagem`); e a tabela `dbo.PedidoPausa` com o índice
+`UX_PedidoPausa_UmaAbertaPorPedido`. As montagens gravadas antes dele não têm o Início do pai, então o
+banco de dev, que é descartável, deve ser **regenerado** depois da migração (seção 3.4 da spec da 3D).
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3d.sql sqlserver:/tmp/alter-fase-3d.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3d.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

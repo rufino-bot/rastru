@@ -27,13 +27,34 @@ public class ConsultaDeExecucaoUseCaseTests
     var c = new CenarioDeExecucao();
     c.No(1, null, 10m, null, Corte, Dobra);
 
-    var corte = (await c.Consulta().Fila(Corte, Ct)).Valor!;
-    var dobra = (await c.Consulta().Fila(Dobra, Ct)).Valor!;
+    var corte = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+    var dobra = (await c.Consulta().Fila(Dobra, ComoOperador, Ct)).Valor!;
 
     var linha = Assert.Single(corte.AIniciar);
     Assert.Equal((1, 1, 10m), (linha.No.Id, linha.Ordem, linha.Quantidade));
     Assert.Equal("Corte", corte.SetorNome);
     Assert.Empty(dobra.AIniciar);
+  }
+
+  [Fact]
+  public async Task A_fila_marca_a_pausa_e_poe_os_pausados_no_fim_do_a_iniciar()
+  {
+    var c = new CenarioDeExecucao();
+    c.Execucao.Agrupamentos[2] = ("AG-02", 2, "PED-02");
+    c.Execucao.StatusDoPedido[2] = "Aberto";
+    c.No(1, null, 10m, null, Corte);                        // Pedido 1 (sera pausado)
+    c.Estruturas.Itens.Add(new EstruturaItem
+    {
+      Id = 2, AgrupamentoId = 2, Descricao = "No 2", NivelHierarquico = "Peca", Quantidade = 5m,
+    });
+    c.Estruturas.Roteiros.Add(new EstruturaRoteiro { Id = 201, EstruturaItemId = 2, SetorId = Corte, Ordem = 1 });
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto("PED-02 urgente"), Pcp, Ct);
+
+    var aIniciar = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.AIniciar;
+
+    Assert.Equal(new[] { 2, 1 }, aIniciar.Select(l => l.No.Id).ToArray());
+    Assert.Null(aIniciar[0].No.Pausa);
+    Assert.Equal(("PED-02 urgente", "PCP"), (aIniciar[1].No.Pausa!.Motivo, aIniciar[1].No.Pausa!.PorUsuarioNome));
   }
 
   [Fact]
@@ -43,7 +64,7 @@ public class ConsultaDeExecucaoUseCaseTests
     c.No(1, null, 10m, null, Corte, Dobra);
     c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 4m);
 
-    var fila = (await c.Consulta().Fila(Corte, Ct)).Valor!;
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
 
     Assert.Equal(6m, Assert.Single(fila.AIniciar).Quantidade);
     var emTrabalho = Assert.Single(fila.EmTrabalho);
@@ -56,14 +77,13 @@ public class ConsultaDeExecucaoUseCaseTests
     var c = Kit();
     c.Mover(3, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 45m);
 
-    var fila = (await c.Consulta().Fila(Corte, Ct)).Valor!;
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
 
     var coleta = Assert.Single(fila.AguardandoColeta);
     Assert.Equal((3, 40m), (coleta.No.Id, coleta.Quantidade));
     Assert.Equal("Montagem", coleta.Destino.Tipo);
     Assert.Equal(1, coleta.Destino.PaiId);
-    Assert.Equal(Solda, coleta.Destino.SugestaoSetorId);
-    Assert.Equal(new[] { new SetorResumoDto(Solda, "Solda") }, coleta.Destino.SetoresPossiveis);
+    Assert.Equal((Solda, "Solda"), (coleta.Destino.SetorId, coleta.Destino.SetorNome));
     var sobra = Assert.Single(fila.Sobra);
     Assert.Equal((3, "UltimoPasso", (int?)1, 5m), (sobra.No.Id, sobra.Origem, sobra.Ordem, sobra.Quantidade));
   }
@@ -78,13 +98,56 @@ public class ConsultaDeExecucaoUseCaseTests
     c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 5m);
     c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 1m);
 
-    var fila = (await c.Consulta().Fila(Solda, Ct)).Valor!;
+    var fila = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
 
     var grupo = Assert.Single(fila.AguardandoMontagem);
     Assert.Equal((1, 5m, 1m), (grupo.Pai.Id, grupo.FaltaMontar, grupo.DaParaMontar));
     Assert.Equal(
         new[] { (2, 2m, 5m, (decimal?)4m, (decimal?)0m), (3, 1m, 1m, (decimal?)2m, (decimal?)1m) },
         grupo.Filhos.Select(f => (f.No.Id, f.QuantidadePorPai, f.Presente, f.NecessarioParaProxima, f.FaltaParaProxima)).ToArray());
+  }
+
+  [Fact]
+  public async Task A_iniciar_nao_lista_no_com_filhos()
+  {
+    var c = Kit();   // pai 1 na Solda, filhos no Corte
+
+    var solda = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
+    var corte = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+
+    Assert.Empty(solda.AIniciar);
+    Assert.Equal(new[] { 2, 3 }, corte.AIniciar.Select(l => l.No.Id).ToArray());
+  }
+
+  [Fact]
+  public async Task Aguardando_montagem_diz_se_o_pai_inicia_aqui_e_qual_e_o_primeiro_passo_dele()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda, Pintura);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 1m);
+
+    var naSolda = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.AguardandoMontagem);
+    var naPintura = Assert.Single((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.True(naSolda.IniciaAqui);
+    Assert.False(naPintura.IniciaAqui);
+    Assert.Equal(new SetorResumoDto(Solda, "Solda"), naPintura.PrimeiroPassoDoPai);
+  }
+
+  [Fact]
+  public async Task Pai_sem_Roteiro_nao_inicia_em_lugar_nenhum()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.False(grupo.IniciaAqui);
+    Assert.Null(grupo.PrimeiroPassoDoPai);
   }
 
   [Fact]
@@ -96,7 +159,7 @@ public class ConsultaDeExecucaoUseCaseTests
     c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 30m);
     c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 15m);
 
-    var fila = (await c.Consulta().Fila(Solda, Ct)).Valor!;
+    var fila = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
 
     var sobra = Assert.Single(fila.Sobra);
     Assert.Equal(("Montagem", (int?)null, 5m, true), (sobra.Origem, sobra.Ordem, sobra.Quantidade, sobra.EmMaisDeUmSetor));
@@ -107,7 +170,7 @@ public class ConsultaDeExecucaoUseCaseTests
   {
     var c = Kit();
 
-    var fila = (await c.Consulta().Fila(Corte, Ct)).Valor!;
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
 
     var no = fila.AIniciar.Single(l => l.No.Id == 3).No;
     Assert.Equal(("No 3", "PED-01", "AG-01", (int?)1, "No 1"), (no.Descricao, no.PedidoNumero, no.AgrupamentoCodigo, no.PaiId, no.PaiDescricao));
@@ -143,8 +206,7 @@ public class ConsultaDeExecucaoUseCaseTests
     var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!).Itens);
 
     Assert.True(tarefa.Destino.PaiSemRoteiro);
-    Assert.Empty(tarefa.Destino.SetoresPossiveis);
-    Assert.Null(tarefa.Destino.SugestaoSetorId);
+    Assert.Null(tarefa.Destino.SetorId);
   }
 
   [Fact]
@@ -155,12 +217,118 @@ public class ConsultaDeExecucaoUseCaseTests
     c.Mover(1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 4m);
     c.Execucao.StatusDoPedido[PedidoId] = "Concluido";
 
-    var fila = (await c.Consulta().Fila(Corte, Ct)).Valor!;
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
 
     Assert.Empty(fila.AIniciar);
     Assert.Empty(fila.AguardandoColeta);
     Assert.Empty((await c.Consulta().Tarefas(Ct)).Valor!);
     Assert.Equal(0, (await c.Consulta().ContagemDeTarefas(Ct)).Valor!.Total);
+  }
+
+  [Fact]
+  public async Task A_fila_traz_a_atividade_do_Setor_ou_nula()
+  {
+    var c = new CenarioDeExecucao();
+
+    Assert.Equal("solda", (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.SetorAtividade);
+    Assert.Null((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.SetorAtividade);
+  }
+
+  [Fact]
+  public async Task Em_trabalho_traz_os_inicios_do_operador_do_mais_recente_ao_mais_antigo()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    var primeiro = (await c.Apontamento().Iniciar(1, new InicioDto(Corte, 2m), Operador, Ct)).Valor!;
+    var segundo = (await c.Apontamento().Iniciar(1, new InicioDto(Corte, 3m), Operador, Ct)).Valor!;
+
+    var linha = Assert.Single((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.EmTrabalho);
+
+    Assert.Equal(new[] { (segundo.Id, 3m), (primeiro.Id, 2m) }, linha.Estornaveis.Select(e => (e.Id, e.Quantidade)).ToArray());
+    Assert.All(linha.Estornaveis, e => Assert.Equal((TiposDeMovimentacao.Inicio, "Operador do Corte"), (e.Tipo, e.UsuarioNome)));
+  }
+
+  [Fact]
+  public async Task O_que_nao_cabe_mais_no_saldo_nao_e_estornavel()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    await c.Apontamento().Iniciar(1, new InicioDto(Corte, 5m), Operador, Ct);
+    await c.Apontamento().Terminar(1, new TerminoDto(Corte, 1, 4m), Operador, Ct);   // sobra 1 em trabalho
+
+    var linha = Assert.Single((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.EmTrabalho);
+
+    Assert.Empty(linha.Estornaveis);   // o Inicio de 5 nao cabe no 1 que restou
+  }
+
+  [Fact]
+  public async Task Registro_alheio_so_aparece_para_PCP()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    await c.Apontamento().Iniciar(1, new InicioDto(Corte, 2m), Movimentador, Ct);   // autor que nao e quem le
+
+    Assert.Empty(Assert.Single((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.EmTrabalho).Estornaveis);
+    Assert.Single(Assert.Single((await c.Consulta().Fila(Corte, ComoPcp, Ct)).Valor!.EmTrabalho).Estornaveis);
+  }
+
+  [Fact]
+  public async Task Aguardando_coleta_traz_os_terminos_e_a_sobra_do_mesmo_passo_nao_os_repete()
+  {
+    var c = Kit();   // 3 (razao 4) de 45 sob pai de 10: 40 e tarefa, 5 e sobra
+    await c.Apontamento().Iniciar(3, new InicioDto(Corte, 45m), Operador, Ct);
+    var termino = (await c.Apontamento().Terminar(3, new TerminoDto(Corte, 1, 45m), Operador, Ct)).Valor!;
+
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+
+    Assert.Equal(termino.Id, Assert.Single(Assert.Single(fila.AguardandoColeta).Estornaveis).Id);
+    Assert.Empty(Assert.Single(fila.Sobra).Estornaveis);
+  }
+
+  [Fact]
+  public async Task Sobra_sem_tarefa_traz_os_terminos()
+  {
+    var c = Kit();
+    c.Execucao.Montagens.Add(new Montagem
+    {
+      Id = 900, EstruturaItemId = 1, SetorId = Solda, Quantidade = 10m, DataHora = DateTime.UtcNow, UsuarioId = Operador,
+    });   // o pai ja nao precisa de nada: tudo o que o 3 terminar e sobra
+    await c.Apontamento().Iniciar(3, new InicioDto(Corte, 5m), Operador, Ct);
+    var termino = (await c.Apontamento().Terminar(3, new TerminoDto(Corte, 1, 5m), Operador, Ct)).Valor!;
+
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+
+    Assert.Empty(fila.AguardandoColeta);
+    Assert.Equal(termino.Id, Assert.Single(Assert.Single(fila.Sobra).Estornaveis).Id);
+  }
+
+  [Fact]
+  public async Task Em_trabalho_do_pai_traz_as_montagens_e_nao_o_inicio_avulso()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda);
+    c.No(2, 1, 10m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
+    await c.Apontamento().Iniciar(1, new InicioDto(Solda, 3m), Operador, Ct);
+
+    var linha = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.EmTrabalho);
+
+    var estornavel = Assert.Single(linha.Estornaveis);
+    Assert.Equal(("Montagem", c.Execucao.Montagens.Single().Id, 3m), (estornavel.Tipo, estornavel.Id, estornavel.Quantidade));
+  }
+
+  [Fact]
+  public async Task Estornado_nao_volta_a_aparecer()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    var inicio = (await c.Apontamento().Iniciar(1, new InicioDto(Corte, 2m), Operador, Ct)).Valor!;
+    await c.Apontamento().Iniciar(1, new InicioDto(Corte, 3m), Operador, Ct);
+    await c.Estorno().EstornarMovimentacao(inicio.Id, Operador, false, Ct);
+
+    var linha = Assert.Single((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.EmTrabalho);
+
+    Assert.DoesNotContain(linha.Estornaveis, e => e.Id == inicio.Id);
   }
 
   [Fact]
@@ -185,17 +353,18 @@ public class ConsultaDeExecucaoUseCaseTests
     var c = new CenarioDeExecucao();
     c.No(1, null, 10m, null, Solda);
     c.No(2, 1, 10m, 1m, Corte);
-    var inicio = (await c.Apontamento().Iniciar(1, new InicioDto(Solda, 2m), Operador, Ct)).Valor!;
-    await c.Estorno().EstornarMovimentacao(inicio.Id, Operador, false, Ct);
     c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
-    await c.Apontamento().Montar(1, new MontagemNovaDto(Solda, 3m), Operador, Ct);
+    var inicio = (await c.Apontamento().Iniciar(1, new InicioDto(Solda, 2m), Operador, Ct)).Valor!;
+    await c.Estorno().EstornarMontagem(inicio.MontagemId!.Value, Operador, false, Ct);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+    await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct);
 
     var livro = (await c.Consulta().LivroDoNo(1, Ct)).Valor!;
 
-    Assert.Equal(new[] { (TiposDeMovimentacao.Inicio, true), (TiposDeMovimentacao.Estorno, false) },
+    Assert.Equal(
+        new[] { (TiposDeMovimentacao.Inicio, true), (TiposDeMovimentacao.Estorno, false), (TiposDeMovimentacao.Inicio, false) },
         livro.Movimentacoes.Select(m => (m.Tipo, m.Estornada)).ToArray());
-    var montagem = Assert.Single(livro.Montagens);
-    Assert.Equal(2, Assert.Single(montagem.Baixas).EstruturaItemId);
+    Assert.Equal(new[] { true, false }, livro.Montagens.Select(m => m.Estornada).ToArray());
   }
 
   [Fact]
@@ -203,7 +372,7 @@ public class ConsultaDeExecucaoUseCaseTests
   {
     var c = new CenarioDeExecucao();
 
-    Assert.Equal(TipoDeErro.NaoEncontrado, (await c.Consulta().Fila(77, Ct)).TipoDoErro);
+    Assert.Equal(TipoDeErro.NaoEncontrado, (await c.Consulta().Fila(77, ComoOperador, Ct)).TipoDoErro);
     Assert.Equal(TipoDeErro.NaoEncontrado, (await c.Consulta().Posicoes(77, Ct)).TipoDoErro);
     Assert.Equal(TipoDeErro.NaoEncontrado, (await c.Consulta().LivroDoNo(77, Ct)).TipoDoErro);
   }
@@ -227,7 +396,7 @@ public class ConsultaDeExecucaoUseCaseTests
 
     var (sucesso, erro, tipo, detalhe) = leitura switch
     {
-      "Fila" => Desmontar(await c.Consulta().Fila(Corte, Ct)),
+      "Fila" => Desmontar(await c.Consulta().Fila(Corte, ComoOperador, Ct)),
       "Tarefas" => Desmontar(await c.Consulta().Tarefas(Ct)),
       "ContagemDeTarefas" => Desmontar(await c.Consulta().ContagemDeTarefas(Ct)),
       "Posicoes" => Desmontar(await c.Consulta().Posicoes(AgrupamentoId, Ct)),

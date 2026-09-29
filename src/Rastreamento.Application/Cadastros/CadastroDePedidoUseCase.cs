@@ -1,4 +1,5 @@
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -53,7 +54,7 @@ public sealed class CadastroDePedidoUseCase
     await _repositorio.AdicionarAsync(pedido, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<PedidoDto>.Ok(Projetar(pedido));
+    return Result<PedidoDto>.Ok(Projetar(pedido, null));   // Pedido novo nunca esta pausado
   }
 
   /// <remarks>
@@ -82,21 +83,24 @@ public sealed class CadastroDePedidoUseCase
     pedido.Cliente = cliente;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<PedidoDto>.Ok(Projetar(pedido));
+    var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
+    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id)));
   }
 
   public async Task<IReadOnlyList<PedidoDto>> Listar(CancellationToken ct)
   {
     var pedidos = await _repositorio.ListarAsync(ct);
-    return pedidos.Select(Projetar).ToList();
+    var pausas = await _repositorio.ListarPausasAbertasAsync(pedidos.Select(p => p.Id).ToList(), ct);
+    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id))).ToList();
   }
 
   public async Task<Result<PedidoDto>> Obter(int id, CancellationToken ct)
   {
     var pedido = await _repositorio.ObterPorIdAsync(id, ct);
-    return pedido is null
-        ? Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado)
-        : Result<PedidoDto>.Ok(Projetar(pedido));
+    if (pedido is null)
+      return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
+    var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
+    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id)));
   }
 
   /// <summary>
@@ -120,6 +124,6 @@ public sealed class CadastroDePedidoUseCase
   /// </summary>
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
-  private static PedidoDto Projetar(Pedido p) =>
-      new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.CriadoPorUsuarioId);
+  private static PedidoDto Projetar(Pedido p, PausaAberta? pausa) =>
+      new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.CriadoPorUsuarioId, PausaResumoDto.De(pausa));
 }

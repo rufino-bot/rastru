@@ -179,22 +179,30 @@ public class ExecucaoRepository : IExecucaoRepository
     return ids;
   }
 
-  public async Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct) =>
-      await (from e in _db.Estruturas.AsNoTracking()
-             join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
-             join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
-             where p.Status != StatusConcluido && p.Status != StatusCancelado
-             orderby e.Id
-             select new ContextoDoNo(e, p.Id, p.Numero, a.Id, a.Codigo))
-          .ToListAsync(ct);
+  public async Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct)
+  {
+    var linhas = await (from e in _db.Estruturas.AsNoTracking()
+                        join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                        join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
+                        where p.Status != StatusConcluido && p.Status != StatusCancelado
+                        orderby e.Id
+                        select new { No = e, PedidoId = p.Id, p.Numero, AgrupamentoId = a.Id, a.Codigo })
+        .ToListAsync(ct);
+    var pausas = await PausasAbertas.ListarAsync(_db, linhas.Select(l => l.PedidoId).Distinct().ToList(), ct);
+    return linhas.Select(l => new ContextoDoNo(
+        l.No, l.PedidoId, l.Numero, l.AgrupamentoId, l.Codigo, pausas.GetValueOrDefault(l.PedidoId))).ToList();
+  }
 
-  public Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct) =>
-      (from e in _db.Estruturas.AsNoTracking()
-       join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
-       join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
-       where e.Id == estruturaItemId
-       select new PedidoDoNo(p.Id, p.Status))
-          .SingleOrDefaultAsync(ct);
+  public async Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct)
+  {
+    var pedido = await (from e in _db.Estruturas.AsNoTracking()
+                        join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                        join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
+                        where e.Id == estruturaItemId
+                        select new { p.Id, p.Numero, p.Status })
+        .SingleOrDefaultAsync(ct);
+    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Numero, pedido.Status, await PausadoAsync(pedido.Id, ct));
+  }
 
   /// <summary>
   /// Mesma consulta de <see cref="ObterPedidoDoNoAsync"/>, em dois passos: acha o PedidoId por um JOIN
@@ -220,8 +228,35 @@ public class ExecucaoRepository : IExecucaoRepository
         .FromSql($"SELECT * FROM dbo.Pedido WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE Id = {pedidoId}")
         .AsNoTracking()
         .SingleOrDefaultAsync(ct);
-    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Status);
+    // Sob a transacao Serializable do Iniciar, esta leitura tambem trava a faixa da pausa daquele
+    // Pedido: um Pausar concorrente espera o Iniciar terminar (e ja esperaria pelo UPDLOCK no Pedido).
+    return pedido is null ? null : new PedidoDoNo(pedido.Id, pedido.Numero, pedido.Status, await PausadoAsync(pedido.Id, ct));
   }
+
+  private Task<bool> PausadoAsync(int pedidoId, CancellationToken ct) =>
+      _db.PedidoPausas.AsNoTracking().AnyAsync(p => p.PedidoId == pedidoId && p.RetomadoEm == null, ct);
+
+  public async Task<PedidoTravado?> TravarPedidoAsync(int pedidoId, CancellationToken ct)
+  {
+    if (_db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException(
+          "TravarPedidoAsync so vale dentro de EmTransacaoAsync: fora de transacao a trava acaba no fim do SELECT.");
+    var pedido = await _db.Pedidos
+        .FromSql($"SELECT * FROM dbo.Pedido WITH (UPDLOCK, HOLDLOCK, ROWLOCK) WHERE Id = {pedidoId}")
+        .AsNoTracking()
+        .SingleOrDefaultAsync(ct);
+    return pedido is null ? null : new PedidoTravado(pedido.Id, pedido.Numero, pedido.Status);
+  }
+
+  public Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct) =>
+      _db.PedidoPausas.AsNoTracking().SingleOrDefaultAsync(p => p.PedidoId == pedidoId && p.RetomadoEm == null, ct);
+
+  /// <summary>Conjuntista, com a condicao no WHERE: retomar duas vezes nao sobrescreve o fecho.</summary>
+  public Task FecharPausaAsync(int pausaId, int usuarioId, DateTime em, CancellationToken ct) =>
+      _db.PedidoPausas.Where(p => p.Id == pausaId && p.RetomadoEm == null)
+          .ExecuteUpdateAsync(s => s
+              .SetProperty(p => p.RetomadoEm, (DateTime?)em)
+              .SetProperty(p => p.RetomadoPorUsuarioId, (int?)usuarioId), ct);
 
   /// <summary>Conjuntista, com a condicao no WHERE: dois inicios paralelos nao disputam uma leitura.</summary>
   public Task MarcarPedidoEmProducaoAsync(int pedidoId, CancellationToken ct) =>
@@ -341,6 +376,10 @@ public class ExecucaoRepository : IExecucaoRepository
         .ToListAsync(ct);
   }
 
+  public Task<Movimentacao?> ObterInicioDaMontagemAsync(int montagemId, CancellationToken ct) =>
+      _db.Movimentacoes.AsNoTracking()
+          .SingleOrDefaultAsync(m => m.Tipo == TiposDeMovimentacao.Inicio && m.MontagemId == montagemId, ct);
+
   /// <summary>
   /// Conjuntista e condicionado a `EstornadaEm IS NULL`: e a unica escrita que uma `Montagem` recebe
   /// depois de nascer, e nunca sobrescreve um estorno anterior.
@@ -358,6 +397,24 @@ public class ExecucaoRepository : IExecucaoRepository
     return await _db.Usuarios.AsNoTracking()
         .Where(u => lista.Contains(u.Id))
         .ToDictionaryAsync(u => u.Id, u => u.NomeCompleto, ct);
+  }
+
+  public async Task<RegistrosDoSetor> ListarRegistrosEstornaveisDoSetorAsync(
+      int setorId, IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new RegistrosDoSetor([], []);
+    var lista = ids.ToList();
+    var movimentos = await _db.Movimentacoes.AsNoTracking()
+        .Where(m => lista.Contains(m.EstruturaItemId) && m.DestinoSetorId == setorId && m.MontagemId == null
+            && (m.Tipo == TiposDeMovimentacao.Inicio || m.Tipo == TiposDeMovimentacao.Termino)
+            && !_db.Movimentacoes.Any(e => e.EstornoDeId == m.Id))
+        .OrderBy(m => m.Id)
+        .ToListAsync(ct);
+    var montagens = await _db.Montagens.AsNoTracking()
+        .Where(g => lista.Contains(g.EstruturaItemId) && g.SetorId == setorId && g.EstornadaEm == null)
+        .OrderBy(g => g.Id)
+        .ToListAsync(ct);
+    return new RegistrosDoSetor(movimentos, montagens);
   }
 
   public async Task SubstituirPassosNaoAlcancadosAsync(
@@ -378,6 +435,8 @@ public class ExecucaoRepository : IExecucaoRepository
   public void Adicionar(Movimentacao movimentacao) => _db.Movimentacoes.Add(movimentacao);
 
   public void Adicionar(Montagem montagem) => _db.Montagens.Add(montagem);
+
+  public void Adicionar(PedidoPausa pausa) => _db.PedidoPausas.Add(pausa);
 
   public Task SalvarAlteracoesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 }

@@ -1,18 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatarQuantidade, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
+  rotuloDaAcao, rotuloDoEstornavel, mensagemDoEstorno,
 } from './formatacao'
-import type { DestinoDto, NoResumoDto } from '../api/execucao'
+import type { DestinoDto, Estornavel, NoResumoDto } from '../api/execucao'
+import { destino, DESTINO_MONTAGEM } from '../testes/execucao'
 
 const SUPORTE: NoResumoDto = {
   id: 7, descricao: 'Suporte', codigoDoComponente: 'SUP-01',
   pedidoId: 1, pedidoNumero: 'PED-2026-01', agrupamentoId: 3, agrupamentoCodigo: 'AG-01',
-  paiId: 2, paiDescricao: 'Chassi',
+  paiId: 2, paiDescricao: 'Chassi', pausa: null,
 }
 
 const DESTINO_VAZIO: DestinoDto = {
   tipo: 'Expedicao', setorId: null, setorNome: null, ordem: null,
-  paiId: null, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: false,
+  paiId: null, paiSemRoteiro: false,
 }
 
 describe('formatarQuantidade', () => {
@@ -51,26 +53,16 @@ describe('descreverDestino', () => {
     expect(descreverDestino(DESTINO_VAZIO, SUPORTE)).toBe('Local de expedição')
   })
 
-  it('montagem nomeia o pai e a sugestão', () => {
-    const destino: DestinoDto = {
-      ...DESTINO_VAZIO, tipo: 'Montagem', paiId: 2, sugestaoSetorId: 4,
-      setoresPossiveis: [{ id: 4, nome: 'Solda' }, { id: 6, nome: 'Montagem final' }],
-    }
-    expect(descreverDestino(destino, SUPORTE)).toBe('Montagem de Chassi (sugestão: Solda)')
+  it('montagem nomeia o pai e o Setor onde ele começa', () => {
+    expect(descreverDestino(DESTINO_MONTAGEM, SUPORTE)).toBe('Montagem de Chassi em Solda')
   })
 
-  it('montagem sem sugestão não inventa uma', () => {
-    const destino: DestinoDto = {
-      ...DESTINO_VAZIO, tipo: 'Montagem', paiId: 2, sugestaoSetorId: null,
-      setoresPossiveis: [{ id: 4, nome: 'Solda' }],
-    }
-    expect(descreverDestino(destino, SUPORTE)).toBe('Montagem de Chassi')
-  })
-
-  it('pai sem Roteiro diz isso em vez de sugerir', () => {
+  it('pai sem Roteiro diz que não há para onde levar', () => {
     // Desvio D7 do plano 2: o item aparece, e a pendência é do PCP.
-    const destino: DestinoDto = { ...DESTINO_VAZIO, tipo: 'Montagem', paiId: 2, paiSemRoteiro: true }
-    expect(descreverDestino(destino, SUPORTE)).toBe('Montagem de Chassi — o pai não tem Roteiro')
+    const semRoteiro = destino({
+      tipo: 'Montagem', setorId: null, setorNome: null, ordem: null, paiId: 2, paiSemRoteiro: true,
+    })
+    expect(descreverDestino(semRoteiro, SUPORTE)).toBe('Montagem de Chassi — o pai não tem Roteiro')
   })
 })
 
@@ -110,5 +102,41 @@ describe('rotuloDoTipo', () => {
   it('põe acento e chama a baixa de filho pelo que ela é', () => {
     expect((['Inicio', 'Termino', 'Entrega', 'Montagem', 'Estorno'] as const).map(rotuloDoTipo))
       .toEqual(['Início', 'Término', 'Entrega', 'Baixa de montagem', 'Estorno'])
+  })
+})
+
+describe('rotuloDaAcao', () => {
+  it('compõe o verbo com a atividade do Setor', () => {
+    expect(rotuloDaAcao('Iniciar', 'montagem')).toBe('Iniciar montagem')
+    expect(rotuloDaAcao('Terminar', 'solda')).toBe('Terminar solda')
+  })
+
+  it('sem atividade, fica só o verbo', () => {
+    expect(rotuloDaAcao('Iniciar', null)).toBe('Iniciar')
+    expect(rotuloDaAcao('Terminar', '   ')).toBe('Terminar')
+  })
+})
+
+const TERMINO: Estornavel = {
+  tipo: 'Termino', id: 41, quantidade: 5, usuarioId: 12, usuarioNome: 'Operador do Corte', dataHora: '2026-09-28T10:14:00-03:00',
+}
+
+describe('rotuloDoEstornavel', () => {
+  it('diz o que é, quanto, quem e quando', () => {
+    expect(rotuloDoEstornavel(TERMINO)).toBe('Término de 5 · Operador do Corte · 28/09/2026 10:14')
+    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Inicio' })).toBe('Início de 5 · Operador do Corte · 28/09/2026 10:14')
+    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Montagem' })).toBe('Início de 5 (com o consumo dos filhos) · Operador do Corte · 28/09/2026 10:14')
+  })
+})
+
+describe('mensagemDoEstorno', () => {
+  it('confirma o registro e diz o que acontece', () => {
+    expect(mensagemDoEstorno(TERMINO))
+      .toBe('Estornar o término de 5, registrado por Operador do Corte em 28/09/2026 10:14? O movimento inverso fica no histórico.')
+  })
+
+  it('no início de um pai, diz que o pai volta a "a iniciar" e os filhos a aguardar montagem', () => {
+    expect(mensagemDoEstorno({ ...TERMINO, tipo: 'Montagem' }))
+      .toBe('Estornar o início de 5 (com o consumo dos filhos), registrado por Operador do Corte em 28/09/2026 10:14? O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes; o estorno fica no histórico.')
   })
 })

@@ -70,6 +70,8 @@ const PARES: Array<{ frente: string; fundo: string; minimo: number; onde: string
   { frente: 'superficie', fundo: 'positivo', minimo: TEXTO, onde: 'selo de estado positivo com texto branco' },
   { frente: 'positivo-texto', fundo: 'positivo-fundo', minimo: TEXTO, onde: 'texto da pílula de estado positivo' },
   { frente: 'negativo-texto', fundo: 'negativo-fundo', minimo: TEXTO, onde: 'texto da pílula de estado negativo' },
+  { frente: 'atencao-texto', fundo: 'atencao-fundo', minimo: TEXTO, onde: 'texto da pílula de estado de atenção' },
+  { frente: 'atencao-texto', fundo: 'superficie', minimo: TEXTO, onde: 'rótulo de estado de atenção sobre cartão' },
   { frente: 'borda-campo', fundo: 'superficie', minimo: INTERFACE, onde: 'borda de input e de botão secundário' },
   { frente: 'acao', fundo: 'fundo', minimo: INTERFACE, onde: 'anel de foco sobre o fundo da página' },
   { frente: 'chrome-tinta-fraca', fundo: 'chrome', minimo: TEXTO, onde: 'link inativo da barra de navegação' },
@@ -93,6 +95,7 @@ describe('paleta declarada em index.css', () => {
     for (const nome of [
       'chrome', 'marca', 'acao', 'acao-forte', 'acao-fundo',
       'positivo', 'positivo-texto', 'negativo', 'negativo-texto', 'negativo-fundo',
+      'atencao-texto', 'atencao-fundo',
       'tinta', 'tinta-fraca', 'borda', 'borda-campo', 'fundo', 'superficie',
       'chrome-tinta-fraca', 'chrome-tinta-apagada', 'chrome-ativo', 'chrome-hover', 'chrome-borda',
     ]) {

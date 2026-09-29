@@ -32,11 +32,11 @@ public sealed class CadastroDeSetorUseCase
     if (await _repositorio.ObterPorNomeAsync(nome, ct) is not null)
       return Result<SetorDto>.Falha(ErroDeNomeDuplicado, TipoDeErro.Conflito);
 
-    var setor = new Setor { Nome = nome, Ativo = true };
+    var setor = new Setor { Nome = nome, Ativo = true, Atividade = NormalizarOpcional(novo.Atividade) };
     await _repositorio.AdicionarAsync(setor, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo));
+    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo, setor.Atividade));
   }
 
   public async Task<Result<SetorDto>> Editar(int id, NovoSetorDto alterado, CancellationToken ct)
@@ -55,15 +55,16 @@ public sealed class CadastroDeSetorUseCase
       return Result<SetorDto>.Falha(ErroDeNomeDuplicado, TipoDeErro.Conflito);
 
     setor.Nome = nome;
+    setor.Atividade = NormalizarOpcional(alterado.Atividade);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo));
+    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo, setor.Atividade));
   }
 
   public async Task<IReadOnlyList<SetorDto>> Listar(bool incluirInativos, CancellationToken ct)
   {
     var setores = await _repositorio.ListarAsync(incluirInativos, ct);
-    return setores.Select(s => new SetorDto(s.Id, s.Nome, s.Ativo)).ToList();
+    return setores.Select(s => new SetorDto(s.Id, s.Nome, s.Ativo, s.Atividade)).ToList();
   }
 
   /// <summary>Cobre inativar e reativar — o mesmo endpoint `PATCH /setores/{id}/ativo`.</summary>
@@ -98,4 +99,14 @@ public sealed class CadastroDeSetorUseCase
   /// nao deixarem a defesa divergir entre si.
   /// </summary>
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
+
+  /// <summary>
+  /// Texto opcional: aparado, e vazio vira nulo — "   " gravado como atividade faria o botao da fila
+  /// dizer "Iniciar " com um espaco sobrando. Nao forca minuscula: siglas ("CNC") sao legitimas.
+  /// </summary>
+  private static string? NormalizarOpcional(string? valor)
+  {
+    var aparado = valor?.Trim();
+    return string.IsNullOrEmpty(aparado) ? null : aparado;
+  }
 }

@@ -116,8 +116,8 @@ const MATERIAIS_CADASTRO = [
   { id: 8, codigo: 'PF-8', descricao: 'Parafuso M8', unidadeMedida: 'UN', ativo: true },
 ]
 const SETORES_CADASTRO = [
-  { id: 20, nome: 'Corte', ativo: true },
-  { id: 21, nome: 'Solda', ativo: true },
+  { id: 20, nome: 'Corte', ativo: true, atividade: null },
+  { id: 21, nome: 'Solda', ativo: true, atividade: null },
 ]
 
 /** As 7 rotas GET que a tela pode chamar no caminho feliz, com o perfil que escreve. Compartilhado

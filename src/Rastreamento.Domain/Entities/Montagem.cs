@@ -1,10 +1,13 @@
 namespace Rastreamento.Domain.Entities;
 
 /// <summary>
-/// "Montei N" de um no com filhos (regra 24). O total montado do no e a soma das montagens nao
+/// A montagem de um no com filhos (regra 24): nasce quando o operador INICIA o no no primeiro passo
+/// do Roteiro (Fase 3D), consumindo os filhos. O total montado do no e a soma das montagens nao
 /// estornadas. A baixa de cada filho mora em `Movimentacao` (Tipo = Montagem, `MontagemId` = esta),
-/// com `N x QuantidadePorPai` gravado. Estornar e marcar `EstornadaEm`/`EstornadaPorUsuarioId` — a
-/// unica escrita que uma linha desta tabela recebe depois de nascer — e gravar um Estorno por baixa.
+/// com `N x QuantidadePorPai` gravado, e o Inicio do pai tambem aponta esta linha. Estornar e marcar
+/// `EstornadaEm`/`EstornadaPorUsuarioId` — a unica escrita que uma linha desta tabela recebe depois de
+/// nascer — e gravar um Estorno por baixa e, quando ha Inicio do pai, um Estorno dele tambem (montagem
+/// anterior a Fase 3D nao tem Inicio apontando para ela: so as baixas sao estornadas).
 /// </summary>
 public class Montagem
 {

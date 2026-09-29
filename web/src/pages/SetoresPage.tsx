@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
-  listarSetores, criarSetor, definirAtivoSetor, ehConflito, type SetorDto,
+  listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito, type SetorDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
@@ -16,6 +16,8 @@ export function SetoresPage() {
   const [setores, setSetores] = useState<SetorDto[]>([])
   const [incluirInativos, setIncluirInativos] = useState(false)
   const [nome, setNome] = useState('')
+  const [atividade, setAtividade] = useState('')
+  const [editando, setEditando] = useState<SetorDto | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -42,10 +44,11 @@ export function SetoresPage() {
     setErro(null)
     setIdReativavel(null)
     setEnviando(true)
+    const corpo = { nome, atividade: atividade.trim() === '' ? null : atividade }
     try {
-      const resultado = await criarSetor(nome)
+      const resultado = editando ? await editarSetor(editando.id, corpo) : await criarSetor(corpo)
       if (ehConflito(resultado)) {
-        if (resultado.existeInativo) {
+        if (!editando && resultado.existeInativo) {
           setErro(`Já existe um setor "${nome}" inativo.`)
           setIdReativavel(resultado.idExistente)
         } else {
@@ -53,13 +56,27 @@ export function SetoresPage() {
         }
         return
       }
-      setNome('')
+      limparFormulario()
       await carregar(incluirInativos)
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível salvar o setor.'))
     } finally {
       setEnviando(false)
     }
+  }
+
+  function limparFormulario() {
+    setNome('')
+    setAtividade('')
+    setEditando(null)
+  }
+
+  function editar(setor: SetorDto) {
+    setErro(null)
+    setIdReativavel(null)
+    setEditando(setor)
+    setNome(setor.nome)
+    setAtividade(setor.atividade ?? '')
   }
 
   // O `try/catch` continua sendo a fronteira REAL de perfil (F2): esconder o botão é conveniência
@@ -79,7 +96,7 @@ export function SetoresPage() {
       await definirAtivoSetor(id, true)
       setErro(null)
       setIdReativavel(null)
-      setNome('')
+      limparFormulario()
       await carregar(incluirInativos)
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível reativar o setor.'))
@@ -89,21 +106,35 @@ export function SetoresPage() {
   return (
     <Pagina titulo="Setores">
       {podeEscrever && (
-        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4 sm:flex-row sm:items-end">
-          <div className="flex-1">
+        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Nome do setor">
               {(id) => (
+                <input id={id} value={nome} onChange={(e) => setNome(e.target.value)} required className={CLASSES_DE_CONTROLE} />
+              )}
+            </Campo>
+            <Campo
+              rotulo="Atividade (opcional)"
+              dica="Completa os botões da fila: com “montagem”, eles ficam “Iniciar montagem” e “Terminar montagem”."
+            >
+              {(id, idDaDica) => (
                 <input
                   id={id}
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  required
+                  value={atividade}
+                  onChange={(e) => setAtividade(e.target.value)}
+                  maxLength={40}
+                  aria-describedby={idDaDica}
                   className={CLASSES_DE_CONTROLE}
                 />
               )}
             </Campo>
           </div>
-          <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…">Adicionar</Botao>
+          <div className="flex flex-wrap gap-2">
+            <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…">
+              {editando ? 'Salvar alterações' : 'Adicionar'}
+            </Botao>
+            {editando && <Botao variante="secundario" onClick={limparFormulario}>Cancelar</Botao>}
+          </div>
         </form>
       )}
 
@@ -143,12 +174,16 @@ export function SetoresPage() {
               key={s.id}
               ativo={s.ativo}
               acao={podeEscrever && (
-                <Botao variante="secundario" onClick={() => alternarAtivo(s)}>
-                  {s.ativo ? 'Inativar' : 'Reativar'}
-                </Botao>
+                <div className="flex flex-wrap gap-2">
+                  <Botao variante="secundario" aria-label={`Editar ${s.nome}`} onClick={() => editar(s)}>Editar</Botao>
+                  <Botao variante="secundario" onClick={() => alternarAtivo(s)}>
+                    {s.ativo ? 'Inativar' : 'Reativar'}
+                  </Botao>
+                </div>
               )}
             >
               {s.nome}
+              {s.atividade && <span className="ml-2 text-sm text-tinta-fraca">{`· ${s.atividade}`}</span>}
             </ItemDeCadastro>
           ))}
         </ListaDeCadastro>

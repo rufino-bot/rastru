@@ -9,7 +9,7 @@ afterEach(cleanup)
 
 const PEDIDO: PedidoDto = {
   id: 7, numero: 'PED-042', cliente: 'Metalúrgica Alfa', tipo: 'Fabricacao',
-  status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', criadoPorUsuarioId: 1,
+  status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
 }
 
 function renderizar(pedido: PedidoDto) {
@@ -51,8 +51,34 @@ describe('LinhaDePedido', () => {
 
     renderizar({ ...PEDIDO, status: 'EmProducao' })
     const neutra = screen.getByText('EmProducao').className
+    // Neutro afirmado token a token: o âmbar (`atencao-`) também é cor de estado, e "nem verde nem
+    // vermelho" não o vê.
+    const classesNeutras = neutra.split(/\s+/)
+    expect(classesNeutras).toContain('bg-acao-fundo')
+    expect(classesNeutras).toContain('text-acao')
     expect(neutra).not.toMatch(/positivo-/)
     expect(neutra).not.toMatch(/negativo-/)
+  })
+
+  it('mostra a pilula "Pausado" so quando o Pedido tem pausa aberta, e so ela', () => {
+    // A lista diz QUE está pausado; quem, quando e por quê ficam no detalhe (spec da Fase 3D, §6.3).
+    renderizar(PEDIDO)
+    expect(screen.queryByText('Pausado')).toBeNull()
+    cleanup()
+
+    renderizar({ ...PEDIDO, pausa: { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'urgente' } })
+    expect(screen.getByText('Pausado')).toBeTruthy()
+    expect(screen.queryByText(/urgente/)).toBeNull()
+    expect(screen.queryByText(/28\/09\/2026/)).toBeNull()
+  })
+
+  it('a pilula "Pausado" usa o tom de atencao: vermelho e verde sao reservados a erro e aprovado', () => {
+    renderizar({ ...PEDIDO, pausa: { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: null } })
+
+    const classes = screen.getByText('Pausado').className.split(/\s+/)
+    expect(classes).toContain('bg-atencao-fundo')
+    expect(classes).toContain('text-atencao-texto')
+    expect(classes.some((c) => /positivo-|negativo-/.test(c))).toBe(false)
   })
 
   it('estende a area clicavel ao item inteiro', () => {

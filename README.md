@@ -8,15 +8,16 @@ possibilidade de abrir Retrabalho em caso de reprovação).
 Projeto de TCC. O rastreamento é por **lote agregado** (não por unidade física individual),
 e o lote é **divisível por quantidades livres**: parte dele pode estar num Setor e parte em
 outro ao mesmo tempo. Não há identidade de sub-lote (sem etiqueta/serial) — controla-se
-apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**: soma das
-unidades em todos os Setores + expedido + perdido = quantidade total da Peça.
+apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**, para toda Peça e
+todo Item: o que está em produção (a iniciar, nos Setores, aguardando coleta ou montagem, ou no
+local de expedição) + o que já foi montado dentro do pai + expedido + perdido = quantidade total.
 
 ## Stack
 
 - **Backend:** .NET (C#), ASP.NET Core Web API, Clean Architecture (Domain / Application / Infrastructure / Api)
 - **Banco:** SQL Server numa VPS paga com domínio próprio, EF Core em modo **Database First**
 - **Frontend:** React + TypeScript (Vite) + Tailwind CSS, mobile-first, com three.js (carregado sob demanda) no visualizador de sólido 3D
-- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
+- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador existe desde a Fase 3)
 
 ## Estrutura do repositório
 
@@ -26,7 +27,7 @@ unidades em todos os Setores + expedido + perdido = quantidade total da Peça.
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional) |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql` e `alter-fase-3d.sql`, que levam um banco criado antes dessas fases até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -66,11 +67,13 @@ dotnet run --project src/Rastreamento.Api   # perfil http → http://localhost:5
 Testes:
 
 ```bash
-dotnet test Rastreamento.slnx
+dotnet test Rastreamento.slnx -m:1
 ```
 
 > Parte da suíte roda contra o SQL Server real (mapeamento EF, atomicidade da rotação de
-> refresh token). Sem o container no ar, esses testes falham por erro de conexão.
+> refresh token). Sem o container no ar, esses testes falham por erro de conexão. O `-m:1` roda um
+> projeto de teste por vez: dois processos escrevendo no livro de movimentações ao mesmo tempo
+> deadlockam no banco compartilhado, e a suíte fica intermitente sem ele.
 
 ### 3. Frontend
 
@@ -103,9 +106,10 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 ## Roadmap
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
-roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 2B, 3B e 3C como fases próprias.
-A sequência admite as exceções que aquele arquivo declara por escrito; a mais recente é a **Fase 3C**
-(notificação push), executada depois da Fase 5 — a posição dela em relação à Fase 6 não está decidida.
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 2B, 3B, 3C e 3D como fases próprias.
+A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** rodou antes da 3B,
+e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
+decidida.
 
 Concluídas até aqui:
 
@@ -120,14 +124,27 @@ Concluídas até aqui:
   cópia da receita do Componente e a árvore editável na tela do Agrupamento.
 - **Fase 2B:** o sólido 3D da Peça — arquivo STL guardado em blob, enviado e lido sob `/api`, com
   upload e visualizador no navegador.
+- **Fase 3:** rastreamento de setor — livro de movimentações, terminar e mover como ações
+  separadas (com o perfil **Movimentador** e a tela de tarefas dele), montagem de todo nó com
+  filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao local de expedição.
+  Entrou na `main` pelos PRs #20 (backend) e #21 (front), em 2026-09-26, e por duas correções
+  em 2026-09-28: o histórico do nó do registro mais recente ao mais antigo (PR #22) e a contagem de
+  Pedidos abertos com o contador de Tarefas (PR #23).
+- **Fase 3D:** ajustes pós-verificação da Fase 3, verificados manualmente no celular — iniciar como
+  verbo único (iniciar um nó com filhos consome os filhos, e montar deixa de ser ação), atividade do
+  Setor nos botões, destino do filho pronto calculado, estorno rápido na fila e pausa de Pedido.
+  A fila do Setor passou a mostrar o que está em trabalho primeiro e, no fim, o que aguarda coleta
+  e a sobra, e o Pedido pausado ganhou a pílula de tom de atenção (âmbar), um tom que só significa
+  estado.
 
-A seguir vêm a **Fase 3** (rastreamento de setor: livro de movimentações, terminar e mover como
-ações separadas — com o perfil **Movimentador** e a tela de tarefas dele —, montagem de todo nó com
-filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao local de expedição) e a
-**Fase 3B** (Kit: trava de montagem por nó, com conjunto completo na entrada do Setor marcado como
-de montagem — hoje, a Solda). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+A seguir vêm, nesta ordem, os **filtros da fila do Setor** (por Material e por Pedido; o desenho
+ainda passa por brainstorm), a **Fase 1F** (cadastro sob demanda; a spec dela, em 2026-09-29, vive numa branch, não
+na `main`) e a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como de montagem —
+hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de iniciado; a
+trava de montagem, para o nó que já tem filhos ao entrar em produção, já é estrutural desde a 3D).
+Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
-e por pedido.
+e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).

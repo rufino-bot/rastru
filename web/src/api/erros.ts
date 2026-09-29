@@ -53,10 +53,8 @@ export type CodigoDeErroDaExecucao =
   | 'SemRoteiro'
   | 'NaoEhOPrimeiroPasso'
   | 'SaldoInsuficiente'
-  | 'SemFilhos'
-  | 'MontagemAcimaDoQueFalta'
   | 'FilhosInsuficientes'
-  | 'DestinoForaDoRoteiroDoPai'
+  | 'RedirecionamentoSemEfeito'
   | 'PaiSemRoteiro'
   | 'PassoJaAlcancado'
   | 'QuantidadeAbaixoDoMovimentado'
@@ -64,6 +62,10 @@ export type CodigoDeErroDaExecucao =
   | 'JaEstornado'
   | 'PedidoFechado'
   | 'ConflitoDeConcorrencia'
+  | 'PedidoPausado'
+  | 'PedidoJaPausado'
+  | 'PedidoNaoPausado'
+  | 'MotivoLongoDemais'
 
 /**
  * A tradução de cada código (spec §8.3: "cada código tem tradução em `mensagemDeErro`"). Só entra
@@ -81,10 +83,8 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   SemRoteiro: 'Este item não tem Roteiro. Peça ao PCP para cadastrá-lo.',
   NaoEhOPrimeiroPasso: 'Este item não começa neste Setor.',
   SaldoInsuficiente: 'Não há essa quantidade disponível aqui. Atualize a tela e tente de novo.',
-  SemFilhos: 'Este item não tem filhos para montar.',
-  MontagemAcimaDoQueFalta: 'Essa quantidade passa do que ainda falta montar.',
-  FilhosInsuficientes: 'Não há filhos suficientes aqui para montar essa quantidade.',
-  DestinoForaDoRoteiroDoPai: 'Este Setor não está no Roteiro do item pai.',
+  FilhosInsuficientes: 'Não há filhos suficientes aqui para iniciar essa quantidade.',
+  RedirecionamentoSemEfeito: 'Este item já está no Setor onde o pai começa.',
   PaiSemRoteiro: 'O item pai não tem Roteiro. Peça ao PCP para cadastrá-lo.',
   PassoJaAlcancado: 'Um passo já alcançado não pode ser alterado nem removido, e nenhum passo pode entrar antes dele.',
   QuantidadeAbaixoDoMovimentado: 'A quantidade não pode ficar abaixo do que já andou na produção.',
@@ -92,6 +92,10 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   JaEstornado: 'Este registro já foi estornado.',
   PedidoFechado: 'O pedido deste item está concluído ou cancelado.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
+  PedidoPausado: 'O pedido deste item está pausado: nada dele começa até alguém retomá-lo.',
+  PedidoJaPausado: 'Este pedido já está pausado.',
+  PedidoNaoPausado: 'Este pedido não está pausado.',
+  MotivoLongoDemais: 'O motivo passa de 200 caracteres.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {

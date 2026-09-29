@@ -7,15 +7,25 @@ namespace Rastreamento.Domain.Abstractions;
 /// caminho "Pedido > Agrupamento > pai" sem uma consulta por linha.
 /// </summary>
 public sealed record ContextoDoNo(
-    EstruturaItem No, int PedidoId, string PedidoNumero, int AgrupamentoId, string AgrupamentoCodigo);
+    EstruturaItem No, int PedidoId, string PedidoNumero, int AgrupamentoId, string AgrupamentoCodigo, PausaAberta? Pausa);
 
-public sealed record PedidoDoNo(int PedidoId, string Status);
+/// <summary>A pausa aberta de um Pedido, com o nome de quem pausou (spec da Fase 3D, secao 2.5).</summary>
+public sealed record PausaAberta(int PedidoId, DateTime PausadoEm, int PausadoPorUsuarioId, string PausadoPorNome, string? Motivo);
+
+/// <summary>`Pausado`: o Pedido tem pausa aberta — o Iniciar a recusa (spec da Fase 3D, secao 4.1).</summary>
+public sealed record PedidoDoNo(int PedidoId, string Numero, string Status, bool Pausado);
+
+public sealed record PedidoTravado(int Id, string Numero, string Status);
+
+/// <summary>A materia-prima do estorno rapido da fila (spec da Fase 3D, secao 2.4).</summary>
+public sealed record RegistrosDoSetor(IReadOnlyList<Movimentacao> Movimentos, IReadOnlyList<Montagem> Montagens);
 
 /// <summary>
 /// O livro de movimentacoes e o que as escritas da Fase 3 precisam em volta dele (spec da Fase 3,
 /// secoes 7 e 8). Toda leitura devolve dado SOLTO (sem change tracking); as escritas sao
-/// `Adicionar` + `SalvarAlteracoesAsync`, e as duas unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
-/// `MarcarMontagemEstornadaAsync`) sao conjuntistas — nenhuma toca `Movimentacao`, que e so de inclusao.
+/// `Adicionar` + `SalvarAlteracoesAsync`, e as tres unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
+/// `MarcarMontagemEstornadaAsync`, `FecharPausaAsync`) sao conjuntistas — nenhuma toca `Movimentacao`,
+/// que e so de inclusao.
 /// </summary>
 public interface IExecucaoRepository
 {
@@ -92,9 +102,22 @@ public interface IExecucaoRepository
   /// <summary>As baixas de filho (Tipo = Montagem) das montagens pedidas — sem os estornos delas.</summary>
   Task<IReadOnlyList<Movimentacao>> ListarBaixasAsync(IReadOnlyCollection<int> montagemIds, CancellationToken ct);
 
+  /// <summary>
+  /// O `Inicio` do pai que esta montagem gravou (spec da Fase 3D, secao 3.3), ou nulo — montagem
+  /// gravada antes da Fase 3D nao tem. `UX_Movimentacao_UmInicioPorMontagem` garante no maximo um.
+  /// </summary>
+  Task<Movimentacao?> ObterInicioDaMontagemAsync(int montagemId, CancellationToken ct);
+
   Task MarcarMontagemEstornadaAsync(int montagemId, int usuarioId, DateTime em, CancellationToken ct);
 
   Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Dos nos pedidos: os `Inicio` (sem Montagem — o inicio de um pai se estorna pela montagem) e os
+  /// `Termino` com destino neste Setor que ainda nao foram estornados, e as montagens feitas neste
+  /// Setor que ainda valem. Se cabe no saldo e quem pode ver, decide o caso de uso.
+  /// </summary>
+  Task<RegistrosDoSetor> ListarRegistrosEstornaveisDoSetorAsync(int setorId, IReadOnlyCollection<int> ids, CancellationToken ct);
 
   /// <summary>
   /// Apaga os passos do Roteiro do no com `Ordem` maior que `ultimaOrdemTravada` (todos, se nula) e
@@ -103,9 +126,23 @@ public interface IExecucaoRepository
   Task SubstituirPassosNaoAlcancadosAsync(
       int estruturaItemId, int? ultimaOrdemTravada, IReadOnlyList<(int SetorId, int Ordem)> novos, CancellationToken ct);
 
+  /// <summary>
+  /// Trava a linha do Pedido com UPDLOCK — a mesma que o Iniciar trava por
+  /// <see cref="ObterPedidoDoNoParaEscritaAsync"/> —, para pausar e iniciar se serializarem (spec da
+  /// Fase 3D, secao 4.5). So vale dentro de <see cref="EmTransacaoAsync"/>.
+  /// </summary>
+  Task<PedidoTravado?> TravarPedidoAsync(int pedidoId, CancellationToken ct);
+
+  Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct);
+
+  /// <summary>Fecha o intervalo: conjuntista e condicionado a `RetomadoEm IS NULL`, nunca sobrescreve.</summary>
+  Task FecharPausaAsync(int pausaId, int usuarioId, DateTime em, CancellationToken ct);
+
   void Adicionar(Movimentacao movimentacao);
 
   void Adicionar(Montagem montagem);
+
+  void Adicionar(PedidoPausa pausa);
 
   Task SalvarAlteracoesAsync(CancellationToken ct);
 }

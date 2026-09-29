@@ -16,6 +16,9 @@ public interface IPedidoRepository
   /// <summary>Sem filtro de ativo/inativo: Pedido nao tem essa coluna — a lista e completa.</summary>
   Task<IReadOnlyList<Pedido>> ListarAsync(CancellationToken ct);
 
+  /// <summary>A pausa aberta de cada Pedido pedido que tem uma; os demais nao aparecem.</summary>
+  Task<IReadOnlyDictionary<int, PausaAberta>> ListarPausasAbertasAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
   Task AdicionarAsync(Pedido pedido, CancellationToken ct);
 
   Task SalvarAlteracoesAsync(CancellationToken ct);

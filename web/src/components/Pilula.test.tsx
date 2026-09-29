@@ -26,6 +26,18 @@ describe('Pilula', () => {
     expect(classes).toContain('text-acao')
   })
 
+  it('o tom atencao usa o par declarado de amarelo, sem verde, vermelho nem a tinta de acao', () => {
+    // Token a token, pelo mesmo motivo do teste do tom neutro. O par `atencao-texto`/`atencao-fundo`
+    // é medido pela guarda de contraste; nenhum modificador de opacidade.
+    render(<Pilula tom="atencao">Pausado</Pilula>)
+
+    const classes = screen.getByText('Pausado').className.split(/\s+/)
+    expect(classes).toContain('bg-atencao-fundo')
+    expect(classes).toContain('text-atencao-texto')
+    expect(classes.some((c) => /positivo-|negativo-|acao/.test(c))).toBe(false)
+    expect(classes.some((c) => c.includes('/'))).toBe(false)
+  })
+
   it('reserva verde e vermelho para estado, em tons declarados', () => {
     const { container } = render(
       <div>

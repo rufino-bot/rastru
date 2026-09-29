@@ -15,14 +15,14 @@ public sealed record NoDoCalculo(
 public enum TipoDeDestino { ProximoPasso, Expedicao, Montagem }
 
 /// <summary>
-/// Para onde vai o que aguarda coleta (spec secao 7.3). `Passo` so em `ProximoPasso`; `PaiId`,
-/// `SugestaoSetorId` e `SetoresPossiveis` so em `Montagem`. Pai sem Roteiro: lista vazia, sem sugestao
-/// — a entrega e recusada com `PaiSemRoteiro`, e o item aparece assim mesmo (desvio D7 do plano 2).
+/// Para onde vai o que aguarda coleta (spec da Fase 3, secao 7.3, com a emenda da Fase 3D, secao 2.2).
+/// `Passo`: em `ProximoPasso`, o passo seguinte; em `Montagem`, o PRIMEIRO passo do pai — onde o pai
+/// comeca consumindo os filhos, sem escolha. `PaiId` so em `Montagem`. Pai sem Roteiro: `Passo` nulo —
+/// a entrega e recusada com `PaiSemRoteiro`, e o item aparece assim mesmo (desvio D7 do plano 2 da Fase 3).
 /// </summary>
-public sealed record DestinoCalculado(
-    TipoDeDestino Tipo, PassoDoCalculo? Passo, int? PaiId, int? SugestaoSetorId, IReadOnlyList<int> SetoresPossiveis)
+public sealed record DestinoCalculado(TipoDeDestino Tipo, PassoDoCalculo? Passo, int? PaiId)
 {
-  public bool PaiSemRoteiro => Tipo == TipoDeDestino.Montagem && SetoresPossiveis.Count == 0;
+  public bool PaiSemRoteiro => Tipo == TipoDeDestino.Montagem && Passo is null;
 }
 
 /// <summary>Um filho direto na conta de "da para montar" (spec secao 7.6).</summary>
@@ -155,43 +155,20 @@ public sealed class CalculadoraDeExecucao
   public IReadOnlySet<int> PassosAlcancados(int id) =>
       _alcancados.TryGetValue(id, out var doNo) ? doNo : new HashSet<int>();
 
-  public IReadOnlyList<int> SetoresDoRoteiro(int id) =>
-      _nos.TryGetValue(id, out var no) ? no.Roteiro.Select(p => p.SetorId).Distinct().ToList() : Array.Empty<int>();
-
   public DestinoCalculado DestinoDaColeta(int id, int ordem)
   {
     if (ProximoPasso(id, ordem) is PassoDoCalculo proximo)
-      return new DestinoCalculado(TipoDeDestino.ProximoPasso, proximo, null, null, Array.Empty<int>());
+      return new DestinoCalculado(TipoDeDestino.ProximoPasso, proximo, null);
 
     if (_nos[id].PaiId is not int paiId)
-      return new DestinoCalculado(TipoDeDestino.Expedicao, null, null, null, Array.Empty<int>());
+      return new DestinoCalculado(TipoDeDestino.Expedicao, null, null);
 
-    return new DestinoCalculado(
-        TipoDeDestino.Montagem, null, paiId, SugestaoDeMontagem(paiId), SetoresDoRoteiro(paiId));
+    return new DestinoCalculado(TipoDeDestino.Montagem, PrimeiroPassoDoPai(paiId), paiId);
   }
 
-  /// <summary>
-  /// Spec secao 7.3, item 3: o Setor onde o pai esta em trabalho (o de maior saldo; empate, o de menor
-  /// Id); senao o do primeiro passo do pai ainda nao alcancado; senao nenhuma.
-  /// </summary>
-  public int? SugestaoDeMontagem(int paiId)
-  {
-    if (!_nos.TryGetValue(paiId, out var pai) || pai.Roteiro.Count == 0) return null;
-
-    var emTrabalho = LiquidoDo(paiId)
-        .Where(kv => kv.Key.Posicao == Posicoes.NoSetor && kv.Value > 0m)
-        .GroupBy(kv => kv.Key.SetorId!.Value)
-        .Select(g => (SetorId: g.Key, Quantidade: g.Sum(kv => kv.Value)))
-        .OrderByDescending(x => x.Quantidade)
-        .ThenBy(x => x.SetorId)
-        .ToList();
-    if (emTrabalho.Count > 0) return emTrabalho[0].SetorId;
-
-    var alcancados = PassosAlcancados(paiId);
-    foreach (var passo in pai.Roteiro)
-      if (!alcancados.Contains(passo.Ordem)) return passo.SetorId;
-    return null;
-  }
+  /// <summary>O pai precisa estar entre os nos recebidos (o "Contrato de uso" da calculadora); se nao estiver, sem destino.</summary>
+  private PassoDoCalculo? PrimeiroPassoDoPai(int paiId) =>
+      _nos.TryGetValue(paiId, out var pai) && pai.Roteiro.Count > 0 ? pai.Roteiro[0] : null;
 
   /// <summary>
   /// A tarefa do que aguarda coleta no passo (spec secao 7.4): inteira se ainda ha passo ou se e Peca;

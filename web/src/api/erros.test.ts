@@ -49,6 +49,26 @@ describe('mensagemDeErro', () => {
       .toBe('Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.')
     expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'ConflitoDeConcorrencia'), PADRAO))
       .toBe('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'RedirecionamentoSemEfeito'), PADRAO))
+      .toBe('Este item já está no Setor onde o pai começa.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'FilhosInsuficientes'), PADRAO))
+      .toBe('Não há filhos suficientes aqui para iniciar essa quantidade.')
+  })
+
+  it('traduz os quatro códigos da pausa quando o servidor não mandou frase', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'PedidoPausado'), PADRAO))
+      .toBe('O pedido deste item está pausado: nada dele começa até alguém retomá-lo.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'PedidoJaPausado'), PADRAO))
+      .toBe('Este pedido já está pausado.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'PedidoNaoPausado'), PADRAO))
+      .toBe('Este pedido não está pausado.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'MotivoLongoDemais'), PADRAO))
+      .toBe('O motivo passa de 200 caracteres.')
+  })
+
+  it('a frase que o servidor manda no PedidoPausado (com o número do Pedido) ganha da tradução', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', 'O Pedido PED-9 está pausado.', 'PedidoPausado'), PADRAO))
+      .toBe('O Pedido PED-9 está pausado.')
   })
 
   it('a frase do servidor ganha da tradução do código', () => {

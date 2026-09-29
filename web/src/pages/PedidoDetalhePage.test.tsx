@@ -28,7 +28,7 @@ const PEDIDO = {
   tipo: 'Normal',
   status: 'Aberto',
   dataAbertura: '2026-08-06T09:30:00-03:00',
-  criadoPorUsuarioId: 1,
+  criadoPorUsuarioId: 1, pausa: null,
 }
 
 const AGRUPAMENTO = {
@@ -85,6 +85,97 @@ describe('PedidoDetalhePage', () => {
     expect(await screen.findByText('PED-001')).toBeTruthy()
     expect(screen.getByText('Fábrica Alfa')).toBeTruthy()
     expect(await screen.findByText('AGR-01')).toBeTruthy()
+  })
+
+  describe('pausa do Pedido', () => {
+    const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
+
+    it('Pedido pausado mostra a pilula de atencao e o aviso com quem, quando e por que', async () => {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson({ ...PEDIDO, pausa: PAUSA }),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      }))
+
+      renderizarDetalhe()
+
+      const pilula = await screen.findByText('Pausado')
+      const classes = pilula.className.split(/\s+/)
+      expect(classes).toContain('bg-atencao-fundo')
+      expect(classes).toContain('text-atencao-texto')
+      expect(classes.some((c) => /negativo-|positivo-/.test(c))).toBe(false)
+      expect(screen.getByText(/Pausado desde 28\/09\/2026 10:14 por PCP — PED-9 urgente\./)).toBeTruthy()
+    })
+
+    it('Pedido livre nao mostra pilula nem aviso', async () => {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      }))
+
+      renderizarDetalhe()
+
+      await screen.findByText('PED-001')
+      expect(screen.queryByText('Pausado')).toBeNull()
+      expect(screen.queryByText(/Pausado desde/)).toBeNull()
+    })
+
+    it('pausar recarrega o Pedido: a pilula e o Retomar aparecem sem sair da tela', async () => {
+      let lidos = 0
+      const fetchMock = fetchPorRota({
+        '/api/pedidos/7': () => { lidos += 1; return respostaJson(lidos === 1 ? PEDIDO : { ...PEDIDO, pausa: PAUSA }) },
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/pausas': () => respostaJson({ id: 5 }, 201),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Pausar' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Confirmar pausa' }))
+
+      expect(await screen.findByRole('button', { name: 'Retomar' })).toBeTruthy()
+      expect(screen.getByText('Pausado')).toBeTruthy()
+      expect(lidos).toBe(2)
+    })
+
+    // Mesma fixture (Pedido livre), perfis dos dois lados: o controle some para quem nao pode e
+    // aparece para quem pode — o gating vai na ACAO, e o aviso da pausa continua sendo de todos.
+    it.each(['PCP', 'Gestao', 'Administrador'])('o perfil %s ve o botao Pausar', async (p) => {
+      perfil = p
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      }))
+
+      renderizarDetalhe()
+
+      expect(await screen.findByRole('button', { name: 'Pausar' })).toBeTruthy()
+    })
+
+    it.each(['Operador', 'Qualidade'])('o perfil %s nao ve o botao Pausar', async (p) => {
+      perfil = p
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      }))
+
+      renderizarDetalhe()
+
+      await screen.findByText('PED-001')
+      expect(screen.queryByRole('button', { name: 'Pausar' })).toBeNull()
+    })
+
+    it('o Operador ve o aviso da pausa, mas nao o Retomar', async () => {
+      perfil = 'Operador'
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson({ ...PEDIDO, pausa: PAUSA }),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      }))
+
+      renderizarDetalhe()
+
+      expect(await screen.findByText(/Pausado desde 28\/09\/2026 10:14/)).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Retomar' })).toBeNull()
+    })
   })
 
   it('pede confirmação antes de excluir e só exclui depois do "Excluir" do diálogo', async () => {

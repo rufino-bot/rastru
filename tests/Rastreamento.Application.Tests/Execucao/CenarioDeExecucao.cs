@@ -17,6 +17,10 @@ internal sealed class CenarioDeExecucao
   public const int Operador = 10, Movimentador = 11, Pcp = 12;
   public const int PedidoId = 1, AgrupamentoId = 1;
 
+  /// <summary>Quem le a fila nos testes: o Operador ve so os seus registros; o PCP ve todos.</summary>
+  public static readonly QuemLe ComoOperador = new(Operador, false);
+  public static readonly QuemLe ComoPcp = new(Pcp, true);
+
   public FakeEstruturaRepo Estruturas { get; } = new();
   public FakeExecucaoRepo Execucao { get; }
   public FakeSetorRepo Setores { get; }
@@ -29,7 +33,7 @@ internal sealed class CenarioDeExecucao
     {
       new Setor { Id = Corte, Nome = "Corte", Ativo = true },
       new Setor { Id = Dobra, Nome = "Dobra", Ativo = true },
-      new Setor { Id = Solda, Nome = "Solda", Ativo = true },
+      new Setor { Id = Solda, Nome = "Solda", Ativo = true, Atividade = "solda" },
       new Setor { Id = Pintura, Nome = "Pintura", Ativo = true },
       new Setor { Id = Inativo, Nome = "Serra antiga", Ativo = false },
     };
@@ -73,6 +77,8 @@ internal sealed class CenarioDeExecucao
   public EntregaUseCase Entrega() => new(Execucao, Estruturas, Catalogo);
 
   public EstornoUseCase Estorno() => new(Execucao, Estruturas, Catalogo);
+
+  public PausaDePedidoUseCase Pausa() => new(Execucao);
 
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
 

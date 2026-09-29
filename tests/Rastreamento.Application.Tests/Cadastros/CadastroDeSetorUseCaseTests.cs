@@ -164,4 +164,44 @@ public class CadastroDeSetorUseCaseTests
 
     Assert.Null(duplicado);
   }
+
+  [Fact]
+  public async Task Cadastrar_grava_a_atividade_aparada()
+  {
+    var repo = new FakeSetorRepo();
+    var r = await new CadastroDeSetorUseCase(repo).Cadastrar(new NovoSetorDto("Solda", "  solda "), CancellationToken.None);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal("solda", r.Valor!.Atividade);
+  }
+
+  [Theory]
+  [InlineData(null)]
+  [InlineData("")]
+  [InlineData("   ")]
+  public async Task Atividade_ausente_ou_em_branco_grava_nula(string? atividade)
+  {
+    var repo = new FakeSetorRepo();
+    var r = await new CadastroDeSetorUseCase(repo).Cadastrar(new NovoSetorDto("Solda", atividade), CancellationToken.None);
+
+    Assert.Null(r.Valor!.Atividade);
+  }
+
+  [Fact]
+  public async Task Editar_troca_e_limpa_a_atividade()
+  {
+    var repo = new FakeSetorRepo(new Setor { Id = 1, Nome = "Solda", Ativo = true, Atividade = "solda" });
+    var uc = new CadastroDeSetorUseCase(repo);
+
+    Assert.Equal("montagem", (await uc.Editar(1, new NovoSetorDto("Solda", "montagem"), CancellationToken.None)).Valor!.Atividade);
+    Assert.Null((await uc.Editar(1, new NovoSetorDto("Solda", null), CancellationToken.None)).Valor!.Atividade);
+  }
+
+  [Fact]
+  public async Task Listar_traz_a_atividade()
+  {
+    var repo = new FakeSetorRepo(new Setor { Id = 1, Nome = "Solda", Ativo = true, Atividade = "solda" });
+
+    Assert.Equal("solda", Assert.Single(await new CadastroDeSetorUseCase(repo).Listar(false, CancellationToken.None)).Atividade);
+  }
 }

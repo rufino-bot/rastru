@@ -8,7 +8,8 @@ namespace Rastreamento.Application.Execucao;
 /// Correcao do livro, que e so de inclusao: o estorno grava o movimento inverso, apontando o original
 /// (spec da Fase 3, secao 4.5). So enquanto a quantidade nao andou — o destino original ainda tem de
 /// comportar o que volta. Uma vez so por registro (`UX_Movimentacao_EstornoDe` garante no banco).
-/// Estorno nao se estorna; a baixa de filho de uma montagem so sai com a montagem inteira.
+/// Estorno nao se estorna; a baixa de filho de uma montagem so sai com a montagem inteira — e
+/// estornar a montagem desfaz tambem o Inicio do pai que ela gravou (Fase 3D).
 /// </summary>
 public sealed class EstornoUseCase
 {
@@ -34,7 +35,9 @@ public sealed class EstornoUseCase
           "Estorno não se estorna: registre de novo a operação original.");
     if (original.MontagemId is int montagemId)
       return Falhas.Conflito<MovimentacaoDto>(CodigosDaExecucao.EstornoImpossivel,
-          $"Esta baixa faz parte da montagem {montagemId}: estorne a montagem inteira.");
+          original.Tipo == TiposDeMovimentacao.Inicio
+              ? $"Este início consumiu os filhos na montagem {montagemId}: estorne a montagem inteira."
+              : $"Esta baixa faz parte da montagem {montagemId}: estorne a montagem inteira.");
 
     return await _execucao.ExecutarAsync(async () =>
     {
@@ -73,6 +76,8 @@ public sealed class EstornoUseCase
     return await _execucao.ExecutarAsync(async () =>
     {
       var baixas = await _execucao.ListarBaixasAsync([montagemId], ct);
+      // Montagem gravada antes da Fase 3D nao tem o Inicio do pai: estorna so as baixas, como antes.
+      var inicioDoPai = await _execucao.ObterInicioDaMontagemAsync(montagemId, ct);
       var nos = await _execucao.TravarNosAsync(baixas.Select(b => b.EstruturaItemId).Append(montagem.EstruturaItemId), ct);
       if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(montagem.EstruturaItemId, ct)))
         return Falhas.PedidoFechado<IReadOnlyList<MovimentacaoDto>>();
@@ -81,6 +86,16 @@ public sealed class EstornoUseCase
         return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.JaEstornado, "Esta montagem já foi estornada.");
 
       var estado = await _leitor.CarregarAsync(nos, ct);
+      // O pai precisa ainda estar onde esta montagem o pos: se ja terminou ou andou, desfazer o
+      // inicio deixaria aquela posicao negativa (spec da Fase 3D, secao 4.2).
+      if (inicioDoPai is not null)
+      {
+        var ali = estado.Calc.Saldo(montagem.EstruturaItemId, Local.DoDestino(inicioDoPai));
+        if (ali < inicioDoPai.Quantidade)
+          return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.EstornoImpossivel,
+              $"Só há {Quantidades.Formatar(ali)} de {estado.Nome(montagem.EstruturaItemId)} onde esta montagem o pôs: "
+              + "ele já andou. Estorne primeiro o que veio depois.");
+      }
       foreach (var baixa in baixas)
         // Cinto de seguranca, e nao alcancavel hoje: o que uma montagem baixou (Montado) so sai por meio
         // do estorno DESTA mesma montagem, e a checagem de `CodigosDaExecucao.JaEstornado` ja bloqueia
@@ -92,6 +107,10 @@ public sealed class EstornoUseCase
 
       var estornos = baixas.Select(b => NovoMovimento.De(b.EstruturaItemId, TiposDeMovimentacao.Estorno, b.Quantidade,
           Local.Montado, Local.DaOrigem(b), usuarioId, montagemId: montagemId, estornoDeId: b.Id)).ToList();
+      if (inicioDoPai is not null)
+        estornos.Add(NovoMovimento.De(inicioDoPai.EstruturaItemId, TiposDeMovimentacao.Estorno, inicioDoPai.Quantidade,
+            Local.DoDestino(inicioDoPai), Local.DaOrigem(inicioDoPai), usuarioId,
+            montagemId: montagemId, estornoDeId: inicioDoPai.Id));
       foreach (var estorno in estornos) _execucao.Adicionar(estorno);
       await _execucao.MarcarMontagemEstornadaAsync(montagemId, usuarioId, DateTime.UtcNow, ct);
       await _execucao.SalvarAlteracoesAsync(ct);
