@@ -251,7 +251,8 @@ resolvidos (ou conscientemente adiados).
 > ainda passa por brainstorm, sem spec. A Fase 1F tem spec
 > (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`), mas em 2026-09-29 o
 > arquivo vive só na branch `fase-1f-cadastro-sob-demanda` e não está na `main` — quem lê a `main`
-> não o encontra na pasta de specs. A Fase 3B tem seção própria neste arquivo.
+> não o encontra na pasta de specs. Ela também ainda não tem seção neste arquivo: a entrada vem com
+> a abertura da fase, como a própria spec prevê. A Fase 3B tem seção própria neste arquivo.
 
 - **Iniciar como verbo único** (regra 24 de `01`): iniciar um nó **com filhos** consome os filhos
   presentes no Setor e põe o pai em produção no primeiro passo, na mesma transação. "Montar" deixa

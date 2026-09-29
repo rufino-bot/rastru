@@ -8,8 +8,9 @@ possibilidade de abrir Retrabalho em caso de reprovação).
 Projeto de TCC. O rastreamento é por **lote agregado** (não por unidade física individual),
 e o lote é **divisível por quantidades livres**: parte dele pode estar num Setor e parte em
 outro ao mesmo tempo. Não há identidade de sub-lote (sem etiqueta/serial) — controla-se
-apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**: soma das
-unidades em todos os Setores + expedido + perdido = quantidade total da Peça.
+apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**, para toda Peça e
+todo Item: o que está em produção (a iniciar, nos Setores, aguardando coleta ou montagem, ou no
+local de expedição) + o que já foi montado dentro do pai + expedido + perdido = quantidade total.
 
 ## Stack
 
@@ -129,11 +130,11 @@ Concluídas até aqui:
   Entrou na `main` pelos PRs #20 (backend) e #21 (front), em 2026-09-26, e por duas correções
   em 2026-09-28: o histórico do nó do registro mais recente ao mais antigo (PR #22) e a contagem de
   Pedidos abertos com o contador de Tarefas (PR #23).
-- **Fase 3D:** ajustes pós-verificação da Fase 3, que o usuário conferiu no celular — iniciar como
+- **Fase 3D:** ajustes pós-verificação da Fase 3, verificados manualmente no celular — iniciar como
   verbo único (iniciar um nó com filhos consome os filhos, e montar deixa de ser ação), atividade do
   Setor nos botões, destino do filho pronto calculado, estorno rápido na fila e pausa de Pedido.
-  A fila do Setor passou a mostrar o que está em trabalho primeiro e o que aguarda coleta por
-  último, e o Pedido pausado ganhou a pílula de tom de atenção (âmbar), um tom que só significa
+  A fila do Setor passou a mostrar o que está em trabalho primeiro e, no fim, o que aguarda coleta
+  e a sobra, e o Pedido pausado ganhou a pílula de tom de atenção (âmbar), um tom que só significa
   estado.
 
 A seguir vêm, nesta ordem, os **filtros da fila do Setor** (por Material e por Pedido; o desenho
