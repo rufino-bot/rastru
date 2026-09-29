@@ -250,8 +250,9 @@ entra no início de cada fase.*
     `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`, seção 2.1). Olha
     só os **filhos diretos** do nó. O registro, os dois tetos e a baixa dos filhos valem para todo nó;
     o que depende de Kit é só o **conjunto completo** na entrada (regra 25), e a **saída limitada ao
-    total montado** vale para todo nó por construção, não por uma condição de Agrupamento ou de
-    Setor.
+    total montado** vale, por construção, para todo nó que já tem filhos quando entra em produção,
+    não por uma condição de Agrupamento ou de Setor (a exceção, do nó que ganha filho depois de
+    iniciado, está abaixo).
     - **Montar não é ação.** O operador registra **iniciar N** do nó com filhos, no **primeiro
       passo** do Roteiro dele, no Setor onde os filhos estão — e é esse início que grava
       a montagem: consome `N × QuantidadePorPai` de cada filho direto presente e põe N do pai em
@@ -271,11 +272,14 @@ entra no início de cada fase.*
       se estorna sozinho.
     - A **saída** do nó é limitada ao total montado, em **qualquer** passagem: se o nó volta ao
       Setor (regra 21), os filhos já viraram o nó, e é o total montado que conta. Desde a Fase 3D
-      isso **vale para todo nó com filhos, sem validação própria**, porque o pai só entra em
-      produção consumindo os filhos: tudo o que ele termina, entrega ou leva à expedição já foi
-      montado (o que saiu de "a iniciar" é igual ao total montado). A trava estava prevista só para
-      Kit num Setor com `UtilizaKit`, e a Fase 3 a deixara para a Fase 3B; o que sobra à 3B são o
-      conjunto completo (regra 25) e a tarefa **Kit pronto** (regra 23).
+      isso **vale, sem validação própria, para todo nó que já tem filhos quando entra em
+      produção**, porque o pai só entra em produção consumindo os filhos: tudo o que ele termina,
+      entrega ou leva à expedição já foi montado (o que saiu de "a iniciar" é igual ao total
+      montado). **Exceção conhecida:** acrescentar filho a um nó **já iniciado** é livre (spec da
+      Fase 3, seção 4.7) — o nó saiu de "a iniciar" sem consumir o filho novo, a igualdade acima
+      não vale para ele, e a saída dele pode passar do total montado. A trava estava prevista só
+      para Kit num Setor com `UtilizaKit`, e a Fase 3 a deixara para a Fase 3B; o que sobra à 3B
+      são o conjunto completo (regra 25), a tarefa **Kit pronto** (regra 23) e esse caso.
     - A ordem de baixo para cima é consequência, não cálculo: um nó intermediário só existe no
       Setor depois de montado, então o pai dele só monta depois.
 25. **Conjunto completo.** Um Kit pode ir à Solda em parte do pai (os conjuntos de 7 de 10), mas
@@ -384,6 +388,7 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
 > de todo nó com filhos, e só a validação da trava ficou restrita ao Kit (regra 24).
 > **Atualizado em 2026-09-28** (spec da Fase 3D, seção 2.1): a trava deixou de ser restrita ao Kit — o
 > pai só entra em produção iniciando-o, o que consome os filhos, então a saída dele já é limitada ao
-> total montado, em qualquer Agrupamento (regra 24).
+> total montado, em qualquer Agrupamento (regra 24) — para o nó que já tem filhos ao entrar em
+> produção; o nó que ganha filho depois de iniciado é a exceção, da 3B.
 
 Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.

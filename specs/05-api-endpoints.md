@@ -360,7 +360,7 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 **Leitura**
 
 - `GET /setores/{id}/fila` — a iniciar aqui, em trabalho, aguardando coleta, aguardando montagem
-  (por pai, com "dá para montar N; falta X de Y") e sobra. "A iniciar aqui" **não lista nó com
+  (por pai, com "Dá para iniciar N; falta iniciar X") e sobra. "A iniciar aqui" **não lista nó com
   filhos** (Fase 3D): o pai tem um lugar só, o grupo de montagem, que ganha `iniciaAqui` (este Setor
   é o primeiro passo do pai) e `primeiroPassoDoPai` (`{ id, nome }`, `null` se o pai não tem
   Roteiro). A resposta ganha `setorAtividade` (spec da Fase 3D, §2.3): a `atividade` do Setor da

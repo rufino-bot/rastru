@@ -129,7 +129,8 @@ filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao lo
 consome os filhos, e montar deixa de ser ação —, atividade do Setor nos botões, destino do filho
 pronto calculado, estorno rápido na fila e pausa de Pedido), executada antes da **Fase 3B** (Kit:
 conjunto completo na entrada do Setor marcado como de montagem — hoje, a Solda — e a tarefa Kit
-pronto; a trava de montagem já é estrutural desde a 3D). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+pronto, mais o caso do nó que ganha filho depois de iniciado; a trava de montagem, para o nó que já
+tem filhos ao entrar em produção, já é estrutural desde a 3D). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido.
 

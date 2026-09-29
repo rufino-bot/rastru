@@ -256,21 +256,24 @@ resolvidos (ou conscientemente adiados).
 - **Estorno rápido na fila:** as linhas de "Em trabalho", "Aguardando coleta" e a sobra do último
   passo trazem os registros que quem lê ainda pode estornar, e a tela abre uma lista curta deles (ou
   vai direto à confirmação quando há um só).
-- **Pausa de Pedido** (regra 31): tabela própria `dbo.PedidoPausa`, só de inclusão; pausam e retomam
-  PCP, Gestão e Administrador (a primeira escrita da Gestão); a pausa recusa **só o Iniciar** —
-  terminar, entregar e estornar continuam valendo.
+- **Pausa de Pedido** (regra 31): tabela própria `dbo.PedidoPausa`, só de inclusão, exceto o
+  fecho do intervalo (`RetomadoEm` e `RetomadoPorUsuarioId`, gravados uma vez, no Retomar); pausam e
+  retomam PCP, Gestão e Administrador (a primeira escrita da Gestão); a pausa recusa **só o Iniciar**
+  — terminar, entregar e estornar continuam valendo.
 - Critério de pronto: o da seção 9 da spec da Fase 3D, cujo último item é a **verificação manual no
   celular**, como na seção 9.5 da spec da Fase 3.
 
 ## Fase 3B — Kit e montagem
 
-- `Setor.UtilizaKit` (regra 24 de `01`); o schema entra no início desta fase. A montagem, o destino
+- `Setor.UtilizaKit` (regra 25 de `01`); o schema entra no início desta fase. A montagem, o destino
   "montado" e `QuantidadePorPai` já existem desde a Fase 3, e o início de um nó com filhos consome os
   filhos desde a 3D.
-- **A trava de montagem já não é desta fase:** desde a **Fase 3D** ela é **estrutural**, para todo
-  nó, Kit ou Avulso — o pai só entra em produção consumindo os filhos, então tudo o que ele termina,
-  entrega ou leva à expedição já foi montado. A 3B fica com `Setor.UtilizaKit`, o conjunto completo
-  (regra 25) e a tarefa Kit pronto (regra 23).
+- **A trava de montagem, em regra, já não é desta fase:** desde a **Fase 3D** ela é **estrutural**
+  para todo nó, Kit ou Avulso, **que já tem filhos quando entra em produção** — o pai só entra em
+  produção consumindo os filhos, então tudo o que ele termina, entrega ou leva à expedição já foi
+  montado. **Fica de fora um caso, devolvido à 3B:** acrescentar filho a um nó **já iniciado** é livre
+  (seção 4.7 da spec da Fase 3), e esse nó pode sair acima do montado. A 3B fica com `Setor.UtilizaKit`,
+  o conjunto completo (regra 25), a tarefa Kit pronto (regra 23) e esse caso.
 - Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
   receber (regra 25).
 - Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).
@@ -278,9 +281,9 @@ resolvidos (ou conscientemente adiados).
   `2026-09-15-kit-montagem-e-movimentacao-design.md` ("Deixado para a spec de cada fase") deixa
   para a Fase 3B.
 - Critério de pronto: um Kit de três níveis é montado de baixo para cima com montagem parcial; o
-  sistema recusa conjunto incompleto e entrada além do que o nó precisa receber; a tarefa Kit pronto
-  aparece e some quando o Kit é levado. "Saída acima do montado" saiu da lista: a 3D a tornou
-  impossível por construção, e não há o que recusar.
+  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e a saída acima do
+  montado — esta, **restrita ao nó que ganhou filho depois de iniciado**, o único a que a 3D não
+  chega —; a tarefa Kit pronto aparece e some quando o Kit é levado.
 
 ## Fase 3C — Notificação push
 

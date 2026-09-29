@@ -51,7 +51,13 @@ ter um verbo mais genérico pra compor essa ação"*. Daí:
 **O que fecha por construção:** o pai só entra em produção consumindo os filhos, então tudo o que ele
 termina, entrega ou leva à expedição já foi montado. A saída do pai limitada ao total montado — a
 **trava** da regra 24, que a Fase 3 deixou para a 3B e restrita a Kit + `UtilizaKit` — passa a valer
-para **todo nó**, sem validação nova (seção 10.1).
+para **todo nó que já tem filhos quando entra em produção**, sem validação nova (seção 10.1).
+
+> **Ressalva do fechamento da fase (2026-09-29).** "Por construção" não alcança um caso: acrescentar
+> filho a um nó **já iniciado** é livre (seção 4.7 da spec da Fase 3, "Acrescentar filho | livre"), e
+> `AcrescentarFilho` não guarda status nem livro. Uma folha iniciada que ganha filho tem
+> `SaidoDeAIniciar > TotalMontado` e pode sair acima do montado. Esse caso **não é tratado na 3D**;
+> volta à 3B (seção 10.1), como decisão de desenho.
 
 **Descartadas:**
 - **Montar registra também o Início do pai**, mantendo o botão "Montar": fechava os mesmos buracos, mas
@@ -142,11 +148,13 @@ urgente entrar no lugar.
   seção, com a pílula e o motivo, sem Iniciar. Nas demais seções e na tela Tarefas, só a pílula — tudo
   ali continua funcionando.
 
-  > **Corrigido no fechamento da fase (2026-09-29).** Esta frase contradizia a seção 6.1, que diz que a
-  > pílula aparece "em qualquer seção" da fila e que "o motivo, quando há, vai ao lado". **Vale a 6.1,
-  > que é o que o código faz**: na fila, toda linha de Pedido pausado, de qualquer seção, mostra a
-  > pílula **e** o motivo (o `CabecalhoDoNo` de `FilaDoSetorPage` é o de todas as seções); só a tela
-  > Tarefas mostra a pílula sem o motivo.
+  > **Desvio do plano da Fase 3D, fora da lista D1–D6 (2026-09-28): a seção 6.1 vale sobre esta
+  > frase.** A frase acima diz que, fora de "A iniciar aqui", só a pílula aparece; a seção 6.1 diz que
+  > a pílula aparece "em qualquer seção" da fila e que "o motivo, quando há, vai ao lado". O plano
+  > seguiu a 6.1, e é o que o código faz: na fila, toda linha de Pedido pausado, de qualquer seção,
+  > mostra a pílula **e** o motivo (o `CabecalhoDoNo` de `FilaDoSetorPage` é o de todas as seções);
+  > fora da fila, a tela Tarefas e a lista de Pedidos mostram só a pílula. O motivo de valer a 6.1: é
+  > a seção que descreve a tela, e o código a segue com um só componente para todas as seções da fila.
 
 **Descartadas:** colunas no Pedido (perdem o histórico ao retomar); só um booleano (nem quem nem quando);
 recusar também Terminar/Entregar/Montar (livro atrasado em relação ao chão durante a pausa); o pausado
@@ -337,16 +345,19 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
   - o corpo ganha `setorAtividade`, ao lado de `setorId`/`setorNome`;
   - "A iniciar aqui" deixa de listar nós com filhos (seção 7).
 
-  > **Correções do fechamento da fase (2026-09-29), conferidas contra `EstornavelDto` e
-  > `PausaResumoDto`.** Os dois campos saíram diferentes do desenho, e vale o implementado:
+  > **Dois desvios do plano da Fase 3D, fora da lista D1–D6.** Ambos foram decididos no "Contrato JSON
+  > novo" do plano (2026-09-28), onde o contrato traz os formatos abaixo, e implementados depois
+  > (`EstornavelDto` na Task 5; `PausaResumoDto` na Task 7). Vale o implementado:
   >
-  > - `estornaveis[].tipo` é `Inicio | Termino | Montagem`, **não** `'movimentacao' | 'montagem'`. Os
-  >   dois primeiros são o tipo do movimento e se estornam por `POST /movimentacoes/{id}/estorno`;
-  >   `Montagem` é o início de um pai, que consumiu os filhos, e se estorna por
-  >   `POST /montagens/{id}/estorno`.
-  > - `NoResumoDto.pausa` é `{ desde, porUsuarioNome, motivo } | null`, **não** `{ motivo }`: a tela
-  >   de detalhe do Pedido mostra "Pausado desde {data} por {nome}", e a mesma forma serve à fila, às
-  >   tarefas e a `GET /pedidos` (que já era `{ desde, porUsuarioNome, motivo }` nesta seção).
+  > - **`estornaveis[].tipo` é `Inicio | Termino | Montagem`**, não `'movimentacao' | 'montagem'`. Os
+  >   dois primeiros são o tipo do próprio movimento e se estornam por
+  >   `POST /movimentacoes/{id}/estorno`; `Montagem` é o início de um pai, que consumiu os filhos, e se
+  >   estorna por `POST /montagens/{id}/estorno`. O motivo: `Inicio` e `Termino` são o `Tipo` que o
+  >   próprio livro já grava (o servidor copia `Tipo` do movimento), e só a `Montagem` muda a rota de
+  >   estorno; o par `'movimentacao' | 'montagem'` não dizia se o registro é um início ou um término.
+  > - **`NoResumoDto.pausa` é `{ desde, porUsuarioNome, motivo } | null`**, não `{ motivo }`. O motivo:
+  >   é o mesmo `PausaResumoDto` que `GET /pedidos` e `GET /pedidos/{id}` já devolviam nesta seção,
+  >   então a fila e as tarefas reaproveitam o registro em vez de manter uma segunda forma menor.
 - `GET /tarefas`: o item de montagem perde `sugestaoSetorId`/`setoresPossiveis` e traz o destino
   calculado, como os demais; ganha a `pausa` no nó.
 - `GET /pedidos`, `GET /pedidos/{id}`: ganham `pausa: { desde, porUsuarioNome, motivo } | null`.
@@ -448,9 +459,10 @@ Mesma estrutura da §9 da Fase 3. O que esta fase acrescenta, em especial:
 
 ### 10.1 3B encolhe
 
-A trava da regra 24 (saída do nó limitada ao total montado) passa a valer para todo nó por construção.
-A 3B fica com: `Setor.UtilizaKit`, o **conjunto completo** na entrada (regra 25) e a tarefa **Kit pronto**
-(regra 23). O `06` é atualizado junto.
+A trava da regra 24 (saída do nó limitada ao total montado) passa a valer, por construção, para todo
+nó que já tem filhos quando entra em produção. A 3B fica com: `Setor.UtilizaKit`, o **conjunto
+completo** na entrada (regra 25), a tarefa **Kit pronto** (regra 23) e o caso do nó que ganha filho
+depois de iniciado (ressalva da seção 2.1). O `06` é atualizado junto.
 
 ### 10.2 Fase 5
 
@@ -467,7 +479,8 @@ não é decisão dela.
 
 - `specs/02-modelo-de-dados.sql` e `db/`: seção 3; o arquivo novo `db/alter-fase-3d.sql`.
 - `specs/01-dominio-e-regras-de-negocio.md`: regra 24 (montar deixa de ser ação; iniciar um nó com
-  filhos consome os filhos; a trava vale para todo nó por construção); regra 29 (o destino do Item é o
+  filhos consome os filhos; a trava vale, por construção, para todo nó que já tem filhos ao entrar em
+  produção); regra 29 (o destino do Item é o
   primeiro passo do pai, sem escolha); regra 28 (o início de um nó com filhos é o consumo dos filhos);
   **regra 31, nova** — a pausa de Pedido.
 - `specs/04-fluxos-de-usuario.md`: o fluxo do operador perde "montar"; o PCP e a Gestão ganham pausar.

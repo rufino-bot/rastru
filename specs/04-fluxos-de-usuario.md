@@ -32,8 +32,9 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 > nota de 2026-09-15 deixava em aberto. **Emendado em 2026-09-28** pela spec da Fase 3D
 > (`docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`): montar deixou de
 > ser ação — o pai é iniciado, e iniciá-lo consome os filhos (regra 24) —, o que torna a trava de
-> montagem estrutural para todo nó; o **conjunto completo** na entrada de Setor com `UtilizaKit`
-> (regra 25) continua na Fase 3B.
+> montagem estrutural para todo nó que já tem filhos quando entra em produção; o **conjunto
+> completo** na entrada de Setor com `UtilizaKit` (regra 25) e o caso do nó que ganha filho depois
+> de iniciado continuam na Fase 3B.
 
 1. **PCP** confere que todo nó tem Roteiro; nó sem Roteiro aparece como pendência na árvore, e o PCP
    o edita (regra 28).

@@ -339,10 +339,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
   permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
-  produção assim, a **saída limitada ao total montado vale para todo nó**, Kit ou Avulso, por
-  construção — sem validação própria. O que continua **só do Kit**: em Setor com `UtilizaKit`, os
-  filhos só entram em **conjuntos completos**, e nunca além do que o nó ainda precisa receber
-  (regra 25, Fase 3B). Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,
+  produção assim, a **saída limitada ao total montado vale, sem validação própria, para todo nó que
+  já tem filhos quando entra em produção**, Kit ou Avulso. **Exceção conhecida:** acrescentar filho a
+  um nó **já iniciado** é livre (spec da Fase 3, seção 4.7), e esse nó pode sair acima do montado;
+  o caso é da Fase 3B. O que continua **só do Kit**: em Setor com `UtilizaKit`, os filhos só entram
+  em **conjuntos completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
+  Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,
   decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a partir da
   Fase 3; o início que consome os filhos, decidido em 2026-09-28, é da Fase 3D.)
 - **O livro de movimentações (`dbo.Movimentacao`) é só de inclusão.** Correção é estorno — um
