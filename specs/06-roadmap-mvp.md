@@ -244,6 +244,15 @@ resolvidos (ou conscientemente adiados).
 > 3B"). Nasceu dos pontos que o usuário levantou na verificação manual da Fase 3 (seção 9.5 da spec
 > dela). Spec: `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`.
 
+> **Ordem depois da 3D** (decisão do usuário de 2026-09-28, oficializada em 2026-09-29): primeiro os
+> **filtros da fila do Setor** (por Material e por Pedido), depois a **Fase 1F — Cadastro sob
+> demanda**, depois a **Fase 3B**. "Filtros" não é fase numerada deste roadmap e por isso não tem
+> seção própria: tudo o que está decidido é filtrar a fila por Material e por Pedido, e o desenho
+> ainda passa por brainstorm, sem spec. A Fase 1F tem spec
+> (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`), mas em 2026-09-29 o
+> arquivo vive só na branch `fase-1f-cadastro-sob-demanda` e não está na `main` — quem lê a `main`
+> não o encontra na pasta de specs. A Fase 3B tem seção própria neste arquivo.
+
 - **Iniciar como verbo único** (regra 24 de `01`): iniciar um nó **com filhos** consome os filhos
   presentes no Setor e põe o pai em produção no primeiro passo, na mesma transação. "Montar" deixa
   de ser ação: `POST /estrutura/{id}/montagens` sai (404) e o pai tem um lugar só na fila, o card com
@@ -271,7 +280,7 @@ resolvidos (ou conscientemente adiados).
 - **A trava de montagem, em regra, já não é desta fase:** desde a **Fase 3D** ela é **estrutural**
   para todo nó, Kit ou Avulso, **que já tem filhos quando entra em produção** — o pai só entra em
   produção consumindo os filhos, então tudo o que ele termina, entrega ou leva à expedição já foi
-  montado. **Fica de fora um caso, devolvido à 3B:** acrescentar filho a um nó **já iniciado** é livre
+  montado. **Fica de fora um caso, devolvido à 3B por decisão do usuário de 2026-09-29:** acrescentar filho a um nó **já iniciado** é livre
   (seção 4.7 da spec da Fase 3), e esse nó pode sair acima do montado. A 3B fica com `Setor.UtilizaKit`,
   o conjunto completo (regra 25), a tarefa Kit pronto (regra 23) e esse caso.
 - Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa

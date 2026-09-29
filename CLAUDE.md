@@ -46,7 +46,9 @@ As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e 
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
-da 3C em relação à Fase 6 **não está decidida**.
+da 3C em relação à Fase 6 **não está decidida**. Depois da 3D, a ordem é: filtros da fila do Setor →
+Fase 1F → Fase 3B (decisão de 2026-09-28, oficializada em 2026-09-29; ver a seção "Fase 3D" de
+`06-roadmap-mvp.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
