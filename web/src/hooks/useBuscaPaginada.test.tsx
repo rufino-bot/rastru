@@ -148,7 +148,7 @@ describe('useBuscaPaginada', () => {
 
   it('não mostra erro de uma busca superada que FALHA depois de a mais recente ter sucesso', async () => {
     // Fecha o D5 do pré-flight de 2026-08-13. Das TRÊS guardas de sequência do hook, a do `catch`
-    // (`useBuscaPaginada.ts:106`) era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
+    // de `carregar` era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
     // e o único matador do projeto era o `nao mostra erro de uma requisicao desatualizada que falha
     // depois de uma mais recente ter sucesso`, da `ComponentesPage.test.tsx` — prova de mecanismo do
     // hook morando na suíte de uma tela. Este teste é o pré-requisito para aquele sair (decisão U2).
@@ -436,8 +436,9 @@ describe('useBuscaPaginada', () => {
   })
 
   it('usa o `buscar` do render mais recente ao recarregar, não um closure obsoleto do primeiro render (frescor do buscarRef)', async () => {
-    // O teste de `:359` prova a metade ESTABILIDADE do `buscarRef` (identidade nova não laça).
-    // Este prova a outra metade, FRESCOR: `useBuscaPaginada.ts:82` mantém `buscarRef.current`
+    // O teste `não reentra em laço de carga quando o chamador passa `buscar` inline` prova a
+    // metade ESTABILIDADE do `buscarRef` (identidade nova não laça). Este prova a outra metade,
+    // FRESCOR: o efeito de `useBuscaPaginada` que atualiza `buscarRef.current` o mantém
     // sincronizado com o `buscar` do render atual, para o hook nunca consultar um closure obsoleto.
     //
     // A sutileza (ver brief deste fix pass): uma lambda inline sozinha não basta — o teste de
@@ -471,8 +472,8 @@ describe('useBuscaPaginada', () => {
     fireEvent.click(screen.getByText('Recarregar'))
     await avancar(0)
 
-    // Com `useBuscaPaginada.ts:82` presente, `buscarRef.current` foi atualizado pelo efeito do
-    // segundo render e a chamada usa a lambda que fechou sobre "novo". Com `:82` apagado,
+    // Com esse efeito presente, `buscarRef.current` foi atualizado no segundo render e a chamada
+    // usa a lambda que fechou sobre "novo". Com esse efeito apagado,
     // `buscarRef.current` fica congelado na lambda do PRIMEIRO render, que fechou sobre "velho" —
     // esta asserção veria "velho" de novo, e é aí que a mutação tem de morrer.
     expect(valorCapturado).toBe('novo')
