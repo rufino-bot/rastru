@@ -20,8 +20,6 @@ import { Botao } from '../components/Botao'
 /** O que o Movimentador marcou para levar, por item. `quantidade` é o TEXTO do campo. */
 interface Escolha {
   quantidade: string
-  /** Só no destino `Montagem`; começa na sugestão (spec §6.2). */
-  destinoSetorId: number | null
 }
 
 const chaveDoItem = (setorId: number, item: ItemDeTarefa) => `${item.no.id}:${setorId}:${item.ordem}`
@@ -45,7 +43,6 @@ function erroDaEscolha(item: ItemDeTarefa, escolha: Escolha): string | null {
   if (item.destino.paiSemRoteiro) return SEM_ROTEIRO_NO_PAI
   const leitura = lerQuantidade(escolha.quantidade, item.quantidade)
   if (leitura.erro) return leitura.erro
-  if (item.destino.tipo === 'Montagem' && escolha.destinoSetorId === null) return 'Escolha o Setor de montagem.'
   return null
 }
 
@@ -57,6 +54,9 @@ function erroDaEscolha(item: ItemDeTarefa, escolha: Escolha): string | null {
  * A seleção sobrevive à atualização periódica: um item que continua pronto continua marcado, com
  * o que foi digitado. O que deixou de estar pronto sai da seleção, com aviso — entregar algo que
  * outra pessoa já levou só produziria um 409.
+ *
+ * O destino de montagem vem calculado — o primeiro passo do pai (spec da Fase 3D, §2.2) —, então o
+ * Movimentador não escolhe Setor.
  */
 export function TarefasPage() {
   const { dados: grupos, carregando, erro, recarregar } = useCargaPeriodica(
@@ -86,8 +86,7 @@ export function TarefasPage() {
         const { [chave]: _removida, ...resto } = atuais
         return resto
       }
-      const destinoSetorId = item.destino.tipo === 'Montagem' ? item.destino.sugestaoSetorId : null
-      return { ...atuais, [chave]: { quantidade: quantidadeParaCampo(item.quantidade), destinoSetorId } }
+      return { ...atuais, [chave]: { quantidade: quantidadeParaCampo(item.quantidade) } }
     })
   }
 
@@ -105,7 +104,6 @@ export function TarefasPage() {
     const itens: ItemDaEntrega[] = marcados.map(({ grupo, item, escolha }) => ({
       estruturaItemId: item.no.id,
       origem: { posicao: 'AguardandoColeta', setorId: grupo.setorId, ordem: item.ordem },
-      destinoSetorId: item.destino.tipo === 'Montagem' ? escolha.destinoSetorId : null,
       quantidade: lerQuantidade(escolha.quantidade, item.quantidade).valor!,
     }))
     enviandoRef.current = true
@@ -230,22 +228,6 @@ function EscolhaDoItem({ item, escolha, aoMudar }: {
   const erro = erroDaEscolha(item, escolha)
   return (
     <div className="flex flex-col gap-3 border-t border-borda pt-3">
-      {item.destino.tipo === 'Montagem' && (
-        // `<select>` simples: poucos Setores (os do Roteiro do pai), não um catálogo paginado (spec §6.2).
-        <Campo rotulo="Setor de montagem">
-          {(id) => (
-            <select
-              id={id}
-              value={escolha.destinoSetorId ?? ''}
-              onChange={(e) => aoMudar({ destinoSetorId: e.target.value ? Number(e.target.value) : null })}
-              className={CLASSES_DE_CONTROLE}
-            >
-              <option value="">Escolha o Setor</option>
-              {item.destino.setoresPossiveis.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
-            </select>
-          )}
-        </Campo>
-      )}
       <Campo rotulo="Quantidade" dica={erro ?? `Pronto(s): ${formatarQuantidade(item.quantidade)}`}>
         {(id, idDaDica) => (
           <input

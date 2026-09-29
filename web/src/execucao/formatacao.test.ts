@@ -4,6 +4,7 @@ import {
   rotuloDaAcao,
 } from './formatacao'
 import type { DestinoDto, NoResumoDto } from '../api/execucao'
+import { destino, DESTINO_MONTAGEM } from '../testes/execucao'
 
 const SUPORTE: NoResumoDto = {
   id: 7, descricao: 'Suporte', codigoDoComponente: 'SUP-01',
@@ -13,7 +14,7 @@ const SUPORTE: NoResumoDto = {
 
 const DESTINO_VAZIO: DestinoDto = {
   tipo: 'Expedicao', setorId: null, setorNome: null, ordem: null,
-  paiId: null, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: false,
+  paiId: null, paiSemRoteiro: false,
 }
 
 describe('formatarQuantidade', () => {
@@ -52,26 +53,16 @@ describe('descreverDestino', () => {
     expect(descreverDestino(DESTINO_VAZIO, SUPORTE)).toBe('Local de expedição')
   })
 
-  it('montagem nomeia o pai e a sugestão', () => {
-    const destino: DestinoDto = {
-      ...DESTINO_VAZIO, tipo: 'Montagem', paiId: 2, sugestaoSetorId: 4,
-      setoresPossiveis: [{ id: 4, nome: 'Solda' }, { id: 6, nome: 'Montagem final' }],
-    }
-    expect(descreverDestino(destino, SUPORTE)).toBe('Montagem de Chassi (sugestão: Solda)')
+  it('montagem nomeia o pai e o Setor onde ele começa', () => {
+    expect(descreverDestino(DESTINO_MONTAGEM, SUPORTE)).toBe('Montagem de Chassi em Solda')
   })
 
-  it('montagem sem sugestão não inventa uma', () => {
-    const destino: DestinoDto = {
-      ...DESTINO_VAZIO, tipo: 'Montagem', paiId: 2, sugestaoSetorId: null,
-      setoresPossiveis: [{ id: 4, nome: 'Solda' }],
-    }
-    expect(descreverDestino(destino, SUPORTE)).toBe('Montagem de Chassi')
-  })
-
-  it('pai sem Roteiro diz isso em vez de sugerir', () => {
+  it('pai sem Roteiro diz que não há para onde levar', () => {
     // Desvio D7 do plano 2: o item aparece, e a pendência é do PCP.
-    const destino: DestinoDto = { ...DESTINO_VAZIO, tipo: 'Montagem', paiId: 2, paiSemRoteiro: true }
-    expect(descreverDestino(destino, SUPORTE)).toBe('Montagem de Chassi — o pai não tem Roteiro')
+    const semRoteiro = destino({
+      tipo: 'Montagem', setorId: null, setorNome: null, ordem: null, paiId: 2, paiSemRoteiro: true,
+    })
+    expect(descreverDestino(semRoteiro, SUPORTE)).toBe('Montagem de Chassi — o pai não tem Roteiro')
   })
 })
 

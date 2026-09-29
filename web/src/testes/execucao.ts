@@ -22,16 +22,12 @@ export const PARAFUSO = no({ id: 8, descricao: 'Parafuso', codigoDoComponente: n
 
 export function destino(parcial: Partial<DestinoDto> = {}): DestinoDto {
   return {
-    tipo: 'ProximoPasso', setorId: 3, setorNome: 'Dobra', ordem: 2,
-    paiId: null, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: false,
+    tipo: 'ProximoPasso', setorId: 3, setorNome: 'Dobra', ordem: 2, paiId: null, paiSemRoteiro: false,
     ...parcial,
   }
 }
 
-export const DESTINO_MONTAGEM = destino({
-  tipo: 'Montagem', setorId: null, setorNome: null, ordem: null,
-  paiId: 2, sugestaoSetorId: 4, setoresPossiveis: [{ id: 4, nome: 'Solda' }, { id: 6, nome: 'Montagem final' }],
-})
+export const DESTINO_MONTAGEM = destino({ tipo: 'Montagem', setorId: 4, setorNome: 'Solda', ordem: null, paiId: 2 })
 
 export function fila(parcial: Partial<FilaDoSetorDto> = {}): FilaDoSetorDto {
   return {

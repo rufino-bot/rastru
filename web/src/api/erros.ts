@@ -53,10 +53,8 @@ export type CodigoDeErroDaExecucao =
   | 'SemRoteiro'
   | 'NaoEhOPrimeiroPasso'
   | 'SaldoInsuficiente'
-  | 'SemFilhos'
-  | 'MontagemAcimaDoQueFalta'
   | 'FilhosInsuficientes'
-  | 'DestinoForaDoRoteiroDoPai'
+  | 'RedirecionamentoSemEfeito'
   | 'PaiSemRoteiro'
   | 'PassoJaAlcancado'
   | 'QuantidadeAbaixoDoMovimentado'
@@ -81,10 +79,8 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   SemRoteiro: 'Este item não tem Roteiro. Peça ao PCP para cadastrá-lo.',
   NaoEhOPrimeiroPasso: 'Este item não começa neste Setor.',
   SaldoInsuficiente: 'Não há essa quantidade disponível aqui. Atualize a tela e tente de novo.',
-  SemFilhos: 'Este item não tem filhos para montar.',
-  MontagemAcimaDoQueFalta: 'Essa quantidade passa do que ainda falta montar.',
-  FilhosInsuficientes: 'Não há filhos suficientes aqui para montar essa quantidade.',
-  DestinoForaDoRoteiroDoPai: 'Este Setor não está no Roteiro do item pai.',
+  FilhosInsuficientes: 'Não há filhos suficientes aqui para iniciar essa quantidade.',
+  RedirecionamentoSemEfeito: 'Este item já está no Setor onde o pai começa.',
   PaiSemRoteiro: 'O item pai não tem Roteiro. Peça ao PCP para cadastrá-lo.',
   PassoJaAlcancado: 'Um passo já alcançado não pode ser alterado nem removido, e nenhum passo pode entrar antes dele.',
   QuantidadeAbaixoDoMovimentado: 'A quantidade não pode ficar abaixo do que já andou na produção.',

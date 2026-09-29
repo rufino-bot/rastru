@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  obterFila, iniciar, terminar, montar, entregar, ehConflito,
+  obterFila, iniciar, terminar, entregar, ehConflito,
   type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto,
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
@@ -10,7 +10,6 @@ import { caminhoDoNo, descreverDestino, formatarQuantidade, rotuloDaAcao, rotulo
 import { lembrarSetor } from '../execucao/setorLembrado'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { FormularioDeQuantidade } from '../execucao/FormularioDeQuantidade'
-import { FormularioDeRedirecionamento } from '../execucao/FormularioDeRedirecionamento'
 import type { EstadoDaEscolhaDeSetor } from './FilaPage'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -34,7 +33,7 @@ function TrocarDeSetor() {
   )
 }
 
-/** `/fila/:setorId` — a fila de um Setor (spec §6.1). */
+/** `/fila/:setorId` — a fila de um Setor (spec da Fase 3, §6.1, com a emenda da Fase 3D, §6.1). */
 export function FilaDoSetorPage() {
   const { setorId } = useParams<{ setorId: string }>()
   const id = Number(setorId)
@@ -55,7 +54,7 @@ export function FilaDoSetorPage() {
  */
 const chaveDeIniciar = (noId: number, ordem: number) => `iniciar:${noId}:${ordem}`
 const chaveDeTerminar = (noId: number, ordem: number) => `terminar:${noId}:${ordem}`
-const chaveDeMontar = (paiId: number) => `montar:${paiId}`
+const chaveDeIniciarPai = (paiId: number) => `iniciar-pai:${paiId}`
 const chaveDeLevar = (paiId: number, filhoId: number) => `levar:${paiId}:${filhoId}`
 
 /** Toda ação que a fila de agora ainda oferece — a que sumiu não pode continuar aberta. */
@@ -64,8 +63,10 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   for (const l of fila.aIniciar) chaves.add(chaveDeIniciar(l.no.id, l.ordem))
   for (const l of fila.emTrabalho) chaves.add(chaveDeTerminar(l.no.id, l.ordem))
   for (const g of fila.aguardandoMontagem) {
-    if (g.daParaMontar > 0) chaves.add(chaveDeMontar(g.pai.id))
-    for (const f of g.filhos) if (f.presente > 0) chaves.add(chaveDeLevar(g.pai.id, f.no.id))
+    if (g.iniciaAqui && g.daParaMontar > 0) chaves.add(chaveDeIniciarPai(g.pai.id))
+    if (!g.iniciaAqui && g.primeiroPassoDoPai !== null) {
+      for (const f of g.filhos) if (f.presente > 0) chaves.add(chaveDeLevar(g.pai.id, f.no.id))
+    }
   }
   return chaves
 }
@@ -83,9 +84,9 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   // Lembra só o Setor cuja fila CARREGOU: um Id digitado na barra que dá 404 não vira lembrança.
   useEffect(() => { if (fila?.setorId === setorId) lembrarSetor(setorId) }, [fila, setorId])
 
-  // Review Focus 3: a atualização (periódica, ou a recarga depois de um 409) tirou da fila a linha
-  // cujo formulário está aberto. O formulário fecha, e o aviso — com a recusa do servidor, se foi
-  // ela — sobe para o topo da tela, porque o painel onde ele estava deixou de existir.
+  // A atualização (periódica, ou a recarga depois de um 409) tirou da fila a linha cujo formulário
+  // está aberto. O formulário fecha, e o aviso — com a recusa do servidor, se foi ela — sobe para o
+  // topo da tela, porque o painel onde ele estava deixou de existir.
   useEffect(() => {
     if (fila === null || aberta === null || chavesDaFila(fila).has(aberta)) return
     setAviso(erroDaAcao ?? SAIU_DA_FILA)
@@ -105,9 +106,9 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   }
 
   /**
-   * Toda escrita passa por aqui: sucesso fecha o formulário e recarrega na hora (spec §6.2); recusa
-   * mostra a mensagem no próprio formulário e, se for 409, recarrega também — o 409 quase sempre
-   * quer dizer que a tela ficou velha (spec §8.3). O `throw` devolve a recusa ao formulário, que só
+   * Toda escrita passa por aqui: sucesso fecha o formulário e recarrega na hora; recusa mostra a
+   * mensagem no próprio formulário e, se for 409, recarrega também — o 409 quase sempre quer dizer
+   * que a tela ficou velha (spec da Fase 3, §8.3). O `throw` devolve a recusa ao formulário, que só
    * destrava o botão.
    */
   async function registrar(fazer: () => Promise<unknown>) {
@@ -247,33 +248,31 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
       {fila.aguardandoMontagem.length > 0 && (
         <Secao titulo="Aguardando montagem">
           {fila.aguardandoMontagem.map((g) => {
-            const chaveDoFilhoAberto = g.filhos
-              .map((f) => chaveDeLevar(g.pai.id, f.no.id))
-              .find((c) => c === aberta)
             const filhoAberto = g.filhos.find((f) => chaveDeLevar(g.pai.id, f.no.id) === aberta)
+            const levarPara = g.primeiroPassoDoPai
             return (
               <ItemComAcao
                 key={g.pai.id}
-                // "Dá para montar 0" não oferece Montar: o backend recusaria qualquer N.
-                acao={apontar && g.daParaMontar > 0 && botao(chaveDeMontar(g.pai.id), 'Montar', g.pai)}
+                // O pai começa aqui consumindo os filhos (spec da Fase 3D, §2.1). "Dá para iniciar 0"
+                // não oferece o botão: o backend recusaria qualquer N.
+                acao={apontar && g.iniciaAqui && g.daParaMontar > 0
+                  && botao(chaveDeIniciarPai(g.pai.id), rotuloDeIniciar, g.pai)}
                 painel={
-                  painel(chaveDeMontar(g.pai.id), (
+                  painel(chaveDeIniciarPai(g.pai.id), (
                     <FormularioDeQuantidade
-                      rotulo="Montar"
+                      rotulo={rotuloDeIniciar}
                       maximo={g.daParaMontar}
-                      aoConfirmar={(q) => registrar(() => montar(g.pai.id, { setorId, quantidade: q }))}
+                      aoConfirmar={(q) => registrar(() => iniciar(g.pai.id, { setorId, quantidade: q }))}
                       aoCancelar={fechar}
                     />
                   ))
-                  ?? (chaveDoFilhoAberto && filhoAberto && painel(chaveDoFilhoAberto, (
-                    <FormularioDeRedirecionamento
-                      pai={g.pai}
-                      setorAtualId={setorId}
+                  ?? (filhoAberto && levarPara && painel(chaveDeLevar(g.pai.id, filhoAberto.no.id), (
+                    <FormularioDeQuantidade
+                      rotulo="Levar"
                       maximo={filhoAberto.presente}
-                      aoConfirmar={(destinoSetorId, q) => registrar(() => entregar([{
+                      aoConfirmar={(q) => registrar(() => entregar([{
                         estruturaItemId: filhoAberto.no.id,
                         origem: { posicao: 'AguardandoMontagem', setorId, ordem: null },
-                        destinoSetorId,
                         quantidade: q,
                       }]))}
                       aoCancelar={fechar}
@@ -283,8 +282,8 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
               >
                 <GrupoDeMontagem
                   grupo={g}
-                  acaoDoFilho={(f) => (podeEntregar && f.presente > 0
-                    ? botao(chaveDeLevar(g.pai.id, f.no.id), 'Levar para outro Setor', f.no)
+                  acaoDoFilho={(f) => (podeEntregar && !g.iniciaAqui && levarPara && f.presente > 0
+                    ? botao(chaveDeLevar(g.pai.id, f.no.id), `Levar para ${levarPara.nome}`, f.no)
                     : undefined)}
                 />
               </ItemComAcao>
@@ -330,8 +329,9 @@ function Detalhe({ children }: { children: ReactNode }) {
 }
 
 /**
- * "Dá para montar N; falta X de Y para a próxima" (spec §7.6). O "falta" é por filho, e só existe
- * enquanto há próxima unidade a montar — a API manda `null` quando não há.
+ * "Dá para iniciar N; falta iniciar M" (spec da Fase 3, §7.6). O "falta" por filho é o que ele precisa
+ * para a unidade N+1, e só existe enquanto há próxima unidade — a API manda `null` quando não há.
+ * Fora do primeiro passo do pai, o card diz para onde levar os filhos (spec da Fase 3D, §4.4).
  */
 function GrupoDeMontagem({ grupo, acaoDoFilho }: {
   grupo: GrupoAguardandoMontagem
@@ -341,8 +341,15 @@ function GrupoDeMontagem({ grupo, acaoDoFilho }: {
     <>
       <CabecalhoDoNo no={grupo.pai} />
       <Detalhe>
-        {`Dá para montar ${formatarQuantidade(grupo.daParaMontar)}; falta montar ${formatarQuantidade(grupo.faltaMontar)}.`}
+        {`Dá para iniciar ${formatarQuantidade(grupo.daParaMontar)}; falta iniciar ${formatarQuantidade(grupo.faltaMontar)}.`}
       </Detalhe>
+      {!grupo.iniciaAqui && (
+        <span className="text-xs text-tinta-fraca">
+          {grupo.primeiroPassoDoPai
+            ? `${grupo.pai.descricao} começa em ${grupo.primeiroPassoDoPai.nome}: leve os filhos para lá.`
+            : `${grupo.pai.descricao} não tem Roteiro. Peça ao PCP para cadastrá-lo.`}
+        </span>
+      )}
       <ul aria-label={`Filhos de ${grupo.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
         {grupo.filhos.map((f) => (
           <li key={f.no.id} className="flex flex-wrap items-center justify-between gap-2">
@@ -360,9 +367,9 @@ function GrupoDeMontagem({ grupo, acaoDoFilho }: {
 }
 
 /**
- * A sobra (spec §7.5, regra 30) é só informada: o descarte é registrado na Fase 5, pelo ator da
- * perda. Quando o filho aguarda montagem em mais de um Setor, o texto diz que não dá para saber em
- * qual está a unidade a mais, em vez de escolher um por conta própria.
+ * A sobra (spec da Fase 3, §7.5, regra 30) é só informada: o descarte é registrado na Fase 5, pelo
+ * ator da perda. Quando o filho aguarda montagem em mais de um Setor, o texto diz que não dá para
+ * saber em qual está a unidade a mais, em vez de escolher um por conta própria.
  */
 function DetalheDaSobra({ sobra }: { sobra: LinhaDeSobra }) {
   const q = formatarQuantidade(sobra.quantidade)

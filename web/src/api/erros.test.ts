@@ -49,6 +49,10 @@ describe('mensagemDeErro', () => {
       .toBe('Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.')
     expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'ConflitoDeConcorrencia'), PADRAO))
       .toBe('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'RedirecionamentoSemEfeito'), PADRAO))
+      .toBe('Este item já está no Setor onde o pai começa.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'FilhosInsuficientes'), PADRAO))
+      .toBe('Não há filhos suficientes aqui para iniciar essa quantidade.')
   })
 
   it('a frase do servidor ganha da tradução do código', () => {

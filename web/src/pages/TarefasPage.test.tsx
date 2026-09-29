@@ -98,12 +98,12 @@ describe('TarefasPage', () => {
     expect(within(corte).getByText('4 pronto(s) · passo 1')).toBeTruthy()
     expect(within(corte).getByText('Destino: Dobra (passo 2)')).toBeTruthy()
     expect(within(screen.getByRole('list', { name: 'Prontos em Solda' }))
-      .getByText('Destino: Montagem de Chassi (sugestão: Solda)')).toBeTruthy()
+      .getByText('Destino: Montagem de Chassi em Solda')).toBeTruthy()
     expect(within(screen.getByRole('list', { name: 'Prontos em Pintura' }))
       .getByText('Destino: Local de expedição')).toBeTruthy()
   })
 
-  it('entrega vários itens numa requisição só, com o Setor de montagem na sugestão, e recarrega', async () => {
+  it('entrega vários itens numa requisição só, sem escolher Setor, e recarrega', async () => {
     const { fetchMock, getsDasTarefas } = montarFetch([TAREFAS, []])
     vi.stubGlobal('fetch', fetchMock)
 
@@ -111,9 +111,8 @@ describe('TarefasPage', () => {
     fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
     fireEvent.click(screen.getByLabelText('Levar Parafuso'))
     fireEvent.click(screen.getByLabelText('Levar CH-01 — Chassi'))
-    // Montagem: o `<select>` nasce na sugestão; os outros destinos não têm escolha nenhuma.
-    expect(screen.getByLabelText('Setor de montagem')).toHaveProperty('value', '4')
-    expect(screen.getAllByLabelText('Setor de montagem')).toHaveLength(1)
+    // O destino de montagem vem calculado: nenhum item pede escolha de Setor.
+    expect(screen.queryByLabelText('Setor de montagem')).toBeNull()
     const quantidades = screen.getAllByLabelText('Quantidade')
     expect(quantidades.map((q) => (q as HTMLInputElement).value)).toEqual(['4', '10', '2'])
     fireEvent.change(quantidades[1], { target: { value: '8' } })
@@ -122,40 +121,12 @@ describe('TarefasPage', () => {
     expect(await screen.findByText('Nenhum item pronto para levar agora')).toBeTruthy()
     expect(corpoDaEntrega(fetchMock)).toEqual({
       itens: [
-        { estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, destinoSetorId: null, quantidade: 4 },
-        { estruturaItemId: 8, origem: { posicao: 'AguardandoColeta', setorId: 4, ordem: 2 }, destinoSetorId: 4, quantidade: 8 },
-        { estruturaItemId: 2, origem: { posicao: 'AguardandoColeta', setorId: 5, ordem: 3 }, destinoSetorId: null, quantidade: 2 },
+        { estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4 },
+        { estruturaItemId: 8, origem: { posicao: 'AguardandoColeta', setorId: 4, ordem: 2 }, quantidade: 8 },
+        { estruturaItemId: 2, origem: { posicao: 'AguardandoColeta', setorId: 5, ordem: 3 }, quantidade: 2 },
       ],
     })
     expect(getsDasTarefas()).toBe(2)
-  })
-
-  it('o Movimentador pode trocar o Setor de montagem sugerido', async () => {
-    const { fetchMock } = montarFetch([TAREFAS])
-    vi.stubGlobal('fetch', fetchMock)
-
-    renderizar()
-    fireEvent.click(await screen.findByLabelText('Levar Parafuso'))
-    fireEvent.change(screen.getByLabelText('Setor de montagem'), { target: { value: '6' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Entregar 1 item' }))
-
-    await waitFor(() => expect(corpoDaEntrega(fetchMock)).toMatchObject({ itens: [{ destinoSetorId: 6 }] }))
-  })
-
-  it('sem sugestão, o Setor de montagem começa vazio e trava a entrega até ser escolhido', async () => {
-    vi.stubGlobal('fetch', montarFetch([[{
-      setorId: 4, setorNome: 'Solda',
-      itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: { ...DESTINO_MONTAGEM, sugestaoSetorId: null } }],
-    }]]).fetchMock)
-
-    renderizar()
-    fireEvent.click(await screen.findByLabelText('Levar Parafuso'))
-
-    expect(screen.getByLabelText('Setor de montagem')).toHaveProperty('value', '')
-    expect(screen.getByText('Escolha o Setor de montagem.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toHaveProperty('disabled', true)
-    fireEvent.change(screen.getByLabelText('Setor de montagem'), { target: { value: '4' } })
-    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toHaveProperty('disabled', false)
   })
 
   it('quantidade acima do pronto trava a entrega e diz o limite', async () => {
@@ -184,7 +155,7 @@ describe('TarefasPage', () => {
     // Desvio D7 do plano 2.
     vi.stubGlobal('fetch', montarFetch([[{
       setorId: 4, setorNome: 'Solda',
-      itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: { ...DESTINO_MONTAGEM, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: true } }],
+      itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: { ...DESTINO_MONTAGEM, setorId: null, setorNome: null, paiSemRoteiro: true } }],
     }]]).fetchMock)
 
     renderizar()
@@ -262,7 +233,7 @@ describe('TarefasPage', () => {
       gets += 1
       const semRoteiro = gets > 1
       const destinoParafuso = semRoteiro
-        ? { ...DESTINO_MONTAGEM, sugestaoSetorId: null, setoresPossiveis: [], paiSemRoteiro: true }
+        ? { ...DESTINO_MONTAGEM, setorId: null, setorNome: null, paiSemRoteiro: true }
         : DESTINO_MONTAGEM
       return Promise.resolve(respostaJson([{
         setorId: 4, setorNome: 'Solda',

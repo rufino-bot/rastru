@@ -5,11 +5,11 @@ import { formatarQuantidade } from './formatacao'
 import { lerQuantidade, quantidadeParaCampo } from './quantidade'
 
 interface Props {
-  /** Rótulo do botão de confirmar: "Iniciar", "Terminar", "Montar", "Levar". */
+  /** Rótulo do botão de confirmar: "Iniciar", "Terminar" (com a atividade do Setor), "Levar". */
   rotulo: string
   /** Todo o disponível. O campo nasce com ele (spec §6.1) e não aceita mais do que ele. */
   maximo: number
-  /** Campos a mais, antes da quantidade — o Setor de destino do "Levar para outro Setor". */
+  /** Campos a mais, antes da quantidade. */
   children?: ReactNode
   /** Validade dos campos a mais. `false` desabilita o confirmar, como uma quantidade inválida. */
   completo?: boolean

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
-  iniciar, terminar, montar, entregar, estornarMovimentacao, estornarMontagem, substituirRoteiroDoNo,
+  iniciar, terminar, entregar, estornarMovimentacao, estornarMontagem, substituirRoteiroDoNo,
   ehConflito,
 } from './execucao'
 import { aoMudarOLivro } from './sinalDoLivro'
@@ -39,15 +39,11 @@ describe('execucao', () => {
       { setorId: 1, quantidade: 4 }],
     ['terminar', () => terminar(7, { setorId: 1, ordem: 2, quantidade: 4 }), '/api/estrutura/7/terminos', 'POST',
       { setorId: 1, ordem: 2, quantidade: 4 }],
-    ['montar', () => montar(2, { setorId: 4, quantidade: 2 }), '/api/estrutura/2/montagens', 'POST',
-      { setorId: 4, quantidade: 2 }],
     ['entregar', () => entregar([{
-      estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 },
-      destinoSetorId: null, quantidade: 4,
+      estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4,
     }]), '/api/entregas', 'POST', {
       itens: [{
-        estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 },
-        destinoSetorId: null, quantidade: 4,
+        estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4,
       }],
     }],
     ['substituirRoteiroDoNo', () => substituirRoteiroDoNo(7, [1, 3, 1]), '/api/estrutura/7/roteiro', 'PUT',
@@ -189,7 +185,7 @@ describe('execucao', () => {
       await contarTarefas()
       parar()
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({}, 201)))
-      await montar(7, { setorId: 1, quantidade: 1 })
+      await iniciar(7, { setorId: 1, quantidade: 1 })
 
       expect(ouvinte).not.toHaveBeenCalled()
     })

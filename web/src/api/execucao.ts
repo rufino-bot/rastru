@@ -85,8 +85,9 @@ export type TipoDeDestino = 'ProximoPasso' | 'Expedicao' | 'Montagem'
 
 /**
  * `ProximoPasso` traz `setorId`/`setorNome`/`ordem`; `Expedicao` não traz nada; `Montagem` traz
- * `paiId`, `sugestaoSetorId` (pode ser `null`) e `setoresPossiveis`. `paiSemRoteiro` só é `true` em
- * `Montagem` com a lista vazia (desvio D7 do plano 2).
+ * `paiId` e o Setor do PRIMEIRO passo do pai em `setorId`/`setorNome` (sem `ordem`), porque é lá que o
+ * pai começa consumindo os filhos (spec da Fase 3D, §2.2). `paiSemRoteiro` só é `true` em `Montagem`,
+ * e aí `setorId` é `null`.
  */
 export interface DestinoDto {
   tipo: TipoDeDestino
@@ -94,8 +95,6 @@ export interface DestinoDto {
   setorNome: string | null
   ordem: number | null
   paiId: number | null
-  sugestaoSetorId: number | null
-  setoresPossiveis: SetorResumidoDto[]
   paiSemRoteiro: boolean
 }
 
@@ -122,6 +121,10 @@ export interface GrupoAguardandoMontagem {
   pai: NoResumoDto
   faltaMontar: number
   daParaMontar: number
+  /** Este Setor é o primeiro passo do pai: é aqui que "Iniciar" o pai consome os filhos. */
+  iniciaAqui: boolean
+  /** Para onde levar os filhos quando não é aqui; `null` se o pai não tem Roteiro. */
+  primeiroPassoDoPai: SetorResumidoDto | null
   /** TODOS os filhos diretos do pai, inclusive os ausentes deste Setor (`presente` 0). */
   filhos: FilhoNaMontagem[]
 }
@@ -202,8 +205,6 @@ export interface OrigemDaEntrega {
 export interface ItemDaEntrega {
   estruturaItemId: number
   origem: OrigemDaEntrega
-  /** Só quando o destino é montagem (ou redirecionamento); `null` quando o destino é calculado. */
-  destinoSetorId: number | null
   quantidade: number
 }
 
@@ -294,10 +295,6 @@ export function terminar(
   corpo: { setorId: number; ordem: number; quantidade: number },
 ): Promise<MovimentacaoDto> {
   return enviar(`/estrutura/${noId}/terminos`, 'POST', corpo, 'terminar')
-}
-
-export function montar(paiId: number, corpo: { setorId: number; quantidade: number }): Promise<MontagemDto> {
-  return enviar(`/estrutura/${paiId}/montagens`, 'POST', corpo, 'montar')
 }
 
 /** Lista inteira numa requisição: tudo ou nada (spec §4.3). A resposta vem na ordem da lista. */

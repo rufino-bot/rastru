@@ -27,16 +27,16 @@ export function caminhoDoNo(no: NoResumoDto): string {
 }
 
 /**
- * Para onde vai o que aguarda coleta (spec §7.3). O nome do pai vem do NÓ, não do destino: o
- * `DestinoDto` só traz `paiId`, e a linha da fila e da tarefa já carrega `paiDescricao`.
+ * Para onde vai o que aguarda coleta (spec da Fase 3, §7.3, com a emenda da Fase 3D, §2.2). O nome
+ * do pai vem do NÓ, não do destino: o `DestinoDto` só traz `paiId`, e a linha da fila e da tarefa já
+ * carrega `paiDescricao`.
  */
 export function descreverDestino(destino: DestinoDto, no: NoResumoDto): string {
   if (destino.tipo === 'ProximoPasso') return `${destino.setorNome} (passo ${destino.ordem})`
   if (destino.tipo === 'Expedicao') return 'Local de expedição'
   const pai = no.paiDescricao ?? 'o pai'
   if (destino.paiSemRoteiro) return `Montagem de ${pai} — o pai não tem Roteiro`
-  const sugestao = destino.setoresPossiveis.find((s) => s.id === destino.sugestaoSetorId)
-  return sugestao ? `Montagem de ${pai} (sugestão: ${sugestao.nome})` : `Montagem de ${pai}`
+  return `Montagem de ${pai} em ${destino.setorNome}`
 }
 
 /**
