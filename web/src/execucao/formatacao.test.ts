@@ -125,7 +125,7 @@ describe('rotuloDoEstornavel', () => {
   it('diz o que é, quanto, quem e quando', () => {
     expect(rotuloDoEstornavel(TERMINO)).toBe('Término de 5 · Operador do Corte · 28/09/2026 10:14')
     expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Inicio' })).toBe('Início de 5 · Operador do Corte · 28/09/2026 10:14')
-    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Montagem' })).toBe('Início com os filhos de 5 · Operador do Corte · 28/09/2026 10:14')
+    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Montagem' })).toBe('Início de 5 (com o consumo dos filhos) · Operador do Corte · 28/09/2026 10:14')
   })
 })
 
@@ -135,8 +135,8 @@ describe('mensagemDoEstorno', () => {
       .toBe('Estornar o término de 5, registrado por Operador do Corte em 28/09/2026 10:14? O movimento inverso fica no histórico.')
   })
 
-  it('no início de um pai, avisa que os filhos voltam', () => {
+  it('no início de um pai, diz que o pai volta a "a iniciar" e os filhos a aguardar montagem', () => {
     expect(mensagemDoEstorno({ ...TERMINO, tipo: 'Montagem' }))
-      .toBe('Estornar o início com os filhos de 5, registrado por Operador do Corte em 28/09/2026 10:14? Os filhos voltam a aguardar montagem, e o estorno fica no histórico.')
+      .toBe('Estornar o início de 5 (com o consumo dos filhos), registrado por Operador do Corte em 28/09/2026 10:14? O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes; o estorno fica no histórico.')
   })
 })

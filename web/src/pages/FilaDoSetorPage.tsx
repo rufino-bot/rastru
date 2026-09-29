@@ -500,9 +500,11 @@ function GrupoDeMontagem({ grupo, acaoDoFilho }: {
 }
 
 /**
- * A sobra (spec da Fase 3, §7.5, regra 30) é só informada: o descarte é registrado na Fase 5, pelo
- * ator da perda. Quando o filho aguarda montagem em mais de um Setor, o texto diz que não dá para
- * saber em qual está a unidade a mais, em vez de escolher um por conta própria.
+ * A sobra (spec da Fase 3, §7.5, regra 30) é informada aqui, e o descarte dela não: ele é registrado
+ * na Fase 5, pelo ator da perda. O único botão da linha é o "Estornar" do registro que a produziu, e
+ * ele vem do `ItemComAcao` que envolve este componente, quando há registro estornável. Quando o
+ * filho aguarda montagem em mais de um Setor, o texto diz que não dá para saber em qual está a
+ * unidade a mais, em vez de escolher um por conta própria.
  */
 function DetalheDaSobra({ sobra }: { sobra: LinhaDeSobra }) {
   const q = formatarQuantidade(sobra.quantidade)

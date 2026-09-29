@@ -736,6 +736,19 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3.sql
 ```
 
+**Fase 3D — `db/alter-fase-3d.sql`.** Mesmo formato do anterior (idempotente, `-b -f 65001`). Ele leva um
+banco anterior à Fase 3D até o `02-modelo-de-dados.sql` em três blocos: a coluna `Setor.Atividade`; o
+`Inicio` do pai apontando a `Montagem` (a constraint `CK_Movimentacao_MontagemSoNaBaixa` reescrita e o
+índice `UX_Movimentacao_UmInicioPorMontagem`); e a tabela `dbo.PedidoPausa` com o índice
+`UX_PedidoPausa_UmaAbertaPorPedido`. As montagens gravadas antes dele não têm o Início do pai, então o
+banco de dev, que é descartável, deve ser **regenerado** depois da migração (seção 3.4 da spec da 3D).
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3d.sql sqlserver:/tmp/alter-fase-3d.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3d.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

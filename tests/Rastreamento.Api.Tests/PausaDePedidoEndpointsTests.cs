@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 using static Rastreamento.Api.Tests.CenarioDaFase3NaApi;
@@ -40,7 +41,46 @@ public class PausaDePedidoEndpointsTests : IClassFixture<WebApplicationFactory<P
     Assert.Equal(HttpStatusCode.Created, terminarPausado.StatusCode);
     Assert.Equal("outro pedido urgente", pedido.GetProperty("pausa").GetProperty("motivo").GetString());
     Assert.Equal(HttpStatusCode.OK, retomada.StatusCode);
+    var corpoDaRetomada = await CorpoAsync(retomada);
+    Assert.Equal(c.Gestao.Id, corpoDaRetomada.GetProperty("retomadoPorUsuarioId").GetInt32());
+    Assert.Equal("Usuario de Teste", corpoDaRetomada.GetProperty("retomadoPorNome").GetString());
+    Assert.NotEqual(JsonValueKind.Null, corpoDaRetomada.GetProperty("retomadoEm").ValueKind);
     Assert.Equal(HttpStatusCode.Created, iniciarDepois.StatusCode);
+
+    // O Iniciar depois da retomada usa `PausadoAsync`, outra consulta. As telas leem a pausa por
+    // `PausasAbertas.ListarAsync`: sem o filtro de pausa aberta, o Pedido retomado seguiria pausado
+    // no detalhe e na fila.
+    var pedidoDepois = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/pedidos/{c.PedidoId}"));
+    Assert.Equal(JsonValueKind.Null, pedidoDepois.GetProperty("pausa").ValueKind);
+    var filaDepois = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/setores/{c.Corte}/fila"));
+    var linhasDeB = new[] { "aIniciar", "emTrabalho", "aguardandoColeta" }
+        .SelectMany(secao => filaDepois.GetProperty(secao).EnumerateArray())
+        .Where(l => l.GetProperty("no").GetProperty("id").GetInt32() == c.B)
+        .ToList();
+    Assert.NotEmpty(linhasDeB);
+    Assert.All(linhasDeB, l => Assert.Equal(JsonValueKind.Null, l.GetProperty("no").GetProperty("pausa").ValueKind));
+  }
+
+  [Fact]
+  public async Task Pausar_retomar_e_pausar_de_novo_deixa_a_fila_e_o_pedido_com_uma_so_pausa()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    var pcp = c.Como(c.Pcp);
+    await Garantir(await pcp.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/pausas", new { motivo = "primeira" }));
+    await Garantir(await pcp.PostAsync($"/api/pedidos/{c.PedidoId}/retomada", null));
+    await Garantir(await pcp.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/pausas", new { motivo = "segunda" }));
+
+    // Duas linhas de `dbo.PedidoPausa` do mesmo Pedido (uma fechada, uma aberta): sem o filtro de
+    // pausa aberta, o dicionario por Pedido receberia a chave duas vezes e a fila daria 500.
+    var fila = await c.Como(c.Operador).GetAsync($"/api/setores/{c.Corte}/fila");
+    var pedido = await c.Como(c.Operador).GetAsync($"/api/pedidos/{c.PedidoId}");
+
+    Assert.Equal(HttpStatusCode.OK, fila.StatusCode);
+    Assert.Equal(HttpStatusCode.OK, pedido.StatusCode);
+    var linha = (await CorpoAsync(fila)).GetProperty("aIniciar").EnumerateArray()
+        .Single(l => l.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    Assert.Equal("segunda", linha.GetProperty("no").GetProperty("pausa").GetProperty("motivo").GetString());
+    Assert.Equal("segunda", (await CorpoAsync(pedido)).GetProperty("pausa").GetProperty("motivo").GetString());
   }
 
   [Fact]

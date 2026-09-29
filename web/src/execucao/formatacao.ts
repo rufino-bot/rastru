@@ -94,20 +94,26 @@ export function rotuloDaAcao(verbo: 'Iniciar' | 'Terminar', atividade: string | 
 const NOME_DO_ESTORNAVEL: Record<Estornavel['tipo'], string> = {
   Inicio: 'início',
   Termino: 'término',
-  Montagem: 'início com os filhos',
+  Montagem: 'início',
+}
+
+/** A descrição do registro: o quê e quanto; o início de um pai diz também que consumiu os filhos. */
+function descricaoDoEstornavel(e: Estornavel): string {
+  const consumo = e.tipo === 'Montagem' ? ' (com o consumo dos filhos)' : ''
+  return `${NOME_DO_ESTORNAVEL[e.tipo]} de ${formatarQuantidade(e.quantidade)}${consumo}`
 }
 
 /** Uma linha da lista curta de estorno: "Término de 5 · Fulano · 28/09/2026 10:14". */
 export function rotuloDoEstornavel(e: Estornavel): string {
-  const nome = NOME_DO_ESTORNAVEL[e.tipo]
-  return `${nome[0].toUpperCase()}${nome.slice(1)} de ${formatarQuantidade(e.quantidade)} · ${e.usuarioNome} · ${formatarDataHora(e.dataHora)}`
+  const descricao = descricaoDoEstornavel(e)
+  return `${descricao[0].toUpperCase()}${descricao.slice(1)} · ${e.usuarioNome} · ${formatarDataHora(e.dataHora)}`
 }
 
 /** A pergunta da confirmação: o que se desfaz, e o que acontece depois (spec da Fase 3D, §2.4). */
 export function mensagemDoEstorno(e: Estornavel): string {
-  const oQue = `Estornar o ${NOME_DO_ESTORNAVEL[e.tipo]} de ${formatarQuantidade(e.quantidade)}, `
+  const oQue = `Estornar o ${descricaoDoEstornavel(e)}, `
     + `registrado por ${e.usuarioNome} em ${formatarDataHora(e.dataHora)}?`
   return e.tipo === 'Montagem'
-    ? `${oQue} Os filhos voltam a aguardar montagem, e o estorno fica no histórico.`
+    ? `${oQue} O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes; o estorno fica no histórico.`
     : `${oQue} O movimento inverso fica no histórico.`
 }

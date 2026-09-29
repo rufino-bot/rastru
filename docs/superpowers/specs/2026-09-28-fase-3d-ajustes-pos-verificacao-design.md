@@ -2,7 +2,8 @@
 
 **Data:** 2026-09-28. **Origem:** os pontos que o usuário levantou na verificação manual da Fase 3 (§9.5
 da spec da Fase 3, feita no celular) e o brainstorm de 2026-09-28. **Estado:** desenho aprovado pelo
-usuário, ponto a ponto; falta o plano.
+usuário, ponto a ponto; o plano é
+`docs/superpowers/plans/2026-09-28-fase-3d-ajustes-pos-verificacao.md`.
 
 **Posição na fila** (decisão do usuário, 2026-09-28): *"primeiro os 4 pontos, depois filtros, 1F e 3B"*.
 Esta spec cobre os pontos 1 a 3. O quarto era a **posição** dos filtros da fila por Material e por
@@ -149,7 +150,7 @@ urgente entrar no lugar.
   ali continua funcionando.
 
   > **Desvio do plano da Fase 3D, fora da lista D1–D6 (2026-09-28): a seção 6.1 vale sobre esta
-  > frase.** A frase acima diz que, fora de "A iniciar aqui", só a pílula aparece; a seção 6.1 diz que
+  > frase.** A frase "Nas demais seções e na tela Tarefas, só a pílula" diz que, fora de "A iniciar aqui", só a pílula aparece; a seção 6.1 diz que
   > a pílula aparece "em qualquer seção" da fila e que "o motivo, quando há, vai ao lado". O plano
   > seguiu a 6.1, e é o que o código faz: na fila, toda linha de Pedido pausado, de qualquer seção,
   > mostra a pílula **e** o motivo (o `CabecalhoDoNo` de `FilaDoSetorPage` é o de todas as seções);
@@ -326,7 +327,7 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
 | `POST /pedidos/{id}/retomada` | **nova** — sem corpo → 200, a pausa fechada. PCP, Gestão |
 | `POST /setores`, `PUT /setores/{id}` | ganham `atividade?` |
 
-> **Desvio D1 do plano (2026-09-28).** A redação original desta linha dizia que a resposta do Iniciar
+> **Desvio D1 do plano (2026-09-28).** A redação original da linha de `POST /estrutura/{id}/inicios`, na tabela da seção 5.1, dizia que a resposta do Iniciar
 > traz "o movimento e, se houve consumo, a montagem com as baixas". O implementado devolve **só o
 > movimento de Início** (`MovimentacaoDto`), com `montagemId` preenchido quando houve consumo — a
 > montagem e as baixas estão no livro do nó (`GET /estrutura/{id}/movimentacoes`), onde já eram lidas.
@@ -346,7 +347,7 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
   - "A iniciar aqui" deixa de listar nós com filhos (seção 7).
 
   > **Dois desvios do plano da Fase 3D, fora da lista D1–D6.** Ambos foram decididos no "Contrato JSON
-  > novo" do plano (2026-09-28), onde o contrato traz os formatos abaixo, e implementados depois
+  > novo" do plano (2026-09-28), onde o contrato traz os formatos de `estornaveis[].tipo` e de `NoResumoDto.pausa` descritos nos dois itens desta nota, e implementados depois
   > (`EstornavelDto` na Task 5; `PausaResumoDto` na Task 7). Vale o implementado:
   >
   > - **`estornaveis[].tipo` é `Inicio | Termino | Montagem`**, não `'movimentacao' | 'montagem'`. Os
@@ -444,7 +445,10 @@ Mesma estrutura da §9 da Fase 3. O que esta fase acrescenta, em especial:
   "A iniciar aqui" sem nós com filhos; a pausa recusando o Iniciar e deixando Terminar, Entregar e
   Estornar passarem; destino calculado.
 - **Propriedade de conservação** (a da §9.1 da Fase 3), refeita com o Iniciar unificado e acrescida da
-  invariante nova: **para todo nó com filhos, o que saiu de `AIniciar` é igual ao total montado**.
+  invariante nova: **para todo nó que já tinha filhos quando entrou em produção, o que saiu de
+  `AIniciar` é igual ao total montado** (a ressalva da seção 2.1 é a exceção: a folha já iniciada que
+  ganha filho por `AcrescentarFilho` tem `SaidoDeAIniciar > TotalMontado`, e o gerador da propriedade
+  nunca chama `AcrescentarFilho`).
 - **Infrastructure:** as constraints e os dois índices únicos novos (`UX_PedidoPausa_UmaAbertaPorPedido`,
   `UX_Movimentacao_UmInicioPorMontagem`), cada um com o caso que o viola.
 - **Api:** as rotas novas, a saída de `POST /estrutura/{id}/montagens` e os `[Authorize]` — Gestão

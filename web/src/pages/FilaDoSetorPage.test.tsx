@@ -182,7 +182,7 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(await screen.findByText('SUP-01 — Suporte: 8 aqui, 4 por unidade')).toBeTruthy()
   })
 
-  it('a sobra é só informada, e diz quando não dá para saber em que Setor está', async () => {
+  it('a sobra informa o excesso, e diz quando não dá para saber em que Setor está', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
 
     renderizar()
@@ -191,7 +191,9 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(sobra).getByText('5 a mais no passo 2: o pai já tem o que precisa.')).toBeTruthy()
     expect(within(sobra).getByText('1 a mais aguardando montagem do que o pai precisa.')).toBeTruthy()
     expect(within(sobra).getByText(/não dá para saber em qual está a unidade a mais/)).toBeTruthy()
-    // O descarte é da Fase 5: nenhuma ação na seção.
+    // O descarte é da Fase 5, então a sobra não tem ação de descarte. Estas linhas vêm sem `estornaveis`,
+    // por isso também sem "Estornar"; com registro estornável ela ganha o botão (ver o teste
+    // 'a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna').
     expect(within(sobra).queryByRole('button')).toBeNull()
   })
 
@@ -622,7 +624,7 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
 
     renderizar()
 
-    // A fixture carregou e traz o filho presente: para o Movimentador (teste abaixo) o botão existe.
+    // A fixture carregou e traz o filho presente: para o Movimentador o botão existe (ver o teste 'o Movimentador leva o filho para o primeiro passo do pai').
     expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
   })
@@ -642,7 +644,7 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
 
     renderizar()
 
-    // `FILA_CHEIA` tem Iniciar (filho e pai) e Terminar para o Operador (teste acima).
+    // `FILA_CHEIA` tem Iniciar (filho e pai) e Terminar para o Operador (ver o teste 'o Operador inicia e termina, o pai inclusive, e não leva').
     expect(await screen.findByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Iniciar/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Terminar/ })).toBeNull()
@@ -780,7 +782,8 @@ describe('FilaDoSetorPage — estorno rápido', () => {
 
     renderizar()
     fireEvent.click(await screen.findByRole('button', { name: 'Estornar CH-01 — Chassi' }))
-    expect(screen.getByText(/Os filhos voltam a aguardar montagem/)).toBeTruthy()
+    expect(screen.getByText(/^Estornar o início de 3 \(com o consumo dos filhos\), registrado por/)).toBeTruthy()
+    expect(screen.getByText(/O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes/)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
 
     await waitFor(() => expect(foiChamado(fetchMock, '/api/montagens/9/estorno')).toBe(true))
