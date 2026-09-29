@@ -201,6 +201,11 @@ describe('HomePage', () => {
       within(cartao).getByText('Cancelado 1'),
     ]
     for (const pilula of pilulasDoResumo) {
+      // Neutro afirmado token a token, e não só "nem verde nem vermelho": o âmbar (`atencao-`)
+      // também é cor de estado, e uma negação de duas cores não o vê.
+      const classes = pilula.className.split(/\s+/)
+      expect(classes).toContain('bg-acao-fundo')
+      expect(classes).toContain('text-acao')
       expect(pilula.className).not.toMatch(/positivo-/)
       expect(pilula.className).not.toMatch(/negativo-/)
     }

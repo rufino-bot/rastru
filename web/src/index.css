@@ -73,7 +73,10 @@
 
 /*
   Tokens da Fase 1D. A paleta e a regra que a sustenta estão em
-  `docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md` §3.
+  `docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md` §3 — que é o registro da 1D e não
+  tem o âmbar: o tom de atenção (`atencao-texto` e `atencao-fundo`) entrou depois, e a origem dele
+  é a emenda de 2026-09-29 da §6.1 de
+  `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`.
 
   REGRA: cor de identidade nunca significa estado; cor de estado nunca decora. Verde, vermelho e
   âmbar são RESERVADOS — aprovado/ativo, reprovado/perda/erro e atenção (hoje, Pedido pausado). É isso que faz a tela de Qualidade da

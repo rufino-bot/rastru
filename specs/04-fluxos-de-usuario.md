@@ -38,8 +38,8 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 1. **PCP** confere que todo nó tem Roteiro; nó sem Roteiro aparece como pendência na árvore, e o PCP
    o edita (regra 28).
-2. **Operador** abre a fila do seu Setor e vê o que está a iniciar ali, em trabalho, aguardando
-   coleta, aguardando montagem e a sobra.
+2. **Operador** abre a fila do seu Setor e vê, nesta ordem, o que está em trabalho, o que está a
+   iniciar ali, o que está aguardando montagem, o que está aguardando coleta e a sobra.
 3. Ao pegar o material para trabalhar num nó cujo primeiro passo é ali, **inicia** uma quantidade
    (regra 28). Ao terminar, **termina** a quantidade feita: ela passa a aguardar coleta. O lote é
    divisível, e o que se valida é a conservação de quantidade (nunca movimentar mais do que existe

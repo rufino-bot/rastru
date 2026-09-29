@@ -138,7 +138,7 @@ Concluídas até aqui:
   estado.
 
 A seguir vêm, nesta ordem, os **filtros da fila do Setor** (por Material e por Pedido; o desenho
-ainda passa por brainstorm), a **Fase 1F** (cadastro sob demanda; a spec dela vive numa branch, não
+ainda passa por brainstorm), a **Fase 1F** (cadastro sob demanda; a spec dela, em 2026-09-29, vive numa branch, não
 na `main`) e a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como de montagem —
 hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de iniciado; a
 trava de montagem, para o nó que já tem filhos ao entrar em produção, já é estrutural desde a 3D).

@@ -51,6 +51,11 @@ describe('LinhaDePedido', () => {
 
     renderizar({ ...PEDIDO, status: 'EmProducao' })
     const neutra = screen.getByText('EmProducao').className
+    // Neutro afirmado token a token: o âmbar (`atencao-`) também é cor de estado, e "nem verde nem
+    // vermelho" não o vê.
+    const classesNeutras = neutra.split(/\s+/)
+    expect(classesNeutras).toContain('bg-acao-fundo')
+    expect(classesNeutras).toContain('text-acao')
     expect(neutra).not.toMatch(/positivo-/)
     expect(neutra).not.toMatch(/negativo-/)
   })
