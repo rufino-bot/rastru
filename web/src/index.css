@@ -75,8 +75,8 @@
   Tokens da Fase 1D. A paleta e a regra que a sustenta estão em
   `docs/superpowers/specs/2026-08-06-fase-1d-ui-e-ux-design.md` §3.
 
-  REGRA: cor de identidade nunca significa estado; cor de estado nunca decora. Verde e vermelho
-  são RESERVADOS — aprovado/ativo e reprovado/perda/erro. É isso que faz a tela de Qualidade da
+  REGRA: cor de identidade nunca significa estado; cor de estado nunca decora. Verde, vermelho e
+  âmbar são RESERVADOS — aprovado/ativo, reprovado/perda/erro e atenção (hoje, Pedido pausado). É isso que faz a tela de Qualidade da
   Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
 
   Todo tom novo aqui precisa de par declarado em `src/tema/contraste.test.ts`, senão a suíte
@@ -128,6 +128,8 @@
   --color-negativo: #DC2626;         /* passa AA nos dois papéis */
   --color-negativo-texto: #B91C1C;   /* texto sobre a tinta do banner */
   --color-negativo-fundo: #FDF4F4;   /* tinta do banner de erro; valor FIXO, não composto */
+  --color-atencao-texto: #854D0E;    /* rótulo de estado de atenção (âmbar escuro) */
+  --color-atencao-fundo: #FEF9C3;    /* tinta da pílula de atenção (amarelo claro); valor FIXO, não composto */
 
   /* Neutros, com viés verde-acinzentado para casarem com o chrome */
   --color-tinta: #1C2422;

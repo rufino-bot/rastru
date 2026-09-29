@@ -116,7 +116,10 @@ describe('TarefasPage', () => {
 
     const pausado = (await screen.findByText('SUP-01 — Suporte')).closest('li')!
     expect(within(pausado).getByText('Pausado')).toBeTruthy()
-    expect(within(pausado).getByText('Pausado').className).not.toMatch(/negativo-|positivo-/)
+    const classesDaPilula = within(pausado).getByText('Pausado').className.split(/\s+/)
+    expect(classesDaPilula).toContain('bg-atencao-fundo')
+    expect(classesDaPilula).toContain('text-atencao-texto')
+    expect(classesDaPilula.some((c) => /negativo-|positivo-/.test(c))).toBe(false)
     const livre = screen.getByText('Parafuso').closest('li')!
     expect(within(livre).queryByText('Pausado')).toBeNull()
     const caixa = screen.getByRole('checkbox', { name: 'Levar SUP-01 — Suporte' }) as HTMLInputElement

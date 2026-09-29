@@ -964,13 +964,15 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
     expect(screen.queryByText('Pausados')).toBeNull()
   })
 
-  it('a pilula "Pausado" e neutra', async () => {
+  it('a pilula "Pausado" usa o tom de atencao, nunca o de erro nem o de aprovado', async () => {
     vi.stubGlobal('fetch', montarFetch([A_INICIAR_MISTA]).fetchMock)
 
     renderizar()
 
-    const classes = (await screen.findByText('Pausado')).className
-    expect(classes).not.toMatch(/negativo-|positivo-/)
+    const classes = (await screen.findByText('Pausado')).className.split(/\s+/)
+    expect(classes).toContain('bg-atencao-fundo')
+    expect(classes).toContain('text-atencao-texto')
+    expect(classes.some((c) => /negativo-|positivo-/.test(c))).toBe(false)
   })
 
   it('o pai de Pedido pausado no card de montagem nao tem Iniciar, mas o card e os filhos continuam', async () => {

@@ -111,7 +111,7 @@ export function PedidoDetalhePage() {
           <p className="flex flex-wrap items-center gap-2 text-sm text-tinta-fraca">
             <Pilula>{pedido.tipo}</Pilula>
             <Pilula>{pedido.status}</Pilula>
-            {pedido.pausa && <Pilula>Pausado</Pilula>}
+            {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
             aberto em {formatarDataHora(pedido.dataAbertura)}
           </p>
           <ControleDePausa pedido={pedido} aoMudar={() => carregar(pedidoId)} />

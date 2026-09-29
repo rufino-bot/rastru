@@ -208,7 +208,7 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
             >
               <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
                 {rotuloDoNo(item.no)}
-                {item.no.pausa && <Pilula>Pausado</Pilula>}
+                {item.no.pausa && <Pilula tom="atencao">Pausado</Pilula>}
               </span>
               <span className="text-xs text-tinta-fraca">{caminhoDoNo(item.no)}</span>
               <span className="text-sm text-tinta">{`${formatarQuantidade(item.quantidade)} pronto(s) · passo ${item.ordem}`}</span>

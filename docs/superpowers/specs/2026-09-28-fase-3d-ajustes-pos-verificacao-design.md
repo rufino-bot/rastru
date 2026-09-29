@@ -383,7 +383,9 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
   confirmação e o campo de quantidade usam o mesmo texto.
 - A pílula **"Pausado"** aparece em toda linha de Pedido pausado, em qualquer seção; o motivo, quando há,
   vai ao lado. Tom **neutro** — pausado não é erro nem perda, e o vermelho `negativo` fica reservado
-  (seção "Interface" do `CLAUDE.md`).
+  (seção "Interface" do `CLAUDE.md`). **Emenda de 2026-09-29** (verificação no celular, decisão do
+  usuário): o tom passou a **`atencao`** (âmbar/amarelo), um terceiro estado reservado ao lado do verde e do
+  vermelho, reaproveitável fora da pílula; a metade "nunca `negativo`" continua valendo.
 - O Estornar reaproveita o padrão do `HistoricoDoNo`: trava de duplo toque, recarga depois de 409,
   confirmação com botão `primario` (estorno é correção, não destruição). Depois de estornar, a fila
   recarrega e o contador de Tarefas reconta.

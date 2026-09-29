@@ -67,12 +67,13 @@ describe('LinhaDePedido', () => {
     expect(screen.queryByText(/28\/09\/2026/)).toBeNull()
   })
 
-  it('a pilula "Pausado" e neutra: vermelho e verde sao reservados a estado de verdade', () => {
+  it('a pilula "Pausado" usa o tom de atencao: vermelho e verde sao reservados a erro e aprovado', () => {
     renderizar({ ...PEDIDO, pausa: { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: null } })
 
-    const classes = screen.getByText('Pausado').className
-    expect(classes).not.toMatch(/positivo-/)
-    expect(classes).not.toMatch(/negativo-/)
+    const classes = screen.getByText('Pausado').className.split(/\s+/)
+    expect(classes).toContain('bg-atencao-fundo')
+    expect(classes).toContain('text-atencao-texto')
+    expect(classes.some((c) => /positivo-|negativo-/.test(c))).toBe(false)
   })
 
   it('estende a area clicavel ao item inteiro', () => {

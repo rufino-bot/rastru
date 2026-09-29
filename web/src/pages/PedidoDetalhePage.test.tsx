@@ -90,7 +90,7 @@ describe('PedidoDetalhePage', () => {
   describe('pausa do Pedido', () => {
     const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
 
-    it('Pedido pausado mostra a pilula neutra e o aviso com quem, quando e por que', async () => {
+    it('Pedido pausado mostra a pilula de atencao e o aviso com quem, quando e por que', async () => {
       vi.stubGlobal('fetch', fetchPorRota({
         '/api/pedidos/7': () => respostaJson({ ...PEDIDO, pausa: PAUSA }),
         '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
@@ -99,7 +99,10 @@ describe('PedidoDetalhePage', () => {
       renderizarDetalhe()
 
       const pilula = await screen.findByText('Pausado')
-      expect(pilula.className).not.toMatch(/negativo-|positivo-/)
+      const classes = pilula.className.split(/\s+/)
+      expect(classes).toContain('bg-atencao-fundo')
+      expect(classes).toContain('text-atencao-texto')
+      expect(classes.some((c) => /negativo-|positivo-/.test(c))).toBe(false)
       expect(screen.getByText(/Pausado desde 28\/09\/2026 10:14 por PCP — PED-9 urgente\./)).toBeTruthy()
     })
 

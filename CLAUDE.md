@@ -307,8 +307,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   varredura**, e a diferença foi medida em 2026-08-28: com `lang="en"` no arquivo, os 374 testes de
   então ficavam **verdes**, porque teste de tela monta componente no jsdom e nunca olha o documento
   que hospeda o React.
-- **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`) e
-  vermelho (`negativo`) são reservados a aprovado/ativo e reprovado/perda/erro. É o que faz a tela
+- **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`),
+  vermelho (`negativo`) e âmbar (`atencao`) são reservados a aprovado/ativo, reprovado/perda/erro e atenção (hoje, Pedido pausado). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado

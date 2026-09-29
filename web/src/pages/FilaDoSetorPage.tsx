@@ -449,7 +449,7 @@ function CabecalhoDoNo({ no }: { no: NoResumoDto }) {
     <>
       <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
         {rotuloDoNo(no)}
-        {no.pausa && <Pilula>Pausado</Pilula>}
+        {no.pausa && <Pilula tom="atencao">Pausado</Pilula>}
       </span>
       <span className="text-xs text-tinta-fraca">{caminhoDoNo(no)}</span>
       {no.pausa?.motivo && <span className="text-xs text-tinta-fraca">{`Pausa: ${no.pausa.motivo}`}</span>}
