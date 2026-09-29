@@ -80,10 +80,11 @@ public class EntregaUseCaseTests
   }
 
   /// <summary>
-  /// Spec secao 4.3: a checagem de "pai sem Roteiro" vem ANTES da checagem de destino nulo em
-  /// `ParaAMontagem`. Com D7 a tela mostra um Item pronto cujo pai nao tem Roteiro sem nenhum Setor
-  /// para escolher, entao o pedido natural chega sem `destinoSetorId` e tem de cair aqui tambem, nao em
-  /// `DestinoIndevido`.
+  /// Em `ParaAMontagem` a checagem de "pai sem Roteiro" vem ANTES da de destino mandado: e a recusa
+  /// que diz o que fazer (o PCP define o Roteiro), entao o pedido com `destinoSetorId` preenchido cai
+  /// em `PaiSemRoteiro`, nao em `DestinoIndevido` — e o que a primeira chamada abaixo afirma. A segunda,
+  /// sem destino (o pedido natural, desde que o destino nao se escolhe), chega a `PaiSemRoteiro` porque
+  /// nao ha primeiro passo do pai; ali a ordem das checagens nao importa, e ela fica como o caso comum.
   /// </summary>
   [Fact]
   public async Task Pai_sem_Roteiro_da_PaiSemRoteiro()
