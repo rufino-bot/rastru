@@ -149,10 +149,12 @@ describe('PedidosPage', () => {
     expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
-  // C1 (achado da review da Task 8): numa falha o hook mantém `total` em 0, então `total === 0`
-  // sozinho também é verdade quando a causa é falha de rede — o "Nenhum pedido aberto" apareceria
-  // JUNTO do banner de erro, afirmando um fato sobre o banco a partir de uma falha de conexão. O
-  // que separa os dois casos é o `erroDeLeitura === null` na condição do estado vazio.
+  // C1 (achado de review): o hook só zera `total` na montagem, então numa falha da PRIMEIRA carga
+  // `total === 0` sozinho também é verdade quando a causa é falha de rede — o "Nenhum pedido
+  // aberto" apareceria JUNTO do banner de erro, afirmando um fato sobre o banco a partir de uma
+  // falha de conexão. O que separa os dois casos é o `erroDeLeitura === null` na condição do
+  // estado vazio. (Depois de uma carga que deu certo, uma recarga que falha mantém o `total` e a
+  // lista da consulta anterior, e este teste não a cobre.)
   it('não mostra o estado vazio quando a listagem falha', async () => {
     vi.stubGlobal('fetch', api({ '/api/pedidos': () => respostaJson({ erro: 'Falhou' }, 500) }))
 
@@ -409,7 +411,7 @@ describe('PedidosPage', () => {
     expect(await screen.findByText('PED-001')).toBeTruthy()
   })
 
-  // Review Focus: URL colada à mão. `?material=abc` viraria 400 no servidor e a tela quebraria;
+  // URL colada à mão: `?material=abc` viraria 400 no servidor e a tela quebraria;
   // a página só manda ao servidor o que ele aceita, e mostra o resto como opção ausente, removível.
   it('valor invalido da URL nao vai ao servidor e fica visivel como ausente', async () => {
     const fetchMock = api()

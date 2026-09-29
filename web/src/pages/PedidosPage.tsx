@@ -215,10 +215,12 @@ export function PedidosPage() {
       {lista.carregando ? (
         <EstadoCarregando />
       ) : erroDeLeitura === null && lista.total === 0 ? (
-        // `erroDeLeitura === null` é o que distingue "não há pedidos" de "a listagem falhou": no
-        // erro o hook mantém `total` em 0, então `total === 0` sozinho também seria verdade numa
-        // falha de rede — mostrando este estado vazio JUNTO do banner de erro, afirmando "nenhum
-        // pedido aberto" a partir de uma falha de conexão.
+        // `erroDeLeitura === null` é o que distingue "não há pedidos" de "a listagem falhou": o hook
+        // só zera `total` na montagem, então numa falha da PRIMEIRA carga `total === 0` sozinho
+        // também seria verdade, e mostraria este estado vazio JUNTO do banner de erro, afirmando
+        // "nenhum pedido" a partir de uma falha de conexão. Depois de uma carga que deu certo, uma
+        // recarga que falha mantém `total` e a lista da consulta ANTERIOR (o banner
+        // avisa), e a guarda continua valendo nos dois casos.
         //
         // E há dois vazios: "não achei" (busca ou filtro) e "não há nada" (cadastro).
         filtrando ? (
