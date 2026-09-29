@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   obterFila, iniciar, terminar, entregar, estornar, ehConflito,
@@ -10,6 +10,8 @@ import {
   caminhoDoNo, descreverDestino, formatarQuantidade, mensagemDoEstorno, rotuloDaAcao, rotuloDoNo,
 } from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
+import { CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila } from '../execucao/filtroDaDemanda'
+import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { FormularioDeQuantidade } from '../execucao/FormularioDeQuantidade'
 import { ListaDeEstornaveis } from '../execucao/ListaDeEstornaveis'
@@ -18,7 +20,8 @@ import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { EstadoVazio } from '../components/EstadoVazio'
-import { ListaDeCadastro } from '../components/ListaDeCadastro'
+import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
+import { FiltroDeDemanda } from '../components/FiltroDeDemanda'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Botao } from '../components/Botao'
 import { Confirmacao } from '../components/Confirmacao'
@@ -85,12 +88,19 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   return chaves
 }
 
+/** Nenhuma seção, nenhuma linha: a fila realmente vazia (não a que o filtro esvaziou). */
+function estaVazia(fila: FilaDoSetorDto): boolean {
+  return fila.aIniciar.length === 0 && fila.emTrabalho.length === 0
+    && fila.aguardandoColeta.length === 0 && fila.aguardandoMontagem.length === 0 && fila.sobra.length === 0
+}
+
 const SAIU_DA_FILA = 'O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.'
 
 function FilaDoSetor({ setorId }: { setorId: number }) {
   const { dados: fila, carregando, erro, recarregar } = useCargaPeriodica(
     () => obterFila(setorId), setorId, INTERVALO_DA_EXECUCAO_MS, 'Não foi possível carregar a fila.',
   )
+  const { selecao, mudarSelecao, limpar } = useSelecaoNaUrl(CHAVES_DA_DEMANDA)
   const [aberta, setAberta] = useState<string | null>(null)
   const [erroDaAcao, setErroDaAcao] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
@@ -102,6 +112,11 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
 
   // Lembra só o Setor cuja fila CARREGOU: um Id digitado na barra que dá 404 não vira lembrança.
   useEffect(() => { if (fila?.setorId === setorId) lembrarSetor(setorId) }, [fila, setorId])
+
+  // O filtro só muda o que se DESENHA. O aviso `SAIU_DA_FILA` e as chaves de ação (`chavesDaFila`)
+  // valem para a resposta inteira: esconder uma linha pelo filtro não é outra pessoa tê-la movido.
+  const filtrada = useMemo(() => (fila ? filtrarFila(fila, selecao) : null), [fila, selecao])
+  const facetas = useMemo(() => (fila ? facetasDaFila(fila, selecao) : []), [fila, selecao])
 
   // A atualização (periódica, ou a recarga depois de um 409) tirou da fila a linha cujo formulário
   // está aberto. O formulário fecha, e o aviso — com a recusa do servidor, se foi ela — sobe para o
@@ -185,10 +200,14 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
           última carga boa (a decisão "falha de atualização mantém os dados" de `useCargaPeriodica`). */}
       <BannerDeErro mensagem={erro} />
       <BannerDeErro mensagem={aviso} />
+      {/* Só com dado de verdade: a fila realmente vazia não tem o que filtrar. */}
+      {fila && !estaVazia(fila) && <FiltroDeDemanda facetas={facetas} selecao={selecao} aoMudar={mudarSelecao} />}
       {carregando && <EstadoCarregando />}
-      {fila && (
+      {fila && filtrada && (
         <SecoesDaFila
-          fila={fila}
+          fila={filtrada}
+          completa={fila}
+          aoLimparFiltros={limpar}
           acoes={{
             aberta, erroDaAcao, abrir, fechar, registrar, setorId,
             pedirEstorno, escolherEstorno: setAConfirmar, estornando,
@@ -220,7 +239,16 @@ interface AcoesDaFila {
   estornando: boolean
 }
 
-function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFila }) {
+/**
+ * `fila` é a que o filtro deixou; `completa`, a resposta inteira. A seção que tinha linha e perdeu
+ * todas pelo filtro continua na tela com o próprio vazio, para o operador ver ONDE o filtro cortou.
+ */
+function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
+  fila: FilaDoSetorDto
+  completa: FilaDoSetorDto
+  aoLimparFiltros: () => void
+  acoes: AcoesDaFila
+}) {
   const { apontar, entregar: podeEntregar, podeEstornar } = usePermissoesDaExecucao()
   const { aberta, erroDaAcao, abrir, fechar, registrar, setorId, pedirEstorno, escolherEstorno, estornando } = acoes
   const rotuloDeIniciar = rotuloDaAcao('Iniciar', fila.setorAtividade)
@@ -278,9 +306,7 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
     ))
   }
 
-  const vazia = fila.aIniciar.length === 0 && fila.emTrabalho.length === 0
-    && fila.aguardandoColeta.length === 0 && fila.aguardandoMontagem.length === 0 && fila.sobra.length === 0
-  if (vazia) {
+  if (estaVazia(completa)) {
     return (
       <EstadoVazio
         titulo="Nada neste Setor agora"
@@ -288,11 +314,21 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
       />
     )
   }
+  if (estaVazia(fila)) {
+    return (
+      <EstadoVazio
+        titulo="Nada nesta fila com esses filtros"
+        descricao="Nenhuma linha da fila combina com o que está marcado."
+        acao={<Botao variante="secundario" onClick={aoLimparFiltros}>Limpar filtros</Botao>}
+      />
+    )
+  }
 
   return (
     <>
-      {fila.emTrabalho.length > 0 && (
+      {completa.emTrabalho.length > 0 && (
         <Secao titulo="Em trabalho">
+          {fila.emTrabalho.length === 0 && <SemLinhaNoFiltro />}
           {fila.emTrabalho.map((l) => {
             const chaveEstornar = chaveDeEstornar('em-trabalho', l.no.id, l.ordem)
             const terminarAqui = apontar ? botao(chaveDeTerminar(l.no.id, l.ordem), rotuloDeTerminar, l.no) : undefined
@@ -322,8 +358,9 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           })}
         </Secao>
       )}
-      {fila.aIniciar.length > 0 && (
+      {completa.aIniciar.length > 0 && (
         <Secao titulo="A iniciar aqui">
+          {fila.aIniciar.length === 0 && <SemLinhaNoFiltro />}
           {fila.aIniciar.filter((l) => l.no.pausa === null).map((l) => (
             <ItemComAcao
               key={`${l.no.id}-${l.ordem}`}
@@ -355,8 +392,9 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           ))}
         </Secao>
       )}
-      {fila.aguardandoMontagem.length > 0 && (
+      {completa.aguardandoMontagem.length > 0 && (
         <Secao titulo="Aguardando montagem">
+          {fila.aguardandoMontagem.length === 0 && <SemLinhaNoFiltro />}
           {fila.aguardandoMontagem.map((g) => {
             const filhoAberto = g.filhos.find((f) => chaveDeLevar(g.pai.id, f.no.id) === aberta)
             const levarPara = g.primeiroPassoDoPai
@@ -401,8 +439,9 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           })}
         </Secao>
       )}
-      {fila.aguardandoColeta.length > 0 && (
+      {completa.aguardandoColeta.length > 0 && (
         <Secao titulo="Aguardando coleta">
+          {fila.aguardandoColeta.length === 0 && <SemLinhaNoFiltro />}
           {fila.aguardandoColeta.map((l) => (
             <ItemComAcao
               key={`${l.no.id}-${l.ordem}`}
@@ -416,8 +455,9 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
           ))}
         </Secao>
       )}
-      {fila.sobra.length > 0 && (
+      {completa.sobra.length > 0 && (
         <Secao titulo="Sobra">
+          {fila.sobra.length === 0 && <SemLinhaNoFiltro />}
           {fila.sobra.map((s) => (
             <ItemComAcao
               key={`${s.no.id}-${s.origem}-${s.ordem ?? ''}`}
@@ -442,6 +482,10 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
       <ListaDeCadastro rotulo={titulo}>{children}</ListaDeCadastro>
     </section>
   )
+}
+
+function SemLinhaNoFiltro() {
+  return <ItemDeCadastro>Nada nesta seção com esses filtros.</ItemDeCadastro>
 }
 
 function CabecalhoDoNo({ no }: { no: NoResumoDto }) {

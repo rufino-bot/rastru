@@ -65,6 +65,9 @@ function renderizar(caminho = '/fila/1') {
   )
 }
 
+/** O filtro é leitura e aparece para todo perfil: nos testes de "sem ação nenhuma", é o único botão. */
+const rotulosDosBotoes = () => screen.queryAllByRole('button').map((b) => b.textContent)
+
 describe('FilaDoSetorPage — leitura', () => {
   beforeEach(() => {
     perfil = 'Administrador'
@@ -672,8 +675,9 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
 
     expect(await screen.findByRole('list', { name: 'A iniciar aqui' })).toBeTruthy()
     expect(screen.getByRole('list', { name: 'Aguardando montagem' })).toBeTruthy()
-    // Sem ação nenhuma: "Trocar de Setor" continua na tela, mas é um link, não conta aqui.
-    expect(screen.queryByRole('button')).toBeNull()
+    // Sem ação nenhuma: "Trocar de Setor" continua na tela, mas é um link, não conta aqui. O filtro é
+    // leitura e existe para todos, então o único botão é o dele.
+    expect(rotulosDosBotoes()).toEqual(['Filtrar'])
   })
 
   it('a Gestão também não leva o filho, onde o Movimentador leva', async () => {
@@ -683,7 +687,7 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
     renderizar()
 
     expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(rotulosDosBotoes()).toEqual(['Filtrar'])
   })
 })
 
@@ -880,7 +884,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
     renderizar()
     await screen.findByText('8 aguardando coleta · passo 1')
 
-    expect(screen.queryByRole('button')).toBeNull()
+    expect(rotulosDosBotoes()).toEqual(['Filtrar'])
   })
 
   it('linha sem ação nenhuma não ganha o contêiner de ações vazio', async () => {
@@ -1076,5 +1080,206 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
     expect(screen.queryByLabelText('Quantidade')).toBeNull()
     expect(screen.getByRole('alert').textContent)
       .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
+  })
+})
+
+describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
+  beforeEach(() => {
+    perfil = 'Administrador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const CHAPA_3 = { id: 3, codigo: 'CH-300', descricao: 'Chapa SAE 1020 3,00 mm' }
+  const CHAPA_6 = { id: 6, codigo: 'CH-600', descricao: 'Chapa SAE 1020 6,00 mm' }
+  // Pedido 1 (PED-2026-01, Metalúrgica Alfa): o SUPORTE da massa comum. Pedido 2: a TAMPA.
+  const DO_PEDIDO_1 = no({ materiais: [CHAPA_3] })
+  const DO_PEDIDO_2 = no({
+    id: 21, descricao: 'Tampa', codigoDoComponente: 'TP-01', pedidoId: 2, pedidoNumero: 'PED-2026-02',
+    pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null, materiais: [CHAPA_6],
+  })
+  const linha = (n: ReturnType<typeof no>, ordem = 1) => ({ no: n, ordem, quantidade: 5, estornaveis: [] as Estornavel[] })
+
+  const DOIS_PEDIDOS = fila({ aIniciar: [linha(DO_PEDIDO_1), linha(DO_PEDIDO_2)] })
+
+  /** O `search` da rota, para provar o que o filtro escreveu na URL. */
+  function UrlAtual() {
+    const { search } = useLocation()
+    return <p>{`url: ${search}`}</p>
+  }
+
+  function renderizarComUrl(caminho: string) {
+    return render(
+      <MemoryRouter initialEntries={[caminho]}>
+        <Routes>
+          <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
+        </Routes>
+        <UrlAtual />
+      </MemoryRouter>,
+    )
+  }
+
+  const abrirFiltro = () => fireEvent.click(screen.getByRole('button', { name: /^Filtrar/ }))
+
+  it('mostra o filtro com as facetas da fila', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizarComUrl('/fila/1')
+
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    abrirFiltro()
+    const material = screen.getByRole('group', { name: 'Material' })
+    expect(within(material).getByRole('checkbox', { name: 'Chapa SAE 1020 3,00 mm' })).toBeTruthy()
+    expect(within(material).getByRole('checkbox', { name: 'Chapa SAE 1020 6,00 mm' })).toBeTruthy()
+    const pedido = screen.getByRole('group', { name: 'Pedido' })
+    expect(within(pedido).getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' })).toBeTruthy()
+    expect(within(pedido).getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' })).toBeTruthy()
+  })
+
+  it('fila realmente vazia nao mostra o filtro', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila()]).fetchMock)
+
+    renderizarComUrl('/fila/1')
+
+    await screen.findByText('Nada neste Setor agora')
+    expect(screen.queryByRole('button', { name: /^Filtrar/ })).toBeNull()
+  })
+
+  it('a selecao da URL filtra a fila na primeira carga', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizarComUrl('/fila/1?pedido=1')
+
+    const lista = await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(within(lista).getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(within(lista).queryByText('TP-01 — Tampa')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' })).toBeTruthy()
+  })
+
+  it('marcar uma opcao escreve na URL', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizarComUrl('/fila/1')
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' }))
+
+    expect(screen.getByText('url: ?pedido=2')).toBeTruthy()
+    const lista = screen.getByRole('list', { name: 'A iniciar aqui' })
+    expect(within(lista).getByText('TP-01 — Tampa')).toBeTruthy()
+    expect(within(lista).queryByText('SUP-01 — Suporte')).toBeNull()
+  })
+
+  it('secao que fica sem linha pelo filtro mostra o proprio vazio, e as secoes seguem na mesma ordem', async () => {
+    const destinoColeta = destino()
+    const f = fila({
+      emTrabalho: [linha(DO_PEDIDO_2)],
+      aIniciar: [linha(DO_PEDIDO_1)],
+      aguardandoMontagem: [{
+        pai: no({ id: 30, descricao: 'Estrutura', codigoDoComponente: 'ES-01', pedidoId: 2, pedidoNumero: 'PED-2026-02', pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null }),
+        faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, filhos: [],
+      }],
+      aguardandoColeta: [{ ...linha(DO_PEDIDO_1), destino: destinoColeta }],
+      sobra: [{ no: DO_PEDIDO_2, origem: 'UltimoPasso', ordem: 1, quantidade: 1, emMaisDeUmSetor: false, estornaveis: [] }],
+    })
+    vi.stubGlobal('fetch', montarFetch([f]).fetchMock)
+
+    renderizarComUrl('/fila/1?pedido=1')
+
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent))
+      .toEqual(['Em trabalho', 'A iniciar aqui', 'Aguardando montagem', 'Aguardando coleta', 'Sobra'])
+    const vazio = 'Nada nesta seção com esses filtros.'
+    for (const secao of ['Em trabalho', 'Aguardando montagem', 'Sobra']) {
+      expect(within(screen.getByRole('list', { name: secao })).getByText(vazio)).toBeTruthy()
+    }
+    expect(screen.getAllByText(vazio)).toHaveLength(3)
+    expect(within(screen.getByRole('list', { name: 'A iniciar aqui' })).getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(within(screen.getByRole('list', { name: 'Aguardando coleta' })).getByText('SUP-01 — Suporte')).toBeTruthy()
+  })
+
+  it('fila que fica vazia pelo filtro mostra o vazio do filtro com Limpar filtros', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ aIniciar: [linha(DO_PEDIDO_2)] })]).fetchMock)
+
+    renderizarComUrl('/fila/1?pedido=1')
+
+    expect(await screen.findByText('Nada nesta fila com esses filtros')).toBeTruthy()
+    expect(screen.queryByText('Nada neste Setor agora')).toBeNull()
+    expect(screen.queryByRole('list', { name: 'A iniciar aqui' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+
+    expect(await screen.findByText('TP-01 — Tampa')).toBeTruthy()
+    expect(screen.getByText('url:')).toBeTruthy()
+    expect(screen.queryByText('Nada nesta fila com esses filtros')).toBeNull()
+  })
+
+  describe('"Pausados" dentro de "A iniciar aqui"', () => {
+    const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'urgente' }
+    const PAUSADO_DO_PEDIDO_1 = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null, pausa: PAUSA })
+    const MISTA = fila({ aIniciar: [linha(PAUSADO_DO_PEDIDO_1), linha(DO_PEDIDO_2)] })
+
+    it('Pausados some quando o filtro esconde todos os pausados', async () => {
+      vi.stubGlobal('fetch', montarFetch([MISTA]).fetchMock)
+
+      renderizarComUrl('/fila/1?pedido=2')
+
+      const lista = await screen.findByRole('list', { name: 'A iniciar aqui' })
+      expect(within(lista).getByText('TP-01 — Tampa')).toBeTruthy()
+      expect(screen.queryByText('Pausados')).toBeNull()
+      expect(screen.queryByText('BA-01 — Base')).toBeNull()
+    })
+
+    it('linha pausada que casa continua no subgrupo Pausados', async () => {
+      vi.stubGlobal('fetch', montarFetch([MISTA]).fetchMock)
+
+      renderizarComUrl('/fila/1?pedido=1')
+
+      const lista = await screen.findByRole('list', { name: 'A iniciar aqui' })
+      const itens = Array.from(lista.children).map((li) => li.textContent ?? '')
+      expect(itens).toHaveLength(2)
+      expect(itens[0]).toBe('Pausados')
+      expect(itens[1]).toContain('BA-01 — Base')
+      expect(screen.queryByText('TP-01 — Tampa')).toBeNull()
+    })
+  })
+
+  it('filtrar nao dispara o aviso de outra pessoa ter movido o item', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizarComUrl('/fila/1')
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' }))
+
+    expect(screen.queryByText('SUP-01 — Suporte')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // A linha só estava escondida: tirar o filtro a devolve com o formulário ainda aberto.
+    fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-02' }))
+    expect(screen.getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(screen.getByLabelText('Quantidade')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('opcao marcada que a atualizacao tirou continua marcada com zero', async () => {
+    vi.useFakeTimers()
+    const soPedido1 = fila({ aIniciar: [linha(DO_PEDIDO_1)] })
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS, soPedido1]).fetchMock)
+
+    renderizarComUrl('/fila/1?pedido=2')
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(screen.getByText('TP-01 — Tampa')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.getByText('Nada nesta fila com esses filtros')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-02' })).toBeTruthy()
+    abrirFiltro()
+    const caixa = screen.getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' }) as HTMLInputElement
+    expect(caixa.checked).toBe(true)
+    expect(within(caixa.parentElement!).getByText('0')).toBeTruthy()
   })
 })

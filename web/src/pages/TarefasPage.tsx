@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   listarTarefas, entregar, ehConflito,
   type ItemDaEntrega, type ItemDeTarefa, type TarefasDoSetorDto,
@@ -7,6 +7,8 @@ import { mensagemDeErro } from '../api/erros'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
 import { caminhoDoNo, descreverDestino, formatarQuantidade, rotuloDoNo } from '../execucao/formatacao'
 import { lerQuantidade, quantidadeParaCampo } from '../execucao/quantidade'
+import { CHAVES_DA_DEMANDA, facetasDasTarefas, filtrarTarefas } from '../execucao/filtroDaDemanda'
+import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -17,6 +19,7 @@ import { ItemComAcao } from '../components/ItemComAcao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Botao } from '../components/Botao'
 import { Pilula } from '../components/Pilula'
+import { FiltroDeDemanda } from '../components/FiltroDeDemanda'
 
 /** O que o Movimentador marcou para levar, por item. `quantidade` é o TEXTO do campo. */
 interface Escolha {
@@ -56,6 +59,10 @@ function erroDaEscolha(item: ItemDeTarefa, escolha: Escolha): string | null {
  * o que foi digitado. O que deixou de estar pronto sai da seleção, com aviso — entregar algo que
  * outra pessoa já levou só produziria um 409.
  *
+ * O filtro de Material e Pedido só muda o que se DESENHA. A seleção e o aviso de "saiu da lista"
+ * valem para a resposta inteira: o item marcado que o filtro esconde continua marcado e vai na
+ * entrega, e a página avisa quantos estão ocultos.
+ *
  * O destino de montagem vem calculado — o primeiro passo do pai (spec da Fase 3D, §2.2) —, então o
  * Movimentador não escolhe Setor.
  */
@@ -64,6 +71,7 @@ export function TarefasPage() {
     listarTarefas, 'tarefas', INTERVALO_DA_EXECUCAO_MS, 'Não foi possível carregar as tarefas.',
   )
   const { entregar: podeEntregar } = usePermissoesDaExecucao()
+  const { selecao, mudarSelecao, limpar } = useSelecaoNaUrl(CHAVES_DA_DEMANDA)
 
   const [escolhas, setEscolhas] = useState<Record<string, Escolha>>({})
   const [erroDaEntrega, setErroDaEntrega] = useState<string | null>(null)
@@ -98,6 +106,10 @@ export function TarefasPage() {
   const marcados = (grupos ?? []).flatMap((g) => g.itens
     .filter((i) => escolhas[chaveDoItem(g.setorId, i)] !== undefined)
     .map((i) => ({ grupo: g, item: i, escolha: escolhas[chaveDoItem(g.setorId, i)] })))
+  const visiveis = useMemo(() => (grupos ? filtrarTarefas(grupos, selecao) : []), [grupos, selecao])
+  const facetas = useMemo(() => (grupos ? facetasDasTarefas(grupos, selecao) : []), [grupos, selecao])
+  const chavesVisiveis = new Set(visiveis.flatMap((g) => g.itens.map((i) => chaveDoItem(g.setorId, i))))
+  const ocultos = marcados.filter(({ grupo, item }) => !chavesVisiveis.has(chaveDoItem(grupo.setorId, item))).length
   const algumInvalido = marcados.some(({ item, escolha }) => erroDaEscolha(item, escolha) !== null)
 
   async function enviar() {
@@ -125,19 +137,31 @@ export function TarefasPage() {
   }
 
   const vazia = grupos !== null && grupos.length === 0
+  const vaziaPeloFiltro = grupos !== null && grupos.length > 0 && visiveis.length === 0
 
   return (
     <Pagina titulo="Tarefas">
       <BannerDeErro mensagem={erro} />
       <BannerDeErro mensagem={aviso} />
+      {/* Só com dado de verdade: sem nenhuma tarefa não há o que filtrar. */}
+      {grupos !== null && grupos.length > 0 && (
+        <FiltroDeDemanda facetas={facetas} selecao={selecao} aoMudar={mudarSelecao} />
+      )}
       {carregando && <EstadoCarregando />}
+      {vaziaPeloFiltro && (
+        <EstadoVazio
+          titulo="Nada para levar com esses filtros"
+          descricao="Nenhum item pronto combina com o que está marcado."
+          acao={<Botao variante="secundario" onClick={limpar}>Limpar filtros</Botao>}
+        />
+      )}
       {vazia && (
         <EstadoVazio
           titulo="Nenhum item pronto para levar agora"
           descricao="Quando um Setor terminar algo que precisa ir a outro lugar, aparece aqui."
         />
       )}
-      {grupos?.map((g) => (
+      {visiveis.map((g) => (
         <GrupoDeTarefas
           key={g.setorId}
           grupo={g}
@@ -159,6 +183,11 @@ export function TarefasPage() {
           >
             {marcados.length === 0 ? 'Entregar' : `Entregar ${marcados.length} ${marcados.length === 1 ? 'item' : 'itens'}`}
           </Botao>
+          {ocultos > 0 && (
+            <p className="text-sm text-tinta-fraca">
+              {ocultos === 1 ? '1 marcado oculto pelo filtro' : `${ocultos} marcados ocultos pelo filtro`}
+            </p>
+          )}
         </div>
       )}
     </Pagina>

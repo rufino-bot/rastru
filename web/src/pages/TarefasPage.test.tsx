@@ -5,7 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { TarefasPage } from './TarefasPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
-import { SUPORTE, PARAFUSO, CHASSI, DESTINO_MONTAGEM, destino } from '../testes/execucao'
+import { SUPORTE, PARAFUSO, CHASSI, DESTINO_MONTAGEM, destino, no } from '../testes/execucao'
 import type { TarefasDoSetorDto } from '../api/execucao'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
@@ -51,8 +51,8 @@ function corpoDaEntrega(fetchMock: ReturnType<typeof vi.fn>): unknown {
   return JSON.parse((chamadas[0][1] as RequestInit).body as string)
 }
 
-function renderizar() {
-  return render(<MemoryRouter><TarefasPage /></MemoryRouter>)
+function renderizar(caminho = '/') {
+  return render(<MemoryRouter initialEntries={[caminho]}><TarefasPage /></MemoryRouter>)
 }
 
 describe('TarefasPage', () => {
@@ -313,5 +313,143 @@ describe('TarefasPage', () => {
     expect(await screen.findByRole('list', { name: 'Prontos em Corte' })).toBeTruthy()
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
+  })
+})
+
+describe('TarefasPage — filtro de Material e Pedido', () => {
+  beforeEach(() => {
+    perfil = 'Movimentador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const CHAPA_3 = { id: 3, codigo: 'CH-300', descricao: 'Chapa SAE 1020 3,00 mm' }
+  const CHAPA_6 = { id: 6, codigo: 'CH-600', descricao: 'Chapa SAE 1020 6,00 mm' }
+  const DO_PEDIDO_1 = no({ materiais: [CHAPA_3] })
+  const DO_PEDIDO_2 = no({
+    id: 21, descricao: 'Tampa', codigoDoComponente: 'TP-01', pedidoId: 2, pedidoNumero: 'PED-2026-02',
+    pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null, materiais: [CHAPA_6],
+  })
+  const item = (n: ReturnType<typeof no>) => ({ no: n, ordem: 1, quantidade: 4, destino: destino() })
+
+  // Corte tem um item de cada Pedido; Solda só do Pedido 2.
+  const DOIS_PEDIDOS: TarefasDoSetorDto[] = [
+    { setorId: 1, setorNome: 'Corte', itens: [item(DO_PEDIDO_1), item(DO_PEDIDO_2)] },
+    { setorId: 4, setorNome: 'Solda', itens: [item(no({ ...DO_PEDIDO_2, id: 22, descricao: 'Trava', codigoDoComponente: 'TR-01' }))] },
+  ]
+
+  const abrirFiltro = () => fireEvent.click(screen.getByRole('button', { name: /^Filtrar/ }))
+
+  it('filtra as tarefas por material e pedido e some o grupo vazio', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'Prontos em Solda' })
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
+
+    const corte = screen.getByRole('list', { name: 'Prontos em Corte' })
+    expect(within(corte).getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(within(corte).queryByText('TP-01 — Tampa')).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Prontos em Solda' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Em Solda' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Chapa SAE 1020 6,00 mm' }))
+
+    expect(within(screen.getByRole('list', { name: 'Prontos em Corte' })).queryByText('SUP-01 — Suporte')).toBeNull()
+    expect(within(screen.getByRole('list', { name: 'Prontos em Corte' })).getByText('TP-01 — Tampa')).toBeTruthy()
+    expect(screen.getByRole('list', { name: 'Prontos em Solda' })).toBeTruthy()
+  })
+
+  it('a selecao da URL filtra as tarefas na primeira carga', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizar('/?material=3')
+
+    const corte = await screen.findByRole('list', { name: 'Prontos em Corte' })
+    expect(within(corte).getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(within(corte).queryByText('TP-01 — Tampa')).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Prontos em Solda' })).toBeNull()
+  })
+
+  it('todos os grupos vazios pelo filtro mostram o vazio do filtro', async () => {
+    vi.stubGlobal('fetch', montarFetch([[DOIS_PEDIDOS[1]]]).fetchMock)
+
+    renderizar('/?pedido=1')
+
+    expect(await screen.findByText('Nada para levar com esses filtros')).toBeTruthy()
+    expect(screen.queryByText('Nenhum item pronto para levar agora')).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Prontos em Solda' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+
+    expect(await screen.findByRole('list', { name: 'Prontos em Solda' })).toBeTruthy()
+    expect(screen.queryByText('Nada para levar com esses filtros')).toBeNull()
+  })
+
+  it('sem tarefa nenhuma nao mostra o filtro, so o vazio de sempre', async () => {
+    vi.stubGlobal('fetch', montarFetch([[]]).fetchMock)
+
+    renderizar('/?pedido=1')
+
+    expect(await screen.findByText('Nenhum item pronto para levar agora')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Filtrar/ })).toBeNull()
+    expect(screen.queryByText('Nada para levar com esses filtros')).toBeNull()
+  })
+
+  it('item marcado e oculto pelo filtro continua na entrega', async () => {
+    const { fetchMock } = montarFetch([DOIS_PEDIDOS, []])
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+    fireEvent.click(screen.getByLabelText('Levar TP-01 — Tampa'))
+    expect(screen.queryByText(/oculto/)).toBeNull()
+
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
+
+    expect(screen.queryByLabelText('Levar TP-01 — Tampa')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Entregar 2 itens' })).toBeTruthy()
+    expect(screen.getByText('1 marcado oculto pelo filtro')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 2 itens' }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]) === '/api/entregas')).toBe(true))
+    expect(corpoDaEntrega(fetchMock)).toEqual({ itens: [
+      { estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4 },
+      { estruturaItemId: 21, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4 },
+    ] })
+  })
+
+  it('varios marcados ocultos vao no plural', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar TP-01 — Tampa'))
+    fireEvent.click(screen.getByLabelText('Levar TR-01 — Trava'))
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
+
+    expect(screen.getByText('2 marcados ocultos pelo filtro')).toBeTruthy()
+  })
+
+  it('filtrar nao tira item da selecao nem mostra o aviso de saiu da lista', async () => {
+    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar TP-01 — Tampa'))
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
+
+    // Tirar o filtro devolve o item ainda marcado, com o que já estava digitado.
+    fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' }))
+    expect((screen.getByLabelText('Levar TP-01 — Tampa') as HTMLInputElement).checked).toBe(true)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/oculto/)).toBeNull()
   })
 })

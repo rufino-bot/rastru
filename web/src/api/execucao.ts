@@ -1,7 +1,7 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
 import { avisarQueOLivroMudou } from './sinalDoLivro'
-import type { PausaResumoDto } from './cadastros'
+import type { MaterialResumoDto, PausaResumoDto } from './cadastros'
 
 /**
  * Cliente da execução (Fase 3). Os tipos espelham a seção "Contrato JSON" do plano 2 da Fase 3
@@ -71,10 +71,13 @@ export interface NoResumoDto {
   codigoDoComponente: string | null
   pedidoId: number
   pedidoNumero: string
+  pedidoCliente: string
   agrupamentoId: number
   agrupamentoCodigo: string
   paiId: number | null
   paiDescricao: string | null
+  /** Os Materiais do PRÓPRIO nó (não os do catálogo do Componente), por código; `[]` quando não há. */
+  materiais: MaterialResumoDto[]
   /** A pausa aberta do Pedido do nó; `null` quando o Pedido não está pausado. */
   pausa: PausaResumoDto | null
 }
