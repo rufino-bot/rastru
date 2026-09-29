@@ -254,6 +254,18 @@ public class EntregaUseCaseTests
   }
 
   [Fact]
+  public async Task Entregar_em_Pedido_pausado_continua_valendo()
+  {
+    var c = Cenario();
+    c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 8m);
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
+
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(2, Coleta(Corte, 1), null, 8m)), Movimentador, Ct);
+
+    Assert.True(r.Sucesso);
+  }
+
+  [Fact]
   public async Task No_inexistente_na_lista_da_404_e_Pedido_fechado_da_PedidoFechado()
   {
     var c = Cenario();

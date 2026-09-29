@@ -21,6 +21,10 @@ public class PedidoRepository : IPedidoRepository
           .OrderByDescending(p => p.DataAbertura)
           .ToListAsync(ct);
 
+  public Task<IReadOnlyDictionary<int, PausaAberta>> ListarPausasAbertasAsync(
+      IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
+      PausasAbertas.ListarAsync(_db, pedidoIds, ct);
+
   public async Task AdicionarAsync(Pedido pedido, CancellationToken ct) =>
       await _db.Pedidos.AddAsync(pedido, ct);
 

@@ -108,7 +108,11 @@ public sealed class ConsultaDeExecucaoUseCase
         .ToList();
 
     return Result<FilaDoSetorDto>.Ok(new FilaDoSetorDto(
-        setorId, setor.Nome, setor.Atividade, aIniciar, emTrabalho, coleta, montagem,
+        setorId, setor.Nome, setor.Atividade,
+        // O que e de Pedido pausado vai para o fim, e a tela o agrupa em "Pausados" (spec da Fase 3D,
+        // secao 2.5). OrderBy e estavel: dentro de cada grupo, a ordem de antes.
+        aIniciar.OrderBy(l => l.No.Pausa is null ? 0 : 1).ToList(),
+        emTrabalho, coleta, montagem,
         sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList()));
   }
 
@@ -234,7 +238,7 @@ public sealed class ConsultaDeExecucaoUseCase
     IReadOnlyDictionary<int, NoResumoDto> resumos = contexto.ToDictionary(x => x.No.Id, x => new NoResumoDto(
         x.No.Id, estado.Nome(x.No.Id), estado.Codigos.GetValueOrDefault(x.No.Id), x.PedidoId, x.PedidoNumero,
         x.AgrupamentoId, x.AgrupamentoCodigo, x.No.EstruturaPaiId,
-        x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null));
+        x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null, PausaResumoDto.De(x.Pausa)));
     return (estado, resumos);
   }
 

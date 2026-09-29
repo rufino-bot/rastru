@@ -173,6 +173,9 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
     ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
     ["PUT estrutura/{id:int}/roteiro"] = ["PCP", "Administrador"],
+    // Pausa de Pedido (Fase 3D): PCP e Gestao — prioridade e decisao de planejamento.
+    ["POST pedidos/{id:int}/pausas"] = ["PCP", "Gestao", "Administrador"],
+    ["POST pedidos/{id:int}/retomada"] = ["PCP", "Gestao", "Administrador"],
   };
 
   /// <summary>

@@ -272,12 +272,96 @@ public class ExecucaoRepositoryTests : TesteComBanco
     var repo = new ExecucaoRepository(db);
 
     await repo.MarcarPedidoEmProducaoAsync(c.Arvore.PedidoId, CancellationToken.None);
-    Assert.Equal(new PedidoDoNo(c.Arvore.PedidoId, "EmProducao"), await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None));
+    Assert.Equal(new PedidoDoNo(c.Arvore.PedidoId, "EmProducao", false), await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None));
 
     await db.Pedidos.Where(p => p.Id == c.Arvore.PedidoId)
         .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Concluido"));
     await repo.MarcarPedidoEmProducaoAsync(c.Arvore.PedidoId, CancellationToken.None);
     Assert.Equal("Concluido", (await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None))!.Status);
+  });
+
+  [Fact]
+  public Task ObterPedidoDoNo_diz_se_o_Pedido_esta_pausado_e_deixa_de_dizer_depois_de_fechada() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+    Assert.False((await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None))!.Pausado);
+
+    var pausa = new PedidoPausa { PedidoId = c.Arvore.PedidoId, PausadoEm = DateTime.UtcNow, PausadoPorUsuarioId = c.Arvore.AutorId };
+    repo.Adicionar(pausa);
+    await repo.SalvarAlteracoesAsync(CancellationToken.None);
+    Assert.True((await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None))!.Pausado);
+
+    await repo.FecharPausaAsync(pausa.Id, c.Arvore.AutorId, DateTime.UtcNow.AddMinutes(1), CancellationToken.None);
+    Assert.False((await repo.ObterPedidoDoNoAsync(c.ItemA, CancellationToken.None))!.Pausado);
+  });
+
+  [Fact]
+  public Task Fechar_a_pausa_nao_sobrescreve_um_fecho_ja_gravado() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+    var pausa = new PedidoPausa { PedidoId = c.Arvore.PedidoId, PausadoEm = DateTime.UtcNow, PausadoPorUsuarioId = c.Arvore.AutorId };
+    repo.Adicionar(pausa);
+    await repo.SalvarAlteracoesAsync(CancellationToken.None);
+    var primeiro = DateTime.UtcNow.AddMinutes(1);
+
+    await repo.FecharPausaAsync(pausa.Id, c.Arvore.AutorId, primeiro, CancellationToken.None);
+    await repo.FecharPausaAsync(pausa.Id, c.Arvore.AutorId, primeiro.AddHours(1), CancellationToken.None);
+
+    await using var leitura = NovoContexto();
+    var lida = await leitura.PedidoPausas.AsNoTracking().SingleAsync(p => p.Id == pausa.Id);
+    Assert.Equal(primeiro, lida.RetomadoEm!.Value, TimeSpan.FromSeconds(1));
+  });
+
+  [Fact]
+  public Task Nos_em_producao_trazem_a_pausa_aberta_com_o_nome_de_quem_pausou_so_nos_do_Pedido_pausado() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var outra = await ArvoreDeTesteNoBanco.CriarAsync(db, "exec2");
+    try
+    {
+      var noDoOutro = await outra.NovaPecaAsync(db, 1m);
+      var repo = new ExecucaoRepository(db);
+      repo.Adicionar(new PedidoPausa
+      {
+        PedidoId = c.Arvore.PedidoId, PausadoEm = DateTime.UtcNow, PausadoPorUsuarioId = c.Arvore.AutorId, Motivo = "urgente",
+      });
+      await repo.SalvarAlteracoesAsync(CancellationToken.None);
+      var nomeDeQuemPausou = (await db.Usuarios.AsNoTracking().SingleAsync(u => u.Id == c.Arvore.AutorId)).NomeCompleto;
+
+      var contexto = (await repo.ListarNosEmProducaoAsync(CancellationToken.None))
+          .Where(x => c.Nos.Contains(x.No.Id) || x.No.Id == noDoOutro).ToList();
+
+      var pausados = contexto.Where(x => c.Nos.Contains(x.No.Id)).ToList();
+      Assert.Equal(3, pausados.Count);
+      Assert.All(pausados, x =>
+      {
+        Assert.Equal(c.Arvore.PedidoId, x.Pausa!.PedidoId);
+        Assert.Equal((nomeDeQuemPausou, "urgente"), (x.Pausa.PausadoPorNome, x.Pausa.Motivo));
+      });
+      Assert.Null(Assert.Single(contexto, x => x.No.Id == noDoOutro).Pausa);
+    }
+    finally
+    {
+      await outra.LimparAsync(NovoContexto);
+    }
+  });
+
+  [Fact]
+  public Task Travar_Pedido_fora_de_transacao_lanca_e_dentro_devolve_o_Pedido() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+    await Assert.ThrowsAsync<InvalidOperationException>(() => repo.TravarPedidoAsync(c.Arvore.PedidoId, CancellationToken.None));
+
+    var travado = await repo.EmTransacaoAsync(
+        () => repo.TravarPedidoAsync(c.Arvore.PedidoId, CancellationToken.None), CancellationToken.None);
+    var inexistente = await repo.EmTransacaoAsync(
+        () => repo.TravarPedidoAsync(int.MaxValue, CancellationToken.None), CancellationToken.None);
+
+    Assert.Equal((c.Arvore.PedidoId, "Aberto"), (travado!.Id, travado.Status));
+    Assert.Null(inexistente);
   });
 
   [Fact]

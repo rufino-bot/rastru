@@ -5,7 +5,7 @@ describe('podeEscrever', () => {
   it('deixa Administrador escrever em tudo', () => {
     for (const r of [
       'setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos', 'estrutura',
-      'apontamento', 'entrega', 'roteiro', 'estorno',
+      'apontamento', 'entrega', 'roteiro', 'estorno', 'pausa',
     ] as const) {
       expect(podeEscrever('Administrador', r), r).toBe(true)
     }
@@ -55,6 +55,17 @@ describe('podeEscrever', () => {
       for (const r of ['apontamento', 'entrega', 'roteiro', 'estorno'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
       }
+    }
+  })
+
+  it('Fase 3D: pausar é do PCP e da Gestão, e de mais ninguém do chão', () => {
+    // Espelha `PausaDePedidoController`: prioridade é decisão de planejamento, e a Gestão entra aqui
+    // pela primeira vez como escritora.
+    for (const p of ['PCP', 'Gestao']) {
+      expect(podeEscrever(p, 'pausa'), p).toBe(true)
+    }
+    for (const p of ['Operador', 'Movimentador', 'Almoxarifado', 'Qualidade']) {
+      expect(podeEscrever(p, 'pausa'), p).toBe(false)
     }
   })
 

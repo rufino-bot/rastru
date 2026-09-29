@@ -51,6 +51,7 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
   [InlineData(typeof(ApontamentoUseCase))]
   [InlineData(typeof(EntregaUseCase))]
   [InlineData(typeof(EstornoUseCase))]
+  [InlineData(typeof(PausaDePedidoUseCase))]
   [InlineData(typeof(RoteiroDoNoUseCase))]
   [InlineData(typeof(ConsultaDeExecucaoUseCase))]
   public void Servico_e_registrado_como_Scoped(Type servico)

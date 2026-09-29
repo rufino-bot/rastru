@@ -78,6 +78,8 @@ internal sealed class CenarioDeExecucao
 
   public EstornoUseCase Estorno() => new(Execucao, Estruturas, Catalogo);
 
+  public PausaDePedidoUseCase Pausa() => new(Execucao);
+
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
 
   public MontagemDeEstruturaUseCase Estrutura() =>

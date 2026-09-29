@@ -1,3 +1,6 @@
+using System.ComponentModel.DataAnnotations;
+using Rastreamento.Domain.Abstractions;
+
 namespace Rastreamento.Application.Execucao;
 
 /// <summary>Uma posicao com o nome do Setor resolvido. Ver o "Contrato JSON" do plano 2.</summary>
@@ -49,7 +52,21 @@ public sealed record RoteiroDoNoDto(int EstruturaItemId, IReadOnlyList<PassoDoRo
 /// </summary>
 public sealed record NoResumoDto(
     int Id, string Descricao, string? CodigoDoComponente, int PedidoId, string PedidoNumero,
-    int AgrupamentoId, string AgrupamentoCodigo, int? PaiId, string? PaiDescricao);
+    int AgrupamentoId, string AgrupamentoCodigo, int? PaiId, string? PaiDescricao, PausaResumoDto? Pausa);
+
+/// <summary>A pausa aberta como as telas a mostram: desde quando, por quem, e o motivo.</summary>
+public sealed record PausaResumoDto(DateTime Desde, string PorUsuarioNome, string? Motivo)
+{
+  public static PausaResumoDto? De(PausaAberta? pausa) =>
+      pausa is null ? null : new PausaResumoDto(pausa.PausadoEm, pausa.PausadoPorNome, pausa.Motivo);
+}
+
+public sealed record PausaDto(
+    int Id, int PedidoId, DateTime PausadoEm, int PausadoPorUsuarioId, string PausadoPorNome, string? Motivo,
+    DateTime? RetomadoEm, int? RetomadoPorUsuarioId, string? RetomadoPorNome);
+
+/// <summary>`MaxLength` espelha o NVARCHAR(200) de `dbo.PedidoPausa.Motivo`.</summary>
+public sealed record NovaPausaDto([MaxLength(200)] string? Motivo);
 
 public sealed record SetorResumoDto(int Id, string Nome);
 

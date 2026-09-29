@@ -5,7 +5,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 ## 1. Cadastro de Pedido
 
-*Perfil: PCP*
+*Perfil: PCP (pausar e retomar o Pedido: PCP ou Gestão)*
 
 1. PCP cadastra Pedido (`Tipo = Fabricacao`), com Cliente e Número.
 2. PCP cadastra N Agrupamentos para o Pedido (cada um com Tipo `'Kit'` ou `'Avulso'`).
@@ -17,6 +17,9 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    - Para cada Peça (nó de topo do `EstruturaItem`), marca se ela `RequerRelatorioDimensional`.
 4. Pedido fica com `Status = Aberto` até o primeiro apontamento de setor
    (`Status = EmProducao`).
+5. Quando outro Pedido precisa passar na frente, **PCP ou Gestão pausam** o Pedido, com um motivo
+   opcional, e o **retomam** depois (regra 31). A pausa não muda o status; ela só recusa o início
+   de nós dele, e a lista de Pedidos mostra quem pausou, desde quando e por quê.
 
 ## 2. Apontamento em Setor
 
@@ -42,6 +45,9 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    24).
 6. Registro errado se corrige por **estorno**, pelo autor ou pelo PCP, enquanto a quantidade não
    tiver andado.
+7. Se o Pedido de um nó está **pausado** (fluxo 1, passo 5), o operador o vê no fim de "A iniciar
+   aqui", marcado como pausado e sem o botão de iniciar; terminar, entregar e estornar continuam
+   valendo para o que já começou.
 
 ## 3. Separação de Material
 

@@ -344,6 +344,16 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
     PCP — a qualquer momento depois de virar sobra. A regra 13 não muda: o Pedido conclui com sobra
     viva, que continua listada até ser descartada.
 
+*A regra 31 foi decidida em 2026-09-28, na spec da Fase 3D
+(`docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`, seção 2.5).*
+
+31. **Um Pedido pode ser pausado.** PCP ou Gestão pausam um Pedido quando outro mais urgente precisa
+    passar na frente, com um motivo opcional. A pausa recusa **só o início** de qualquer nó do
+    Pedido — inclusive o de um pai, que consome os filhos (regra 24) —; terminar, entregar e
+    estornar continuam, porque registram o que já aconteceu no chão. Cada pausa é um intervalo
+    guardado (quem pausou e retomou, e quando), para o tempo por Pedido poder descontá-la (Fase 6).
+    A pausa não muda o status do Pedido.
+
 ## Pontos ainda em aberto
 
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).

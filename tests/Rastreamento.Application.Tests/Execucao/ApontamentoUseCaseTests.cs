@@ -85,6 +85,41 @@ public class ApontamentoUseCaseTests
     AfirmarFalha(r, CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
   }
 
+  [Fact]
+  public async Task Iniciar_em_Pedido_pausado_da_PedidoPausado_e_nao_grava_nada()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte);
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto("urgente"), Pcp, Ct);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Corte, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
+    Assert.Empty(c.Execucao.Movimentacoes);
+  }
+
+  [Fact]
+  public async Task Iniciar_um_pai_em_Pedido_pausado_tambem_e_recusado()
+  {
+    var c = ComFilhosNaSolda();
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
+
+    AfirmarFalha(await c.Apontamento().Iniciar(1, new InicioDto(Solda, 1m), Operador, Ct),
+        CodigosDaExecucao.PedidoPausado, TipoDeErro.Conflito);
+    Assert.Empty(c.Execucao.Montagens);
+  }
+
+  [Fact]
+  public async Task Terminar_em_Pedido_pausado_continua_valendo()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 3m);
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
+
+    Assert.True((await c.Apontamento().Terminar(1, new TerminoDto(Corte, 1, 3m), Operador, Ct)).Sucesso);
+  }
+
   [Theory]
   [InlineData("0")]
   [InlineData("-1")]

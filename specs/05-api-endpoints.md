@@ -139,11 +139,13 @@ mesmo status HTTP para coisas diferentes.
 
 ## Pedido / Agrupamento
 
-- `GET /pedidos` *(qualquer perfil autenticado)*
+- `GET /pedidos` *(qualquer perfil autenticado)* — cada Pedido traz `pausa`: `null`, ou
+  `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31)
 - `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente }`. `Tipo` nasce `Fabricacao`,
   `Status` nasce `Aberto` e o autor vem da claim `sub` da sessão — nenhum dos três se aceita do
   cliente
-- `GET /pedidos/{id}` — só o cabeçalho; os Agrupamentos saem pelo sub-recurso abaixo
+- `GET /pedidos/{id}` — só o cabeçalho, com `pausa` como em `GET /pedidos`; os Agrupamentos saem
+  pelo sub-recurso abaixo
 - `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente }`. Não existe `DELETE`:
   Pedido é documento e se corrige por edição
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
@@ -343,6 +345,17 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   autor de uma, recebe o 403 do caso de uso.
 - `PUT /estrutura/{id}/roteiro` *(PCP)* — troca os passos do Roteiro do nó. Body:
   `{ passos: [setorId, …] }`, em ordem. Passo já alcançado não muda.
+- `POST /pedidos/{id}/pausas` *(PCP, Gestão)* — pausa o Pedido (regra 31; spec da Fase 3D, §2.5).
+  Body: `{ motivo? }` — opcional, aparado, no máximo 200 caracteres (`MotivoLongoDemais`; texto em
+  branco vira `null`). 201 com a pausa:
+  `{ id, pedidoId, pausadoEm, pausadoPorUsuarioId, pausadoPorNome, motivo, retomadoEm, retomadoPorUsuarioId, retomadoPorNome }`.
+  409 `PedidoJaPausado` se já há pausa aberta; 409 `PedidoFechado` se o Pedido está `Concluido` ou
+  `Cancelado`. A pausa recusa só o Iniciar (409 `PedidoPausado` em `POST /estrutura/{id}/inicios`,
+  também para nó com filhos); terminar, entregar e estornar continuam valendo.
+- `POST /pedidos/{id}/retomada` *(PCP, Gestão)* — sem corpo; fecha a pausa aberta e responde 200 com
+  a mesma forma, agora com `retomadoEm`, `retomadoPorUsuarioId` e `retomadoPorNome`. 409
+  `PedidoNaoPausado` se não há pausa aberta. Retomar um Pedido que fechou com a pausa aberta é
+  permitido: só fecha o intervalo.
 
 **Leitura**
 
@@ -362,8 +375,11 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   quantidade ainda cabe no que está ali). Onde a mesma posição de coleta aparece em duas seções
   (tarefa e sobra do último passo), os `Termino` vão só para "aguardando coleta"; a "sobra" os
   recebe apenas quando não há tarefa (desvio D4 do plano da Fase 3D). Em "a iniciar" o campo vem
-  sempre vazio; "aguardando montagem" não o tem.
-- `GET /tarefas` — os Itens prontos, com destino calculado, agrupados pelo Setor de origem. Na
+  sempre vazio; "aguardando montagem" não o tem. Todo nó resumido (`no`, `pai`, `filhos`) ganha
+  `pausa`: `null`, ou `{ desde, porUsuarioNome, motivo }` quando o Pedido dele está pausado (regra
+  31). Em "a iniciar", o que é de Pedido pausado vem **depois** do resto, para a tela agrupá-lo em
+  "Pausados"; dentro de cada grupo a ordem é a de antes.
+- `GET /tarefas` — os Itens prontos (cada nó com `pausa`, como na fila), com destino calculado, agrupados pelo Setor de origem. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
   `setorId` nulo.
@@ -391,6 +407,7 @@ Setor e números quando ajudam.
 | 400 | `EntregaVazia` | lista de entrega vazia |
 | 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
 | 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`, ou com Setor e passo que não combinam com a posição |
+| 400 | `MotivoLongoDemais` | motivo da pausa com mais de 200 caracteres (o `[MaxLength]` do corpo já dá 400 antes; o caso de uso repete a guarda) |
 | 403 | `Proibido` | estorno de registro alheio sem ser PCP nem Administrador |
 | 404 | — | nó, Setor, movimento ou montagem inexistente |
 | 409 | `SemRoteiro` | iniciar nó sem Roteiro |
@@ -403,7 +420,10 @@ Setor e números quando ajudam.
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |
 | 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem, ou Início de pai que consumiu filhos, estornados sozinhos; estorno de montagem cujo pai já andou |
 | 409 | `JaEstornado` | o registro já foi estornado |
-| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado` |
+| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado`, ou pausá-lo |
+| 409 | `PedidoPausado` | iniciar nó (ou pai) de Pedido pausado — só o Iniciar é recusado |
+| 409 | `PedidoJaPausado` | pausar Pedido que já tem pausa aberta |
+| 409 | `PedidoNaoPausado` | retomar Pedido sem pausa aberta |
 | 409 | `ConflitoDeConcorrencia` | outra pessoa registrou no mesmo item ao mesmo tempo |
 
 ## Expedição

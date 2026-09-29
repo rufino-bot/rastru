@@ -7,9 +7,15 @@ namespace Rastreamento.Domain.Abstractions;
 /// caminho "Pedido > Agrupamento > pai" sem uma consulta por linha.
 /// </summary>
 public sealed record ContextoDoNo(
-    EstruturaItem No, int PedidoId, string PedidoNumero, int AgrupamentoId, string AgrupamentoCodigo);
+    EstruturaItem No, int PedidoId, string PedidoNumero, int AgrupamentoId, string AgrupamentoCodigo, PausaAberta? Pausa);
 
-public sealed record PedidoDoNo(int PedidoId, string Status);
+/// <summary>A pausa aberta de um Pedido, com o nome de quem pausou (spec da Fase 3D, secao 2.5).</summary>
+public sealed record PausaAberta(int PedidoId, DateTime PausadoEm, int PausadoPorUsuarioId, string PausadoPorNome, string? Motivo);
+
+/// <summary>`Pausado`: o Pedido tem pausa aberta — o Iniciar a recusa (spec da Fase 3D, secao 4.1).</summary>
+public sealed record PedidoDoNo(int PedidoId, string Status, bool Pausado);
+
+public sealed record PedidoTravado(int Id, string Numero, string Status);
 
 /// <summary>A materia-prima do estorno rapido da fila (spec da Fase 3D, secao 2.4).</summary>
 public sealed record RegistrosDoSetor(IReadOnlyList<Movimentacao> Movimentos, IReadOnlyList<Montagem> Montagens);
@@ -17,8 +23,9 @@ public sealed record RegistrosDoSetor(IReadOnlyList<Movimentacao> Movimentos, IR
 /// <summary>
 /// O livro de movimentacoes e o que as escritas da Fase 3 precisam em volta dele (spec da Fase 3,
 /// secoes 7 e 8). Toda leitura devolve dado SOLTO (sem change tracking); as escritas sao
-/// `Adicionar` + `SalvarAlteracoesAsync`, e as duas unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
-/// `MarcarMontagemEstornadaAsync`) sao conjuntistas — nenhuma toca `Movimentacao`, que e so de inclusao.
+/// `Adicionar` + `SalvarAlteracoesAsync`, e as tres unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
+/// `MarcarMontagemEstornadaAsync`, `FecharPausaAsync`) sao conjuntistas — nenhuma toca `Movimentacao`,
+/// que e so de inclusao.
 /// </summary>
 public interface IExecucaoRepository
 {
@@ -119,9 +126,23 @@ public interface IExecucaoRepository
   Task SubstituirPassosNaoAlcancadosAsync(
       int estruturaItemId, int? ultimaOrdemTravada, IReadOnlyList<(int SetorId, int Ordem)> novos, CancellationToken ct);
 
+  /// <summary>
+  /// Trava a linha do Pedido com UPDLOCK — a mesma que o Iniciar trava por
+  /// <see cref="ObterPedidoDoNoParaEscritaAsync"/> —, para pausar e iniciar se serializarem (spec da
+  /// Fase 3D, secao 4.5). So vale dentro de <see cref="EmTransacaoAsync"/>.
+  /// </summary>
+  Task<PedidoTravado?> TravarPedidoAsync(int pedidoId, CancellationToken ct);
+
+  Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct);
+
+  /// <summary>Fecha o intervalo: conjuntista e condicionado a `RetomadoEm IS NULL`, nunca sobrescreve.</summary>
+  Task FecharPausaAsync(int pausaId, int usuarioId, DateTime em, CancellationToken ct);
+
   void Adicionar(Movimentacao movimentacao);
 
   void Adicionar(Montagem montagem);
+
+  void Adicionar(PedidoPausa pausa);
 
   Task SalvarAlteracoesAsync(CancellationToken ct);
 }

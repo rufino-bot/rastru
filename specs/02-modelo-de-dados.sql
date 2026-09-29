@@ -247,6 +247,31 @@ CREATE TABLE dbo.Agrupamento (
 );
 
 /* ---------------------------------------------------------------------
+   PAUSA DE PEDIDO (Fase 3D)
+   --------------------------------------------------------------------- */
+
+-- Uma linha por intervalo em que o Pedido ficou pausado. SÓ INSERÇÃO, exceto o fecho do intervalo
+-- (RetomadoEm/RetomadoPorUsuarioId, gravados uma vez). Pausado = existe linha com RetomadoEm NULL.
+-- A pausa recusa só o Iniciar (spec da Fase 3D, seção 2.5).
+CREATE TABLE dbo.PedidoPausa (
+    Id                    INT IDENTITY(1,1)  NOT NULL,
+    PedidoId              INT                 NOT NULL,
+    PausadoEm             DATETIME2           NOT NULL CONSTRAINT DF_PedidoPausa_PausadoEm DEFAULT (SYSUTCDATETIME()),
+    PausadoPorUsuarioId   INT                 NOT NULL,
+    Motivo                NVARCHAR(200)       NULL,
+    RetomadoEm            DATETIME2           NULL,
+    RetomadoPorUsuarioId  INT                 NULL,
+    CONSTRAINT PK_PedidoPausa PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_PedidoPausa_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_PedidoPausa_PausadoPorUsuario FOREIGN KEY (PausadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT FK_PedidoPausa_RetomadoPorUsuario FOREIGN KEY (RetomadoPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_PedidoPausa_RetomadaCompleta
+        CHECK ((RetomadoEm IS NULL AND RetomadoPorUsuarioId IS NULL)
+            OR (RetomadoEm IS NOT NULL AND RetomadoPorUsuarioId IS NOT NULL)),
+    CONSTRAINT CK_PedidoPausa_RetomadaAposPausa CHECK (RetomadoEm IS NULL OR RetomadoEm >= PausadoEm)
+);
+
+/* ---------------------------------------------------------------------
    ESTRUTURA REAL (árvore recursiva efetivamente usada no Pedido/Agrupamento;
    pode ter sido copiada do catálogo e depois customizada)
    --------------------------------------------------------------------- */
@@ -516,6 +541,9 @@ CREATE UNIQUE INDEX UX_Movimentacao_UmInicioPorMontagem
     ON dbo.Movimentacao (MontagemId) WHERE Tipo = 'Inicio' AND MontagemId IS NOT NULL;
 CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
+-- No máximo uma pausa aberta por Pedido.
+CREATE UNIQUE INDEX UX_PedidoPausa_UmaAbertaPorPedido
+    ON dbo.PedidoPausa (PedidoId) WHERE RetomadoEm IS NULL;
 CREATE INDEX IX_Expedicao_EstruturaItem ON dbo.Expedicao (EstruturaItemId);
 CREATE INDEX IX_RDA_Relatorio ON dbo.RelatorioDimensionalAvaliacao (RelatorioDimensionalId);
 CREATE INDEX IX_Perda_EstruturaItem ON dbo.Perda (EstruturaItemId);

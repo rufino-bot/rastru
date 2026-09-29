@@ -44,6 +44,7 @@ const CONTROLLERS_POR_RECURSO: Record<Recurso, readonly string[]> = {
   entrega: ['EntregaController.cs'],
   roteiro: ['RoteiroDoNoController.cs'],
   estorno: ['EstornoController.cs'],
+  pausa: ['PausaDePedidoController.cs'],
 }
 
 /**
@@ -69,7 +70,7 @@ const ISENTOS: Record<string, string> = {
     'cinco de uma vez: é exatamente o que a asserção de "nenhum isento declara Roles" pega.',
   'ExecucaoControllerBase.cs':
     'base abstrata dos controllers da Fase 3, sem rota própria — só traduz Result em status e lê a ' +
-    'sessão. Perfil é decisão de cada controller concreto; um `Roles` aqui valeria para os quatro.',
+    'sessão. Perfil é decisão de cada controller concreto; um `Roles` aqui valeria para os cinco.',
 }
 
 /** `[Authorize(Roles = "A,B")]` e também `[Authorize(Roles = NomeDeConst)]`. */

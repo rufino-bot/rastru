@@ -36,6 +36,17 @@ public class EstornoUseCaseTests
   }
 
   [Fact]
+  public async Task Estornar_em_Pedido_pausado_continua_valendo()
+  {
+    var (c, inicio) = await IniciadoAsync();
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);
+
+    var r = await c.Estorno().EstornarMovimentacao(inicio, Operador, podeEstornarDeOutros: false, Ct);
+
+    Assert.True(r.Sucesso);
+  }
+
+  [Fact]
   public async Task Estorno_alheio_sem_ser_PCP_da_Proibido()
   {
     var (c, inicio) = await IniciadoAsync();

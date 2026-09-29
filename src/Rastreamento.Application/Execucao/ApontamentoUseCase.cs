@@ -50,6 +50,11 @@ public sealed class ApontamentoUseCase
       // `ExecucaoRepository.ObterPedidoDoNoParaEscritaAsync` para o deadlock que isto evita.
       var pedido = await _execucao.ObterPedidoDoNoParaEscritaAsync(noId, ct);
       if (Falhas.EstaFechado(pedido)) return Falhas.PedidoFechado<MovimentacaoDto>();
+      // A pausa recusa so o que COMECA (spec da Fase 3D, secao 2.5): terminar, entregar e estornar
+      // registram algo que ja aconteceu no chao, e recusa-los deixaria o livro mentindo.
+      if (pedido!.Pausado)
+        return Falhas.Conflito<MovimentacaoDto>(CodigosDaExecucao.PedidoPausado,
+            "O Pedido deste item está pausado: nada dele começa até alguém retomá-lo.");
 
       var estado = await _leitor.CarregarAsync([.. no, .. travados], ct);
       var nome = estado.Nome(noId);

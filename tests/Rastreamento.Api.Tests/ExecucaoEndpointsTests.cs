@@ -50,6 +50,8 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   [InlineData("Gestao", "POST", "/api/movimentacoes/999999/estorno")]
   [InlineData("Qualidade", "POST", "/api/montagens/999999/estorno")]
   [InlineData("Almoxarifado", "POST", "/api/movimentacoes/999999/estorno")]
+  [InlineData("Operador", "POST", "/api/pedidos/999999/pausas")]
+  [InlineData("Movimentador", "POST", "/api/pedidos/999999/retomada")]
   public async Task Perfil_sem_a_acao_recebe_403(string perfil, string verbo, string rota)
   {
     var resposta = await ClienteComo(perfil).SendAsync(new HttpRequestMessage(new HttpMethod(verbo), rota)

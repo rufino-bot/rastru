@@ -37,6 +37,27 @@ public class ConsultaDeExecucaoUseCaseTests
   }
 
   [Fact]
+  public async Task A_fila_marca_a_pausa_e_poe_os_pausados_no_fim_do_a_iniciar()
+  {
+    var c = new CenarioDeExecucao();
+    c.Execucao.Agrupamentos[2] = ("AG-02", 2, "PED-02");
+    c.Execucao.StatusDoPedido[2] = "Aberto";
+    c.No(1, null, 10m, null, Corte);                        // Pedido 1 (sera pausado)
+    c.Estruturas.Itens.Add(new EstruturaItem
+    {
+      Id = 2, AgrupamentoId = 2, Descricao = "No 2", NivelHierarquico = "Peca", Quantidade = 5m,
+    });
+    c.Estruturas.Roteiros.Add(new EstruturaRoteiro { Id = 201, EstruturaItemId = 2, SetorId = Corte, Ordem = 1 });
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto("PED-02 urgente"), Pcp, Ct);
+
+    var aIniciar = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.AIniciar;
+
+    Assert.Equal(new[] { 2, 1 }, aIniciar.Select(l => l.No.Id).ToArray());
+    Assert.Null(aIniciar[0].No.Pausa);
+    Assert.Equal(("PED-02 urgente", "PCP"), (aIniciar[1].No.Pausa!.Motivo, aIniciar[1].No.Pausa!.PorUsuarioNome));
+  }
+
+  [Fact]
   public async Task Em_trabalho_por_passo_e_o_resto_continua_a_iniciar()
   {
     var c = new CenarioDeExecucao();

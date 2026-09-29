@@ -23,6 +23,10 @@ public static class CodigosDaExecucao
   public const string EstornoImpossivel = "EstornoImpossivel";
   public const string JaEstornado = "JaEstornado";
   public const string PedidoFechado = "PedidoFechado";
+  public const string PedidoPausado = "PedidoPausado";
+  public const string PedidoJaPausado = "PedidoJaPausado";
+  public const string PedidoNaoPausado = "PedidoNaoPausado";
+  public const string MotivoLongoDemais = "MotivoLongoDemais";
   public const string ConflitoDeConcorrencia = "ConflitoDeConcorrencia";
 
   public const string MensagemDeConflito =

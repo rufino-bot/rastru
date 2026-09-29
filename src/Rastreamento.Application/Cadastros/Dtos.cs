@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Rastreamento.Application.Execucao;
 
 namespace Rastreamento.Application.Cadastros;
 
@@ -83,7 +84,8 @@ public sealed record PedidoDto(
     string Tipo,
     string Status,
     DateTime DataAbertura,
-    int CriadoPorUsuarioId);
+    int CriadoPorUsuarioId,
+    PausaResumoDto? Pausa);
 
 /// <remarks>
 /// So `Numero` e `Cliente`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem da claim
