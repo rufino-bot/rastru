@@ -1245,16 +1245,27 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
   })
 
   it('filtrar nao dispara o aviso de outra pessoa ter movido o item', async () => {
+    // Timers falsos: a atualização periódica com o filtro ativo é o que prova que a limpeza do
+    // formulário aberto olha a resposta INTEIRA. O efeito só reavalia quando `fila` muda, e é a
+    // resposta nova da atualização que o faz rodar com o filtro já aplicado.
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
 
     renderizarComUrl('/fila/1')
-    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
     expect(screen.getByLabelText('Quantidade')).toBeTruthy()
 
     abrirFiltro()
     fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' }))
 
     expect(screen.queryByText('SUP-01 — Suporte')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    // A mesma resposta volta na atualização periódica, com o filtro ainda ativo: a linha escondida
+    // continua na fila, então o aviso não sobe e o formulário não é fechado (só não se vê enquanto
+    // a linha está escondida; o que se prova é a volta dele, logo abaixo).
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
     expect(screen.queryByRole('alert')).toBeNull()
 
     // A linha só estava escondida: tirar o filtro a devolve com o formulário ainda aberto.

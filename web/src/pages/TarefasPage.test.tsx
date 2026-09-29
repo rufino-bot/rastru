@@ -436,15 +436,26 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
   })
 
   it('filtrar nao tira item da selecao nem mostra o aviso de saiu da lista', async () => {
+    // Timers falsos: a limpeza da seleção só reavalia quando a resposta muda, então é a
+    // atualização periódica com o filtro ativo que prova que ela olha a resposta INTEIRA.
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
 
     renderizar()
-    fireEvent.click(await screen.findByLabelText('Levar TP-01 — Tampa'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByLabelText('Levar TP-01 — Tampa'))
     abrirFiltro()
     fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
 
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
+
+    // A mesma resposta volta na atualização periódica, com o filtro ainda ativo: o item marcado
+    // continua na resposta, só escondido, então segue marcado, contado como oculto e sem aviso.
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
+    expect(screen.getByText('1 marcado oculto pelo filtro')).toBeTruthy()
 
     // Tirar o filtro devolve o item ainda marcado, com o que já estava digitado.
     fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' }))
