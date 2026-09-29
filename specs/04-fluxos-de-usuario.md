@@ -32,7 +32,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    e a busca, E. Busca, filtros e página ficam na URL, então o F5 e o "voltar" do detalhe de um Pedido
    devolvem a lista como estava. Sem resultado, a tela diz "Nenhum pedido com essa busca ou esses
    filtros" e oferece "Limpar filtros"; sem nenhum Pedido cadastrado, diz "Nenhum pedido aberto". A
-   Home não lista Pedidos: lê o **resumo** do servidor (contagem por status e os cinco abertos há mais
+   Home não lista Pedidos: lê o **resumo** do servidor (contagem por status e até cinco abertos há mais
    tempo), que conta todos os Pedidos e não só a primeira página.
 
 ## 2. Apontamento em Setor
@@ -77,9 +77,9 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`, seções 3 e 4): o botão **Filtrar**
    (com o número de filtros ativos) abre as facetas **Material** — o do nó, que o Corte usa para
    separar por espessura de chapa — e **Pedido**, e cada seleção aparece como pílula removível, com
-   "Limpar". As opções são as que estão na tela naquele momento, com a contagem: a lista de opções
-   não pula enquanto o operador marca, e a contagem de cada opção respeita o que está marcado nas
-   *outras* facetas, de modo que a opção que deixaria a lista vazia mostra 0. Dentro de uma faceta
+   "Limpar". As opções vêm da resposta sem filtro — o que existe na fila (ou em Tarefas) —, com a
+   contagem: a lista de opções não pula enquanto o operador marca, e a contagem de cada opção
+   respeita o que está marcado nas *outras* facetas, de modo que a opção que deixaria a lista vazia mostra 0. Dentro de uma faceta
    vale OU (uma chapa reaproveitada serve a mais de um Pedido); entre as facetas, E. Uma opção
    marcada que sai da lista (a atualização periódica tirou o último item daquele Pedido) continua
    marcada, com 0, até o operador removê-la. O filtro age em todas as seções da fila; no card de
