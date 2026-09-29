@@ -139,7 +139,7 @@ describe('facetasDaFila', () => {
     // Sem o material marcado seria 3 e 1; com ele, só as linhas de CHAPA_3 contam.
     expect(contagens(faceta(facetas, 'pedido'))).toEqual({ 1: 2, 2: 1 })
     // A LISTA de opções continua sendo a da fila inteira: CHAPA_6 não some enquanto se marca CHAPA_3.
-    // Já a contagem de cada material troca a faceta pela própria opção (D2): a de CHAPA_6 conta as linhas dela.
+    // Já a contagem de cada material troca a faceta pela própria opção: a de CHAPA_6 conta as linhas dela.
     expect(contagens(faceta(facetas, 'material'))).toEqual({ 3: 3, 6: 1 })
 
     const comPedido = facetasDaFila(f, { pedido: ['2'] })
