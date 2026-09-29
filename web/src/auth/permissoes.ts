@@ -43,9 +43,9 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   estrutura: ['PCP', 'Administrador'],
   // Fase 3 — execução. Um `Recurso` por conjunto de perfis, porque a guarda de espelhamento compara cada
   // controller com UMA entrada daqui (desvio D1 do plano 2 da Fase 3; a spec previa três chaves).
-  // Iniciar, terminar e montar, no chão de fábrica.
+  // Iniciar e terminar, no chão de fábrica — o pai inicia consumindo os filhos, não há ação de montar.
   apontamento: ['Operador', 'Administrador'],
-  // Levar o que aguarda coleta, e redirecionar o que aguarda montagem.
+  // Levar o que aguarda coleta, e levar o filho que aguarda montagem ao primeiro passo do pai.
   entrega: ['Movimentador', 'Administrador'],
   // Editar o Roteiro de um nó. Não é `estrutura`, embora os perfis hoje coincidam — mesmo motivo do
   // comentário de `estrutura`.

@@ -2,9 +2,9 @@ import { useAuth } from '../auth/AuthContext'
 import { podeEscrever } from '../auth/permissoes'
 
 export interface PermissoesDaExecucao {
-  /** Iniciar, terminar e montar — o Operador, no chão de fábrica. */
+  /** Iniciar e terminar (o pai inicia consumindo os filhos; não há ação de montar) — o Operador, no chão de fábrica. */
   apontar: boolean
-  /** Levar o que aguarda coleta, e redirecionar o que aguarda montagem — o Movimentador. */
+  /** Levar o que aguarda coleta, e levar o filho que aguarda montagem ao primeiro passo do pai — o Movimentador. */
   entregar: boolean
   /** Editar o Roteiro de um nó — o PCP. */
   editarRoteiro: boolean

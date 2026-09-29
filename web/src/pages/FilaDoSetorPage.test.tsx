@@ -635,7 +635,7 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
     expect(await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })).toBeTruthy()
   })
 
-  it('o Movimentador não inicia nem termina o que o Operador inicia e termina', async () => {
+  it('o Movimentador não inicia, termina nem leva onde o pai já começa', async () => {
     perfil = 'Movimentador'
     vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
 
@@ -645,6 +645,10 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
     expect(await screen.findByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Iniciar/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Terminar/ })).toBeNull()
+    // No primeiro passo do pai (`iniciaAqui`) não há para onde levar: nem botão de Levar, nem o aviso
+    // "começa em". O par de presença é `FORA_DO_PRIMEIRO_PASSO`, onde este mesmo perfil vê os dois.
+    expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
+    expect(screen.queryByText(/começa em/)).toBeNull()
   })
 
   it('a Gestão lê a fila inteira, sem ação nenhuma', async () => {
