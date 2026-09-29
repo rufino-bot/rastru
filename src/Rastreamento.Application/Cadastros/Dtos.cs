@@ -56,6 +56,9 @@ public sealed record NovoSetorDto([MaxLength(100)] string Nome, [MaxLength(40)] 
 public sealed record MaterialDto(
     int Id, string Codigo, string Descricao, string UnidadeMedida, bool Ativo);
 
+/// <summary>O material como as listas de filtro o mostram: so o que identifica (sem unidade nem situacao).</summary>
+public sealed record MaterialResumoDto(int Id, string Codigo, string Descricao);
+
 /// <remarks>
 /// Os `MaxLength` espelham `dbo.Material`: NVARCHAR(50), (200) e (10). Mesma regra de alvo do
 /// `NovoSetorDto` — atributo SEM `[property:]`, no parametro do construtor primario, que e onde a

@@ -1,3 +1,4 @@
+using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Entities;
@@ -174,6 +175,69 @@ public class ConsultaDeExecucaoUseCaseTests
 
     var no = fila.AIniciar.Single(l => l.No.Id == 3).No;
     Assert.Equal(("No 3", "PED-01", "AG-01", (int?)1, "No 1"), (no.Descricao, no.PedidoNumero, no.AgrupamentoCodigo, no.PaiId, no.PaiDescricao));
+  }
+
+  [Fact]
+  public async Task Fila_traz_o_cliente_do_Pedido_e_os_materiais_do_no_ordenados_por_codigo()
+  {
+    var c = Kit();
+    c.Material(3, 61, "CH-600", "Chapa 6,00 mm");
+    c.Material(3, 30, "CH-300", "Chapa 3,00 mm");
+
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+
+    var no = fila.AIniciar.Single(l => l.No.Id == 3).No;
+    Assert.Equal("Cliente do cenário", no.PedidoCliente);
+    Assert.Equal(
+        new[] { new MaterialResumoDto(30, "CH-300", "Chapa 3,00 mm"), new MaterialResumoDto(61, "CH-600", "Chapa 6,00 mm") },
+        no.Materiais.ToArray());
+  }
+
+  [Fact]
+  public async Task No_sem_material_traz_lista_vazia_e_nao_nula()
+  {
+    var c = Kit();
+    c.Material(3, 30, "CH-300", "Chapa 3,00 mm");
+
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+
+    var linha = fila.AIniciar.Single(l => l.No.Id == 2);
+    Assert.Empty(linha.No.Materiais);
+  }
+
+  [Fact]
+  public async Task Tarefas_trazem_os_materiais_do_no()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+    c.Material(1, 30, "CH-300", "Chapa 3,00 mm");
+    c.Mover(1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 4m);
+
+    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!).Itens);
+
+    Assert.Equal(new[] { new MaterialResumoDto(30, "CH-300", "Chapa 3,00 mm") }, tarefa.No.Materiais.ToArray());
+    Assert.Equal("Cliente do cenário", tarefa.No.PedidoCliente);
+  }
+
+  [Fact]
+  public async Task Cartao_de_montagem_traz_os_materiais_do_pai_e_de_cada_filho()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda);
+    c.No(2, 1, 10m, 2m, Corte);
+    c.No(3, 1, 5m, 1m, Corte);
+    c.Material(1, 10, "PAI-1", "Material do pai");
+    c.Material(2, 20, "FIL-2", "Material do filho 2");
+    c.Material(3, 30, "FIL-3", "Material do filho 3");
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 5m);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 1m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.Equal(new[] { 10 }, grupo.Pai.Materiais.Select(m => m.Id).ToArray());
+    Assert.Equal(
+        new[] { (2, 20), (3, 30) },
+        grupo.Filhos.Select(f => (f.No.Id, Assert.Single(f.No.Materiais).Id)).ToArray());
   }
 
   [Fact]

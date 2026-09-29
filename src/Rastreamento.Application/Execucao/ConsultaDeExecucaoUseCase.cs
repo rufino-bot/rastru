@@ -1,3 +1,4 @@
+using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -237,8 +238,9 @@ public sealed class ConsultaDeExecucaoUseCase
     var estado = await _leitor.CarregarAsync(contexto.Select(x => x.No).ToList(), ct);
     IReadOnlyDictionary<int, NoResumoDto> resumos = contexto.ToDictionary(x => x.No.Id, x => new NoResumoDto(
         x.No.Id, estado.Nome(x.No.Id), estado.Codigos.GetValueOrDefault(x.No.Id), x.PedidoId, x.PedidoNumero,
-        x.AgrupamentoId, x.AgrupamentoCodigo, x.No.EstruturaPaiId,
-        x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null, PausaResumoDto.De(x.Pausa)));
+        x.PedidoCliente, x.AgrupamentoId, x.AgrupamentoCodigo, x.No.EstruturaPaiId,
+        x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null, PausaResumoDto.De(x.Pausa),
+        x.Materiais.Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao)).ToList()));
     return (estado, resumos);
   }
 

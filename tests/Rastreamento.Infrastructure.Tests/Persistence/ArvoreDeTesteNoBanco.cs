@@ -19,6 +19,7 @@ internal sealed class ArvoreDeTesteNoBanco
   public int AgrupamentoId { get; private init; }
   public int ComponenteId { get; private init; }
   public List<int> SetorIds { get; } = [];
+  public List<int> MaterialIds { get; } = [];
 
   private ArvoreDeTesteNoBanco(string prefixo) => _prefixo = prefixo;
 
@@ -86,6 +87,29 @@ internal sealed class ArvoreDeTesteNoBanco
     return item.Id;
   }
 
+  /// <summary>
+  /// Um Material do catalogo, de codigo unico (`Codigo` e UNIQUE) derivado do prefixo da arvore: a ordem
+  /// de criacao e a ordem dos codigos. Apagado por <see cref="LimparAsync"/>.
+  /// </summary>
+  public async Task<int> NovoMaterialAsync(RastreamentoDbContext db, string descricao)
+  {
+    var material = new Material
+    {
+      Codigo = $"{_prefixo}-M{MaterialIds.Count + 1}", Descricao = descricao, UnidadeMedida = "UN", Ativo = true,
+    };
+    db.Materiais.Add(material);
+    await db.SaveChangesAsync();
+    MaterialIds.Add(material.Id);
+    return material.Id;
+  }
+
+  /// <summary>Grava o Material no no (`EstruturaMaterial`), como a criacao do no faz.</summary>
+  public async Task MaterialNoNoAsync(RastreamentoDbContext db, int noId, int materialId)
+  {
+    db.EstruturaMateriais.Add(new EstruturaMaterial { EstruturaItemId = noId, MaterialId = materialId, Quantidade = 1m });
+    await db.SaveChangesAsync();
+  }
+
   /// <summary>Roteiro do no: um passo por Setor, `Ordem` 1, 2, 3... na ordem dada.</summary>
   public async Task RoteiroAsync(RastreamentoDbContext db, int estruturaItemId, params int[] setorIds)
   {
@@ -118,6 +142,8 @@ internal sealed class ArvoreDeTesteNoBanco
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.PedidoPausa WHERE PedidoId = {PedidoId}");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {PedidoId}");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Componente WHERE Id = {ComponenteId}");
+    foreach (var materialId in MaterialIds)
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Material WHERE Id = {materialId}");
     foreach (var setorId in SetorIds)
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Setor WHERE Id = {setorId}");
   }

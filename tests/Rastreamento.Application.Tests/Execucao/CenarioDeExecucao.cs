@@ -41,6 +41,7 @@ internal sealed class CenarioDeExecucao
     Catalogo.Setores.AddRange(setores);
     Execucao.Agrupamentos[AgrupamentoId] = ("AG-01", PedidoId, "PED-01");
     Execucao.StatusDoPedido[PedidoId] = "Aberto";
+    Execucao.ClienteDoPedido[PedidoId] = "Cliente do cenário";
     Execucao.Usuarios[Operador] = "Operador do Corte";
     Execucao.Usuarios[Movimentador] = "Movimentador";
     Execucao.Usuarios[Pcp] = "PCP";
@@ -60,6 +61,17 @@ internal sealed class CenarioDeExecucao
         Id = 100 * id + i + 1, EstruturaItemId = id, SetorId = setores[i], Ordem = i + 1,
       });
     return id;
+  }
+
+  /// <summary>Um material no catalogo do fake e gravado no no — o que `EstruturaMaterial` guarda.</summary>
+  public int Material(int noId, int materialId, string codigo, string descricao)
+  {
+    Execucao.CatalogoDeMateriais[materialId] = (codigo, descricao);
+    Estruturas.Materiais.Add(new EstruturaMaterial
+    {
+      Id = 1000 + Estruturas.Materiais.Count, EstruturaItemId = noId, MaterialId = materialId, Quantidade = 1m,
+    });
+    return materialId;
   }
 
   /// <summary>Arranjo direto no livro, sem caso de uso.</summary>
