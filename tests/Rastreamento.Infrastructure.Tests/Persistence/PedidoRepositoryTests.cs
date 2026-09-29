@@ -123,6 +123,37 @@ public class PedidoRepositoryTests : TesteComBanco
   }
 
   [Fact]
+  public async Task Busca_ignora_acento_e_caixa()
+  {
+    var tok = Unico();
+    await using var db = NovoContexto();
+    var ids = new List<int>();
+    try
+    {
+      var acentuado = await NovoPedidoAsync(db, "A-" + Unico(), $"Metal\u00fargica \u00c1vila {tok}");
+      var outro = await NovoPedidoAsync(db, "B-" + Unico(), $"Usinagem Bela {tok}");
+      ids.AddRange([acentuado, outro]);
+      var meus = ids.ToHashSet();
+      var repo = new PedidoRepository(db);
+
+      async Task<List<int>> AchadosPorAsync(string busca) =>
+          (await repo.ListarAsync(Filtro(busca: busca), CancellationToken.None)).Itens
+              .Select(p => p.Id).Where(meus.Contains).ToList();
+
+      // Sem acento e em minuscula (celular): a collation da coluna diferencia acento, e a busca nao pode.
+      Assert.Equal([acentuado], await AchadosPorAsync($"metalurgica avila {tok}"));
+      // Com acento e em maiuscula, e ainda por cima so o comeco do cliente.
+      Assert.Equal([acentuado], await AchadosPorAsync("METAL\u00daRGICA"));
+      // O outro cliente do mesmo token nao casa com o texto do primeiro.
+      Assert.DoesNotContain(outro, await AchadosPorAsync("metalurgica"));
+    }
+    finally
+    {
+      await ApagarPedidosAsync(ids);
+    }
+  }
+
+  [Fact]
   public async Task Status_combina_com_OU()
   {
     var cliente = $"cli-{Unico()}";

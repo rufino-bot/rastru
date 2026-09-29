@@ -146,7 +146,8 @@ mesmo status HTTP para coisas diferentes.
   `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31).
   - `busca` acha o Pedido pelo **número**, pelo **cliente** ou pelo **código do Componente de
     qualquer nó dele** (a Peça ou um Item, inclusive filho). O texto é literal: `%`, `_` e `[` não
-    são curinga de `LIKE`. Texto só de espaços não busca nada.
+    são curinga de `LIKE`. Ignora caixa **e acento** ("metalurgica" acha "Metalúrgica"). O texto é
+    aparado nas pontas: só espaços equivale a não mandar `busca`.
   - `status`: lista separada por vírgula de valores entre `Aberto`, `EmProducao`,
     `AguardandoExpedicao`, `Concluido` e `Cancelado`; o Pedido casa se tem **algum** deles (OU).
   - `material`: lista separada por vírgula de ids de Material; o Pedido casa se **algum nó** dele

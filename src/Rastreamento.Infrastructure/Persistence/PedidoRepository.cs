@@ -6,6 +6,9 @@ namespace Rastreamento.Infrastructure.Persistence;
 
 public class PedidoRepository : IPedidoRepository
 {
+  // Ignora caixa E acento; a das colunas (`SQL_Latin1_General_CP1_CI_AS`) so ignora caixa.
+  private const string CollationDaBusca = "Latin1_General_CI_AI";
+
   private readonly RastreamentoDbContext _db;
 
   public PedidoRepository(RastreamentoDbContext db) => _db = db;
@@ -24,16 +27,18 @@ public class PedidoRepository : IPedidoRepository
     if (!string.IsNullOrEmpty(filtro.Busca))
     {
       // `Contains` (e nao `EF.Functions.Like`): o texto do usuario e literal, e "50%" ou "_" nao
-      // podem virar curinga. Sem ToLower(): a collation da coluna ja ignora caixa.
+      // podem virar curinga. A collation da coluna (`..._CI_AS`) ignora caixa mas NAO acento, e quem
+      // digita no celular escreve "metalurgica" para um cliente cadastrado com acento: por isso cada
+      // comparacao troca para uma collation `CI_AI`, que ignora os dois.
       var busca = filtro.Busca;
       consulta = consulta.Where(p =>
-          p.Numero.Contains(busca)
-          || p.Cliente.Contains(busca)
+          EF.Functions.Collate(p.Numero, CollationDaBusca).Contains(busca)
+          || EF.Functions.Collate(p.Cliente, CollationDaBusca).Contains(busca)
           // Codigo do Componente de QUALQUER no do Pedido — a Peca ou um Item.
           || (from a in _db.Agrupamentos
               join n in _db.Estruturas on a.Id equals n.AgrupamentoId
               join c in _db.Componentes on n.ComponenteId equals c.Id
-              where a.PedidoId == p.Id && c.Codigo.Contains(busca)
+              where a.PedidoId == p.Id && EF.Functions.Collate(c.Codigo, CollationDaBusca).Contains(busca)
               select n.Id).Any());
     }
 
