@@ -189,6 +189,41 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Registros_estornaveis_do_Setor_sao_inicios_e_terminos_nao_estornados_e_montagens_validas() => NoCenarioAsync(async c =>
+  {
+    var corte1 = Local.NoSetor(c.Corte, 1);
+    var coleta1 = Local.AguardandoColeta(c.Corte, 1);
+    var naSolda = Local.AguardandoMontagem(c.Solda);
+    var inicioA = await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Inicio, Local.AIniciar, corte1, 5m));
+    var terminoA = await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Termino, corte1, coleta1, 2m));
+    var estornado = await GravarAsync(Mov(c, c.ItemB, TiposDeMovimentacao.Inicio, Local.AIniciar, corte1, 3m));
+    await GravarAsync(Mov(c, c.ItemB, TiposDeMovimentacao.Estorno, corte1, Local.AIniciar, 3m, estornoDeId: estornado));
+    var entrega = await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Entrega, coleta1, naSolda, 2m));   // destino Solda, e e Entrega
+    var valida = await GravarAsync(new Montagem
+    {
+      EstruturaItemId = c.Peca, SetorId = c.Solda, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    });
+    var inicioDoPai = await GravarAsync(Mov(c, c.Peca, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Solda, 1), 1m,
+        montagemId: valida));
+    var estornada = await GravarAsync(new Montagem
+    {
+      EstruturaItemId = c.Peca, SetorId = c.Solda, Quantidade = 1m, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+      EstornadaEm = DateTime.UtcNow, EstornadaPorUsuarioId = c.Arvore.AutorId,
+    });
+
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+    var noCorte = await repo.ListarRegistrosEstornaveisDoSetorAsync(c.Corte, c.Nos, CancellationToken.None);
+    var naSoldaRegistros = await repo.ListarRegistrosEstornaveisDoSetorAsync(c.Solda, c.Nos, CancellationToken.None);
+
+    Assert.Equal(new[] { inicioA, terminoA }, noCorte.Movimentos.Select(m => m.Id).ToArray());   // sem o estornado
+    Assert.Empty(noCorte.Montagens);
+    Assert.DoesNotContain(naSoldaRegistros.Movimentos, m => m.Id == entrega || m.Id == inicioDoPai);   // Entrega e Inicio com Montagem
+    Assert.Equal(new[] { valida }, naSoldaRegistros.Montagens.Select(g => g.Id).ToArray());   // sem a estornada
+    Assert.DoesNotContain(naSoldaRegistros.Montagens, g => g.Id == estornada);
+  });
+
+  [Fact]
   public Task Trava_segura_a_segunda_transacao_e_o_timeout_vira_conflito() => NoCenarioAsync(async c =>
   {
     await using var dbA = NovoContexto();

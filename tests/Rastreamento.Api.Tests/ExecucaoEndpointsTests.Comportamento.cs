@@ -35,6 +35,23 @@ public partial class ExecucaoEndpointsTests
   }
 
   [Fact]
+  public async Task A_fila_traz_ao_autor_o_inicio_que_ele_pode_estornar_e_a_Gestao_nao_o_ve()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    var inicio = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 2m });
+    var inicioId = (await CorpoAsync(inicio)).GetProperty("id").GetInt32();
+
+    JsonElement LinhaDeB(JsonElement fila) => fila.GetProperty("emTrabalho").EnumerateArray()
+        .Single(l => l.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    var doOperador = LinhaDeB(await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/setores/{c.Corte}/fila")));
+    var daGestao = LinhaDeB(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Corte}/fila")));
+
+    var estornavel = Assert.Single(doOperador.GetProperty("estornaveis").EnumerateArray());
+    Assert.Equal(("Inicio", inicioId), (estornavel.GetProperty("tipo").GetString(), estornavel.GetProperty("id").GetInt32()));
+    Assert.Empty(daGestao.GetProperty("estornaveis").EnumerateArray());
+  }
+
+  [Fact]
   public async Task Saldo_insuficiente_devolve_409_com_codigo_e_mensagem()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);

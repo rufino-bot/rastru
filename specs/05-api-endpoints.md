@@ -352,7 +352,17 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   é o primeiro passo do pai) e `primeiroPassoDoPai` (`{ id, nome }`, `null` se o pai não tem
   Roteiro). A resposta ganha `setorAtividade` (spec da Fase 3D, §2.3): a `atividade` do Setor da
   fila, que a tela usa para nomear os botões "Iniciar montagem"/"Terminar montagem" — `null` quando
-  o Setor não tem uma, e os botões ficam só "Iniciar"/"Terminar".
+  o Setor não tem uma, e os botões ficam só "Iniciar"/"Terminar". As linhas de "em trabalho",
+  "aguardando coleta" e "sobra" trazem `estornaveis` (spec da Fase 3D, §2.4): os registros por trás
+  da linha que ainda dá para estornar — `{ tipo, id, quantidade, usuarioId, usuarioNome, dataHora }`,
+  do mais recente ao mais antigo. `tipo` é `Inicio` ou `Termino` (estornam-se por
+  `POST /movimentacoes/{id}/estorno`) ou `Montagem` (o início de um pai, que consumiu os filhos —
+  estorna-se por `POST /montagens/{id}/estorno`). A lista é filtrada por quem lê (o autor vê os
+  seus; PCP e Administrador, todos) e cortada pelo saldo da posição (só entra o registro cuja
+  quantidade ainda cabe no que está ali). Onde a mesma posição de coleta aparece em duas seções
+  (tarefa e sobra do último passo), os `Termino` vão só para "aguardando coleta"; a "sobra" os
+  recebe apenas quando não há tarefa (desvio D4 do plano da Fase 3D). Em "a iniciar" o campo vem
+  sempre vazio; "aguardando montagem" não o tem.
 - `GET /tarefas` — os Itens prontos, com destino calculado, agrupados pelo Setor de origem. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e

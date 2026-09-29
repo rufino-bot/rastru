@@ -11,6 +11,9 @@ public sealed record ContextoDoNo(
 
 public sealed record PedidoDoNo(int PedidoId, string Status);
 
+/// <summary>A materia-prima do estorno rapido da fila (spec da Fase 3D, secao 2.4).</summary>
+public sealed record RegistrosDoSetor(IReadOnlyList<Movimentacao> Movimentos, IReadOnlyList<Montagem> Montagens);
+
 /// <summary>
 /// O livro de movimentacoes e o que as escritas da Fase 3 precisam em volta dele (spec da Fase 3,
 /// secoes 7 e 8). Toda leitura devolve dado SOLTO (sem change tracking); as escritas sao
@@ -101,6 +104,13 @@ public interface IExecucaoRepository
   Task MarcarMontagemEstornadaAsync(int montagemId, int usuarioId, DateTime em, CancellationToken ct);
 
   Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Dos nos pedidos: os `Inicio` (sem Montagem — o inicio de um pai se estorna pela montagem) e os
+  /// `Termino` com destino neste Setor que ainda nao foram estornados, e as montagens feitas neste
+  /// Setor que ainda valem. Se cabe no saldo e quem pode ver, decide o caso de uso.
+  /// </summary>
+  Task<RegistrosDoSetor> ListarRegistrosEstornaveisDoSetorAsync(int setorId, IReadOnlyCollection<int> ids, CancellationToken ct);
 
   /// <summary>
   /// Apaga os passos do Roteiro do no com `Ordem` maior que `ultimaOrdemTravada` (todos, se nula) e

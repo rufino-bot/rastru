@@ -364,6 +364,24 @@ public class ExecucaoRepository : IExecucaoRepository
         .ToDictionaryAsync(u => u.Id, u => u.NomeCompleto, ct);
   }
 
+  public async Task<RegistrosDoSetor> ListarRegistrosEstornaveisDoSetorAsync(
+      int setorId, IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new RegistrosDoSetor([], []);
+    var lista = ids.ToList();
+    var movimentos = await _db.Movimentacoes.AsNoTracking()
+        .Where(m => lista.Contains(m.EstruturaItemId) && m.DestinoSetorId == setorId && m.MontagemId == null
+            && (m.Tipo == TiposDeMovimentacao.Inicio || m.Tipo == TiposDeMovimentacao.Termino)
+            && !_db.Movimentacoes.Any(e => e.EstornoDeId == m.Id))
+        .OrderBy(m => m.Id)
+        .ToListAsync(ct);
+    var montagens = await _db.Montagens.AsNoTracking()
+        .Where(g => lista.Contains(g.EstruturaItemId) && g.SetorId == setorId && g.EstornadaEm == null)
+        .OrderBy(g => g.Id)
+        .ToListAsync(ct);
+    return new RegistrosDoSetor(movimentos, montagens);
+  }
+
   public async Task SubstituirPassosNaoAlcancadosAsync(
       int estruturaItemId, int? ultimaOrdemTravada, IReadOnlyList<(int SetorId, int Ordem)> novos, CancellationToken ct)
   {

@@ -60,9 +60,20 @@ public sealed record SetorResumoDto(int Id, string Nome);
 /// </summary>
 public sealed record DestinoDto(string Tipo, int? SetorId, string? SetorNome, int? Ordem, int? PaiId, bool PaiSemRoteiro);
 
-public sealed record LinhaDaFilaDto(NoResumoDto No, int Ordem, decimal Quantidade);
+/// <summary>Quem le a fila: o autor ve os proprios registros estornaveis; PCP e Administrador, todos.</summary>
+public sealed record QuemLe(int UsuarioId, bool VeRegistrosDeTodos);
 
-public sealed record LinhaAguardandoColetaDto(NoResumoDto No, int Ordem, decimal Quantidade, DestinoDto Destino);
+/// <summary>
+/// Um registro por tras de uma linha da fila que ainda da para estornar (spec da Fase 3D, secao 2.4).
+/// `Tipo`: Inicio | Termino | Montagem — `Montagem` e o inicio de um pai, que consumiu os filhos, e se
+/// estorna pela rota da montagem.
+/// </summary>
+public sealed record EstornavelDto(string Tipo, int Id, decimal Quantidade, int UsuarioId, string UsuarioNome, DateTime DataHora);
+
+public sealed record LinhaDaFilaDto(NoResumoDto No, int Ordem, decimal Quantidade, IReadOnlyList<EstornavelDto> Estornaveis);
+
+public sealed record LinhaAguardandoColetaDto(
+    NoResumoDto No, int Ordem, decimal Quantidade, DestinoDto Destino, IReadOnlyList<EstornavelDto> Estornaveis);
 
 public sealed record FilhoNaMontagemDto(
     NoResumoDto No, decimal QuantidadePorPai, decimal Presente, decimal? NecessarioParaProxima, decimal? FaltaParaProxima);
@@ -77,7 +88,8 @@ public sealed record MontagemPendenteDto(
     IReadOnlyList<FilhoNaMontagemDto> Filhos);
 
 /// <summary>`Origem`: UltimoPasso (com `Ordem`) | Montagem (sem `Ordem`; excesso no nivel do no).</summary>
-public sealed record LinhaDeSobraDto(NoResumoDto No, string Origem, int? Ordem, decimal Quantidade, bool EmMaisDeUmSetor);
+public sealed record LinhaDeSobraDto(
+    NoResumoDto No, string Origem, int? Ordem, decimal Quantidade, bool EmMaisDeUmSetor, IReadOnlyList<EstornavelDto> Estornaveis);
 
 public sealed record FilaDoSetorDto(
     int SetorId, string SetorNome, string? SetorAtividade,

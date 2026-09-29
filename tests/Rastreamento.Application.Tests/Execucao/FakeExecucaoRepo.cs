@@ -209,6 +209,21 @@ public class FakeExecucaoRepo : IExecucaoRepository
       Task.FromResult<IReadOnlyDictionary<int, string>>(
           Usuarios.Where(kv => ids.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
 
+  public Task<RegistrosDoSetor> ListarRegistrosEstornaveisDoSetorAsync(
+      int setorId, IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    var estornados = Movimentacoes.Where(m => m.EstornoDeId is not null).Select(m => m.EstornoDeId!.Value).ToHashSet();
+    var movimentos = Movimentacoes
+        .Where(m => ids.Contains(m.EstruturaItemId) && m.DestinoSetorId == setorId && m.MontagemId is null
+            && (m.Tipo == TiposDeMovimentacao.Inicio || m.Tipo == TiposDeMovimentacao.Termino)
+            && !estornados.Contains(m.Id))
+        .OrderBy(m => m.Id).ToList();
+    var montagens = Montagens
+        .Where(g => ids.Contains(g.EstruturaItemId) && g.SetorId == setorId && g.EstornadaEm is null)
+        .OrderBy(g => g.Id).ToList();
+    return Task.FromResult(new RegistrosDoSetor(movimentos, montagens));
+  }
+
   public Task SubstituirPassosNaoAlcancadosAsync(
       int estruturaItemId, int? ultimaOrdemTravada, IReadOnlyList<(int SetorId, int Ordem)> novos, CancellationToken ct)
   {

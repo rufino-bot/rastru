@@ -17,6 +17,10 @@ internal sealed class CenarioDeExecucao
   public const int Operador = 10, Movimentador = 11, Pcp = 12;
   public const int PedidoId = 1, AgrupamentoId = 1;
 
+  /// <summary>Quem le a fila nos testes: o Operador ve so os seus registros; o PCP ve todos.</summary>
+  public static readonly QuemLe ComoOperador = new(Operador, false);
+  public static readonly QuemLe ComoPcp = new(Pcp, true);
+
   public FakeEstruturaRepo Estruturas { get; } = new();
   public FakeExecucaoRepo Execucao { get; }
   public FakeSetorRepo Setores { get; }

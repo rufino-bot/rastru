@@ -41,5 +41,9 @@ public class ApontamentoController : ExecucaoControllerBase
   }
 
   [HttpGet("setores/{id:int}/fila")]
-  public async Task<IActionResult> Fila(int id, CancellationToken ct) => Traduzir(await _consulta.Fila(id, ct));
+  public async Task<IActionResult> Fila(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _consulta.Fila(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
+  }
 }
