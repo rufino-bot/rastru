@@ -247,22 +247,43 @@ public class PedidoRepositoryTests : TesteComBanco
     await using var db = NovoContexto();
     try
     {
-      // 1990 e 1989 sao mais antigos que qualquer Pedido do banco de dev (e dos outros testes).
+      // `ListarMaisAntigosAsync` nao tem como ser escopado: le a tabela inteira. Por isso a asercao
+      // vale com QUALQUER linha de terceiros no banco (inclusive sobra de execucao interrompida) e
+      // so compara as linhas deste teste com o que a consulta devolveu.
+      var datas = new Dictionary<int, DateTime>();
+      async Task<int> CriarAsync(string status, DateTime data)
+      {
+        var id = await NovoPedidoAsync(db, "M-" + Unico(), "Cliente", status, data);
+        ids.Add(id);   // entra na limpeza logo apos criar: nao ha janela de vazamento
+        datas[id] = data;
+        return id;
+      }
+
       var abertos = new List<int>();
       var statusDosAbertos = new[] { "Aberto", "EmProducao", "AguardandoExpedicao", "Aberto", "EmProducao", "Aberto" };
       for (var i = 0; i < statusDosAbertos.Length; i++)
-        abertos.Add(await NovoPedidoAsync(
-            db, "M-" + Unico(), "Cliente", statusDosAbertos[i], new DateTime(1990, 1, 1 + i, 8, 0, 0, DateTimeKind.Utc)));
-      var concluido = await NovoPedidoAsync(db, "M-" + Unico(), "Cliente", "Concluido", new DateTime(1989, 1, 1, 8, 0, 0, DateTimeKind.Utc));
-      var cancelado = await NovoPedidoAsync(db, "M-" + Unico(), "Cliente", "Cancelado", new DateTime(1989, 1, 2, 8, 0, 0, DateTimeKind.Utc));
-      ids.AddRange(abertos);
-      ids.AddRange([concluido, cancelado]);
+        abertos.Add(await CriarAsync(statusDosAbertos[i], new DateTime(1990, 1, 1 + i, 8, 0, 0, DateTimeKind.Utc)));
+      var concluido = await CriarAsync("Concluido", new DateTime(1989, 1, 1, 8, 0, 0, DateTimeKind.Utc));
+      var cancelado = await CriarAsync("Cancelado", new DateTime(1989, 1, 2, 8, 0, 0, DateTimeKind.Utc));
 
       var achados = await new PedidoRepository(db).ListarMaisAntigosAsync(
           ["Concluido", "Cancelado"], 5, CancellationToken.None);
 
-      // Os cinco primeiros dos seis, do mais antigo ao mais novo; nenhum encerrado.
-      Assert.Equal(abertos.Take(5), achados.Select(p => p.Id));
+      // Para no limite: exatamente cinco, com seis candidatos nossos.
+      Assert.Equal(5, achados.Count);
+      // Do mais antigo ao mais novo, com desempate por Id.
+      Assert.Equal(
+          achados.OrderBy(p => p.DataAbertura).ThenBy(p => p.Id).Select(p => p.Id),
+          achados.Select(p => p.Id));
+      // Nenhum encerrado, nem os nossos (mais antigos que todos os abertos: entrariam se nao fossem excluidos).
+      Assert.DoesNotContain(achados, p => p.Status is "Concluido" or "Cancelado");
+      Assert.DoesNotContain(achados, p => p.Id == concluido || p.Id == cancelado);
+      // Nenhuma linha nossa que devia entrar ficou de fora: as nossas ausentes rankeiam depois do quinto.
+      var quinto = achados[^1];
+      foreach (var id in abertos.Where(id => achados.All(p => p.Id != id)))
+        Assert.True(
+            (datas[id], id).CompareTo((quinto.DataAbertura, quinto.Id)) >= 0,
+            $"Pedido {id} (aberto, {datas[id]:O}) devia ter entrado antes do quinto ({quinto.Id}, {quinto.DataAbertura:O}).");
     }
     finally
     {
