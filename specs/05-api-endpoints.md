@@ -163,7 +163,7 @@ mesmo status HTTP para coisas diferentes.
   `{ porStatus, maisAntigosAbertos }`. `porStatus` é `{ status, quantidade }[]`, contado no servidor
   sobre **todos** os Pedidos (nunca sobre uma página) e com **sempre os cinco status**, na ordem do
   `CK_Pedido_Status` (`Aberto`, `EmProducao`, `AguardandoExpedicao`, `Concluido`, `Cancelado`),
-  zeros inclusive. `maisAntigosAbertos` são até 5 Pedidos, no mesmo formato de `itens` acima (com
+  zeros inclusive. `maisAntigosAbertos` são até 5 Pedidos, no mesmo formato de `itens` de `GET /pedidos` (com
   `pausa`), fora de `Concluido` e `Cancelado`, por `DataAbertura` crescente — é o que a Home mostra
   em "pedidos abertos há mais tempo".
 - `GET /pedidos/materiais` *(qualquer perfil autenticado)* — sem parâmetros. `{ id, codigo,
@@ -428,7 +428,7 @@ O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON
 Fase 3D (`docs/superpowers/plans/2026-09-28-fase-3d-ajustes-pos-verificacao.md`), que é o que o front
 consome. O segundo traz só o que a 3D mudou (`atividade`, `estornaveis`, `pausa`, `iniciaAqui`,
 `primeiroPassoDoPai`, o destino calculado e as rotas de pausa); o resto continua no primeiro. Os
-campos `pedidoCliente` e `materiais` do nó resumido e as três rotas de `/pedidos` acima estão na
+campos `pedidoCliente` e `materiais` do nó resumido e as três rotas `GET /pedidos`, `GET /pedidos/resumo` e `GET /pedidos/materiais` estão na
 seção "Contrato JSON novo" do plano 1 dos filtros da demanda
 (`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`).
 

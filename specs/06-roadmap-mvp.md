@@ -119,10 +119,10 @@ resolvidos (ou conscientemente adiados).
 > desta instância foi pontual (tom neutro no resumo, mais um teste específico); a **classe** do
 > problema continua sem guarda.
 
-> **Emenda de 2026-09-29:** as duas primeiras dívidas acima — `listarPedidos()` não paginado e o
+> **Emenda de 2026-09-29:** as duas primeiras «Dívidas nomeadas por esta fase» — `listarPedidos()` não paginado e o
 > rótulo cru de status — foram pagas pelo Plano 1 de "Filtros da demanda e ação em lote" (seção
-> própria, mais abaixo): `GET /pedidos` é paginado, a Home lê `GET /pedidos/resumo`, e a guarda do
-> cliente descrita acima foi trocada por duas, uma no backend e uma no front. O parágrafo acima
+> «Filtros da demanda e ação em lote»): `GET /pedidos` é paginado, a Home lê `GET /pedidos/resumo`, e a guarda do
+> cliente, a de `web/src/api/cadastros.test.ts`, foi trocada por duas, uma no backend e uma no front. O parágrafo «Dívidas nomeadas por esta fase»
 > descreve a 1E como foi entregue. A terceira dívida, a classe "as guardas de tema não medem
 > semântica de cor", **continua em aberto**.
 
@@ -254,7 +254,7 @@ resolvidos (ou conscientemente adiados).
 > **Ordem depois da 3D** (decisão do usuário de 2026-09-28, oficializada em 2026-09-29): primeiro os
 > **filtros da demanda** (a fila do Setor, as Tarefas e a lista de Pedidos), depois a **Fase 1F —
 > Cadastro sob demanda**, depois a **Fase 3B**. "Filtros" não é fase com letra deste roadmap, mas tem
-> seção própria logo abaixo ("Filtros da demanda e ação em lote"), com spec e plano; o escopo que o
+> seção própria ("Filtros da demanda e ação em lote"), com spec e plano; o escopo que o
 > brainstorm de 2026-09-29 decidiu é maior que o "filtrar a fila por Material e por Pedido" desta
 > nota. A Fase 1F tem spec
 > (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`), mas em 2026-09-29 o
@@ -284,7 +284,7 @@ resolvidos (ou conscientemente adiados).
 ## Filtros da demanda e ação em lote
 
 > **Executada depois da 3D e antes da 1F e da 3B** (decisão do usuário de 2026-09-28, oficializada
-> em 2026-09-29 — ver a nota "Ordem depois da 3D", na seção anterior): **filtros → 1F → 3B**. A ordem
+> em 2026-09-29 — ver a nota "Ordem depois da 3D", na seção «Fase 3D — Ajustes pós-verificação da Fase 3»): **filtros → 1F → 3B**. A ordem
 > não mudou; o que mudou é o tamanho do "filtros". Não é fase com letra. Spec:
 > `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`. **Sem mudança de schema**:
 > `dbo.EstruturaMaterial` já existia e já é gravado na criação do nó, e não há `db/alter-*.sql`.
