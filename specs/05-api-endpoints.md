@@ -390,7 +390,10 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
 
 O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON" do plano 2 da Fase 3
-(`docs/superpowers/plans/2026-09-25-fase-3-backend.md`), que é o que o front consome.
+(`docs/superpowers/plans/2026-09-25-fase-3-backend.md`) **e** na seção "Contrato JSON novo" do plano da
+Fase 3D (`docs/superpowers/plans/2026-09-28-fase-3d-ajustes-pos-verificacao.md`), que é o que o front
+consome. O segundo traz só o que a 3D mudou (`atividade`, `estornaveis`, `pausa`, `iniciaAqui`,
+`primeiroPassoDoPai`, o destino calculado e as rotas de pausa); o resto continua no primeiro.
 
 **Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
 e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).

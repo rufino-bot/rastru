@@ -1,5 +1,12 @@
 # Fase 3 — Rastreamento de setor — design
 
+> **Emendada em 2026-09-28 pela spec da Fase 3D**
+> (`docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`): montar deixou de ser
+> ação — iniciar um nó com filhos consome os filhos —, o destino do filho pronto passou a ser o
+> primeiro passo do pai, e entraram o estorno rápido na fila e a pausa de Pedido. As seções 2.4, 4.1,
+> 4.3, 4.4, 4.5, 4.8, 6.1, 6.2, 7.3, 7.6 e 8.2 abaixo são o registro da decisão da época; onde divergem
+> da 3D, vale a 3D.
+
 - **Data:** 2026-09-24
 - **Status:** design aprovado pelo usuário, seção a seção (seções 1 a 8 do brainstorm); **spec escrita aprovada
   pelo usuário em 2026-09-24**

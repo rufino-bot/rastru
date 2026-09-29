@@ -142,6 +142,12 @@ urgente entrar no lugar.
   seção, com a pílula e o motivo, sem Iniciar. Nas demais seções e na tela Tarefas, só a pílula — tudo
   ali continua funcionando.
 
+  > **Corrigido no fechamento da fase (2026-09-29).** Esta frase contradizia a seção 6.1, que diz que a
+  > pílula aparece "em qualquer seção" da fila e que "o motivo, quando há, vai ao lado". **Vale a 6.1,
+  > que é o que o código faz**: na fila, toda linha de Pedido pausado, de qualquer seção, mostra a
+  > pílula **e** o motivo (o `CabecalhoDoNo` de `FilaDoSetorPage` é o de todas as seções); só a tela
+  > Tarefas mostra a pílula sem o motivo.
+
 **Descartadas:** colunas no Pedido (perdem o histórico ao retomar); só um booleano (nem quem nem quando);
 recusar também Terminar/Entregar/Montar (livro atrasado em relação ao chão durante a pausa); o pausado
 sumir da fila (quem o procura não sabe se sumiu ou está pausado) ou ficar no lugar (misturado ao
@@ -261,8 +267,14 @@ montado. `MontagemAcimaDoQueFalta` e `SemFilhos` saem do catálogo (seção 8).
   passo do pai é recusado (`RedirecionamentoSemEfeito`, código novo).
 - `DestinoForaDoRoteiroDoPai` sai do catálogo: não há mais escolha a validar.
 - `DestinoIndevido` passa a cobrir `destinoSetorId` mandado em qualquer caso — ele deixa de existir no
-  corpo da entrega. **A decidir no plano:** retirar o campo do contrato ou mantê-lo só para recusar;
-  o comportamento observável é o mesmo.
+  corpo da entrega.
+
+  > **Decidido no plano (desvio D2, 2026-09-28).** O campo **fica no contrato só para ser recusado**:
+  > `ItemDaEntregaDto.DestinoSetorId` continua existindo, anulável, e um valor não nulo dá 400
+  > `DestinoIndevido`. O motivo é que retirá-lo do DTO faria o `System.Text.Json` **ignorar em
+  > silêncio** um cliente antigo que ainda o mandasse — a entrega seguiria com o destino calculado e
+  > ninguém saberia que o campo foi descartado —, e mantê-lo para recusar falha alto. O
+  > comportamento observável para quem não manda o campo é o mesmo.
 
 ### 4.4 Editar o Roteiro do nó — emenda a §4.6 da Fase 3
 
@@ -298,7 +310,7 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
 
 | Rota | Mudança |
 |---|---|
-| `POST /estrutura/{id}/inicios` | aceita nó com filhos; a resposta traz o movimento e, se houve consumo, a montagem com as baixas |
+| `POST /estrutura/{id}/inicios` | aceita nó com filhos; a resposta traz o movimento de Início, com `montagemId` preenchido quando houve consumo (desvio D1 do plano da Fase 3D) |
 | `POST /estrutura/{id}/montagens` | **sai** |
 | `POST /montagens/{id}/estorno` | fica; passa a estornar também o Início do pai |
 | `POST /entregas` | `destinoSetorId` deixa de ser aceito (seção 4.3) |
@@ -306,16 +318,35 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
 | `POST /pedidos/{id}/retomada` | **nova** — sem corpo → 200, a pausa fechada. PCP, Gestão |
 | `POST /setores`, `PUT /setores/{id}` | ganham `atividade?` |
 
+> **Desvio D1 do plano (2026-09-28).** A redação original desta linha dizia que a resposta do Iniciar
+> traz "o movimento e, se houve consumo, a montagem com as baixas". O implementado devolve **só o
+> movimento de Início** (`MovimentacaoDto`), com `montagemId` preenchido quando houve consumo — a
+> montagem e as baixas estão no livro do nó (`GET /estrutura/{id}/movimentacoes`), onde já eram lidas.
+> O motivo: o front não usa o corpo da resposta, e um envelope novo mudaria o contrato das folhas —
+> o mesmo `POST` serve ao nó sem filhos — sem ganho.
+
 ### 5.2 Leitura
 
 - `GET /setores/{id}/fila`:
   - toda linha de "Em trabalho", "Aguardando coleta" e "Sobra" (último passo) ganha `estornaveis`:
-    `[{ tipo: 'movimentacao' | 'montagem', id, quantidade, usuarioId, usuarioNome, dataHora }]`,
+    `[{ tipo: 'Inicio' | 'Termino' | 'Montagem', id, quantidade, usuarioId, usuarioNome, dataHora }]`
+    (correção do fechamento da fase, 2026-09-29),
     **filtrado no servidor por quem pergunta** — o autor vê os seus; PCP e Administrador veem todos.
     Um registro entra quando não foi estornado e a quantidade dele ainda cabe no saldo da posição.
-  - `NoResumoDto` ganha `pausa: { motivo } | null`;
+  - `NoResumoDto` ganha `pausa: { desde, porUsuarioNome, motivo } | null` (correção do fechamento da fase, 2026-09-29);
   - o corpo ganha `setorAtividade`, ao lado de `setorId`/`setorNome`;
   - "A iniciar aqui" deixa de listar nós com filhos (seção 7).
+
+  > **Correções do fechamento da fase (2026-09-29), conferidas contra `EstornavelDto` e
+  > `PausaResumoDto`.** Os dois campos saíram diferentes do desenho, e vale o implementado:
+  >
+  > - `estornaveis[].tipo` é `Inicio | Termino | Montagem`, **não** `'movimentacao' | 'montagem'`. Os
+  >   dois primeiros são o tipo do movimento e se estornam por `POST /movimentacoes/{id}/estorno`;
+  >   `Montagem` é o início de um pai, que consumiu os filhos, e se estorna por
+  >   `POST /montagens/{id}/estorno`.
+  > - `NoResumoDto.pausa` é `{ desde, porUsuarioNome, motivo } | null`, **não** `{ motivo }`: a tela
+  >   de detalhe do Pedido mostra "Pausado desde {data} por {nome}", e a mesma forma serve à fila, às
+  >   tarefas e a `GET /pedidos` (que já era `{ desde, porUsuarioNome, motivo }` nesta seção).
 - `GET /tarefas`: o item de montagem perde `sugestaoSetorId`/`setoresPossiveis` e traz o destino
   calculado, como os demais; ganha a `pausa` no nó.
 - `GET /pedidos`, `GET /pedidos/{id}`: ganham `pausa: { desde, porUsuarioNome, motivo } | null`.

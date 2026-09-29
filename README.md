@@ -103,9 +103,10 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 ## Roadmap
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
-roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 2B, 3B e 3C como fases próprias.
-A sequência admite as exceções que aquele arquivo declara por escrito; a mais recente é a **Fase 3C**
-(notificação push), executada depois da Fase 5 — a posição dela em relação à Fase 6 não está decidida.
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 2B, 3B, 3C e 3D como fases próprias.
+A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** roda antes da 3B,
+e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
+decidida.
 
 Concluídas até aqui:
 
@@ -123,9 +124,12 @@ Concluídas até aqui:
 
 A seguir vêm a **Fase 3** (rastreamento de setor: livro de movimentações, terminar e mover como
 ações separadas — com o perfil **Movimentador** e a tela de tarefas dele —, montagem de todo nó com
-filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao local de expedição) e a
-**Fase 3B** (Kit: trava de montagem por nó, com conjunto completo na entrada do Setor marcado como
-de montagem — hoje, a Solda). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao local de expedição), a
+**Fase 3D** (ajustes pós-verificação da Fase 3: iniciar como verbo único — iniciar um nó com filhos
+consome os filhos, e montar deixa de ser ação —, atividade do Setor nos botões, destino do filho
+pronto calculado, estorno rápido na fila e pausa de Pedido), executada antes da **Fase 3B** (Kit:
+conjunto completo na entrada do Setor marcado como de montagem — hoje, a Solda — e a tarefa Kit
+pronto; a trava de montagem já é estrutural desde a 3D). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido.
 

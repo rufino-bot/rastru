@@ -42,10 +42,11 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito; a mais recente é a **Fase
-3C — Notificação push**, executada **depois da Fase 5**, porque o fluxo ponta a ponta vem primeiro e
-o push é reforço de uma lista de tarefas que precisa existir antes. A posição dela em relação à Fase
-6 **não está decidida**.
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são duas. A
+**Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
+2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
+a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
+da 3C em relação à Fase 6 **não está decidida**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -335,14 +336,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição) + montado
   dentro do pai + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó (validado na
   aplicação; regra 9).
-- Em Agrupamento **Kit**, num Setor com `UtilizaKit`, um nó com filhos **só sai com o que já foi
-  montado**. Para **todo** nó com filhos, a montagem só aceita o que os filhos diretos presentes
-  permitem (`QuantidadePorPai`), sem passar do que ainda falta montar do nó; filhos só entram
-  nesse Setor em **conjuntos completos**, e nunca além do que o nó ainda precisa receber. Terminar
-  e mover são ações separadas, para Kit e Avulso. Montar é registro de **todo** nó com filhos (Kit
-  ou Avulso); só a saída limitada ao total montado e o conjunto completo são do Kit. (Regras 22 a
-  27, decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a
-  partir da Fase 3.)
+- O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
+  Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
+  permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
+  produção assim, a **saída limitada ao total montado vale para todo nó**, Kit ou Avulso, por
+  construção — sem validação própria. O que continua **só do Kit**: em Setor com `UtilizaKit`, os
+  filhos só entram em **conjuntos completos**, e nunca além do que o nó ainda precisa receber
+  (regra 25, Fase 3B). Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,
+  decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a partir da
+  Fase 3; o início que consome os filhos, decidido em 2026-09-28, é da Fase 3D.)
 - **O livro de movimentações (`dbo.Movimentacao`) é só de inclusão.** Correção é estorno — um
   movimento inverso que aponta o original —, nunca `UPDATE` nem `DELETE` numa linha dele. Editar uma
   linha não desequilibra a soma (cada linha continua tirando de uma posição e pondo em outra), e é
