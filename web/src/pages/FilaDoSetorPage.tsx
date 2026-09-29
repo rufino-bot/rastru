@@ -1,15 +1,18 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  obterFila, iniciar, terminar, entregar, ehConflito,
-  type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto,
+  obterFila, iniciar, terminar, entregar, estornar, ehConflito,
+  type Estornavel, type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto,
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
-import { caminhoDoNo, descreverDestino, formatarQuantidade, rotuloDaAcao, rotuloDoNo } from '../execucao/formatacao'
+import {
+  caminhoDoNo, descreverDestino, formatarQuantidade, mensagemDoEstorno, rotuloDaAcao, rotuloDoNo,
+} from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { FormularioDeQuantidade } from '../execucao/FormularioDeQuantidade'
+import { ListaDeEstornaveis } from '../execucao/ListaDeEstornaveis'
 import type { EstadoDaEscolhaDeSetor } from './FilaPage'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -18,6 +21,7 @@ import { EstadoVazio } from '../components/EstadoVazio'
 import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Botao } from '../components/Botao'
+import { Confirmacao } from '../components/Confirmacao'
 
 const ESCOLHER: EstadoDaEscolhaDeSetor = { escolher: true }
 
@@ -56,6 +60,7 @@ const chaveDeIniciar = (noId: number, ordem: number) => `iniciar:${noId}:${ordem
 const chaveDeTerminar = (noId: number, ordem: number) => `terminar:${noId}:${ordem}`
 const chaveDeIniciarPai = (paiId: number) => `iniciar-pai:${paiId}`
 const chaveDeLevar = (paiId: number, filhoId: number) => `levar:${paiId}:${filhoId}`
+const chaveDeEstornar = (secao: string, noId: number, ordem: number | null) => `estornar:${secao}:${noId}:${ordem ?? ''}`
 
 /** Toda ação que a fila de agora ainda oferece — a que sumiu não pode continuar aberta. */
 function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
@@ -68,6 +73,13 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
       for (const f of g.filhos) if (f.presente > 0) chaves.add(chaveDeLevar(g.pai.id, f.no.id))
     }
   }
+  // A lista curta do estorno só existe com mais de um registro; com um só, o botão vai à confirmação.
+  const comLista = (secao: string, noId: number, ordem: number | null, estornaveis: Estornavel[]) => {
+    if (estornaveis.length > 1) chaves.add(chaveDeEstornar(secao, noId, ordem))
+  }
+  for (const l of fila.emTrabalho) comLista('em-trabalho', l.no.id, l.ordem, l.estornaveis)
+  for (const l of fila.aguardandoColeta) comLista('coleta', l.no.id, l.ordem, l.estornaveis)
+  for (const s of fila.sobra) comLista('sobra', s.no.id, s.ordem, s.estornaveis)
   return chaves
 }
 
@@ -80,6 +92,11 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   const [aberta, setAberta] = useState<string | null>(null)
   const [erroDaAcao, setErroDaAcao] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [aConfirmar, setAConfirmar] = useState<Estornavel | null>(null)
+  const [estornando, setEstornando] = useState(false)
+  // O toque no mesmo quadro, antes do React redesenhar o botão desabilitado — mesmo padrão de
+  // `FormularioDeQuantidade` e do histórico do nó.
+  const estornandoRef = useRef(false)
 
   // Lembra só o Setor cuja fila CARREGOU: um Id digitado na barra que dá 404 não vira lembrança.
   useEffect(() => { if (fila?.setorId === setorId) lembrarSetor(setorId) }, [fila, setorId])
@@ -124,6 +141,40 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
     }
   }
 
+  /** Com um registro só, direto à confirmação; com vários, a lista curta abre na linha. */
+  function pedirEstorno(chave: string, estornaveis: Estornavel[]) {
+    setAviso(null)
+    if (estornaveis.length === 1) setAConfirmar(estornaveis[0])
+    else abrir(chave)
+  }
+
+  /**
+   * O estorno não tem formulário na linha (a confirmação é um diálogo), então a recusa sobe como aviso
+   * no topo. Sucesso e 409 recarregam: dois registros que cabem no saldo um a um podem não caber
+   * juntos, e o segundo estorno é recusado com a fila já velha. O contador de Tarefas reconta porque
+   * toda escrita da execução avisa que o livro mudou.
+   */
+  async function confirmarEstorno() {
+    if (!aConfirmar || estornandoRef.current) return
+    estornandoRef.current = true
+    setEstornando(true)
+    const alvo = aConfirmar
+    setAConfirmar(null)
+    setAviso(null)
+    try {
+      await estornar(alvo)
+      setAberta(null)
+      await recarregar()
+    } catch (e) {
+      setAberta(null)
+      setAviso(mensagemDeErro(e, 'Não foi possível estornar.'))
+      if (ehConflito(e)) await recarregar()
+    } finally {
+      estornandoRef.current = false
+      setEstornando(false)
+    }
+  }
+
   const titulo = fila ? `Fila — ${fila.setorNome}` : 'Fila do Setor'
 
   return (
@@ -136,9 +187,21 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
       {fila && (
         <SecoesDaFila
           fila={fila}
-          acoes={{ aberta, erroDaAcao, abrir, fechar, registrar, setorId }}
+          acoes={{
+            aberta, erroDaAcao, abrir, fechar, registrar, setorId,
+            pedirEstorno, escolherEstorno: setAConfirmar, estornando,
+          }}
         />
       )}
+      <Confirmacao
+        aberto={aConfirmar !== null}
+        mensagem={aConfirmar && mensagemDoEstorno(aConfirmar)}
+        rotuloConfirmar="Estornar"
+        // Estorno é correção, não destruição: nada some do livro. Por isso `primario`, não `perigo`.
+        varianteConfirmar="primario"
+        aoConfirmar={confirmarEstorno}
+        aoCancelar={() => setAConfirmar(null)}
+      />
     </Pagina>
   )
 }
@@ -150,11 +213,14 @@ interface AcoesDaFila {
   fechar: () => void
   registrar: (fazer: () => Promise<unknown>) => Promise<void>
   setorId: number
+  pedirEstorno: (chave: string, estornaveis: Estornavel[]) => void
+  escolherEstorno: (e: Estornavel) => void
+  estornando: boolean
 }
 
 function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFila }) {
-  const { apontar, entregar: podeEntregar } = usePermissoesDaExecucao()
-  const { aberta, erroDaAcao, abrir, fechar, registrar, setorId } = acoes
+  const { apontar, entregar: podeEntregar, podeEstornar } = usePermissoesDaExecucao()
+  const { aberta, erroDaAcao, abrir, fechar, registrar, setorId, pedirEstorno, escolherEstorno, estornando } = acoes
   const rotuloDeIniciar = rotuloDaAcao('Iniciar', fila.setorAtividade)
   const rotuloDeTerminar = rotuloDaAcao('Terminar', fila.setorAtividade)
 
@@ -177,6 +243,37 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
         {rotulo}
       </Botao>
     )
+  }
+
+  /**
+   * "Estornar" da linha: só os registros que a sessão pode estornar (o servidor já filtrou por quem
+   * lê; isto repete a regra para o 403 nunca ser o primeiro aviso). Some enquanto a lista curta
+   * dela está aberta, como os outros botões. Não supõe nada sobre a quantidade do registro contra a
+   * da linha: um Término maior que a tarefa aparece nela (desvio D4 do plano da Fase 3D).
+   */
+  function botaoDeEstorno(chave: string, estornaveis: Estornavel[], no: NoResumoDto) {
+    const meus = estornaveis.filter((e) => podeEstornar(e.usuarioId))
+    if (meus.length === 0 || aberta === chave) return undefined
+    return (
+      <Botao
+        variante="secundario"
+        aria-label={`Estornar ${rotuloDoNo(no)}`}
+        disabled={estornando}
+        onClick={() => pedirEstorno(chave, meus)}
+      >
+        Estornar
+      </Botao>
+    )
+  }
+
+  function listaDeEstorno(chave: string, estornaveis: Estornavel[]) {
+    return painel(chave, (
+      <ListaDeEstornaveis
+        estornaveis={estornaveis.filter((e) => podeEstornar(e.usuarioId))}
+        aoEscolher={escolherEstorno}
+        aoCancelar={fechar}
+      />
+    ))
   }
 
   const vazia = fila.aIniciar.length === 0 && fila.emTrabalho.length === 0
@@ -215,29 +312,43 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
       )}
       {fila.emTrabalho.length > 0 && (
         <Secao titulo="Em trabalho">
-          {fila.emTrabalho.map((l) => (
-            <ItemComAcao
-              key={`${l.no.id}-${l.ordem}`}
-              acao={apontar && botao(chaveDeTerminar(l.no.id, l.ordem), rotuloDeTerminar, l.no)}
-              painel={painel(chaveDeTerminar(l.no.id, l.ordem), (
-                <FormularioDeQuantidade
-                  rotulo={rotuloDeTerminar}
-                  maximo={l.quantidade}
-                  aoConfirmar={(q) => registrar(() => terminar(l.no.id, { setorId, ordem: l.ordem, quantidade: q }))}
-                  aoCancelar={fechar}
-                />
-              ))}
-            >
-              <CabecalhoDoNo no={l.no} />
-              <Detalhe>{`${formatarQuantidade(l.quantidade)} em trabalho · passo ${l.ordem}`}</Detalhe>
-            </ItemComAcao>
-          ))}
+          {fila.emTrabalho.map((l) => {
+            const chaveEstornar = chaveDeEstornar('em-trabalho', l.no.id, l.ordem)
+            const terminarAqui = apontar ? botao(chaveDeTerminar(l.no.id, l.ordem), rotuloDeTerminar, l.no) : undefined
+            const estornarAqui = botaoDeEstorno(chaveEstornar, l.estornaveis, l.no)
+            return (
+              <ItemComAcao
+                key={`${l.no.id}-${l.ordem}`}
+                // Fragmento só com botão: `ItemComAcao` desenha o contêiner de ação para qualquer valor
+                // verdadeiro, e um fragmento vazio é verdadeiro.
+                acao={terminarAqui || estornarAqui ? <>{terminarAqui}{estornarAqui}</> : undefined}
+                painel={
+                  painel(chaveDeTerminar(l.no.id, l.ordem), (
+                    <FormularioDeQuantidade
+                      rotulo={rotuloDeTerminar}
+                      maximo={l.quantidade}
+                      aoConfirmar={(q) => registrar(() => terminar(l.no.id, { setorId, ordem: l.ordem, quantidade: q }))}
+                      aoCancelar={fechar}
+                    />
+                  ))
+                  ?? listaDeEstorno(chaveEstornar, l.estornaveis)
+                }
+              >
+                <CabecalhoDoNo no={l.no} />
+                <Detalhe>{`${formatarQuantidade(l.quantidade)} em trabalho · passo ${l.ordem}`}</Detalhe>
+              </ItemComAcao>
+            )
+          })}
         </Secao>
       )}
       {fila.aguardandoColeta.length > 0 && (
         <Secao titulo="Aguardando coleta">
           {fila.aguardandoColeta.map((l) => (
-            <ItemComAcao key={`${l.no.id}-${l.ordem}`}>
+            <ItemComAcao
+              key={`${l.no.id}-${l.ordem}`}
+              acao={botaoDeEstorno(chaveDeEstornar('coleta', l.no.id, l.ordem), l.estornaveis, l.no)}
+              painel={listaDeEstorno(chaveDeEstornar('coleta', l.no.id, l.ordem), l.estornaveis)}
+            >
               <CabecalhoDoNo no={l.no} />
               <Detalhe>{`${formatarQuantidade(l.quantidade)} aguardando coleta · passo ${l.ordem}`}</Detalhe>
               <Detalhe>{`Destino: ${descreverDestino(l.destino, l.no)}`}</Detalhe>
@@ -294,7 +405,11 @@ function SecoesDaFila({ fila, acoes }: { fila: FilaDoSetorDto; acoes: AcoesDaFil
       {fila.sobra.length > 0 && (
         <Secao titulo="Sobra">
           {fila.sobra.map((s) => (
-            <ItemComAcao key={`${s.no.id}-${s.origem}-${s.ordem ?? ''}`}>
+            <ItemComAcao
+              key={`${s.no.id}-${s.origem}-${s.ordem ?? ''}`}
+              acao={botaoDeEstorno(chaveDeEstornar('sobra', s.no.id, s.ordem), s.estornaveis, s.no)}
+              painel={listaDeEstorno(chaveDeEstornar('sobra', s.no.id, s.ordem), s.estornaveis)}
+            >
               <CabecalhoDoNo no={s.no} />
               <DetalheDaSobra sobra={s} />
             </ItemComAcao>

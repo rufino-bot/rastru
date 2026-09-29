@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatarQuantidade, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
-  rotuloDaAcao,
+  rotuloDaAcao, rotuloDoEstornavel, mensagemDoEstorno,
 } from './formatacao'
-import type { DestinoDto, NoResumoDto } from '../api/execucao'
+import type { DestinoDto, Estornavel, NoResumoDto } from '../api/execucao'
 import { destino, DESTINO_MONTAGEM } from '../testes/execucao'
 
 const SUPORTE: NoResumoDto = {
@@ -114,5 +114,29 @@ describe('rotuloDaAcao', () => {
   it('sem atividade, fica só o verbo', () => {
     expect(rotuloDaAcao('Iniciar', null)).toBe('Iniciar')
     expect(rotuloDaAcao('Terminar', '   ')).toBe('Terminar')
+  })
+})
+
+const TERMINO: Estornavel = {
+  tipo: 'Termino', id: 41, quantidade: 5, usuarioId: 12, usuarioNome: 'Operador do Corte', dataHora: '2026-09-28T10:14:00-03:00',
+}
+
+describe('rotuloDoEstornavel', () => {
+  it('diz o que é, quanto, quem e quando', () => {
+    expect(rotuloDoEstornavel(TERMINO)).toBe('Término de 5 · Operador do Corte · 28/09/2026 10:14')
+    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Inicio' })).toBe('Início de 5 · Operador do Corte · 28/09/2026 10:14')
+    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Montagem' })).toBe('Início com os filhos de 5 · Operador do Corte · 28/09/2026 10:14')
+  })
+})
+
+describe('mensagemDoEstorno', () => {
+  it('confirma o registro e diz o que acontece', () => {
+    expect(mensagemDoEstorno(TERMINO))
+      .toBe('Estornar o término de 5, registrado por Operador do Corte em 28/09/2026 10:14? O movimento inverso fica no histórico.')
+  })
+
+  it('no início de um pai, avisa que os filhos voltam', () => {
+    expect(mensagemDoEstorno({ ...TERMINO, tipo: 'Montagem' }))
+      .toBe('Estornar o início com os filhos de 5, registrado por Operador do Corte em 28/09/2026 10:14? Os filhos voltam a aguardar montagem, e o estorno fica no histórico.')
   })
 })

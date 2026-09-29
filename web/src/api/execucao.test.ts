@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
-  iniciar, terminar, entregar, estornarMovimentacao, estornarMontagem, substituirRoteiroDoNo,
-  ehConflito,
+  iniciar, terminar, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
+  ehConflito, type Estornavel,
 } from './execucao'
 import { aoMudarOLivro } from './sinalDoLivro'
 import { inicializar, _resetParaTeste } from './client'
@@ -59,6 +59,28 @@ describe('execucao', () => {
     expect(init.method).toBe(metodo)
     expect(new Headers(init.headers).get('Content-Type')).toBe('application/json')
     expect(JSON.parse(init.body as string)).toEqual(corpo)
+  })
+
+  const REGISTRO: Estornavel = {
+    tipo: 'Termino', id: 41, quantidade: 5, usuarioId: 12, usuarioNome: 'Operador do Corte',
+    dataHora: '2026-09-28T10:14:00-03:00',
+  }
+
+  it.each([
+    ['um Término', REGISTRO, '/api/movimentacoes/41/estorno'],
+    ['um Início', { ...REGISTRO, tipo: 'Inicio' as const }, '/api/movimentacoes/41/estorno'],
+    ['o início de um pai (Montagem)', { ...REGISTRO, tipo: 'Montagem' as const, id: 9 }, '/api/montagens/9/estorno'],
+  ])('estornar %s faz POST no caminho certo, sem corpo', async (_nome, registro, caminho) => {
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson({}, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await estornar(registro)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe(caminho)
+    expect(init.method).toBe('POST')
+    expect(init.body).toBeUndefined()
   })
 
   it.each([

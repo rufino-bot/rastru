@@ -6,6 +6,7 @@ import { FilaDoSetorPage } from './FilaDoSetorPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
 import { CHASSI, PARAFUSO, SUPORTE, DESTINO_MONTAGEM, destino, fila, no } from '../testes/execucao'
+import type { Estornavel } from '../api/execucao'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); localStorage.clear() })
 
@@ -23,9 +24,9 @@ vi.mock('../auth/AuthContext', () => ({
 const PECA_B = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null })
 
 const FILA_CHEIA = fila({
-  aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }],
-  emTrabalho: [{ no: PECA_B, ordem: 1, quantidade: 2.5 }],
-  aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino() }],
+  aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+  emTrabalho: [{ no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+  aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
   aguardandoMontagem: [{
     pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
     filhos: [
@@ -34,8 +35,8 @@ const FILA_CHEIA = fila({
     ],
   }],
   sobra: [
-    { no: SUPORTE, origem: 'UltimoPasso', ordem: 2, quantidade: 5, emMaisDeUmSetor: false },
-    { no: PARAFUSO, origem: 'Montagem', ordem: null, quantidade: 1, emMaisDeUmSetor: true },
+    { no: SUPORTE, origem: 'UltimoPasso', ordem: 2, quantidade: 5, emMaisDeUmSetor: false, estornaveis: [] },
+    { no: PARAFUSO, origem: 'Montagem', ordem: null, quantidade: 1, emMaisDeUmSetor: true, estornaveis: [] },
   ],
 })
 
@@ -106,8 +107,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorAtividade: 'corte',
-        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }],
-        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2 }],
+        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
       })),
     }))
 
@@ -121,8 +122,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorAtividade: 'corte',
-        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }],
-        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2 }],
+        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
       })),
     }))
 
@@ -140,8 +141,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoColeta: [
-          { no: SUPORTE, ordem: 1, quantidade: 4, destino: destino() },
-          { no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM },
+          { no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] },
+          { no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM, estornaveis: [] },
         ],
       })),
     }))
@@ -196,7 +197,7 @@ describe('FilaDoSetorPage — leitura', () => {
 
   it('seção sem nada não aparece', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
-      '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })),
+      '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })),
     }))
 
     renderizar()
@@ -274,8 +275,8 @@ describe('FilaDoSetorPage — leitura', () => {
       '/api/setores/1/fila': () => {
         chamadas += 1
         return respostaJson(chamadas === 1
-          ? fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })
-          : fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6 }] }))
+          ? fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
+          : fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] }))
       },
     }))
 
@@ -294,7 +295,7 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => {
         chamadas += 1
-        if (chamadas === 1) return respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] }))
+        if (chamadas === 1) return respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] }))
         return Promise.reject(new TypeError('Failed to fetch'))
       },
     }))
@@ -337,7 +338,7 @@ function corpoDe(fetchMock: ReturnType<typeof vi.fn>, caminho: string): unknown 
   return JSON.parse(init.body as string)
 }
 
-const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10 }] })
+const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
 
 const FORA_DO_PRIMEIRO_PASSO = fila({
   aguardandoMontagem: [{
@@ -375,7 +376,7 @@ describe('FilaDoSetorPage — ações', () => {
   })
 
   it('terminar manda o passo da linha', async () => {
-    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ no: SUPORTE, ordem: 3, quantidade: 6 }] })], {
+    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ no: SUPORTE, ordem: 3, quantidade: 6, estornaveis: [] }] })], {
       '/api/estrutura/7/terminos': () => respostaJson({}, 201),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -458,7 +459,7 @@ describe('FilaDoSetorPage — ações', () => {
   })
 
   it('409 mostra a frase do servidor no formulário e recarrega a fila', async () => {
-    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6 }] })], {
+    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] })], {
       '/api/estrutura/7/inicios': () => respostaJson(
         { erro: 'SaldoInsuficiente', mensagem: 'Só há 6 de Suporte a iniciar.' }, 409),
     })
@@ -671,5 +672,225 @@ describe('FilaDoSetorPage — perfis (gating na ação, spec §4.8)', () => {
 
     expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
+  })
+})
+
+const ESTORNAVEL = (id: number, quantidade: number, usuarioId = 12): Estornavel => ({
+  tipo: 'Termino', id, quantidade, usuarioId, usuarioNome: 'Operador do Corte', dataHora: '2026-09-28T10:14:00-03:00',
+})
+
+const foiChamado = (fetchMock: ReturnType<typeof vi.fn>, caminho: string) =>
+  fetchMock.mock.calls.some((c) => String(c[0]) === caminho)
+
+describe('FilaDoSetorPage — estorno rápido', () => {
+  beforeEach(() => {
+    perfil = 'Operador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const COLETA = (estornaveis: Estornavel[]) => fila({
+    aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 8, destino: destino(), estornaveis }],
+  })
+
+  it('com um registro só, vai direto à confirmação e estorna o movimento', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COLETA([ESTORNAVEL(41, 5)]), fila()], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    expect(screen.getByText(/^Estornar o término de 5, registrado por Operador do Corte/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('Nada neste Setor agora')).toBeTruthy()
+    expect(foiChamado(fetchMock, '/api/movimentacoes/41/estorno')).toBe(true)
+    expect(getsDaFila()).toBe(2)
+  })
+
+  it('com vários, abre a lista curta e estorna o escolhido', async () => {
+    const { fetchMock } = montarFetch([COLETA([ESTORNAVEL(42, 3), ESTORNAVEL(41, 5)])], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    // A lista abre na linha, sem diálogo ainda: nada foi escolhido.
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar Término de 5 · Operador do Corte · 28/09/2026 10:14' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/movimentacoes/41/estorno')).toBe(true))
+    expect(foiChamado(fetchMock, '/api/movimentacoes/42/estorno')).toBe(false)
+  })
+
+  it('a lista curta só traz os registros que a sessão pode estornar', async () => {
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(42, 3), ESTORNAVEL(41, 5), ESTORNAVEL(40, 2, 99)])]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+
+    expect(screen.getAllByRole('button', { name: /^Estornar Término/ })).toHaveLength(2)
+  })
+
+  it('com um registro meu e outro alheio, vai direto à confirmação do meu', async () => {
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(42, 3, 99), ESTORNAVEL(41, 5)])]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+
+    expect(screen.getByText(/^Estornar o término de 5, registrado por/)).toBeTruthy()
+    expect(screen.queryByText('Qual registro você quer estornar?')).toBeNull()
+  })
+
+  it('o registro maior que a linha (desvio D4) aparece e estorna com a quantidade dele', async () => {
+    const { fetchMock } = montarFetch([fila({
+      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 40, estornaveis: [ESTORNAVEL(41, 45)] }],
+    })], { '/api/movimentacoes/41/estorno': () => respostaJson({}, 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    expect(screen.getByText(/^Estornar o término de 45, registrado por/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/movimentacoes/41/estorno')).toBe(true))
+  })
+
+  it('a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [ESTORNAVEL(41, 5)] }],
+      sobra: [{ no: PARAFUSO, origem: 'UltimoPasso', ordem: 2, quantidade: 1, emMaisDeUmSetor: false, estornaveis: [ESTORNAVEL(50, 1)] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Terminar SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeTruthy()
+    expect(within(screen.getByRole('list', { name: 'Sobra' })).getByRole('button', { name: 'Estornar Parafuso' })).toBeTruthy()
+  })
+
+  it('o início de um pai estorna pela rota da montagem', async () => {
+    const { fetchMock } = montarFetch([fila({
+      emTrabalho: [{ no: CHASSI, ordem: 1, quantidade: 3, estornaveis: [{ ...ESTORNAVEL(9, 3), tipo: 'Montagem' }] }],
+    })], { '/api/montagens/9/estorno': () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar CH-01 — Chassi' }))
+    expect(screen.getByText(/Os filhos voltam a aguardar montagem/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/montagens/9/estorno')).toBe(true))
+    expect(foiChamado(fetchMock, '/api/movimentacoes/9/estorno')).toBe(false)
+  })
+
+  it('recusa do servidor vira aviso no topo e, no 409, recarrega', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COLETA([ESTORNAVEL(41, 5)])], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({ erro: 'EstornoImpossivel', mensagem: 'A quantidade já andou.' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('A quantidade já andou.')).toBeTruthy()
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('dois registros que cabem um a um e não juntos: o segundo é recusado e a fila recarrega com o que sobrou', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([
+      COLETA([ESTORNAVEL(42, 3), ESTORNAVEL(41, 5)]),
+      COLETA([ESTORNAVEL(41, 5)]),
+      COLETA([]),
+    ], {
+      '/api/movimentacoes/42/estorno': () => respostaJson({}, 201),
+      '/api/movimentacoes/41/estorno': () => respostaJson({ erro: 'EstornoImpossivel', mensagem: 'A quantidade já andou.' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar Término de 3 · Operador do Corte · 28/09/2026 10:14' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('A quantidade já andou.')).toBeTruthy()
+    await waitFor(() => expect(getsDaFila()).toBe(3))
+    expect(screen.queryByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeNull()
+  })
+
+  it('403 mostra a frase e NÃO recarrega (só o 409 recarrega)', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([COLETA([ESTORNAVEL(41, 5)])], {
+      '/api/movimentacoes/41/estorno': () => respostaJson({}, 403),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBeTruthy()
+    expect(getsDaFila()).toBe(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('sem registro que a sessão possa estornar, não há botão', async () => {
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(41, 5, 99)])]).fetchMock) // autor 99, sessão 12, Operador
+
+    renderizar()
+    await screen.findByText('8 aguardando coleta · passo 1')
+
+    expect(screen.queryByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeNull()
+  })
+
+  it('o PCP estorna o registro de outra pessoa', async () => {
+    perfil = 'PCP'
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(41, 5, 99)])]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('a Gestão não estorna, mesmo com registro na linha', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch([COLETA([ESTORNAVEL(41, 5)])]).fetchMock)
+
+    renderizar()
+    await screen.findByText('8 aguardando coleta · passo 1')
+
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it('linha sem ação nenhuma não ganha o contêiner de ações vazio', async () => {
+    perfil = 'Movimentador' // não apura: sem Terminar; e sem registro estornável na linha
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }],
+    })]).fetchMock)
+
+    renderizar()
+
+    const linha = (await screen.findByText('6 em trabalho · passo 1')).closest('li')!
+    expect(linha.firstElementChild!.children).toHaveLength(1)
+  })
+
+  it('cancelar a confirmação não estorna', async () => {
+    const { fetchMock } = montarFetch([COLETA([ESTORNAVEL(41, 5)])])
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/estorno'))).toBe(false)
   })
 })

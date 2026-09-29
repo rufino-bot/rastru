@@ -98,10 +98,28 @@ export interface DestinoDto {
   paiSemRoteiro: boolean
 }
 
+/**
+ * Um registro por trás de uma linha da fila que ainda dá para estornar (spec da Fase 3D, §2.4). O
+ * servidor já filtrou: não estornado, cabe no saldo da posição, e quem lê pode estorná-lo.
+ * `Montagem` é o início de um pai, que consumiu os filhos: estorna-se pela rota da montagem.
+ * A quantidade do registro NÃO é limitada pela da linha (desvio D4 do plano da Fase 3D): um
+ * Término maior que a tarefa aparece na linha da tarefa.
+ */
+export interface Estornavel {
+  tipo: 'Inicio' | 'Termino' | 'Montagem'
+  id: number
+  quantidade: number
+  usuarioId: number
+  usuarioNome: string
+  /** ISO 8601 com offset -03:00 — mostrar com `formatarDataHora`. */
+  dataHora: string
+}
+
 export interface LinhaDaFila {
   no: NoResumoDto
   ordem: number
   quantidade: number
+  estornaveis: Estornavel[]
 }
 
 export interface LinhaAguardandoColeta extends LinhaDaFila {
@@ -137,6 +155,7 @@ export interface LinhaDeSobra {
   quantidade: number
   /** Só em `Montagem`: o filho aguarda montagem em mais de um Setor. */
   emMaisDeUmSetor: boolean
+  estornaveis: Estornavel[]
 }
 
 export interface FilaDoSetorDto {
@@ -309,6 +328,11 @@ export function estornarMovimentacao(id: number): Promise<MovimentacaoDto> {
 /** Um estorno por baixa de filho. */
 export function estornarMontagem(id: number): Promise<MovimentacaoDto[]> {
   return enviar(`/montagens/${id}/estorno`, 'POST', undefined, 'estornar a montagem')
+}
+
+/** O estorno certo para o registro da fila: o início de um pai é a montagem inteira. */
+export function estornar(e: Estornavel): Promise<MovimentacaoDto | MovimentacaoDto[]> {
+  return e.tipo === 'Montagem' ? estornarMontagem(e.id) : estornarMovimentacao(e.id)
 }
 
 /** `passos` são SetorIds em ordem; quem numera é o servidor (mesma regra de `LinhaDeRoteiro`). */

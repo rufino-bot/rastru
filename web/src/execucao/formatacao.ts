@@ -1,4 +1,5 @@
-import type { DestinoDto, LocalDto, NoResumoDto, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
+import type { DestinoDto, Estornavel, LocalDto, NoResumoDto, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
+import { formatarDataHora } from '../api/cadastros'
 
 const NUMERO = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
 
@@ -88,4 +89,25 @@ export function rotuloDoTipo(tipo: TipoDeMovimentacao): string {
 export function rotuloDaAcao(verbo: 'Iniciar' | 'Terminar', atividade: string | null): string {
   const a = atividade?.trim()
   return a ? `${verbo} ${a}` : verbo
+}
+
+const NOME_DO_ESTORNAVEL: Record<Estornavel['tipo'], string> = {
+  Inicio: 'início',
+  Termino: 'término',
+  Montagem: 'início com os filhos',
+}
+
+/** Uma linha da lista curta de estorno: "Término de 5 · Fulano · 28/09/2026 10:14". */
+export function rotuloDoEstornavel(e: Estornavel): string {
+  const nome = NOME_DO_ESTORNAVEL[e.tipo]
+  return `${nome[0].toUpperCase()}${nome.slice(1)} de ${formatarQuantidade(e.quantidade)} · ${e.usuarioNome} · ${formatarDataHora(e.dataHora)}`
+}
+
+/** A pergunta da confirmação: o que se desfaz, e o que acontece depois (spec da Fase 3D, §2.4). */
+export function mensagemDoEstorno(e: Estornavel): string {
+  const oQue = `Estornar o ${NOME_DO_ESTORNAVEL[e.tipo]} de ${formatarQuantidade(e.quantidade)}, `
+    + `registrado por ${e.usuarioNome} em ${formatarDataHora(e.dataHora)}?`
+  return e.tipo === 'Montagem'
+    ? `${oQue} Os filhos voltam a aguardar montagem, e o estorno fica no histórico.`
+    : `${oQue} O movimento inverso fica no histórico.`
 }
