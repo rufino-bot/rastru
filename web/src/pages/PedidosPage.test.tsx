@@ -149,10 +149,10 @@ describe('PedidosPage', () => {
     expect(await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')).toBeTruthy()
   })
 
-  // C1 (achado da review da Task 8): a lista fica `[]` no `catch` (nunca é preenchida), então
-  // `pedidos.length === 0` sozinho também é verdade quando a causa é falha de rede — o "Nenhum
-  // pedido aberto" apareceria JUNTO do banner de erro, afirmando um fato sobre o banco a partir
-  // de uma falha de conexão.
+  // C1 (achado da review da Task 8): numa falha o hook mantém `total` em 0, então `total === 0`
+  // sozinho também é verdade quando a causa é falha de rede — o "Nenhum pedido aberto" apareceria
+  // JUNTO do banner de erro, afirmando um fato sobre o banco a partir de uma falha de conexão. O
+  // que separa os dois casos é o `erroDeLeitura === null` na condição do estado vazio.
   it('não mostra o estado vazio quando a listagem falha', async () => {
     vi.stubGlobal('fetch', api({ '/api/pedidos': () => respostaJson({ erro: 'Falhou' }, 500) }))
 
@@ -163,17 +163,13 @@ describe('PedidosPage', () => {
   })
 
   // M10 (achado da review da Task 8): `SetoresPage` e `MateriaisPage` têm o teste equivalente
-  // (I1 da review de branch da 1B) — `carregar` escreve `erro` no `catch` mas só limpa no
-  // sucesso. Acrescentado aqui pela mesma razão. **Medido, não presumido**: a mutação M10
-  // (remover o `setErro(null)` de dentro de `carregar`) SOBREVIVE a este teste — é mutante
-  // equivalente NESTA tela, não falta de cobertura. `salvar` já chama `setErro(null)` no
-  // início de si mesma (`PedidosPage.tsx:54`), ANTES de chamar `carregar()`; como o único outro
-  // disparo de `carregar()` é o efeito de montagem (onde `erro` já nasce `null`), não existe
-  // caminho em que o `erro` seja não nulo no momento em que o `setErro(null)` DE DENTRO de
-  // `carregar` seria o responsável por limpá-lo — ao contrário de `Setores`/`Materiais`, cujo
-  // checkbox "Mostrar inativos" dispara uma `carregar` independente de `salvar`. Mantido porque
-  // ainda prova um comportamento real (o banner de erro da carga inicial não sobrevive a um
-  // cadastro bem-sucedido).
+  // (I1 da review de branch da 1B). Aqui o erro de LEITURA vem do `useBuscaPaginada` e só o `carregar`
+  // do hook o limpa, no caminho de sucesso; `salvar` limpa apenas `erroDeEscrita`, que é outro
+  // estado. Por isso o teste prova de verdade a limpeza do hook: o banner da carga inicial não
+  // sobrevive à recarga que o cadastro bem-sucedido dispara. **Medido, não presumido**: removendo o
+  // `setErro(null)` do caminho de sucesso de `carregar` em `useBuscaPaginada`, este teste fica
+  // vermelho (26 verdes, 1 vermelho na tela). A M10 antiga era mutante equivalente enquanto a
+  // página tinha `carregar` próprio e `salvar` limpava o mesmo `erro`; deixou de ser.
   it('limpa a mensagem de erro da carga inicial quando o cadastro seguinte tem sucesso', async () => {
     let chamadas = 0
     vi.stubGlobal('fetch', api({
