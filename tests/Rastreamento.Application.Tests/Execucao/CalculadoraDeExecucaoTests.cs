@@ -51,48 +51,27 @@ public class CalculadoraDeExecucaoTests
   }
 
   [Fact]
-  public void Item_no_ultimo_passo_vai_para_a_montagem_do_pai_com_os_Setores_do_Roteiro_dele()
+  public void Item_no_ultimo_passo_vai_para_o_primeiro_passo_do_pai()
   {
-    var calc = Calcular([No(1, null, 10m, null, Corte, Solda, Pintura, Solda), No(2, 1, 40m, 4m, Corte)]);
+    var calc = Calcular([No(1, null, 10m, null, Solda, Pintura, Solda), No(2, 1, 40m, 4m, Corte)]);
 
     var destino = calc.DestinoDaColeta(2, 1);
 
     Assert.Equal(TipoDeDestino.Montagem, destino.Tipo);
     Assert.Equal(1, destino.PaiId);
-    Assert.Equal(new[] { Corte, Solda, Pintura }, destino.SetoresPossiveis);   // distintos, em ordem de passo
+    Assert.Equal<PassoDoCalculo?>(new PassoDoCalculo(Solda, 1), destino.Passo);
     Assert.False(destino.PaiSemRoteiro);
   }
 
   [Fact]
-  public void Sugestao_e_o_Setor_onde_o_pai_esta_em_trabalho_o_de_maior_saldo()
-  {
-    var calc = Calcular(
-        [No(1, null, 10m, null, Corte, Solda, Pintura), No(2, 1, 40m, 4m, Dobra)],
-        [Em(1, Local.NoSetor(Solda, 2), 3m), Em(1, Local.NoSetor(Pintura, 3), 5m)]);
-
-    Assert.Equal(Pintura, calc.DestinoDaColeta(2, 1).SugestaoSetorId);
-  }
-
-  [Fact]
-  public void Sem_pai_em_trabalho_a_sugestao_e_o_primeiro_passo_nao_alcancado()
-  {
-    var calc = Calcular(
-        [No(1, null, 10m, null, Corte, Solda, Pintura), No(2, 1, 40m, 4m, Dobra)],
-        alcancados: [(1, 1)]);
-
-    Assert.Equal(Solda, calc.DestinoDaColeta(2, 1).SugestaoSetorId);
-  }
-
-  [Fact]
-  public void Pai_sem_Roteiro_nao_tem_sugestao_nem_Setores()
+  public void Pai_sem_Roteiro_nao_tem_destino()
   {
     var calc = Calcular([No(1, null, 10m, null), No(2, 1, 40m, 4m, Dobra)]);
 
     var destino = calc.DestinoDaColeta(2, 1);
 
     Assert.Equal(TipoDeDestino.Montagem, destino.Tipo);
-    Assert.Null(destino.SugestaoSetorId);
-    Assert.Empty(destino.SetoresPossiveis);
+    Assert.Null(destino.Passo);
     Assert.True(destino.PaiSemRoteiro);
   }
 

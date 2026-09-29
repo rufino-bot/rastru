@@ -70,16 +70,9 @@ public class ConservacaoTests
           var baldes = Baldes(calc, nos, Posicoes.AguardandoColeta).Concat(Baldes(calc, nos, Posicoes.AguardandoMontagem)).ToList();
           if (baldes.Count == 0) continue;
           var (id, local, saldo) = baldes[sorteio.Next(baldes.Count)];
-          int? destino = null;
-          if (calc.No(id).PaiId is int pai
-              && (local.Posicao == Posicoes.AguardandoMontagem || calc.ProximoPasso(id, local.Ordem!.Value) is null))
-          {
-            var possiveis = calc.SetoresDoRoteiro(pai);
-            destino = possiveis[sorteio.Next(possiveis.Count)];
-          }
           operacao = "entregar";
           ok = (await entrega.Entregar(new EntregaDto(
-              [new ItemDaEntregaDto(id, new OrigemDaEntregaDto(local.Posicao, local.SetorId, local.Ordem), destino, Quantidade(sorteio, saldo))]),
+              [new ItemDaEntregaDto(id, new OrigemDaEntregaDto(local.Posicao, local.SetorId, local.Ordem), null, Quantidade(sorteio, saldo))]),
               Movimentador, Ct)).Sucesso;
           break;
         }

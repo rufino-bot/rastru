@@ -57,37 +57,26 @@ public class EntregaUseCaseTests
   }
 
   [Fact]
-  public async Task Item_no_ultimo_passo_vai_aguardar_montagem_no_Setor_escolhido()
-  {
-    var c = Cenario();
-    c.Mover(3, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 10m);
-
-    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Coleta(Corte, 1), Solda, 10m)), Movimentador, Ct);
-
-    Assert.Equal(new LocalDto(Posicoes.AguardandoMontagem, Solda, "Solda", null), Assert.Single(r.Valor!).Destino);
-  }
-
-  [Fact]
-  public async Task Item_no_ultimo_passo_sem_destino_da_DestinoIndevido()
+  public async Task Item_no_ultimo_passo_vai_aguardar_no_primeiro_passo_do_pai_sem_escolha()
   {
     var c = Cenario();
     c.Mover(3, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 10m);
 
     var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Coleta(Corte, 1), null, 10m)), Movimentador, Ct);
 
-    AfirmarFalha(r, CodigosDaExecucao.DestinoIndevido, TipoDeErro.Validacao);
+    Assert.Equal(new LocalDto(Posicoes.AguardandoMontagem, Solda, "Solda", null), Assert.Single(r.Valor!).Destino);
   }
 
   [Fact]
-  public async Task Setor_fora_do_Roteiro_do_pai_da_DestinoForaDoRoteiroDoPai()
+  public async Task Item_no_ultimo_passo_com_destino_mandado_da_DestinoIndevido()
   {
     var c = Cenario();
     c.Mover(3, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 10m);
 
-    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Coleta(Corte, 1), Dobra, 10m)), Movimentador, Ct);
+    // Ate o Setor certo e recusado: o destino da montagem nao se escolhe.
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Coleta(Corte, 1), Solda, 10m)), Movimentador, Ct);
 
-    AfirmarFalha(r, CodigosDaExecucao.DestinoForaDoRoteiroDoPai, TipoDeErro.Conflito);
-    Assert.Contains("Dobra", r.Detalhe);
+    AfirmarFalha(r, CodigosDaExecucao.DestinoIndevido, TipoDeErro.Validacao);
   }
 
   /// <summary>
@@ -123,25 +112,37 @@ public class EntregaUseCaseTests
   }
 
   [Fact]
-  public async Task Redirecionar_o_que_aguarda_montagem_para_outro_Setor_do_pai()
+  public async Task Redirecionar_leva_ao_primeiro_passo_do_pai()
   {
     var c = Cenario();
-    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 6m);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 6m);
 
-    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Montagem(Solda), Pintura, 6m)), Movimentador, Ct);
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Montagem(Pintura), null, 6m)), Movimentador, Ct);
 
     var mov = Assert.Single(r.Valor!);
-    Assert.Equal(new LocalDto(Posicoes.AguardandoMontagem, Solda, "Solda", null), mov.Origem);
-    Assert.Equal(new LocalDto(Posicoes.AguardandoMontagem, Pintura, "Pintura", null), mov.Destino);
+    Assert.Equal(new LocalDto(Posicoes.AguardandoMontagem, Pintura, "Pintura", null), mov.Origem);
+    Assert.Equal(new LocalDto(Posicoes.AguardandoMontagem, Solda, "Solda", null), mov.Destino);
   }
 
   [Fact]
-  public async Task Redirecionar_para_o_mesmo_Setor_da_DestinoIndevido()
+  public async Task Redirecionar_o_que_ja_esta_no_primeiro_passo_do_pai_da_RedirecionamentoSemEfeito()
   {
     var c = Cenario();
     c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 6m);
 
-    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Montagem(Solda), Solda, 6m)), Movimentador, Ct);
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Montagem(Solda), null, 6m)), Movimentador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.RedirecionamentoSemEfeito, TipoDeErro.Conflito);
+    Assert.Contains("Solda", r.Detalhe);
+  }
+
+  [Fact]
+  public async Task Redirecionar_com_destino_mandado_da_DestinoIndevido()
+  {
+    var c = Cenario();
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 6m);
+
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Montagem(Pintura), Solda, 6m)), Movimentador, Ct);
 
     AfirmarFalha(r, CodigosDaExecucao.DestinoIndevido, TipoDeErro.Validacao);
   }
@@ -216,7 +217,7 @@ public class EntregaUseCaseTests
         new ItemDaEntregaDto(2, Coleta(Corte, 1), null, 8m),
         new ItemDaEntregaDto(3, Coleta(Corte, 1), Dobra, 10m)), Movimentador, Ct);
 
-    AfirmarFalha(r, CodigosDaExecucao.DestinoForaDoRoteiroDoPai, TipoDeErro.Conflito);
+    AfirmarFalha(r, CodigosDaExecucao.DestinoIndevido, TipoDeErro.Validacao);
     Assert.Equal(2, c.Execucao.Movimentacoes.Count);   // so os dois do arranjo
     Assert.Equal(0, c.Execucao.Saves);
   }
@@ -232,7 +233,7 @@ public class EntregaUseCaseTests
     });
     c.Mover(3, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 10m);
 
-    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Coleta(Corte, 1), Solda, 10m)), Movimentador, Ct);
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(3, Coleta(Corte, 1), null, 10m)), Movimentador, Ct);
 
     Assert.True(r.Sucesso);
   }
@@ -245,7 +246,7 @@ public class EntregaUseCaseTests
     c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 8m);
 
     await c.Entrega().Entregar(Lista(
-        new ItemDaEntregaDto(3, Coleta(Corte, 1), Solda, 10m),
+        new ItemDaEntregaDto(3, Coleta(Corte, 1), null, 10m),
         new ItemDaEntregaDto(2, Coleta(Corte, 1), null, 8m)), Movimentador, Ct);
 
     Assert.Equal(new[] { 2, 3 }, Assert.Single(c.Execucao.Travas).Order().ToArray());

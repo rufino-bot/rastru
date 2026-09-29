@@ -28,6 +28,10 @@ public sealed record TerminoDto(int SetorId, int Ordem, decimal Quantidade);
 /// </summary>
 public sealed record OrigemDaEntregaDto(string? Posicao, int? SetorId, int? Ordem);
 
+/// <summary>
+/// `DestinoSetorId` fica no contrato so para ser recusado com `DestinoIndevido` quando vier preenchido
+/// (desvio D2 do plano da Fase 3D).
+/// </summary>
 public sealed record ItemDaEntregaDto(int EstruturaItemId, OrigemDaEntregaDto? Origem, int? DestinoSetorId, decimal Quantidade);
 
 public sealed record EntregaDto(IReadOnlyList<ItemDaEntregaDto>? Itens);
@@ -49,10 +53,12 @@ public sealed record NoResumoDto(
 
 public sealed record SetorResumoDto(int Id, string Nome);
 
-/// <summary>`Tipo`: ProximoPasso | Expedicao | Montagem. Ver o "Contrato JSON" do plano 2.</summary>
-public sealed record DestinoDto(
-    string Tipo, int? SetorId, string? SetorNome, int? Ordem, int? PaiId, int? SugestaoSetorId,
-    IReadOnlyList<SetorResumoDto> SetoresPossiveis, bool PaiSemRoteiro);
+/// <summary>
+/// `Tipo`: ProximoPasso | Expedicao | Montagem. Em `Montagem`, `SetorId`/`SetorNome` sao o primeiro
+/// passo do pai (sem `Ordem`: aguardar montagem nao tem passo) e `PaiSemRoteiro` diz quando nao ha
+/// destino possivel.
+/// </summary>
+public sealed record DestinoDto(string Tipo, int? SetorId, string? SetorNome, int? Ordem, int? PaiId, bool PaiSemRoteiro);
 
 public sealed record LinhaDaFilaDto(NoResumoDto No, int Ordem, decimal Quantidade);
 

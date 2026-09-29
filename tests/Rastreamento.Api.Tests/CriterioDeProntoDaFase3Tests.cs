@@ -46,8 +46,8 @@ public class CriterioDeProntoDaFase3Tests : IClassFixture<WebApplicationFactory<
     {
       itens = new[]
       {
-        new { estruturaItemId = c.B, origem = new { posicao = "AguardandoColeta", setorId = c.Corte, ordem = (int?)1 }, destinoSetorId = (int?)c.Solda, quantidade = 20m },
-        new { estruturaItemId = c.C, origem = new { posicao = "AguardandoColeta", setorId = c.Dobra, ordem = (int?)1 }, destinoSetorId = (int?)c.Solda, quantidade = 10m },
+        new { estruturaItemId = c.B, origem = new { posicao = "AguardandoColeta", setorId = c.Corte, ordem = (int?)1 }, destinoSetorId = (int?)null, quantidade = 20m },
+        new { estruturaItemId = c.C, origem = new { posicao = "AguardandoColeta", setorId = c.Dobra, ordem = (int?)1 }, destinoSetorId = (int?)null, quantidade = 10m },
       },
     }));
     await AfirmarPosicoesAsync(c, c.B, ("AguardandoMontagem", c.Solda, null, 20m));

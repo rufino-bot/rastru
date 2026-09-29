@@ -100,18 +100,34 @@ public partial class ExecucaoEndpointsTests
     {
       itens = new[]
       {
-        new { estruturaItemId = c.B, origem = new { posicao = "AguardandoColeta", setorId = c.Corte, ordem = (int?)1 }, destinoSetorId = (int?)c.Solda, quantidade = 12m },
-        new { estruturaItemId = c.B, origem = new { posicao = "AguardandoColeta", setorId = c.Corte, ordem = (int?)1 }, destinoSetorId = (int?)c.Pintura, quantidade = 8m },
+        new { estruturaItemId = c.B, origem = new { posicao = "AguardandoColeta", setorId = c.Corte, ordem = (int?)1 }, destinoSetorId = (int?)null, quantidade = 20m },
       },
     });
     var depois = await TarefasDoCenarioAsync(c);
 
     Assert.Equal(HttpStatusCode.Created, entrega.StatusCode);
-    Assert.Equal(2, (await CorpoAsync(entrega)).GetArrayLength());
+    Assert.Equal(1, (await CorpoAsync(entrega)).GetArrayLength());
     var tarefa = Assert.Single(antes);
     Assert.Equal("Montagem", tarefa.GetProperty("destino").GetProperty("tipo").GetString());
-    Assert.Equal(c.Solda, tarefa.GetProperty("destino").GetProperty("sugestaoSetorId").GetInt32());
+    Assert.Equal(c.Solda, tarefa.GetProperty("destino").GetProperty("setorId").GetInt32());
     Assert.Empty(depois);
+  }
+
+  [Fact]
+  public async Task Entrega_com_destino_mandado_da_400_DestinoIndevido()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    var operador = c.Como(c.Operador);
+    await Garantir(await operador.PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 2m }));
+    await Garantir(await operador.PostAsJsonAsync($"/api/estrutura/{c.B}/terminos", new { setorId = c.Corte, ordem = 1, quantidade = 2m }));
+
+    var resposta = await c.Como(c.Movimentador).PostAsJsonAsync("/api/entregas", new
+    {
+      itens = new[] { new { estruturaItemId = c.B, origem = new { posicao = "AguardandoColeta", setorId = c.Corte, ordem = (int?)1 }, destinoSetorId = (int?)c.Solda, quantidade = 2m } },
+    });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    Assert.Equal("DestinoIndevido", (await CorpoAsync(resposta)).GetProperty("erro").GetString());
   }
 
   [Fact]
@@ -215,7 +231,7 @@ public partial class ExecucaoEndpointsTests
     {
       itens = new[]
       {
-        new { estruturaItemId = no, origem = new { posicao = "AguardandoColeta", setorId = setor, ordem = (int?)1 }, destinoSetorId = (int?)c.Solda, quantidade },
+        new { estruturaItemId = no, origem = new { posicao = "AguardandoColeta", setorId = setor, ordem = (int?)1 }, destinoSetorId = (int?)null, quantidade },
       },
     }));
   }

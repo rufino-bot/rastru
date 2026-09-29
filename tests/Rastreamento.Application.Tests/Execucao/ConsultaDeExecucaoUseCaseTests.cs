@@ -62,8 +62,7 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Equal((3, 40m), (coleta.No.Id, coleta.Quantidade));
     Assert.Equal("Montagem", coleta.Destino.Tipo);
     Assert.Equal(1, coleta.Destino.PaiId);
-    Assert.Equal(Solda, coleta.Destino.SugestaoSetorId);
-    Assert.Equal(new[] { new SetorResumoDto(Solda, "Solda") }, coleta.Destino.SetoresPossiveis);
+    Assert.Equal((Solda, "Solda"), (coleta.Destino.SetorId, coleta.Destino.SetorNome));
     var sobra = Assert.Single(fila.Sobra);
     Assert.Equal((3, "UltimoPasso", (int?)1, 5m), (sobra.No.Id, sobra.Origem, sobra.Ordem, sobra.Quantidade));
   }
@@ -186,8 +185,7 @@ public class ConsultaDeExecucaoUseCaseTests
     var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!).Itens);
 
     Assert.True(tarefa.Destino.PaiSemRoteiro);
-    Assert.Empty(tarefa.Destino.SetoresPossiveis);
-    Assert.Null(tarefa.Destino.SugestaoSetorId);
+    Assert.Null(tarefa.Destino.SetorId);
   }
 
   [Fact]

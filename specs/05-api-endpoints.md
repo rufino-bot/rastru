@@ -326,10 +326,13 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `POST /estrutura/{id}/terminos` *(Operador)* — terminar. Body: `{ setorId, ordem, quantidade }`; a
   quantidade passa a aguardar coleta no mesmo Setor e passo.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
-  `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, destinoSetorId?, quantidade }] }`.
-  O destino é calculado (próximo passo, ou local de expedição para Peça no fim do Roteiro), exceto
-  na montagem do pai, em que `destinoSetorId` é obrigatório e precisa ser um Setor do Roteiro do pai
-  (regra 29) — inclusive para redirecionar o que aguarda montagem no Setor errado.
+  `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, quantidade }] }`.
+  **O destino é sempre calculado** (spec da Fase 3D, §2.2): o próximo passo, o local de expedição
+  para Peça no fim do Roteiro, ou, para Item no último passo, o **primeiro passo do Roteiro do pai**
+  (regra 29). `destinoSetorId` **não se manda**: o campo sobrevive no contrato só para ser recusado
+  — preenchido, dá 400 `DestinoIndevido`, mesmo que aponte o Setor certo. Redirecionar o que aguarda
+  montagem fora do primeiro passo do pai é uma entrega com origem `AguardandoMontagem`, e leva ao
+  primeiro passo de agora; se já está nele, 409 `RedirecionamentoSemEfeito`.
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
   enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que
@@ -350,8 +353,10 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   Roteiro). A resposta ganha `setorAtividade` (spec da Fase 3D, §2.3): a `atividade` do Setor da
   fila, que a tela usa para nomear os botões "Iniciar montagem"/"Terminar montagem" — `null` quando
   o Setor não tem uma, e os botões ficam só "Iniciar"/"Terminar".
-- `GET /tarefas` — os Itens prontos, com destino calculado (e, quando é montagem, a sugestão e os
-  Setores possíveis), agrupados pelo Setor de origem.
+- `GET /tarefas` — os Itens prontos, com destino calculado, agrupados pelo Setor de origem. Na
+  montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
+  traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
+  `setorId` nulo.
 - `GET /tarefas/contagem` — só o número, para o contador do menu.
 - `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total
   montado dos nós com filhos.
@@ -372,7 +377,7 @@ Setor e números quando ajudam.
 | Status | Código | Quando |
 |---|---|---|
 | 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna |
-| 400 | `DestinoIndevido` | `destinoSetorId` mandado quando o destino é calculado, ou faltando quando é montagem |
+| 400 | `DestinoIndevido` | `destinoSetorId` mandado — o destino da entrega é sempre calculado |
 | 400 | `EntregaVazia` | lista de entrega vazia |
 | 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
 | 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`, ou com Setor e passo que não combinam com a posição |
@@ -382,7 +387,7 @@ Setor e números quando ajudam.
 | 409 | `NaoEhOPrimeiroPasso` | iniciar num Setor que não é o do primeiro passo |
 | 409 | `SaldoInsuficiente` | a origem não tem a quantidade |
 | 409 | `FilhosInsuficientes` | algum filho não tem, no Setor, o que N unidades pedem; a `mensagem` nomeia o filho |
-| 409 | `DestinoForaDoRoteiroDoPai` | Setor de montagem fora do Roteiro do pai |
+| 409 | `RedirecionamentoSemEfeito` | redirecionar para a montagem o que já aguarda no primeiro passo do pai |
 | 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |

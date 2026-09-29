@@ -331,9 +331,10 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
     entrada de qualquer nó dele.
 29. **O fim do Roteiro.** O que termina um passo que não é o último vai para o próximo passo, sem
     escolha. O que termina o **último** passo aguarda coleta com um destino que depende do nó:
-    - **Item** — a montagem do pai, num Setor do Roteiro do pai que o **Movimentador escolhe** ao
-      entregar, com sugestão do sistema; a montagem é registrada pelo operador daquele Setor (regra
-      24). Entregue no Setor errado, redireciona-se com outra entrega.
+    - **Item** — a montagem do pai, **no primeiro passo do Roteiro dele**, levada pelo Movimentador
+      **sem escolha**: é lá que o pai começa, consumindo os filhos (regra 24). Entregue antes de o
+      PCP mudar o primeiro passo, redireciona-se com outra entrega, que leva ao primeiro passo de
+      agora (spec da Fase 3D, seção 2.2 — revê a decisão 2.4 da Fase 3).
     - **Peça** — o **local de expedição**, levada pelo Movimentador como tarefa; a expedição (Fase 5)
       sai de lá.
 30. **A sobra é identificada, não é tarefa, e só sai por descarte.** O que um Item tem, no fim do

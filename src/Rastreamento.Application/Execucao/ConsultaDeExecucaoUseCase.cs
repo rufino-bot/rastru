@@ -196,12 +196,11 @@ public sealed class ConsultaDeExecucaoUseCase
       {
         TipoDeDestino.ProximoPasso => new DestinoDto(
             "ProximoPasso", destino.Passo!.Value.SetorId, nomes.GetValueOrDefault(destino.Passo.Value.SetorId),
-            destino.Passo.Value.Ordem, null, null, Array.Empty<SetorResumoDto>(), false),
-        TipoDeDestino.Expedicao => new DestinoDto(
-            "Expedicao", null, null, null, null, null, Array.Empty<SetorResumoDto>(), false),
+            destino.Passo.Value.Ordem, null, false),
+        TipoDeDestino.Expedicao => new DestinoDto("Expedicao", null, null, null, null, false),
         _ => new DestinoDto(
-            "Montagem", null, null, null, destino.PaiId, destino.SugestaoSetorId,
-            destino.SetoresPossiveis.Select(s => new SetorResumoDto(s, nomes.GetValueOrDefault(s, string.Empty))).ToList(),
-            destino.PaiSemRoteiro),
+            "Montagem", destino.Passo?.SetorId,
+            destino.Passo is PassoDoCalculo p ? nomes.GetValueOrDefault(p.SetorId) : null,
+            null, destino.PaiId, destino.PaiSemRoteiro),
       };
 }
