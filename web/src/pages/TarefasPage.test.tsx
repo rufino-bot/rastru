@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { TarefasPage } from './TarefasPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
+import { INTERVALO_DA_EXECUCAO_MS } from '../hooks/useCargaPeriodica'
 import { SUPORTE, PARAFUSO, CHASSI, DESTINO_MONTAGEM, destino, no } from '../testes/execucao'
 import type { TarefasDoSetorDto } from '../api/execucao'
 
@@ -439,7 +440,8 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
     // Timers falsos: a limpeza da seleção só reavalia quando a resposta muda, então é a
     // atualização periódica com o filtro ativo que prova que ela olha a resposta INTEIRA.
     vi.useFakeTimers()
-    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+    const { fetchMock, getsDasTarefas } = montarFetch([DOIS_PEDIDOS])
+    vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
@@ -452,7 +454,10 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
 
     // A mesma resposta volta na atualização periódica, com o filtro ainda ativo: o item marcado
     // continua na resposta, só escondido, então segue marcado, contado como oculto e sem aviso.
-    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    const getsAntes = getsDasTarefas()
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+    // Sem esta afirmação o teste passaria também se a atualização nunca acontecesse.
+    expect(getsDasTarefas()).toBeGreaterThan(getsAntes)
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
     expect(screen.getByText('1 marcado oculto pelo filtro')).toBeTruthy()
@@ -462,5 +467,95 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
     expect((screen.getByLabelText('Levar TP-01 — Tampa') as HTMLInputElement).checked).toBe(true)
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByText(/oculto/)).toBeNull()
+  })
+
+  describe('Marcar todos', () => {
+    const SEM_ROTEIRO = { ...DESTINO_MONTAGEM, setorId: null, setorNome: null, paiSemRoteiro: true }
+    const marcado = (nome: string) => (screen.getByLabelText(nome) as HTMLInputElement).checked
+
+    it('Marcar todos marca os itens visiveis de todos os grupos e pula o pai sem Roteiro', async () => {
+      vi.stubGlobal('fetch', montarFetch([[
+        TAREFAS[0],
+        { setorId: 4, setorNome: 'Solda', itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: SEM_ROTEIRO }] },
+        TAREFAS[2],
+      ]]).fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: 'Marcar todos' }))
+
+      expect(marcado('Levar SUP-01 — Suporte')).toBe(true)
+      expect(marcado('Levar CH-01 — Chassi')).toBe(true)
+      expect(marcado('Levar Parafuso')).toBe(false)
+      expect(screen.getAllByLabelText('Quantidade').map((q) => (q as HTMLInputElement).value)).toEqual(['4', '2'])
+      expect(screen.getByRole('button', { name: 'Entregar 2 itens' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Desmarcar todos' })).toBeTruthy()
+    })
+
+    it('Marcar todos respeita o filtro', async () => {
+      vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+      renderizar('/?pedido=2')
+      fireEvent.click(await screen.findByRole('button', { name: 'Marcar todos' }))
+
+      expect(marcado('Levar TP-01 — Tampa')).toBe(true)
+      expect(marcado('Levar TR-01 — Trava')).toBe(true)
+      expect(screen.queryByLabelText('Levar SUP-01 — Suporte')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Entregar 2 itens' })).toBeTruthy()
+      // Nada oculto: o item do outro Pedido não foi marcado por baixo do filtro.
+      expect(screen.queryByText(/oculto/)).toBeNull()
+    })
+
+    it('Marcar todos preserva a quantidade ja digitada', async () => {
+      vi.stubGlobal('fetch', montarFetch([TAREFAS]).fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+      fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '3' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Marcar todos' }))
+
+      expect(screen.getAllByLabelText('Quantidade').map((q) => (q as HTMLInputElement).value)).toEqual(['3', '10', '2'])
+      expect(screen.getByRole('button', { name: 'Entregar 3 itens' })).toBeTruthy()
+    })
+
+    it('Desmarcar todos desmarca so os visiveis', async () => {
+      vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByLabelText('Levar TP-01 — Tampa'))
+      abrirFiltro()
+      fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Marcar todos' }))
+
+      expect(marcado('Levar SUP-01 — Suporte')).toBe(true)
+      expect(screen.getByRole('button', { name: 'Entregar 2 itens' })).toBeTruthy()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Desmarcar todos' }))
+
+      expect(marcado('Levar SUP-01 — Suporte')).toBe(false)
+      expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
+      expect(screen.getByText('1 marcado oculto pelo filtro')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Marcar todos' })).toBeTruthy()
+    })
+
+    it('sem item visivel nao bloqueado nao ha Marcar todos', async () => {
+      vi.stubGlobal('fetch', montarFetch([[
+        { setorId: 4, setorNome: 'Solda', itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: SEM_ROTEIRO }] },
+      ]]).fetchMock)
+
+      renderizar()
+
+      await screen.findByRole('list', { name: 'Prontos em Solda' })
+      expect(screen.queryByRole('button', { name: /^(Marcar|Desmarcar) todos$/ })).toBeNull()
+    })
+
+    it('sem permissao de entregar nao ha Marcar todos', async () => {
+      perfil = 'Operador'
+      vi.stubGlobal('fetch', montarFetch([TAREFAS]).fetchMock)
+
+      renderizar()
+
+      await screen.findByRole('list', { name: 'Prontos em Corte' })
+      expect(screen.queryByRole('button', { name: /^(Marcar|Desmarcar) todos$/ })).toBeNull()
+    })
   })
 })

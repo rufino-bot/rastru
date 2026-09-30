@@ -99,6 +99,27 @@ export function TarefasPage() {
     })
   }
 
+  /**
+   * "Marcar todos" / "Desmarcar todos" (desvio D10 do plano 2 dos filtros): age só sobre o que a
+   * tela mostra depois do filtro e que se pode marcar, em todos os grupos. Marcar não reescreve o
+   * texto de quem já estava marcado; desmarcar tira só essas, e o marcado oculto pelo filtro fica.
+   */
+  function alternarTodos() {
+    setAviso(null)
+    setEscolhas((atuais) => {
+      if (todosMarcados) {
+        const resto = { ...atuais }
+        for (const { chave } of marcaveis) delete resto[chave]
+        return resto
+      }
+      const novas = { ...atuais }
+      for (const { chave, item } of marcaveis) {
+        if (novas[chave] === undefined) novas[chave] = { quantidade: quantidadeParaCampo(item.quantidade) }
+      }
+      return novas
+    })
+  }
+
   function mudar(chave: string, parcial: Partial<Escolha>) {
     setEscolhas((atuais) => ({ ...atuais, [chave]: { ...atuais[chave], ...parcial } }))
   }
@@ -110,6 +131,11 @@ export function TarefasPage() {
   const facetas = useMemo(() => (grupos ? facetasDasTarefas(grupos, selecao) : []), [grupos, selecao])
   const chavesVisiveis = new Set(visiveis.flatMap((g) => g.itens.map((i) => chaveDoItem(g.setorId, i))))
   const ocultos = marcados.filter(({ grupo, item }) => !chavesVisiveis.has(chaveDoItem(grupo.setorId, item))).length
+  // O que "Marcar todos" alcança: os visíveis depois do filtro, menos o pai sem Roteiro (que não se marca).
+  const marcaveis = visiveis.flatMap((g) => g.itens
+    .filter((i) => !i.destino.paiSemRoteiro)
+    .map((i) => ({ chave: chaveDoItem(g.setorId, i), item: i })))
+  const todosMarcados = marcaveis.length > 0 && marcaveis.every(({ chave }) => escolhas[chave] !== undefined)
   const algumInvalido = marcados.some(({ item, escolha }) => erroDaEscolha(item, escolha) !== null)
 
   async function enviar() {
@@ -146,6 +172,11 @@ export function TarefasPage() {
       {/* Só com dado de verdade: sem nenhuma tarefa não há o que filtrar. */}
       {grupos !== null && grupos.length > 0 && (
         <FiltroDeDemanda facetas={facetas} selecao={selecao} aoMudar={mudarSelecao} />
+      )}
+      {podeEntregar && marcaveis.length > 0 && (
+        <Botao variante="secundario" onClick={alternarTodos} className="self-start">
+          {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
+        </Botao>
       )}
       {carregando && <EstadoCarregando />}
       {vaziaPeloFiltro && (
