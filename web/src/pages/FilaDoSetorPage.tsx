@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  obterFila, iniciar, terminar, entregar, estornar, ehConflito,
+  obterFila, iniciar, terminar, entregar, estornar, ehConflito, iniciarEmLote, terminarEmLote,
   type Estornavel, type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto,
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
@@ -10,7 +10,12 @@ import {
   caminhoDoNo, descreverDestino, formatarQuantidade, mensagemDoEstorno, rotuloDaAcao, rotuloDoNo,
 } from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
-import { chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar } from '../execucao/loteDaFila'
+import {
+  alternar, chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar, erroDaLinha, itensDeInicio, itensDeTermino,
+  linhasDoLote, marcarTodos, reconciliar, SAIU_DO_LOTE, TITULO_DA_SECAO, todosMarcados,
+  type LinhaDoLote, type Lote, type SecaoDoLote,
+} from '../execucao/loteDaFila'
+import { BarraDoLote } from '../execucao/BarraDoLote'
 import { CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila } from '../execucao/filtroDaDemanda'
 import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
@@ -25,6 +30,7 @@ import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { FiltroDeDemanda } from '../components/FiltroDeDemanda'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Botao } from '../components/Botao'
+import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Confirmacao } from '../components/Confirmacao'
 import { Pilula } from '../components/Pilula'
 
@@ -105,6 +111,12 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   const [aviso, setAviso] = useState<string | null>(null)
   const [aConfirmar, setAConfirmar] = useState<Estornavel | null>(null)
   const [estornando, setEstornando] = useState(false)
+  // O lote (desvios D7 a D12 do plano 2 dos filtros): as linhas marcadas de UMA seção, com o texto de
+  // cada quantidade. Vive na página, e não nas seções, porque o botão de enviar fica fora delas.
+  const [lote, setLote] = useState<Lote | null>(null)
+  const [erroDoLote, setErroDoLote] = useState<string | null>(null)
+  const [enviandoLote, setEnviandoLote] = useState(false)
+  const enviandoLoteRef = useRef(false)
   // O toque no mesmo quadro, antes do React redesenhar o botão desabilitado — mesmo padrão de
   // `FormularioDeQuantidade` e do histórico do nó.
   const estornandoRef = useRef(false)
@@ -116,6 +128,20 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   // valem para a resposta inteira: esconder uma linha pelo filtro não é outra pessoa tê-la movido.
   const filtrada = useMemo(() => (fila ? filtrarFila(fila, selecao) : null), [fila, selecao])
   const facetas = useMemo(() => (fila ? facetasDaFila(fila, selecao) : []), [fila, selecao])
+  // O lote reconcilia contra a resposta INTEIRA (o filtro não é "outra pessoa agiu"); as linhas
+  // visíveis só dizem o que o "Marcar todos" alcança e quantos marcados estão ocultos.
+  const linhasDaFila = useMemo(() => (fila ? linhasDoLote(fila) : []), [fila])
+  const linhasVisiveis = useMemo(() => (filtrada ? linhasDoLote(filtrada) : []), [filtrada])
+
+  // A atualização tirou da fila uma linha marcada: ela sai da seleção, com aviso. A linha que só
+  // ficou bloqueada continua marcada (desvio D8), e o texto digitado nunca é reescrito.
+  useEffect(() => {
+    if (fila === null || lote === null) return
+    const { lote: depois, saiu } = reconciliar(lote, linhasDaFila)
+    if (!saiu) return
+    setLote(depois)
+    setAviso(SAIU_DO_LOTE)
+  }, [fila, lote, linhasDaFila])
 
   // A atualização (periódica, ou a recarga depois de um 409) tirou da fila a linha cujo formulário
   // está aberto. O formulário fecha, e o aviso — com a recusa do servidor, se foi ela — sobe para o
@@ -191,6 +217,56 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
     }
   }
 
+  /** Mexer na seleção fecha o formulário individual aberto (desvio D7) e apaga a recusa do lote. */
+  function aoMudarSelecao(depois: Lote | null) {
+    setLote(depois)
+    fechar()
+    setErroDoLote(null)
+  }
+
+  // A MESMA lista de linhas marcadas alimenta a contagem da barra, o `invalido` e o corpo do envio:
+  // um lote parcial (as válidas, sem a que o texto não lê) nunca sai.
+  const marcadas = lote === null
+    ? []
+    : linhasDaFila.filter((l) => l.secao === lote.secao && l.chave in lote.quantidades)
+  const invalido = lote !== null && marcadas.some((l) => erroDaLinha(l, lote.quantidades[l.chave]) !== null)
+  const chavesVisiveis = new Set(linhasVisiveis.map((l) => l.chave))
+  const ocultos = marcadas.filter((l) => !chavesVisiveis.has(l.chave)).length
+
+  /**
+   * Toda recusa recarrega a fila e mantém a seleção (desvio D11): um 404 de lote quer dizer que um nó
+   * sumiu, e a recarga é o conserto — a reconciliação tira da seleção só o que saiu da resposta.
+   */
+  async function enviarLote() {
+    if (lote === null || enviandoLoteRef.current) return
+    let quantos: number
+    let mandar: () => Promise<unknown>
+    if (lote.secao === 'emTrabalho') {
+      const itens = itensDeTermino(lote, marcadas)
+      quantos = itens.length
+      mandar = () => terminarEmLote(setorId, itens)
+    } else {
+      const itens = itensDeInicio(lote, marcadas)
+      quantos = itens.length
+      mandar = () => iniciarEmLote(setorId, itens)
+    }
+    if (marcadas.length === 0 || invalido || quantos !== marcadas.length) return
+    enviandoLoteRef.current = true
+    setEnviandoLote(true)
+    setErroDoLote(null)
+    try {
+      await mandar()
+      setLote(null)
+      await recarregar()
+    } catch (e) {
+      setErroDoLote(mensagemDeErro(e, 'Não foi possível registrar.'))
+      await recarregar()
+    } finally {
+      enviandoLoteRef.current = false
+      setEnviandoLote(false)
+    }
+  }
+
   const titulo = fila ? `Fila — ${fila.setorNome}` : 'Fila do Setor'
 
   return (
@@ -207,10 +283,28 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
           fila={filtrada}
           completa={fila}
           aoLimparFiltros={limpar}
+          lote={{
+            lote, linhas: linhasDaFila, visiveis: linhasVisiveis,
+            aoAlternar: (linha, marcado) => aoMudarSelecao(alternar(lote, linha, marcado)),
+            aoDigitar: (chave, texto) => setLote((atual) => (atual && { ...atual, quantidades: { ...atual.quantidades, [chave]: texto } })),
+            aoMarcarTodos: (secao) => aoMudarSelecao(marcarTodos(lote, secao, linhasVisiveis)),
+          }}
           acoes={{
             aberta, erroDaAcao, abrir, fechar, registrar, setorId,
             pedirEstorno, escolherEstorno: setAConfirmar, estornando,
           }}
+        />
+      )}
+      {lote !== null && (
+        <BarraDoLote
+          secao={lote.secao}
+          marcados={marcadas.length}
+          ocultos={ocultos}
+          invalido={invalido}
+          enviando={enviandoLote}
+          erro={erroDoLote}
+          aoEnviar={enviarLote}
+          aoLimpar={() => aoMudarSelecao(null)}
         />
       )}
       <Confirmacao
@@ -224,6 +318,16 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
       />
     </Pagina>
   )
+}
+
+/** O lote como as seções o veem: o estado, as linhas (inteiras e visíveis) e o que a tela pode fazer com ele. */
+interface LoteDaTela {
+  lote: Lote | null
+  linhas: LinhaDoLote[]
+  visiveis: LinhaDoLote[]
+  aoAlternar: (linha: LinhaDoLote, marcado: boolean) => void
+  aoDigitar: (chave: string, texto: string) => void
+  aoMarcarTodos: (secao: SecaoDoLote) => void
 }
 
 interface AcoesDaFila {
@@ -242,16 +346,19 @@ interface AcoesDaFila {
  * `fila` é a que o filtro deixou; `completa`, a resposta inteira. A seção que tinha linha e perdeu
  * todas pelo filtro continua na tela com o próprio vazio, para o operador ver ONDE o filtro cortou.
  */
-function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
+function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: {
   fila: FilaDoSetorDto
   completa: FilaDoSetorDto
   aoLimparFiltros: () => void
   acoes: AcoesDaFila
+  lote: LoteDaTela
 }) {
   const { apontar, entregar: podeEntregar, podeEstornar } = usePermissoesDaExecucao()
   const { aberta, erroDaAcao, abrir, fechar, registrar, setorId, pedirEstorno, escolherEstorno, estornando } = acoes
   const rotuloDeIniciar = rotuloDaAcao('Iniciar', fila.setorAtividade)
   const rotuloDeTerminar = rotuloDaAcao('Terminar', fila.setorAtividade)
+  const { lote } = doLote
+  const linhaDaChave = new Map(doLote.linhas.map((l) => [l.chave, l]))
 
   /** O painel de uma linha: a recusa do servidor, e o formulário embaixo dela. */
   function painel(chave: string, formulario: ReactNode) {
@@ -272,6 +379,66 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
         {rotulo}
       </Botao>
     )
+  }
+
+  /**
+   * Iniciar, Terminar e Iniciar o pai da linha: com lote, somem da fila inteira (desvio D7) — uma
+   * linha com o campo do lote e o formulário individual juntos teria duas quantidades e duas
+   * confirmações. O "Levar" e o "Estornar" continuam, porque não são ação de lote.
+   */
+  function botaoDeApontar(chave: string, rotulo: string, no: NoResumoDto) {
+    return lote === null ? botao(chave, rotulo, no) : undefined
+  }
+
+  /**
+   * O checkbox do lote e, marcada a linha, o campo da quantidade dela. Só para quem aponta. Desabilita
+   * a linha bloqueada que ainda não estava marcada e a de outra seção (a trava); a que já estava
+   * marcada continua habilitada, para não prender a seleção (desvio D8).
+   */
+  function controlesDoLote(chave: string, nome: string): { caixa?: ReactNode; campo?: ReactNode } {
+    const linha = linhaDaChave.get(chave)
+    if (!apontar || !linha) return {}
+    const marcado = lote !== null && chave in lote.quantidades
+    const travada = lote !== null && lote.secao !== linha.secao
+    return {
+      caixa: (
+        <label className="flex items-center gap-2 text-sm text-tinta">
+          <input
+            type="checkbox"
+            checked={marcado}
+            disabled={!marcado && (linha.bloqueio !== null || travada)}
+            onChange={(e) => doLote.aoAlternar(linha, e.target.checked)}
+            aria-label={nome}
+            className="size-5 accent-acao"
+          />
+          Marcar
+        </label>
+      ),
+      campo: marcado && (
+        <CampoDoLote linha={linha} texto={lote.quantidades[chave]} aoMudar={(t) => doLote.aoDigitar(chave, t)} />
+      ),
+    }
+  }
+
+  /** "Marcar todos" da seção, sobre as linhas visíveis e não bloqueadas dela (desvio D10). */
+  function marcarTodosDa(secao: SecaoDoLote): { acao?: ReactNode; dica?: string } {
+    if (!apontar) return {}
+    const livres = doLote.visiveis.filter((l) => l.secao === secao && l.bloqueio === null)
+    if (livres.length === 0) return {}
+    const travada = lote !== null && lote.secao !== secao
+    return {
+      acao: (
+        <Botao variante="secundario" disabled={travada} onClick={() => doLote.aoMarcarTodos(secao)}>
+          {todosMarcados(lote, secao, doLote.visiveis) ? 'Desmarcar todos' : 'Marcar todos'}
+        </Botao>
+      ),
+      dica: travada ? `Conclua ou limpe a seleção de ${TITULO_DA_SECAO[lote.secao]}.` : undefined,
+    }
+  }
+
+  /** Junta o campo do lote ao painel que a linha já teria; `undefined` quando nenhum dos dois existe. */
+  function juntar(campo: ReactNode, outro: ReactNode) {
+    return campo || outro ? <>{campo}{outro}</> : undefined
   }
 
   /**
@@ -326,19 +493,22 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
   return (
     <>
       {completa.emTrabalho.length > 0 && (
-        <Secao titulo="Em trabalho">
+        <Secao titulo="Em trabalho" {...marcarTodosDa('emTrabalho')}>
           {fila.emTrabalho.length === 0 && <SemLinhaNoFiltro />}
           {fila.emTrabalho.map((l) => {
             const chaveEstornar = chaveDeEstornar('em-trabalho', l.no.id, l.ordem)
-            const terminarAqui = apontar ? botao(chaveDeTerminar(l.no.id, l.ordem), rotuloDeTerminar, l.no) : undefined
+            const terminarAqui = apontar ? botaoDeApontar(chaveDeTerminar(l.no.id, l.ordem), rotuloDeTerminar, l.no) : undefined
             const estornarAqui = botaoDeEstorno(chaveEstornar, l.estornaveis, l.no)
+            const { caixa, campo } = controlesDoLote(
+              chaveDeTerminar(l.no.id, l.ordem), `Marcar ${rotuloDoNo(l.no)}, passo ${l.ordem}, para terminar`,
+            )
             return (
               <ItemComAcao
                 key={`${l.no.id}-${l.ordem}`}
-                // Fragmento só com botão: `ItemComAcao` desenha o contêiner de ação para qualquer valor
+                // Fragmento só com controles: `ItemComAcao` desenha o contêiner de ação para qualquer valor
                 // verdadeiro, e um fragmento vazio é verdadeiro.
-                acao={terminarAqui || estornarAqui ? <>{terminarAqui}{estornarAqui}</> : undefined}
-                painel={
+                acao={caixa || terminarAqui || estornarAqui ? <>{caixa}{terminarAqui}{estornarAqui}</> : undefined}
+                painel={juntar(campo, (
                   painel(chaveDeTerminar(l.no.id, l.ordem), (
                     <FormularioDeQuantidade
                       rotulo={rotuloDeTerminar}
@@ -348,7 +518,7 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
                     />
                   ))
                   ?? listaDeEstorno(chaveEstornar, l.estornaveis)
-                }
+                ))}
               >
                 <CabecalhoDoNo no={l.no} />
                 <Detalhe>{`${formatarQuantidade(l.quantidade)} em trabalho · passo ${l.ordem}`}</Detalhe>
@@ -358,53 +528,71 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
         </Secao>
       )}
       {completa.aIniciar.length > 0 && (
-        <Secao titulo="A iniciar aqui">
+        <Secao titulo="A iniciar aqui" {...marcarTodosDa('aIniciar')}>
           {fila.aIniciar.length === 0 && <SemLinhaNoFiltro />}
-          {fila.aIniciar.filter((l) => l.no.pausa === null).map((l) => (
-            <ItemComAcao
-              key={`${l.no.id}-${l.ordem}`}
-              acao={apontar && botao(chaveDeIniciar(l.no.id, l.ordem), rotuloDeIniciar, l.no)}
-              painel={painel(chaveDeIniciar(l.no.id, l.ordem), (
-                <FormularioDeQuantidade
-                  rotulo={rotuloDeIniciar}
-                  maximo={l.quantidade}
-                  aoConfirmar={(q) => registrar(() => iniciar(l.no.id, { setorId, quantidade: q }))}
-                  aoCancelar={fechar}
-                />
-              ))}
-            >
-              <CabecalhoDoNo no={l.no} />
-              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem}`}</Detalhe>
-            </ItemComAcao>
-          ))}
-          {/* O servidor manda os pausados no fim; a tela os separa por conta própria. Sem `acao`: a
-              pausa recusa o Iniciar. O título é `aria-hidden` porque cada linha já diz "Pedido
-              pausado" e traz a pílula — um `<li>` de título seria lido como item da lista. */}
+          {fila.aIniciar.filter((l) => l.no.pausa === null).map((l) => {
+            const { caixa, campo } = controlesDoLote(
+              chaveDeIniciar(l.no.id, l.ordem), `Marcar ${rotuloDoNo(l.no)}, passo ${l.ordem}, para iniciar`,
+            )
+            const iniciarAqui = apontar ? botaoDeApontar(chaveDeIniciar(l.no.id, l.ordem), rotuloDeIniciar, l.no) : undefined
+            return (
+              <ItemComAcao
+                key={`${l.no.id}-${l.ordem}`}
+                acao={caixa || iniciarAqui ? <>{caixa}{iniciarAqui}</> : undefined}
+                painel={juntar(campo, painel(chaveDeIniciar(l.no.id, l.ordem), (
+                  <FormularioDeQuantidade
+                    rotulo={rotuloDeIniciar}
+                    maximo={l.quantidade}
+                    aoConfirmar={(q) => registrar(() => iniciar(l.no.id, { setorId, quantidade: q }))}
+                    aoCancelar={fechar}
+                  />
+                )))}
+              >
+                <CabecalhoDoNo no={l.no} />
+                <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem}`}</Detalhe>
+              </ItemComAcao>
+            )
+          })}
+          {/* O servidor manda os pausados no fim; a tela os separa por conta própria. Sem botão de
+              Iniciar: a pausa recusa. O checkbox do lote fica (desabilitado), e habilitado só para quem
+              marcou a linha ANTES da pausa, que precisa poder desmarcá-la (desvio D8). O título é
+              `aria-hidden` porque cada linha já diz "Pedido pausado" e traz a pílula — um `<li>` de
+              título seria lido como item da lista. */}
           {fila.aIniciar.some((l) => l.no.pausa !== null) && (
             <li className="pt-2 text-sm font-medium text-tinta-fraca" aria-hidden="true">Pausados</li>
           )}
-          {fila.aIniciar.filter((l) => l.no.pausa !== null).map((l) => (
-            <ItemComAcao key={`${l.no.id}-${l.ordem}`}>
-              <CabecalhoDoNo no={l.no} />
-              <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem} · Pedido pausado`}</Detalhe>
-            </ItemComAcao>
-          ))}
+          {fila.aIniciar.filter((l) => l.no.pausa !== null).map((l) => {
+            const { caixa, campo } = controlesDoLote(
+              chaveDeIniciar(l.no.id, l.ordem), `Marcar ${rotuloDoNo(l.no)}, passo ${l.ordem}, para iniciar`,
+            )
+            return (
+              <ItemComAcao key={`${l.no.id}-${l.ordem}`} acao={caixa} painel={campo || undefined}>
+                <CabecalhoDoNo no={l.no} />
+                <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem} · Pedido pausado`}</Detalhe>
+              </ItemComAcao>
+            )
+          })}
         </Secao>
       )}
       {completa.aguardandoMontagem.length > 0 && (
-        <Secao titulo="Aguardando montagem">
+        <Secao titulo="Aguardando montagem" {...marcarTodosDa('aguardandoMontagem')}>
           {fila.aguardandoMontagem.length === 0 && <SemLinhaNoFiltro />}
           {fila.aguardandoMontagem.map((g) => {
             const filhoAberto = g.filhos.find((f) => chaveDeLevar(g.pai.id, f.no.id) === aberta)
             const levarPara = g.primeiroPassoDoPai
+            // O pai começa aqui consumindo os filhos (spec da Fase 3D, §2.1). "Dá para iniciar 0"
+            // não oferece o botão: o backend recusaria qualquer N.
+            const iniciarPai = apontar && g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null
+              ? botaoDeApontar(chaveDeIniciarPai(g.pai.id), rotuloDeIniciar, g.pai)
+              : undefined
+            const { caixa, campo } = g.iniciaAqui
+              ? controlesDoLote(chaveDeIniciarPai(g.pai.id), `Marcar ${rotuloDoNo(g.pai)} para iniciar`)
+              : {}
             return (
               <ItemComAcao
                 key={g.pai.id}
-                // O pai começa aqui consumindo os filhos (spec da Fase 3D, §2.1). "Dá para iniciar 0"
-                // não oferece o botão: o backend recusaria qualquer N.
-                acao={apontar && g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null
-                  && botao(chaveDeIniciarPai(g.pai.id), rotuloDeIniciar, g.pai)}
-                painel={
+                acao={caixa || iniciarPai ? <>{caixa}{iniciarPai}</> : undefined}
+                painel={juntar(campo,
                   painel(chaveDeIniciarPai(g.pai.id), (
                     <FormularioDeQuantidade
                       rotulo={rotuloDeIniciar}
@@ -425,7 +613,7 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
                       aoCancelar={fechar}
                     />
                   )))
-                }
+                )}
               >
                 <GrupoDeMontagem
                   grupo={g}
@@ -473,13 +661,47 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes }: {
   )
 }
 
-function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
+/** `acao` e `dica` são do lote: o "Marcar todos" da seção, e por que ele está travado. */
+function Secao({ titulo, acao, dica, children }: { titulo: string; acao?: ReactNode; dica?: string; children: ReactNode }) {
   const id = useId()
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3">
-      <h2 id={id} className="text-lg font-medium text-tinta">{titulo}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id={id} className="text-lg font-medium text-tinta">{titulo}</h2>
+        {acao}
+      </div>
+      {dica && <p className="text-sm text-tinta-fraca">{dica}</p>}
       <ListaDeCadastro rotulo={titulo}>{children}</ListaDeCadastro>
     </section>
+  )
+}
+
+/**
+ * O campo da quantidade de uma linha marcada. O texto é do lote e NUNCA é reescrito pela atualização
+ * da fila: se o máximo caiu abaixo dele, é o `erroDaLinha` que acusa (desvio D9), e o bloqueio da
+ * linha (Pedido pausado, sem filhos) fala no lugar da dica (desvio D8).
+ */
+function CampoDoLote({ linha, texto, aoMudar }: { linha: LinhaDoLote; texto: string; aoMudar: (texto: string) => void }) {
+  const erro = erroDaLinha(linha, texto)
+  const disponivel = `${linha.ordem === null ? 'Dá para iniciar' : 'Disponível'}: ${formatarQuantidade(linha.maximo)}`
+  return (
+    <div className="border-t border-borda pt-3">
+      <Campo rotulo="Quantidade" dica={erro ?? disponivel}>
+        {(id, idDaDica) => (
+          <input
+            id={id}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={texto}
+            onChange={(e) => aoMudar(e.target.value)}
+            aria-describedby={idDaDica}
+            aria-invalid={erro !== null}
+            className={CLASSES_DE_CONTROLE}
+          />
+        )}
+      </Campo>
+    </div>
   )
 }
 

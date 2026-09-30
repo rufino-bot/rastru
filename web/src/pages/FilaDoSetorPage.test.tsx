@@ -7,6 +7,8 @@ import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
 import { CHASSI, PARAFUSO, SUPORTE, DESTINO_MONTAGEM, destino, fila, no } from '../testes/execucao'
 import type { Estornavel } from '../api/execucao'
+import { INTERVALO_DA_EXECUCAO_MS } from '../hooks/useCargaPeriodica'
+import { BLOQUEIO_PEDIDO_PAUSADO, SAIU_DO_LOTE } from '../execucao/loteDaFila'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); localStorage.clear() })
 
@@ -1249,7 +1251,8 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
     // formulário aberto olha a resposta INTEIRA. O efeito só reavalia quando `fila` muda, e é a
     // resposta nova da atualização que o faz rodar com o filtro já aplicado.
     vi.useFakeTimers()
-    vi.stubGlobal('fetch', montarFetch([DOIS_PEDIDOS]).fetchMock)
+    const { fetchMock, getsDaFila } = montarFetch([DOIS_PEDIDOS])
+    vi.stubGlobal('fetch', fetchMock)
 
     renderizarComUrl('/fila/1')
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
@@ -1265,7 +1268,10 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
     // A mesma resposta volta na atualização periódica, com o filtro ainda ativo: a linha escondida
     // continua na fila, então o aviso não sobe e o formulário não é fechado (só não se vê enquanto
     // a linha está escondida; o que se prova é a volta dele, logo abaixo).
-    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    const getsAntes = getsDaFila()
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+    // Sem esta afirmação o teste passaria também se a atualização nunca acontecesse.
+    expect(getsDaFila()).toBeGreaterThan(getsAntes)
     expect(screen.queryByRole('alert')).toBeNull()
 
     // A linha só estava escondida: tirar o filtro a devolve com o formulário ainda aberto.
@@ -1292,5 +1298,383 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
     const caixa = screen.getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' }) as HTMLInputElement
     expect(caixa.checked).toBe(true)
     expect(within(caixa.parentElement!).getByText('0')).toBeTruthy()
+  })
+})
+
+describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', () => {
+  beforeEach(() => {
+    perfil = 'Operador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const TAMPA = no({
+    id: 21, descricao: 'Tampa', codigoDoComponente: 'TP-01', pedidoId: 2, pedidoNumero: 'PED-2026-02',
+    pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null,
+  })
+  const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
+  const linha = (n: ReturnType<typeof no>, quantidade = 10, ordem = 1) => ({ no: n, ordem, quantidade, estornaveis: [] as Estornavel[] })
+  const DOIS_A_INICIAR = fila({ aIniciar: [linha(SUPORTE), linha(TAMPA, 5)] })
+  const INICIOS = '/api/inicios'
+  const TERMINOS = '/api/terminos'
+
+  const marcar = (nome: string) => fireEvent.click(screen.getByRole('checkbox', { name: nome }))
+  const MARCAR_SUPORTE = 'Marcar SUP-01 — Suporte, passo 1, para iniciar'
+  const MARCAR_TAMPA = 'Marcar TP-01 — Tampa, passo 1, para iniciar'
+  const secao = (nome: string) => within(screen.getByRole('region', { name: nome }))
+  const abrirFiltro = () => fireEvent.click(screen.getByRole('button', { name: /^Filtrar/ }))
+  const postsDe = (fetchMock: ReturnType<typeof vi.fn>, caminho: string) =>
+    fetchMock.mock.calls.filter((c) => String(c[0]) === caminho)
+
+  it('mostra o checkbox nas tres secoes que tem lote e nao no cartao que nao inicia aqui', async () => {
+    const EIXO = no({ id: 30, descricao: 'Eixo', codigoDoComponente: 'EX-01', paiId: null, paiDescricao: null })
+    vi.stubGlobal('fetch', montarFetch([fila({
+      ...FILA_CHEIA,
+      aguardandoMontagem: [
+        ...FILA_CHEIA.aguardandoMontagem,
+        {
+          pai: EIXO, faltaMontar: 4, daParaMontar: 1, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+          filhos: [{ no: PARAFUSO, quantidadePorPai: 1, presente: 1, necessarioParaProxima: 1, faltaParaProxima: 0 }],
+        },
+      ],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 1, para terminar' })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: MARCAR_SUPORTE })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'Marcar CH-01 — Chassi para iniciar' })).toBeTruthy()
+    // Nem o pai que começa em outro Setor, nem coleta, nem sobra: só as três linhas acima.
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    expect(screen.getByText('EX-01 — Eixo')).toBeTruthy()
+  })
+
+  it('quem nao aponta nao ve checkbox nem Marcar todos', async () => {
+    perfil = 'Movimentador'
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /Marcar todos/ })).toBeNull()
+  })
+
+  it('marcar abre o campo com o saldo e o pai com o da para iniciar', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+
+    marcar(MARCAR_SUPORTE)
+    const linhaDoSuporte = screen.getByRole('checkbox', { name: MARCAR_SUPORTE }).closest('li')!
+    expect(within(linhaDoSuporte).getByLabelText('Quantidade')).toHaveProperty('value', '10')
+    expect(within(linhaDoSuporte).getByText('Disponível: 10')).toBeTruthy()
+
+    marcar('Marcar BA-01 — Base, passo 1, para terminar') // outra seção: não marca, só trava
+    expect(screen.getAllByLabelText('Quantidade')).toHaveLength(1)
+  })
+
+  it('o pai marcado mostra o da para iniciar', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    marcar('Marcar CH-01 — Chassi para iniciar')
+    const linhaDoPai = screen.getByRole('checkbox', { name: 'Marcar CH-01 — Chassi para iniciar' }).closest('li')!
+    expect(within(linhaDoPai).getByLabelText('Quantidade')).toHaveProperty('value', '2')
+    expect(within(linhaDoPai).getByText('Dá para iniciar: 2')).toBeTruthy()
+  })
+
+  it('marcar numa secao trava as outras com a dica', async () => {
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(screen.queryByText(/Conclua ou limpe/)).toBeNull()
+
+    marcar(MARCAR_SUPORTE)
+
+    const base = screen.getByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 1, para terminar' })
+    expect(base).toHaveProperty('disabled', true)
+    expect(secao('Em trabalho').getByRole('button', { name: 'Marcar todos' })).toHaveProperty('disabled', true)
+    expect(secao('Em trabalho').getByText('Conclua ou limpe a seleção de A iniciar aqui.')).toBeTruthy()
+    // O pai é da outra seção também.
+    expect(screen.getByRole('checkbox', { name: 'Marcar CH-01 — Chassi para iniciar' })).toHaveProperty('disabled', true)
+    // A seção do próprio lote não trava.
+    expect(secao('A iniciar aqui').getByRole('button', { name: 'Desmarcar todos' })).toHaveProperty('disabled', false)
+
+    marcar(MARCAR_SUPORTE)
+
+    expect(base).toHaveProperty('disabled', false)
+    expect(secao('Em trabalho').getByRole('button', { name: 'Marcar todos' })).toHaveProperty('disabled', false)
+    expect(screen.queryByText(/Conclua ou limpe/)).toBeNull()
+  })
+
+  it('Marcar todos marca so as linhas visiveis e habilitadas da secao', async () => {
+    const BASE_PAUSADA = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null, pausa: PAUSA })
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aIniciar: [linha(SUPORTE), linha(TAMPA, 5), linha(BASE_PAUSADA, 3)],
+    })]).fetchMock)
+
+    renderizar('/fila/1?pedido=1')
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(screen.queryByText('TP-01 — Tampa')).toBeNull()
+
+    fireEvent.click(secao('A iniciar aqui').getByRole('button', { name: 'Marcar todos' }))
+
+    expect(screen.getByRole('checkbox', { name: MARCAR_SUPORTE })).toHaveProperty('checked', true)
+    const pausado = screen.getByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 1, para iniciar' })
+    expect(pausado).toHaveProperty('checked', false)
+    expect(pausado).toHaveProperty('disabled', true)
+    expect(secao('A iniciar aqui').getByRole('button', { name: 'Desmarcar todos' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Iniciar 1 item' })).toBeTruthy()
+
+    // A Tampa estava escondida pelo filtro: marcar todos não a tocou.
+    fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' }))
+    expect(screen.getByRole('checkbox', { name: MARCAR_TAMPA })).toHaveProperty('checked', false)
+  })
+
+  it('a barra mostra o verbo e a contagem', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aIniciar: [linha(SUPORTE), linha(TAMPA, 5)],
+      emTrabalho: [linha(PECA_B, 2.5)],
+    })]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(screen.queryByRole('button', { name: /^Limpar seleção/ })).toBeNull()
+
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    expect(screen.getByRole('button', { name: 'Iniciar 2 itens' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar seleção' }))
+    expect(screen.queryByRole('button', { name: /^Iniciar \d/ })).toBeNull()
+
+    marcar('Marcar BA-01 — Base, passo 1, para terminar')
+    expect(screen.getByRole('button', { name: 'Terminar 1 item' })).toBeTruthy()
+  })
+
+  it('marcado oculto pelo filtro continua no lote e vai na requisicao', async () => {
+    const { fetchMock } = montarFetch([DOIS_A_INICIAR, fila()], { [INICIOS]: () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/fila/1')
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-02 · Beta Máquinas' }))
+
+    expect(screen.queryByText('SUP-01 — Suporte')).toBeNull()
+    expect(screen.getByText('1 marcado oculto pelo filtro')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar 2 itens' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, INICIOS)).toEqual({
+      setorId: 1,
+      itens: [{ estruturaItemId: 7, quantidade: 10 }, { estruturaItemId: 21, quantidade: 5 }],
+    }))
+  })
+
+  it('enviar o lote manda uma requisicao e recarrega', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([DOIS_A_INICIAR, fila()], { [INICIOS]: () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    marcar(MARCAR_TAMPA)
+    marcar(MARCAR_SUPORTE)
+    fireEvent.change(screen.getAllByLabelText('Quantidade')[0], { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar 2 itens' }))
+
+    expect(await screen.findByText('Nada neste Setor agora')).toBeTruthy()
+    // Na ordem das linhas da fila, não na ordem em que foram marcadas.
+    expect(corpoDe(fetchMock, INICIOS)).toEqual({
+      setorId: 1,
+      itens: [{ estruturaItemId: 7, quantidade: 4 }, { estruturaItemId: 21, quantidade: 5 }],
+    })
+    expect(postsDe(fetchMock, INICIOS)).toHaveLength(1)
+    expect(getsDaFila()).toBe(2)
+    expect(screen.queryByRole('button', { name: /^Iniciar \d/ })).toBeNull()
+  })
+
+  it('terminar em lote vai para /terminos com o passo de cada linha', async () => {
+    const { fetchMock } = montarFetch([fila({ emTrabalho: [linha(PECA_B, 2.5, 3)] })], {
+      [TERMINOS]: () => respostaJson([], 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 3, para terminar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar 1 item' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, TERMINOS)).toEqual({
+      setorId: 1, itens: [{ estruturaItemId: 9, ordem: 3, quantidade: 2.5 }],
+    }))
+  })
+
+  it('iniciar o pai em lote vai para /inicios com o pai', async () => {
+    const { fetchMock } = montarFetch([FILA_CHEIA], { [INICIOS]: () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Marcar CH-01 — Chassi para iniciar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar 1 item' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, INICIOS)).toEqual({
+      setorId: 1, itens: [{ estruturaItemId: 2, quantidade: 2 }],
+    }))
+    expect(foiChamado(fetchMock, '/api/estrutura/2/inicios')).toBe(false)
+  })
+
+  it('quantidade invalida desabilita o botao da barra', async () => {
+    const { fetchMock } = montarFetch([DOIS_A_INICIAR], { [INICIOS]: () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    // Uma linha válida e uma inválida: um lote parcial nunca pode sair com as válidas.
+    fireEvent.change(screen.getAllByLabelText('Quantidade')[1], { target: { value: 'abc' } })
+
+    const botao = screen.getByRole('button', { name: 'Iniciar 2 itens' })
+    expect(botao).toHaveProperty('disabled', true)
+    expect(screen.getByText('Digite um número com no máximo quatro casas decimais.')).toBeTruthy()
+    expect(screen.getAllByLabelText('Quantidade')[1].getAttribute('aria-invalid')).toBe('true')
+    fireEvent.click(botao)
+    expect(postsDe(fetchMock, INICIOS)).toHaveLength(0)
+
+    fireEvent.change(screen.getAllByLabelText('Quantidade')[1], { target: { value: '5' } })
+    expect(screen.getByRole('button', { name: 'Iniciar 2 itens' })).toHaveProperty('disabled', false)
+  })
+
+  it('recusa do lote recarrega a fila, mostra o banner e mantem a selecao', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([DOIS_A_INICIAR], {
+      [INICIOS]: () => respostaJson(
+        { erro: 'PedidoPausado', mensagem: 'No 1: O Pedido PED-01 está pausado.' }, 409,
+      ),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar 2 itens' }))
+
+    expect(await screen.findByText('No 1: O Pedido PED-01 está pausado.')).toBeTruthy()
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+    expect(screen.getByRole('checkbox', { name: MARCAR_SUPORTE })).toHaveProperty('checked', true)
+    expect(screen.getByRole('checkbox', { name: MARCAR_TAMPA })).toHaveProperty('checked', true)
+    expect(screen.getByRole('button', { name: 'Iniciar 2 itens' })).toHaveProperty('disabled', false)
+  })
+
+  it('recusa que nao e 409 tambem recarrega a fila', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([DOIS_A_INICIAR], {
+      [INICIOS]: () => respostaJson({}, 404),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    marcar(MARCAR_SUPORTE)
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar 1 item' }))
+
+    await waitFor(() => expect(getsDaFila()).toBe(2))
+    expect(screen.getByRole('checkbox', { name: MARCAR_SUPORTE })).toHaveProperty('checked', true)
+  })
+
+  it('item marcado que sai da fila sai da selecao com aviso', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', montarFetch([DOIS_A_INICIAR, fila({ aIniciar: [linha(SUPORTE)] })]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    expect(screen.getByRole('button', { name: 'Iniciar 2 itens' })).toBeTruthy()
+    expect(screen.queryByText(SAIU_DO_LOTE)).toBeNull()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+
+    expect(screen.getByText(SAIU_DO_LOTE)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Iniciar 1 item' })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: MARCAR_SUPORTE })).toHaveProperty('checked', true)
+  })
+
+  it('linha marcada que fica bloqueada continua marcada e trava o botao', async () => {
+    vi.useFakeTimers()
+    const SUPORTE_PAUSADO = no({ pausa: PAUSA })
+    vi.stubGlobal('fetch', montarFetch([
+      DOIS_A_INICIAR,
+      fila({ aIniciar: [linha(SUPORTE_PAUSADO), linha(TAMPA, 5)] }),
+    ]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    expect(screen.getByRole('button', { name: 'Iniciar 2 itens' })).toHaveProperty('disabled', false)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+
+    // Pausada por outra pessoa: continua marcada (e desmarcável), com o motivo no campo dela.
+    const caixa = screen.getByRole('checkbox', { name: MARCAR_SUPORTE })
+    expect(caixa).toHaveProperty('checked', true)
+    expect(caixa).toHaveProperty('disabled', false)
+    expect(screen.getByText(BLOQUEIO_PEDIDO_PAUSADO)).toBeTruthy()
+    expect(screen.queryByText(SAIU_DO_LOTE)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Iniciar 2 itens' })).toHaveProperty('disabled', true)
+
+    fireEvent.click(caixa)
+
+    expect(screen.queryByText(BLOQUEIO_PEDIDO_PAUSADO)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Iniciar 1 item' })).toHaveProperty('disabled', false)
+  })
+
+  it('saldo que cai abaixo do digitado invalida o campo sem reescreve-lo', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', montarFetch([
+      fila({ aIniciar: [linha(SUPORTE, 10)] }),
+      fila({ aIniciar: [linha(SUPORTE, 3)] }),
+    ]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    marcar(MARCAR_SUPORTE)
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '5' } })
+    expect(screen.getByRole('button', { name: 'Iniciar 1 item' })).toHaveProperty('disabled', false)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '5')
+    expect(screen.getByText('No máximo 3.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Iniciar 1 item' })).toHaveProperty('disabled', true)
+  })
+
+  it('com lote os botoes individuais somem e marcar fecha o formulario aberto', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      ...FILA_CHEIA,
+      emTrabalho: [{ ...linha(PECA_B, 2.5), estornaveis: [ESTORNAVEL(41, 2)] }],
+    })]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Iniciar SUP-01 — Suporte' }))
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy()
+
+    marcar('Marcar BA-01 — Base, passo 1, para terminar')
+
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Terminar BA-01 — Base' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Iniciar CH-01 — Chassi' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Estornar BA-01 — Base' })).toBeTruthy()
+
+    // Sem lote, o botão individual volta.
+    marcar('Marcar BA-01 — Base, passo 1, para terminar')
+    expect(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
   })
 })
