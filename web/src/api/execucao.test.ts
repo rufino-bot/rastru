@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
-  iniciar, terminar, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
+  iniciar, terminar, iniciarEmLote, terminarEmLote, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
   ehConflito, pausarPedido, retomarPedido, type Estornavel,
 } from './execucao'
 import { aoMudarOLivro } from './sinalDoLivro'
@@ -39,6 +39,12 @@ describe('execucao', () => {
       { setorId: 1, quantidade: 4 }],
     ['terminar', () => terminar(7, { setorId: 1, ordem: 2, quantidade: 4 }), '/api/estrutura/7/terminos', 'POST',
       { setorId: 1, ordem: 2, quantidade: 4 }],
+    ['iniciarEmLote', () => iniciarEmLote(1, [{ estruturaItemId: 7, quantidade: 4 }, { estruturaItemId: 2, quantidade: 1 }]),
+      '/api/inicios', 'POST', {
+        setorId: 1, itens: [{ estruturaItemId: 7, quantidade: 4 }, { estruturaItemId: 2, quantidade: 1 }],
+      }],
+    ['terminarEmLote', () => terminarEmLote(1, [{ estruturaItemId: 7, ordem: 1, quantidade: 4 }]),
+      '/api/terminos', 'POST', { setorId: 1, itens: [{ estruturaItemId: 7, ordem: 1, quantidade: 4 }] }],
     ['entregar', () => entregar([{
       estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4,
     }]), '/api/entregas', 'POST', {
@@ -201,6 +207,18 @@ describe('execucao', () => {
       await substituirRoteiroDoNo(7, [1, 2])
 
       expect(ouvinte).toHaveBeenCalledTimes(3)
+      parar()
+    })
+
+    it('lote aceito avisa quem escuta', async () => {
+      vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaJson([], 201))))
+      const ouvinte = vi.fn()
+      const parar = aoMudarOLivro(ouvinte)
+
+      await iniciarEmLote(1, [{ estruturaItemId: 7, quantidade: 4 }])
+      await terminarEmLote(1, [{ estruturaItemId: 7, ordem: 1, quantidade: 4 }])
+
+      expect(ouvinte).toHaveBeenCalledTimes(2)
       parar()
     })
 

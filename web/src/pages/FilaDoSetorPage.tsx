@@ -10,6 +10,7 @@ import {
   caminhoDoNo, descreverDestino, formatarQuantidade, mensagemDoEstorno, rotuloDaAcao, rotuloDoNo,
 } from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
+import { chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar } from '../execucao/loteDaFila'
 import { CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila } from '../execucao/filtroDaDemanda'
 import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
@@ -58,11 +59,9 @@ export function FilaDoSetorPage() {
 
 /**
  * A ação aberta, pela CHAVE da linha que a abriu. Uma por vez: um formulário de quantidade aberto
- * por tela é o que cabe num celular, e é o que deixa "Cancelar" e "Quantidade" sem ambiguidade.
+ * por tela é o que cabe num celular, e é o que deixa "Cancelar" e "Quantidade" sem ambiguidade. As
+ * chaves de iniciar, terminar e iniciar o pai vivem em `loteDaFila`, porque são também as do lote.
  */
-const chaveDeIniciar = (noId: number, ordem: number) => `iniciar:${noId}:${ordem}`
-const chaveDeTerminar = (noId: number, ordem: number) => `terminar:${noId}:${ordem}`
-const chaveDeIniciarPai = (paiId: number) => `iniciar-pai:${paiId}`
 const chaveDeLevar = (paiId: number, filhoId: number) => `levar:${paiId}:${filhoId}`
 const chaveDeEstornar = (secao: string, noId: number, ordem: number | null) => `estornar:${secao}:${noId}:${ordem ?? ''}`
 

@@ -66,6 +66,9 @@ export type CodigoDeErroDaExecucao =
   | 'PedidoJaPausado'
   | 'PedidoNaoPausado'
   | 'MotivoLongoDemais'
+  | 'LoteVazio'
+  | 'LoteGrandeDemais'
+  | 'ItemRepetido'
 
 /**
  * A tradução de cada código (spec §8.3: "cada código tem tradução em `mensagemDeErro`"). Só entra
@@ -96,6 +99,9 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   PedidoJaPausado: 'Este pedido já está pausado.',
   PedidoNaoPausado: 'Este pedido não está pausado.',
   MotivoLongoDemais: 'O motivo passa de 200 caracteres.',
+  LoteVazio: 'Marque pelo menos um item.',
+  LoteGrandeDemais: 'O lote passou do máximo de itens. Divida a seleção.',
+  ItemRepetido: 'Um item foi marcado duas vezes. Atualize a tela e tente de novo.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {
