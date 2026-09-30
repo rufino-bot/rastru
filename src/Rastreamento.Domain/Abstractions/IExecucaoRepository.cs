@@ -38,10 +38,19 @@ public interface IExecucaoRepository
   /// Roda `trabalho` numa transacao SERIALIZABLE e commita. Deadlock (1205) tenta de novo, com
   /// transacao nova a cada vez (3 tentativas no total: a inicial mais 2 retentativas em producao);
   /// esgotadas as tentativas, ou num lock timeout (1222, que nunca tenta de novo), sobe
-  /// <see cref="ConflitoDeConcorrenciaException"/>. O `trabalho` so escreve depois de validar
-  /// tudo: um `Result` de falha devolvido de dentro dele commita uma transacao sem escrita nenhuma.
+  /// <see cref="ConflitoDeConcorrenciaException"/>. Esta forma commita sempre que o `trabalho` volta sem
+  /// lancar; quem devolve um `Result` de falha depois de ter escrito usa a sobrecarga com `confirmar`.
   /// </summary>
   Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct);
+
+  /// <summary>
+  /// Como <see cref="EmTransacaoAsync{T}(Func{Task{T}}, CancellationToken)"/>, mas so commita se
+  /// `confirmar(resultado)` for verdadeiro; senao desfaz a transacao, limpa o que o `trabalho` deixou no
+  /// change tracker e devolve o resultado mesmo assim. Existe porque o lote (iniciar ou terminar varios
+  /// nos de uma vez) grava o item 1 antes de validar o item 2: uma falha devolvida no meio nao pode
+  /// deixar o primeiro no livro. Um `trabalho` que lanca continua desfazendo, como sempre.
+  /// </summary>
+  Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, Func<T, bool> confirmar, CancellationToken ct);
 
   /// <summary>
   /// Roda `leitura` SEM transacao explicita (fica no READ COMMITTED da conexao), com o mesmo retry de

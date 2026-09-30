@@ -48,7 +48,14 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>A proxima transacao sobe o que o repositorio real sobe num deadlock.</summary>
   public bool ConflitoNaProximaTransacao { get; set; }
 
-  public async Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct)
+  /// <summary>Quantas transacoes commitaram e quantas `confirmar` recusou (e o fake desfez).</summary>
+  public int Commits { get; private set; }
+  public int Desfeitas { get; private set; }
+
+  public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct) =>
+      EmTransacaoAsync(trabalho, _ => true, ct);
+
+  public async Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, Func<T, bool> confirmar, CancellationToken ct)
   {
     if (ConflitoNaProximaTransacao)
     {
@@ -58,9 +65,33 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
     Transacoes++;
     _emTransacao = true;
+    // O retrato do que a transacao pode mudar: restaurado se `confirmar` recusar, como o rollback do banco.
+    var movimentacoes = Movimentacoes.ToList();
+    var montagens = Montagens.ToList();
+    var pausas = Pausas.ToList();
+    var status = new Dictionary<int, string>(StatusDoPedido);
+    var estadoDasMontagens = montagens.Select(g => (g, g.EstornadaEm, g.EstornadaPorUsuarioId)).ToList();
+    var estadoDasPausas = pausas.Select(p => (p, p.RetomadoEm, p.RetomadoPorUsuarioId)).ToList();
     try
     {
-      return await trabalho();
+      var resultado = await trabalho();
+      if (confirmar(resultado))
+        Commits++;
+      else
+      {
+        Desfeitas++;
+        Movimentacoes.Clear();
+        Movimentacoes.AddRange(movimentacoes);
+        Montagens.Clear();
+        Montagens.AddRange(montagens);
+        Pausas.Clear();
+        Pausas.AddRange(pausas);
+        StatusDoPedido.Clear();
+        foreach (var (pedidoId, valor) in status) StatusDoPedido[pedidoId] = valor;
+        foreach (var (g, em, por) in estadoDasMontagens) { g.EstornadaEm = em; g.EstornadaPorUsuarioId = por; }
+        foreach (var (p, em, por) in estadoDasPausas) { p.RetomadoEm = em; p.RetomadoPorUsuarioId = por; }
+      }
+      return resultado;
     }
     finally
     {

@@ -30,15 +30,17 @@ internal static class Falhas
       pedido is null || pedido.Status is "Concluido" or "Cancelado";
 
   /// <summary>
-  /// A transacao da execucao, com o deadlock/lock timeout traduzido para 409. Nome diferente de
-  /// `EmTransacaoAsync` de proposito: com o mesmo nome, o metodo da interface ganharia da extensao.
+  /// A transacao da execucao, com o deadlock/lock timeout traduzido para 409, e que so commita se o
+  /// caso de uso deu certo: um `Result` de falha desfaz tudo o que ele escreveu antes de falhar (o lote
+  /// grava um item antes de validar o seguinte). Nome diferente de `EmTransacaoAsync` de proposito: com
+  /// o mesmo nome, o metodo da interface ganharia da extensao.
   /// </summary>
   public static async Task<Result<T>> ExecutarAsync<T>(
       this IExecucaoRepository execucao, Func<Task<Result<T>>> trabalho, CancellationToken ct)
   {
     try
     {
-      return await execucao.EmTransacaoAsync(trabalho, ct);
+      return await execucao.EmTransacaoAsync(trabalho, r => r.Sucesso, ct);
     }
     catch (ConflitoDeConcorrenciaException)
     {

@@ -75,11 +75,26 @@ public class ExecucaoRepository : IExecucaoRepository
   /// cegas so atrasaria o 409 sem mudar o desfecho.
   /// </summary>
   public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct) =>
+      EmTransacaoAsync(trabalho, _ => true, ct);
+
+  /// <summary>
+  /// A mesma transacao, com a decisao de commitar nas maos de `confirmar`. Recusada, a transacao volta
+  /// (`RollbackAsync`) e o change tracker e limpo — o que o `trabalho` salvou ja nao esta no banco, e o
+  /// que ficou pendente nao pode vazar para o proximo `SalvarAlteracoesAsync` do mesmo contexto. O
+  /// retry de deadlock continua envolvendo a tentativa inteira, recusa incluida.
+  /// </summary>
+  public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, Func<T, bool> confirmar, CancellationToken ct) =>
       ComRetryDeDeadlockAsync(async () =>
       {
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var resultado = await trabalho();
-        await tx.CommitAsync(ct);
+        if (confirmar(resultado))
+          await tx.CommitAsync(ct);
+        else
+        {
+          await tx.RollbackAsync(ct);
+          _db.ChangeTracker.Clear();
+        }
         return resultado;
       }, ct);
 

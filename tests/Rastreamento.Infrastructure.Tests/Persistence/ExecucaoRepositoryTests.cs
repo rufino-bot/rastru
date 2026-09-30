@@ -267,6 +267,68 @@ public class ExecucaoRepositoryTests : TesteComBanco
     Assert.Equal(new[] { c.Peca, c.ItemB }, travados.Select(n => n.Id).ToArray());
   });
 
+  /// <summary>O trabalho de um Inicio da Peca do cenario: grava a linha e poe o Pedido em producao.</summary>
+  private static async Task IniciarAPecaAsync(Cenario c, ExecucaoRepository repo)
+  {
+    repo.Adicionar(Mov(c, c.Peca, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Solda, 1), 1m));
+    await repo.SalvarAlteracoesAsync(CancellationToken.None);
+    await repo.MarcarPedidoEmProducaoAsync(c.Arvore.PedidoId, CancellationToken.None);
+  }
+
+  [Fact]
+  public Task Transacao_que_nao_confirma_desfaz_o_que_foi_salvo() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+
+    var devolvido = await repo.EmTransacaoAsync(async () =>
+    {
+      await IniciarAPecaAsync(c, repo);
+      return "falha";
+    }, _ => false, CancellationToken.None);
+
+    Assert.Equal("falha", devolvido);
+    await using var novo = NovoContexto();
+    Assert.Equal(0, await novo.Movimentacoes.CountAsync(m => m.EstruturaItemId == c.Peca));
+    Assert.Equal("Aberto", (await novo.Pedidos.AsNoTracking().SingleAsync(p => p.Id == c.Arvore.PedidoId)).Status);
+  });
+
+  [Fact]
+  public Task Transacao_que_nao_confirma_limpa_o_change_tracker() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+
+    await repo.EmTransacaoAsync(async () =>
+    {
+      await IniciarAPecaAsync(c, repo);
+      repo.Adicionar(Mov(c, c.Peca, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Solda, 1), 2m));   // pendente, sem salvar
+      return 0;
+    }, _ => false, CancellationToken.None);
+
+    Assert.Empty(db.ChangeTracker.Entries());
+    await repo.SalvarAlteracoesAsync(CancellationToken.None);   // nada pendente: nao grava o que sobrou
+    await using var novo = NovoContexto();
+    Assert.Equal(0, await novo.Movimentacoes.CountAsync(m => m.EstruturaItemId == c.Peca));
+  });
+
+  [Fact]
+  public Task Transacao_sem_confirmar_continua_commitando() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+
+    await repo.EmTransacaoAsync(async () =>
+    {
+      await IniciarAPecaAsync(c, repo);
+      return 0;
+    }, CancellationToken.None);
+
+    await using var novo = NovoContexto();
+    Assert.Equal(1, await novo.Movimentacoes.CountAsync(m => m.EstruturaItemId == c.Peca));
+    Assert.Equal("EmProducao", (await novo.Pedidos.AsNoTracking().SingleAsync(p => p.Id == c.Arvore.PedidoId)).Status);
+  });
+
   [Fact]
   public Task Pedido_Aberto_passa_a_EmProducao_e_outro_status_nao_muda() => NoCenarioAsync(async c =>
   {
