@@ -52,6 +52,21 @@ public partial class ExecucaoEndpointsTests
   }
 
   [Fact]
+  public async Task Fila_serializa_pedidoCliente_e_materiais_em_camelCase()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+
+    var fila = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/setores/{c.Corte}/fila"));
+
+    var no = fila.GetProperty("aIniciar").EnumerateArray()
+        .Select(l => l.GetProperty("no")).First(n => n.GetProperty("id").GetInt32() == c.B);
+    Assert.Equal(JsonValueKind.String, no.GetProperty("pedidoCliente").ValueKind);
+    Assert.False(string.IsNullOrEmpty(no.GetProperty("pedidoCliente").GetString()));
+    Assert.Equal(JsonValueKind.Array, no.GetProperty("materiais").ValueKind);
+    Assert.Equal(0, no.GetProperty("materiais").GetArrayLength());   // nos ad-hoc do cenario nao gravam material
+  }
+
+  [Fact]
   public async Task Saldo_insuficiente_devolve_409_com_codigo_e_mensagem()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);

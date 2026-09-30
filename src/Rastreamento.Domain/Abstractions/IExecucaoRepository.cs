@@ -4,10 +4,15 @@ namespace Rastreamento.Domain.Abstractions;
 
 /// <summary>
 /// Um no com o Pedido e o Agrupamento em que vive — o que fila e tarefas precisam para mostrar o
-/// caminho "Pedido > Agrupamento > pai" sem uma consulta por linha.
+/// caminho "Pedido > Agrupamento > pai" sem uma consulta por linha. `Materiais` sao os do NO
+/// (`EstruturaMaterial`), por codigo — nunca os do catalogo do Componente.
 /// </summary>
 public sealed record ContextoDoNo(
-    EstruturaItem No, int PedidoId, string PedidoNumero, int AgrupamentoId, string AgrupamentoCodigo, PausaAberta? Pausa);
+    EstruturaItem No, int PedidoId, string PedidoNumero, string PedidoCliente, int AgrupamentoId,
+    string AgrupamentoCodigo, PausaAberta? Pausa, IReadOnlyList<MaterialDoNo> Materiais);
+
+/// <summary>Um material gravado no no: o que o filtro da fila e das tarefas oferece e casa.</summary>
+public sealed record MaterialDoNo(int Id, string Codigo, string Descricao);
 
 /// <summary>A pausa aberta de um Pedido, com o nome de quem pausou (spec da Fase 3D, secao 2.5).</summary>
 public sealed record PausaAberta(int PedidoId, DateTime PausadoEm, int PausadoPorUsuarioId, string PausadoPorNome, string? Motivo);

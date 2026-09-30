@@ -46,9 +46,10 @@ As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e 
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
-da 3C em relação à Fase 6 **não está decidida**. Depois da 3D, a ordem é: filtros da fila do Setor →
-Fase 1F → Fase 3B (decisão de 2026-09-28, oficializada em 2026-09-29; ver a seção "Fase 3D" de
-`06-roadmap-mvp.md`).
+da 3C em relação à Fase 6 **não está decidida**. Depois da 3D, a ordem é: filtros da demanda (a fila
+do Setor, as Tarefas e a lista de Pedidos, mais a ação em lote) → Fase 1F → Fase 3B (decisão de
+2026-09-28, oficializada em 2026-09-29; ver a nota "Ordem depois da 3D" na seção "Fase 3D" e a seção
+"Filtros da demanda e ação em lote" de `06-roadmap-mvp.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -316,7 +317,28 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
   sumir**.
 - **Busca paginada usa `useBuscaPaginada`** (`web/src/hooks/`), nunca `useState` + `useEffect` à
-  mão: ele já resolve debounce, cancelamento por sequência, clamp de página e reset de filtro.
+  mão: ele já resolve debounce, cancelamento por sequência, clamp de página e reset de filtro. Desde
+  os filtros da demanda ele também aceita `inicial` (busca e página da primeira consulta, lidas da
+  URL), `filtros` (facetas de fora do hook, comparadas por valor: mudar volta à página 1) e
+  `aoMudarConsulta` (para quem guarda busca e página na URL).
+- **Filtrar demanda por facetas usa `FiltroDeDemanda`** (`web/src/components/`, com teste próprio),
+  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São três primitivas para três
+  gatilhos, e não se substituem: **escolher um item de catálogo paginado** é `SeletorComBusca`;
+  **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **restringir uma lista de demanda
+  por Material, Pedido, Status…** é `FiltroDeDemanda`, seja a lista filtrada **no cliente** (a fila
+  do Setor e as Tarefas, que chegam inteiras: as opções e a contagem saem da própria resposta, e
+  `casaComFiltro`, exportada pelo módulo do componente, é a única implementação da regra — OU dentro
+  da faceta, E entre facetas, faceta vazia não restringe; nenhuma página a reescreve) ou **no
+  servidor** (a `PedidosPage`, cujos filtros vão como parâmetros de `GET /pedidos` por
+  `useBuscaPaginada`). O componente é controlado: recebe `facetas` e `selecao` e devolve a seleção
+  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **três** telas consumidoras, cada uma
+  com um uso (medido em 2026-09-29 com
+  `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`): `FilaDoSetorPage`,
+  `TarefasPage` e `PedidosPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
+  estado** (`positivo`, `negativo`, `atencao`): filtro ativo não é estado de negócio, então a
+  pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
+  morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
+  histórico) e a vírgula sai codificada (`?material=3%2C5`), embora o hook leia as duas formas.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**

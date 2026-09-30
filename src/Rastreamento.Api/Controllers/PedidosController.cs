@@ -13,9 +13,34 @@ public class PedidosController : CadastroControllerBase
 
   public PedidosController(CadastroDePedidoUseCase cadastro) => _cadastro = cadastro;
 
+  /// <summary>
+  /// Pagina do filtro. `status` e `material` sao listas separadas por virgula. Faixa, status ou
+  /// material invalidos respondem 400 com `erro`; pagina alem do fim e 200 com `itens` vazio.
+  /// </summary>
   [HttpGet]
-  public async Task<IActionResult> Listar(CancellationToken ct) =>
-      Ok(await _cadastro.Listar(ct));
+  public async Task<IActionResult> Listar(
+      [FromQuery] string? busca = null,
+      [FromQuery] string? status = null,
+      [FromQuery] string? material = null,
+      [FromQuery] int pagina = 1,
+      [FromQuery] int tamanho = CadastroDePedidoUseCase.TamanhoDePaginaPadrao,
+      CancellationToken ct = default)
+  {
+    var resultado = await _cadastro.Listar(busca, status, material, pagina, tamanho, ct);
+    return resultado.Sucesso
+        ? Ok(resultado.Valor)
+        : BadRequest(new { erro = resultado.Erro });
+  }
+
+  /// <summary>Contagem por status sobre todos os Pedidos e os mais antigos ainda abertos.</summary>
+  [HttpGet("resumo")]
+  public async Task<IActionResult> Resumo(CancellationToken ct) =>
+      Ok(await _cadastro.Resumo(ct));
+
+  /// <summary>Os Materiais que aparecem em algum no de algum Pedido — as opcoes do filtro.</summary>
+  [HttpGet("materiais")]
+  public async Task<IActionResult> Materiais(CancellationToken ct) =>
+      Ok(await _cadastro.MateriaisEmUso(ct));
 
   [HttpGet("{id:int}")]
   public async Task<IActionResult> Obter(int id, CancellationToken ct)

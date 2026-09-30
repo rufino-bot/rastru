@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { STATUS_DO_PEDIDO, ENCERRADOS, tomDoStatus } from './statusDoPedido'
+import { STATUS_DO_PEDIDO, ENCERRADOS, tomDoStatus, rotuloDoStatus } from './statusDoPedido'
 
 describe('statusDoPedido', () => {
   // A ordem NÃO é decorativa: é a do CK_Pedido_Status em specs/02-modelo-de-dados.sql:170-171, e
@@ -36,5 +36,17 @@ describe('statusDoPedido', () => {
     expect(tomDoStatus('AguardandoExpedicao')).toBe('neutro')
     // Valor que o domínio não tem: neutro, nunca uma cor de estado por acidente.
     expect(tomDoStatus('QualquerCoisa')).toBe('neutro')
+  })
+
+  it('rotuloDoStatus traduz os cinco status', () => {
+    expect(rotuloDoStatus('Aberto')).toBe('Aberto')
+    expect(rotuloDoStatus('EmProducao')).toBe('Em produção')
+    expect(rotuloDoStatus('AguardandoExpedicao')).toBe('Aguardando expedição')
+    expect(rotuloDoStatus('Concluido')).toBe('Concluído')
+    expect(rotuloDoStatus('Cancelado')).toBe('Cancelado')
+  })
+
+  it('rotuloDoStatus devolve status desconhecido como veio', () => {
+    expect(rotuloDoStatus('QualquerCoisa')).toBe('QualquerCoisa')
   })
 })

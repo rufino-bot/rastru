@@ -139,8 +139,38 @@ mesmo status HTTP para coisas diferentes.
 
 ## Pedido / Agrupamento
 
-- `GET /pedidos` *(qualquer perfil autenticado)* — cada Pedido traz `pausa`: `null`, ou
-  `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31)
+- `GET /pedidos` *(qualquer perfil autenticado)* — **página** de Pedidos, com busca e filtro. Todos
+  os parâmetros são opcionais: `?busca=`, `?status=Aberto,EmProducao`, `?material=3,5`, `?pagina=1`,
+  `?tamanho=20` (teto 100). Responde `{ itens, total, pagina, tamanho }`, o mesmo envelope de
+  `GET /componentes`; `total` é contado com os mesmos filtros da página. Cada item traz `pausa`:
+  `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31).
+  - `busca` acha o Pedido pelo **número**, pelo **cliente** ou pelo **código do Componente de
+    qualquer nó dele** (a Peça ou um Item, inclusive filho). O texto é literal: `%`, `_` e `[` não
+    são curinga de `LIKE`. Ignora caixa **e acento** ("metalurgica" acha "Metalúrgica"). O texto é
+    aparado nas pontas: só espaços equivale a não mandar `busca`.
+  - `status`: lista separada por vírgula de valores entre `Aberto`, `EmProducao`,
+    `AguardandoExpedicao`, `Concluido` e `Cancelado`; o Pedido casa se tem **algum** deles (OU).
+  - `material`: lista separada por vírgula de ids de Material; o Pedido casa se **algum nó** dele
+    tem algum deles (OU). É o Material do **nó** (`EstruturaMaterial`, gravado na criação do nó),
+    nunca o da receita do catálogo (`ComponenteMaterialPadrao`).
+  - Entre `busca`, `status` e `material` vale **E**. Nas duas listas, pedaço vazio é ignorado e
+    valor repetido colapsa (`material=3,,3` é `material=3`).
+  - Ordem: `DataAbertura` decrescente e, no empate, `Id` decrescente — o desempate é o que faz
+    `Skip/Take` não repetir nem pular linha entre páginas.
+  - **400** `{ "erro": "..." }` para `pagina` menor que 1, `tamanho` menor que 1 ou maior que 100,
+    `status` fora dos cinco (a frase nomeia o valor recusado) e `material` que não seja lista de
+    inteiros positivos. **Página além do fim não é erro**: responde 200 com `itens` vazio.
+- `GET /pedidos/resumo` *(qualquer perfil autenticado)* — sem parâmetros. Responde
+  `{ porStatus, maisAntigosAbertos }`. `porStatus` é `{ status, quantidade }[]`, contado no servidor
+  sobre **todos** os Pedidos (nunca sobre uma página) e com **sempre os cinco status**, na ordem do
+  `CK_Pedido_Status` (`Aberto`, `EmProducao`, `AguardandoExpedicao`, `Concluido`, `Cancelado`),
+  zeros inclusive. `maisAntigosAbertos` são até 5 Pedidos, no mesmo formato de `itens` de `GET /pedidos` (com
+  `pausa`), fora de `Concluido` e `Cancelado`, por `DataAbertura` crescente — é o que a Home mostra
+  em "pedidos abertos há mais tempo".
+- `GET /pedidos/materiais` *(qualquer perfil autenticado)* — sem parâmetros. `{ id, codigo,
+  descricao }[]` dos Materiais que aparecem em **algum nó de algum Pedido** (`EstruturaMaterial`),
+  ativos ou não, por descrição e, no empate, por código. São as opções do filtro de Material da
+  tela de Pedidos, sem contagem por opção.
 - `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente }`. `Tipo` nasce `Fabricacao`,
   `Status` nasce `Aberto` e o autor vem da claim `sub` da sessão — nenhum dos três se aceita do
   cliente
@@ -378,8 +408,13 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   sempre vazio; "aguardando montagem" não o tem. Todo nó resumido (`no`, `pai`, `filhos`) ganha
   `pausa`: `null`, ou `{ desde, porUsuarioNome, motivo }` quando o Pedido dele está pausado (regra
   31). Em "a iniciar", o que é de Pedido pausado vem **depois** do resto, para a tela agrupá-lo em
-  "Pausados"; dentro de cada grupo a ordem é a de antes.
-- `GET /tarefas` — os Itens prontos (cada nó com `pausa`, como na fila), com destino calculado, agrupados pelo Setor de origem. Na
+  "Pausados"; dentro de cada grupo a ordem é a de antes. Todo nó resumido ganha também, para os
+  filtros da tela, `pedidoCliente` (o cliente do Pedido do nó, ao lado de `pedidoNumero`) e
+  `materiais`: `{ id, codigo, descricao }[]`, os Materiais **do próprio nó** (`EstruturaMaterial`,
+  não os do catálogo do Componente), por código; lista vazia — nunca nula — quando o nó não tem
+  nenhum, como o Item ad-hoc. A fila e as Tarefas **não têm parâmetro de filtro**: chegam inteiras e
+  a tela filtra no cliente, por Material e por Pedido.
+- `GET /tarefas` — os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na fila), com destino calculado, agrupados pelo Setor de origem. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
   `setorId` nulo.
@@ -393,7 +428,10 @@ O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON
 (`docs/superpowers/plans/2026-09-25-fase-3-backend.md`) **e** na seção "Contrato JSON novo" do plano da
 Fase 3D (`docs/superpowers/plans/2026-09-28-fase-3d-ajustes-pos-verificacao.md`), que é o que o front
 consome. O segundo traz só o que a 3D mudou (`atividade`, `estornaveis`, `pausa`, `iniciaAqui`,
-`primeiroPassoDoPai`, o destino calculado e as rotas de pausa); o resto continua no primeiro.
+`primeiroPassoDoPai`, o destino calculado e as rotas de pausa); o resto continua no primeiro. Os
+campos `pedidoCliente` e `materiais` do nó resumido e as três rotas `GET /pedidos`, `GET /pedidos/resumo` e `GET /pedidos/materiais` estão na
+seção "Contrato JSON novo" do plano 1 dos filtros da demanda
+(`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`).
 
 **Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
 e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).

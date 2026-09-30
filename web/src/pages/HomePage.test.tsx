@@ -5,21 +5,35 @@ import { MemoryRouter } from 'react-router-dom'
 import { HomePage } from './HomePage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
-import { STATUS_DO_PEDIDO } from '../pedidos/statusDoPedido'
 
 afterEach(cleanup)
 
-// Contagem por status: Aberto 2, EmProducao 1, AguardandoExpedicao 0, Concluido 1, Cancelado 1.
-// O zero de AguardandoExpedicao é o caso que a spec §3.1 exige mostrar, e ele SÓ existe porque
-// nenhum pedido do fixture tem esse status — se alguém acrescentar um, o teste do zero morre e
-// aponta para cá.
-const PEDIDOS = [
-  { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Aberto', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
-  { id: 2, numero: 'PED-002', cliente: 'Beta', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-05T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
-  { id: 3, numero: 'PED-003', cliente: 'Gama', tipo: 'Normal', status: 'Aberto', dataAbertura: '2026-08-01T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
-  { id: 4, numero: 'PED-004', cliente: 'Delta', tipo: 'Normal', status: 'EmProducao', dataAbertura: '2026-08-03T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
-  { id: 5, numero: 'PED-005', cliente: 'Epsilon', tipo: 'Normal', status: 'Cancelado', dataAbertura: '2026-07-20T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
+// Resumo equivalente a cinco Pedidos: Aberto 2, EmProducao 1, AguardandoExpedicao 0, Concluido 1,
+// Cancelado 1. O zero de AguardandoExpedicao é o caso que a spec §3.1 exige mostrar, e o servidor
+// SEMPRE manda os cinco status, zeros inclusive — a Home não completa nada.
+const STATUS_NA_ORDEM = ['Aberto', 'EmProducao', 'AguardandoExpedicao', 'Concluido', 'Cancelado'] as const
+
+function pedido(id: number, numero: string, cliente: string, status: string, dataAbertura: string) {
+  return { id, numero, cliente, tipo: 'Normal', status, dataAbertura, criadoPorUsuarioId: 1, pausa: null }
+}
+
+function resumoCom(
+  quantidades: Partial<Record<(typeof STATUS_NA_ORDEM)[number], number>>,
+  maisAntigosAbertos: ReturnType<typeof pedido>[] = [],
+) {
+  return {
+    porStatus: STATUS_NA_ORDEM.map((status) => ({ status, quantidade: quantidades[status] ?? 0 })),
+    maisAntigosAbertos,
+  }
+}
+
+// Na ordem em que o servidor os manda: do mais antigo ao mais novo, só os não encerrados.
+const MAIS_ANTIGOS = [
+  pedido(3, 'PED-003', 'Gama', 'Aberto', '2026-08-01T09:00:00-03:00'),
+  pedido(4, 'PED-004', 'Delta', 'EmProducao', '2026-08-03T09:00:00-03:00'),
+  pedido(1, 'PED-001', 'Alfa', 'Aberto', '2026-08-06T09:00:00-03:00'),
 ]
+const RESUMO = resumoCom({ Aberto: 2, EmProducao: 1, Concluido: 1, Cancelado: 1 }, MAIS_ANTIGOS)
 
 function apiCompleta() {
   return fetchPorRota({
@@ -27,7 +41,7 @@ function apiCompleta() {
     // ler o array, ela mostra "1 componente" num catálogo de 41 — e é justamente por isso que a
     // chamada usa `tamanho: 1`.
     '/api/componentes': () => respostaJson({ itens: [{ id: 1, codigo: 'C', descricao: 'D', tipo: 'Bruto', ativo: true }], total: 41, pagina: 1, tamanho: 1 }),
-    '/api/pedidos': () => respostaJson(PEDIDOS),
+    '/api/pedidos/resumo': () => respostaJson(RESUMO),
     '/api/materiais': () => respostaJson([{ id: 1, codigo: 'M1', descricao: 'Aço', unidadeMedida: 'KG', ativo: true }]),
     '/api/setores': () => respostaJson([
       { id: 1, nome: 'Corte', ativo: true, atividade: null },
@@ -81,13 +95,15 @@ describe('HomePage', () => {
     expect(within(cartao).getByText('3')).toBeTruthy()
   })
 
-  it('pedido aguardando expedição também está aberto', async () => {
-    // Um Pedido de cada status. A fixture de `apiCompleta` não tem AguardandoExpedicao, então só
-    // este teste separa "fora de Concluido e Cancelado" de uma lista que esqueça algum status aberto.
-    const umDeCada = STATUS_DO_PEDIDO.map((status, i) => ({ ...PEDIDOS[0], id: 100 + i, numero: `PED-${i}`, status }))
+  it('conta como abertos todos os status fora de Concluido e Cancelado', async () => {
+    // Contagens todas distintas (5, 7, 11, 100, 200): a soma dos três não encerrados (23) não se
+    // confunde com nenhuma outra combinação. Só este teste separa "fora de Concluido e Cancelado"
+    // de uma conta que esqueça um status aberto — o número grande é a SOMA, não `porStatus.Aberto`.
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
-      '/api/pedidos': () => respostaJson(umDeCada),
+      '/api/pedidos/resumo': () => respostaJson(resumoCom({
+        Aberto: 5, EmProducao: 7, AguardandoExpedicao: 11, Concluido: 100, Cancelado: 200,
+      })),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),
     }))
@@ -96,7 +112,32 @@ describe('HomePage', () => {
     await screen.findByText('41')
 
     const cartao = screen.getByText('pedidos abertos').closest('a')!
-    expect(within(cartao).getByText('3')).toBeTruthy()
+    expect(within(cartao).getByText('23')).toBeTruthy()
+  })
+
+  // Metade FRONT da troca de guarda que substituiu o teste antigo de `cadastros.test.ts` ("devolve o
+  // conjunto inteiro de pedidos, nao uma pagina"): a Home não pode voltar a depender de uma lista
+  // de Pedidos. A metade do backend é o resumo contar além do tamanho de página.
+  it('a Home le o resumo e nao uma lista de pedidos', async () => {
+    // O mapa NÃO tem '/api/pedidos': se a Home chamar a lista, `fetchPorRota` rejeita e a tela
+    // mostra o banner de erro. 30 + 12 = 42, mais do que qualquer página de 20.
+    const fetchMock = fetchPorRota({
+      '/api/componentes': () => respostaJson({ itens: [], total: 7, pagina: 1, tamanho: 1 }),
+      '/api/pedidos/resumo': () => respostaJson(resumoCom({ Aberto: 30, EmProducao: 12 })),
+      '/api/materiais': () => respostaJson([]),
+      '/api/setores': () => respostaJson([]),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('7')
+
+    const cartao = screen.getByText('pedidos abertos').closest('a')!
+    expect(within(cartao).getByText('42')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    const caminhos = fetchMock.mock.calls.map((c) => String(c[0]).split('?')[0])
+    expect(caminhos).toContain('/api/pedidos/resumo')
+    expect(caminhos).not.toContain('/api/pedidos')
   })
 
   it('mostra as contagens de materiais e setores', async () => {
@@ -146,7 +187,7 @@ describe('HomePage', () => {
   it('explica a falha quando alguma das listagens não responde', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ erro: 'x' }, 500),
-      '/api/pedidos': () => respostaJson(PEDIDOS),
+      '/api/pedidos/resumo': () => respostaJson(RESUMO),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),
     }))
@@ -170,9 +211,9 @@ describe('HomePage', () => {
 
     const cartao = screen.getByText('pedidos abertos').closest('a')!
     expect(within(cartao).getByText('Aberto 2')).toBeTruthy()
-    expect(within(cartao).getByText('EmProducao 1')).toBeTruthy()
-    expect(within(cartao).getByText('AguardandoExpedicao 0')).toBeTruthy()
-    expect(within(cartao).getByText('Concluido 1')).toBeTruthy()
+    expect(within(cartao).getByText('Em produção 1')).toBeTruthy()
+    expect(within(cartao).getByText('Aguardando expedição 0')).toBeTruthy()
+    expect(within(cartao).getByText('Concluído 1')).toBeTruthy()
     expect(within(cartao).getByText('Cancelado 1')).toBeTruthy()
   })
 
@@ -195,9 +236,9 @@ describe('HomePage', () => {
     const cartao = screen.getByText('pedidos abertos').closest('a')!
     const pilulasDoResumo = [
       within(cartao).getByText('Aberto 2'),
-      within(cartao).getByText('EmProducao 1'),
-      within(cartao).getByText('AguardandoExpedicao 0'),
-      within(cartao).getByText('Concluido 1'),
+      within(cartao).getByText('Em produção 1'),
+      within(cartao).getByText('Aguardando expedição 0'),
+      within(cartao).getByText('Concluído 1'),
       within(cartao).getByText('Cancelado 1'),
     ]
     for (const pilula of pilulasDoResumo) {
@@ -213,8 +254,8 @@ describe('HomePage', () => {
     // A reserva não sumiu do sistema — só do resumo. Na seção "há mais tempo" a pílula É o estado
     // de um pedido concreto (via `LinhaDePedido`, que continua chamando `tomDoStatus`), não
     // rótulo de contagem — e essa distinção é o que faz o vermelho continuar certo ali.
-    // O fixture desta seção só tem status NÃO encerrados (`ENCERRADOS` exclui Concluido/Cancelado
-    // dela por definição — ver o filtro de `maisAntigos`), então não há como provar aqui a cor
+    // O fixture desta seção só tem status NÃO encerrados (o servidor exclui Concluido/Cancelado
+    // dela por definição), então não há como provar aqui a cor
     // positiva/negativa em si: essa prova já existe em `LinhaDePedido.test.tsx`
     // ('reserva verde para Concluido e vermelho para Cancelado...') e em `PedidosPage.test.tsx`
     // ('mostra o status como pílula, com o tom certo por status'). O que dá para provar aqui,
@@ -223,7 +264,7 @@ describe('HomePage', () => {
     // que aparecem nesta seção) — e não texto solto sem classe nenhuma, que uma correção afoita
     // na linha errada poderia produzir.
     const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
-    const pilulaNaSecao = within(secao).getByText('EmProducao')
+    const pilulaNaSecao = within(secao).getByText('Em produção')
     expect(pilulaNaSecao.className).toMatch(/bg-acao-fundo/)
     expect(pilulaNaSecao.className).toMatch(/text-acao\b/)
   })
@@ -236,7 +277,7 @@ describe('HomePage', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
 
     expect(screen.queryByText(/^Aberto \d/)).toBeNull()
-    expect(screen.queryByText(/^AguardandoExpedicao \d/)).toBeNull()
+    expect(screen.queryByText(/^Aguardando expedição \d/)).toBeNull()
   })
 
   it('nao aninha link dentro do cartao de pedidos', async () => {
@@ -253,46 +294,18 @@ describe('HomePage', () => {
     expect(within(cartao).queryAllByRole('link')).toHaveLength(0)
   })
 
-  it('lista os pedidos abertos ha mais tempo, do mais antigo para o mais novo', async () => {
-    // Fixture: PED-003 (08-01) < PED-004 (08-03) < PED-001 (08-06) entre os NÃO encerrados.
-    // Ordem alfabética de `numero` daria PED-001/003/004 — se a implementação esquecer o `sort`,
-    // o React renderiza na ordem do array e esta asserção é a que pega.
-    vi.stubGlobal('fetch', apiCompleta())
-
-    render(<MemoryRouter><HomePage /></MemoryRouter>)
-    await screen.findByText('41')
-
-    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
-    const linhas = within(secao).getAllByRole('listitem').map((li) => li.textContent)
-    expect(linhas[0]).toContain('PED-003')
-    expect(linhas[1]).toContain('PED-004')
-    expect(linhas[2]).toContain('PED-001')
-  })
-
-  it('deixa Concluido e Cancelado fora da lista de ha mais tempo', async () => {
-    // PED-005 (Cancelado) é o MAIS ANTIGO do fixture (07-20). Se o filtro sumir, ele encabeça a
-    // lista — e a Home passa a dizer que um pedido cancelado está "parado há mais tempo".
-    vi.stubGlobal('fetch', apiCompleta())
-
-    render(<MemoryRouter><HomePage /></MemoryRouter>)
-    await screen.findByText('41')
-
-    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
-    expect(within(secao).queryByText(/PED-005/)).toBeNull()   // Cancelado, e o mais antigo de todos
-    expect(within(secao).queryByText(/PED-002/)).toBeNull()   // Concluido
-    expect(within(secao).getAllByRole('listitem')).toHaveLength(3)
-  })
-
-  it('para em cinco mesmo havendo mais pedidos elegiveis', async () => {
-    const oito = Array.from({ length: 8 }, (_, i) => ({
-      id: i + 1, numero: `PED-${String(i + 1).padStart(3, '0')}`, cliente: 'Cliente',
-      tipo: 'Normal', status: 'Aberto',
-      // Dias 01 a 08: o mais antigo é PED-001 e o corte tem de deixar PED-006..008 de fora.
-      dataAbertura: `2026-08-0${i + 1}T09:00:00-03:00`, criadoPorUsuarioId: 1, pausa: null,
-    }))
+  // A regra dos "abertos há mais tempo" (só os não encerrados, do mais antigo ao mais novo, no máximo
+  // cinco) mora no servidor, e quem a prova é `PedidoRepositoryTests.Mais_antigos_deixa_encerrados_de_fora_e_para_no_limite`.
+  // Aqui a Home só apresenta o que o resumo manda — e por isso a ordem da fixture é DELIBERADAMENTE
+  // não cronológica: uma Home que reordenasse por data no cliente trocaria PED-004 e PED-003.
+  it('mostra os mais antigos na ordem em que o resumo os manda', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
-      '/api/pedidos': () => respostaJson(oito),
+      '/api/pedidos/resumo': () => respostaJson(resumoCom({ Aberto: 2, EmProducao: 1 }, [
+        pedido(4, 'PED-004', 'Delta', 'EmProducao', '2026-08-03T09:00:00-03:00'),
+        pedido(3, 'PED-003', 'Gama', 'Aberto', '2026-08-01T09:00:00-03:00'),
+        pedido(1, 'PED-001', 'Alfa', 'Aberto', '2026-08-06T09:00:00-03:00'),
+      ])),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),
     }))
@@ -301,8 +314,11 @@ describe('HomePage', () => {
     await screen.findByText('41')
 
     const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
-    expect(within(secao).getAllByRole('listitem')).toHaveLength(5)
-    expect(within(secao).queryByText(/PED-006/)).toBeNull()
+    const linhas = within(secao).getAllByRole('listitem').map((li) => li.textContent)
+    expect(linhas).toHaveLength(3)
+    expect(linhas[0]).toContain('PED-004')
+    expect(linhas[1]).toContain('PED-003')
+    expect(linhas[2]).toContain('PED-001')
   })
 
   it('leva ao pedido certo por cada linha da lista', async () => {
@@ -323,9 +339,7 @@ describe('HomePage', () => {
     // ler". Aqui a leitura FOI bem-sucedida — todos os pedidos estão encerrados.
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
-      '/api/pedidos': () => respostaJson([
-        { id: 1, numero: 'PED-001', cliente: 'Alfa', tipo: 'Normal', status: 'Concluido', dataAbertura: '2026-08-06T09:00:00-03:00', criadoPorUsuarioId: 1, pausa: null },
-      ]),
+      '/api/pedidos/resumo': () => respostaJson(resumoCom({ Concluido: 1 })),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),
     }))
@@ -347,7 +361,7 @@ describe('HomePage', () => {
     // distinga "não achei" de "não há nada".
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
-      '/api/pedidos': () => respostaJson([]),
+      '/api/pedidos/resumo': () => respostaJson(resumoCom({})),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),
     }))
@@ -366,7 +380,7 @@ describe('HomePage', () => {
     // perguntar". A seção inteira some enquanto houver erro.
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ erro: 'x' }, 500),
-      '/api/pedidos': () => respostaJson(PEDIDOS),
+      '/api/pedidos/resumo': () => respostaJson(RESUMO),
       '/api/materiais': () => respostaJson([]),
       '/api/setores': () => respostaJson([]),
     }))

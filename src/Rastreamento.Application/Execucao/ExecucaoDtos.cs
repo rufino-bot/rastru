@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Rastreamento.Application.Cadastros;
 using Rastreamento.Domain.Abstractions;
 
 namespace Rastreamento.Application.Execucao;
@@ -48,11 +49,13 @@ public sealed record RoteiroDoNoDto(int EstruturaItemId, IReadOnlyList<PassoDoRo
 
 /// <summary>
 /// Um no nas telas de fila e tarefas, com o caminho "Pedido > Agrupamento > pai" em campos separados —
-/// quem monta o texto e o front. `Descricao` ja com o fallback da regra 19.
+/// quem monta o texto e o front. `Descricao` ja com o fallback da regra 19. `Materiais` sao os do no,
+/// por codigo; lista vazia (nunca nula) quando o no nao tem.
 /// </summary>
 public sealed record NoResumoDto(
     int Id, string Descricao, string? CodigoDoComponente, int PedidoId, string PedidoNumero,
-    int AgrupamentoId, string AgrupamentoCodigo, int? PaiId, string? PaiDescricao, PausaResumoDto? Pausa);
+    string PedidoCliente, int AgrupamentoId, string AgrupamentoCodigo, int? PaiId, string? PaiDescricao,
+    PausaResumoDto? Pausa, IReadOnlyList<MaterialResumoDto> Materiais);
 
 /// <summary>A pausa aberta como as telas a mostram: desde quando, por quem, e o motivo.</summary>
 public sealed record PausaResumoDto(DateTime Desde, string PorUsuarioNome, string? Motivo)

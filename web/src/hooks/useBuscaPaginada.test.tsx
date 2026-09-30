@@ -10,12 +10,17 @@ interface Item { id: number; nome: string }
 // Componente-hospedeiro: um hook não renderiza nada, então a prova passa por uma tela mínima que
 // expõe cada saída num nó com texto asserível. Deliberadamente burro — se ele tiver lógica, o
 // teste passa a provar o hospedeiro, não o hook.
-function Hospedeiro({ buscar, atraso = 300, tamanhoInicial }: {
+function Hospedeiro({ buscar, atraso = 300, tamanhoInicial, inicial, filtros, aoMudarConsulta }: {
   buscar: (f: FiltroDeBusca) => Promise<PaginaDeBusca<Item>>
   atraso?: number
   tamanhoInicial?: number
+  inicial?: { busca?: string; pagina?: number }
+  filtros?: Record<string, string[]>
+  aoMudarConsulta?: (consulta: { busca: string; pagina: number }) => void
 }) {
-  const b = useBuscaPaginada<Item>({ buscar, atrasoDoDebounce: atraso, tamanhoInicial })
+  const b = useBuscaPaginada<Item>({
+    buscar, atrasoDoDebounce: atraso, tamanhoInicial, inicial, filtros, aoMudarConsulta,
+  })
   return (
     <div>
       <input aria-label="busca" value={b.textoDaBusca} onChange={(e) => b.mudarBusca(e.target.value)} />
@@ -143,7 +148,7 @@ describe('useBuscaPaginada', () => {
 
   it('não mostra erro de uma busca superada que FALHA depois de a mais recente ter sucesso', async () => {
     // Fecha o D5 do pré-flight de 2026-08-13. Das TRÊS guardas de sequência do hook, a do `catch`
-    // (`useBuscaPaginada.ts:106`) era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
+    // de `carregar` era a única sem dono aqui: apagá-la deixava estes 18 testes verdes,
     // e o único matador do projeto era o `nao mostra erro de uma requisicao desatualizada que falha
     // depois de uma mais recente ter sucesso`, da `ComponentesPage.test.tsx` — prova de mecanismo do
     // hook morando na suíte de uma tela. Este teste é o pré-requisito para aquele sair (decisão U2).
@@ -431,8 +436,9 @@ describe('useBuscaPaginada', () => {
   })
 
   it('usa o `buscar` do render mais recente ao recarregar, não um closure obsoleto do primeiro render (frescor do buscarRef)', async () => {
-    // O teste de `:359` prova a metade ESTABILIDADE do `buscarRef` (identidade nova não laça).
-    // Este prova a outra metade, FRESCOR: `useBuscaPaginada.ts:82` mantém `buscarRef.current`
+    // O teste `não reentra em laço de carga quando o chamador passa `buscar` inline` prova a
+    // metade ESTABILIDADE do `buscarRef` (identidade nova não laça). Este prova a outra metade,
+    // FRESCOR: o efeito de `useBuscaPaginada` que atualiza `buscarRef.current` o mantém
     // sincronizado com o `buscar` do render atual, para o hook nunca consultar um closure obsoleto.
     //
     // A sutileza (ver brief deste fix pass): uma lambda inline sozinha não basta — o teste de
@@ -466,10 +472,93 @@ describe('useBuscaPaginada', () => {
     fireEvent.click(screen.getByText('Recarregar'))
     await avancar(0)
 
-    // Com `useBuscaPaginada.ts:82` presente, `buscarRef.current` foi atualizado pelo efeito do
-    // segundo render e a chamada usa a lambda que fechou sobre "novo". Com `:82` apagado,
+    // Com esse efeito presente, `buscarRef.current` foi atualizado no segundo render e a chamada
+    // usa a lambda que fechou sobre "novo". Com esse efeito apagado,
     // `buscarRef.current` fica congelado na lambda do PRIMEIRO render, que fechou sobre "velho" —
     // esta asserção veria "velho" de novo, e é aí que a mutação tem de morrer.
     expect(valorCapturado).toBe('novo')
+  })
+
+  it('usa busca e pagina iniciais na primeira consulta', async () => {
+    // `total` grande: com total 0 o clamp recuaria da página 3 e faria uma segunda consulta.
+    const buscar = vi.fn().mockResolvedValue(pagina([], 100))
+
+    render(<Hospedeiro buscar={buscar} inicial={{ busca: 'CH', pagina: 3 }} />)
+    await avancar(0)
+
+    expect(buscar).toHaveBeenCalledTimes(1)
+    expect(buscar).toHaveBeenCalledWith({ busca: 'CH', incluirInativos: false, pagina: 3, tamanho: 20 })
+    // O campo nasce com o texto inicial, e não vazio: senão o debounce o "corrigiria" para ''.
+    expect((screen.getByLabelText('busca') as HTMLInputElement).value).toBe('CH')
+  })
+
+  it('filtros entram na consulta', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    render(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto', 'EmProducao'], material: ['3'] }} />)
+    await avancar(0)
+
+    expect(buscar).toHaveBeenCalledWith({
+      busca: '', incluirInativos: false, pagina: 1, tamanho: 20,
+      filtros: { status: ['Aberto', 'EmProducao'], material: ['3'] },
+    })
+  })
+
+  it('mudar filtros volta a pagina 1 e recarrega', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([], 100))
+
+    const { rerender } = render(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto'] }} />)
+    await avancar(0)
+    fireEvent.click(screen.getByText('Próxima'))
+    await avancar(0)
+    expect(screen.getByText('pagina:2')).toBeTruthy()
+
+    buscar.mockClear()
+    rerender(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto', 'Concluido'] }} />)
+    await avancar(0)
+
+    expect(screen.getByText('pagina:1')).toBeTruthy()
+    // UMA consulta, já na página 1: voltar a página depois de consultar com a antiga mandaria uma
+    // requisição a mais, com filtro novo e página velha.
+    expect(buscar).toHaveBeenCalledTimes(1)
+    expect(buscar).toHaveBeenCalledWith({
+      busca: '', incluirInativos: false, pagina: 1, tamanho: 20,
+      filtros: { status: ['Aberto', 'Concluido'] },
+    })
+  })
+
+  it('filtros com o mesmo conteudo em objeto novo nao recarregam', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    const { rerender } = render(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto'] }} />)
+    await avancar(0)
+    // Objeto e array literais novos a cada render, com o conteúdo de antes: é o que a página faz.
+    rerender(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto'] }} />)
+    await avancar(0)
+    rerender(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto'] }} />)
+    await avancar(0)
+
+    expect(buscar).toHaveBeenCalledTimes(1)
+  })
+
+  it('avisa a consulta a quem guarda na URL', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([], 100))
+    const aoMudarConsulta = vi.fn()
+
+    render(<Hospedeiro buscar={buscar} aoMudarConsulta={aoMudarConsulta} />)
+    await avancar(0)
+    // Na montagem nada mudou: avisar aqui faria a página reescrever a URL que acabou de ler.
+    expect(aoMudarConsulta).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('busca'), { target: { value: 'SUP' } })
+    // O aviso é da consulta, não do campo: nada antes de o debounce vencer.
+    await avancar(299)
+    expect(aoMudarConsulta).not.toHaveBeenCalled()
+    await avancar(1)
+    expect(aoMudarConsulta).toHaveBeenLastCalledWith({ busca: 'SUP', pagina: 1 })
+
+    fireEvent.click(screen.getByText('Próxima'))
+    await avancar(0)
+    expect(aoMudarConsulta).toHaveBeenLastCalledWith({ busca: 'SUP', pagina: 2 })
   })
 })

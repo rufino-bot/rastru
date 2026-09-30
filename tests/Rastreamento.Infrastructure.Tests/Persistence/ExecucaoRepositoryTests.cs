@@ -1,4 +1,6 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -348,6 +350,90 @@ public class ExecucaoRepositoryTests : TesteComBanco
       await outra.LimparAsync(NovoContexto);
     }
   });
+
+  [Fact]
+  public Task Nos_em_producao_trazem_o_cliente_e_os_materiais_do_proprio_no() => NoCenarioAsync(async c =>
+  {
+    await using var escrita = NovoContexto();
+    var primeiro = await c.Arvore.NovoMaterialAsync(escrita, "Chapa A");
+    var segundo = await c.Arvore.NovoMaterialAsync(escrita, "Chapa B");
+    // Gravados na ordem inversa da dos codigos: a ordem que sai e a do Codigo, nao a da gravacao.
+    await c.Arvore.MaterialNoNoAsync(escrita, c.ItemA, segundo);
+    await c.Arvore.MaterialNoNoAsync(escrita, c.ItemA, primeiro);
+
+    await using var db = NovoContexto();
+    var contexto = (await new ExecucaoRepository(db).ListarNosEmProducaoAsync(CancellationToken.None))
+        .Where(x => c.Nos.Contains(x.No.Id)).ToList();
+
+    Assert.Equal(3, contexto.Count);
+    Assert.All(contexto, x => Assert.Equal("Cliente de teste", x.PedidoCliente));
+    Assert.Equal(
+        new[] { primeiro, segundo },
+        Assert.Single(contexto, x => x.No.Id == c.ItemA).Materiais.Select(m => m.Id).ToArray());
+    Assert.Equal(
+        new[] { "Chapa A", "Chapa B" },
+        Assert.Single(contexto, x => x.No.Id == c.ItemA).Materiais.Select(m => m.Descricao).ToArray());
+    Assert.Empty(Assert.Single(contexto, x => x.No.Id == c.ItemB).Materiais);
+    Assert.Empty(Assert.Single(contexto, x => x.No.Id == c.Peca).Materiais);
+  });
+
+  [Fact]
+  public Task Materiais_dos_nos_em_producao_saem_numa_consulta_so() => NoCenarioAsync(async c =>
+  {
+    await using var escrita = NovoContexto();
+    var material = await c.Arvore.NovoMaterialAsync(escrita, "Chapa");
+    foreach (var no in c.Nos) await c.Arvore.MaterialNoNoAsync(escrita, no, material);
+
+    var contador = new ContadorDeComandos();
+    var opcoes = new DbContextOptionsBuilder<RastreamentoDbContext>().UseSqlServer(Conn).AddInterceptors(contador).Options;
+    await using var db = new RastreamentoDbContext(opcoes);
+    var repo = new ExecucaoRepository(db);
+
+    contador.Zerar();
+    await repo.ListarNosEmProducaoAsync(CancellationToken.None);
+    var comTres = contador.Comandos;
+
+    var novos = new List<int>();
+    for (var i = 0; i < 3; i++)
+    {
+      var item = await c.Arvore.NovoItemAsync(escrita, c.Peca, 1m, 1m);
+      await c.Arvore.MaterialNoNoAsync(escrita, item, material);
+      novos.Add(item);
+    }
+    contador.Zerar();
+    var contexto = await repo.ListarNosEmProducaoAsync(CancellationToken.None);
+    var comSeis = contador.Comandos;
+
+    Assert.All(novos.Concat(c.Nos), id =>
+        Assert.Equal(material, Assert.Single(Assert.Single(contexto, x => x.No.Id == id).Materiais).Id));
+    Assert.True(comTres > 0);
+    Assert.Equal(comTres, comSeis);
+  });
+
+  /// <summary>Conta os comandos que abrem leitor (SELECT) no contexto em que foi registrado.</summary>
+  private sealed class ContadorDeComandos : DbCommandInterceptor
+  {
+    private int _comandos;
+
+    public int Comandos => _comandos;
+
+    public void Zerar() => Interlocked.Exchange(ref _comandos, 0);
+
+    public override InterceptionResult<DbDataReader> ReaderExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    {
+      Interlocked.Increment(ref _comandos);
+      return result;
+    }
+
+    public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+        CancellationToken cancellationToken = default)
+    {
+      Interlocked.Increment(ref _comandos);
+      return new ValueTask<InterceptionResult<DbDataReader>>(result);
+    }
+  }
 
   [Fact]
   public Task Travar_Pedido_fora_de_transacao_lanca_e_dentro_devolve_o_Pedido() => NoCenarioAsync(async c =>

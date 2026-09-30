@@ -186,11 +186,35 @@ public class ExecucaoRepository : IExecucaoRepository
                         join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
                         where p.Status != StatusConcluido && p.Status != StatusCancelado
                         orderby e.Id
-                        select new { No = e, PedidoId = p.Id, p.Numero, AgrupamentoId = a.Id, a.Codigo })
+                        select new { No = e, PedidoId = p.Id, p.Numero, p.Cliente, AgrupamentoId = a.Id, a.Codigo })
         .ToListAsync(ct);
     var pausas = await PausasAbertas.ListarAsync(_db, linhas.Select(l => l.PedidoId).Distinct().ToList(), ct);
+    var materiais = await MateriaisDosNosAsync(linhas.Select(l => l.No.Id).ToList(), ct);
     return linhas.Select(l => new ContextoDoNo(
-        l.No, l.PedidoId, l.Numero, l.AgrupamentoId, l.Codigo, pausas.GetValueOrDefault(l.PedidoId))).ToList();
+        l.No, l.PedidoId, l.Numero, l.Cliente, l.AgrupamentoId, l.Codigo, pausas.GetValueOrDefault(l.PedidoId),
+        materiais.GetValueOrDefault(l.No.Id) ?? [])).ToList();
+  }
+
+  /// <summary>
+  /// Os materiais gravados nos nos (<c>EstruturaMaterial</c>, nao o catalogo do Componente), de TODOS os
+  /// nos pedidos numa consulta so, agrupados por no e por codigo. No sem material nao aparece no
+  /// dicionario. Mesmo formato de <see cref="PausasAbertas.ListarAsync"/>: uma leitura com `Contains`,
+  /// e nao uma por no.
+  /// </summary>
+  private async Task<Dictionary<int, IReadOnlyList<MaterialDoNo>>> MateriaisDosNosAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new Dictionary<int, IReadOnlyList<MaterialDoNo>>();
+    var lista = ids.ToList();
+    var linhas = await (from em in _db.EstruturaMateriais.AsNoTracking()
+                        join m in _db.Materiais.AsNoTracking() on em.MaterialId equals m.Id
+                        where lista.Contains(em.EstruturaItemId)
+                        select new { em.EstruturaItemId, m.Id, m.Codigo, m.Descricao })
+        .ToListAsync(ct);
+    return linhas.GroupBy(x => x.EstruturaItemId).ToDictionary(
+        g => g.Key,
+        g => (IReadOnlyList<MaterialDoNo>)g.OrderBy(x => x.Codigo, StringComparer.Ordinal)
+            .Select(x => new MaterialDoNo(x.Id, x.Codigo, x.Descricao)).ToList());
   }
 
   public async Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct)

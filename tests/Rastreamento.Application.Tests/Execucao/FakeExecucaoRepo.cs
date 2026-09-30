@@ -31,6 +31,12 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Dictionary<int, (string Codigo, int PedidoId, string PedidoNumero)> Agrupamentos { get; } = new();
 
   public Dictionary<int, string> StatusDoPedido { get; } = new();
+
+  /// <summary>PedidoId -> Cliente. Arranjo do teste; pedido sem entrada volta com cliente vazio.</summary>
+  public Dictionary<int, string> ClienteDoPedido { get; } = new();
+
+  /// <summary>MaterialId -> (Codigo, Descricao). Lido junto de `Materiais` do <see cref="FakeEstruturaRepo"/>.</summary>
+  public Dictionary<int, (string Codigo, string Descricao)> CatalogoDeMateriais { get; } = new();
   public Dictionary<int, string> Usuarios { get; } = new();
 
   /// <summary>Os Ids de cada `TravarNosAsync`, como chegaram — prova de QUEM o caso de uso trava.</summary>
@@ -118,8 +124,11 @@ public class FakeExecucaoRepo : IExecucaoRepository
       if (!Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag)) continue;
       var status = StatusDoPedido[ag.PedidoId];
       if (status is "Concluido" or "Cancelado") continue;
-      lista.Add(new ContextoDoNo(item, ag.PedidoId, ag.PedidoNumero, item.AgrupamentoId, ag.Codigo,
-          PausaDoPedido(ag.PedidoId)));
+      var materiais = _estruturas.Materiais.Where(m => m.EstruturaItemId == item.Id)
+          .Select(m => new MaterialDoNo(m.MaterialId, CatalogoDeMateriais[m.MaterialId].Codigo, CatalogoDeMateriais[m.MaterialId].Descricao))
+          .OrderBy(m => m.Codigo, StringComparer.Ordinal).ToList();
+      lista.Add(new ContextoDoNo(item, ag.PedidoId, ag.PedidoNumero, ClienteDoPedido.GetValueOrDefault(ag.PedidoId, ""),
+          item.AgrupamentoId, ag.Codigo, PausaDoPedido(ag.PedidoId), materiais));
     }
     return Task.FromResult<IReadOnlyList<ContextoDoNo>>(lista);
   }

@@ -16,6 +16,7 @@ import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ControleDePausa } from '../pedidos/ControleDePausa'
+import { rotuloDoStatus } from '../pedidos/statusDoPedido'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
 
@@ -110,7 +111,7 @@ export function PedidoDetalhePage() {
           <p className="text-lg text-tinta">{pedido.cliente}</p>
           <p className="flex flex-wrap items-center gap-2 text-sm text-tinta-fraca">
             <Pilula>{pedido.tipo}</Pilula>
-            <Pilula>{pedido.status}</Pilula>
+            <Pilula>{rotuloDoStatus(pedido.status)}</Pilula>
             {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
             aberto em {formatarDataHora(pedido.dataAbertura)}
           </p>

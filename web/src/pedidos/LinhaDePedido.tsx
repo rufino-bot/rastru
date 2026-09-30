@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatarDataHora, type PedidoDto } from '../api/cadastros'
 import { Pilula } from '../components/Pilula'
-import { tomDoStatus } from './statusDoPedido'
+import { rotuloDoStatus, tomDoStatus } from './statusDoPedido'
 
 /**
  * Uma linha de Pedido: número, cliente, status e data de abertura, com o item inteiro como alvo do
@@ -37,7 +37,7 @@ export function LinhaDePedido({ pedido }: { pedido: PedidoDto }) {
         <span className="font-mono">{pedido.numero}</span> — {pedido.cliente}
       </span>
       <span className="flex items-center gap-2 text-sm text-tinta-fraca">
-        <Pilula tom={tomDoStatus(pedido.status)}>{pedido.status}</Pilula>
+        <Pilula tom={tomDoStatus(pedido.status)}>{rotuloDoStatus(pedido.status)}</Pilula>
         {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
         aberto em {formatarDataHora(pedido.dataAbertura)}
       </span>

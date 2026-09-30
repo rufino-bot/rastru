@@ -119,6 +119,13 @@ resolvidos (ou conscientemente adiados).
 > desta instância foi pontual (tom neutro no resumo, mais um teste específico); a **classe** do
 > problema continua sem guarda.
 
+> **Emenda de 2026-09-29:** as duas primeiras «Dívidas nomeadas por esta fase» — `listarPedidos()` não paginado e o
+> rótulo cru de status — foram pagas pelo Plano 1 de "Filtros da demanda e ação em lote" (seção
+> «Filtros da demanda e ação em lote»): `GET /pedidos` é paginado, a Home lê `GET /pedidos/resumo`, e a guarda do
+> cliente, a de `web/src/api/cadastros.test.ts`, foi trocada por duas, uma no backend e uma no front. O parágrafo «Dívidas nomeadas por esta fase»
+> descreve a 1E como foi entregue. A terceira dívida, a classe "as guardas de tema não medem
+> semântica de cor", **continua em aberto**.
+
 ## Fase 2 — Estrutura recursiva
 
 > **2 concluída em 2026-09-11**, com o merge do PR #12: a tabela recursiva única
@@ -245,10 +252,11 @@ resolvidos (ou conscientemente adiados).
 > dela). Spec: `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`.
 
 > **Ordem depois da 3D** (decisão do usuário de 2026-09-28, oficializada em 2026-09-29): primeiro os
-> **filtros da fila do Setor** (por Material e por Pedido), depois a **Fase 1F — Cadastro sob
-> demanda**, depois a **Fase 3B**. "Filtros" não é fase numerada deste roadmap e por isso não tem
-> seção própria: tudo o que está decidido é filtrar a fila por Material e por Pedido, e o desenho
-> ainda passa por brainstorm, sem spec. A Fase 1F tem spec
+> **filtros da demanda** (a fila do Setor, as Tarefas e a lista de Pedidos), depois a **Fase 1F —
+> Cadastro sob demanda**, depois a **Fase 3B**. "Filtros" não é fase com letra deste roadmap, mas tem
+> seção própria ("Filtros da demanda e ação em lote"), com spec e plano; o escopo que o
+> brainstorm de 2026-09-29 decidiu é maior que o "filtrar a fila por Material e por Pedido" desta
+> nota. A Fase 1F tem spec
 > (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`), mas em 2026-09-29 o
 > arquivo vive só na branch `fase-1f-cadastro-sob-demanda` e não está na `main` — quem lê a `main`
 > não o encontra na pasta de specs. Ela também ainda não tem seção neste arquivo: a entrada vem com
@@ -272,6 +280,67 @@ resolvidos (ou conscientemente adiados).
   — terminar, entregar e estornar continuam valendo.
 - Critério de pronto: o da seção 9 da spec da Fase 3D, cujo último item é a **verificação manual no
   celular**, como na seção 9.5 da spec da Fase 3.
+
+## Filtros da demanda e ação em lote
+
+> **Executada depois da 3D e antes da 1F e da 3B** (decisão do usuário de 2026-09-28, oficializada
+> em 2026-09-29 — ver a nota "Ordem depois da 3D", na seção «Fase 3D — Ajustes pós-verificação da Fase 3»): **filtros → 1F → 3B**. A ordem
+> não mudou; o que mudou é o tamanho do "filtros". Não é fase com letra. Spec:
+> `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`. **Sem mudança de schema**:
+> `dbo.EstruturaMaterial` já existia e já é gravado na criação do nó, e não há `db/alter-*.sql`.
+
+Nasceu de dois pedidos do usuário nas verificações manuais no celular — filtrar a fila por Material
+e por Pedido, e agir em lote com "marcar todos" — mais a dívida da lista de Pedidos que a Fase 1E
+nomeou. O escopo tem três blocos, **A + B + C**, executados em **dois planos**:
+
+- **A — Filtros da demanda.** Um componente reutilizável, `FiltroDeDemanda`, aplicado à fila do Setor
+  e às Tarefas, com as facetas Material (o do nó, não o do catálogo) e Pedido.
+- **B — Ação em lote.** Seleção múltipla para Iniciar, Terminar e Iniciar o pai na fila, "Marcar
+  todos" por seção, "Marcar todos" nas Tarefas, e duas rotas de lote no backend (`POST /inicios` e
+  `POST /terminos`, tudo ou nada numa transação).
+- **C — Pedidos.** `GET /pedidos` paginado, com busca e filtro por Status e Material; o resumo da
+  Home; o rótulo do status em português.
+
+**Plano 1 — Filtros** (`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`): A e C, que são só
+leitura e sem risco para o livro. Entregue na branch da fase:
+
+- `NoResumoDto` com `pedidoCliente` e `materiais` (uma consulta em lote, não uma por nó) — fila e
+  Tarefas; `GET /pedidos` paginado com `busca`, `status`, `material`, `pagina` e `tamanho`;
+  `GET /pedidos/resumo` e `GET /pedidos/materiais` (contrato em `05-api-endpoints.md`).
+- No front, o `FiltroDeDemanda` e a função pura `casaComFiltro` (OU dentro da faceta, E entre
+  facetas, faceta vazia não restringe), o `useSelecaoNaUrl`, e o módulo `filtroDaDemanda` que aplica
+  o filtro à fila e às Tarefas; a `FilaDoSetorPage`, a `TarefasPage` e a `PedidosPage` filtram; a
+  `HomePage` lê o resumo; `rotuloDoStatus` vale na Home, na lista, na `LinhaDePedido` e no filtro.
+- **A guarda da 1E foi trocada, não apagada.** O teste do cliente que afirmava que `listarPedidos()`
+  devolve o conjunto inteiro saiu; a mesma proteção passou a ser feita por
+  `Resumo_conta_todos_os_Pedidos_alem_do_tamanho_de_pagina` (backend: o resumo conta além do tamanho
+  de página) e por *"a Home le o resumo e nao uma lista de pedidos"* (front). A dívida do rótulo cru
+  de status, também nomeada pela 1E, foi paga pelo `rotuloDoStatus`.
+
+**Onde o código diverge do que a spec escreveu, e vale como está:**
+
+- `GET /pedidos` desempata por `Id` decrescente depois de `DataAbertura` decrescente: sem ordem
+  total, `Skip/Take` repete e pula linha entre páginas. A ordem que o usuário vê não muda.
+- Na fila e nas Tarefas, a **contagem** de cada opção é sobre a seleção das *outras* facetas — a
+  opção que daria lista vazia mostra 0 —, e a **lista** de opções é a da tela sem filtro nenhum, para
+  não pular enquanto o operador marca. A spec dizia só "linhas visíveis que casariam".
+- O filtro só muda o que se desenha. "Saiu da fila" e "saiu da lista" continuam calculados sobre a
+  resposta inteira, e nas Tarefas o item marcado que o filtro esconde continua marcado e vai na
+  entrega, com aviso de quantos estão ocultos.
+- Valor marcado que a tela nunca viu (F5 com o Pedido já fora da fila) aparece como "Não está mais
+  na lista", marcado, com 0 e removível. Na tela de Pedidos, valor da URL que a API recusaria
+  (`?material=abc`, `?status=Qualquer`) **não é enviado** ao servidor, e o 400 fica como fronteira
+  de quem chama a API direto.
+- A URL **lê** a lista separada por vírgula, com ou sem codificação, mas **escreve** a vírgula
+  codificada (`?material=3%2C5`).
+
+**Plano 2 — Lote** (ainda **não escrito**): o bloco B — `POST /inicios`, `POST /terminos`, a
+seleção com trava de seção na fila e o "Marcar todos" nas Tarefas. **Escreve no livro** sob
+SERIALIZABLE, com outro perfil de risco e de review, e depende do Plano 1 porque a seleção convive
+com o filtro. **Nada disso existe ainda**: nem as rotas, nem os checkboxes da fila.
+
+**Estado:** Plano 1 implementado, **fase não concluída**. Falta a verificação manual no celular,
+pelo usuário, que fecha o plano; o Plano 2 vem depois e tem a própria.
 
 ## Fase 3B — Kit e montagem
 

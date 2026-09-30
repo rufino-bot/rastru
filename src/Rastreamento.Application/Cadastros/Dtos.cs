@@ -56,6 +56,9 @@ public sealed record NovoSetorDto([MaxLength(100)] string Nome, [MaxLength(40)] 
 public sealed record MaterialDto(
     int Id, string Codigo, string Descricao, string UnidadeMedida, bool Ativo);
 
+/// <summary>O material como as listas de filtro o mostram: so o que identifica (sem unidade nem situacao).</summary>
+public sealed record MaterialResumoDto(int Id, string Codigo, string Descricao);
+
 /// <remarks>
 /// Os `MaxLength` espelham `dbo.Material`: NVARCHAR(50), (200) e (10). Mesma regra de alvo do
 /// `NovoSetorDto` — atributo SEM `[property:]`, no parametro do construtor primario, que e onde a
@@ -86,6 +89,16 @@ public sealed record PedidoDto(
     DateTime DataAbertura,
     int CriadoPorUsuarioId,
     PausaResumoDto? Pausa);
+
+public sealed record ContagemDeStatusDto(string Status, int Quantidade);
+
+/// <remarks>
+/// `PorStatus` traz SEMPRE os cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive.
+/// `MaisAntigosAbertos` sao os Pedidos ainda nao encerrados, do mais antigo ao mais novo.
+/// </remarks>
+public sealed record ResumoDePedidosDto(
+    IReadOnlyList<ContagemDeStatusDto> PorStatus,
+    IReadOnlyList<PedidoDto> MaisAntigosAbertos);
 
 /// <remarks>
 /// So `Numero` e `Cliente`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem da claim

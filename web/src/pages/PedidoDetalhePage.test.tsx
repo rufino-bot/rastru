@@ -87,6 +87,18 @@ describe('PedidoDetalhePage', () => {
     expect(await screen.findByText('AGR-01')).toBeTruthy()
   })
 
+  it('mostra o status do Pedido pelo rótulo em português, não pelo valor cru do enum', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson({ ...PEDIDO, status: 'EmProducao' }),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+    }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText('Em produção')).toBeTruthy()
+    expect(screen.queryByText('EmProducao')).toBeNull()
+  })
+
   describe('pausa do Pedido', () => {
     const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
 
