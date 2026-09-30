@@ -357,6 +357,41 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   Início, com `montagemId` preenchido quando houve consumo.
 - `POST /estrutura/{id}/terminos` *(Operador)* — terminar. Body: `{ setorId, ordem, quantidade }`; a
   quantidade passa a aguardar coleta no mesmo Setor e passo.
+- `POST /inicios` *(Operador)* — iniciar **vários nós** no mesmo Setor, tudo ou nada (spec
+  `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`, seção 6). Body:
+  `{ setorId, itens: [{ estruturaItemId, quantidade }] }`. Serve à seção "A iniciar aqui" e ao "Iniciar
+  o pai" da fila do Setor: o início de um nó com filhos consome os filhos, como em
+  `POST /estrutura/{id}/inicios`. A validação é **a mesma** da rota de um nó, porque as duas passam
+  pelo mesmo núcleo por item (regra de saldo, de Roteiro, de filhos e de Pedido pausado): o lote não
+  tem regra própria, só aplica o item 1, o 2 e assim por diante, cada um descontando do que os
+  anteriores já gravaram, numa transação só. Gera as mesmas linhas de livro que a rota individual
+  geraria para cada item. 201 com a lista de movimentos, **um por item, na ordem em que vieram**; no
+  pai, é o movimento de Início dele (com `montagemId`), o mesmo que a rota individual devolve, e as
+  baixas dos filhos ficam no livro.
+- `POST /terminos` *(Operador)* — terminar vários nós, tudo ou nada, como `POST /inicios`. Body:
+  `{ setorId, itens: [{ estruturaItemId, ordem, quantidade }] }`; cada quantidade passa a aguardar
+  coleta no mesmo Setor e passo. 201 com um movimento de Término por item, na ordem dos itens.
+  - **Recusa na entrada**, antes de abrir a transação e nesta ordem: `itens` ausente ou vazio → 400
+    `LoteVazio`; mais de **100** itens (`ApontamentoUseCase.TamanhoMaximoDoLote`, o mesmo teto de página
+    de `GET /pedidos`) → 400 `LoteGrandeDemais`; quantidade de algum item fora da regra → 400
+    `QuantidadeInvalida`, com a frase da rota individual; o mesmo nó mais de uma vez no Iniciar, ou o
+    mesmo par nó + `ordem` no Terminar → 400 `ItemRepetido`, e a `mensagem` diz qual ("O nó 7 aparece
+    mais de uma vez no lote." / "O nó 7 no passo 2 aparece mais de uma vez no lote."); por fim, Setor
+    inexistente → 404 sem corpo.
+  - **A primeira recusa de negócio aborta tudo.** Os itens são avaliados na ordem do corpo; a primeira
+    recusa devolve **o código e o status que a rota individual daria** — 409 `SaldoInsuficiente`,
+    `SemRoteiro`, `NaoEhOPrimeiroPasso`, `FilhosInsuficientes`, `PedidoPausado`, `PedidoFechado`; 404
+    sem corpo para nó inexistente; 400 `QuantidadeInvalida` para o produto por filho que não cabe na
+    coluna — e **nada é gravado**: o que os itens anteriores escreveram é desfeito junto com a
+    transação. A `mensagem` **nomeia o item** recusado. `SemRoteiro`, `NaoEhOPrimeiroPasso` e
+    `SaldoInsuficiente` já trazem o nó na frase da rota individual e passam iguais; toda outra recusa
+    do núcleo ganha o prefixo "«nome do nó»: " (a descrição da regra 19), como `Calço: O Pedido
+    PED-01 está pausado.`. O `ConflitoDeConcorrencia` continua com a frase genérica, porque é do lote
+    inteiro.
+  - **Perfis e travas.** Os mesmos das rotas de um nó (`Operador` e `Administrador`). Antes do primeiro
+    item o lote trava, na ordem fixa da spec da Fase 3 (seção 8.1), todos os nós envolvidos (itens e
+    filhos) em ordem crescente de Id e, no Iniciar, os Pedidos deles; o Terminar não trava Pedido, como
+    a rota de um nó.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
   `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, quantidade }] }`.
   **O destino é sempre calculado** (spec da Fase 3D, §2.2): o próximo passo, o local de expedição
@@ -431,7 +466,8 @@ consome. O segundo traz só o que a 3D mudou (`atividade`, `estornaveis`, `pausa
 `primeiroPassoDoPai`, o destino calculado e as rotas de pausa); o resto continua no primeiro. Os
 campos `pedidoCliente` e `materiais` do nó resumido e as três rotas `GET /pedidos`, `GET /pedidos/resumo` e `GET /pedidos/materiais` estão na
 seção "Contrato JSON novo" do plano 1 dos filtros da demanda
-(`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`).
+(`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`). O corpo e as respostas de `POST /inicios` e
+`POST /terminos` estão na seção "Contrato JSON novo" do plano 2 (`docs/superpowers/plans/2026-09-30-filtros-plano-2.md`).
 
 **Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
 e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).
@@ -443,14 +479,17 @@ Setor e números quando ajudam.
 
 | Status | Código | Quando |
 |---|---|---|
-| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna |
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (no lote, a de qualquer item, com a mesma frase) |
+| 400 | `LoteVazio` | `POST /inicios` ou `POST /terminos` sem `itens`, ou com a lista vazia |
+| 400 | `LoteGrandeDemais` | mais de 100 itens no lote (`ApontamentoUseCase.TamanhoMaximoDoLote`) |
+| 400 | `ItemRepetido` | o mesmo nó em `POST /inicios`, ou o mesmo nó e passo em `POST /terminos`; a `mensagem` diz qual |
 | 400 | `DestinoIndevido` | `destinoSetorId` mandado — o destino da entrega é sempre calculado |
 | 400 | `EntregaVazia` | lista de entrega vazia |
 | 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
 | 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`, ou com Setor e passo que não combinam com a posição |
 | 400 | `MotivoLongoDemais` | motivo da pausa com mais de 200 caracteres (o `[MaxLength]` do corpo já dá 400 antes; o caso de uso repete a guarda) |
 | 403 | `Proibido` | estorno de registro alheio sem ser PCP nem Administrador |
-| 404 | — | nó, Setor, movimento ou montagem inexistente |
+| 404 | — | nó, Setor, movimento ou montagem inexistente (no lote, o Setor ou o nó de algum item, se for a primeira recusa) |
 | 409 | `SemRoteiro` | iniciar nó sem Roteiro |
 | 409 | `NaoEhOPrimeiroPasso` | iniciar num Setor que não é o do primeiro passo |
 | 409 | `SaldoInsuficiente` | a origem não tem a quantidade |

@@ -93,6 +93,47 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    agiu", então não dispara o aviso de que o item saiu da fila; em Tarefas, o item já marcado que o
    filtro esconde **continua marcado e vai na entrega**, e a tela avisa "N marcados ocultos pelo
    filtro".
+9. **Operador age em lote na fila do Setor** (spec `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`,
+   seções 5 e 6): em vez de iniciar ou terminar uma linha de cada vez, marca várias e registra tudo
+   de uma vez. Só quem aponta (Operador e Administrador) vê os controles do lote.
+   - **Onde há caixa de marcar.** Em "A iniciar aqui" (a ação do lote é Iniciar), em "Em trabalho"
+     (Terminar) e, em "Aguardando montagem", só no cartão do pai cuja montagem começa neste Setor
+     (Iniciar o pai, que consome os filhos como o botão individual). "Aguardando coleta" e "Sobra" não
+     têm lote. Uma linha que não pode agir agora — Pedido pausado, ou "dá para iniciar 0" no pai —
+     tem a caixa desabilitada, e o motivo é o que a linha já mostra.
+   - **Uma seção por vez.** Com o primeiro item marcado, as caixas das outras seções ficam
+     desabilitadas e o cabeçalho delas diz "Conclua ou limpe a seleção de *A iniciar aqui*" (o nome da
+     seção em uso). A trava solta quando a seleção esvazia.
+   - **"Marcar todos", por seção.** Fica no cabeçalho da seção e marca as linhas **visíveis depois do
+     filtro** que podem agir; pula as desabilitadas. Com todas elas marcadas, vira "Desmarcar todos", e
+     desmarca só elas. Sem linha que possa agir, o botão não aparece; nas outras seções, durante um
+     lote, fica desabilitado. Marcar não reescreve a quantidade de quem já estava marcado.
+   - **Quantidade.** Cada linha marcada mostra o campo "Quantidade" já preenchido com o saldo da linha
+     (no pai, com o "dá para iniciar"), editável e validado como o "Levar". Se a atualização periódica
+     baixar o máximo abaixo do que foi digitado, o campo acusa e o botão do lote desabilita; o texto
+     nunca é reescrito.
+   - **A barra do lote.** Enquanto há seleção, uma barra no rodapé mostra o botão com o verbo puro
+     ("Iniciar 5 itens", "Terminar 1 item" — sem a atividade do Setor que o botão da linha usa), o
+     aviso "N marcados ocultos pelo filtro" quando o filtro esconde algum marcado e "Limpar seleção".
+     O botão fica desabilitado se alguma quantidade estiver inválida ou se alguma linha marcada ficou
+     bloqueada (o Pedido foi pausado depois de marcar): ela continua marcada, com o motivo, até o
+     operador desmarcá-la.
+   - **Lote e botão individual não coexistem.** Com pelo menos uma linha marcada, os botões individuais
+     de Iniciar, Terminar e Iniciar o pai somem da fila inteira; marcar uma linha fecha o formulário
+     individual que estivesse aberto. O "Levar" do filho e o "Estornar" continuam, porque não são ação
+     de lote. Sem marcação, a fila é a de antes.
+   - **Tudo ou nada.** O lote vai numa requisição (`POST /inicios` ou `POST /terminos`, em
+     `specs/05-api-endpoints.md`). Se um item é recusado, **nada é gravado**: a fila recarrega, a
+     barra mostra o motivo nomeando o item ("Só há 3 de Chapa de base do mancal a iniciar.") e a seleção continua, salvo o que saiu da fila nesse meio-tempo — uma linha que desapareceu
+     da resposta sai da seleção, com o aviso "Um item que você tinha marcado não está mais nesta fila:
+     outra pessoa o moveu. Confira a seleção." O que o filtro apenas esconde continua marcado e vai no
+     lote. Com sucesso, a seleção esvazia e a fila recarrega.
+   - **Estorno** continua por linha; não existe "estornar lote".
+10. **Movimentador marca todos em Tarefas.** Além de marcar item a item, o botão **Marcar todos** no
+    topo da lista marca todos os itens visíveis depois do filtro, em todos os grupos, e pula o que não
+    se pode marcar (o pai sem Roteiro). Com todos marcados vira "Desmarcar todos", que desmarca só
+    esses: o marcado oculto pelo filtro continua marcado. O resto do "Levar" não muda: ele já é uma
+    entrega em lote, numa requisição, tudo ou nada.
 
 ## 3. Separação de Material
 

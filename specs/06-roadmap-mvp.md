@@ -334,13 +334,42 @@ leitura e sem risco para o livro. Entregue na branch da fase:
 - A URL **lê** a lista separada por vírgula, com ou sem codificação, mas **escreve** a vírgula
   codificada (`?material=3%2C5`).
 
-**Plano 2 — Lote** (ainda **não escrito**): o bloco B — `POST /inicios`, `POST /terminos`, a
-seleção com trava de seção na fila e o "Marcar todos" nas Tarefas. **Escreve no livro** sob
-SERIALIZABLE, com outro perfil de risco e de review, e depende do Plano 1 porque a seleção convive
-com o filtro. **Nada disso existe ainda**: nem as rotas, nem os checkboxes da fila.
+**Plano 2 — Lote** (`docs/superpowers/plans/2026-09-30-filtros-plano-2.md`): o bloco B. **Escreve no
+livro** sob SERIALIZABLE, com outro perfil de risco e de review que o Plano 1, e depende dele porque a
+seleção convive com o filtro. Implementado na branch `filtros-e-lote-plano-2`:
 
-**Estado:** Plano 1 implementado, **fase não concluída**. Falta a verificação manual no celular,
-pelo usuário, que fecha o plano; o Plano 2 vem depois e tem a própria.
+- **Backend.** `POST /inicios` e `POST /terminos` (contrato em `05-api-endpoints.md`): `itens` com
+  até 100 nós (`ApontamentoUseCase.TamanhoMaximoDoLote`), um 201 com um movimento por item na ordem
+  do corpo, e os códigos novos `LoteVazio`, `LoteGrandeDemais` e `ItemRepetido`. **Uma regra, dois
+  pontos de entrada:** a validação de iniciar e terminar mora num núcleo por item
+  (`IniciarNoAsync`, `TerminarNoAsync`, privados do `ApontamentoUseCase`), e a rota de um nó e o lote
+  passam por ele; o lote não recalcula saldo, Roteiro nem filhos. O lote só acrescenta ao livro as
+  mesmas linhas que a ação individual acrescentaria; não há mudança de schema nem `db/alter-*.sql`.
+- **Falha não commita (desvio D1 do plano).** `IExecucaoRepository.EmTransacaoAsync` ganhou uma
+  sobrecarga com `confirmar`, que só commita se o resultado for de sucesso, e `Falhas.ExecutarAsync`
+  passou a usá-la em todo caso de uso que a chama. Era necessário porque o lote grava o item 1 (inclusive
+  um `SalvarAlteracoesAsync`, pela baixa dos filhos) antes de validar o item 2; antes, a transação
+  commitava também um `Result` de falha, o que só era inofensivo enquanto todo caso de uso validava
+  tudo antes da primeira escrita. O comportamento das rotas de um nó não muda.
+- **Travas (desvio D3).** Antes do primeiro item o lote trava todos os nós (itens e filhos) numa
+  chamada só de `TravarNosAsync` e, no Iniciar, as linhas de Pedido por `TravarPedidosDosNosAsync`:
+  todo nó antes de todo Pedido, a mesma ordem da rota de um nó, pela ordem fixa da seção 8.1 da spec
+  da Fase 3.
+- **Front.** Na fila do Setor, a caixa de marcar, a trava de seção, o "Marcar todos" por seção, o campo
+  de quantidade, a barra do lote e a recusa tudo ou nada (fluxo 9 do item 2 de
+  `04-fluxos-de-usuario.md`), com a lógica pura em `web/src/execucao/loteDaFila.ts` e a barra em
+  `BarraDoLote`; nas Tarefas, o "Marcar todos".
+- **Onde o plano decidiu além da spec, e vale como está:** a recusa nomeia o item também quando a
+  frase da rota individual não o nomeava (desvio D5); com um item marcado os botões individuais somem
+  da fila inteira (D7; a spec da seção 5.6 os mantinha); a linha que fica bloqueada depois de marcada
+  continua marcada, com o motivo, e a que some da resposta sai da seleção com aviso (D8); toda recusa
+  do lote, e não só o 409, recarrega a fila (D11); o botão da barra usa o verbo puro, sem a atividade
+  do Setor (D12).
+
+**Estado:** Plano 1 e Plano 2 implementados, **fase não concluída**. Falta a verificação manual no
+celular, pelo usuário, que fecha cada plano: a do Plano 1, que esta seção já registrava como
+pendente, e a do **Plano 2, pendente em 2026-09-30** — este arquivo não registra o Plano 2 como
+verificado. A posição da fase não mudou: **filtros → 1F → 3B**.
 
 ## Fase 3B — Kit e montagem
 
