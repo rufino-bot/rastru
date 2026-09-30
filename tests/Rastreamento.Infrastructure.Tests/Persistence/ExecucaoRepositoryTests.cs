@@ -514,6 +514,59 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task TravarPedidosDosNosAsync_devolve_os_Pedidos_distintos_em_ordem_crescente() => NoCenarioAsync(async c =>
+  {
+    await using var escrita = NovoContexto();
+    var outra = await ArvoreDeTesteNoBanco.CriarAsync(escrita, "exec");
+    try
+    {
+      var pecaDaOutra = await outra.NovaPecaAsync(escrita, 1m);
+      await using var db = NovoContexto();
+      var repo = new ExecucaoRepository(db);
+
+      // Os nos do Pedido mais novo primeiro, e dois nos do mesmo Pedido: a ordem e a unicidade sao do metodo.
+      var pedidos = await repo.EmTransacaoAsync(
+          () => repo.TravarPedidosDosNosAsync([pecaDaOutra, c.ItemB, c.Peca, int.MaxValue], CancellationToken.None),
+          CancellationToken.None);
+
+      Assert.True(c.Arvore.PedidoId < outra.PedidoId);
+      Assert.Equal(new[] { c.Arvore.PedidoId, outra.PedidoId }, pedidos.ToArray());
+    }
+    finally
+    {
+      await outra.LimparAsync(NovoContexto);
+    }
+  });
+
+  [Fact]
+  public Task TravarPedidosDosNosAsync_segura_a_linha_do_Pedido() => NoCenarioAsync(async c =>
+  {
+    await using var dbA = NovoContexto();
+    await using var dbB = NovoContexto();
+    var repoA = new ExecucaoRepository(dbA);
+    var repoB = new ExecucaoRepository(dbB);
+    // Conexao de B aberta a mao, para o SET valer na MESMA conexao que a transacao dela vai usar.
+    await dbB.Database.OpenConnectionAsync();
+    await dbB.Database.ExecuteSqlRawAsync("SET LOCK_TIMEOUT 300");
+
+    await repoA.EmTransacaoAsync(async () =>
+    {
+      await repoA.TravarPedidosDosNosAsync([c.ItemA], CancellationToken.None);
+      await Assert.ThrowsAsync<ConflitoDeConcorrenciaException>(() => repoB.EmTransacaoAsync(
+          () => repoB.TravarPedidoAsync(c.Arvore.PedidoId, CancellationToken.None), CancellationToken.None));
+      return 0;
+    }, CancellationToken.None);
+  });
+
+  [Fact]
+  public Task TravarPedidosDosNosAsync_fora_de_transacao_lanca() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    await Assert.ThrowsAsync<InvalidOperationException>(
+        () => new ExecucaoRepository(db).TravarPedidosDosNosAsync([c.Peca], CancellationToken.None));
+  });
+
+  [Fact]
   public Task Nos_em_producao_deixam_de_fora_Pedido_cancelado() => NoCenarioAsync(async c =>
   {
     await using var db = NovoContexto();

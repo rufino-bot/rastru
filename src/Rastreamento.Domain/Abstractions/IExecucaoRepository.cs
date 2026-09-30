@@ -81,11 +81,11 @@ public interface IExecucaoRepository
 
   /// <summary>
   /// Igual a <see cref="ObterPedidoDoNoAsync"/>, mas trava a linha do Pedido com UPDLOCK: uso exclusivo
-  /// do caminho que VAI escrever nela a seguir (hoje, so <c>ApontamentoUseCase.Iniciar</c>, antes de
-  /// <see cref="MarcarPedidoEmProducaoAsync"/>). Ver o XML doc de <c>ExecucaoRepository</c> para o
-  /// motivo: sem isto, duas transacoes que leem o mesmo Pedido com S e depois tentam converter para X
-  /// deadlockam (spec 8.1; achado de review da Task 11 com deadlock graph do
-  /// <c>system_health</c> — PK_Pedido).
+  /// do caminho que VAI escrever nela a seguir (hoje, so o nucleo do iniciar de <c>ApontamentoUseCase</c>,
+  /// individual ou em lote, antes de <see cref="MarcarPedidoEmProducaoAsync"/>). Ver o XML doc de
+  /// <c>ExecucaoRepository</c> para o motivo: sem isto, duas transacoes que leem o mesmo Pedido com S e
+  /// depois tentam converter para X deadlockam (spec 8.1; achado de review da Task 11 com deadlock graph
+  /// do <c>system_health</c> — PK_Pedido).
   /// </summary>
   Task<PedidoDoNo?> ObterPedidoDoNoParaEscritaAsync(int estruturaItemId, CancellationToken ct);
 
@@ -146,6 +146,16 @@ public interface IExecucaoRepository
   /// Fase 3D, secao 4.5). So vale dentro de <see cref="EmTransacaoAsync"/>.
   /// </summary>
   Task<PedidoTravado?> TravarPedidoAsync(int pedidoId, CancellationToken ct);
+
+  /// <summary>
+  /// Trava, como <see cref="TravarPedidoAsync"/>, a linha de cada Pedido em que vivem os nos pedidos —
+  /// UMA A UMA, em ordem crescente de Id — e devolve os PedidoIds distintos, nessa ordem. O PedidoId sai
+  /// da juncao `EstruturaItem` x `Agrupamento`, sem ler a linha do Pedido antes do UPDLOCK. No inexistente
+  /// nao contribui. Existe para o iniciar em lote travar todos os Pedidos antes do primeiro item, depois
+  /// de todos os nos (spec da Fase 3, secao 8.1: ordem fixa de aquisicao). So vale dentro de
+  /// <see cref="EmTransacaoAsync"/>: fora dela, lanca.
+  /// </summary>
+  Task<IReadOnlyList<int>> TravarPedidosDosNosAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
 
   Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct);
 

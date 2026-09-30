@@ -26,6 +26,17 @@ internal static class Falhas
       Result<T>.Falha(CodigosDaExecucao.Proibido, TipoDeErro.Proibido,
           "Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.");
 
+  /// <summary>
+  /// A mesma falha com outro tipo de valor: mesmo codigo e mesmo `TipoDeErro`, e a frase trocada por
+  /// `detalhe` quando ele vem. E como o nucleo por item (que devolve a entidade) passa a recusa a forma
+  /// individual e ao lote (que devolvem DTO), sem nenhum dos dois reescrever o codigo.
+  /// </summary>
+  public static Result<TPara> Repassar<TPara, TDe>(Result<TDe> falha, string? detalhe = null)
+  {
+    if (falha.Sucesso) throw new ArgumentException("So se repassa uma falha.", nameof(falha));
+    return Result<TPara>.Falha(falha.Erro!, falha.TipoDoErro!.Value, detalhe ?? falha.Detalhe);
+  }
+
   public static bool EstaFechado(PedidoDoNo? pedido) =>
       pedido is null || pedido.Status is "Concluido" or "Cancelado";
 

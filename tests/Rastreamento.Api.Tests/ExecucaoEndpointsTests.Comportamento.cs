@@ -253,6 +253,103 @@ public partial class ExecucaoEndpointsTests
       Assert.Equal(HttpStatusCode.OK, (await gestao.GetAsync(rota)).StatusCode);
   }
 
+  // ------------------------------------------------------------------ lote (spec dos filtros e do lote, secao 6)
+
+  /// <summary>O cenario com o Roteiro de C trocado para `[Corte]`, antes de qualquer movimento: B e C comecam juntos no Corte.</summary>
+  private async Task<CenarioDaFase3NaApi> BeCNoCorteAsync()
+  {
+    var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.C}/roteiro", new { passos = new[] { c.Corte } }));
+    return c;
+  }
+
+  [Fact]
+  public async Task Inicios_em_lote_devolve_201_com_um_movimento_por_item_na_ordem()
+  {
+    await using var c = await BeCNoCorteAsync();
+
+    var resposta = await c.Como(c.Operador).PostAsJsonAsync("/api/inicios", new
+    {
+      setorId = c.Corte,
+      itens = new[] { new { estruturaItemId = c.C, quantidade = 2m }, new { estruturaItemId = c.B, quantidade = 4m } },
+    });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var corpo = (await CorpoAsync(resposta)).EnumerateArray().ToList();
+    Assert.Equal(new[] { c.C, c.B }, corpo.Select(m => m.GetProperty("estruturaItemId").GetInt32()).ToArray());
+    Assert.All(corpo, m => Assert.Equal("Inicio", m.GetProperty("tipo").GetString()));
+    Assert.Equal(new[] { 2m, 4m }, corpo.Select(m => m.GetProperty("quantidade").GetDecimal()).ToArray());
+  }
+
+  [Fact]
+  public async Task Terminos_em_lote_devolve_201()
+  {
+    await using var c = await BeCNoCorteAsync();
+    var operador = c.Como(c.Operador);
+    await Garantir(await operador.PostAsJsonAsync("/api/inicios", new
+    {
+      setorId = c.Corte,
+      itens = new[] { new { estruturaItemId = c.B, quantidade = 4m }, new { estruturaItemId = c.C, quantidade = 2m } },
+    }));
+
+    var resposta = await operador.PostAsJsonAsync("/api/terminos", new
+    {
+      setorId = c.Corte,
+      itens = new[] { new { estruturaItemId = c.B, ordem = 1, quantidade = 4m }, new { estruturaItemId = c.C, ordem = 1, quantidade = 2m } },
+    });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var corpo = (await CorpoAsync(resposta)).EnumerateArray().ToList();
+    Assert.Equal(new[] { c.B, c.C }, corpo.Select(m => m.GetProperty("estruturaItemId").GetInt32()).ToArray());
+    Assert.All(corpo, m =>
+    {
+      Assert.Equal("Termino", m.GetProperty("tipo").GetString());
+      Assert.Equal("AguardandoColeta", m.GetProperty("destino").GetProperty("posicao").GetString());
+    });
+  }
+
+  [Fact]
+  public async Task Lote_recusado_devolve_409_com_codigo_e_mensagem_e_nao_grava()
+  {
+    await using var c = await BeCNoCorteAsync();
+
+    var resposta = await c.Como(c.Operador).PostAsJsonAsync("/api/inicios", new
+    {
+      setorId = c.Corte,
+      itens = new[] { new { estruturaItemId = c.B, quantidade = 4m }, new { estruturaItemId = c.C, quantidade = 99m } },
+    });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal("SaldoInsuficiente", corpo.GetProperty("erro").GetString());
+    Assert.Contains("Só há 10 de Calço", corpo.GetProperty("mensagem").GetString());
+    var livroDeB = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/estrutura/{c.B}/movimentacoes"));
+    Assert.DoesNotContain(livroDeB.GetProperty("movimentacoes").EnumerateArray(),
+        m => m.GetProperty("tipo").GetString() == "Inicio");
+  }
+
+  [Theory]
+  [InlineData("vazio", "LoteVazio")]
+  [InlineData("repetido", "ItemRepetido")]
+  [InlineData("zero", "QuantidadeInvalida")]
+  public async Task Lote_invalido_devolve_400_com_codigo(string caso, string codigo)
+  {
+    await using var c = await BeCNoCorteAsync();
+    var itens = caso switch
+    {
+      "vazio" => Array.Empty<object>(),
+      "repetido" => new object[] { new { estruturaItemId = c.B, quantidade = 1m }, new { estruturaItemId = c.B, quantidade = 2m } },
+      _ => new object[] { new { estruturaItemId = c.B, quantidade = 0m } },
+    };
+
+    var resposta = await c.Como(c.Operador).PostAsJsonAsync("/api/inicios", new { setorId = c.Corte, itens });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal(codigo, corpo.GetProperty("erro").GetString());
+    Assert.False(string.IsNullOrEmpty(corpo.GetProperty("mensagem").GetString()));
+  }
+
   /// <summary>Iniciar, terminar e entregar para a montagem de A na Solda — o arranjo de montar.</summary>
   private static async Task LevarParaAMontagemAsync(CenarioDaFase3NaApi c, int no, int setor, decimal quantidade)
   {

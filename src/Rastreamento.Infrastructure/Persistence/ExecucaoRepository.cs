@@ -287,6 +287,32 @@ public class ExecucaoRepository : IExecucaoRepository
     return pedido is null ? null : new PedidoTravado(pedido.Id, pedido.Numero, pedido.Status);
   }
 
+  /// <summary>
+  /// Dois passos, pelo mesmo motivo de <see cref="ObterPedidoDoNoParaEscritaAsync"/>: os PedidoIds saem de
+  /// um JOIN comum que nao toca `dbo.Pedido`, e SO ENTAO cada linha de Pedido e lida ja com UPDLOCK, por
+  /// <see cref="TravarPedidoAsync"/>. Ler o Pedido com S antes (um JOIN ate ele, como o de
+  /// <see cref="ObterPedidoDoNoAsync"/>) e depois pedir U na mesma linha e a conversao que fazia o
+  /// deadlock PK_Pedido. Um comando por Pedido, em ordem crescente, como <see cref="TravarNosAsync"/>.
+  /// </summary>
+  public async Task<IReadOnlyList<int>> TravarPedidosDosNosAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  {
+    if (_db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException(
+          "TravarPedidosDosNosAsync so vale dentro de EmTransacaoAsync: fora de transacao a trava acaba no fim do SELECT.");
+
+    var ids = estruturaItemIds.Distinct().ToList();
+    var pedidoIds = await (from e in _db.Estruturas.AsNoTracking()
+                           join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                           where ids.Contains(e.Id)
+                           select a.PedidoId)
+        .Distinct()
+        .ToListAsync(ct);
+    var ordenados = pedidoIds.Order().ToList();
+    foreach (var pedidoId in ordenados)
+      await TravarPedidoAsync(pedidoId, ct);
+    return ordenados;
+  }
+
   public Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct) =>
       _db.PedidoPausas.AsNoTracking().SingleOrDefaultAsync(p => p.PedidoId == pedidoId && p.RetomadoEm == null, ct);
 

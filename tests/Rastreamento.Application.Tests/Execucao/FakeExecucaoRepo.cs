@@ -42,6 +42,16 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>Os Ids de cada `TravarNosAsync`, como chegaram — prova de QUEM o caso de uso trava.</summary>
   public List<IReadOnlyList<int>> Travas { get; } = new();
 
+  /// <summary>Os Ids de nó de cada `TravarPedidosDosNosAsync`, como chegaram, no formato de <see cref="Travas"/>.</summary>
+  public List<IReadOnlyList<int>> TravasDePedido { get; } = new();
+
+  /// <summary>
+  /// `TravarNosAsync` ("nos:1,2,3"), `TravarPedidosDosNosAsync` ("pedidos:1,10") e `SalvarAlteracoesAsync`
+  /// ("save") numa lista so, na ordem em que aconteceram, com os Ids como chegaram — prova de QUANDO o
+  /// caso de uso trava em relacao a primeira escrita.
+  /// </summary>
+  public List<string> Eventos { get; } = new();
+
   public int Transacoes { get; private set; }
   public int Saves { get; private set; }
 
@@ -121,6 +131,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
     if (!_emTransacao) throw new InvalidOperationException("TravarNosAsync fora de EmTransacaoAsync.");
     var pedidos = ids.ToList();
     Travas.Add(pedidos);
+    Eventos.Add($"nos:{string.Join(",", pedidos)}");
     return Task.FromResult<IReadOnlyList<EstruturaItem>>(
         _estruturas.Itens.Where(i => pedidos.Contains(i.Id)).OrderBy(i => i.Id).ToList());
   }
@@ -192,6 +203,18 @@ public class FakeExecucaoRepo : IExecucaoRepository
     if (!StatusDoPedido.TryGetValue(pedidoId, out var status)) return Task.FromResult<PedidoTravado?>(null);
     var numero = Agrupamentos.Values.First(a => a.PedidoId == pedidoId).PedidoNumero;
     return Task.FromResult<PedidoTravado?>(new PedidoTravado(pedidoId, numero, status));
+  }
+
+  public Task<IReadOnlyList<int>> TravarPedidosDosNosAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  {
+    if (!_emTransacao) throw new InvalidOperationException("TravarPedidosDosNosAsync fora de EmTransacaoAsync.");
+    var nos = estruturaItemIds.ToList();
+    TravasDePedido.Add(nos);
+    Eventos.Add($"pedidos:{string.Join(",", nos)}");
+    return Task.FromResult<IReadOnlyList<int>>(_estruturas.Itens
+        .Where(i => nos.Contains(i.Id) && Agrupamentos.ContainsKey(i.AgrupamentoId))
+        .Select(i => Agrupamentos[i.AgrupamentoId].PedidoId)
+        .Distinct().Order().ToList());
   }
 
   public Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct) =>
@@ -318,6 +341,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task SalvarAlteracoesAsync(CancellationToken ct)
   {
     Saves++;
+    Eventos.Add("save");
     foreach (var montagem in _montagensPendentes)
     {
       montagem.Id = _proximoId++;
