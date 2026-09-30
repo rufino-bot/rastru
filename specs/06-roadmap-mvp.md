@@ -302,7 +302,8 @@ nomeou. O escopo tem três blocos, **A + B + C**, executados em **dois planos**:
   Home; o rótulo do status em português.
 
 **Plano 1 — Filtros** (`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`): A e C, que são só
-leitura e sem risco para o livro. Entregue na branch da fase:
+leitura e sem risco para o livro. Entregue, verificado no celular em 2026-09-30 e mergeado na `main`
+(PR #25, merge `6d05c77`):
 
 - `NoResumoDto` com `pedidoCliente` e `materiais` (uma consulta em lote, não uma por nó) — fila e
   Tarefas; `GET /pedidos` paginado com `busca`, `status`, `material`, `pagina` e `tamanho`;
@@ -351,12 +352,13 @@ seleção convive com o filtro. Implementado na branch `filtros-e-lote-plano-2`:
   um `SalvarAlteracoesAsync`, pela baixa dos filhos) antes de validar o item 2; antes, a transação
   commitava também um `Result` de falha, o que só era inofensivo enquanto todo caso de uso validava
   tudo antes da primeira escrita. O comportamento das rotas de um nó não muda.
-- **Travas (desvio D3).** Antes do primeiro item o lote trava todos os nós (itens e filhos) numa
-  chamada só de `TravarNosAsync` e, no Iniciar, as linhas de Pedido por `TravarPedidosDosNosAsync`:
-  todo nó antes de todo Pedido, a mesma ordem da rota de um nó, pela ordem fixa da seção 8.1 da spec
-  da Fase 3.
+- **Travas (desvio D3).** Antes do primeiro item, no Iniciar o lote trava, numa chamada só de
+  `TravarNosAsync`, os itens e os filhos de cada um, e depois as linhas de Pedido por
+  `TravarPedidosDosNosAsync`: todo nó antes de todo Pedido, a mesma ordem da rota de um nó, pela
+  ordem fixa da seção 8.1 da spec da Fase 3. No Terminar, trava só os itens, também numa chamada de
+  `TravarNosAsync`, e nenhum Pedido.
 - **Front.** Na fila do Setor, a caixa de marcar, a trava de seção, o "Marcar todos" por seção, o campo
-  de quantidade, a barra do lote e a recusa tudo ou nada (fluxo 9 do item 2 de
+  de quantidade, a barra do lote e a recusa tudo ou nada (fluxo 2, passo 9 de
   `04-fluxos-de-usuario.md`), com a lógica pura em `web/src/execucao/loteDaFila.ts` e a barra em
   `BarraDoLote`; nas Tarefas, o "Marcar todos".
 - **Onde o plano decidiu além da spec, e vale como está:** a recusa nomeia o item também quando a
@@ -366,10 +368,10 @@ seleção convive com o filtro. Implementado na branch `filtros-e-lote-plano-2`:
   do lote, e não só o 409, recarrega a fila (D11); o botão da barra usa o verbo puro, sem a atividade
   do Setor (D12).
 
-**Estado:** Plano 1 e Plano 2 implementados, **fase não concluída**. Falta a verificação manual no
-celular, pelo usuário, que fecha cada plano: a do Plano 1, que esta seção já registrava como
-pendente, e a do **Plano 2, pendente em 2026-09-30** — este arquivo não registra o Plano 2 como
-verificado. A posição da fase não mudou: **filtros → 1F → 3B**.
+**Estado:** Plano 1 implementado, verificado no celular em 2026-09-30 e mergeado na `main` (PR #25).
+Plano 2 implementado, **fase não concluída**: falta a verificação manual no celular, pelo usuário,
+**pendente em 2026-09-30** — este arquivo não registra o Plano 2 como verificado. A posição da fase
+não mudou: **filtros → 1F → 3B**.
 
 ## Fase 3B — Kit e montagem
 

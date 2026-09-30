@@ -389,9 +389,9 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
     PED-01 está pausado.`. O `ConflitoDeConcorrencia` continua com a frase genérica, porque é do lote
     inteiro.
   - **Perfis e travas.** Os mesmos das rotas de um nó (`Operador` e `Administrador`). Antes do primeiro
-    item o lote trava, na ordem fixa da spec da Fase 3 (seção 8.1), todos os nós envolvidos (itens e
-    filhos) em ordem crescente de Id e, no Iniciar, os Pedidos deles; o Terminar não trava Pedido, como
-    a rota de um nó.
+    item o lote trava, na ordem fixa da spec da Fase 3 (seção 8.1): no Iniciar, os itens e os filhos
+    de cada um, em ordem crescente de Id, e depois os Pedidos deles; no Terminar, só os itens, e nenhum
+    Pedido, como a rota de um nó.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
   `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, quantidade }] }`.
   **O destino é sempre calculado** (spec da Fase 3D, §2.2): o próximo passo, o local de expedição
