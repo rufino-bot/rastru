@@ -37,6 +37,42 @@ describe('ItemDeCadastro', () => {
     expect(screen.getByText('Inativar')).toBeTruthy()
   })
 
+  it('a acao fica num wrapper posicionado acima do conteudo', () => {
+    // O que a suíte consegue afirmar é a estrutura e as classes: o pai do botão é posicionado e
+    // empilhado. O efeito real (o clique no CENTRO do botão chega ao botão, e não ao link cujo
+    // overlay cobre o cartão) depende de layout, que o jsdom não calcula, e é conferido no
+    // navegador.
+    const { container } = render(
+      <ListaDeCadastro>
+        <ItemDeCadastro acao={<button>Inativar</button>}>Corte</ItemDeCadastro>
+      </ListaDeCadastro>,
+    )
+    const botao = screen.getByRole('button', { name: 'Inativar' })
+    const wrapper = botao.parentElement!
+
+    expect(wrapper.tagName).toBe('DIV')
+    expect(wrapper.classList.contains('relative')).toBe(true)
+    expect(wrapper.classList.contains('z-10')).toBe(true)
+    // O wrapper é filho direto do `<li>` (que é `relative`): o overlay do link, `absolute` com
+    // `inset-0`, ancora no `<li>`, e o wrapper empilha acima dele no mesmo contexto.
+    expect(wrapper.parentElement).toBe(container.querySelector('li'))
+  })
+
+  it('sem acao nao cria wrapper', () => {
+    // `acao` ausente e `acao={false}` (o que `podeEscrever && <Botao/>` entrega ao perfil sem
+    // escrita) não deixam uma `div` vazia, empilhada, sobre o cartão.
+    const { container } = render(
+      <ListaDeCadastro>
+        <ItemDeCadastro>Sem prop</ItemDeCadastro>
+        <ItemDeCadastro acao={false}>Falsa</ItemDeCadastro>
+        <ItemDeCadastro acao={null}>Nula</ItemDeCadastro>
+      </ListaDeCadastro>,
+    )
+
+    expect(container.querySelectorAll('li')).toHaveLength(3)
+    expect(container.querySelectorAll('li div')).toHaveLength(0)
+  })
+
   it('distingue item inativo de item ativo', () => {
     // Distinção que NÃO é só cor: `line-through` mais tinta fraca. Cor sozinha exclui quem não a
     // percebe, e a lista de inativos é justamente onde o usuário decide se reativa ou não.

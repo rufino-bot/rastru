@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, within, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ComponentesPage } from './ComponentesPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
@@ -1027,6 +1027,51 @@ describe('ComponentesPage', () => {
 
     const link = await screen.findByRole('link', { name: /CH-100/ })
     expect(link.getAttribute('href')).toBe('/componentes/7')
+  })
+
+  it('o link do item cobre o cartao inteiro', async () => {
+    // jsdom não calcula layout: a suíte afirma as classes do overlay, não a área clicável.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/componentes': () => respostaJson({
+        itens: [{ id: 7, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true }],
+        total: 1,
+        pagina: 1,
+        tamanho: 20,
+      }),
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    const link = await screen.findByRole('link', { name: /CH-100/ })
+    expect(link.classList.contains('after:absolute')).toBe(true)
+    expect(link.classList.contains('after:inset-0')).toBe(true)
+    expect(link.getAttribute('href')).toBe('/componentes/7')
+  })
+
+  it('o botao do item continua alcancavel pelo papel e nome, e o clique dispara a acao e nao a navegacao', async () => {
+    // Em jsdom isto só prova o handler: o PATCH sai e a rota de detalhe não abre. Que o clique no
+    // CENTRO do botão não cai no overlay do link depende de layout e é conferido no navegador.
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(paginaComTotal(1))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(
+      <MemoryRouter initialEntries={['/componentes']}>
+        <Routes>
+          <Route path="/componentes" element={<ComponentesPage />} />
+          <Route path="/componentes/:id" element={<p>detalhe aberto</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByText('SUP-001')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'PATCH')).toBe(true)
+    })
+    expect(screen.queryByText('detalhe aberto')).toBeNull()
   })
 
   it('mantém a mensagem de código duplicado depois da recarga da lista', async () => {
