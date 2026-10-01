@@ -17,6 +17,18 @@ vi.mock('../auth/AuthContext', () => ({
 
 afterEach(cleanup)
 
+// A tela abre em leitura: o formulário só existe depois do clique em "Novo componente" (o botão do
+// cabeçalho; o `<h2>` do painel tem o mesmo texto, por isso a busca é por papel).
+async function abrirNovoComponente() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Novo componente' }))
+}
+
+async function esperarPainelFechar() {
+  await waitFor(() => {
+    expect(screen.queryByRole('form')).toBeNull()
+  })
+}
+
 /**
  * Uma resposta NOVA a cada chamada. Isto nao e detalhe: `Response` tem corpo de uso unico, e
  * `mockResolvedValue(paginaComTotal(...))` devolveria a MESMA instancia em todo fetch — o segundo
@@ -139,6 +151,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -225,6 +238,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -266,15 +280,18 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
     fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
 
-    await waitFor(() => {
-      expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
-    })
+    // O painel fecha (decisão D7 do plano da 1F), o que sozinho já tira o botão da tela; por isso a
+    // prova de que o estado `idReativavel` foi zerado é reabrir o painel e não achá-lo lá.
+    await esperarPainelFechar()
+    await abrirNovoComponente()
+    expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
   })
 
   // V4 (achado do coordenador, varredura das recargas): mesma lacuna do V3, no outro call site de
@@ -300,6 +317,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -344,6 +362,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -371,6 +390,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'NOV-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Novo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -415,6 +435,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await screen.findByText('SUP-001')
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'MON-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Montagem X' } })
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
@@ -429,16 +450,25 @@ describe('ComponentesPage', () => {
       })
     })
 
-    // formulario voltou ao vazio (o default de Tipo, 'Fabricado', reaparece no select)
-    await waitFor(() => {
-      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
-      expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
-      expect((screen.getByLabelText('Tipo') as HTMLSelectElement).value).toBe('Fabricado')
-    })
+    // o painel fechou, e ao reabrir o formulário voltou ao vazio (o default de Tipo, 'Fabricado',
+    // reaparece no select)
+    await esperarPainelFechar()
+    await abrirNovoComponente()
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Tipo') as HTMLSelectElement).value).toBe('Fabricado')
 
-    // a lista recarregou: houve um GET depois do POST
-    const gets = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method !== 'POST')
-    expect(gets.length).toBeGreaterThanOrEqual(2)
+    // a lista recarregou, UMA vez só (`voltarAoInicio` já recarrega; um `recarregar` a mais seria
+    // a segunda requisição): exatamente um GET depois do POST
+    const indicePost = fetchMock.mock.calls.findIndex(
+      ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+    )
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.slice(indicePost + 1)).toHaveLength(1)
+    })
+    // folga para uma segunda requisição que chegasse atrasada: ela também reprovaria a asserção
+    await act(async () => { await new Promise((r) => setTimeout(r, 40)) })
+    expect(fetchMock.mock.calls.slice(indicePost + 1)).toHaveLength(1)
   })
 
   // I4: "Anterior" nunca era clicado por teste nenhum — so se provava que ele fica `disabled` na
@@ -482,6 +512,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -515,6 +546,7 @@ describe('ComponentesPage', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const chamadasAntesDoEnvio = fetchMock.mock.calls.length
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -610,6 +642,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -619,9 +652,11 @@ describe('ComponentesPage', () => {
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Outro' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
 
-    await waitFor(() => {
-      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
-    })
+    // O painel fecha com o sucesso, o que sozinho tira o botão da tela; reabrir é o que prova que o
+    // `idReativavel` do conflito anterior foi zerado, e não só escondido pelo painel fechado.
+    await esperarPainelFechar()
+    await abrirNovoComponente()
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
     expect(screen.queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
   })
 
@@ -680,6 +715,7 @@ describe('ComponentesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
     await screen.findByText('Seu perfil não tem permissão para esta ação.')
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'NOV-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Novo' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -713,6 +749,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -720,9 +757,10 @@ describe('ComponentesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reativar o existente' }))
 
-    await waitFor(() => {
-      expect(screen.queryByText('Já existe um componente com o código "SUP-001" inativo.')).toBeNull()
-    })
+    // O painel fecha e leva a mensagem junto; reabrir prova que ela foi zerada no estado.
+    await esperarPainelFechar()
+    await abrirNovoComponente()
+    expect(screen.queryByText('Já existe um componente com o código "SUP-001" inativo.')).toBeNull()
   })
 
   // I1 (achado da review de branch): `carregar` escreve `erro` no `catch` mas nunca o limpa no
@@ -781,6 +819,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -788,10 +827,10 @@ describe('ComponentesPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reativar o existente' }))
 
-    await waitFor(() => {
-      expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
-      expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
-    })
+    await esperarPainelFechar()
+    await abrirNovoComponente()
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
   })
 
   it('manda o formulário inteiro no POST, com o tipo escolhido', async () => {
@@ -821,7 +860,8 @@ describe('ComponentesPage', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
-    fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'CMP-1' } })
+    await abrirNovoComponente()
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'CMP-1' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Montagem' } })
     fireEvent.click(screen.getByText('Adicionar'))
@@ -862,7 +902,10 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
 
     expect(await screen.findByText('CMP-1')).toBeTruthy()
-    expect(screen.queryByLabelText('Código')).toBeNull()
+    // A tela abre em leitura para todo perfil; o que separa quem escreve é o botão que abre o
+    // painel, e é ele (e o painel) que não pode existir para o Operador.
+    expect(screen.queryByRole('button', { name: 'Novo componente' })).toBeNull()
+    expect(screen.queryByRole('form')).toBeNull()
     expect(screen.queryByText('Inativar')).toBeNull()
   })
 
@@ -895,7 +938,8 @@ describe('ComponentesPage', () => {
 
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
 
-    expect(await screen.findByLabelText('Código')).toBeTruthy()
+    await abrirNovoComponente()
+    expect(screen.getByLabelText('Código')).toBeTruthy()
   })
 
   it('mostra o tipo de cada componente na lista', async () => {
@@ -1014,6 +1058,7 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
 
+    await abrirNovoComponente()
     fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'SUP-001' } })
     fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Suporte' } })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
@@ -1027,5 +1072,300 @@ describe('ComponentesPage', () => {
       expect(ultima).toContain('incluirInativos=true')
     })
     expect(screen.getByText('Já existe um componente com este código.')).toBeTruthy()
+  })
+
+  // ---------------------------------------------------------------------------------------------
+  // Fase 1F: a tela abre em leitura, o cadastro vive num painel sob demanda e a ordem é do servidor.
+  // ---------------------------------------------------------------------------------------------
+
+  const CATALOGO_VAZIO = () => Promise.resolve(new Response(
+    JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    { status: 200 },
+  ))
+
+  function chamadasDeGet(fetchMock: ReturnType<typeof vi.fn>): URL[] {
+    return fetchMock.mock.calls
+      .filter(([, init]) => (init as RequestInit | undefined)?.method === undefined)
+      .map(([url]) => new URL(url as string, 'http://localhost'))
+  }
+
+  function criado() {
+    return Promise.resolve(new Response(
+      JSON.stringify({ id: 9, codigo: 'NOV-001', descricao: 'Novo', tipo: 'Fabricado', ativo: true }),
+      { status: 201 },
+    ))
+  }
+
+  function conflitoComInativo() {
+    return Promise.resolve(new Response(
+      JSON.stringify({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 7 }),
+      { status: 409 },
+    ))
+  }
+
+  function preencherEEnviar(codigo: string, descricao: string) {
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: codigo } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: descricao } })
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+  }
+
+  it('abre em leitura: sem formulario antes do clique', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+
+    expect(screen.queryByRole('form')).toBeNull()
+    expect(screen.queryByLabelText('Código')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Novo componente' })).toBeTruthy()
+  })
+
+  it('Novo componente abre o painel acima da barra de busca', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+
+    const painel = screen.getByRole('form', { name: 'Novo componente' })
+    const busca = screen.getByLabelText('Buscar por código ou descrição')
+    expect(painel.compareDocumentPosition(busca) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  // Decisão D5 do plano da 1F: com o painel aberto o caminho de saída é Cancelar ou salvar.
+  it('o botao Novo componente some enquanto o painel esta aberto e volta ao cancelar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+
+    expect(screen.queryByRole('button', { name: 'Novo componente' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.getByRole('button', { name: 'Novo componente' })).toBeTruthy()
+  })
+
+  it('Cancelar fecha o painel e descarta o digitado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+    fireEvent.change(screen.getByLabelText('Código'), { target: { value: 'RASCUNHO' } })
+    fireEvent.change(screen.getByLabelText('Tipo'), { target: { value: 'Bruto' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('form')).toBeNull()
+
+    await abrirNovoComponente()
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Tipo') as HTMLSelectElement).value).toBe('Fabricado')
+  })
+
+  it('salvar com sucesso fecha o painel e devolve a consulta ao padrao', async () => {
+    // Busca, página, ordem e inativos fora do padrão ANTES de salvar; depois, tudo de volta. A
+    // busca é debounced, então este teste usa timers falsos e `avancar`.
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? criado() : Promise.resolve(paginaComTotal(100)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await avancar(0)
+
+    fireEvent.change(screen.getByLabelText('Buscar por código ou descrição'), { target: { value: 'x' } })
+    await avancar(300)
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'codigo' } })
+    await avancar(0)
+    fireEvent.click(screen.getByLabelText('Mostrar inativos'))
+    await avancar(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+    await avancar(0)
+
+    const antes = chamadasDeGet(fetchMock).at(-1)!
+    expect(antes.searchParams.get('busca')).toBe('x')
+    expect(antes.searchParams.get('pagina')).toBe('2')
+    expect(antes.searchParams.get('ordem')).toBe('codigo')
+    expect(antes.searchParams.get('incluirInativos')).toBe('true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Novo componente' }))
+    preencherEEnviar('NOV-001', 'Novo')
+    await avancar(0)
+
+    expect(screen.queryByRole('form')).toBeNull()
+    const depois = chamadasDeGet(fetchMock).at(-1)!
+    expect(depois.searchParams.get('busca') ?? '').toBe('')
+    expect(depois.searchParams.get('pagina')).toBe('1')
+    expect(depois.searchParams.get('incluirInativos')).toBe('false')
+    expect(depois.searchParams.has('ordem')).toBe(false)
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(seletor.selectedOptions[0].textContent).toBe('Mais recentes')
+    expect((screen.getByLabelText('Buscar por código ou descrição') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Mostrar inativos') as HTMLInputElement).checked).toBe(false)
+  })
+
+  // Review Focus 1: salvar na página 1, sem busca, sem inativos e já em "Mais recentes" não muda
+  // nenhum estado da consulta — e a lista tem de buscar de novo mesmo assim, senão o item novo não
+  // aparece. É também o teste de que o `voltarAoInicio` dispara UMA requisição, não duas.
+  it('salvar com sucesso na consulta padrao ainda recarrega', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? criado() : Promise.resolve(paginaComTotal(1)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+    preencherEEnviar('NOV-001', 'Novo')
+
+    await esperarPainelFechar()
+    const indicePost = fetchMock.mock.calls.findIndex(
+      ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+    )
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.slice(indicePost + 1)).toHaveLength(1)
+    })
+    await act(async () => { await new Promise((r) => setTimeout(r, 40)) })
+    expect(fetchMock.mock.calls.slice(indicePost + 1)).toHaveLength(1)
+
+    // o envio foi solto: reabrir o painel não herda um "Salvando…" preso
+    await abrirNovoComponente()
+    const adicionar = screen.getByRole('button', { name: 'Adicionar' }) as HTMLButtonElement
+    expect(adicionar.disabled).toBe(false)
+  })
+
+  it('reativar com sucesso tambem devolve a consulta ao padrao', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return conflitoComInativo()
+      if (init?.method === 'PATCH') return Promise.resolve(new Response(null, { status: 204 }))
+      return Promise.resolve(paginaComTotal(100))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'descricao' } })
+    await waitFor(() => expect(chamadasDeGet(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('descricao'))
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+    await waitFor(() => expect(chamadasDeGet(fetchMock).at(-1)!.searchParams.get('pagina')).toBe('2'))
+
+    await abrirNovoComponente()
+    preencherEEnviar('SUP-001', 'Suporte')
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await esperarPainelFechar()
+    await waitFor(() => {
+      const ultima = chamadasDeGet(fetchMock).at(-1)!
+      expect(ultima.searchParams.has('ordem')).toBe(false)
+      expect(ultima.searchParams.get('pagina')).toBe('1')
+    })
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(seletor.selectedOptions[0].textContent).toBe('Mais recentes')
+  })
+
+  it('ordem escolhida vai ao servidor e volta a pagina 1', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(100)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+    await waitFor(() => expect(chamadasDeGet(fetchMock).at(-1)!.searchParams.get('pagina')).toBe('2'))
+
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'codigo' } })
+
+    await waitFor(() => {
+      const ultima = chamadasDeGet(fetchMock).at(-1)!
+      expect(ultima.searchParams.get('ordem')).toBe('codigo')
+      expect(ultima.searchParams.get('pagina')).toBe('1')
+    })
+  })
+
+  // Cada opção do seletor vai com o SEU valor: trocar duas no mapa (rótulo de uma com o valor da
+  // outra) passaria no teste de "Código" acima, e só este o derruba.
+  it('cada opcao de ordem manda o proprio valor, e Mais recentes tira o parametro', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(Array.from(seletor.options).map((o) => o.textContent))
+      .toEqual(['Mais recentes', 'Código (A→Z)', 'Descrição (A→Z)'])
+    expect(seletor.value).toBe('recentes')
+
+    fireEvent.change(seletor, { target: { value: 'descricao' } })
+    await waitFor(() => expect(chamadasDeGet(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('descricao'))
+
+    fireEvent.change(seletor, { target: { value: 'codigo' } })
+    await waitFor(() => expect(chamadasDeGet(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('codigo'))
+
+    fireEvent.change(seletor, { target: { value: 'recentes' } })
+    await waitFor(() => {
+      const ultima = chamadasDeGet(fetchMock).at(-1)!
+      expect(ultima.searchParams.has('ordem')).toBe(false)
+      expect(ultima.searchParams.get('pagina')).toBe('1')
+    })
+  })
+
+  it('conflito mantem o painel aberto com o erro e o Reativar dentro dele', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? conflitoComInativo() : CATALOGO_VAZIO())
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await abrirNovoComponente()
+    preencherEEnviar('SUP-001', 'Suporte')
+
+    const painel = await screen.findByRole('form', { name: 'Novo componente' })
+    const mensagem = 'Já existe um componente com o código "SUP-001" inativo.'
+    expect(await within(painel).findByText(mensagem)).toBeTruthy()
+    expect(within(painel).getByRole('button', { name: 'Reativar o existente' })).toBeTruthy()
+    // e só ali: o banner de fora da lista não repete o erro de escrita
+    expect(screen.getAllByText(mensagem)).toHaveLength(1)
+  })
+
+  it('erro de Inativar aparece com o painel fechado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      init?.method === 'PATCH'
+        ? Promise.resolve(new Response('{}', { status: 403 }))
+        : Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    expect(screen.queryByRole('form')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Inativar' }))
+
+    expect(await screen.findByText('Seu perfil não tem permissão para esta ação.')).toBeTruthy()
+    expect(screen.queryByRole('form')).toBeNull()
+  })
+
+  it('quem nao pode escrever ve a lista e o seletor de ordem, e nao ve o botao Novo componente', async () => {
+    perfil = 'Operador'
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+
+    expect(await screen.findByText('SUP-001')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Novo componente' })).toBeNull()
+    // o seletor é leitura: aparece e funciona para todo perfil
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'descricao' } })
+    await waitFor(() => expect(chamadasDeGet(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('descricao'))
+  })
+
+  it('catalogo vazio aponta para o botao Novo componente, so para quem escreve', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(CATALOGO_VAZIO))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    expect(await screen.findByText('Use o botão Novo componente para criar o primeiro.')).toBeTruthy()
+
+    cleanup()
+    perfil = 'Operador'
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    expect(await screen.findByText('Nenhum componente cadastrado')).toBeTruthy()
+    expect(screen.queryByText('Use o botão Novo componente para criar o primeiro.')).toBeNull()
   })
 })

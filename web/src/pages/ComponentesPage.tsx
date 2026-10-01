@@ -1,13 +1,15 @@
-import { useState, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarComponentes, criarComponente, definirAtivoComponente, ehConflito,
-  type ComponenteDto, type NovoComponente, type TipoDeComponente,
+  type ComponenteDto, type NovoComponente, type OrdemDeComponentes, type TipoDeComponente,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
-import { useBuscaPaginada } from '../hooks/useBuscaPaginada'
+import { useBuscaPaginada, type FiltroDeBusca, type PaginaDeBusca } from '../hooks/useBuscaPaginada'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { Pagina } from '../components/Pagina'
+import { PainelDeEscrita } from '../components/PainelDeEscrita'
+import { SeletorDeOrdem, type OpcaoDeOrdem } from '../components/SeletorDeOrdem'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -25,29 +27,76 @@ const TIPOS: TipoDeComponente[] = ['Bruto', 'Fabricado', 'Montagem']
 /** Dentro do teto de 100 do backend, de propósito: um valor acima viraria 400. */
 const TAMANHOS = [20, 50, 100]
 
+const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<OrdemDeComponentes>[] = [
+  { valor: 'recentes', rotulo: 'Mais recentes' },
+  { valor: 'codigo', rotulo: 'Código (A→Z)' },
+  { valor: 'descricao', rotulo: 'Descrição (A→Z)' },
+]
+
+/**
+ * Adapta o `FiltroDeBusca` do hook (que carrega a `ordem` dentro de `filtros`, como faceta de fora)
+ * ao `FiltroDeComponentes` da API. Função de módulo, e não lambda: o hook a guarda num ref, mas a
+ * estável é mais clara.
+ */
+function buscarComponentes(f: FiltroDeBusca): Promise<PaginaDeBusca<ComponenteDto>> {
+  return listarComponentes({
+    busca: f.busca,
+    incluirInativos: f.incluirInativos,
+    pagina: f.pagina,
+    tamanho: f.tamanho,
+    ordem: f.filtros?.ordem?.[0] as OrdemDeComponentes | undefined,
+  })
+}
+
 export function ComponentesPage() {
   const [form, setForm] = useState<NovoComponente>(FORMULARIO_VAZIO)
+  const [painelAberto, setPainelAberto] = useState(false)
+  // A ordem é estado da tela, não da URL, e vai ao servidor como faceta de fora do hook.
+  const [ordem, setOrdem] = useState<OrdemDeComponentes>('recentes')
+  // `erroDeEscrita`: salvar e "Reativar o existente", dentro do painel. `erroDeAcao`: Inativar e
+  // Reativar do item, fora dele — com o painel fechado um erro de Inativar não teria onde aparecer
+  // (decisão D8 do plano da 1F).
   const [erroDeEscrita, setErroDeEscrita] = useState<string | null>(null)
+  const [erroDeAcao, setErroDeAcao] = useState<string | null>(null)
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [enviando, setEnviando] = useState(false)
 
   const podeEscrever = usePodeEscrever('componentes')
 
-  // `listarComponentes` é passada direto por ser estável (função de módulo) e por a assinatura
-  // dela ser estruturalmente compatível com a que o hook pede — `FiltroDeComponentes`/`PaginaDe<T>`
-  // de um lado, `FiltroDeBusca`/`PaginaDeBusca<T>` do outro: nomes diferentes, mesma forma
-  // (compila, MEDIDO). Nada de lambda inline aqui: o hook a guarda num ref justamente para tolerar
-  // isso, mas passar a estável é mais claro.
-  const lista = useBuscaPaginada<ComponenteDto>({ buscar: listarComponentes })
+  const filtros = useMemo(() => ({ ordem: [ordem] }), [ordem])
+  const lista = useBuscaPaginada<ComponenteDto>({ buscar: buscarComponentes, filtros })
 
-  // Dois erros, e não um: o de LEITURA vem do hook e é apagado pela recarga seguinte; o de
-  // ESCRITA (conflito de código, 403) tem de sobreviver à recarga que o próprio salvar dispara.
-  // Um estado só faria a mensagem de duplicidade piscar e sumir — o defeito que a review da Task 11
-  // da Fase 1A chamou de "erro que pisca". É por causa DESTA divisão que a 9A podia viver com um
-  // `erro` único e a 9B não pode.
+  // O erro de LEITURA vem do hook e é apagado pela recarga seguinte; os de ESCRITA e de AÇÃO
+  // (conflito de código, 403) são estados da tela e sobrevivem à recarga que a própria ação dispara.
+  // Um estado só faria a mensagem de duplicidade piscar e sumir.
   const erroDeLeitura = lista.erro === null
     ? null
     : mensagemDeErro(lista.erro, 'Não foi possível carregar os componentes.')
+
+  function abrirPainel() {
+    setErroDeEscrita(null)
+    setIdReativavel(null)
+    setForm(FORMULARIO_VAZIO)
+    setPainelAberto(true)
+  }
+
+  function fecharPainel() {
+    setPainelAberto(false)
+    setForm(FORMULARIO_VAZIO)
+    setErroDeEscrita(null)
+    setIdReativavel(null)
+  }
+
+  // Desfecho de sucesso de um componente NOVO (ou reativado): fecha o painel e devolve a consulta ao
+  // padrão — busca, página, inativos e ordem —, para o item aparecer (decisão 7 da spec da 1F). A
+  // ordem é daqui e o resto é do hook; no mesmo handler os dois viram UMA requisição, então não há
+  // `recarregar` junto: o `voltarAoInicio` já recarrega, mesmo com a consulta já no padrão.
+  function concluirComSucesso() {
+    fecharPainel()
+    setErroDeAcao(null)
+    setOrdem('recentes')
+    lista.voltarAoInicio()
+  }
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
@@ -66,8 +115,7 @@ export function ComponentesPage() {
         }
         return
       }
-      setForm(FORMULARIO_VAZIO)
-      await lista.recarregar()
+      concluirComSucesso()
     } catch (e) {
       setErroDeEscrita(mensagemDeErro(e, 'Não foi possível salvar o componente.'))
     } finally {
@@ -80,20 +128,17 @@ export function ComponentesPage() {
   async function alternarAtivo(componente: ComponenteDto) {
     try {
       await definirAtivoComponente(componente.id, !componente.ativo)
-      setErroDeEscrita(null)
+      setErroDeAcao(null)
       await lista.recarregar()
     } catch (e) {
-      setErroDeEscrita(mensagemDeErro(e, 'Não foi possível alterar o componente.'))
+      setErroDeAcao(mensagemDeErro(e, 'Não foi possível alterar o componente.'))
     }
   }
 
   async function reativar(id: number) {
     try {
       await definirAtivoComponente(id, true)
-      setErroDeEscrita(null)
-      setIdReativavel(null)
-      setForm(FORMULARIO_VAZIO)
-      await lista.recarregar()
+      concluirComSucesso()
     } catch (e) {
       setErroDeEscrita(mensagemDeErro(e, 'Não foi possível reativar o componente.'))
     }
@@ -102,9 +147,12 @@ export function ComponentesPage() {
   const buscando = lista.textoDaBusca.trim() !== ''
 
   return (
-    <Pagina titulo="Componentes">
-      {podeEscrever && (
-        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
+    <Pagina
+      titulo="Componentes"
+      acao={podeEscrever && !painelAberto && <Botao onClick={abrirPainel}>Novo componente</Botao>}
+    >
+      {podeEscrever && painelAberto && (
+        <PainelDeEscrita titulo="Novo componente" aoEnviar={salvar} aoFechar={fecharPainel}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Código">
               {(id) => (
@@ -142,23 +190,23 @@ export function ComponentesPage() {
               />
             )}
           </Campo>
+          <BannerDeErro mensagem={erroDeEscrita} />
+          {idReativavel !== null && (
+            <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
+              Reativar o existente
+            </Botao>
+          )}
           <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…" className="self-start">
             Adicionar
           </Botao>
-        </form>
+        </PainelDeEscrita>
       )}
 
-      <BannerDeErro mensagem={erroDeEscrita ?? erroDeLeitura} />
-
-      {idReativavel !== null && (
-        <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
-          Reativar o existente
-        </Botao>
-      )}
+      <BannerDeErro mensagem={erroDeAcao ?? erroDeLeitura} />
 
       {/*
-        A barra de filtros é o que não cabia em 448px (spec §7). Em `max-w-3xl` os três controles
-        cabem lado a lado a partir de `sm`, e empilham no celular sem rolagem horizontal.
+        A barra de filtros é o que não cabia em 448px (spec §7). Em `max-w-3xl` os controles cabem
+        lado a lado a partir de `sm`, e empilham no celular sem rolagem horizontal.
       */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <div className="flex-1">
@@ -182,6 +230,7 @@ export function ComponentesPage() {
           />
           Mostrar inativos
         </label>
+        <SeletorDeOrdem opcoes={OPCOES_DE_ORDEM} valor={ordem} aoMudar={setOrdem} />
         <Campo rotulo="Por página">
           {(id) => (
             <select
@@ -214,7 +263,7 @@ export function ComponentesPage() {
           descricao={
             buscando
               ? `Nada corresponde a "${lista.textoDaBusca}".`
-              : podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined
+              : podeEscrever ? 'Use o botão Novo componente para criar o primeiro.' : undefined
           }
         />
       ) : (
