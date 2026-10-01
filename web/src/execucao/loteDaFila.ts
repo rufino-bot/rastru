@@ -157,7 +157,9 @@ function marcadas(lote: Lote, linhas: LinhaDoLote[]): { linha: LinhaDoLote; quan
     const texto = lote.quantidades[linha.chave]
     if (texto === undefined || linha.secao !== lote.secao) continue
     const { valor } = lerQuantidade(texto, linha.maximo)
-    // Quem chama só envia com tudo válido; uma linha que não lê não entra calada no corpo.
+    // A linha cujo texto não lê é descartada aqui, em silêncio. Quem impede que isso vire lote
+    // parcial é a página: `invalido` desabilita o envio e `enviarLote` recusa quando o número de
+    // itens devolvido difere do de linhas marcadas.
     if (valor !== null) saida.push({ linha, quantidade: valor })
   }
   return saida

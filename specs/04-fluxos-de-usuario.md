@@ -102,8 +102,9 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
      têm lote. Uma linha que não pode agir agora — Pedido pausado, ou "dá para iniciar 0" no pai —
      tem a caixa desabilitada, e o motivo é o que a linha já mostra.
    - **Uma seção por vez.** Com o primeiro item marcado, as caixas das outras seções ficam
-     desabilitadas e o cabeçalho delas diz "Conclua ou limpe a seleção de *A iniciar aqui*" (o nome da
-     seção em uso). A trava solta quando a seleção esvazia.
+     desabilitadas, e a seção travada que tem alguma linha visível que poderia ser marcada mostra no
+     cabeçalho a dica "Conclua ou limpe a seleção de *A iniciar aqui*" (o nome da seção em uso); sem
+     essa linha, o cabeçalho não traz dica nem "Marcar todos". A trava solta quando a seleção esvazia.
    - **"Marcar todos", por seção.** Fica no cabeçalho da seção e marca as linhas **visíveis depois do
      filtro** que podem agir; pula as desabilitadas. Com todas elas marcadas, vira "Desmarcar todos", e
      desmarca só elas. Sem linha que possa agir, o botão não aparece; nas outras seções, durante um

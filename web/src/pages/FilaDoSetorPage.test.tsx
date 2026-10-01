@@ -1605,6 +1605,29 @@ describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', (
     expect(screen.getByRole('checkbox', { name: MARCAR_SUPORTE })).toHaveProperty('checked', true)
   })
 
+  it('lote aceito apaga o aviso de item que saiu da fila', async () => {
+    vi.useFakeTimers()
+    const { fetchMock, getsDaFila } = montarFetch(
+      [DOIS_A_INICIAR, fila({ aIniciar: [linha(SUPORTE)] }), fila()],
+      { [INICIOS]: () => respostaJson([], 201) },
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    marcar(MARCAR_SUPORTE)
+    marcar(MARCAR_TAMPA)
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+    expect(screen.getByText(SAIU_DO_LOTE)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar 1 item' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+
+    expect(postsDe(fetchMock, INICIOS)).toHaveLength(1)
+    expect(getsDaFila()).toBe(3)
+    expect(screen.queryByText(SAIU_DO_LOTE)).toBeNull()
+  })
+
   it('linha marcada que fica bloqueada continua marcada e trava o botao', async () => {
     vi.useFakeTimers()
     const SUPORTE_PAUSADO = no({ pausa: PAUSA })

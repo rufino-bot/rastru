@@ -371,27 +371,27 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `POST /terminos` *(Operador)* — terminar vários nós, tudo ou nada, como `POST /inicios`. Body:
   `{ setorId, itens: [{ estruturaItemId, ordem, quantidade }] }`; cada quantidade passa a aguardar
   coleta no mesmo Setor e passo. 201 com um movimento de Término por item, na ordem dos itens.
-  - **Recusa na entrada**, antes de abrir a transação e nesta ordem: `itens` ausente ou vazio → 400
-    `LoteVazio`; mais de **100** itens (`ApontamentoUseCase.TamanhoMaximoDoLote`, o mesmo teto de página
-    de `GET /pedidos`) → 400 `LoteGrandeDemais`; quantidade de algum item fora da regra → 400
-    `QuantidadeInvalida`, com a frase da rota individual; o mesmo nó mais de uma vez no Iniciar, ou o
-    mesmo par nó + `ordem` no Terminar → 400 `ItemRepetido`, e a `mensagem` diz qual ("O nó 7 aparece
-    mais de uma vez no lote." / "O nó 7 no passo 2 aparece mais de uma vez no lote."); por fim, Setor
-    inexistente → 404 sem corpo.
-  - **A primeira recusa de negócio aborta tudo.** Os itens são avaliados na ordem do corpo; a primeira
-    recusa devolve **o código e o status que a rota individual daria** — 409 `SaldoInsuficiente`,
-    `SemRoteiro`, `NaoEhOPrimeiroPasso`, `FilhosInsuficientes`, `PedidoPausado`, `PedidoFechado`; 404
-    sem corpo para nó inexistente; 400 `QuantidadeInvalida` para o produto por filho que não cabe na
-    coluna — e **nada é gravado**: o que os itens anteriores escreveram é desfeito junto com a
-    transação. A `mensagem` **nomeia o item** recusado. `SemRoteiro`, `NaoEhOPrimeiroPasso` e
-    `SaldoInsuficiente` já trazem o nó na frase da rota individual e passam iguais; toda outra recusa
-    do núcleo ganha o prefixo "«nome do nó»: " (a descrição da regra 19), como `Calço: O Pedido
-    PED-01 está pausado.`. O `ConflitoDeConcorrencia` continua com a frase genérica, porque é do lote
-    inteiro.
-  - **Perfis e travas.** Os mesmos das rotas de um nó (`Operador` e `Administrador`). Antes do primeiro
-    item o lote trava, na ordem fixa da spec da Fase 3 (seção 8.1): no Iniciar, os itens e os filhos
-    de cada um, em ordem crescente de Id, e depois os Pedidos deles; no Terminar, só os itens, e nenhum
-    Pedido, como a rota de um nó.
+- **Lote — recusa na entrada** (`POST /inicios` e `POST /terminos`), antes de abrir a transação e nesta ordem: `itens` ausente ou vazio → 400
+  `LoteVazio`; mais de **100** itens (`ApontamentoUseCase.TamanhoMaximoDoLote`, o mesmo teto de página
+  de `GET /pedidos`) → 400 `LoteGrandeDemais`; quantidade de algum item fora da regra → 400
+  `QuantidadeInvalida`, com a frase da rota individual; o mesmo nó mais de uma vez no Iniciar, ou o
+  mesmo par nó + `ordem` no Terminar → 400 `ItemRepetido`, e a `mensagem` diz qual ("O nó 7 aparece
+  mais de uma vez no lote." / "O nó 7 no passo 2 aparece mais de uma vez no lote."); por fim, Setor
+  inexistente → 404 sem corpo.
+- **Lote — a primeira recusa de negócio aborta tudo** (`POST /inicios` e `POST /terminos`). Os itens são avaliados na ordem do corpo; a primeira
+  recusa devolve **o código e o status que a rota individual daria** — 409 `SaldoInsuficiente`,
+  `SemRoteiro`, `NaoEhOPrimeiroPasso`, `FilhosInsuficientes`, `PedidoPausado`, `PedidoFechado`; 404
+  sem corpo para nó inexistente; 400 `QuantidadeInvalida` para o produto por filho que não cabe na
+  coluna — e **nada é gravado**: o que os itens anteriores escreveram é desfeito junto com a
+  transação. A `mensagem` **nomeia o item** recusado. `SemRoteiro`, `NaoEhOPrimeiroPasso` e
+  `SaldoInsuficiente` já trazem o nó na frase da rota individual e passam iguais; toda outra recusa
+  do núcleo ganha o prefixo "«nome do nó»: " (a descrição da regra 19), como `Calço: O Pedido
+  PED-01 está pausado.`. O `ConflitoDeConcorrencia` continua com a frase genérica, porque é do lote
+  inteiro.
+- **Lote — perfis e travas** (`POST /inicios` e `POST /terminos`). Os mesmos das rotas de um nó (`Operador` e `Administrador`). Antes do primeiro
+  item o lote trava, na ordem fixa da spec da Fase 3 (seção 8.1): no Iniciar, os itens e os filhos
+  de cada um, em ordem crescente de Id, e depois os Pedidos deles; no Terminar, só os itens, e nenhum
+  Pedido, como a rota de um nó.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
   `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, quantidade }] }`.
   **O destino é sempre calculado** (spec da Fase 3D, §2.2): o próximo passo, o local de expedição
@@ -479,7 +479,7 @@ Setor e números quando ajudam.
 
 | Status | Código | Quando |
 |---|---|---|
-| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (no lote, a de qualquer item, com a mesma frase) |
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (no lote, a de qualquer item, na entrada, com a mesma frase da rota individual; a do produto por filho, já dentro da transação, ganha o prefixo "{nome}: ") |
 | 400 | `LoteVazio` | `POST /inicios` ou `POST /terminos` sem `itens`, ou com a lista vazia |
 | 400 | `LoteGrandeDemais` | mais de 100 itens no lote (`ApontamentoUseCase.TamanhoMaximoDoLote`) |
 | 400 | `ItemRepetido` | o mesmo nó em `POST /inicios`, ou o mesmo nó e passo em `POST /terminos`; a `mensagem` diz qual |

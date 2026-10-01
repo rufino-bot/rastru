@@ -257,6 +257,7 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
     try {
       await mandar()
       setLote(null)
+      setAviso(null)
       await recarregar()
     } catch (e) {
       setErroDoLote(mensagemDeErro(e, 'Não foi possível registrar.'))
