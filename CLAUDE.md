@@ -608,6 +608,19 @@ residual aceito na spec — e um teste que o recebe fica vermelho. Medido na Tas
 MSBuild a rodar um projeto de teste por vez (confirmado por amostragem de processo — nenhum
 `testhost` de dois projetos coexiste) e a suíte fica verde onde, sem `-m:1`, era intermitente.
 
+**O `-m:1` não basta *dentro* de um assembly — `Api.Tests` roda sem paralelização entre classes.**
+Medido em 2026-10-01: com a API parada e `dotnet test Rastreamento.slnx -m:1`, a suíte falhava
+intermitentemente, sempre em `Api.Tests` — 4 execuções vermelhas em 7 na branch do Plano 2 dos filtros
+e 1 em 5 na `main` (medição do usuário); na sessão de nuvem (4 núcleos, binários da `main` em
+`1594c23`), 1 em 10 com o paralelismo padrão e 2 em 10 com `-- xUnit.MaxParallelThreads=16` (não se
+verificou que esse parâmetro surtiu efeito: é uma amostra só, 3 em 20). O ciclo é de classes paralelas
+do **mesmo** processo, que o `-m:1` não alcança. Por isso o assembly declara
+`[assembly: CollectionBehavior(DisableTestParallelization = true)]`
+(`ParalelizacaoDaSuiteDeApi.cs`), e o teste-guarda é
+`Paralelizacao_entre_classes_fica_desligada_neste_assembly`, que morre se o atributo sair. O atributo
+serializa classes, não a concorrência que um teste dispara dentro de si (`CorridaNaQueimaDeFamiliaTests`).
+`Infrastructure.Tests` continua paralela, porque não apareceu em nenhuma dessas medições.
+
 ```bash
 docker compose up -d
 # aplicar, uma vez, no banco `Rastreamento` de localhost:1433 (sa / Your_strong_Pass123):
