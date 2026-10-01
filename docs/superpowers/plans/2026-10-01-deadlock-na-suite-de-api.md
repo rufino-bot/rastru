@@ -277,7 +277,7 @@ do `CLAUDE.md` da Task 1) entra na review de branch inteira.
 
 **Files:**
 - Modify: `CLAUDE.md` (o parágrafo da Task 1, com os números "depois")
-- Ledger: `.superpowers/sdd/2026-10-01-deadlock-suite/` (`medicao-antes/`, `medicao-depois/`, `progress.md`)
+- Ledger: `.superpowers/sdd/2026-10-01-deadlock-na-suite-de-api/` (`medicao-antes/`, `medicao-depois/`, `progress.md`)
 
 - [ ] **Passo 1:** no HEAD da branch, `dotnet build Rastreamento.slnx -warnaserror`, depois 10 execuções de
   `dotnet test Rastreamento.slnx -m:1 --no-build --logger "trx;LogFilePrefix=execN" --results-directory <dir>/execN`

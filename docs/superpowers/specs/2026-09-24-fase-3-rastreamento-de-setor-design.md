@@ -643,6 +643,19 @@ Medido em 2026-10-01 como 500, com a `SqlException` 1205 crua, em `POST /estrutu
 leitura do catálogo e o planejamento da cópia ficam fora da transação (lê as três tabelas da receita
 inteiras, e as travaria por faixa sob SERIALIZABLE).
 
+**Custo novo, registrado e não consertado** (spec do conserto, seção 3.6): a leitura de volta da
+árvore, agora dentro da transação SERIALIZABLE, foi medida pelo revisor da branch, em 2026-10-01, no
+banco de dev (9 linhas em 3 Agrupamentos), tomando `RangeS-S` em toda chave de `PK_EstruturaItem`
+(varredura clusterizada, não busca por `IX_EstruturaItem_Agrupamento`). Duas escritas concorrentes de
+criar Peça ou acrescentar filho, **mesmo em Agrupamentos diferentes**, formam então um ciclo (X na
+chave recém-inserida de cada uma, `RangeS-S` pedido na da outra) que antes não existia, porque a
+leitura rodava depois do commit. O retry de 1205 absorve (a perdedora refaz tudo); com três ou mais
+escritores, ou receitas longas, o 409 é possível, e num 409 nada foi gravado. Depende do plano de
+consulta, e com tabelas maiores o otimizador pode usar o índice por Agrupamento (não medido). A leitura
+**fica** dentro da transação, por decisão: fora dela, uma falha depois do commit deixaria o 409
+ambíguo e convidaria a uma Peça duplicada no reenvio. Conserto futuro: a leitura usar o índice por
+Agrupamento, e remedir. O `EditarNo` já lê de volta dentro da transação do mesmo modo.
+
 ### 8.2 Catálogo de erros
 
 `erro` é o código pelo qual o front decide; `mensagem`, a frase para o operador, que nomeia nó, Setor e

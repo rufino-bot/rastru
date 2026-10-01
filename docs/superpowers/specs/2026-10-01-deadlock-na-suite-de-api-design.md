@@ -169,6 +169,32 @@ Como 547 não é 1205/1222, sobe cru, como 500. O caso exige um Pedido `Aberto` 
 editando a mesma estrutura ao mesmo tempo, um apagando o pai enquanto o outro acrescenta filho. Fica
 registrado no comentário de `AcrescentarFilho` e no ledger, sem conserto nesta branch.
 
+**Gêmeo em `CriarPeca`.** O Agrupamento também é lido fora da transação. Um
+`DELETE /agrupamentos/{id}` concorrente de um Agrupamento ainda vazio (a única forma de ele passar a
+guarda `AgrupamentoNaoVazio`), que faça commit antes do INSERT da Peça, esbarra na FK de
+`AgrupamentoId` (547) e sobe cru, como 500. Mesmo pressuposto e mesma conclusão do residual acima.
+Anterior a esta branch (antes, a gravação também lia o Agrupamento fora de qualquer transação) e não
+piorado por ela; registrado no comentário de `CriarPeca`.
+
+**Segundo residual: a leitura de volta, sob SERIALIZABLE, trava a tabela inteira.** A leitura de
+volta dentro da transação (`MontadorDeArvoreDeEstrutura.MontarAsync`, que chama
+`EstruturaRepository.ListarDoAgrupamentoAsync`: `WHERE AgrupamentoId = @p ORDER BY Id`) foi medida
+pelo revisor da branch, em 2026-10-01, no banco de dev. Ela tomou `RangeS-S` em **toda** chave de
+`PK_EstruturaItem`: varredura do índice clusterizado, não busca por `IX_EstruturaItem_Agrupamento`.
+O banco de dev tinha 9 linhas em 3 Agrupamentos. Consequência: duas chamadas concorrentes de criar
+Peça ou acrescentar filho, **mesmo em Agrupamentos diferentes**, seguram X na chave que cada uma
+acabou de inserir e depois pedem `RangeS-S` na da outra. É um ciclo de deadlock que não existia
+antes, quando a leitura de volta rodava depois do commit, em READ COMMITTED. O retry absorve: a
+perdedora refaz a escrita inteira. Com três ou mais escritores concorrentes, ou receitas longas, o
+409 é possível, e num 409 nada foi gravado. Depende do plano de consulta: com tabelas maiores o
+otimizador pode preferir a busca pelo índice do Agrupamento (não medido). O `EditarNo` já lê de volta
+dentro da transação do mesmo modo.
+
+Decisão do controlador, mantida: a leitura de volta **fica** dentro da transação. Fora dela, uma
+falha depois do commit tornaria o 409 ambíguo (a Peça foi gravada, mas o cliente recebe "conflito") e
+convidaria a uma Peça duplicada no reenvio. Registrado, não consertado. Conserto futuro: fazer a
+leitura usar o índice por Agrupamento e remedir.
+
 ## 4. Documentação
 
 - **Spec da Fase 3, seção 8.1:** uma emenda de 2026-10-01 dizendo que criar Peça e acrescentar filho

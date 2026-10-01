@@ -331,9 +331,12 @@ export function AgrupamentoDetalhePage() {
         // (`QuantidadeAbaixoDoMovimentado`, `ConflitoDeConcorrencia`) são exatamente esse caso, e
         // as pílulas de posição ficariam com saldo velho ao lado da frase do servidor. Recarrega
         // SEM fechar o painel (`fecharPainel` não é chamado): o operador vê a frase e não perde o
-        // que digitou. Só no `editar` — `acrescentarFilho` não estava no achado da review, e os
-        // três conflitos que ele emite (`CicloNaReceita`/`EstruturaProfundaDemais`/
-        // `EstruturaGrandeDemais`) não são do tipo "dado ficou velho".
+        // que digitou. Só no `editar` — `acrescentarFilho` não estava no achado da review. Os três
+        // conflitos de `PlanejadorDeCopia` que ele emite (`CicloNaReceita`/`EstruturaProfundaDemais`/
+        // `EstruturaGrandeDemais`) não são do tipo "dado ficou velho"; o quarto,
+        // `ConflitoDeConcorrencia` (desde que a gravação roda na transação da execução), é de
+        // disputa, não de tela velha, e num 409 nada foi gravado — a árvore na tela continua
+        // valendo, então também não recarrega.
         if (painel.tipo === 'editar') await carregar(agrupamentoId)
         return
       }

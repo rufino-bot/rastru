@@ -10,9 +10,11 @@ namespace Rastreamento.Application.Tests.Estrutura;
 
 /// <summary>
 /// Criar Peca e acrescentar filho gravam a arvore DENTRO da transacao da execucao (retry de deadlock e
-/// 409 no esgotamento, spec do conserto do deadlock, secao 3). O conflito simulado por
-/// `FakeExecucaoRepo.ConflitoNaProximaTransacao` so e lancado se a gravacao passar por
-/// `EmTransacaoAsync`: gravar fora dela deixaria o resultado em sucesso, ou gravaria antes do conflito.
+/// 409 no esgotamento, spec do conserto do deadlock, secao 3). Com
+/// `FakeExecucaoRepo.ConflitoNaProximaTransacao`, a proxima chamada a `EmTransacaoAsync` lanca o
+/// conflito simulado. Se a gravacao rodasse FORA dela, o teste morre por uma de tres vias: o resultado
+/// seria sucesso, `GravacoesDeArvore` contaria a gravacao, ou o fake recusaria com a guarda
+/// `GravarArvoreAsync fora de EmTransacaoAsync.`.
 /// </summary>
 public class GravacaoDeArvoreNaTransacaoTests
 {

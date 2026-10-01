@@ -67,8 +67,10 @@ export interface EdicaoDeNo {
 
 /**
  * Os códigos de conflito (409) que `EstruturaController.Recusar` pode emitir para os endpoints de
- * escrita. Nem toda função pode devolver todos: `CriarPeca`/`AcrescentarFilho` só emitem os três
- * de `PlanejadorDeCopia` (ciclo/profundidade/tamanho); `ExcluirNo` emite `PedidoNaoAberto`. O tipo
+ * escrita. Nem toda função pode devolver todos: `CriarPeca`/`AcrescentarFilho` emitem os três
+ * de `PlanejadorDeCopia` (ciclo/profundidade/tamanho) e, desde que gravam a árvore na transação da
+ * execução (spec `2026-10-01-deadlock-na-suite-de-api-design.md`), também `ConflitoDeConcorrencia`;
+ * `ExcluirNo` emite `PedidoNaoAberto`. O tipo
  * fica genérico porque o formato do corpo é o mesmo `{ erro, mensagem? }` em todos — restringir por
  * função não ganharia nada.
  *

@@ -13,8 +13,8 @@ using System.Reflection;
 // `CenarioDaFase3NaApi.DisposeAsync`; as outras duas, 409 ConflitoDeConcorrencia com o retry esgotado.
 //
 // Por que nao uma [Collection] seletiva: ela depende de lembrar de por cada classe nova nela, e
-// esquecer falha em silencio, com vermelho intermitente semanas depois. E o ciclo medido e entre nos
-// sem relacao, entao nao ha recorte de "classes que disputam" que se possa enumerar.
+// esquecer falha em silencio, com vermelho intermitente semanas depois. E o ciclo medido (deadlock
+// graph de 2026-09-26, emenda da secao 8.1 da spec da Fase 3) e entre nos sem relacao, entao nao ha recorte de "classes que disputam" que se possa enumerar.
 //
 // Nao muda a concorrencia DENTRO de um teste (CorridaNaQueimaDeFamiliaTests, as corridas da execucao):
 // o atributo serializa colecoes (classes), nao as Tasks que um teste lanca.

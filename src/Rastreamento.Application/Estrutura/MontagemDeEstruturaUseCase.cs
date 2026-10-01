@@ -172,6 +172,11 @@ public sealed class MontagemDeEstruturaUseCase
     // o livro. A leitura do catalogo e o planejamento ficam FORA, de proposito: `LerReceitaCompletaAsync`
     // le as tres tabelas da receita padrao inteiras, e sob SERIALIZABLE as travaria por faixa ate o
     // commit, abrindo um ciclo com `ReceitaPadraoRepository` (spec do conserto, secao 3.2).
+    //
+    // Residual conhecido, nao consertado (secao 3.6 da spec do conserto, "Gemeo em CriarPeca"): o
+    // Agrupamento e lido FORA da transacao. Um `DELETE /agrupamentos/{id}` concorrente de um Agrupamento
+    // ainda vazio, com commit antes do INSERT, faz a Peca esbarrar na FK de `AgrupamentoId` (547), que
+    // nao e 1205/1222 e sobe cru, como 500. Anterior a esta mudanca.
     return await _execucao.ExecutarAsync(async () =>
     {
       var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
