@@ -200,9 +200,12 @@ domínio, não estilo.
 
 1. **"Reativar o existente"** (Setores, Materiais, Componentes) hoje vive **fora** do formulário,
    como irmão dele. Passa para dentro do painel, junto do banner de erro: ele só aparece depois de
-   um salvar que falhou por conflito, e nesse caminho o painel continua aberto. Há testes que
-   dependem do formulário conservar o que foi digitado depois de uma reativação bem-sucedida
-   (`ComponentesPage.test.tsx`) — continuam válidos, porque o painel permanece aberto nesse fluxo.
+   um salvar que falhou por conflito, e nesse caminho o painel continua aberto.
+   **Corrigido em 2026-10-01, na escrita do plano:** esta frase dizia que testes de
+   `ComponentesPage.test.tsx` dependem de o formulário *conservar* o digitado depois de uma
+   reativação bem-sucedida. É o contrário — o teste *"reativar com sucesso limpa o formulario"*
+   afirma que ele é limpo, e o código faz isso nas três telas. Reativar com sucesso é um desfecho de
+   sucesso como o salvar: fecha o painel e devolve a consulta ao padrão (decisão D7 do plano da 1F).
 2. **`EstadoVazio` mente depois desta fase.** As cinco telas do escopo dizem *"Use o formulário
    acima para criar o primeiro"* (ou variação), e o formulário deixa de estar acima. O texto passa a
    referenciar o botão. `SetoresPage.test.tsx` afirma essa frase literal e muda junto. Em Pedidos só
