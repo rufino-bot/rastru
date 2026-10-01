@@ -630,6 +630,32 @@ contagem delas, posições, livro do nó, Roteiro do nó) também podem ser a v�
 uma escrita, e têm o mesmo retry de 1205 (no máximo 3 tentativas no total), sem transação explícita,
 com o mesmo 409 `ConflitoDeConcorrencia` se as 3 terminarem em deadlock — antes, a vítima subia como 500 com a `SqlException` crua.
 
+**Emenda de 2026-10-01** (spec `2026-10-01-deadlock-na-suite-de-api-design.md`, seção 3): criar Peça
+(`POST /agrupamentos/{agrupamentoId}/estrutura`) e acrescentar filho (`POST /estrutura/{id}/filhos`) gravam a árvore
+dentro da transação da execução (`EmTransacaoAsync`), com o mesmo retry de 1205 (no máximo 3 tentativas
+no total) e o mesmo 409 `ConflitoDeConcorrencia` no esgotamento e em 1222. **Sem trava de nó**:
+acrescentar filho é livre, inclusive a nó já iniciado (seção 4.7), e a gravação não valida nada contra o
+livro. O motivo é a premissa refutada: o comentário de `EstruturaRepository.GravarArvoreAsync` dizia que
+gravar árvore ficava fora do esquema de trava "porque só insere nós NOVOS, que nenhuma escrita da
+execução disputa", e o range lock de fim de índice da emenda de 2026-09-26 mostra que nó novo disputa, sim.
+Medido em 2026-10-01 como 500, com a `SqlException` 1205 crua, em `POST /estrutura/{id}/filhos`.
+`GravarArvoreAsync` deixou de abrir a própria transação e recusa rodar fora de `EmTransacaoAsync`. A
+leitura do catálogo e o planejamento da cópia ficam fora da transação (lê as três tabelas da receita
+inteiras, e as travaria por faixa sob SERIALIZABLE).
+
+**Custo novo, registrado e não consertado** (spec do conserto, seção 3.6): a leitura de volta da
+árvore, agora dentro da transação SERIALIZABLE, foi medida pelo revisor da branch, em 2026-10-01, no
+banco de dev (9 linhas em 3 Agrupamentos), tomando `RangeS-S` em toda chave de `PK_EstruturaItem`
+(varredura clusterizada, não busca por `IX_EstruturaItem_Agrupamento`). Duas escritas concorrentes de
+criar Peça ou acrescentar filho, **mesmo em Agrupamentos diferentes**, formam então um ciclo (X na
+chave recém-inserida de cada uma, `RangeS-S` pedido na da outra) que antes não existia, porque a
+leitura rodava depois do commit. O retry de 1205 absorve (a perdedora refaz tudo); com três ou mais
+escritores, ou receitas longas, o 409 é possível, e num 409 nada foi gravado. Depende do plano de
+consulta, e com tabelas maiores o otimizador pode usar o índice por Agrupamento (não medido). A leitura
+**fica** dentro da transação, por decisão: fora dela, uma falha depois do commit deixaria o 409
+ambíguo e convidaria a uma Peça duplicada no reenvio. Conserto futuro: a leitura usar o índice por
+Agrupamento, e remedir. O `EditarNo` já lê de volta dentro da transação do mesmo modo.
+
 ### 8.2 Catálogo de erros
 
 `erro` é o código pelo qual o front decide; `mensagem`, a frase para o operador, que nomeia nó, Setor e

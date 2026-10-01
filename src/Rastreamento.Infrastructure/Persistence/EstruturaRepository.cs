@@ -1,4 +1,3 @@
-using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -31,25 +30,29 @@ public class EstruturaRepository : IEstruturaRepository
   }
 
   /// <summary>
-  /// Transacao explicita, mesmo molde de `ReceitaPadraoRepository.Substituir`: pai antes de filho,
-  /// porque o filho precisa do Id do pai em `EstruturaPaiId`. Devolve o Id da raiz — ver o XML doc
-  /// de `IEstruturaRepository.GravarArvoreAsync` para o porque do desvio do `Task` do brief.
+  /// EXIGE a transacao de `IExecucaoRepository.EmTransacaoAsync`, aberta pelo chamador: sem ela lanca
+  /// `InvalidOperationException`, como `ExecucaoRepository.TravarNosAsync`. Pai antes de filho, porque
+  /// o filho precisa do Id do pai em `EstruturaPaiId`. Devolve o Id da raiz — ver o XML doc de
+  /// `IEstruturaRepository.GravarArvoreAsync` para o porque do desvio do `Task` do brief.
   ///
-  /// Residual conhecido, e deliberadamente FORA do escopo desta task: ao contrario de
-  /// `ReceitaPadraoRepository.Substituir`, este metodo NAO traduz deadlock/lock-timeout (1205/1222)
-  /// do SERIALIZABLE em `ConflitoDeConcorrenciaException` — nenhum teste desta task cobre essa
-  /// corrida, e a traducao sem teste que a mate seria guarda encenada. Se a Task 4/5 tocar
-  /// concorrencia em `EstruturaItem`, considerar extrair o mesmo padrao. *Fase 3:* a edicao e a
-  /// exclusao de no entraram no esquema de trava da execucao (`IExecucaoRepository.EmTransacaoAsync`,
-  /// spec secao 8.1), que traduz 1205/1222; gravar arvore continua fora dele, porque so insere nos
-  /// NOVOS, que nenhuma escrita da execucao disputa.
+  /// Por que na transacao da execucao: inserir um no NOVO disputa, sim, com a execucao — uma leitura
+  /// SERIALIZABLE que varre ate o fim de um indice esparso (`EstruturaRoteiro`, `Movimentacao`) trava o
+  /// gap depois da ultima linha, e o no novo de outra transacao cai nesse gap (emenda de 2026-09-26 da
+  /// secao 8.1 da spec da Fase 3). Medido em 2026-10-01 como 500, com a `SqlException` 1205 crua, em
+  /// `POST /estrutura/{id}/filhos`. Dentro de `EmTransacaoAsync` o deadlock repete e o esgotamento vira
+  /// `ConflitoDeConcorrenciaException`, sem uma segunda politica de retry aqui.
+  ///
+  /// A atomicidade ("arvore toda ou nada") vem da transacao do chamador: sem a guarda, um chamador que
+  /// a esquecesse gravaria meia arvore em silencio quando um no do meio falhasse.
   /// </summary>
   public async Task<int> GravarArvoreAsync(
       int agrupamentoId, int? estruturaPaiId, NoParaGravar raiz, CancellationToken ct)
   {
-    await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+    if (_db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException(
+          "GravarArvoreAsync so vale dentro de EmTransacaoAsync: fora de transacao uma falha no meio da arvore deixaria meia arvore gravada.");
+
     var itemRaiz = await GravarNo(agrupamentoId, estruturaPaiId, raiz, ct);
-    await tx.CommitAsync(ct);
     return itemRaiz.Id;
   }
 

@@ -321,10 +321,11 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — cinco códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — seis códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
-  levam `mensagem` junto do `erro`; `PedidoNaoAberto` não — mesmo precedente do
+  levam `mensagem` junto do `erro`, e o `ConflitoDeConcorrencia` também (a frase de
+  `CodigosDaExecucao.MensagemDeConflito`); `PedidoNaoAberto` não — mesmo precedente do
   `DELETE /agrupamentos/{id}`.
 
   | Código | Onde | Motivo |
@@ -334,6 +335,7 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
   | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
+  | `ConflitoDeConcorrencia` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}`, `DELETE /estrutura/{id}` (e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento") | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na escrita; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`; o `PUT` e o `DELETE` já podiam emitir desde a Fase 3, e os dois `POST` desde 2026-10-01 |
 
   `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas
   contra receita corrompida ou cópia recursiva desgovernada, por isso não entram em

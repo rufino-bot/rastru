@@ -22,6 +22,13 @@ public class FakeEstruturaRepo : IEstruturaRepository
 
   public int Saves { get; private set; }
 
+  /// <summary>
+  /// Preenchido pelo construtor de <see cref="FakeExecucaoRepo"/>: quando presente e devolve `false`,
+  /// `GravarArvoreAsync` recusa, como o repositorio real recusa fora de `EmTransacaoAsync`. Fake usado
+  /// sem `FakeExecucaoRepo` fica sem a guarda.
+  /// </summary>
+  public Func<bool>? EstaEmTransacao { get; set; }
+
   public Task<(IReadOnlyList<(int Pai, int Filho, decimal Qtd)> Filhos,
         IReadOnlyList<(int Comp, int Material, decimal Qtd)> Materiais,
         IReadOnlyList<(int Comp, int Setor, int Ordem)> Roteiro)>
@@ -32,6 +39,9 @@ public class FakeEstruturaRepo : IEstruturaRepository
   public Task<int> GravarArvoreAsync(
       int agrupamentoId, int? estruturaPaiId, NoParaGravar raiz, CancellationToken ct)
   {
+    if (EstaEmTransacao is { } estaEmTransacao && !estaEmTransacao())
+      throw new InvalidOperationException("GravarArvoreAsync fora de EmTransacaoAsync.");
+
     // A Task 4 e a primeira a semear `Itens` DIRETO (para montar um no ja existente antes de
     // AcrescentarFilho/EditarNo/ExcluirNo) e DEPOIS gravar um no novo no mesmo teste — antes disso
     // nenhum teste combinava as duas coisas. Sem este ajuste, um teste que insere `Itens.Add(new

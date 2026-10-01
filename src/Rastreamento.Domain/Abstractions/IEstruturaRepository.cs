@@ -16,7 +16,8 @@ public interface IEstruturaRepository
       LerReceitaCompletaAsync(CancellationToken ct);
 
   /// <summary>
-  /// Grava a arvore inteira numa transacao. Arvore toda ou nada. Devolve o Id gerado da RAIZ —
+  /// Grava a arvore inteira numa transacao. Arvore toda ou nada. EXIGE transacao aberta pelo chamador
+  /// (`IExecucaoRepository.EmTransacaoAsync`): e dela que vem o "toda ou nada". Devolve o Id gerado da RAIZ —
   /// desvio deliberado do `Task` (void) do brief da Task 3: sem o Id de volta, o caso de uso nao
   /// tem como montar o `EstruturaItemDto` de retorno (o Agrupamento pode ja ter outras Pecas, entao
   /// "a ultima gravada" nao e identificavel sem esta informacao). Registrado no relatorio da Task 3.
