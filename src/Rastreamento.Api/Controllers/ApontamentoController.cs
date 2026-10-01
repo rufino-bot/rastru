@@ -5,8 +5,9 @@ using Rastreamento.Application.Execucao;
 namespace Rastreamento.Api.Controllers;
 
 /// <summary>
-/// O que o Operador registra no Setor — iniciar, terminar — e a fila que ele le. Sem `[Route]` de
-/// classe: as rotas de no sao `estrutura/{id}/...` (o prefixo da Fase 2) e a fila e `setores/{id}/fila`.
+/// O que o Operador registra no Setor — iniciar, terminar, de um no ou em lote — e a fila que ele le.
+/// Sem `[Route]` de classe: as rotas de no sao `estrutura/{id}/...` (o prefixo da Fase 2), as de lote sao
+/// `inicios` e `terminos` (no molde de `entregas`) e a fila e `setores/{id}/fila`.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -38,6 +39,23 @@ public class ApontamentoController : ExecucaoControllerBase
   {
     if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
     return Traduzir(await _apontamento.Terminar(id, dto, usuarioId, ct), criado: true);
+  }
+
+  /// <summary>Spec dos filtros e do lote, secao 6.1: os mesmos perfis da rota de um no.</summary>
+  [HttpPost("inicios")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> IniciarEmLote([FromBody] LoteDeInicioDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _apontamento.IniciarEmLote(dto, usuarioId, ct), criado: true);
+  }
+
+  [HttpPost("terminos")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> TerminarEmLote([FromBody] LoteDeTerminoDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _apontamento.TerminarEmLote(dto, usuarioId, ct), criado: true);
   }
 
   [HttpGet("setores/{id:int}/fila")]

@@ -25,6 +25,19 @@ public sealed record InicioDto(int SetorId, decimal Quantidade);
 
 public sealed record TerminoDto(int SetorId, int Ordem, decimal Quantidade);
 
+public sealed record ItemDeInicioDto(int EstruturaItemId, decimal Quantidade);
+
+/// <summary>
+/// Iniciar varios nos no mesmo Setor, tudo ou nada (spec dos filtros e do lote, secao 6). `Itens`
+/// anulavel de proposito: ausente vira 400 `LoteVazio` com frase, como a lista vazia.
+/// </summary>
+public sealed record LoteDeInicioDto(int SetorId, IReadOnlyList<ItemDeInicioDto>? Itens);
+
+public sealed record ItemDeTerminoDto(int EstruturaItemId, int Ordem, decimal Quantidade);
+
+/// <summary>Terminar varios nos no mesmo Setor, tudo ou nada. Ver <see cref="LoteDeInicioDto"/>.</summary>
+public sealed record LoteDeTerminoDto(int SetorId, IReadOnlyList<ItemDeTerminoDto>? Itens);
+
 /// <summary>
 /// `Posicao`: `AguardandoColeta` (com `SetorId` e `Ordem`) ou `AguardandoMontagem` (com `SetorId`, sem
 /// `Ordem`). Tudo anulavel de proposito: um corpo incompleto vira 400 `OrigemInvalida` com frase, e nao

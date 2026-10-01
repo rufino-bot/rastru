@@ -75,11 +75,26 @@ public class ExecucaoRepository : IExecucaoRepository
   /// cegas so atrasaria o 409 sem mudar o desfecho.
   /// </summary>
   public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct) =>
+      EmTransacaoAsync(trabalho, _ => true, ct);
+
+  /// <summary>
+  /// A mesma transacao, com a decisao de commitar nas maos de `confirmar`. Recusada, a transacao volta
+  /// (`RollbackAsync`) e o change tracker e limpo — o que o `trabalho` salvou ja nao esta no banco, e o
+  /// que ficou pendente nao pode vazar para o proximo `SalvarAlteracoesAsync` do mesmo contexto. O
+  /// retry de deadlock continua envolvendo a tentativa inteira, recusa incluida.
+  /// </summary>
+  public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, Func<T, bool> confirmar, CancellationToken ct) =>
       ComRetryDeDeadlockAsync(async () =>
       {
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var resultado = await trabalho();
-        await tx.CommitAsync(ct);
+        if (confirmar(resultado))
+          await tx.CommitAsync(ct);
+        else
+        {
+          await tx.RollbackAsync(ct);
+          _db.ChangeTracker.Clear();
+        }
         return resultado;
       }, ct);
 
@@ -270,6 +285,32 @@ public class ExecucaoRepository : IExecucaoRepository
         .AsNoTracking()
         .SingleOrDefaultAsync(ct);
     return pedido is null ? null : new PedidoTravado(pedido.Id, pedido.Numero, pedido.Status);
+  }
+
+  /// <summary>
+  /// Dois passos, pelo mesmo motivo de <see cref="ObterPedidoDoNoParaEscritaAsync"/>: os PedidoIds saem de
+  /// um JOIN comum que nao toca `dbo.Pedido`, e SO ENTAO cada linha de Pedido e lida ja com UPDLOCK, por
+  /// <see cref="TravarPedidoAsync"/>. Ler o Pedido com S antes (um JOIN ate ele, como o de
+  /// <see cref="ObterPedidoDoNoAsync"/>) e depois pedir U na mesma linha e a conversao que fazia o
+  /// deadlock PK_Pedido. Um comando por Pedido, em ordem crescente, como <see cref="TravarNosAsync"/>.
+  /// </summary>
+  public async Task<IReadOnlyList<int>> TravarPedidosDosNosAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  {
+    if (_db.Database.CurrentTransaction is null)
+      throw new InvalidOperationException(
+          "TravarPedidosDosNosAsync so vale dentro de EmTransacaoAsync: fora de transacao a trava acaba no fim do SELECT.");
+
+    var ids = estruturaItemIds.Distinct().ToList();
+    var pedidoIds = await (from e in _db.Estruturas.AsNoTracking()
+                           join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                           where ids.Contains(e.Id)
+                           select a.PedidoId)
+        .Distinct()
+        .ToListAsync(ct);
+    var ordenados = pedidoIds.Order().ToList();
+    foreach (var pedidoId in ordenados)
+      await TravarPedidoAsync(pedidoId, ct);
+    return ordenados;
   }
 
   public Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct) =>

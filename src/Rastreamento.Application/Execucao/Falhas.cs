@@ -26,19 +26,32 @@ internal static class Falhas
       Result<T>.Falha(CodigosDaExecucao.Proibido, TipoDeErro.Proibido,
           "Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.");
 
+  /// <summary>
+  /// A mesma falha com outro tipo de valor: mesmo codigo e mesmo `TipoDeErro`, e a frase trocada por
+  /// `detalhe` quando ele vem. E como o nucleo por item (que devolve a entidade) passa a recusa a forma
+  /// individual e ao lote (que devolvem DTO), sem nenhum dos dois reescrever o codigo.
+  /// </summary>
+  public static Result<TPara> Repassar<TPara, TDe>(Result<TDe> falha, string? detalhe = null)
+  {
+    if (falha.Sucesso) throw new ArgumentException("So se repassa uma falha.", nameof(falha));
+    return Result<TPara>.Falha(falha.Erro!, falha.TipoDoErro!.Value, detalhe ?? falha.Detalhe);
+  }
+
   public static bool EstaFechado(PedidoDoNo? pedido) =>
       pedido is null || pedido.Status is "Concluido" or "Cancelado";
 
   /// <summary>
-  /// A transacao da execucao, com o deadlock/lock timeout traduzido para 409. Nome diferente de
-  /// `EmTransacaoAsync` de proposito: com o mesmo nome, o metodo da interface ganharia da extensao.
+  /// A transacao da execucao, com o deadlock/lock timeout traduzido para 409, e que so commita se o
+  /// caso de uso deu certo: um `Result` de falha desfaz tudo o que ele escreveu antes de falhar (o lote
+  /// grava um item antes de validar o seguinte). Nome diferente de `EmTransacaoAsync` de proposito: com
+  /// o mesmo nome, o metodo da interface ganharia da extensao.
   /// </summary>
   public static async Task<Result<T>> ExecutarAsync<T>(
       this IExecucaoRepository execucao, Func<Task<Result<T>>> trabalho, CancellationToken ct)
   {
     try
     {
-      return await execucao.EmTransacaoAsync(trabalho, ct);
+      return await execucao.EmTransacaoAsync(trabalho, r => r.Sucesso, ct);
     }
     catch (ConflitoDeConcorrenciaException)
     {

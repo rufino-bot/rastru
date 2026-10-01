@@ -48,6 +48,32 @@ public class ApontamentoUseCaseTests
   }
 
   [Fact]
+  public async Task Iniciar_recusado_desfaz_a_transacao()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Corte, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.SemRoteiro, TipoDeErro.Conflito);
+    Assert.Equal(1, c.Execucao.Desfeitas);
+    Assert.Equal(0, c.Execucao.Commits);
+  }
+
+  [Fact]
+  public async Task Iniciar_aceito_commita()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte, Dobra);
+
+    var r = await c.Apontamento().Iniciar(1, new InicioDto(Corte, 4m), Operador, Ct);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal(1, c.Execucao.Commits);
+    Assert.Equal(0, c.Execucao.Desfeitas);
+  }
+
+  [Fact]
   public async Task Iniciar_fora_do_primeiro_passo_da_NaoEhOPrimeiroPasso()
   {
     var c = new CenarioDeExecucao();

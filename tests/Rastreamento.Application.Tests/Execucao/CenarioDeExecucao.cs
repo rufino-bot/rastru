@@ -7,8 +7,9 @@ using Rastreamento.Domain.Entities;
 namespace Rastreamento.Application.Tests.Execucao;
 
 /// <summary>
-/// Uma fabrica em memoria para os casos de uso da Fase 3: um Pedido `Aberto` com um Agrupamento,
-/// cinco Setores (um inativo) e tres usuarios. Os nos se descrevem como "No {id}", o que deixa as
+/// Uma fabrica em memoria para os casos de uso da Fase 3: dois Pedidos `Aberto`, cada um com um
+/// Agrupamento (o segundo so para quem precisa de nos em Pedidos diferentes, como o lote), cinco
+/// Setores (um inativo) e tres usuarios. Os nos se descrevem como "No {id}", o que deixa as
 /// mensagens conferiveis por texto. Cada task acrescenta aqui a fabrica do caso de uso que cria.
 /// </summary>
 internal sealed class CenarioDeExecucao
@@ -16,6 +17,7 @@ internal sealed class CenarioDeExecucao
   public const int Corte = 1, Dobra = 2, Solda = 3, Pintura = 4, Inativo = 9;
   public const int Operador = 10, Movimentador = 11, Pcp = 12;
   public const int PedidoId = 1, AgrupamentoId = 1;
+  public const int PedidoId2 = 2, AgrupamentoId2 = 2;
 
   /// <summary>Quem le a fila nos testes: o Operador ve so os seus registros; o PCP ve todos.</summary>
   public static readonly QuemLe ComoOperador = new(Operador, false);
@@ -42,17 +44,27 @@ internal sealed class CenarioDeExecucao
     Execucao.Agrupamentos[AgrupamentoId] = ("AG-01", PedidoId, "PED-01");
     Execucao.StatusDoPedido[PedidoId] = "Aberto";
     Execucao.ClienteDoPedido[PedidoId] = "Cliente do cenário";
+    Execucao.Agrupamentos[AgrupamentoId2] = ("AG-02", PedidoId2, "PED-02");
+    Execucao.StatusDoPedido[PedidoId2] = "Aberto";
+    Execucao.ClienteDoPedido[PedidoId2] = "Outro cliente do cenário";
     Execucao.Usuarios[Operador] = "Operador do Corte";
     Execucao.Usuarios[Movimentador] = "Movimentador";
     Execucao.Usuarios[Pcp] = "PCP";
   }
 
   /// <summary>Um no com Roteiro de um passo por Setor, `Ordem` 1, 2, 3... Sem Setor: sem Roteiro.</summary>
-  public int No(int id, int? pai, decimal quantidade, decimal? razao, params int[] setores)
+  public int No(int id, int? pai, decimal quantidade, decimal? razao, params int[] setores) =>
+      NoDoAgrupamento(AgrupamentoId, id, pai, quantidade, razao, setores);
+
+  /// <summary>
+  /// Como <see cref="No"/>, num Agrupamento escolhido. Metodo a parte, e nao um parametro opcional de
+  /// <see cref="No"/>: um opcional antes do `params` engoliria o primeiro Setor de toda chamada existente.
+  /// </summary>
+  public int NoDoAgrupamento(int agrupamento, int id, int? pai, decimal quantidade, decimal? razao, params int[] setores)
   {
     Estruturas.Itens.Add(new EstruturaItem
     {
-      Id = id, AgrupamentoId = AgrupamentoId, Descricao = $"No {id}", EstruturaPaiId = pai,
+      Id = id, AgrupamentoId = agrupamento, Descricao = $"No {id}", EstruturaPaiId = pai,
       NivelHierarquico = pai is null ? "Peca" : "Item", Quantidade = quantidade, QuantidadePorPai = razao,
     });
     for (var i = 0; i < setores.Length; i++)

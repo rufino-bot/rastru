@@ -38,10 +38,19 @@ public interface IExecucaoRepository
   /// Roda `trabalho` numa transacao SERIALIZABLE e commita. Deadlock (1205) tenta de novo, com
   /// transacao nova a cada vez (3 tentativas no total: a inicial mais 2 retentativas em producao);
   /// esgotadas as tentativas, ou num lock timeout (1222, que nunca tenta de novo), sobe
-  /// <see cref="ConflitoDeConcorrenciaException"/>. O `trabalho` so escreve depois de validar
-  /// tudo: um `Result` de falha devolvido de dentro dele commita uma transacao sem escrita nenhuma.
+  /// <see cref="ConflitoDeConcorrenciaException"/>. Esta forma commita sempre que o `trabalho` volta sem
+  /// lancar; quem devolve um `Result` de falha depois de ter escrito usa a sobrecarga com `confirmar`.
   /// </summary>
   Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct);
+
+  /// <summary>
+  /// Como <see cref="EmTransacaoAsync{T}(Func{Task{T}}, CancellationToken)"/>, mas so commita se
+  /// `confirmar(resultado)` for verdadeiro; senao desfaz a transacao, limpa o que o `trabalho` deixou no
+  /// change tracker e devolve o resultado mesmo assim. Existe porque o lote (iniciar ou terminar varios
+  /// nos de uma vez) grava o item 1 antes de validar o item 2: uma falha devolvida no meio nao pode
+  /// deixar o primeiro no livro. Um `trabalho` que lanca continua desfazendo, como sempre.
+  /// </summary>
+  Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, Func<T, bool> confirmar, CancellationToken ct);
 
   /// <summary>
   /// Roda `leitura` SEM transacao explicita (fica no READ COMMITTED da conexao), com o mesmo retry de
@@ -72,11 +81,11 @@ public interface IExecucaoRepository
 
   /// <summary>
   /// Igual a <see cref="ObterPedidoDoNoAsync"/>, mas trava a linha do Pedido com UPDLOCK: uso exclusivo
-  /// do caminho que VAI escrever nela a seguir (hoje, so <c>ApontamentoUseCase.Iniciar</c>, antes de
-  /// <see cref="MarcarPedidoEmProducaoAsync"/>). Ver o XML doc de <c>ExecucaoRepository</c> para o
-  /// motivo: sem isto, duas transacoes que leem o mesmo Pedido com S e depois tentam converter para X
-  /// deadlockam (spec 8.1; achado de review da Task 11 com deadlock graph do
-  /// <c>system_health</c> — PK_Pedido).
+  /// do caminho que VAI escrever nela a seguir (hoje, so o nucleo do iniciar de <c>ApontamentoUseCase</c>,
+  /// individual ou em lote, antes de <see cref="MarcarPedidoEmProducaoAsync"/>). Ver o XML doc de
+  /// <c>ExecucaoRepository</c> para o motivo: sem isto, duas transacoes que leem o mesmo Pedido com S e
+  /// depois tentam converter para X deadlockam (spec 8.1; achado de review da Task 11 com deadlock graph
+  /// do <c>system_health</c> — PK_Pedido).
   /// </summary>
   Task<PedidoDoNo?> ObterPedidoDoNoParaEscritaAsync(int estruturaItemId, CancellationToken ct);
 
@@ -137,6 +146,16 @@ public interface IExecucaoRepository
   /// Fase 3D, secao 4.5). So vale dentro de <see cref="EmTransacaoAsync"/>.
   /// </summary>
   Task<PedidoTravado?> TravarPedidoAsync(int pedidoId, CancellationToken ct);
+
+  /// <summary>
+  /// Trava, como <see cref="TravarPedidoAsync"/>, a linha de cada Pedido em que vivem os nos pedidos —
+  /// UMA A UMA, em ordem crescente de Id — e devolve os PedidoIds distintos, nessa ordem. O PedidoId sai
+  /// da juncao `EstruturaItem` x `Agrupamento`, sem ler a linha do Pedido antes do UPDLOCK. No inexistente
+  /// nao contribui. Existe para o iniciar em lote travar todos os Pedidos antes do primeiro item, depois
+  /// de todos os nos (spec da Fase 3, secao 8.1: ordem fixa de aquisicao). So vale dentro de
+  /// <see cref="EmTransacaoAsync"/>: fora dela, lanca.
+  /// </summary>
+  Task<IReadOnlyList<int>> TravarPedidosDosNosAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
 
   Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct);
 

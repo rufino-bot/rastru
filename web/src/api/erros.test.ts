@@ -66,6 +66,15 @@ describe('mensagemDeErro', () => {
       .toBe('O motivo passa de 200 caracteres.')
   })
 
+  it('traduz os três códigos do lote quando o servidor não mandou frase', () => {
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'LoteVazio'), PADRAO))
+      .toBe('Marque pelo menos um item.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'LoteGrandeDemais'), PADRAO))
+      .toBe('O lote passou do máximo de itens. Divida a seleção.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'ItemRepetido'), PADRAO))
+      .toBe('Um item foi marcado duas vezes. Atualize a tela e tente de novo.')
+  })
+
   it('a frase que o servidor manda no PedidoPausado (com o número do Pedido) ganha da tradução', () => {
     expect(mensagemDeErro(new ErroDeApi(409, 'x', 'O Pedido PED-9 está pausado.', 'PedidoPausado'), PADRAO))
       .toBe('O Pedido PED-9 está pausado.')

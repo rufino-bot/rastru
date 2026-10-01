@@ -346,6 +346,30 @@ export function terminar(
   return enviar(`/estrutura/${noId}/terminos`, 'POST', corpo, 'terminar')
 }
 
+export interface ItemDeInicioEmLote {
+  estruturaItemId: number
+  quantidade: number
+}
+
+export interface ItemDeTerminoEmLote {
+  estruturaItemId: number
+  ordem: number
+  quantidade: number
+}
+
+/**
+ * O lote da fila do Setor: "A iniciar aqui" e o início do pai, numa requisição, tudo ou nada. A
+ * resposta vem na ordem dos itens; no pai, é o Início dele (com `montagemId`).
+ */
+export function iniciarEmLote(setorId: number, itens: ItemDeInicioEmLote[]): Promise<MovimentacaoDto[]> {
+  return enviar('/inicios', 'POST', { setorId, itens }, 'iniciar os itens')
+}
+
+/** O lote de "Em trabalho": tudo ou nada, na ordem dos itens. */
+export function terminarEmLote(setorId: number, itens: ItemDeTerminoEmLote[]): Promise<MovimentacaoDto[]> {
+  return enviar('/terminos', 'POST', { setorId, itens }, 'terminar os itens')
+}
+
 /** Lista inteira numa requisição: tudo ou nada (spec §4.3). A resposta vem na ordem da lista. */
 export function entregar(itens: ItemDaEntrega[]): Promise<MovimentacaoDto[]> {
   return enviar('/entregas', 'POST', { itens }, 'entregar')

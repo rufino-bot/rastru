@@ -42,13 +42,30 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>Os Ids de cada `TravarNosAsync`, como chegaram — prova de QUEM o caso de uso trava.</summary>
   public List<IReadOnlyList<int>> Travas { get; } = new();
 
+  /// <summary>Os Ids de nó de cada `TravarPedidosDosNosAsync`, como chegaram, no formato de <see cref="Travas"/>.</summary>
+  public List<IReadOnlyList<int>> TravasDePedido { get; } = new();
+
+  /// <summary>
+  /// `TravarNosAsync` ("nos:1,2,3"), `TravarPedidosDosNosAsync` ("pedidos:1,10") e `SalvarAlteracoesAsync`
+  /// ("save") numa lista so, na ordem em que aconteceram, com os Ids como chegaram — prova de QUANDO o
+  /// caso de uso trava em relacao a primeira escrita.
+  /// </summary>
+  public List<string> Eventos { get; } = new();
+
   public int Transacoes { get; private set; }
   public int Saves { get; private set; }
 
   /// <summary>A proxima transacao sobe o que o repositorio real sobe num deadlock.</summary>
   public bool ConflitoNaProximaTransacao { get; set; }
 
-  public async Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct)
+  /// <summary>Quantas transacoes commitaram e quantas `confirmar` recusou (e o fake desfez).</summary>
+  public int Commits { get; private set; }
+  public int Desfeitas { get; private set; }
+
+  public Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, CancellationToken ct) =>
+      EmTransacaoAsync(trabalho, _ => true, ct);
+
+  public async Task<T> EmTransacaoAsync<T>(Func<Task<T>> trabalho, Func<T, bool> confirmar, CancellationToken ct)
   {
     if (ConflitoNaProximaTransacao)
     {
@@ -58,9 +75,33 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
     Transacoes++;
     _emTransacao = true;
+    // O retrato do que a transacao pode mudar: restaurado se `confirmar` recusar, como o rollback do banco.
+    var movimentacoes = Movimentacoes.ToList();
+    var montagens = Montagens.ToList();
+    var pausas = Pausas.ToList();
+    var status = new Dictionary<int, string>(StatusDoPedido);
+    var estadoDasMontagens = montagens.Select(g => (g, g.EstornadaEm, g.EstornadaPorUsuarioId)).ToList();
+    var estadoDasPausas = pausas.Select(p => (p, p.RetomadoEm, p.RetomadoPorUsuarioId)).ToList();
     try
     {
-      return await trabalho();
+      var resultado = await trabalho();
+      if (confirmar(resultado))
+        Commits++;
+      else
+      {
+        Desfeitas++;
+        Movimentacoes.Clear();
+        Movimentacoes.AddRange(movimentacoes);
+        Montagens.Clear();
+        Montagens.AddRange(montagens);
+        Pausas.Clear();
+        Pausas.AddRange(pausas);
+        StatusDoPedido.Clear();
+        foreach (var (pedidoId, valor) in status) StatusDoPedido[pedidoId] = valor;
+        foreach (var (g, em, por) in estadoDasMontagens) { g.EstornadaEm = em; g.EstornadaPorUsuarioId = por; }
+        foreach (var (p, em, por) in estadoDasPausas) { p.RetomadoEm = em; p.RetomadoPorUsuarioId = por; }
+      }
+      return resultado;
     }
     finally
     {
@@ -90,6 +131,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
     if (!_emTransacao) throw new InvalidOperationException("TravarNosAsync fora de EmTransacaoAsync.");
     var pedidos = ids.ToList();
     Travas.Add(pedidos);
+    Eventos.Add($"nos:{string.Join(",", pedidos)}");
     return Task.FromResult<IReadOnlyList<EstruturaItem>>(
         _estruturas.Itens.Where(i => pedidos.Contains(i.Id)).OrderBy(i => i.Id).ToList());
   }
@@ -161,6 +203,18 @@ public class FakeExecucaoRepo : IExecucaoRepository
     if (!StatusDoPedido.TryGetValue(pedidoId, out var status)) return Task.FromResult<PedidoTravado?>(null);
     var numero = Agrupamentos.Values.First(a => a.PedidoId == pedidoId).PedidoNumero;
     return Task.FromResult<PedidoTravado?>(new PedidoTravado(pedidoId, numero, status));
+  }
+
+  public Task<IReadOnlyList<int>> TravarPedidosDosNosAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  {
+    if (!_emTransacao) throw new InvalidOperationException("TravarPedidosDosNosAsync fora de EmTransacaoAsync.");
+    var nos = estruturaItemIds.ToList();
+    TravasDePedido.Add(nos);
+    Eventos.Add($"pedidos:{string.Join(",", nos)}");
+    return Task.FromResult<IReadOnlyList<int>>(_estruturas.Itens
+        .Where(i => nos.Contains(i.Id) && Agrupamentos.ContainsKey(i.AgrupamentoId))
+        .Select(i => Agrupamentos[i.AgrupamentoId].PedidoId)
+        .Distinct().Order().ToList());
   }
 
   public Task<PedidoPausa?> ObterPausaAbertaAsync(int pedidoId, CancellationToken ct) =>
@@ -287,6 +341,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task SalvarAlteracoesAsync(CancellationToken ct)
   {
     Saves++;
+    Eventos.Add("save");
     foreach (var montagem in _montagensPendentes)
     {
       montagem.Id = _proximoId++;
