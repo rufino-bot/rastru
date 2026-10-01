@@ -3,7 +3,7 @@
 // Ambiente por ARQUIVO, e não em `vite.config.ts`: os testes de `api/` rodam em ambiente `node` e
 // usam `new Response(...)`; trocar o ambiente global arriscaria mexer nos globals deles sem ganho.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { PedidosPage } from './PedidosPage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -80,6 +80,37 @@ function api(sobrescritas: Record<string, () => Response | Promise<Response>> = 
     '/api/pedidos/materiais': () => respostaJson(MATERIAIS),
     ...sobrescritas,
   })
+}
+
+// A tela abre em leitura: o formulário só existe depois do clique em "Novo pedido" (o botão do
+// cabeçalho; o `<h2>` do painel tem o mesmo texto, por isso a busca é por papel).
+async function abrirNovoPedido() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Novo pedido' }))
+}
+
+function preencherEEnviar(numero: string, cliente: string) {
+  fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: numero } })
+  fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: cliente } })
+  fireEvent.click(screen.getByRole('button', { name: 'Abrir pedido' }))
+}
+
+// Mock em que o POST e a listagem divergem: `fetchPorRota` casa só por caminho, e o POST cai no
+// mesmo caminho da listagem.
+function apiComPost(post: () => Response | Promise<Response>, lista: () => Response = () => respostaJson(pagina([PEDIDO]))) {
+  return vi.fn((url: string | URL, init?: RequestInit) => {
+    const caminho = String(url).split('?')[0]
+    if (caminho === '/api/pedidos/materiais') return Promise.resolve(respostaJson(MATERIAIS))
+    if (caminho === '/api/pedidos') return Promise.resolve(init?.method === 'POST' ? post() : lista())
+    return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+  })
+}
+
+// As requisições que vieram DEPOIS do POST: o que mede "uma requisição só, sem passo intermediário".
+function aposOPost(fetchMock: { mock: { calls: unknown[][] } }) {
+  const indice = fetchMock.mock.calls.findIndex(
+    ([, init]) => (init as RequestInit | undefined)?.method === 'POST',
+  )
+  return fetchMock.mock.calls.slice(indice + 1)
 }
 
 function abrirPainelDoFiltro() {
@@ -185,9 +216,8 @@ describe('PedidosPage', () => {
     renderizar()
     await screen.findByText('Não foi possível carregar os pedidos.')
 
-    fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'PED-001' } })
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'Fábrica Alfa' } })
-    fireEvent.click(screen.getByText('Abrir pedido'))
+    await abrirNovoPedido()
+    preencherEEnviar('PED-001', 'Fábrica Alfa')
 
     await screen.findByText('PED-001')
     expect(screen.queryByText('Não foi possível carregar os pedidos.')).toBeNull()
@@ -203,17 +233,17 @@ describe('PedidosPage', () => {
     }))
 
     renderizar()
-    await screen.findByLabelText('Código do pedido')
-
-    fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'PED-001' } })
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'Fábrica Alfa' } })
-    fireEvent.click(screen.getByText('Abrir pedido'))
+    await abrirNovoPedido()
+    preencherEEnviar('PED-001', 'Fábrica Alfa')
 
     // O POST cai na MESMA rota da listagem: `fetchPorRota` casa por caminho, e o mock devolve a
-    // lista nova. O que se prova aqui é o ramo de SUCESSO — campo limpo e lista recarregada —,
-    // que é a metade que nenhum teste do projeto cobria antes desta task.
+    // lista nova. O que se prova aqui é o ramo de SUCESSO — painel fechado, formulário zerado e
+    // lista recarregada.
     expect(await screen.findByText(/PED-001/)).toBeTruthy()
+    expect(screen.queryByRole('form')).toBeNull()
+    await abrirNovoPedido()
     expect((screen.getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Cliente') as HTMLInputElement).value).toBe('')
   })
 
   it('mostra estado vazio de cadastro quando nao ha pedidos e nenhum filtro', async () => {
@@ -222,6 +252,7 @@ describe('PedidosPage', () => {
     renderizar()
 
     expect(await screen.findByText('Nenhum pedido aberto')).toBeTruthy()
+    expect(screen.getByText('Use o botão Novo pedido para abrir o primeiro.')).toBeTruthy()
     // Sem busca nem filtro, culpar "essa busca ou esses filtros" seria falso.
     expect(screen.queryByText('Nenhum pedido com essa busca ou esses filtros')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull()
@@ -279,6 +310,7 @@ describe('PedidosPage', () => {
 
     expect(await screen.findByText('PED-001')).toBeTruthy()
     expect(screen.queryByLabelText('Código do pedido')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Novo pedido' })).toBeNull()
   })
 
   // I2 (achado da review da Task 8): o teste acima usa `Operador`, que não escreve NEM `pedidos`
@@ -292,6 +324,7 @@ describe('PedidosPage', () => {
     vi.stubGlobal('fetch', api())
 
     renderizar()
+    await abrirNovoPedido()
 
     expect(await screen.findByLabelText('Código do pedido')).toBeTruthy()
   })
@@ -484,7 +517,7 @@ describe('PedidosPage', () => {
     await waitFor(() => expect(localizacao()).toBe('/pedidos?status=Aberto&pagina=2'))
   })
 
-  it('abrir um pedido recarrega mantendo busca e filtros', async () => {
+  it('abrir um pedido recarrega uma vez, e a consulta antiga nao sobrevive', async () => {
     const fetchMock = api()
     vi.stubGlobal('fetch', fetchMock)
 
@@ -492,15 +525,221 @@ describe('PedidosPage', () => {
     await screen.findByText('PED-001')
     expect(listagens(fetchMock)).toHaveLength(1)
 
-    fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'PED-002' } })
-    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'Fábrica Beta' } })
-    fireEvent.click(screen.getByText('Abrir pedido'))
+    await abrirNovoPedido()
+    preencherEEnviar('PED-002', 'Fábrica Beta')
 
     await waitFor(() => expect(listagens(fetchMock)).toHaveLength(2))
-    const [antes, depois] = listagens(fetchMock)
-    expect(depois.search).toBe(antes.search)
-    expect(depois.searchParams.get('busca')).toBe('CH')
-    expect(depois.searchParams.get('status')).toBe('Aberto')
-    expect(depois.searchParams.get('material')).toBe('3')
+    const depois = listagens(fetchMock)[1]
+    expect(depois.searchParams.get('busca') ?? '').toBe('')
+    expect(depois.searchParams.has('status')).toBe(false)
+    expect(depois.searchParams.has('material')).toBe(false)
+  })
+
+  it('abre em leitura: sem formulario antes do clique', async () => {
+    vi.stubGlobal('fetch', api())
+
+    renderizar()
+    await screen.findByText('PED-001')
+
+    expect(screen.queryByRole('form')).toBeNull()
+    expect(screen.queryByLabelText('Código do pedido')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Novo pedido' })).toBeTruthy()
+  })
+
+  it('Novo pedido abre o painel acima da busca e do filtro', async () => {
+    vi.stubGlobal('fetch', api())
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+
+    const painel = screen.getByRole('form', { name: 'Novo pedido' })
+    const busca = screen.getByLabelText('Buscar por número, cliente ou código de peça')
+    const filtro = screen.getByRole('button', { name: /^Filtrar/ })
+    expect(painel.compareDocumentPosition(busca) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(painel.compareDocumentPosition(filtro) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // com o painel aberto o botão do cabeçalho some: o caminho de saída é Cancelar ou salvar
+    expect(screen.queryByRole('button', { name: 'Novo pedido' })).toBeNull()
+  })
+
+  it('Cancelar fecha o painel e descarta o digitado', async () => {
+    vi.stubGlobal('fetch', api())
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'RASCUNHO' } })
+    fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'Rascunho SA' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('form')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Novo pedido' })).toBeTruthy()
+
+    await abrirNovoPedido()
+    expect((screen.getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Cliente') as HTMLInputElement).value).toBe('')
+  })
+
+  // Review Focus 3: a URL inteira preenchida. Salvar a limpa por completo e a consulta volta ao
+  // padrão numa requisição só — duas (uma com os parâmetros antigos, outra limpa) deixariam o
+  // último GET igual e passariam despercebidas sem a contagem.
+  it('salvar com sucesso limpa a URL inteira e a consulta volta ao padrao', async () => {
+    const fetchMock = api({ '/api/pedidos': () => respostaJson(pagina([PEDIDO], 45, 2)) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?busca=x&status=Aberto&material=3&ordem=cliente&pagina=2')
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    preencherEEnviar('PED-002', 'Fábrica Beta')
+
+    await waitFor(() => expect(localizacao()).toBe('/pedidos'))
+    await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
+    expect(aposOPost(fetchMock)).toHaveLength(1)
+
+    const ultima = listagens(fetchMock).at(-1)!
+    expect(ultima.searchParams.get('busca') ?? '').toBe('')
+    expect(ultima.searchParams.has('status')).toBe(false)
+    expect(ultima.searchParams.has('material')).toBe(false)
+    expect(ultima.searchParams.has('ordem')).toBe(false)
+    expect(ultima.searchParams.get('pagina')).toBe('1')
+    expect(localizacao()).toBe('/pedidos')
+    expect(screen.queryByRole('form')).toBeNull()
+    expect((screen.getByLabelText('Buscar por número, cliente ou código de peça') as HTMLInputElement).value).toBe('')
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(seletor.selectedOptions[0].textContent).toBe('Mais recentes')
+
+    // o envio foi solto: reabrir o painel não herda um "Abrindo…" preso
+    await abrirNovoPedido()
+    expect((screen.getByRole('button', { name: 'Abrir pedido' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  // Review Focus 1, em Pedidos: nada da consulta muda, e a lista tem de buscar de novo mesmo assim.
+  it('salvar com sucesso na consulta padrao ainda recarrega, uma vez', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    preencherEEnviar('PED-002', 'Fábrica Beta')
+
+    await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
+    expect(aposOPost(fetchMock)).toHaveLength(1)
+  })
+
+  it('ordem lida da URL e respeitada', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?ordem=numero')
+    await screen.findByText('PED-001')
+
+    expect(listagens(fetchMock)[0].searchParams.get('ordem')).toBe('numero')
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(seletor.selectedOptions[0].textContent).toBe('Número (A→Z)')
+  })
+
+  // Review Focus 4: um link velho não pode virar 400 na tela.
+  it('ordem desconhecida na URL nao vai ao servidor', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?ordem=lixo')
+    await screen.findByText('PED-001')
+
+    expect(listagens(fetchMock).length).toBeGreaterThan(0)
+    for (const url of listagens(fetchMock)) expect(url.searchParams.has('ordem')).toBe(false)
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(seletor.selectedOptions[0].textContent).toBe('Mais recentes')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('escolher Mais recentes tira ordem da URL', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?status=Aberto&ordem=cliente')
+    await screen.findByText('PED-001')
+
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'recentes' } })
+
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?status=Aberto'))
+    await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.has('ordem')).toBe(false))
+  })
+
+  // Cada opção vai com o SEU valor: trocar duas no mapa passaria no teste de uma só.
+  it('escolher Cliente poe ordem=cliente na URL sem criar entrada de historico', async () => {
+    const fetchMock = api({ '/api/pedidos': () => respostaJson(pagina([PEDIDO], 45, 2)) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?pagina=2')
+    await screen.findByText('PED-001')
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(Array.from(seletor.options).map((o) => o.textContent))
+      .toEqual(['Mais recentes', 'Número (A→Z)', 'Cliente (A→Z)'])
+
+    fireEvent.change(seletor, { target: { value: 'numero' } })
+    await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('numero'))
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=numero'))
+
+    const historyAntes = window.history.length
+    fireEvent.change(seletor, { target: { value: 'cliente' } })
+
+    await waitFor(() => {
+      const ultima = listagens(fetchMock).at(-1)!
+      expect(ultima.searchParams.get('ordem')).toBe('cliente')
+      expect(ultima.searchParams.get('pagina')).toBe('1')
+    })
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=cliente'))
+    expect(window.history.length).toBe(historyAntes)
+  })
+
+  it('conflito mantem o painel aberto com a mensagem dentro dele', async () => {
+    const fetchMock = apiComPost(() => respostaJson({ erro: 'ValorDuplicado' }, 409))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    preencherEEnviar('PED-001', 'Fábrica Alfa')
+
+    const painel = await screen.findByRole('form', { name: 'Novo pedido' })
+    const mensagem = 'Já existe um pedido com este número.'
+    expect(await within(painel).findByText(mensagem)).toBeTruthy()
+    // só ali: o banner de fora da lista não repete o erro de escrita
+    expect(screen.getAllByText(mensagem)).toHaveLength(1)
+    // e o digitado ficou, sem recarga
+    expect((within(painel).getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('PED-001')
+    expect(aposOPost(fetchMock)).toHaveLength(0)
+  })
+
+  it('quem nao pode escrever ve a lista, o filtro e o seletor de ordem, e nao ve o botao Novo pedido', async () => {
+    perfil = 'Operador'
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('PED-001')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Novo pedido' })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Filtrar/ })).toBeTruthy()
+    // o seletor é leitura: aparece e funciona para todo perfil
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'numero' } })
+    await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('numero'))
+  })
+
+  it('vazio de cadastro aponta para o botao Novo pedido, so para quem escreve', async () => {
+    vi.stubGlobal('fetch', api({ '/api/pedidos': () => respostaJson(pagina([])) }))
+
+    renderizar()
+    expect(await screen.findByText('Use o botão Novo pedido para abrir o primeiro.')).toBeTruthy()
+
+    cleanup()
+    perfil = 'Operador'
+    renderizar()
+    expect(await screen.findByText('Nenhum pedido aberto')).toBeTruthy()
+    expect(screen.queryByText('Use o botão Novo pedido para abrir o primeiro.')).toBeNull()
   })
 })
