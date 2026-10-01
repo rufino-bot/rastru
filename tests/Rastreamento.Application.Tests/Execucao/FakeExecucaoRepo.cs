@@ -21,7 +21,12 @@ public class FakeExecucaoRepo : IExecucaoRepository
   private int _proximoId = 5000;
   private bool _emTransacao;
 
-  public FakeExecucaoRepo(FakeEstruturaRepo estruturas) => _estruturas = estruturas;
+  public FakeExecucaoRepo(FakeEstruturaRepo estruturas)
+  {
+    _estruturas = estruturas;
+    // `GravarArvoreAsync` do fake passa a recusar fora da transacao, como o repositorio real.
+    estruturas.EstaEmTransacao = () => _emTransacao;
+  }
 
   public List<Movimentacao> Movimentacoes { get; } = new();
   public List<Montagem> Montagens { get; } = new();

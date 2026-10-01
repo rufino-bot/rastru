@@ -630,6 +630,19 @@ contagem delas, posições, livro do nó, Roteiro do nó) também podem ser a v�
 uma escrita, e têm o mesmo retry de 1205 (no máximo 3 tentativas no total), sem transação explícita,
 com o mesmo 409 `ConflitoDeConcorrencia` se as 3 terminarem em deadlock — antes, a vítima subia como 500 com a `SqlException` crua.
 
+**Emenda de 2026-10-01** (spec `2026-10-01-deadlock-na-suite-de-api-design.md`, seção 3): criar Peça
+(`POST /agrupamentos/{agrupamentoId}/estrutura`) e acrescentar filho (`POST /estrutura/{id}/filhos`) gravam a árvore
+dentro da transação da execução (`EmTransacaoAsync`), com o mesmo retry de 1205 (no máximo 3 tentativas
+no total) e o mesmo 409 `ConflitoDeConcorrencia` no esgotamento e em 1222. **Sem trava de nó**:
+acrescentar filho é livre, inclusive a nó já iniciado (seção 4.7), e a gravação não valida nada contra o
+livro. O motivo é a premissa refutada: o comentário de `EstruturaRepository.GravarArvoreAsync` dizia que
+gravar árvore ficava fora do esquema de trava "porque só insere nós NOVOS, que nenhuma escrita da
+execução disputa", e o range lock de fim de índice da emenda de 2026-09-26 mostra que nó novo disputa, sim.
+Medido em 2026-10-01 como 500, com a `SqlException` 1205 crua, em `POST /estrutura/{id}/filhos`.
+`GravarArvoreAsync` deixou de abrir a própria transação e recusa rodar fora de `EmTransacaoAsync`. A
+leitura do catálogo e o planejamento da cópia ficam fora da transação (lê as três tabelas da receita
+inteiras, e as travaria por faixa sob SERIALIZABLE).
+
 ### 8.2 Catálogo de erros
 
 `erro` é o código pelo qual o front decide; `mensagem`, a frase para o operador, que nomeia nó, Setor e

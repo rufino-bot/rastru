@@ -138,7 +138,8 @@ public class EstruturaRepositoryTests : TesteComBanco
           Materiais: [], Roteiro: [],
           Filhos: [new NoParaGravar(componenteFilho, null, 40m, false, [], [], [], QuantidadePorPai: 4m)]);
 
-      var raizId = await repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None);
+      var raizId = await new ExecucaoRepository(db).EmTransacaoAsync(
+          () => repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None), CancellationToken.None);
 
       await using var dbLeitura = NovoContexto();
       var itens = await dbLeitura.Estruturas.AsNoTracking()
@@ -161,12 +162,50 @@ public class EstruturaRepositoryTests : TesteComBanco
   }
 
   /// <summary>
+  /// `GravarArvoreAsync` exige a transacao de `EmTransacaoAsync`: a atomicidade ("arvore toda ou
+  /// nada") vem dela. Sem a guarda, um chamador que esquecesse a transacao gravaria meia arvore em
+  /// silencio quando um no do meio falhasse.
+  /// </summary>
+  [Fact]
+  public async Task GravarArvoreAsync_fora_de_transacao_recusa_e_nao_grava_nada()
+  {
+    var prefixo = NovoPrefixo();
+    await using var db = NovoContexto();
+    var (pedidoId, agrupamentoId) = await NovoAgrupamentoAsync(db);
+    var componenteRaiz = await NovoComponenteAsync(db, prefixo, "raiz");
+
+    try
+    {
+      var repo = new EstruturaRepository(db);
+      var no = new NoParaGravar(
+          ComponenteId: componenteRaiz, Descricao: null, Quantidade: 10m, RequerRelatorioDimensional: false,
+          Materiais: [], Roteiro: [], Filhos: []);
+
+      var erro = await Assert.ThrowsAsync<InvalidOperationException>(
+          () => repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None));
+      Assert.Contains("EmTransacaoAsync", erro.Message);
+
+      await using var dbLeitura = NovoContexto();
+      var sobrouAlgumaLinha = await dbLeitura.Estruturas.AsNoTracking()
+          .AnyAsync(e => e.AgrupamentoId == agrupamentoId);
+
+      Assert.False(sobrouAlgumaLinha);
+    }
+    finally
+    {
+      await LimparAsync(pedidoId, agrupamentoId, componenteRaiz);
+    }
+  }
+
+  /// <summary>
   /// A mutacao que o brief da Task 3 manda medir: "remover a transacao e gravar no a no -&gt; tem
   /// de quebrar num caso com erro no meio da arvore". Forca o INSERT de EstruturaMaterial do FILHO
   /// a violar FK_EstruturaMaterial_Material (Id inexistente) DEPOIS que a raiz ja foi persistida
   /// pelo seu proprio SaveChangesAsync (dentro de GravarNo). Sem a transacao em volta da descida
   /// inteira, a raiz ficaria gravada mesmo com o resto da arvore falhando; com ela, nada sobra —
-  /// e e essa segunda parte que este teste prova.
+  /// e e essa segunda parte que este teste prova. Desde o conserto do deadlock, a transacao e a de
+  /// `ExecucaoRepository.EmTransacaoAsync` (o repositorio nao abre mais a propria), entao o teste
+  /// prova a composicao real: o erro no meio, dentro dela, nao deixa nada gravado.
   /// </summary>
   [Fact]
   public async Task GravarArvoreAsync_e_atomico_erro_no_meio_da_arvore_nao_deixa_nada_gravado()
@@ -191,8 +230,11 @@ public class EstruturaRepositoryTests : TesteComBanco
                 Materiais: [(materialInexistente, 1m)], Roteiro: [], Filhos: [], QuantidadePorPai: 4m)
           ]);
 
+      // Quem da a atomicidade e a transacao de `EmTransacaoAsync`: o 547 da FK nao e 1205/1222, entao
+      // atravessa o laco de retry cru, como `DbUpdateException`.
       var erro = await Assert.ThrowsAsync<DbUpdateException>(
-          () => repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None));
+          () => new ExecucaoRepository(db).EmTransacaoAsync(
+              () => repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None), CancellationToken.None));
       // Recusado pela FK do material, e nao pelo CK da razao: e a FK no MEIO da arvore que prova a
       // atomicidade (o filho ja estava gravado quando ela estourou).
       Assert.Contains("FK_EstruturaMaterial_Material", erro.InnerException!.Message);
@@ -259,7 +301,8 @@ public class EstruturaRepositoryTests : TesteComBanco
                 ])
           ]);
 
-      var raizId = await repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None);
+      var raizId = await new ExecucaoRepository(db).EmTransacaoAsync(
+          () => repo.GravarArvoreAsync(agrupamentoId, null, no, CancellationToken.None), CancellationToken.None);
 
       await using var dbLeitura = NovoContexto();
       var meioId = (await dbLeitura.Estruturas.AsNoTracking()
@@ -318,7 +361,8 @@ public class EstruturaRepositoryTests : TesteComBanco
           ComponenteId: componenteA, Descricao: null, Quantidade: 1m, RequerRelatorioDimensional: false,
           Materiais: [], Roteiro: [],
           Filhos: [new NoParaGravar(componenteB, null, 1m, false, [], [], [], QuantidadePorPai: 1m)]);
-      var idA = await repo.GravarArvoreAsync(agrupamentoId, null, noA, CancellationToken.None);
+      var idA = await new ExecucaoRepository(db).EmTransacaoAsync(
+          () => repo.GravarArvoreAsync(agrupamentoId, null, noA, CancellationToken.None), CancellationToken.None);
 
       await using var dbLeitura = NovoContexto();
       var idB = (await dbLeitura.Estruturas.AsNoTracking()

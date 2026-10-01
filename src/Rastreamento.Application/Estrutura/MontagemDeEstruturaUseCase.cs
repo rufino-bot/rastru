@@ -164,10 +164,21 @@ public sealed class MontagemDeEstruturaUseCase
     _ = await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
 
     var paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);
-    var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
 
-    var arvore = await _montador.MontarAsync(agrupamentoId, ct);
-    return Result<EstruturaItemDto>.Ok(arvore.Single(i => i.Id == raizId));
+    // Gravar e ler de volta correm na transacao da execucao: um deadlock (1205) repete do zero e o
+    // esgotamento vira 409, em vez do 500 cru medido em 2026-10-01 em `POST /estrutura/{id}/filhos`
+    // (emenda de 2026-09-26 da secao 8.1 da spec da Fase 3: no NOVO cai no gap que a leitura
+    // SERIALIZABLE de outra transacao travou). Sem trava de no: gravar no novo nao valida nada contra
+    // o livro. A leitura do catalogo e o planejamento ficam FORA, de proposito: `LerReceitaCompletaAsync`
+    // le as tres tabelas da receita padrao inteiras, e sob SERIALIZABLE as travaria por faixa ate o
+    // commit, abrindo um ciclo com `ReceitaPadraoRepository` (spec do conserto, secao 3.2).
+    return await _execucao.ExecutarAsync(async () =>
+    {
+      var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
+
+      var arvore = await _montador.MontarAsync(agrupamentoId, ct);
+      return Result<EstruturaItemDto>.Ok(arvore.Single(i => i.Id == raizId));
+    }, ct);
   }
 
   /// <summary>
@@ -252,14 +263,25 @@ public sealed class MontagemDeEstruturaUseCase
           QuantidadePorPai: novo.QuantidadePorPai);
     }
 
-    var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
+    // Mesmo motivo de `CriarPeca`: gravar e ler de volta na transacao da execucao (retry de 1205, 409
+    // no esgotamento — o 500 medido em 2026-10-01), com o catalogo e o planejamento FORA dela (secao
+    // 3.2 da spec do conserto). Sem trava do pai: acrescentar filho e livre, ate a no ja iniciado
+    // (spec da Fase 3, secao 4.7).
+    //
+    // Residual conhecido, nao consertado (secao 3.6 da spec do conserto): o pai e lido FORA da
+    // transacao. Um `DELETE /estrutura/{id}` concorrente do pai, entre essa leitura e a gravacao, faz o
+    // INSERT do filho esbarrar na FK de `EstruturaPaiId` (547), que nao e 1205/1222 e sobe cru, como 500.
+    return await _execucao.ExecutarAsync(async () =>
+    {
+      var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
 
-    var arvore = await _montador.MontarAsync(pai.AgrupamentoId, ct);
-    var noCriado = BuscarNo(arvore, novoId)
-        ?? throw new InvalidOperationException(
-            $"No {novoId} nao encontrado na arvore recem montada do Agrupamento {pai.AgrupamentoId} "
-                + "(M1 da review da Task 4: gravado e nao lido de volta — nunca deveria acontecer).");
-    return Result<EstruturaItemDto>.Ok(noCriado);
+      var arvore = await _montador.MontarAsync(pai.AgrupamentoId, ct);
+      var noCriado = BuscarNo(arvore, novoId)
+          ?? throw new InvalidOperationException(
+              $"No {novoId} nao encontrado na arvore recem montada do Agrupamento {pai.AgrupamentoId} "
+                  + "(M1 da review da Task 4: gravado e nao lido de volta — nunca deveria acontecer).");
+      return Result<EstruturaItemDto>.Ok(noCriado);
+    }, ct);
   }
 
   /// <summary>
