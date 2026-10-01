@@ -261,6 +261,11 @@ resolvidos (ou conscientemente adiados).
 > arquivo vive só na branch `fase-1f-cadastro-sob-demanda` e não está na `main` — quem lê a `main`
 > não o encontra na pasta de specs. Ela também ainda não tem seção neste arquivo: a entrada vem com
 > a abertura da fase, como a própria spec prevê. A Fase 3B tem seção própria neste arquivo.
+>
+> **Emenda de 2026-10-01:** a Fase 1F abriu e ganhou a seção «Fase 1F — Cadastro sob demanda e
+> ordenação das listas», neste arquivo, entre os filtros e a 3B. A spec dela continua só na branch
+> `fase-1f-cadastro-sob-demanda` nessa data. O texto desta nota anterior a esta emenda descreve o
+> arquivo em 2026-09-29.
 
 - **Iniciar como verbo único** (regra 24 de `01`): iniciar um nó **com filhos** consome os filhos
   presentes no Setor e põe o pai em produção no primeiro passo, na mesma transação. "Montar" deixa
@@ -372,6 +377,96 @@ seleção convive com o filtro. Implementado na branch `filtros-e-lote-plano-2`:
 Plano 2 implementado, **fase não concluída**: falta a verificação manual no celular, pelo usuário,
 **pendente em 2026-09-30** — este arquivo não registra o Plano 2 como verificado. A posição da fase
 não mudou: **filtros → 1F → 3B**.
+
+## Fase 1F — Cadastro sob demanda e ordenação das listas
+
+> **Executada depois de "Filtros da demanda e ação em lote" e antes da Fase 3B** (ver a nota "Ordem
+> depois da 3D", na seção «Fase 3D — Ajustes pós-verificação da Fase 3»). O nome `1x` marca a
+> família — refinamento de interface, herdeira da 1D, que criou a prop `acao` da `Pagina`, e da 1E —,
+> e a posição neste arquivo marca a execução (decisão 6 da spec). Spec:
+> `docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`, escrita em 2026-09-06 e
+> revista em 2026-10-01 contra a `main` de então (`75df075`). Plano:
+> `docs/superpowers/plans/2026-10-01-fase-1f-cadastro-sob-demanda.md`. **Sem mudança de schema**:
+> "Mais recentes" é o `Id` decrescente (o `Id` é `IDENTITY`) e, em Pedidos, a `DataAbertura` que já
+> existia; não há `db/alter-*.sql`.
+
+Nasceu de um defeito visto usando a aplicação com o `admin`: nas quatro telas de lista e na tela do
+Agrupamento, o formulário de cadastro era o primeiro filho da `Pagina`, logo abaixo do título, na
+mesma moldura da barra de filtros de `ComponentesPage` — e se lia como **filtro**. Lá e em `PedidosPage`
+ele ficava **acima** da busca e do filtro de verdade. Quem só lê não via o defeito: o formulário já
+estava sob `usePodeEscrever`. A revisão de 2026-10-01 acrescentou dois blocos: a **ordenação
+escolhida pelo usuário**, que nasceu da pergunta "o item recém-criado aparece depois de salvar?" —
+com busca, filtros e paginação no servidor, não aparecia —, e o **cartão de lista inteiro
+clicável**, decisão de 2026-09-28 na verificação manual da Fase 3, posta nesta fase.
+
+- **Cadastro sob demanda.** A primitiva `PainelDeEscrita` (`web/src/components/`), extraída do painel
+  que a `AgrupamentoDetalhePage` escrevia à mão desde a Fase 2: moldura, `<h2>` que dá nome ao
+  `<form>` por `aria-labelledby`, subtítulo opcional, `Cancelar` e foco no primeiro campo ao abrir.
+  Não é modal — não fecha no `Escape` e não prende o foco —, por decisão da spec. As cinco telas —
+  `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — abrem
+  em leitura, com o botão da ação ("Novo setor", "Novo material", "Novo componente", "Novo pedido",
+  "Nova Peça") no `acao` da `Pagina`, e o painel abre como primeiro elemento abaixo do cabeçalho.
+  Salvar com sucesso fecha o painel; conflito (409) e falha de rede o mantêm aberto, com o erro
+  dentro dele. Na tela do Agrupamento convivem dois painéis — "Nova Peça" e o do nó (editar e
+  acrescentar sub-Item) —, e abrir um fecha o outro. O estado vazio das cinco telas deixou de dizer
+  "Use o formulário acima" e passou a nomear o botão.
+- **Ordenação.** A primitiva `SeletorDeOrdem` ("Ordenar por", com a direção dentro da opção:
+  "Código (A→Z)") nas quatro telas de lista, com **"Mais recentes" como padrão** nas quatro. Em
+  Componentes e Pedidos quem ordena é o servidor: `GET /componentes?ordem=recentes|codigo|descricao`
+  e `GET /pedidos?ordem=recentes|numero|cliente`, com `recentes` quando o parâmetro falta e 400 para
+  valor desconhecido (contrato em `05-api-endpoints.md`). Em Setores e Materiais quem ordena é o
+  cliente, pela função `ordenarCadastro` (`web/src/cadastros/`), e `GET /setores` e `GET /materiais`
+  não mudaram, porque alimentam outros seletores. Só em Pedidos a ordem vai para a URL, junto de
+  busca, filtros e página.
+- **Salvar devolve a consulta ao padrão** (decisão 7 da spec), para o item novo aparecer no topo:
+  ordem "Mais recentes" e, onde a tela os tem, busca vazia, filtros limpos, página 1 e sem inativos.
+  Nas duas telas paginadas isso é o `voltarAoInicio()` do `useBuscaPaginada`, que recarrega mesmo
+  quando a consulta já estava no padrão; em Pedidos, a URL é limpa na mesma transição, e a lista faz
+  uma requisição só.
+- **A padrão de `GET /componentes` mudou** de `Codigo` crescente para `recentes` para **todo**
+  consumidor, inclusive o `SeletorComBusca` da tela do Agrupamento e da receita padrão — escolha
+  explícita do usuário (decisão 9 da spec), preferida a um parâmetro que só a tela usasse.
+- **Cartão inteiro clicável** em `FilaPage`, `PedidoDetalhePage` e `ComponentesPage`, com o
+  pseudo-elemento que a `LinhaDePedido` já usava. O conserto da armadilha documentada em
+  `ListaDeCadastro` — o overlay do link engolia o clique no botão do item — foi feito uma vez, na
+  primitiva: o `ItemDeCadastro` põe a `acao` num wrapper empilhado acima do overlay.
+
+**Onde o plano decidiu além da spec, e vale como está** (decisões do plano, confirmadas pelo usuário
+em 2026-10-01):
+
+- O botão do cabeçalho some enquanto o painel dele está aberto (D5); na tela do Agrupamento, o "Nova
+  Peça" some só com o painel de Peça aberto, e com o do nó aberto clicá-lo troca de painel.
+- "Editar" setor usa o mesmo painel, com título "Editar setor" e o nome atual no subtítulo; salvar a
+  **edição** recarrega mantendo a ordem e o "Mostrar inativos", porque o item editado já estava na
+  tela (D6).
+- "Reativar o existente" com sucesso é desfecho de sucesso como o salvar: fecha o painel e devolve a
+  consulta ao padrão (D7). O item reativado tem `Id` antigo, então "Mais recentes" **não** o põe no
+  topo — consequência aceita.
+- Erro de escrita mora dentro do painel; erro de carga e de Inativar/Reativar do item, fora (D8) —
+  com o painel fechado, um erro de Inativar não teria onde aparecer.
+
+**Critério de pronto** (seção "Critério de pronto" da spec): as cinco telas abrem em leitura, sem
+bloco de campos abaixo do título; `npm test` verde e `npm run build` limpo; `dotnet build
+Rastreamento.slnx -warnaserror` com 0 avisos e `dotnet test Rastreamento.slnx -m:1` verde; um perfil
+sem escrita continua sem botão e sem painel; e a **verificação no navegador**, a 375px e em desktop —
+as cinco telas em leitura, o painel abrindo, cancelando e salvando, os dois painéis do Agrupamento um
+de cada vez, a ordenação nas quatro telas com o item recém-criado no topo depois de salvar, e o
+cartão clicável nas três telas, onde clicar no **centro** do botão executa a ação e clicar no resto
+do cartão navega. Este último item não tem prova na suíte: o jsdom não calcula layout.
+
+**Fora de escopo** (seção "Fora de escopo" da spec): o painel sob demanda em `PedidoDetalhePage` e
+`ComponenteDetalhePage`, onde o formulário já vive numa seção com `<h2>` (o cartão clicável de
+`PedidoDetalhePage` está dentro do escopo); ordenação na Fila do Setor e nas Tarefas, onde a ordem
+serve ao trabalho do chão de fábrica; busca e página de Componentes na URL; e uma primitiva de
+mensagem de sucesso — o fechamento do painel é o sinal de sucesso.
+
+**Estado em 2026-10-01:** implementada na branch `fase-1f-cadastro-sob-demanda`, **fase não
+concluída** — falta a verificação no navegador do critério de pronto, que este arquivo **não**
+registra como feita. Suítes na árvore de `6849190`: front **1109 testes / 67 arquivos**, verde
+(`npm test -- --run`), contra 1011 / 64 na base da fase; backend **979** testes (Api 310 ·
+Application 511 · Infrastructure 158), contra 945 na base — a contagem é de `dotnet test
+--list-tests`, que descobre os testes sem executá-los, e a execução verde foi medida depois da task
+de backend, em `49c2ce0`; `src/` e `tests/` não mudaram desde então.
 
 ## Fase 3B — Kit e montagem
 

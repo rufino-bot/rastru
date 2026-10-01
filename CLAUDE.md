@@ -232,6 +232,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   é o shell. As duas exceções são `LoginPage` e `TelaCarregando`, ambas por renderizarem **fora**
   do shell (a segunda substitui o `AppShell` inteiro enquanto a sessão ainda carrega, em
   `ProtectedRoute`) — não numa terceira tela nova.
+
+  **Cadastro não fica no topo da tela** (desde a Fase 1F, spec
+  `docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`). Um bloco de campos
+  logo abaixo do `<h1>` se lê como filtro, não como cadastro — e foi assim que o defeito apareceu,
+  com o cadastro de Componentes **acima** da barra de busca de verdade. A tela abre em leitura; a
+  ação de escrita é um `Botao` no `acao` da `Pagina`, e ele abre um `PainelDeEscrita` (ver o bullet
+  dele). As cinco telas que tinham o formulário no topo — `SetoresPage`, `MateriaisPage`,
+  `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — passaram a isso na Fase 1F. **Ficaram
+  de fora, por decisão escrita** (seção "Fora de escopo" daquela spec), `PedidoDetalhePage` e
+  `ComponenteDetalhePage`: nelas a escrita fica numa seção com `<h2>` próprio, não logo abaixo do
+  título, e o defeito é bem menor. Não são modelo para tela nova.
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
@@ -271,25 +282,64 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   leitor de tela vê, e um `data-testid` no lugar dele esconde regressão de acessibilidade. É
   aceitável quando o alvo é um **contêiner sem papel** que o teste precisa nomear — a `div` de uma
   linha ou do bloco de ações —, ou um elemento cujo papel existe mas **não distingue** (um `<form>`
-  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas). São **5 usos em 3 arquivos**
-  (medido em 2026-09-17 com `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`,
-  remedido depois de 2026-09-07 porque um terceiro arquivo passou a usar o atributo):
-  `linha-no-`, `acoes-do-no-` e `passo-do-roteiro` na `ArvoreDeEstrutura`, `painel-de-escrita` na
-  `AgrupamentoDetalhePage`, e `container-do-visualizador` na `VisualizadorDeSolido` (nomeia o `<div>`
+  sem nome acessível numa tela que tem dois; um `<li>` entre dezenas).
+
+  **A medição, em 2026-10-01:** `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`
+  devolve **6 linhas em 4 arquivos**, e a linha do comando **não** é a unidade de uso — separá-las
+  pede leitura. **5 são o atributo**, em 3 arquivos: `linha-no-`, `acoes-do-no-` e `passo-do-roteiro`
+  na `ArvoreDeEstrutura`; `container-do-visualizador` na `VisualizadorDeSolido` (nomeia o `<div>`
   contêiner que recebe o `<canvas>` do Three.js — sem papel ARIA nem texto estável antes do clique em
-  "Visualizar", quando o `<canvas>` com `aria-label` ainda não existe). A regra é escrita porque o
-  segundo consumidor **já chegou** e nada no documento dizia quando o primeiro valia — mesmo desenho
-  de risco da exceção do "botão de chrome", resolvido do mesmo jeito: escrevendo. O terceiro
-  consumidor é só mais uma medição — a contagem é de uma data, não uma cota, e quem a atualizar de
-  novo remede com o mesmo comando e diz a data nova.
+  "Visualizar", quando o `<canvas>` com `aria-label` ainda não existe); e o `data-testid={testId}` do
+  `PainelDeEscrita`, que é **repasse**: escreve o que recebe pela prop `testId` e, sem ela, não
+  escreve nada. A sexta linha é um comentário da `AgrupamentoDetalhePage` que cita
+  `painel-de-escrita` — referência, não uso.
+
+  **O único consumidor do repasse** é o painel do nó da `AgrupamentoDetalhePage` (editar e
+  acrescentar sub-Item), que passa `testId="painel-de-escrita"` para os testes da Fase 2 que já o
+  achavam por esse identificador. Essa linha não aparece no comando registrado, porque o que ela
+  escreve é a prop e não o atributo; quem quiser contá-la usa
+  `grep -rn 'testId="' web/src --include=*.tsx | grep -v "\.test\."` (1 linha, em 2026-10-01). O
+  identificador sobrevive por compatibilidade, não por falta de papel: o `<form>` do
+  `PainelDeEscrita` tem nome acessível, e **painel novo não passa `testId`** — o "Nova Peça" do
+  Agrupamento e os das quatro telas de lista são achados por `getByRole('form', { name })`. A prop
+  não é atalho para fugir desta regra.
+
+  Somando, os identificadores que chegam ao DOM continuam **5**, os mesmos da medição anterior
+  (2026-09-17, mesmo comando: "5 usos em 3 arquivos", com `painel-de-escrita` escrito à mão na
+  `AgrupamentoDetalhePage`); o que mudou na Fase 1F é que um deles passou a chegar pela primitiva. A
+  regra é escrita porque o segundo consumidor **já chegou** e nada no documento dizia quando o
+  primeiro valia — mesmo desenho de risco da exceção do "botão de chrome", resolvido do mesmo jeito:
+  escrevendo. A contagem é de uma data, não uma cota: quem a atualizar de novo remede com o mesmo
+  comando, diz a data nova e diz quais linhas são atributo, repasse ou comentário.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
   itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **duas** telas
   consumidoras, com **três** usos (medido em 2026-09-18 com
-  `grep -rn "<SeletorComBusca" web/src --include=*.tsx | grep -v "\.test\."`): na
-  `AgrupamentoDetalhePage`, o formulário de criar Peça e o painel de acrescentar filho; na
-  `ComponenteDetalhePage`, a receita padrão — o bastante para nomear a primitiva certa, não para
-  chamá-la de padrão já consolidado.
+  `grep -rn "<SeletorComBusca" web/src --include=*.tsx | grep -v "\.test\."`, e remedido em
+  2026-10-01 com o mesmo comando, sem mudança de número): na `AgrupamentoDetalhePage`, o painel
+  "Nova Peça" (até a Fase 1F, o formulário de criar Peça fixo no topo) e o painel de acrescentar
+  filho; na `ComponenteDetalhePage`, a receita padrão — o bastante para nomear a primitiva certa,
+  não para chamá-la de padrão já consolidado. O seletor não manda `ordem`, então recebe a padrão de
+  `GET /componentes`, que **desde a Fase 1F é "Mais recentes"** (`Id` decrescente; antes era por
+  código) — escolha explícita do usuário, decisão 9 da spec da 1F.
+- **Formulário de escrita aberto sob demanda numa tela de leitura usa `PainelDeEscrita`**
+  (`web/src/components/`, com teste próprio), aberto pelo botão do `acao` da `Pagina` — é o que a
+  regra "cadastro não fica no topo", no bullet do `<Pagina>`, pede. Nasceu na Fase 1F, extraído do
+  painel que a `AgrupamentoDetalhePage` escrevia à mão desde a Fase 2. Ele guarda o que não varia: a
+  moldura, o `<h2>` com o nome da ação, ligado ao `<form>` por `aria-labelledby` (o form tem nome
+  acessível e o teste o acha por `getByRole('form', { name })`), o subtítulo opcional, o `Cancelar`
+  (que chama `aoFechar`) e o foco inicial, dado na montagem ao primeiro controle do **conteúdo** — e
+  não do `<form>` inteiro, onde o primeiro focável seria o próprio `Cancelar`. **Não** guarda os
+  campos, o banner de erro de escrita nem o submit, que vêm como filhos, nem o estado aberto/fechado,
+  que é `useState` da tela. **Não é modal**, por decisão da spec da 1F: não fecha no `Escape` e não
+  prende o foco — a tela continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
+  ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
+  de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **cinco** telas consumidoras, com **seis** usos
+  (medido em 2026-10-01 com `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`):
+  `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
+  `PedidosPage` e, duas vezes, a `AgrupamentoDetalhePage` — o painel "Nova Peça" e o do nó (editar e
+  acrescentar sub-Item), que nunca coexistem: abrir um fecha o outro.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
@@ -320,11 +370,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   mão: ele já resolve debounce, cancelamento por sequência, clamp de página e reset de filtro. Desde
   os filtros da demanda ele também aceita `inicial` (busca e página da primeira consulta, lidas da
   URL), `filtros` (facetas de fora do hook, comparadas por valor: mudar volta à página 1) e
-  `aoMudarConsulta` (para quem guarda busca e página na URL).
+  `aoMudarConsulta` (para quem guarda busca e página na URL). Desde a Fase 1F ele devolve também
+  `voltarAoInicio()`: busca vazia (o campo e a consultada, o que descarta um debounce pendente),
+  página 1, sem inativos, e uma recarga **forçada** mesmo quando a consulta já estava no padrão —
+  sem ela, salvar na página 1 sem filtro nenhum não buscaria o item novo. Não toca no tamanho da
+  página (preferência de exibição) nem nos `filtros`, que são de fora do hook: quem os zera é a
+  tela, no mesmo handler.
 - **Filtrar demanda por facetas usa `FiltroDeDemanda`** (`web/src/components/`, com teste próprio),
-  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São três primitivas para três
-  gatilhos, e não se substituem: **escolher um item de catálogo paginado** é `SeletorComBusca`;
-  **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **restringir uma lista de demanda
+  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São quatro primitivas de consulta
+  para quatro gatilhos, e não se substituem: **escolher um item de catálogo paginado** é
+  `SeletorComBusca`; **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **ordenar uma
+  lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **restringir uma lista de demanda
   por Material, Pedido, Status…** é `FiltroDeDemanda`, seja a lista filtrada **no cliente** (a fila
   do Setor e as Tarefas, que chegam inteiras: as opções e a contagem saem da própria resposta, e
   `casaComFiltro`, exportada pelo módulo do componente, é a única implementação da regra — OU dentro
@@ -339,6 +395,31 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
   morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
   histórico) e a vírgula sai codificada (`?material=3%2C5`), embora o hook leia as duas formas.
+- **Ordenar uma lista de cadastro usa `SeletorDeOrdem`** (`web/src/components/`, com teste
+  próprio): um `Campo` "Ordenar por" com um `<select>` da lista fechada de ordens da tela, com a
+  direção dentro do rótulo da opção ("Código (A→Z)"). É a quarta primitiva de consulta, ao lado das
+  três que o bullet do `FiltroDeDemanda` enumera, e o mesmo contrato controlado dele: recebe
+  `opcoes` e `valor`, devolve o **valor** escolhido por `aoMudar`; não busca nada, não ordena nada e
+  não sabe de URL. Quem ordena é o servidor em `ComponentesPage` e `PedidosPage` (`?ordem=` de
+  `GET /componentes` e `GET /pedidos`, que entra no `useBuscaPaginada` pelos `filtros`: trocar a
+  ordem volta à página 1) e `ordenarCadastro` (`web/src/cadastros/`) em `SetoresPage` e
+  `MateriaisPage`, que recebem a lista inteira — os endpoints delas não mudaram, porque alimentam
+  outros seletores. **A padrão é "Mais recentes" nas quatro telas**, para o item recém-criado vir no
+  topo: `Id` decrescente, e em Pedidos `DataAbertura` decrescente com `Id` desempatando. **Salvar
+  com sucesso devolve a consulta ao padrão** (decisão 7 da spec da 1F) — ordem "Mais recentes" e,
+  onde a tela os tem, busca vazia, sem filtros, página 1, sem inativos: em Componentes e Pedidos
+  pelo `voltarAoInicio()` do `useBuscaPaginada`, com a tela zerando a ordem (e, em Pedidos, a URL
+  inteira) no mesmo handler; em Setores e Materiais, a própria tela zera ordem e "Mostrar inativos"
+  e recarrega. "Reativar o
+  existente" com sucesso conta como salvar; **editar** um setor, não — a edição recarrega mantendo
+  ordem e inativos, porque o item editado já estava na tela. A ordem vai para a URL **só** em
+  `PedidosPage`, e a padrão não é escrita lá (`/pedidos` limpa é "Mais recentes"); valor
+  desconhecido lido da URL cai na padrão e não é enviado ao servidor, onde seria 400. Ordenar é
+  leitura: o seletor aparece para todo perfil. Hoje tem **quatro** telas consumidoras, cada uma com
+  um uso (medido em 2026-10-01 com
+  `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
+  `MateriaisPage`, `ComponentesPage` e `PedidosPage`. A Fila do Setor e as Tarefas **não** ordenam
+  por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
