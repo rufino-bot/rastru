@@ -241,8 +241,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   dele). As cinco telas que tinham o formulário no topo — `SetoresPage`, `MateriaisPage`,
   `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — passaram a isso na Fase 1F. **Ficaram
   de fora, por decisão escrita** (seção "Fora de escopo" daquela spec), `PedidoDetalhePage` e
-  `ComponenteDetalhePage`: nelas a escrita fica numa seção com `<h2>` próprio, não logo abaixo do
-  título, e o defeito é bem menor. Não são modelo para tela nova.
+  `ComponenteDetalhePage`: nelas o formulário de cadastro fica numa seção com `<h2>` próprio, não
+  logo abaixo do título, e o defeito é bem menor. Não são modelo para tela nova.
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
@@ -298,7 +298,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   acrescentar sub-Item), que passa `testId="painel-de-escrita"` para os testes da Fase 2 que já o
   achavam por esse identificador. Essa linha não aparece no comando registrado, porque o que ela
   escreve é a prop e não o atributo; quem quiser contá-la usa
-  `grep -rn 'testId="' web/src --include=*.tsx | grep -v "\.test\."` (1 linha, em 2026-10-01). O
+  `grep -rn "testId=" web/src --include=*.tsx | grep -v "\.test\."` (1 linha, em 2026-10-01). O
   identificador sobrevive por compatibilidade, não por falta de papel: o `<form>` do
   `PainelDeEscrita` tem nome acessível, e **painel novo não passa `testId`** — o "Nova Peça" do
   Agrupamento e os das quatro telas de lista são achados por `getByRole('form', { name })`. A prop

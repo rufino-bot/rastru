@@ -180,6 +180,13 @@ O `data-testid` é **parâmetro, não fixo**. A tela do Agrupamento passa a ter 
 possíveis, e os testes da Task 8b buscam `painel-de-escrita` por `getByTestId` — que lança quando
 há dois no documento. O painel de editar/acrescentar conserva aquele identificador (preservando os
 testes existentes) e o de criar Peça recebe outro.
+**Emenda de 2026-10-01:** o painel de criar Peça **não** recebeu identificador. Ele chegou a ter um
+na implementação, e a review da tela do Agrupamento o tirou: nada o usava, e o `CLAUDE.md` só aceita
+`data-testid` onde o alvo não tem papel nem nome — e o `<form>` do painel tem os dois, pelo
+`aria-labelledby` do `<h2>`. Os testes o acham por `getByRole('form', { name: 'Nova Peça' })`. O
+objetivo deste parágrafo, nunca dois `painel-de-escrita` no documento, é cumprido pela ausência do
+atributo no painel de Peça; a «Exclusividade de painéis», em «Os detalhes que vão doer», garante
+além disso um painel só por vez.
 
 O estado aberto/fechado fica em `useState` na tela. Um hook para um booleano seria abstração vazia.
 
@@ -352,6 +359,8 @@ mecânica e ampla, e o volume dela é o maior custo da fase.
 - `CLAUDE.md`, seção "Interface": as primitivas `PainelDeEscrita` e `SeletorDeOrdem`, cada uma com o
   seu gatilho, no formato das entradas de `SeletorComBusca` e `FiltroDeDemanda`; e a contagem de
   `data-testid`, remedida com o comando registrado lá (o painel de criar Peça ganha um identificador).
+  **Emenda de 2026-10-01:** não ganhou — ver a emenda da seção "A primitiva". A contagem foi
+  remedida mesmo assim, porque o `painel-de-escrita` passou a chegar ao DOM pela primitiva.
 
 ## Critério de pronto
 

@@ -388,7 +388,7 @@ não mudou: **filtros → 1F → 3B**.
 > revista em 2026-10-01 contra a `main` de então (`75df075`). Plano:
 > `docs/superpowers/plans/2026-10-01-fase-1f-cadastro-sob-demanda.md`. **Sem mudança de schema**:
 > "Mais recentes" é o `Id` decrescente (o `Id` é `IDENTITY`) e, em Pedidos, a `DataAbertura` que já
-> existia; não há `db/alter-*.sql`.
+> existia; a fase não traz `db/alter-*.sql`.
 
 Nasceu de um defeito visto usando a aplicação com o `admin`: nas quatro telas de lista e na tela do
 Agrupamento, o formulário de cadastro era o primeiro filho da `Pagina`, logo abaixo do título, na
@@ -413,10 +413,10 @@ clicável**, decisão de 2026-09-28 na verificação manual da Fase 3, posta nes
 - **Ordenação.** A primitiva `SeletorDeOrdem` ("Ordenar por", com a direção dentro da opção:
   "Código (A→Z)") nas quatro telas de lista, com **"Mais recentes" como padrão** nas quatro. Em
   Componentes e Pedidos quem ordena é o servidor: `GET /componentes?ordem=recentes|codigo|descricao`
-  e `GET /pedidos?ordem=recentes|numero|cliente`, com `recentes` quando o parâmetro falta e 400 para
-  valor desconhecido (contrato em `05-api-endpoints.md`). Em Setores e Materiais quem ordena é o
-  cliente, pela função `ordenarCadastro` (`web/src/cadastros/`), e `GET /setores` e `GET /materiais`
-  não mudaram, porque alimentam outros seletores. Só em Pedidos a ordem vai para a URL, junto de
+  e `GET /pedidos?ordem=recentes|numero|cliente`, com `recentes` quando o parâmetro falta, vem vazio
+  ou só com espaços, e 400 para valor desconhecido (contrato em `05-api-endpoints.md`). Em Setores e
+  Materiais quem ordena é o cliente, pela função `ordenarCadastro` (`web/src/cadastros/`), e
+  `GET /setores` e `GET /materiais` não mudaram, porque alimentam outros seletores. Só em Pedidos a ordem vai para a URL, junto de
   busca, filtros e página.
 - **Salvar devolve a consulta ao padrão** (decisão 7 da spec), para o item novo aparecer no topo:
   ordem "Mais recentes" e, onde a tela os tem, busca vazia, filtros limpos, página 1 e sem inativos.
