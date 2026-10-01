@@ -619,7 +619,11 @@ do **mesmo** processo, que o `-m:1` não alcança. Por isso o assembly declara
 (`ParalelizacaoDaSuiteDeApi.cs`), e o teste-guarda é
 `Paralelizacao_entre_classes_fica_desligada_neste_assembly`, que morre se o atributo sair. O atributo
 serializa classes, não a concorrência que um teste dispara dentro de si (`CorridaNaQueimaDeFamiliaTests`).
-`Infrastructure.Tests` continua paralela, porque não apareceu em nenhuma dessas medições.
+`Infrastructure.Tests` continua paralela, porque não apareceu em nenhuma dessas medições. Depois do
+atributo (e do conserto de `GravarArvoreAsync`, que leva criar Peça e acrescentar filho para a transação
+da execução), na mesma bancada e nas mesmas duas variantes: **0 vermelhas em 20** (`b03607b`). O custo é
+de tempo: a `Duration` de `Api.Tests` foi de 33–47 s para 46–55 s. Os `.trx` das 40 execuções estão no
+ledger do plano (`.superpowers/sdd/2026-10-01-deadlock-na-suite-de-api/`).
 
 ```bash
 docker compose up -d
