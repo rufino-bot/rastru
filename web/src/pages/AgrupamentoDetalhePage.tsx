@@ -261,8 +261,8 @@ export function AgrupamentoDetalhePage() {
       return
     }
     // O envio termina quando a escrita responde, não quando a árvore recarrega: com um `finally`
-    // em volta de tudo, o `setEnviando(false)` de uma gravação antiga chegaria depois da recarga e
-    // reabilitaria o botão de um painel reaberto nesse intervalo.
+    // em volta de tudo, o botão ficaria preso em "Salvando…" durante a recarga, para uma gravação
+    // que já terminou.
     setEnviando(false)
     if (ehConflitoDeEstrutura(resultado)) {
       // `mensagem` nomeia o caminho do ciclo quando o código é `CicloNaReceita` (sempre vem
@@ -487,7 +487,10 @@ export function AgrupamentoDetalhePage() {
       )}
     >
       {podeEscrever && painelDePecaAberto && (
-        <PainelDeEscrita titulo="Nova Peça" testId="painel-de-peca" aoEnviar={salvar} aoFechar={fecharPainelDePeca}>
+        // Sem `testId`: o painel tem papel e nome ("Nova Peça"), e os testes o acham por
+        // `getByRole('form', { name })`. É também o que mantém `painel-de-escrita` só no painel do
+        // nó, e os dois painéis nunca coexistem.
+        <PainelDeEscrita titulo="Nova Peça" aoEnviar={salvar} aoFechar={fecharPainelDePeca}>
           <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
             <SeletorComBusca
               rotulo="Componente"
