@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   listarPedidos, listarMateriaisDosPedidos, criarPedido, ehConflito,
@@ -20,13 +20,11 @@ import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ControlesDePaginacao } from '../components/ControlesDePaginacao'
-import { FiltroDeDemanda, type Faceta, type Selecao } from '../components/FiltroDeDemanda'
+import { FiltroDeDemanda, type Faceta } from '../components/FiltroDeDemanda'
 
 const FORMULARIO_VAZIO: NovoPedido = { numero: '', cliente: '' }
 
 const CHAVES_DO_FILTRO = ['status', 'material'] as const
-
-const SELECAO_VAZIA: Selecao = {}
 
 const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<OrdemDePedidos>[] = [
   { valor: 'recentes', rotulo: 'Mais recentes' },
@@ -94,20 +92,8 @@ export function PedidosPage() {
     busca: params.get('busca') ?? '',
     pagina: paginaDaUrl(params.get('pagina')),
   }))
-  const { selecao: selecaoDaUrl, mudarSelecao, limpar } = useSelecaoNaUrl(CHAVES_DO_FILTRO)
-
-  // Salvar zera a URL, mas o router a aplica em prioridade baixa (`startTransition`), enquanto o
-  // estado do hook é urgente. Sem esta guarda, a lista buscaria duas vezes: uma com a busca já zerada
-  // e as facetas ainda velhas, e outra quando a URL chegasse. Enquanto `urlAZerar` vale, a tela lê
-  // o padrão em vez da URL; quando a URL zerada chega, a guarda cai, e o valor lido (o mesmo) não
-  // dispara busca nenhuma — os `filtros` do hook são comparados por valor.
-  const [urlAZerar, setUrlAZerar] = useState(false)
-  const textoDosParams = params.toString()
-  useEffect(() => {
-    if (urlAZerar && textoDosParams === '') setUrlAZerar(false)
-  }, [urlAZerar, textoDosParams])
-  const selecao = urlAZerar ? SELECAO_VAZIA : selecaoDaUrl
-  const ordem = urlAZerar ? 'recentes' : ordemDaUrl(params.get('ordem'))
+  const { selecao, mudarSelecao, limpar } = useSelecaoNaUrl(CHAVES_DO_FILTRO)
+  const ordem = ordemDaUrl(params.get('ordem'))
 
   // Só o que o servidor aceita vai a ele: um `?material=abc` colado à mão viraria 400 na tela. O
   // valor inválido continua na seleção — o `FiltroDeDemanda` o mostra como opção ausente, marcada e
@@ -118,20 +104,15 @@ export function PedidosPage() {
     ordem: [ordem],
   }), [selecao, ordem])
 
-  // Toda escrita da página na URL passa por aqui. O `setParams` parte dos parâmetros do render em
-  // que foi criado, e o router aplica a navegação em prioridade baixa (`startTransition`) enquanto
-  // o estado do hook é urgente: salvar zera a URL e o hook, e o efeito do hook roda ANTES de a URL
-  // nova chegar — partindo dos parâmetros antigos, ele os escreveria de volta. `escritaPendente`
-  // guarda a última URL pedida, e a escrita seguinte parte dela enquanto a anterior não chegou.
-  const escritaPendente = useRef<string | null>(null)
-  useEffect(() => { escritaPendente.current = null }, [textoDosParams])
-
-  const escreverNaUrl = useCallback(
-    (mudar: (base: URLSearchParams) => URLSearchParams) => {
+  // O padrão não vai à URL: escolher "Mais recentes" apaga o parâmetro. Como as facetas, escreve com
+  // `replace` — trocar a ordem não cria entrada de histórico.
+  const mudarOrdem = useCallback(
+    (nova: OrdemDePedidos) => {
       setParams(
         (anterior) => {
-          const proxima = mudar(new URLSearchParams(escritaPendente.current ?? anterior))
-          escritaPendente.current = proxima.toString()
+          const proxima = new URLSearchParams(anterior)
+          if (nova === 'recentes') proxima.delete('ordem')
+          else proxima.set('ordem', nova)
           return proxima
         },
         { replace: true },
@@ -140,30 +121,21 @@ export function PedidosPage() {
     [setParams],
   )
 
-  // O padrão não vai à URL: escolher "Mais recentes" apaga o parâmetro. Como as facetas, escreve com
-  // `replace` — trocar a ordem não cria entrada de histórico.
-  const mudarOrdem = useCallback(
-    (nova: OrdemDePedidos) => {
-      escreverNaUrl((proxima) => {
-        if (nova === 'recentes') proxima.delete('ordem')
-        else proxima.set('ordem', nova)
-        return proxima
-      })
-    },
-    [escreverNaUrl],
-  )
-
   const guardarConsultaNaUrl = useCallback(
     ({ busca, pagina }: { busca: string; pagina: number }) => {
-      escreverNaUrl((proxima) => {
-        if (busca) proxima.set('busca', busca)
-        else proxima.delete('busca')
-        if (pagina > 1) proxima.set('pagina', String(pagina))
-        else proxima.delete('pagina')
-        return proxima
-      })
+      setParams(
+        (anterior) => {
+          const proxima = new URLSearchParams(anterior)
+          if (busca) proxima.set('busca', busca)
+          else proxima.delete('busca')
+          if (pagina > 1) proxima.set('pagina', String(pagina))
+          else proxima.delete('pagina')
+          return proxima
+        },
+        { replace: true },
+      )
     },
-    [escreverNaUrl],
+    [setParams],
   )
 
   const lista = useBuscaPaginada<PedidoDto>({
@@ -216,14 +188,17 @@ export function PedidosPage() {
   }
 
   // Desfecho de sucesso: fecha o painel e devolve a consulta ao padrão — busca, página, facetas e
-  // ordem —, para o pedido novo aparecer (decisão 7 da spec da 1F). A URL é limpa por inteiro; no
-  // mesmo handler, os `filtros` voltam ao padrão e o `voltarAoInicio` zera o resto, e os dois viram
-  // UMA requisição, então não há `recarregar` junto.
+  // ordem —, para o pedido novo aparecer (decisão 7 da spec da 1F). O router aplica a mudança de URL
+  // em `startTransition`, e a seleção e a ordem saem da URL; se o `voltarAoInicio` ficasse de fora,
+  // o estado do hook (urgente) commitaria antes da URL: a lista buscaria duas vezes, e o efeito do
+  // hook que copia a consulta para a URL partiria da URL ainda antiga e a reescreveria. Os dois
+  // juntos na mesma transição commitam num render só: uma requisição, com a URL já zerada.
   function concluirComSucesso() {
     fecharPainel()
-    setUrlAZerar(true)
-    escreverNaUrl(() => new URLSearchParams())
-    lista.voltarAoInicio()
+    startTransition(() => {
+      setParams(new URLSearchParams(), { replace: true })
+      lista.voltarAoInicio()
+    })
   }
 
   async function salvar(e: FormEvent) {

@@ -4,7 +4,7 @@
 // usam `new Response(...)`; trocar o ambiente global arriscaria mexer nos globals deles sem ganho.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom'
 import { PedidosPage } from './PedidosPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
@@ -50,7 +50,13 @@ const MATERIAIS = [
 // Mostra a rota atual (caminho + query) para o teste afirmar o que a tela escreveu na URL.
 function LocalizacaoAtual() {
   const { pathname, search } = useLocation()
-  return <p aria-label="localizacao">{pathname + search}</p>
+  const tipo = useNavigationType()
+  return (
+    <>
+      <p aria-label="localizacao">{pathname + search}</p>
+      <p aria-label="navegacao">{tipo}</p>
+    </>
+  )
 }
 
 function renderizar(rota = '/pedidos') {
@@ -60,6 +66,11 @@ function renderizar(rota = '/pedidos') {
       <LocalizacaoAtual />
     </MemoryRouter>,
   )
+}
+
+// Como a última navegação foi feita: 'REPLACE' é a escrita sem entrada de histórico.
+function tipoDeNavegacao() {
+  return screen.getByLabelText('navegacao').textContent
 }
 
 function localizacao() {
@@ -529,6 +540,8 @@ describe('PedidosPage', () => {
     preencherEEnviar('PED-002', 'Fábrica Beta')
 
     await waitFor(() => expect(listagens(fetchMock)).toHaveLength(2))
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
+    expect(listagens(fetchMock)).toHaveLength(2)
     const depois = listagens(fetchMock)[1]
     expect(depois.searchParams.get('busca') ?? '').toBe('')
     expect(depois.searchParams.has('status')).toBe(false)
@@ -580,7 +593,7 @@ describe('PedidosPage', () => {
     expect((screen.getByLabelText('Cliente') as HTMLInputElement).value).toBe('')
   })
 
-  // Review Focus 3: a URL inteira preenchida. Salvar a limpa por completo e a consulta volta ao
+  // Review Focus 3 do plano da 1F: a URL inteira preenchida. Salvar a limpa por completo e a consulta volta ao
   // padrão numa requisição só — duas (uma com os parâmetros antigos, outra limpa) deixariam o
   // último GET igual e passariam despercebidas sem a contagem.
   it('salvar com sucesso limpa a URL inteira e a consulta volta ao padrao', async () => {
@@ -614,7 +627,34 @@ describe('PedidosPage', () => {
     expect((screen.getByRole('button', { name: 'Abrir pedido' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  // Review Focus 1, em Pedidos: nada da consulta muda, e a lista tem de buscar de novo mesmo assim.
+  // Depois de salvar a tela volta a obedecer à URL: uma ordem ou uma faceta escolhida em seguida
+  // chega à URL e à requisição. Pega a tela que, zerada pelo salvar, passasse a ignorar a URL.
+  it('depois de salvar, uma nova ordem e uma nova faceta ainda chegam a URL e a requisicao', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?status=Aberto&ordem=cliente')
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    preencherEEnviar('PED-002', 'Fábrica Beta')
+    await waitFor(() => expect(localizacao()).toBe('/pedidos'))
+    await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
+
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'numero' } })
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=numero'))
+    await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('numero'))
+
+    abrirPainelDoFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Em produção' }))
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=numero&status=EmProducao'))
+    await waitFor(() => {
+      const ultima = listagens(fetchMock).at(-1)!
+      expect(ultima.searchParams.get('status')).toBe('EmProducao')
+      expect(ultima.searchParams.get('ordem')).toBe('numero')
+    })
+  })
+
+  // Review Focus 1 do plano da 1F, em Pedidos: nada da consulta muda, e a lista tem de buscar de novo mesmo assim.
   it('salvar com sucesso na consulta padrao ainda recarrega, uma vez', async () => {
     const fetchMock = api()
     vi.stubGlobal('fetch', fetchMock)
@@ -641,7 +681,7 @@ describe('PedidosPage', () => {
     expect(seletor.selectedOptions[0].textContent).toBe('Número (A→Z)')
   })
 
-  // Review Focus 4: um link velho não pode virar 400 na tela.
+  // Review Focus 4 do plano da 1F: um link velho não pode virar 400 na tela.
   it('ordem desconhecida na URL nao vai ao servidor', async () => {
     const fetchMock = api()
     vi.stubGlobal('fetch', fetchMock)
@@ -684,7 +724,6 @@ describe('PedidosPage', () => {
     await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('numero'))
     await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=numero'))
 
-    const historyAntes = window.history.length
     fireEvent.change(seletor, { target: { value: 'cliente' } })
 
     await waitFor(() => {
@@ -693,7 +732,7 @@ describe('PedidosPage', () => {
       expect(ultima.searchParams.get('pagina')).toBe('1')
     })
     await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=cliente'))
-    expect(window.history.length).toBe(historyAntes)
+    expect(tipoDeNavegacao()).toBe('REPLACE')
   })
 
   it('conflito mantem o painel aberto com a mensagem dentro dele', async () => {
