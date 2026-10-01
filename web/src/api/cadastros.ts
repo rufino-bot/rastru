@@ -154,6 +154,12 @@ export function formatarDataHora(isoComOffset: string): string {
   return `${dia}/${mes}/${ano} ${hora.slice(0, 5)}`
 }
 
+/** Ordem de `GET /pedidos`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
+export type OrdemDePedidos = 'recentes' | 'numero' | 'cliente'
+
+/** Ordem de `GET /componentes`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
+export type OrdemDeComponentes = 'recentes' | 'codigo' | 'descricao'
+
 export interface FiltroDePedidos {
   busca: string
   /** Status marcados; vazio não manda o parâmetro. Só valores que o servidor aceita (400 senão). */
@@ -162,6 +168,8 @@ export interface FiltroDePedidos {
   material: string[]
   pagina: number
   tamanho: number
+  /** Ausente ou `'recentes'`: o parâmetro não vai, e o servidor aplica a padrão. */
+  ordem?: OrdemDePedidos
 }
 
 /** Materiais que aparecem em algum nó de Pedido — as opções da faceta Material da tela de Pedidos. */
@@ -196,6 +204,7 @@ export async function listarPedidos(f: FiltroDePedidos): Promise<PaginaDe<Pedido
   if (f.material.length > 0) params.set('material', f.material.join(','))
   params.set('pagina', String(f.pagina))
   params.set('tamanho', String(f.tamanho))
+  if (f.ordem !== undefined && f.ordem !== 'recentes') params.set('ordem', f.ordem)
   const resp = await apiFetch(`/pedidos?${params}`)
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar pedidos (${resp.status}).`)
   return (await resp.json()) as PaginaDe<PedidoDto>
@@ -336,6 +345,8 @@ export interface FiltroDeComponentes {
   incluirInativos: boolean
   pagina: number
   tamanho: number
+  /** Ausente ou `'recentes'`: o parâmetro não vai, e o servidor aplica a padrão. */
+  ordem?: OrdemDeComponentes
 }
 
 /**
@@ -352,6 +363,7 @@ export async function listarComponentes(
     pagina: String(f.pagina),
     tamanho: String(f.tamanho),
   })
+  if (f.ordem !== undefined && f.ordem !== 'recentes') params.set('ordem', f.ordem)
   const resp = await apiFetch(`/componentes?${params}`)
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar componentes (${resp.status}).`)
   return (await resp.json()) as PaginaDe<ComponenteDto>

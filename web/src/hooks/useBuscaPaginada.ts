@@ -50,6 +50,12 @@ export interface BuscaPaginada<T> {
   mudarInativos(valor: boolean): void
   mudarTamanho(valor: number): void
   irParaPagina(valor: number): void
+  /**
+   * Devolve a consulta ao padrão — busca (campo e consultada) vazia, página 1, sem inativos — e
+   * recarrega, mesmo que ela já estivesse no padrão. O tamanho da página e os `filtros` não são
+   * tocados: o primeiro é preferência de exibição, os segundos são de fora do hook.
+   */
+  voltarAoInicio(): void
   recarregar(): Promise<void>
 }
 
@@ -63,6 +69,13 @@ export interface BuscaPaginada<T> {
  * 3. **Clamp de página** — se o total encolhe e a página atual deixa de existir, recua em vez de
  *    mostrar lista vazia com cara de bug.
  * 4. **Reset de filtro** — mudar busca, tamanho, inativos ou `filtros` volta para a página 1.
+ *
+ * `voltarAoInicio` FORÇA a recarga. Um contador (`geracao`) nas dependências de `carregar` faz isso:
+ * se a consulta já estava no padrão (página 1, sem busca, sem inativos), nenhum estado muda, e sem
+ * o contador salvar um item novo nesse caso não buscaria nada — o item não apareceria. Campo e
+ * consulta vão juntos a `''`, então o efeito do debounce os vê iguais e descarta o atraso que
+ * estivesse pendente; as quatro trocas de estado e o contador caem num render só, e saem numa
+ * requisição só (decisão D4 do plano da 1F).
  *
  * Não usa `AbortController`: abortar exigiria que cada função de listagem aceitasse um
  * `AbortSignal`, ou seja, mudar a assinatura pública de `cadastros.ts` e o arquivo de teste de 679
@@ -88,6 +101,8 @@ export function useBuscaPaginada<T>({
   // `true` na montagem: a primeira carga já está a caminho quando o primeiro render acontece.
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState<unknown>(null)
+  // Só gatilho de recarga: não entra no `FiltroDeBusca`.
+  const [geracao, setGeracao] = useState(0)
 
   const sequenciaRef = useRef(0)
 
@@ -147,7 +162,9 @@ export function useBuscaPaginada<T>({
       // obsoleta apagaria o "carregando" da requisição que ainda está em voo.
       if (minhaSequencia === sequenciaRef.current) setCarregando(false)
     }
-  }, [busca, incluirInativos, pagina, tamanho, chaveDosFiltros])
+    // `geracao` não é lido acima: está aqui para que `voltarAoInicio` troque a identidade de
+    // `carregar` e o efeito rode de novo, mesmo com todo o resto igual.
+  }, [busca, incluirInativos, pagina, tamanho, chaveDosFiltros, geracao])
 
   useEffect(() => { carregar() }, [carregar])
 
@@ -183,12 +200,20 @@ export function useBuscaPaginada<T>({
 
   const irParaPagina = useCallback((valor: number) => { setPagina(valor) }, [])
 
+  const voltarAoInicio = useCallback(() => {
+    setTextoDaBusca('')
+    setBusca('')
+    setPagina(1)
+    setIncluirInativos(false)
+    setGeracao((g) => g + 1)
+  }, [])
+
   return {
     itens, total, totalDePaginas,
     textoDaBusca, busca,
     incluirInativos, pagina, tamanho,
     carregando, erro,
-    mudarBusca, mudarInativos, mudarTamanho, irParaPagina,
+    mudarBusca, mudarInativos, mudarTamanho, irParaPagina, voltarAoInicio,
     recarregar: carregar,
   }
 }
