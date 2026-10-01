@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito, type SetorDto,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { SeletorDeOrdem, type OpcaoDeOrdem } from '../components/SeletorDeOrdem'
@@ -38,8 +39,16 @@ export function SetoresPage() {
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [reativando, setReativando] = useState(false)
 
   const podeEscrever = usePodeEscrever('setores')
+
+  // Quem abriu o painel recebe o foco de volta quando ele fecha: o "Novo setor" do cabeçalho, ou o
+  // "Editar" do setor editado, para quem percorre uma lista longa não voltar ao topo. Se o setor
+  // editado não voltou com a recarga, o foco cai no "Novo setor". `origem` nulo é o cabeçalho.
+  const botaoNovo = useRef<HTMLButtonElement>(null)
+  const botoesEditar = useRef(new Map<number, HTMLButtonElement>())
+  const origem = useRef<number | null>(null)
 
   async function carregar(comInativos: boolean) {
     setCarregando(true)
@@ -57,9 +66,18 @@ export function SetoresPage() {
 
   const editando = painel?.tipo === 'editar' ? painel.setor : null
 
+  // `pronto` espera a recarga: durante ela a lista dá lugar ao "Carregando…", e o "Editar" de
+  // destino ainda não está no DOM.
+  useDevolverFoco(
+    painel !== null,
+    () => (origem.current === null ? null : botoesEditar.current.get(origem.current)) ?? botaoNovo.current,
+    !carregando,
+  )
+
   // Desfecho de sucesso de um item NOVO (ou reativado): a lista volta a "Mais recentes" sem os
   // inativos, para o item aparecer (decisão 7 da spec da 1F). Com "Mostrar inativos" marcado, o
-  // `useEffect` acima é quem recarrega, porque o valor muda; sem ele, a recarga é daqui.
+  // `useEffect` que observa `incluirInativos` é quem recarrega, porque o valor muda; sem ele, a
+  // recarga é daqui.
   async function voltarAoInicio() {
     setOrdem('recentes')
     if (incluirInativos) setIncluirInativos(false)
@@ -67,6 +85,7 @@ export function SetoresPage() {
   }
 
   function abrirNovo() {
+    origem.current = null
     setErroDeEscrita(null)
     setIdReativavel(null)
     setNome('')
@@ -101,6 +120,9 @@ export function SetoresPage() {
       }
       const eraEdicao = editando !== null
       fecharPainel()
+      // A escrita já terminou: solta o envio antes da recarga, senão reabrir o painel durante ela
+      // mostraria um "Salvando…" preso.
+      setEnviando(false)
       // Editar mantém ordem e inativos: o item editado já estava na tela (decisão D6 do plano da 1F).
       if (eraEdicao) await carregar(incluirInativos)
       else await voltarAoInicio()
@@ -112,6 +134,7 @@ export function SetoresPage() {
   }
 
   function editar(setor: SetorDto) {
+    origem.current = setor.id
     setErroDeEscrita(null)
     setIdReativavel(null)
     setNome(setor.nome)
@@ -132,12 +155,16 @@ export function SetoresPage() {
   }
 
   async function reativar(id: number) {
+    setReativando(true)
     try {
       await definirAtivoSetor(id, true)
       fecharPainel()
+      setReativando(false)
       await voltarAoInicio()
     } catch (e) {
       setErroDeEscrita(mensagemDeErro(e, 'Não foi possível reativar o setor.'))
+    } finally {
+      setReativando(false)
     }
   }
 
@@ -146,7 +173,7 @@ export function SetoresPage() {
   return (
     <Pagina
       titulo="Setores"
-      acao={podeEscrever && painel?.tipo !== 'novo' && <Botao onClick={abrirNovo}>Novo setor</Botao>}
+      acao={podeEscrever && painel?.tipo !== 'novo' && <Botao ref={botaoNovo} onClick={abrirNovo}>Novo setor</Botao>}
     >
       {podeEscrever && painel && (
         <PainelDeEscrita
@@ -155,6 +182,7 @@ export function SetoresPage() {
           subtitulo={editando?.nome}
           aoEnviar={salvar}
           aoFechar={fecharPainel}
+          enviando={enviando || reativando}
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Nome do setor">
@@ -226,7 +254,17 @@ export function SetoresPage() {
               ativo={s.ativo}
               acao={podeEscrever && (
                 <div className="flex flex-wrap gap-2">
-                  <Botao variante="secundario" aria-label={`Editar ${s.nome}`} onClick={() => editar(s)}>Editar</Botao>
+                  <Botao
+                    variante="secundario"
+                    aria-label={`Editar ${s.nome}`}
+                    ref={(el) => {
+                      if (el) botoesEditar.current.set(s.id, el)
+                      else botoesEditar.current.delete(s.id)
+                    }}
+                    onClick={() => editar(s)}
+                  >
+                    Editar
+                  </Botao>
                   <Botao variante="secundario" onClick={() => alternarAtivo(s)}>
                     {s.ativo ? 'Inativar' : 'Reativar'}
                   </Botao>

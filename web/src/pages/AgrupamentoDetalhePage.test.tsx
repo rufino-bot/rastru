@@ -421,8 +421,9 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByLabelText('Quantidade')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Criar Peça' })).toBeNull()
-    // A tela abre em leitura, então os três acima já são nulos antes de qualquer clique: o que
-    // prova o gating é o botão que abriria o painel não existir.
+    // A tela abre em leitura, então o combobox, a "Quantidade" e o "Criar Peça" já faltam antes de
+    // qualquer clique, para qualquer perfil: o que prova o gating é o botão que abriria o painel
+    // não existir.
     expect(screen.queryByRole('button', { name: 'Nova Peça' })).toBeNull()
   })
 
@@ -1520,8 +1521,9 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  // Os outros dois caminhos de abertura também têm de fechar o painel de Peça: o teste de Editar
-  // acima cobre uma das quatro aberturas, e cada uma tem a sua própria chamada de fechamento.
+  // Os outros dois caminhos de abertura também têm de fechar o painel de Peça: o teste
+  // `abrir Editar com o painel de Peca aberto fecha o de Peca` cobre uma das quatro aberturas, e
+  // cada uma tem a sua própria chamada de fechamento.
   it('pedir exclusao ou abrir o detalhe com o painel de Peca aberto fecha o de Peca', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
 
@@ -1598,5 +1600,81 @@ describe('AgrupamentoDetalhePage', () => {
     renderizarDetalhe()
 
     expect(await screen.findByText('Use o botão Nova Peça para criar a primeira.')).toBeTruthy()
+  })
+
+  it('Cancelar da Peca devolve o foco ao Nova Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+    fireEvent.click(within(screen.getByRole('form', { name: 'Nova Peça' })).getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nova Peça' }))
+  })
+
+  it('criar Peca com sucesso devolve o foco ao Nova Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [], estruturaAposCriar: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Este agrupamento ainda não tem estrutura')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText('Chassi')).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nova Peça' }))
+  })
+
+  // O painel de Peça também fecha quando o do nó abre. Aí o foco já está no primeiro campo do
+  // painel do nó, e devolvê-lo ao "Nova Peça" o tiraria de quem acabou de pedir para editar.
+  it('abrir Editar com o painel de Peca aberto deixa o foco no painel do no', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    const painelDoNo = screen.getByRole('form', { name: 'Editar nó' })
+    expect(document.activeElement).not.toBe(document.body)
+    expect(painelDoNo.contains(document.activeElement)).toBe(true)
+  })
+
+  it('com a Peca em voo, Cancelar fica desabilitado', async () => {
+    const base = montarFetch({ estruturaInicial: [PECA] })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      String(url).split('?')[0] === '/api/agrupamentos/21/estrutura' && init?.method === 'POST'
+        ? new Promise<Response>(() => {})
+        : base(url, init)))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    await screen.findByRole('button', { name: 'Salvando…' })
+    const painel = screen.getByRole('form', { name: 'Nova Peça' })
+    const cancelar = within(painel).getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Nova Peça' })).toBeTruthy()
+  })
+
+  it('com a edicao do no em voo, Cancelar do painel do no fica desabilitado', async () => {
+    const base = montarFetch({ estruturaInicial: [PECA] })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'PUT' ? new Promise<Response>(() => {}) : base(url, init)))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    await screen.findByRole('button', { name: 'Salvando…' })
+    const painel = screen.getByRole('form', { name: 'Editar nó' })
+    const cancelar = within(painel).getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Editar nó' })).toBeTruthy()
   })
 })

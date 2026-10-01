@@ -1,4 +1,4 @@
-import { startTransition, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   listarPedidos, listarMateriaisDosPedidos, criarPedido, ehConflito,
@@ -8,6 +8,7 @@ import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { useBuscaPaginada, type FiltroDeBusca, type PaginaDeBusca } from '../hooks/useBuscaPaginada'
 import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { LinhaDePedido } from '../pedidos/LinhaDePedido'
 import { STATUS_DO_PEDIDO, rotuloDoStatus } from '../pedidos/statusDoPedido'
 import { Pagina } from '../components/Pagina'
@@ -83,6 +84,10 @@ export function PedidosPage() {
   const [erroDeMateriais, setErroDeMateriais] = useState<string | null>(null)
 
   const podeEscrever = usePodeEscrever('pedidos')
+
+  // O "Novo pedido" some com o painel aberto; ao fechar, o foco volta a ele.
+  const botaoNovo = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(painelAberto, () => botaoNovo.current)
 
   // A URL é a memória da tela (F5 e o "voltar" de um detalhe remontam a página): lida UMA vez, na
   // montagem, para o estado inicial do hook, e escrita a cada mudança. A seleção do filtro mora só
@@ -223,10 +228,10 @@ export function PedidosPage() {
   return (
     <Pagina
       titulo="Pedidos"
-      acao={podeEscrever && !painelAberto && <Botao onClick={abrirPainel}>Novo pedido</Botao>}
+      acao={podeEscrever && !painelAberto && <Botao ref={botaoNovo} onClick={abrirPainel}>Novo pedido</Botao>}
     >
       {podeEscrever && painelAberto && (
-        <PainelDeEscrita titulo="Novo pedido" aoEnviar={salvar} aoFechar={fecharPainel}>
+        <PainelDeEscrita titulo="Novo pedido" aoEnviar={salvar} aoFechar={fecharPainel} enviando={enviando}>
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Código do pedido">
               {(id) => (

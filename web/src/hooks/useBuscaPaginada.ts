@@ -162,8 +162,8 @@ export function useBuscaPaginada<T>({
       // obsoleta apagaria o "carregando" da requisição que ainda está em voo.
       if (minhaSequencia === sequenciaRef.current) setCarregando(false)
     }
-    // `geracao` não é lido acima: está aqui para que `voltarAoInicio` troque a identidade de
-    // `carregar` e o efeito rode de novo, mesmo com todo o resto igual.
+    // `geracao` não é lido no corpo de `carregar`: está aqui para que `voltarAoInicio` troque a
+    // identidade de `carregar` e o efeito rode de novo, mesmo com todo o resto igual.
   }, [busca, incluirInativos, pagina, tamanho, chaveDosFiltros, geracao])
 
   useEffect(() => { carregar() }, [carregar])

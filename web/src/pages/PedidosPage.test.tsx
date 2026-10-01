@@ -539,8 +539,11 @@ describe('PedidosPage', () => {
     await abrirNovoPedido()
     preencherEEnviar('PED-002', 'Fábrica Beta')
 
-    await waitFor(() => expect(listagens(fetchMock)).toHaveLength(2))
+    // "Uma vez" é contado DEPOIS do POST, e só depois de a tela assentar: o debounce da busca é de
+    // 300 ms, então 400 ms dão tempo a uma segunda requisição atrasada aparecer, se houvesse uma.
+    await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
     await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
+    expect(aposOPost(fetchMock)).toHaveLength(1)
     expect(listagens(fetchMock)).toHaveLength(2)
     const depois = listagens(fetchMock)[1]
     expect(depois.searchParams.get('busca') ?? '').toBe('')
@@ -780,5 +783,45 @@ describe('PedidosPage', () => {
     renderizar()
     expect(await screen.findByText('Nenhum pedido aberto')).toBeTruthy()
     expect(screen.queryByText('Use o botão Novo pedido para abrir o primeiro.')).toBeNull()
+  })
+
+  it('Cancelar devolve o foco ao Novo pedido', async () => {
+    vi.stubGlobal('fetch', api())
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo pedido' }))
+  })
+
+  it('abrir com sucesso devolve o foco ao Novo pedido', async () => {
+    const fetchMock = apiComPost(() => respostaJson({ ...PEDIDO, id: 2, numero: 'PED-002' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar('/pedidos?busca=CH&ordem=cliente')
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    preencherEEnviar('PED-002', 'Fábrica Beta')
+
+    await waitFor(() => { expect(screen.queryByRole('form')).toBeNull() })
+    await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo pedido' }))
+  })
+
+  it('com o pedido em voo, Cancelar fica desabilitado', async () => {
+    vi.stubGlobal('fetch', apiComPost(() => new Promise<Response>(() => {})))
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    preencherEEnviar('PED-002', 'Fábrica Beta')
+
+    await screen.findByText('Abrindo…')
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Novo pedido' })).toBeTruthy()
   })
 })

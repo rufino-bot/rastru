@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   listarComponentes, criarComponente, definirAtivoComponente, ehConflito,
@@ -7,6 +7,7 @@ import {
 import { mensagemDeErro } from '../api/erros'
 import { useBuscaPaginada, type FiltroDeBusca, type PaginaDeBusca } from '../hooks/useBuscaPaginada'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { SeletorDeOrdem, type OpcaoDeOrdem } from '../components/SeletorDeOrdem'
@@ -60,8 +61,13 @@ export function ComponentesPage() {
   const [erroDeAcao, setErroDeAcao] = useState<string | null>(null)
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [reativando, setReativando] = useState(false)
 
   const podeEscrever = usePodeEscrever('componentes')
+
+  // O "Novo componente" some com o painel aberto; ao fechar, o foco volta a ele.
+  const botaoNovo = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(painelAberto, () => botaoNovo.current)
 
   const filtros = useMemo(() => ({ ordem: [ordem] }), [ordem])
   const lista = useBuscaPaginada<ComponenteDto>({ buscar: buscarComponentes, filtros })
@@ -136,11 +142,14 @@ export function ComponentesPage() {
   }
 
   async function reativar(id: number) {
+    setReativando(true)
     try {
       await definirAtivoComponente(id, true)
       concluirComSucesso()
     } catch (e) {
       setErroDeEscrita(mensagemDeErro(e, 'Não foi possível reativar o componente.'))
+    } finally {
+      setReativando(false)
     }
   }
 
@@ -149,10 +158,15 @@ export function ComponentesPage() {
   return (
     <Pagina
       titulo="Componentes"
-      acao={podeEscrever && !painelAberto && <Botao onClick={abrirPainel}>Novo componente</Botao>}
+      acao={podeEscrever && !painelAberto && <Botao ref={botaoNovo} onClick={abrirPainel}>Novo componente</Botao>}
     >
       {podeEscrever && painelAberto && (
-        <PainelDeEscrita titulo="Novo componente" aoEnviar={salvar} aoFechar={fecharPainel}>
+        <PainelDeEscrita
+          titulo="Novo componente"
+          aoEnviar={salvar}
+          aoFechar={fecharPainel}
+          enviando={enviando || reativando}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Código">
               {(id) => (

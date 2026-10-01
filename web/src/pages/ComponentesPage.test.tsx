@@ -606,11 +606,11 @@ describe('ComponentesPage', () => {
 
     expect(screen.getByRole('button', { name: 'Reativar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Inativar' })).toBeNull()
-    // Task 10 pos a `Link` entre o span do codigo e o wrapper do ItemDeCadastro (decisao 1: o
-    // link cobre so o texto, sem overlay) — por isso `closest('a')`, e nao mais `closest('span')`,
-    // que agora devolveria o proprio span do codigo de novo (ele casa 'span' antes de subir ate o
-    // link). `line-through` mora no span AVO, o wrapper que o ItemDeCadastro poe em volta de
-    // children: span(codigo) -> a(Link) -> span(line-through).
+    // A `Link` do item fica entre o span do codigo e o span riscado do ItemDeCadastro (o overlay
+    // dela estende o clique ao cartao inteiro, mas a `Link` continua envolvendo so o codigo e a
+    // descricao) — por isso `closest('a')`, e nao `closest('span')`, que devolveria o proprio span
+    // do codigo (ele casa 'span' antes de subir ate o link). `line-through` mora no span AVO, o
+    // que o ItemDeCadastro poe em volta de children: span(codigo) -> a(Link) -> span(line-through).
     expect(screen.getByText('INA-001').closest('a')?.parentElement?.className).toContain('line-through')
   })
 
@@ -949,10 +949,10 @@ describe('ComponentesPage', () => {
     // Receita Padrão da 1C. A `Pilula` tem teste próprio (`Pilula.test.tsx`), mas ele prova a
     // PRIMITIVA; ninguém provava que ESTA tela a usa para mostrar o tipo.
     //
-    // `within(item)` e não `screen.getByText('Montagem')` direto: com o formulário na tela, o
-    // `<select>` de Tipo também tem uma `<option>Montagem</option>`, e a busca global acharia DUAS
-    // ocorrências e estouraria. O escopo no `<li>` é o que torna a asserção sobre a lista, e não
-    // sobre o formulário — molde de `PedidosPage.test.tsx:62` (`closest('li')!`).
+    // `within(item)` e não `screen.getByText('Montagem')` direto: a tela abre em leitura, então o
+    // `<select>` de Tipo do painel não está aqui; mas com o painel aberto ele traz uma
+    // `<option>Montagem</option>`, e a busca global acharia DUAS ocorrências e estouraria. O escopo
+    // no `<li>` é o que torna a asserção sobre a lista, e não sobre o formulário — molde de `PedidosPage.test.tsx:62` (`closest('li')!`).
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({
         itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem', ativo: true }],
@@ -1328,7 +1328,8 @@ describe('ComponentesPage', () => {
   })
 
   // Cada opção do seletor vai com o SEU valor: trocar duas no mapa (rótulo de uma com o valor da
-  // outra) passaria no teste de "Código" acima, e só este o derruba.
+  // outra) passaria no teste `ordem escolhida vai ao servidor e volta a pagina 1`, que só escolhe
+  // "Código", e só este o derruba.
   it('cada opcao de ordem manda o proprio valor, e Mais recentes tira o parametro', async () => {
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1)))
     vi.stubGlobal('fetch', fetchMock)
@@ -1412,5 +1413,64 @@ describe('ComponentesPage', () => {
     render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
     expect(await screen.findByText('Nenhum componente cadastrado')).toBeTruthy()
     expect(screen.queryByText('Use o botão Novo componente para criar o primeiro.')).toBeNull()
+  })
+
+  it('Cancelar devolve o foco ao Novo componente', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo componente' }))
+  })
+
+  it('salvar com sucesso devolve o foco ao Novo componente', async () => {
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? criado() : Promise.resolve(paginaComTotal(1)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+    preencherEEnviar('NOV-001', 'Novo')
+
+    await waitFor(() => { expect(screen.queryByRole('form')).toBeNull() })
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo componente' }))
+  })
+
+  it('com o cadastro em voo, Cancelar fica desabilitado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? new Promise<Response>(() => {}) : Promise.resolve(paginaComTotal(1))))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+    preencherEEnviar('NOV-001', 'Novo')
+
+    await screen.findByText('Salvando…')
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Novo componente' })).toBeTruthy()
+  })
+
+  it('com o Reativar o existente em voo, Cancelar fica desabilitado', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return conflitoComInativo()
+      if (String(url).includes('/ativo')) return new Promise<Response>(() => {})
+      return Promise.resolve(paginaComTotal(1))
+    }))
+
+    render(<MemoryRouter><ComponentesPage /></MemoryRouter>)
+    await screen.findByText('SUP-001')
+    await abrirNovoComponente()
+    preencherEEnviar('NOV-001', 'Novo')
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
   })
 })

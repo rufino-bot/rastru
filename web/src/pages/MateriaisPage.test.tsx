@@ -160,16 +160,19 @@ describe('MateriaisPage', () => {
     liberar(respostaJson({ id: 2, codigo: 'PR-001', descricao: 'Perfil retangular', unidadeMedida: 'M', ativo: true }, 201))
 
     // No sucesso o painel fecha, então o botão some junto: a reabilitação se prova ao reabrir o
-    // painel — com o `setEnviando(false)` removido, o submit novo nasceria preso em "Salvando…".
+    // painel, depois da recarga. `salvar` solta o envio em dois lugares (antes da recarga e no
+    // `finally`), e aqui qualquer um dos dois basta: o teste morre só sem os dois, quando o submit
+    // novo nasceria preso em "Salvando…". Que a liberação vem ANTES da recarga é o teste
+    // `salvar solta o envio antes da recarga…` que prova.
     await esperarPainelFechar()
     await abrirNovoMaterial()
     const botaoDepois = await screen.findByText('Adicionar')
     expect((botaoDepois as HTMLButtonElement).disabled).toBe(false)
   })
 
-  // I3 (achado da review da Task 8): sem isto, ninguém prova que `salvar` limpa `form` no
-  // sucesso. Sem a limpeza, os campos continuam com o valor cadastrado e um segundo clique tenta
-  // recriar o mesmo código — 409 sobre o cadastro que a própria tela acabou de fazer.
+  // I3 (achado da review da Task 8): o segundo cadastro tem de começar vazio. Sem a limpeza, os
+  // campos continuariam com o valor cadastrado e um segundo clique tentaria recriar o mesmo código
+  // — 409 sobre o cadastro que a própria tela acabou de fazer.
   it('limpa o formulário depois de cadastrar com sucesso', async () => {
     let chamadas = 0
     vi.stubGlobal('fetch', fetchPorRota({
@@ -192,8 +195,10 @@ describe('MateriaisPage', () => {
     fireEvent.change(screen.getByLabelText('Unidade'), { target: { value: 'M' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
-    // O painel fecha no sucesso; o estado dos campos é do componente, não do painel, então
-    // reabrir é o que prova que `salvar` limpou o formulário.
+    // O painel fecha no sucesso, então os campos só voltam à tela quando ele é reaberto. O que se
+    // prova é o que o usuário vê: o painel reaberto vem vazio. NÃO prova qual função limpou,
+    // porque tanto o fechamento quanto a abertura do painel (`fecharPainel` e `abrirPainel`) zeram
+    // o formulário, e cada uma sozinha basta para este teste.
     await esperarPainelFechar()
     await abrirNovoMaterial()
     expect((await screen.findByLabelText('Código') as HTMLInputElement).value).toBe('')
@@ -394,9 +399,12 @@ describe('MateriaisPage', () => {
 
   it('ordenar por codigo e por descricao reordena no cliente sem nova requisicao', async () => {
     const fetchMock = fetchPorRota({
+      // As três ordens são diferentes entre si, até no primeiro item: "Mais recentes" (Id
+      // decrescente) dá C-03, A-01, B-02; código dá A-01, B-02, C-03; descrição dá B-02 (Alumínio),
+      // A-01 (Latão), C-03 (Zinco). Uma ordem trocada por outra não passa.
       '/api/materiais': () => respostaJson([
-        { id: 1, codigo: 'B-02', descricao: 'Zinco', unidadeMedida: 'KG', ativo: true },
-        { id: 3, codigo: 'C-03', descricao: 'Alumínio', unidadeMedida: 'KG', ativo: true },
+        { id: 1, codigo: 'B-02', descricao: 'Alumínio', unidadeMedida: 'KG', ativo: true },
+        { id: 3, codigo: 'C-03', descricao: 'Zinco', unidadeMedida: 'KG', ativo: true },
         { id: 2, codigo: 'A-01', descricao: 'Latão', unidadeMedida: 'KG', ativo: true },
       ]),
     })
@@ -429,5 +437,57 @@ describe('MateriaisPage', () => {
     expect(await screen.findByText('CH-001')).toBeTruthy()
     expect(screen.getByLabelText('Ordenar por')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Novo material' })).toBeNull()
+  })
+
+  it('Cancelar devolve o foco ao Novo material', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/materiais': () => respostaJson([CHAPA]) }))
+
+    render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+    await abrirNovoMaterial()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo material' }))
+  })
+
+  it('com o cadastro em voo, Cancelar fica desabilitado', async () => {
+    const base = fetchPorRota({ '/api/materiais': () => respostaJson([CHAPA]) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'POST' ? new Promise<Response>(() => {}) : base(url, init)))
+
+    render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+    await abrirNovoMaterial()
+    fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'PR-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Perfil' } })
+    fireEvent.change(screen.getByLabelText('Unidade'), { target: { value: 'M' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await screen.findByText('Salvando…')
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Novo material' })).toBeTruthy()
+  })
+
+  it('com o Reativar o existente em voo, Cancelar fica desabilitado', async () => {
+    const base = fetchPorRota({ '/api/materiais': () => respostaJson([CHAPA]) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(respostaJson({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 9 }, 409))
+      }
+      if (String(url).includes('/ativo')) return new Promise<Response>(() => {})
+      return base(url, init)
+    }))
+
+    render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+    await abrirNovoMaterial()
+    fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'PR-001' } })
+    fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Perfil' } })
+    fireEvent.change(screen.getByLabelText('Unidade'), { target: { value: 'M' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
   })
 })

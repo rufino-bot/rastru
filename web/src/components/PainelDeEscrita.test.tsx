@@ -45,6 +45,28 @@ describe('PainelDeEscrita', () => {
     expect(aoEnviar).not.toHaveBeenCalled()
   })
 
+  it('com a escrita em voo, Cancelar fica desabilitado e nao chama aoFechar', () => {
+    const aoFechar = vi.fn()
+    const { rerender } = render(painel({ aoFechar, enviando: true }))
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(aoFechar).not.toHaveBeenCalled()
+
+    // A escrita respondeu: o Cancelar volta a funcionar.
+    rerender(painel({ aoFechar, enviando: false }))
+    expect(cancelar.disabled).toBe(false)
+    fireEvent.click(cancelar)
+    expect(aoFechar).toHaveBeenCalledTimes(1)
+  })
+
+  it('sem a prop enviando, Cancelar fica habilitado', () => {
+    render(painel())
+
+    expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('submeter chama aoEnviar', () => {
     const aoEnviar = vi.fn((e: React.FormEvent) => e.preventDefault())
     render(painel({ aoEnviar }))

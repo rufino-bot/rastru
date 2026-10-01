@@ -157,17 +157,19 @@ describe('SetoresPage', () => {
     liberar(respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201))
 
     // No sucesso o painel fecha, então o botão some junto: a reabilitação se prova ao reabrir o
-    // painel — com o `finally { setEnviando(false) }` removido, o submit novo nasceria preso em
-    // "Salvando…".
+    // painel, depois da recarga. `salvar` solta o envio em dois lugares (antes da recarga e no
+    // `finally`), e aqui qualquer um dos dois basta: o teste morre só sem os dois, quando o submit
+    // novo nasceria preso em "Salvando…". Que a liberação vem ANTES da recarga é o teste
+    // `salvar solta o envio antes da recarga…` que prova.
     await esperarPainelFechar()
     await abrirNovoSetor()
     const botaoDepois = await screen.findByText('Adicionar')
     expect((botaoDepois as HTMLButtonElement).disabled).toBe(false)
   })
 
-  // I3 (achado da review da Task 8): sem isto, ninguém prova que `salvar` limpa `nome` no
-  // sucesso. Sem a limpeza, o campo continua com o valor cadastrado e um segundo clique tenta
-  // recriar o mesmo nome — 409 sobre o cadastro que a própria tela acabou de fazer.
+  // I3 (achado da review da Task 8): o segundo cadastro tem de começar vazio. Sem a limpeza, o
+  // campo continuaria com o valor cadastrado e um segundo clique tentaria recriar o mesmo nome —
+  // 409 sobre o cadastro que a própria tela acabou de fazer.
   it('limpa o campo depois de cadastrar com sucesso', async () => {
     let chamadas = 0
     vi.stubGlobal('fetch', fetchPorRota({
@@ -186,8 +188,10 @@ describe('SetoresPage', () => {
     fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
-    // O painel fecha no sucesso; o estado do campo é do componente, não do painel, então reabrir
-    // é o que prova que `salvar` limpou `nome`.
+    // O painel fecha no sucesso, então o campo só volta à tela quando ele é reaberto. O que se
+    // prova é o que o usuário vê: o painel reaberto vem vazio. NÃO prova qual função limpou,
+    // porque tanto o fechamento quanto a abertura do painel (`fecharPainel` e `abrirNovo`) zeram
+    // o nome, e cada uma sozinha basta para este teste.
     await esperarPainelFechar()
     await abrirNovoSetor()
     expect((await screen.findByLabelText('Nome do setor') as HTMLInputElement).value).toBe('')
@@ -567,5 +571,146 @@ describe('SetoresPage', () => {
     expect(await screen.findByText('Corte')).toBeTruthy()
     expect(screen.getByLabelText('Ordenar por')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Novo setor' })).toBeNull()
+  })
+
+  // O botão que abre o painel some enquanto ele está aberto (decisão D5 do plano da 1F), e o
+  // controle focado sai do DOM com o painel: sem a devolução, o foco cairia no `<body>`.
+  it('Cancelar devolve o foco ao Novo setor', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo setor' }))
+  })
+
+  it('Cancelar na edicao devolve o foco ao Editar do mesmo setor', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => respostaJson([
+        { id: 3, nome: 'Solda', ativo: true, atividade: null },
+        { id: 1, nome: 'Corte', ativo: true, atividade: null },
+      ]),
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Corte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar Corte' }))
+  })
+
+  it('salvar edicao devolve o foco ao Editar do mesmo setor depois da recarga', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    const CORTADO = { id: 1, nome: 'Corte fino', ativo: true, atividade: null }
+    let editou = false
+    // A recarga fica pendurada até o teste soltá-la: é durante ela que a lista dá lugar ao
+    // "Carregando…" e o "Editar" de destino não está no DOM.
+    let soltarRecarga: () => void = () => {}
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => editou
+        ? new Promise<Response>((r) => { soltarRecarga = () => r(respostaJson([SOLDA, CORTADO])) })
+        : respostaJson([SOLDA, CORTE]),
+      '/api/setores/1': () => { editou = true; return respostaJson(CORTADO) },
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Corte' }))
+    fireEvent.change(screen.getByLabelText('Nome do setor'), { target: { value: 'Corte fino' } })
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await esperarPainelFechar()
+    expect(screen.getByRole('status').textContent).toBe('Carregando…')
+    soltarRecarga()
+
+    // O nome do botão mudou com a edição: o alvo é o setor, não o rótulo de antes.
+    const editarDepois = await screen.findByRole('button', { name: 'Editar Corte fino' })
+    await waitFor(() => { expect(document.activeElement).toBe(editarDepois) })
+  })
+
+  it('salvar edicao de um setor que nao voltou na recarga devolve o foco ao Novo setor', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    let editou = false
+    let soltarRecarga: () => void = () => {}
+    vi.stubGlobal('fetch', fetchPorRota({
+      // Outra pessoa o inativou entre a edição e a recarga, que não pede os inativos.
+      '/api/setores': () => editou
+        ? new Promise<Response>((r) => { soltarRecarga = () => r(respostaJson([SOLDA])) })
+        : respostaJson([SOLDA, CORTE]),
+      '/api/setores/1': () => { editou = true; return respostaJson(CORTE) },
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Corte' }))
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await esperarPainelFechar()
+    soltarRecarga()
+    await waitFor(() => { expect(screen.queryByText('Corte')).toBeNull() })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo setor' }))
+    })
+  })
+
+  it('com o cadastro em voo, Cancelar fica desabilitado', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? new Promise<Response>(() => {})
+        : fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) })(url, init)))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await screen.findByText('Salvando…')
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Novo setor' })).toBeTruthy()
+  })
+
+  it('com o Reativar o existente em voo, Cancelar fica desabilitado', async () => {
+    const base = fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(respostaJson({ erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 9 }, 409))
+      }
+      if (String(url).includes('/ativo')) return new Promise<Response>(() => {})
+      return base(url, init)
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+  })
+
+  it('salvar solta o envio antes da recarga: reabrir o painel durante ela mostra Adicionar habilitado', async () => {
+    let chamadas = 0
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => {
+        chamadas += 1
+        if (chamadas === 1) return respostaJson([])
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
+        // A recarga pós-salvar nunca termina: o que se mede é o estado do painel enquanto ela voa.
+        return new Promise<Response>(() => {})
+      },
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await esperarPainelFechar()
+    await waitFor(() => { expect(chamadas).toBe(3) })
+    await abrirNovoSetor()
+    expect((screen.getByRole('button', { name: 'Adicionar' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

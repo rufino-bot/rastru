@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
 export type VarianteDeBotao = 'primario' | 'secundario' | 'perigo'
 
@@ -7,6 +7,11 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Mutação em voo: desabilita e, se houver, troca o rótulo. */
   carregando?: boolean
   rotuloCarregando?: string
+  /**
+   * Repassado ao `<button>` (no React 19 o `ref` é prop comum e chega pelo resto das props). Serve
+   * a quem precisa devolver o foco a este botão, como as telas que o fazem quando um painel fecha.
+   */
+  ref?: Ref<HTMLButtonElement>
   children: ReactNode
 }
 

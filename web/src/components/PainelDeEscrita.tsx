@@ -10,6 +10,13 @@ interface Props {
   aoEnviar: (e: FormEvent<HTMLFormElement>) => void
   /** O `Cancelar`. Quem descarta o digitado é a tela, aqui dentro. */
   aoFechar: () => void
+  /**
+   * A escrita do painel está em voo: o `Cancelar` fica desabilitado até ela responder. Cancelar
+   * não cancela a requisição, então a resposta chegaria depois sobre o que estivesse aberto: um
+   * sucesso fecharia um painel reaberto e apagaria o digitado, e um erro pintaria um painel novo.
+   * Só a requisição de escrita conta; a recarga que vem depois dela, não.
+   */
+  enviando?: boolean
   /** Só para os testes existentes da tela do Agrupamento (decisão da spec: parâmetro, não fixo). */
   testId?: string
   /** Campos, banner de erro de escrita e o submit — tudo que varia por tela. */
@@ -31,7 +38,9 @@ interface Props {
  * dado só na montagem — quem precisa dele de novo (trocar o alvo com o painel aberto) remonta o
  * painel por `key`.
  */
-export function PainelDeEscrita({ titulo, subtitulo, aoEnviar, aoFechar, testId, children }: Props) {
+export function PainelDeEscrita({
+  titulo, subtitulo, aoEnviar, aoFechar, enviando = false, testId, children,
+}: Props) {
   const idDoTitulo = useId()
   const conteudo = useRef<HTMLDivElement>(null)
 
@@ -57,7 +66,7 @@ export function PainelDeEscrita({ titulo, subtitulo, aoEnviar, aoFechar, testId,
           </h2>
           {subtitulo && <p className="text-xs text-tinta-fraca">{subtitulo}</p>}
         </div>
-        <Botao variante="secundario" onClick={aoFechar}>Cancelar</Botao>
+        <Botao variante="secundario" onClick={aoFechar} disabled={enviando}>Cancelar</Botao>
       </div>
       <div ref={conteudo} className="flex flex-col gap-4">
         {children}

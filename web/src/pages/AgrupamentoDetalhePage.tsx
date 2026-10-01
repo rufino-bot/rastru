@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   obterEstrutura, criarPeca, acrescentarFilho, editarNo, excluirNo, ehConflitoDeEstrutura,
@@ -9,6 +9,7 @@ import { obterPosicoes, type PosicoesDoNoDto } from '../api/execucao'
 import { listarFilhosPadrao, type FilhoPadraoDto } from '../api/receitaPadrao'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
@@ -151,6 +152,12 @@ export function AgrupamentoDetalhePage() {
   const [erroExcluir, setErroExcluir] = useState<string | null>(null)
 
   const podeEscrever = usePodeEscrever('estrutura')
+
+  // O "Nova Peça" some com o painel de Peça aberto; quando ele fecha por Cancelar ou por sucesso, o
+  // foco volta ao botão. Quando fecha porque outro painel abriu, o foco já está no campo do outro, e
+  // o hook não o tira de lá. O painel do nó não devolve foco.
+  const botaoNovaPeca = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(painelDePecaAberto, () => botaoNovaPeca.current)
 
   // Recebe o id como argumento (não fecha sobre `agrupamentoId` de fora): mesmo motivo do
   // comentário equivalente em `PedidoDetalhePage.tsx` — o exhaustive-deps cobra 'carregar' como
@@ -481,7 +488,7 @@ export function AgrupamentoDetalhePage() {
       // `ReactNode`, então os dois cabem lado a lado sem uma segunda linha de cabeçalho.
       acao={(
         <div className="flex items-center gap-3">
-          {podeEscrever && !painelDePecaAberto && <Botao onClick={abrirNovaPeca}>Nova Peça</Botao>}
+          {podeEscrever && !painelDePecaAberto && <Botao ref={botaoNovaPeca} onClick={abrirNovaPeca}>Nova Peça</Botao>}
           <span className="font-mono text-xs text-tinta-fraca">{`Id ${agrupamentoId}`}</span>
         </div>
       )}
@@ -490,7 +497,7 @@ export function AgrupamentoDetalhePage() {
         // Sem `testId`: o painel tem papel e nome ("Nova Peça"), e os testes o acham por
         // `getByRole('form', { name })`. É também o que mantém `painel-de-escrita` só no painel do
         // nó, e os dois painéis nunca coexistem.
-        <PainelDeEscrita titulo="Nova Peça" aoEnviar={salvar} aoFechar={fecharPainelDePeca}>
+        <PainelDeEscrita titulo="Nova Peça" aoEnviar={salvar} aoFechar={fecharPainelDePeca} enviando={enviando}>
           <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
             <SeletorComBusca
               rotulo="Componente"
@@ -549,6 +556,7 @@ export function AgrupamentoDetalhePage() {
           testId="painel-de-escrita"
           aoEnviar={salvarPainel}
           aoFechar={fecharPainel}
+          enviando={enviandoPainel}
         >
           {painel.tipo === 'acrescentarFilho' && (
             <fieldset className="flex flex-col gap-2">

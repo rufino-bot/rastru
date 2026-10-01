@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   listarMateriais, criarMaterial, definirAtivoMaterial, ehConflito,
   type MaterialDto, type NovoMaterial,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { SeletorDeOrdem, type OpcaoDeOrdem } from '../components/SeletorDeOrdem'
@@ -40,8 +41,13 @@ export function MateriaisPage() {
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [reativando, setReativando] = useState(false)
 
   const podeEscrever = usePodeEscrever('materiais')
+
+  // O "Novo material" some com o painel aberto; ao fechar, o foco volta a ele.
+  const botaoNovo = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(painelAberto, () => botaoNovo.current)
 
   async function carregar(comInativos: boolean) {
     setCarregando(true)
@@ -59,7 +65,8 @@ export function MateriaisPage() {
 
   // Desfecho de sucesso de um item NOVO (ou reativado): a lista volta a "Mais recentes" sem os
   // inativos, para o item aparecer (decisão 7 da spec da 1F). Com "Mostrar inativos" marcado, o
-  // `useEffect` acima é quem recarrega, porque o valor muda; sem ele, a recarga é daqui.
+  // `useEffect` que observa `incluirInativos` é quem recarrega, porque o valor muda; sem ele, a
+  // recarga é daqui.
   async function voltarAoInicio() {
     setOrdem('recentes')
     if (incluirInativos) setIncluirInativos(false)
@@ -120,12 +127,16 @@ export function MateriaisPage() {
   }
 
   async function reativar(id: number) {
+    setReativando(true)
     try {
       await definirAtivoMaterial(id, true)
       fecharPainel()
+      setReativando(false)
       await voltarAoInicio()
     } catch (e) {
       setErroDeEscrita(mensagemDeErro(e, 'Não foi possível reativar o material.'))
+    } finally {
+      setReativando(false)
     }
   }
 
@@ -137,10 +148,15 @@ export function MateriaisPage() {
   return (
     <Pagina
       titulo="Materiais"
-      acao={podeEscrever && !painelAberto && <Botao onClick={abrirPainel}>Novo material</Botao>}
+      acao={podeEscrever && !painelAberto && <Botao ref={botaoNovo} onClick={abrirPainel}>Novo material</Botao>}
     >
       {podeEscrever && painelAberto && (
-        <PainelDeEscrita titulo="Novo material" aoEnviar={salvar} aoFechar={fecharPainel}>
+        <PainelDeEscrita
+          titulo="Novo material"
+          aoEnviar={salvar}
+          aoFechar={fecharPainel}
+          enviando={enviando || reativando}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Código">
               {(id) => (
