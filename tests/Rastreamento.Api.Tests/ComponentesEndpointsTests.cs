@@ -275,12 +275,14 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     var controle = $"{NovoPrefixo()}-z";
     await CriarAsync(cliente, controle);
 
+    // `&ordem=codigo` nas tres: o ponto aqui e paginacao e busca, e as assercoes por posicao
+    // pressupoem a ordem por codigo (a padrao, `recentes`, devolveria "-b" e "-a" na pagina 1).
     var pagina1 = JsonDocument.Parse(
-        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&pagina=1&tamanho=2")).RootElement;
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&pagina=1&tamanho=2&ordem=codigo")).RootElement;
     var pagina2 = JsonDocument.Parse(
-        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&pagina=2&tamanho=2")).RootElement;
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&pagina=2&tamanho=2&ordem=codigo")).RootElement;
     var semPaginar = JsonDocument.Parse(
-        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}")).RootElement;
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&ordem=codigo")).RootElement;
 
     // A afirmacao que discrimina e sobre os CODIGOS devolvidos, e nao so sobre `total`: contagem
     // exata fica refem de linha residual de outro teste. A consulta sem paginar e que da a prova
@@ -296,6 +298,80 @@ public class ComponentesEndpointsTests : IClassFixture<WebApplicationFactory<Pro
     Assert.Equal($"{prefixo}-b", pagina1.GetProperty("itens")[1].GetProperty("codigo").GetString());
     Assert.Equal(1, pagina2.GetProperty("itens").GetArrayLength());
     Assert.Equal($"{prefixo}-c", pagina2.GetProperty("itens")[0].GetProperty("codigo").GetString());
+  }
+
+  private static string[] CodigosDaPagina(JsonElement pagina) =>
+      pagina.GetProperty("itens").EnumerateArray().Select(i => i.GetProperty("codigo").GetString()!).ToArray();
+
+  [Fact]
+  public async Task Listagem_sem_ordem_vem_dos_mais_recentes()
+  {
+    // Criados por POST em sequencia, com codigos que em ordem de codigo viriam ao contrario.
+    var cliente = ClienteComo("Administrador");
+    var prefixo = NovoPrefixo();
+    await CriarAsync(cliente, $"{prefixo}-c");
+    await CriarAsync(cliente, $"{prefixo}-a");
+    await CriarAsync(cliente, $"{prefixo}-b");
+
+    var semOrdem = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}")).RootElement;
+    var recentes = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&ordem=recentes")).RootElement;
+
+    var esperado = new[] { $"{prefixo}-b", $"{prefixo}-a", $"{prefixo}-c" };
+    Assert.Equal(esperado, CodigosDaPagina(semOrdem));
+    Assert.Equal(esperado, CodigosDaPagina(recentes));
+  }
+
+  [Fact]
+  public async Task Ordem_codigo_ordena_por_codigo()
+  {
+    var cliente = ClienteComo("Administrador");
+    var prefixo = NovoPrefixo();
+    await CriarAsync(cliente, $"{prefixo}-c");
+    await CriarAsync(cliente, $"{prefixo}-a");
+    await CriarAsync(cliente, $"{prefixo}-b");
+
+    var pagina = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&ordem=codigo")).RootElement;
+
+    Assert.Equal(
+        new[] { $"{prefixo}-a", $"{prefixo}-b", $"{prefixo}-c" }, CodigosDaPagina(pagina));
+  }
+
+  [Fact]
+  public async Task Ordem_descricao_ordena_por_descricao_e_desempata_por_Id_decrescente()
+  {
+    var cliente = ClienteComo("Administrador");
+    var prefixo = NovoPrefixo();
+    async Task Criar(string codigo, string descricao) =>
+        Assert.Equal(
+            HttpStatusCode.Created,
+            (await cliente.PostAsJsonAsync(
+                "/api/componentes", new { codigo, descricao, tipo = "Fabricado" })).StatusCode);
+    // A de descricao menor e a PRIMEIRA criada: a ordem padrao (Id decrescente) a poria por ultimo.
+    await Criar($"{prefixo}-1", "Arruela");
+    await Criar($"{prefixo}-2", "Suporte");
+    await Criar($"{prefixo}-3", "Suporte");
+
+    var pagina = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&ordem=descricao")).RootElement;
+
+    Assert.Equal(
+        new[] { $"{prefixo}-1", $"{prefixo}-3", $"{prefixo}-2" }, CodigosDaPagina(pagina));
+  }
+
+  [Fact]
+  public async Task Ordem_desconhecida_responde_400_nomeando_o_valor()
+  {
+    var resposta = await ClienteComo("Administrador").GetAsync("/api/componentes?ordem=Codigo");
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Contains("'Codigo'", corpo.GetProperty("erro").GetString());
+    Assert.Equal(
+        "Ordem 'Codigo' desconhecida. Aceitas: recentes, codigo, descricao.",
+        corpo.GetProperty("erro").GetString());
   }
 
   [Fact]

@@ -18,8 +18,9 @@ public class PedidoRepositoryTests : TesteComBanco
   private static string Unico() => Guid.NewGuid().ToString("N")[..12];
 
   private static FiltroDePedidos Filtro(
-      string? busca = null, string[]? status = null, int[]? materiais = null, int pagina = 1, int tamanho = 100) =>
-      new(busca, status ?? [], materiais ?? [], pagina, tamanho);
+      string? busca = null, string[]? status = null, int[]? materiais = null, int pagina = 1, int tamanho = 100,
+      OrdemDePedidos ordem = OrdemDePedidos.Recentes) =>
+      new(busca, status ?? [], materiais ?? [], pagina, tamanho, ordem);
 
   /// <summary>Pedido solto (sem Agrupamento); a limpeza dele e <see cref="ApagarPedidosAsync"/>.</summary>
   private static async Task<int> NovoPedidoAsync(
@@ -264,6 +265,62 @@ public class PedidoRepositoryTests : TesteComBanco
       Assert.Equal([antigo], pagina2.Itens.Select(p => p.Id));
       Assert.Equal(3, pagina1.Total);
       Assert.Equal(3, pagina2.Total);
+    }
+    finally
+    {
+      await ApagarPedidosAsync(ids);
+    }
+  }
+
+  [Fact]
+  public async Task Numero_ordena_crescente()
+  {
+    // As datas sao dadas em ordem CONTRARIA a do numero: a ordem padrao (DataAbertura decrescente)
+    // devolveria "-a" por ultimo, entao so a ordem por Numero faz o teste passar.
+    var tok = Unico();
+    var cliente = $"cli-{tok}";
+    var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    await using var db = NovoContexto();
+    var ids = new List<int>();
+    try
+    {
+      var c = await NovoPedidoAsync(db, $"{tok}-c", cliente, dataAbertura: t1.AddHours(3));
+      var a = await NovoPedidoAsync(db, $"{tok}-a", cliente, dataAbertura: t1.AddHours(1));
+      var b = await NovoPedidoAsync(db, $"{tok}-b", cliente, dataAbertura: t1.AddHours(2));
+      ids.AddRange([c, a, b]);
+
+      var (itens, _) = await new PedidoRepository(db).ListarAsync(
+          Filtro(busca: cliente, ordem: OrdemDePedidos.Numero), CancellationToken.None);
+
+      Assert.Equal([a, b, c], itens.Select(p => p.Id));
+    }
+    finally
+    {
+      await ApagarPedidosAsync(ids);
+    }
+  }
+
+  [Fact]
+  public async Task Cliente_desempata_por_Id_decrescente()
+  {
+    // Dois Pedidos do mesmo cliente e um de cliente menor, criado por ultimo: o menor vem
+    // primeiro, e entre os iguais vem o de maior Id (o criado depois). O de cliente menor tem a
+    // data MAIS ANTIGA, para a ordem padrao (DataAbertura decrescente) o por por ultimo.
+    var tok = Unico();
+    var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    await using var db = NovoContexto();
+    var ids = new List<int>();
+    try
+    {
+      var primeiro = await NovoPedidoAsync(db, $"{tok}-1", $"{tok} Beta", dataAbertura: t1.AddHours(1));
+      var segundo = await NovoPedidoAsync(db, $"{tok}-2", $"{tok} Beta", dataAbertura: t1.AddHours(1));
+      var menor = await NovoPedidoAsync(db, $"{tok}-3", $"{tok} Alfa", dataAbertura: t1);
+      ids.AddRange([primeiro, segundo, menor]);
+
+      var (itens, _) = await new PedidoRepository(db).ListarAsync(
+          Filtro(busca: tok, ordem: OrdemDePedidos.Cliente), CancellationToken.None);
+
+      Assert.Equal([menor, segundo, primeiro], itens.Select(p => p.Id));
     }
     finally
     {

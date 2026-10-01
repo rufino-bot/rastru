@@ -129,14 +129,16 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   }
 
   /// <summary>Pedido gravado direto no banco (o cadastro pela API so cria `Aberto`), com numero limpo pelo `DisposeAsync`.</summary>
-  private async Task<int> GravarPedidoAsync(string cliente, string status)
+  private async Task<int> GravarPedidoAsync(
+      string cliente, string status, string? numero = null, DateTime? dataAbertura = null)
   {
+    if (numero is not null) _numerosCriados.Add(numero);
     using var escopo = _factory.Services.CreateScope();
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
     var pedido = new Pedido
     {
-      Numero = NumeroUnico(), Cliente = cliente, Tipo = "Fabricacao", Status = status,
-      DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = IdDeUsuarioReal(),
+      Numero = numero ?? NumeroUnico(), Cliente = cliente, Tipo = "Fabricacao", Status = status,
+      DataAbertura = dataAbertura ?? DateTime.UtcNow, CriadoPorUsuarioId = IdDeUsuarioReal(),
     };
     db.Pedidos.Add(pedido);
     await db.SaveChangesAsync();
@@ -157,6 +159,65 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     Assert.Equal(3, corpo.GetProperty("total").GetInt32());
     Assert.Equal(1, corpo.GetProperty("pagina").GetInt32());
     Assert.Equal(2, corpo.GetProperty("tamanho").GetInt32());
+  }
+
+  /// <summary>Ids, na ordem devolvida, de `GET /pedidos?busca={cliente}{consulta}`.</summary>
+  private async Task<int[]> IdsListadosAsync(string cliente, string consulta)
+  {
+    var corpo = JsonDocument.Parse(
+        await ClienteComo("PCP").GetStringAsync($"/api/pedidos?busca={cliente}{consulta}")).RootElement;
+    return corpo.GetProperty("itens").EnumerateArray().Select(i => i.GetProperty("id").GetInt32()).ToArray();
+  }
+
+  [Fact]
+  public async Task Listagem_sem_ordem_mantem_a_ordem_por_data_de_abertura()
+  {
+    // Numeros em ordem CONTRARIA a das datas: so a ordem por DataAbertura decrescente acerta.
+    var cliente = $"cli-{Guid.NewGuid():N}";
+    var tok = Guid.NewGuid().ToString("N")[..16];
+    var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    var antigo = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-a", t1);
+    var recente = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-c", t1.AddHours(2));
+    var meio = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-b", t1.AddHours(1));
+
+    Assert.Equal([recente, meio, antigo], await IdsListadosAsync(cliente, ""));
+    Assert.Equal([recente, meio, antigo], await IdsListadosAsync(cliente, "&ordem=recentes"));
+  }
+
+  [Fact]
+  public async Task Ordem_numero_ordena_por_numero()
+  {
+    var cliente = $"cli-{Guid.NewGuid():N}";
+    var tok = Guid.NewGuid().ToString("N")[..16];
+    var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    var c = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-c", t1.AddHours(3));
+    var a = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-a", t1.AddHours(1));
+    var b = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-b", t1.AddHours(2));
+
+    Assert.Equal([a, b, c], await IdsListadosAsync(cliente, "&ordem=numero"));
+  }
+
+  [Fact]
+  public async Task Ordem_cliente_ordena_por_cliente()
+  {
+    var tok = Guid.NewGuid().ToString("N");
+    var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    var beta = await GravarPedidoAsync($"{tok} Beta", "Aberto", dataAbertura: t1.AddHours(2));
+    var alfa = await GravarPedidoAsync($"{tok} Alfa", "Aberto", dataAbertura: t1);
+
+    Assert.Equal([alfa, beta], await IdsListadosAsync(tok, "&ordem=cliente"));
+  }
+
+  [Fact]
+  public async Task Ordem_desconhecida_responde_400_nomeando_o_valor()
+  {
+    var resposta = await ClienteComo("PCP").GetAsync("/api/pedidos?ordem=Numero");
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal(
+        "Ordem 'Numero' desconhecida. Aceitas: recentes, numero, cliente.",
+        corpo.GetProperty("erro").GetString());
   }
 
   [Theory]

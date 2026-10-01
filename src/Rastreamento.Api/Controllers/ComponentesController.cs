@@ -66,19 +66,21 @@ public class ComponentesController : CadastroControllerBase
   }
 
   /// <summary>
-  /// Unica falha possivel aqui e faixa de paginacao invalida (400) — por isso a traducao e direta
-  /// em vez de passar pelo `TraduzirFalha`, que existe para o 409 de duplicidade. Pagina alem do
-  /// fim NAO e falha: sai 200 com `itens` vazio e o `total` verdadeiro.
+  /// As unicas falhas possiveis aqui sao faixa de paginacao e `ordem` invalidas (400) — por isso a
+  /// traducao e direta em vez de passar pelo `TraduzirFalha`, que existe para o 409 de duplicidade.
+  /// Pagina alem do fim NAO e falha: sai 200 com `itens` vazio e o `total` verdadeiro. `ordem` e
+  /// `recentes` (a padrao), `codigo` ou `descricao`.
   /// </summary>
   [HttpGet]
   public async Task<IActionResult> Listar(
       [FromQuery] string? busca = null,
       [FromQuery] bool incluirInativos = false,
+      [FromQuery] string? ordem = null,
       [FromQuery] int pagina = 1,
       [FromQuery] int tamanho = CadastroDeComponenteUseCase.TamanhoDePaginaPadrao,
       CancellationToken ct = default)
   {
-    var resultado = await _cadastro.Listar(busca, incluirInativos, pagina, tamanho, ct);
+    var resultado = await _cadastro.Listar(busca, incluirInativos, ordem, pagina, tamanho, ct);
     return resultado.Sucesso
         ? Ok(resultado.Valor)
         : BadRequest(new { erro = resultado.Erro });

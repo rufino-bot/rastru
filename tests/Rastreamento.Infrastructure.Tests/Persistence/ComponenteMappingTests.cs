@@ -126,7 +126,7 @@ public class ComponenteMappingTests : TesteComBanco
         var carregado = await repo.ObterPorIdAsync(id, CancellationToken.None);
         carregado!.Descricao = "Descricao alterada via change tracking";
         carregado.Ativo = false;
-        // Sem Update/Attach aqui de proposito: e o que faz a asserção depender do tracking.
+        // Sem Update/Attach aqui de proposito: e o que faz a assercao depender do tracking.
         await repo.SalvarAlteracoesAsync(CancellationToken.None);
       }
 
@@ -236,15 +236,114 @@ public class ComponenteMappingTests : TesteComBanco
       var repo = new ComponenteRepository(db);
 
       var pagina1 = await repo.ListarAsync(
-          new FiltroDeComponente(prefixo, false, 1, 2), CancellationToken.None);
+          new FiltroDeComponente(prefixo, false, 1, 2, OrdemDeComponentes.Codigo), CancellationToken.None);
       var pagina2 = await repo.ListarAsync(
-          new FiltroDeComponente(prefixo, false, 2, 2), CancellationToken.None);
+          new FiltroDeComponente(prefixo, false, 2, 2, OrdemDeComponentes.Codigo), CancellationToken.None);
 
       Assert.Equal(
           new[] { $"{prefixo}-a", $"{prefixo}-b" }, pagina1.Itens.Select(c => c.Codigo).ToArray());
       Assert.Equal(new[] { $"{prefixo}-c" }, pagina2.Itens.Select(c => c.Codigo).ToArray());
       Assert.Equal(3, pagina1.Total);
       Assert.Equal(3, pagina2.Total);
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
+  public async Task Recentes_vem_do_maior_Id_para_o_menor()
+  {
+    // Inseridos em sequencia, um SaveChanges por linha, e com codigos que em ordem de codigo
+    // viriam ao contrario ("-c" primeiro): o teste so passa se a ordem vier do Id.
+    var prefixo = NovoPrefixo();
+    foreach (var sufixo in new[] { "c", "a", "b" })
+    {
+      await using var db = NovoContexto();
+      db.Componentes.Add(Peca($"{prefixo}-{sufixo}"));
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      await using var db = NovoContexto();
+      var repo = new ComponenteRepository(db);
+
+      var achados = await repo.ListarAsync(
+          new FiltroDeComponente(prefixo, false, 1, 20, OrdemDeComponentes.Recentes), CancellationToken.None);
+
+      Assert.Equal(
+          new[] { $"{prefixo}-b", $"{prefixo}-a", $"{prefixo}-c" },
+          achados.Itens.Select(c => c.Codigo).ToArray());
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
+  public async Task Descricao_desempata_por_Id_decrescente()
+  {
+    // Duas linhas com a MESMA descricao e uma com descricao menor, inserida por ultimo: a menor
+    // vem primeiro, e entre as iguais vem a de maior Id (a inserida depois).
+    var prefixo = NovoPrefixo();
+    await using (var db = NovoContexto())
+    {
+      db.Componentes.Add(Peca($"{prefixo}-1", "Suporte"));
+      await db.SaveChangesAsync();
+    }
+    await using (var db = NovoContexto())
+    {
+      db.Componentes.Add(Peca($"{prefixo}-2", "Suporte"));
+      await db.SaveChangesAsync();
+    }
+    await using (var db = NovoContexto())
+    {
+      db.Componentes.Add(Peca($"{prefixo}-3", "Arruela"));
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      await using var db = NovoContexto();
+      var repo = new ComponenteRepository(db);
+
+      var achados = await repo.ListarAsync(
+          new FiltroDeComponente(prefixo, false, 1, 20, OrdemDeComponentes.Descricao), CancellationToken.None);
+
+      Assert.Equal(
+          new[] { $"{prefixo}-3", $"{prefixo}-2", $"{prefixo}-1" },
+          achados.Itens.Select(c => c.Codigo).ToArray());
+    }
+    finally
+    {
+      await LimparAsync(prefixo);
+    }
+  }
+
+  [Fact]
+  public async Task Codigo_ordena_crescente()
+  {
+    var prefixo = NovoPrefixo();
+    await using (var db = NovoContexto())
+    {
+      db.Componentes.AddRange(Peca($"{prefixo}-b"), Peca($"{prefixo}-c"), Peca($"{prefixo}-a"));
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      await using var db = NovoContexto();
+      var repo = new ComponenteRepository(db);
+
+      var achados = await repo.ListarAsync(
+          new FiltroDeComponente(prefixo, false, 1, 20, OrdemDeComponentes.Codigo), CancellationToken.None);
+
+      Assert.Equal(
+          new[] { $"{prefixo}-a", $"{prefixo}-b", $"{prefixo}-c" },
+          achados.Itens.Select(c => c.Codigo).ToArray());
     }
     finally
     {
@@ -379,10 +478,12 @@ public class ComponenteMappingTests : TesteComBanco
       await using var db = NovoContexto();
       var repo = new ComponenteRepository(db);
 
+      // Ordem por codigo explicita: o ponto aqui e a faixa, e a assercao por posicao pressupoe a
+      // ordem (a padrao, Recentes, devolveria "-b" antes de "-a").
       var primeira = await repo.ListarAsync(
-          new FiltroDeComponente(prefixo, false, 1, 20), CancellationToken.None);
+          new FiltroDeComponente(prefixo, false, 1, 20, OrdemDeComponentes.Codigo), CancellationToken.None);
       var longe = await repo.ListarAsync(
-          new FiltroDeComponente(prefixo, false, 99, 20), CancellationToken.None);
+          new FiltroDeComponente(prefixo, false, 99, 20, OrdemDeComponentes.Codigo), CancellationToken.None);
 
       Assert.Equal(
           new[] { $"{prefixo}-a", $"{prefixo}-b" }, primeira.Itens.Select(c => c.Codigo).ToArray());
@@ -428,10 +529,12 @@ public class ComponenteMappingTests : TesteComBanco
       // tabela de dev inteira (dezenas de linhas) em memoria.
       const int paginaUnica = int.MaxValue;
 
+      // Ordem por codigo explicita: o ponto aqui e a busca em branco, e a comparacao por posicao
+      // dos dois recortes pressupoe a ordem (a padrao, Recentes, devolveria "-b" antes de "-a").
       var semBusca = await repo.ListarAsync(
-          new FiltroDeComponente(null, false, 1, paginaUnica), CancellationToken.None);
+          new FiltroDeComponente(null, false, 1, paginaUnica, OrdemDeComponentes.Codigo), CancellationToken.None);
       var comEspacos = await repo.ListarAsync(
-          new FiltroDeComponente("   ", false, 1, paginaUnica), CancellationToken.None);
+          new FiltroDeComponente("   ", false, 1, paginaUnica, OrdemDeComponentes.Codigo), CancellationToken.None);
 
       // A prova, escopada nas linhas que este teste controla: as duas nao contem tres espacos
       // seguidos nem no Codigo nem na Descricao, entao uma busca "   " aplicada ao pe da letra as

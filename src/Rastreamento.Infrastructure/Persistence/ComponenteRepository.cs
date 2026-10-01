@@ -36,10 +36,16 @@ public class ComponenteRepository : IComponenteRepository
     // Contado ANTES do Skip/Take e com o MESMO filtro: e o numero de paginas que o front usa.
     var total = await consulta.CountAsync(ct);
 
-    // OrderBy obrigatorio e por Codigo de proposito: UQ_Componente_Codigo garante ordem TOTAL.
-    // Sem ordem total, Skip/Take repete e pula linhas entre paginas.
-    var itens = await consulta
-        .OrderBy(c => c.Codigo)
+    // Toda opcao termina em ordem TOTAL, sem a qual Skip/Take repete e pula linhas entre paginas:
+    // Codigo e unico (UQ_Componente_Codigo) e Id e a chave; Descricao nao e unica, entao desempata
+    // por Id. Recentes (Id decrescente — o Id e IDENTITY) e a padrao desde a decisao 9 da spec da 1F.
+    var ordenada = filtro.Ordem switch
+    {
+      OrdemDeComponentes.Codigo => consulta.OrderBy(c => c.Codigo),
+      OrdemDeComponentes.Descricao => consulta.OrderBy(c => c.Descricao).ThenByDescending(c => c.Id),
+      _ => consulta.OrderByDescending(c => c.Id),
+    };
+    var itens = await ordenada
         .Skip((filtro.Pagina - 1) * filtro.Tamanho)
         .Take(filtro.Tamanho)
         .ToListAsync(ct);

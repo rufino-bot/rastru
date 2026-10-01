@@ -69,9 +69,20 @@ reenvia e a sessão morre no primeiro refresh.
 - `PUT /materiais/{id}` *(Administrador)* — idem
 - `PATCH /materiais/{id}/ativo` *(Administrador)* — `{ ativo }`
 - `GET /componentes` — `?busca=` (casa em código **ou** descrição), `?incluirInativos=false`,
-  `?pagina=1`, `?tamanho=20` (teto 100) *(qualquer perfil autenticado)*. Responde
-  `{ itens, total, pagina, tamanho }`; `total` é contado com os mesmos filtros da página.
-  Faixa fora do permitido responde 400; página além do fim responde 200 com `itens` vazio.
+  `?ordem=recentes|codigo|descricao`, `?pagina=1`, `?tamanho=20` (teto 100) *(qualquer perfil
+  autenticado)*. Responde `{ itens, total, pagina, tamanho }`; `total` é contado com os mesmos
+  filtros da página. Faixa fora do permitido responde 400; página além do fim responde 200 com
+  `itens` vazio.
+  - `ordem`: `recentes` (a padrão — também quando ausente, vazia ou só espaços) é `Id`
+    decrescente; `codigo` é `Codigo` crescente (único); `descricao` é `Descricao` crescente e, no
+    empate, `Id` decrescente. Toda opção termina em ordem total, o que faz `Skip/Take` não repetir
+    nem pular linha entre páginas. A comparação é ordinal: `Codigo` (com maiúscula) é valor
+    desconhecido e responde **400** `{ "erro": "Ordem 'Codigo' desconhecida. Aceitas: recentes,
+    codigo, descricao." }` — a faixa inválida é validada antes e ganha da ordem inválida.
+  - **A padrão é `recentes` desde a Fase 1F** (decisão 9 da spec da 1F; antes era `Codigo`
+    crescente), e vale para **todo** consumidor da listagem, inclusive o seletor de catálogo
+    (`SeletorComBusca`), que não manda `ordem`. Quem precisa da ordem por código a pede com
+    `?ordem=codigo`.
   **Este documento não detalha os campos de cada item de `itens`** (nem detalhava antes da Fase
   2B) — só o envelope da paginação; por isso `temSolido`, que o item de listagem carrega desde a
   Fase 2B, não ganha bullet próprio aqui.
@@ -140,8 +151,8 @@ mesmo status HTTP para coisas diferentes.
 ## Pedido / Agrupamento
 
 - `GET /pedidos` *(qualquer perfil autenticado)* — **página** de Pedidos, com busca e filtro. Todos
-  os parâmetros são opcionais: `?busca=`, `?status=Aberto,EmProducao`, `?material=3,5`, `?pagina=1`,
-  `?tamanho=20` (teto 100). Responde `{ itens, total, pagina, tamanho }`, o mesmo envelope de
+  os parâmetros são opcionais: `?busca=`, `?status=Aberto,EmProducao`, `?material=3,5`,
+  `?ordem=recentes|numero|cliente`, `?pagina=1`, `?tamanho=20` (teto 100). Responde `{ itens, total, pagina, tamanho }`, o mesmo envelope de
   `GET /componentes`; `total` é contado com os mesmos filtros da página. Cada item traz `pausa`:
   `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31).
   - `busca` acha o Pedido pelo **número**, pelo **cliente** ou pelo **código do Componente de
@@ -155,11 +166,15 @@ mesmo status HTTP para coisas diferentes.
     nunca o da receita do catálogo (`ComponenteMaterialPadrao`).
   - Entre `busca`, `status` e `material` vale **E**. Nas duas listas, pedaço vazio é ignorado e
     valor repetido colapsa (`material=3,,3` é `material=3`).
-  - Ordem: `DataAbertura` decrescente e, no empate, `Id` decrescente — o desempate é o que faz
-    `Skip/Take` não repetir nem pular linha entre páginas.
+  - `ordem`: `recentes` (a padrão — também quando ausente, vazia ou só espaços) é `DataAbertura`
+    decrescente e, no empate, `Id` decrescente, a ordem que a listagem sempre teve; `numero` é
+    `Numero` crescente (único); `cliente` é `Cliente` crescente e, no empate, `Id` decrescente. O
+    desempate por `Id` (e a unicidade de `Numero`) é o que faz `Skip/Take` não repetir nem pular
+    linha entre páginas. A comparação é ordinal: `Numero` (com maiúscula) é valor desconhecido.
   - **400** `{ "erro": "..." }` para `pagina` menor que 1, `tamanho` menor que 1 ou maior que 100,
-    `status` fora dos cinco (a frase nomeia o valor recusado) e `material` que não seja lista de
-    inteiros positivos. **Página além do fim não é erro**: responde 200 com `itens` vazio.
+    `status` fora dos cinco (a frase nomeia o valor recusado), `material` que não seja lista de
+    inteiros positivos e `ordem` desconhecida (`Ordem 'x' desconhecida. Aceitas: recentes, numero,
+    cliente.`). A `ordem` é a última a ser validada: faixa, status e material inválidos ganham dela. **Página além do fim não é erro**: responde 200 com `itens` vazio.
 - `GET /pedidos/resumo` *(qualquer perfil autenticado)* — sem parâmetros. Responde
   `{ porStatus, maisAntigosAbertos }`. `porStatus` é `{ status, quantidade }[]`, contado no servidor
   sobre **todos** os Pedidos (nunca sobre uma página) e com **sempre os cinco status**, na ordem do

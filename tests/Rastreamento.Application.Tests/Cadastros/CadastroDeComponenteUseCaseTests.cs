@@ -1,6 +1,7 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Tests.Arquivos;
+using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -41,7 +42,7 @@ public class CadastroDeComponenteUseCaseTests
     // Adendo B15: Saves==1 sozinho nao prova que a linha chegou ao repositorio (o commit
     // acontece mesmo se o AdicionarAsync sumir). Id>0 e a releitura via Listar fecham o round-trip.
     Assert.True(resultado.Valor.Id > 0);
-    var lista = await useCase.Listar(null, false, 1, 20, CancellationToken.None);
+    var lista = await useCase.Listar(null, false, null, 1, 20, CancellationToken.None);
     Assert.Single(lista.Valor!.Itens);
   }
 
@@ -193,8 +194,8 @@ public class CadastroDeComponenteUseCaseTests
 
     Assert.True(resultado.Sucesso);
     Assert.Equal(1, repo.Saves);
-    var soAtivos = await useCase.Listar(null, false, 1, 20, CancellationToken.None);
-    var comInativos = await useCase.Listar(null, true, 1, 20, CancellationToken.None);
+    var soAtivos = await useCase.Listar(null, false, null, 1, 20, CancellationToken.None);
+    var comInativos = await useCase.Listar(null, true, null, 1, 20, CancellationToken.None);
     Assert.Equal(0, soAtivos.Valor!.Total);
     Assert.Equal(1, comInativos.Valor!.Total);
   }
@@ -209,7 +210,7 @@ public class CadastroDeComponenteUseCaseTests
 
     Assert.True(resultado.Sucesso);
     Assert.Equal(1, repo.Saves);
-    var soAtivos = await useCase.Listar(null, false, 1, 20, CancellationToken.None);
+    var soAtivos = await useCase.Listar(null, false, null, 1, 20, CancellationToken.None);
     Assert.Equal(1, soAtivos.Valor!.Total);
   }
 
@@ -321,7 +322,7 @@ public class CadastroDeComponenteUseCaseTests
     var repo = new FakeComponenteRepo();
     var useCase = Montar(repo);
 
-    var resultado = await useCase.Listar(null, false, pagina, tamanho, CancellationToken.None);
+    var resultado = await useCase.Listar(null, false, null, pagina, tamanho, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -334,7 +335,7 @@ public class CadastroDeComponenteUseCaseTests
     // `>= 100` ficaria verde.
     var useCase = Montar(new FakeComponenteRepo());
 
-    var resultado = await useCase.Listar(null, false, 1, 100, CancellationToken.None);
+    var resultado = await useCase.Listar(null, false, null, 1, 100, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal(100, resultado.Valor!.Tamanho);
@@ -350,7 +351,7 @@ public class CadastroDeComponenteUseCaseTests
 
     // Pagina e tamanho DIFERENTES de proposito (adendo B15): com o mesmo numero nos dois, uma
     // transposicao de `pagina`/`tamanho` na montagem do FiltroDeComponente fica invisivel aqui.
-    var resultado = await useCase.Listar("SUP", true, 2, 1, CancellationToken.None);
+    var resultado = await useCase.Listar("SUP", true, null, 2, 1, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal("SUP", repo.UltimoFiltro!.Busca);
@@ -362,6 +363,62 @@ public class CadastroDeComponenteUseCaseTests
     Assert.Equal(3, resultado.Valor.Total);
     Assert.Single(resultado.Valor.Itens);
     Assert.Equal("SUP-002", resultado.Valor.Itens[0].Codigo);
+  }
+
+  [Theory]
+  [InlineData(null)]
+  [InlineData("")]
+  [InlineData("  ")]
+  public async Task Listar_sem_ordem_pede_Recentes(string? ordem)
+  {
+    var repo = new FakeComponenteRepo();
+
+    var resultado = await Montar(repo).Listar(null, false, ordem, 1, 20, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(OrdemDeComponentes.Recentes, repo.UltimoFiltro!.Ordem);
+  }
+
+  [Theory]
+  [InlineData("recentes", OrdemDeComponentes.Recentes)]
+  [InlineData("codigo", OrdemDeComponentes.Codigo)]
+  [InlineData("descricao", OrdemDeComponentes.Descricao)]
+  public async Task Listar_traduz_cada_ordem(string ordem, OrdemDeComponentes esperada)
+  {
+    var repo = new FakeComponenteRepo();
+
+    var resultado = await Montar(repo).Listar(null, false, ordem, 1, 20, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(esperada, repo.UltimoFiltro!.Ordem);
+  }
+
+  [Theory]
+  [InlineData("Codigo")]
+  [InlineData("nome")]
+  [InlineData("recente")]
+  public async Task Listar_com_ordem_desconhecida_e_Validacao_e_nao_consulta(string ordem)
+  {
+    // "Codigo" entra de proposito: a comparacao e ordinal, entao a caixa errada tambem e desconhecida.
+    var repo = new FakeComponenteRepo();
+
+    var resultado = await Montar(repo).Listar(null, false, ordem, 1, 20, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal($"Ordem '{ordem}' desconhecida. Aceitas: recentes, codigo, descricao.", resultado.Erro);
+    Assert.Null(repo.UltimoFiltro);
+  }
+
+  [Fact]
+  public async Task Faixa_invalida_ganha_da_ordem_invalida()
+  {
+    var repo = new FakeComponenteRepo();
+
+    var resultado = await Montar(repo).Listar(null, false, "x", 0, 20, CancellationToken.None);
+
+    Assert.Equal("Pagina deve ser 1 ou maior e tamanho deve estar entre 1 e 100.", resultado.Erro);
+    Assert.Null(repo.UltimoFiltro);
   }
 
   [Fact]

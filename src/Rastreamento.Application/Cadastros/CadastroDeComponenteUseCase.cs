@@ -33,6 +33,15 @@ public sealed class CadastroDeComponenteUseCase
   private const string ErroDeFaixaInvalida =
       "Pagina deve ser 1 ou maior e tamanho deve estar entre 1 e 100.";
 
+  // A ordem das chaves e a ordem da frase de erro de `Listar`.
+  private static readonly IReadOnlyDictionary<string, OrdemDeComponentes> OrdensAceitas =
+      new Dictionary<string, OrdemDeComponentes>(StringComparer.Ordinal)
+      {
+        ["recentes"] = OrdemDeComponentes.Recentes,
+        ["codigo"] = OrdemDeComponentes.Codigo,
+        ["descricao"] = OrdemDeComponentes.Descricao,
+      };
+
   private readonly IComponenteRepository _repositorio;
   private readonly IArquivoDeComponenteRepository _arquivos;
 
@@ -97,13 +106,21 @@ public sealed class CadastroDeComponenteUseCase
   /// vazios: fim de lista nao e pedido invalido.
   /// </summary>
   public async Task<Result<PaginaDto<ComponenteDto>>> Listar(
-      string? busca, bool incluirInativos, int pagina, int tamanho, CancellationToken ct)
+      string? busca, bool incluirInativos, string? ordem, int pagina, int tamanho, CancellationToken ct)
   {
     if (pagina < 1 || tamanho < 1 || tamanho > TamanhoDePaginaMaximo)
       return Result<PaginaDto<ComponenteDto>>.Falha(ErroDeFaixaInvalida, TipoDeErro.Validacao);
 
+    // A ordem e a ultima validacao (decisao D2 do plano da 1F): ausente, vazia ou so espacos e a
+    // padrao; qualquer outro valor fora do dicionario — comparacao ordinal — e 400.
+    var ordemDaConsulta = OrdemDeComponentes.Recentes;
+    if (!string.IsNullOrWhiteSpace(ordem) && !OrdensAceitas.TryGetValue(ordem, out ordemDaConsulta))
+      return Result<PaginaDto<ComponenteDto>>.Falha(
+          $"Ordem '{ordem}' desconhecida. Aceitas: {string.Join(", ", OrdensAceitas.Keys)}.",
+          TipoDeErro.Validacao);
+
     var (itens, total) = await _repositorio.ListarAsync(
-        new FiltroDeComponente(busca, incluirInativos, pagina, tamanho), ct);
+        new FiltroDeComponente(busca, incluirInativos, pagina, tamanho, ordemDaConsulta), ct);
 
     return Result<PaginaDto<ComponenteDto>>.Ok(
         new PaginaDto<ComponenteDto>(itens.Select(Projetar).ToList(), total, pagina, tamanho));
