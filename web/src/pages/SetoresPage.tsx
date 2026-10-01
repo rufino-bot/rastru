@@ -5,6 +5,9 @@ import {
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { Pagina } from '../components/Pagina'
+import { PainelDeEscrita } from '../components/PainelDeEscrita'
+import { SeletorDeOrdem, type OpcaoDeOrdem } from '../components/SeletorDeOrdem'
+import { ordenarCadastro } from '../cadastros/ordenarCadastro'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -12,13 +15,26 @@ import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 
+type Ordem = 'recentes' | 'nome'
+
+const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<Ordem>[] = [
+  { valor: 'recentes', rotulo: 'Mais recentes' },
+  { valor: 'nome', rotulo: 'Nome (A→Z)' },
+]
+
+type Painel = { tipo: 'novo' } | { tipo: 'editar'; setor: SetorDto }
+
 export function SetoresPage() {
   const [setores, setSetores] = useState<SetorDto[]>([])
   const [incluirInativos, setIncluirInativos] = useState(false)
+  const [ordem, setOrdem] = useState<Ordem>('recentes')
   const [nome, setNome] = useState('')
   const [atividade, setAtividade] = useState('')
-  const [editando, setEditando] = useState<SetorDto | null>(null)
+  const [painel, setPainel] = useState<Painel | null>(null)
+  // `erro`: carga e Inativar/Reativar do item, fora do painel. `erroDeEscrita`: salvar e "Reativar
+  // o existente", dentro do painel (decisão D8 do plano da 1F).
   const [erro, setErro] = useState<string | null>(null)
+  const [erroDeEscrita, setErroDeEscrita] = useState<string | null>(null)
   const [idReativavel, setIdReativavel] = useState<number | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
@@ -39,9 +55,36 @@ export function SetoresPage() {
 
   useEffect(() => { carregar(incluirInativos) }, [incluirInativos])
 
+  const editando = painel?.tipo === 'editar' ? painel.setor : null
+
+  // Desfecho de sucesso de um item NOVO (ou reativado): a lista volta a "Mais recentes" sem os
+  // inativos, para o item aparecer (decisão 7 da spec da 1F). Com "Mostrar inativos" marcado, o
+  // `useEffect` acima é quem recarrega, porque o valor muda; sem ele, a recarga é daqui.
+  async function voltarAoInicio() {
+    setOrdem('recentes')
+    if (incluirInativos) setIncluirInativos(false)
+    else await carregar(false)
+  }
+
+  function abrirNovo() {
+    setErroDeEscrita(null)
+    setIdReativavel(null)
+    setNome('')
+    setAtividade('')
+    setPainel({ tipo: 'novo' })
+  }
+
+  function fecharPainel() {
+    setPainel(null)
+    setNome('')
+    setAtividade('')
+    setErroDeEscrita(null)
+    setIdReativavel(null)
+  }
+
   async function salvar(e: FormEvent) {
     e.preventDefault()
-    setErro(null)
+    setErroDeEscrita(null)
     setIdReativavel(null)
     setEnviando(true)
     const corpo = { nome, atividade: atividade.trim() === '' ? null : atividade }
@@ -49,34 +92,31 @@ export function SetoresPage() {
       const resultado = editando ? await editarSetor(editando.id, corpo) : await criarSetor(corpo)
       if (ehConflito(resultado)) {
         if (!editando && resultado.existeInativo) {
-          setErro(`Já existe um setor "${nome}" inativo.`)
+          setErroDeEscrita(`Já existe um setor "${nome}" inativo.`)
           setIdReativavel(resultado.idExistente)
         } else {
-          setErro('Já existe um setor com este nome.')
+          setErroDeEscrita('Já existe um setor com este nome.')
         }
         return
       }
-      limparFormulario()
-      await carregar(incluirInativos)
+      const eraEdicao = editando !== null
+      fecharPainel()
+      // Editar mantém ordem e inativos: o item editado já estava na tela (decisão D6 do plano da 1F).
+      if (eraEdicao) await carregar(incluirInativos)
+      else await voltarAoInicio()
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Não foi possível salvar o setor.'))
+      setErroDeEscrita(mensagemDeErro(e, 'Não foi possível salvar o setor.'))
     } finally {
       setEnviando(false)
     }
   }
 
-  function limparFormulario() {
-    setNome('')
-    setAtividade('')
-    setEditando(null)
-  }
-
   function editar(setor: SetorDto) {
-    setErro(null)
+    setErroDeEscrita(null)
     setIdReativavel(null)
-    setEditando(setor)
     setNome(setor.nome)
     setAtividade(setor.atividade ?? '')
+    setPainel({ tipo: 'editar', setor })
   }
 
   // O `try/catch` continua sendo a fronteira REAL de perfil (F2): esconder o botão é conveniência
@@ -94,19 +134,28 @@ export function SetoresPage() {
   async function reativar(id: number) {
     try {
       await definirAtivoSetor(id, true)
-      setErro(null)
-      setIdReativavel(null)
-      limparFormulario()
-      await carregar(incluirInativos)
+      fecharPainel()
+      await voltarAoInicio()
     } catch (e) {
-      setErro(mensagemDeErro(e, 'Não foi possível reativar o setor.'))
+      setErroDeEscrita(mensagemDeErro(e, 'Não foi possível reativar o setor.'))
     }
   }
 
+  const visiveis = ordenarCadastro(setores, ordem === 'nome' ? (s) => s.nome : null)
+
   return (
-    <Pagina titulo="Setores">
-      {podeEscrever && (
-        <form onSubmit={salvar} className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie p-4">
+    <Pagina
+      titulo="Setores"
+      acao={podeEscrever && painel?.tipo !== 'novo' && <Botao onClick={abrirNovo}>Novo setor</Botao>}
+    >
+      {podeEscrever && painel && (
+        <PainelDeEscrita
+          key={editando ? `editar-${editando.id}` : 'novo'}
+          titulo={editando ? 'Editar setor' : 'Novo setor'}
+          subtitulo={editando?.nome}
+          aoEnviar={salvar}
+          aoFechar={fecharPainel}
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Nome do setor">
               {(id) => (
@@ -129,32 +178,34 @@ export function SetoresPage() {
               )}
             </Campo>
           </div>
+          <BannerDeErro mensagem={erroDeEscrita} />
+          {idReativavel !== null && (
+            <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
+              Reativar o existente
+            </Botao>
+          )}
           <div className="flex flex-wrap gap-2">
             <Botao type="submit" carregando={enviando} rotuloCarregando="Salvando…">
               {editando ? 'Salvar alterações' : 'Adicionar'}
             </Botao>
-            {editando && <Botao variante="secundario" onClick={limparFormulario}>Cancelar</Botao>}
           </div>
-        </form>
+        </PainelDeEscrita>
       )}
 
       <BannerDeErro mensagem={erro} />
 
-      {idReativavel !== null && (
-        <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
-          Reativar o existente
-        </Botao>
-      )}
-
-      <label className="flex items-center gap-2 text-sm text-tinta-fraca">
-        <input
-          type="checkbox"
-          checked={incluirInativos}
-          onChange={(e) => setIncluirInativos(e.target.checked)}
-          className="size-4 accent-acao"
-        />
-        Mostrar inativos
-      </label>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <label className="flex items-center gap-2 text-sm text-tinta-fraca">
+          <input
+            type="checkbox"
+            checked={incluirInativos}
+            onChange={(e) => setIncluirInativos(e.target.checked)}
+            className="size-4 accent-acao"
+          />
+          Mostrar inativos
+        </label>
+        <SeletorDeOrdem opcoes={OPCOES_DE_ORDEM} valor={ordem} aoMudar={setOrdem} />
+      </div>
 
       {carregando ? (
         <EstadoCarregando />
@@ -165,11 +216,11 @@ export function SetoresPage() {
         // banner de erro, afirmando "nenhum setor cadastrado" a partir de uma falha de conexão.
         <EstadoVazio
           titulo="Nenhum setor cadastrado"
-          descricao={podeEscrever ? 'Use o formulário acima para criar o primeiro.' : undefined}
+          descricao={podeEscrever ? 'Use o botão Novo setor para criar o primeiro.' : undefined}
         />
       ) : (
         <ListaDeCadastro>
-          {setores.map((s) => (
+          {visiveis.map((s) => (
             <ItemDeCadastro
               key={s.id}
               ativo={s.ativo}
