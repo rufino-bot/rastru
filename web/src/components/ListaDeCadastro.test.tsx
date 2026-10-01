@@ -38,10 +38,11 @@ describe('ItemDeCadastro', () => {
   })
 
   it('a acao fica num wrapper posicionado acima do conteudo', () => {
-    // O que a suíte consegue afirmar é a estrutura e as classes: o pai do botão é posicionado e
-    // empilhado. O efeito real (o clique no CENTRO do botão chega ao botão, e não ao link cujo
-    // overlay cobre o cartão) depende de layout, que o jsdom não calcula, e é conferido no
-    // navegador.
+    // O que a suíte consegue afirmar é a estrutura e as classes: o pai do botão é posicionado e NÃO
+    // tem índice de empilhamento próprio. O efeito real depende de layout, que o jsdom não calcula,
+    // e foi medido no Chromium com `document.elementFromPoint` no centro do botão: posicionado e
+    // sem índice, o botão fica acima do overlay do link (vem depois dele na ordem da árvore) e
+    // abaixo da lista aberta de um `SeletorComBusca` que o cubra (essa tem índice).
     const { container } = render(
       <ListaDeCadastro>
         <ItemDeCadastro acao={<button>Inativar</button>}>Corte</ItemDeCadastro>
@@ -52,9 +53,11 @@ describe('ItemDeCadastro', () => {
 
     expect(wrapper.tagName).toBe('DIV')
     expect(wrapper.classList.contains('relative')).toBe(true)
-    expect(wrapper.classList.contains('z-10')).toBe(true)
+    // Com índice, o wrapper empatava com a lista do seletor e, por vir depois no DOM, pintava por
+    // cima dela e tomava o clique destinado a uma opção.
+    expect([...wrapper.classList].filter((c) => /^-?z-/.test(c))).toEqual([])
     // O wrapper é filho direto do `<li>` (que é `relative`): o overlay do link, `absolute` com
-    // `inset-0`, ancora no `<li>`, e o wrapper empilha acima dele no mesmo contexto.
+    // `inset-0`, ancora no `<li>`, e o wrapper pinta depois dele no mesmo contexto.
     expect(wrapper.parentElement).toBe(container.querySelector('li'))
   })
 
