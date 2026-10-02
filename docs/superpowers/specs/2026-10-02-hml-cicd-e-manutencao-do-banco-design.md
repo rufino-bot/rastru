@@ -2,7 +2,8 @@
 
 Data: 2026-10-02. Branch: `claude/sharp-darwin-yrr1o5`, a partir da `main` em `75df075` (merge do
 rufino-bot/rastru#27). Desenho aprovado pelo usuário em chat na mesma data, seção a seção (as sete
-seções da conversa viraram as seções 3 a 9 abaixo).
+seções da conversa viraram as seções 3 a 9 abaixo). Texto da spec aprovado pelo usuário na mesma data; o plano de
+implementação **ainda não foi escrito**, por decisão dele (fica para quando voltar a esta branch).
 
 **Quando executa.** Fora da ordem das fases, por decisão do usuário — mas **não agora**: depois de
 terminadas as fases 3X que ainda faltam. Hoje isso é a **3B** (a 3D está concluída, e a 3C já está
