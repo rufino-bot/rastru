@@ -129,7 +129,7 @@ else
 fi
 
 echo
-echo "## LEDGER (backup em rufino-bot/rastru-ledger, privado)"
+echo "## LEDGER (backup em rufino-bot/rastru-tcc, privado)"
 # `.superpowers/` e um repositorio git PROPRIO — o repo do TCC o ignora (`.gitignore:6`). Ele
 # guarda o unico registro de decisao, medicao e divida do projeto, e ate 2026-08-25 existia so no
 # disco de uma maquina.
