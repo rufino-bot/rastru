@@ -28,6 +28,10 @@ internal sealed record PlanoDoReimport(
 /// </summary>
 internal static class TransferenciaDoReimport
 {
+  private const string TipoBruto = "Bruto";
+  private const string TipoMontagem = "Montagem";
+  private const string TipoFabricado = "Fabricado";
+
   /// <summary>Cria o registro de um codigo que o rascunho ainda nao tem (a regra do <c>Criar</c>).</summary>
   public delegate ImportacaoDeEstruturaComponente CriarRegistro(ComponenteDoBom componente, bool temFilhos, ISet<int> emUso);
 
@@ -63,6 +67,10 @@ internal static class TransferenciaDoReimport
       {
         mantido.CodigoLido = c.Codigo;
         mantido.DescricaoLida = c.Descricao;
+        // O tipo do "criar novo" acompanha a forma do arquivo novo (Montagem com filhos, Fabricado sem);
+        // o Bruto e escolha do usuario e fica.
+        if (mantido.ComponenteId is null && mantido.TipoNovo is not (null or TipoBruto))
+          mantido.TipoNovo = temFilhos.Contains(c.Chave) ? TipoMontagem : TipoFabricado;
         if (!MesmaReceita(receitaAntiga[mantido.Id], receitaNova[c.Chave]))
         {
           mantido.EscolhaDeReceita = null;

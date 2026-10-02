@@ -165,6 +165,23 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   }
 
   [Fact]
+  public async Task Trocar_um_casamento_existente_para_componente_de_outro_registro_e_Validacao()
+  {
+    var m = new Montagem();
+    m.Componente(10, "AB-01");
+    m.Componente(11, "CD-02");
+    await m.Criar("conjunto.csv", L(2, "1", "AB-01", "Peca A", "1"), L(3, "2", "CD-02", "Peca C", "1"));
+    var ab = m.Registro("AB-01");
+
+    var r = await Alterar(m, ab, Casar(m.Unica, 11));
+
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal(10, ab.ComponenteId);
+    Assert.Equal(11, m.Registro("CD-02").ComponenteId);
+    Assert.Equal(0, m.Importacoes.Salvamentos);
+  }
+
+  [Fact]
   public async Task Casar_de_novo_com_o_mesmo_componente_nao_conta_como_ja_casado()
   {
     var m = await ComUmCasado();
@@ -287,21 +304,52 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   {
     var m = await ComUmDivergente();
     m.Componente(12, "CAT-2");
+    // O 13 tambem diverge (receita de catalogo 13 -> 20), entao a escolha em si seria valida contra ele.
+    m.Componente(13, "CAT-3");
+    m.Estruturas.ReceitaFilhos.Add((13, 20, 1m));
     var casado = m.Registro("AB-01");
     await Alterar(m, casado, Casar(m.Unica, 10, ValoresDaConferencia.EscolhaImportada));
     Assert.Equal("Importada", casado.EscolhaDeReceita);
 
-    // Outro Componente, sem receita de catalogo: nao diverge, e a escolha de antes era de outro.
+    // O corpo ecoa a escolha ao mudar o casamento: ela seria de uma receita de catalogo que o usuario
+    // nao comparou, e o servidor recusa sem mexer em nada.
+    var eco = await Alterar(m, casado, Casar(m.Unica, 13, ValoresDaConferencia.EscolhaImportada));
+    Assert.Equal(TipoDeErro.Validacao, eco.TipoDoErro);
+    Assert.Equal((10, "Importada"), (casado.ComponenteId, casado.EscolhaDeReceita));
+    Assert.NotNull(casado.ImpressaoDaReceitaDoCatalogo);
+
+    // Sem escolha no corpo, a troca limpa a escolha e a impressao de antes.
     var troca = await Alterar(m, casado, Casar(m.Unica, 12, null));
     Assert.True(troca.Sucesso);
     Assert.Equal(12, casado.ComponenteId);
     Assert.Null(casado.EscolhaDeReceita);
     Assert.Null(casado.ImpressaoDaReceitaDoCatalogo);
 
-    // Voltar para o primeiro com uma escolha nova: vale a do corpo, contra o casamento novo.
-    var volta = await Alterar(m, casado, Casar(m.Unica, 10, ValoresDaConferencia.EscolhaCatalogo));
+    // Voltar ao primeiro tambem e uma troca: a escolha nova se faz numa escrita seguinte, ja sobre o casamento.
+    var volta = await Alterar(m, casado, Casar(m.Unica, 10, null));
     Assert.True(volta.Sucesso);
+    var escolha = await Alterar(m, casado, Casar(m.Unica, 10, ValoresDaConferencia.EscolhaCatalogo));
+    Assert.True(escolha.Sucesso);
     Assert.Equal("Catalogo", casado.EscolhaDeReceita);
+  }
+
+  [Fact]
+  public async Task Escolha_junto_da_troca_para_novo_ou_de_novo_para_casado_tambem_e_recusada()
+  {
+    var m = await ComUmDivergente();
+    m.Componente(13, "CAT-3");
+    m.Estruturas.ReceitaFilhos.Add((13, 20, 1m));
+    var casado = m.Registro("AB-01");
+    await Alterar(m, casado, Casar(m.Unica, 10, ValoresDaConferencia.EscolhaCatalogo));
+
+    var paraNovo = await Alterar(m, casado, Casar(m.Unica, null, ValoresDaConferencia.EscolhaCatalogo));
+    Assert.Equal(TipoDeErro.Validacao, paraNovo.TipoDoErro);
+    Assert.Equal(10, casado.ComponenteId);
+
+    var z = m.Registro("Z-1");
+    var paraCasado = await Alterar(m, z, Casar(m.Unica, 13, ValoresDaConferencia.EscolhaCatalogo));
+    Assert.Equal(TipoDeErro.Validacao, paraCasado.TipoDoErro);
+    Assert.Null(z.ComponenteId);
   }
 
   [Fact]
@@ -717,8 +765,10 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     m.Componente(12, "CAT-RAIZ");
     var raiz = m.Unica.Componentes.Single(c => c.Id == m.Unica.RaizId);
     m.Estruturas.ReceitaFilhos.Add((12, 20, 1m));
+    await Alterar(m, raiz, Casar(m.Unica, 12));
     await Alterar(m, raiz, Casar(m.Unica, 12, ValoresDaConferencia.EscolhaImportada));
     var impressao = raiz.ImpressaoDaReceitaDoCatalogo;
+    Assert.NotNull(impressao);
 
     await Reimportar(m, "conjunto.csv", L(2, "1", "AB-01", "Peca A", "1"), L(3, "1.1", "Z-1", "Filho Z", "2"));
 
@@ -807,5 +857,66 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     Assert.NotEqual(antes, Convert.ToBase64String(r.Valor!.Versao));
     Assert.Equal(["AB-01"], r.Valor.Raiz!.Filhos.Select(f => f.Codigo));
     Assert.Equal(2, r.Valor.Componentes.Count);
+  }
+
+  [Fact]
+  public async Task Reimport_recalcula_o_tipo_do_novo_pelos_filhos_do_arquivo_novo_e_deixa_o_Bruto()
+  {
+    var m = new Montagem();
+    await m.Criar(
+        "conjunto.csv",
+        L(2, "1", "A-1", "Peca A", "1"), L(3, "1.1", "F-1", "Filho", "1"),
+        L(4, "2", "B-1", "Peca B", "1"),
+        L(5, "3", "C-1", "Peca C", "1"));
+    var a = m.Registro("A-1");
+    var b = m.Registro("B-1");
+    var c = m.Registro("C-1");
+    Assert.Equal(("Montagem", "Fabricado", "Fabricado"), (a.TipoNovo, b.TipoNovo, c.TipoNovo));
+    await Alterar(m, c, Casar(m.Unica, null, tipoNovo: "Bruto"));
+
+    // A-1 perde o filho, B-1 ganha um, C-1 ganha um mas e Bruto por escolha do usuario.
+    await Reimportar(
+        m, "conjunto.csv",
+        L(2, "1", "A-1", "Peca A", "1"),
+        L(3, "2", "B-1", "Peca B", "1"), L(4, "2.1", "G-1", "Filho de B", "1"),
+        L(5, "3", "C-1", "Peca C", "1"), L(6, "3.1", "H-1", "Filho de C", "1"));
+
+    Assert.Equal(("Fabricado", "Montagem", "Bruto"), (m.Registro("A-1").TipoNovo, m.Registro("B-1").TipoNovo, m.Registro("C-1").TipoNovo));
+  }
+
+  // ---------------------------------------------------------------- limpeza do solido pendente
+
+  [Fact]
+  public async Task Falha_qualquer_do_salvamento_apaga_o_arquivo_gravado_restaura_o_campo_e_repropaga()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    await EnviarSolido(m, z, "primeiro.stl");
+    var primeiro = z.ArquivoSolidoPendenteId!.Value;
+    m.Importacoes.FalhaNoSalvamento = new InvalidOperationException("banco caiu");
+
+    var falha = await Assert.ThrowsAsync<InvalidOperationException>(() => EnviarSolido(m, z, "segundo.stl"));
+
+    Assert.Equal("banco caiu", falha.Message);
+    Assert.Equal([primeiro], m.Importacoes.ArquivosGravados.Keys);
+    Assert.Equal(primeiro, z.ArquivoSolidoPendenteId);
+  }
+
+  [Fact]
+  public async Task Limpeza_depois_do_commit_nao_depende_do_token_da_requisicao()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    await EnviarSolido(m, z, "primeiro.stl");
+    var primeiro = z.ArquivoSolidoPendenteId!.Value;
+    using var cts = new CancellationTokenSource();
+    // O cliente desconecta logo depois do commit.
+    m.Importacoes.AposSalvar = cts.Cancel;
+
+    var r = await m.UseCase.EnviarSolidoPendente(
+        m.Unica.Id, z.Id, Versao(m.Unica), "segundo.stl", StlDeTeste.CuboBinario(), UsuarioId, cts.Token);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal([primeiro], m.Importacoes.ArquivosExcluidos);
   }
 }

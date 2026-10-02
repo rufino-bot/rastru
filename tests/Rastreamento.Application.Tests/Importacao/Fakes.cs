@@ -67,6 +67,12 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
   /// </summary>
   public bool PerderACorridaNoSalvamento { get; set; }
 
+  /// <summary>Uma falha qualquer (nao de versao) do salvamento, como uma queda do banco.</summary>
+  public Exception? FalhaNoSalvamento { get; set; }
+
+  /// <summary>Roda quando o salvamento termina bem, para o teste simular o que acontece logo depois do commit.</summary>
+  public Action? AposSalvar { get; set; }
+
   private readonly List<ImportacaoDeEstruturaComponente> _registrosParaRemover = [];
   private readonly List<ImportacaoDeEstruturaFilho> _filhosParaRemover = [];
 
@@ -84,7 +90,19 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
   public Task SalvarAsync(ImportacaoDeEstrutura importacao, byte[] versaoEsperada, CancellationToken ct)
   {
     if (PerderACorridaNoSalvamento || !importacao.Versao.AsSpan().SequenceEqual(versaoEsperada))
+    {
+      // O contexto real descarta o que estava marcado quando o salvamento falha; a marca nao vaza para o proximo.
+      _filhosParaRemover.Clear();
+      _registrosParaRemover.Clear();
       throw new ConflitoDeConcorrenciaException(new InvalidOperationException("versao velha"));
+    }
+
+    if (FalhaNoSalvamento is not null)
+    {
+      _filhosParaRemover.Clear();
+      _registrosParaRemover.Clear();
+      throw FalhaNoSalvamento;
+    }
 
     Salvamentos++;
     foreach (var filho in _filhosParaRemover)
@@ -110,6 +128,7 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
 
     importacao.AtualizadoEm = importacao.AtualizadoEm.AddMinutes(1);
     importacao.Versao = BitConverter.GetBytes((long)_proximaVersao++);
+    AposSalvar?.Invoke();
     return Task.CompletedTask;
   }
 
@@ -156,6 +175,8 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
 
   public Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
   {
+    // Como o driver: com o token cancelado, nao apaga nada.
+    ct.ThrowIfCancellationRequested();
     foreach (var id in arquivoIds)
     {
       ArquivosExcluidos.Add(id);

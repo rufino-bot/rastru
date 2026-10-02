@@ -20,6 +20,8 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   private const string ErroDeVersaoInvalida = "Versao do rascunho invalida.";
   private const string ErroDeComponenteJaCasado = "Este componente ja esta casado com outro registro do rascunho.";
   private const string ErroDeSolidoPendenteNaoEncontrado = "Este registro nao tem solido pendente.";
+  private const string ErroDeEscolhaComTrocaDeCasamento =
+      "Escolha a receita depois de conferir o novo casamento.";
   private const string ErroDeEscolhaSemDivergencia =
       "So ha escolha de receita onde a receita do catalogo diverge da lida do BOM.";
 
@@ -80,8 +82,16 @@ public sealed partial class ImportacaoDeEstruturaUseCase
             return new Recusa(ErroDeComponenteJaCasado, TipoDeErro.Validacao);
         }
 
+        // Trocar o casamento (de Componente, ou entre casado e novo) e trocar a receita de catalogo em
+        // comparacao: uma escolha enviada junto seria de uma receita que o usuario nao viu. Ela se faz numa
+        // escrita seguinte, ja sobre o casamento novo.
+        if (dto.ComponenteId != registro.ComponenteId && dto.EscolhaDeReceita is not null)
+          return new Recusa(ErroDeEscolhaComTrocaDeCasamento, TipoDeErro.Validacao);
+
         var antes = Estado.De(registro);
         AplicarCasamento(registro, dto);
+        // `escolhaDeReceita` e o estado inteiro da escolha: nulo a limpa, e a troca de casamento so chega
+        // aqui com ela nula.
         registro.EscolhaDeReceita = dto.EscolhaDeReceita;
         registro.ImpressaoDaReceitaDoCatalogo = null;
 
@@ -125,16 +135,18 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       return null;
     },
     // O anterior so some depois de o novo estar ligado ao registro: se o salvamento falha, ele continua valendo.
+    // As limpezas de depois do salvamento nao usam o token da requisicao: a escrita ja esta confirmada, e uma
+    // desconexao agora deixaria arquivos orfaos ou transformaria a escrita feita numa excecao.
     aposSalvar: async () =>
     {
       if (anterior is int velho)
-        await _importacoes.ExcluirArquivosAsync([velho], ct);
+        await _importacoes.ExcluirArquivosAsync([velho], CancellationToken.None);
     },
     aoPerderACorrida: async () =>
     {
       alvo!.ArquivoSolidoPendenteId = anterior;
       if (gravado is int novo)
-        await _importacoes.ExcluirArquivosAsync([novo], ct);
+        await _importacoes.ExcluirArquivosAsync([novo], CancellationToken.None);
     });
   }
 
@@ -180,7 +192,7 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       var arquivos = plano!.RegistrosRemovidos
           .Where(c => c.ArquivoSolidoPendenteId is not null).Select(c => c.ArquivoSolidoPendenteId!.Value).ToList();
       if (arquivos.Count > 0)
-        await _importacoes.ExcluirArquivosAsync(arquivos, ct);
+        await _importacoes.ExcluirArquivosAsync(arquivos, CancellationToken.None);
     });
   }
 
@@ -218,6 +230,13 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       if (aoPerderACorrida is not null)
         await aoPerderACorrida();
       return Desatualizada.Resultado();
+    }
+    catch
+    {
+      // Qualquer outra falha do salvamento tambem deixa de lado o que a escrita gravou antes dele.
+      if (aoPerderACorrida is not null)
+        await aoPerderACorrida();
+      throw;
     }
 
     if (aposSalvar is not null)
@@ -269,18 +288,12 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   }
 
   /// <summary>
-  /// Casado -> o Componente, com os dados do novo e a escolha zerados. Casado -> novo, ou novo ->
+  /// Casado -> o Componente, com os dados do novo zerados (a escolha e a impressao, quem chama).
+  /// Casado -> novo, ou novo ->
   /// novo: os dados do corpo, por cima do que o arquivo leu quando o registro acabou de virar novo.
   /// </summary>
   private static void AplicarCasamento(ImportacaoDeEstruturaComponente registro, AlteracaoDeComponenteDto dto)
   {
-    var mudou = dto.ComponenteId != registro.ComponenteId;
-    if (mudou)
-    {
-      registro.EscolhaDeReceita = null;
-      registro.ImpressaoDaReceitaDoCatalogo = null;
-    }
-
     if (dto.ComponenteId is int alvo)
     {
       registro.ComponenteId = alvo;

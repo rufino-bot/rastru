@@ -576,7 +576,8 @@ public class ImportacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
   /// <summary>
   /// Conteudo lixo (zeros) um byte acima do teto: quem recusa aqui e o VALIDADOR, e nao o
   /// <c>RequestSizeLimit</c> -- o <c>TestServer</c> nao exercita o limite do Kestrel (medido no teste
-  /// de limite de <c>SolidoEndpointsTests</c>), e e por isso que o teste seguinte confere so a DECLARACAO.
+  /// de limite de <c>SolidoEndpointsTests</c>), e e por isso que
+  /// <c>RequestSizeLimit_dos_dois_envios_e_o_do_arquivo_mais_a_margem_do_multipart</c> confere so a DECLARACAO.
   /// </summary>
   [Fact]
   public async Task Post_solido_pendente_acima_do_limite_e_recusado()
