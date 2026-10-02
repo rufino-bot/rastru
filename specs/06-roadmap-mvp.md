@@ -554,6 +554,11 @@ Com isso a fase está **concluída** na branch; o merge na `main` vem pelo PR. S
 `dotnet build Rastreamento.slnx -warnaserror` com 0 avisos e `dotnet test Rastreamento.slnx -m:1`
 verde, **979** (Api 310 · Application 511 · Infrastructure 158).
 
+**Estado em 2026-10-02, depois do merge:** **concluída e mesclada na `main`** pelo PR
+rufino-bot/rastru#28 (merge `e5fdc81`), cuja árvore é idêntica à de `0d2d38f`, o último commit da
+branch. A spec e o plano da fase estão na `main` desde esse merge, e a branch
+`fase-1f-cadastro-sob-demanda` foi apagada.
+
 ## Fase 3B — Kit e montagem
 
 - `Setor.UtilizaKit` (regra 25 de `01`); o schema entra no início desta fase. A montagem, o destino
