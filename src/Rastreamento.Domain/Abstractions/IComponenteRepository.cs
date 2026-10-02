@@ -3,11 +3,20 @@ using Rastreamento.Domain.Entities;
 namespace Rastreamento.Domain.Abstractions;
 
 /// <summary>
-/// Filtro e faixa de uma pagina do catalogo. <c>Pagina</c> e 1-based. Vive junto da interface
-/// porque faz parte do contrato dela — quem implementa precisa dos quatro campos.
+/// Ordem de uma pagina do catalogo. <c>Recentes</c> (<c>Id</c> decrescente) e a padrao desde a
+/// decisao 9 da spec da 1F; <c>Codigo</c> e a ordem que a listagem tinha antes.
+/// </summary>
+public enum OrdemDeComponentes { Recentes, Codigo, Descricao }
+
+/// <summary>
+/// Filtro, ordem e faixa de uma pagina do catalogo. <c>Pagina</c> e 1-based. Vive junto da
+/// interface porque faz parte do contrato dela — quem implementa precisa dos cinco campos. A
+/// <c>Ordem</c> e o ultimo parametro, com padrao, para quem constroi o filtro sem ela continuar
+/// compilando (decisao D1 do plano da 1F).
 /// </summary>
 public sealed record FiltroDeComponente(
-    string? Busca, bool IncluirInativos, int Pagina, int Tamanho);
+    string? Busca, bool IncluirInativos, int Pagina, int Tamanho,
+    OrdemDeComponentes Ordem = OrdemDeComponentes.Recentes);
 
 public interface IComponenteRepository
 {
@@ -26,7 +35,9 @@ public interface IComponenteRepository
   /// <summary>
   /// Devolve a pagina pedida e o total que casa com o MESMO filtro. O total vem separado porque
   /// sem ele o front nao sabe quantas paginas existem; contado com os mesmos criterios porque um
-  /// total sem filtro faria a tela oferecer paginas que nao existem.
+  /// total sem filtro faria a tela oferecer paginas que nao existem. A ordem e a de
+  /// <c>FiltroDeComponente.Ordem</c>, sempre total: <c>Codigo</c> e unico, e as demais desempatam
+  /// por <c>Id</c>.
   /// </summary>
   Task<(IReadOnlyList<Componente> Itens, int Total)> ListarAsync(
       FiltroDeComponente filtro, CancellationToken ct);

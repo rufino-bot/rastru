@@ -162,7 +162,7 @@ public class CadastroDePedidoUseCaseTests
         new Pedido { Id = 3, Numero = "PED-003", Cliente = "C" });
 
     var resultado = await new CadastroDePedidoUseCase(repo)
-        .Listar(null, null, null, 1, 2, CancellationToken.None);
+        .Listar(null, null, null, null, 1, 2, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal(2, resultado.Valor!.Itens.Count);
@@ -180,7 +180,7 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo();
 
     var resultado = await new CadastroDePedidoUseCase(repo)
-        .Listar(null, null, null, pagina, tamanho, CancellationToken.None);
+        .Listar(null, null, null, null, pagina, tamanho, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -193,7 +193,7 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo();
 
     var resultado = await new CadastroDePedidoUseCase(repo)
-        .Listar(null, "Aberto,Qualquer", null, 1, 20, CancellationToken.None);
+        .Listar(null, "Aberto,Qualquer", null, null, 1, 20, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -211,7 +211,7 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo();
 
     var resultado = await new CadastroDePedidoUseCase(repo)
-        .Listar(null, null, material, 1, 20, CancellationToken.None);
+        .Listar(null, null, material, null, 1, 20, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -224,13 +224,13 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo();
     var useCase = new CadastroDePedidoUseCase(repo);
 
-    await useCase.Listar("  CH  ", " Aberto,,Aberto ,EmProducao", "5,,5,3", 1, 20, CancellationToken.None);
+    await useCase.Listar("  CH  ", " Aberto,,Aberto ,EmProducao", "5,,5,3", null, 1, 20, CancellationToken.None);
 
     Assert.Equal(["Aberto", "EmProducao"], repo.UltimoFiltro!.Status);
     Assert.Equal([5, 3], repo.UltimoFiltro.Materiais);
     Assert.Equal("CH", repo.UltimoFiltro.Busca);
 
-    await useCase.Listar("   ", null, null, 1, 20, CancellationToken.None);
+    await useCase.Listar("   ", null, null, null, 1, 20, CancellationToken.None);
 
     Assert.Null(repo.UltimoFiltro.Busca);
     Assert.Empty(repo.UltimoFiltro.Status);
@@ -243,7 +243,7 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo();
     var useCase = new CadastroDePedidoUseCase(repo);
 
-    var resultado = await useCase.Listar(null, null, " 5 , 3", 1, 20, CancellationToken.None);
+    var resultado = await useCase.Listar(null, null, " 5 , 3", null, 1, 20, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal([5, 3], repo.UltimoFiltro!.Materiais);
@@ -259,11 +259,84 @@ public class CadastroDePedidoUseCaseTests
     repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "PED-9 urgente");
 
     var resultado = await new CadastroDePedidoUseCase(repo)
-        .Listar(null, null, null, 1, 20, CancellationToken.None);
+        .Listar(null, null, null, null, 1, 20, CancellationToken.None);
 
     var pedidos = resultado.Valor!.Itens;
     Assert.Null(pedidos.Single(p => p.Id == 1).Pausa);
     Assert.Equal(new PausaResumoDto(desde, "PCP", "PED-9 urgente"), pedidos.Single(p => p.Id == 2).Pausa);
+  }
+
+  [Theory]
+  [InlineData(null)]
+  [InlineData("")]
+  [InlineData("  ")]
+  public async Task Listar_sem_ordem_pede_Recentes(string? ordem)
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(OrdemDePedidos.Recentes, repo.UltimoFiltro!.Ordem);
+  }
+
+  [Theory]
+  [InlineData("recentes", OrdemDePedidos.Recentes)]
+  [InlineData("numero", OrdemDePedidos.Numero)]
+  [InlineData("cliente", OrdemDePedidos.Cliente)]
+  public async Task Listar_traduz_cada_ordem(string ordem, OrdemDePedidos esperada)
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(esperada, repo.UltimoFiltro!.Ordem);
+  }
+
+  [Theory]
+  [InlineData("Numero")]
+  [InlineData("nome")]
+  [InlineData("recente")]
+  public async Task Listar_com_ordem_desconhecida_e_Validacao_e_nao_consulta(string ordem)
+  {
+    // "Numero" entra de proposito: a comparacao e ordinal, entao a caixa errada tambem e desconhecida.
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal($"Ordem '{ordem}' desconhecida. Aceitas: recentes, numero, cliente.", resultado.Erro);
+    Assert.Null(repo.UltimoFiltro);
+  }
+
+  [Fact]
+  public async Task Faixa_invalida_ganha_da_ordem_invalida()
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, null, null, "x", 0, 20, CancellationToken.None);
+
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.DoesNotContain("Ordem", resultado.Erro);
+    Assert.Null(repo.UltimoFiltro);
+  }
+
+  [Fact]
+  public async Task Status_invalido_ganha_da_ordem_invalida()
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await new CadastroDePedidoUseCase(repo)
+        .Listar(null, "Qualquer", null, "x", 1, 20, CancellationToken.None);
+
+    Assert.Contains("Status 'Qualquer'", resultado.Erro);
+    Assert.Null(repo.UltimoFiltro);
   }
 
   [Fact]

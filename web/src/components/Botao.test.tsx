@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { createRef } from 'react'
 import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { Botao } from './Botao'
 
@@ -146,5 +147,12 @@ describe('Botao', () => {
     expect(classes).toContain('self-start')
     expect(classes).toContain('inline-flex') // token da BASE
     expect(classes).toContain('border')      // token da variante secundário
+  })
+
+  it('repassa o ref ao button, para quem precisa devolver o foco a ele', () => {
+    const ref = createRef<HTMLButtonElement>()
+    render(<Botao ref={ref}>Novo setor</Botao>)
+
+    expect(ref.current).toBe(screen.getByRole('button', { name: 'Novo setor' }))
   })
 })

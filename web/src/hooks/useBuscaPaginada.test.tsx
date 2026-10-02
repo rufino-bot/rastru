@@ -32,6 +32,8 @@ function Hospedeiro({ buscar, atraso = 300, tamanhoInicial, inicial, filtros, ao
       </select>
       <button onClick={() => b.irParaPagina(b.pagina + 1)}>Próxima</button>
       <button onClick={() => { void b.recarregar() }}>Recarregar</button>
+      <button onClick={() => b.voltarAoInicio()}>Voltar ao inicio</button>
+      <p>texto:{b.textoDaBusca}</p>
       <p>pagina:{b.pagina}</p>
       <p>total:{b.total}</p>
       <p>paginas:{b.totalDePaginas}</p>
@@ -560,5 +562,94 @@ describe('useBuscaPaginada', () => {
     fireEvent.click(screen.getByText('Próxima'))
     await avancar(0)
     expect(aoMudarConsulta).toHaveBeenLastCalledWith({ busca: 'SUP', pagina: 2 })
+  })
+  it('voltarAoInicio zera busca, pagina e inativos e recarrega', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([], 100))
+
+    render(<Hospedeiro buscar={buscar} />)
+    await avancar(0)
+    fireEvent.change(screen.getByLabelText('busca'), { target: { value: 'x' } })
+    await avancar(300)
+    fireEvent.click(screen.getByLabelText('inativos'))
+    await avancar(0)
+    fireEvent.click(screen.getByText('Próxima'))
+    await avancar(0)
+    fireEvent.click(screen.getByText('Próxima'))
+    await avancar(0)
+    expect(buscar).toHaveBeenLastCalledWith(
+      { busca: 'x', incluirInativos: true, pagina: 3, tamanho: 20 },
+    )
+
+    fireEvent.click(screen.getByText('Voltar ao inicio'))
+    await avancar(0)
+
+    expect(buscar).toHaveBeenLastCalledWith({ busca: '', incluirInativos: false, pagina: 1, tamanho: 20 })
+    expect(screen.getByText('texto:')).toBeTruthy()
+    expect(screen.getByText('pagina:1')).toBeTruthy()
+  })
+
+  // Review Focus 1 do plano da 1F: nada muda no estado da consulta, e a lista tem de buscar mesmo
+  // assim — e o caso de salvar na pagina 1, sem filtro, ja no padrao.
+  it('voltarAoInicio recarrega mesmo sem nada a mudar', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    render(<Hospedeiro buscar={buscar} />)
+    await avancar(0)
+    expect(buscar).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByText('Voltar ao inicio'))
+    await avancar(0)
+
+    expect(buscar).toHaveBeenCalledTimes(2)
+    expect(buscar).toHaveBeenLastCalledWith({ busca: '', incluirInativos: false, pagina: 1, tamanho: 20 })
+  })
+
+  // Review Focus 2: o texto do campo ja mudou, a consulta ainda nao; se so a consulta fosse
+  // zerada, o debounce pendente dispararia depois e refiltraria.
+  it('voltarAoInicio cancela a busca que ainda estava no debounce', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    render(<Hospedeiro buscar={buscar} />)
+    await avancar(0)
+    fireEvent.change(screen.getByLabelText('busca'), { target: { value: 'abc' } })
+    await avancar(100)
+    fireEvent.click(screen.getByText('Voltar ao inicio'))
+    await avancar(1000)
+
+    const buscas = buscar.mock.calls.map(([f]) => (f as FiltroDeBusca).busca)
+    expect(buscas).not.toContain('abc')
+    expect(screen.getByText('texto:')).toBeTruthy()
+  })
+
+  it('voltarAoInicio nao muda o tamanho', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+
+    render(<Hospedeiro buscar={buscar} />)
+    await avancar(0)
+    fireEvent.change(screen.getByLabelText('tamanho'), { target: { value: '50' } })
+    await avancar(0)
+
+    fireEvent.click(screen.getByText('Voltar ao inicio'))
+    await avancar(0)
+
+    expect(buscar).toHaveBeenLastCalledWith({ busca: '', incluirInativos: false, pagina: 1, tamanho: 50 })
+  })
+
+  it('voltarAoInicio junto de filtros novos faz uma requisicao so', async () => {
+    const buscar = vi.fn().mockResolvedValue(pagina([]))
+    const { rerender } = render(<Hospedeiro buscar={buscar} filtros={{ status: ['Aberto'] }} />)
+    await avancar(0)
+    expect(buscar).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      rerender(<Hospedeiro buscar={buscar} filtros={{ status: [] }} />)
+      fireEvent.click(screen.getByText('Voltar ao inicio'))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(buscar).toHaveBeenCalledTimes(2)
+    expect(buscar).toHaveBeenLastCalledWith({
+      busca: '', incluirInativos: false, pagina: 1, tamanho: 20, filtros: { status: [] },
+    })
   })
 })

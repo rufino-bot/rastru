@@ -87,6 +87,44 @@ describe('PedidoDetalhePage', () => {
     expect(await screen.findByText('AGR-01')).toBeTruthy()
   })
 
+  it('o link do item cobre o cartao inteiro', async () => {
+    // jsdom não calcula layout: a suíte afirma as classes do overlay, não a área clicável.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+    }))
+
+    renderizarDetalhe()
+
+    const link = await screen.findByRole('link', { name: 'AGR-01' })
+    expect(link.classList.contains('after:absolute')).toBe(true)
+    expect(link.classList.contains('after:inset-0')).toBe(true)
+    expect(link.getAttribute('href')).toBe('/agrupamentos/21')
+  })
+
+  it('o botao do item continua alcancavel pelo papel e nome, e o clique dispara a acao e nao a navegacao', async () => {
+    // Em jsdom isto só prova o handler: o botão é achado por papel e nome, e o clique nele abre o
+    // diálogo de exclusão sem navegar. Que o clique no CENTRO do botão não cai no overlay do link
+    // depende de layout e é conferido no navegador.
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+    }))
+    render(
+      <MemoryRouter initialEntries={['/pedidos/7']}>
+        <Routes>
+          <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
+          <Route path="/agrupamentos/:id" element={<p>agrupamento aberto</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Excluir' }))
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.queryByText('agrupamento aberto')).toBeNull()
+  })
+
   it('mostra o status do Pedido pelo rótulo em português, não pelo valor cru do enum', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos/7': () => respostaJson({ ...PEDIDO, status: 'EmProducao' }),

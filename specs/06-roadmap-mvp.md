@@ -245,6 +245,16 @@ resolvidos (ou conscientemente adiados).
 > entraram o estorno rápido na fila e a pausa de Pedido. Os bullets desta seção descrevem a Fase 3
 > como foi entregue; onde divergem da 3D, vale a 3D.
 
+**Estado em 2026-10-02:** **concluída em 2026-09-28**, com a verificação manual no celular da seção
+9.5 da spec dela. A spec e o plano de documentação entraram na `main` pelo PR #17 (merge
+`80e11a0`), e os planos de backend e de front pelo PR #18 (merge `695fbf8`), os dois em 2026-09-25.
+O código entrou pelos PRs #20 (backend, merge `44b1d54`) e #21 (front, merge `0f4ae3c`), os dois em
+2026-09-26, e por duas correções que a verificação pediu, mergeadas em 2026-09-28: o histórico do nó
+numa lista só, do registro mais recente ao mais antigo (PR #22, merge `b31592f`), e a contagem de
+Pedidos abertos com o contador de Tarefas recontado depois de cada ação (PR #23, merge `63361ff`).
+Outros pontos que a verificação levantou viraram a Fase 3D, os filtros da demanda e o cartão
+clicável da Fase 1F.
+
 ## Fase 3D — Ajustes pós-verificação da Fase 3
 
 > **Executada antes da 3B**, por decisão de 2026-09-28 ("primeiro os 4 pontos, depois filtros, 1F e
@@ -261,6 +271,11 @@ resolvidos (ou conscientemente adiados).
 > arquivo vive só na branch `fase-1f-cadastro-sob-demanda` e não está na `main` — quem lê a `main`
 > não o encontra na pasta de specs. Ela também ainda não tem seção neste arquivo: a entrada vem com
 > a abertura da fase, como a própria spec prevê. A Fase 3B tem seção própria neste arquivo.
+>
+> **Emenda de 2026-10-01:** a Fase 1F abriu e ganhou a seção «Fase 1F — Cadastro sob demanda e
+> ordenação das listas», neste arquivo, entre os filtros e a 3B. A spec dela continua só na branch
+> `fase-1f-cadastro-sob-demanda` nessa data. O texto desta nota anterior a esta emenda descreve o
+> arquivo em 2026-09-29.
 
 - **Iniciar como verbo único** (regra 24 de `01`): iniciar um nó **com filhos** consome os filhos
   presentes no Setor e põe o pai em produção no primeiro passo, na mesma transação. "Montar" deixa
@@ -281,13 +296,21 @@ resolvidos (ou conscientemente adiados).
 - Critério de pronto: o da seção 9 da spec da Fase 3D, cujo último item é a **verificação manual no
   celular**, como na seção 9.5 da spec da Fase 3.
 
+**Estado em 2026-10-02:** **concluída em 2026-09-29**. A verificação manual no celular foi feita
+pelo usuário em 2026-09-29, com os seis passos do roteiro aprovados, e a fase entrou na `main` no
+mesmo dia (PR #24, merge `7b3726a`). Antes do merge entraram duas mudanças que o usuário decidiu na
+sessão da verificação: durante o roteiro, a ordem da fila do Setor, que passou a mostrar primeiro o
+que está em trabalho e, no fim, o que aguarda coleta e a sobra; e, depois do roteiro, a pílula do
+Pedido pausado no tom de atenção (âmbar), um tom reservado a estado.
+
 ## Filtros da demanda e ação em lote
 
 > **Executada depois da 3D e antes da 1F e da 3B** (decisão do usuário de 2026-09-28, oficializada
 > em 2026-09-29 — ver a nota "Ordem depois da 3D", na seção «Fase 3D — Ajustes pós-verificação da Fase 3»): **filtros → 1F → 3B**. A ordem
 > não mudou; o que mudou é o tamanho do "filtros". Não é fase com letra. Spec:
 > `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`. **Sem mudança de schema**:
-> `dbo.EstruturaMaterial` já existia e já é gravado na criação do nó, e não há `db/alter-*.sql`.
+> `dbo.EstruturaMaterial` já existia e já é gravado na criação do nó, e a fase não traz
+> `db/alter-*.sql`.
 
 Nasceu de dois pedidos do usuário nas verificações manuais no celular — filtrar a fila por Material
 e por Pedido, e agir em lote com "marcar todos" — mais a dívida da lista de Pedidos que a Fase 1E
@@ -345,7 +368,8 @@ seleção convive com o filtro. Implementado na branch `filtros-e-lote-plano-2`:
   pontos de entrada:** a validação de iniciar e terminar mora num núcleo por item
   (`IniciarNoAsync`, `TerminarNoAsync`, privados do `ApontamentoUseCase`), e a rota de um nó e o lote
   passam por ele; o lote não recalcula saldo, Roteiro nem filhos. O lote só acrescenta ao livro as
-  mesmas linhas que a ação individual acrescentaria; não há mudança de schema nem `db/alter-*.sql`.
+  mesmas linhas que a ação individual acrescentaria; o plano não traz mudança de schema nem
+  `db/alter-*.sql`.
 - **Falha não commita (desvio D1 do plano).** `IExecucaoRepository.EmTransacaoAsync` ganhou uma
   sobrecarga com `confirmar`, que só commita se o resultado for de sucesso, e `Falhas.ExecutarAsync`
   passou a usá-la em todo caso de uso que a chama. Era necessário porque o lote grava o item 1 (inclusive
@@ -372,6 +396,163 @@ seleção convive com o filtro. Implementado na branch `filtros-e-lote-plano-2`:
 Plano 2 implementado, **fase não concluída**: falta a verificação manual no celular, pelo usuário,
 **pendente em 2026-09-30** — este arquivo não registra o Plano 2 como verificado. A posição da fase
 não mudou: **filtros → 1F → 3B**.
+
+**Emenda de 2026-10-02:** o Plano 2 foi verificado no celular pelo usuário em 2026-10-01, sobre
+`894fde5`, o mesmo commit que o PR #26 levou à `main` (merge `1594c23`, 2026-10-01): os sete passos
+do roteiro passaram, sem achado no produto. Um registro de bancada, e não do produto: numa das
+redes Wi-Fi usadas o celular não alcançou a aplicação, e a verificação foi feita em outra rede; a
+causa não foi medida. Com os dois planos verificados no celular e na `main`, a verificação manual
+que a spec pede ao fim de cada plano (seção 9 dela) está feita, e a seção está **concluída em
+2026-10-01**.
+
+O PR #26 entrou com uma intermitência da suíte de backend declarada, achada ao fechar a branch do
+Plano 2 e presente também na `main` de antes dele: `dotnet test Rastreamento.slnx -m:1` falhava às
+vezes em `Api.Tests`, por deadlock entre classes de teste paralelas do mesmo assembly, e uma das
+falhas foi um 500 em `POST /estrutura/{id}/filhos`. O conserto não é escopo dos filtros e veio logo
+depois, no PR #27 (merge `75df075`, 2026-10-01): a paralelização entre classes de `Api.Tests` foi
+desligada, com um teste-guarda, e a gravação da árvore (criar Peça e acrescentar filho) passou a
+rodar na transação da execução, com o retry de deadlock dela e o 409 `ConflitoDeConcorrencia` quando
+as tentativas se esgotam. A medição está no parágrafo «O `-m:1` não basta *dentro* de um assembly»
+do `CLAUDE.md`, o desenho em `docs/superpowers/specs/2026-10-01-deadlock-na-suite-de-api-design.md`,
+e o contrato do 409 em `05-api-endpoints.md`.
+
+## Fase 1F — Cadastro sob demanda e ordenação das listas
+
+> **Executada depois de "Filtros da demanda e ação em lote" e antes da Fase 3B** (ver a nota "Ordem
+> depois da 3D", na seção «Fase 3D — Ajustes pós-verificação da Fase 3»). O nome `1x` marca a
+> família — refinamento de interface, herdeira da 1D, que criou a prop `acao` da `Pagina`, e da 1E —,
+> e a posição neste arquivo marca a execução (decisão 6 da spec). Spec:
+> `docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`, escrita em 2026-09-06 e
+> revista em 2026-10-01 contra a `main` de então (`75df075`). Plano:
+> `docs/superpowers/plans/2026-10-01-fase-1f-cadastro-sob-demanda.md`. **Sem mudança de schema**:
+> "Mais recentes" é o `Id` decrescente (o `Id` é `IDENTITY`) e, em Pedidos, a `DataAbertura` que já
+> existia; a fase não traz `db/alter-*.sql`.
+
+Nasceu de um defeito visto usando a aplicação com o `admin`: nas quatro telas de lista e na tela do
+Agrupamento, o formulário de cadastro era o primeiro filho da `Pagina`, logo abaixo do título, na
+mesma moldura da barra de filtros de `ComponentesPage` — e se lia como **filtro**. Lá e em `PedidosPage`
+ele ficava **acima** da busca e do filtro de verdade. Quem só lê não via o defeito: o formulário já
+estava sob `usePodeEscrever`. A revisão de 2026-10-01 acrescentou dois blocos: a **ordenação
+escolhida pelo usuário**, que nasceu da pergunta "o item recém-criado aparece depois de salvar?" —
+com busca, filtros e paginação no servidor, não aparecia —, e o **cartão de lista inteiro
+clicável**, decisão de 2026-09-28 na verificação manual da Fase 3, posta nesta fase.
+
+- **Cadastro sob demanda.** A primitiva `PainelDeEscrita` (`web/src/components/`), extraída do painel
+  que a `AgrupamentoDetalhePage` escrevia à mão desde a Fase 2: moldura, `<h2>` que dá nome ao
+  `<form>` por `aria-labelledby`, subtítulo opcional, `Cancelar` — desabilitado enquanto a escrita
+  está em voo, pela prop `enviando` — e foco no primeiro campo ao abrir. Ao fechar, se o foco caiu
+  no `<body>`, ele volta ao botão que abriu o painel (menos no painel do nó, na tela do
+  Agrupamento), pelo hook `useDevolverFoco` (`web/src/hooks/`), que a tela chama. Não é modal — não
+  fecha no `Escape` e não prende o foco —, por decisão da spec. As cinco telas —
+  `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — abrem
+  em leitura, com o botão da ação ("Novo setor", "Novo material", "Novo componente", "Novo pedido",
+  "Nova Peça") no `acao` da `Pagina`, e o painel abre como primeiro elemento abaixo do cabeçalho.
+  Salvar com sucesso fecha o painel; conflito (409) e falha de rede o mantêm aberto, com o erro
+  dentro dele. Na tela do Agrupamento convivem dois painéis — "Nova Peça" e o do nó (editar e
+  acrescentar sub-Item) —, e abrir um fecha o outro. O estado vazio das cinco telas deixou de dizer
+  "Use o formulário acima" e passou a nomear o botão.
+- **Ordenação.** A primitiva `SeletorDeOrdem` ("Ordenar por", com a direção dentro da opção:
+  "Código (A→Z)") nas quatro telas de lista, com **"Mais recentes" como padrão** nas quatro. Em
+  Componentes e Pedidos quem ordena é o servidor: `GET /componentes?ordem=recentes|codigo|descricao`
+  e `GET /pedidos?ordem=recentes|numero|cliente`, com `recentes` quando o parâmetro falta, vem vazio
+  ou só com espaços, e 400 para valor desconhecido (contrato em `05-api-endpoints.md`). Em Setores e
+  Materiais quem ordena é o cliente, pela função `ordenarCadastro` (`web/src/cadastros/`), e
+  `GET /setores` e `GET /materiais` não mudaram, porque alimentam outros seletores. Só em Pedidos a ordem vai para a URL, junto de
+  busca, filtros e página.
+- **Salvar devolve a consulta ao padrão** (decisão 7 da spec), para o item novo aparecer no topo:
+  ordem "Mais recentes" e, onde a tela os tem, busca vazia, filtros limpos, página 1 e sem inativos.
+  Nas duas telas paginadas isso é o `voltarAoInicio()` do `useBuscaPaginada`, que recarrega mesmo
+  quando a consulta já estava no padrão; em Pedidos, a URL é limpa na mesma transição, e a lista faz
+  uma requisição só.
+- **A padrão de `GET /componentes` mudou** de `Codigo` crescente para `recentes` para **todo**
+  consumidor, inclusive o `SeletorComBusca` da tela do Agrupamento e da receita padrão — escolha
+  explícita do usuário (decisão 9 da spec), preferida a um parâmetro que só a tela usasse.
+- **Cartão inteiro clicável** em `FilaPage`, `PedidoDetalhePage` e `ComponentesPage`, com o
+  pseudo-elemento que a `LinhaDePedido` já usava. O conserto da armadilha documentada em
+  `ListaDeCadastro` — o overlay do link engolia o clique no botão do item — foi feito uma vez, na
+  primitiva: o `ItemDeCadastro` põe a `acao` num wrapper posicionado, sem índice de empilhamento
+  próprio, que fica acima do overlay pela ordem do DOM e abaixo da lista aberta do
+  `SeletorComBusca`.
+
+**Onde o plano decidiu além da spec, e vale como está** (decisões do plano, confirmadas pelo usuário
+em 2026-10-01):
+
+- O botão do cabeçalho some enquanto o painel dele está aberto (D5); na tela do Agrupamento, o "Nova
+  Peça" some só com o painel de Peça aberto, e com o do nó aberto clicá-lo troca de painel.
+- "Editar" setor usa o mesmo painel, com título "Editar setor" e o nome atual no subtítulo; salvar a
+  **edição** recarrega mantendo a ordem e o "Mostrar inativos", porque o item editado já estava na
+  tela (D6).
+- "Reativar o existente" com sucesso é desfecho de sucesso como o salvar: fecha o painel e devolve a
+  consulta ao padrão (D7). O item reativado tem `Id` antigo, então "Mais recentes" **não** o põe no
+  topo — consequência aceita.
+- Erro de escrita mora dentro do painel; erro de carga e de Inativar/Reativar do item, fora (D8) —
+  com o painel fechado, um erro de Inativar não teria onde aparecer.
+
+**Decidido pelo usuário em 2026-10-01, depois da revisão da branch**, além da spec e do plano:
+
+- O `Cancelar` fica desabilitado enquanto o salvar está em voo: `Cancelar` não cancela a requisição,
+  e a resposta que chegasse depois fecharia um painel reaberto e apagaria o digitado.
+- Ao fechar, o foco volta ao botão que abriu o painel: o do cabeçalho nas cinco telas e, na edição
+  de setor, o "Editar" daquele setor. O painel do nó da tela do Agrupamento, anterior a esta fase,
+  fica como estava e não devolve foco.
+
+A implementação estendeu as duas regras: o `Cancelar` fica desabilitado também durante o "Reativar
+o existente", nas três telas que o têm; o foco só é devolvido se tiver caído no `<body>`; e, na
+edição de setor, quando o "Editar" não volta com a recarga, o foco vai ao botão do cabeçalho.
+
+**Critério de pronto** (seção "Critério de pronto" da spec): as cinco telas abrem em leitura, sem
+bloco de campos abaixo do título; `npm test` verde e `npm run build` limpo; `dotnet build
+Rastreamento.slnx -warnaserror` com 0 avisos e `dotnet test Rastreamento.slnx -m:1` verde; um perfil
+sem escrita continua sem botão e sem painel; e a **verificação no navegador**, a 375px e em desktop —
+as cinco telas em leitura, o painel abrindo, cancelando e salvando, os dois painéis do Agrupamento um
+de cada vez, a ordenação nas quatro telas com o item recém-criado no topo depois de salvar, e o
+cartão clicável nas três telas, onde clicar no **centro** do botão executa a ação e clicar no resto
+do cartão navega. Este último item não tem prova na suíte: o jsdom não calcula layout.
+
+**Fora de escopo** (seção "Fora de escopo" da spec): o painel sob demanda em `PedidoDetalhePage` e
+`ComponenteDetalhePage`, onde o formulário já vive numa seção com `<h2>` (o cartão clicável de
+`PedidoDetalhePage` está dentro do escopo); ordenação na Fila do Setor e nas Tarefas, onde a ordem
+serve ao trabalho do chão de fábrica; busca e página de Componentes na URL; e uma primitiva de
+mensagem de sucesso — o fechamento do painel é o sinal de sucesso.
+
+**Estado em 2026-10-01:** implementada na branch `fase-1f-cadastro-sob-demanda`, **fase não
+concluída** — falta a verificação no navegador do critério de pronto, que este arquivo **não**
+registra como feita. Suítes na árvore de `6849190`: front **1109 testes / 67 arquivos**, verde
+(`npm test -- --run`), contra 1011 / 64 na base da fase; backend **979** testes (Api 310 ·
+Application 511 · Infrastructure 158), contra 945 na base — a contagem é de `dotnet test
+--list-tests`, que descobre os testes sem executá-los, e a execução verde foi medida depois da task
+de backend, em `49c2ce0`; `src/` e `tests/` não mudaram desde então.
+
+**Estado em 2026-10-02, antes da verificação:** implementada na branch `fase-1f-cadastro-sob-demanda`,
+em `e40f95d`; **não** mergeada na `main`, e sem PR aberto. A **verificação no navegador** do critério
+de pronto continua **pendente**, e será feita numa sessão local; este arquivo não a registra como
+feita, e a fase continua **não concluída**. Depois da medição de 2026-10-01, a branch recebeu um
+conserto de front — o `Cancelar` desabilitado com a escrita em voo, o foco devolvido ao fechar o
+painel e o wrapper da `acao` do `ItemDeCadastro` sem índice de empilhamento próprio — e a
+atualização de documentação de `e40f95d`. Suítes: front **1139 testes / 68 arquivos**, verde
+(`npm test -- --run`), medido em `562fad1`, depois do conserto, e de novo em 2026-10-02 na árvore
+de `e40f95d`, que só muda documentação e um comentário de teste; backend **979** testes (Api 310 ·
+Application 511 · Infrastructure 158), com execução verde de `dotnet test Rastreamento.slnx -m:1` em
+`547a514`; `src/` e `tests/` não mudaram desde `49c2ce0`.
+
+**Estado em 2026-10-02, depois da verificação:** o usuário conferiu, numa sessão local, sobre
+`62efe30`, o checklist da **verificação no navegador** do critério de pronto e declarou a fase
+validada, sem apontar defeito. `62efe30` é a passada de conserto de documentação que veio depois
+de `e40f95d`, sem mudança de código: `src/`, `tests/` e `web/src/` não diferem entre os dois
+commits. O checklist, pedido a 375px e em desktop, reunia os oito itens do plano e nove que a
+revisão da branch acrescentou, entre eles: as cinco telas em leitura; o painel abrindo, cancelando
+e salvando, com o foco devolvido a quem o abriu; a edição de setor no painel; o conflito com
+"Reativar o existente" dentro do painel; os dois painéis do Agrupamento um de cada vez; a ordenação
+nas quatro telas, com o item recém-criado no topo; a ordem de Pedidos preservada no F5 e no Voltar;
+o cartão clicável nas três telas, com o centro do botão executando a ação sem navegar; o `Cancelar`
+travado com a rede lenta; o perfil sem escrita sem botão nem painel; e, no detalhe do Componente, a
+lista aberta do "Componente filho" por cima dos botões "Remover…". A resposta veio em bloco: este
+arquivo registra o que o checklist cobria, não um resultado observado item por item. Abrir o "Nova
+Peça" põe o foco no `SeletorComBusca`, que abre a lista sozinho; o usuário decidiu manter assim.
+Com isso a fase está **concluída** na branch; o merge na `main` vem pelo PR. Suítes de novo em
+2026-10-02, na árvore de `62efe30`: front **1139 / 68**, verde, e `npm run build` limpo;
+`dotnet build Rastreamento.slnx -warnaserror` com 0 avisos e `dotnet test Rastreamento.slnx -m:1`
+verde, **979** (Api 310 · Application 511 · Infrastructure 158).
 
 ## Fase 3B — Kit e montagem
 
