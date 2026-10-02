@@ -42,6 +42,14 @@ public interface IComponenteRepository
   Task<(IReadOnlyList<Componente> Itens, int Total)> ListarAsync(
       FiltroDeComponente filtro, CancellationToken ct);
 
+  /// <summary>
+  /// Os Componentes dos codigos dados, INCLUINDO os inativos, sem repetir nem exigir que todos
+  /// existam. A comparacao e a do banco (a collation da coluna e case-insensitive), e as entidades
+  /// voltam rastreadas, como em <see cref="ObterPorCodigoAsync"/>.
+  /// </summary>
+  Task<IReadOnlyList<Componente>> ListarPorCodigosAsync(
+      IReadOnlyCollection<string> codigos, CancellationToken ct);
+
   Task AdicionarAsync(Componente componente, CancellationToken ct);
 
   Task SalvarAlteracoesAsync(CancellationToken ct);

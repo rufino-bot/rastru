@@ -25,6 +25,9 @@ public class RastreamentoDbContext : DbContext
   public DbSet<Movimentacao> Movimentacoes => Set<Movimentacao>();
   public DbSet<Montagem> Montagens => Set<Montagem>();
   public DbSet<PedidoPausa> PedidoPausas => Set<PedidoPausa>();
+  public DbSet<ImportacaoDeEstrutura> ImportacoesDeEstrutura => Set<ImportacaoDeEstrutura>();
+  public DbSet<ImportacaoDeEstruturaComponente> ImportacoesDeEstruturaComponentes => Set<ImportacaoDeEstruturaComponente>();
+  public DbSet<ImportacaoDeEstruturaFilho> ImportacoesDeEstruturaFilhos => Set<ImportacaoDeEstruturaFilho>();
 
   protected override void OnModelCreating(ModelBuilder modelBuilder)
   {

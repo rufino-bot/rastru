@@ -272,6 +272,85 @@ CREATE TABLE dbo.PedidoPausa (
 );
 
 /* ---------------------------------------------------------------------
+   IMPORT DA ESTRUTURA A PARTIR DO BOM DO CAD (rascunho de conferencia)
+   --------------------------------------------------------------------- */
+
+-- O rascunho que o usuario confere antes de a Peca existir. Tres tabelas: o cabecalho, um registro
+-- por CODIGO distinto lido (a receita e por codigo, nao por ocorrencia) e as arestas pai->filho da
+-- receita lida, um nivel. Spec do import, secao 3.
+--
+-- SEM ON DELETE CASCADE, de proposito (decisao P6 do plano do import): todas as FKs entre as tres
+-- tabelas, a circular RaizId inclusive, sao NO ACTION. O SQL Server recusa cascata quando ha mais de
+-- um caminho ate a mesma tabela, e ha (Filho -> Pai e Filho -> Filho, ambos para Componente). Quem
+-- apaga um rascunho e a aplicacao (ImportacaoDeEstruturaRepository.ExcluirAsync), na ordem: filhos,
+-- RaizId = NULL, registros, cabecalho e, por ultimo, os ArquivoDeComponente pendentes.
+CREATE TABLE dbo.ImportacaoDeEstrutura (
+    Id                          INT IDENTITY(1,1)  NOT NULL,
+    AgrupamentoId               INT                 NOT NULL,
+    NomeDoArquivo               NVARCHAR(260)       NOT NULL,
+    RaizId                      INT                 NULL, -- registro da raiz; nulo so durante a criacao (FK circular, criada depois das duas tabelas)
+    QuantidadeDaPeca            DECIMAL(18,4)       NULL, -- preenchida na conferencia
+    RequerRelatorioDimensional  BIT                 NOT NULL CONSTRAINT DF_ImportacaoDeEstrutura_RequerRelatorio DEFAULT (0),
+    CriadoPorUsuarioId          INT                 NOT NULL,
+    CriadoEm                    DATETIME2           NOT NULL CONSTRAINT DF_ImportacaoDeEstrutura_CriadoEm DEFAULT (SYSUTCDATETIME()),
+    -- Toda escrita no rascunho (cabecalho, registro ou filho) atualiza esta coluna: e o que faz o
+    -- ROWVERSION abaixo mudar quando so um registro ou um filho mudou (decisao P7 do plano do import).
+    AtualizadoEm                DATETIME2           NOT NULL CONSTRAINT DF_ImportacaoDeEstrutura_AtualizadoEm DEFAULT (SYSUTCDATETIME()),
+    Versao                      ROWVERSION          NOT NULL,
+    CONSTRAINT PK_ImportacaoDeEstrutura PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_ImportacaoDeEstrutura_Agrupamento FOREIGN KEY (AgrupamentoId) REFERENCES dbo.Agrupamento (Id),
+    CONSTRAINT FK_ImportacaoDeEstrutura_CriadoPorUsuario FOREIGN KEY (CriadoPorUsuarioId) REFERENCES dbo.Usuario (Id)
+);
+
+CREATE TABLE dbo.ImportacaoDeEstruturaComponente (
+    Id                              INT IDENTITY(1,1)  NOT NULL,
+    ImportacaoId                    INT                 NOT NULL,
+    CodigoLido                      NVARCHAR(50)        NULL, -- nulo = linha sem part number
+    DescricaoLida                   NVARCHAR(200)       NOT NULL,
+    ComponenteId                    INT                 NULL, -- casado com o catalogo
+    CodigoNovo                      NVARCHAR(50)        NULL, -- \
+    DescricaoNova                   NVARCHAR(200)       NULL, --  > "criar novo"
+    TipoNovo                        NVARCHAR(20)        NULL, -- /  Bruto | Fabricado | Montagem
+    EscolhaDeReceita                NVARCHAR(10)        NULL, -- Catalogo | Importada | nulo = nao decidido
+    ImpressaoDaReceitaDoCatalogo    BINARY(32)          NULL, -- hash da receita de catalogo vista na escolha
+    ArquivoSolidoPendenteId         INT                 NULL, -- STL pendente em dbo.ArquivoDeComponente, sem Componente apontando ate a confirmacao
+    CONSTRAINT PK_ImportacaoDeEstruturaComponente PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_ImportacaoDeEstruturaComponente_Importacao FOREIGN KEY (ImportacaoId) REFERENCES dbo.ImportacaoDeEstrutura (Id),
+    CONSTRAINT FK_ImportacaoDeEstruturaComponente_Componente FOREIGN KEY (ComponenteId) REFERENCES dbo.Componente (Id),
+    CONSTRAINT FK_ImportacaoDeEstruturaComponente_ArquivoSolidoPendente FOREIGN KEY (ArquivoSolidoPendenteId) REFERENCES dbo.ArquivoDeComponente (Id),
+    -- Casado e "criar novo" sao mutuamente exclusivos.
+    CONSTRAINT CK_ImportacaoDeEstruturaComponente_CasadoOuNovo
+        CHECK (ComponenteId IS NULL OR (CodigoNovo IS NULL AND DescricaoNova IS NULL AND TipoNovo IS NULL)),
+    CONSTRAINT CK_ImportacaoDeEstruturaComponente_Escolha CHECK (EscolhaDeReceita IN ('Catalogo', 'Importada')),
+    -- Mesmo dominio de CK_Componente_Tipo.
+    CONSTRAINT CK_ImportacaoDeEstruturaComponente_TipoNovo CHECK (TipoNovo IN ('Bruto', 'Fabricado', 'Montagem'))
+);
+
+-- Um codigo por rascunho. O indice e FILTRADO porque um UNIQUE comum do SQL Server aceita UM nulo so, e
+-- varias linhas sem part number precisam coexistir no mesmo rascunho (cada uma vira um registro proprio).
+CREATE UNIQUE INDEX UX_ImportacaoDeEstruturaComponente_Codigo
+    ON dbo.ImportacaoDeEstruturaComponente (ImportacaoId, CodigoLido) WHERE CodigoLido IS NOT NULL;
+
+-- A FK circular, criada so agora que as duas tabelas existem.
+ALTER TABLE dbo.ImportacaoDeEstrutura ADD CONSTRAINT FK_ImportacaoDeEstrutura_Raiz
+    FOREIGN KEY (RaizId) REFERENCES dbo.ImportacaoDeEstruturaComponente (Id);
+
+CREATE TABLE dbo.ImportacaoDeEstruturaFilho (
+    Id              INT IDENTITY(1,1)  NOT NULL,
+    PaiId           INT                 NOT NULL,
+    FilhoId         INT                 NOT NULL,
+    Ordem           INT                 NOT NULL,
+    QuantidadeLida  DECIMAL(18,4)       NOT NULL,
+    Quantidade      DECIMAL(18,4)       NOT NULL, -- a corrigida na conferencia; nasce igual a lida
+    CONSTRAINT PK_ImportacaoDeEstruturaFilho PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_ImportacaoDeEstruturaFilho_Pai FOREIGN KEY (PaiId) REFERENCES dbo.ImportacaoDeEstruturaComponente (Id),
+    CONSTRAINT FK_ImportacaoDeEstruturaFilho_Filho FOREIGN KEY (FilhoId) REFERENCES dbo.ImportacaoDeEstruturaComponente (Id),
+    CONSTRAINT UQ_ImportacaoDeEstruturaFilho UNIQUE (PaiId, FilhoId),
+    CONSTRAINT CK_ImportacaoDeEstruturaFilho_Quantidade CHECK (Quantidade > 0 AND QuantidadeLida > 0),
+    CONSTRAINT CK_ImportacaoDeEstruturaFilho_NaoAutoReferencia CHECK (PaiId <> FilhoId)
+);
+
+/* ---------------------------------------------------------------------
    ESTRUTURA REAL (árvore recursiva efetivamente usada no Pedido/Agrupamento;
    pode ter sido copiada do catálogo e depois customizada)
    --------------------------------------------------------------------- */

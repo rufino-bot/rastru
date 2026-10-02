@@ -225,6 +225,15 @@ public class FakeComponenteRepo : IComponenteRepository
       Task.FromResult(_linhas.SingleOrDefault(c => c.Codigo == codigo));
 
   /// <summary>
+  /// Inclui inativos, como o real. Comparacao case-sensitive pelo mesmo motivo de
+  /// <see cref="ObterPorCodigoAsync"/>: a prova de que o banco ignora a caixa vive em
+  /// `ImportacaoDeEstruturaRepositoryTests`.
+  /// </summary>
+  public Task<IReadOnlyList<Componente>> ListarPorCodigosAsync(
+      IReadOnlyCollection<string> codigos, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Componente>>(_linhas.Where(c => codigos.Contains(c.Codigo)).ToList());
+
+  /// <summary>
   /// Espelha o repositorio real o suficiente para o caso de uso ser testavel, mas a fidelidade
   /// para aqui: a prova de que a paginacao acontece no SQL vive em `ComponenteMappingTests`.
   /// </summary>
