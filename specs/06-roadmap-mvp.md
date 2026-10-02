@@ -523,17 +523,30 @@ Application 511 · Infrastructure 158), contra 945 na base — a contagem é de 
 --list-tests`, que descobre os testes sem executá-los, e a execução verde foi medida depois da task
 de backend, em `49c2ce0`; `src/` e `tests/` não mudaram desde então.
 
-**Estado em 2026-10-02:** implementada na branch `fase-1f-cadastro-sob-demanda`, no commit desta
-atualização; **não** mergeada na `main`, e sem PR aberto. A **verificação no navegador** do critério
+**Estado em 2026-10-02, antes da verificação:** implementada na branch `fase-1f-cadastro-sob-demanda`,
+em `e40f95d`; **não** mergeada na `main`, e sem PR aberto. A **verificação no navegador** do critério
 de pronto continua **pendente**, e será feita numa sessão local; este arquivo não a registra como
 feita, e a fase continua **não concluída**. Depois da medição de 2026-10-01, a branch recebeu um
 conserto de front — o `Cancelar` desabilitado com a escrita em voo, o foco devolvido ao fechar o
-painel e o wrapper da `acao` do `ItemDeCadastro` sem índice de empilhamento próprio — e esta
-atualização de documentação. Suítes: front **1139 testes / 68 arquivos**, verde
+painel e o wrapper da `acao` do `ItemDeCadastro` sem índice de empilhamento próprio — e a
+atualização de documentação de `e40f95d`. Suítes: front **1139 testes / 68 arquivos**, verde
 (`npm test -- --run`), medido em `562fad1`, depois do conserto, e de novo em 2026-10-02 na árvore
-deste commit, que só muda documentação e um comentário de teste; backend **979** testes (Api 310 ·
+de `e40f95d`, que só muda documentação e um comentário de teste; backend **979** testes (Api 310 ·
 Application 511 · Infrastructure 158), com execução verde de `dotnet test Rastreamento.slnx -m:1` em
 `547a514`; `src/` e `tests/` não mudaram desde `49c2ce0`.
+
+**Estado em 2026-10-02, depois da verificação:** a **verificação no navegador** do critério de pronto
+foi feita pelo usuário numa sessão local, a 375px e em desktop, sobre `62efe30`, e passou: as cinco
+telas em leitura, o painel abrindo, cancelando e salvando, a edição de setor no painel, o conflito com
+"Reativar o existente" dentro do painel, os dois painéis do Agrupamento um de cada vez, a ordenação nas
+quatro telas com o item recém-criado no topo, a ordem de Pedidos preservada no F5 e no Voltar, o
+cartão clicável nas três telas com o centro do botão executando a ação sem navegar, o `Cancelar`
+travado com a rede lenta e o perfil sem escrita sem botão nem painel; no detalhe do Componente, a
+lista aberta do "Componente filho" fica por cima dos botões "Remover…". Abrir o "Nova Peça" põe o
+foco no `SeletorComBusca`, que abre a lista sozinho; o usuário decidiu manter assim. Com isso a fase está **concluída** na branch; o merge na `main` vem
+pelo PR. Suítes de novo em 2026-10-02, na árvore de `62efe30`: front **1139 / 68**, verde, e
+`npm run build` limpo; `dotnet build Rastreamento.slnx -warnaserror` com 0 avisos e
+`dotnet test Rastreamento.slnx -m:1` verde, **979** (Api 310 · Application 511 · Infrastructure 158).
 
 ## Fase 3B — Kit e montagem
 
