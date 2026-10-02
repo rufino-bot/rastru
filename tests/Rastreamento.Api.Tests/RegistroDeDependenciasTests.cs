@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Importacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
 
@@ -65,5 +66,20 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
 
     Assert.Same(instancia, mesmaInstancia); // Transient falharia aqui
     Assert.NotSame(instancia, deOutroEscopo); // Singleton falharia aqui
+  }
+
+  /// <summary>
+  /// O leitor do BOM e o contrario dos demais: sem estado e sem banco, um so para a aplicacao.
+  /// </summary>
+  [Fact]
+  public void Leitor_de_BOM_e_registrado_como_Singleton()
+  {
+    using var escopo = _factory.Services.CreateScope();
+    using var outroEscopo = _factory.Services.CreateScope();
+
+    var instancia = escopo.ServiceProvider.GetRequiredService<ILeitorDeBom>();
+    var deOutroEscopo = outroEscopo.ServiceProvider.GetRequiredService<ILeitorDeBom>();
+
+    Assert.Same(instancia, deOutroEscopo);
   }
 }
