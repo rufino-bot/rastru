@@ -150,8 +150,16 @@ public class FakePedidoRepo : IPedidoRepository
   public Task<(IReadOnlyList<Pedido> Itens, int Total)> ListarAsync(FiltroDePedidos filtro, CancellationToken ct)
   {
     UltimoFiltro = filtro;
-    IReadOnlyList<Pedido> pagina = _linhas
-        .OrderByDescending(p => p.DataAbertura).ThenByDescending(p => p.Id)
+    // Ordena como o repositorio real (cada opcao termina em ordem total), para a pagina que o
+    // fake devolve refletir a `Ordem` pedida. Comparacao ordinal basta: o teste de banco cobre a
+    // collation.
+    var ordenadas = filtro.Ordem switch
+    {
+      OrdemDePedidos.Numero => _linhas.OrderBy(p => p.Numero, StringComparer.Ordinal),
+      OrdemDePedidos.Cliente => _linhas.OrderBy(p => p.Cliente, StringComparer.Ordinal).ThenByDescending(p => p.Id),
+      _ => _linhas.OrderByDescending(p => p.DataAbertura).ThenByDescending(p => p.Id),
+    };
+    IReadOnlyList<Pedido> pagina = ordenadas
         .Skip((filtro.Pagina - 1) * filtro.Tamanho)
         .Take(filtro.Tamanho)
         .ToList();
@@ -232,7 +240,13 @@ public class FakeComponenteRepo : IComponenteRepository
       consulta = consulta.Where(c => c.Codigo.Contains(busca) || c.Descricao.Contains(busca));
     }
 
-    var filtradas = consulta.OrderBy(c => c.Codigo).ToList();
+    // Ordena como o repositorio real (cada opcao termina em ordem total).
+    var filtradas = (filtro.Ordem switch
+    {
+      OrdemDeComponentes.Codigo => consulta.OrderBy(c => c.Codigo, StringComparer.Ordinal),
+      OrdemDeComponentes.Descricao => consulta.OrderBy(c => c.Descricao, StringComparer.Ordinal).ThenByDescending(c => c.Id),
+      _ => consulta.OrderByDescending(c => c.Id),
+    }).ToList();
     var pagina = filtradas
         .Skip((filtro.Pagina - 1) * filtro.Tamanho)
         .Take(filtro.Tamanho)

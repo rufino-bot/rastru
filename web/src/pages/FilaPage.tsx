@@ -67,7 +67,7 @@ export function FilaPage() {
               <ItemDeCadastro key={s.id}>
                 <Link
                   to={`/fila/${s.id}`}
-                  className="font-medium rounded hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+                  className="font-medium rounded after:absolute after:inset-0 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
                 >
                   {s.nome}
                 </Link>

@@ -188,15 +188,27 @@ function renderizarDetalhe() {
   )
 }
 
+/** Abre o painel de Peça pelo botão do cabeçalho — a tela abre em leitura, sem formulário. */
+function abrirNovaPeca() {
+  fireEvent.click(screen.getByRole('button', { name: 'Nova Peça' }))
+}
+
+/** Abre o painel de Peça e o preenche (ver `preencherPainelDePeca`). */
+async function preencherFormulario(quantidade: number, marcarRequerRelatorio = false) {
+  abrirNovaPeca()
+  await preencherPainelDePeca(quantidade, marcarRequerRelatorio)
+}
+
 /**
- * Escolhe `CH-100` no `SeletorComBusca`, preenche a quantidade e marca (ou não) o checkbox.
+ * Escolhe `CH-100` no `SeletorComBusca` do painel de Peça (já aberto), preenche a quantidade e marca
+ * (ou não) o checkbox.
  *
  * O clique na opção é escopado ao `listbox` (não `screen.findByText` global): os testes de I1/I2
  * do fix pass da Task 8 carregam a árvore com a MESMA Peça (`CH-100`) já visível na tela, então um
  * `findByText` sem escopo acha dois `CH-100` — o nó da árvore e a opção do combobox — e lança
  * "Found multiple elements" em vez de selecionar.
  */
-async function preencherFormulario(quantidade: number, marcarRequerRelatorio = false) {
+async function preencherPainelDePeca(quantidade: number, marcarRequerRelatorio = false) {
   fireEvent.click(screen.getByRole('combobox'))
   const listbox = await screen.findByRole('listbox')
   fireEvent.click(await within(listbox).findByText('CH-100'))
@@ -276,9 +288,9 @@ describe('AgrupamentoDetalhePage', () => {
 
     renderizarDetalhe()
     await screen.findByText('Este agrupamento ainda não tem estrutura')
+    abrirNovaPeca()
     expect(screen.getByRole('combobox')).toBeTruthy()
-
-    await preencherFormulario(5, true)
+    await preencherPainelDePeca(5, true)
     fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
 
     // Prova o recarregamento: 'Chassi' só aparece depois do POST, na segunda chamada de GET.
@@ -294,9 +306,9 @@ describe('AgrupamentoDetalhePage', () => {
   })
 
   // m3 do fix pass da Task 8 (o item mais visível, os demais ficam para a review de branch):
-  // depois de criar a Peça com sucesso, o formulário volta ao estado inicial — sem isto, um
-  // formulário preenchido continuaria preenchido e ninguém saberia que a criação anterior já foi
-  // aplicada, convidando a clicar "Criar Peça" de novo com os mesmos dados.
+  // depois de criar a Peça com sucesso o painel fecha, e reabri-lo mostra o formulário no estado
+  // inicial — sem isto, o painel reaberto voltaria preenchido e convidaria a clicar "Criar Peça" de
+  // novo com os mesmos dados de uma criação que já foi aplicada.
   it('formulário volta ao estado inicial depois de criar a Peça com sucesso', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [], estruturaAposCriar: [PECA] }))
 
@@ -307,6 +319,7 @@ describe('AgrupamentoDetalhePage', () => {
 
     expect(await screen.findByText('Chassi')).toBeTruthy()
 
+    abrirNovaPeca()
     expect(screen.getByRole('combobox')).toHaveProperty('value', '')
     expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '')
     expect(screen.getByLabelText(/requer relatório dimensional/i)).toHaveProperty('checked', false)
@@ -320,6 +333,7 @@ describe('AgrupamentoDetalhePage', () => {
 
     renderizarDetalhe()
     await screen.findByText('Este agrupamento ainda não tem estrutura')
+    abrirNovaPeca()
 
     fireEvent.click(screen.getByRole('combobox'))
     const listbox = await screen.findByRole('listbox')
@@ -407,6 +421,10 @@ describe('AgrupamentoDetalhePage', () => {
     expect(screen.queryByRole('combobox')).toBeNull()
     expect(screen.queryByLabelText('Quantidade')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Criar Peça' })).toBeNull()
+    // A tela abre em leitura, então o combobox, a "Quantidade" e o "Criar Peça" já faltam antes de
+    // qualquer clique, para qualquer perfil: o que prova o gating é o botão que abriria o painel
+    // não existir.
+    expect(screen.queryByRole('button', { name: 'Nova Peça' })).toBeNull()
   })
 
   // Teste 9 (decisão do usuário na review da Task 7): a marca é rótulo/pílula NEUTRA, nunca cor de
@@ -423,10 +441,10 @@ describe('AgrupamentoDetalhePage', () => {
     expect(await screen.findByText('Chassi')).toBeTruthy()
     expect(screen.getByText('Base')).toBeTruthy()
 
-    // Escopado na árvore (`role="list"`), e não em `screen` global: o CHECKBOX do formulário de
-    // criação também se chama "Requer relatório dimensional" (é o rótulo do campo), e sem o
-    // escopo `getAllByText` global contaria os dois — o do formulário e o da linha da árvore —
-    // achando 2 em vez de 1 mesmo com a marca aparecendo só na Peça certa.
+    // Escopado na árvore (`role="list"`), e não em `screen` global: o CHECKBOX do painel de Peça
+    // também se chama "Requer relatório dimensional" (é o rótulo do campo). O painel abre fechado,
+    // então hoje o escopo não muda o resultado; ele garante que a contagem continua sendo só a da
+    // linha da árvore se o painel um dia abrir junto.
     const arvore = screen.getByRole('list', { name: 'Estrutura do agrupamento' })
     expect(within(arvore).getAllByText('Requer relatório dimensional')).toHaveLength(1)
 
@@ -615,8 +633,9 @@ describe('AgrupamentoDetalhePage', () => {
   // ---------------------------------------------------------------------------------------------
 
   // Teste 1. O gatilho é o mesmo de sempre: catálogo paginado não cabe num `<select>`. Escopado no
-  // painel (`data-testid="painel-de-escrita"`) porque o formulário de "Criar Peça" TAMBÉM tem um
-  // `SeletorComBusca` visível ao mesmo tempo — sem escopo, `getByRole('combobox')` acharia dois.
+  // painel (`data-testid="painel-de-escrita"`) porque o painel de Peça também tem um
+  // `SeletorComBusca`; os dois painéis nunca coexistem (um por vez), mas o escopo nomeia de qual dos
+  // dois o teste fala e continua achando um só se essa exclusividade quebrar.
   it('acrescentar sub-Item de catálogo escolhe o Componente pelo SeletorComBusca', async () => {
     const fetchMock = montarFetch({ estruturaInicial: [PECA] })
     vi.stubGlobal('fetch', fetchMock)
@@ -1339,5 +1358,323 @@ describe('AgrupamentoDetalhePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
     expect(await screen.findByText(/Quem cadastra o Roteiro é o PCP/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Adicionar passo' })).toBeNull()
+  })
+  // ---------------------------------------------------------------------------------------------
+  // Fase 1F: a tela abre em leitura, "Nova Peça" abre o painel, e há um painel por vez.
+  // ---------------------------------------------------------------------------------------------
+
+  // O teste que antes vivia aqui por omissão: com o formulário fixo no topo, "tem formulário" era
+  // verdade desde o primeiro render. Agora a leitura é o estado inicial, e o botão é a única porta.
+  it('abre em leitura: sem formulario de Peca antes do clique', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Nova Peça' })).toBeTruthy()
+  })
+
+  it('Nova Peca abre o painel e some enquanto ele esta aberto', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+
+    expect(screen.getByRole('form', { name: 'Nova Peça' })).toBeTruthy()
+    // O botão do cabeçalho some (decisão D5 do plano da 1F): o caminho de saída é Cancelar ou salvar.
+    expect(screen.queryByRole('button', { name: 'Nova Peça' })).toBeNull()
+  })
+
+  it('Cancelar da Peca fecha e descarta o digitado', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5, true)
+    fireEvent.click(within(screen.getByRole('form', { name: 'Nova Peça' })).getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Nova Peça' })).toBeTruthy()
+
+    abrirNovaPeca()
+    expect(screen.getByRole('combobox')).toHaveProperty('value', '')
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '')
+    expect(screen.getByLabelText(/requer relatório dimensional/i)).toHaveProperty('checked', false)
+  })
+
+  it('Cancelar da Peca descarta tambem o erro de escrita', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], respostaCriar: { status: 403, corpo: {} } }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+    await screen.findByText('Seu perfil não tem permissão para esta ação.')
+    fireEvent.click(within(screen.getByRole('form', { name: 'Nova Peça' })).getByRole('button', { name: 'Cancelar' }))
+
+    abrirNovaPeca()
+    expect(screen.queryByText('Seu perfil não tem permissão para esta ação.')).toBeNull()
+  })
+
+  it('criar Peca com sucesso fecha o painel e recarrega a arvore', async () => {
+    const fetchMock = montarFetch({ estruturaInicial: [], estruturaAposCriar: [PECA] })
+    vi.stubGlobal('fetch', fetchMock)
+    const getsDeEstrutura = () => fetchMock.mock.calls.filter(
+      (c) => String(c[0]) === '/api/agrupamentos/21/estrutura' && ((c[1] as RequestInit | undefined)?.method ?? 'GET') === 'GET',
+    ).length
+
+    renderizarDetalhe()
+    await screen.findByText('Este agrupamento ainda não tem estrutura')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText('Chassi')).toBeTruthy()
+    expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Nova Peça' })).toBeTruthy()
+    expect(getsDeEstrutura()).toBe(2)
+  })
+
+  // O botão "Criar Peça" não pode ficar em "Salvando…" durante a recarga da árvore: a escrita já
+  // terminou, e quem reabrir o painel nessa janela não pode herdar o estado de uma gravação antiga.
+  it('o envio da Peca termina quando o POST resolve, sem esperar a recarga', async () => {
+    const base = montarFetch({ estruturaInicial: [PECA], estruturaAposCriar: [PECA] })
+    let getsDeEstrutura = 0
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      if (String(url).split('?')[0] === '/api/agrupamentos/21/estrutura' && (init?.method ?? 'GET') === 'GET') {
+        getsDeEstrutura += 1
+        if (getsDeEstrutura > 1) return new Promise<Response>(() => {})
+      }
+      return base(url, init)
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull())
+
+    abrirNovaPeca()
+    expect(screen.getByRole('button', { name: 'Criar Peça' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Salvando…' })).toBeNull()
+  })
+
+  // Review Focus 5: nunca dois `<form>` de painel no documento, nas duas direções. A invariante é
+  // a que os `getByTestId('painel-de-escrita')` dos testes do painel de nó assumem.
+  it('abrir Editar com o painel de Peca aberto fecha o de Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(screen.getAllByRole('form')).toHaveLength(1)
+    expect(screen.getByRole('form', { name: 'Editar nó' })).toBeTruthy()
+    expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+    // O botão do cabeçalho volta, já que o painel dele fechou.
+    expect(screen.getByRole('button', { name: 'Nova Peça' })).toBeTruthy()
+  })
+
+  it('abrir Acrescentar filho com o painel de Peca aberto fecha o de Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+
+    expect(screen.getAllByRole('form')).toHaveLength(1)
+    expect(screen.getByRole('form', { name: 'Acrescentar sub-Item' })).toBeTruthy()
+  })
+
+  it('abrir Nova Peca com o painel de no aberto fecha o de no', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    // Com o painel de nó aberto o botão continua lá: só o painel de Peça o esconde (decisão D5).
+    abrirNovaPeca()
+
+    expect(screen.getAllByRole('form')).toHaveLength(1)
+    expect(screen.getByRole('form', { name: 'Nova Peça' })).toBeTruthy()
+    expect(screen.queryByTestId('painel-de-escrita')).toBeNull()
+  })
+
+  it('abrir Nova Peca fecha o detalhe do no e a confirmacao de exclusao', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    expect(screen.getByRole('region', { name: 'Detalhes de Chassi' })).toBeTruthy()
+    abrirNovaPeca()
+    expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
+
+    fireEvent.click(within(screen.getByRole('form', { name: 'Nova Peça' })).getByRole('button', { name: 'Cancelar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    abrirNovaPeca()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  // Os outros dois caminhos de abertura também têm de fechar o painel de Peça: o teste
+  // `abrir Editar com o painel de Peca aberto fecha o de Peca` cobre uma das quatro aberturas, e
+  // cada uma tem a sua própria chamada de fechamento.
+  it('pedir exclusao ou abrir o detalhe com o painel de Peca aberto fecha o de Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir' }))
+    expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    abrirNovaPeca()
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Detalhes de Chassi' })).toBeTruthy()
+  })
+
+  it('o Id do agrupamento continua no cabecalho ao lado do botao', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    const id = screen.getByText('Id 21')
+    expect(screen.getByRole('button', { name: 'Nova Peça' }).parentElement).toBe(id.parentElement)
+
+    abrirNovaPeca()
+    expect(screen.getByText('Id 21')).toBeTruthy()
+  })
+
+  it('o painel de no tem o titulo como nome acessivel', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(screen.getByRole('form', { name: 'Editar nó' })).toBe(screen.getByTestId('painel-de-escrita'))
+  })
+
+  // Trocar de nó com o painel aberto remonta o painel por `key`, e o foco volta ao primeiro campo.
+  it('abrir Editar em outro no com o painel aberto devolve o foco ao primeiro campo', async () => {
+    const outra: NoDaEstrutura = { ...PECA, id: 200, codigoDoComponente: 'CH-200', descricao: 'Base' }
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA, outra] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-100')).getByRole('button', { name: 'Editar' }))
+    const primeiro = within(screen.getByTestId('painel-de-escrita')).getByLabelText('Descrição')
+    expect(document.activeElement).toBe(primeiro)
+
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-200')).getByRole('button', { name: 'Editar' }))
+    const segundo = within(screen.getByTestId('painel-de-escrita')).getByLabelText('Descrição')
+
+    expect(segundo).not.toBe(primeiro)
+    expect(document.activeElement).toBe(segundo)
+    expect(segundo).toHaveProperty('value', 'Base')
+  })
+
+  it('quem nao pode escrever nao ve Nova Peca e continua vendo o Id', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    expect(screen.queryByRole('button', { name: 'Nova Peça' })).toBeNull()
+    expect(screen.getByText('Id 21')).toBeTruthy()
+  })
+
+  it('o estado vazio manda usar o botao Nova Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [] }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText('Use o botão Nova Peça para criar a primeira.')).toBeTruthy()
+  })
+
+  it('Cancelar da Peca devolve o foco ao Nova Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+    fireEvent.click(within(screen.getByRole('form', { name: 'Nova Peça' })).getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nova Peça' }))
+  })
+
+  it('criar Peca com sucesso devolve o foco ao Nova Peca', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [], estruturaAposCriar: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Este agrupamento ainda não tem estrutura')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    expect(await screen.findByText('Chassi')).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Nova Peça' }))
+  })
+
+  // O painel de Peça também fecha quando o do nó abre. Aí o foco já está no primeiro campo do
+  // painel do nó, e devolvê-lo ao "Nova Peça" o tiraria de quem acabou de pedir para editar.
+  it('abrir Editar com o painel de Peca aberto deixa o foco no painel do no', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    abrirNovaPeca()
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    const painelDoNo = screen.getByRole('form', { name: 'Editar nó' })
+    expect(document.activeElement).not.toBe(document.body)
+    expect(painelDoNo.contains(document.activeElement)).toBe(true)
+  })
+
+  it('com a Peca em voo, Cancelar fica desabilitado', async () => {
+    const base = montarFetch({ estruturaInicial: [PECA] })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      String(url).split('?')[0] === '/api/agrupamentos/21/estrutura' && init?.method === 'POST'
+        ? new Promise<Response>(() => {})
+        : base(url, init)))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await preencherFormulario(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+    await screen.findByRole('button', { name: 'Salvando…' })
+    const painel = screen.getByRole('form', { name: 'Nova Peça' })
+    const cancelar = within(painel).getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Nova Peça' })).toBeTruthy()
+  })
+
+  it('com a edicao do no em voo, Cancelar do painel do no fica desabilitado', async () => {
+    const base = montarFetch({ estruturaInicial: [PECA] })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'PUT' ? new Promise<Response>(() => {}) : base(url, init)))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    await screen.findByRole('button', { name: 'Salvando…' })
+    const painel = screen.getByRole('form', { name: 'Editar nó' })
+    const cancelar = within(painel).getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Editar nó' })).toBeTruthy()
   })
 })

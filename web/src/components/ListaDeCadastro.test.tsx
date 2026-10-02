@@ -37,6 +37,45 @@ describe('ItemDeCadastro', () => {
     expect(screen.getByText('Inativar')).toBeTruthy()
   })
 
+  it('a acao fica num wrapper posicionado acima do conteudo', () => {
+    // O que a suíte consegue afirmar é a estrutura e as classes: o pai do botão é posicionado e NÃO
+    // tem índice de empilhamento próprio. O efeito real depende de layout, que o jsdom não calcula,
+    // e foi medido no Chromium com `document.elementFromPoint` no centro do botão: posicionado e
+    // sem índice, o botão fica acima do overlay do link (vem depois dele na ordem da árvore) e
+    // abaixo da lista aberta de um `SeletorComBusca` que o cubra (essa tem índice).
+    const { container } = render(
+      <ListaDeCadastro>
+        <ItemDeCadastro acao={<button>Inativar</button>}>Corte</ItemDeCadastro>
+      </ListaDeCadastro>,
+    )
+    const botao = screen.getByRole('button', { name: 'Inativar' })
+    const wrapper = botao.parentElement!
+
+    expect(wrapper.tagName).toBe('DIV')
+    expect(wrapper.classList.contains('relative')).toBe(true)
+    // Com índice, o wrapper empatava com a lista do seletor e, por vir depois no DOM, pintava por
+    // cima dela e tomava o clique destinado a uma opção.
+    expect([...wrapper.classList].filter((c) => /^-?z-/.test(c))).toEqual([])
+    // O wrapper é filho direto do `<li>` (que é `relative`): o overlay do link, `absolute` com
+    // `inset-0`, ancora no `<li>`, e o wrapper pinta depois dele no mesmo contexto.
+    expect(wrapper.parentElement).toBe(container.querySelector('li'))
+  })
+
+  it('sem acao nao cria wrapper', () => {
+    // `acao` ausente e `acao={false}` (o que `podeEscrever && <Botao/>` entrega ao perfil sem
+    // escrita) não deixam uma `div` vazia, empilhada, sobre o cartão.
+    const { container } = render(
+      <ListaDeCadastro>
+        <ItemDeCadastro>Sem prop</ItemDeCadastro>
+        <ItemDeCadastro acao={false}>Falsa</ItemDeCadastro>
+        <ItemDeCadastro acao={null}>Nula</ItemDeCadastro>
+      </ListaDeCadastro>,
+    )
+
+    expect(container.querySelectorAll('li')).toHaveLength(3)
+    expect(container.querySelectorAll('li div')).toHaveLength(0)
+  })
+
   it('distingue item inativo de item ativo', () => {
     // Distinção que NÃO é só cor: `line-through` mais tinta fraca. Cor sozinha exclui quem não a
     // percebe, e a lista de inativos é justamente onde o usuário decide se reativa ou não.

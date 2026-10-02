@@ -63,11 +63,16 @@ public class PedidoRepository : IPedidoRepository
     // Contado ANTES do Skip/Take e com o MESMO filtro: e o numero de paginas que o front usa.
     var total = await consulta.CountAsync(ct);
 
-    // `DataAbertura` sozinha nao e ordem total; o desempate por `Id` e o que impede Skip/Take de
-    // repetir e pular linhas entre paginas.
-    var itens = await consulta
-        .OrderByDescending(p => p.DataAbertura)
-        .ThenByDescending(p => p.Id)
+    // Toda opcao termina em ordem TOTAL, sem a qual Skip/Take repete e pula linhas entre paginas:
+    // Numero e unico (UQ_Pedido_Numero), e as demais desempatam por Id (`DataAbertura` e `Cliente`
+    // nao sao unicos). Recentes e a padrao e a ordem que a listagem sempre teve.
+    var ordenada = filtro.Ordem switch
+    {
+      OrdemDePedidos.Numero => consulta.OrderBy(p => p.Numero),
+      OrdemDePedidos.Cliente => consulta.OrderBy(p => p.Cliente).ThenByDescending(p => p.Id),
+      _ => consulta.OrderByDescending(p => p.DataAbertura).ThenByDescending(p => p.Id),
+    };
+    var itens = await ordenada
         .Skip((filtro.Pagina - 1) * filtro.Tamanho)
         .Take(filtro.Tamanho)
         .ToListAsync(ct);

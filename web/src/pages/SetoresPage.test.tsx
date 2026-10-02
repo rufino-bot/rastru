@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { SetoresPage } from './SetoresPage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -19,6 +19,18 @@ vi.mock('../auth/AuthContext', () => ({
 }))
 
 const CORTE = { id: 1, nome: 'Corte', ativo: true, atividade: null }
+
+// A tela abre em leitura: o formulário só existe depois do clique em "Novo setor" (o botão do
+// cabeçalho; o `<h2>` do painel tem o mesmo texto, por isso a busca é por papel).
+async function abrirNovoSetor() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Novo setor' }))
+}
+
+async function esperarPainelFechar() {
+  await waitFor(() => {
+    expect(screen.queryByRole('form')).toBeNull()
+  })
+}
 
 describe('SetoresPage', () => {
   beforeEach(() => {
@@ -100,7 +112,7 @@ describe('SetoresPage', () => {
     // m3 (achado da review da Task 8): a `descricao` do `EstadoVazio` (`podeEscrever ? '…' :
     // undefined`) não tinha cobertura em nenhum dos dois ramos. Este é o positivo — o ator
     // `Administrador` já está no teste, então prende a decisão sem inventar um caso novo.
-    expect(await screen.findByText('Use o formulário acima para criar o primeiro.')).toBeTruthy()
+    expect(await screen.findByText('Use o botão Novo setor para criar o primeiro.')).toBeTruthy()
   })
 
   // C1 (achado da review da Task 8): a lista fica `[]` no `catch` (nunca é preenchida), então
@@ -135,6 +147,7 @@ describe('SetoresPage', () => {
     }))
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
     fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
@@ -143,13 +156,20 @@ describe('SetoresPage', () => {
 
     liberar(respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201))
 
+    // No sucesso o painel fecha, então o botão some junto: a reabilitação se prova ao reabrir o
+    // painel, depois da recarga. `salvar` solta o envio em dois lugares (antes da recarga e no
+    // `finally`), e aqui qualquer um dos dois basta: o teste morre só sem os dois, quando o submit
+    // novo nasceria preso em "Salvando…". Que a liberação vem ANTES da recarga é o teste
+    // `salvar solta o envio antes da recarga…` que prova.
+    await esperarPainelFechar()
+    await abrirNovoSetor()
     const botaoDepois = await screen.findByText('Adicionar')
     expect((botaoDepois as HTMLButtonElement).disabled).toBe(false)
   })
 
-  // I3 (achado da review da Task 8): sem isto, ninguém prova que `salvar` limpa `nome` no
-  // sucesso. Sem a limpeza, o campo continua com o valor cadastrado e um segundo clique tenta
-  // recriar o mesmo nome — 409 sobre o cadastro que a própria tela acabou de fazer.
+  // I3 (achado da review da Task 8): o segundo cadastro tem de começar vazio. Sem a limpeza, o
+  // campo continuaria com o valor cadastrado e um segundo clique tentaria recriar o mesmo nome —
+  // 409 sobre o cadastro que a própria tela acabou de fazer.
   it('limpa o campo depois de cadastrar com sucesso', async () => {
     let chamadas = 0
     vi.stubGlobal('fetch', fetchPorRota({
@@ -164,11 +184,17 @@ describe('SetoresPage', () => {
     }))
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
     fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
-    await screen.findByText('Adicionar')
-    expect((screen.getByLabelText('Nome do setor') as HTMLInputElement).value).toBe('')
+    // O painel fecha no sucesso, então o campo só volta à tela quando ele é reaberto. O que se
+    // prova é o que o usuário vê: o painel reaberto vem vazio. NÃO prova qual função limpou,
+    // porque tanto o fechamento quanto a abertura do painel (`fecharPainel` e `abrirNovo`) zeram
+    // o nome, e cada uma sozinha basta para este teste.
+    await esperarPainelFechar()
+    await abrirNovoSetor()
+    expect((await screen.findByLabelText('Nome do setor') as HTMLInputElement).value).toBe('')
   })
 
   it('esconde formulário e ação de inativar para quem não pode escrever', async () => {
@@ -197,10 +223,11 @@ describe('SetoresPage', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
     fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
-    await screen.findByText('Adicionar')
+    await esperarPainelFechar()
     const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
     expect(corpo).toEqual({ nome: 'Solda', atividade: null })
   })
@@ -217,16 +244,17 @@ describe('SetoresPage', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
     fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
     fireEvent.change(screen.getByLabelText('Atividade (opcional)'), { target: { value: 'montagem' } })
     fireEvent.click(screen.getByText('Adicionar'))
 
-    await screen.findByText('Adicionar')
+    await esperarPainelFechar()
     const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
     expect(corpo).toEqual({ nome: 'Solda', atividade: 'montagem' })
   })
 
-  it('"Editar" carrega nome e atividade no formulário, e "Salvar alterações" faz PUT e recarrega', async () => {
+  it('"Editar" carrega nome e atividade no painel, e "Salvar alterações" faz PUT e recarrega', async () => {
     const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
     let chamadasDeLista = 0
     const fetchMock = fetchPorRota({
@@ -247,7 +275,7 @@ describe('SetoresPage', () => {
     fireEvent.change(screen.getByLabelText('Atividade (opcional)'), { target: { value: 'montagem' } })
     fireEvent.click(screen.getByText('Salvar alterações'))
 
-    await screen.findByText('Adicionar')
+    await esperarPainelFechar()
     const chamadaPut = fetchMock.mock.calls.find((c) => String(c[0]).endsWith('/api/setores/3'))!
     expect((chamadaPut[1] as RequestInit).method).toBe('PUT')
     expect(JSON.parse((chamadaPut[1] as RequestInit).body as string)).toEqual({ nome: 'Solda', atividade: 'montagem' })
@@ -275,7 +303,7 @@ describe('SetoresPage', () => {
     expect(screen.queryByText('Reativar o existente')).toBeNull()
   })
 
-  it('"Cancelar" volta a "Adicionar" com o formulário vazio', async () => {
+  it('"Cancelar" na edição fecha o painel, e o painel de novo setor abre com o formulário vazio', async () => {
     const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA]) }))
 
@@ -285,6 +313,8 @@ describe('SetoresPage', () => {
 
     fireEvent.click(screen.getByText('Cancelar'))
 
+    expect(screen.queryByRole('form')).toBeNull()
+    await abrirNovoSetor()
     expect(screen.getByText('Adicionar')).toBeTruthy()
     expect((screen.getByLabelText('Nome do setor') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('Atividade (opcional)') as HTMLInputElement).value).toBe('')
@@ -303,5 +333,384 @@ describe('SetoresPage', () => {
     expect(await screen.findByText('· montagem')).toBeTruthy()
     const linhaDoCorte = screen.getByText('Corte').closest('li')!
     expect(within(linhaDoCorte).queryByText(/·/)).toBeNull()
+  })
+
+  it('abre em leitura: sem formulario antes do clique', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+
+    expect(await screen.findByText('Corte')).toBeTruthy()
+    expect(screen.queryByRole('form', { name: 'Novo setor' })).toBeNull()
+    expect(screen.queryByLabelText('Nome do setor')).toBeNull()
+  })
+
+  it('Novo setor abre o painel e some enquanto ele esta aberto', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+
+    expect(screen.getByRole('form', { name: 'Novo setor' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Novo setor' })).toBeNull()
+  })
+
+  it('Cancelar fecha o painel e descarta o digitado', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Cancelar'))
+
+    expect(screen.queryByRole('form', { name: 'Novo setor' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Novo setor' })).toBeTruthy()
+    await abrirNovoSetor()
+    expect((screen.getByLabelText('Nome do setor') as HTMLInputElement).value).toBe('')
+  })
+
+  it('salvar novo com sucesso fecha o painel, volta a Mais recentes e o setor novo e o primeiro', async () => {
+    const ANTIGO = { id: 1, nome: 'Antigo', ativo: true, atividade: null }
+    const NOVO = { id: 9, nome: 'Zeta', ativo: true, atividade: null }
+    let criou = false
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => {
+        // O POST e o GET dividem o caminho; o método é o que os distingue.
+        const ultima = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][1] as RequestInit | undefined
+        if (ultima?.method === 'POST') { criou = true; return respostaJson(NOVO, 201) }
+        return respostaJson(criou ? [ANTIGO, NOVO] : [ANTIGO])
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await screen.findByText('Antigo')
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'nome' } })
+    fireEvent.click(screen.getByLabelText('Mostrar inativos'))
+    await waitFor(() => {
+      expect(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0])).toContain('incluirInativos=true')
+    })
+
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Zeta' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await esperarPainelFechar()
+    await waitFor(() => {
+      expect(screen.getAllByRole('listitem')[0].textContent).toContain('Zeta')
+    })
+    expect((screen.getByLabelText('Ordenar por') as HTMLSelectElement).value).toBe('recentes')
+    expect((screen.getByLabelText('Mostrar inativos') as HTMLInputElement).checked).toBe(false)
+    expect(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0])).toContain('incluirInativos=false')
+  })
+
+  it('Editar abre o painel com o nome preenchido e o titulo Editar setor', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+
+    const painel = screen.getByRole('form', { name: 'Editar setor' })
+    expect((within(painel).getByLabelText('Nome do setor') as HTMLInputElement).value).toBe('Solda')
+    expect(within(painel).getByText('Solda', { selector: 'p' })).toBeTruthy()
+    expect(within(painel).getByText('Salvar alterações')).toBeTruthy()
+  })
+
+  it('salvar edicao com sucesso fecha o painel e mantem a ordem escolhida', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => respostaJson([SOLDA]),
+      '/api/setores/3': () => respostaJson(SOLDA),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await screen.findByText('Solda')
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'nome' } })
+    fireEvent.click(screen.getByLabelText('Mostrar inativos'))
+    await waitFor(() => {
+      expect(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0])).toContain('incluirInativos=true')
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await esperarPainelFechar()
+    await waitFor(() => {
+      expect(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0])).toContain('/api/setores?incluirInativos=true')
+    })
+    expect((screen.getByLabelText('Ordenar por') as HTMLSelectElement).value).toBe('nome')
+    expect((screen.getByLabelText('Mostrar inativos') as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('Editar outro setor com o painel aberto troca o conteudo', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => respostaJson([
+        { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' },
+        { id: 1, nome: 'Corte', ativo: true, atividade: null },
+      ]),
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar Corte' }))
+
+    expect(screen.getAllByRole('form')).toHaveLength(1)
+    const painel = screen.getByRole('form', { name: 'Editar setor' })
+    const campo = within(painel).getByLabelText('Nome do setor') as HTMLInputElement
+    expect(campo.value).toBe('Corte')
+    expect((within(painel).getByLabelText('Atividade (opcional)') as HTMLInputElement).value).toBe('')
+    expect(within(painel).getByText('Corte', { selector: 'p' })).toBeTruthy()
+    // O painel remonta por `key`, e o foco volta ao primeiro campo (decisão D6 do plano da 1F).
+    expect(document.activeElement).toBe(campo)
+  })
+
+  it('conflito mantem o painel aberto com o erro e o Reativar dentro dele', async () => {
+    const base = fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) })
+    const fetchMock = vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? Promise.resolve(respostaJson({ erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 9 }, 409))
+        : base(url, init))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    const painel = await screen.findByRole('form', { name: 'Novo setor' })
+    expect(await within(painel).findByText('Já existe um setor "Solda" inativo.')).toBeTruthy()
+    expect(within(painel).getByRole('button', { name: 'Reativar o existente' })).toBeTruthy()
+  })
+
+  it('reativar com sucesso fecha o painel e volta a Mais recentes', async () => {
+    let reativou = false
+    const base = fetchPorRota({
+      '/api/setores': () => respostaJson(reativou ? [CORTE, { id: 9, nome: 'Solda', ativo: true, atividade: null }] : [CORTE]),
+      '/api/setores/9/ativo': () => { reativou = true; return respostaJson({}, 200) },
+    })
+    const fetchMock = vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? Promise.resolve(respostaJson({ erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 9 }, 409))
+        : base(url, init))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await screen.findByText('Corte')
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'nome' } })
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await esperarPainelFechar()
+    expect((screen.getByLabelText('Ordenar por') as HTMLSelectElement).value).toBe('recentes')
+    expect(await screen.findByText('Solda')).toBeTruthy()
+  })
+
+  it('falha de rede ao salvar mantem o painel aberto com o erro dentro dele', async () => {
+    const base = fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'POST' ? Promise.reject(new Error('rede caiu')) : base(url, init)))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    const painel = await screen.findByRole('form', { name: 'Novo setor' })
+    expect(await within(painel).findByText('Não foi possível salvar o setor.')).toBeTruthy()
+  })
+
+  it('erro de Inativar aparece fora do painel', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => respostaJson([CORTE]),
+      '/api/setores/1/ativo': () => respostaJson({ erro: 'proibido' }, 403),
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByText('Inativar'))
+
+    const banner = await screen.findByText('Seu perfil não tem permissão para esta ação.')
+    expect(screen.queryByRole('form')).toBeNull()
+    expect(banner.getAttribute('role')).toBe('alert')
+  })
+
+  it('ordenar por nome reordena a lista no cliente sem nova requisicao', async () => {
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => respostaJson([
+        { id: 1, nome: 'Corte', ativo: true, atividade: null },
+        { id: 3, nome: 'Solda', ativo: true, atividade: null },
+        { id: 2, nome: 'Ajuste', ativo: true, atividade: null },
+      ]),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await screen.findByText('Solda')
+    const nomes = () => screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
+    expect(nomes()[0]).toContain('Solda')
+    const antes = fetchMock.mock.calls.length
+
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'nome' } })
+
+    const depois = nomes()
+    expect(depois[0]).toContain('Ajuste')
+    expect(depois[1]).toContain('Corte')
+    expect(depois[2]).toContain('Solda')
+    expect(fetchMock.mock.calls.length).toBe(antes)
+  })
+
+  it('quem nao pode escrever ve a lista e o seletor de ordem, e nao ve o botao Novo setor', async () => {
+    perfil = 'PCP'
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+
+    expect(await screen.findByText('Corte')).toBeTruthy()
+    expect(screen.getByLabelText('Ordenar por')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Novo setor' })).toBeNull()
+  })
+
+  // O botão que abre o painel some enquanto ele está aberto (decisão D5 do plano da 1F), e o
+  // controle focado sai do DOM com o painel: sem a devolução, o foco cairia no `<body>`.
+  it('Cancelar devolve o foco ao Novo setor', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo setor' }))
+  })
+
+  it('Cancelar na edicao devolve o foco ao Editar do mesmo setor', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => respostaJson([
+        { id: 3, nome: 'Solda', ativo: true, atividade: null },
+        { id: 1, nome: 'Corte', ativo: true, atividade: null },
+      ]),
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Corte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar Corte' }))
+  })
+
+  it('salvar edicao devolve o foco ao Editar do mesmo setor depois da recarga', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    const CORTADO = { id: 1, nome: 'Corte fino', ativo: true, atividade: null }
+    let editou = false
+    // A recarga fica pendurada até o teste soltá-la: é durante ela que a lista dá lugar ao
+    // "Carregando…" e o "Editar" de destino não está no DOM.
+    let soltarRecarga: () => void = () => {}
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => editou
+        ? new Promise<Response>((r) => { soltarRecarga = () => r(respostaJson([SOLDA, CORTADO])) })
+        : respostaJson([SOLDA, CORTE]),
+      '/api/setores/1': () => { editou = true; return respostaJson(CORTADO) },
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Corte' }))
+    fireEvent.change(screen.getByLabelText('Nome do setor'), { target: { value: 'Corte fino' } })
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await esperarPainelFechar()
+    expect(screen.getByRole('status').textContent).toBe('Carregando…')
+    soltarRecarga()
+
+    // O nome do botão mudou com a edição: o alvo é o setor, não o rótulo de antes.
+    const editarDepois = await screen.findByRole('button', { name: 'Editar Corte fino' })
+    await waitFor(() => { expect(document.activeElement).toBe(editarDepois) })
+  })
+
+  it('salvar edicao de um setor que nao voltou na recarga devolve o foco ao Novo setor', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    let editou = false
+    let soltarRecarga: () => void = () => {}
+    vi.stubGlobal('fetch', fetchPorRota({
+      // Outra pessoa o inativou entre a edição e a recarga, que não pede os inativos.
+      '/api/setores': () => editou
+        ? new Promise<Response>((r) => { soltarRecarga = () => r(respostaJson([SOLDA])) })
+        : respostaJson([SOLDA, CORTE]),
+      '/api/setores/1': () => { editou = true; return respostaJson(CORTE) },
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Corte' }))
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await esperarPainelFechar()
+    soltarRecarga()
+    await waitFor(() => { expect(screen.queryByText('Corte')).toBeNull() })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Novo setor' }))
+    })
+  })
+
+  it('com o cadastro em voo, Cancelar fica desabilitado', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+      init?.method === 'POST'
+        ? new Promise<Response>(() => {})
+        : fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) })(url, init)))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await screen.findByText('Salvando…')
+    const cancelar = screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement
+    expect(cancelar.disabled).toBe(true)
+    fireEvent.click(cancelar)
+    expect(screen.getByRole('form', { name: 'Novo setor' })).toBeTruthy()
+  })
+
+  it('com o Reativar o existente em voo, Cancelar fica desabilitado', async () => {
+    const base = fetchPorRota({ '/api/setores': () => respostaJson([CORTE]) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return Promise.resolve(respostaJson({ erro: 'ValorDuplicado', campo: 'nome', existeInativo: true, idExistente: 9 }, 409))
+      }
+      if (String(url).includes('/ativo')) return new Promise<Response>(() => {})
+      return base(url, init)
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reativar o existente' }))
+
+    await waitFor(() => {
+      expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+  })
+
+  it('salvar solta o envio antes da recarga: reabrir o painel durante ela mostra Adicionar habilitado', async () => {
+    let chamadas = 0
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => {
+        chamadas += 1
+        if (chamadas === 1) return respostaJson([])
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
+        // A recarga pós-salvar nunca termina: o que se mede é o estado do painel enquanto ela voa.
+        return new Promise<Response>(() => {})
+      },
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await esperarPainelFechar()
+    await waitFor(() => { expect(chamadas).toBe(3) })
+    await abrirNovoSetor()
+    expect((screen.getByRole('button', { name: 'Adicionar' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })

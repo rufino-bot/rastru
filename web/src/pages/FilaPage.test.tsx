@@ -58,6 +58,21 @@ describe('FilaPage', () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe('/api/setores?incluirInativos=false')
   })
 
+  it('o link do item cobre o cartao inteiro', async () => {
+    // jsdom não calcula layout: a suíte afirma as classes do overlay, que estendem a área do link
+    // ao `<li>` posicionado. Que o clique no canto do cartão de fato navega é conferido no
+    // navegador.
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson(SETORES) }))
+
+    renderizar()
+
+    const link = await screen.findByRole('link', { name: 'Dobra' })
+    expect(link.classList.contains('after:absolute')).toBe(true)
+    expect(link.classList.contains('after:inset-0')).toBe(true)
+    // O nome acessível continua sendo o texto do Setor, e o destino não mudou.
+    expect(link.getAttribute('href')).toBe('/fila/3')
+  })
+
   it('com Setor lembrado neste aparelho, abre direto na fila dele', async () => {
     localStorage.setItem('rastru.fila.setorId', '3')
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson(SETORES) }))

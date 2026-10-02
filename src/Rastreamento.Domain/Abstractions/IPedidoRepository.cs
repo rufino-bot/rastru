@@ -3,12 +3,20 @@ using Rastreamento.Domain.Entities;
 namespace Rastreamento.Domain.Abstractions;
 
 /// <summary>
-/// Filtro e faixa de uma pagina de Pedidos. <c>Pagina</c> e 1-based. Lista vazia NAO restringe:
+/// Ordem de uma pagina de Pedidos. <c>Recentes</c> (<c>DataAbertura</c> decrescente, depois
+/// <c>Id</c> decrescente) e a padrao e a que a listagem sempre teve.
+/// </summary>
+public enum OrdemDePedidos { Recentes, Numero, Cliente }
+
+/// <summary>
+/// Filtro, ordem e faixa de uma pagina de Pedidos. <c>Pagina</c> e 1-based. Lista vazia NAO restringe:
 /// dentro de uma faceta vale OU, entre facetas vale E. <c>Busca</c> ja chega aparada e nula
-/// quando em branco. Vive junto da interface pelo mesmo motivo de <see cref="FiltroDeComponente"/>.
+/// quando em branco. Vive junto da interface pelo mesmo motivo de <see cref="FiltroDeComponente"/>, e a
+/// <c>Ordem</c> e o ultimo parametro, com padrao, pelo mesmo motivo dela (decisao D1 do plano da 1F).
 /// </summary>
 public sealed record FiltroDePedidos(
-    string? Busca, IReadOnlyList<string> Status, IReadOnlyList<int> Materiais, int Pagina, int Tamanho);
+    string? Busca, IReadOnlyList<string> Status, IReadOnlyList<int> Materiais, int Pagina, int Tamanho,
+    OrdemDePedidos Ordem = OrdemDePedidos.Recentes);
 
 public interface IPedidoRepository
 {
@@ -22,9 +30,12 @@ public interface IPedidoRepository
   Task<Pedido?> ObterPorNumeroAsync(string numero, CancellationToken ct);
 
   /// <summary>
-  /// Uma pagina do filtro, com o total do MESMO filtro. Ordem: `DataAbertura` decrescente e `Id`
-  /// decrescente — o desempate por `Id` da ordem total, sem a qual `Skip/Take` repete e pula
-  /// linhas entre paginas. Pedido nao tem `Ativo`: nao ha filtro de ativo/inativo.
+  /// Uma pagina do filtro, com o total do MESMO filtro. Ordem, a de `FiltroDePedidos.Ordem`:
+  /// `Recentes` (a padrao) e `DataAbertura` decrescente, depois `Id` decrescente; `Numero` e
+  /// `Numero` crescente; `Cliente` e `Cliente` crescente, depois `Id` decrescente. Toda opcao
+  /// termina em ordem total (`Numero` e unico, o desempate por `Id` cobre o resto), sem a qual
+  /// `Skip/Take` repete e pula linhas entre paginas. Pedido nao tem `Ativo`: nao ha filtro de
+  /// ativo/inativo.
   /// </summary>
   Task<(IReadOnlyList<Pedido> Itens, int Total)> ListarAsync(FiltroDePedidos filtro, CancellationToken ct);
 

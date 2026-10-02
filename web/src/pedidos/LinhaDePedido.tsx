@@ -26,9 +26,10 @@ export function LinhaDePedido({ pedido }: { pedido: PedidoDto }) {
     // elementos interativos.
     //
     // ⚠️ DEPENDE de o ancestral ser posicionado — hoje é o `<li>` do `ItemDeCadastro`. Usada fora
-    // dele, o overlay vaza para o ancestral posicionado mais próximo e cobre o que não devia. E
-    // vale a armadilha m6 documentada no próprio `ItemDeCadastro`: overlay e `acao` no mesmo item
-    // colidem, e jsdom não pega — a conferência é no navegador.
+    // dele, o overlay vaza para o ancestral posicionado mais próximo e cobre o que não devia. A
+    // `acao` do item, se houver, vai num wrapper empilhado acima do overlay pelo próprio
+    // `ItemDeCadastro` (ver o comentário dele); jsdom não calcula layout, então a conferência
+    // do clique no botão é no navegador.
     <Link
       to={`/pedidos/${pedido.id}`}
       className="flex flex-col gap-1 after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"

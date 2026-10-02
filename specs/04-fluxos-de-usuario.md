@@ -35,6 +35,18 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    Home não lista Pedidos: lê o **resumo** do servidor (contagem por status e até cinco abertos há mais
    tempo), que conta todos os Pedidos e não só a primeira página.
 
+   A lista também é onde o Pedido nasce, e desde a Fase 1F
+   (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`) ela **abre em
+   leitura**: não há campos no topo. Quem pode escrever (PCP e Administrador) usa o botão **Novo
+   pedido**, no cabeçalho, que abre o cadastro (Código do pedido e Cliente) num painel acima da busca;
+   "Cancelar" fecha o painel e descarta o digitado, e um erro ao salvar — número repetido, falha de
+   rede — aparece dentro dele, que continua aberto. Quem não pode escrever não vê o botão. A lista se
+   **ordena** por **Mais recentes** (a padrão: data de abertura, a mais nova primeiro), **Número** ou
+   **Cliente**, num seletor "Ordenar por" que todo perfil vê. A ordem vai na URL como a busca, os
+   filtros e a página, e a padrão não é escrita lá: `/pedidos` sem nada é "Mais recentes". Abrir o
+   Pedido com sucesso fecha o painel e **devolve a lista ao padrão** — URL limpa, sem busca nem filtro,
+   página 1, "Mais recentes" —, para o Pedido recém-aberto aparecer no topo.
+
 ## 2. Apontamento em Setor
 
 *Perfis: Operador, Movimentador e PCP*

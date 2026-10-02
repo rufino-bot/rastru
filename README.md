@@ -106,7 +106,7 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 ## Roadmap
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
-roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 2B, 3B, 3C e 3D como fases próprias.
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
 A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** rodou antes da 3B,
 e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
 decidida.
@@ -127,22 +127,30 @@ Concluídas até aqui:
 - **Fase 3:** rastreamento de setor — livro de movimentações, terminar e mover como ações
   separadas (com o perfil **Movimentador** e a tela de tarefas dele), montagem de todo nó com
   filhos, Roteiro editável por nó, fila do setor para o operador e chegada ao local de expedição.
-  Entrou na `main` pelos PRs #20 (backend) e #21 (front), em 2026-09-26, e por duas correções
-  em 2026-09-28: o histórico do nó do registro mais recente ao mais antigo (PR #22) e a contagem de
-  Pedidos abertos com o contador de Tarefas (PR #23).
+  O código entrou na `main` pelos PRs #20 (backend) e #21 (front), em 2026-09-26, e por duas
+  correções em 2026-09-28: o histórico do nó do registro mais recente ao mais antigo (PR #22) e a
+  contagem de Pedidos abertos com o contador de Tarefas (PR #23).
 - **Fase 3D:** ajustes pós-verificação da Fase 3, verificados manualmente no celular — iniciar como
   verbo único (iniciar um nó com filhos consome os filhos, e montar deixa de ser ação), atividade do
   Setor nos botões, destino do filho pronto calculado, estorno rápido na fila e pausa de Pedido.
   A fila do Setor passou a mostrar o que está em trabalho primeiro e, no fim, o que aguarda coleta
   e a sobra, e o Pedido pausado ganhou a pílula de tom de atenção (âmbar), um tom que só significa
   estado.
+- **Filtros da demanda e ação em lote** (seção própria do roadmap, sem letra de fase): filtro por
+  Material e por Pedido na fila do Setor e nas Tarefas; iniciar, terminar e iniciar o pai em lote
+  na fila, e "Marcar todos" na fila e nas Tarefas; a lista de Pedidos paginada no servidor, com
+  busca e filtro por Status e Material. Em dois planos, cada um verificado no celular: o primeiro
+  entrou na `main` pelo PR #25, em 2026-09-30, e o segundo pelo PR #26, em 2026-10-01.
+- **Fase 1F:** cadastro sob demanda e ordenação das listas — o formulário de cadastro vira um
+  painel que abre por botão (Setores, Materiais, Componentes, Pedidos e a Peça do Agrupamento; em
+  Setores, também o de editar), a ordem das listas é escolhida pelo usuário e o cartão inteiro é
+  clicável na Fila, no detalhe do Pedido e em Componentes. Verificada no navegador e mesclada na
+  `main` pelo PR #28, em 2026-10-02.
 
-A seguir vêm, nesta ordem, os **filtros da fila do Setor** (por Material e por Pedido; o desenho
-ainda passa por brainstorm), a **Fase 1F** (cadastro sob demanda; a spec dela, em 2026-09-29, vive numa branch, não
-na `main`) e a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como de montagem —
-hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de iniciado; a
-trava de montagem, para o nó que já tem filhos ao entrar em produção, já é estrutural desde a 3D).
-Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
+de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de
+iniciado; a trava de montagem, para o nó que já tem filhos ao entrar em produção, já é estrutural
+desde a 3D). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 

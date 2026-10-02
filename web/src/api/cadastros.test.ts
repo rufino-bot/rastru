@@ -315,6 +315,34 @@ describe('cadastros', () => {
     expect([...url.searchParams.keys()]).toEqual(['busca', 'status', 'material', 'pagina', 'tamanho'])
   })
 
+  // D3 do plano da 1F: a ordem padrao nao vai na URL, para as URLs de hoje (e o SeletorComBusca,
+  // que nao passa ordem) ficarem como estao.
+  it('listarPedidos nao manda ordem quando e a padrao', async () => {
+    // `mockImplementation`: um `Response` so se le uma vez, e este teste faz duas chamadas.
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const base = { busca: '', status: [], material: [], pagina: 1, tamanho: 20 }
+
+    await listarPedidos(base)
+    await listarPedidos({ ...base, ordem: 'recentes' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20')
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20')
+  })
+
+  it('listarPedidos manda ordem quando nao e a padrao', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarPedidos({ busca: '', status: [], material: [], pagina: 1, tamanho: 20, ordem: 'cliente' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20&ordem=cliente')
+  })
+
   it('listarPedidos sem status nem material nao manda os parametros', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
@@ -644,6 +672,35 @@ describe('cadastros', () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe(
       '/api/componentes?busca=&incluirInativos=true&pagina=1&tamanho=20',
+    )
+  })
+
+  it('listarComponentes nao manda ordem quando e a padrao', async () => {
+    // `mockImplementation`: um `Response` so se le uma vez, e este teste faz duas chamadas.
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const base = { busca: '', incluirInativos: false, pagina: 1, tamanho: 20 }
+
+    await listarComponentes(base)
+    await listarComponentes({ ...base, ordem: 'recentes' })
+
+    const hoje = '/api/componentes?busca=&incluirInativos=false&pagina=1&tamanho=20'
+    expect(fetchMock.mock.calls[0][0]).toBe(hoje)
+    expect(fetchMock.mock.calls[1][0]).toBe(hoje)
+  })
+
+  it('listarComponentes manda ordem quando nao e a padrao', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarComponentes({ busca: '', incluirInativos: false, pagina: 1, tamanho: 20, ordem: 'codigo' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/componentes?busca=&incluirInativos=false&pagina=1&tamanho=20&ordem=codigo',
     )
   })
 

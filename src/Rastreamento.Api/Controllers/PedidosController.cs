@@ -14,19 +14,21 @@ public class PedidosController : CadastroControllerBase
   public PedidosController(CadastroDePedidoUseCase cadastro) => _cadastro = cadastro;
 
   /// <summary>
-  /// Pagina do filtro. `status` e `material` sao listas separadas por virgula. Faixa, status ou
-  /// material invalidos respondem 400 com `erro`; pagina alem do fim e 200 com `itens` vazio.
+  /// Pagina do filtro. `status` e `material` sao listas separadas por virgula; `ordem` e
+  /// `recentes` (a padrao), `numero` ou `cliente`. Faixa, status, material ou ordem invalidos
+  /// respondem 400 com `erro`; pagina alem do fim e 200 com `itens` vazio.
   /// </summary>
   [HttpGet]
   public async Task<IActionResult> Listar(
       [FromQuery] string? busca = null,
       [FromQuery] string? status = null,
       [FromQuery] string? material = null,
+      [FromQuery] string? ordem = null,
       [FromQuery] int pagina = 1,
       [FromQuery] int tamanho = CadastroDePedidoUseCase.TamanhoDePaginaPadrao,
       CancellationToken ct = default)
   {
-    var resultado = await _cadastro.Listar(busca, status, material, pagina, tamanho, ct);
+    var resultado = await _cadastro.Listar(busca, status, material, ordem, pagina, tamanho, ct);
     return resultado.Sucesso
         ? Ok(resultado.Valor)
         : BadRequest(new { erro = resultado.Erro });

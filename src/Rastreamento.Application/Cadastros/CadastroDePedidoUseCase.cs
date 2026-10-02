@@ -39,6 +39,15 @@ public sealed class CadastroDePedidoUseCase
 
   private const int QuantosMaisAntigos = 5;
 
+  // A ordem das chaves e a ordem da frase de erro de `Listar`.
+  private static readonly IReadOnlyDictionary<string, OrdemDePedidos> OrdensAceitas =
+      new Dictionary<string, OrdemDePedidos>(StringComparer.Ordinal)
+      {
+        ["recentes"] = OrdemDePedidos.Recentes,
+        ["numero"] = OrdemDePedidos.Numero,
+        ["cliente"] = OrdemDePedidos.Cliente,
+      };
+
   private const string ErroDeFaixaInvalida =
       "Pagina deve ser 1 ou maior e tamanho deve estar entre 1 e 100.";
 
@@ -110,12 +119,13 @@ public sealed class CadastroDePedidoUseCase
   }
 
   /// <summary>
-  /// Devolve `Result` porque a faixa, o status e o material pedidos podem ser invalidos, e isso e
-  /// 400. Pagina ALEM do fim e sucesso com itens vazios. `status` e `material` chegam como listas
+  /// Devolve `Result` porque a faixa, o status, o material e a ordem pedidos podem ser invalidos, e
+  /// isso e 400 (validados nessa ordem: a ordem e a ultima). Pagina ALEM do fim e sucesso com itens vazios. `status` e `material` chegam como listas
   /// separadas por virgula: pedaco vazio e ignorado e valor repetido colapsa.
   /// </summary>
   public async Task<Result<PaginaDto<PedidoDto>>> Listar(
-      string? busca, string? status, string? material, int pagina, int tamanho, CancellationToken ct)
+      string? busca, string? status, string? material, string? ordem, int pagina, int tamanho,
+      CancellationToken ct)
   {
     if (pagina < 1 || tamanho < 1 || tamanho > TamanhoDePaginaMaximo)
       return Result<PaginaDto<PedidoDto>>.Falha(ErroDeFaixaInvalida, TipoDeErro.Validacao);
@@ -137,10 +147,18 @@ public sealed class CadastroDePedidoUseCase
       if (!materiais.Contains(id)) materiais.Add(id);
     }
 
+    // Ausente, vazia ou so espacos e a padrao; fora do dicionario — comparacao ordinal — e 400.
+    var ordemDaConsulta = OrdemDePedidos.Recentes;
+    if (!string.IsNullOrWhiteSpace(ordem) && !OrdensAceitas.TryGetValue(ordem, out ordemDaConsulta))
+      return Result<PaginaDto<PedidoDto>>.Falha(
+          $"Ordem '{ordem}' desconhecida. Aceitas: {string.Join(", ", OrdensAceitas.Keys)}.",
+          TipoDeErro.Validacao);
+
     var buscaAparada = busca?.Trim();
     var (pedidos, total) = await _repositorio.ListarAsync(
         new FiltroDePedidos(
-            string.IsNullOrEmpty(buscaAparada) ? null : buscaAparada, statusPedidos, materiais, pagina, tamanho),
+            string.IsNullOrEmpty(buscaAparada) ? null : buscaAparada, statusPedidos, materiais, pagina, tamanho,
+            ordemDaConsulta),
         ct);
 
     return Result<PaginaDto<PedidoDto>>.Ok(

@@ -40,27 +40,36 @@ export function ItemDeCadastro({
             Como irmão, o rótulo nunca é riscado por construção, sem depender de truque de cascata. */}
         {!ativo && <span className="ml-2">(inativo)</span>}
       </span>
-      {/* ⚠️ ARMADILHA CONHECIDA (m6 da review da Task 8): `acao` e overlay de link no MESMO item
-          colidem. Se o `children` trouxer um `<Link>` que estende a área clicável ao cartão com
-          `after:absolute after:inset-0` — o padrão da `PedidosPage` —, esse overlay cobre o `<li>`
-          inteiro e ENGOLE a `acao`: clicar no centro do botão devolve o link, não a ação.
+      {/* A `acao` vai num wrapper posicionado (decisão 12 da spec da 1F). Motivo: quando o
+          `children` traz um `<Link>` que estende a área clicável ao cartão — o padrão da
+          `LinhaDePedido`, um pseudo-elemento absoluto que cobre o `<li>` inteiro —, esse overlay
+          engole a `acao` que dividir o item com ele. MEDIDO em Chrome na Fase 1D: clicar no centro
+          do botão devolvia o link, não a ação. Por isso duas telas tinham restringido o link ao
+          texto. Com o wrapper, o cartão inteiro é do link e o botão continua sendo do botão, sem
+          cada tela repetir o conserto.
 
-          MEDIDO em Chrome. **jsdom não calcula layout, então nenhum teste desta suíte pega isso** —
-          o dia em que alguém combinar os dois, a suíte fica verde e a tela quebra.
+          O wrapper é posicionado e SEM índice de empilhamento próprio. Entre elementos
+          posicionados sem índice, quem vem depois na ordem da árvore pinta por cima: o wrapper
+          vem depois do link, então fica acima do overlay. E fica abaixo de qualquer coisa COM
+          índice, como a lista aberta do `SeletorComBusca`. Com índice igual ao dela, o empate se
+          resolvia pela ordem da árvore, e na `ComponenteDetalhePage` o seletor de "Componente
+          filho" abre para baixo, sobre a lista de Materiais: os botões "Remover" pintavam por cima
+          das opções e tomavam o clique. Medido no Chromium com `document.elementFromPoint` no
+          centro do botão, nas três formas: com índice, o botão ganha da lista; sem índice, a lista
+          ganha do botão e o botão ganha do overlay; sem posição, o overlay ganha do botão.
 
-          Hoje nenhuma tela combina (a `PedidosPage` tem o overlay e não tem `acao`; `SetoresPage` e
-          `MateriaisPage` têm `acao` e não têm link), por isso não há conserto aplicado aqui: seria
-          mexer em código sem sintoma e sem prova. Saída, quando precisar: pôr a `acao` num wrapper
-          posicionado com `z-index` positivo, tirando-a de baixo do overlay — e conferir NO
-          NAVEGADOR, não na suíte.
+          **jsdom não calcula layout**: a suíte só afirma a estrutura e as classes do wrapper
+          (testes `a acao fica num wrapper posicionado acima do conteudo` e `sem acao nao cria
+          wrapper`). Que o clique no centro do botão chega ao botão é conferido no navegador.
 
-          E note que a classe utilitária NÃO está escrita por extenso acima: o scanner do Tailwind
-          lê o fonte inteiro, comentário incluído. A primeira versão deste comentário citava a
-          classe de empilhamento pelo nome e plantou a regra dela no CSS de produção — regra que
-          elemento nenhum usa (16,80 → 16,82 kB, medido). A segunda versão citava o nome de novo,
-          dentro do próprio aviso, e replantou. Ao editar este bloco: descreva a classe, não a
-          escreva. */}
-      {acao}
+          Sem `acao` não há wrapper: uma caixa vazia posicionada sobre o cartão seria alvo de
+          clique que não é de ninguém.
+
+          Ao editar este bloco, descreva as classes de empilhamento, não as escreva: o scanner do
+          Tailwind lê o fonte inteiro, comentário incluído, e uma classe citada aqui planta a regra
+          dela no CSS de produção mesmo sem elemento nenhum que a use (16,80 → 16,82 kB, medido
+          quando aconteceu). */}
+      {acao ? <div className="relative">{acao}</div> : null}
     </li>
   )
 }
