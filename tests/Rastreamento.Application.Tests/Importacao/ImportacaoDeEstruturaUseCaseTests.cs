@@ -8,7 +8,7 @@ using Xunit;
 
 namespace Rastreamento.Application.Tests.Importacao;
 
-public class ImportacaoDeEstruturaUseCaseTests
+public partial class ImportacaoDeEstruturaUseCaseTests
 {
   private const int AgrupamentoId = 5;
   private const int UsuarioId = 42;
@@ -187,7 +187,7 @@ public class ImportacaoDeEstruturaUseCaseTests
     Assert.Null(m.Leitor.NomeRecebido);
   }
 
-  // ---------------------------------------------------------------- Criar: arquivo recusado (P13, R6)
+  // ---------------------------------------------------------------- Criar: arquivo recusado (P13) e o que o banco recusaria como 500
 
   [Fact]
   public async Task Criar_com_bom_invalido_devolve_BomInvalido_com_uma_linha_por_erro()

@@ -80,6 +80,23 @@ public sealed record ImportacaoDto(
 public sealed record ResumoDeImportacaoDto(
     int Id, string NomeDoArquivo, string CriadoPor, DateTime CriadoEm, DateTime AtualizadoEm);
 
+/// <summary>
+/// Entradas das escritas do rascunho. <c>Versao</c> e a que a leitura devolveu (base64 do
+/// <c>ROWVERSION</c>, decisao P14 do plano do import): toda escrita a manda, e versao velha e 409.
+/// </summary>
+public sealed record AlteracaoDaPecaDto(string Versao, decimal? QuantidadeDaPeca, bool RequerRelatorioDimensional);
+
+/// <summary>
+/// <c>ComponenteId</c> preenchido casa o registro com aquele Componente (e descarta os dados do "criar
+/// novo"); nulo deixa-o "criar novo", e ai <c>CodigoNovo</c>, <c>DescricaoNova</c> e <c>TipoNovo</c>, quando
+/// preenchidos, sao os dados dele (nulo mantem o que esta). <c>EscolhaDeReceita</c> e o estado inteiro da
+/// escolha: nulo a limpa.
+/// </summary>
+public sealed record AlteracaoDeComponenteDto(
+    string Versao, int? ComponenteId, string? CodigoNovo, string? DescricaoNova, string? TipoNovo, string? EscolhaDeReceita);
+
+public sealed record AlteracaoDeFilhoDto(string Versao, decimal Quantidade);
+
 /// <summary>Os valores fechados dos campos de texto dos DTOs da conferencia.</summary>
 public static class ValoresDaConferencia
 {

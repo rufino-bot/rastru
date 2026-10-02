@@ -71,6 +71,12 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
     }
   }
 
+  public void RemoverRegistros(IEnumerable<ImportacaoDeEstruturaComponente> registros) =>
+      _db.ImportacoesDeEstruturaComponentes.RemoveRange(registros);
+
+  public void RemoverFilhos(IEnumerable<ImportacaoDeEstruturaFilho> filhos) =>
+      _db.ImportacoesDeEstruturaFilhos.RemoveRange(filhos);
+
   public async Task ExcluirAsync(int id, CancellationToken ct)
   {
     await using var transacao = await _db.Database.BeginTransactionAsync(ct);

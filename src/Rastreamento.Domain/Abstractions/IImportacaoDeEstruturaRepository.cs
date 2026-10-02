@@ -43,6 +43,18 @@ public interface IImportacaoDeEstruturaRepository
   Task SalvarAsync(ImportacaoDeEstrutura importacao, byte[] versaoEsperada, CancellationToken ct);
 
   /// <summary>
+  /// Marca registros do rascunho para exclusao no proximo <see cref="SalvarAsync"/> (o reimport tira os
+  /// codigos que sairam do arquivo). Sem I/O: quem apaga e o <c>SalvarAsync</c>, na mesma transacao que
+  /// o resto da escrita. Os filhos que apontam para eles, como pai ou como filho, tem de ser marcados
+  /// por <see cref="RemoverFilhos"/> na mesma escrita: o schema nao tem <c>ON DELETE CASCADE</c>
+  /// (decisao P6 do plano do import).
+  /// </summary>
+  void RemoverRegistros(IEnumerable<ImportacaoDeEstruturaComponente> registros);
+
+  /// <summary>Como <see cref="RemoverRegistros"/>, para as linhas da receita lida.</summary>
+  void RemoverFilhos(IEnumerable<ImportacaoDeEstruturaFilho> filhos);
+
+  /// <summary>
   /// Apaga o rascunho numa transacao, na ordem filhos -> <c>RaizId = NULL</c> -> registros ->
   /// cabecalho -> <c>ArquivoDeComponente</c> pendentes (decisao P6 do plano do import: o schema nao
   /// tem <c>ON DELETE CASCADE</c>). Id inexistente nao e erro.

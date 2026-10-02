@@ -15,7 +15,7 @@ namespace Rastreamento.Application.Importacao;
 /// <c>Detalhe</c>, separadas por <c>\n</c> (decisao P13), no mesmo canal de <c>erro</c>/<c>mensagem</c>
 /// que as outras recusas da estrutura.
 /// </summary>
-public sealed class ImportacaoDeEstruturaUseCase
+public sealed partial class ImportacaoDeEstruturaUseCase
 {
   public const string ErroDeBomInvalido = "BomInvalido";
   public const string ErroDeImportacaoDesatualizada = "ImportacaoDesatualizada";
@@ -63,21 +63,32 @@ public sealed class ImportacaoDeEstruturaUseCase
 
     var nome = SoONome(nomeDoArquivo);
 
-    var leitura = _leitor.Ler(nome, conteudo);
-    if (leitura.Erros.Count > 0)
-      return BomInvalido(leitura.Erros);
-
-    var bom = MontadorDeReceitasDoBom.Montar(nome, leitura.Linhas);
-    if (bom.Erros.Count > 0)
-      return BomInvalido(bom.Erros);
-
-    var deTamanho = ErrosDeTamanho(nome, leitura.Linhas, bom);
-    if (deTamanho.Count > 0)
-      return BomInvalido(deTamanho);
+    var (bom, erros) = LerEMontar(nome, conteudo);
+    if (bom is null)
+      return BomInvalido(erros);
 
     var rascunho = await MontarRascunhoAsync(agrupamentoId, nome, bom, usuarioId, ct);
     await _importacoes.AdicionarAsync(rascunho, ct);
     return Result<ImportacaoDto>.Ok(await ProjetarAsync(rascunho, ct));
+  }
+
+  /// <summary>
+  /// A leitura do arquivo, a montagem das receitas por codigo e a conferencia do que o banco recusaria:
+  /// o caminho de <see cref="Criar"/> e de <see cref="Reimportar"/>, que tem de recusar o mesmo arquivo
+  /// do mesmo jeito. Havendo qualquer erro, <c>Bom</c> e nulo e os erros vem todos juntos.
+  /// </summary>
+  private (BomMontado? Bom, IReadOnlyList<ErroDoBom> Erros) LerEMontar(string nome, byte[] conteudo)
+  {
+    var leitura = _leitor.Ler(nome, conteudo);
+    if (leitura.Erros.Count > 0)
+      return (null, leitura.Erros);
+
+    var bom = MontadorDeReceitasDoBom.Montar(nome, leitura.Linhas);
+    if (bom.Erros.Count > 0)
+      return (null, bom.Erros);
+
+    var deTamanho = ErrosDeTamanho(nome, leitura.Linhas, bom);
+    return deTamanho.Count > 0 ? (null, deTamanho) : (bom, []);
   }
 
   public async Task<Result<ImportacaoDto>> Obter(int id, CancellationToken ct)
@@ -170,40 +181,18 @@ public sealed class ImportacaoDeEstruturaUseCase
   }
 
   /// <summary>
-  /// Um registro por codigo do BOM. Casa com o Componente de mesmo codigo (o catalogo compara sem
-  /// diferenciar caixa, e inclui os inativos) ou fica "criar novo", ja preenchido com o que o arquivo
-  /// trouxe: o avaliador nao cai mais no codigo lido, entao o preenchimento e obrigatorio. O tipo e
-  /// "Montagem" quando o codigo tem filhos no BOM e "Fabricado" quando nao. A raiz (chave 0, decisao
-  /// P8) nao tem codigo, entao nunca casa e nasce "criar novo" com o codigo em branco.
+  /// Um registro por codigo do BOM (ver <see cref="NovoRegistro"/>), com as linhas da receita lida. A
+  /// raiz (chave 0, decisao P8) nao tem codigo, entao nunca casa e nasce "criar novo" com o codigo em
+  /// branco.
   /// </summary>
   private async Task<ImportacaoDeEstrutura> MontarRascunhoAsync(
       int agrupamentoId, string nomeDoArquivo, BomMontado bom, int usuarioId, CancellationToken ct)
   {
-    var codigos = bom.Componentes.Where(c => c.Codigo is not null).Select(c => c.Codigo!).ToList();
-    var casados = new Dictionary<string, Componente>(StringComparer.OrdinalIgnoreCase);
-    if (codigos.Count > 0)
-    {
-      foreach (var existente in await _componentes.ListarPorCodigosAsync(codigos, ct))
-        casados.TryAdd(existente.Codigo, existente);
-    }
-
+    var casados = await CasadosPorCodigoAsync(bom, ct);
     var temFilhos = bom.Filhos.Select(f => f.PaiChave).ToHashSet();
-    var registros = new Dictionary<int, ImportacaoDeEstruturaComponente>();
-    foreach (var c in bom.Componentes)
-    {
-      var registro = new ImportacaoDeEstruturaComponente { CodigoLido = c.Codigo, DescricaoLida = c.Descricao };
-      if (c.Codigo is not null && casados.TryGetValue(c.Codigo, out var casado))
-      {
-        registro.ComponenteId = casado.Id;
-      }
-      else
-      {
-        registro.CodigoNovo = c.Codigo;
-        registro.DescricaoNova = c.Descricao;
-        registro.TipoNovo = temFilhos.Contains(c.Chave) ? TipoMontagem : TipoFabricado;
-      }
-      registros[c.Chave] = registro;
-    }
+    var emUso = new HashSet<int>();
+    var registros = bom.Componentes.ToDictionary(
+        c => c.Chave, c => NovoRegistro(c, temFilhos.Contains(c.Chave), casados, emUso));
 
     foreach (var f in bom.Filhos)
     {
@@ -226,9 +215,47 @@ public sealed class ImportacaoDeEstruturaUseCase
     };
   }
 
+  /// <summary>Os Componentes do catalogo de mesmo codigo que os do BOM; o catalogo ignora a caixa e inclui os inativos.</summary>
+  private async Task<Dictionary<string, Componente>> CasadosPorCodigoAsync(BomMontado bom, CancellationToken ct)
+  {
+    var codigos = bom.Componentes.Where(c => c.Codigo is not null).Select(c => c.Codigo!).ToList();
+    var casados = new Dictionary<string, Componente>(StringComparer.OrdinalIgnoreCase);
+    if (codigos.Count > 0)
+    {
+      foreach (var existente in await _componentes.ListarPorCodigosAsync(codigos, ct))
+        casados.TryAdd(existente.Codigo, existente);
+    }
+    return casados;
+  }
+
+  /// <summary>
+  /// Casa com o Componente de mesmo codigo ou fica "criar novo", ja preenchido com o que o arquivo
+  /// trouxe: o avaliador nao cai mais no codigo lido, entao o preenchimento e obrigatorio. O tipo e
+  /// "Montagem" quando o codigo tem filhos no BOM e "Fabricado" quando nao. <paramref name="emUso"/> sao
+  /// os Componentes que outro registro do rascunho ja tem (o catalogo tem uma receita por Componente,
+  /// entao dois registros nao podem apontar para o mesmo): quem casaria com um deles fica "criar novo".
+  /// </summary>
+  private static ImportacaoDeEstruturaComponente NovoRegistro(
+      ComponenteDoBom c, bool temFilhos, IReadOnlyDictionary<string, Componente> casados, ISet<int> emUso)
+  {
+    var registro = new ImportacaoDeEstruturaComponente { CodigoLido = c.Codigo, DescricaoLida = c.Descricao };
+    if (c.Codigo is not null && casados.TryGetValue(c.Codigo, out var casado) && emUso.Add(casado.Id))
+    {
+      registro.ComponenteId = casado.Id;
+    }
+    else
+    {
+      registro.CodigoNovo = c.Codigo;
+      registro.DescricaoNova = c.Descricao;
+      registro.TipoNovo = temFilhos ? TipoMontagem : TipoFabricado;
+    }
+    return registro;
+  }
+
   /// <summary>
   /// O que o montador nao confere e o banco recusaria como 500: codigo acima de 50 caracteres,
-  /// descricao vazia ou acima de 200 (decisao R6 do controlador do plano). Vale a PRIMEIRA ocorrencia
+  /// descricao vazia ou acima de 200 (estouraria como <c>DbUpdateException</c>, e o usuario veria um 500
+  /// em vez da linha do arquivo). Vale a PRIMEIRA ocorrencia
   /// de cada codigo, que e a que o montador toma como a descricao do registro; cada linha sem codigo e
   /// um registro e e conferida. A descricao da raiz e o nome do arquivo sem extensao e nao tem linha.
   /// </summary>
@@ -275,4 +302,11 @@ public sealed class ImportacaoDeEstruturaUseCase
   private static Result<ImportacaoDto> BomInvalido(IEnumerable<ErroDoBom> erros) =>
       Result<ImportacaoDto>.Falha(
           ErroDeBomInvalido, TipoDeErro.Validacao, string.Join('\n', erros.Select(e => e.ToString())));
+
+  /// <summary>
+  /// Quanto cabe nas colunas de texto (ver o comentario das constantes). Compartilhado com a edicao do
+  /// registro, que tambem escreve nelas.
+  /// </summary>
+  private static string? ExcessoDeTexto(string? texto, int maximo, string oQue) =>
+      texto is not null && texto.Length > maximo ? $"{oQue} passa de {maximo} caracteres." : null;
 }

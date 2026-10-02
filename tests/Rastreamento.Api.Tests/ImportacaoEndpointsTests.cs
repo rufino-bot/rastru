@@ -3,11 +3,16 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
+using Rastreamento.Infrastructure.Importacao;
 using Rastreamento.Infrastructure.Persistence;
 
 namespace Rastreamento.Api.Tests;
@@ -332,6 +337,357 @@ public class ImportacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
     using var escopo = _factory.Services.CreateScope();
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
     Assert.False(await db.ImportacoesDeEstruturaComponentes.AnyAsync(c => c.ImportacaoId == id));
+  }
+
+  // ---------------------------------------------------------------- editar o rascunho
+
+  /// <summary>Cria o rascunho de um CSV e devolve o corpo (com o <c>id</c> e a <c>versao</c> para a proxima escrita).</summary>
+  private async Task<JsonElement> NovoRascunho(HttpClient cliente, params string[] linhas)
+  {
+    var agrupamentoId = await NovoAgrupamento(cliente);
+    var criado = await Enviar(cliente, agrupamentoId, Csv(linhas));
+    Assert.Equal(HttpStatusCode.Created, criado.StatusCode);
+    return await Json(criado);
+  }
+
+  private static string CodigoUnico(string prefixo) => $"{prefixo}-{Guid.NewGuid():N}"[..16].ToUpperInvariant();
+
+  private static int RegistroDe(JsonElement rascunho, string codigoLido) =>
+      rascunho.GetProperty("componentes").EnumerateArray()
+          .Single(c => c.GetProperty("codigoLido").GetString() == codigoLido).GetProperty("registroId").GetInt32();
+
+  private static string VersaoDe(JsonElement rascunho) => rascunho.GetProperty("versao").GetString()!;
+
+  private static int IdDe(JsonElement rascunho) => rascunho.GetProperty("id").GetInt32();
+
+  private static Task<HttpResponseMessage> PutComponente(
+      HttpClient cliente, JsonElement rascunho, int registroId, int? componenteId, string? escolha = null) =>
+      cliente.PutAsJsonAsync(
+          $"/api/importacoes/{IdDe(rascunho)}/componentes/{registroId}",
+          new
+          {
+            versao = VersaoDe(rascunho), componenteId, codigoNovo = (string?)null, descricaoNova = (string?)null,
+            tipoNovo = (string?)null, escolhaDeReceita = escolha,
+          });
+
+  private static async Task<HttpResponseMessage> EnviarSolidoPendente(
+      HttpClient cliente, JsonElement rascunho, int registroId, byte[] conteudo, string nome = "peca.stl")
+  {
+    using var corpo = new MultipartFormDataContent();
+    corpo.Add(new StringContent(VersaoDe(rascunho)), "versao");
+    var arquivo = new ByteArrayContent(conteudo);
+    arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+    corpo.Add(arquivo, "arquivo", nome);
+    return await cliente.PostAsync($"/api/importacoes/{IdDe(rascunho)}/componentes/{registroId}/solido", corpo);
+  }
+
+  private static async Task<HttpResponseMessage> Reenviar(HttpClient cliente, JsonElement rascunho, string csv)
+  {
+    using var corpo = new MultipartFormDataContent();
+    corpo.Add(new StringContent(VersaoDe(rascunho)), "versao");
+    var arquivo = new ByteArrayContent(Encoding.UTF8.GetBytes(csv));
+    arquivo.Headers.ContentType = new MediaTypeHeaderValue("text/csv");
+    corpo.Add(arquivo, "arquivo", "reenviado.csv");
+    return await cliente.PostAsync($"/api/importacoes/{IdDe(rascunho)}/arquivo", corpo);
+  }
+
+  private async Task<int> IdDoPendente(int registroId)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    return (await db.ImportacoesDeEstruturaComponentes.AsNoTracking().SingleAsync(c => c.Id == registroId))
+        .ArquivoSolidoPendenteId!.Value;
+  }
+
+  [Fact]
+  public async Task Put_componente_e_get_refletem_o_casamento_manual()
+  {
+    var cliente = ClienteComo("PCP");
+    var (componenteId, codigo) = await NovoComponente();
+    var codigoNovo = CodigoUnico("NOVO");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigoNovo};Peca nova;1");
+    var registroId = RegistroDe(rascunho, codigoNovo);
+
+    var resposta = await PutComponente(cliente, rascunho, registroId, componenteId);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = await Json(resposta);
+    var situacao = corpo.GetProperty("componentes").EnumerateArray()
+        .Single(c => c.GetProperty("registroId").GetInt32() == registroId);
+    Assert.Equal(componenteId, situacao.GetProperty("componenteId").GetInt32());
+    Assert.Equal(codigo, situacao.GetProperty("codigoDoCatalogo").GetString());
+    Assert.Equal(JsonValueKind.Null, situacao.GetProperty("codigoNovo").ValueKind);
+    Assert.NotEqual(VersaoDe(rascunho), VersaoDe(corpo));
+
+    // O GET le do banco e tem de mostrar o mesmo: o casamento esta gravado, e os campos do novo, limpos.
+    var lido = await Json(await cliente.GetAsync($"/api/importacoes/{IdDe(rascunho)}"));
+    Assert.True(MesmoJson(corpo, lido));
+    Assert.Equal(codigo, lido.GetProperty("raiz").GetProperty("filhos")[0].GetProperty("codigo").GetString());
+  }
+
+  [Fact]
+  public async Task Put_componente_com_escolha_de_receita_grava_a_impressao_e_o_get_devolve_a_escolha()
+  {
+    var cliente = ClienteComo("PCP");
+    var (paiId, paiCodigo) = await NovoComponente();
+    var (filhoDoCatalogoId, _) = await NovoComponente();
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      db.FilhosPadrao.Add(new ComponenteFilhoPadrao
+      {
+        ComponentePaiId = paiId, ComponenteFilhoId = filhoDoCatalogoId, QuantidadePadrao = 2m,
+      });
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      var rascunho = await NovoRascunho(cliente, $"1;{paiCodigo};Pai;1", $"1.1;{CodigoUnico("LIDO")};Filho do BOM;3");
+
+      var resposta = await PutComponente(cliente, rascunho, RegistroDe(rascunho, paiCodigo), paiId, "Catalogo");
+
+      Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+      var situacao = (await Json(resposta)).GetProperty("componentes").EnumerateArray()
+          .Single(c => c.GetProperty("componenteId").ValueKind == JsonValueKind.Number);
+      Assert.True(situacao.GetProperty("divergente").GetBoolean());
+      Assert.Equal("Catalogo", situacao.GetProperty("escolhaDeReceita").GetString());
+      using var escopo = _factory.Services.CreateScope();
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var gravado = await db.ImportacoesDeEstruturaComponentes.AsNoTracking().SingleAsync(c => c.ComponenteId == paiId);
+      Assert.Equal(32, gravado.ImpressaoDaReceitaDoCatalogo!.Length);
+    }
+    finally
+    {
+      // O rascunho e apagado pelo DisposeAsync; a receita de catalogo tem de sair antes dos Componentes dele.
+      using var escopo = _factory.Services.CreateScope();
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      db.FilhosPadrao.RemoveRange(await db.FilhosPadrao.Where(f => f.ComponentePaiId == paiId).ToListAsync());
+      await db.SaveChangesAsync();
+    }
+  }
+
+  [Fact]
+  public async Task Put_peca_e_put_filho_gravam_e_o_get_reflete()
+  {
+    var cliente = ClienteComo("PCP");
+    var rascunho = await NovoRascunho(cliente, $"1;{CodigoUnico("PAI")};Pai;1", $"1.1;{CodigoUnico("FIL")};Filho;2");
+    var id = IdDe(rascunho);
+    var filhoId = rascunho.GetProperty("raiz").GetProperty("filhos")[0].GetProperty("filhos")[0].GetProperty("filhoId").GetInt32();
+
+    var peca = await cliente.PutAsJsonAsync(
+        $"/api/importacoes/{id}", new { versao = VersaoDe(rascunho), quantidadeDaPeca = 4.5m, requerRelatorioDimensional = true });
+    Assert.Equal(HttpStatusCode.OK, peca.StatusCode);
+    var filho = await cliente.PutAsJsonAsync(
+        $"/api/importacoes/{id}/filhos/{filhoId}", new { versao = VersaoDe(await Json(peca)), quantidade = 3.25m });
+    Assert.Equal(HttpStatusCode.OK, filho.StatusCode);
+
+    var lido = await Json(await cliente.GetAsync($"/api/importacoes/{id}"));
+    Assert.Equal(4.5m, lido.GetProperty("quantidadeDaPeca").GetDecimal());
+    Assert.True(lido.GetProperty("requerRelatorioDimensional").GetBoolean());
+    Assert.Equal(3.25m, lido.GetProperty("raiz").GetProperty("filhos")[0].GetProperty("filhos")[0].GetProperty("quantidadePorPai").GetDecimal());
+    var fora = await cliente.PutAsJsonAsync($"/api/importacoes/{id}/filhos/{filhoId}", new { versao = VersaoDe(lido), quantidade = 0m });
+    Assert.Equal(HttpStatusCode.BadRequest, fora.StatusCode);
+  }
+
+  [Fact]
+  public async Task Put_com_versao_velha_responde_409()
+  {
+    var cliente = ClienteComo("PCP");
+    var rascunho = await NovoRascunho(cliente, $"1;{CodigoUnico("VEL")};Peca;1");
+    var id = IdDe(rascunho);
+    var primeira = await cliente.PutAsJsonAsync(
+        $"/api/importacoes/{id}", new { versao = VersaoDe(rascunho), quantidadeDaPeca = 1m, requerRelatorioDimensional = false });
+    Assert.Equal(HttpStatusCode.OK, primeira.StatusCode);
+
+    // A segunda escrita ainda manda a versao que o POST devolveu.
+    var velha = await cliente.PutAsJsonAsync(
+        $"/api/importacoes/{id}", new { versao = VersaoDe(rascunho), quantidadeDaPeca = 2m, requerRelatorioDimensional = false });
+
+    Assert.Equal(HttpStatusCode.Conflict, velha.StatusCode);
+    Assert.Equal("ImportacaoDesatualizada", (await Json(velha)).GetProperty("erro").GetString());
+    var lido = await Json(await cliente.GetAsync($"/api/importacoes/{id}"));
+    Assert.Equal(1m, lido.GetProperty("quantidadeDaPeca").GetDecimal());
+  }
+
+  [Fact]
+  public async Task Post_solido_pendente_e_get_devolve_o_mesmo_binario()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("SOL");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    var cubo = StlDeTesteDaApi.CuboBinario();
+    var url = $"/api/importacoes/{IdDe(rascunho)}/componentes/{registroId}/solido";
+
+    var semPendente = await cliente.GetAsync(url);
+    var enviado = await EnviarSolidoPendente(cliente, rascunho, registroId, cubo, "parafuso.stl");
+
+    Assert.Equal(HttpStatusCode.NotFound, semPendente.StatusCode);
+    Assert.Equal(HttpStatusCode.OK, enviado.StatusCode);
+    var situacao = (await Json(enviado)).GetProperty("componentes").EnumerateArray()
+        .Single(c => c.GetProperty("registroId").GetInt32() == registroId);
+    Assert.True(situacao.GetProperty("temSolidoPendente").GetBoolean());
+    Assert.Equal("parafuso.stl", situacao.GetProperty("nomeDoSolido").GetString());
+    Assert.Equal(cubo.Length, situacao.GetProperty("tamanhoDoSolidoEmBytes").GetInt32());
+    var baixado = await cliente.GetAsync(url);
+    Assert.Equal(HttpStatusCode.OK, baixado.StatusCode);
+    Assert.Equal("application/octet-stream", baixado.Content.Headers.ContentType!.MediaType);
+    Assert.Equal("parafuso.stl", baixado.Content.Headers.ContentDisposition!.FileName?.Trim('"'));
+    Assert.Equal(cubo, await baixado.Content.ReadAsByteArrayAsync());
+  }
+
+  [Fact]
+  public async Task Post_solido_pendente_que_substitui_apaga_o_arquivo_anterior_do_banco()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("SUB");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    var primeiro = await Json(await EnviarSolidoPendente(cliente, rascunho, registroId, StlDeTesteDaApi.CuboBinario(), "um.stl"));
+    var idDoPrimeiro = await IdDoPendente(registroId);
+
+    var segundo = await EnviarSolidoPendente(cliente, primeiro, registroId, StlDeTesteDaApi.CuboBinario(), "dois.stl");
+
+    Assert.Equal(HttpStatusCode.OK, segundo.StatusCode);
+    var idDoSegundo = await IdDoPendente(registroId);
+    Assert.NotEqual(idDoPrimeiro, idDoSegundo);
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.False(await db.ArquivosDeComponente.AnyAsync(a => a.Id == idDoPrimeiro));
+    Assert.True(await db.ArquivosDeComponente.AnyAsync(a => a.Id == idDoSegundo));
+  }
+
+  [Fact]
+  public async Task Post_solido_pendente_invalido_responde_400_com_a_mensagem_do_validador()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("INV");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+
+    var resposta = await EnviarSolidoPendente(cliente, rascunho, RegistroDe(rascunho, codigo), StlDeTesteDaApi.Invalido());
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    Assert.Equal(
+        ValidadorDeArquivoStl.Validar("peca.stl", StlDeTesteDaApi.Invalido()),
+        (await Json(resposta)).GetProperty("erro").GetString());
+  }
+
+  /// <summary>
+  /// Conteudo lixo (zeros) um byte acima do teto: quem recusa aqui e o VALIDADOR, e nao o
+  /// <c>RequestSizeLimit</c> -- o <c>TestServer</c> nao exercita o limite do Kestrel (medido no teste
+  /// de limite de <c>SolidoEndpointsTests</c>), e e por isso que o teste seguinte confere so a DECLARACAO.
+  /// </summary>
+  [Fact]
+  public async Task Post_solido_pendente_acima_do_limite_e_recusado()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("GDE");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+
+    var resposta = await EnviarSolidoPendente(
+        cliente, rascunho, RegistroDe(rascunho, codigo), new byte[ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 1]);
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    Assert.Contains("16 MiB", (await Json(resposta)).GetProperty("erro").GetString());
+  }
+
+  [Fact]
+  public void RequestSizeLimit_dos_dois_envios_e_o_do_arquivo_mais_a_margem_do_multipart()
+  {
+    using var factory = new WebApplicationFactory<Program>();
+    var fonte = factory.Services.GetRequiredService<EndpointDataSource>();
+
+    long LimiteDe(string rota) =>
+        fonte.Endpoints.OfType<RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == rota
+                && (e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("POST") ?? false))
+            .Metadata.GetMetadata<IRequestSizeLimitMetadata>()!.MaxRequestBodySize!.Value;
+
+    // 4096 espelha `ImportacaoController.MargemDoCorpoMultipartEmBytes` (privada); acompanha se ela mudar.
+    Assert.Equal(
+        ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 4096, LimiteDe("importacoes/{id:int}/componentes/{registroId:int}/solido"));
+    Assert.Equal(LeitorDeBom.TamanhoMaximoEmBytes + 4096, LimiteDe("importacoes/{id:int}/arquivo"));
+  }
+
+  [Fact]
+  public async Task Reimport_com_csv_invalido_responde_400_e_nao_altera_o_rascunho()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("REI");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var id = IdDe(rascunho);
+    var antes = await (await cliente.GetAsync($"/api/importacoes/{id}")).Content.ReadAsStringAsync();
+
+    var resposta = await Reenviar(cliente, rascunho, Csv($"1;{codigo};Peca;abc", "2;OUTRO;Outra;x"));
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = await Json(resposta);
+    Assert.Equal("BomInvalido", corpo.GetProperty("erro").GetString());
+    Assert.Equal(2, corpo.GetProperty("mensagem").GetString()!.Split('\n').Length);
+    Assert.Equal(antes, await (await cliente.GetAsync($"/api/importacoes/{id}")).Content.ReadAsStringAsync());
+  }
+
+  [Fact]
+  public async Task Reimport_valido_troca_as_receitas_e_preserva_por_codigo_no_banco_de_verdade()
+  {
+    var cliente = ClienteComo("PCP");
+    var (componenteId, _) = await NovoComponente();
+    var a = CodigoUnico("A");
+    var b = CodigoUnico("B");
+    var c = CodigoUnico("C");
+    var d = CodigoUnico("D");
+    var rascunho = await NovoRascunho(cliente, $"1;{a};Peca A;1", $"1.1;{b};Filho B;2", $"2;{c};Peca C;3");
+    var idDeA = RegistroDe(rascunho, a);
+    var idDeB = RegistroDe(rascunho, b);
+    var idDeC = RegistroDe(rascunho, c);
+    // A fica casado a mao com um Componente do catalogo e ganha solido pendente; B, que vai sair, tambem tem pendente.
+    var casado = await Json(await PutComponente(cliente, rascunho, idDeA, componenteId));
+    var comSolidoDeA = await Json(await EnviarSolidoPendente(cliente, casado, idDeA, StlDeTesteDaApi.CuboBinario(), "a.stl"));
+    var comSolidoDeB = await Json(await EnviarSolidoPendente(cliente, comSolidoDeA, idDeB, StlDeTesteDaApi.CuboBinario(), "b.stl"));
+    var pendenteDeA = await IdDoPendente(idDeA);
+    var pendenteDeB = await IdDoPendente(idDeB);
+
+    // B e C saem do arquivo, e D entra sob A.
+    var resposta = await Reenviar(cliente, comSolidoDeB, Csv($"1;{a};Peca A;1", $"1.1;{d};Filho D;5"));
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var corpo = await Json(resposta);
+    Assert.Equal("reenviado.csv", corpo.GetProperty("nomeDoArquivo").GetString());
+    var codigos = corpo.GetProperty("componentes").EnumerateArray().Select(x => x.GetProperty("codigoLido").GetString()).ToList();
+    Assert.Equal(3, codigos.Count);
+    Assert.Contains(a, codigos);
+    Assert.Contains(d, codigos);
+    Assert.DoesNotContain(b, codigos);
+    var emA = corpo.GetProperty("componentes").EnumerateArray().Single(x => x.GetProperty("codigoLido").GetString() == a);
+    Assert.Equal(
+        (idDeA, componenteId, true),
+        (emA.GetProperty("registroId").GetInt32(), emA.GetProperty("componenteId").GetInt32(), emA.GetProperty("temSolidoPendente").GetBoolean()));
+    var filhoDeA = corpo.GetProperty("raiz").GetProperty("filhos")[0].GetProperty("filhos")[0];
+    Assert.Equal((d, 5m), (filhoDeA.GetProperty("codigo").GetString(), filhoDeA.GetProperty("quantidadePorPai").GetDecimal()));
+    Assert.True(MesmoJson(corpo, await Json(await cliente.GetAsync($"/api/importacoes/{IdDe(rascunho)}"))));
+
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.False(await db.ImportacoesDeEstruturaComponentes.AnyAsync(x => x.Id == idDeB || x.Id == idDeC));
+    Assert.False(await db.ArquivosDeComponente.AnyAsync(x => x.Id == pendenteDeB));
+    Assert.True(await db.ArquivosDeComponente.AnyAsync(x => x.Id == pendenteDeA));
+    Assert.Equal(1, await db.ImportacoesDeEstruturaFilhos.CountAsync(x => x.PaiId == idDeA));
+  }
+
+  /// <summary>Par negativo dos testes de edicao, que rodam como PCP: toda rota nova de escrita recusa o Operador.</summary>
+  [Fact]
+  public async Task Operador_recebe_403_em_toda_escrita_de_edicao()
+  {
+    var cliente = ClienteComo("Operador");
+    var rascunho = JsonDocument.Parse("""{"id":999999,"versao":"AAAAAAAAB9E="}""").RootElement;
+    var corpoJson = new { versao = "AAAAAAAAB9E=", quantidadeDaPeca = 1m, requerRelatorioDimensional = false };
+
+    Assert.Equal(HttpStatusCode.Forbidden, (await cliente.PutAsJsonAsync("/api/importacoes/999999", corpoJson)).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await cliente.PutAsJsonAsync("/api/importacoes/999999/componentes/1", corpoJson)).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await cliente.PutAsJsonAsync("/api/importacoes/999999/filhos/1", corpoJson)).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await EnviarSolidoPendente(cliente, rascunho, 1, StlDeTesteDaApi.CuboBinario())).StatusCode);
+    Assert.Equal(HttpStatusCode.Forbidden, (await Reenviar(cliente, rascunho, Csv("1;A-1;Peca A;1"))).StatusCode);
   }
 
   // ---------------------------------------------------------------- perfil

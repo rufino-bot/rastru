@@ -58,8 +58,60 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
     return Task.CompletedTask;
   }
 
-  public Task SalvarAsync(ImportacaoDeEstrutura importacao, byte[] versaoEsperada, CancellationToken ct) =>
-      throw new NotSupportedException();
+  /// <summary>Quantas vezes o caso de uso chegou ao <c>SalvarAsync</c>: erro de validacao nao deve chegar.</summary>
+  public int Salvamentos { get; private set; }
+
+  /// <summary>
+  /// Simula a corrida que o banco acusa: outra requisicao salvou entre a leitura e o salvamento, e o
+  /// <c>SalvarAsync</c> lanca o conflito mesmo com a versao do corpo igual a que o caso de uso leu.
+  /// </summary>
+  public bool PerderACorridaNoSalvamento { get; set; }
+
+  private readonly List<ImportacaoDeEstruturaComponente> _registrosParaRemover = [];
+  private readonly List<ImportacaoDeEstruturaFilho> _filhosParaRemover = [];
+
+  public void RemoverRegistros(IEnumerable<ImportacaoDeEstruturaComponente> registros) =>
+      _registrosParaRemover.AddRange(registros);
+
+  public void RemoverFilhos(IEnumerable<ImportacaoDeEstruturaFilho> filhos) =>
+      _filhosParaRemover.AddRange(filhos);
+
+  /// <summary>
+  /// Imita o <c>SalvarAsync</c> real: confere a versao (a mesma instancia e a "rastreada", e o caso de
+  /// uso nunca mexe em <c>Versao</c>), aplica as exclusoes marcadas (que o EF tambem tira das colecoes),
+  /// da Id ao que entrou, resolve <c>PaiId</c>/<c>FilhoId</c> pelas navegacoes e troca a versao.
+  /// </summary>
+  public Task SalvarAsync(ImportacaoDeEstrutura importacao, byte[] versaoEsperada, CancellationToken ct)
+  {
+    if (PerderACorridaNoSalvamento || !importacao.Versao.AsSpan().SequenceEqual(versaoEsperada))
+      throw new ConflitoDeConcorrenciaException(new InvalidOperationException("versao velha"));
+
+    Salvamentos++;
+    foreach (var filho in _filhosParaRemover)
+    foreach (var registro in importacao.Componentes)
+      registro.Filhos.Remove(filho);
+    importacao.Componentes.RemoveAll(_registrosParaRemover.Contains);
+    _filhosParaRemover.Clear();
+    _registrosParaRemover.Clear();
+
+    foreach (var registro in importacao.Componentes.Where(c => c.Id == 0))
+    {
+      registro.Id = _proximoId++;
+      registro.ImportacaoId = importacao.Id;
+    }
+    foreach (var registro in importacao.Componentes)
+    foreach (var filho in registro.Filhos.Where(f => f.Id == 0))
+    {
+      filho.Id = _proximoId++;
+      filho.PaiId = registro.Id;
+      if (filho.Filho is not null)
+        filho.FilhoId = filho.Filho.Id;
+    }
+
+    importacao.AtualizadoEm = importacao.AtualizadoEm.AddMinutes(1);
+    importacao.Versao = BitConverter.GetBytes((long)_proximaVersao++);
+    return Task.CompletedTask;
+  }
 
   public Task ExcluirAsync(int id, CancellationToken ct)
   {
@@ -77,11 +129,22 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
 
   public Task<string> ObterNomeDoAutorAsync(int usuarioId, CancellationToken ct) => Task.FromResult(NomeDoAutor);
 
-  public Task<int> GravarArquivoPendenteAsync(ArquivoDeComponente arquivo, CancellationToken ct) =>
-      throw new NotSupportedException();
+  /// <summary>Os arquivos que o caso de uso gravou (solido pendente), com o blob, chaveados pelo Id.</summary>
+  public Dictionary<int, ArquivoDeComponente> ArquivosGravados { get; } = [];
+
+  /// <summary>Os Ids que <see cref="ExcluirArquivosAsync"/> recebeu, na ordem das chamadas.</summary>
+  public List<int> ArquivosExcluidos { get; } = [];
+
+  public Task<int> GravarArquivoPendenteAsync(ArquivoDeComponente arquivo, CancellationToken ct)
+  {
+    arquivo.Id = _proximoId++;
+    ArquivosGravados[arquivo.Id] = arquivo;
+    Arquivos[arquivo.Id] = new MetadadoDeSolido(arquivo.NomeOriginal, arquivo.Conteudo.Length);
+    return Task.FromResult(arquivo.Id);
+  }
 
   public Task<ArquivoDeComponente?> ObterArquivoAsync(int arquivoId, CancellationToken ct) =>
-      throw new NotSupportedException();
+      Task.FromResult(ArquivosGravados.GetValueOrDefault(arquivoId));
 
   public Task<IReadOnlyDictionary<int, MetadadoDeSolido>> ObterMetadadosAsync(
       IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
@@ -91,8 +154,16 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
         Arquivos.Where(a => arquivoIds.Contains(a.Key)).ToDictionary(a => a.Key, a => a.Value));
   }
 
-  public Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct) =>
-      throw new NotSupportedException();
+  public Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
+  {
+    foreach (var id in arquivoIds)
+    {
+      ArquivosExcluidos.Add(id);
+      ArquivosGravados.Remove(id);
+      Arquivos.Remove(id);
+    }
+    return Task.CompletedTask;
+  }
 }
 
 /// <summary>

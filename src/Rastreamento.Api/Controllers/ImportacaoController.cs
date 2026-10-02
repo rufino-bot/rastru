@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Importacao;
 using Rastreamento.Infrastructure.Importacao;
@@ -59,6 +60,65 @@ public class ImportacaoController : ControllerBase
   [HttpGet("importacoes/{id:int}")]
   public async Task<IActionResult> Obter(int id, CancellationToken ct) =>
       Traduzir(await _importacao.Obter(id, ct));
+
+  [HttpPut("importacoes/{id:int}")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> AlterarPeca(int id, AlteracaoDaPecaDto dto, CancellationToken ct) =>
+      Traduzir(await _importacao.AlterarPeca(id, dto, ct));
+
+  [HttpPut("importacoes/{id:int}/componentes/{registroId:int}")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> AlterarComponente(
+      int id, int registroId, AlteracaoDeComponenteDto dto, CancellationToken ct) =>
+      Traduzir(await _importacao.AlterarComponente(id, registroId, dto, ct));
+
+  [HttpPut("importacoes/{id:int}/filhos/{filhoId:int}")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> AlterarFilho(int id, int filhoId, AlteracaoDeFilhoDto dto, CancellationToken ct) =>
+      Traduzir(await _importacao.AlterarFilho(id, filhoId, dto, ct));
+
+  /// <summary>
+  /// Solido pendente de um registro. Multipart com o arquivo e o campo <c>versao</c> (decisao P14 do plano
+  /// do import). O limite do corpo e o do solido do Componente mais a mesma margem multipart, pelo mesmo
+  /// motivo: <c>[RequestSizeLimit]</c> mede o corpo inteiro, e um STL de exatos 16 MiB, que o validador
+  /// aceita, nao pode ser recusado antes de chegar a ele.
+  /// </summary>
+  [HttpPost("importacoes/{id:int}/componentes/{registroId:int}/solido")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
+  public async Task<IActionResult> EnviarSolido(
+      int id, int registroId, [FromForm] string versao, IFormFile arquivo, CancellationToken ct)
+  {
+    var usuarioId = UsuarioDaSessao();
+    if (usuarioId is null) return Unauthorized();
+
+    using var memoria = new MemoryStream();
+    await arquivo.CopyToAsync(memoria, ct);
+
+    return Traduzir(await _importacao.EnviarSolidoPendente(
+        id, registroId, versao, arquivo.FileName, memoria.ToArray(), usuarioId.Value, ct));
+  }
+
+  /// <summary>Leitura: sem <c>Roles</c>, como o <c>GET</c> do solido do Componente. Serve o download e o visualizador.</summary>
+  [HttpGet("importacoes/{id:int}/componentes/{registroId:int}/solido")]
+  public async Task<IActionResult> ObterSolido(int id, int registroId, CancellationToken ct)
+  {
+    var r = await _importacao.ObterSolidoPendente(id, registroId, ct);
+    if (!r.Sucesso) return NotFound();
+    return File(r.Valor!.Conteudo, "application/octet-stream", r.Valor.NomeOriginal);
+  }
+
+  /// <summary>Reimporta: o arquivo novo no lugar do lido, mais o campo <c>versao</c>. Limite do arquivo do BOM.</summary>
+  [HttpPost("importacoes/{id:int}/arquivo")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  [RequestSizeLimit(LeitorDeBom.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
+  public async Task<IActionResult> Reimportar(int id, [FromForm] string versao, IFormFile arquivo, CancellationToken ct)
+  {
+    using var memoria = new MemoryStream();
+    await arquivo.CopyToAsync(memoria, ct);
+
+    return Traduzir(await _importacao.Reimportar(id, versao, arquivo.FileName, memoria.ToArray(), ct));
+  }
 
   [HttpDelete("importacoes/{id:int}")]
   [Authorize(Roles = PerfisDeEscrita)]
