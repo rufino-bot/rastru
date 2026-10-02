@@ -42,14 +42,18 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são duas. A
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são três. A
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
 da 3C em relação à Fase 6 **não está decidida**. Depois da 3D, a ordem é: filtros da demanda (a fila
 do Setor, as Tarefas e a lista de Pedidos, mais a ação em lote) → Fase 1F → Fase 3B (decisão de
 2026-09-28, oficializada em 2026-09-29; ver a nota "Ordem depois da 3D" na seção "Fase 3D" e a seção
-"Filtros da demanda e ação em lote" de `06-roadmap-mvp.md`).
+"Filtros da demanda e ação em lote" de `06-roadmap-mvp.md`). A terceira: o **import da estrutura a
+partir do CAD (BOM)**, que era "fora das fases", executa **depois da 1F e antes da 3B** (decisão de
+2026-10-02, porque a 3B mexe em montagem e o import não depende dela; ver a seção «Import da estrutura
+a partir do CAD» de `06-roadmap-mvp.md` e a spec
+`docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 

@@ -2,7 +2,10 @@
 
 Data: 2026-10-02. Branch: `claude/eloquent-ritchie-ubtsh8`, a partir da `main` em `c329d6b` (merge do
 rufino-bot/rastru#30). Desenho aprovado pelo usuário em chat na mesma data, seção a seção (as cinco
-seções da conversa viraram as seções 3 a 9 abaixo). **Texto da spec aguardando revisão do usuário.**
+seções da conversa viraram as seções 3 a 9 abaixo). Texto da spec aprovado pelo usuário na mesma
+data ("pode seguir os 3 passos em ordem"), incluindo as decisões tomadas na escrita que a mensagem de
+entrega destacou (o 409 da seção 3, o pendente apagado no reimport, o ciclo no catálogo como bloqueio,
+as duas saídas do risco da seção 7).
 
 **Ponto de partida, que esta spec não re-decide.** A seção "Fora das fases — importar a estrutura a
 partir do CAD (decidido em 2026-08-04)" de `specs/06-roadmap-mvp.md` e o apêndice "viabilidade de
@@ -341,7 +344,9 @@ plano não travar; o arquivo confirma ou derruba, e o que cair vira emenda curta
 
 ## 11. Ajustes de documentação
 
-**Antes do plano** (oficializam a exceção de ordem, D14):
+**Antes do plano** (oficializam a exceção de ordem, D14) — **feitos em 2026-10-02**, no commit
+seguinte ao da spec; a seção de `06` passou a se chamar «Import da estrutura a partir do CAD (decidido
+em 2026-08-04; executa antes da 3B)», e a regra do schema foi para o cabeçalho de `06`:
 
 - `specs/06-roadmap-mvp.md`: a seção "Fora das fases — importar a estrutura a partir do CAD" deixa de
   ser "fora das fases" e passa a apontar esta spec, com a posição **antes da 3B**; a frase "Não muda o
