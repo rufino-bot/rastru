@@ -50,8 +50,7 @@ public static class AvaliadorDeImportacao
 {
   private const string TipoBruto = "Bruto";
 
-  private const string MensagemDeQuantidadeExcessiva =
-      "A quantidade, multiplicada pela receita, passa do que o sistema suporta.";
+  private static readonly CultureInfo CulturaDaTela = CultureInfo.GetCultureInfo("pt-BR");
 
   /// <summary>
   /// Os Ids positivos que a avaliacao le do catalogo: os alcancados na sobreposicao, os casados
@@ -82,7 +81,7 @@ public static class AvaliadorDeImportacao
       bloqueios.Add(new BloqueioDto(BloqueioQuantidadeDaPecaAusente, null, null, "Informe a quantidade da Peça."));
     bloqueios.AddRange(BloqueiosDaArvoreFinal(s, c));
 
-    var (plano, recusa) = Expandir(s, r.QuantidadeDaPeca ?? 1m);
+    var (plano, recusa) = Expandir(s, c, r.QuantidadeDaPeca ?? 1m);
     if (recusa is not null)
       bloqueios.Add(recusa);
 
@@ -104,27 +103,53 @@ public static class AvaliadorDeImportacao
   }
 
   /// <summary>
-  /// O mesmo tratamento de <c>MontagemDeEstruturaUseCase.PlanejarCopiaDoCatalogo</c>: o erro do
-  /// planejador vira bloqueio com o codigo e a frase dele, e as duas excecoes de quantidade viram
-  /// <see cref="ValoresDaConferencia.BloqueioQuantidadeForaDaFaixa"/>.
+  /// As mesmas saidas de <c>MontagemDeEstruturaUseCase.PlanejarCopiaDoCatalogo</c> (o erro do planejador,
+  /// <c>OverflowException</c> e <see cref="QuantidadeForaDaColunaException"/>), mas com a frase escrita
+  /// aqui, e nao a do planejador: aquela nomeia por Id interno (o negativo do Componente novo
+  /// inclusive), nao tem acento, e para o ciclo manda corrigir o catalogo quando o ciclo pode vir de uma
+  /// escolha do rascunho. A tela nomeia por codigo, como a arvore. Do planejador fica o codigo do erro.
   /// </summary>
-  private static (NoPlanejado? Plano, BloqueioDto? Recusa) Expandir(SobreposicaoDaImportacao s, decimal quantidade)
+  private static (NoPlanejado? Plano, BloqueioDto? Recusa) Expandir(
+      SobreposicaoDaImportacao s, CatalogoParaAvaliacao c, decimal quantidade)
   {
     try
     {
       var plano = PlanejadorDeCopia.Planejar(s.Receita, s.RaizId, quantidade);
       return plano.Erro is null
           ? (plano.Raiz, null)
-          : (null, new BloqueioDto(plano.CodigoDoErro!, null, null, plano.Erro));
+          : (null, new BloqueioDto(plano.CodigoDoErro!, null, null, MensagemDeEstrutura(plano.CodigoDoErro!, s, c)));
     }
-    catch (OverflowException)
+    catch (Exception e) when (e is OverflowException or QuantidadeForaDaColunaException)
     {
-      return (null, new BloqueioDto(BloqueioQuantidadeForaDaFaixa, null, null, MensagemDeQuantidadeExcessiva));
+      return (null, new BloqueioDto(BloqueioQuantidadeForaDaFaixa, null, null, MensagemDeQuantidade(s, c, quantidade)));
     }
-    catch (QuantidadeForaDaColunaException e)
-    {
-      return (null, new BloqueioDto(BloqueioQuantidadeForaDaFaixa, null, null, e.Message));
-    }
+  }
+
+  private static string MensagemDeEstrutura(string codigoDoErro, SobreposicaoDaImportacao s, CatalogoParaAvaliacao c) =>
+      codigoDoErro switch
+      {
+        PlanejadorDeCopia.CodigoDeCiclo when s.CaminhoDoCiclo() is { } ciclo =>
+            $"A receita resultante teria um ciclo: {string.Join(" → ", ciclo.Select(id => Rotulo(id, s, c)))}.",
+        PlanejadorDeCopia.CodigoDeCiclo => "A receita resultante teria um ciclo.",
+        PlanejadorDeCopia.CodigoDeProfundidade =>
+            $"A estrutura resultante passa de {PlanejadorDeCopia.ProfundidadeMaxima} níveis de profundidade.",
+        PlanejadorDeCopia.CodigoDeTamanho =>
+            $"A estrutura resultante passa de {PlanejadorDeCopia.NosMaximos} itens.",
+        _ => "A estrutura resultante não pode ser montada.",
+      };
+
+  private static string MensagemDeQuantidade(SobreposicaoDaImportacao s, CatalogoParaAvaliacao c, decimal quantidadeDaRaiz)
+  {
+    const string Conselho = "Revise a quantidade da Peça ou as quantidades da receita.";
+    if (s.PrimeiraQuantidadeForaDaFaixa(quantidadeDaRaiz) is not { } achado)
+      return $"Uma quantidade calculada fica fora da faixa que o sistema guarda. {Conselho}";
+    var (id, emMaterial, quantidade) = achado;
+
+    var oQue = emMaterial ? $"um material de {Rotulo(id, s, c)}" : Rotulo(id, s, c);
+    var valor = quantidade is decimal q ? $" ({q.ToString(CulturaDaTela)})" : string.Empty;
+    return $"A quantidade calculada para {oQue}{valor} fica fora da faixa que o sistema guarda "
+        + $"(de {PlanejadorDeCopia.QuantidadeMinimaDaColuna.ToString(CulturaDaTela)} a "
+        + $"{PlanejadorDeCopia.QuantidadeMaximaDaColuna.ToString(CulturaDaTela)}). {Conselho}";
   }
 
   /// <summary>Em pre-ordem da arvore final, e por registro: codigo, divergencia, solido.</summary>
@@ -137,7 +162,7 @@ public static class AvaliadorDeImportacao
       var registro = s.RegistroDoId(id);
       if (id < 0 && registro is not null)
       {
-        var codigo = registro.CodigoNovo?.Trim() ?? string.Empty;
+        var codigo = CodigoDoNovo(registro);
         if (codigo.Length == 0)
           bloqueios.Add(new BloqueioDto(BloqueioCodigoVazio, registro.Id, null,
               $"O componente novo \"{DescricaoDoNovo(registro)}\" está sem código."));
@@ -154,7 +179,7 @@ public static class AvaliadorDeImportacao
         bloqueios.Add(new BloqueioDto(BloqueioDivergenciaSemEscolha, registro.Id, id,
             $"A receita de {Nome(id, s, c).Codigo} no catálogo é diferente da lida do BOM: escolha qual manter."));
 
-      if (PrecisaDeSolido(id, registro, c))
+      if (PrecisaDeSolido(id, registro, s, c))
         bloqueios.Add(new BloqueioDto(BloqueioSemSolido, registro?.Id, id > 0 ? id : null,
             $"O componente {Rotulo(id, s, c)} precisa de sólido."));
     }
@@ -189,20 +214,24 @@ public static class AvaliadorDeImportacao
       pendencias.Add(PendenciaInativo);
     if (registro is not null && s.Diverge(registro))
       pendencias.Add(PendenciaDivergente);
-    if (PrecisaDeSolido(id, registro, c))
+    if (PrecisaDeSolido(id, registro, s, c))
       pendencias.Add(PendenciaSemSolido);
     return pendencias;
   }
 
   /// <summary>
   /// D3 da spec do import: todo Componente nao-<c>Bruto</c> da arvore final precisa de solido, o do
-  /// catalogo ou o pendente do rascunho. O tipo do novo e o <c>TipoNovo</c>; sem ele, exige.
+  /// catalogo ou o pendente do rascunho. O tipo do novo e o <c>TipoNovo</c>; sem ele, exige. A raiz
+  /// precisa sempre, qualquer que seja o tipo: e a Peca, e a regra 18 (cobrada hoje por
+  /// <c>MontagemDeEstruturaUseCase.CriarPeca</c>) nao isenta o <c>Bruto</c>. D3 estende a exigencia a
+  /// arvore, nao a afrouxa na raiz.
   /// </summary>
-  private static bool PrecisaDeSolido(int id, ImportacaoDeEstruturaComponente? registro, CatalogoParaAvaliacao c)
+  private static bool PrecisaDeSolido(
+      int id, ImportacaoDeEstruturaComponente? registro, SobreposicaoDaImportacao s, CatalogoParaAvaliacao c)
   {
     var componente = id > 0 ? ComponenteDoCatalogo(id, c) : null;
     var tipo = componente?.Tipo ?? registro?.TipoNovo;
-    if (tipo == TipoBruto)
+    if (tipo == TipoBruto && id != s.RaizId)
       return false;
     return componente?.ArquivoSolidoId is null && registro?.ArquivoSolidoPendenteId is null;
   }
@@ -288,8 +317,8 @@ public static class AvaliadorDeImportacao
 
   /// <summary>
   /// Codigo e descricao com que a tela mostra um Id: o do catalogo para um positivo (regra 3 da secao
-  /// 5.1 da spec do import); o "criar novo" do registro para um negativo, caindo no lido enquanto o
-  /// novo estiver vazio.
+  /// 5.1 da spec do import); o "criar novo" do registro para um negativo, com o codigo aparado como
+  /// os bloqueios o veem (so espacos e codigo vazio).
   /// </summary>
   private static (string Codigo, string Descricao) Nome(int id, SobreposicaoDaImportacao s, CatalogoParaAvaliacao c)
   {
@@ -299,8 +328,12 @@ public static class AvaliadorDeImportacao
       return (componente.Codigo, componente.Descricao);
     }
     var registro = s.RegistroDoId(id)!;
-    return (registro.CodigoNovo ?? registro.CodigoLido ?? string.Empty, DescricaoDoNovo(registro));
+    return (CodigoDoNovo(registro), DescricaoDoNovo(registro));
   }
+
+  /// <summary>O codigo que o Componente novo teria: aparado, e vazio quando nao ha.</summary>
+  private static string CodigoDoNovo(ImportacaoDeEstruturaComponente registro) =>
+      registro.CodigoNovo?.Trim() ?? string.Empty;
 
   private static string DescricaoDoNovo(ImportacaoDeEstruturaComponente registro) =>
       string.IsNullOrWhiteSpace(registro.DescricaoNova) ? registro.DescricaoLida : registro.DescricaoNova;

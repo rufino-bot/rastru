@@ -141,6 +141,94 @@ internal sealed class SobreposicaoDaImportacao
     caminho.Remove(id);
   }
 
+  /// <summary>
+  /// Um ciclo alcancavel da raiz, fechado no Id em que comeca (<c>[a, b, a]</c>), ou nulo. Busca propria,
+  /// e nao o caminho que o planejador poe na frase dele: aquela frase traz Ids internos (os negativos
+  /// do Componente novo inclusive), e a tela nomeia por codigo. DFS com tres cores, O(nos + arestas):
+  /// um Id ja terminado nao tem ciclo alcancavel que nao tenha sido achado antes. Com mais de um ciclo,
+  /// o achado e o primeiro na ordem das receitas, a mesma em que o planejador desce.
+  /// </summary>
+  public IReadOnlyList<int>? CaminhoDoCiclo()
+  {
+    var caminho = new List<int>();
+    var noCaminho = new HashSet<int>();
+    var terminados = new HashSet<int>();
+    return AcharCiclo(RaizId, caminho, noCaminho, terminados);
+  }
+
+  private List<int>? AcharCiclo(int id, List<int> caminho, HashSet<int> noCaminho, HashSet<int> terminados)
+  {
+    if (noCaminho.Contains(id))
+      return [.. caminho.Skip(caminho.IndexOf(id)), id];
+    if (terminados.Contains(id))
+      return null;
+
+    caminho.Add(id);
+    noCaminho.Add(id);
+    foreach (var f in Receita.Filhos[id])
+    {
+      if (AcharCiclo(f.FilhoId, caminho, noCaminho, terminados) is { } ciclo)
+        return ciclo;
+    }
+    caminho.RemoveAt(caminho.Count - 1);
+    noCaminho.Remove(id);
+    terminados.Add(id);
+    return null;
+  }
+
+  /// <summary>
+  /// A primeira quantidade que a expansao calcularia fora da faixa da coluna, na mesma ordem do
+  /// planejador (o no, os filhos dele, os materiais dele). Existe porque a excecao do planejador nomeia
+  /// por Id, e a tela nomeia por codigo. <c>Quantidade</c> nula e o produto que nem cabe no tipo
+  /// <c>decimal</c>. Para num Id repetido no caminho (o ciclo e outro bloqueio) e depois de
+  /// <see cref="PlanejadorDeCopia.NosMaximos"/> nos, como o planejador.
+  /// </summary>
+  public (int ComponenteId, bool EmMaterial, decimal? Quantidade)? PrimeiraQuantidadeForaDaFaixa(decimal quantidadeDaRaiz)
+  {
+    var nos = 0;
+    return ProcurarForaDaFaixa(RaizId, quantidadeDaRaiz, [], ref nos);
+  }
+
+  private (int, bool, decimal?)? ProcurarForaDaFaixa(int id, decimal? quantidade, HashSet<int> caminho, ref int nos)
+  {
+    if (ForaDaFaixa(quantidade))
+      return (id, false, quantidade);
+    if (++nos > PlanejadorDeCopia.NosMaximos || !caminho.Add(id))
+      return null;
+
+    foreach (var f in Receita.Filhos[id])
+    {
+      if (ProcurarForaDaFaixa(f.FilhoId, Multiplicar(quantidade!.Value, f.QuantidadePadrao), caminho, ref nos) is { } achado)
+        return achado;
+    }
+    caminho.Remove(id);
+
+    foreach (var m in Receita.Materiais[id])
+    {
+      var doMaterial = Multiplicar(quantidade!.Value, m.QuantidadePadrao);
+      if (ForaDaFaixa(doMaterial))
+        return (id, true, doMaterial);
+    }
+    return null;
+  }
+
+  private static bool ForaDaFaixa(decimal? quantidade) =>
+      quantidade is not decimal q
+      || q > PlanejadorDeCopia.QuantidadeMaximaDaColuna
+      || q < PlanejadorDeCopia.QuantidadeMinimaDaColuna;
+
+  private static decimal? Multiplicar(decimal a, decimal b)
+  {
+    try
+    {
+      return a * b;
+    }
+    catch (OverflowException)
+    {
+      return null;
+    }
+  }
+
   private bool RepresentaOId(ImportacaoDeEstruturaComponente registro, int id) =>
       id < 0 || _porComponente[id].Id == registro.Id;
 

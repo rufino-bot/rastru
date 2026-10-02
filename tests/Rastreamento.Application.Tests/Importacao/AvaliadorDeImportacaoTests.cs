@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Rastreamento.Application.Estrutura;
@@ -19,6 +20,7 @@ public class AvaliadorDeImportacaoTests
     private readonly Dictionary<int, Componente> _componentes = [];
     private readonly List<(int Pai, int Filho, decimal Qtd)> _receita = [];
     private readonly Dictionary<int, MetadadoDeSolido> _solidos = [];
+    private readonly List<(int Componente, int Material, decimal Qtd)> _materiais = [];
 
     public ImportacaoDeEstrutura Rascunho { get; } = new() { Id = 1, QuantidadeDaPeca = 1m };
 
@@ -99,13 +101,15 @@ public class AvaliadorDeImportacaoTests
 
     public void ReceitaDoCatalogo(int pai, int filho, decimal qtd) => _receita.Add((pai, filho, qtd));
 
+    public void MaterialDoCatalogo(int componente, int material, decimal qtd) => _materiais.Add((componente, material, qtd));
+
     public void Solido(int arquivoId, string nome, int tamanho) => _solidos[arquivoId] = new MetadadoDeSolido(nome, tamanho);
 
     public HashSet<string> CodigosExistentes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public ReceitaDoCatalogo Receita() => new(
         _receita.ToLookup(r => r.Pai, r => (r.Filho, r.Qtd)),
-        Array.Empty<(int, int, decimal)>().ToLookup(m => m.Item1, m => (m.Item2, m.Item3)),
+        _materiais.ToLookup(m => m.Componente, m => (m.Material, m.Qtd)),
         Array.Empty<(int, int, int)>().ToLookup(r => r.Item1, r => (r.Item2, r.Item3)));
 
     public AvaliacaoDeImportacao Avaliar()
@@ -477,6 +481,33 @@ public class AvaliadorDeImportacaoTests
   }
 
   [Fact]
+  public void Raiz_Bruta_sem_solido_bloqueia()
+  {
+    // Regra 18: a Peca precisa de solido qualquer que seja o Tipo. A isencao do Bruto (D3) e da arvore
+    // abaixo dela, nunca da raiz.
+    var casada = new Cenario();
+    casada.Componente(20, "BR-20", "Bruto");
+    var raiz = casada.Raiz;
+    raiz.ComponenteId = 20;
+    raiz.CodigoNovo = raiz.DescricaoNova = raiz.TipoNovo = null;
+    raiz.ArquivoSolidoPendenteId = null;
+
+    var a = casada.Avaliar();
+
+    Assert.Equal(new[] { "SemSolido" }, a.Raiz!.Pendencias);
+    Assert.Equal(new[] { new BloqueioDto("SemSolido", raiz.Id, 20, "O componente BR-20 precisa de sólido.") }, a.Bloqueios);
+
+    var nova = new Cenario();
+    nova.Raiz.TipoNovo = "Bruto";
+    nova.Raiz.ArquivoSolidoPendenteId = null;
+
+    var b = nova.Avaliar();
+
+    Assert.Equal(new[] { "Novo", "SemSolido" }, b.Raiz!.Pendencias);
+    Assert.Equal(new[] { new BloqueioDto("SemSolido", nova.Raiz.Id, null, "O componente MONT-1 precisa de sólido.") }, b.Bloqueios);
+  }
+
+  [Fact]
   public void Solido_pendente_satisfaz_a_exigencia()
   {
     var c = new Cenario();
@@ -567,6 +598,21 @@ public class AvaliadorDeImportacaoTests
   }
 
   [Fact]
+  public void Codigo_do_novo_aparece_aparado_na_arvore_e_so_espacos_conta_como_vazio()
+  {
+    var c = new Cenario();
+    var aparado = c.Novo("N-2", "Dois", "  N-2 ", "Dois", "Bruto");
+    var branco = c.Novo(null, "Chapa", "   ", "Chapa", "Bruto");
+    c.Filho(c.Raiz, aparado, 1m);
+    c.Filho(c.Raiz, branco, 1m);
+
+    var a = c.Avaliar();
+
+    Assert.Equal(new[] { "N-2", "" }, a.Raiz!.Filhos.Select(f => f.Codigo).ToArray());
+    Assert.Equal(new[] { "CodigoVazio" }, a.Bloqueios.Select(b => b.Tipo).ToArray());
+  }
+
+  [Fact]
   public void Novo_com_codigo_que_ja_existe_bloqueia_CodigoJaExiste()
   {
     var c = new Cenario();
@@ -621,31 +667,31 @@ public class AvaliadorDeImportacaoTests
     c.Componente(12, "P-12", solido: 112);
     c.ReceitaDoCatalogo(10, 12, 1m);
     c.ReceitaDoCatalogo(11, 10, 1m);
-    // 10 importa "10 -> 11", 11 mantem "11 -> 10" do catalogo: nenhuma das duas tinha ciclo sozinha.
+    // 10 importa "10 -> N-5 -> 11", 11 mantem "11 -> 10" do catalogo: nenhuma das duas tinha ciclo
+    // sozinha, e o ciclo passa por um Componente novo (Id provisorio negativo).
     var a10 = c.Casado("AB-10", "Lida 10", 10, escolha: "Importada");
     var a11 = c.Casado("AB-11", "Lida 11", 11, escolha: "Catalogo");
+    var n5 = c.Novo("N-5", "N5", "N-5", "N5", "Montagem", pendente: 905);
     c.Filho(c.Raiz, a10, 1m);
-    c.Filho(a10, a11, 1m);
+    c.Filho(a10, n5, 1m);
+    c.Filho(n5, a11, 1m);
 
     var a = c.Avaliar();
 
     Assert.Equal(
-        new[]
-        {
-          new BloqueioDto("CicloNaReceita", null, null,
-              "A receita tem um ciclo: 10 -> 11 -> 10. Corrija a receita do catalogo antes de criar a Peca."),
-        },
+        new[] { new BloqueioDto("CicloNaReceita", null, null, "A receita resultante teria um ciclo: AB-10 → N-5 → AB-11 → AB-10.") },
         a.Bloqueios);
     Assert.Null(a.Raiz);
     Assert.Null(a.Plano);
     // As situacoes continuam calculadas, e a arvore final vem da sobreposicao, nao da expansao.
-    Assert.Equal(3, a.Componentes.Count);
+    Assert.Equal(4, a.Componentes.Count);
     Assert.True(Situacao(a, a10).NaArvoreFinal);
     Assert.True(Situacao(a, a11).NaArvoreFinal);
+    Assert.True(Situacao(a, n5).NaArvoreFinal);
   }
 
   [Fact]
-  public void Quantidade_calculada_fora_da_coluna_bloqueia_QuantidadeForaDaFaixa()
+  public void Quantidade_calculada_fora_da_coluna_bloqueia_QuantidadeForaDaFaixa_nomeando_o_codigo()
   {
     var c = new Cenario();
     c.Rascunho.QuantidadeDaPeca = PlanejadorDeCopia.QuantidadeMaximaDaColuna;
@@ -654,13 +700,79 @@ public class AvaliadorDeImportacaoTests
 
     var a = c.Avaliar();
 
-    var b = Assert.Single(a.Bloqueios);
-    Assert.Equal("QuantidadeForaDaFaixa", b.Tipo);
-    Assert.Null(b.RegistroId);
-    Assert.Null(b.ComponenteId);
-    Assert.StartsWith($"A quantidade calculada para o componente {-n.Id} ", b.Mensagem);
+    Assert.Equal(
+        new[]
+        {
+          new BloqueioDto("QuantidadeForaDaFaixa", null, null,
+              "A quantidade calculada para N-2 (199999999999999,9998) fica fora da faixa que o sistema guarda "
+                  + "(de 0,0001 a 99999999999999,9999). Revise a quantidade da Peça ou as quantidades da receita."),
+        },
+        a.Bloqueios);
     Assert.Null(a.Raiz);
     Assert.Null(a.Plano);
+  }
+
+  [Fact]
+  public void Quantidade_de_material_fora_da_coluna_nomeia_o_componente_do_material()
+  {
+    var c = new Cenario();
+    c.Rascunho.QuantidadeDaPeca = 50_000_000_000_000m;
+    c.Componente(10, "AB-10", "Montagem", solido: 110);
+    c.MaterialDoCatalogo(10, 7, 3m);
+    var a10 = c.Casado("AB-10", "Lida 10", 10);
+    c.Filho(c.Raiz, a10, 1m);
+
+    var a = c.Avaliar();
+
+    Assert.Equal(
+        new[]
+        {
+          new BloqueioDto("QuantidadeForaDaFaixa", null, null,
+              "A quantidade calculada para um material de AB-10 (150000000000000) fica fora da faixa que o sistema "
+                  + "guarda (de 0,0001 a 99999999999999,9999). Revise a quantidade da Peça ou as quantidades da receita."),
+        },
+        a.Bloqueios);
+  }
+
+  [Fact]
+  public void Estrutura_profunda_demais_bloqueia_com_o_limite_na_mensagem()
+  {
+    var c = new Cenario();
+    var pai = c.Raiz;
+    // A raiz e mais 20 niveis: 21 no caminho, um a mais que o maximo.
+    for (var nivel = 1; nivel <= PlanejadorDeCopia.ProfundidadeMaxima; nivel++)
+    {
+      var filho = c.Novo($"N-{nivel}", "N", $"N-{nivel}", "N", "Bruto");
+      c.Filho(pai, filho, 1m);
+      pai = filho;
+    }
+
+    var a = c.Avaliar();
+
+    Assert.Equal(
+        new[] { new BloqueioDto("EstruturaProfundaDemais", null, null, "A estrutura resultante passa de 20 níveis de profundidade.") },
+        a.Bloqueios);
+  }
+
+  [Fact]
+  public void Estrutura_grande_demais_bloqueia_com_o_limite_na_mensagem()
+  {
+    var c = new Cenario();
+    c.Componente(10, "AB-10", "Montagem", solido: 110);
+    // Raiz + 10 + 500 filhos de catalogo: 502 itens.
+    for (var id = 1000; id < 1000 + PlanejadorDeCopia.NosMaximos; id++)
+    {
+      c.Componente(id, $"P-{id}", "Bruto");
+      c.ReceitaDoCatalogo(10, id, 1m);
+    }
+    var a10 = c.Casado("AB-10", "Lida 10", 10, escolha: "Catalogo");
+    c.Filho(c.Raiz, a10, 1m);
+
+    var a = c.Avaliar();
+
+    Assert.Equal(
+        new[] { new BloqueioDto("EstruturaGrandeDemais", null, null, "A estrutura resultante passa de 500 itens.") },
+        a.Bloqueios);
   }
 
   // ---------------------------------------------------------------- Ids a carregar e impressao
@@ -701,5 +813,22 @@ public class AvaliadorDeImportacaoTests
     Assert.Equal(SHA256.HashData(Encoding.UTF8.GetBytes("1:3.0000;2:1.5000;")), uma);
     Assert.Equal(uma, outra);
     Assert.NotEqual(uma, diferente);
+  }
+
+  [Fact]
+  public void Impressao_nao_depende_da_cultura_corrente()
+  {
+    var esperado = AvaliadorDeImportacao.Impressao([(1, 3.5m), (2, 1234.25m)]);
+    var cultura = CultureInfo.CurrentCulture;
+    try
+    {
+      CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("pt-BR");
+      Assert.Equal(esperado, AvaliadorDeImportacao.Impressao([(1, 3.5m), (2, 1234.25m)]));
+      Assert.Equal(SHA256.HashData(Encoding.UTF8.GetBytes("1:3.5000;2:1234.2500;")), esperado);
+    }
+    finally
+    {
+      CultureInfo.CurrentCulture = cultura;
+    }
   }
 }
