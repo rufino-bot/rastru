@@ -150,6 +150,19 @@ Ao abrir, o foco vai para o primeiro controle focável do painel. Sem isso, quem
 ou usa leitor de tela clica no botão e o foco permanece no cabeçalho, com o painel recém-aberto
 inalcançável a não ser tateando.
 
+**Emenda de 2026-10-02:** "Ao abrir, o foco vai para o primeiro controle focável do painel" decide
+só o foco ao **abrir**. O foco ao **fechar** foi decidido depois, pelo usuário, em 2026-10-01, depois
+da revisão da branch: quando o painel fecha por `Cancelar` ou por um desfecho de sucesso, o foco
+volta ao botão que o abriu — o do cabeçalho nas cinco telas; na edição de setor, o "Editar" daquele
+setor, com o "Novo setor" do cabeçalho de reserva quando o "Editar" não volta com a recarga. O
+controle focado sai do DOM junto com o painel, e sem isso o foco cairia no `<body>`: quem navega por
+teclado ou leitor de tela voltaria ao topo da página sem aviso. O foco só é devolvido se tiver caído
+no `<body>`: fechar o painel de Peça porque o do nó abriu, na tela do Agrupamento, não tira o foco do
+campo do painel novo. O painel do nó, anterior a esta fase, não devolve foco. Quem devolve é o hook
+`useDevolverFoco` (`web/src/hooks/`), chamado pela tela, e não a primitiva, porque o botão de origem
+é da tela. O painel continua não sendo modal: devolver o foco ao fechar não prende o foco enquanto
+ele está aberto.
+
 **O painel não fecha no `Escape` e não prende o foco.** Ele não é modal: o resto da tela continua
 utilizável e o `Cancelar` é o caminho de saída. Registrado para não ser re-decidido como omissão.
 
@@ -164,6 +177,17 @@ utilizável e o `Cancelar` é o caminho de saída. Registrado para não ser re-d
 | Salvar com falha de rede | Continua aberto, com o erro dentro dele |
 
 Na tela do Agrupamento não há consulta a devolver: salvar recarrega a árvore, como hoje.
+
+**Emenda de 2026-10-02:** a linha do `Cancelar` vale com o painel parado. Enquanto a escrita está em
+voo — o salvar e, nas telas que o têm, o "Reativar o existente" —, o `Cancelar` fica
+**desabilitado**, por decisão do usuário de 2026-10-01, depois da revisão da branch. O motivo:
+`Cancelar` não cancela a requisição, e a resposta chegaria depois sobre o que estivesse aberto — um
+sucesso fecharia um painel reaberto e apagaria o digitado. Só a requisição de escrita conta; a
+recarga que vem depois dela, não, com uma exceção anterior a esta fase: o painel do nó, na tela do
+Agrupamento, segura o envio durante a recarga que segue um 409 de edição. Para isso a primitiva
+ganhou a prop `enviando`, que cada tela passa. As linhas do `Cancelar` e de salvar com sucesso
+ganharam também um efeito no foco, que volta ao botão que abriu o painel (emenda de mesma data em
+«O painel»).
 
 ### A primitiva
 
@@ -180,6 +204,7 @@ O `data-testid` é **parâmetro, não fixo**. A tela do Agrupamento passa a ter 
 possíveis, e os testes da Task 8b buscam `painel-de-escrita` por `getByTestId` — que lança quando
 há dois no documento. O painel de editar/acrescentar conserva aquele identificador (preservando os
 testes existentes) e o de criar Peça recebe outro.
+
 **Emenda de 2026-10-01:** o painel de criar Peça **não** recebeu identificador. Ele chegou a ter um
 na implementação, e a review da tela do Agrupamento o tirou: nada o usava, e o `CLAUDE.md` só aceita
 `data-testid` onde o alvo não tem papel nem nome — e o `<form>` do painel tem os dois, pelo
@@ -310,6 +335,21 @@ armadilha já registra a saída — a `acao` num wrapper posicionado acima do ov
    (botão, sem link) não mudam de aparência. O comentário da armadilha deixa de ser aviso e passa a
    dizer o que a primitiva faz — e continua **descrevendo** a classe de empilhamento em vez de
    escrevê-la, porque o scanner do Tailwind lê comentário e planta a regra no CSS.
+
+   **Emenda de 2026-10-02:** o wrapper deixou de ter classe de empilhamento. Ele é só
+   **posicionado**, com o índice de empilhamento automático, e o comentário passou a dizer isso. Com
+   índice próprio, o wrapper empatava com a lista aberta do `SeletorComBusca`, que tem o mesmo
+   índice, e o empate se resolve pela ordem do DOM: na `ComponenteDetalhePage`, o seletor de
+   "Componente filho" abre para baixo, sobre a lista de Materiais da receita, e os botões "Remover…"
+   dela, que vêm depois no DOM, pintavam por cima das opções e tomavam o clique. Sem índice, o
+   wrapper continua acima do overlay do link — entre elementos posicionados sem índice, quem vem
+   depois na ordem do DOM pinta por cima, e o wrapper vem depois do link — e fica abaixo de toda
+   camada que tem índice, como aquela lista. Medido no Chromium com `document.elementFromPoint` no
+   centro do botão, nas três formas: com índice, o botão ganha da lista; sem índice, a lista ganha
+   do botão e o botão ganha do overlay; sem posição, o overlay ganha do botão. O cuidado de
+   **descrever** as classes de empilhamento em vez de escrevê-las continua no comentário, pelo mesmo
+   motivo. E a prova continua sendo do navegador, como diz o item «A prova não pode ser a suíte».
+
 2. **As três telas adotam o overlay da `LinhaDePedido`** no link que já existe. O nome acessível do
    link continua sendo o texto dele. Os comentários de `ComponentesPage` e `PedidoDetalhePage` que
    justificam **não** usar o overlay saem, porque a razão deles deixa de existir.
@@ -331,6 +371,18 @@ construção (`CLAUDE.md`, seção do pré-requisito dos testes).
 
 **`PainelDeEscrita`:** título ligado ao form por `aria-labelledby`, `Cancelar` chama `aoFechar`, e o
 foco chega no primeiro controle. O teste de foco mora aqui e não se repete nas telas.
+
+**Emenda de 2026-10-02:** "O teste de foco mora aqui" vale para o foco ao **abrir**, e esse teste
+continua só na primitiva. As duas regras que vieram depois da revisão da branch (emendas de mesma
+data em «O painel» e em «Ciclo de vida») têm teste também nas telas, porque dependem do que cada tela
+passa:
+as cinco têm teste de que o `Cancelar` devolve o foco ao botão de origem e de que ele fica
+desabilitado com a escrita em voo; Componentes, Pedidos e Agrupamento afirmam também o foco
+devolvido depois de salvar com sucesso, e Setores, depois de salvar a edição. O hook
+`useDevolverFoco` tem teste próprio, e a primitiva, o do `Cancelar` desabilitado pela prop
+`enviando`. Antes disso, nesta mesma fase, a tela do Agrupamento já testava o foco no primeiro campo
+depois de trocar de nó com o painel aberto — remontagem por `key`, que é da tela, e não da
+primitiva.
 
 **`SeletorDeOrdem`:** rótulo acessível, opções da tela, valor corrente marcado, `aoMudar` com a
 escolha.

@@ -952,7 +952,8 @@ describe('ComponentesPage', () => {
     // `within(item)` e não `screen.getByText('Montagem')` direto: a tela abre em leitura, então o
     // `<select>` de Tipo do painel não está aqui; mas com o painel aberto ele traz uma
     // `<option>Montagem</option>`, e a busca global acharia DUAS ocorrências e estouraria. O escopo
-    // no `<li>` é o que torna a asserção sobre a lista, e não sobre o formulário — molde de `PedidosPage.test.tsx:62` (`closest('li')!`).
+    // no `<li>` é o que torna a asserção sobre a lista, e não sobre o formulário — molde do teste
+    // 'mostra os pedidos que a API devolveu', de `PedidosPage.test.tsx` (`closest('li')!`).
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({
         itens: [{ id: 1, codigo: 'CMP-1', descricao: 'Suporte', tipo: 'Montagem', ativo: true }],

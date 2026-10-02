@@ -328,11 +328,34 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   painel que a `AgrupamentoDetalhePage` escrevia à mão desde a Fase 2. Ele guarda o que não varia: a
   moldura, o `<h2>` com o nome da ação, ligado ao `<form>` por `aria-labelledby` (o form tem nome
   acessível e o teste o acha por `getByRole('form', { name })`), o subtítulo opcional, o `Cancelar`
-  (que chama `aoFechar`) e o foco inicial, dado na montagem ao primeiro controle do **conteúdo** — e
-  não do `<form>` inteiro, onde o primeiro focável seria o próprio `Cancelar`. **Não** guarda os
-  campos, o banner de erro de escrita nem o submit, que vêm como filhos, nem o estado aberto/fechado,
-  que é `useState` da tela. **Não é modal**, por decisão da spec da 1F: não fecha no `Escape` e não
-  prende o foco — a tela continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
+  (que chama `aoFechar`, e fica desabilitado enquanto a prop `enviando` for verdadeira) e o foco
+  inicial, dado na montagem ao primeiro controle do **conteúdo** — e não do `<form>` inteiro, onde o
+  primeiro focável seria o próprio `Cancelar`. **Não** guarda os campos, o banner de erro de escrita
+  nem o submit, que vêm como filhos, nem o estado aberto/fechado, que é `useState` da tela.
+
+  **`enviando` é a requisição de escrita em voo** — o salvar e, onde existe, o "Reativar o
+  existente" —, e todos os usos do painel a passam. `Cancelar` não cancela a requisição: com ele
+  ativo, a resposta chegaria depois sobre o que estivesse aberto, e um sucesso fecharia um painel
+  reaberto e apagaria o digitado. A recarga que vem depois da escrita não conta, com uma exceção
+  conhecida: o painel do nó da `AgrupamentoDetalhePage` segura o `enviando` durante a recarga que
+  segue um 409 de edição.
+
+  **Devolver o foco ao fechar também não é do painel**: é do hook `useDevolverFoco`
+  (`web/src/hooks/`, com teste próprio), que a tela chama com o estado aberto/fechado e o botão que
+  abriu o painel. O controle focado sai do DOM junto com o painel, e sem o hook o foco cairia no
+  `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
+  tiver caído no `<body>`**: fechar um painel porque outro abriu não tira o foco do campo do painel
+  novo. A origem é o botão do cabeçalho nas cinco telas; no modo de edição da `SetoresPage`, é o
+  "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. O
+  painel do nó da `AgrupamentoDetalhePage` não devolve foco. Hoje o hook tem **cinco** telas
+  consumidoras, cada uma com uma chamada (medido em 2026-10-02 com
+  `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
+  `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage`. As duas regras —
+  `Cancelar` travado e foco devolvido — são decisões do usuário de 2026-10-01, depois da revisão da
+  branch da 1F; a spec da 1F não tratava de nenhuma das duas, e do foco decidia só o da abertura.
+
+  **Não é modal**, por decisão da spec da 1F: não fecha no `Escape` e não prende o foco — a tela
+  continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
   `usePodeEscrever(recurso)` que o painel. Hoje tem **cinco** telas consumidoras, com **seis** usos
