@@ -56,6 +56,30 @@ public sealed record SituacaoDoComponenteDto(
 /// <summary>Um motivo que impede a confirmacao (secao 5.4 da spec do import). A mensagem e texto de tela.</summary>
 public sealed record BloqueioDto(string Tipo, int? RegistroId, int? ComponenteId, string Mensagem);
 
+/// <summary>
+/// O rascunho inteiro como a tela o le: o estado e CALCULADO a cada leitura (decisao P4 do plano do
+/// import) e nunca gravado. <c>Versao</c> e o <c>ROWVERSION</c> do cabecalho; vai como base64 no JSON
+/// (decisao P14) e toda escrita a devolve. <c>Raiz</c> e nula quando a expansao e recusada (ciclo,
+/// profundidade, tamanho ou quantidade fora da coluna): o motivo esta em <c>Bloqueios</c>.
+/// </summary>
+public sealed record ImportacaoDto(
+    int Id,
+    int AgrupamentoId,
+    string NomeDoArquivo,
+    string CriadoPor,
+    DateTime CriadoEm,
+    DateTime AtualizadoEm,
+    byte[] Versao,
+    decimal? QuantidadeDaPeca,
+    bool RequerRelatorioDimensional,
+    NoDaImportacaoDto? Raiz,
+    IReadOnlyList<SituacaoDoComponenteDto> Componentes,
+    IReadOnlyList<BloqueioDto> Bloqueios);
+
+/// <summary>Uma linha da lista de rascunhos de um Agrupamento.</summary>
+public sealed record ResumoDeImportacaoDto(
+    int Id, string NomeDoArquivo, string CriadoPor, DateTime CriadoEm, DateTime AtualizadoEm);
+
 /// <summary>Os valores fechados dos campos de texto dos DTOs da conferencia.</summary>
 public static class ValoresDaConferencia
 {

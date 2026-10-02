@@ -123,6 +123,7 @@ builder.Services.AddScoped<IComponenteRepository, ComponenteRepository>();
 builder.Services.AddScoped<CadastroDeComponenteUseCase>();
 builder.Services.AddScoped<IArquivoDeComponenteRepository, ArquivoDeComponenteRepository>();
 builder.Services.AddScoped<IImportacaoDeEstruturaRepository, ImportacaoDeEstruturaRepository>();
+builder.Services.AddScoped<ImportacaoDeEstruturaUseCase>();
 builder.Services.AddScoped<SolidoDoComponenteUseCase>();
 // O leitor do BOM nao tem estado nem toca o banco: um so para a aplicacao toda.
 builder.Services.AddSingleton<ILeitorDeBom, LeitorDeBom>();

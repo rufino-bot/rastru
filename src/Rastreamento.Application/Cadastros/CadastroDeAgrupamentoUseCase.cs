@@ -22,14 +22,23 @@ public sealed class CadastroDeAgrupamentoUseCase
   private static readonly string[] TiposValidos = ["Kit", "Avulso"];
   private const string StatusAberto = "Aberto";
 
+  /// <summary>
+  /// Codigo do 409 quando o Agrupamento tem rascunho de import do BOM. O rascunho tem FK para o
+  /// Agrupamento e nao e "estrutura" (nenhum EstruturaItem existe ate a confirmacao), entao
+  /// <c>TemEstruturaAsync</c> nao o ve.
+  /// </summary>
+  public const string AgrupamentoComImportacao = "AgrupamentoComImportacao";
+
   private readonly IAgrupamentoRepository _repositorio;
   private readonly IPedidoRepository _pedidos;
+  private readonly IImportacaoDeEstruturaRepository _importacoes;
 
   public CadastroDeAgrupamentoUseCase(
-      IAgrupamentoRepository repositorio, IPedidoRepository pedidos)
+      IAgrupamentoRepository repositorio, IPedidoRepository pedidos, IImportacaoDeEstruturaRepository importacoes)
   {
     _repositorio = repositorio;
     _pedidos = pedidos;
+    _importacoes = importacoes;
   }
 
   public async Task<Result<AgrupamentoDto>> Cadastrar(
@@ -111,9 +120,10 @@ public sealed class CadastroDeAgrupamentoUseCase
   }
 
   /// <summary>
-  /// Exclusao fisica guardada. As duas recusas viajam como CODIGO no `Erro` ("AgrupamentoNaoVazio",
-  /// "PedidoNaoAberto") porque e isso que o contrato de 409 da spec define no corpo; o controller
-  /// so repassa e nao deriva comportamento da string. Ordem: existe -> Pedido Aberto -> vazio.
+  /// Exclusao fisica guardada. As tres recusas viajam como CODIGO no `Erro` ("AgrupamentoNaoVazio",
+  /// "PedidoNaoAberto", "AgrupamentoComImportacao") porque e isso que o contrato de 409 da spec define no
+  /// corpo; o controller so repassa e nao deriva comportamento da string. Ordem: existe -> Pedido
+  /// Aberto -> vazio -> sem rascunho de import.
   /// </summary>
   public async Task<Result> Excluir(int id, CancellationToken ct)
   {
@@ -127,6 +137,9 @@ public sealed class CadastroDeAgrupamentoUseCase
 
     if (await _repositorio.TemEstruturaAsync(id, ct))
       return Result.Falha("AgrupamentoNaoVazio", TipoDeErro.Conflito);
+
+    if (await _importacoes.ExisteNoAgrupamentoAsync(id, ct))
+      return Result.Falha(AgrupamentoComImportacao, TipoDeErro.Conflito);
 
     await _repositorio.RemoverAsync(agrupamento, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);

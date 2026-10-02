@@ -46,6 +46,8 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
   [InlineData(typeof(CadastroDeAgrupamentoUseCase))]
   [InlineData(typeof(IComponenteRepository))]
   [InlineData(typeof(CadastroDeComponenteUseCase))]
+  [InlineData(typeof(IImportacaoDeEstruturaRepository))]
+  [InlineData(typeof(ImportacaoDeEstruturaUseCase))]
   [InlineData(typeof(IReceitaPadraoRepository))]
   [InlineData(typeof(ReceitaPadraoUseCase))]
   [InlineData(typeof(IExecucaoRepository))]
