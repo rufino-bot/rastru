@@ -141,10 +141,10 @@ Concluídas até aqui:
   na fila, e "Marcar todos" na fila e nas Tarefas; a lista de Pedidos paginada no servidor, com
   busca e filtro por Status e Material. Em dois planos, cada um verificado no celular: o primeiro
   entrou na `main` pelo PR #25, em 2026-09-30, e o segundo pelo PR #26, em 2026-10-01.
-- **Fase 1F:** cadastro sob demanda e ordenação das listas — o formulário de criar e editar vira um
-  painel que abre por botão (Setores, Materiais, Componentes, Pedidos e a Peça do Agrupamento), a
-  ordem das listas é escolhida pelo usuário e o cartão inteiro é clicável. Verificada no navegador
-  em 2026-10-02.
+- **Fase 1F:** cadastro sob demanda e ordenação das listas — o formulário de cadastro vira um
+  painel que abre por botão (Setores, Materiais, Componentes, Pedidos e a Peça do Agrupamento; em
+  Setores, também o de editar), a ordem das listas é escolhida pelo usuário e o cartão inteiro é
+  clicável na Fila, no detalhe do Pedido e em Componentes. Verificada no navegador em 2026-10-02.
 
 A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
 de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de
