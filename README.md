@@ -106,7 +106,7 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 ## Roadmap
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
-roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 2B, 3B, 3C e 3D como fases próprias.
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
 A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** rodou antes da 3B,
 e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
 decidida.
@@ -141,9 +141,12 @@ Concluídas até aqui:
   na fila, e "Marcar todos" na fila e nas Tarefas; a lista de Pedidos paginada no servidor, com
   busca e filtro por Status e Material. Em dois planos, cada um verificado no celular: o primeiro
   entrou na `main` pelo PR #25, em 2026-09-30, e o segundo pelo PR #26, em 2026-10-01.
+- **Fase 1F:** cadastro sob demanda e ordenação das listas — o formulário de criar e editar vira um
+  painel que abre por botão (Setores, Materiais, Componentes, Pedidos e a Peça do Agrupamento), a
+  ordem das listas é escolhida pelo usuário e o cartão inteiro é clicável. Verificada no navegador
+  em 2026-10-02.
 
-A seguir vêm, nesta ordem, a **Fase 1F** (cadastro sob demanda; a spec dela, em 2026-09-29, vive
-numa branch, não na `main`) e a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
+A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
 de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de
 iniciado; a trava de montagem, para o nó que já tem filhos ao entrar em produção, já é estrutural
 desde a 3D). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,

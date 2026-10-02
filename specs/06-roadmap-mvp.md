@@ -535,18 +535,24 @@ de `e40f95d`, que só muda documentação e um comentário de teste; backend **9
 Application 511 · Infrastructure 158), com execução verde de `dotnet test Rastreamento.slnx -m:1` em
 `547a514`; `src/` e `tests/` não mudaram desde `49c2ce0`.
 
-**Estado em 2026-10-02, depois da verificação:** a **verificação no navegador** do critério de pronto
-foi feita pelo usuário numa sessão local, a 375px e em desktop, sobre `62efe30`, e passou: as cinco
-telas em leitura, o painel abrindo, cancelando e salvando, a edição de setor no painel, o conflito com
-"Reativar o existente" dentro do painel, os dois painéis do Agrupamento um de cada vez, a ordenação nas
-quatro telas com o item recém-criado no topo, a ordem de Pedidos preservada no F5 e no Voltar, o
-cartão clicável nas três telas com o centro do botão executando a ação sem navegar, o `Cancelar`
-travado com a rede lenta e o perfil sem escrita sem botão nem painel; no detalhe do Componente, a
-lista aberta do "Componente filho" fica por cima dos botões "Remover…". Abrir o "Nova Peça" põe o
-foco no `SeletorComBusca`, que abre a lista sozinho; o usuário decidiu manter assim. Com isso a fase está **concluída** na branch; o merge na `main` vem
-pelo PR. Suítes de novo em 2026-10-02, na árvore de `62efe30`: front **1139 / 68**, verde, e
-`npm run build` limpo; `dotnet build Rastreamento.slnx -warnaserror` com 0 avisos e
-`dotnet test Rastreamento.slnx -m:1` verde, **979** (Api 310 · Application 511 · Infrastructure 158).
+**Estado em 2026-10-02, depois da verificação:** o usuário conferiu, numa sessão local, sobre
+`62efe30`, o checklist da **verificação no navegador** do critério de pronto e declarou a fase
+validada, sem apontar defeito. `62efe30` é a passada de conserto de documentação que veio depois de
+`e40f95d`, sem mudança de código: `src/`, `tests/` e `web/src/` não diferem entre os dois commits. O
+checklist, pedido a 375px e em desktop, reunia os oito itens do plano e nove que a revisão da branch
+acrescentou: as cinco telas em leitura; o painel abrindo, cancelando e salvando, com o foco
+devolvido a quem o abriu; a edição de setor no painel; o conflito com "Reativar o existente" dentro do painel;
+os dois painéis do Agrupamento um de cada vez; a ordenação nas quatro telas, com o item recém-criado
+no topo; a ordem de Pedidos preservada no F5 e no Voltar; o cartão clicável nas três telas, com o
+centro do botão executando a ação sem navegar; o `Cancelar` travado com a rede lenta; o perfil sem
+escrita sem botão nem painel; e, no detalhe do Componente, a lista aberta do "Componente filho" por
+cima dos botões "Remover…". A resposta veio em bloco: este arquivo registra o que o checklist
+cobria, não um resultado observado item por item. Abrir o "Nova Peça" põe o foco no
+`SeletorComBusca`, que abre a lista sozinho; o usuário decidiu manter assim. Com isso a fase está
+**concluída** na branch; o merge na `main` vem pelo PR. Suítes de novo em 2026-10-02, na árvore de
+`62efe30`: front **1139 / 68**, verde, e `npm run build` limpo; `dotnet build Rastreamento.slnx
+-warnaserror` com 0 avisos e `dotnet test Rastreamento.slnx -m:1` verde, **979** (Api 310 ·
+Application 511 · Infrastructure 158).
 
 ## Fase 3B — Kit e montagem
 
