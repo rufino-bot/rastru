@@ -246,12 +246,14 @@ resolvidos (ou conscientemente adiados).
 > como foi entregue; onde divergem da 3D, vale a 3D.
 
 **Estado em 2026-10-02:** **concluída em 2026-09-28**, com a verificação manual no celular da seção
-9.5 da spec dela. Entrou na `main` pelos PRs #20 (backend, merge `44b1d54`) e #21 (front, merge
-`0f4ae3c`), os dois em 2026-09-26, e por duas correções que a verificação pediu, mergeadas em
-2026-09-28: o histórico do nó numa lista só, do registro mais recente ao mais antigo (PR #22, merge
-`b31592f`), e a contagem de Pedidos abertos com o contador de Tarefas recontado depois de cada ação
-(PR #23, merge `63361ff`). Outros pontos que a verificação levantou viraram a Fase 3D, os filtros da
-demanda e o cartão clicável da Fase 1F.
+9.5 da spec dela. A spec e o plano de documentação entraram na `main` pelo PR #17 (merge
+`80e11a0`), e os planos de backend e de front pelo PR #18 (merge `695fbf8`), os dois em 2026-09-25.
+O código entrou pelos PRs #20 (backend, merge `44b1d54`) e #21 (front, merge `0f4ae3c`), os dois em
+2026-09-26, e por duas correções que a verificação pediu, mergeadas em 2026-09-28: o histórico do nó
+numa lista só, do registro mais recente ao mais antigo (PR #22, merge `b31592f`), e a contagem de
+Pedidos abertos com o contador de Tarefas recontado depois de cada ação (PR #23, merge `63361ff`).
+Outros pontos que a verificação levantou viraram a Fase 3D, os filtros da demanda e o cartão
+clicável da Fase 1F.
 
 ## Fase 3D — Ajustes pós-verificação da Fase 3
 
@@ -296,10 +298,10 @@ demanda e o cartão clicável da Fase 1F.
 
 **Estado em 2026-10-02:** **concluída em 2026-09-29**. A verificação manual no celular foi feita
 pelo usuário em 2026-09-29, com os seis passos do roteiro aprovados, e a fase entrou na `main` no
-mesmo dia (PR #24, merge `7b3726a`). Antes do merge entraram duas mudanças que o usuário decidiu ao
-fim da verificação: a fila do Setor passou a mostrar primeiro o que está em trabalho e, no fim, o que
-aguarda coleta e a sobra; e o Pedido pausado ganhou a pílula de tom de atenção (âmbar), um tom
-reservado a estado.
+mesmo dia (PR #24, merge `7b3726a`). Antes do merge entraram duas mudanças que o usuário decidiu na
+sessão da verificação: durante o roteiro, a ordem da fila do Setor, que passou a mostrar primeiro o
+que está em trabalho e, no fim, o que aguarda coleta e a sobra; e, depois do roteiro, a pílula do
+Pedido pausado no tom de atenção (âmbar), um tom reservado a estado.
 
 ## Filtros da demanda e ação em lote
 
@@ -438,10 +440,10 @@ clicável**, decisão de 2026-09-28 na verificação manual da Fase 3, posta nes
 - **Cadastro sob demanda.** A primitiva `PainelDeEscrita` (`web/src/components/`), extraída do painel
   que a `AgrupamentoDetalhePage` escrevia à mão desde a Fase 2: moldura, `<h2>` que dá nome ao
   `<form>` por `aria-labelledby`, subtítulo opcional, `Cancelar` — desabilitado enquanto a escrita
-  está em voo, pela prop `enviando` — e foco no primeiro campo ao abrir. Ao fechar, o foco volta ao
-  botão que abriu o painel (menos no painel do nó, na tela do Agrupamento), pelo hook
-  `useDevolverFoco` (`web/src/hooks/`), que a tela chama. Não é modal — não fecha no `Escape` e não
-  prende o foco —, por decisão da spec. As cinco telas —
+  está em voo, pela prop `enviando` — e foco no primeiro campo ao abrir. Ao fechar, se o foco caiu
+  no `<body>`, ele volta ao botão que abriu o painel (menos no painel do nó, na tela do
+  Agrupamento), pelo hook `useDevolverFoco` (`web/src/hooks/`), que a tela chama. Não é modal — não
+  fecha no `Escape` e não prende o foco —, por decisão da spec. As cinco telas —
   `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — abrem
   em leitura, com o botão da ação ("Novo setor", "Novo material", "Novo componente", "Novo pedido",
   "Nova Peça") no `acao` da `Pagina`, e o painel abre como primeiro elemento abaixo do cabeçalho.
@@ -488,13 +490,15 @@ em 2026-10-01):
 
 **Decidido pelo usuário em 2026-10-01, depois da revisão da branch**, além da spec e do plano:
 
-- O `Cancelar` fica desabilitado enquanto a escrita do painel está em voo (o salvar e, onde existe,
-  o "Reativar o existente"): `Cancelar` não cancela a requisição, e a resposta que chegasse depois
-  fecharia um painel reaberto e apagaria o digitado.
-- Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão que abriu o painel: o do cabeçalho
-  nas cinco telas e, na edição de setor, o "Editar" daquele setor (ou o do cabeçalho, se o
-  "Editar" não voltar com a recarga). O painel do nó da tela do Agrupamento, anterior a esta fase,
-  não devolve foco.
+- O `Cancelar` fica desabilitado enquanto o salvar está em voo: `Cancelar` não cancela a requisição,
+  e a resposta que chegasse depois fecharia um painel reaberto e apagaria o digitado.
+- Ao fechar, o foco volta ao botão que abriu o painel: o do cabeçalho nas cinco telas e, na edição
+  de setor, o "Editar" daquele setor. O painel do nó da tela do Agrupamento, anterior a esta fase,
+  fica como estava e não devolve foco.
+
+A implementação estendeu as duas regras: o `Cancelar` fica desabilitado também durante o "Reativar
+o existente", nas três telas que o têm; o foco só é devolvido se tiver caído no `<body>`; e, na
+edição de setor, quando o "Editar" não volta com a recarga, o foco vai ao botão do cabeçalho.
 
 **Critério de pronto** (seção "Critério de pronto" da spec): as cinco telas abrem em leitura, sem
 bloco de campos abaixo do título; `npm test` verde e `npm run build` limpo; `dotnet build

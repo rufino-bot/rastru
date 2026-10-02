@@ -86,6 +86,7 @@ Todas do usuário.
    recém-criado nela. Descartadas: manter aberto com campos limpos (ambíguo entre "salvou" e
    "perdi o que digitei" sem confirmação explícita) e fechar com faixa de sucesso (exigiria uma
    primitiva de mensagem de sucesso, que o projeto não tem — só `BannerDeErro`).
+
    **Emenda de 2026-10-01:** "a lista reaparece com o item" só é verdade porque a consulta volta ao
    padrão ao salvar (decisão 7) e o padrão é "mais recentes" (decisão 9).
 5. **O painel da Task 8b migra para a primitiva nova.** A tela do Agrupamento fica com um
@@ -96,6 +97,7 @@ Todas do usuário.
    roadmap marca a execução. Descartada a renumeração de `2B` → `2C`: "Fase 2B" já é citada em
    `CLAUDE.md`, na regra 18 de `01-dominio-e-regras-de-negocio.md` e na spec da Fase 2, e o ledger
    passaria a falar de uma 2B que virou outra coisa.
+
    **Emenda de 2026-10-01:** a posição de execução mudou depois (decisões de 2026-09-19 e
    2026-09-28) — hoje a 1F vem depois dos filtros da demanda e antes da Fase 3B (`CLAUDE.md`,
    "Ordem de implementação"). O nome não muda.
@@ -154,11 +156,12 @@ inalcançável a não ser tateando.
 só o foco ao **abrir**. O foco ao **fechar** foi decidido depois, pelo usuário, em 2026-10-01, depois
 da revisão da branch: quando o painel fecha por `Cancelar` ou por um desfecho de sucesso, o foco
 volta ao botão que o abriu — o do cabeçalho nas cinco telas; na edição de setor, o "Editar" daquele
-setor, com o "Novo setor" do cabeçalho de reserva quando o "Editar" não volta com a recarga. O
-controle focado sai do DOM junto com o painel, e sem isso o foco cairia no `<body>`: quem navega por
-teclado ou leitor de tela voltaria ao topo da página sem aviso. O foco só é devolvido se tiver caído
-no `<body>`: fechar o painel de Peça porque o do nó abriu, na tela do Agrupamento, não tira o foco do
-campo do painel novo. O painel do nó, anterior a esta fase, não devolve foco. Quem devolve é o hook
+setor. O painel do nó, na tela do Agrupamento, anterior a esta fase, fica como estava e não devolve
+foco. O controle focado sai do DOM junto com o painel, e sem isso o foco cairia no `<body>`: quem
+navega por teclado ou leitor de tela voltaria ao topo da página sem aviso. A implementação
+acrescentou duas coisas. O foco só é devolvido se tiver caído no `<body>`: fechar o painel de Peça
+porque o do nó abriu não tira o foco do campo do painel novo. E, na edição de setor, quando o
+"Editar" não volta com a recarga, o foco vai ao "Novo setor" do cabeçalho. Quem devolve é o hook
 `useDevolverFoco` (`web/src/hooks/`), chamado pela tela, e não a primitiva, porque o botão de origem
 é da tela. O painel continua não sendo modal: devolver o foco ao fechar não prende o foco enquanto
 ele está aberto.
@@ -178,9 +181,10 @@ utilizável e o `Cancelar` é o caminho de saída. Registrado para não ser re-d
 
 Na tela do Agrupamento não há consulta a devolver: salvar recarrega a árvore, como hoje.
 
-**Emenda de 2026-10-02:** a linha do `Cancelar` vale com o painel parado. Enquanto a escrita está em
-voo — o salvar e, nas telas que o têm, o "Reativar o existente" —, o `Cancelar` fica
-**desabilitado**, por decisão do usuário de 2026-10-01, depois da revisão da branch. O motivo:
+**Emenda de 2026-10-02:** a linha do `Cancelar` vale com o painel parado. Enquanto o salvar está em
+voo, o `Cancelar` fica **desabilitado**, por decisão do usuário de 2026-10-01, depois da revisão da
+branch; a implementação estendeu a regra ao "Reativar o existente", nas três telas que o têm. O
+motivo:
 `Cancelar` não cancela a requisição, e a resposta chegaria depois sobre o que estivesse aberto — um
 sucesso fecharia um painel reaberto e apagaria o digitado. Só a requisição de escrita conta; a
 recarga que vem depois dela, não, com uma exceção anterior a esta fase: o painel do nó, na tela do
@@ -233,6 +237,7 @@ domínio, não estilo.
 1. **"Reativar o existente"** (Setores, Materiais, Componentes) hoje vive **fora** do formulário,
    como irmão dele. Passa para dentro do painel, junto do banner de erro: ele só aparece depois de
    um salvar que falhou por conflito, e nesse caminho o painel continua aberto.
+
    **Corrigido em 2026-10-01, na escrita do plano:** esta frase dizia que testes de
    `ComponentesPage.test.tsx` dependem de o formulário *conservar* o digitado depois de uma
    reativação bem-sucedida. É o contrário — o teste *"reativar com sucesso limpa o formulario"*
@@ -411,6 +416,7 @@ mecânica e ampla, e o volume dela é o maior custo da fase.
 - `CLAUDE.md`, seção "Interface": as primitivas `PainelDeEscrita` e `SeletorDeOrdem`, cada uma com o
   seu gatilho, no formato das entradas de `SeletorComBusca` e `FiltroDeDemanda`; e a contagem de
   `data-testid`, remedida com o comando registrado lá (o painel de criar Peça ganha um identificador).
+
   **Emenda de 2026-10-01:** não ganhou — ver a emenda da seção "A primitiva". A contagem foi
   remedida mesmo assim, porque o `painel-de-escrita` passou a chegar ao DOM pela primitiva.
 

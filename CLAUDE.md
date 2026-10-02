@@ -340,7 +340,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   conhecida: o painel do nó da `AgrupamentoDetalhePage` segura o `enviando` durante a recarga que
   segue um 409 de edição.
 
-  **Devolver o foco ao fechar também não é do painel**: é do hook `useDevolverFoco`
+  **Quem devolve o foco ao fechar não é o painel**: é o hook `useDevolverFoco`
   (`web/src/hooks/`, com teste próprio), que a tela chama com o estado aberto/fechado e o botão que
   abriu o painel. O controle focado sai do DOM junto com o painel, e sem o hook o foco cairia no
   `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
@@ -350,9 +350,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   painel do nó da `AgrupamentoDetalhePage` não devolve foco. Hoje o hook tem **cinco** telas
   consumidoras, cada uma com uma chamada (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
-  `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage`. As duas regras —
-  `Cancelar` travado e foco devolvido — são decisões do usuário de 2026-10-01, depois da revisão da
-  branch da 1F; a spec da 1F não tratava de nenhuma das duas, e do foco decidia só o da abertura.
+  `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage`. O usuário decidiu
+  em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
+  devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
+  implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
+  caiu no `<body>` e acrescentou a reserva do "Novo setor". A spec da 1F não tratava de nenhuma das
+  duas regras, e do foco decidia só o da abertura.
 
   **Não é modal**, por decisão da spec da 1F: não fecha no `Escape` e não prende o foco — a tela
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
