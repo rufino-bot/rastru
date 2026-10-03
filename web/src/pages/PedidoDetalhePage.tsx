@@ -26,6 +26,7 @@ const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
 const MOTIVO_DA_RECUSA: Record<Exclude<ResultadoExclusao, 'ok'>, string> = {
   AgrupamentoNaoVazio: 'Este agrupamento já tem estrutura e não pode mais ser excluído.',
   PedidoNaoAberto: 'O pedido não está mais aberto: não dá para excluir agrupamentos dele.',
+  AgrupamentoComImportacao: 'Este agrupamento tem importações em conferência. Descarte-as antes de excluir.',
   NaoEncontrado: 'Este agrupamento já não existe mais.',
 }
 

@@ -120,6 +120,8 @@ function montarFetch({
   receitaDoPai = [],
   livro = { movimentacoes: [], montagens: [] },
   respostaEstorno = null,
+  importacoes = [],
+  respostaImportar = null,
 }: {
   estruturaInicial: NoDaEstrutura[]
   estruturaAposCriar?: NoDaEstrutura[] | null
@@ -132,12 +134,23 @@ function montarFetch({
   receitaDoPai?: FilhoPadraoDto[]
   livro?: LivroDoNoDto
   respostaEstorno?: { status: number; corpo: unknown } | null
+  /** O que `GET /agrupamentos/21/importacoes` devolve: os rascunhos em conferência. */
+  importacoes?: unknown[]
+  /** Desfecho de `POST /agrupamentos/21/importacoes`; `null` = 201 com a importação 5. */
+  respostaImportar?: { status: number; corpo: unknown } | null
 }) {
   let getsDeEstrutura = 0
   return vi.fn((url: string | URL, init?: RequestInit) => {
     const caminho = String(url).split('?')[0]
     const metodo = init?.method ?? 'GET'
     if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
+    if (caminho === '/api/agrupamentos/21/importacoes') {
+      if (metodo === 'POST') {
+        if (respostaImportar) return Promise.resolve(respostaJson(respostaImportar.corpo, respostaImportar.status))
+        return Promise.resolve(respostaJson({ id: 5, agrupamentoId: 21 }, 201))
+      }
+      return Promise.resolve(respostaJson(importacoes))
+    }
     if (caminho === '/api/agrupamentos/21/posicoes') return Promise.resolve(respostaJson(posicoes))
     if (caminho === '/api/componentes/10/filhos-padrao') return Promise.resolve(respostaJson(receitaDoPai))
     if (caminho === '/api/setores') return Promise.resolve(respostaJson([]))
@@ -183,6 +196,7 @@ function renderizarDetalhe() {
     <MemoryRouter initialEntries={['/agrupamentos/21']}>
       <Routes>
         <Route path="/agrupamentos/:id" element={<AgrupamentoDetalhePage />} />
+        <Route path="/importacoes/:id" element={<p>Tela de conferência</p>} />
       </Routes>
     </MemoryRouter>,
   )
@@ -1676,5 +1690,209 @@ describe('AgrupamentoDetalhePage', () => {
     expect(cancelar.disabled).toBe(true)
     fireEvent.click(cancelar)
     expect(screen.getByRole('form', { name: 'Editar nó' })).toBeTruthy()
+  })
+
+  describe('importar o BOM', () => {
+    /** Escolhe um arquivo no campo do painel; `tamanho` força o `size` sem alocar o conteúdo. */
+    function escolherArquivo(nome: string, tamanho?: number) {
+      const arquivo = new File(['a;b'], nome)
+      if (tamanho !== undefined) Object.defineProperty(arquivo, 'size', { value: tamanho })
+      const campo = screen.getByLabelText(/Arquivo do BOM/) as HTMLInputElement
+      fireEvent.change(campo, { target: { files: [arquivo] } })
+      return arquivo
+    }
+
+    it('Importar_BOM_aparece_so_para_quem_escreve_em_estrutura', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      const { unmount } = renderizarDetalhe()
+      await screen.findByText('Chassi')
+      expect(screen.getByRole('button', { name: 'Importar BOM' })).toBeTruthy()
+      unmount()
+
+      perfil = 'Operador'
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      expect(screen.queryByRole('button', { name: 'Importar BOM' })).toBeNull()
+    })
+
+    it('Importar_BOM_abre_painel_com_campo_de_arquivo', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+
+      const painel = screen.getByRole('form', { name: 'Importar BOM' })
+      const campo = within(painel).getByLabelText(/Arquivo do BOM/) as HTMLInputElement
+      expect(campo.type).toBe('file')
+      expect(campo.accept).toBe('.xlsx,.csv')
+      // O botão do cabeçalho some enquanto o painel está aberto, como o "Nova Peça".
+      expect(screen.queryByRole('button', { name: 'Importar BOM' })).toBeNull()
+      // Sem arquivo escolhido, não há o que enviar.
+      expect((within(painel).getByRole('button', { name: 'Importar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('Cancelar fecha o painel e devolve o foco ao botão Importar BOM', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+
+      fireEvent.click(within(screen.getByRole('form', { name: 'Importar BOM' })).getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('form', { name: 'Importar BOM' })).toBeNull()
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Importar BOM' }))
+    })
+
+    it('abrir o painel de importação fecha o de Peça, e o contrário', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+
+      abrirNovaPeca()
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+      expect(screen.getByRole('form', { name: 'Importar BOM' })).toBeTruthy()
+
+      abrirNovaPeca()
+      expect(screen.queryByRole('form', { name: 'Importar BOM' })).toBeNull()
+      expect(screen.getByRole('form', { name: 'Nova Peça' })).toBeTruthy()
+    })
+
+    it('abrir o painel de um nó fecha o de importação', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+      expect(screen.queryByRole('form', { name: 'Importar BOM' })).toBeNull()
+      expect(screen.getByRole('form', { name: 'Editar nó' })).toBeTruthy()
+    })
+
+    it('Arquivo_acima_de_5_MiB_e_recusado_sem_enviar', async () => {
+      const fetchMock = montarFetch({ estruturaInicial: [PECA] })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+
+      escolherArquivo('bom-enorme.xlsx', 5 * 1024 * 1024 + 1)
+
+      expect((await screen.findByRole('alert')).textContent).toContain('5 MiB')
+      const enviar = screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement
+      expect(enviar.disabled).toBe(true)
+      fireEvent.submit(screen.getByRole('form', { name: 'Importar BOM' }))
+      expect(fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === 'POST')).toBe(false)
+    })
+
+    it('arquivo de exatamente 5 MiB é aceito', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+
+      escolherArquivo('bom-no-limite.xlsx', 5 * 1024 * 1024)
+
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect((screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    it('Sucesso_navega_para_a_conferencia', async () => {
+      const fetchMock = montarFetch({ estruturaInicial: [PECA], respostaImportar: { status: 201, corpo: { id: 9, agrupamentoId: 21 } } })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      const arquivo = escolherArquivo('bom.xlsx')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      expect(await screen.findByText('Tela de conferência')).toBeTruthy()
+      const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'POST')!
+      expect(post[0]).toBe('/api/agrupamentos/21/importacoes')
+      expect(((post[1] as RequestInit).body as FormData).get('arquivo')).toBe(arquivo)
+    })
+
+    it('BomInvalido_lista_os_erros_dentro_do_painel', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        estruturaInicial: [PECA],
+        respostaImportar: { status: 400, corpo: { erro: 'BomInvalido', mensagem: 'Linha 3: quantidade invalida.\nLinha 9: codigo vazio.' } },
+      }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      escolherArquivo('bom.csv')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      const painel = screen.getByRole('form', { name: 'Importar BOM' })
+      const alerta = await within(painel).findByRole('alert')
+      expect(alerta.textContent).toContain('O arquivo tem problemas:')
+      expect(within(alerta).getAllByRole('listitem').map((li) => li.textContent))
+        .toEqual(['Linha 3: quantidade invalida.', 'Linha 9: codigo vazio.'])
+      // O painel continua aberto para tentar de novo, e a tela não navegou.
+      expect(screen.queryByText('Tela de conferência')).toBeNull()
+    })
+
+    it('403 ao importar vira mensagem dentro do painel', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], respostaImportar: { status: 403, corpo: {} } }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      escolherArquivo('bom.xlsx')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      const painel = screen.getByRole('form', { name: 'Importar BOM' })
+      expect((await within(painel).findByRole('alert')).textContent)
+        .toBe('Seu perfil não tem permissão para esta ação.')
+    })
+
+    it('com o envio em voo, Cancelar fica desabilitado', async () => {
+      const base = montarFetch({ estruturaInicial: [PECA] })
+      vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) =>
+        init?.method === 'POST' ? new Promise<Response>(() => {}) : base(url, init)))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      escolherArquivo('bom.xlsx')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      await screen.findByRole('button', { name: 'Importando…' })
+      const painel = screen.getByRole('form', { name: 'Importar BOM' })
+      expect((within(painel).getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('mostra as importações em conferência abaixo da árvore, para quem escreve', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        estruturaInicial: [PECA],
+        importacoes: [{
+          id: 5, nomeDoArquivo: 'bom-chassi.xlsx', criadoPor: 'Maria',
+          criadoEm: '2026-10-02T08:00:00-03:00', atualizadoEm: '2026-10-02T09:30:00-03:00',
+        }],
+      }))
+      renderizarDetalhe()
+
+      expect((await screen.findByRole('link', { name: /^Continuar/ })).getAttribute('href')).toBe('/importacoes/5')
+      expect(screen.getByRole('heading', { name: 'Importações em conferência' })).toBeTruthy()
+    })
+
+    it('quem não escreve não vê a seção nem a lê', async () => {
+      perfil = 'Operador'
+      const fetchMock = montarFetch({
+        estruturaInicial: [PECA],
+        importacoes: [{ id: 5, nomeDoArquivo: 'x.xlsx', criadoPor: 'M', criadoEm: '2026-10-02T08:00:00-03:00', atualizadoEm: '2026-10-02T08:00:00-03:00' }],
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+
+      expect(screen.queryByRole('heading', { name: 'Importações em conferência' })).toBeNull()
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).endsWith('/importacoes'))).toBe(false)
+    })
   })
 })

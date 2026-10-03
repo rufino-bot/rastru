@@ -610,6 +610,15 @@ describe('cadastros', () => {
     expect(await excluirAgrupamento(7)).toBe('AgrupamentoNaoVazio')
   })
 
+  // O terceiro 409 de DELETE /agrupamentos/{id}: rascunho de importacao do BOM em conferencia.
+  it('traduz o 409 de importacao em conferencia no codigo que a tela precisa mostrar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'AgrupamentoComImportacao' }), { status: 409 }),
+    ))
+
+    expect(await excluirAgrupamento(7)).toBe('AgrupamentoComImportacao')
+  })
+
   // G1 — o achado principal: sem este teste, trocar o ternario inteiro por
   // `return 'AgrupamentoNaoVazio'` deixava a suite verde. A ordem de guarda do Excluir no
   // backend e existe -> Pedido Aberto -> vazio, entao PedidoNaoAberto e o codigo que chega

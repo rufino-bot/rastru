@@ -44,4 +44,30 @@ describe('BannerDeErro', () => {
     expect(classes).toContain('text-negativo-texto')
     expect(classes.some((c) => c.includes('/'))).toBe(false)
   })
+
+  it('com linhas, a mensagem é o título e cada linha é um item da lista', () => {
+    render(<BannerDeErro mensagem="O arquivo tem problemas:" linhas={['Linha 3: quantidade invalida.', 'Linha 9: codigo vazio.']} />)
+
+    const alerta = screen.getByRole('alert')
+    expect(alerta.textContent).toContain('O arquivo tem problemas:')
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent))
+      .toEqual(['Linha 3: quantidade invalida.', 'Linha 9: codigo vazio.'])
+  })
+
+  it('com linhas, usa os mesmos tokens de cor do banner simples', () => {
+    render(<BannerDeErro mensagem="Problemas:" linhas={['a']} />)
+
+    const classes = screen.getByRole('alert').className.split(/\s+/)
+
+    expect(classes).toContain('border-negativo')
+    expect(classes).toContain('bg-negativo-fundo')
+    expect(classes).toContain('text-negativo-texto')
+  })
+
+  it('linhas vazias caem no banner simples, sem lista', () => {
+    render(<BannerDeErro mensagem="Falhou." linhas={[]} />)
+
+    expect(screen.getByRole('alert').tagName).toBe('P')
+    expect(screen.queryByRole('list')).toBeNull()
+  })
 })

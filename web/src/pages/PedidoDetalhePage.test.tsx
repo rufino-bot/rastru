@@ -295,6 +295,23 @@ describe('PedidoDetalhePage', () => {
     ).toBeTruthy()
   })
 
+  it('Excluir_agrupamento_com_rascunho_mostra_a_mensagem_propria', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      '/api/agrupamentos/21': () => respostaJson({ erro: 'AgrupamentoComImportacao' }, 409),
+    }))
+
+    renderizarDetalhe()
+    fireEvent.click(await screen.findByText('Excluir'))
+    const dialogo = screen.getByRole('dialog')
+    fireEvent.click(Array.from(dialogo.querySelectorAll('button')).find((b) => b.textContent === 'Excluir')!)
+
+    expect(
+      await screen.findByText('Este agrupamento tem importações em conferência. Descarte-as antes de excluir.'),
+    ).toBeTruthy()
+  })
+
   it('explica o motivo quando a exclusão é recusada porque o agrupamento não existe mais', async () => {
     // Segundo desfecho do mapa (M1): prova que a mensagem varia por código, não é constante —
     // com um único caso fixado, trocar o valor de `NaoEncontrado` em MOTIVO_DA_RECUSA mata 0.
