@@ -21,6 +21,8 @@ interface Props {
    * montar a árvore inteira antes de descobrir.
    */
   exigirSolido?: boolean
+  /** Trava o campo (uma escrita em voo na tela): sem digitar, sem abrir a lista. */
+  desabilitado?: boolean
 }
 
 /** Nenhuma opção destacada. `Enter` nesse estado não seleciona nada — não há "o destacado". */
@@ -68,7 +70,9 @@ function rotuloDe(componente: ComponenteDto | null): string {
  * um destes na mesma tela, e um painel aberto por montagem apareceria por cima do resto sem
  * ninguém ter pedido.
  */
-export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar, exigirSolido = false }: Props) {
+export function SeletorComBusca({
+  rotulo, valorSelecionado, aoSelecionar, exigirSolido = false, desabilitado = false,
+}: Props) {
   const busca = useBuscaPaginada({ buscar: listarComponentes })
   const [aberto, setAberto] = useState(false)
   const [rascunho, setRascunho] = useState<string | null>(null)
@@ -148,6 +152,7 @@ export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar, exigir
             id={idDoCampo}
             type="text"
             role="combobox"
+            disabled={desabilitado}
             autoComplete="off"
             className={CLASSES_DE_CONTROLE}
             placeholder="Busque por código ou descrição"
@@ -168,7 +173,7 @@ export function SeletorComBusca({ rotulo, valorSelecionado, aoSelecionar, exigir
         )}
       </Campo>
 
-      {aberto && (
+      {aberto && !desabilitado && (
         <div className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-lg border border-borda bg-superficie p-1 shadow-lg">
           <BannerDeErro
             mensagem={

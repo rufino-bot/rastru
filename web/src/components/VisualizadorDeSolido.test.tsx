@@ -2,6 +2,7 @@
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { caminhoDoSolido } from '../api/cadastros'
 import {
   VisualizadorDeSolido,
   FATOR_DE_ZOOM_MAXIMO,
@@ -468,7 +469,7 @@ describe('VisualizadorDeSolido', () => {
     const fetchMock = vi.fn((_url: string | URL, _init?: RequestInit) => Promise.resolve(new Response()))
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
 
     expect(fetchMock).not.toHaveBeenCalled()
     // Mata o import ESTÁTICO de `three`: com `import ... from 'three'` no topo do módulo, a
@@ -493,7 +494,7 @@ describe('VisualizadorDeSolido', () => {
       Promise.resolve(respostaBinaria(new Uint8Array(684))))
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
@@ -505,7 +506,7 @@ describe('VisualizadorDeSolido', () => {
     // `UploadDeSolido.test.tsx` / `SeletorComBusca.test.tsx`.
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
 
     expect(await screen.findByRole('status')).toBeTruthy()
@@ -517,7 +518,7 @@ describe('VisualizadorDeSolido', () => {
   it('mostra erro quando a busca falha, e mantém o botão para tentar de novo', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(0), undefined, 404))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
@@ -531,7 +532,7 @@ describe('VisualizadorDeSolido', () => {
   it('mostra o canvas rotulado quando o sólido carregou', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
 
     // Estado PRONTO: com os dublês de `three` e do `STLLoader`, o `<canvas>` com `aria-label`
@@ -551,7 +552,7 @@ describe('VisualizadorDeSolido', () => {
 
     render(
       <StrictMode>
-        <VisualizadorDeSolido componenteId={7} />
+        <VisualizadorDeSolido caminho={caminhoDoSolido(7)} />
       </StrictMode>,
     )
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
@@ -565,7 +566,7 @@ describe('VisualizadorDeSolido', () => {
 
     render(
       <StrictMode>
-        <VisualizadorDeSolido componenteId={7} />
+        <VisualizadorDeSolido caminho={caminhoDoSolido(7)} />
       </StrictMode>,
     )
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
@@ -581,7 +582,7 @@ describe('VisualizadorDeSolido', () => {
 
     const { unmount } = render(
       <StrictMode>
-        <VisualizadorDeSolido componenteId={7} />
+        <VisualizadorDeSolido caminho={caminhoDoSolido(7)} />
       </StrictMode>,
     )
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
@@ -675,7 +676,7 @@ describe('VisualizadorDeSolido', () => {
   it('gera o ambiente de reflexo do RoomEnvironment via PMREMGenerator e atribui a textura a scene.environment', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -689,7 +690,7 @@ describe('VisualizadorDeSolido', () => {
   it('usa acabamento metálico (metalness e roughness) igual para toda peça', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -717,7 +718,7 @@ describe('VisualizadorDeSolido', () => {
     // volta para a câmera), apagando as arestas.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -753,7 +754,7 @@ describe('VisualizadorDeSolido', () => {
     // chamar `center()` antes ou depois de `computeBoundingBox()` dá o mesmo enquadramento.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -771,7 +772,7 @@ describe('VisualizadorDeSolido', () => {
   it('enquadra a câmera pelo tamanho e formato do sólido em vez da distância fixa antiga', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -811,7 +812,7 @@ describe('VisualizadorDeSolido', () => {
     }
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -830,7 +831,7 @@ describe('VisualizadorDeSolido', () => {
   it('limita o zoom com base no tamanho do sólido, não em números fixos', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -856,7 +857,7 @@ describe('VisualizadorDeSolido', () => {
     // `requestAnimationFrame` agendar a próxima — não é preciso avançar temporizador nenhum.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -866,7 +867,7 @@ describe('VisualizadorDeSolido', () => {
   it('gira sozinho até a primeira interação do usuário nos controles, e não retoma depois', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -895,7 +896,7 @@ describe('VisualizadorDeSolido', () => {
     // chamada ausente, ou com outra função, deixaria o ouvinte parado no array.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -913,7 +914,7 @@ describe('VisualizadorDeSolido', () => {
     // componente). Mata a mutação de o componente forçar `enablePan = false`.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -924,7 +925,7 @@ describe('VisualizadorDeSolido', () => {
   it('mostra o botão Recentralizar só depois que o sólido carrega', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     expect(screen.queryByRole('button', { name: /recentralizar/i })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
@@ -937,7 +938,7 @@ describe('VisualizadorDeSolido', () => {
   it('recentraliza a vista e para a rotação automática de vez ao clicar em Recentralizar', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -963,7 +964,7 @@ describe('VisualizadorDeSolido', () => {
   it('mede a largura do container e a usa para o tamanho do canvas e a proporção da câmera', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    const { getByTestId } = render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     vi.spyOn(getByTestId('container-do-visualizador'), 'getBoundingClientRect').mockReturnValue({
       width: 700,
     } as DOMRect)
@@ -984,7 +985,7 @@ describe('VisualizadorDeSolido', () => {
     // mas nenhum teste inspecionava o argumento recebido.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    const { getByTestId } = render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -997,7 +998,7 @@ describe('VisualizadorDeSolido', () => {
     // afirmar a LARGURA passada (não só que `setSize` foi chamado) pega essa regressão.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    render(<VisualizadorDeSolido componenteId={7} />)
+    render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
     await screen.findByLabelText(/visualização 3d do sólido/i)
 
@@ -1007,7 +1008,7 @@ describe('VisualizadorDeSolido', () => {
   it('refaz o tamanho, a proporção e o enquadramento quando o observador de redimensionamento dispara', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    const { getByTestId } = render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     const container = getByTestId('container-do-visualizador')
     const medidaDeLargura = vi.spyOn(container, 'getBoundingClientRect')
     medidaDeLargura.mockReturnValue({ width: 700 } as DOMRect)
@@ -1050,7 +1051,7 @@ describe('VisualizadorDeSolido', () => {
     // devolveria a câmera à distância de um quadro que não existe mais.
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaBinaria(new Uint8Array(684)))))
 
-    const { getByTestId } = render(<VisualizadorDeSolido componenteId={7} />)
+    const { getByTestId } = render(<VisualizadorDeSolido caminho={caminhoDoSolido(7)} />)
     const medidaDeLargura = vi.spyOn(getByTestId('container-do-visualizador'), 'getBoundingClientRect')
     medidaDeLargura.mockReturnValue({ width: 700 } as DOMRect)
 
@@ -1069,5 +1070,17 @@ describe('VisualizadorDeSolido', () => {
     )
     // O centro continua a origem (onde `center()` pôs o sólido); só a distância muda.
     expect(controlsFalsos.ultimo?.position0.set).toHaveBeenLastCalledWith(0, 0, doTamanhoNovo.distancia)
+  })
+
+  it('Usa_o_caminho_recebido: busca o binário no caminho dado, não na rota do catálogo', async () => {
+    const fetchMock = vi.fn((_url: string | URL, _init?: RequestInit) =>
+      Promise.resolve(respostaBinaria(new Uint8Array(684))))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<VisualizadorDeSolido caminho="/importacoes/5/componentes/9/solido" />)
+    fireEvent.click(screen.getByRole('button', { name: /visualizar/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    expect(String(fetchMock.mock.calls[0][0])).toBe('/api/importacoes/5/componentes/9/solido')
   })
 })

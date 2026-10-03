@@ -15,6 +15,7 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { Pagina } from '../components/Pagina'
 import { Pilula, type TomDePilula } from '../components/Pilula'
+import { PainelDoComponenteDaImportacao } from '../importacao/PainelDoComponenteDaImportacao'
 
 const AVISO_DESATUALIZADA = 'Outra pessoa alterou esta importação; a tela foi atualizada.'
 const AVISO_BLOQUEIOS = 'A importação ainda tem bloqueios; a lista foi atualizada.'
@@ -186,21 +187,20 @@ export function ConferenciaDeImportacaoPage() {
     <Pagina titulo="Conferência da importação">
       <BannerDeErro mensagem={aviso} />
 
-      {/* Região 1 — o painel do Componente selecionado. Reservada: a Task 10 o preenche (sólido,
-          casamento, divergência). `selecao` já guarda o registro e o Componente para ela. */}
-      <section
-        aria-label="Componente selecionado"
-        className="sticky top-0 z-10 flex flex-col gap-1 rounded-lg border border-borda bg-superficie px-4 py-3"
-      >
-        {noSelecionado ? (
-          <>
-            <span className="font-mono text-sm text-tinta-fraca">{noSelecionado.codigo}</span>
-            <span className="text-tinta">{noSelecionado.descricao}</span>
-          </>
-        ) : (
+      {/* Região 1 — o painel fixo do Componente selecionado. */}
+      {noSelecionado ? (
+        <PainelDoComponenteDaImportacao
+          importacao={importacao}
+          registroId={noSelecionado.registroId}
+          componenteId={noSelecionado.componenteId}
+          escrever={escrever}
+          desabilitado={enviando}
+        />
+      ) : (
+        <section aria-label="Componente selecionado" className="rounded-lg border border-borda bg-superficie px-4 py-3">
           <span className="text-tinta-fraca">Nenhum componente para mostrar.</span>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Região 2 — a faixa da Peça. */}
       <section aria-labelledby="titulo-da-peca" className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie px-4 py-4">

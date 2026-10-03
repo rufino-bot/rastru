@@ -5,7 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ConferenciaDeImportacaoPage } from './ConferenciaDeImportacaoPage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
-import type { ImportacaoDto, NoDaImportacaoDto, BloqueioDto } from '../api/importacao'
+import type { ImportacaoDto, NoDaImportacaoDto, BloqueioDto, SituacaoDoComponenteDto } from '../api/importacao'
 
 afterEach(cleanup)
 
@@ -589,5 +589,60 @@ describe('ConferenciaDeImportacaoPage', () => {
     expect(rolar).toHaveBeenCalledTimes(1)
     fireEvent.click(pilula)
     expect(rolar).toHaveBeenCalledTimes(2)
+  })
+
+  describe('painel do Componente selecionado', () => {
+    const DIVERGENTE: SituacaoDoComponenteDto = {
+      registroId: 2, codigoLido: 'SU-200', descricaoLida: 'Suporte', componenteId: 200,
+      codigoDoCatalogo: 'SU-200', descricaoDoCatalogo: 'Suporte', tipo: 'Montagem', ativo: true,
+      temSolido: true, temSolidoPendente: false, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684,
+      codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: true, escolhaDeReceita: null,
+      comparativo: [{ codigo: 'PA-300', descricao: 'Parafuso', noCatalogo: 4, noBom: 8, situacao: 'QuantidadeMuda' }],
+      efeitoDeManterCatalogo: { retira: 1, traz: 0 }, naArvoreFinal: true,
+    }
+    const CATALOGO = () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 })
+
+    it('Escolher_a_receita_escreve_e_a_resposta_vira_o_estado', async () => {
+      const escolhida = importacao({
+        versao: 'AAAAAAAAB9F=',
+        componentes: [{ ...DIVERGENTE, escolhaDeReceita: 'Catalogo' }],
+      })
+      const fetchMock = montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [DIVERGENTE] })),
+        'GET /api/componentes': CATALOGO,
+        'PUT /api/importacoes/5/componentes/2': () => respostaJson(escolhida),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: /SU-200 Suporte/ }))
+      const manter = await screen.findByRole('radio', { name: 'Manter a receita do catálogo' }) as HTMLInputElement
+      expect(manter.checked).toBe(false)
+      fireEvent.click(manter)
+
+      await waitFor(() => expect(
+        (screen.getByRole('radio', { name: 'Manter a receita do catálogo' }) as HTMLInputElement).checked,
+      ).toBe(true))
+      expect(corpoDa(fetchMock, 'PUT', '/api/importacoes/5/componentes/2')).toMatchObject({
+        versao: 'AAAAAAAAB9E=', componenteId: 200, escolhaDeReceita: 'Catalogo',
+      })
+    })
+
+    it('escrita do painel com a versão velha rele e avisa, como as da árvore', async () => {
+      const fetchMock = montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [DIVERGENTE] })),
+        'GET /api/componentes': CATALOGO,
+        'PUT /api/importacoes/5/componentes/2': () => respostaJson({ erro: 'ImportacaoDesatualizada' }, 409),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: /SU-200 Suporte/ }))
+      fireEvent.click(await screen.findByRole('radio', { name: 'Usar a receita importada' }))
+
+      expect((await screen.findByRole('alert')).textContent)
+        .toBe('Outra pessoa alterou esta importação; a tela foi atualizada.')
+      await waitFor(() => expect(leituras(fetchMock)).toHaveLength(2))
+    })
   })
 })

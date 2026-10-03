@@ -3,7 +3,6 @@ import type * as ThreeModulo from 'three'
 import type { OrbitControls as OrbitControlsModulo } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { RoomEnvironment as RoomEnvironmentModulo } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { apiFetch } from '../api/client'
-import { caminhoDoSolido } from '../api/cadastros'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import {
   ABERTURA_VERTICAL_EM_GRAUS,
@@ -16,7 +15,9 @@ import { Botao } from './Botao'
 import { EstadoCarregando } from './EstadoCarregando'
 
 interface Props {
-  componenteId: number
+  /** Caminho do binário, SEM o prefixo `/api` (ex.: `caminhoDoSolido(id)`, ou o do sólido pendente
+      de uma importação) — quem chama sabe de onde vem o sólido, o visualizador só o mostra. */
+  caminho: string
 }
 
 type Estado =
@@ -120,7 +121,7 @@ function medirLarguraDoContainer(container: HTMLDivElement): number {
  * parâmetros de câmera e de zoom calculados a partir do tamanho do sólido e da proporção do quadro,
  * o redimensionamento e a rotação automática que para na primeira interação e não retoma.
  */
-export function VisualizadorDeSolido({ componenteId }: Props) {
+export function VisualizadorDeSolido({ caminho }: Props) {
   const [estado, setEstado] = useState<Estado>({ tipo: 'inicial' })
   const containerRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<ThreeModulo.WebGLRenderer | null>(null)
@@ -350,7 +351,7 @@ export function VisualizadorDeSolido({ componenteId }: Props) {
   async function aoClicarVisualizar() {
     setEstado({ tipo: 'carregando' })
     try {
-      const resp = await apiFetch(caminhoDoSolido(componenteId))
+      const resp = await apiFetch(caminho)
       if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao carregar o sólido (${resp.status}).`)
       const binario = await resp.arrayBuffer()
 
