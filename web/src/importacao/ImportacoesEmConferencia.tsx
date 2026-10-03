@@ -19,7 +19,8 @@ interface Props {
   versao: number
 }
 
-// O que o `Link` de "Continuar" parece: o `Botao` secundário, que não serve a um `<a>`.
+// O que o `Link` de "Continuar" parece. Estas classes ESPELHAM `POR_VARIANTE.secundario` (mais a
+// `BASE`) de `components/Botao.tsx`, que não serve a um `<a>`: mudou lá, muda aqui.
 const CLASSES_DO_LINK =
   'inline-flex items-center justify-center rounded-lg border border-borda-campo px-4 py-2 text-tinta '
   + 'transition-colors hover:bg-acao-fundo '

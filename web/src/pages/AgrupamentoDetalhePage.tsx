@@ -168,6 +168,7 @@ export function AgrupamentoDetalhePage() {
   const [versaoDasImportacoes, setVersaoDasImportacoes] = useState(0)
 
   const jaCarregouUmaVez = useRef(false)
+  const campoDoArquivoBom = useRef<HTMLInputElement>(null)
   // A seção das importações só entra depois da primeira carga da árvore, e com a árvore sem erro: ela
   // tem os três estados dela, e montada antes duplicaria o "Carregando…" e o banner de rede da tela.
   const [arvoreJaCarregou, setArvoreJaCarregou] = useState(false)
@@ -394,13 +395,16 @@ export function AgrupamentoDetalhePage() {
 
   function escolherArquivoDoBom(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0] ?? null
+    // Zera o valor do campo (o File já está em `arquivo`): sem isso, escolher DE NOVO o mesmo
+    // caminho, depois de corrigir a planilha, não dispara `onChange` e o File velho seguiria em
+    // estado. Mesmo cuidado de `UploadDeSolido`.
+    e.target.value = ''
     setErroImportacao(null)
     setLinhasDoBom([])
     // Antes de qualquer requisição, e `>` e não `>=`: o backend aceita o limite exato. Acima dele o
     // servidor fecha a conexão com o corpo subindo e o `fetch` rejeitaria sem resposta, então a
     // frase certa só pode vir daqui.
     if (arquivo && arquivo.size > TAMANHO_MAXIMO_DO_BOM_EM_BYTES) {
-      e.target.value = ''
       setArquivoBom(null)
       setErroImportacao(
         `O arquivo passa do limite de ${LIMITE_DO_BOM_LEGIVEL} do BOM. Exporte só a tabela da lista de materiais e envie de novo.`,
@@ -420,6 +424,10 @@ export function AgrupamentoDetalhePage() {
       const importacao = await criarImportacao(agrupamentoId, arquivoBom)
       navegar(`/importacoes/${importacao.id}`)
     } catch (erro) {
+      // Qualquer falha do envio descarta o arquivo escolhido: o usuário o escolhe de novo (o
+      // conteúdo pode ter mudado em disco, e reenviar o `File` velho às cegas não é o que ele quer).
+      setArquivoBom(null)
+      if (campoDoArquivoBom.current) campoDoArquivoBom.current.value = ''
       if (erro instanceof ErroDeBom) {
         // O texto do servidor é ASCII sem acento: o título é nosso, e as linhas vão como vieram.
         setErroImportacao('O arquivo tem problemas:')
@@ -656,6 +664,7 @@ export function AgrupamentoDetalhePage() {
             {(idDoCampo, idDaDica) => (
               <input
                 id={idDoCampo}
+                ref={campoDoArquivoBom}
                 type="file"
                 accept=".xlsx,.csv"
                 disabled={enviandoImportacao}

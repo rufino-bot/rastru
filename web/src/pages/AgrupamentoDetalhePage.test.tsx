@@ -1837,6 +1837,70 @@ describe('AgrupamentoDetalhePage', () => {
       expect(screen.queryByText('Tela de conferência')).toBeNull()
     })
 
+    it('depois de um BomInvalido o arquivo precisa ser escolhido de novo, e o segundo envio leva o arquivo novo', async () => {
+      const base = montarFetch({ estruturaInicial: [PECA] })
+      let respostas = 0
+      const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
+        if (init?.method === 'POST' && String(url) === '/api/agrupamentos/21/importacoes') {
+          respostas += 1
+          return Promise.resolve(respostas === 1
+            ? respostaJson({ erro: 'BomInvalido', mensagem: 'Linha 3: quantidade invalida.' }, 400)
+            : respostaJson({ id: 9, agrupamentoId: 21 }, 201))
+        }
+        return base(url, init)
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      escolherArquivo('bom.csv')
+      const campo = screen.getByLabelText(/Arquivo do BOM/) as HTMLInputElement
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      await screen.findByText('Linha 3: quantidade invalida.')
+      // O File antigo não fica para um reenvio às cegas: o campo zera e o botão espera um arquivo novo.
+      expect(campo.value).toBe('')
+      expect((screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement).disabled).toBe(true)
+
+      const novo = escolherArquivo('bom-corrigido.csv')
+      expect((screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement).disabled).toBe(false)
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      expect(await screen.findByText('Tela de conferência')).toBeTruthy()
+      const posts = fetchMock.mock.calls.filter((c) => c[1]?.method === 'POST')
+      expect(posts).toHaveLength(2)
+      expect(((posts[1][1] as RequestInit).body as FormData).get('arquivo')).toBe(novo)
+    })
+
+    it('outro erro de envio também exige escolher o arquivo de novo', async () => {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], respostaImportar: { status: 403, corpo: {} } }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(screen.getByRole('button', { name: 'Importar BOM' }))
+      escolherArquivo('bom.xlsx')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
+
+      await screen.findByRole('alert')
+      expect((screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('recarregar a árvore depois de uma escrita relê a lista de importações', async () => {
+      const fetchMock = montarFetch({ estruturaInicial: [PECA], estruturaAposCriar: [PECA, { ...PECA, id: 101 }] })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      const leituras = () => fetchMock.mock.calls
+        .filter((c) => String(c[0]) === '/api/agrupamentos/21/importacoes' && (c[1]?.method ?? 'GET') === 'GET').length
+      await waitFor(() => expect(leituras()).toBe(1))
+
+      await preencherFormulario(5)
+      fireEvent.click(screen.getByRole('button', { name: 'Criar Peça' }))
+
+      await waitFor(() => expect(leituras()).toBe(2))
+    })
+
     it('403 ao importar vira mensagem dentro do painel', async () => {
       vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], respostaImportar: { status: 403, corpo: {} } }))
       renderizarDetalhe()
@@ -1878,7 +1942,9 @@ describe('AgrupamentoDetalhePage', () => {
       renderizarDetalhe()
 
       expect((await screen.findByRole('link', { name: /^Continuar/ })).getAttribute('href')).toBe('/importacoes/5')
-      expect(screen.getByRole('heading', { name: 'Importações em conferência' })).toBeTruthy()
+      const secao = screen.getByRole('heading', { name: 'Importações em conferência' })
+      const arvore = screen.getByRole('list', { name: /estrutura/i })
+      expect(arvore.compareDocumentPosition(secao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     })
 
     it('quem não escreve não vê a seção nem a lê', async () => {
