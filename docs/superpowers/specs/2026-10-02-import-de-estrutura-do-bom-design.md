@@ -77,12 +77,13 @@ CREATE TABLE dbo.ImportacaoDeEstrutura (
     RequerRelatorioDimensional  BIT            NOT NULL DEFAULT (0),
     CriadoPorUsuarioId          INT            NOT NULL,  -- FK dbo.Usuario
     CriadoEm                    DATETIME2      NOT NULL DEFAULT (SYSUTCDATETIME()),
+    AtualizadoEm                DATETIME2      NOT NULL DEFAULT (SYSUTCDATETIME()),  -- toda escrita no rascunho o atualiza (nota "AtualizadoEm")
     Versao                      ROWVERSION     NOT NULL
 );
 
 CREATE TABLE dbo.ImportacaoDeEstruturaComponente (   -- um registro por código distinto
     Id                          INT IDENTITY(1,1) NOT NULL,
-    ImportacaoId                INT            NOT NULL,  -- FK, ON DELETE CASCADE
+    ImportacaoId                INT            NOT NULL,  -- FK, NO ACTION (nota "Sem ON DELETE CASCADE")
     CodigoLido                  NVARCHAR(50)   NULL,      -- nulo = linha sem part number
     DescricaoLida               NVARCHAR(200)  NOT NULL,
     ComponenteId                INT            NULL,      -- casado (FK dbo.Componente)
@@ -108,11 +109,30 @@ CREATE TABLE dbo.ImportacaoDeEstruturaFilho (        -- a receita lida, um níve
 -- UNIQUE (PaiId, FilhoId); CHECK (Quantidade > 0 AND QuantidadeLida > 0); CHECK (PaiId <> FilhoId)
 ```
 
-O esboço acima fixa a **forma**; nomes de constraint, `ON DELETE` exatos e a ordem de criação (a FK
-circular `RaizId` ↔ `ImportacaoDeEstruturaComponente`) ficam para o plano, que os mede contra o banco.
+O esboço acima fixa a **forma**; os nomes de constraint e a ordem de criação (a FK circular `RaizId` ↔
+`ImportacaoDeEstruturaComponente`, criada com `ALTER TABLE` depois das duas tabelas) estão em
+`specs/02-modelo-de-dados.sql`, que é a fonte de verdade. Três pontos em que o schema construído **difere
+do esboço**, e por quê:
 
-**Por que o índice é filtrado:** um `UNIQUE` comum do SQL Server aceita **um** nulo só, e várias
-linhas sem part number precisam coexistir no mesmo rascunho — cada uma vira um registro próprio.
+- **`AtualizadoEm` no cabeçalho** (decisão P7 do plano do import). O `ROWVERSION` do cabeçalho só muda
+  quando o **cabeçalho** é escrito, e a maior parte das escritas da conferência é num registro ou numa
+  linha da receita. Toda escrita no rascunho passa a atualizar `AtualizadoEm`, e é isso que faz a `Versao`
+  mudar — a versão otimista da seção 5.3 vale, assim, para o rascunho inteiro. A coluna também alimenta
+  a lista de rascunhos do Agrupamento ("atualizado em").
+- **Sem `ON DELETE CASCADE`** (decisão P6). Todas as FKs entre as três tabelas, a circular `RaizId`
+  inclusive, são `NO ACTION`: o SQL Server recusa cascata quando há mais de um caminho até a mesma
+  tabela, e há (`Filho` aponta para o registro por `PaiId` e por `FilhoId`). Quem apaga um rascunho é a
+  aplicação, numa transação, na ordem **linhas da receita → `RaizId = NULL` → registros → cabeçalho →
+  `ArquivoDeComponente` pendentes**.
+- **`IX_ImportacaoDeEstruturaComponente_ImportacaoId`**, índice comum que o esboço não trazia. A exclusão
+  do rascunho filtra os registros por `ImportacaoId`, e o índice filtrado de código não serve a esse
+  filtro (só cobre as linhas com código). Sem ele, a exclusão — que roda **dentro** da transação
+  `SERIALIZABLE` da confirmação (seção 7) — varreria e travaria os registros de **todos** os rascunhos
+  até o commit.
+
+**Por que o índice de código (`UX_ImportacaoDeEstruturaComponente_Codigo`) é filtrado:** um `UNIQUE`
+comum do SQL Server aceita **um** nulo só, e várias linhas sem part number precisam coexistir no mesmo
+rascunho — cada uma vira um registro próprio.
 
 **Por que receita por código, e não linhas:** com a escolha por Componente (D5) e o "mesmo código com
 filhos diferentes é erro" (D13), a árvore inteira é determinada pela raiz mais a receita de cada
@@ -120,8 +140,9 @@ código. Guardar linhas deixaria a quantidade ser corrigida numa ocorrência e n
 pai, e o catálogo só guarda uma receita por Componente.
 
 **O STL pendente vive em `dbo.ArquivoDeComponente`**, a mesma tabela do sólido de hoje, sem nenhum
-`Componente` apontando para ele até a confirmação. Descartar o rascunho apaga esses arquivos — pela
-aplicação, já que a FK vai do rascunho para o arquivo e o `CASCADE` não os alcança.
+`Componente` apontando para ele até a confirmação. Descartar o rascunho apaga esses arquivos, como
+último passo da exclusão em ordem da nota "Sem `ON DELETE CASCADE`" — a FK vai do rascunho para o arquivo, então o arquivo
+só pode sair depois do registro que o aponta.
 
 **Exclusão de Agrupamento.** `DELETE /agrupamentos/{id}` passa a recusar com 409
 `{ "erro": "AgrupamentoComImportacao" }` quando houver rascunho; quem quer excluir descarta antes. A
@@ -224,8 +245,10 @@ Calculados a cada leitura contra o catálogo atual, mostrados na tela e conferid
 
 ## 6. API
 
-Todas as rotas são *(PCP, Administrador)* — o recurso `estrutura` de `web/src/auth/permissoes.ts`. Toda
-escrita leva a `versao` do rascunho e responde **409** se ela estiver velha.
+As rotas de **escrita** são *(PCP, Administrador)* — o recurso `estrutura` de `web/src/auth/permissoes.ts`
+—, e as de **leitura** (`GET`), de qualquer perfil autenticado, como no `EstruturaController`. Toda escrita
+leva a `versao` do rascunho e responde **409** se ela estiver velha. O contrato fechado — corpos, códigos de
+erro e o formato do arquivo — está em `specs/05-api-endpoints.md`, seção "Importação da estrutura".
 
 | Rota | O que faz |
 |---|---|
@@ -243,14 +266,16 @@ escrita leva a `versao` do rascunho e responde **409** se ela estiver velha.
 
 Sem guarda de status do Pedido, pelo mesmo motivo do `POST /agrupamentos/{id}/estrutura`: acrescentar
 estrutura a Pedido em execução é o comportamento padrão da fábrica. Contrato de erro no formato da
-seção "Contrato de erro da Estrutura" de `specs/05-api-endpoints.md`; os códigos novos são definidos no
-plano.
+seção "Contrato de erro da Estrutura" de `specs/05-api-endpoints.md`; os códigos novos estão na seção
+"Importação da estrutura" do mesmo arquivo.
 
 ## 7. Confirmação
 
-Numa transação só:
+A gravação é numa transação só (passos 2 a 6); o passo 1 roda antes dela, sobre o catálogo lido fora (ver a
+seção 13):
 
-1. Recalcula os bloqueios (seção 5.4). Sobrou algum → **400** com a lista.
+1. Recalcula os bloqueios (seção 5.4). Sobrou algum → **400** (a lista não vai no corpo: a tela a relê pelo
+   `GET`).
 2. Recalcula a impressão da receita de catálogo de cada código com escolha. Mudou → **409** ("a receita
    de X mudou no catálogo, confira de novo"), e a escolha daquele código é zerada.
 3. Cria os Componentes novos, reativa os inativos, grava os sólidos pendentes (substituindo o de um
@@ -260,13 +285,15 @@ Numa transação só:
    que agora reflete as escolhas.
 6. Apaga o rascunho.
 
-**Risco registrado, a medir — não resolvido.** Hoje `CriarPeca` lê o catálogo **fora** da transação,
-de propósito: `LerReceitaCompletaAsync` sob SERIALIZABLE travaria as tabelas da receita por faixa e
-abriria um ciclo de deadlock com `ReceitaPadraoRepository` (seção 3.2 da spec
-`2026-10-01-deadlock-na-suite-de-api-design.md`). Aqui o passo 5 precisa ler **dentro** da transação,
-para enxergar o que os passos 3 e 4 gravaram. O plano escolhe o desenho (ler dentro; ou planejar a
-cópia a partir do estado em memória do rascunho, sem reler o catálogo) e **mede** com a suíte de Api
-repetida, como foi feito no conserto do deadlock.
+**Risco da leitura dentro da transação — resolvido pela segunda saída** (decisão P5 do plano do import;
+os detalhes estão na seção 13). Hoje `CriarPeca` lê o catálogo **fora** da transação, de propósito:
+`LerReceitaCompletaAsync` sob SERIALIZABLE travaria as tabelas da receita por faixa e abriria um ciclo de
+deadlock com `ReceitaPadraoRepository` (seção 3.2 da spec `2026-10-01-deadlock-na-suite-de-api-design.md`).
+A confirmação do import faz o mesmo: lê o catálogo, calcula os bloqueios (passo 1) e planeja a Peça **em
+memória** (o plano que o passo 5 grava), com a avaliação que já serve ao `GET`, **antes** de abrir a
+transação. **Dentro** dela confere de novo a versão do rascunho — igual, o rascunho é o que foi avaliado —,
+relê só o que é estreito (passo 2) e grava na ordem dos passos 3 a 6; o passo 5 grava o plano feito fora, e
+não faz uma releitura do que os passos 3 e 4 gravaram.
 
 ## 8. Telas
 
@@ -283,7 +310,8 @@ pelos tokens.
 
 **Tela de conferência, `/importacoes/:id`**, de cima para baixo:
 
-1. **Painel fixo (sticky) do Componente selecionado.** À esquerda, `VisualizadorDeSolido` com
+1. **Painel fixo (sticky) do Componente selecionado** — fixo só de `md` para cima (D16); no celular é um
+   bloco comum no topo, que rola com a tela. À esquerda, `VisualizadorDeSolido` com
    `UploadDeSolido`. À direita: código e descrição (a do BOM ao lado da do catálogo quando difere); o
    casamento — `SeletorComBusca` para trocar, ou os campos do Componente novo com o `Tipo`; e, se o
    código diverge, a **tabela de comparativo** de um nível e a escolha "manter a do catálogo / usar a
@@ -330,6 +358,9 @@ Os três estados (carregando, vazio, erro) valem para a tela de conferência e p
 
 ## 10. Pendências do BOM real — suposições provisórias
 
+*(Implementadas em 2026-10-03; o que a implementação fixou além da tabela — a codificação do CSV sem BOM, o
+nível numérico do XLSX, os apelidos de cabeçalho — está na seção 13.)*
+
 O usuário vai fornecer o BOM de uma montagem pessoal (D17). Cada linha abaixo tem uma suposição para o
 plano não travar; o arquivo confirma ou derruba, e o que cair vira emenda curta nesta spec.
 
@@ -372,3 +403,120 @@ em 2026-08-04; executa antes da 3B)», e a regra do schema foi para o cabeçalho
 - Histórico de importações confirmadas.
 - Expiração automática de rascunho.
 - Conferência otimizada para celular.
+
+## 13. Emendas da implementação
+
+Registro de 2026-10-03, do que a implementação fixou onde esta spec deixou a escolha ou estreitou uma
+suposição. O que a seção 3 muda no schema está lá; o contrato HTTP fechado, em `specs/05-api-endpoints.md`
+(seção "Importação da estrutura"); a regra de domínio, na regra 32 de
+`specs/01-dominio-e-regras-de-negocio.md`.
+
+**Leitura do arquivo (seções 4 e 10).**
+
+- **Cabeçalhos por tabela de apelidos** (decisão P9 do plano do import). As quatro colunas são achadas
+  pelo cabeçalho, normalizado (maiúsculas, sem acento nem pontuação, sem o sinal ordinal de "Nº", espaços
+  colapsados), numa tabela de apelidos que cobre o SolidWorks em português e em inglês. Quando o BOM real
+  chegar, a emenda mexe só nessa tabela (`ColunasDoBom`). As quatro colunas têm de estar no
+  **cabeçalho**; o código só pode faltar no **conteúdo** da linha.
+- **Codificação do CSV sem BOM.** UTF-8 com BOM é UTF-8. Sem BOM, o arquivo é tentado como **UTF-8
+  estrito** e, se tiver byte inválido, lido como **Windows-1252**. A suposição da seção 10 ("UTF-8 com BOM ou
+  Windows-1252") ficou estreita demais: ler um UTF-8 sem BOM como Windows-1252 estraga os acentos **em
+  silêncio**, e o arquivo parece ter sido aceito.
+- **Nível numérico no XLSX.** Uma célula de nível numérica e **inteira** (`2`, `10`) é aceita. Numérica e
+  **não inteira** (`1.1`, `1.10`) é recusada, com a linha dita: `1.10` e `1.1` são o mesmo número no Excel
+  e dois itens diferentes no BOM, então o nível só é confiável como texto. A quantidade, ao contrário, vem
+  como número e é formatada sem notação científica e sem o ruído do ponto flutuante.
+- **Quantidade** (decisão P10): `1,5` e `1.5`, no máximo um separador, sem milhar, de
+  `QuantidadeMinimaDaColuna` a `QuantidadeMaximaDaColuna`, com no máximo 4 casas (zeros à direita não
+  contam). A soma do mesmo filho repetido sob o mesmo pai também tem de caber na faixa.
+- **Limites** (decisão P11): arquivo de até **5 MiB**, só `.csv` e `.xlsx`; o XLSX é lido só na **primeira**
+  planilha, e um XLSX que descompacta para mais de 64 MiB é recusado. Uma linha sem nada nas quatro colunas
+  lidas é ignorada. Os textos que estourariam a coluna (código acima de 50 caracteres, descrição vazia ou
+  acima de 200, nome do arquivo acima de 260) viram erro **do arquivo**, com a linha, e não um 500.
+- **Código da raiz.** O BOM não tem linha para a montagem de topo, então o arquivo nunca traz o código
+  dela: a raiz nasce com a descrição igual ao nome do arquivo sem extensão e "criar novo" com código em
+  branco, que a conferência exige preencher ou casar à mão (decisão P8). No reimport, a raiz é **sempre** o
+  mesmo registro.
+
+**Bloqueios (seção 5.4).**
+
+- Além dos listados, existe `QuantidadeForaDaFaixa`: a quantidade da Peça multiplicada pela receita sai da
+  faixa da coluna (ou estoura o `decimal`). Com ciclo, profundidade e tamanho, é uma das quatro recusas da
+  expansão; quando ela é recusada, `raiz` vem nula e o motivo está na lista de bloqueios, que continua
+  calculada para o resto.
+- `CodigoJaExiste` vale também para **dois Componentes novos com o mesmo código no mesmo rascunho**, que
+  esbarrariam em `UQ_Componente_Codigo` na confirmação.
+- A mensagem do ciclo nomeia o caminho **por código** (o Componente novo sem código, pela descrição entre
+  aspas), e não pelo Id interno.
+- Os bloqueios por registro (código, divergência, sólido) valem **só para a árvore final** (decisão P3): um
+  código que saiu por uma escolha "catálogo" acima dele não vira Componente e não trava nada. Um nó que
+  entra só pela receita do catálogo exige sólido (D3) mas não tem registro: o bloqueio aponta o
+  Componente, e o sólido se envia no cadastro dele, não na conferência.
+
+**Casamento e escolha (seções 5.1 e 5.2).**
+
+- Dois registros do mesmo rascunho **não** casam com o mesmo Componente — o catálogo tem uma receita por
+  Componente, e as duas se pisariam. O casamento automático nunca produz isso (o código é único no
+  rascunho); a troca manual é recusada com 400, e o reimport deixa "criar novo" o registro que casaria com
+  um Componente já tomado.
+- **Trocar o casamento e escolher a receita na mesma escrita é recusado.** Trocar o casamento é trocar a
+  receita de catálogo em comparação, e uma escolha enviada junto seria sobre uma receita que o usuário não
+  viu; a escolha se faz numa escrita seguinte, já sobre o casamento novo. Trocar o casamento zera a
+  escolha e a impressão. Escolher onde não há divergência também é recusado.
+- **Escolha num código que deixou de divergir é inerte** (por exemplo, a quantidade corrigida na tela fez a
+  receita lida igualar a do catálogo): nenhum bloqueio a cobra, a confirmação a ignora, e a receita do
+  código é a lida (decisão P2).
+- A receita **efetiva** de cada código, a que entra na árvore final (decisão P2): a lida, se o código é
+  novo, se casa e não diverge, ou se diverge com escolha "importada"; a do catálogo, se diverge com escolha
+  "catálogo"; a lida, provisoriamente, se diverge sem escolha (a árvore mostrada é a do BOM, e o bloqueio
+  impede a confirmação). Um Id alcançado só pelo catálogo usa a receita do catálogo. A árvore final é
+  calculada, nunca gravada (decisão P4): uma função pura serve ao `GET` e à confirmação.
+- Id provisório (decisão P1): na sobreposição do rascunho sobre o catálogo, o registro casado usa o
+  `ComponenteId` e o "criar novo" usa o Id do registro **negativo**. Materiais e roteiro de um Id negativo
+  saem vazios, como os de um Componente sem receita.
+
+**Reimport (seção 6).**
+
+- Por código, aparado e sem diferenciar caixa: o registro de um código que **continua** no arquivo é mantido
+  (mesmo Id), com o casamento manual, os dados do "criar novo" e o sólido pendente. O de código **novo**
+  nasce como no `POST` de criação; o de código que **saiu** é removido, e o pendente dele é apagado. Linha
+  sem código (fora a raiz) não tem identidade, e sai e entra de novo a cada reimport.
+- A escolha de receita **só segue** se a receita lida do código (os códigos dos filhos e as quantidades
+  lidas) é a mesma de antes; senão é zerada. Se algum filho não tem código, a receita nunca é "a mesma".
+- As quantidades corrigidas na tela **voltam ao que o arquivo diz**: o arquivo é a forma da árvore (D8).
+- O `TipoNovo` de um "criar novo" mantido **acompanha o arquivo novo** — `Montagem` se passou a ter filhos,
+  `Fabricado` se passou a ser folha. `Bruto` é escolha do usuário e fica. O de um casado não muda.
+- Um arquivo recusado deixa o rascunho como estava. **A tela de conferência ainda não oferece o
+  reimport**: a rota existe e o cliente HTTP da tela a tem, mas nenhum botão a usa.
+
+**Confirmação (seção 7).**
+
+- Só o que está na árvore final é criado, reativado e gravado (decisão P3). Em particular, um Componente
+  **inativo que entra só pela receita do catálogo** (sem registro no rascunho) **não é reativado**: é o
+  que a "Nova Peça" faz hoje com um filho inativo da receita, que o copia sem reativá-lo. O inativo que tem
+  registro (casado à mão ou por código) é reativado.
+- O catálogo é lido e a Peça planejada **fora** da transação (decisão P5). Dentro dela se relê a versão do
+  rascunho — a leitura segura a linha do cabeçalho até o commit, e toda escrita do rascunho passa por ela —
+  e a receita de catálogo de cada pai **com escolha**, para conferir a impressão (faixa estreita:
+  `UQ_ComponenteFilhoPadrao` começa por `ComponentePaiId`). Impressão diferente desfaz a transação, responde
+  409 `ReceitaDoCatalogoMudou` e zera a escolha daquele código numa escrita à parte, de melhor esforço.
+- **Resíduos aceitos**, os mesmos de `CriarPeca` mais um: uma mudança concorrente no catálogo dos Ids
+  alcançados só pela receita do catálogo, entre a leitura e o commit, não é vista; e um código novo criado
+  no catálogo por outra requisição nesse intervalo esbarra em `UQ_Componente_Codigo` no `INSERT`, que sobe
+  como erro não tratado — o `GET` seguinte mostra o bloqueio `CodigoJaExiste`.
+- Sem bloqueio, a resposta é 201 com a Peça. Com bloqueio, 400 `ImportacaoComBloqueios` **sem a lista**
+  (decisão P15), que a tela relê pelo `GET`.
+- Descartar não pede a versão: é a saída de um rascunho que ninguém mais quer.
+
+**Telas (seção 8).**
+
+- A conferência usa árvore **própria**, `ArvoreDaImportacao`: o contrato da `ArvoreDeEstrutura` é o nó real,
+  com ações, posições e Roteiro que o rascunho não tem. Cada linha tem um `<button>` como seletor do nó
+  (exceção escrita em `CLAUDE.md`, seção "Interface") e a quantidade por pai editável na linha.
+- `UploadDeSolido` e `VisualizadorDeSolido` passaram a receber o **caminho** do binário (e, o upload, a função
+  `enviar`), para servir tanto ao sólido do Componente quanto ao pendente do rascunho.
+- A seção "Importações em conferência" só aparece para quem escreve em `estrutura` e depois de a árvore do
+  Agrupamento carregar. Quem não escreve abre a tela de conferência por link em modo leitura: sem Confirmar nem
+  Descartar, e com os campos travados.
+- `DELETE /agrupamentos/{id}` recusado com rascunho: a tela de Pedido explica o 409 com "Descarte-as antes de
+  excluir".

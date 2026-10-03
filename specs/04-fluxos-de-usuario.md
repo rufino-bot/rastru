@@ -14,6 +14,8 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
      `ComponenteMaterialPadrao` e `ComponenteRoteiroPadrao` para dentro da estrutura
      real do Agrupamento, como ponto de partida editável).
    - Pode criar itens 100% customizados (sem `ComponenteId`), específicos deste Pedido.
+   - Pode **importar a estrutura inteira de uma Peça** a partir do BOM exportado do CAD, conferindo-a
+     antes de confirmar (subseção "Importar a estrutura de um BOM").
    - Para cada Peça (nó de topo do `EstruturaItem`), marca se ela `RequerRelatorioDimensional`.
 4. Pedido fica com `Status = Aberto` até o primeiro apontamento de setor
    (`Status = EmProducao`).
@@ -46,6 +48,66 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    filtros e a página, e a padrão não é escrita lá: `/pedidos` sem nada é "Mais recentes". Abrir o
    Pedido com sucesso fecha o painel e **devolve a lista ao padrão** — URL limpa, sem busca nem filtro,
    página 1, "Mais recentes" —, para o Pedido recém-aberto aparecer no topo.
+
+### Importar a estrutura de um BOM
+
+*Perfil: PCP (e Administrador) — quem tem escrita em `estrutura`. Spec:
+`docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`; contrato em
+`05-api-endpoints.md`, seção "Importação da estrutura"; regra 32 em `01`.*
+
+A árvore de uma Peça já existe pronta no CAD, e o BOM exportado dela (CSV ou XLSX) a traz com nível,
+part number, descrição e quantidade. Importar não grava nada: gera um **rascunho** que o PCP confere. Um
+arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
+
+1. Na página do **Agrupamento**, o PCP usa **Importar BOM** (ao lado de "Nova Peça") e escolhe o arquivo, de
+   até 5 MiB. A tela recusa antes de enviar o que passa do limite. Se o arquivo tem problema — coluna
+   ausente, quantidade inválida, nível que pula um degrau, o mesmo código com filhos diferentes, ciclo —,
+   o painel lista **todos** os erros, uma linha por problema, com o número da linha do arquivo, e nada é
+   criado; o PCP corrige o arquivo e o escolhe de novo. Sem erro, abre a **tela de conferência**
+   (`/importacoes/:id`).
+2. A **conferência** é uma tela de **PC**: o BOM só existe no computador de quem cadastra, e no celular ela
+   não quebra, mas não é otimizada. De cima para baixo:
+   - o **painel do Componente selecionado**, fixo no topo da tela a partir da largura `md`: o sólido (ver e
+     enviar o STL), o casamento com o catálogo e, se a receita diverge, o comparativo e a escolha;
+   - a **faixa da Peça**: quantidade e "Requer relatório dimensional", o resumo das pendências em pílulas
+     (cada uma leva ao primeiro nó com aquela pendência), a lista do que falta para confirmar, **Confirmar**
+     e **Descartar**;
+   - a **árvore expandida**: código, descrição, quantidade por pai (editável na linha) e as pílulas de
+     situação de cada nó. Clicar num nó o seleciona no painel; as ocorrências do mesmo código ficam
+     marcadas juntas, para ficar visível que a decisão vale para todas.
+3. O PCP resolve as pendências:
+   - **Casamento.** O código do BOM é casado com o `Codigo` do catálogo, exato, sem diferenciar caixa. Sem
+     casamento, o Componente é **novo**, com código, descrição e tipo editáveis (`Montagem` se tem filhos,
+     `Fabricado` se é folha; o PCP pode marcar uma folha como `Bruto`, o que tira a exigência de sólido).
+     Linha sem part number vira novo com código em branco, que é preciso preencher ou casar à mão. O PCP
+     pode trocar o casamento por outro Componente. Descrição diferente num casado: vale a do catálogo, e a
+     do BOM aparece ao lado. Um casado **inativo** aparece marcado e é **reativado na confirmação**.
+   - **Sólido.** Todo Componente que não é `Bruto` precisa de sólido (regra 32); o PCP envia o STL de cada
+     um na própria conferência. O enviado só substitui o do catálogo na confirmação. Um item que entra
+     **só pela receita do catálogo** não tem painel de envio: o sólido dele se envia no cadastro do
+     Componente.
+   - **Receita divergente.** Onde o catálogo tem receita diferente da do BOM, o PCP vê o **comparativo de um
+     nível** (igual, quantidade diferente, só no BOM, só no catálogo) e escolhe, sem padrão marcado,
+     "manter a receita do catálogo" ou "usar a receita importada" — com o efeito de manter o catálogo ("retira
+     N itens do BOM e traz M do catálogo") à vista antes de decidir. A escolha vale para todas as ocorrências
+     do Componente. Trocar o casamento zera a escolha: ela é feita depois de ver o comparativo do casamento novo.
+   - **Quantidades.** Corrige na linha (a tecla Enter ou sair do campo salva) e informa a quantidade da Peça.
+4. **Confirmar** fica desabilitado enquanto houver bloqueio, e a lista diz o que falta. Confirmar cria os
+   Componentes novos, reativa os inativos, grava sólidos e receitas no catálogo e cria a Peça, **idêntica**
+   à que o "Nova Peça" criaria a partir do catálogo resultante; volta à página do Agrupamento. Se a receita
+   de catálogo de algum Componente com escolha mudou desde que o PCP escolheu, a confirmação é recusada: a
+   tela se atualiza com aviso e a escolha daquele código volta a ser pedida.
+5. A conferência **sobrevive** a F5 e a fechar o navegador: na página do Agrupamento, a seção **Importações
+   em conferência** lista os rascunhos (arquivo, autor, data) com **Continuar** e **Descartar**, e **outro
+   PCP** pode continuar o de um colega. Se duas pessoas editam o mesmo rascunho, a escrita mais velha recebe
+   aviso e a tela recarrega. Descartar apaga o rascunho e os sólidos enviados, e não deixa rastro no
+   catálogo. **Não há expiração**: rascunho abandonado fica até alguém descartar.
+6. Para mudar a **forma** da árvore (acrescentar, remover ou mover um nó), o PCP corrige no CAD e reimporta;
+   a tela de conferência corrige só o que é do sistema (casamento, dados do Componente novo, quantidade,
+   `Bruto`). A rota de reimportar preserva o sólido enviado, o casamento e os dados do novo por código; **a
+   tela ainda não oferece esse botão**, só a API.
+7. Enquanto houver rascunho de importação, o Agrupamento **não pode ser excluído** — a tela de Pedido
+   explica e manda descartar antes.
 
 ## 2. Apontamento em Setor
 

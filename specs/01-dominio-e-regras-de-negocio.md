@@ -136,6 +136,10 @@
     esteja *preenchido* continua regra de aplicação — um `CHECK` não alcança outra tabela, e
     `ArquivoSolidoId` segue nullable por causa do `Bruto`.
 
+    **No import da estrutura a partir do BOM do CAD (regra 32), a exigência vale para a árvore
+    inteira, exceto `Bruto`** — e a raiz, que é a Peça, continua exigindo sólido qualquer que seja o
+    tipo dela.
+
     Motivação registrada, porque é o que sustenta o custo de "peça de uma vez só vira linha de
     catálogo":
     - uma peça ad-hoc já precisa de `Codigo` (senão o operador não a acha), descrição e sólido —
@@ -357,6 +361,39 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
     estornar continuam, porque registram o que já aconteceu no chão. Cada pausa é um intervalo
     guardado (quem pausou e retomou, e quando), para o tempo por Pedido poder descontá-la (Fase 6).
     A pausa não muda o status do Pedido.
+
+*A regra 32 foi decidida em 2026-10-02, na spec do import da estrutura
+(`docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`, decisões D3, D5 e D6, e a seção 13
+dela para o que a implementação fixou).*
+
+32. **Importar a estrutura de um BOM é propor, conferir e confirmar — e a confirmação aprova a receita.** O
+    BOM exportado do CAD vira um **rascunho** (nada é gravado no catálogo nem na estrutura até a
+    confirmação), que um humano confere. Três regras de domínio saem disso:
+    - **Sólido em toda a árvore (D3).** Para confirmar, **todo Componente não-`Bruto` da árvore final**
+      tem de ter sólido — o do catálogo ou um enviado na conferência, que só substitui o do catálogo na
+      confirmação. Estende a regra 18, que cobra a Peça, aos Itens **no fluxo de import**; fora dele, a
+      regra 18 não muda. A **raiz** (a Peça) exige sólido mesmo sendo `Bruto`. Entra na conta o que chega
+      pela receita de catálogo mantida (a escolha por Componente, D5), não só o que veio no arquivo.
+    - **Escolha de receita por Componente (D5).** Um código **diverge** quando está casado com um
+      Componente do catálogo e a receita de catálogo dele (filhos diretos e quantidades) é diferente da lida
+      do BOM — inclusive quando um dos lados não tem filhos. Quem confere escolhe, **por Componente e sem
+      padrão pré-marcado**, uma de duas receitas **inteiras**: a do catálogo ou a importada — nunca uma
+      mistura linha a linha, que não existiria nem no catálogo nem no CAD. A escolha vale para **todas as
+      ocorrências** do Componente na árvore e decide **só os filhos diretos** dele: com "catálogo", os
+      filhos presentes só no BOM saem (com o que está abaixo deles) e os presentes só no catálogo entram,
+      expandidos pelas receitas de catálogo deles. Sem escolha, a divergência **bloqueia** a confirmação.
+      Componente novo, casado sem receita ou casado com receita igual **não diverge** e recebe a do BOM sem
+      escolha. A escolha numa receita que deixou de divergir é inerte.
+    - **Quem confirma aprova a receita (D6).** "Usar a importada" **substitui** a receita padrão do
+      Componente no catálogo (`ComponenteFilhoPadrao`); os Pedidos existentes não mudam, porque a Peça é
+      **cópia** da receita no momento da criação (regras 7 e 19). Se a receita de catálogo de um Componente
+      **com escolha** mudou depois da escolha, a confirmação é recusada e a escolha daquele código volta a
+      ser pedida — ninguém aprova uma receita que não viu.
+
+    Valem ainda, como parte da regra: só o que está na árvore final é criado, reativado ou gravado; a
+    confirmação cria a Peça **idêntica** à que o "Nova Peça" criaria a partir do catálogo resultante; e a
+    combinação das receitas importadas com as de catálogo mantidas **não pode fechar ciclo** (regra 20) —
+    o que nenhuma das duas tinha sozinha.
 
 ## Pontos ainda em aberto
 

@@ -249,36 +249,53 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   logo abaixo do título, e o defeito é bem menor. Não são modelo para tela nova.
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
-  inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela.
-- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em três
+  inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela. O `BannerDeErro`
+  aceita `linhas` (um `<li>` cada, com a `mensagem` virando o título da lista) para o erro que traz
+  várias causas de uma vez, como o arquivo do BOM com uma linha ruim por problema; erro de uma causa só
+  continua sendo a `mensagem`.
+- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em quatro
   controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
-  `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2) e o alternador de expandir/recolher da
-  `ArvoreDeEstrutura`, da Fase 2. ("Controles", não "lugares":
-  `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx` devolve **4** — a declaração da
-  constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do rodapé da gaveta. O
-  `<button>` da `ArvoreDeEstrutura` **não** compartilha a constante, mas o comentário dele a cita
-  **pelo nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma quinta linha — que é
-  referência, não uso. O `grep -c` sobre `AppShell.tsx` é ancorado no arquivo da constante
-  justamente por isso: a regra de citação quer que o nome apareça em mais lugares com o tempo, e
-  uma contagem sobre a árvore inteira envelheceria a cada citação nova. Somando, são **quatro** `<button>` crus, e
-  "três" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta são o mesmo
-  controle em dois breakpoints.) Decisão do usuário (2026-08-29,
-  na review da Task 7 da Fase 2): aceitar a exceção e escrevê-la, não extrair uma primitiva.
+  `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2), o alternador de expandir/recolher da
+  `ArvoreDeEstrutura`, da Fase 2, e o **seletor de linha** da `ArvoreDaImportacao`, do import da
+  estrutura. ("Controles", não "lugares": `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx`
+  devolve **4** — a declaração da constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do
+  rodapé da gaveta; remedido em 2026-10-03, sem mudança. Os `<button>` da `ArvoreDeEstrutura` e da
+  `ArvoreDaImportacao` **não** compartilham a constante, mas o comentário do primeiro a cita **pelo
+  nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma linha a mais — que é referência, não uso.
+  O `grep -c` sobre `AppShell.tsx` é ancorado no arquivo da constante justamente por isso: a regra de
+  citação quer que o nome apareça em mais lugares com o tempo, e uma contagem sobre a árvore inteira
+  envelheceria a cada citação nova. **Medição de 2026-10-03:**
+  `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **11 linhas em 4 arquivos**
+  (`AppShell`, `ArvoreDeEstrutura`, `ArvoreDaImportacao` e `Botao`), e a linha **não** é a unidade de uso:
+  **5 são o elemento cru** — 3 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
+  o `<button>` da própria primitiva `Botao`, e 5 são comentário que cita a tag. Somando, são **cinco**
+  `<button>` crus, e "quatro" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
+  são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da Task 7 da Fase
+  2): aceitar a exceção e escrevê-la, não extrair uma primitiva. Essa decisão cobre os três primeiros
+  controles; o **quarto** foi enquadrado ao implementar a tela de conferência, sem decisão própria do
+  usuário, e fica registrado aqui para ele confirmar ou preferir uma primitiva.
 
-  O motivo é técnico, e são **dois motivos diferentes** — a review da Task 7 errou ao tratá-los
-  como o mesmo. Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um
-  controle de ícone — no mapa de variantes de `Botao`, mesmo a mais leve (`secundario`) traz
-  `px-4 py-2`, e `primario` traz `px-5 py-2.5`; é padding de botão com rótulo, dimensionado para
-  "Acrescentar filho"/"Editar"/"Excluir", não de um alternador de um caractere embutido na linha.
-  No `AppShell`: a razão é outra — contraste do anel de foco sobre fundo escuro, que a `Botao`
-  também não resolve, mas por um motivo que nada tem a ver com padding.
+  O motivo é técnico, e são **motivos diferentes** — a review da Task 7 errou ao tratá-los como o mesmo.
+  Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um controle de ícone —
+  no mapa de variantes de `Botao`, mesmo a mais leve (`secundario`) traz `px-4 py-2`, e `primario` traz
+  `px-5 py-2.5`; é padding de botão com rótulo, dimensionado para "Acrescentar filho"/"Editar"/"Excluir",
+  não de um alternador de um caractere embutido na linha. No `AppShell`: a razão é outra — contraste do
+  anel de foco sobre fundo escuro, que a `Botao` também não resolve, mas por um motivo que nada tem a ver
+  com padding. Na `ArvoreDaImportacao`: a razão é uma terceira — o botão **é a linha**. Um `<button>` com
+  `after:absolute after:inset-0` estica a área de toque por toda a linha da árvore (no celular, acertar só
+  o texto é difícil), e a `Botao` traz borda e padding de botão com rótulo, que fariam a árvore inteira
+  virar uma pilha de botões. O controle tem nome acessível (o código e a descrição do nó) e
+  `aria-current` no selecionado.
 
-  **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
-  rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. Quem escrever o
-  terceiro caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes — saída
-  que o implementer propôs e que o usuário adiou, não descartou.
+  **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, seleção de linha,
+  ícone sem rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. O seletor de linha
+  é a classe nova e é **navegação**: escolhe qual nó o painel mostra e não grava nada; a ação da linha (a
+  quantidade por pai) é um `Campo`, não um botão, e um seletor de linha que passasse a disparar escrita
+  deixa de caber aqui. Com o quarto controle, quem escrever o próximo deve extrair a primitiva — um
+  `AlternadorDeDisclosure` para os usos de disclosure (saída que o implementer propôs e que o usuário
+  adiou, não descartou) e, se a classe do seletor de linha reaparecer, um `SeletorDeLinha`.
 
-  Por que escrever em vez de deixar como está: uma regra com três violações conhecidas e nenhuma
+  Por que escrever em vez de deixar como está: uma regra com quatro violações conhecidas e nenhuma
   exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva
   que ninguém quer, e quem só observa o código conclui que a regra não vale.
 - **`data-testid` só quando o alvo não tem papel ARIA nem texto estável para achá-lo.** Não é
@@ -288,42 +305,48 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   linha ou do bloco de ações —, ou um elemento cujo papel existe mas **não distingue** (um `<form>`
   sem nome acessível numa tela que tem dois; um `<li>` entre dezenas).
 
-  **A medição, em 2026-10-01:** `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`
-  devolve **6 linhas em 4 arquivos**, e a linha do comando **não** é a unidade de uso — separá-las
-  pede leitura. **5 são o atributo**, em 3 arquivos: `linha-no-`, `acoes-do-no-` e `passo-do-roteiro`
+  **A medição, em 2026-10-03:** `grep -rn "data-testid" web/src/ --include=*.tsx | grep -v "\.test\."`
+  devolve **7 linhas em 5 arquivos**, e a linha do comando **não** é a unidade de uso — separá-las
+  pede leitura. **6 são o atributo**, em 4 arquivos: `linha-no-`, `acoes-do-no-` e `passo-do-roteiro`
   na `ArvoreDeEstrutura`; `container-do-visualizador` na `VisualizadorDeSolido` (nomeia o `<div>`
   contêiner que recebe o `<canvas>` do Three.js — sem papel ARIA nem texto estável antes do clique em
-  "Visualizar", quando o `<canvas>` com `aria-label` ainda não existe); e o `data-testid={testId}` do
-  `PainelDeEscrita`, que é **repasse**: escreve o que recebe pela prop `testId` e, sem ela, não
-  escreve nada. A sexta linha é um comentário da `AgrupamentoDetalhePage` que cita
-  `painel-de-escrita` — referência, não uso.
+  "Visualizar", quando o `<canvas>` com `aria-label` ainda não existe); `linha-importacao-` na
+  `ArvoreDaImportacao` (nomeia o `<div>` de cada linha da árvore da conferência pelo caminho de índices,
+  `0-1-0`: o `<button>` da linha tem papel e nome, mas o nome é o código e a descrição, **iguais** nas
+  ocorrências repetidas do mesmo código, e distinguir as ocorrências é o que os testes de "mesmo código"
+  precisam); e o `data-testid={testId}` do `PainelDeEscrita`, que é **repasse**: escreve o que recebe
+  pela prop `testId` e, sem ela, não escreve nada. A sétima linha é um comentário da
+  `AgrupamentoDetalhePage` que cita `painel-de-escrita` — referência, não uso.
 
   **O único consumidor do repasse** é o painel do nó da `AgrupamentoDetalhePage` (editar e
   acrescentar sub-Item), que passa `testId="painel-de-escrita"` para os testes da Fase 2 que já o
   achavam por esse identificador. Essa linha não aparece no comando registrado, porque o que ela
   escreve é a prop e não o atributo; quem quiser contá-la usa
-  `grep -rn "testId=" web/src --include=*.tsx | grep -v "\.test\."` (1 linha, em 2026-10-01). O
-  identificador sobrevive por compatibilidade, não por falta de papel: o `<form>` do
-  `PainelDeEscrita` tem nome acessível, e **painel novo não passa `testId`** — o "Nova Peça" do
-  Agrupamento e os das quatro telas de lista são achados por `getByRole('form', { name })`. A prop
-  não é atalho para fugir desta regra.
+  `grep -rn "testId=" web/src --include=*.tsx | grep -v "\.test\."` (1 linha, em 2026-10-01 e remedida
+  em 2026-10-03, sem mudança). O identificador sobrevive por compatibilidade, não por falta de papel: o
+  `<form>` do `PainelDeEscrita` tem nome acessível, e **painel novo não passa `testId`** — o "Nova Peça" e
+  o "Importar BOM" do Agrupamento e os das quatro telas de lista são achados por
+  `getByRole('form', { name })`. A prop não é atalho para fugir desta regra.
 
-  Somando, os identificadores que chegam ao DOM continuam **5**, os mesmos da medição anterior
-  (2026-09-17, mesmo comando: "5 usos em 3 arquivos", com `painel-de-escrita` escrito à mão na
-  `AgrupamentoDetalhePage`); o que mudou na Fase 1F é que um deles passou a chegar pela primitiva. A
-  regra é escrita porque o segundo consumidor **já chegou** e nada no documento dizia quando o
-  primeiro valia — mesmo desenho de risco da exceção do "botão de chrome", resolvido do mesmo jeito:
-  escrevendo. A contagem é de uma data, não uma cota: quem a atualizar de novo remede com o mesmo
-  comando, diz a data nova e diz quais linhas são atributo, repasse ou comentário.
+  Somando, os identificadores que chegam ao DOM são **6** (`painel-de-escrita` pelo repasse), um a mais
+  que os **5** da medição anterior (2026-10-01, mesmo comando: "6 linhas em 4 arquivos", e antes dela
+  2026-09-17: "5 usos em 3 arquivos", com `painel-de-escrita` escrito à mão); o que mudou desde então é o
+  `linha-importacao-`, do import. A regra é escrita porque o segundo consumidor **já chegou** e nada no
+  documento dizia quando o primeiro valia — mesmo desenho de risco da exceção do "botão de chrome",
+  resolvido do mesmo jeito: escrevendo. A contagem é de uma data, não uma cota: quem a atualizar de novo
+  remede com o mesmo comando, diz a data nova e diz quais linhas são atributo, repasse ou comentário.
 - **Escolher um item de catálogo paginado usa `SeletorComBusca`** (`web/src/components/`, com
   teste próprio), não um `<select>` com a lista inteira — que não escala quando o catálogo tem mais
-  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **duas** telas
-  consumidoras, com **três** usos (medido em 2026-09-18 com
-  `grep -rn "<SeletorComBusca" web/src --include=*.tsx | grep -v "\.test\."`, e remedido em
-  2026-10-01 com o mesmo comando, sem mudança de número): na `AgrupamentoDetalhePage`, o painel
+  itens do que cabe numa página. O gatilho é esse: catálogo paginado. Hoje tem **três** consumidores
+  (duas telas e um painel), com **quatro** usos (medido em 2026-09-18 com
+  `grep -rn "<SeletorComBusca" web/src --include=*.tsx | grep -v "\.test\."`, com três usos, e
+  remedido em 2026-10-03 com o mesmo comando: quatro): na `AgrupamentoDetalhePage`, o painel
   "Nova Peça" (até a Fase 1F, o formulário de criar Peça fixo no topo) e o painel de acrescentar
-  filho; na `ComponenteDetalhePage`, a receita padrão — o bastante para nomear a primitiva certa,
-  não para chamá-la de padrão já consolidado. O seletor não manda `ordem`, então recebe a padrão de
+  filho; na `ComponenteDetalhePage`, a receita padrão; e, desde o import da estrutura, o painel do
+  Componente da conferência (`PainelDoComponenteDaImportacao`, em `web/src/importacao/`, o "Casar com
+  outro Componente") — o bastante para nomear a primitiva certa, não para chamá-la de padrão já
+  consolidado. Aceita `desabilitado` (trava o campo e não abre a lista), para o painel que a tela
+  trava durante uma escrita em voo. O seletor não manda `ordem`, então recebe a padrão de
   `GET /componentes`, que **desde a Fase 1F é "Mais recentes"** (`Id` decrescente; antes era por
   código) — escolha explícita do usuário, decisão 9 da spec da 1F.
 - **Formulário de escrita aberto sob demanda numa tela de leitura usa `PainelDeEscrita`**
@@ -350,11 +373,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
   tiver caído no `<body>`**: fechar um painel porque outro abriu não tira o foco do campo do painel
   novo. A origem é o botão do cabeçalho nas cinco telas; no modo de edição da `SetoresPage`, é o
-  "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. O
-  painel do nó da `AgrupamentoDetalhePage` não devolve foco. Hoje o hook tem **cinco** telas
-  consumidoras, cada uma com uma chamada (medido em 2026-10-02 com
-  `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
-  `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage`. O usuário decidiu
+  "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. Na
+  `AgrupamentoDetalhePage`, o do "Nova Peça" devolve ao "Nova Peça" e o do "Importar BOM", ao "Importar
+  BOM"; o painel do nó **não** devolve foco. Hoje o hook tem **cinco** telas consumidoras e **seis**
+  chamadas (medido em 2026-10-02 com
+  `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
+  remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas):
+  `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -365,11 +390,27 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **cinco** telas consumidoras, com **seis** usos
-  (medido em 2026-10-01 com `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`):
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **cinco** telas consumidoras, com **sete** usos
+  (medido em 2026-10-01 com `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`,
+  com seis usos, e remedido em 2026-10-03 com o mesmo comando: sete):
   `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
-  `PedidosPage` e, duas vezes, a `AgrupamentoDetalhePage` — o painel "Nova Peça" e o do nó (editar e
-  acrescentar sub-Item), que nunca coexistem: abrir um fecha o outro.
+  `PedidosPage` e, três vezes, a `AgrupamentoDetalhePage` — o painel "Nova Peça", o "Importar BOM" (um
+  campo de arquivo, cujo erro, inclusive a lista de linhas do arquivo, mora dentro dele) e o do nó (editar
+  e acrescentar sub-Item), que nunca coexistem: abrir um fecha os outros.
+- **A conferência do import da estrutura** (`ConferenciaDeImportacaoPage`, spec
+  `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`) reusa primitivas em vez de
+  inventar telas paralelas. O sólido do Componente usa `UploadDeSolido` e `VisualizadorDeSolido`, que
+  recebem o **`caminho`** do binário, sem o prefixo `/api` (`caminhoDoSolido(id)` para o do catálogo,
+  `caminhoDoSolidoPendente(id, registroId)` para o enviado na conferência), em vez do id do Componente; o
+  upload recebe também `enviar`, a função que faz o envio (ele só confere o tamanho), e `desabilitado`.
+  Hoje são **3** usos do upload e **2** do visualizador, em 2 arquivos cada (`ComponenteDetalhePage` e
+  `PainelDoComponenteDaImportacao`; medido em 2026-10-03 com
+  `grep -rn "<UploadDeSolido\|<VisualizadorDeSolido" web/src --include=*.tsx | grep -v "\.test\."`). A
+  árvore da conferência é **própria**, `ArvoreDaImportacao`, e não a `ArvoreDeEstrutura`: o contrato
+  daquela é o nó real, com ações, posições e Roteiro que o rascunho não tem. O painel do Componente
+  selecionado é fixo (`sticky`) só de `md` para cima (D16 da spec: é tela de PC), e quem o fixa não pode
+  deixar um campo da árvore pintar por cima dele — a linha é `isolate`, que prende o `z-index` do campo de
+  quantidade dentro da linha.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
@@ -899,6 +940,23 @@ banco de dev, que é descartável, deve ser **regenerado** depois da migração 
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3d.sql sqlserver:/tmp/alter-fase-3d.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3d.sql
+```
+
+**Import da estrutura a partir do BOM — `db/alter-importacao-bom.sql`.** Mesmo formato dos anteriores
+(idempotente, `-b -f 65001`). Leva um banco anterior ao import até o `02-modelo-de-dados.sql`: as três
+tabelas do rascunho (`dbo.ImportacaoDeEstrutura`, `dbo.ImportacaoDeEstruturaComponente` e
+`dbo.ImportacaoDeEstruturaFilho`), o índice filtrado de código, o índice comum de `ImportacaoId` e a FK
+circular `RaizId`, criada **depois** das duas tabelas que ela liga. As FKs são `NO ACTION`, sem
+`ON DELETE CASCADE` (quem apaga um rascunho é a aplicação, em ordem). `Componente`, a receita padrão e
+`EstruturaItem` **não mudam**. Diferente do da 3D, não há dado a transformar: o banco que já tem o resto do
+schema só ganha as tabelas, e **não** precisa ser regenerado. Sem ele, as rotas do import e o
+`DELETE /agrupamentos/{id}` — que agora consulta o rascunho — falham, e a parte da suíte que usa o banco
+também.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-importacao-bom.sql sqlserver:/tmp/alter-importacao-bom.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-importacao-bom.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
