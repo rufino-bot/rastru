@@ -3,13 +3,37 @@ import type { NoDaImportacaoDto, PendenciaDoNo } from '../api/importacao'
 import { Campo, CLASSES_DE_CONTROLE } from './Campo'
 import { Pilula, type TomDePilula } from './Pilula'
 
+/** O que a tela guarda como seleção: o par que `aoSelecionar` entrega. */
+export interface SelecaoDaArvore {
+  registroId: number | null
+  componenteId: number | null
+}
+
+/**
+ * A identidade de um código na árvore: o registro do rascunho, ou, no nó que veio só do catálogo,
+ * o Componente. É por ela que as ocorrências do mesmo código se reconhecem — a tela usa a mesma
+ * para contar o resumo de pendências —, e a decisão sobre um código vale para todas elas.
+ */
+export function chaveDoCodigo(no: SelecaoDaArvore): string | null {
+  if (no.registroId !== null) return `r${no.registroId}`
+  if (no.componenteId !== null) return `c${no.componenteId}`
+  return null
+}
+
 interface Props {
   raiz: NoDaImportacaoDto
+  /** O código selecionado, ou `null`. Vale para todas as ocorrências dele (ver `chaveDoCodigo`). */
+  selecionado: SelecaoDaArvore | null
   /**
-   * `registroId` do código selecionado, ou `null`. A decisão sobre um código vale para todas as
-   * ocorrências dele, então é o registro que se seleciona, e não uma linha.
+   * Contador que a tela incrementa a cada pedido de "leve-me ao selecionado" (a pílula de resumo).
+   * É um contador, e não um booleano, para que pedir DE NOVO o mesmo nó role de novo.
    */
-  selecionado: number | null
+  pedidoDeRolagem?: number
+  /**
+   * Muda quando a tela quer os campos de quantidade de volta ao valor do servidor — depois de uma
+   * escrita que falhou, em que o valor da linha não mudou e a `key` do campo sozinha não remontaria.
+   */
+  revisao?: number
   /** `registroId` é nulo no nó que veio só do catálogo; `componenteId`, no registro "criar novo". */
   aoSelecionar: (registroId: number | null, componenteId: number | null) => void
   /**
@@ -48,13 +72,13 @@ function nosEmOrdem(no: NoDaImportacaoDto, caminho: string, saida: { caminho: st
  */
 function caminhoDaSelecionada(
   ocorrencias: { caminho: string; no: NoDaImportacaoDto }[],
-  selecionado: number | null,
+  chave: string | null,
   clicado: string | null,
 ): string | null {
+  if (chave === null) return null
   const doClique = ocorrencias.find((o) => o.caminho === clicado)
-  if (doClique && doClique.no.registroId === selecionado) return doClique.caminho
-  if (selecionado === null) return null
-  return ocorrencias.find((o) => o.no.registroId === selecionado)?.caminho ?? null
+  if (doClique && chaveDoCodigo(doClique.no) === chave) return doClique.caminho
+  return ocorrencias.find((o) => chaveDoCodigo(o.no) === chave)?.caminho ?? null
 }
 
 /**
@@ -65,10 +89,13 @@ function caminhoDaSelecionada(
  * Só desenha o que recebe: não busca nada nem sabe de rota. A seleção é da tela, que a usa no painel
  * do Componente; as quantidades editadas vão à tela por `aoAlterarQuantidade`.
  */
-export function ArvoreDaImportacao({ raiz, selecionado, aoSelecionar, aoAlterarQuantidade, desabilitado = false }: Props) {
+export function ArvoreDaImportacao({
+  raiz, selecionado, pedidoDeRolagem = 0, revisao = 0, aoSelecionar, aoAlterarQuantidade, desabilitado = false,
+}: Props) {
   const [clicado, setClicado] = useState<string | null>(null)
   const ocorrencias = nosEmOrdem(raiz, '0', [])
-  const atual = caminhoDaSelecionada(ocorrencias, selecionado, clicado)
+  const chave = selecionado ? chaveDoCodigo(selecionado) : null
+  const atual = caminhoDaSelecionada(ocorrencias, chave, clicado)
 
   return (
     <ul aria-label="Árvore da importação" className="flex flex-col gap-1">
@@ -76,9 +103,10 @@ export function ArvoreDaImportacao({ raiz, selecionado, aoSelecionar, aoAlterarQ
         no={raiz}
         caminho="0"
         nivel={0}
-        selecionado={selecionado}
+        chave={chave}
         atual={atual}
-        clicado={clicado}
+        pedidoDeRolagem={pedidoDeRolagem}
+        revisao={revisao}
         aoClicar={(caminho, no) => {
           setClicado(caminho)
           aoSelecionar(no.registroId, no.componenteId)
@@ -94,27 +122,31 @@ interface PropsDaLinha {
   no: NoDaImportacaoDto
   caminho: string
   nivel: number
-  selecionado: number | null
+  chave: string | null
   atual: string | null
-  clicado: string | null
+  pedidoDeRolagem: number
+  revisao: number
   aoClicar: (caminho: string, no: NoDaImportacaoDto) => void
   aoAlterarQuantidade?: (filhoId: number, quantidade: number) => void
   desabilitado: boolean
 }
 
 function LinhaDoNo({
-  no, caminho, nivel, selecionado, atual, clicado, aoClicar, aoAlterarQuantidade, desabilitado,
+  no, caminho, nivel, chave, atual, pedidoDeRolagem, revisao, aoClicar, aoAlterarQuantidade, desabilitado,
 }: PropsDaLinha) {
   const ehAtual = atual === caminho
-  const ehMesmoCodigo = !ehAtual && selecionado !== null && no.registroId === selecionado
+  const ehMesmoCodigo = !ehAtual && chave !== null && chaveDoCodigo(no) === chave
   const linha = useRef<HTMLDivElement>(null)
 
-  // Seleção que veio de fora (pílula de resumo) leva a linha à vista; um clique não precisa disso,
-  // a linha já está sob o dedo. `scrollIntoView` não existe no jsdom, daí a chamada opcional.
-  const rolar = ehAtual && clicado !== caminho
+  // Só um pedido de rolagem leva a linha à vista — um clique não precisa, a linha já está sob o
+  // dedo. Cada linha lembra o último pedido que viu, para que a troca de `ehAtual` num clique não
+  // reaproveite um pedido antigo. `scrollIntoView` não existe no jsdom, daí a chamada opcional.
+  const pedidoVisto = useRef(0)
   useEffect(() => {
-    if (rolar) linha.current?.scrollIntoView?.({ block: 'nearest' })
-  }, [rolar])
+    if (pedidoDeRolagem === pedidoVisto.current) return
+    pedidoVisto.current = pedidoDeRolagem
+    if (ehAtual) linha.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [pedidoDeRolagem, ehAtual])
 
   const editavel = aoAlterarQuantidade !== undefined && no.filhoId !== null && no.quantidadePorPai !== null
 
@@ -124,7 +156,8 @@ function LinhaDoNo({
         ref={linha}
         data-testid={`linha-importacao-${caminho}`}
         className={
-          'flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
+          // `scroll-mt`: sem ele o `scrollIntoView` deixa a linha sob a região fixa do topo da tela.
+          'relative scroll-mt-28 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
           + (ehAtual ? 'border-acao bg-acao-fundo' : ehMesmoCodigo ? 'border-borda bg-acao-fundo' : 'border-borda bg-superficie')
         }
         style={{ paddingLeft: `${RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX}px` }}
@@ -140,7 +173,10 @@ function LinhaDoNo({
             aria-label={`${no.codigo} ${no.descricao}`}
             aria-current={ehAtual ? 'true' : undefined}
             onClick={() => aoClicar(caminho, no)}
-            className="inline-flex flex-wrap items-center gap-2 rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+            // `after:absolute after:inset-0` estica a área de toque do botão por toda a linha (que é
+            // `relative`): no celular, acertar só o texto é difícil. O campo de quantidade fica
+            // acima, com `z-10`.
+            className="inline-flex flex-wrap items-center gap-2 rounded text-left after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
           >
             <span className="font-mono text-sm text-tinta-fraca">{no.codigo}</span>
             <span className="text-tinta">{no.descricao}</span>
@@ -153,9 +189,9 @@ function LinhaDoNo({
         {editavel ? (
           // O rótulo existe para o leitor de tela e para o teste; visível, repetiria "Quantidade por
           // pai de …" em toda linha.
-          <div className="w-24 [&_label]:sr-only">
+          <div className="relative z-10 w-24 [&_label]:sr-only">
             <CampoDeQuantidade
-              key={`${no.filhoId}-${no.quantidadePorPai}`}
+              key={`${no.filhoId}-${no.quantidadePorPai}-${revisao}`}
               rotulo={`Quantidade por pai de ${no.descricao}`}
               valor={no.quantidadePorPai!}
               desabilitado={desabilitado}
@@ -176,9 +212,10 @@ function LinhaDoNo({
               no={f}
               caminho={`${caminho}-${i}`}
               nivel={nivel + 1}
-              selecionado={selecionado}
+              chave={chave}
               atual={atual}
-              clicado={clicado}
+              pedidoDeRolagem={pedidoDeRolagem}
+              revisao={revisao}
               aoClicar={aoClicar}
               aoAlterarQuantidade={aoAlterarQuantidade}
               desabilitado={desabilitado}

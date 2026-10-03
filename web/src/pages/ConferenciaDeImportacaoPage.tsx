@@ -6,7 +6,7 @@ import {
   type ImportacaoDto, type NoDaImportacaoDto, type PendenciaDoNo,
 } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
-import { ArvoreDaImportacao } from '../components/ArvoreDaImportacao'
+import { ArvoreDaImportacao, chaveDoCodigo, type SelecaoDaArvore } from '../components/ArvoreDaImportacao'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
@@ -21,11 +21,6 @@ const AVISO_BLOQUEIOS = 'A importação ainda tem bloqueios; a lista foi atualiz
 const AVISO_RECEITA_MUDOU =
   'A receita de um Componente do catálogo mudou desde a conferência; a tela foi atualizada. '
   + 'Confira as escolhas e confirme de novo.'
-
-interface Selecao {
-  registroId: number | null
-  componenteId: number | null
-}
 
 /** O que a tela escreve por pendência no resumo: o tom segue o da pílula na árvore. */
 const RESUMO_DA_PENDENCIA: Record<PendenciaDoNo, { singular: string; plural: string; tom: TomDePilula }> = {
@@ -42,18 +37,13 @@ function nosEmOrdem(no: NoDaImportacaoDto, saida: NoDaImportacaoDto[] = []): NoD
   return saida
 }
 
-/** O mesmo código em vários lugares é UMA decisão: o resumo conta por registro, não por linha. */
-function chaveDoCodigo(no: NoDaImportacaoDto): string {
-  return no.registroId !== null ? `r${no.registroId}` : `c${no.componenteId}`
-}
-
 function resumir(raiz: NoDaImportacaoDto) {
   const resumo = new Map<PendenciaDoNo, { codigos: Set<string>; primeiro: NoDaImportacaoDto }>()
   for (const no of nosEmOrdem(raiz)) {
     for (const p of no.pendencias) {
       const atual = resumo.get(p)
-      if (atual) atual.codigos.add(chaveDoCodigo(no))
-      else resumo.set(p, { codigos: new Set([chaveDoCodigo(no)]), primeiro: no })
+      if (atual) atual.codigos.add(chaveDoCodigo(no) ?? '')
+      else resumo.set(p, { codigos: new Set([chaveDoCodigo(no) ?? '']), primeiro: no })
     }
   }
   return ORDEM_DO_RESUMO.flatMap((p) => {
@@ -62,9 +52,10 @@ function resumir(raiz: NoDaImportacaoDto) {
   })
 }
 
-function acharNo(raiz: NoDaImportacaoDto, s: Selecao): NoDaImportacaoDto | undefined {
-  return nosEmOrdem(raiz).find((n) =>
-    s.registroId !== null ? n.registroId === s.registroId : n.registroId === null && n.componenteId === s.componenteId)
+/** O primeiro nó do código selecionado, pela mesma chave que a árvore usa para marcá-lo. */
+function acharNo(raiz: NoDaImportacaoDto, s: SelecaoDaArvore): NoDaImportacaoDto | undefined {
+  const chave = chaveDoCodigo(s)
+  return chave === null ? undefined : nosEmOrdem(raiz).find((n) => chaveDoCodigo(n) === chave)
 }
 
 function ehDesatualizada(e: unknown): boolean {
@@ -90,7 +81,12 @@ export function ConferenciaDeImportacaoPage() {
   const [aviso, setAviso] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [descartando, setDescartando] = useState(false)
-  const [selecao, setSelecao] = useState<Selecao | null>(null)
+  const [selecao, setSelecao] = useState<SelecaoDaArvore | null>(null)
+  // Pedidos de "leve-me ao nó" da pílula de resumo; a árvore rola a cada incremento.
+  const [pedidoDeRolagem, setPedidoDeRolagem] = useState(0)
+  // Incrementa ao fim de toda escrita ou releitura: os campos de quantidade remontam com o valor do
+  // servidor, e o digitado de uma escrita que falhou não fica na tela.
+  const [revisao, setRevisao] = useState(0)
 
   useEffect(() => {
     let cancelado = false
@@ -125,6 +121,7 @@ export function ConferenciaDeImportacaoPage() {
       else setAviso(mensagemDeErro(e, 'Não foi possível salvar a alteração.'))
     } finally {
       setEnviando(false)
+      setRevisao((r) => r + 1)
     }
   }
 
@@ -148,6 +145,7 @@ export function ConferenciaDeImportacaoPage() {
       setAviso(mensagemDeErro(e, 'Não foi possível confirmar a importação.'))
     } finally {
       setEnviando(false)
+      setRevisao((r) => r + 1)
     }
   }
 
@@ -176,7 +174,10 @@ export function ConferenciaDeImportacaoPage() {
   }
 
   const { raiz, bloqueios } = importacao
-  const selecaoEfetiva: Selecao | null = selecao ?? (raiz ? { registroId: raiz.registroId, componenteId: raiz.componenteId } : null)
+  // A seleção que já não está na árvore (a releitura a tirou) cai na raiz — no painel e na árvore, os
+  // dois pela MESMA seleção, para nenhum dos dois ficar apontando para um nó que sumiu.
+  const daRaiz: SelecaoDaArvore | null = raiz ? { registroId: raiz.registroId, componenteId: raiz.componenteId } : null
+  const selecaoEfetiva = selecao && raiz && acharNo(raiz, selecao) ? selecao : daRaiz
   const noSelecionado = raiz && selecaoEfetiva ? (acharNo(raiz, selecaoEfetiva) ?? raiz) : null
   const resumo = raiz ? resumir(raiz) : []
   const travado = enviando || !podeEscrever
@@ -213,7 +214,7 @@ export function ConferenciaDeImportacaoPage() {
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
           <div className="w-32">
             <CampoDeQuantidadeDaPeca
-              key={String(importacao.quantidadeDaPeca)}
+              key={`${importacao.quantidadeDaPeca}-${revisao}`}
               valor={importacao.quantidadeDaPeca}
               desabilitado={travado}
               aoConfirmar={(q) => escrever(() => alterarPeca(
@@ -244,7 +245,10 @@ export function ConferenciaDeImportacaoPage() {
                 <Botao
                   key={pendencia}
                   variante="secundario"
-                  onClick={() => setSelecao({ registroId: primeiro.registroId, componenteId: primeiro.componenteId })}
+                  onClick={() => {
+                    setSelecao({ registroId: primeiro.registroId, componenteId: primeiro.componenteId })
+                    setPedidoDeRolagem((n) => n + 1)
+                  }}
                 >
                   <Pilula tom={texto.tom}>{rotulo}</Pilula>
                 </Botao>
@@ -286,7 +290,9 @@ export function ConferenciaDeImportacaoPage() {
         {raiz ? (
           <ArvoreDaImportacao
             raiz={raiz}
-            selecionado={selecaoEfetiva?.registroId ?? null}
+            selecionado={selecaoEfetiva}
+            pedidoDeRolagem={pedidoDeRolagem}
+            revisao={revisao}
             aoSelecionar={(registroId, componenteId) => setSelecao({ registroId, componenteId })}
             aoAlterarQuantidade={podeEscrever ? (filhoId, quantidade) => escrever(() => alterarFilho(
               importacao.id, filhoId, importacao.versao, quantidade,

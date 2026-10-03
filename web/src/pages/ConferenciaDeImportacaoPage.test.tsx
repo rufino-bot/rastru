@@ -446,4 +446,145 @@ describe('ConferenciaDeImportacaoPage', () => {
     expect((screen.getByLabelText('Quantidade da Peça') as HTMLInputElement).disabled).toBe(true)
     expect(screen.queryByLabelText('Quantidade por pai de Suporte')).toBeNull()
   })
+
+  // Fix round 1 (Important 1): o campo remonta pela chave, e a chave vinha do valor do servidor — a
+  // escrita que falha, ou cuja releitura devolve o MESMO valor, deixava o digitado na tela.
+  it('409 cuja releitura traz o mesmo valor devolve o campo ao valor do servidor', async () => {
+    const fetchMock = montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao()),
+      'PUT /api/importacoes/5/filhos/20': () => respostaJson({ erro: 'ImportacaoDesatualizada' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    const campo = await screen.findByLabelText('Quantidade por pai de Suporte')
+    fireEvent.change(campo, { target: { value: '5' } })
+    fireEvent.blur(campo)
+
+    await screen.findByText('Outra pessoa alterou esta importação; a tela foi atualizada.')
+    await waitFor(() => expect(leituras(fetchMock)).toHaveLength(2))
+    expect((screen.getByLabelText('Quantidade por pai de Suporte') as HTMLInputElement).value).toBe('2')
+  })
+
+  it.each([400, 500])('falha %i ao salvar a quantidade de um filho devolve o campo ao valor do servidor', async (status) => {
+    vi.stubGlobal('fetch', montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao()),
+      'PUT /api/importacoes/5/filhos/20': () => respostaJson({}, status),
+    }))
+
+    renderizar()
+    const campo = await screen.findByLabelText('Quantidade por pai de Suporte')
+    fireEvent.change(campo, { target: { value: '5' } })
+    fireEvent.blur(campo)
+
+    await screen.findByRole('alert')
+    expect((screen.getByLabelText('Quantidade por pai de Suporte') as HTMLInputElement).value).toBe('2')
+  })
+
+  it.each([400, 500])('falha %i ao salvar a quantidade da Peça devolve o campo ao valor do servidor', async (status) => {
+    vi.stubGlobal('fetch', montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao()),
+      'PUT /api/importacoes/5': () => respostaJson({}, status),
+    }))
+
+    renderizar()
+    const campo = await screen.findByLabelText('Quantidade da Peça')
+    fireEvent.change(campo, { target: { value: '6' } })
+    fireEvent.blur(campo)
+
+    await screen.findByRole('alert')
+    expect((screen.getByLabelText('Quantidade da Peça') as HTMLInputElement).value).toBe('3')
+  })
+
+  it('409 ao salvar a quantidade da Peça, com a releitura igual, devolve o campo ao valor do servidor', async () => {
+    const fetchMock = montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao()),
+      'PUT /api/importacoes/5': () => respostaJson({ erro: 'ImportacaoDesatualizada' }, 409),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    const campo = await screen.findByLabelText('Quantidade da Peça')
+    fireEvent.change(campo, { target: { value: '6' } })
+    fireEvent.blur(campo)
+
+    await waitFor(() => expect(leituras(fetchMock)).toHaveLength(2))
+    await screen.findByRole('alert')
+    expect((screen.getByLabelText('Quantidade da Peça') as HTMLInputElement).value).toBe('3')
+  })
+
+  // Fix round 1 (Important 2): nó só do catálogo (sem registro) também é marcado.
+  it('pílula de resumo cujo primeiro nó é do catálogo marca esse nó', async () => {
+    const doCatalogo = no({
+      componenteId: 500, codigo: 'CA-500', descricao: 'Calço', quantidadePorPai: 1,
+      origem: 'Catalogo', pendencias: ['Inativo'],
+    })
+    vi.stubGlobal('fetch', montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao({
+        raiz: no({ ...RAIZ, filhos: [...RAIZ.filhos, doCatalogo] }),
+      })),
+    }))
+
+    renderizar()
+    const painel = await screen.findByRole('region', { name: 'Componente selecionado' })
+    fireEvent.click(screen.getByRole('button', { name: '1 inativo' }))
+
+    expect(within(painel).getByText('CA-500')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /CA-500 Calço/ }).getAttribute('aria-current')).toBe('true')
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(1)
+  })
+
+  it('clicar num nó do catálogo o marca na árvore', async () => {
+    const doCatalogo = no({
+      componenteId: 500, codigo: 'CA-500', descricao: 'Calço', quantidadePorPai: 1, origem: 'Catalogo',
+    })
+    vi.stubGlobal('fetch', montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao({
+        raiz: no({ ...RAIZ, filhos: [...RAIZ.filhos, doCatalogo] }),
+      })),
+    }))
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: /CA-500 Calço/ }))
+
+    expect(screen.getByRole('button', { name: /CA-500 Calço/ }).getAttribute('aria-current')).toBe('true')
+    expect(within(screen.getByRole('region', { name: 'Componente selecionado' })).getByText('CA-500')).toBeTruthy()
+  })
+
+  it('seleção que some na releitura volta à raiz, no painel e na árvore', async () => {
+    const semOParafuso = importacao({
+      versao: 'AAAAAAAAB9I=',
+      raiz: no({ ...RAIZ, filhos: [RAIZ.filhos[0]] }),
+    })
+    vi.stubGlobal('fetch', montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao()),
+      'PUT /api/importacoes/5/filhos/20': () => respostaJson(semOParafuso),
+    }))
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: /PA-300 Parafuso/ }))
+    const campo = screen.getByLabelText('Quantidade por pai de Suporte')
+    fireEvent.change(campo, { target: { value: '9' } })
+    fireEvent.blur(campo)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: /PA-300 Parafuso/ })).toBeNull())
+    expect(within(screen.getByRole('region', { name: 'Componente selecionado' })).getByText('CH-100')).toBeTruthy()
+    const marcadas = screen.getAllByRole('button', { current: true })
+    expect(marcadas).toHaveLength(1)
+    expect(marcadas[0].getAttribute('aria-label')).toBe('CH-100 Chassi')
+  })
+
+  it('clicar de novo na mesma pílula de resumo rola de novo até o primeiro nó', async () => {
+    const rolar = vi.fn()
+    HTMLElement.prototype.scrollIntoView = rolar
+    vi.stubGlobal('fetch', montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) }))
+
+    renderizar()
+    const pilula = await screen.findByRole('button', { name: '2 sem sólido' })
+    fireEvent.click(pilula)
+    expect(rolar).toHaveBeenCalledTimes(1)
+    fireEvent.click(pilula)
+    expect(rolar).toHaveBeenCalledTimes(2)
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
 })

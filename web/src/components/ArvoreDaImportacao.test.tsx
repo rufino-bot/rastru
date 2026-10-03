@@ -33,7 +33,11 @@ const RAIZ = no({
     no({
       registroId: 2, componenteId: 200, filhoId: 20, codigo: 'SU-200', descricao: 'Suporte', quantidadePorPai: 2,
       pendencias: ['Divergente', 'SemSolido', 'Inativo'],
-      filhos: [PARAFUSO_SOB_SUPORTE],
+      filhos: [
+        PARAFUSO_SOB_SUPORTE,
+        // O mesmo Componente do catálogo (sem registro) também aparece sob o Suporte.
+        no({ componenteId: 400, codigo: 'AR-400', descricao: 'Arruela', quantidadePorPai: 2, origem: 'Catalogo' }),
+      ],
     }),
     no({
       registroId: 3, componenteId: 300, filhoId: 30, codigo: 'PA-300', descricao: 'Parafuso', quantidadePorPai: 8,
@@ -60,7 +64,7 @@ describe('ArvoreDaImportacao', () => {
     expect(aoSelecionar).toHaveBeenLastCalledWith(2, 200)
 
     // Nó que veio só do catálogo: sem registro, só o Componente.
-    fireEvent.click(linha(/AR-400 Arruela/))
+    fireEvent.click(within(screen.getByTestId('linha-importacao-0-1-0')).getByRole('button', { name: /AR-400 Arruela/ }))
     expect(aoSelecionar).toHaveBeenLastCalledWith(null, 400)
   })
 
@@ -84,11 +88,11 @@ describe('ArvoreDaImportacao', () => {
   it('Ocorrencias_do_mesmo_codigo_ficam_destacadas_juntas', () => {
     const { rerender } = render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
     expect(screen.queryByText('mesmo código')).toBeNull()
-    expect(document.querySelector('[aria-current]')).toBeNull()
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(0)
 
     // Seleciona o Parafuso (registro 3), que aparece duas vezes.
     fireEvent.click(within(screen.getByTestId('linha-importacao-0-1')).getByRole('button', { name: /PA-300 Parafuso/ }))
-    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={3} aoSelecionar={() => {}} />)
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 3, componenteId: 300 }} aoSelecionar={() => {}} />)
 
     // A ocorrência clicada leva aria-current; a outra, o indicador textual.
     const clicada = within(screen.getByTestId('linha-importacao-0-1')).getByRole('button', { name: /PA-300 Parafuso/ })
@@ -101,8 +105,73 @@ describe('ArvoreDaImportacao', () => {
     expect(within(screen.getByTestId('linha-importacao-0-0')).queryByText('mesmo código')).toBeNull()
   })
 
+  it('No_so_do_catalogo_selecionado_fica_marcado_e_marca_as_outras_ocorrencias', () => {
+    const { rerender } = render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+    // Clica a Arruela sob o Parafuso (catálogo, sem registro) e a tela devolve a seleção.
+    fireEvent.click(within(screen.getByTestId('linha-importacao-0-1-0')).getByRole('button', { name: /AR-400 Arruela/ }))
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: null, componenteId: 400 }} aoSelecionar={() => {}} />)
+
+    const clicada = within(screen.getByTestId('linha-importacao-0-1-0')).getByRole('button', { name: /AR-400 Arruela/ })
+    expect(clicada.getAttribute('aria-current')).toBe('true')
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(1)
+    expect(within(screen.getByTestId('linha-importacao-0-0-1')).getByText('mesmo código')).toBeTruthy()
+    expect(screen.getAllByText('mesmo código')).toHaveLength(1)
+  })
+
+  it('Selecao_de_catalogo_vinda_de_fora_marca_a_primeira_ocorrencia', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: null, componenteId: 400 }} aoSelecionar={() => {}} />)
+
+    const primeira = within(screen.getByTestId('linha-importacao-0-0-1')).getByRole('button', { name: /AR-400 Arruela/ })
+    expect(primeira.getAttribute('aria-current')).toBe('true')
+    expect(within(screen.getByTestId('linha-importacao-0-1-0')).getByText('mesmo código')).toBeTruthy()
+  })
+
+  it('Selecao_que_nao_existe_mais_nao_marca_nada', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 99, componenteId: 990 }} aoSelecionar={() => {}} />)
+
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(0)
+    expect(screen.queryByText('mesmo código')).toBeNull()
+  })
+
+  it('Pedido_de_rolagem_leva_a_selecionada_a_vista_de_novo_a_cada_pedido', () => {
+    const rolar = vi.fn()
+    HTMLElement.prototype.scrollIntoView = rolar
+    const selecao = { registroId: 3, componenteId: 300 }
+    const { rerender } = render(
+      <ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={0} />,
+    )
+    expect(rolar).not.toHaveBeenCalled()
+
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={1} />)
+    expect(rolar).toHaveBeenCalledTimes(1)
+    // A mesma seleção, pedida outra vez: rola de novo.
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={2} />)
+    expect(rolar).toHaveBeenCalledTimes(2)
+    // Nenhum pedido novo: nenhuma rolagem (clicar numa linha não rola).
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={2} />)
+    expect(rolar).toHaveBeenCalledTimes(2)
+    // A linha declara a margem que a mantém fora da região fixa do topo.
+    expect(screen.getByTestId('linha-importacao-0-0-0').className).toContain('scroll-mt-')
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
+
+  it('A_linha_inteira_e_alvo_de_toque_e_o_campo_de_quantidade_fica_acima', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} aoAlterarQuantidade={() => {}} />)
+
+    // jsdom não roda Tailwind: o que se prende é a DECLARAÇÃO das classes (como o alternador da
+    // ArvoreDeEstrutura), não a geometria.
+    const linha = screen.getByTestId('linha-importacao-0-0')
+    expect(linha.className.split(/\s+/)).toContain('relative')
+    const botao = within(linha).getByRole('button', { name: /SU-200 Suporte/ })
+    expect(botao.className).toContain('after:absolute')
+    expect(botao.className).toContain('after:inset-0')
+    const campo = within(linha).getByLabelText('Quantidade por pai de Suporte')
+    expect(campo.closest('div[class*="z-10"]')).not.toBeNull()
+  })
+
   it('Selecao_vinda_de_fora_marca_a_primeira_ocorrencia', () => {
-    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={3} aoSelecionar={() => {}} />)
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 3, componenteId: 300 }} aoSelecionar={() => {}} />)
 
     const primeira = within(screen.getByTestId('linha-importacao-0-0-0')).getByRole('button', { name: /PA-300 Parafuso/ })
     expect(primeira.getAttribute('aria-current')).toBe('true')
