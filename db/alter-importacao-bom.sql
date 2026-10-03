@@ -54,6 +54,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_ImportacaoDeEstruturaC
         ON dbo.ImportacaoDeEstruturaComponente (ImportacaoId, CodigoLido) WHERE CodigoLido IS NOT NULL;
 GO
 
+/* 2b. O indice de ImportacaoId (o porque esta no 02) ---------------------------------------------- */
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ImportacaoDeEstruturaComponente_ImportacaoId')
+    CREATE INDEX IX_ImportacaoDeEstruturaComponente_ImportacaoId
+        ON dbo.ImportacaoDeEstruturaComponente (ImportacaoId);
+GO
+
 /* 3. A FK circular RaizId, agora que as duas tabelas existem ------------------------------------- */
 IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_ImportacaoDeEstrutura_Raiz')
     ALTER TABLE dbo.ImportacaoDeEstrutura ADD CONSTRAINT FK_ImportacaoDeEstrutura_Raiz

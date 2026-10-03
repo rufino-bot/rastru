@@ -331,6 +331,13 @@ CREATE TABLE dbo.ImportacaoDeEstruturaComponente (
 CREATE UNIQUE INDEX UX_ImportacaoDeEstruturaComponente_Codigo
     ON dbo.ImportacaoDeEstruturaComponente (ImportacaoId, CodigoLido) WHERE CodigoLido IS NOT NULL;
 
+-- Os registros de um rascunho. ImportacaoDeEstruturaRepository.ExcluirAsync filtra por ImportacaoId dentro
+-- da transacao SERIALIZABLE da confirmacao do import, e o indice filtrado acima nao serve a esse filtro (ele
+-- so cobre as linhas com codigo): sem este, a exclusao varreria e travaria os registros de TODOS os
+-- rascunhos ate o commit.
+CREATE INDEX IX_ImportacaoDeEstruturaComponente_ImportacaoId
+    ON dbo.ImportacaoDeEstruturaComponente (ImportacaoId);
+
 -- A FK circular, criada so agora que as duas tabelas existem.
 ALTER TABLE dbo.ImportacaoDeEstrutura ADD CONSTRAINT FK_ImportacaoDeEstrutura_Raiz
     FOREIGN KEY (RaizId) REFERENCES dbo.ImportacaoDeEstruturaComponente (Id);

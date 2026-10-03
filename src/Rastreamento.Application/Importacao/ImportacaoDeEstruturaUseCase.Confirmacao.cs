@@ -23,9 +23,10 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   /// motivo de <c>MontagemDeEstruturaUseCase.CriarPeca</c>. Dentro da transacao so se rele o que e
   /// estreito: a versao do rascunho e a receita de cada pai com escolha (a faixa de
   /// <c>UQ_ComponenteFilhoPadrao</c>, que comeca por <c>ComponentePaiId</c>); os Componentes casados sao
-  /// relidos e os pendentes ligados sao desligados por chave. A excecao e a exclusao do rascunho
-  /// (<c>ExcluirAsync</c>): ela filtra os registros por <c>ImportacaoId</c>, que nao tem indice proprio, e
-  /// sob SERIALIZABLE varre e trava as tabelas do RASCUNHO (nao as do catalogo) ate o commit.
+  /// relidos e os pendentes ligados sao desligados por chave. A exclusao do rascunho (<c>ExcluirAsync</c>)
+  /// filtra os registros por <c>ImportacaoId</c>, servido por <c>IX_ImportacaoDeEstruturaComponente_ImportacaoId</c>,
+  /// e as linhas da receita lida por <c>PaiId</c>, servido por <c>UQ_ImportacaoDeEstruturaFilho</c>: trava so o
+  /// rascunho confirmado, e nao os outros.
   ///
   /// Residual, o mesmo de <c>CriarPeca</c>: uma mudanca concorrente no catalogo dos Ids alcancados so
   /// pela receita de catalogo, entre a leitura e o commit, nao e vista. Outro: um codigo novo criado no

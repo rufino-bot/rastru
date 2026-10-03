@@ -26,6 +26,10 @@ public class ImportacaoDeEstruturaComponenteConfiguration : IEntityTypeConfigura
         .HasDatabaseName("UX_ImportacaoDeEstruturaComponente_Codigo")
         .HasFilter("[CodigoLido] IS NOT NULL");
 
+    // Os registros de um rascunho, para a exclusao dentro da transacao da confirmacao (o porque esta no
+    // .sql, onde o indice vive).
+    b.HasIndex(c => c.ImportacaoId).HasDatabaseName("IX_ImportacaoDeEstruturaComponente_ImportacaoId");
+
     // As linhas em que este registro e o PAI. Sem cascata (decisao P6 do plano do import).
     b.HasMany(c => c.Filhos).WithOne().HasForeignKey(f => f.PaiId)
         .OnDelete(DeleteBehavior.NoAction);
