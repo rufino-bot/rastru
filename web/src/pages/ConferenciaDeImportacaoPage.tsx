@@ -1,0 +1,357 @@
+import { useEffect, useId, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ErroDeApi, mensagemDeErro } from '../api/erros'
+import {
+  alterarFilho, alterarPeca, confirmarImportacao, descartarImportacao, obterImportacao,
+  type ImportacaoDto, type NoDaImportacaoDto, type PendenciaDoNo,
+} from '../api/importacao'
+import { usePodeEscrever } from '../auth/usePermissao'
+import { ArvoreDaImportacao } from '../components/ArvoreDaImportacao'
+import { BannerDeErro } from '../components/BannerDeErro'
+import { Botao } from '../components/Botao'
+import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
+import { Confirmacao } from '../components/Confirmacao'
+import { EstadoCarregando } from '../components/EstadoCarregando'
+import { EstadoVazio } from '../components/EstadoVazio'
+import { Pagina } from '../components/Pagina'
+import { Pilula, type TomDePilula } from '../components/Pilula'
+
+const AVISO_DESATUALIZADA = 'Outra pessoa alterou esta importação; a tela foi atualizada.'
+const AVISO_BLOQUEIOS = 'A importação ainda tem bloqueios; a lista foi atualizada.'
+const AVISO_RECEITA_MUDOU =
+  'A receita de um Componente do catálogo mudou desde a conferência; a tela foi atualizada. '
+  + 'Confira as escolhas e confirme de novo.'
+
+interface Selecao {
+  registroId: number | null
+  componenteId: number | null
+}
+
+/** O que a tela escreve por pendência no resumo: o tom segue o da pílula na árvore. */
+const RESUMO_DA_PENDENCIA: Record<PendenciaDoNo, { singular: string; plural: string; tom: TomDePilula }> = {
+  Divergente: { singular: 'divergência', plural: 'divergências', tom: 'atencao' },
+  SemSolido: { singular: 'sem sólido', plural: 'sem sólido', tom: 'atencao' },
+  Inativo: { singular: 'inativo', plural: 'inativos', tom: 'atencao' },
+  Novo: { singular: 'novo', plural: 'novos', tom: 'neutro' },
+}
+const ORDEM_DO_RESUMO: PendenciaDoNo[] = ['Divergente', 'SemSolido', 'Inativo', 'Novo']
+
+function nosEmOrdem(no: NoDaImportacaoDto, saida: NoDaImportacaoDto[] = []): NoDaImportacaoDto[] {
+  saida.push(no)
+  no.filhos.forEach((f) => nosEmOrdem(f, saida))
+  return saida
+}
+
+/** O mesmo código em vários lugares é UMA decisão: o resumo conta por registro, não por linha. */
+function chaveDoCodigo(no: NoDaImportacaoDto): string {
+  return no.registroId !== null ? `r${no.registroId}` : `c${no.componenteId}`
+}
+
+function resumir(raiz: NoDaImportacaoDto) {
+  const resumo = new Map<PendenciaDoNo, { codigos: Set<string>; primeiro: NoDaImportacaoDto }>()
+  for (const no of nosEmOrdem(raiz)) {
+    for (const p of no.pendencias) {
+      const atual = resumo.get(p)
+      if (atual) atual.codigos.add(chaveDoCodigo(no))
+      else resumo.set(p, { codigos: new Set([chaveDoCodigo(no)]), primeiro: no })
+    }
+  }
+  return ORDEM_DO_RESUMO.flatMap((p) => {
+    const r = resumo.get(p)
+    return r ? [{ pendencia: p, quantidade: r.codigos.size, primeiro: r.primeiro }] : []
+  })
+}
+
+function acharNo(raiz: NoDaImportacaoDto, s: Selecao): NoDaImportacaoDto | undefined {
+  return nosEmOrdem(raiz).find((n) =>
+    s.registroId !== null ? n.registroId === s.registroId : n.registroId === null && n.componenteId === s.componenteId)
+}
+
+function ehDesatualizada(e: unknown): boolean {
+  return e instanceof ErroDeApi && e.status === 409 && e.codigo === 'ImportacaoDesatualizada'
+}
+
+/**
+ * A conferência de um rascunho de importação do BOM, de cima para baixo: o painel do Componente
+ * selecionado, a faixa da Peça (quantidade, pendências, Confirmar e Descartar) e a árvore expandida.
+ *
+ * O estado da tela é o `ImportacaoDto` mais recente, e **toda** escrita o substitui pela resposta. Os
+ * bloqueios e as pendências são calculados pelo servidor a cada leitura; a tela não os recalcula.
+ */
+export function ConferenciaDeImportacaoPage() {
+  const { id: idDaRota } = useParams()
+  const id = Number(idDaRota)
+  const navegar = useNavigate()
+  const podeEscrever = usePodeEscrever('estrutura')
+  const idDosBloqueios = useId()
+
+  const [importacao, setImportacao] = useState<ImportacaoDto | null>(null)
+  const [erroDeCarga, setErroDeCarga] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const [enviando, setEnviando] = useState(false)
+  const [descartando, setDescartando] = useState(false)
+  const [selecao, setSelecao] = useState<Selecao | null>(null)
+
+  useEffect(() => {
+    let cancelado = false
+    setImportacao(null)
+    setErroDeCarga(null)
+    obterImportacao(id)
+      .then((r) => { if (!cancelado) setImportacao(r) })
+      .catch((e) => {
+        if (!cancelado) setErroDeCarga(mensagemDeErro(e, 'Não foi possível carregar a importação.'))
+      })
+    return () => { cancelado = true }
+  }, [id])
+
+  /** Relê o rascunho e mostra `mensagem` (a razão da releitura); se a releitura falha, mostra o erro dela. */
+  async function reler(mensagem: string) {
+    try {
+      setImportacao(await obterImportacao(id))
+      setAviso(mensagem)
+    } catch (e) {
+      setAviso(mensagemDeErro(e, 'Não foi possível recarregar a importação.'))
+    }
+  }
+
+  /** Toda escrita do rascunho: a resposta vira o estado; versão velha (409) relê e avisa. */
+  async function escrever(acao: () => Promise<ImportacaoDto>) {
+    setEnviando(true)
+    setAviso(null)
+    try {
+      setImportacao(await acao())
+    } catch (e) {
+      if (ehDesatualizada(e)) await reler(AVISO_DESATUALIZADA)
+      else setAviso(mensagemDeErro(e, 'Não foi possível salvar a alteração.'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function confirmar() {
+    if (!importacao) return
+    setEnviando(true)
+    setAviso(null)
+    try {
+      const resultado = await confirmarImportacao(importacao.id, importacao.versao)
+      if (typeof resultado !== 'string') {
+        navegar(`/agrupamentos/${importacao.agrupamentoId}`)
+        return
+      }
+      // A recusa não traz a lista de bloqueios (P15 do plano): o `GET` a traz, e é a releitura que a mostra.
+      await reler(
+        resultado === 'ImportacaoComBloqueios' ? AVISO_BLOQUEIOS
+          : resultado === 'ReceitaDoCatalogoMudou' ? AVISO_RECEITA_MUDOU
+            : AVISO_DESATUALIZADA,
+      )
+    } catch (e) {
+      setAviso(mensagemDeErro(e, 'Não foi possível confirmar a importação.'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function descartar() {
+    if (!importacao) return
+    setDescartando(false)
+    setEnviando(true)
+    setAviso(null)
+    try {
+      await descartarImportacao(importacao.id)
+      navegar(`/agrupamentos/${importacao.agrupamentoId}`)
+    } catch (e) {
+      // 404: o rascunho já não existe (descartado em outra aba), e o destino é o mesmo.
+      if (e instanceof ErroDeApi && e.status === 404) navegar(`/agrupamentos/${importacao.agrupamentoId}`)
+      else setAviso(mensagemDeErro(e, 'Não foi possível descartar a importação.'))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  if (erroDeCarga !== null) {
+    return <Pagina titulo="Conferência da importação"><BannerDeErro mensagem={erroDeCarga} /></Pagina>
+  }
+  if (importacao === null) {
+    return <Pagina titulo="Conferência da importação"><EstadoCarregando /></Pagina>
+  }
+
+  const { raiz, bloqueios } = importacao
+  const selecaoEfetiva: Selecao | null = selecao ?? (raiz ? { registroId: raiz.registroId, componenteId: raiz.componenteId } : null)
+  const noSelecionado = raiz && selecaoEfetiva ? (acharNo(raiz, selecaoEfetiva) ?? raiz) : null
+  const resumo = raiz ? resumir(raiz) : []
+  const travado = enviando || !podeEscrever
+
+  return (
+    <Pagina titulo="Conferência da importação">
+      <BannerDeErro mensagem={aviso} />
+
+      {/* Região 1 — o painel do Componente selecionado. Reservada: a Task 10 o preenche (sólido,
+          casamento, divergência). `selecao` já guarda o registro e o Componente para ela. */}
+      <section
+        aria-label="Componente selecionado"
+        className="sticky top-0 z-10 flex flex-col gap-1 rounded-lg border border-borda bg-superficie px-4 py-3"
+      >
+        {noSelecionado ? (
+          <>
+            <span className="font-mono text-sm text-tinta-fraca">{noSelecionado.codigo}</span>
+            <span className="text-tinta">{noSelecionado.descricao}</span>
+          </>
+        ) : (
+          <span className="text-tinta-fraca">Nenhum componente para mostrar.</span>
+        )}
+      </section>
+
+      {/* Região 2 — a faixa da Peça. */}
+      <section aria-labelledby="titulo-da-peca" className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie px-4 py-4">
+        <div className="flex flex-col gap-1">
+          <h2 id="titulo-da-peca" className="text-lg font-medium text-tinta">Peça</h2>
+          <p className="text-sm text-tinta-fraca">
+            {`${importacao.nomeDoArquivo} · ${importacao.criadoPor}`}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div className="w-32">
+            <CampoDeQuantidadeDaPeca
+              key={String(importacao.quantidadeDaPeca)}
+              valor={importacao.quantidadeDaPeca}
+              desabilitado={travado}
+              aoConfirmar={(q) => escrever(() => alterarPeca(
+                importacao.id, importacao.versao, q, importacao.requerRelatorioDimensional,
+              ))}
+            />
+          </div>
+          <label className="flex items-center gap-2 pb-2.5 text-sm text-tinta-fraca">
+            <input
+              type="checkbox"
+              checked={importacao.requerRelatorioDimensional}
+              disabled={travado}
+              onChange={(e) => escrever(() => alterarPeca(
+                importacao.id, importacao.versao, importacao.quantidadeDaPeca, e.target.checked,
+              ))}
+              className="size-4 accent-acao"
+            />
+            Requer relatório dimensional
+          </label>
+        </div>
+
+        {resumo.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {resumo.map(({ pendencia, quantidade, primeiro }) => {
+              const texto = RESUMO_DA_PENDENCIA[pendencia]
+              const rotulo = `${quantidade} ${quantidade === 1 ? texto.singular : texto.plural}`
+              return (
+                <Botao
+                  key={pendencia}
+                  variante="secundario"
+                  onClick={() => setSelecao({ registroId: primeiro.registroId, componenteId: primeiro.componenteId })}
+                >
+                  <Pilula tom={texto.tom}>{rotulo}</Pilula>
+                </Botao>
+              )
+            })}
+          </div>
+        )}
+
+        {bloqueios.length > 0 && (
+          <ul
+            id={idDosBloqueios}
+            aria-label="O que falta para confirmar"
+            className="list-disc pl-5 text-sm text-tinta"
+          >
+            {bloqueios.map((b, i) => <li key={`${b.tipo}-${b.registroId}-${i}`}>{b.mensagem}</li>)}
+          </ul>
+        )}
+
+        {podeEscrever && (
+          <div className="flex flex-wrap items-center gap-3">
+            <Botao
+              onClick={confirmar}
+              disabled={bloqueios.length > 0}
+              carregando={enviando}
+              aria-describedby={bloqueios.length > 0 ? idDosBloqueios : undefined}
+            >
+              Confirmar
+            </Botao>
+            <Botao variante="secundario" disabled={enviando} onClick={() => setDescartando(true)}>
+              Descartar
+            </Botao>
+          </div>
+        )}
+      </section>
+
+      {/* Região 3 — a árvore expandida. */}
+      <section aria-labelledby="titulo-da-estrutura" className="flex flex-col gap-3">
+        <h2 id="titulo-da-estrutura" className="text-lg font-medium text-tinta">Estrutura</h2>
+        {raiz ? (
+          <ArvoreDaImportacao
+            raiz={raiz}
+            selecionado={selecaoEfetiva?.registroId ?? null}
+            aoSelecionar={(registroId, componenteId) => setSelecao({ registroId, componenteId })}
+            aoAlterarQuantidade={podeEscrever ? (filhoId, quantidade) => escrever(() => alterarFilho(
+              importacao.id, filhoId, importacao.versao, quantidade,
+            )) : undefined}
+            desabilitado={enviando}
+          />
+        ) : (
+          <EstadoVazio
+            titulo="A estrutura não pôde ser expandida"
+            descricao="O motivo está na lista do que falta para confirmar, acima."
+          />
+        )}
+      </section>
+
+      <Confirmacao
+        aberto={descartando}
+        mensagem={(
+          <>
+            Descartar a importação de <strong className="font-mono">{importacao.nomeDoArquivo}</strong>?
+            O que foi conferido nela se perde. Esta ação não pode ser desfeita.
+          </>
+        )}
+        rotuloConfirmar="Descartar"
+        aoConfirmar={descartar}
+        aoCancelar={() => setDescartando(false)}
+      />
+    </Pagina>
+  )
+}
+
+/**
+ * Guarda o que foi digitado e só escreve ao sair do campo: uma requisição por tecla gastaria a
+ * versão do rascunho a cada caractere. Campo vazio vira `null` (a Peça sem quantidade, que é um
+ * bloqueio); texto que não é número positivo volta ao valor anterior.
+ */
+function CampoDeQuantidadeDaPeca({
+  valor, desabilitado, aoConfirmar,
+}: { valor: number | null; desabilitado: boolean; aoConfirmar: (quantidade: number | null) => void }) {
+  const [texto, setTexto] = useState(valor === null ? '' : String(valor).replace('.', ','))
+
+  function confirmar() {
+    const limpo = texto.trim()
+    const n = limpo === '' ? null : Number(limpo.replace(',', '.'))
+    if (n !== null && (!Number.isFinite(n) || n <= 0)) {
+      setTexto(valor === null ? '' : String(valor).replace('.', ','))
+      return
+    }
+    if (n !== valor) aoConfirmar(n)
+  }
+
+  return (
+    <Campo rotulo="Quantidade da Peça">
+      {(id) => (
+        <input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          value={texto}
+          disabled={desabilitado}
+          onChange={(e) => setTexto(e.target.value)}
+          onBlur={confirmar}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+          className={CLASSES_DE_CONTROLE}
+        />
+      )}
+    </Campo>
+  )
+}
