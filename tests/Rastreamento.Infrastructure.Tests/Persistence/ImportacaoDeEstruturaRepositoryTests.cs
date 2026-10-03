@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -64,6 +65,151 @@ public class ImportacaoDeEstruturaRepositoryTests : TesteComBanco
     Assert.Equal(0, await db.ImportacoesDeEstruturaComponentes.CountAsync(c => registroIds.Contains(c.Id)));
     Assert.Equal(0, await db.ImportacoesDeEstruturaFilhos.CountAsync(f => filhoIds.Contains(f.Id)));
     Assert.Equal(0, await db.ArquivosDeComponente.CountAsync(x => x.Id == arquivoId));
+  });
+
+  /// <summary>
+  /// A confirmacao do import apaga o rascunho dentro da transacao da execucao: o repositorio usa a
+  /// transacao que ja esta aberta (abrir outra lancaria) e um rollback do chamador desfaz a exclusao.
+  /// </summary>
+  [Fact]
+  public Task ExcluirAsync_dentro_de_transacao_externa_usa_a_transacao_dela() => NaArvoreAsync(async a =>
+  {
+    var importacao = Montar(a, "externa.xlsx", Registro(null, "Raiz"));
+    await AdicionarAsync(importacao);
+
+    await using (var db = NovoContexto())
+    {
+      await using var externa = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+      await new ImportacaoDeEstruturaRepository(db).ExcluirAsync(importacao.Id, CancellationToken.None);
+      Assert.Equal(0, await db.ImportacoesDeEstrutura.CountAsync(i => i.Id == importacao.Id));
+      await externa.RollbackAsync();
+    }
+
+    await using var leitura = NovoContexto();
+    Assert.Equal(1, await leitura.ImportacoesDeEstrutura.CountAsync(i => i.Id == importacao.Id));
+  });
+
+  [Fact]
+  public Task AdicionarAsync_dentro_de_transacao_externa_usa_a_transacao_dela() => NaArvoreAsync(async a =>
+  {
+    var importacao = Montar(a, "externa.xlsx", Registro(null, "Raiz"));
+
+    await using (var db = NovoContexto())
+    {
+      await using var externa = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+      await new ImportacaoDeEstruturaRepository(db).AdicionarAsync(importacao, CancellationToken.None);
+      await externa.RollbackAsync();
+    }
+
+    await using var leitura = NovoContexto();
+    Assert.Equal(0, await leitura.ImportacoesDeEstrutura.CountAsync(i => i.Id == importacao.Id));
+  });
+
+  /// <summary>
+  /// A confirmacao liga o solido pendente ao Componente e so depois apaga o rascunho: o arquivo ligado
+  /// tem de ficar (sem isso, <c>FK_Componente_ArquivoSolido</c> derrubaria a exclusao), e o que ninguem
+  /// aponta continua sendo apagado.
+  /// </summary>
+  [Fact]
+  public Task ExcluirAsync_nao_apaga_o_pendente_que_um_Componente_ja_aponta() => NaArvoreAsync(async a =>
+  {
+    int ligado, solto;
+    await using (var preparo = NovoContexto())
+    {
+      var repo = new ImportacaoDeEstruturaRepository(preparo);
+      ligado = await repo.GravarArquivoPendenteAsync(
+          new ArquivoDeComponente { NomeOriginal = "ligado.stl", Conteudo = [1, 2, 3], CriadoPorUsuarioId = a.AutorId },
+          CancellationToken.None);
+      solto = await repo.GravarArquivoPendenteAsync(
+          new ArquivoDeComponente { NomeOriginal = "solto.stl", Conteudo = [4, 5, 6], CriadoPorUsuarioId = a.AutorId },
+          CancellationToken.None);
+    }
+    var raiz = Registro(null, "Raiz");
+    raiz.ArquivoSolidoPendenteId = ligado;
+    var outro = Registro($"{a.AgrupamentoId}-SOL", "Outro");
+    outro.ArquivoSolidoPendenteId = solto;
+    Aresta(raiz, outro, 1m);
+    var importacao = Montar(a, "ligado.xlsx", raiz, outro);
+    await AdicionarAsync(importacao);
+
+    try
+    {
+      await using (var db = NovoContexto())
+      {
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE dbo.Componente SET ArquivoSolidoId = {ligado} WHERE Id = {a.ComponenteId}");
+        await new ImportacaoDeEstruturaRepository(db).ExcluirAsync(importacao.Id, CancellationToken.None);
+      }
+
+      await using var leitura = NovoContexto();
+      Assert.Equal(0, await leitura.ImportacoesDeEstrutura.CountAsync(i => i.Id == importacao.Id));
+      Assert.Equal(1, await leitura.ArquivosDeComponente.CountAsync(x => x.Id == ligado));
+      Assert.Equal(0, await leitura.ArquivosDeComponente.CountAsync(x => x.Id == solto));
+    }
+    finally
+    {
+      await using var limpeza = NovoContexto();
+      await limpeza.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE dbo.Componente SET ArquivoSolidoId = NULL WHERE Id = {a.ComponenteId}");
+      // Os que um registro ainda aponta (exclusao que falhou) saem na limpeza do rascunho, depois deste bloco.
+      await limpeza.Database.ExecuteSqlInterpolatedAsync($"""
+          DELETE FROM dbo.ArquivoDeComponente WHERE Id IN ({ligado}, {solto})
+            AND NOT EXISTS (SELECT 1 FROM dbo.ImportacaoDeEstruturaComponente c WHERE c.ArquivoSolidoPendenteId = dbo.ArquivoDeComponente.Id)
+          """);
+    }
+  });
+
+  [Fact]
+  public Task ExcluirArquivosAsync_nao_apaga_arquivo_que_um_Componente_aponta() => NaArvoreAsync(async a =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ImportacaoDeEstruturaRepository(db);
+    var ligado = await repo.GravarArquivoPendenteAsync(
+        new ArquivoDeComponente { NomeOriginal = "ligado.stl", Conteudo = [1, 2, 3], CriadoPorUsuarioId = a.AutorId },
+        CancellationToken.None);
+    try
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE dbo.Componente SET ArquivoSolidoId = {ligado} WHERE Id = {a.ComponenteId}");
+
+      await repo.ExcluirArquivosAsync([ligado], CancellationToken.None);
+
+      Assert.Equal(1, await db.ArquivosDeComponente.CountAsync(x => x.Id == ligado));
+    }
+    finally
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE dbo.Componente SET ArquivoSolidoId = NULL WHERE Id = {a.ComponenteId}");
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.ArquivoDeComponente WHERE Id = {ligado}");
+    }
+  });
+
+  /// <summary>
+  /// Reler pelo <c>ObterAsync</c> num contexto que ja rastreia o rascunho devolve a instancia rastreada,
+  /// com a versao de quando foi lida; <c>ObterVersaoAsync</c> le a do banco.
+  /// </summary>
+  [Fact]
+  public Task ObterVersaoAsync_le_a_versao_do_banco_mesmo_com_o_rascunho_rastreado() => NaArvoreAsync(async a =>
+  {
+    var importacao = Montar(a, "versao.xlsx", Registro(null, "Raiz"));
+    await AdicionarAsync(importacao);
+    await using var db = NovoContexto();
+    var repo = new ImportacaoDeEstruturaRepository(db);
+    var velha = (await repo.ObterAsync(importacao.Id, CancellationToken.None))!.Versao.ToArray();
+
+    await using (var outro = NovoContexto())
+    {
+      var repoOutro = new ImportacaoDeEstruturaRepository(outro);
+      var doOutro = (await repoOutro.ObterAsync(importacao.Id, CancellationToken.None))!;
+      doOutro.QuantidadeDaPeca = 3m;
+      await repoOutro.SalvarAsync(doOutro, doOutro.Versao.ToArray(), CancellationToken.None);
+    }
+
+    Assert.Equal(velha, (await repo.ObterAsync(importacao.Id, CancellationToken.None))!.Versao);
+    var doBanco = await repo.ObterVersaoAsync(importacao.Id, CancellationToken.None);
+    Assert.NotNull(doBanco);
+    Assert.NotEqual(velha, doBanco);
+    Assert.Null(await repo.ObterVersaoAsync(int.MaxValue, CancellationToken.None));
   });
 
   [Fact]

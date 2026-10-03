@@ -48,8 +48,9 @@ public interface IReceitaPadraoRepository
   /// <summary>
   /// A receita do componente passa a ser EXATAMENTE estas linhas: o que estava la e apagado por
   /// PREDICADO (todas as linhas do componente, inclusive as que este chamador nunca leu) e as
-  /// novas entram, dentro de uma UNICA transacao explicita. Meio-termo — apagou e nao gravou —
-  /// nao e estado alcancavel.
+  /// novas entram, dentro de uma UNICA transacao explicita (a do chamador, quando ja ha uma aberta:
+  /// a confirmacao do import grava a receita na transacao da execucao). Meio-termo — apagou e nao
+  /// gravou — nao e estado alcancavel.
   ///
   /// Sob gravacao simultanea no mesmo componente o resultado e a receita de UM dos escritores,
   /// nunca a uniao das duas; o perdedor e derrubado pelo banco e a implementacao sobe

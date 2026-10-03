@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -16,6 +17,9 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
           .AsSplitQuery()
           .SingleOrDefaultAsync(i => i.Id == id, ct);
 
+  public Task<byte[]?> ObterVersaoAsync(int id, CancellationToken ct) =>
+      _db.ImportacoesDeEstrutura.AsNoTracking().Where(i => i.Id == id).Select(i => i.Versao).SingleOrDefaultAsync(ct);
+
   public async Task<IReadOnlyList<ResumoDeImportacao>> ListarDoAgrupamentoAsync(
       int agrupamentoId, CancellationToken ct) =>
       await _db.ImportacoesDeEstrutura.AsNoTracking()
@@ -31,14 +35,15 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
   /// Dois <c>SaveChanges</c> numa transacao, porque a FK <c>RaizId</c> e circular com os registros: o
   /// Id da raiz so existe depois do primeiro (decisao P6 do plano do import). O primeiro grava
   /// cabecalho, registros e filhos -- o EF ordena os registros antes dos filhos pelas navegacoes
-  /// <c>Filhos</c> e <c>Filho</c> --, e o segundo apontar a raiz.
+  /// <c>Filhos</c> e <c>Filho</c> --, e o segundo apontar a raiz. A transacao e a do chamador quando
+  /// ja ha uma aberta (ver <see cref="TransacaoPropriaAsync"/>).
   /// </summary>
   public async Task AdicionarAsync(ImportacaoDeEstrutura importacao, CancellationToken ct)
   {
     if (importacao.Raiz is not null && !importacao.Componentes.Contains(importacao.Raiz))
       throw new ArgumentException("A raiz tem que ser um dos registros do rascunho.", nameof(importacao));
 
-    await using var transacao = await _db.Database.BeginTransactionAsync(ct);
+    await using var propria = await TransacaoPropriaAsync(ct);
 
     _db.ImportacoesDeEstrutura.Add(importacao);
     await _db.SaveChangesAsync(ct);
@@ -49,8 +54,18 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
       await _db.SaveChangesAsync(ct);
     }
 
-    await transacao.CommitAsync(ct);
+    if (propria is not null)
+      await propria.CommitAsync(ct);
   }
+
+  /// <summary>
+  /// Uma transacao nova, ou nula quando o chamador ja tem uma aberta: a confirmacao do import apaga o
+  /// rascunho dentro da transacao da execucao (<c>IExecucaoRepository.EmTransacaoAsync</c>), e abrir uma
+  /// segunda na mesma conexao lanca. Na do chamador, quem commita ou desfaz e ele. Mesmo padrao de
+  /// <c>EstruturaRepository.RemoverSubarvoreAsync</c>.
+  /// </summary>
+  private async Task<IDbContextTransaction?> TransacaoPropriaAsync(CancellationToken ct) =>
+      _db.Database.CurrentTransaction is null ? await _db.Database.BeginTransactionAsync(ct) : null;
 
   /// <summary>
   /// Pressupoe a entidade rastreada por este contexto (vinda de <see cref="ObterAsync"/>). So o
@@ -77,12 +92,18 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
   public void RemoverFilhos(IEnumerable<ImportacaoDeEstruturaFilho> filhos) =>
       _db.ImportacoesDeEstruturaFilhos.RemoveRange(filhos);
 
+  /// <summary>
+  /// O pendente que um Componente ja aponta fica: e o que a confirmacao do import deixa, depois de ligar
+  /// o solido pendente ao Componente e antes de apagar o rascunho. Sem o filtro,
+  /// <c>FK_Componente_ArquivoSolido</c> derrubaria a exclusao e a confirmacao inteira com ela.
+  /// </summary>
   public async Task ExcluirAsync(int id, CancellationToken ct)
   {
-    await using var transacao = await _db.Database.BeginTransactionAsync(ct);
+    await using var propria = await TransacaoPropriaAsync(ct);
 
     var arquivoIds = await _db.ImportacoesDeEstruturaComponentes.AsNoTracking()
         .Where(c => c.ImportacaoId == id && c.ArquivoSolidoPendenteId != null)
+        .Where(c => !_db.Componentes.Any(k => k.ArquivoSolidoId == c.ArquivoSolidoPendenteId))
         .Select(c => c.ArquivoSolidoPendenteId!.Value)
         .ToListAsync(ct);
 
@@ -97,7 +118,8 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
     if (arquivoIds.Count > 0)
       await _db.ArquivosDeComponente.Where(a => arquivoIds.Contains(a.Id)).ExecuteDeleteAsync(ct);
 
-    await transacao.CommitAsync(ct);
+    if (propria is not null)
+      await propria.CommitAsync(ct);
   }
 
   public Task<bool> ExisteNoAgrupamentoAsync(int agrupamentoId, CancellationToken ct) =>
@@ -128,9 +150,12 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
         .ToDictionaryAsync(x => x.Id, x => x.Metadado, ct);
   }
 
+  /// <summary>Com o mesmo filtro de <see cref="ExcluirAsync"/>: arquivo que um Componente aponta ja nao e pendente.</summary>
   public async Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
   {
     if (arquivoIds.Count == 0) return;
-    await _db.ArquivosDeComponente.Where(a => arquivoIds.Contains(a.Id)).ExecuteDeleteAsync(ct);
+    await _db.ArquivosDeComponente
+        .Where(a => arquivoIds.Contains(a.Id) && !_db.Componentes.Any(k => k.ArquivoSolidoId == a.Id))
+        .ExecuteDeleteAsync(ct);
   }
 }

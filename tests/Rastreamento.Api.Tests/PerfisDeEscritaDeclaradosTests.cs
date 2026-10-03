@@ -171,6 +171,7 @@ public class PerfisDeEscritaDeclaradosTests
     ["PUT importacoes/{id:int}/filhos/{filhoId:int}"] = ["PCP", "Administrador"],
     ["POST importacoes/{id:int}/componentes/{registroId:int}/solido"] = ["PCP", "Administrador"],
     ["POST importacoes/{id:int}/arquivo"] = ["PCP", "Administrador"],
+    ["POST importacoes/{id:int}/confirmacao"] = ["PCP", "Administrador"],
 
     // Execucao (Fase 3): um controller por conjunto de perfis — a guarda do front compara todo
     // `[Authorize(Roles)]` de um arquivo com UMA entrada de `permissoes.ts` (desvio D1 do plano 2).

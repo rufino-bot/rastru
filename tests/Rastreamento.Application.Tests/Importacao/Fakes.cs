@@ -132,6 +132,12 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
     return Task.CompletedTask;
   }
 
+  /// <summary>Quando preenchida, e a versao que o "banco" tem agora, diferente da instancia: simula outra escrita.</summary>
+  public byte[]? VersaoNoBanco { get; set; }
+
+  public Task<byte[]?> ObterVersaoAsync(int id, CancellationToken ct) =>
+      Task.FromResult(VersaoNoBanco ?? Importacoes.SingleOrDefault(i => i.Id == id)?.Versao);
+
   public Task ExcluirAsync(int id, CancellationToken ct)
   {
     Exclusoes++;
@@ -207,14 +213,46 @@ public sealed class FakeCatalogoDeComponentes : IComponenteRepository
         Componentes.Where(c => codigos.Contains(c.Codigo, StringComparer.OrdinalIgnoreCase)).ToList());
   }
 
-  public Task<Componente?> ObterPorIdAsync(int id, CancellationToken ct) => throw new NotSupportedException();
+  /// <summary>A mesma instancia da lista, como a entidade rastreada do EF: quem a muda e salva, grava.</summary>
+  public Task<Componente?> ObterPorIdAsync(int id, CancellationToken ct) =>
+      Task.FromResult(Componentes.SingleOrDefault(c => c.Id == id));
+
   public Task<Componente?> ObterPorCodigoAsync(string codigo, CancellationToken ct) => throw new NotSupportedException();
 
   public Task<(IReadOnlyList<Componente> Itens, int Total)> ListarAsync(
       FiltroDeComponente filtro, CancellationToken ct) => throw new NotSupportedException();
 
-  public Task AdicionarAsync(Componente componente, CancellationToken ct) => throw new NotSupportedException();
-  public Task SalvarAlteracoesAsync(CancellationToken ct) => throw new NotSupportedException();
+  private int _proximoId = 8000;
+  private readonly List<Componente> _pendentes = [];
+
+  /// <summary>Os Componentes que o caso de uso criou, na ordem em que foram salvos.</summary>
+  public List<Componente> Adicionados { get; } = [];
+
+  public int Salvamentos { get; private set; }
+
+  /// <summary>Roda para cada Componente criado, quando ele ganha Id: o teste o espelha onde mais precisar (a leitura por Id).</summary>
+  public Action<Componente>? AoCriar { get; set; }
+
+  /// <summary>Como o EF: o Componente so ganha Id e entra no catalogo no <see cref="SalvarAlteracoesAsync"/>.</summary>
+  public Task AdicionarAsync(Componente componente, CancellationToken ct)
+  {
+    _pendentes.Add(componente);
+    return Task.CompletedTask;
+  }
+
+  public Task SalvarAlteracoesAsync(CancellationToken ct)
+  {
+    Salvamentos++;
+    foreach (var c in _pendentes)
+    {
+      c.Id = _proximoId++;
+      Componentes.Add(c);
+      Adicionados.Add(c);
+      AoCriar?.Invoke(c);
+    }
+    _pendentes.Clear();
+    return Task.CompletedTask;
+  }
 }
 
 /// <summary>

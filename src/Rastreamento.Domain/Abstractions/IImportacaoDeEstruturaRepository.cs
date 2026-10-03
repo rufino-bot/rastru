@@ -22,6 +22,14 @@ public interface IImportacaoDeEstruturaRepository
   /// </summary>
   Task<ImportacaoDeEstrutura?> ObterAsync(int id, CancellationToken ct);
 
+  /// <summary>
+  /// A versao (<c>ROWVERSION</c>) que esta no banco AGORA, sem rastrear nada; null quando o rascunho nao
+  /// existe. Existe porque reler pelo <see cref="ObterAsync"/> num contexto que ja rastreia o rascunho
+  /// devolve a instancia rastreada com os valores de quando ela foi lida (resolucao de identidade do EF),
+  /// e a versao velha passaria por atual.
+  /// </summary>
+  Task<byte[]?> ObterVersaoAsync(int id, CancellationToken ct);
+
   /// <summary>Os rascunhos do Agrupamento, do mais recente para o mais antigo (<c>CriadoEm</c>).</summary>
   Task<IReadOnlyList<ResumoDeImportacao>> ListarDoAgrupamentoAsync(int agrupamentoId, CancellationToken ct);
 
@@ -29,8 +37,8 @@ public interface IImportacaoDeEstruturaRepository
   /// Grava cabecalho, registros e filhos e, so depois, o <c>RaizId</c> (decisao P6 do plano do
   /// import: a FK circular nao deixa gravar tudo de uma vez). A raiz e o objeto apontado por
   /// <see cref="ImportacaoDeEstrutura.Raiz"/>; os filhos apontam o filho pelo objeto
-  /// (<see cref="ImportacaoDeEstruturaFilho.Filho"/>). Tudo numa transacao: o rascunho nao existe
-  /// pela metade.
+  /// (<see cref="ImportacaoDeEstruturaFilho.Filho"/>). Tudo numa transacao (a do chamador, quando ja ha
+  /// uma aberta): o rascunho nao existe pela metade.
   /// </summary>
   Task AdicionarAsync(ImportacaoDeEstrutura importacao, CancellationToken ct);
 
@@ -57,7 +65,9 @@ public interface IImportacaoDeEstruturaRepository
   /// <summary>
   /// Apaga o rascunho numa transacao, na ordem filhos -> <c>RaizId = NULL</c> -> registros ->
   /// cabecalho -> <c>ArquivoDeComponente</c> pendentes (decisao P6 do plano do import: o schema nao
-  /// tem <c>ON DELETE CASCADE</c>). Id inexistente nao e erro.
+  /// tem <c>ON DELETE CASCADE</c>). Id inexistente nao e erro. A transacao e a do chamador quando ja
+  /// ha uma aberta (a confirmacao apaga o rascunho dentro da dela), e o pendente que um Componente ja
+  /// aponta (o solido que a confirmacao ligou) nao e apagado.
   /// </summary>
   Task ExcluirAsync(int id, CancellationToken ct);
 
@@ -82,6 +92,9 @@ public interface IImportacaoDeEstruturaRepository
   Task<IReadOnlyDictionary<int, MetadadoDeSolido>> ObterMetadadosAsync(
       IReadOnlyCollection<int> arquivoIds, CancellationToken ct);
 
-  /// <summary>Apaga os arquivos (solidos pendentes descartados ou substituidos).</summary>
+  /// <summary>
+  /// Apaga os arquivos (solidos pendentes descartados ou substituidos), menos os que um Componente
+  /// aponta: esses ja deixaram de ser pendentes.
+  /// </summary>
   Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct);
 }

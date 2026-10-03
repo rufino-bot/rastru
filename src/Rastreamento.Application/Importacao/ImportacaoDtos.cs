@@ -97,6 +97,9 @@ public sealed record AlteracaoDeComponenteDto(
 
 public sealed record AlteracaoDeFilhoDto(string Versao, decimal Quantidade);
 
+/// <summary>O corpo da confirmacao: so a versao, que tem de ser a do banco.</summary>
+public sealed record ConfirmacaoDto(string Versao);
+
 /// <summary>Os valores fechados dos campos de texto dos DTOs da conferencia.</summary>
 public static class ValoresDaConferencia
 {

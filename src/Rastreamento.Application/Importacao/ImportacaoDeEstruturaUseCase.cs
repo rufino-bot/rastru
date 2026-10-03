@@ -38,6 +38,11 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   private readonly IReceitaPadraoRepository _receitaPadrao;
   private readonly IEstruturaRepository _estruturas;
   private readonly ILeitorDeBom _leitor;
+  private readonly IExecucaoRepository _execucao;
+
+  // Instanciado direto, como em `MontagemDeEstruturaUseCase`: colaborador interno, sem estado proprio
+  // alem dos repositorios que o caso de uso ja recebe.
+  private readonly MontadorDeArvoreDeEstrutura _montador;
 
   public ImportacaoDeEstruturaUseCase(
       IImportacaoDeEstruturaRepository importacoes,
@@ -45,7 +50,8 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       IComponenteRepository componentes,
       IReceitaPadraoRepository receitaPadrao,
       IEstruturaRepository estruturas,
-      ILeitorDeBom leitor)
+      ILeitorDeBom leitor,
+      IExecucaoRepository execucao)
   {
     _importacoes = importacoes;
     _agrupamentos = agrupamentos;
@@ -53,6 +59,8 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     _receitaPadrao = receitaPadrao;
     _estruturas = estruturas;
     _leitor = leitor;
+    _execucao = execucao;
+    _montador = new MontadorDeArvoreDeEstrutura(estruturas, receitaPadrao);
   }
 
   public async Task<Result<ImportacaoDto>> Criar(

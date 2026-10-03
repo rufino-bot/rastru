@@ -130,6 +130,16 @@ public class ImportacaoController : ControllerBase
   }
 
   /// <summary>
+  /// Confirma o rascunho: grava o catalogo e cria a Peca numa transacao (secao 7 da spec do import). 201
+  /// com a Peca, como o <c>POST</c> da estrutura; 400 <c>ImportacaoComBloqueios</c> sem a lista (decisao
+  /// P15 do plano do import), 409 <c>ReceitaDoCatalogoMudou</c> com a frase e 409 <c>ImportacaoDesatualizada</c>.
+  /// </summary>
+  [HttpPost("importacoes/{id:int}/confirmacao")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> Confirmar(int id, ConfirmacaoDto dto, CancellationToken ct) =>
+      Traduzir(await _importacao.Confirmar(id, dto.Versao, ct), criado: true);
+
+  /// <summary>
   /// Id do usuario da sessao, pela claim <c>sub</c> (a fronteira onde <c>HttpContext</c> para). Token
   /// assinado por nos mas sem a claim e falha de autenticacao (401), nao 500.
   /// </summary>
