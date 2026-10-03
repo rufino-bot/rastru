@@ -138,10 +138,29 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
   public Task<byte[]?> ObterVersaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(VersaoNoBanco ?? Importacoes.SingleOrDefault(i => i.Id == id)?.Versao);
 
+  /// <summary>Como o real: apaga tambem os arquivos que os registros ainda tem como pendentes.</summary>
   public Task ExcluirAsync(int id, CancellationToken ct)
   {
     Exclusoes++;
+    foreach (var arquivo in Importacoes.Where(i => i.Id == id).SelectMany(i => i.Componentes)
+                 .Where(c => c.ArquivoSolidoPendenteId is not null).Select(c => c.ArquivoSolidoPendenteId!.Value))
+    {
+      ArquivosExcluidos.Add(arquivo);
+      ArquivosGravados.Remove(arquivo);
+      Arquivos.Remove(arquivo);
+    }
     Importacoes.RemoveAll(i => i.Id == id);
+    return Task.CompletedTask;
+  }
+
+  /// <summary>Os registros de cada <see cref="DesligarSolidosPendentesAsync"/>, como chegaram.</summary>
+  public List<int[]> Desligamentos { get; } = [];
+
+  public Task DesligarSolidosPendentesAsync(IReadOnlyCollection<int> registroIds, CancellationToken ct)
+  {
+    Desligamentos.Add([.. registroIds]);
+    foreach (var registro in Importacoes.SelectMany(i => i.Componentes).Where(c => registroIds.Contains(c.Id)))
+      registro.ArquivoSolidoPendenteId = null;
     return Task.CompletedTask;
   }
 

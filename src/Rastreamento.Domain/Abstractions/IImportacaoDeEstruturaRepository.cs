@@ -66,10 +66,16 @@ public interface IImportacaoDeEstruturaRepository
   /// Apaga o rascunho numa transacao, na ordem filhos -> <c>RaizId = NULL</c> -> registros ->
   /// cabecalho -> <c>ArquivoDeComponente</c> pendentes (decisao P6 do plano do import: o schema nao
   /// tem <c>ON DELETE CASCADE</c>). Id inexistente nao e erro. A transacao e a do chamador quando ja
-  /// ha uma aberta (a confirmacao apaga o rascunho dentro da dela), e o pendente que um Componente ja
-  /// aponta (o solido que a confirmacao ligou) nao e apagado.
+  /// ha uma aberta (a confirmacao apaga o rascunho dentro da dela).
   /// </summary>
   Task ExcluirAsync(int id, CancellationToken ct);
+
+  /// <summary>
+  /// Zera <c>ArquivoSolidoPendenteId</c> dos registros dados, por chave e por comando (sem passar pelo
+  /// rastreamento): o arquivo deixa de ser pendente do rascunho e o <see cref="ExcluirAsync"/> seguinte
+  /// nao o apaga. E o que a confirmacao faz com o solido que acabou de ligar a um Componente.
+  /// </summary>
+  Task DesligarSolidosPendentesAsync(IReadOnlyCollection<int> registroIds, CancellationToken ct);
 
   Task<bool> ExisteNoAgrupamentoAsync(int agrupamentoId, CancellationToken ct);
 
@@ -92,9 +98,6 @@ public interface IImportacaoDeEstruturaRepository
   Task<IReadOnlyDictionary<int, MetadadoDeSolido>> ObterMetadadosAsync(
       IReadOnlyCollection<int> arquivoIds, CancellationToken ct);
 
-  /// <summary>
-  /// Apaga os arquivos (solidos pendentes descartados ou substituidos), menos os que um Componente
-  /// aponta: esses ja deixaram de ser pendentes.
-  /// </summary>
+  /// <summary>Apaga os arquivos (solidos pendentes descartados ou substituidos).</summary>
   Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct);
 }

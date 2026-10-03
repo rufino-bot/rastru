@@ -106,12 +106,12 @@ public class ImportacaoDeEstruturaRepositoryTests : TesteComBanco
   });
 
   /// <summary>
-  /// A confirmacao liga o solido pendente ao Componente e so depois apaga o rascunho: o arquivo ligado
-  /// tem de ficar (sem isso, <c>FK_Componente_ArquivoSolido</c> derrubaria a exclusao), e o que ninguem
-  /// aponta continua sendo apagado.
+  /// A confirmacao liga o solido pendente ao Componente e, antes de apagar o rascunho, o desliga do
+  /// registro por chave: o <c>ExcluirAsync</c> seguinte nao o ve mais como pendente e o deixa, e continua
+  /// apagando o que ninguem desligou.
   /// </summary>
   [Fact]
-  public Task ExcluirAsync_nao_apaga_o_pendente_que_um_Componente_ja_aponta() => NaArvoreAsync(async a =>
+  public Task DesligarSolidosPendentesAsync_tira_o_arquivo_do_rascunho_e_a_exclusao_o_mantem() => NaArvoreAsync(async a =>
   {
     int ligado, solto;
     await using (var preparo = NovoContexto())
@@ -136,51 +136,30 @@ public class ImportacaoDeEstruturaRepositoryTests : TesteComBanco
     {
       await using (var db = NovoContexto())
       {
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE dbo.Componente SET ArquivoSolidoId = {ligado} WHERE Id = {a.ComponenteId}");
-        await new ImportacaoDeEstruturaRepository(db).ExcluirAsync(importacao.Id, CancellationToken.None);
+        var repo = new ImportacaoDeEstruturaRepository(db);
+        await repo.DesligarSolidosPendentesAsync([raiz.Id], CancellationToken.None);
+        await using var leitura = NovoContexto();
+        var registros = await leitura.ImportacoesDeEstruturaComponentes.AsNoTracking()
+            .Where(c => c.ImportacaoId == importacao.Id).ToDictionaryAsync(c => c.Id, c => c.ArquivoSolidoPendenteId);
+        Assert.Null(registros[raiz.Id]);
+        Assert.Equal(solto, registros[outro.Id]);
+
+        await repo.ExcluirAsync(importacao.Id, CancellationToken.None);
       }
 
-      await using var leitura = NovoContexto();
-      Assert.Equal(0, await leitura.ImportacoesDeEstrutura.CountAsync(i => i.Id == importacao.Id));
-      Assert.Equal(1, await leitura.ArquivosDeComponente.CountAsync(x => x.Id == ligado));
-      Assert.Equal(0, await leitura.ArquivosDeComponente.CountAsync(x => x.Id == solto));
+      await using var depois = NovoContexto();
+      Assert.Equal(0, await depois.ImportacoesDeEstrutura.CountAsync(i => i.Id == importacao.Id));
+      Assert.Equal(1, await depois.ArquivosDeComponente.CountAsync(x => x.Id == ligado));
+      Assert.Equal(0, await depois.ArquivosDeComponente.CountAsync(x => x.Id == solto));
     }
     finally
     {
+      // O que um registro ainda aponta (teste que falhou no meio) sai na limpeza do rascunho, depois deste bloco.
       await using var limpeza = NovoContexto();
-      await limpeza.Database.ExecuteSqlInterpolatedAsync(
-          $"UPDATE dbo.Componente SET ArquivoSolidoId = NULL WHERE Id = {a.ComponenteId}");
-      // Os que um registro ainda aponta (exclusao que falhou) saem na limpeza do rascunho, depois deste bloco.
       await limpeza.Database.ExecuteSqlInterpolatedAsync($"""
           DELETE FROM dbo.ArquivoDeComponente WHERE Id IN ({ligado}, {solto})
             AND NOT EXISTS (SELECT 1 FROM dbo.ImportacaoDeEstruturaComponente c WHERE c.ArquivoSolidoPendenteId = dbo.ArquivoDeComponente.Id)
           """);
-    }
-  });
-
-  [Fact]
-  public Task ExcluirArquivosAsync_nao_apaga_arquivo_que_um_Componente_aponta() => NaArvoreAsync(async a =>
-  {
-    await using var db = NovoContexto();
-    var repo = new ImportacaoDeEstruturaRepository(db);
-    var ligado = await repo.GravarArquivoPendenteAsync(
-        new ArquivoDeComponente { NomeOriginal = "ligado.stl", Conteudo = [1, 2, 3], CriadoPorUsuarioId = a.AutorId },
-        CancellationToken.None);
-    try
-    {
-      await db.Database.ExecuteSqlInterpolatedAsync(
-          $"UPDATE dbo.Componente SET ArquivoSolidoId = {ligado} WHERE Id = {a.ComponenteId}");
-
-      await repo.ExcluirArquivosAsync([ligado], CancellationToken.None);
-
-      Assert.Equal(1, await db.ArquivosDeComponente.CountAsync(x => x.Id == ligado));
-    }
-    finally
-    {
-      await db.Database.ExecuteSqlInterpolatedAsync(
-          $"UPDATE dbo.Componente SET ArquivoSolidoId = NULL WHERE Id = {a.ComponenteId}");
-      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.ArquivoDeComponente WHERE Id = {ligado}");
     }
   });
 

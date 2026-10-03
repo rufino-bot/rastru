@@ -570,14 +570,36 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   }
 
   [Fact]
+  public async Task Falha_qualquer_ao_zerar_a_escolha_nao_troca_o_409_ReceitaDoCatalogoMudou()
+  {
+    var m = await ComArvoreParaConfirmar();
+    m.Estruturas.ReceitaFilhos[m.Estruturas.ReceitaFilhos.IndexOf((11, 21, 1m))] = (11, 21, 5m);
+    m.ReceitaPadrao.Filhos.Single(f => f.ComponentePaiId == 11).QuantidadePadrao = 5m;
+    // Zerar a escolha e limpeza de melhor esforco: uma falha nela nao vira 500.
+    m.Importacoes.FalhaNoSalvamento = new InvalidOperationException("queda do banco simulada");
+
+    var r = await Confirmar(m);
+
+    Assert.Equal(ImportacaoDeEstruturaUseCase.ErroDeReceitaDoCatalogoMudou, r.Erro);
+    Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Contains("CD-02", r.Detalhe);
+    NadaGravado(m);
+  }
+
+  [Fact]
   public async Task Confirmar_cria_novos_reativa_inativos_grava_solidos_e_receitas_so_da_arvore_final()
   {
     var m = await ComArvoreParaConfirmar();
+    var ligados = new[] { m.Registro(null).Id, m.Registro("AB-01").Id, m.Registro("Z-1").Id };
 
     var r = await Confirmar(m);
 
     Assert.True(r.Sucesso, r.Detalhe ?? r.Erro);
     Assert.Equal((1, 0), (m.Execucao.Commits, m.Execucao.Desfeitas));
+    // Os pendentes que viraram solido (raiz, AB-01, Z-1) saem do rascunho, por registro, antes de ele ser
+    // apagado, e ficam; o de Y-1, que saiu da arvore, vai embora com o rascunho.
+    Assert.Equal(ligados.Order(), Assert.Single(m.Importacoes.Desligamentos).Order());
+    Assert.Equal([953], m.Importacoes.ArquivosExcluidos);
     // Decisao P3: so a raiz e Z-1 viram Componente; Y-1 e W-1 sairam da arvore pela escolha de CD-02.
     Assert.Equal(["RAIZ-1", "Z-1"], m.Catalogo.Adicionados.Select(c => c.Codigo).Order());
     var raiz = m.Catalogo.Adicionados.Single(c => c.Codigo == "RAIZ-1");

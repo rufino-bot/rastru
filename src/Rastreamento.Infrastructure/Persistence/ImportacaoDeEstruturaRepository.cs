@@ -92,18 +92,12 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
   public void RemoverFilhos(IEnumerable<ImportacaoDeEstruturaFilho> filhos) =>
       _db.ImportacoesDeEstruturaFilhos.RemoveRange(filhos);
 
-  /// <summary>
-  /// O pendente que um Componente ja aponta fica: e o que a confirmacao do import deixa, depois de ligar
-  /// o solido pendente ao Componente e antes de apagar o rascunho. Sem o filtro,
-  /// <c>FK_Componente_ArquivoSolido</c> derrubaria a exclusao e a confirmacao inteira com ela.
-  /// </summary>
   public async Task ExcluirAsync(int id, CancellationToken ct)
   {
     await using var propria = await TransacaoPropriaAsync(ct);
 
     var arquivoIds = await _db.ImportacoesDeEstruturaComponentes.AsNoTracking()
         .Where(c => c.ImportacaoId == id && c.ArquivoSolidoPendenteId != null)
-        .Where(c => !_db.Componentes.Any(k => k.ArquivoSolidoId == c.ArquivoSolidoPendenteId))
         .Select(c => c.ArquivoSolidoPendenteId!.Value)
         .ToListAsync(ct);
 
@@ -150,12 +144,20 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
         .ToDictionaryAsync(x => x.Id, x => x.Metadado, ct);
   }
 
-  /// <summary>Com o mesmo filtro de <see cref="ExcluirAsync"/>: arquivo que um Componente aponta ja nao e pendente.</summary>
   public async Task ExcluirArquivosAsync(IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
   {
     if (arquivoIds.Count == 0) return;
-    await _db.ArquivosDeComponente
-        .Where(a => arquivoIds.Contains(a.Id) && !_db.Componentes.Any(k => k.ArquivoSolidoId == a.Id))
-        .ExecuteDeleteAsync(ct);
+    await _db.ArquivosDeComponente.Where(a => arquivoIds.Contains(a.Id)).ExecuteDeleteAsync(ct);
+  }
+
+  /// <summary>
+  /// Por chave primaria: dentro da transacao SERIALIZABLE da confirmacao, trava so as linhas dadas, e nao
+  /// uma faixa.
+  /// </summary>
+  public async Task DesligarSolidosPendentesAsync(IReadOnlyCollection<int> registroIds, CancellationToken ct)
+  {
+    if (registroIds.Count == 0) return;
+    await _db.ImportacoesDeEstruturaComponentes.Where(c => registroIds.Contains(c.Id))
+        .ExecuteUpdateAsync(s => s.SetProperty(c => c.ArquivoSolidoPendenteId, (int?)null), ct);
   }
 }

@@ -22,7 +22,10 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   /// <c>ReceitaPadraoRepository</c> (secao 3.2 da spec do conserto do deadlock na suite de Api), o mesmo
   /// motivo de <c>MontagemDeEstruturaUseCase.CriarPeca</c>. Dentro da transacao so se rele o que e
   /// estreito: a versao do rascunho e a receita de cada pai com escolha (a faixa de
-  /// <c>UQ_ComponenteFilhoPadrao</c>, que comeca por <c>ComponentePaiId</c>).
+  /// <c>UQ_ComponenteFilhoPadrao</c>, que comeca por <c>ComponentePaiId</c>); os Componentes casados sao
+  /// relidos e os pendentes ligados sao desligados por chave. A excecao e a exclusao do rascunho
+  /// (<c>ExcluirAsync</c>): ela filtra os registros por <c>ImportacaoId</c>, que nao tem indice proprio, e
+  /// sob SERIALIZABLE varre e trava as tabelas do RASCUNHO (nao as do catalogo) ate o commit.
   ///
   /// Residual, o mesmo de <c>CriarPeca</c>: uma mudanca concorrente no catalogo dos Ids alcancados so
   /// pela receita de catalogo, entre a leitura e o commit, nao e vista. Outro: um codigo novo criado no
@@ -142,7 +145,12 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     var paraGravar = ParaGravar(gravacao.Plano, Real, ehRaiz: true, r.RequerRelatorioDimensional);
     var raizId = await _estruturas.GravarArvoreAsync(r.AgrupamentoId, null, paraGravar, ct);
 
-    // 8. O rascunho; os pendentes ja ligados a um Componente ficam (o repositorio nao os apaga).
+    // 8. O rascunho. Antes, os pendentes que viraram solido de um Componente deixam de ser pendentes, por
+    // chave do registro: o `ExcluirAsync` apaga todo arquivo que o rascunho ainda tem como pendente, e
+    // `FK_Componente_ArquivoSolido` derrubaria a transacao. Por chave, e nao por uma consulta a
+    // `dbo.Componente` (cuja coluna `ArquivoSolidoId` nao tem indice): sob SERIALIZABLE, essa consulta
+    // varreria e travaria o catalogo inteiro ate o commit.
+    await _importacoes.DesligarSolidosPendentesAsync(gravacao.RegistrosComSolidoLigado, ct);
     await _importacoes.ExcluirAsync(r.Id, ct);
 
     // 9. A Peca lida de volta, como em `MontagemDeEstruturaUseCase.CriarPeca`.
@@ -170,24 +178,31 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   /// A impressao nao bateu: a escolha e a impressao desses registros voltam a nulo, pela escrita
   /// versionada de sempre, fora da transacao que foi desfeita. Rascunho que mudou ou sumiu nesse meio-tempo
   /// fica como esta: a resposta continua sendo o 409, e a tela rele o rascunho.
+  ///
+  /// Limpeza de melhor esforco, fora do retry de deadlock: QUALQUER falha aqui e engolida, porque a
+  /// resposta certa ja esta decidida (o 409 <c>ReceitaDoCatalogoMudou</c>), e uma excecao a trocaria por
+  /// um 500. O pior desfecho e a escolha velha continuar no rascunho, e a proxima confirmacao confere a
+  /// impressao de novo e devolve o mesmo 409. O caso de uso nao tem <c>ILogger</c>, entao nao ha onde
+  /// registrar a falha.
   /// </summary>
   private async Task ZerarEscolhasAsync(int id, byte[] esperada, ISet<int> registros, CancellationToken ct)
   {
-    var r = await _importacoes.ObterAsync(id, ct);
-    if (r is null || !r.Versao.AsSpan().SequenceEqual(esperada))
-      return;
-    foreach (var registro in r.Componentes.Where(c => registros.Contains(c.Id)))
-    {
-      registro.EscolhaDeReceita = null;
-      registro.ImpressaoDaReceitaDoCatalogo = null;
-    }
     try
     {
+      var r = await _importacoes.ObterAsync(id, ct);
+      if (r is null || !r.Versao.AsSpan().SequenceEqual(esperada))
+        return;
+      foreach (var registro in r.Componentes.Where(c => registros.Contains(c.Id)))
+      {
+        registro.EscolhaDeReceita = null;
+        registro.ImpressaoDaReceitaDoCatalogo = null;
+      }
       await _importacoes.SalvarAsync(r, esperada, ct);
     }
-    catch (ConflitoDeConcorrenciaException)
+    catch (Exception)
     {
-      // Outra escrita chegou antes: o rascunho dela vale, e a escolha zerada ficaria por cima dela.
+      // Ver o XML doc: o conflito de versao (outra escrita chegou antes, e o rascunho dela vale) e qualquer
+      // outra falha tem o mesmo desfecho, o 409 que `Confirmar` devolve.
     }
   }
 
@@ -202,11 +217,16 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       IReadOnlyList<PlanoDeGravacao.Casado> Casados,
       IReadOnlyList<PlanoDeGravacao.Receita> Receitas)
   {
+    /// <summary>Os registros cujo solido pendente vira o solido de um Componente (novo ou casado).</summary>
+    public IReadOnlyList<int> RegistrosComSolidoLigado { get; } =
+        [.. Novos.Where(n => n.ArquivoSolidoId is not null).Select(n => n.RegistroId),
+         .. Casados.Where(c => c.ArquivoSolidoId is not null).Select(c => c.RegistroId)];
+
     public sealed record Escolha(int RegistroId, int ComponenteId, string Codigo, byte[]? Impressao);
 
-    public sealed record Novo(int IdProvisorio, string Codigo, string Descricao, string Tipo, int? ArquivoSolidoId);
+    public sealed record Novo(int RegistroId, int IdProvisorio, string Codigo, string Descricao, string Tipo, int? ArquivoSolidoId);
 
-    public sealed record Casado(int ComponenteId, bool Reativar, int? ArquivoSolidoId);
+    public sealed record Casado(int RegistroId, int ComponenteId, bool Reativar, int? ArquivoSolidoId);
 
     /// <summary>A receita lida de um Id da sobreposicao, uma linha por filho (os repetidos somados, como a divergencia os compara).</summary>
     public sealed record Receita(int PaiId, IReadOnlyList<(int FilhoId, decimal Quantidade)> Filhos);
@@ -227,13 +247,13 @@ public sealed partial class ImportacaoDeEstruturaUseCase
           continue;
 
         if (id < 0)
-          novos.Add(new Novo(id, registro.CodigoNovo!.Trim(), DescricaoDoNovo(registro), TipoDoNovo(registro),
+          novos.Add(new Novo(registro.Id, id, registro.CodigoNovo!.Trim(), DescricaoDoNovo(registro), TipoDoNovo(registro),
               registro.ArquivoSolidoPendenteId));
         else
         {
           var reativar = !catalogo.Componentes[id].Ativo;
           if (reativar || registro.ArquivoSolidoPendenteId is not null)
-            casados.Add(new Casado(id, reativar, registro.ArquivoSolidoPendenteId));
+            casados.Add(new Casado(registro.Id, id, reativar, registro.ArquivoSolidoPendenteId));
         }
 
         // Escolha so conta onde ainda ha divergencia: num codigo que deixou de divergir ela e inerte, e a
