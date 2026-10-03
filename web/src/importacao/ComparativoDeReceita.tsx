@@ -31,8 +31,8 @@ export function ComparativoDeReceita({ linhas }: { linhas: LinhaDoComparativoDto
           </tr>
         </thead>
         <tbody>
-          {linhas.map((l) => (
-            <tr key={l.codigo} className="border-b border-borda last:border-b-0">
+          {linhas.map((l, i) => (
+            <tr key={`${i}-${l.codigo}`} className="border-b border-borda last:border-b-0">
               <td className="py-1.5 pr-3 text-tinta">
                 <span className="font-mono">{l.codigo}</span>
                 {' '}

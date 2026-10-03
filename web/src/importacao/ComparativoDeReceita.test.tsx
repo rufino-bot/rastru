@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { ComparativoDeReceita } from './ComparativoDeReceita'
 import type { LinhaDoComparativoDto } from '../api/importacao'
@@ -43,5 +43,17 @@ describe('ComparativoDeReceita', () => {
 
     expect(screen.queryByRole('table')).toBeNull()
     expect(screen.getByText('Nenhum filho de nenhum dos dois lados.')).toBeTruthy()
+  })
+
+  it('código em branco ou repetido não colapsa as linhas nem avisa de chave duplicada', () => {
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => {})
+    render(<ComparativoDeReceita linhas={[
+      { codigo: '', descricao: 'Sem código A', noCatalogo: 1, noBom: 1, situacao: 'Igual' },
+      { codigo: '', descricao: 'Sem código B', noCatalogo: 2, noBom: 2, situacao: 'Igual' },
+    ]} />)
+
+    expect(screen.getAllByRole('row')).toHaveLength(3)
+    expect(erro).not.toHaveBeenCalled()
+    erro.mockRestore()
   })
 })

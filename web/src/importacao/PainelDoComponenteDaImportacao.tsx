@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { caminhoDoSolido, type ComponenteDto, type TipoDeComponente } from '../api/cadastros'
 import {
   alterarComponente, caminhoDoSolidoPendente, enviarSolidoPendente,
@@ -128,7 +128,7 @@ export function PainelDoComponenteDaImportacao({
   return (
     <section
       aria-label="Componente selecionado"
-      className="sticky top-0 z-10 max-h-[85vh] overflow-y-auto rounded-lg border border-borda bg-superficie p-4"
+      className="rounded-lg border border-borda bg-superficie p-4 md:sticky md:top-0 md:z-10 md:max-h-[85vh] md:overflow-y-auto"
     >
       {!no && !situacao ? (
         <p className="text-tinta-fraca">Nenhum componente para mostrar.</p>
@@ -141,6 +141,7 @@ export function PainelDoComponenteDaImportacao({
             {registroId === null ? (
               <>
                 <UploadDeSolido
+                  key={`c${componenteId}`}
                   caminho={caminhoDoSolidoMostrado ?? ''}
                   enviar={async () => {}}
                   desabilitado
@@ -154,6 +155,7 @@ export function PainelDoComponenteDaImportacao({
             ) : (
               podeEscrever && (
                 <UploadDeSolido
+                  key={registroId}
                   caminho={caminhoDoSolidoMostrado ?? ''}
                   enviar={(arquivo) => escrever(
                     () => enviarSolidoPendente(importacao.id, registroId, importacao.versao, arquivo),
@@ -212,7 +214,7 @@ export function PainelDoComponenteDaImportacao({
                   </div>
                 ) : (
                   <CamposDoNovo
-                    key={`${situacao.registroId}-${situacao.codigoNovo}-${situacao.descricaoNova}-${situacao.tipoNovo}`}
+                    key={situacao.registroId}
                     situacao={situacao}
                     desabilitado={desabilitado}
                     gravar={(parte) => gravar(situacao, {
@@ -271,45 +273,29 @@ export function PainelDoComponenteDaImportacao({
  * Código, descrição e `Tipo` de um Componente que a confirmação vai criar. Os textos só escrevem ao
  * sair do campo (uma requisição por tecla gastaria a versão do rascunho a cada caractere) e só se
  * mudaram; o `Tipo` é uma escolha e escreve ao trocar.
+ *
+ * Os campos de texto **não** travam durante uma escrita e o formulário não remonta quando o servidor
+ * responde: quem sai do Código com Tab já está digitando na Descrição, e travar ou remontar o campo
+ * tiraria o foco e o digitado dele. Cada campo ressincroniza com o servidor só quando não está focado.
  */
 function CamposDoNovo({ situacao, desabilitado, gravar }: {
   situacao: SituacaoDoComponenteDto
   desabilitado: boolean
   gravar: (parte: { codigoNovo?: string; descricaoNova?: string; tipoNovo?: string }) => void
 }) {
-  const [codigo, setCodigo] = useState(situacao.codigoNovo ?? '')
-  const [descricao, setDescricao] = useState(situacao.descricaoNova ?? '')
-
   return (
     <div className="flex flex-col gap-3">
-      <Campo rotulo="Código">
-        {(id) => (
-          <input
-            id={id}
-            type="text"
-            value={codigo}
-            disabled={desabilitado}
-            onChange={(e) => setCodigo(e.target.value)}
-            onBlur={() => { if (codigo.trim() !== (situacao.codigoNovo ?? '')) gravar({ codigoNovo: codigo.trim() }) }}
-            className={`${CLASSES_DE_CONTROLE} font-mono`}
-          />
-        )}
-      </Campo>
-      <Campo rotulo="Descrição">
-        {(id) => (
-          <input
-            id={id}
-            type="text"
-            value={descricao}
-            disabled={desabilitado}
-            onChange={(e) => setDescricao(e.target.value)}
-            onBlur={() => {
-              if (descricao.trim() !== (situacao.descricaoNova ?? '')) gravar({ descricaoNova: descricao.trim() })
-            }}
-            className={CLASSES_DE_CONTROLE}
-          />
-        )}
-      </Campo>
+      <CampoDeTexto
+        rotulo="Código"
+        mono
+        valorDoServidor={situacao.codigoNovo ?? ''}
+        aoGravar={(texto) => gravar({ codigoNovo: texto })}
+      />
+      <CampoDeTexto
+        rotulo="Descrição"
+        valorDoServidor={situacao.descricaoNova ?? ''}
+        aoGravar={(texto) => gravar({ descricaoNova: texto })}
+      />
       <Campo rotulo="Tipo">
         {(id) => (
           <select
@@ -325,5 +311,41 @@ function CamposDoNovo({ situacao, desabilitado, gravar }: {
         )}
       </Campo>
     </div>
+  )
+}
+
+function CampoDeTexto({ rotulo, valorDoServidor, aoGravar, mono = false }: {
+  rotulo: string
+  valorDoServidor: string
+  aoGravar: (texto: string) => void
+  mono?: boolean
+}) {
+  const [texto, setTexto] = useState(valorDoServidor)
+  const focado = useRef(false)
+
+  // O servidor responde depois de a pessoa ter ido para o campo seguinte: o campo que ela deixou
+  // aceita o valor novo, o que ela está digitando não.
+  useEffect(() => {
+    if (!focado.current) setTexto(valorDoServidor)
+  }, [valorDoServidor])
+
+  return (
+    <Campo rotulo={rotulo}>
+      {(id) => (
+        <input
+          id={id}
+          type="text"
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onFocus={() => { focado.current = true }}
+          onBlur={() => {
+            focado.current = false
+            const limpo = texto.trim()
+            if (limpo !== valorDoServidor) aoGravar(limpo)
+          }}
+          className={mono ? `${CLASSES_DE_CONTROLE} font-mono` : CLASSES_DE_CONTROLE}
+        />
+      )}
+    </Campo>
   )
 }

@@ -156,8 +156,9 @@ function LinhaDoNo({
         ref={linha}
         data-testid={`linha-importacao-${caminho}`}
         className={
-          // `scroll-mt`: sem ele o `scrollIntoView` deixa a linha sob a região fixa do topo da tela.
-          'relative isolate scroll-mt-28 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
+          // `md:scroll-mt`: sem ele o `scrollIntoView` deixa a linha sob a região fixa do topo da tela, que só
+          // é fixa de `md` para cima.
+          'relative isolate md:scroll-mt-28 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
           + (ehAtual ? 'border-acao bg-acao-fundo' : ehMesmoCodigo ? 'border-borda bg-acao-fundo' : 'border-borda bg-superficie')
         }
         style={{ paddingLeft: `${RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX}px` }}

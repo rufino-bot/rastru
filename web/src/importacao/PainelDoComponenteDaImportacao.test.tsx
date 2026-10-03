@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { PainelDoComponenteDaImportacao } from './PainelDoComponenteDaImportacao'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaBinaria, respostaJson } from '../testes/api'
@@ -359,7 +359,11 @@ describe('PainelDoComponenteDaImportacao', () => {
 
   it('o casado oferece "Criar novo" e não mostra Tipo; clicar solta o casamento e zera a escolha', async () => {
     const fetchMock = montarFetch({ 'PUT /api/importacoes/5/componentes/2': () => respostaJson(importacao()) })
-    painel(2, 200)
+    // Com escolha gravada: um painel que a devolvesse no corpo, em vez de zerá-la, seria recusado pelo servidor.
+    const comEscolha = importacao({
+      componentes: SITUACOES.map((x) => (x.registroId === 2 ? { ...x, escolhaDeReceita: 'Catalogo' as const } : x)),
+    })
+    painel(2, 200, { importacao: comEscolha })
 
     expect(screen.queryByLabelText('Tipo')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Criar novo' }))
@@ -416,5 +420,59 @@ describe('PainelDoComponenteDaImportacao', () => {
 
     rerender(<PainelDoComponenteDaImportacao {...props} registroId={4} componenteId={500} />)
     expect(within(regiao()).getByText('Inativo').className).toContain('text-atencao-texto')
+  })
+
+  it('Tab do Código para a Descrição durante a escrita mantém foco e texto, e a segunda escrita leva os dois', async () => {
+    let resolverPrimeira!: (r: Response) => void
+    let chamadasDePut = 0
+    const fetchMock = montarFetch({
+      'PUT /api/importacoes/5/componentes/3': () => {
+        chamadasDePut += 1
+        return chamadasDePut === 1
+          ? new Promise<Response>((r) => { resolverPrimeira = r }) as unknown as Response
+          : respostaJson(importacao())
+      },
+    })
+    const { rerender, props } = painel(3, null)
+
+    const codigo = screen.getByLabelText('Código') as HTMLInputElement
+    act(() => codigo.focus())
+    fireEvent.change(codigo, { target: { value: 'PA-301' } })
+    act(() => codigo.blur())
+    // A escrita do Código está em voo: a tela passa a travar o que é escolha, mas não o que se digita.
+    rerender(<PainelDoComponenteDaImportacao {...props} desabilitado />)
+    await waitFor(() => expect(chamadas(fetchMock)).toHaveLength(1))
+
+    const descricao = screen.getByLabelText('Descrição') as HTMLInputElement
+    expect(descricao.disabled).toBe(false)
+    act(() => descricao.focus())
+    fireEvent.change(descricao, { target: { value: 'Parafuso sextavado' } })
+
+    // O servidor responde: o Código novo chega, o formulário não remonta.
+    const respondido = importacao({
+      componentes: SITUACOES.map((x) => (x.registroId === 3 ? { ...x, codigoNovo: 'PA-301' } : x)),
+    })
+    await act(async () => { resolverPrimeira(respostaJson(respondido)) })
+    rerender(<PainelDoComponenteDaImportacao {...props} importacao={respondido} desabilitado={false} />)
+
+    const descricaoDepois = screen.getByLabelText('Descrição') as HTMLInputElement
+    expect(descricaoDepois).toBe(descricao)
+    expect(descricaoDepois.value).toBe('Parafuso sextavado')
+    expect(document.activeElement).toBe(descricaoDepois)
+    expect((screen.getByLabelText('Código') as HTMLInputElement).value).toBe('PA-301')
+
+    act(() => descricaoDepois.blur())
+    await waitFor(() => expect(chamadas(fetchMock)).toHaveLength(2))
+    expect(JSON.parse(String(chamadas(fetchMock)[1][1]!.body))).toMatchObject({
+      codigoNovo: 'PA-301', descricaoNova: 'Parafuso sextavado', componenteId: null,
+    })
+  })
+
+  it('o painel só fica fixo de md para cima', () => {
+    painel(2, 200)
+
+    const classes = regiao().className.split(' ')
+    expect(classes).toContain('md:sticky')
+    expect(classes).not.toContain('sticky')
   })
 })
