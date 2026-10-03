@@ -5,6 +5,9 @@ import { ArvoreDaImportacao } from './ArvoreDaImportacao'
 import type { NoDaImportacaoDto } from '../api/importacao'
 
 afterEach(cleanup)
+// O stub de `scrollIntoView` dos testes de rolagem sai aqui, e não no fim do teste: uma asserção que
+// falha não deixa o stub vazar para os seguintes.
+afterEach(() => { delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView })
 
 function no(parcial: Partial<NoDaImportacaoDto> & Pick<NoDaImportacaoDto, 'codigo' | 'descricao'>): NoDaImportacaoDto {
   return {
@@ -136,7 +139,7 @@ describe('ArvoreDaImportacao', () => {
 
   it('Pedido_de_rolagem_leva_a_selecionada_a_vista_de_novo_a_cada_pedido', () => {
     const rolar = vi.fn()
-    HTMLElement.prototype.scrollIntoView = rolar
+    HTMLElement.prototype.scrollIntoView = rolar // restaurado pelo afterEach
     const selecao = { registroId: 3, componenteId: 300 }
     const { rerender } = render(
       <ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={0} />,
@@ -153,7 +156,6 @@ describe('ArvoreDaImportacao', () => {
     expect(rolar).toHaveBeenCalledTimes(2)
     // A linha declara a margem que a mantém fora da região fixa do topo.
     expect(screen.getByTestId('linha-importacao-0-0-0').className).toContain('scroll-mt-')
-    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
   })
 
   it('A_linha_inteira_e_alvo_de_toque_e_o_campo_de_quantidade_fica_acima', () => {
@@ -163,11 +165,17 @@ describe('ArvoreDaImportacao', () => {
     // ArvoreDeEstrutura), não a geometria.
     const linha = screen.getByTestId('linha-importacao-0-0')
     expect(linha.className.split(/\s+/)).toContain('relative')
+    // `isolate`: o z-index do campo fica preso à linha e não disputa com o painel fixo da tela.
+    expect(linha.className.split(/\s+/)).toContain('isolate')
     const botao = within(linha).getByRole('button', { name: /SU-200 Suporte/ })
     expect(botao.className).toContain('after:absolute')
     expect(botao.className).toContain('after:inset-0')
     const campo = within(linha).getByLabelText('Quantidade por pai de Suporte')
-    expect(campo.closest('div[class*="z-10"]')).not.toBeNull()
+    const envoltorio = campo.closest('div[class*="z-["]')
+    expect(envoltorio).not.toBeNull()
+    expect(envoltorio!.className.split(/\s+/)).toContain('z-[1]')
+    // Nunca o z-10 do painel fixo da tela: acima do overlay (`z-auto`), abaixo do painel.
+    expect(envoltorio!.className.split(/\s+/)).not.toContain('z-10')
   })
 
   it('Selecao_vinda_de_fora_marca_a_primeira_ocorrencia', () => {

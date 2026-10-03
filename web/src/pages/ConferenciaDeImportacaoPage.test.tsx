@@ -110,7 +110,11 @@ describe('ConferenciaDeImportacaoPage', () => {
     perfil = 'PCP'
   })
 
-  afterEach(() => { vi.unstubAllGlobals() })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    // O stub de `scrollIntoView` do teste de rolagem sai aqui: asserção que falha não o deixa vazar.
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
+  })
 
   it('mostra o estado de carregando enquanto busca', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
@@ -585,6 +589,5 @@ describe('ConferenciaDeImportacaoPage', () => {
     expect(rolar).toHaveBeenCalledTimes(1)
     fireEvent.click(pilula)
     expect(rolar).toHaveBeenCalledTimes(2)
-    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
   })
 })

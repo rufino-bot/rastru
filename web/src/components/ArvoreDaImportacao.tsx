@@ -157,7 +157,7 @@ function LinhaDoNo({
         data-testid={`linha-importacao-${caminho}`}
         className={
           // `scroll-mt`: sem ele o `scrollIntoView` deixa a linha sob a região fixa do topo da tela.
-          'relative scroll-mt-28 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
+          'relative isolate scroll-mt-28 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
           + (ehAtual ? 'border-acao bg-acao-fundo' : ehMesmoCodigo ? 'border-borda bg-acao-fundo' : 'border-borda bg-superficie')
         }
         style={{ paddingLeft: `${RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX}px` }}
@@ -174,8 +174,10 @@ function LinhaDoNo({
             aria-current={ehAtual ? 'true' : undefined}
             onClick={() => aoClicar(caminho, no)}
             // `after:absolute after:inset-0` estica a área de toque do botão por toda a linha (que é
-            // `relative`): no celular, acertar só o texto é difícil. O campo de quantidade fica
-            // acima, com `z-10`.
+            // `relative isolate`): no celular, acertar só o texto é difícil. O campo de quantidade
+            // fica acima do overlay com `z-[1]`, e o `isolate` prende esse z-index DENTRO da linha —
+            // sem ele o campo disputaria a raiz com o painel fixo do topo da tela (`z-10`) e, mais
+            // adiante no DOM, pintaria por cima dele quando a árvore rola por baixo.
             className="inline-flex flex-wrap items-center gap-2 rounded text-left after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
           >
             <span className="font-mono text-sm text-tinta-fraca">{no.codigo}</span>
@@ -189,7 +191,7 @@ function LinhaDoNo({
         {editavel ? (
           // O rótulo existe para o leitor de tela e para o teste; visível, repetiria "Quantidade por
           // pai de …" em toda linha.
-          <div className="relative z-10 w-24 [&_label]:sr-only">
+          <div className="relative z-[1] w-24 [&_label]:sr-only">
             <CampoDeQuantidade
               key={`${no.filhoId}-${no.quantidadePorPai}-${revisao}`}
               rotulo={`Quantidade por pai de ${no.descricao}`}
