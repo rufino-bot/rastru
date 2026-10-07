@@ -694,8 +694,8 @@ public class ImportacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
   // ---------------------------------------------------------------- perfil
 
   /// <summary>
-  /// Par negativo dos testes acima, que rodam como PCP: o perfil sem escrita recebe 403 em TODA rota de
-  /// escrita desta fase, e continua lendo (leitura e de qualquer autenticado). O
+  /// Par negativo dos testes desta classe que escrevem com <c>ClienteComo("PCP")</c>: o perfil sem escrita
+  /// recebe 403 em TODA rota de escrita desta fase, e continua lendo (leitura e de qualquer autenticado). O
   /// <c>[Authorize(Roles)]</c> roda antes do model binding, entao o 403 chega com Id inexistente.
   /// </summary>
   [Fact]

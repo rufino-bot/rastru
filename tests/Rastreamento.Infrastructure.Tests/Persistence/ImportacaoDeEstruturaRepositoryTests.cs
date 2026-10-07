@@ -154,7 +154,8 @@ public class ImportacaoDeEstruturaRepositoryTests : TesteComBanco
     }
     finally
     {
-      // O que um registro ainda aponta (teste que falhou no meio) sai na limpeza do rascunho, depois deste bloco.
+      // O que um registro ainda aponta (teste que falhou no meio) sai no LimparAsync do rascunho, que o
+      // NaArvoreAsync roda ao fim do teste.
       await using var limpeza = NovoContexto();
       await limpeza.Database.ExecuteSqlInterpolatedAsync($"""
           DELETE FROM dbo.ArquivoDeComponente WHERE Id IN ({ligado}, {solto})
