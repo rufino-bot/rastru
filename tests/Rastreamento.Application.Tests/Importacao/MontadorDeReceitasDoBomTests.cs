@@ -319,6 +319,31 @@ public class MontadorDeReceitasDoBomTests
   }
 
   [Fact]
+  public void Pai_repetido_com_muitos_filhos_monta_em_tempo_linear()
+  {
+    // O arquivo de 5 MiB cabe centenas de milhares de linhas, e o limite de NosMaximos so e conferido
+    // depois de montar as receitas. Um codigo repetido com milhares de filhos passa pela soma dos
+    // filhos, pela lista de arestas do ciclo e pela comparacao entre ocorrencias: se qualquer uma for
+    // quadratica no numero de filhos, este arquivo leva segundos de CPU por requisicao.
+    const int filhos = 40_000;
+    var linhas = new List<LinhaCruaDoBom>();
+    foreach (var pai in new[] { "1", "2" })
+    {
+      linhas.Add(L(linhas.Count + 2, pai, "A", "A", "1"));
+      for (var k = 1; k <= filhos; k++)
+        linhas.Add(L(linhas.Count + 2, $"{pai}.{k}", $"F{k}", "F", "1"));
+    }
+
+    var relogio = System.Diagnostics.Stopwatch.StartNew();
+    var bom = MontadorDeReceitasDoBom.Montar("grande.csv", linhas);
+    relogio.Stop();
+
+    var erro = Assert.Single(bom.Erros);
+    Assert.Contains($"mais de {PlanejadorDeCopia.NosMaximos} itens", erro.Mensagem);
+    Assert.True(relogio.Elapsed < TimeSpan.FromSeconds(3), $"montar levou {relogio.Elapsed.TotalMilliseconds:F0} ms");
+  }
+
+  [Fact]
   public void Arvore_com_exatamente_NosMaximos_nos_e_aceita()
   {
     var linhas = Enumerable.Range(1, PlanejadorDeCopia.NosMaximos - 1)

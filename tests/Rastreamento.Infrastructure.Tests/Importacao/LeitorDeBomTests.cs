@@ -259,8 +259,11 @@ public class LeitorDeBomTests
 
   private enum Tipo { Texto, Numero }
 
+  /// <param name="extras">Celulas de texto com referencia escrita a mao, acrescentadas ao fim da linha
+  /// de indice <c>Linha</c> (0 e o cabecalho) — para as colunas longe das quatro do BOM.</param>
   private static byte[] MontarXlsx(IReadOnlyList<IReadOnlyList<(string Valor, Tipo Tipo)?>> linhas,
-      bool segundaPlanilha = false, int primeiraLinha = 1)
+      bool segundaPlanilha = false, int primeiraLinha = 1,
+      IReadOnlyList<(int Linha, string Referencia, string Valor)>? extras = null)
   {
     using var memoria = new MemoryStream();
     using (var doc = SpreadsheetDocument.Create(memoria, SpreadsheetDocumentType.Workbook))
@@ -299,6 +302,13 @@ public class LeitorDeBomTests
                   CellValue = new CellValue(Compartilhar(celula.Valor).ToString(CultureInfo.InvariantCulture)),
                 });
           }
+          foreach (var extra in (extras ?? []).Where(e => e.Linha == r && id == 1))
+            linha.AppendChild(new Cell
+            {
+              CellReference = extra.Referencia,
+              DataType = CellValues.SharedString,
+              CellValue = new CellValue(Compartilhar(extra.Valor).ToString(CultureInfo.InvariantCulture)),
+            });
           dados.AppendChild(linha);
         }
         parte.Worksheet = new Worksheet(dados);
@@ -420,6 +430,36 @@ public class LeitorDeBomTests
 
     var erro = Assert.Single(r.Erros);
     Assert.Equal("coluna 'Quantidade' nao encontrada", erro.Mensagem);
+  }
+
+  [Fact]
+  public void Xlsx_com_coluna_XFD_a_ultima_do_Excel_e_aceito()
+  {
+    var bytes = MontarXlsx(
+        [Cabecalho(), [T("1"), T("P-001"), T("A"), N("1")]],
+        extras: [(0, "XFD1", "OBS"), (1, "XFD2", "nota")]);
+
+    var r = Leitor.Ler("bom.xlsx", bytes);
+
+    Assert.Empty(r.Erros);
+    Assert.Equal("P-001", Assert.Single(r.Linhas).Codigo);
+  }
+
+  [Theory]
+  [InlineData("XFE2")]
+  [InlineData("AAAA2")]
+  [InlineData("ZZZZZZ2")]
+  public void Xlsx_com_coluna_alem_da_XFD_e_arquivo_corrompido(string referencia)
+  {
+    // O Excel para na coluna XFD (16384). Uma referencia alem dela so vem de arquivo forjado, e
+    // "ZZZZZZ" e a coluna 321.272.406: preencher as colunas vazias ate ela custaria gigabytes de
+    // memoria por um arquivo de 1 KB.
+    var bytes = MontarXlsx([Cabecalho(), [T("1"), T("P-001"), T("A"), N("1")]], extras: [(1, referencia, "x")]);
+
+    var r = Leitor.Ler("bom.xlsx", bytes);
+
+    Assert.Empty(r.Linhas);
+    Assert.Contains("corrompido", Assert.Single(r.Erros).Mensagem);
   }
 
   [Fact]

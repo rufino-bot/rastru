@@ -15,8 +15,13 @@ namespace Rastreamento.Infrastructure.Importacao;
 /// </summary>
 internal static class LeitorDeXlsx
 {
-  // O arquivo e limitado a 5 MiB COMPACTADO; o descompactado de uma bomba de zip e outra conta.
+  // O arquivo e limitado a 5 MiB COMPACTADO; o descompactado de uma bomba de zip e outra conta. A
+  // guarda e HEURISTICA: soma o tamanho que cada entrada do zip DECLARA, que um arquivo forjado pode
+  // mentir, e a planilha e lida inteira em memoria depois dela.
   private const long TamanhoMaximoDescompactadoEmBytes = 64L * 1024 * 1024;
+
+  // A ultima coluna do Excel, XFD, e a de indice 16383 (a 16384a).
+  private const int UltimaColuna = 16383;
 
   public static ResultadoDaLeituraDoBom Ler(byte[] conteudo)
   {
@@ -59,16 +64,19 @@ internal static class LeitorDeXlsx
       var numero = linha.RowIndex?.Value is { } indice ? (int)indice : proximaLinha;
       proximaLinha = numero + 1;
 
-      var celulas = new List<Celula>();
+      // So as celulas que existem, pela coluna: preencher as vazias ate uma celula na coluna XFD custaria
+      // 16 mil celulas por linha, e o arquivo pode ter centenas de milhares de linhas.
+      var celulas = new Dictionary<int, Celula>();
       var proximaColuna = 0;
       foreach (var celula in linha.Elements<Cell>())
       {
         var coluna = ColunaDe(celula.CellReference?.Value) ?? proximaColuna;
-        while (celulas.Count < coluna) celulas.Add(Celula.Vazia);
-        celulas.Add(Resolver(celula, textos));
+        if (coluna > UltimaColuna)
+          throw new InvalidDataException("coluna alem da XFD");
+        celulas[coluna] = Resolver(celula, textos);
         proximaColuna = coluna + 1;
       }
-      if (celulas.Any(c => c.Texto.Length > 0)) linhas.Add((numero, celulas));
+      if (celulas.Values.Any(c => c.Texto.Length > 0)) linhas.Add((numero, new CelulasEsparsas(celulas)));
     }
 
     if (linhas.Count == 0)
@@ -99,7 +107,10 @@ internal static class LeitorDeXlsx
     return new Celula(cru.Trim(), false);   // string de formula, booleano, erro
   }
 
-  /// <summary>"A" é 0, "B" é 1, "AA" é 26; <c>null</c> sem referencia legivel.</summary>
+  /// <summary>
+  /// "A" é 0, "B" é 1, "AA" é 26; <c>null</c> sem referencia legivel. Mais de tres letras ja passa da
+  /// <see cref="UltimaColuna"/>, e a conta para ali, antes de o numero crescer.
+  /// </summary>
   private static int? ColunaDe(string? referencia)
   {
     if (string.IsNullOrEmpty(referencia)) return null;
@@ -108,9 +119,27 @@ internal static class LeitorDeXlsx
     foreach (var c in referencia)
     {
       if (!char.IsAsciiLetter(c)) break;
+      if (++letras > 3) return int.MaxValue;
       coluna = coluna * 26 + (char.ToUpperInvariant(c) - 'A' + 1);
-      letras++;
     }
     return letras == 0 ? null : coluna - 1;
+  }
+
+  /// <summary>
+  /// Uma linha da planilha como lista: a coluna sem celula e <see cref="Celula.Vazia"/>, sem ocupar
+  /// memoria. <c>Count</c> vai ate a ultima coluna com celula.
+  /// </summary>
+  private sealed class CelulasEsparsas(Dictionary<int, Celula> celulas) : IReadOnlyList<Celula>
+  {
+    public int Count { get; } = celulas.Count == 0 ? 0 : celulas.Keys.Max() + 1;
+
+    public Celula this[int indice] => celulas.TryGetValue(indice, out var c) ? c : Celula.Vazia;
+
+    public IEnumerator<Celula> GetEnumerator()
+    {
+      for (var i = 0; i < Count; i++) yield return this[i];
+    }
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
   }
 }

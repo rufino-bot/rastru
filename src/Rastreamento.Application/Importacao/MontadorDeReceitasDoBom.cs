@@ -57,16 +57,24 @@ public static class MontadorDeReceitasDoBom
 
     // Receita de cada componente = a da primeira ocorrencia; as demais precisam ser iguais a ela.
     var receitaDoComponente = new Dictionary<int, Receita> { [0] = DaOcorrencia(-1) };
+    // A lista guarda a ordem (o ciclo e dito na ordem do arquivo); o conjunto ao lado tira o repetido
+    // sem varrer a lista, que pode ter dezenas de milhares de filhos.
     var arestas = new Dictionary<int, List<int>> { [0] = [.. DaOcorrencia(-1).Itens.Select(f => f.Chave)] };
+    var arestasVistas = new Dictionary<int, HashSet<int>> { [0] = [.. arestas[0]] };
     var primeiraOcorrencia = new Dictionary<int, int>();
     foreach (var (i, linha) in lidas.Index().Where(x => x.Item.Valida && x.Item.Pai != Orfa))
     {
       var chave = chavesDaLinha[i];
       var daOcorrencia = DaOcorrencia(i);
       if (!arestas.TryGetValue(chave, out var vizinhos))
+      {
         arestas[chave] = vizinhos = [];
-      foreach (var f in daOcorrencia.Itens.Where(f => !vizinhos.Contains(f.Chave)))
-        vizinhos.Add(f.Chave);
+        arestasVistas[chave] = [];
+      }
+      var vistos = arestasVistas[chave];
+      foreach (var f in daOcorrencia.Itens)
+        if (vistos.Add(f.Chave))
+          vizinhos.Add(f.Chave);
 
       if (!primeiraOcorrencia.TryGetValue(chave, out var primeira))
       {
@@ -329,18 +337,23 @@ public static class MontadorDeReceitasDoBom
           $"a estrutura expandida gera mais de {PlanejadorDeCopia.NosMaximos} itens."));
   }
 
-  /// <summary>Filhos de uma ocorrencia de pai, na ordem da primeira aparicao; repetidos somam (D12).</summary>
+  /// <summary>
+  /// Filhos de uma ocorrencia de pai, na ordem da primeira aparicao; repetidos somam (D12). A posicao de
+  /// cada chave fica num dicionario: somar e comparar sao lineares no numero de filhos, e nao
+  /// quadraticos — um pai so com dezenas de milhares de filhos cabe nos 5 MiB do arquivo.
+  /// </summary>
   private sealed class Receita
   {
     private readonly List<(int Chave, decimal Quantidade)> _itens = [];
+    private readonly Dictionary<int, int> _posicao = [];
 
     public IReadOnlyList<(int Chave, decimal Quantidade)> Itens => _itens;
 
     public decimal Somar(int chave, decimal quantidade)
     {
-      var i = _itens.FindIndex(f => f.Chave == chave);
-      if (i < 0)
+      if (!_posicao.TryGetValue(chave, out var i))
       {
+        _posicao[chave] = _itens.Count;
         _itens.Add((chave, quantidade));
         return quantidade;
       }
@@ -351,6 +364,6 @@ public static class MontadorDeReceitasDoBom
 
     public bool IgualA(Receita outra) =>
         _itens.Count == outra._itens.Count
-        && _itens.All(f => outra._itens.Any(o => o.Chave == f.Chave && o.Quantidade == f.Quantidade));
+        && _itens.All(f => outra._posicao.TryGetValue(f.Chave, out var i) && outra._itens[i].Quantidade == f.Quantidade);
   }
 }
