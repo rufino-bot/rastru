@@ -628,7 +628,7 @@ describe('ConferenciaDeImportacaoPage', () => {
       })
     })
 
-    it('escrita do painel com a versão velha rele e avisa, como as da árvore', async () => {
+    it('escrita do painel com a versão velha rele e avisa no próprio painel', async () => {
       const fetchMock = montarFetch({
         'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [DIVERGENTE] })),
         'GET /api/componentes': CATALOGO,
@@ -640,9 +640,226 @@ describe('ConferenciaDeImportacaoPage', () => {
       fireEvent.click(await screen.findByRole('button', { name: /SU-200 Suporte/ }))
       fireEvent.click(await screen.findByRole('radio', { name: 'Usar a receita importada' }))
 
-      expect((await screen.findByRole('alert')).textContent)
+      const painel = screen.getByRole('region', { name: 'Componente selecionado' })
+      expect((await within(painel).findByRole('alert')).textContent)
         .toBe('Outra pessoa alterou esta importação; a tela foi atualizada.')
       await waitFor(() => expect(leituras(fetchMock)).toHaveLength(2))
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+    })
+  })
+
+  describe('escritas em fila', () => {
+    const NOVO: SituacaoDoComponenteDto = {
+      registroId: 3, codigoLido: 'PA-300', descricaoLida: 'Parafuso', componenteId: null,
+      codigoDoCatalogo: null, descricaoDoCatalogo: null, tipo: null, ativo: null,
+      temSolido: false, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+      codigoNovo: 'PA-300', descricaoNova: 'Parafuso', tipoNovo: 'Fabricado', divergente: false,
+      escolhaDeReceita: null, comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true,
+    }
+    const CATALOGO = () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 })
+
+    /** Uma resposta que o teste solta quando quer: a escrita fica em voo até lá. */
+    function pendente() {
+      let soltar!: (r: Response) => void
+      const promessa = new Promise<Response>((r) => { soltar = r })
+      return { promessa, soltar }
+    }
+
+    function puts(fetchMock: ReturnType<typeof montarFetch>, caminho: string) {
+      return fetchMock.mock.calls
+        .filter((c) => c[1]?.method === 'PUT' && String(c[0]) === caminho)
+        .map((c) => JSON.parse(String(c[1]!.body)) as Record<string, unknown>)
+    }
+
+    async function selecionarParafuso() {
+      fireEvent.click(await screen.findByRole('button', { name: /PA-300 Parafuso/ }))
+      return screen.getByRole('region', { name: 'Componente selecionado' })
+    }
+
+    it('a segunda escrita do painel espera a primeira e sai com a versão e os dados que ela devolveu', async () => {
+      const primeira = pendente()
+      const depoisDaPrimeira = importacao({ versao: 'AAAAAAAAB9F=', componentes: [{ ...NOVO, codigoNovo: 'PA-301' }] })
+      const depoisDaSegunda = importacao({
+        versao: 'AAAAAAAAB9G=', componentes: [{ ...NOVO, codigoNovo: 'PA-301', descricaoNova: 'Parafuso sextavado' }],
+      })
+      let escritas = 0
+      const fetchMock = montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [NOVO] })),
+        'GET /api/componentes': CATALOGO,
+        'PUT /api/importacoes/5/componentes/3': () => {
+          escritas += 1
+          return escritas === 1 ? primeira.promessa : respostaJson(depoisDaSegunda)
+        },
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      const painel = await selecionarParafuso()
+
+      const codigo = within(painel).getByLabelText('Código')
+      fireEvent.change(codigo, { target: { value: 'PA-301' } })
+      fireEvent.blur(codigo)
+      const descricao = within(painel).getByLabelText('Descrição')
+      fireEvent.change(descricao, { target: { value: 'Parafuso sextavado' } })
+      fireEvent.blur(descricao)
+
+      // Com a primeira em voo, a segunda não sai: sairia com a versão velha e voltaria 409.
+      await waitFor(() => expect(puts(fetchMock, '/api/importacoes/5/componentes/3')).toHaveLength(1))
+      await new Promise((r) => setTimeout(r, 0))
+      expect(puts(fetchMock, '/api/importacoes/5/componentes/3')).toHaveLength(1)
+
+      primeira.soltar(respostaJson(depoisDaPrimeira))
+
+      await waitFor(() => expect(puts(fetchMock, '/api/importacoes/5/componentes/3')).toHaveLength(2))
+      expect(puts(fetchMock, '/api/importacoes/5/componentes/3')[1]).toMatchObject({
+        versao: 'AAAAAAAAB9F=', codigoNovo: 'PA-301', descricaoNova: 'Parafuso sextavado',
+      })
+      await waitFor(() => expect((within(painel).getByLabelText('Descrição') as HTMLInputElement).value)
+        .toBe('Parafuso sextavado'))
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(leituras(fetchMock)).toHaveLength(1)
+    })
+
+    it('o reimport enviado com uma escrita em voo sai com a versão que ela devolveu', async () => {
+      const primeira = pendente()
+      const fetchMock = montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao()),
+        'PUT /api/importacoes/5/filhos/20': () => primeira.promessa,
+        'POST /api/importacoes/5/arquivo': () => respostaJson(importacao({ versao: 'AAAAAAAAB9G=' })),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: 'Reimportar' }))
+      fireEvent.change(screen.getByLabelText(/Arquivo do BOM/), { target: { files: [new File(['a;b'], 'bom.csv')] } })
+
+      const campo = screen.getByLabelText('Quantidade por pai de Suporte')
+      fireEvent.change(campo, { target: { value: '5' } })
+      fireEvent.blur(campo)
+      await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'PUT')).toHaveLength(1))
+      fireEvent.click(within(screen.getByRole('form', { name: 'Reimportar BOM' })).getByRole('button', { name: 'Reimportar' }))
+      await new Promise((r) => setTimeout(r, 0))
+      expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'POST')).toHaveLength(0)
+
+      primeira.soltar(respostaJson(importacao({ versao: 'AAAAAAAAB9F=' })))
+
+      await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'POST')).toHaveLength(1))
+      const post = fetchMock.mock.calls.find((c) => c[1]?.method === 'POST')!
+      expect((post[1]!.body as FormData).get('versao')).toBe('AAAAAAAAB9F=')
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Reimportar BOM' })).toBeNull())
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('o texto do Componente novo cuja escrita falhou volta ao valor do servidor, e o erro aparece no painel', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [NOVO] })),
+        'GET /api/componentes': CATALOGO,
+        'PUT /api/importacoes/5/componentes/3': () => respostaJson({}, 500),
+      }))
+      renderizar()
+      const painel = await selecionarParafuso()
+
+      const codigo = within(painel).getByLabelText('Código') as HTMLInputElement
+      fireEvent.change(codigo, { target: { value: 'PA-301' } })
+      fireEvent.blur(codigo)
+
+      expect((await within(painel).findByRole('alert')).textContent)
+        .toBe('O servidor não respondeu como esperado. Tente de novo em instantes.')
+      await waitFor(() => expect((within(painel).getByLabelText('Código') as HTMLInputElement).value).toBe('PA-300'))
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+    })
+  })
+
+  describe('erros dentro do painel', () => {
+    const NOVO: SituacaoDoComponenteDto = {
+      registroId: 3, codigoLido: 'PA-300', descricaoLida: 'Parafuso', componenteId: null,
+      codigoDoCatalogo: null, descricaoDoCatalogo: null, tipo: null, ativo: null,
+      temSolido: false, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+      codigoNovo: 'PA-300', descricaoNova: 'Parafuso', tipoNovo: 'Fabricado', divergente: false,
+      escolhaDeReceita: null, comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true,
+    }
+    const CATALOGO = () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 })
+
+    async function enviarSolido(resposta: () => Response) {
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [NOVO] })),
+        'GET /api/componentes': CATALOGO,
+        'POST /api/importacoes/5/componentes/3/solido': resposta,
+      }))
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: /PA-300 Parafuso/ }))
+      const painel = screen.getByRole('region', { name: 'Componente selecionado' })
+      fireEvent.change(within(painel).getByLabelText(/sólido/i), {
+        target: { files: [new File([new Uint8Array(684)], 'parafuso.stl')] },
+      })
+      return painel
+    }
+
+    it('a falha do upload do STL aparece no campo do sólido, e não no topo da tela', async () => {
+      const painel = await enviarSolido(() => respostaJson({ erro: 'Arquivo STL invalido.' }, 400))
+
+      expect((await within(painel).findByRole('alert')).textContent)
+        .toBe('Não foi possível enviar o sólido. Envie um arquivo .stl de até 16 MiB.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+    })
+
+    it('o upload com a versão velha avisa no campo do sólido', async () => {
+      const painel = await enviarSolido(() => respostaJson({ erro: 'ImportacaoDesatualizada' }, 409))
+
+      expect((await within(painel).findByRole('alert')).textContent)
+        .toBe('Outra pessoa alterou esta importação; a tela foi atualizada.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+    })
+
+    it('a escrita do painel que falha mostra o erro no painel', async () => {
+      const DIVERGENTE: SituacaoDoComponenteDto = {
+        ...NOVO, registroId: 2, codigoLido: 'SU-200', descricaoLida: 'Suporte', componenteId: 200,
+        codigoDoCatalogo: 'SU-200', descricaoDoCatalogo: 'Suporte', tipo: 'Montagem', ativo: true,
+        codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: true,
+      }
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao({ componentes: [DIVERGENTE] })),
+        'GET /api/componentes': CATALOGO,
+        'PUT /api/importacoes/5/componentes/2': () => respostaJson({}, 500),
+      }))
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: /SU-200 Suporte/ }))
+      const painel = screen.getByRole('region', { name: 'Componente selecionado' })
+      fireEvent.click(within(painel).getByRole('radio', { name: 'Usar a receita importada' }))
+
+      expect((await within(painel).findByRole('alert')).textContent)
+        .toBe('O servidor não respondeu como esperado. Tente de novo em instantes.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+    })
+
+    it.each([
+      ['1,23456', 'Digite um número com no máximo quatro casas decimais.'],
+      ['100000000000000', 'No máximo 99.999.999.999.999,9999.'],
+    ])('quantidade por pai %s não sai: volta ao valor e diz por quê', async (digitado, motivo) => {
+      const fetchMock = montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      const campo = await screen.findByLabelText('Quantidade por pai de Suporte') as HTMLInputElement
+
+      fireEvent.change(campo, { target: { value: digitado } })
+      fireEvent.blur(campo)
+
+      expect(campo.value).toBe('2')
+      expect(screen.getByText(motivo)).toBeTruthy()
+      expect(campo.getAttribute('aria-describedby')).toBe(screen.getByText(motivo).id)
+      expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'PUT')).toHaveLength(0)
+    })
+
+    it('quantidade da Peça com casas demais não sai: volta ao valor e diz por quê', async () => {
+      const fetchMock = montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      const campo = await screen.findByLabelText('Quantidade da Peça') as HTMLInputElement
+
+      fireEvent.change(campo, { target: { value: '0,00001' } })
+      fireEvent.blur(campo)
+
+      expect(campo.value).toBe('3')
+      expect(screen.getByText('Digite um número com no máximo quatro casas decimais.')).toBeTruthy()
+      expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'PUT')).toHaveLength(0)
     })
   })
 

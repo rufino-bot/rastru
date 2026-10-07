@@ -153,6 +153,14 @@ export class ErroDeBom extends ErroDeApi {
   }
 }
 
+/** A frase da tela para o 409 de versão velha do rascunho: quem a recebe relê e mostra esta. */
+export const AVISO_IMPORTACAO_DESATUALIZADA = 'Outra pessoa alterou esta importação; a tela foi atualizada.'
+
+/** O 409 `ImportacaoDesatualizada`: a escrita saiu com uma versão que já não é a do rascunho. */
+export function ehImportacaoDesatualizada(e: unknown): boolean {
+  return e instanceof ErroDeApi && e.status === 409 && e.codigo === 'ImportacaoDesatualizada'
+}
+
 interface CorpoDeErro {
   erro?: string
   mensagem?: string

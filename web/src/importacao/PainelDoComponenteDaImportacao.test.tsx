@@ -114,16 +114,27 @@ function montarFetch(rotas: Record<string, Rota>) {
   return mock
 }
 
-/** O `escrever` da página, reduzido ao que o painel precisa: roda a ação e descarta o resultado. */
-function escreverFalso() {
-  return vi.fn(async (acao: () => Promise<ImportacaoDto>) => { await acao() })
+/**
+ * O `escrever` da página, reduzido ao que o painel precisa: roda a ação com o rascunho mais recente
+ * (o que `atual` devolve na hora em que ela roda) e descarta o resultado; com `noPainel`, relança a
+ * falha, como a página.
+ */
+function escreverFalso(atual: () => ImportacaoDto) {
+  return vi.fn(async (acao: (a: ImportacaoDto) => Promise<ImportacaoDto>, noPainel?: boolean) => {
+    try {
+      await acao(atual())
+    } catch (e) {
+      if (noPainel) throw e
+    }
+  })
 }
 
 function painel(
   registroId: number | null, componenteId: number | null, opcoes: { importacao?: ImportacaoDto; escrever?: ReturnType<typeof escreverFalso> } = {},
 ) {
-  const escrever = opcoes.escrever ?? escreverFalso()
-  const props = { importacao: opcoes.importacao ?? importacao(), registroId, componenteId, escrever }
+  const doPainel = opcoes.importacao ?? importacao()
+  const escrever = opcoes.escrever ?? escreverFalso(() => doPainel)
+  const props = { importacao: doPainel, registroId, componenteId, escrever }
   const resultado = render(<PainelDoComponenteDaImportacao {...props} />)
   return { escrever, ...resultado, props }
 }
@@ -304,6 +315,25 @@ describe('PainelDoComponenteDaImportacao', () => {
     })
   })
 
+  it('casar com um Componente que outro código já casou não escreve e diz por quê no painel', async () => {
+    const fetchMock = montarFetch({
+      'GET /api/componentes': () => respostaJson({
+        itens: [{ id: 500, codigo: 'CA-500', descricao: 'Calço', tipo: 'Fabricado', ativo: true, temSolido: true }],
+        total: 1, pagina: 1, tamanho: 20,
+      }),
+    })
+    const { escrever } = painel(2, 200)
+
+    fireEvent.focus(screen.getByRole('combobox', { name: 'Casar com outro Componente' }))
+    fireEvent.click(await screen.findByRole('option', { name: /CA-500/ }))
+
+    expect((await within(regiao()).findByRole('alert')).textContent).toBe(
+      'CA-500 já está casado com o código CA-500 do BOM. Escolha outro Componente, ou case aquele código com outro antes.',
+    )
+    expect(escrever).not.toHaveBeenCalled()
+    expect(chamadas(fetchMock)).toHaveLength(0)
+  })
+
   it('o seletor mostra o Componente casado e escolher o mesmo não escreve', async () => {
     montarFetch({
       'GET /api/componentes': () => respostaJson({
@@ -433,7 +463,9 @@ describe('PainelDoComponenteDaImportacao', () => {
           : respostaJson(importacao())
       },
     })
-    const { rerender, props } = painel(3, null)
+    // Como na página, a escrita monta a requisição com o rascunho mais recente, o que a anterior devolveu.
+    let maisRecente = importacao()
+    const { rerender, props } = painel(3, null, { importacao: maisRecente, escrever: escreverFalso(() => maisRecente) })
 
     const codigo = screen.getByLabelText('Código') as HTMLInputElement
     act(() => codigo.focus())
@@ -453,6 +485,7 @@ describe('PainelDoComponenteDaImportacao', () => {
       componentes: SITUACOES.map((x) => (x.registroId === 3 ? { ...x, codigoNovo: 'PA-301' } : x)),
     })
     await act(async () => { resolverPrimeira(respostaJson(respondido)) })
+    maisRecente = respondido
     rerender(<PainelDoComponenteDaImportacao {...props} importacao={respondido} desabilitado={false} />)
 
     const descricaoDepois = screen.getByLabelText('Descrição') as HTMLInputElement

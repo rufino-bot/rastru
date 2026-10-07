@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { caminhoDoSolido, type ComponenteDto, type TipoDeComponente } from '../api/cadastros'
+import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import {
-  alterarComponente, caminhoDoSolidoPendente, enviarSolidoPendente,
-  type EscolhaDeReceita, type ImportacaoDto, type NoDaImportacaoDto, type SituacaoDoComponenteDto,
+  alterarComponente, AVISO_IMPORTACAO_DESATUALIZADA, caminhoDoSolidoPendente, ehImportacaoDesatualizada,
+  enviarSolidoPendente,
+  type AlteracaoDeComponente, type ImportacaoDto, type NoDaImportacaoDto, type SituacaoDoComponenteDto,
 } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Pilula } from '../components/Pilula'
@@ -13,8 +16,14 @@ import { UploadDeSolido } from '../components/UploadDeSolido'
 import { VisualizadorDeSolido } from '../components/VisualizadorDeSolido'
 import { ComparativoDeReceita } from './ComparativoDeReceita'
 
-/** A escrita do rascunho da tela: roda a ação, põe a resposta no estado e trata o 409 de versão velha. */
-export type EscreverNoRascunho = (acao: () => Promise<ImportacaoDto>) => Promise<void>
+/**
+ * A escrita do rascunho da tela: põe a ação na fila, roda-a com o rascunho mais recente (de onde ela
+ * tira a versão e o estado do registro), põe a resposta no estado e trata o 409 de versão velha. Com
+ * `noPainel`, a falha é relançada para quem a pediu mostrá-la.
+ */
+export type EscreverNoRascunho = (
+  acao: (atual: ImportacaoDto) => Promise<ImportacaoDto>, noPainel?: boolean,
+) => Promise<void>
 
 interface Props {
   importacao: ImportacaoDto
@@ -22,13 +31,22 @@ interface Props {
   registroId: number | null
   componenteId: number | null
   escrever: EscreverNoRascunho
-  /** Há uma escrita em voo na tela: o painel não manda outra por cima da versão que ela gasta. */
+  /** Há escrita em voo ou na fila: as escolhas travam, e os textos esperam a fila para ressincronizar. */
   desabilitado?: boolean
+  /** Muda ao fim de toda escrita da tela, com sucesso ou não: os textos voltam ao valor do servidor. */
+  revisao?: number
 }
 
 const TIPOS: TipoDeComponente[] = ['Bruto', 'Fabricado', 'Montagem']
 
 const TEXTO_DO_NO_DO_CATALOGO = 'Este item vem da receita do catálogo; o sólido se envia no cadastro dele.'
+
+/** A frase da falha de uma escrita do painel: o 409 de versão velha tem a dele, o resto a do status. */
+function fraseDaFalha(e: unknown): string {
+  return ehImportacaoDesatualizada(e)
+    ? AVISO_IMPORTACAO_DESATUALIZADA
+    : mensagemDeErro(e, 'Não foi possível salvar a alteração.')
+}
 
 function acharNo(
   no: NoDaImportacaoDto, quando: (n: NoDaImportacaoDto) => boolean,
@@ -58,9 +76,11 @@ function plural(n: number): string {
  * inteiro à tela, e o que ele mostra sai sempre do `ImportacaoDto` que recebe.
  */
 export function PainelDoComponenteDaImportacao({
-  importacao, registroId, componenteId, escrever, desabilitado = false,
+  importacao, registroId, componenteId, escrever, desabilitado = false, revisao = 0,
 }: Props) {
   const podeEscrever = usePodeEscrever('estrutura')
+  // O erro da última escrita do painel, com o registro dela: trocar de nó não o leva junto.
+  const [erro, setErro] = useState<{ registroId: number; mensagem: string } | null>(null)
   const situacao = registroId === null
     ? undefined
     : importacao.componentes.find((c) => c.registroId === registroId)
@@ -88,15 +108,22 @@ export function PainelDoComponenteDaImportacao({
   const nomeDoSolido = situacao?.nomeDoSolido ?? doCatalogo?.nomeDoSolido ?? null
   const tamanhoDoSolido = situacao?.tamanhoDoSolidoEmBytes ?? doCatalogo?.tamanhoDoSolidoEmBytes ?? null
 
-  /** Escreve o registro com o casamento atual, trocando só o que `mudar` traz. */
-  function gravar(s: SituacaoDoComponenteDto, alteracao: {
-    componenteId: number | null
-    codigoNovo: string | null
-    descricaoNova: string | null
-    tipoNovo: string | null
-    escolhaDeReceita: EscolhaDeReceita | null
-  }) {
-    return escrever(() => alterarComponente(importacao.id, s.registroId, importacao.versao, alteracao))
+  /**
+   * Escreve o registro. `montar` recebe o registro como ele está no rascunho mais recente, na hora em
+   * que a escrita sai da fila — e não como estava quando foi pedida, que uma escrita anterior ainda em
+   * voo pode ter mudado. A falha fica no painel.
+   */
+  async function gravar(id: number, montar: (s: SituacaoDoComponenteDto) => AlteracaoDeComponente) {
+    setErro(null)
+    try {
+      await escrever((atual) => {
+        const s = atual.componentes.find((c) => c.registroId === id)
+        // O registro saiu do rascunho (um reimport na fila antes desta escrita): não há o que gravar.
+        return s ? alterarComponente(atual.id, id, atual.versao, montar(s)) : Promise.resolve(atual)
+      }, true)
+    } catch (e) {
+      setErro({ registroId: id, mensagem: fraseDaFalha(e) })
+    }
   }
 
   // Trocar o casamento zera a escolha de receita: ela era sobre a
@@ -104,18 +131,45 @@ export function PainelDoComponenteDaImportacao({
   // é uma escrita à parte, depois.
   function casarCom(s: SituacaoDoComponenteDto, c: ComponenteDto) {
     if (c.id === s.componenteId) return
-    void gravar(s, { componenteId: c.id, codigoNovo: null, descricaoNova: null, tipoNovo: null, escolhaDeReceita: null })
+    // A mesma regra do servidor: o catálogo tem UMA receita por Componente, e dois códigos casados
+    // com ele se pisariam. Conferida aqui para o PCP ler por quê, em vez da recusa genérica.
+    const outro = importacao.componentes.find((x) => x.registroId !== s.registroId && x.componenteId === c.id)
+    if (outro) {
+      const quem = outro.codigoLido === null ? 'outro código do BOM' : `o código ${outro.codigoLido} do BOM`
+      setErro({
+        registroId: s.registroId,
+        mensagem: `${c.codigo} já está casado com ${quem}. `
+          + 'Escolha outro Componente, ou case aquele código com outro antes.',
+      })
+      return
+    }
+    void gravar(s.registroId, () => ({
+      componenteId: c.id, codigoNovo: null, descricaoNova: null, tipoNovo: null, escolhaDeReceita: null,
+    }))
   }
 
   function criarNovo(s: SituacaoDoComponenteDto) {
-    void gravar(s, { componenteId: null, codigoNovo: null, descricaoNova: null, tipoNovo: null, escolhaDeReceita: null })
+    void gravar(s.registroId, () => ({
+      componenteId: null, codigoNovo: null, descricaoNova: null, tipoNovo: null, escolhaDeReceita: null,
+    }))
   }
 
-  function escolherReceita(s: SituacaoDoComponenteDto, escolha: EscolhaDeReceita) {
-    void gravar(s, {
-      componenteId: s.componenteId, codigoNovo: s.codigoNovo, descricaoNova: s.descricaoNova,
-      tipoNovo: s.tipoNovo, escolhaDeReceita: escolha,
-    })
+  function escolherReceita(s: SituacaoDoComponenteDto, escolha: AlteracaoDeComponente['escolhaDeReceita']) {
+    void gravar(s.registroId, (atual) => ({
+      componenteId: atual.componenteId, codigoNovo: atual.codigoNovo, descricaoNova: atual.descricaoNova,
+      tipoNovo: atual.tipoNovo, escolhaDeReceita: escolha,
+    }))
+  }
+
+  /** O envio do STL: a falha volta ao `UploadDeSolido`, que a mostra no próprio campo. */
+  async function enviarSolido(id: number, arquivo: File) {
+    try {
+      await escrever((atual) => enviarSolidoPendente(atual.id, id, atual.versao, arquivo), true)
+    } catch (e) {
+      throw ehImportacaoDesatualizada(e)
+        ? new ErroDeApi(409, AVISO_IMPORTACAO_DESATUALIZADA, AVISO_IMPORTACAO_DESATUALIZADA)
+        : e
+    }
   }
 
   const casado = situacao !== undefined && situacao.componenteId !== null
@@ -130,6 +184,9 @@ export function PainelDoComponenteDaImportacao({
       aria-label="Componente selecionado"
       className="rounded-lg border border-borda bg-superficie p-4 md:sticky md:top-0 md:z-10 md:max-h-[85vh] md:overflow-y-auto"
     >
+      {erro && erro.registroId === registroId && (
+        <div className="mb-4"><BannerDeErro mensagem={erro.mensagem} /></div>
+      )}
       {!no && !situacao ? (
         <p className="text-tinta-fraca">Nenhum componente para mostrar.</p>
       ) : (
@@ -157,9 +214,7 @@ export function PainelDoComponenteDaImportacao({
                 <UploadDeSolido
                   key={registroId}
                   caminho={caminhoDoSolidoMostrado ?? ''}
-                  enviar={(arquivo) => escrever(
-                    () => enviarSolidoPendente(importacao.id, registroId, importacao.versao, arquivo),
-                  )}
+                  enviar={(arquivo) => enviarSolido(registroId, arquivo)}
                   desabilitado={desabilitado}
                   temSolido={temSolido}
                   nomeDoSolido={nomeDoSolido}
@@ -217,13 +272,16 @@ export function PainelDoComponenteDaImportacao({
                     key={situacao.registroId}
                     situacao={situacao}
                     desabilitado={desabilitado}
-                    gravar={(parte) => gravar(situacao, {
-                      componenteId: null,
-                      codigoNovo: parte.codigoNovo ?? situacao.codigoNovo,
-                      descricaoNova: parte.descricaoNova ?? situacao.descricaoNova,
-                      tipoNovo: parte.tipoNovo ?? situacao.tipoNovo,
-                      escolhaDeReceita: situacao.escolhaDeReceita,
-                    })}
+                    revisao={revisao}
+                    gravar={(parte) => {
+                      void gravar(situacao.registroId, (atual) => ({
+                        componenteId: null,
+                        codigoNovo: parte.codigoNovo ?? atual.codigoNovo,
+                        descricaoNova: parte.descricaoNova ?? atual.descricaoNova,
+                        tipoNovo: parte.tipoNovo ?? atual.tipoNovo,
+                        escolhaDeReceita: atual.escolhaDeReceita,
+                      }))
+                    }}
                   />
                 )}
               </div>
@@ -276,11 +334,14 @@ export function PainelDoComponenteDaImportacao({
  *
  * Os campos de texto **não** travam durante uma escrita e o formulário não remonta quando o servidor
  * responde: quem sai do Código com Tab já está digitando na Descrição, e travar ou remontar o campo
- * tiraria o foco e o digitado dele. Cada campo ressincroniza com o servidor só quando não está focado.
+ * tiraria o foco e o digitado dele. Cada campo ressincroniza com o servidor quando não está focado e
+ * a fila de escritas esvaziou — inclusive depois de uma escrita que falhou, para o texto não salvo não
+ * ficar na tela como se estivesse.
  */
-function CamposDoNovo({ situacao, desabilitado, gravar }: {
+function CamposDoNovo({ situacao, desabilitado, revisao, gravar }: {
   situacao: SituacaoDoComponenteDto
   desabilitado: boolean
+  revisao: number
   gravar: (parte: { codigoNovo?: string; descricaoNova?: string; tipoNovo?: string }) => void
 }) {
   return (
@@ -289,11 +350,15 @@ function CamposDoNovo({ situacao, desabilitado, gravar }: {
         rotulo="Código"
         mono
         valorDoServidor={situacao.codigoNovo ?? ''}
+        revisao={revisao}
+        ocupado={desabilitado}
         aoGravar={(texto) => gravar({ codigoNovo: texto })}
       />
       <CampoDeTexto
         rotulo="Descrição"
         valorDoServidor={situacao.descricaoNova ?? ''}
+        revisao={revisao}
+        ocupado={desabilitado}
         aoGravar={(texto) => gravar({ descricaoNova: texto })}
       />
       <Campo rotulo="Tipo">
@@ -314,9 +379,13 @@ function CamposDoNovo({ situacao, desabilitado, gravar }: {
   )
 }
 
-function CampoDeTexto({ rotulo, valorDoServidor, aoGravar, mono = false }: {
+function CampoDeTexto({ rotulo, valorDoServidor, revisao, ocupado, aoGravar, mono = false }: {
   rotulo: string
   valorDoServidor: string
+  /** Muda ao fim de toda escrita: com o valor do servidor igual, só ela traz o campo de volta. */
+  revisao: number
+  /** Há escrita na fila: o texto que o campo pediu para gravar ainda pode estar nela. */
+  ocupado: boolean
   aoGravar: (texto: string) => void
   mono?: boolean
 }) {
@@ -324,10 +393,11 @@ function CampoDeTexto({ rotulo, valorDoServidor, aoGravar, mono = false }: {
   const focado = useRef(false)
 
   // O servidor responde depois de a pessoa ter ido para o campo seguinte: o campo que ela deixou
-  // aceita o valor novo, o que ela está digitando não.
+  // aceita o valor novo, o que ela está digitando não. Com a fila ainda ocupada, o campo espera: o
+  // texto dele pode ser a próxima escrita.
   useEffect(() => {
-    if (!focado.current) setTexto(valorDoServidor)
-  }, [valorDoServidor])
+    if (!focado.current && !ocupado) setTexto(valorDoServidor)
+  }, [valorDoServidor, revisao, ocupado])
 
   return (
     <Campo rotulo={rotulo}>

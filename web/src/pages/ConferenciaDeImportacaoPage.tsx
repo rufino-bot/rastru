@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import {
-  alterarFilho, alterarPeca, confirmarImportacao, descartarImportacao, LIMITE_DO_BOM_LEGIVEL, obterImportacao,
-  reimportar,
+  alterarFilho, alterarPeca, AVISO_IMPORTACAO_DESATUALIZADA, confirmarImportacao, descartarImportacao,
+  ehImportacaoDesatualizada, LIMITE_DO_BOM_LEGIVEL, obterImportacao, reimportar,
   type ImportacaoDto, type NoDaImportacaoDto, type PendenciaDoNo,
 } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
@@ -19,8 +19,9 @@ import { Pagina } from '../components/Pagina'
 import { Pilula, type TomDePilula } from '../components/Pilula'
 import { PainelDoArquivoDoBom } from '../importacao/PainelDoArquivoDoBom'
 import { PainelDoComponenteDaImportacao } from '../importacao/PainelDoComponenteDaImportacao'
+import { lerQuantidadeDaConferencia } from '../importacao/quantidade'
 
-const AVISO_DESATUALIZADA = 'Outra pessoa alterou esta importação; a tela foi atualizada.'
+const AVISO_DESATUALIZADA = AVISO_IMPORTACAO_DESATUALIZADA
 const AVISO_BLOQUEIOS = 'A importação ainda tem bloqueios; a lista foi atualizada.'
 const AVISO_RECEITA_MUDOU =
   'A receita de um Componente do catálogo mudou desde a conferência; a tela foi atualizada. '
@@ -62,10 +63,6 @@ function acharNo(raiz: NoDaImportacaoDto, s: SelecaoDaArvore): NoDaImportacaoDto
   return chave === null ? undefined : nosEmOrdem(raiz).find((n) => chaveDoCodigo(n) === chave)
 }
 
-function ehDesatualizada(e: unknown): boolean {
-  return e instanceof ErroDeApi && e.status === 409 && e.codigo === 'ImportacaoDesatualizada'
-}
-
 /**
  * A conferência de um rascunho de importação do BOM, de cima para baixo: o painel do Componente
  * selecionado, a faixa da Peça (quantidade, pendências, Confirmar, Reimportar e Descartar) e a árvore
@@ -73,6 +70,13 @@ function ehDesatualizada(e: unknown): boolean {
  *
  * O estado da tela é o `ImportacaoDto` mais recente, e **toda** escrita o substitui pela resposta. Os
  * bloqueios e as pendências são calculados pelo servidor a cada leitura; a tela não os recalcula.
+ *
+ * As escritas andam **em fila**, uma de cada vez, e cada uma monta a requisição na hora de sair, a
+ * partir do rascunho mais recente (`atual`), e não do que estava na tela quando foi pedida. Os campos
+ * de texto do Componente novo não travam durante uma escrita (quem sai do Código com Tab já está
+ * digitando na Descrição), então uma segunda escrita pode ser pedida com a primeira em voo: montada
+ * na hora do pedido, ela levaria a versão que a primeira gastou e voltaria 409, e levaria o Código
+ * de antes, desfazendo a primeira.
  */
 export function ConferenciaDeImportacaoPage() {
   const { id: idDaRota } = useParams()
@@ -82,6 +86,11 @@ export function ConferenciaDeImportacaoPage() {
   const idDosBloqueios = useId()
 
   const [importacao, setImportacao] = useState<ImportacaoDto | null>(null)
+  // O rascunho mais recente, para a escrita da fila que sai depois de outra: o `importacao` do render
+  // em que ela foi pedida já é velho quando ela sai.
+  const atual = useRef<ImportacaoDto | null>(null)
+  const fila = useRef<Promise<unknown>>(Promise.resolve())
+  const naFila = useRef(0)
   const [erroDeCarga, setErroDeCarga] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -103,12 +112,32 @@ export function ConferenciaDeImportacaoPage() {
     setImportacao(null)
     setErroDeCarga(null)
     obterImportacao(id)
-      .then((r) => { if (!cancelado) setImportacao(r) })
+      .then((r) => { if (!cancelado) guardar(r) })
       .catch((e) => {
         if (!cancelado) setErroDeCarga(mensagemDeErro(e, 'Não foi possível carregar a importação.'))
       })
     return () => { cancelado = true }
   }, [id])
+
+  function guardar(r: ImportacaoDto) {
+    atual.current = r
+    setImportacao(r)
+  }
+
+  /**
+   * Põe `tarefa` na fila das escritas: ela começa quando a anterior termina, com sucesso ou não. A
+   * tela fica `enviando` enquanto houver tarefa na fila, e não só durante a que está em voo.
+   */
+  function enfileirar<T>(tarefa: () => Promise<T>): Promise<T> {
+    naFila.current += 1
+    setEnviando(true)
+    const vez = fila.current.then(tarefa)
+    fila.current = vez.catch(() => {})
+    return vez.finally(() => {
+      naFila.current -= 1
+      if (naFila.current === 0) setEnviando(false)
+    })
+  }
 
   /**
    * Relê o rascunho e mostra `mensagem` (a razão da releitura) no topo; se a releitura falha, mostra
@@ -116,7 +145,7 @@ export function ConferenciaDeImportacaoPage() {
    */
   async function reler(mensagem: string | null) {
     try {
-      setImportacao(await obterImportacao(id))
+      guardar(await obterImportacao(id))
       if (mensagem !== null) setAviso(mensagem)
     } catch (e) {
       setAviso(mensagemDeErro(e, 'Não foi possível recarregar a importação.'))
@@ -124,42 +153,46 @@ export function ConferenciaDeImportacaoPage() {
   }
 
   /**
-   * Toda escrita do rascunho: a resposta vira o estado; versão velha (409) relê e avisa.
+   * Toda escrita do rascunho, pela fila: `acao` recebe o rascunho mais recente, de onde tira a versão
+   * e o que mais a requisição leva, e a resposta vira o estado; versão velha (409) relê e avisa.
    *
    * Com `noPainel`, a falha não vira aviso no topo: a escrita relança o erro (depois de reler, no
-   * 409) para o painel que a pediu mostrá-lo onde o usuário está olhando. É o caso do reimport, cujo
-   * erro traz a lista de linhas do arquivo.
+   * 409) para o painel que a pediu mostrá-lo onde o usuário está olhando — o do Componente, o do
+   * sólido e o do reimport, cujo erro traz a lista de linhas do arquivo.
    */
-  async function escrever(acao: () => Promise<ImportacaoDto>, noPainel = false) {
-    setEnviando(true)
-    setAviso(null)
-    try {
-      setImportacao(await acao())
-    } catch (e) {
-      if (ehDesatualizada(e)) await reler(noPainel ? null : AVISO_DESATUALIZADA)
-      else if (!noPainel) setAviso(mensagemDeErro(e, 'Não foi possível salvar a alteração.'))
-      if (noPainel) throw e
-    } finally {
-      setEnviando(false)
-      setRevisao((r) => r + 1)
-    }
+  function escrever(acao: (atual: ImportacaoDto) => Promise<ImportacaoDto>, noPainel = false): Promise<void> {
+    return enfileirar(async () => {
+      setAviso(null)
+      try {
+        guardar(await acao(atual.current!))
+      } catch (e) {
+        if (ehImportacaoDesatualizada(e)) await reler(noPainel ? null : AVISO_DESATUALIZADA)
+        else if (!noPainel) setAviso(mensagemDeErro(e, 'Não foi possível salvar a alteração.'))
+        if (noPainel) throw e
+      } finally {
+        setRevisao((r) => r + 1)
+      }
+    })
   }
 
   /** Troca o arquivo do rascunho; o painel fecha só no sucesso, e a falha fica nele, com o arquivo descartado. */
   async function reimportarArquivo(arquivo: File) {
-    if (!importacao) return
-    await escrever(() => reimportar(importacao.id, importacao.versao, arquivo), true)
+    await escrever((a) => reimportar(a.id, a.versao, arquivo), true)
     setReimportando(false)
   }
 
-  async function confirmar() {
-    if (!importacao) return
-    setEnviando(true)
+  function confirmar() {
+    return enfileirar(confirmarNaVez)
+  }
+
+  async function confirmarNaVez() {
+    const rascunho = atual.current
+    if (!rascunho) return
     setAviso(null)
     try {
-      const resultado = await confirmarImportacao(importacao.id, importacao.versao)
+      const resultado = await confirmarImportacao(rascunho.id, rascunho.versao)
       if (typeof resultado !== 'string') {
-        navegar(`/agrupamentos/${importacao.agrupamentoId}`)
+        navegar(`/agrupamentos/${rascunho.agrupamentoId}`)
         return
       }
       // A recusa não traz a lista de bloqueios (P15 do plano): o `GET` a traz, e é a releitura que a mostra.
@@ -171,26 +204,25 @@ export function ConferenciaDeImportacaoPage() {
     } catch (e) {
       setAviso(mensagemDeErro(e, 'Não foi possível confirmar a importação.'))
     } finally {
-      setEnviando(false)
       setRevisao((r) => r + 1)
     }
   }
 
-  async function descartar() {
-    if (!importacao) return
+  function descartar() {
     setDescartando(false)
-    setEnviando(true)
-    setAviso(null)
-    try {
-      await descartarImportacao(importacao.id)
-      navegar(`/agrupamentos/${importacao.agrupamentoId}`)
-    } catch (e) {
-      // 404: o rascunho já não existe (descartado em outra aba), e o destino é o mesmo.
-      if (e instanceof ErroDeApi && e.status === 404) navegar(`/agrupamentos/${importacao.agrupamentoId}`)
-      else setAviso(mensagemDeErro(e, 'Não foi possível descartar a importação.'))
-    } finally {
-      setEnviando(false)
-    }
+    return enfileirar(async () => {
+      const rascunho = atual.current
+      if (!rascunho) return
+      setAviso(null)
+      try {
+        await descartarImportacao(rascunho.id)
+        navegar(`/agrupamentos/${rascunho.agrupamentoId}`)
+      } catch (e) {
+        // 404: o rascunho já não existe (descartado em outra aba), e o destino é o mesmo.
+        if (e instanceof ErroDeApi && e.status === 404) navegar(`/agrupamentos/${rascunho.agrupamentoId}`)
+        else setAviso(mensagemDeErro(e, 'Não foi possível descartar a importação.'))
+      }
+    })
   }
 
   if (erroDeCarga !== null) {
@@ -221,6 +253,7 @@ export function ConferenciaDeImportacaoPage() {
           componenteId={noSelecionado.componenteId}
           escrever={escrever}
           desabilitado={enviando}
+          revisao={revisao}
         />
       ) : (
         <section aria-label="Componente selecionado" className="rounded-lg border border-borda bg-superficie px-4 py-3">
@@ -238,24 +271,21 @@ export function ConferenciaDeImportacaoPage() {
         </div>
 
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-          <div className="w-32">
-            <CampoDeQuantidadeDaPeca
-              key={`${importacao.quantidadeDaPeca}-${revisao}`}
-              valor={importacao.quantidadeDaPeca}
-              desabilitado={travado}
-              aoConfirmar={(q) => escrever(() => alterarPeca(
-                importacao.id, importacao.versao, q, importacao.requerRelatorioDimensional,
-              ))}
-            />
-          </div>
+          <CampoDeQuantidadeDaPeca
+            key={`${importacao.quantidadeDaPeca}-${revisao}`}
+            valor={importacao.quantidadeDaPeca}
+            desabilitado={travado}
+            aoConfirmar={(q) => { void escrever((a) => alterarPeca(a.id, a.versao, q, a.requerRelatorioDimensional)) }}
+          />
           <label className="flex items-center gap-2 pb-2.5 text-sm text-tinta-fraca">
             <input
               type="checkbox"
               checked={importacao.requerRelatorioDimensional}
               disabled={travado}
-              onChange={(e) => escrever(() => alterarPeca(
-                importacao.id, importacao.versao, importacao.quantidadeDaPeca, e.target.checked,
-              ))}
+              onChange={(e) => {
+                const requer = e.target.checked
+                void escrever((a) => alterarPeca(a.id, a.versao, a.quantidadeDaPeca, requer))
+              }}
               className="size-4 accent-acao"
             />
             Requer relatório dimensional
@@ -324,7 +354,7 @@ export function ConferenciaDeImportacaoPage() {
             fallbackDoErro={`Não foi possível reimportar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`}
             aoEnviar={reimportarArquivo}
             aoFechar={() => setReimportando(false)}
-            mensagemDoErro={(e) => (ehDesatualizada(e) ? AVISO_DESATUALIZADA : null)}
+            mensagemDoErro={(e) => (ehImportacaoDesatualizada(e) ? AVISO_DESATUALIZADA : null)}
           />
         )}
       </section>
@@ -339,9 +369,9 @@ export function ConferenciaDeImportacaoPage() {
             pedidoDeRolagem={pedidoDeRolagem}
             revisao={revisao}
             aoSelecionar={(registroId, componenteId) => setSelecao({ registroId, componenteId })}
-            aoAlterarQuantidade={podeEscrever ? (filhoId, quantidade) => escrever(() => alterarFilho(
-              importacao.id, filhoId, importacao.versao, quantidade,
-            )) : undefined}
+            aoAlterarQuantidade={podeEscrever ? (filhoId, quantidade) => {
+              void escrever((a) => alterarFilho(a.id, filhoId, a.versao, quantidade))
+            } : undefined}
             desabilitado={enviando}
           />
         ) : (
@@ -371,38 +401,48 @@ export function ConferenciaDeImportacaoPage() {
 /**
  * Guarda o que foi digitado e só escreve ao sair do campo: uma requisição por tecla gastaria a
  * versão do rascunho a cada caractere. Campo vazio vira `null` (a Peça sem quantidade, que é um
- * bloqueio); texto que não é número positivo volta ao valor anterior.
+ * bloqueio); o que o servidor recusaria (`lerQuantidadeDaConferencia`) volta ao valor anterior, com
+ * o motivo na dica do campo.
  */
 function CampoDeQuantidadeDaPeca({
   valor, desabilitado, aoConfirmar,
 }: { valor: number | null; desabilitado: boolean; aoConfirmar: (quantidade: number | null) => void }) {
   const [texto, setTexto] = useState(valor === null ? '' : String(valor).replace('.', ','))
+  const [motivo, setMotivo] = useState<string | null>(null)
+  const idDoMotivo = useId()
 
   function confirmar() {
-    const limpo = texto.trim()
-    const n = limpo === '' ? null : Number(limpo.replace(',', '.'))
-    if (n !== null && (!Number.isFinite(n) || n <= 0)) {
+    const lida = texto.trim() === '' ? { valor: null, motivo: null } : lerQuantidadeDaConferencia(texto)
+    setMotivo(lida.motivo)
+    if (lida.motivo !== null) {
       setTexto(valor === null ? '' : String(valor).replace('.', ','))
       return
     }
-    if (n !== valor) aoConfirmar(n)
+    if (lida.valor !== valor) aoConfirmar(lida.valor)
   }
 
   return (
-    <Campo rotulo="Quantidade da Peça">
-      {(id) => (
-        <input
-          id={id}
-          type="text"
-          inputMode="decimal"
-          value={texto}
-          disabled={desabilitado}
-          onChange={(e) => setTexto(e.target.value)}
-          onBlur={confirmar}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-          className={CLASSES_DE_CONTROLE}
-        />
-      )}
-    </Campo>
+    <>
+      <div className="w-32">
+        <Campo rotulo="Quantidade da Peça">
+          {(id) => (
+            <input
+              id={id}
+              type="text"
+              inputMode="decimal"
+              value={texto}
+              aria-describedby={motivo ? idDoMotivo : undefined}
+              disabled={desabilitado}
+              onChange={(e) => setTexto(e.target.value)}
+              onBlur={confirmar}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              className={CLASSES_DE_CONTROLE}
+            />
+          )}
+        </Campo>
+      </div>
+      {/* Numa linha inteira, depois do resto da faixa: na largura do campo, a frase se espremeria. */}
+      {motivo && <p id={idDoMotivo} className="order-last basis-full text-sm text-negativo-texto">{motivo}</p>}
+    </>
   )
 }
