@@ -271,6 +271,7 @@ export function PainelDoComponenteDaImportacao({
                   <CamposDoNovo
                     key={situacao.registroId}
                     situacao={situacao}
+                    temFilhos={(no?.filhos.length ?? 0) > 0}
                     desabilitado={desabilitado}
                     revisao={revisao}
                     gravar={(parte) => {
@@ -338,12 +339,17 @@ export function PainelDoComponenteDaImportacao({
  * a fila de escritas esvaziou — inclusive depois de uma escrita que falhou, para o texto não salvo não
  * ficar na tela como se estivesse.
  */
-function CamposDoNovo({ situacao, desabilitado, revisao, gravar }: {
+function CamposDoNovo({ situacao, temFilhos, desabilitado, revisao, gravar }: {
   situacao: SituacaoDoComponenteDto
+  /** O código tem filhos no BOM: só uma folha passa a `Bruto`, que não exige sólido. */
+  temFilhos: boolean
   desabilitado: boolean
   revisao: number
   gravar: (parte: { codigoNovo?: string; descricaoNova?: string; tipoNovo?: string }) => void
 }) {
+  // O `Bruto` que o reimport manteve num código que passou a ter filhos continua na lista: é o valor
+  // atual, e o servidor só recusa quem PASSA a `Bruto` com filhos.
+  const tipos = temFilhos && situacao.tipoNovo !== 'Bruto' ? TIPOS.filter((t) => t !== 'Bruto') : TIPOS
   return (
     <div className="flex flex-col gap-3">
       <CampoDeTexto
@@ -371,7 +377,7 @@ function CamposDoNovo({ situacao, desabilitado, revisao, gravar }: {
             className={CLASSES_DE_CONTROLE}
           >
             {situacao.tipoNovo === null && <option value="" disabled>Escolha o tipo</option>}
-            {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
+            {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         )}
       </Campo>

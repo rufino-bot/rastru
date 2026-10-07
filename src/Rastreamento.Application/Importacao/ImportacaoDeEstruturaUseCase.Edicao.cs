@@ -27,6 +27,9 @@ public sealed partial class ImportacaoDeEstruturaUseCase
 
   private static readonly string[] TiposDeComponente = ["Bruto", "Fabricado", "Montagem"];
 
+  private const string ErroDeBrutoComFilhos =
+      "So um Componente sem filhos no BOM pode passar a Bruto.";
+
   /// <summary>Uma recusa que ainda nao e <see cref="Result{T}"/>: as funcoes que aplicam a escrita devolvem uma ou nada.</summary>
   private sealed record Recusa(string Erro, TipoDeErro Tipo, string? Detalhe = null)
   {
@@ -73,6 +76,11 @@ public sealed partial class ImportacaoDeEstruturaUseCase
           return new Recusa(ErroDeRegistroNaoEncontrado, TipoDeErro.NaoEncontrado);
         if (ValidarCampos(dto) is { } invalido)
           return invalido;
+        // So uma folha passa a Bruto (o Bruto nao exige solido). O Bruto que o reimport manteve num
+        // registro que ganhou filhos continua aceito: a recusa e de quem PASSA a Bruto.
+        if (dto.ComponenteId is null && dto.TipoNovo == "Bruto"
+            && registro.TipoNovo != "Bruto" && registro.Filhos.Count > 0)
+          return new Recusa(ErroDeBrutoComFilhos, TipoDeErro.Validacao);
         if (dto.ComponenteId is int alvo)
         {
           if (!(await _receitaPadrao.ObterComponentesPorIdAsync([alvo], ct)).Any())

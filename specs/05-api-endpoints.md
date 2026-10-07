@@ -392,10 +392,11 @@ aninhadas sob Agrupamento, as de rascunho são de topo.)*
   tipoNovo, escolhaDeReceita }`. `componenteId` preenchido **casa** o registro com aquele Componente e
   descarta os dados do "criar novo"; nulo o deixa "criar novo", e `codigoNovo`, `descricaoNova` e `tipoNovo`
   (`Bruto`, `Fabricado` ou `Montagem`), quando preenchidos, são os dados dele (nulo mantém o que está).
-  `escolhaDeReceita` é o **estado inteiro** da escolha — `Catalogo`, `Importada` ou nulo, que a limpa. Três
+  `escolhaDeReceita` é o **estado inteiro** da escolha — `Catalogo`, `Importada` ou nulo, que a limpa. Quatro
   recusas de regra, todas 400 (ver "Contrato de erro da Importação"): casar com um Componente que outro registro do rascunho
   já tem; mandar `escolhaDeReceita` **na mesma escrita** em que o casamento muda; mandar `escolhaDeReceita`
-  num registro que não diverge. → 200 `ImportacaoDto`
+  num registro que não diverge; e passar a `Bruto` um "criar novo" que tem filhos no BOM (só uma folha passa a
+  `Bruto`; o `Bruto` que o reimport manteve num código que ganhou filhos continua aceito). → 200 `ImportacaoDto`
 - `PUT /importacoes/{id}/filhos/{fid}` *(PCP, Administrador)* — corrige a quantidade por pai de uma linha da
   receita lida (`{fid}` é o `filhoId` do nó): `{ versao, quantidade }`. A quantidade vale de `0,0001` ao teto
   da coluna, com no máximo 4 casas. → 200 `ImportacaoDto`
@@ -520,7 +521,8 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
     `escolhaDeReceita` fora de `Catalogo`/`Importada`; código acima de 50 caracteres ou descrição acima de 200;
     Componente já casado com outro registro do rascunho; escolha de receita enviada junto de uma troca de
     casamento («Escolha a receita depois de conferir o novo casamento.»); escolha de receita num registro que
-    não diverge; e o que `POST /componentes/{id}/solido` já recusa no STL.
+    não diverge; `Bruto` num "criar novo" com filhos no BOM («So um Componente sem filhos no BOM pode passar a
+    Bruto.»); e o que `POST /componentes/{id}/solido` já recusa no STL.
 - **401** — além do token ausente ou inválido, em `POST /agrupamentos/{id}/importacoes` e
   `POST /importacoes/{id}/componentes/{cid}/solido`, o **token assinado por nós mas sem a claim `sub`**: essas
   duas rotas gravam o autor (do rascunho e do arquivo) e leem o usuário da claim, então sem ela respondem

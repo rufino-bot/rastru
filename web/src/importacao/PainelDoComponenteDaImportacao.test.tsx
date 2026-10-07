@@ -371,6 +371,21 @@ describe('PainelDoComponenteDaImportacao', () => {
     })
   })
 
+  it('o novo que tem filhos no BOM não oferece Bruto; o Bruto que o reimport manteve continua na lista', () => {
+    const chassi = (tipoNovo: string) => importacao({
+      componentes: [...SITUACOES, situacao({
+        registroId: 1, codigoLido: 'CH-100', descricaoLida: 'Chassi', codigoNovo: 'CH-100', descricaoNova: 'Chassi', tipoNovo,
+      })],
+    })
+    const opcoes = () => within(screen.getByLabelText('Tipo')).getAllByRole('option').map((o) => o.textContent)
+
+    const { rerender, props } = painel(1, null, { importacao: chassi('Montagem') })
+    expect(opcoes()).toEqual(['Fabricado', 'Montagem'])
+
+    rerender(<PainelDoComponenteDaImportacao {...props} importacao={chassi('Bruto')} />)
+    expect(opcoes()).toEqual(['Bruto', 'Fabricado', 'Montagem'])
+  })
+
   it('o código do novo só escreve ao sair do campo, e só se mudou', async () => {
     const fetchMock = montarFetch({ 'PUT /api/importacoes/5/componentes/3': () => respostaJson(importacao()) })
     painel(3, null)

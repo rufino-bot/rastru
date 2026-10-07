@@ -204,6 +204,39 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     Assert.Equal(0, m.Importacoes.Salvamentos);
   }
 
+  [Fact]
+  public async Task Bruto_em_novo_com_filhos_no_BOM_e_Validacao()
+  {
+    // So uma folha pode virar Bruto: o Bruto nao tem solido, e numa montagem isso tiraria a exigencia de
+    // solido de um Componente que tem estrutura.
+    var m = new Montagem();
+    await m.Criar("conjunto.csv", L(2, "1", "A-1", "Peca A", "1"), L(3, "1.1", "F-1", "Filho", "1"));
+    var a = m.Registro("A-1");
+
+    var r = await Alterar(m, a, Casar(m.Unica, null, tipoNovo: "Bruto"));
+
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal("Montagem", a.TipoNovo);
+    Assert.Equal(0, m.Importacoes.Salvamentos);
+  }
+
+  [Fact]
+  public async Task Bruto_que_o_reimport_manteve_com_filhos_continua_aceito_nas_escritas_seguintes()
+  {
+    // O reimport mantem o Bruto, escolha do usuario, mesmo quando a folha passou a ter filhos; a recusa
+    // e so de quem PASSA a Bruto, senao editar o codigo desse registro seria recusado.
+    var m = new Montagem();
+    await m.Criar("conjunto.csv", L(2, "1", "C-1", "Peca C", "1"));
+    await Alterar(m, m.Registro("C-1"), Casar(m.Unica, null, tipoNovo: "Bruto"));
+    await Reimportar(m, "conjunto.csv", L(2, "1", "C-1", "Peca C", "1"), L(3, "1.1", "H-1", "Filho de C", "1"));
+    var c = m.Registro("C-1");
+
+    var r = await Alterar(m, c, Casar(m.Unica, null, codigoNovo: "C-2", tipoNovo: "Bruto"));
+
+    Assert.True(r.Sucesso);
+    Assert.Equal(("C-2", "Bruto"), (c.CodigoNovo, c.TipoNovo));
+  }
+
   [Theory]
   [InlineData("codigo")]
   [InlineData("descricao")]
