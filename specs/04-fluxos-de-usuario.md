@@ -62,8 +62,9 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 1. Na página do **Agrupamento**, o PCP usa **Importar BOM** (ao lado de "Nova Peça") e escolhe o arquivo, de
    até 5 MiB. A tela recusa antes de enviar o que passa do limite. Se o arquivo tem problema — coluna
    ausente, quantidade inválida, nível que pula um degrau, o mesmo código com filhos diferentes, ciclo —,
-   o painel lista **todos** os erros, uma linha por problema, com o número da linha do arquivo, e nada é
-   criado; o PCP corrige o arquivo e o escolhe de novo. Sem erro, abre a **tela de conferência**
+   o painel lista os erros, uma linha por problema, com o número da linha do arquivo, e nada é
+   criado — eles se acumulam por etapa (leitura, montagem da árvore, tamanhos), então corrigir o arquivo pode
+   revelar os da etapa seguinte; o PCP corrige o arquivo e o escolhe de novo. Sem erro, abre a **tela de conferência**
    (`/importacoes/:id`).
 2. A **conferência** é uma tela de **PC**: o BOM só existe no computador de quem cadastra, e no celular ela
    não quebra, mas não é otimizada. De cima para baixo:
@@ -84,7 +85,7 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
      do BOM aparece ao lado. Um casado **inativo** aparece marcado e é **reativado na confirmação**.
    - **Sólido.** Todo Componente que não é `Bruto` precisa de sólido (regra 32); o PCP envia o STL de cada
      um na própria conferência. O enviado só substitui o do catálogo na confirmação. Um item que entra
-     **só pela receita do catálogo** não tem painel de envio: o sólido dele se envia no cadastro do
+     **só pela receita do catálogo** mostra o painel com o envio desabilitado: o sólido dele se envia no cadastro do
      Componente.
    - **Receita divergente.** Onde o catálogo tem receita diferente da do BOM, o PCP vê o **comparativo de um
      nível** (igual, quantidade diferente, só no BOM, só no catálogo) e escolhe, sem padrão marcado,

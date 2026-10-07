@@ -272,8 +272,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `<button>` crus, e "quatro" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
   são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da Task 7 da Fase
   2): aceitar a exceção e escrevê-la, não extrair uma primitiva. Essa decisão cobre os três primeiros
-  controles; o **quarto** foi enquadrado ao implementar a tela de conferência, sem decisão própria do
-  usuário, e fica registrado aqui para ele confirmar ou preferir uma primitiva.
+  controles; o **quarto** (o seletor de linha) foi enquadrado pela implementação, ao fazer a tela de
+  conferência, e está **pendente** de o usuário confirmar a exceção ou preferir uma primitiva.
 
   O motivo é técnico, e são **motivos diferentes** — a review da Task 7 errou ao tratá-los como o mesmo.
   Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um controle de ícone —
@@ -287,13 +287,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   virar uma pilha de botões. O controle tem nome acessível (o código e a descrição do nó) e
   `aria-current` no selecionado.
 
-  **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, seleção de linha,
-  ícone sem rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. O seletor de linha
-  é a classe nova e é **navegação**: escolhe qual nó o painel mostra e não grava nada; a ação da linha (a
-  quantidade por pai) é um `Campo`, não um botão, e um seletor de linha que passasse a disparar escrita
-  deixa de caber aqui. Com o quarto controle, quem escrever o próximo deve extrair a primitiva — um
-  `AlternadorDeDisclosure` para os usos de disclosure (saída que o implementer propôs e que o usuário
-  adiou, não descartou) e, se a classe do seletor de linha reaparecer, um `SeletorDeLinha`.
+  **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
+  rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. O seletor de linha da
+  `ArvoreDaImportacao`, enquanto pendente, só se sustenta como **navegação**: escolhe qual nó o painel
+  mostra e não grava nada, e a ação da linha (a quantidade por pai) é um `Campo`, não um botão. Quem
+  escrever o próximo caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes —
+  saída que o implementer propôs e que o usuário adiou, não descartou.
 
   Por que escrever em vez de deixar como está: uma regra com quatro violações conhecidas e nenhuma
   exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva

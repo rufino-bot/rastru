@@ -199,8 +199,8 @@ As suposições sobre colunas, formato e quantidade estão na seção 10.
 ### 5.2 Receita divergente (D4, D5, D6)
 
 Um código **diverge** quando está casado e a receita de catálogo dele (filhos diretos e quantidades)
-é diferente da lida do BOM — incluindo o caso em que um dos lados não tem filhos. Componente novo,
-casado sem receita ou casado com receita igual **não** diverge, e recebe a do BOM na confirmação sem
+é diferente da lida do BOM — incluindo o caso em que o BOM não traz filhos e o catálogo traz. Componente
+novo, casado **sem receita no catálogo** (traga o BOM filhos ou não) ou casado com receita igual **não** diverge, e recebe a do BOM na confirmação sem
 escolha nenhuma.
 
 Escolher **"catálogo"** num código X decide só os filhos diretos de X: os filhos presentes **só no
@@ -294,6 +294,20 @@ memória** (o plano que o passo 5 grava), com a avaliação que já serve ao `GE
 transação. **Dentro** dela confere de novo a versão do rascunho — igual, o rascunho é o que foi avaliado —,
 relê só o que é estreito (passo 2) e grava na ordem dos passos 3 a 6; o passo 5 grava o plano feito fora, e
 não faz uma releitura do que os passos 3 e 4 gravaram.
+
+**A medição do risco, em 2026-10-03.** Com a confirmação implementada, `dotnet test tests/Rastreamento.Api.Tests`
+rodou **10 vezes seguidas** e passou 345 de 345 em todas; depois das correções que a revisão pediu, rodou
+mais **5** e mais **3** vezes, com o mesmo resultado, sem nenhuma falha. Isso não prova ausência de
+deadlock — a suíte de Api roda sem paralelismo entre classes, então nenhum teste confirma dois rascunhos ao
+mesmo tempo —, e por isso houve também uma medição das travas. Sob SERIALIZABLE, a exclusão do rascunho
+filtrava os registros por `ImportacaoId`, coluna sem índice próprio (o índice único filtrado não serve a um
+`WHERE ImportacaoId = x`): com outro rascunho de 2.000 registros e 2.000 linhas de receita no banco, a
+transação da confirmação segurou **2.002** travas de faixa na chave primária dos registros, dos rascunhos
+de todo mundo. Com `IX_ImportacaoDeEstruturaComponente_ImportacaoId` (seção 3) ficaram **0** nela, e 1 em
+`UQ_ImportacaoDeEstruturaFilho`, que serve à exclusão das linhas da receita com ou sem o índice novo. A
+medição é do `ExcluirAsync` real do repositório, com parâmetro, que é o plano que a aplicação executa; uma
+medição equivalente no `sqlcmd` com variável local deu uma varredura mesmo com o índice, porque o
+otimizador usa a densidade média em vez do valor.
 
 ## 8. Telas
 

@@ -376,14 +376,16 @@ dela para o que a implementação fixou).*
       pela receita de catálogo mantida (a escolha por Componente, D5), não só o que veio no arquivo.
     - **Escolha de receita por Componente (D5).** Um código **diverge** quando está casado com um
       Componente do catálogo e a receita de catálogo dele (filhos diretos e quantidades) é diferente da lida
-      do BOM — inclusive quando um dos lados não tem filhos. Quem confere escolhe, **por Componente e sem
+      do BOM — inclusive quando o BOM não traz filhos e o catálogo traz. Quem confere escolhe, **por Componente e sem
       padrão pré-marcado**, uma de duas receitas **inteiras**: a do catálogo ou a importada — nunca uma
       mistura linha a linha, que não existiria nem no catálogo nem no CAD. A escolha vale para **todas as
       ocorrências** do Componente na árvore e decide **só os filhos diretos** dele: com "catálogo", os
       filhos presentes só no BOM saem (com o que está abaixo deles) e os presentes só no catálogo entram,
-      expandidos pelas receitas de catálogo deles. Sem escolha, a divergência **bloqueia** a confirmação.
-      Componente novo, casado sem receita ou casado com receita igual **não diverge** e recebe a do BOM sem
-      escolha. A escolha numa receita que deixou de divergir é inerte.
+      expandidos pela receita **efetiva** deles: a do catálogo ou, quando o filho é também um registro do
+      rascunho, a efetiva desse registro (a lida, salvo a escolha "catálogo" dele). Sem escolha, a divergência
+      **bloqueia** a confirmação. Componente novo, casado **sem receita no catálogo** (mesmo que o BOM traga
+      filhos para ele) ou casado com receita igual **não diverge** e recebe a do BOM sem escolha. A escolha
+      numa receita que deixou de divergir é inerte.
     - **Quem confirma aprova a receita (D6).** "Usar a importada" **substitui** a receita padrão do
       Componente no catálogo (`ComponenteFilhoPadrao`); os Pedidos existentes não mudam, porque a Peça é
       **cópia** da receita no momento da criação (regras 7 e 19). Se a receita de catálogo de um Componente

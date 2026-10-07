@@ -369,8 +369,9 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
 
 *(Spec: `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`. O BOM exportado do CAD
 vira um **rascunho** salvo no servidor, que um humano confere e confirma; só a confirmação grava
-catálogo e cria a Peça. Perfis de escrita: `PCP, Administrador`, a mesma constante `PerfisDeEscrita` do
-`EstruturaController` — quem monta a árvore importa o BOM dela. Leitura: qualquer perfil autenticado. As
+catálogo e cria a Peça. Perfis de escrita: `PCP, Administrador`, o mesmo valor da constante
+`PerfisDeEscrita` do `EstruturaController`, declarada à parte no `ImportacaoController` — quem monta a árvore
+importa o BOM dela. Leitura: qualquer perfil autenticado. As
 rotas são de `ImportacaoController`, que declara a própria rota em cada ação: as de criar e listar são
 aninhadas sob Agrupamento, as de rascunho são de topo.)*
 
@@ -445,11 +446,16 @@ sem acento nem pontuação, sem o sinal de "Nº" — antes de comparar.
 - O mesmo filho repetido sob o mesmo pai **soma** as quantidades. O pai de uma linha é a última linha lida
   cujo nível é o prefixo do dela.
 - **Erros do arquivo** (cada um vira uma linha da lista do 400): arquivo vazio, acima de 5 MiB ou de extensão
-  que não seja `.csv`/`.xlsx`; coluna ausente do cabeçalho; XLSX corrompido; aspas não fechadas; nível
+  que não seja `.csv`/`.xlsx`; XLSX que descompactado passa de 64 MiB (o limite de 5 MiB é do arquivo
+  compactado); nome do arquivo acima de 260 caracteres ou, sem a extensão, acima de 200 (a raiz usa esse nome
+  como descrição); coluna ausente do cabeçalho; XLSX corrompido; aspas não fechadas; nível
   inválido ou que pula um degrau (`1` direto para `1.2.3`); quantidade não numérica, fora da faixa ou com
   mais de 4 casas; o **mesmo código com filhos diferentes**; **ciclo entre códigos**; árvore acima de
   `PlanejadorDeCopia.ProfundidadeMaxima` (20 níveis) ou `NosMaximos` (500); código acima de 50 caracteres,
-  descrição vazia ou acima de 200. Vêm **todos juntos**, não só o primeiro.
+  descrição vazia ou acima de 200. Os erros **se acumulam por etapa**, não no arquivo todo: a leitura
+  (formato, colunas, linhas), a montagem da árvore e a conferência de tamanhos rodam em sequência, e a etapa
+  seguinte só roda se a anterior não achou nenhum erro. Dentro de uma etapa vêm todos, não só o primeiro;
+  corrigidos esses, o arquivo pode ainda trazer os da etapa seguinte.
 
 ### Estado do rascunho (`ImportacaoDto`)
 
@@ -484,7 +490,9 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
   registro "criar novo"; `filhoId`, na raiz e na aresta que vem do catálogo.
 - **`componentes`** tem um item por registro do rascunho, **inclusive os que saíram da árvore final** por uma
   escolha `Catalogo` acima deles (`naArvoreFinal: false`). `divergente` é verdadeiro quando o código está
-  casado e a receita de catálogo dele (filhos diretos e quantidades) difere da lida; é aí que `comparativo`
+  casado, o Componente tem receita no catálogo e ela (filhos diretos e quantidades) difere da lida — inclusive
+  quando o BOM não traz filhos e o catálogo traz; casado **sem receita no catálogo** não diverge, traga o BOM
+  filhos ou não; é aí que `comparativo`
   (um nível) e `efeitoDeManterCatalogo` (quantos nós saem e quantos entram se a escolha for `Catalogo`)
   vêm preenchidos. Descrição de casado vale a **do catálogo**; a lida fica ao lado.
 - **`bloqueios[].tipo`**, em português com acento na `mensagem`, que é texto de tela: `QuantidadeDaPecaAusente`,
@@ -504,12 +512,18 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
     inteiro). O texto é ASCII sem acento; a tela escreve o título em português e lista as linhas como vêm.
   - **`ImportacaoComBloqueios`**, em `POST /importacoes/{id}/confirmacao`: o rascunho ainda tem bloqueio. **Sem
     a lista** — a tela relê o `GET`, que a traz, e a lista não existe em dois contratos.
-  - Nas demais, `erro` é uma **frase** (como nos 400 da Estrutura): `versao` ausente ou que não é base64;
-    quantidade fora da faixa ou com mais de 4 casas; `tipoNovo` fora de `Bruto`/`Fabricado`/`Montagem`;
+  - `versao` **ausente ou vazia** (corpo JSON ou campo do multipart) não chega ao caso de uso: o parâmetro
+    é `string` não anulável, e o MVC o recusa antes com o 400 no formato do ASP.NET.
+  - Nas demais, `erro` é uma **frase** (como nos 400 da Estrutura): `versao` que não é base64
+    («Versao do rascunho invalida.»); quantidade fora da faixa ou com mais de 4 casas; `tipoNovo` fora de `Bruto`/`Fabricado`/`Montagem`;
     `escolhaDeReceita` fora de `Catalogo`/`Importada`; código acima de 50 caracteres ou descrição acima de 200;
     Componente já casado com outro registro do rascunho; escolha de receita enviada junto de uma troca de
     casamento («Escolha a receita depois de conferir o novo casamento.»); escolha de receita num registro que
     não diverge; e o que `POST /componentes/{id}/solido` já recusa no STL.
+- **401** — além do token ausente ou inválido, em `POST /agrupamentos/{id}/importacoes` e
+  `POST /importacoes/{id}/componentes/{cid}/solido`, o **token assinado por nós mas sem a claim `sub`**: essas
+  duas rotas gravam o autor (do rascunho e do arquivo) e leem o usuário da claim, então sem ela respondem
+  401 sem corpo e não 500. As demais rotas de escrita não leem a claim.
 - **403** — perfil sem permissão, do `[Authorize(Roles = "PCP,Administrador")]` nas rotas de escrita.
 - **404** — Agrupamento, rascunho, registro, linha da receita ou Componente-alvo inexistentes, **sem corpo**.
 - **409** — três códigos, com `erro` estável:
@@ -517,7 +531,7 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
   | Código | Onde | Motivo |
   |---|---|---|
   | `ImportacaoDesatualizada` | toda escrita com `versao`, e a confirmação | a `versao` do corpo não é a do banco, ou outra escrita chegou entre a leitura e o salvamento. Nada foi gravado; a tela relê. Sem `mensagem` |
-  | `ReceitaDoCatalogoMudou` | `POST /importacoes/{id}/confirmacao` | a receita de catálogo de um Componente com escolha mudou depois da escolha (a impressão SHA-256 que o servidor guardou não bate). A transação é desfeita, e a escolha daquele código é zerada. Leva `mensagem` nomeando os códigos |
+  | `ReceitaDoCatalogoMudou` | `POST /importacoes/{id}/confirmacao` | a receita de catálogo de um Componente com escolha mudou depois da escolha (a impressão SHA-256 que o servidor guardou não bate). A transação é desfeita, e a escolha daquele código é zerada **em melhor esforço**, fora dela: a limpeza é pulada se a versão do rascunho mudou nesse meio-tempo, e qualquer falha dela é engolida, porque a resposta já é o 409 — o pior desfecho é a escolha velha continuar, e a confirmação seguinte devolve o mesmo 409. Leva `mensagem` nomeando os códigos |
   | `ConflitoDeConcorrencia` | `POST /importacoes/{id}/confirmacao` | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na transação da confirmação; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`, a mesma frase das demais escritas de estrutura |
 
   O `DELETE /agrupamentos/{id}` ganha o `AgrupamentoComImportacao`, descrito na seção "Pedido / Agrupamento".
