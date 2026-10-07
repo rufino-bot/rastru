@@ -1,11 +1,13 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import {
-  alterarFilho, alterarPeca, confirmarImportacao, descartarImportacao, obterImportacao,
+  alterarFilho, alterarPeca, confirmarImportacao, descartarImportacao, LIMITE_DO_BOM_LEGIVEL, obterImportacao,
+  reimportar,
   type ImportacaoDto, type NoDaImportacaoDto, type PendenciaDoNo,
 } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { ArvoreDaImportacao, chaveDoCodigo, type SelecaoDaArvore } from '../components/ArvoreDaImportacao'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
@@ -15,6 +17,7 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { Pagina } from '../components/Pagina'
 import { Pilula, type TomDePilula } from '../components/Pilula'
+import { PainelDoArquivoDoBom } from '../importacao/PainelDoArquivoDoBom'
 import { PainelDoComponenteDaImportacao } from '../importacao/PainelDoComponenteDaImportacao'
 
 const AVISO_DESATUALIZADA = 'Outra pessoa alterou esta importação; a tela foi atualizada.'
@@ -65,7 +68,8 @@ function ehDesatualizada(e: unknown): boolean {
 
 /**
  * A conferência de um rascunho de importação do BOM, de cima para baixo: o painel do Componente
- * selecionado, a faixa da Peça (quantidade, pendências, Confirmar e Descartar) e a árvore expandida.
+ * selecionado, a faixa da Peça (quantidade, pendências, Confirmar, Reimportar e Descartar) e a árvore
+ * expandida.
  *
  * O estado da tela é o `ImportacaoDto` mais recente, e **toda** escrita o substitui pela resposta. Os
  * bloqueios e as pendências são calculados pelo servidor a cada leitura; a tela não os recalcula.
@@ -82,6 +86,11 @@ export function ConferenciaDeImportacaoPage() {
   const [aviso, setAviso] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [descartando, setDescartando] = useState(false)
+  const [reimportando, setReimportando] = useState(false)
+  // O painel do arquivo sai do DOM ao fechar (Cancelar ou sucesso) e leva o foco junto; o hook o
+  // devolve ao botão que o abriu.
+  const botaoReimportar = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(reimportando, () => botaoReimportar.current)
   const [selecao, setSelecao] = useState<SelecaoDaArvore | null>(null)
   // Pedidos de "leve-me ao nó" da pílula de resumo; a árvore rola a cada incremento.
   const [pedidoDeRolagem, setPedidoDeRolagem] = useState(0)
@@ -101,29 +110,46 @@ export function ConferenciaDeImportacaoPage() {
     return () => { cancelado = true }
   }, [id])
 
-  /** Relê o rascunho e mostra `mensagem` (a razão da releitura); se a releitura falha, mostra o erro dela. */
-  async function reler(mensagem: string) {
+  /**
+   * Relê o rascunho e mostra `mensagem` (a razão da releitura) no topo; se a releitura falha, mostra
+   * o erro dela. Com `mensagem` nula, quem pediu a releitura mostra a razão em outro lugar.
+   */
+  async function reler(mensagem: string | null) {
     try {
       setImportacao(await obterImportacao(id))
-      setAviso(mensagem)
+      if (mensagem !== null) setAviso(mensagem)
     } catch (e) {
       setAviso(mensagemDeErro(e, 'Não foi possível recarregar a importação.'))
     }
   }
 
-  /** Toda escrita do rascunho: a resposta vira o estado; versão velha (409) relê e avisa. */
-  async function escrever(acao: () => Promise<ImportacaoDto>) {
+  /**
+   * Toda escrita do rascunho: a resposta vira o estado; versão velha (409) relê e avisa.
+   *
+   * Com `noPainel`, a falha não vira aviso no topo: a escrita relança o erro (depois de reler, no
+   * 409) para o painel que a pediu mostrá-lo onde o usuário está olhando. É o caso do reimport, cujo
+   * erro traz a lista de linhas do arquivo.
+   */
+  async function escrever(acao: () => Promise<ImportacaoDto>, noPainel = false) {
     setEnviando(true)
     setAviso(null)
     try {
       setImportacao(await acao())
     } catch (e) {
-      if (ehDesatualizada(e)) await reler(AVISO_DESATUALIZADA)
-      else setAviso(mensagemDeErro(e, 'Não foi possível salvar a alteração.'))
+      if (ehDesatualizada(e)) await reler(noPainel ? null : AVISO_DESATUALIZADA)
+      else if (!noPainel) setAviso(mensagemDeErro(e, 'Não foi possível salvar a alteração.'))
+      if (noPainel) throw e
     } finally {
       setEnviando(false)
       setRevisao((r) => r + 1)
     }
+  }
+
+  /** Troca o arquivo do rascunho; o painel fecha só no sucesso, e a falha fica nele, com o arquivo descartado. */
+  async function reimportarArquivo(arquivo: File) {
+    if (!importacao) return
+    await escrever(() => reimportar(importacao.id, importacao.versao, arquivo), true)
+    setReimportando(false)
   }
 
   async function confirmar() {
@@ -277,10 +303,29 @@ export function ConferenciaDeImportacaoPage() {
             >
               Confirmar
             </Botao>
+            {/* Some enquanto o painel está aberto, como o botão que abre qualquer `PainelDeEscrita`. */}
+            {!reimportando && (
+              <Botao ref={botaoReimportar} variante="secundario" disabled={enviando} onClick={() => setReimportando(true)}>
+                Reimportar
+              </Botao>
+            )}
             <Botao variante="secundario" disabled={enviando} onClick={() => setDescartando(true)}>
               Descartar
             </Botao>
           </div>
+        )}
+
+        {podeEscrever && reimportando && (
+          <PainelDoArquivoDoBom
+            titulo="Reimportar BOM"
+            subtitulo="Troca o arquivo do rascunho. O que você decidiu por código que continua no arquivo é mantido; as quantidades voltam ao que o arquivo diz."
+            rotuloDoEnvio="Reimportar"
+            rotuloEnviando="Reimportando…"
+            fallbackDoErro={`Não foi possível reimportar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`}
+            aoEnviar={reimportarArquivo}
+            aoFechar={() => setReimportando(false)}
+            mensagemDoErro={(e) => (ehDesatualizada(e) ? AVISO_DESATUALIZADA : null)}
+          />
         )}
       </section>
 

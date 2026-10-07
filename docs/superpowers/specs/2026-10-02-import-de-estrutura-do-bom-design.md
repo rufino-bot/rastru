@@ -500,8 +500,12 @@ suposição. O que a seção 3 muda no schema está lá; o contrato HTTP fechado
 - As quantidades corrigidas na tela **voltam ao que o arquivo diz**: o arquivo é a forma da árvore (D8).
 - O `TipoNovo` de um "criar novo" mantido **acompanha o arquivo novo** — `Montagem` se passou a ter filhos,
   `Fabricado` se passou a ser folha. `Bruto` é escolha do usuário e fica. O de um casado não muda.
-- Um arquivo recusado deixa o rascunho como estava. **A tela de conferência ainda não oferece o
-  reimport**: a rota existe e o cliente HTTP da tela a tem, mas nenhum botão a usa.
+- Um arquivo recusado deixa o rascunho como estava. **A tela de conferência oferece o reimport** no botão
+  "Reimportar" da faixa da Peça, que abre um painel com o campo de arquivo (o mesmo do "Importar BOM" do
+  Agrupamento, `PainelDoArquivoDoBom`). No sucesso, a resposta vira o estado e o painel fecha. Com o arquivo
+  recusado (`BomInvalido`) ou outra falha, a mensagem e a lista de linhas ficam no painel, que continua
+  aberto com o arquivo descartado. No 409 de versão velha, a tela relê o rascunho e o aviso aparece no
+  painel, e o envio seguinte já sai com a versão relida.
 
 **Confirmação (seção 7).**
 

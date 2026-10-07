@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   obterEstrutura, criarPeca, acrescentarFilho, editarNo, excluirNo, ehConflitoDeEstrutura,
@@ -8,7 +8,7 @@ import { obterAgrupamento, type ComponenteDto, type AgrupamentoDto } from '../ap
 import { obterPosicoes, type PosicoesDoNoDto } from '../api/execucao'
 import { listarFilhosPadrao, type FilhoPadraoDto } from '../api/receitaPadrao'
 import { mensagemDeErro } from '../api/erros'
-import { criarImportacao, ErroDeBom, TAMANHO_MAXIMO_DO_BOM_EM_BYTES } from '../api/importacao'
+import { criarImportacao, LIMITE_DO_BOM_LEGIVEL } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
@@ -23,9 +23,7 @@ import { Confirmacao } from '../components/Confirmacao'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { PainelDoNo } from '../execucao/PainelDoNo'
 import { ImportacoesEmConferencia } from '../importacao/ImportacoesEmConferencia'
-
-/** "5 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
-const LIMITE_DO_BOM_LEGIVEL = `${TAMANHO_MAXIMO_DO_BOM_EM_BYTES / (1024 * 1024)} MiB`
+import { PainelDoArquivoDoBom } from '../importacao/PainelDoArquivoDoBom'
 
 /** O que o painel de escrita do NÓ (acrescentar filho / editar nó) está fazendo agora. Os dois
     modos nunca coexistem — um único painel, uma única `<form>` — então um estado discriminado é
@@ -157,18 +155,13 @@ export function AgrupamentoDetalhePage() {
   const [erroExcluir, setErroExcluir] = useState<string | null>(null)
 
   // Importar o BOM (Fase de import da estrutura): um painel a mais, exclusivo com os outros dois e
-  // com a confirmação de exclusão. O arquivo só entra em `arquivoBom` depois de passar do limite de
-  // tamanho; a recusa vira `erroImportacao`, dentro do painel.
+  // com a confirmação de exclusão. O arquivo, o limite de tamanho e o erro de envio moram no
+  // `PainelDoArquivoDoBom`; aqui fica só se ele está aberto.
   const [painelDeImportacaoAberto, setPainelDeImportacaoAberto] = useState(false)
-  const [arquivoBom, setArquivoBom] = useState<File | null>(null)
-  const [enviandoImportacao, setEnviandoImportacao] = useState(false)
-  const [erroImportacao, setErroImportacao] = useState<string | null>(null)
-  const [linhasDoBom, setLinhasDoBom] = useState<string[]>([])
   // Lido por `ImportacoesEmConferencia` para reler a lista quando a árvore é recarregada.
   const [versaoDasImportacoes, setVersaoDasImportacoes] = useState(0)
 
   const jaCarregouUmaVez = useRef(false)
-  const campoDoArquivoBom = useRef<HTMLInputElement>(null)
   // A seção das importações só entra depois da primeira carga da árvore, e com a árvore sem erro: ela
   // tem os três estados dela, e montada antes duplicaria o "Carregando…" e o banner de rede da tela.
   const [arvoreJaCarregou, setArvoreJaCarregou] = useState(false)
@@ -388,59 +381,12 @@ export function AgrupamentoDetalhePage() {
 
   function fecharPainelDeImportacao() {
     setPainelDeImportacaoAberto(false)
-    setArquivoBom(null)
-    setErroImportacao(null)
-    setLinhasDoBom([])
   }
 
-  function escolherArquivoDoBom(e: ChangeEvent<HTMLInputElement>) {
-    const arquivo = e.target.files?.[0] ?? null
-    // Zera o valor do campo (o File já está em `arquivo`): sem isso, escolher DE NOVO o mesmo
-    // caminho, depois de corrigir a planilha, não dispara `onChange` e o File velho seguiria em
-    // estado. Mesmo cuidado de `UploadDeSolido`.
-    e.target.value = ''
-    setErroImportacao(null)
-    setLinhasDoBom([])
-    // Antes de qualquer requisição, e `>` e não `>=`: o backend aceita o limite exato. Acima dele o
-    // servidor fecha a conexão com o corpo subindo e o `fetch` rejeitaria sem resposta, então a
-    // frase certa só pode vir daqui.
-    if (arquivo && arquivo.size > TAMANHO_MAXIMO_DO_BOM_EM_BYTES) {
-      setArquivoBom(null)
-      setErroImportacao(
-        `O arquivo passa do limite de ${LIMITE_DO_BOM_LEGIVEL} do BOM. Exporte só a tabela da lista de materiais e envie de novo.`,
-      )
-      return
-    }
-    setArquivoBom(arquivo)
-  }
-
-  async function importarBom(e: FormEvent) {
-    e.preventDefault()
-    if (!arquivoBom) return
-    setErroImportacao(null)
-    setLinhasDoBom([])
-    setEnviandoImportacao(true)
-    try {
-      const importacao = await criarImportacao(agrupamentoId, arquivoBom)
-      navegar(`/importacoes/${importacao.id}`)
-    } catch (erro) {
-      // Qualquer falha do envio descarta o arquivo escolhido: o usuário o escolhe de novo (o
-      // conteúdo pode ter mudado em disco, e reenviar o `File` velho às cegas não é o que ele quer).
-      setArquivoBom(null)
-      if (campoDoArquivoBom.current) campoDoArquivoBom.current.value = ''
-      if (erro instanceof ErroDeBom) {
-        // O texto do servidor é ASCII sem acento: o título é nosso, e as linhas vão como vieram.
-        setErroImportacao('O arquivo tem problemas:')
-        setLinhasDoBom(erro.linhas)
-      } else {
-        setErroImportacao(mensagemDeErro(
-          erro,
-          `Não foi possível importar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`,
-        ))
-      }
-    } finally {
-      setEnviandoImportacao(false)
-    }
+  /** Cria o rascunho e vai para a conferência; a falha rejeita e o painel a mostra. */
+  async function importarBom(arquivo: File) {
+    const importacao = await criarImportacao(agrupamentoId, arquivo)
+    navegar(`/importacoes/${importacao.id}`)
   }
 
   function fecharPainel() {
@@ -653,38 +599,15 @@ export function AgrupamentoDetalhePage() {
       )}
 
       {podeEscrever && painelDeImportacaoAberto && (
-        <PainelDeEscrita
+        <PainelDoArquivoDoBom
           titulo="Importar BOM"
           subtitulo="Cria um rascunho da estrutura a partir da lista de materiais do CAD. Nada é gravado na estrutura até você conferir e confirmar."
+          rotuloDoEnvio="Importar"
+          rotuloEnviando="Importando…"
+          fallbackDoErro={`Não foi possível importar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`}
           aoEnviar={importarBom}
           aoFechar={fecharPainelDeImportacao}
-          enviando={enviandoImportacao}
-        >
-          <Campo rotulo="Arquivo do BOM (.xlsx ou .csv)" dica={`Até ${LIMITE_DO_BOM_LEGIVEL}.`}>
-            {(idDoCampo, idDaDica) => (
-              <input
-                id={idDoCampo}
-                ref={campoDoArquivoBom}
-                type="file"
-                accept=".xlsx,.csv"
-                disabled={enviandoImportacao}
-                onChange={escolherArquivoDoBom}
-                aria-describedby={idDaDica}
-                className={CLASSES_DE_CONTROLE}
-              />
-            )}
-          </Campo>
-          <BannerDeErro mensagem={erroImportacao} linhas={linhasDoBom} />
-          <Botao
-            type="submit"
-            carregando={enviandoImportacao}
-            rotuloCarregando="Importando…"
-            disabled={!arquivoBom}
-            className="self-start"
-          >
-            Importar
-          </Botao>
-        </PainelDeEscrita>
+        />
       )}
 
       {painel && (

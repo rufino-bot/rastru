@@ -105,8 +105,10 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    catálogo. **Não há expiração**: rascunho abandonado fica até alguém descartar.
 6. Para mudar a **forma** da árvore (acrescentar, remover ou mover um nó), o PCP corrige no CAD e reimporta;
    a tela de conferência corrige só o que é do sistema (casamento, dados do Componente novo, quantidade,
-   `Bruto`). A rota de reimportar preserva o sólido enviado, o casamento e os dados do novo por código; **a
-   tela ainda não oferece esse botão**, só a API.
+   `Bruto`). O botão **Reimportar** fica na faixa da Peça, ao lado de Confirmar e Descartar, e abre um painel
+   com o campo de arquivo (o mesmo do Importar BOM, com o mesmo limite de 5 MiB). A reimportação preserva o
+   sólido enviado, o casamento e os dados do novo por código; as quantidades voltam ao que o arquivo diz. Se
+   o arquivo tem problemas, as linhas aparecem no painel e o rascunho fica como estava.
 7. Enquanto houver rascunho de importação, o Agrupamento **não pode ser excluído** — a tela de Pedido
    explica e manda descartar antes.
 

@@ -135,6 +135,9 @@ export interface AlteracaoDeComponente {
  */
 export const TAMANHO_MAXIMO_DO_BOM_EM_BYTES = 5 * 1024 * 1024
 
+/** "5 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
+export const LIMITE_DO_BOM_LEGIVEL = `${TAMANHO_MAXIMO_DO_BOM_EM_BYTES / (1024 * 1024)} MiB`
+
 /**
  * O arquivo não passou na leitura (400 `BomInvalido`). `linhas` é a `mensagem` do servidor quebrada
  * por `\n` — uma linha por erro do arquivo (decisão P13 do plano do import). O texto do servidor é

@@ -645,4 +645,190 @@ describe('ConferenciaDeImportacaoPage', () => {
       await waitFor(() => expect(leituras(fetchMock)).toHaveLength(2))
     })
   })
+
+  describe('Reimportar', () => {
+    const ROTA = 'POST /api/importacoes/5/arquivo'
+
+    /** Escolhe um arquivo no campo do painel. */
+    function escolherArquivo(nome: string) {
+      const arquivo = new File(['a;b'], nome)
+      fireEvent.change(screen.getByLabelText(/Arquivo do BOM/), { target: { files: [arquivo] } })
+      return arquivo
+    }
+
+    function formularioDoPainel() {
+      return screen.getByRole('form', { name: 'Reimportar BOM' })
+    }
+
+    function enviar() {
+      fireEvent.click(within(formularioDoPainel()).getByRole('button', { name: 'Reimportar' }))
+    }
+
+    async function abrirPainel() {
+      fireEvent.click(await screen.findByRole('button', { name: 'Reimportar' }))
+    }
+
+    it('Reimportar_so_aparece_para_quem_escreve', async () => {
+      vi.stubGlobal('fetch', montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) }))
+      const { unmount } = renderizar()
+      expect(await screen.findByRole('button', { name: 'Reimportar' })).toBeTruthy()
+      unmount()
+
+      perfil = 'Operador'
+      renderizar()
+      await screen.findByRole('button', { name: /SU-200 Suporte/ })
+      expect(screen.queryByRole('button', { name: 'Reimportar' })).toBeNull()
+    })
+
+    it('o botão abre o painel com o campo de arquivo, e o painel fica na faixa da Peça', async () => {
+      vi.stubGlobal('fetch', montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) }))
+      renderizar()
+
+      await abrirPainel()
+
+      const faixa = screen.getByRole('region', { name: 'Peça' })
+      expect(within(faixa).getByRole('form', { name: 'Reimportar BOM' })).toBeTruthy()
+      expect((within(formularioDoPainel()).getByRole('button', { name: 'Reimportar' }) as HTMLButtonElement).disabled)
+        .toBe(true)
+      // O botão da faixa some enquanto o painel está aberto: o único "Reimportar" é o do envio.
+      expect(screen.getAllByRole('button', { name: 'Reimportar' })).toHaveLength(1)
+    })
+
+    it('Reimportar_envia_o_arquivo_com_a_versao_atual_e_substitui_o_estado', async () => {
+      const fetchMock = montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao()),
+        [ROTA]: () => respostaJson(importacao({ nomeDoArquivo: 'bom-novo.xlsx', versao: 'AAAAAAAAB9F=' })),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      await abrirPainel()
+      const arquivo = escolherArquivo('bom-novo.xlsx')
+
+      enviar()
+
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Reimportar BOM' })).toBeNull())
+      const chamada = fetchMock.mock.calls.find((c) => c[1]?.method === 'POST' && String(c[0]) === '/api/importacoes/5/arquivo')!
+      const corpo = chamada[1]!.body as FormData
+      expect(corpo.get('arquivo')).toBe(arquivo)
+      expect(corpo.get('versao')).toBe('AAAAAAAAB9E=')
+      expect(screen.getByText(/bom-novo\.xlsx · Maria PCP/)).toBeTruthy()
+      expect(screen.queryByText(/bom-chassi\.xlsx/)).toBeNull()
+    })
+
+    it('Reimportar_com_BomInvalido_mostra_as_linhas_no_painel_e_mantem_a_tela', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao()),
+        [ROTA]: () => respostaJson(
+          { erro: 'BomInvalido', mensagem: 'Linha 3: quantidade invalida.\nLinha 9: codigo vazio.' }, 400,
+        ),
+      }))
+      renderizar()
+      await abrirPainel()
+      escolherArquivo('bom-ruim.csv')
+
+      enviar()
+
+      const alerta = await within(formularioDoPainel()).findByRole('alert')
+      expect(alerta.textContent).toContain('O arquivo tem problemas:')
+      expect(within(alerta).getAllByRole('listitem').map((li) => li.textContent))
+        .toEqual(['Linha 3: quantidade invalida.', 'Linha 9: codigo vazio.'])
+      // O rascunho segue como estava, e o erro mora só no painel.
+      expect(screen.getByText(/bom-chassi\.xlsx · Maria PCP/)).toBeTruthy()
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      expect((within(formularioDoPainel()).getByRole('button', { name: 'Reimportar' }) as HTMLButtonElement).disabled)
+        .toBe(true)
+    })
+
+    it('Reimportar_com_versao_velha_rele_e_avisa_no_painel', async () => {
+      let lidas = 0
+      const fetchMock = montarFetch({
+        'GET /api/importacoes/5': () => {
+          lidas += 1
+          return respostaJson(lidas === 1 ? importacao() : importacao({ versao: 'AAAAAAAAB9F=', quantidadeDaPeca: 9 }))
+        },
+        [ROTA]: () => respostaJson({ erro: 'ImportacaoDesatualizada' }, 409),
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      await abrirPainel()
+      escolherArquivo('bom-novo.xlsx')
+
+      enviar()
+
+      const alerta = await within(formularioDoPainel()).findByRole('alert')
+      expect(alerta.textContent).toBe('Outra pessoa alterou esta importação; a tela foi atualizada.')
+      await waitFor(() => expect(leituras(fetchMock)).toHaveLength(2))
+      // O aviso mora no painel, onde o usuário está olhando, e não duplica no topo da tela.
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+      await waitFor(() => expect((screen.getByLabelText('Quantidade da Peça') as HTMLInputElement).value).toBe('9'))
+      expect((within(formularioDoPainel()).getByRole('button', { name: 'Reimportar' }) as HTMLButtonElement).disabled)
+        .toBe(true)
+
+      // O envio seguinte já sai com a versão relida.
+      escolherArquivo('bom-novo.xlsx')
+      enviar()
+      await waitFor(() => expect(fetchMock.mock.calls.filter((c) => c[1]?.method === 'POST')).toHaveLength(2))
+      const posts = fetchMock.mock.calls.filter((c) => c[1]?.method === 'POST')
+      expect((posts[0][1]!.body as FormData).get('versao')).toBe('AAAAAAAAB9E=')
+      expect((posts[1][1]!.body as FormData).get('versao')).toBe('AAAAAAAAB9F=')
+    })
+
+    it('Reimportar_com_outra_falha_mostra_a_mensagem_no_painel', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao()),
+        [ROTA]: () => respostaJson({}, 403),
+      }))
+      renderizar()
+      await abrirPainel()
+      escolherArquivo('bom.xlsx')
+
+      enviar()
+
+      expect((await within(formularioDoPainel()).findByRole('alert')).textContent)
+        .toBe('Seu perfil não tem permissão para esta ação.')
+      expect(screen.getAllByRole('alert')).toHaveLength(1)
+    })
+
+    it('com o envio em voo, a faixa, a árvore e o Descartar ficam travados', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao()),
+        [ROTA]: () => new Promise<Response>(() => {}) as unknown as Response,
+      }))
+      renderizar()
+      await abrirPainel()
+      escolherArquivo('bom.xlsx')
+
+      enviar()
+
+      await screen.findByRole('button', { name: 'Reimportando…' })
+      expect((screen.getByLabelText('Quantidade da Peça') as HTMLInputElement).disabled).toBe(true)
+      expect((screen.getByLabelText('Quantidade por pai de Suporte') as HTMLInputElement).disabled).toBe(true)
+      expect((screen.getByRole('button', { name: 'Descartar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('Fechar_o_painel_de_reimportar_devolve_o_foco_ao_botao', async () => {
+      vi.stubGlobal('fetch', montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) }))
+      renderizar()
+      await abrirPainel()
+
+      fireEvent.click(within(formularioDoPainel()).getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('form', { name: 'Reimportar BOM' })).toBeNull()
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reimportar' }))
+    })
+
+    it('fechar por sucesso também devolve o foco ao botão', async () => {
+      vi.stubGlobal('fetch', montarFetch({
+        'GET /api/importacoes/5': () => respostaJson(importacao()),
+        [ROTA]: () => respostaJson(importacao({ nomeDoArquivo: 'bom-novo.xlsx' })),
+      }))
+      renderizar()
+      await abrirPainel()
+      escolherArquivo('bom-novo.xlsx')
+
+      enviar()
+
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reimportar' })))
+    })
+  })
 })

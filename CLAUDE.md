@@ -324,8 +324,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `grep -rn "testId=" web/src --include=*.tsx | grep -v "\.test\."` (1 linha, em 2026-10-01 e remedida
   em 2026-10-03, sem mudança). O identificador sobrevive por compatibilidade, não por falta de papel: o
   `<form>` do `PainelDeEscrita` tem nome acessível, e **painel novo não passa `testId`** — o "Nova Peça" e
-  o "Importar BOM" do Agrupamento e os das quatro telas de lista são achados por
-  `getByRole('form', { name })`. A prop não é atalho para fugir desta regra.
+  o "Importar BOM" do Agrupamento, o "Reimportar BOM" da conferência e os das quatro telas de lista
+  são achados por `getByRole('form', { name })`. A prop não é atalho para fugir desta regra.
 
   Somando, os identificadores que chegam ao DOM são **6** (`painel-de-escrita` pelo repasse), um a mais
   que os **5** da medição anterior (2026-10-01, mesmo comando: "6 linhas em 4 arquivos", e antes dela
@@ -371,14 +371,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   abriu o painel. O controle focado sai do DOM junto com o painel, e sem o hook o foco cairia no
   `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
   tiver caído no `<body>`**: fechar um painel porque outro abriu não tira o foco do campo do painel
-  novo. A origem é o botão do cabeçalho nas cinco telas; no modo de edição da `SetoresPage`, é o
+  novo. A origem é o botão do cabeçalho nas cinco telas de cadastro; no modo de edição da `SetoresPage`, é o
   "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. Na
   `AgrupamentoDetalhePage`, o do "Nova Peça" devolve ao "Nova Peça" e o do "Importar BOM", ao "Importar
-  BOM"; o painel do nó **não** devolve foco. Hoje o hook tem **cinco** telas consumidoras e **seis**
-  chamadas (medido em 2026-10-02 com
+  BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
+  cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Hoje o hook tem
+  **seis** telas consumidoras e **sete** chamadas (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
-  remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas):
-  `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage`. O usuário decidiu
+  remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
+  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma): `SetoresPage`, `MateriaisPage`,
+  `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage` e `ConferenciaDeImportacaoPage`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -389,13 +391,26 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **cinco** telas consumidoras, com **sete** usos
-  (medido em 2026-10-01 com `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`,
-  com seis usos, e remedido em 2026-10-03 com o mesmo comando: sete):
-  `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
-  `PedidosPage` e, três vezes, a `AgrupamentoDetalhePage` — o painel "Nova Peça", o "Importar BOM" (um
-  campo de arquivo, cujo erro, inclusive a lista de linhas do arquivo, mora dentro dele) e o do nó (editar
-  e acrescentar sub-Item), que nunca coexistem: abrir um fecha os outros.
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **seis** telas consumidoras (cinco escrevem o
+  `<PainelDeEscrita` à mão e uma só o usa por dentro do `PainelDoArquivoDoBom`), com **sete**
+  linhas de uso no código e **oito** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
+  2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
+  "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`). As sete linhas são
+  seis nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
+  `PedidosPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do nó, editar e
+  acrescentar sub-Item) — mais a do `PainelDoArquivoDoBom`. Os oito painéis são esses seis mais os dois
+  usos do `PainelDoArquivoDoBom`: o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
+  `ConferenciaDeImportacaoPage` (`grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
+  duas linhas em 2026-10-07). Na `AgrupamentoDetalhePage` os três painéis nunca coexistem: abrir um fecha os
+  outros.
+
+  **O `PainelDoArquivoDoBom`** (`web/src/importacao/`, com teste próprio) é o painel do arquivo do BOM, e o
+  erro dele, inclusive a lista de linhas do arquivo, mora dentro dele. Guarda o que os dois usos pedem igual:
+  o campo `.xlsx`/`.csv` com a dica do limite, a recusa antes de enviar do arquivo acima do
+  `TAMANHO_MAXIMO_DO_BOM_EM_BYTES`, o descarte do arquivo depois de **qualquer** falha e o `ErroDeBom`
+  como `BannerDeErro` com `linhas`. Quem o usa passa `aoEnviar(arquivo)`, que **rejeita** na falha, e o
+  `mensagemDoErro` opcional, para a frase própria da tela (o 409 da conferência).
 - **A conferência do import da estrutura** (`ConferenciaDeImportacaoPage`, spec
   `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`) reusa primitivas em vez de
   inventar telas paralelas. O sólido do Componente usa `UploadDeSolido` e `VisualizadorDeSolido`, que
@@ -410,6 +425,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   selecionado é fixo (`sticky`) só de `md` para cima (D16 da spec: é tela de PC), e quem o fixa não pode
   deixar um campo da árvore pintar por cima dele — a linha é `isolate`, que prende o `z-index` do campo de
   quantidade dentro da linha.
+  A faixa da Peça traz o "Reimportar" ao lado de Confirmar e Descartar: ele abre o `PainelDoArquivoDoBom` (ver
+  o bullet do `PainelDeEscrita`), e a escrita passa pela mesma `escrever` da tela, com a falha devolvida ao
+  painel em vez de virar aviso no topo.
 - **Cores só pelos tokens** de `web/src/index.css` (`text-tinta`, `bg-acao`, `border-borda`…).
   `text-gray-*`, `text-red-600` e afins não existem mais em `web/src/`. Isto é **guarda executável**,
   não só varredura pontual: `web/src/tema/semCorForaDaPaleta.test.ts` varre `web/src/` inteiro atrás
