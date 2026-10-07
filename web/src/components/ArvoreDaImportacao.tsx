@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { NoDaImportacaoDto, PendenciaDoNo } from '../api/importacao'
+import { lerQuantidadeDaConferencia } from '../importacao/quantidade'
 import { Campo, CLASSES_DE_CONTROLE } from './Campo'
 import { Pilula, type TomDePilula } from './Pilula'
 
@@ -190,17 +191,13 @@ function LinhaDoNo({
           {ehMesmoCodigo && <span className="text-xs text-tinta-fraca">mesmo código</span>}
         </div>
         {editavel ? (
-          // O rótulo existe para o leitor de tela e para o teste; visível, repetiria "Quantidade por
-          // pai de …" em toda linha.
-          <div className="relative z-[1] w-24 [&_label]:sr-only">
-            <CampoDeQuantidade
-              key={`${no.filhoId}-${no.quantidadePorPai}-${revisao}`}
-              rotulo={`Quantidade por pai de ${no.descricao}`}
-              valor={no.quantidadePorPai!}
-              desabilitado={desabilitado}
-              aoConfirmar={(q) => aoAlterarQuantidade!(no.filhoId!, q)}
-            />
-          </div>
+          <CampoDeQuantidade
+            key={`${no.filhoId}-${no.quantidadePorPai}-${revisao}`}
+            rotulo={`Quantidade por pai de ${no.descricao}`}
+            valor={no.quantidadePorPai!}
+            desabilitado={desabilitado}
+            aoConfirmar={(q) => aoAlterarQuantidade!(no.filhoId!, q)}
+          />
         ) : (
           no.quantidadePorPai !== null && (
             <span className="text-sm text-tinta-fraca">{`× ${formatar(no.quantidadePorPai)}`}</span>
@@ -237,39 +234,55 @@ function formatar(n: number): string {
 
 /**
  * O campo guarda o que foi digitado e só escreve ao sair dele (ou no Enter), e só se o valor for
- * um número positivo e diferente do atual: uma requisição por tecla estouraria a versão a cada
- * caractere. Valor inválido volta ao que estava. A `key` do chamador remonta o campo quando a
- * resposta traz o valor novo.
+ * válido e diferente do atual: uma requisição por tecla estouraria a versão a cada caractere. O que
+ * o servidor recusaria (`lerQuantidadeDaConferencia`) volta ao que estava, com o motivo numa linha
+ * própria da árvore, ligada ao campo por `aria-describedby`. A `key` do chamador remonta o campo
+ * quando a resposta traz o valor novo.
  */
 function CampoDeQuantidade({
   rotulo, valor, desabilitado, aoConfirmar,
 }: { rotulo: string; valor: number; desabilitado: boolean; aoConfirmar: (quantidade: number) => void }) {
   const [texto, setTexto] = useState(formatar(valor))
+  const [motivo, setMotivo] = useState<string | null>(null)
+  const idDoMotivo = useId()
 
   function confirmar() {
-    const n = Number(texto.trim().replace(',', '.'))
-    if (texto.trim() === '' || !Number.isFinite(n) || n <= 0) {
+    const lida = lerQuantidadeDaConferencia(texto)
+    setMotivo(lida.motivo)
+    if (lida.valor === null) {
       setTexto(formatar(valor))
       return
     }
-    if (n !== valor) aoConfirmar(n)
+    if (lida.valor !== valor) aoConfirmar(lida.valor)
   }
 
   return (
-    <Campo rotulo={rotulo}>
-      {(id) => (
-        <input
-          id={id}
-          type="text"
-          inputMode="decimal"
-          value={texto}
-          disabled={desabilitado}
-          onChange={(e) => setTexto(e.target.value)}
-          onBlur={confirmar}
-          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-          className={`${CLASSES_DE_CONTROLE} px-2 py-1 text-right`}
-        />
+    <>
+      {/* O rótulo existe para o leitor de tela e para o teste; visível, repetiria "Quantidade por
+          pai de …" em toda linha. */}
+      <div className="relative z-[1] w-24 [&_label]:sr-only">
+        <Campo rotulo={rotulo}>
+          {(id) => (
+            <input
+              id={id}
+              type="text"
+              inputMode="decimal"
+              value={texto}
+              disabled={desabilitado}
+              aria-describedby={motivo ? idDoMotivo : undefined}
+              onChange={(e) => setTexto(e.target.value)}
+              onBlur={confirmar}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              className={`${CLASSES_DE_CONTROLE} px-2 py-1 text-right`}
+            />
+          )}
+        </Campo>
+      </div>
+      {/* `basis-full`: a linha é `flex-wrap`, e o motivo desce para uma linha inteira em vez de se
+          espremer na largura do campo. */}
+      {motivo && (
+        <p id={idDoMotivo} className="relative z-[1] basis-full text-right text-sm text-negativo-texto">{motivo}</p>
       )}
-    </Campo>
+    </>
   )
 }
