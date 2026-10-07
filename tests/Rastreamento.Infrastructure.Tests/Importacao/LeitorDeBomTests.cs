@@ -76,6 +76,7 @@ public class LeitorDeBomTests
     Assert.Empty(r.Linhas);
     var erro = Assert.Single(r.Erros);
     Assert.Equal(2, erro.Linha);
+    Assert.Equal("aspas não fechadas: um campo entre aspas não termina.", erro.Mensagem);
   }
 
   [Fact]
@@ -153,7 +154,7 @@ public class LeitorDeBomTests
     var r = LerCsv("Item;Codigo;Descricao;Quantidade\n1;P-001;PAINEL;1\n");
 
     Assert.Empty(r.Linhas);
-    Assert.Equal("coluna 'N da peca' nao encontrada", Assert.Single(r.Erros).Mensagem);
+    Assert.Equal("coluna 'Nº da peça' não encontrada", Assert.Single(r.Erros).Mensagem);
   }
 
   [Fact]
@@ -164,7 +165,7 @@ public class LeitorDeBomTests
     Assert.Empty(r.Linhas);
     var erro = Assert.Single(r.Erros);
     Assert.Null(erro.Linha);
-    Assert.Equal("coluna 'Quantidade' nao encontrada", erro.Mensagem);
+    Assert.Equal("coluna 'Quantidade' não encontrada", erro.Mensagem);
   }
 
   [Fact]
@@ -209,6 +210,7 @@ public class LeitorDeBomTests
     Assert.Null(erro.Linha);
     Assert.Contains(".csv", erro.Mensagem);
     Assert.Contains(".xlsx", erro.Mensagem);
+    Assert.StartsWith("extensão não suportada", erro.Mensagem);
   }
 
   [Fact]
@@ -235,7 +237,7 @@ public class LeitorDeBomTests
     var r = Leitor.Ler("bom.csv", []);
 
     Assert.Empty(r.Linhas);
-    Assert.Single(r.Erros);
+    Assert.Equal("o arquivo está vazio: não há linha de cabeçalho.", Assert.Single(r.Erros).Mensagem);
   }
 
   [Fact]
@@ -381,6 +383,7 @@ public class LeitorDeBomTests
     var erro = Assert.Single(r.Erros);
     Assert.Equal(2, erro.Linha);
     Assert.Contains("texto", erro.Mensagem);
+    Assert.StartsWith("o nº do item veio como número", erro.Mensagem);
   }
 
   [Fact]
@@ -429,7 +432,7 @@ public class LeitorDeBomTests
     var r = Leitor.Ler("bom.xlsx", bytes);
 
     var erro = Assert.Single(r.Erros);
-    Assert.Equal("coluna 'Quantidade' nao encontrada", erro.Mensagem);
+    Assert.Equal("coluna 'Quantidade' não encontrada", erro.Mensagem);
   }
 
   [Fact]
@@ -468,6 +471,6 @@ public class LeitorDeBomTests
     var r = Leitor.Ler("bom.xlsx", Utf8("isto nao e um zip"));
 
     Assert.Empty(r.Linhas);
-    Assert.Single(r.Erros);
+    Assert.Equal("o arquivo XLSX está corrompido ou não é uma planilha válida.", Assert.Single(r.Erros).Mensagem);
   }
 }

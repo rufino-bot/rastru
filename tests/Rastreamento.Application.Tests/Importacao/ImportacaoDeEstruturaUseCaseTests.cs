@@ -248,8 +248,7 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     var r = await m.Criar("conjunto.csv", L(2, "1", "A-1", "ok", "1"), L(3, "2", new string('X', 51), "Peca", "1"));
 
     Assert.Equal(ImportacaoDeEstruturaUseCase.ErroDeBomInvalido, r.Erro);
-    Assert.StartsWith("Linha 3: ", r.Detalhe);
-    Assert.Contains("50", r.Detalhe);
+    Assert.Equal("Linha 3: código com 51 caracteres: o máximo é 50.", r.Detalhe);
     Assert.Empty(m.Importacoes.Importacoes);
   }
 
@@ -271,8 +270,7 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     var r = await m.Criar("conjunto.csv", L(2, "1", "A-1", new string('d', 201), "1"));
 
     Assert.Equal(ImportacaoDeEstruturaUseCase.ErroDeBomInvalido, r.Erro);
-    Assert.StartsWith("Linha 2: ", r.Detalhe);
-    Assert.Contains("200", r.Detalhe);
+    Assert.Equal("Linha 2: descrição com 201 caracteres: o máximo é 200.", r.Detalhe);
   }
 
   [Fact]
@@ -283,7 +281,7 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     var r = await m.Criar("conjunto.csv", L(2, "1", "A-1", "ok", "1"), L(3, "2", "B-1", "   ", "1"));
 
     Assert.Equal(ImportacaoDeEstruturaUseCase.ErroDeBomInvalido, r.Erro);
-    Assert.Equal("Linha 3: descricao vazia.", r.Detalhe);
+    Assert.Equal("Linha 3: descrição vazia.", r.Detalhe);
   }
 
   [Fact]

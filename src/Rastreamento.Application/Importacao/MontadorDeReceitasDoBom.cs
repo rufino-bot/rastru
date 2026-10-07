@@ -27,7 +27,7 @@ public static class MontadorDeReceitasDoBom
   public static BomMontado Montar(string nomeDoArquivo, IReadOnlyList<LinhaCruaDoBom> linhas)
   {
     if (linhas.Count == 0)
-      return Recusado([new ErroDoBom(null, "o arquivo esta vazio: nenhuma linha de item foi encontrada.")]);
+      return Recusado([new ErroDoBom(null, "o arquivo está vazio: nenhuma linha de item foi encontrada.")]);
 
     var erros = new List<ErroDoBom>();
     var lidas = LerAsLinhas(linhas, erros);
@@ -47,8 +47,8 @@ public static class MontadorDeReceitasDoBom
       var soma = receita.Somar(chavesDaLinha[i], linha.Quantidade);
       if (soma > PlanejadorDeCopia.QuantidadeMaximaDaColuna)
         erros.Add(new ErroDoBom(linhas[i].NumeroDaLinha,
-            $"quantidade invalida: a soma das ocorrencias deste item sob o mesmo pai ({soma.ToString(CultureInfo.InvariantCulture)}) "
-            + $"passa do maximo de {PlanejadorDeCopia.QuantidadeMaximaDaColuna.ToString(CultureInfo.InvariantCulture)}."));
+            $"quantidade inválida: a soma das ocorrências deste item sob o mesmo pai ({soma.ToString(CultureInfo.InvariantCulture)}) "
+            + $"passa do máximo de {PlanejadorDeCopia.QuantidadeMaximaDaColuna.ToString(CultureInfo.InvariantCulture)}."));
     }
 
     var vazia = new Receita();
@@ -84,7 +84,7 @@ public static class MontadorDeReceitasDoBom
       else if (!daOcorrencia.IgualA(receitaDoComponente[chave]))
       {
         erros.Add(new ErroDoBom(linhas[i].NumeroDaLinha,
-            $"o codigo '{codigoDaChave[chave]}' aparece com filhos diferentes "
+            $"o código '{codigoDaChave[chave]}' aparece com filhos diferentes "
             + $"(linhas {linhas[primeira].NumeroDaLinha} e {linhas[i].NumeroDaLinha})."));
       }
     }
@@ -146,7 +146,7 @@ public static class MontadorDeReceitasDoBom
       if (segmentos is null)
       {
         erros.Add(new ErroDoBom(linha.NumeroDaLinha,
-            $"nivel invalido '{linha.Nivel?.Trim()}': use inteiros positivos separados por ponto, como 1.2.3."));
+            $"nível inválido '{linha.Nivel?.Trim()}': use inteiros positivos separados por ponto, como 1.2.3."));
         lidas.Add(new LinhaLida(false, Orfa, codigo, descricao, quantidade));
         continue;
       }
@@ -159,7 +159,7 @@ public static class MontadorDeReceitasDoBom
         {
           pai = Orfa;
           erros.Add(new ErroDoBom(linha.NumeroDaLinha,
-              $"o nivel '{string.Join('.', segmentos)}' pula um degrau: falta o item '{prefixo}' antes dele."));
+              $"o nível '{string.Join('.', segmentos)}' pula um degrau: falta o item '{prefixo}' antes dele."));
         }
       }
 
@@ -195,9 +195,9 @@ public static class MontadorDeReceitasDoBom
   {
     quantidade = 0;
     var t = (texto ?? "").Trim();
-    var invalida = $"quantidade invalida '{t}': use um numero de {PlanejadorDeCopia.QuantidadeMinimaDaColuna.ToString(CultureInfo.InvariantCulture)} "
+    var invalida = $"quantidade inválida '{t}': use um número de {PlanejadorDeCopia.QuantidadeMinimaDaColuna.ToString(CultureInfo.InvariantCulture)} "
         + $"a {PlanejadorDeCopia.QuantidadeMaximaDaColuna.ToString(CultureInfo.InvariantCulture)}, "
-        + $"com no maximo {LimiteDeQuantidadeDecimais} casas decimais.";
+        + $"com no máximo {LimiteDeQuantidadeDecimais} casas decimais.";
 
     var separadores = t.Count(c => c is '.' or ',');
     if (t.Length == 0 || separadores > 1 || !t.All(c => char.IsAsciiDigit(c) || c is '.' or ',')
@@ -276,7 +276,7 @@ public static class MontadorDeReceitasDoBom
     string Rotulo(int chave) =>
         codigoDaChave.TryGetValue(chave, out var c) && c is not null
             ? c
-            : $"(sem codigo, linha {linhas[primeiraLinhaDaChave[chave]].NumeroDaLinha})";
+            : $"(sem código, linha {linhas[primeiraLinhaDaChave[chave]].NumeroDaLinha})";
 
     void Visitar(int chave)
     {
@@ -290,7 +290,7 @@ public static class MontadorDeReceitasDoBom
           achou = true;
           var trecho = caminho.Skip(caminho.IndexOf(filho)).Append(filho).Select(Rotulo);
           erros.Add(new ErroDoBom(linhas[primeiraLinhaDaChave[filho]].NumeroDaLinha,
-              $"ciclo entre codigos: {string.Join(" -> ", trecho)}."));
+              $"ciclo entre códigos: {string.Join(" -> ", trecho)}."));
         }
         else if (e == 0)
           Visitar(filho);
@@ -331,7 +331,7 @@ public static class MontadorDeReceitasDoBom
     Medir(0);
     if (profundidade[0] > PlanejadorDeCopia.ProfundidadeMaxima)
       erros.Add(new ErroDoBom(null,
-          $"a estrutura passa de {PlanejadorDeCopia.ProfundidadeMaxima} niveis de profundidade."));
+          $"a estrutura passa de {PlanejadorDeCopia.ProfundidadeMaxima} níveis de profundidade."));
     if (nos[0] > PlanejadorDeCopia.NosMaximos)
       erros.Add(new ErroDoBom(null,
           $"a estrutura expandida gera mais de {PlanejadorDeCopia.NosMaximos} itens."));

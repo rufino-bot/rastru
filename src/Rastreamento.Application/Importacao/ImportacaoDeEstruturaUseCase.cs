@@ -275,7 +275,7 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     if (nomeDoArquivo.Length > NomeDoArquivoMaximo)
       erros.Add(new ErroDoBom(null, $"o nome do arquivo passa de {NomeDoArquivoMaximo} caracteres."));
     else if (bom.Componentes.Single(c => c.Chave == 0).Descricao.Length > DescricaoMaxima)
-      erros.Add(new ErroDoBom(null, $"o nome do arquivo (sem a extensao) passa de {DescricaoMaxima} caracteres."));
+      erros.Add(new ErroDoBom(null, $"o nome do arquivo (sem a extensão) passa de {DescricaoMaxima} caracteres."));
 
     var vistos = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     foreach (var linha in linhas)
@@ -285,13 +285,13 @@ public sealed partial class ImportacaoDeEstruturaUseCase
         continue;
 
       if (codigo is not null && codigo.Length > CodigoMaximo)
-        erros.Add(new ErroDoBom(linha.NumeroDaLinha, $"codigo com {codigo.Length} caracteres: o maximo e {CodigoMaximo}."));
+        erros.Add(new ErroDoBom(linha.NumeroDaLinha, $"código com {codigo.Length} caracteres: o máximo é {CodigoMaximo}."));
 
       var descricao = (linha.Descricao ?? string.Empty).Trim();
       if (descricao.Length == 0)
-        erros.Add(new ErroDoBom(linha.NumeroDaLinha, "descricao vazia."));
+        erros.Add(new ErroDoBom(linha.NumeroDaLinha, "descrição vazia."));
       else if (descricao.Length > DescricaoMaxima)
-        erros.Add(new ErroDoBom(linha.NumeroDaLinha, $"descricao com {descricao.Length} caracteres: o maximo e {DescricaoMaxima}."));
+        erros.Add(new ErroDoBom(linha.NumeroDaLinha, $"descrição com {descricao.Length} caracteres: o máximo é {DescricaoMaxima}."));
     }
 
     return [.. erros.OrderBy(e => e.Linha ?? int.MaxValue)];

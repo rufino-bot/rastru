@@ -131,7 +131,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Equal(6, erro.Linha);
-    Assert.Contains("'B'", erro.Mensagem);
+    Assert.Contains("o código 'B' aparece com filhos diferentes", erro.Mensagem);
     Assert.Contains("3", erro.Mensagem);
     Assert.Contains("6", erro.Mensagem);
     Assert.Empty(bom.Componentes);
@@ -163,7 +163,7 @@ public class MontadorDeReceitasDoBomTests
         L(4, "1.1.1", "A", "A", "1"));
 
     var ciclo = Assert.Single(bom.Erros, e => e.Mensagem.Contains("ciclo"));
-    Assert.Contains("A -> B -> A", ciclo.Mensagem);
+    Assert.Equal("ciclo entre códigos: A -> B -> A.", ciclo.Mensagem);
     Assert.Equal(2, ciclo.Linha);
   }
 
@@ -186,7 +186,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Equal(3, erro.Linha);
-    Assert.Contains("nivel", erro.Mensagem);
+    Assert.Contains("nível", erro.Mensagem);
     Assert.Equal("Linha 3: " + erro.Mensagem, erro.ToString());
   }
 
@@ -197,7 +197,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Equal(2, erro.Linha);
-    Assert.Contains("nivel", erro.Mensagem);
+    Assert.Contains("nível", erro.Mensagem);
   }
 
   [Theory]
@@ -213,7 +213,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Equal(2, erro.Linha);
-    Assert.Contains("nivel", erro.Mensagem);
+    Assert.Contains("nível", erro.Mensagem);
   }
 
   [Fact]
@@ -263,7 +263,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Equal(7, erro.Linha);
-    Assert.Contains("quantidade invalida", erro.Mensagem);
+    Assert.Contains("quantidade inválida", erro.Mensagem);
   }
 
   [Fact]
@@ -384,7 +384,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Null(erro.Linha);
-    Assert.Contains(PlanejadorDeCopia.ProfundidadeMaxima.ToString(), erro.Mensagem);
+    Assert.Equal($"a estrutura passa de {PlanejadorDeCopia.ProfundidadeMaxima} níveis de profundidade.", erro.Mensagem);
   }
 
   [Fact]
@@ -414,7 +414,7 @@ public class MontadorDeReceitasDoBomTests
 
     var erro = Assert.Single(bom.Erros);
     Assert.Null(erro.Linha);
-    Assert.Contains("vazio", erro.Mensagem);
+    Assert.Equal("o arquivo está vazio: nenhuma linha de item foi encontrada.", erro.Mensagem);
     Assert.Equal(erro.Mensagem, erro.ToString());
     Assert.Empty(bom.Componentes);
     Assert.Empty(bom.Filhos);

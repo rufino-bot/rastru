@@ -508,8 +508,9 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
   ausente (o `arquivo` do multipart, por exemplo), e `{ "erro": ..., "mensagem"?: ... }` do caso de uso.
   - **`BomInvalido`**, em `POST /agrupamentos/{id}/importacoes` e `POST /importacoes/{id}/arquivo`:
     `erro` é o **código** e `mensagem` traz **uma linha por erro do arquivo, separadas por `\n`** (`"Linha 7:
-    quantidade invalida '0': ...\nLinha 9: ..."`; sem o prefixo "Linha N:" quando o erro é do arquivo
-    inteiro). O texto é ASCII sem acento; a tela escreve o título em português e lista as linhas como vêm.
+    quantidade inválida '0': ...\nLinha 9: ..."`; sem o prefixo "Linha N:" quando o erro é do arquivo
+    inteiro). As linhas são texto de tela, em português com acento; a tela escreve o título e lista as linhas
+    como vêm. As **demais** frases de erro da Importação (abaixo) seguem sem acento, e a tela não as mostra.
   - **`ImportacaoComBloqueios`**, em `POST /importacoes/{id}/confirmacao`: o rascunho ainda tem bloqueio. **Sem
     a lista** — a tela relê o `GET`, que a traz, e a lista não existe em dois contratos.
   - `versao` **ausente ou vazia** (corpo JSON ou campo do multipart) não chega ao caso de uso: o parâmetro

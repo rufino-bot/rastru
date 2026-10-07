@@ -18,7 +18,7 @@ public sealed class LeitorDeBom : ILeitorDeBom
     if (extensao.Equals(".csv", StringComparison.OrdinalIgnoreCase)) return LeitorDeCsv.Ler(conteudo);
     if (extensao.Equals(".xlsx", StringComparison.OrdinalIgnoreCase)) return LeitorDeXlsx.Ler(conteudo);
 
-    return Recusado("extensao nao suportada: envie um arquivo .csv ou .xlsx.");
+    return Recusado("extensão não suportada: envie um arquivo .csv ou .xlsx.");
   }
 
   /// <summary>
@@ -61,7 +61,7 @@ public sealed class LeitorDeBom : ILeitorDeBom
       if (n.Numerica && !n.Texto.All(char.IsAsciiDigit))
       {
         erros.Add(new ErroDoBom(numero,
-            "o n do item veio como numero; salve a coluna como texto (1.10 e 1.1 seriam indistinguiveis)."));
+            "o nº do item veio como número; salve a coluna como texto (1.10 e 1.1 seriam indistinguíveis)."));
         continue;
       }
 

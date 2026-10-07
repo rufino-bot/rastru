@@ -26,7 +26,7 @@ internal static class LeitorDeCsv
 
     var comConteudo = registros.Where(r => r.Campos.Any(c => c.Length > 0)).ToList();
     if (comConteudo.Count == 0)
-      return LeitorDeBom.Recusado("o arquivo esta vazio: nao ha linha de cabecalho.");
+      return LeitorDeBom.Recusado("o arquivo está vazio: não há linha de cabeçalho.");
 
     var cabecalho = comConteudo[0].Campos;
     var linhas = comConteudo.Skip(1)
@@ -135,7 +135,7 @@ internal static class LeitorDeCsv
 
     if (dentroDeAspas)
     {
-      erro = new ErroDoBom(linhaDoRegistro, "aspas nao fechadas: um campo entre aspas nao termina.");
+      erro = new ErroDoBom(linhaDoRegistro, "aspas não fechadas: um campo entre aspas não termina.");
       return [];
     }
 

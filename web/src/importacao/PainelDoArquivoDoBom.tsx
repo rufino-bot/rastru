@@ -84,7 +84,7 @@ export function PainelDoArquivoDoBom({
       if (daTela !== null) {
         setErro(daTela)
       } else if (falha instanceof ErroDeBom) {
-        // O texto do servidor é ASCII sem acento: o título é nosso, e as linhas vão como vieram.
+        // O título é nosso, e as linhas do servidor (texto de tela, com acento) vão como vieram.
         setErro('O arquivo tem problemas:')
         setLinhas(falha.linhas)
       } else {

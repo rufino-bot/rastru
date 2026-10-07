@@ -140,8 +140,8 @@ export const LIMITE_DO_BOM_LEGIVEL = `${TAMANHO_MAXIMO_DO_BOM_EM_BYTES / (1024 *
 
 /**
  * O arquivo não passou na leitura (400 `BomInvalido`). `linhas` é a `mensagem` do servidor quebrada
- * por `\n` — uma linha por erro do arquivo (decisão P13 do plano do import). O texto do servidor é
- * ASCII sem acento: quem o mostra escreve o título em português e lista as linhas como vierem.
+ * por `\n` — uma linha por erro do arquivo (decisão P13 do plano do import). As linhas já vêm em
+ * português com acento: quem as mostra escreve o título e lista as linhas como vierem.
  */
 export class ErroDeBom extends ErroDeApi {
   readonly linhas: string[]
@@ -170,8 +170,8 @@ async function lerCorpoDeErro(resp: Response): Promise<CorpoDeErro> {
 /**
  * Lê o 200/201 de uma escrita do rascunho ou lança. O `codigo` do servidor vai no `ErroDeApi`
  * (`ImportacaoDesatualizada` no 409 de versão velha, por exemplo); o texto do servidor não vai em
- * `detalhe`, porque é ASCII sem acento — a tela decide a frase. Com `lerBom`, o 400 `BomInvalido`
- * vira `ErroDeBom`.
+ * `detalhe`, porque fora do arquivo do BOM ele é ASCII sem acento — a tela decide a frase. Com
+ * `lerBom`, o 400 `BomInvalido` vira `ErroDeBom`, com as linhas do servidor, que são texto de tela.
  */
 async function lerEscrita(resp: Response, fallback: string, lerBom = false): Promise<ImportacaoDto> {
   if (resp.ok) return (await resp.json()) as ImportacaoDto

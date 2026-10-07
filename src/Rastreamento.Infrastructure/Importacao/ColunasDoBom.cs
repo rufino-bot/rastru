@@ -18,9 +18,9 @@ public static class ColunasDoBom
   // Cada entrada: o nome canonico, que o erro cita, e os apelidos ja normalizados.
   private static readonly (string Canonico, string[] Apelidos)[] Colunas =
   [
-    ("N do item", ["N DO ITEM", "ITEM NO", "ITEM", "NUMERO DO ITEM"]),
-    ("N da peca", ["N DA PECA", "PART NUMBER", "NUMERO DA PECA"]),
-    ("Descricao", ["DESCRICAO", "DESCRIPTION"]),
+    ("Nº do item", ["N DO ITEM", "ITEM NO", "ITEM", "NUMERO DO ITEM"]),
+    ("Nº da peça", ["N DA PECA", "PART NUMBER", "NUMERO DA PECA"]),
+    ("Descrição", ["DESCRICAO", "DESCRIPTION"]),
     ("Quantidade", ["QTD", "QTY", "QUANTIDADE"]),
   ];
 
@@ -39,7 +39,7 @@ public static class ColunasDoBom
     {
       indices[c] = Array.FindIndex(normalizado, n => Colunas[c].Apelidos.Contains(n));
       if (indices[c] < 0)
-        faltando.Add(new ErroDoBom(null, $"coluna '{Colunas[c].Canonico}' nao encontrada"));
+        faltando.Add(new ErroDoBom(null, $"coluna '{Colunas[c].Canonico}' não encontrada"));
     }
 
     erros = faltando;

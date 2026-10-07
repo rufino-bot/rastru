@@ -28,7 +28,7 @@ internal static class LeitorDeXlsx
     try
     {
       if (DescompactadoPassaDoLimite(conteudo))
-        return LeitorDeBom.Recusado("o arquivo XLSX descompactado e grande demais.");
+        return LeitorDeBom.Recusado("o arquivo XLSX descompactado é grande demais.");
 
       using var memoria = new MemoryStream(conteudo, writable: false);
       using var documento = SpreadsheetDocument.Open(memoria, isEditable: false);
@@ -37,7 +37,7 @@ internal static class LeitorDeXlsx
     catch (Exception e) when (e is not OutOfMemoryException)
     {
       // Zip invalido, XML malformado, parte ausente: tudo vira "nao consegui ler", sem vazar o detalhe.
-      return LeitorDeBom.Recusado("o arquivo XLSX esta corrompido ou nao e uma planilha valida.");
+      return LeitorDeBom.Recusado("o arquivo XLSX está corrompido ou não é uma planilha válida.");
     }
   }
 
@@ -80,7 +80,7 @@ internal static class LeitorDeXlsx
     }
 
     if (linhas.Count == 0)
-      return LeitorDeBom.Recusado("o arquivo esta vazio: nao ha linha de cabecalho.");
+      return LeitorDeBom.Recusado("o arquivo está vazio: não há linha de cabeçalho.");
 
     var cabecalho = linhas[0].Celulas.Select(c => c.Texto).ToList();
     return LeitorDeBom.MontarLinhas(cabecalho, linhas.Skip(1));
