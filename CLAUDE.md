@@ -119,6 +119,22 @@ reconstruída depois é indistinguível de racionalização.
 - **Achado de review executado sem medir.** Recomendação de revisor se remede: três vezes na Fase 1C
   uma proposta concreta de review não sobreviveu à medição de quem foi executá-la.
 
+### Conferência no navegador vem antes da review de branch, e quem a faz é o usuário
+
+**Regra do usuário (2026-10-07):** se o plano tem task de conferência no navegador, a **review de branch
+inteira não é despachada até que o usuário faça essa task**. Nas palavras dele: *"se tiver task pedindo
+conferência no navegador, não dispare a review de branch até que eu faça a task. Se algo mudar, a task
+perde parte do valor"*.
+
+- **A task é do usuário.** Captura feita por agente, com Playwright ou Chromium na nuvem, prepara a
+  conferência: mostra as telas, aponta o que olhar e serve de evidência. Ela **não** substitui a conferência
+  do usuário, e não destrava a review de branch.
+- **A ordem é:** as tasks de código com as reviews de cada uma, depois a conferência do usuário no
+  navegador (o controlador para e avisa que chegou nela), as decisões dele, a review de branch e, por
+  último, o fix wave.
+- **De onde veio a regra:** no import do BOM, a verificação no navegador foi feita por agente, na nuvem. A
+  review de branch foi despachada logo depois, sem esperar a conferência do usuário.
+
 ## Banco de dados — regra importante
 
 `specs/02-modelo-de-dados.sql` é a **fonte de verdade** do schema. O mapeamento do EF
