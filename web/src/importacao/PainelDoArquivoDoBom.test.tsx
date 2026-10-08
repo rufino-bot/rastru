@@ -100,6 +100,30 @@ describe('PainelDoArquivoDoBom', () => {
       .toEqual(['Linha 3: quantidade invalida.', 'Linha 9: codigo vazio.'])
   })
 
+  it('o arquivo escolhido aparece pelo nome e tamanho, na dica ligada ao campo', () => {
+    renderizar()
+
+    escolherArquivo('estrutura do chassi.csv', 2048)
+
+    // O campo nativo diz "nenhum arquivo", porque o valor dele é zerado ao escolher: quem diz o que
+    // vai ser enviado é a dica.
+    const campo = screen.getByLabelText(/Arquivo do BOM/) as HTMLInputElement
+    const dica = document.getElementById(campo.getAttribute('aria-describedby')!)!
+    expect(dica.textContent).toBe('Escolhido: estrutura do chassi.csv (2,0 KiB). Até 5 MiB.')
+  })
+
+  it('o nome do arquivo some depois de uma falha do envio', async () => {
+    renderizar(async () => { throw new ErroDeApi(422, 'Falha (422).') })
+    escolherArquivo('bom.csv')
+    expect(screen.getByText(/Escolhido: bom\.csv/)).toBeTruthy()
+
+    fireEvent.click(botaoDeEnvio())
+
+    await screen.findByRole('alert')
+    expect(screen.queryByText(/Escolhido:/)).toBeNull()
+    expect(screen.getByText('Até 5 MiB.')).toBeTruthy()
+  })
+
   it('qualquer falha descarta o arquivo escolhido: o envio volta a ficar desabilitado', async () => {
     renderizar(async () => { throw new ErroDeBom(['Linha 3: quantidade invalida.']) })
     escolherArquivo('bom.csv')

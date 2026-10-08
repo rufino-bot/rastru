@@ -6,6 +6,7 @@ import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
+import { formatarTamanho } from '../components/tamanhoDeArquivo'
 
 interface Props {
   /** O nome da ação ("Importar BOM", "Reimportar BOM"): o `<h2>` e o nome acessível do `<form>`. */
@@ -103,7 +104,14 @@ export function PainelDoArquivoDoBom({
       aoFechar={aoFechar}
       enviando={enviando}
     >
-      <Campo rotulo="Arquivo do BOM (.xlsx ou .csv)" dica={`Até ${LIMITE_DO_BOM_LEGIVEL}.`}>
+      {/* O campo nativo diz "nenhum arquivo" depois de escolher, porque `escolher` zera o valor dele:
+          quem diz o que vai ser enviado é a dica, que o leitor de tela lê junto com o campo. */}
+      <Campo
+        rotulo="Arquivo do BOM (.xlsx ou .csv)"
+        dica={arquivo
+          ? `Escolhido: ${arquivo.name} (${formatarTamanho(arquivo.size)}). Até ${LIMITE_DO_BOM_LEGIVEL}.`
+          : `Até ${LIMITE_DO_BOM_LEGIVEL}.`}
+      >
         {(idDoCampo, idDaDica) => (
           <input
             id={idDoCampo}

@@ -5,6 +5,7 @@ import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import { BannerDeErro } from './BannerDeErro'
 import { Botao } from './Botao'
 import { Campo, CLASSES_DE_CONTROLE } from './Campo'
+import { formatarTamanho } from './tamanhoDeArquivo'
 
 interface Props {
   /** Caminho do binário a baixar, SEM o prefixo `/api` (ex.: `caminhoDoSolido(id)`). */
@@ -19,20 +20,6 @@ interface Props {
   /** Chamado depois de um envio com sucesso — a tela precisa reler o componente, senão
       `temSolido`/nome/tamanho continuam velhos e a interface mente. */
   aoEnviar: () => void
-}
-
-/**
- * Abaixo de 1024 bytes, "N bytes"; abaixo de 1 MiB, KiB com uma casa; acima, MiB com uma casa —
- * sempre com `toLocaleString('pt-BR', …)`, para a vírgula decimal.
- */
-function formatarTamanho(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toLocaleString('pt-BR')} bytes`
-  const kib = bytes / 1024
-  if (kib < 1024) {
-    return `${kib.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KiB`
-  }
-  const mib = kib / 1024
-  return `${mib.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MiB`
 }
 
 /** "16 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
