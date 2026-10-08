@@ -1,6 +1,7 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Tests.Common;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using Xunit;
@@ -11,14 +12,22 @@ public class CadastroDePedidoUseCaseTests
 {
   private const int UsuarioDaSessao = 42;
 
+  /// <summary>Prazo de todo Pedido de teste que nao e sobre a data.</summary>
+  private static readonly DateOnly Prazo = new(2026, 10, 22);
+
+  /// <summary>"Hoje" de todos os testes desta classe: 2026-10-08 em Brasilia.</summary>
+  private static readonly RelogioFixo Relogio = new(new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero));
+
+  private static CadastroDePedidoUseCase NovoUseCase(FakePedidoRepo repo) => new(repo, Relogio);
+
   [Fact]
   public async Task Cadastra_pedido_aberto_de_fabricacao()
   {
     var repo = new FakePedidoRepo();
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Cadastrar(
-        new NovoPedidoDto("PED-001", "Cliente X"), UsuarioDaSessao, CancellationToken.None);
+        new NovoPedidoDto("PED-001", "Cliente X", Prazo), UsuarioDaSessao, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal("PED-001", resultado.Valor!.Numero);
@@ -31,10 +40,10 @@ public class CadastroDePedidoUseCaseTests
   public async Task Cadastra_gravando_o_autor_recebido_por_parametro()
   {
     // A autoria vem de FORA do use case: quem le a claim `sub` e o controller.
-    var useCase = new CadastroDePedidoUseCase(new FakePedidoRepo());
+    var useCase = NovoUseCase(new FakePedidoRepo());
 
     var resultado = await useCase.Cadastrar(
-        new NovoPedidoDto("PED-001", "Cliente X"), UsuarioDaSessao, CancellationToken.None);
+        new NovoPedidoDto("PED-001", "Cliente X", Prazo), UsuarioDaSessao, CancellationToken.None);
 
     Assert.Equal(UsuarioDaSessao, resultado.Valor!.CriadoPorUsuarioId);
   }
@@ -43,10 +52,10 @@ public class CadastroDePedidoUseCaseTests
   public async Task Data_de_abertura_nasce_em_utc()
   {
     var antes = DateTime.UtcNow.AddSeconds(-1);
-    var useCase = new CadastroDePedidoUseCase(new FakePedidoRepo());
+    var useCase = NovoUseCase(new FakePedidoRepo());
 
     var resultado = await useCase.Cadastrar(
-        new NovoPedidoDto("PED-001", "Cliente X"), UsuarioDaSessao, CancellationToken.None);
+        new NovoPedidoDto("PED-001", "Cliente X", Prazo), UsuarioDaSessao, CancellationToken.None);
 
     Assert.InRange(resultado.Valor!.DataAbertura, antes, DateTime.UtcNow.AddSeconds(1));
   }
@@ -55,10 +64,10 @@ public class CadastroDePedidoUseCaseTests
   public async Task Numero_duplicado_e_conflito_e_nao_escreve_nada()
   {
     var repo = new FakePedidoRepo(new Pedido { Id = 1, Numero = "PED-001", Cliente = "Y" });
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Cadastrar(
-        new NovoPedidoDto("PED-001", "Cliente X"), UsuarioDaSessao, CancellationToken.None);
+        new NovoPedidoDto("PED-001", "Cliente X", Prazo), UsuarioDaSessao, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
@@ -71,7 +80,7 @@ public class CadastroDePedidoUseCaseTests
     // Pedido nao tem coluna Ativo: `existeInativo` e sempre false, e a tela nao oferece
     // "reativar o existente" — o caminho de correcao e editar o Pedido que ja existe.
     var repo = new FakePedidoRepo(new Pedido { Id = 8, Numero = "PED-001", Cliente = "Y" });
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var duplicado = await useCase.LocalizarDuplicado("PED-001", CancellationToken.None);
 
@@ -87,10 +96,10 @@ public class CadastroDePedidoUseCaseTests
   public async Task Campo_obrigatorio_em_branco_e_erro_de_validacao(string numero, string cliente)
   {
     var repo = new FakePedidoRepo();
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Cadastrar(
-        new NovoPedidoDto(numero, cliente), UsuarioDaSessao, CancellationToken.None);
+        new NovoPedidoDto(numero, cliente, Prazo), UsuarioDaSessao, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -101,10 +110,10 @@ public class CadastroDePedidoUseCaseTests
   public async Task Editar_pedido_inexistente_e_nao_encontrado()
   {
     var repo = new FakePedidoRepo();
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Editar(
-        99, new NovoPedidoDto("PED-001", "Cliente X"), CancellationToken.None);
+        99, new NovoPedidoDto("PED-001", "Cliente X", Prazo), CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
@@ -126,10 +135,10 @@ public class CadastroDePedidoUseCaseTests
       Tipo = "Fabricacao",
       Status = "Aberto",
     });
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Editar(
-        1, new NovoPedidoDto("PED-001", "Cliente Z"), CancellationToken.None);
+        1, new NovoPedidoDto("PED-001", "Cliente Z", Prazo), CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
     Assert.Equal("Cliente Z", resultado.Valor!.Cliente);
@@ -143,10 +152,10 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo(
         new Pedido { Id = 1, Numero = "PED-001", Cliente = "A" },
         new Pedido { Id = 2, Numero = "PED-002", Cliente = "B" });
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Editar(
-        2, new NovoPedidoDto("PED-001", "B"), CancellationToken.None);
+        2, new NovoPedidoDto("PED-001", "B", Prazo), CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
@@ -161,7 +170,7 @@ public class CadastroDePedidoUseCaseTests
         new Pedido { Id = 2, Numero = "PED-002", Cliente = "B" },
         new Pedido { Id = 3, Numero = "PED-003", Cliente = "C" });
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, null, 1, 2, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
@@ -179,7 +188,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, null, pagina, tamanho, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
@@ -192,7 +201,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, "Aberto,Qualquer", null, null, 1, 20, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
@@ -210,7 +219,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, material, null, 1, 20, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
@@ -222,7 +231,7 @@ public class CadastroDePedidoUseCaseTests
   public async Task Listar_ignora_pedaco_vazio_e_colapsa_repetido()
   {
     var repo = new FakePedidoRepo();
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     await useCase.Listar("  CH  ", " Aberto,,Aberto ,EmProducao", "5,,5,3", null, 1, 20, CancellationToken.None);
 
@@ -241,7 +250,7 @@ public class CadastroDePedidoUseCaseTests
   public async Task Listar_aceita_espaco_nas_pontas_de_cada_id_de_material()
   {
     var repo = new FakePedidoRepo();
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     var resultado = await useCase.Listar(null, null, " 5 , 3", null, 1, 20, CancellationToken.None);
 
@@ -258,7 +267,7 @@ public class CadastroDePedidoUseCaseTests
     var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
     repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "PED-9 urgente");
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, null, 1, 20, CancellationToken.None);
 
     var pedidos = resultado.Valor!.Itens;
@@ -274,7 +283,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
@@ -289,7 +298,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
@@ -305,7 +314,7 @@ public class CadastroDePedidoUseCaseTests
     // "Numero" entra de proposito: a comparacao e ordinal, entao a caixa errada tambem e desconhecida.
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
 
     Assert.False(resultado.Sucesso);
@@ -319,7 +328,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, null, null, "x", 0, 20, CancellationToken.None);
 
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
@@ -332,7 +341,7 @@ public class CadastroDePedidoUseCaseTests
   {
     var repo = new FakePedidoRepo();
 
-    var resultado = await new CadastroDePedidoUseCase(repo)
+    var resultado = await NovoUseCase(repo)
         .Listar(null, "Qualquer", null, "x", 1, 20, CancellationToken.None);
 
     Assert.Contains("Status 'Qualquer'", resultado.Erro);
@@ -346,7 +355,7 @@ public class CadastroDePedidoUseCaseTests
     repo.ContagemPorStatus["Aberto"] = 2;
     repo.ContagemPorStatus["Concluido"] = 1;
 
-    var resumo = await new CadastroDePedidoUseCase(repo).Resumo(CancellationToken.None);
+    var resumo = await NovoUseCase(repo).Resumo(CancellationToken.None);
 
     Assert.Equal(
         [
@@ -368,7 +377,7 @@ public class CadastroDePedidoUseCaseTests
     repo.MaisAntigos.Add(new Pedido { Id = 2, Numero = "PED-002", Cliente = "B", Status = "EmProducao" });
     repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "parado");
 
-    var resumo = await new CadastroDePedidoUseCase(repo).Resumo(CancellationToken.None);
+    var resumo = await NovoUseCase(repo).Resumo(CancellationToken.None);
 
     Assert.Equal(["Cancelado", "Concluido"], repo.MaisAntigosForaDosStatus!.Order());
     Assert.Equal(5, repo.MaisAntigosQuantos);
@@ -383,7 +392,7 @@ public class CadastroDePedidoUseCaseTests
     var repo = new FakePedidoRepo();
     repo.MateriaisEmUso.Add(new Material { Id = 3, Codigo = "CH-300", Descricao = "Chapa 3 mm", UnidadeMedida = "UN", Ativo = false });
 
-    var materiais = await new CadastroDePedidoUseCase(repo).MateriaisEmUso(CancellationToken.None);
+    var materiais = await NovoUseCase(repo).MateriaisEmUso(CancellationToken.None);
 
     Assert.Equal([new MaterialResumoDto(3, "CH-300", "Chapa 3 mm")], materiais);
   }
@@ -396,7 +405,7 @@ public class CadastroDePedidoUseCaseTests
         new Pedido { Id = 2, Numero = "PED-002", Cliente = "B" });
     var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
     repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", null);
-    var useCase = new CadastroDePedidoUseCase(repo);
+    var useCase = NovoUseCase(repo);
 
     Assert.Null((await useCase.Obter(1, CancellationToken.None)).Valor!.Pausa);
     Assert.Equal(new PausaResumoDto(desde, "PCP", null), (await useCase.Obter(2, CancellationToken.None)).Valor!.Pausa);
@@ -405,7 +414,7 @@ public class CadastroDePedidoUseCaseTests
   [Fact]
   public async Task Obter_pedido_inexistente_e_nao_encontrado()
   {
-    var useCase = new CadastroDePedidoUseCase(new FakePedidoRepo());
+    var useCase = NovoUseCase(new FakePedidoRepo());
 
     var resultado = await useCase.Obter(99, CancellationToken.None);
 
@@ -420,10 +429,87 @@ public class CadastroDePedidoUseCaseTests
     // mesmo em propriedade nao-anulavel. Sem esta assercao a guarda vira disciplina de codigo:
     // trocar `Normalizar(numero)` por `numero.Trim()` pelado nao quebraria nada (adendo B9) —
     // foi exatamente a mutacao que o revisor da Task 8 fez sem matar nenhum teste.
-    var useCase = new CadastroDePedidoUseCase(new FakePedidoRepo());
+    var useCase = NovoUseCase(new FakePedidoRepo());
 
     var duplicado = await useCase.LocalizarDuplicado(null!, CancellationToken.None);
 
     Assert.Null(duplicado);
+  }
+
+  [Fact]
+  public async Task Cadastrar_sem_data_de_entrega_e_erro_de_validacao()
+  {
+    var repo = new FakePedidoRepo();
+
+    var resultado = await NovoUseCase(repo).Cadastrar(
+        new NovoPedidoDto("PED-001", "Cliente X", null), UsuarioDaSessao, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal("Numero, cliente e data de entrega sao obrigatorios.", resultado.Erro);
+    Assert.Equal(0, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Editar_sem_data_de_entrega_e_erro_de_validacao()
+  {
+    var repo = new FakePedidoRepo(new Pedido { Id = 1, Numero = "PED-001", Cliente = "Y", Status = "Aberto" });
+
+    var resultado = await NovoUseCase(repo).Editar(
+        1, new NovoPedidoDto("PED-001", "Y", null), CancellationToken.None);
+
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal(0, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Cadastra_com_prazo_no_passado_e_ja_nasce_atrasado()
+  {
+    // Qualquer data vale (D3 da spec da data de entrega): um Pedido pode chegar ao sistema atrasado.
+    var repo = new FakePedidoRepo();
+
+    var resultado = await NovoUseCase(repo).Cadastrar(
+        new NovoPedidoDto("PED-001", "Cliente X", new DateOnly(2020, 1, 1)), UsuarioDaSessao, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(new DateOnly(2020, 1, 1), resultado.Valor!.DataEntrega);
+    Assert.True(resultado.Valor.Atrasado);
+    Assert.Equal(1, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Editar_grava_a_data_de_entrega_mesmo_num_Pedido_concluido()
+  {
+    // Sem guarda de status (D8 da spec da data de entrega): o Pedido e documento e se corrige por edicao.
+    var repo = new FakePedidoRepo(new Pedido
+    {
+      Id = 1, Numero = "PED-001", Cliente = "Y", Tipo = "Fabricacao", Status = "Concluido",
+      DataEntrega = new DateOnly(2026, 9, 1), CriadoPorUsuarioId = 7,
+    });
+
+    var resultado = await NovoUseCase(repo).Editar(
+        1, new NovoPedidoDto("PED-001", "Y", new DateOnly(2026, 9, 15)), CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(new DateOnly(2026, 9, 15), resultado.Valor!.DataEntrega);
+    Assert.False(resultado.Valor.Atrasado);   // encerrado nunca esta atrasado
+    Assert.Equal(1, repo.Saves);
+  }
+
+  [Fact]
+  public async Task O_atraso_usa_o_relogio_injetado_e_nao_o_do_sistema()
+  {
+    // Relogio parado em 2000: um prazo de 2010 nao esta atrasado para ele, e estaria para o relogio
+    // real. Um use case que lesse `DateTime.UtcNow` ou `TimeProvider.System` erraria aqui.
+    var repo = new FakePedidoRepo(new Pedido
+    {
+      Id = 1, Numero = "PED-001", Cliente = "Y", Tipo = "Fabricacao", Status = "Aberto",
+      DataEntrega = new DateOnly(2010, 1, 1),
+    });
+    var useCase = new CadastroDePedidoUseCase(repo, new RelogioFixo(new DateTimeOffset(2000, 1, 1, 12, 0, 0, TimeSpan.Zero)));
+
+    var resultado = await useCase.Obter(1, CancellationToken.None);
+
+    Assert.False(resultado.Valor!.Atrasado);
   }
 }

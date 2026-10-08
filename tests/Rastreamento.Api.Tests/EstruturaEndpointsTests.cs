@@ -153,7 +153,7 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   {
     var numero = $"ped-{Guid.NewGuid():N}"[..25];
     _numerosCriados.Add(numero);
-    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
     return JsonDocument.Parse(await resposta.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
   }

@@ -12,7 +12,7 @@ namespace Rastreamento.Application.Cadastros;
 /// </summary>
 public sealed class CadastroDePedidoUseCase
 {
-  private const string ErroDeCampoObrigatorio = "Numero e cliente sao obrigatorios.";
+  private const string ErroDeCampoObrigatorio = "Numero, cliente e data de entrega sao obrigatorios.";
 
   private const string ErroDeNumeroDuplicado = "Ja existe um Pedido com este numero.";
 
@@ -34,9 +34,6 @@ public sealed class CadastroDePedidoUseCase
   private static readonly string[] StatusValidos =
       ["Aberto", "EmProducao", "AguardandoExpedicao", "Concluido", "Cancelado"];
 
-  /// <summary>Status em que o Pedido acabou; ficam fora dos "mais antigos abertos" do resumo.</summary>
-  private static readonly string[] StatusEncerrados = ["Concluido", "Cancelado"];
-
   private const int QuantosMaisAntigos = 5;
 
   // A ordem das chaves e a ordem da frase de erro de `Listar`.
@@ -55,14 +52,20 @@ public sealed class CadastroDePedidoUseCase
       "Material deve ser uma lista de numeros inteiros positivos separados por virgula.";
 
   private readonly IPedidoRepository _repositorio;
+  private readonly TimeProvider _relogio;
 
-  public CadastroDePedidoUseCase(IPedidoRepository repositorio) => _repositorio = repositorio;
+  /// <summary>O relogio e de onde sai o "hoje" da regra de atraso (`PrazoDeEntrega.HojeEmBrasilia`).</summary>
+  public CadastroDePedidoUseCase(IPedidoRepository repositorio, TimeProvider relogio)
+  {
+    _repositorio = repositorio;
+    _relogio = relogio;
+  }
 
   public async Task<Result<PedidoDto>> Cadastrar(
       NovoPedidoDto novo, int usuarioId, CancellationToken ct)
   {
     var (numero, cliente) = Normalizar(novo);
-    if (numero.Length == 0 || cliente.Length == 0)
+    if (numero.Length == 0 || cliente.Length == 0 || novo.DataEntrega is not { } dataEntrega)
       return Result<PedidoDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
     // Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Pedido_Numero
@@ -76,6 +79,7 @@ public sealed class CadastroDePedidoUseCase
       Cliente = cliente,
       Tipo = TipoFabricacao,
       Status = StatusAberto,
+      DataEntrega = dataEntrega,
       // Em UTC, como todo o resto do sistema. O DEFAULT do banco existe, mas o EF sempre
       // manda a coluna no INSERT — entao quem define o valor de verdade e esta linha.
       DataAbertura = DateTime.UtcNow,
@@ -85,20 +89,19 @@ public sealed class CadastroDePedidoUseCase
     await _repositorio.AdicionarAsync(pedido, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<PedidoDto>.Ok(Projetar(pedido, null));   // Pedido novo nunca esta pausado
+    return Result<PedidoDto>.Ok(Projetar(pedido, null, Hoje()));   // Pedido novo nunca esta pausado
   }
 
   /// <remarks>
-  /// Editar nao toca em `CriadoPorUsuarioId`: autoria e do momento da criacao. Tambem nao ha
-  /// guarda por status — na Fase 1 todo Pedido esta Aberto, porque nada transiciona status
-  /// ainda. Quando a Fase 3 introduzir a transicao, a guarda de "so edita Pedido Aberto"
-  /// pertence a ela, nao a esta.
+  /// Editar nao toca em `CriadoPorUsuarioId`: autoria e do momento da criacao. Nao ha guarda por status,
+  /// por decisao (D8 da spec da data de entrega): o Pedido e documento e se corrige por edicao em
+  /// qualquer status, inclusive o prazo de um Pedido ja concluido.
   /// </remarks>
   public async Task<Result<PedidoDto>> Editar(
       int id, NovoPedidoDto alterado, CancellationToken ct)
   {
     var (numero, cliente) = Normalizar(alterado);
-    if (numero.Length == 0 || cliente.Length == 0)
+    if (numero.Length == 0 || cliente.Length == 0 || alterado.DataEntrega is not { } dataEntrega)
       return Result<PedidoDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
     var pedido = await _repositorio.ObterPorIdAsync(id, ct);
@@ -112,10 +115,11 @@ public sealed class CadastroDePedidoUseCase
 
     pedido.Numero = numero;
     pedido.Cliente = cliente;
+    pedido.DataEntrega = dataEntrega;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
     var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
-    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id)));
+    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
   }
 
   /// <summary>
@@ -172,7 +176,7 @@ public sealed class CadastroDePedidoUseCase
   public async Task<ResumoDePedidosDto> Resumo(CancellationToken ct)
   {
     var contagem = await _repositorio.ContarPorStatusAsync(ct);
-    var maisAntigos = await _repositorio.ListarMaisAntigosAsync(StatusEncerrados, QuantosMaisAntigos, ct);
+    var maisAntigos = await _repositorio.ListarMaisAntigosAsync(PrazoDeEntrega.StatusEncerrados, QuantosMaisAntigos, ct);
 
     return new ResumoDePedidosDto(
         StatusValidos.Select(s => new ContagemDeStatusDto(s, contagem.GetValueOrDefault(s))).ToList(),
@@ -188,7 +192,8 @@ public sealed class CadastroDePedidoUseCase
       IReadOnlyList<Pedido> pedidos, CancellationToken ct)
   {
     var pausas = await _repositorio.ListarPausasAbertasAsync(pedidos.Select(p => p.Id).ToList(), ct);
-    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id))).ToList();
+    var hoje = Hoje();
+    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id), hoje)).ToList();
   }
 
   /// <summary>Lista separada por virgula: aparada, sem pedaco vazio e sem repetido (a ordem da primeira aparicao fica).</summary>
@@ -204,7 +209,7 @@ public sealed class CadastroDePedidoUseCase
     if (pedido is null)
       return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
     var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
-    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id)));
+    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
   }
 
   /// <summary>
@@ -228,6 +233,11 @@ public sealed class CadastroDePedidoUseCase
   /// </summary>
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
-  private static PedidoDto Projetar(Pedido p, PausaAberta? pausa) =>
-      new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.CriadoPorUsuarioId, PausaResumoDto.De(pausa));
+  /// <summary>Uma vez por requisicao: todos os Pedidos de uma resposta comparam contra o mesmo dia.</summary>
+  private DateOnly Hoje() => PrazoDeEntrega.HojeEmBrasilia(_relogio);
+
+  private static PedidoDto Projetar(Pedido p, PausaAberta? pausa, DateOnly hoje) =>
+      new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.DataEntrega,
+          PrazoDeEntrega.EstaAtrasado(p.DataEntrega, p.Status, hoje),
+          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa));
 }

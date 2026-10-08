@@ -126,7 +126,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
       setorId = await IdDoCorpo(respostaSetor);
 
       var numeroDoPedido = $"ped-proibido-{Guid.NewGuid():N}"[..25];
-      var respostaPedido = await pcp.PostAsJsonAsync("/api/pedidos", new { numero = numeroDoPedido, cliente = "Cliente de teste" });
+      var respostaPedido = await pcp.PostAsJsonAsync("/api/pedidos", new { numero = numeroDoPedido, cliente = "Cliente de teste", dataEntrega = "2026-10-22" });
       Assert.Equal(HttpStatusCode.Created, respostaPedido.StatusCode);
       pedidoId = await IdDoCorpo(respostaPedido);
 

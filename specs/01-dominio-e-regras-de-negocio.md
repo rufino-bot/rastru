@@ -397,6 +397,21 @@ dela para o que a implementação fixou).*
     combinação das receitas importadas com as de catálogo mantidas **não pode fechar ciclo** (regra 20) —
     o que nenhuma das duas tinha sozinha.
 
+*A regra 33 foi decidida em 2026-10-08, na spec da data de entrega do Pedido
+(`docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`, decisões D2, D3, D4 e D12).*
+
+33. **Todo Pedido tem data de entrega, e o atraso é derivado dela.**
+    - **Obrigatória e livre (D2, D3).** A `DataEntrega` é informada no cadastro e pode ser editada em
+      qualquer status. Aceita qualquer dia, inclusive anterior à abertura: um Pedido pode chegar ao
+      sistema já atrasado, e um Retrabalho pode ser aberto pelo cliente bem depois de as peças terem
+      sido expedidas. É um dia, sem hora nem fuso.
+    - **Atrasado (D12).** Um Pedido está **atrasado** quando a `DataEntrega` é anterior a **hoje** e o
+      status não é `Concluido` nem `Cancelado`. "Hoje" é a data corrente no horário de Brasília (GMT-3
+      fixo, o mesmo da borda de fuso da aplicação). Um Pedido que vence hoje ainda **não** está atrasado.
+      O atraso não é gravado: é calculado a cada leitura, no servidor.
+    - **Retrabalho (D4, para a Fase 5).** O formulário do Pedido de Retrabalho traz, por padrão, a
+      `DataEntrega` do Pedido de origem, e o campo é editável no cadastro.
+
 ## Pontos ainda em aberto
 
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).

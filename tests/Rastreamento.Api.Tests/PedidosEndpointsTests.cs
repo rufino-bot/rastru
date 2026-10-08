@@ -75,7 +75,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Pcp_cadastra_pedido_aberto_de_fabricacao_com_autor()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -88,7 +88,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Administrador_tambem_cadastra_pedido()
   {
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
@@ -121,7 +121,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     var cliente = ClienteComo("Qualidade");
 
     var escrita = await cliente.PostAsJsonAsync(
-        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
     var leitura = await cliente.GetAsync("/api/pedidos");
 
     Assert.Equal(HttpStatusCode.Forbidden, escrita.StatusCode);
@@ -281,9 +281,9 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
 
-    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente Y" });
+    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente Y", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -303,12 +303,12 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     // botao de reativacao para sumir.
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
     var resposta = await cliente.PostAsJsonAsync(
-        "/api/pedidos", new { numero = $" {numero}", cliente = "Cliente Y" });
+        "/api/pedidos", new { numero = $" {numero}", cliente = "Cliente Y", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -322,7 +322,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
@@ -347,13 +347,13 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
     var corpoCriado = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement;
     var id = corpoCriado.GetProperty("id").GetInt32();
     var autor = corpoCriado.GetProperty("criadoPorUsuarioId").GetInt32();
 
     var resposta = await cliente.PutAsJsonAsync(
-        $"/api/pedidos/{id}", new { numero, cliente = "Cliente Z" });
+        $"/api/pedidos/{id}", new { numero, cliente = "Cliente Z", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -365,7 +365,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Editar_pedido_inexistente_responde_404()
   {
     var resposta = await ClienteComo("PCP")
-        .PutAsJsonAsync("/api/pedidos/999999", new { numero = NumeroUnico(), cliente = "Cliente X" });
+        .PutAsJsonAsync("/api/pedidos/999999", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -374,7 +374,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Cliente_em_branco_responde_400()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "  " });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "  ", dataEntrega = "2026-10-22" });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -392,12 +392,64 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     {
       ["numero"] = NumeroUnico(),
       ["cliente"] = "Cliente X",
+      ["dataEntrega"] = "2026-10-22",
     };
     valores[campo] = new string('x', tamanho);
 
     var resposta = await ClienteComo("PCP").PostAsJsonAsync("/api/pedidos", valores);
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Cadastrar_sem_data_de_entrega_responde_400()
+  {
+    var resposta = await ClienteComo("PCP")
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X" });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Data_de_entrega_sai_como_dia_sem_hora_nem_fuso()
+  {
+    var resposta = await ClienteComo("PCP").PostAsJsonAsync(
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2099-12-31" });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var texto = await resposta.Content.ReadAsStringAsync();
+    // Texto exato, e nao `GetDateTime()`: e a guarda contra a data passar pelo
+    // `HorarioDeBrasiliaJsonConverter`, que a escreveria com hora e offset -03:00.
+    Assert.Contains("\"dataEntrega\":\"2099-12-31\"", texto);
+    Assert.False(JsonDocument.Parse(texto).RootElement.GetProperty("atrasado").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Prazo_no_passado_e_aceito_e_sai_atrasado()
+  {
+    var resposta = await ClienteComo("PCP").PostAsJsonAsync(
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2000-01-01" });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.True(corpo.GetProperty("atrasado").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Editar_altera_a_data_de_entrega()
+  {
+    var cliente = ClienteComo("PCP");
+    var numero = NumeroUnico();
+    var criado = await cliente.PostAsJsonAsync(
+        "/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetInt32();
+
+    var resposta = await cliente.PutAsJsonAsync(
+        $"/api/pedidos/{id}", new { numero, cliente = "Cliente X", dataEntrega = "2099-01-15" });
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Contains("\"dataEntrega\":\"2099-01-15\"", await resposta.Content.ReadAsStringAsync());
+    Assert.Contains("\"dataEntrega\":\"2099-01-15\"", await cliente.GetStringAsync($"/api/pedidos/{id}"));
   }
 
   [Fact]

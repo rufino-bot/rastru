@@ -154,7 +154,9 @@ mesmo status HTTP para coisas diferentes.
   os parâmetros são opcionais: `?busca=`, `?status=Aberto,EmProducao`, `?material=3,5`,
   `?ordem=recentes|numero|cliente`, `?pagina=1`, `?tamanho=20` (teto 100). Responde `{ itens, total, pagina, tamanho }`, o mesmo envelope de
   `GET /componentes`; `total` é contado com os mesmos filtros da página. Cada item traz `pausa`:
-  `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31).
+  `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31). Cada item traz
+  também `dataEntrega` (`"aaaa-mm-dd"`, sem hora nem fuso) e `atrasado` (regra 33, calculado no
+  servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`.
   - `busca` acha o Pedido pelo **número**, pelo **cliente** ou pelo **código do Componente de
     qualquer nó dele** (a Peça ou um Item, inclusive filho). O texto é literal: `%`, `_` e `[` não
     são curinga de `LIKE`. Ignora caixa **e acento** ("metalurgica" acha "Metalúrgica"). O texto é
@@ -186,12 +188,14 @@ mesmo status HTTP para coisas diferentes.
   descricao }[]` dos Materiais que aparecem em **algum nó de algum Pedido** (`EstruturaMaterial`),
   ativos ou não, por descrição e, no empate, por código. São as opções do filtro de Material da
   tela de Pedidos, sem contagem por opção.
-- `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente }`. `Tipo` nasce `Fabricacao`,
+- `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente, dataEntrega }`, com `dataEntrega` em
+  `"aaaa-mm-dd"`, obrigatória (ausente → 400) e de qualquer dia (regra 33). `Tipo` nasce `Fabricacao`,
   `Status` nasce `Aberto` e o autor vem da claim `sub` da sessão — nenhum dos três se aceita do
   cliente
 - `GET /pedidos/{id}` — só o cabeçalho, com `pausa` como em `GET /pedidos`; os Agrupamentos saem
   pelo sub-recurso abaixo
-- `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente }`. Não existe `DELETE`:
+- `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente, dataEntrega }`, substituição inteira,
+  em qualquer status. Não existe `DELETE`:
   Pedido é documento e se corrige por edição
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
   Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`

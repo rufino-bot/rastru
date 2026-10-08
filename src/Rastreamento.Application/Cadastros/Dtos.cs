@@ -78,7 +78,9 @@ public sealed record NovoMaterialDto(
 
 /// <remarks>
 /// `DataAbertura` sai daqui em UTC; quem converte para GMT-3 e o HorarioDeBrasiliaJsonConverter,
-/// registrado uma vez em Program.cs — nenhum endpoint precisa converter na mao.
+/// registrado uma vez em Program.cs — nenhum endpoint precisa converter na mao. `DataEntrega` e
+/// `DateOnly` e nao passa por ele: sai como "aaaa-mm-dd". `Atrasado` e decidido aqui, no servidor
+/// (`PrazoDeEntrega`), e a tela so desenha a pilula.
 /// </remarks>
 public sealed record PedidoDto(
     int Id,
@@ -87,6 +89,8 @@ public sealed record PedidoDto(
     string Tipo,
     string Status,
     DateTime DataAbertura,
+    DateOnly DataEntrega,
+    bool Atrasado,
     int CriadoPorUsuarioId,
     PausaResumoDto? Pausa);
 
@@ -101,12 +105,15 @@ public sealed record ResumoDePedidosDto(
     IReadOnlyList<PedidoDto> MaisAntigosAbertos);
 
 /// <remarks>
-/// So `Numero` e `Cliente`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem da claim
-/// da sessao. Nenhum dos tres se aceita do cliente. Os `MaxLength` espelham `dbo.Pedido`.
+/// So `Numero`, `Cliente` e `DataEntrega`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem
+/// da claim da sessao. Nenhum dos tres se aceita do cliente. Os `MaxLength` espelham `dbo.Pedido`.
+/// `DataEntrega` e anulavel SO aqui, para a ausencia virar o 400 de campo obrigatorio em vez de um
+/// `0001-01-01` silencioso; a coluna e `NOT NULL`.
 /// </remarks>
 public sealed record NovoPedidoDto(
     [MaxLength(30)] string Numero,
-    [MaxLength(200)] string Cliente);
+    [MaxLength(200)] string Cliente,
+    DateOnly? DataEntrega);
 
 // ---------------------------------------------------------------------------
 // Agrupamento
