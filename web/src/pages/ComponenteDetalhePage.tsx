@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  obterComponente, listarMateriais, listarSetores,
+  caminhoDoSolido, enviarSolido, obterComponente, listarMateriais, listarSetores,
   type ComponenteDto, type ComponenteDetalheDto, type MaterialDto, type SetorDto,
 } from '../api/cadastros'
 import {
@@ -408,7 +408,8 @@ export function ComponenteDetalhePage() {
           depois da busca do componente (`obterComponente`) assentar. */}
       {podeEscrever && !carregandoComponente && erroComponente === null && componente && (
         <UploadDeSolido
-          componenteId={componenteId}
+          caminho={caminhoDoSolido(componenteId)}
+          enviar={(arquivo) => enviarSolido(componenteId, arquivo)}
           temSolido={componente.temSolido}
           nomeDoSolido={componente.nomeDoSolido}
           tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
@@ -421,7 +422,7 @@ export function ComponenteDetalhePage() {
           por aqui, não pelo `UploadDeSolido`. Condicionado só a `temSolido` — sem arquivo, não
           há o que visualizar. */}
       {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
-        <VisualizadorDeSolido key={versaoDoSolido} componenteId={componenteId} />
+        <VisualizadorDeSolido key={versaoDoSolido} caminho={caminhoDoSolido(componenteId)} />
       )}
 
       <Secao

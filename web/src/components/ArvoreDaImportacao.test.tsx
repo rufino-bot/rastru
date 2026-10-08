@@ -1,0 +1,340 @@
+// @vitest-environment jsdom
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
+import { ArvoreDaImportacao } from './ArvoreDaImportacao'
+import type { NoDaImportacaoDto } from '../api/importacao'
+
+afterEach(cleanup)
+// O stub de `scrollIntoView` dos testes de rolagem sai aqui, e não no fim do teste: uma asserção que
+// falha não deixa o stub vazar para os seguintes.
+afterEach(() => { delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView })
+
+function no(parcial: Partial<NoDaImportacaoDto> & Pick<NoDaImportacaoDto, 'codigo' | 'descricao'>): NoDaImportacaoDto {
+  return {
+    registroId: null,
+    componenteId: null,
+    filhoId: null,
+    quantidadePorPai: null,
+    origem: 'Bom',
+    pendencias: [],
+    filhos: [],
+    ...parcial,
+  }
+}
+
+// Raiz -> Suporte (registro 2, aresta 20) e Parafuso (registro 3, aresta 30) -> Arruela (catálogo).
+// O Parafuso aparece DUAS vezes (sob a raiz e sob o Suporte): é o "mesmo código" da seleção.
+const PARAFUSO_SOB_SUPORTE = no({
+  registroId: 3, componenteId: 300, filhoId: 31, codigo: 'PA-300', descricao: 'Parafuso', quantidadePorPai: 4,
+})
+const RAIZ = no({
+  registroId: 1,
+  codigo: 'CH-100',
+  descricao: 'Chassi',
+  pendencias: ['Novo'],
+  filhos: [
+    no({
+      registroId: 2, componenteId: 200, filhoId: 20, codigo: 'SU-200', descricao: 'Suporte', quantidadePorPai: 2,
+      pendencias: ['Divergente', 'SemSolido', 'Inativo'],
+      filhos: [
+        PARAFUSO_SOB_SUPORTE,
+        // O mesmo Componente do catálogo (sem registro) também aparece sob o Suporte.
+        no({ componenteId: 400, codigo: 'AR-400', descricao: 'Arruela', quantidadePorPai: 2, origem: 'Catalogo' }),
+      ],
+    }),
+    no({
+      registroId: 3, componenteId: 300, filhoId: 30, codigo: 'PA-300', descricao: 'Parafuso', quantidadePorPai: 8,
+      filhos: [
+        no({
+          registroId: null, componenteId: 400, codigo: 'AR-400', descricao: 'Arruela',
+          quantidadePorPai: 1, origem: 'Catalogo',
+        }),
+      ],
+    }),
+  ],
+})
+
+function linha(nome: RegExp | string) {
+  return screen.getByRole('button', { name: nome })
+}
+
+describe('ArvoreDaImportacao', () => {
+  it('Clicar_no_no_chama_aoSelecionar', () => {
+    const aoSelecionar = vi.fn()
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={aoSelecionar} />)
+
+    fireEvent.click(linha(/SU-200 Suporte/))
+    expect(aoSelecionar).toHaveBeenLastCalledWith(2, 200)
+
+    // Nó que veio só do catálogo: sem registro, só o Componente.
+    fireEvent.click(within(screen.getByTestId('linha-importacao-0-1-0')).getByRole('button', { name: /AR-400 Arruela/ }))
+    expect(aoSelecionar).toHaveBeenLastCalledWith(null, 400)
+  })
+
+  it('Pilulas_de_pendencia_usam_atencao_e_Novo_usa_neutro', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+    const classes = (el: HTMLElement) => el.className.split(/\s+/)
+    const linhaDoSuporte = screen.getByTestId('linha-importacao-0-0')
+    for (const rotulo of ['Receita divergente', 'Sem sólido', 'Inativo']) {
+      const pilula = within(linhaDoSuporte).getByText(rotulo)
+      expect(classes(pilula)).toContain('bg-atencao-fundo')
+      expect(classes(pilula)).toContain('text-atencao-texto')
+    }
+
+    const novo = within(screen.getByTestId('linha-importacao-0')).getByText('Novo')
+    expect(classes(novo)).toContain('bg-acao-fundo')
+    expect(classes(novo)).toContain('text-acao')
+    expect(classes(novo)).not.toContain('bg-atencao-fundo')
+  })
+
+  describe('pílula da receita divergente', () => {
+    const classes = (el: HTMLElement) => el.className.split(/\s+/)
+    // O Suporte (registro 2) é o divergente de RAIZ; a linha dele é a 0-0.
+    const linhaDoSuporte = () => screen.getByTestId('linha-importacao-0-0')
+
+    it('sem escolha, diz Receita divergente em atencao', () => {
+      render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+      const pilula = within(linhaDoSuporte()).getByText('Receita divergente')
+      expect(classes(pilula)).toContain('bg-atencao-fundo')
+    })
+
+    it('escolhida a do catálogo, a pílula troca para Receita do catálogo em neutro', () => {
+      render(
+        <ArvoreDaImportacao
+          raiz={RAIZ}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[2, 'Catalogo']])}
+        />,
+      )
+
+      const linha = within(linhaDoSuporte())
+      expect(linha.queryByText('Receita divergente')).toBeNull()
+      expect(linha.queryByText('Receita importada')).toBeNull()
+      const pilula = linha.getByText('Receita do catálogo')
+      expect(classes(pilula)).toContain('bg-acao-fundo')
+      expect(classes(pilula)).toContain('text-acao')
+      expect(classes(pilula)).not.toContain('bg-atencao-fundo')
+    })
+
+    it('escolhida a importada, a pílula troca para Receita importada em neutro', () => {
+      render(
+        <ArvoreDaImportacao
+          raiz={RAIZ}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[2, 'Importada']])}
+        />,
+      )
+
+      const linha = within(linhaDoSuporte())
+      expect(linha.queryByText('Receita divergente')).toBeNull()
+      expect(linha.queryByText('Receita do catálogo')).toBeNull()
+      const pilula = linha.getByText('Receita importada')
+      expect(classes(pilula)).toContain('bg-acao-fundo')
+      expect(classes(pilula)).not.toContain('bg-atencao-fundo')
+    })
+
+    it('a escolha não mexe nas outras pílulas da linha', () => {
+      render(
+        <ArvoreDaImportacao
+          raiz={RAIZ}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[2, 'Catalogo']])}
+        />,
+      )
+
+      const linha = within(linhaDoSuporte())
+      expect(classes(linha.getByText('Sem sólido'))).toContain('bg-atencao-fundo')
+      expect(classes(linha.getByText('Inativo'))).toContain('bg-atencao-fundo')
+    })
+
+    it('a escolha de um registro vale para todas as ocorrências do código', () => {
+      const raiz = no({
+        registroId: 1, codigo: 'CH-100', descricao: 'Chassi',
+        filhos: [
+          no({ registroId: 7, componenteId: 700, filhoId: 70, codigo: 'MT-1030', descricao: 'Mola', pendencias: ['Divergente'] }),
+          no({
+            registroId: 8, componenteId: 800, filhoId: 80, codigo: 'SU-800', descricao: 'Suporte', pendencias: [],
+            filhos: [
+              no({ registroId: 7, componenteId: 700, filhoId: 71, codigo: 'MT-1030', descricao: 'Mola', pendencias: ['Divergente'] }),
+            ],
+          }),
+        ],
+      })
+      render(
+        <ArvoreDaImportacao
+          raiz={raiz}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[7, 'Importada']])}
+        />,
+      )
+
+      expect(screen.getAllByText('Receita importada')).toHaveLength(2)
+      expect(screen.queryByText('Receita divergente')).toBeNull()
+    })
+  })
+
+  it('Ocorrencias_do_mesmo_codigo_ficam_destacadas_juntas', () => {
+    const { rerender } = render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+    expect(screen.queryByText('mesmo código')).toBeNull()
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(0)
+
+    // Seleciona o Parafuso (registro 3), que aparece duas vezes.
+    fireEvent.click(within(screen.getByTestId('linha-importacao-0-1')).getByRole('button', { name: /PA-300 Parafuso/ }))
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 3, componenteId: 300 }} aoSelecionar={() => {}} />)
+
+    // A ocorrência clicada leva aria-current; a outra, o indicador textual.
+    const clicada = within(screen.getByTestId('linha-importacao-0-1')).getByRole('button', { name: /PA-300 Parafuso/ })
+    expect(clicada.getAttribute('aria-current')).toBe('true')
+    const outra = screen.getByTestId('linha-importacao-0-0-0')
+    expect(within(outra).getByText('mesmo código')).toBeTruthy()
+    expect(within(outra).getByRole('button', { name: /PA-300 Parafuso/ }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getAllByText('mesmo código')).toHaveLength(1)
+    // Nó de outro código: nem destaque nem indicador.
+    expect(within(screen.getByTestId('linha-importacao-0-0')).queryByText('mesmo código')).toBeNull()
+  })
+
+  it('No_so_do_catalogo_selecionado_fica_marcado_e_marca_as_outras_ocorrencias', () => {
+    const { rerender } = render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+    // Clica a Arruela sob o Parafuso (catálogo, sem registro) e a tela devolve a seleção.
+    fireEvent.click(within(screen.getByTestId('linha-importacao-0-1-0')).getByRole('button', { name: /AR-400 Arruela/ }))
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: null, componenteId: 400 }} aoSelecionar={() => {}} />)
+
+    const clicada = within(screen.getByTestId('linha-importacao-0-1-0')).getByRole('button', { name: /AR-400 Arruela/ })
+    expect(clicada.getAttribute('aria-current')).toBe('true')
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(1)
+    expect(within(screen.getByTestId('linha-importacao-0-0-1')).getByText('mesmo código')).toBeTruthy()
+    expect(screen.getAllByText('mesmo código')).toHaveLength(1)
+  })
+
+  it('Selecao_de_catalogo_vinda_de_fora_marca_a_primeira_ocorrencia', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: null, componenteId: 400 }} aoSelecionar={() => {}} />)
+
+    const primeira = within(screen.getByTestId('linha-importacao-0-0-1')).getByRole('button', { name: /AR-400 Arruela/ })
+    expect(primeira.getAttribute('aria-current')).toBe('true')
+    expect(within(screen.getByTestId('linha-importacao-0-1-0')).getByText('mesmo código')).toBeTruthy()
+  })
+
+  it('Selecao_que_nao_existe_mais_nao_marca_nada', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 99, componenteId: 990 }} aoSelecionar={() => {}} />)
+
+    expect(screen.queryAllByRole('button', { current: true })).toHaveLength(0)
+    expect(screen.queryByText('mesmo código')).toBeNull()
+  })
+
+  it('Pedido_de_rolagem_leva_a_selecionada_a_vista_de_novo_a_cada_pedido', () => {
+    const rolar = vi.fn()
+    HTMLElement.prototype.scrollIntoView = rolar // restaurado pelo afterEach
+    const selecao = { registroId: 3, componenteId: 300 }
+    const { rerender } = render(
+      <ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={0} />,
+    )
+    expect(rolar).not.toHaveBeenCalled()
+
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={1} />)
+    expect(rolar).toHaveBeenCalledTimes(1)
+    // A mesma seleção, pedida outra vez: rola de novo.
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={2} />)
+    expect(rolar).toHaveBeenCalledTimes(2)
+    // Nenhum pedido novo: nenhuma rolagem (clicar numa linha não rola).
+    rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={2} />)
+    expect(rolar).toHaveBeenCalledTimes(2)
+    // Nenhuma região fixa fica acima da árvore (o painel fixo é lateral), então a linha não precisa
+    // de margem de rolagem.
+    expect(screen.getByTestId('linha-importacao-0-0-0').className).not.toContain('scroll-mt-')
+  })
+
+  it('A_linha_inteira_e_alvo_de_toque_e_o_campo_de_quantidade_fica_acima', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} aoAlterarQuantidade={() => {}} />)
+
+    // jsdom não roda Tailwind: o que se prende é a DECLARAÇÃO das classes (como o alternador da
+    // ArvoreDeEstrutura), não a geometria.
+    const linha = screen.getByTestId('linha-importacao-0-0')
+    expect(linha.className.split(/\s+/)).toContain('relative')
+    // `isolate`: o z-index do campo fica preso à linha e não disputa com o resto da tela.
+    expect(linha.className.split(/\s+/)).toContain('isolate')
+    const botao = within(linha).getByRole('button', { name: /SU-200 Suporte/ })
+    expect(botao.className).toContain('after:absolute')
+    expect(botao.className).toContain('after:inset-0')
+    const campo = within(linha).getByLabelText('Quantidade por pai de Suporte')
+    const envoltorio = campo.closest('div[class*="z-["]')
+    expect(envoltorio).not.toBeNull()
+    expect(envoltorio!.className.split(/\s+/)).toContain('z-[1]')
+    // O mínimo que basta para ficar acima do overlay (`z-auto`), e nada maior.
+    expect(envoltorio!.className.split(/\s+/)).not.toContain('z-10')
+  })
+
+  it('O_anel_de_foco_contorna_a_linha_inteira_e_e_um_so', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+    // O botão É a linha: o anel mora no `::after`, que cobre a linha toda, e não no texto do botão.
+    // Um anel nos dois lugares desenharia dois contornos.
+    const botao = within(screen.getByTestId('linha-importacao-0-0')).getByRole('button', { name: /SU-200 Suporte/ })
+    const classes = botao.className.split(/\s+/)
+    expect(classes).toContain('focus-visible:after:outline-acao')
+    expect(classes).toContain('focus-visible:after:outline-2')
+    expect(classes).toContain('focus-visible:outline-none')
+    // O `outline-none` do botão zera a variável de estilo do contorno, que o `::after` herda: sem o
+    // estilo declarado no próprio `::after`, o anel não aparece.
+    expect(classes).toContain('focus-visible:after:outline-solid')
+    expect(classes).not.toContain('focus-visible:outline-acao')
+    expect(classes).not.toContain('focus-visible:outline-2')
+  })
+
+  it('Selecao_vinda_de_fora_marca_a_primeira_ocorrencia', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 3, componenteId: 300 }} aoSelecionar={() => {}} />)
+
+    const primeira = within(screen.getByTestId('linha-importacao-0-0-0')).getByRole('button', { name: /PA-300 Parafuso/ })
+    expect(primeira.getAttribute('aria-current')).toBe('true')
+    expect(within(screen.getByTestId('linha-importacao-0-1')).getByText('mesmo código')).toBeTruthy()
+  })
+
+  it('Quantidade_so_e_editavel_em_aresta_do_BOM', () => {
+    const aoAlterarQuantidade = vi.fn()
+    render(
+      <ArvoreDaImportacao
+        raiz={RAIZ}
+        selecionado={null}
+        aoSelecionar={() => {}}
+        aoAlterarQuantidade={aoAlterarQuantidade}
+      />,
+    )
+
+    // Aresta do BOM (filhoId): campo editável.
+    const campo = within(screen.getByTestId('linha-importacao-0-0')).getByLabelText('Quantidade por pai de Suporte')
+    expect((campo as HTMLInputElement).value).toBe('2')
+
+    // Sem mudança, o blur não escreve.
+    fireEvent.blur(campo)
+    expect(aoAlterarQuantidade).not.toHaveBeenCalled()
+
+    // Valor inválido não escreve, e o campo volta ao que estava.
+    fireEvent.change(campo, { target: { value: 'abc' } })
+    fireEvent.blur(campo)
+    expect(aoAlterarQuantidade).not.toHaveBeenCalled()
+    expect((campo as HTMLInputElement).value).toBe('2')
+
+    fireEvent.change(campo, { target: { value: '5' } })
+    fireEvent.blur(campo)
+    expect(aoAlterarQuantidade).toHaveBeenCalledTimes(1)
+    expect(aoAlterarQuantidade).toHaveBeenCalledWith(20, 5)
+
+    // Raiz (sem filhoId) e nó do catálogo: sem campo; a quantidade, quando existe, é texto.
+    expect(within(screen.getByTestId('linha-importacao-0')).queryByRole('textbox')).toBeNull()
+    const doCatalogo = screen.getByTestId('linha-importacao-0-1-0')
+    expect(within(doCatalogo).queryByRole('textbox')).toBeNull()
+    expect(within(doCatalogo).getByText(/1/)).toBeTruthy()
+  })
+
+  it('Sem_aoAlterarQuantidade_a_quantidade_e_so_texto', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+    expect(screen.queryByRole('textbox')).toBeNull()
+  })
+})

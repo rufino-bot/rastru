@@ -419,4 +419,16 @@ describe('SeletorComBusca', () => {
 
     expect(aoSelecionar).not.toHaveBeenCalled()
   })
+
+  it('desabilitado trava o campo, e nenhuma lista abre', () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/componentes': () => respostaJson(PAGINA) }))
+    render(
+      <SeletorComBusca rotulo="Componente filho" valorSelecionado={null} aoSelecionar={vi.fn()} desabilitado />,
+    )
+
+    const campo = screen.getByRole('combobox') as HTMLInputElement
+    expect(campo.disabled).toBe(true)
+    fireEvent.focus(campo)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
 })

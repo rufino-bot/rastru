@@ -335,6 +335,12 @@ Isso baixa a barra técnica de forma significativa e é o que torna a opção 1 
 gravação direta — "importar do CAD e conferir". **Nada disso muda o schema**: as tabelas da 1B e da
 1C já são o destino do import. Registrado em `specs/06-roadmap-mvp.md`.
 
+> **Atualização de 2026-10-02:** o import virou desenho em
+> `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`. A frase "nada disso muda o
+> schema" vale para o **destino** (`Componente`, receita padrão e `EstruturaItem` seguem como estão), mas
+> o desenho achou a necessidade de três tabelas de **rascunho** para a conferência sobreviver a F5 — o
+> schema mudou, e a regra geral está no cabeçalho de `specs/06-roadmap-mvp.md`.
+
 **Efeito único sobre a 1C:** o caso de uso que grava a receita deve aceitar **uma lista de linhas de
 uma vez**, não só uma linha por chamada. É quase de graça e evita reescrever o caso de uso depois; a
 tela continua digitando linha a linha.

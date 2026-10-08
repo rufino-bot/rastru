@@ -1,5 +1,6 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Tests.Importacao;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -19,7 +20,7 @@ public class CadastroDeAgrupamentoUseCaseTests
   {
     var antes = DateTime.UtcNow.AddSeconds(-1);
     var repo = new FakeAgrupamentoRepo();
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Cadastrar(1, Kit(), UsuarioDaSessao, CancellationToken.None);
 
@@ -34,7 +35,7 @@ public class CadastroDeAgrupamentoUseCaseTests
   public async Task Cadastrar_em_pedido_inexistente_e_nao_encontrado()
   {
     var repo = new FakeAgrupamentoRepo();
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo());
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(), new FakeImportacaoRepo());
 
     var resultado = await useCase.Cadastrar(99, Kit(), UsuarioDaSessao, CancellationToken.None);
 
@@ -53,7 +54,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       Codigo = "AG-01",
       Tipo = "Kit",
     });
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Cadastrar(1, Kit(), UsuarioDaSessao, CancellationToken.None);
 
@@ -74,7 +75,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       Tipo = "Kit",
     });
     var useCase = new CadastroDeAgrupamentoUseCase(
-        repo, new FakePedidoRepo(PedidoAberto(), PedidoAberto(2)));
+        repo, new FakePedidoRepo(PedidoAberto(), PedidoAberto(2)), new FakeImportacaoRepo());
 
     var resultado = await useCase.Cadastrar(1, Kit(), UsuarioDaSessao, CancellationToken.None);
 
@@ -89,7 +90,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     // Tipo fora de Kit|Avulso e barrado aqui, e nao pelo CK_Agrupamento_Tipo: excecao de CHECK
     // subiria como 500 em vez de 400 (specs/03-arquitetura-tecnica.md:25-27).
     var repo = new FakeAgrupamentoRepo();
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Cadastrar(
         1, new NovoAgrupamentoDto(codigo, tipo), UsuarioDaSessao, CancellationToken.None);
@@ -109,7 +110,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       Codigo = "AG-01",
       Tipo = "Kit",
     });
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Excluir(5, CancellationToken.None);
 
@@ -129,7 +130,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       Tipo = "Kit",
     });
     repo.ComEstrutura.Add(5);
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Excluir(5, CancellationToken.None);
 
@@ -137,6 +138,58 @@ public class CadastroDeAgrupamentoUseCaseTests
     Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
     Assert.Equal("AgrupamentoNaoVazio", resultado.Erro);
     Assert.Equal(0, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Excluir_agrupamento_com_rascunho_de_importacao_e_bloqueado()
+  {
+    var repo = new FakeAgrupamentoRepo(new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    var importacoes = new FakeImportacaoRepo();
+    importacoes.AgrupamentosComRascunho.Add(5);
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), importacoes);
+
+    var resultado = await useCase.Excluir(5, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
+    Assert.Equal(CadastroDeAgrupamentoUseCase.AgrupamentoComImportacao, resultado.Erro);
+    Assert.Equal("AgrupamentoComImportacao", resultado.Erro);
+    Assert.Equal(0, repo.Saves);
+  }
+
+  [Fact]
+  public async Task Excluir_agrupamento_de_rascunho_de_OUTRO_agrupamento_nao_e_bloqueado()
+  {
+    var repo = new FakeAgrupamentoRepo(new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    var importacoes = new FakeImportacaoRepo();
+    importacoes.AgrupamentosComRascunho.Add(6);
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), importacoes);
+
+    var resultado = await useCase.Excluir(5, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+  }
+
+  [Fact]
+  public async Task Excluir_agrupamento_confere_Pedido_aberto_e_estrutura_ANTES_do_rascunho()
+  {
+    // A ordem e: existe -> Pedido Aberto -> vazio -> rascunho. Com os tres impedimentos de uma vez,
+    // vence o primeiro da fila a cada rodada.
+    var pedido = PedidoAberto();
+    pedido.Status = "EmProducao";
+    var repo = new FakeAgrupamentoRepo(new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" });
+    repo.ComEstrutura.Add(5);
+    var importacoes = new FakeImportacaoRepo();
+    importacoes.AgrupamentosComRascunho.Add(5);
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(pedido), importacoes);
+
+    Assert.Equal("PedidoNaoAberto", (await useCase.Excluir(5, CancellationToken.None)).Erro);
+
+    pedido.Status = "Aberto";
+    Assert.Equal("AgrupamentoNaoVazio", (await useCase.Excluir(5, CancellationToken.None)).Erro);
+
+    repo.ComEstrutura.Clear();
+    Assert.Equal("AgrupamentoComImportacao", (await useCase.Excluir(5, CancellationToken.None)).Erro);
   }
 
   [Fact]
@@ -151,7 +204,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       Codigo = "AG-01",
       Tipo = "Kit",
     });
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(pedido));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(pedido), new FakeImportacaoRepo());
 
     var resultado = await useCase.Excluir(5, CancellationToken.None);
 
@@ -165,7 +218,7 @@ public class CadastroDeAgrupamentoUseCaseTests
   public async Task Excluir_agrupamento_inexistente_e_nao_encontrado()
   {
     var repo = new FakeAgrupamentoRepo();
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo());
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(), new FakeImportacaoRepo());
 
     var resultado = await useCase.Excluir(99, CancellationToken.None);
 
@@ -186,7 +239,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       CriadoPorUsuarioId = 7,
       CriadoEm = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc),
     });
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Editar(
         5, new NovoAgrupamentoDto("AG-01", "Avulso"), CancellationToken.None);
@@ -205,7 +258,7 @@ public class CadastroDeAgrupamentoUseCaseTests
   public async Task Editar_agrupamento_inexistente_e_nao_encontrado()
   {
     var repo = new FakeAgrupamentoRepo();
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Editar(
         99, new NovoAgrupamentoDto("AG-99", "Kit"), CancellationToken.None);
@@ -221,7 +274,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     var repo = new FakeAgrupamentoRepo(
         new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit" },
         new Agrupamento { Id = 6, PedidoId = 1, Codigo = "AG-02", Tipo = "Kit" });
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var resultado = await useCase.Editar(
         6, new NovoAgrupamentoDto("AG-01", "Kit"), CancellationToken.None);
@@ -241,7 +294,7 @@ public class CadastroDeAgrupamentoUseCaseTests
       Codigo = "AG-01",
       Tipo = "Kit",
     });
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var duplicado = await useCase.LocalizarDuplicado(1, "AG-01", CancellationToken.None);
 
@@ -258,7 +311,7 @@ public class CadastroDeAgrupamentoUseCaseTests
     // mesmo em propriedade nao-anulavel. Sem esta assercao a guarda vira disciplina de codigo:
     // trocar `Normalizar(codigo)` por `codigo.Trim()` pelado nao quebraria nada (adendo B9).
     var repo = new FakeAgrupamentoRepo();
-    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()));
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
 
     var duplicado = await useCase.LocalizarDuplicado(1, null!, CancellationToken.None);
 

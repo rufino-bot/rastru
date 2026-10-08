@@ -13,7 +13,9 @@ using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Importacao;
 using Rastreamento.Domain.Abstractions;
+using Rastreamento.Infrastructure.Importacao;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
 
@@ -120,7 +122,11 @@ builder.Services.AddScoped<CadastroDeAgrupamentoUseCase>();
 builder.Services.AddScoped<IComponenteRepository, ComponenteRepository>();
 builder.Services.AddScoped<CadastroDeComponenteUseCase>();
 builder.Services.AddScoped<IArquivoDeComponenteRepository, ArquivoDeComponenteRepository>();
+builder.Services.AddScoped<IImportacaoDeEstruturaRepository, ImportacaoDeEstruturaRepository>();
+builder.Services.AddScoped<ImportacaoDeEstruturaUseCase>();
 builder.Services.AddScoped<SolidoDoComponenteUseCase>();
+// O leitor do BOM nao tem estado nem toca o banco: um so para a aplicacao toda.
+builder.Services.AddSingleton<ILeitorDeBom, LeitorDeBom>();
 
 // Receita padrao do Componente (Fase 1C): UM repositorio para as tres tabelas, e um caso de uso
 // para os tres sub-recursos — ver o summary de IReceitaPadraoRepository.

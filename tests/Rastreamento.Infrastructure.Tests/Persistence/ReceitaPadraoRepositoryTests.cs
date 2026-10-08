@@ -132,6 +132,40 @@ public class ReceitaPadraoRepositoryTests : FixtureDeReceitaPadrao
   }
 
   /// <summary>
+  /// Dentro de uma transacao do chamador (a confirmacao do import grava a receita na transacao da
+  /// execucao), a substituicao usa a transacao dela: abrir outra lancaria, e o rollback do chamador
+  /// desfaz a substituicao.
+  /// </summary>
+  [Fact]
+  public async Task Substituir_filhos_dentro_de_transacao_externa_usa_a_transacao_dela()
+  {
+    await using var db = NovoContexto();
+    var repo = new ReceitaPadraoRepository(db);
+    var pai = await UmComponente(db);
+    var filhoA = await UmComponente(db);
+    var filhoB = await UmComponente(db);
+
+    try
+    {
+      await repo.SubstituirFilhosAsync(pai.Id, [Aresta(pai.Id, filhoA.Id, 1m)], CancellationToken.None);
+
+      await using (var externa = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable))
+      {
+        await repo.SubstituirFilhosAsync(pai.Id, [Aresta(pai.Id, filhoB.Id, 2m)], CancellationToken.None);
+        await externa.RollbackAsync();
+      }
+      db.ChangeTracker.Clear();
+
+      var unica = Assert.Single(await repo.ListarFilhosAsync(pai.Id, CancellationToken.None));
+      Assert.Equal((filhoA.Id, 1m), (unica.ComponenteFilhoId, unica.QuantidadePadrao));
+    }
+    finally
+    {
+      await LimparAsync([pai.Id, filhoA.Id, filhoB.Id]);
+    }
+  }
+
+  /// <summary>
   /// Substituir uma receita de DUAS linhas por uma: e o caso que separa "apaga as linhas antigas"
   /// de "apaga a primeira linha antiga". Todos os outros testes de substituicao partem de 0 ou 1
   /// linha, e por isso um delete com `.Take(1)` passava verde.

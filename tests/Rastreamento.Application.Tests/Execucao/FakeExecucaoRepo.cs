@@ -57,6 +57,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// </summary>
   public List<string> Eventos { get; } = new();
 
+  /// <summary>Se ha uma transacao aberta agora: prova de que uma escrita aconteceu dentro ou fora dela.</summary>
+  public bool EmTransacao => _emTransacao;
+
   public int Transacoes { get; private set; }
   public int Saves { get; private set; }
 

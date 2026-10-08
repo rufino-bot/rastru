@@ -60,4 +60,15 @@ describe('Pagina', () => {
     expect(classes).toContain('max-w-3xl')
     expect(classes).not.toContain('max-w-md')
   })
+
+  it('a largura ampla é opção de quem precisa de duas colunas, e não muda a padrão', () => {
+    const { container, rerender } = render(<Pagina titulo="Conferência" largura="ampla"><p>c</p></Pagina>)
+
+    const ampla = container.firstElementChild!.className.split(/\s+/)
+    expect(ampla).toContain('max-w-7xl')
+    expect(ampla).not.toContain('max-w-3xl')
+
+    rerender(<Pagina titulo="Conferência" largura="padrao"><p>c</p></Pagina>)
+    expect(container.firstElementChild!.className.split(/\s+/)).toContain('max-w-3xl')
+  })
 })

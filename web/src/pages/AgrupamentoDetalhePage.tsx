@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import {
   obterEstrutura, criarPeca, acrescentarFilho, editarNo, excluirNo, ehConflitoDeEstrutura,
   type NoDaEstrutura, type NovoFilho, type EdicaoDeNo, type ResultadoDeEstrutura,
@@ -8,6 +8,7 @@ import { obterAgrupamento, type ComponenteDto, type AgrupamentoDto } from '../ap
 import { obterPosicoes, type PosicoesDoNoDto } from '../api/execucao'
 import { listarFilhosPadrao, type FilhoPadraoDto } from '../api/receitaPadrao'
 import { mensagemDeErro } from '../api/erros'
+import { criarImportacao, LIMITE_DO_BOM_LEGIVEL } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
@@ -21,6 +22,8 @@ import { ArvoreDeEstrutura } from '../components/ArvoreDeEstrutura'
 import { Confirmacao } from '../components/Confirmacao'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { PainelDoNo } from '../execucao/PainelDoNo'
+import { ImportacoesEmConferencia } from '../importacao/ImportacoesEmConferencia'
+import { PainelDoArquivoDoBom } from '../importacao/PainelDoArquivoDoBom'
 
 /** O que o painel de escrita do NÓ (acrescentar filho / editar nó) está fazendo agora. Os dois
     modos nunca coexistem — um único painel, uma única `<form>` — então um estado discriminado é
@@ -151,6 +154,18 @@ export function AgrupamentoDetalhePage() {
   const [noEmDetalhe, setNoEmDetalhe] = useState<NoDaEstrutura | null>(null)
   const [erroExcluir, setErroExcluir] = useState<string | null>(null)
 
+  // Importar o BOM (Fase de import da estrutura): um painel a mais, exclusivo com os outros dois e
+  // com a confirmação de exclusão. O arquivo, o limite de tamanho e o erro de envio moram no
+  // `PainelDoArquivoDoBom`; aqui fica só se ele está aberto.
+  const [painelDeImportacaoAberto, setPainelDeImportacaoAberto] = useState(false)
+  // Lido por `ImportacoesEmConferencia` para reler a lista quando a árvore é recarregada.
+  const [versaoDasImportacoes, setVersaoDasImportacoes] = useState(0)
+
+  const jaCarregouUmaVez = useRef(false)
+  // A seção das importações só entra depois da primeira carga da árvore, e com a árvore sem erro: ela
+  // tem os três estados dela, e montada antes duplicaria o "Carregando…" e o banner de rede da tela.
+  const [arvoreJaCarregou, setArvoreJaCarregou] = useState(false)
+  const navegar = useNavigate()
   const podeEscrever = usePodeEscrever('estrutura')
 
   // O "Nova Peça" some com o painel de Peça aberto; quando ele fecha por Cancelar ou por sucesso, o
@@ -158,6 +173,8 @@ export function AgrupamentoDetalhePage() {
   // o hook não o tira de lá. O painel do nó não devolve foco.
   const botaoNovaPeca = useRef<HTMLButtonElement>(null)
   useDevolverFoco(painelDePecaAberto, () => botaoNovaPeca.current)
+  const botaoImportarBom = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(painelDeImportacaoAberto, () => botaoImportarBom.current)
 
   // Recebe o id como argumento (não fecha sobre `agrupamentoId` de fora): mesmo motivo do
   // comentário equivalente em `PedidoDetalhePage.tsx` — o exhaustive-deps cobra 'carregar' como
@@ -177,10 +194,16 @@ export function AgrupamentoDetalhePage() {
       const [dados, saldos] = await Promise.all([obterEstrutura(id), obterPosicoes(id)])
       setNos(dados)
       setPosicoes(new Map(saldos.map((p) => [p.estruturaItemId, p])))
+      // A primeira carga não conta: a seção das importações já lê a lista ao montar. Recargas
+      // seguintes (depois de uma escrita na árvore) pedem a releitura, porque outra aba pode ter
+      // criado ou descartado um rascunho nesse meio tempo.
+      if (jaCarregouUmaVez.current) setVersaoDasImportacoes((v) => v + 1)
+      jaCarregouUmaVez.current = true
     } catch (e) {
       setErro(mensagemDeErro(e, 'Não foi possível carregar a estrutura.'))
     } finally {
       setCarregando(false)
+      setArvoreJaCarregou(true)
     }
   }
 
@@ -229,6 +252,7 @@ export function AgrupamentoDetalhePage() {
     // Exclusividade (decisão 4 da spec da 1F): o painel de Peça é o único `<form>` da tela, então
     // o painel do nó, o detalhe e a confirmação de exclusão saem.
     fecharPainel()
+    fecharPainelDeImportacao()
     setNoParaExcluir(null)
     setNoEmDetalhe(null)
     setComponente(null)
@@ -291,6 +315,7 @@ export function AgrupamentoDetalhePage() {
   // motivo fecham o painel de Peça (`fecharPainelDePeca`), que também tem um "Cancelar".
   function abrirAcrescentarFilho(paiId: number) {
     fecharPainelDePeca()
+    fecharPainelDeImportacao()
     setNoParaExcluir(null)
     setNoEmDetalhe(null)
     setPainel({ tipo: 'acrescentarFilho', paiId })
@@ -304,6 +329,7 @@ export function AgrupamentoDetalhePage() {
 
   function abrirEditar(no: NoDaEstrutura) {
     fecharPainelDePeca()
+    fecharPainelDeImportacao()
     setNoParaExcluir(null)
     setNoEmDetalhe(null)
     setPainel({ tipo: 'editar', no })
@@ -329,6 +355,7 @@ export function AgrupamentoDetalhePage() {
   function pedirExclusao(no: NoDaEstrutura) {
     fecharPainel()
     fecharPainelDePeca()
+    fecharPainelDeImportacao()
     setNoEmDetalhe(null)
     setNoParaExcluir(no)
   }
@@ -336,8 +363,30 @@ export function AgrupamentoDetalhePage() {
   function abrirDetalhe(no: NoDaEstrutura) {
     fecharPainel()
     fecharPainelDePeca()
+    fecharPainelDeImportacao()
     setNoParaExcluir(null)
     setNoEmDetalhe(no)
+  }
+
+  // Abrir o painel de importação fecha os outros dois e a confirmação de exclusão, como as demais
+  // aberturas: nunca há dois `<form>` de painel no documento.
+  function abrirImportarBom() {
+    fecharPainel()
+    fecharPainelDePeca()
+    setNoParaExcluir(null)
+    setNoEmDetalhe(null)
+    fecharPainelDeImportacao()
+    setPainelDeImportacaoAberto(true)
+  }
+
+  function fecharPainelDeImportacao() {
+    setPainelDeImportacaoAberto(false)
+  }
+
+  /** Cria o rascunho e vai para a conferência; a falha rejeita e o painel a mostra. */
+  async function importarBom(arquivo: File) {
+    const importacao = await criarImportacao(agrupamentoId, arquivo)
+    navegar(`/importacoes/${importacao.id}`)
   }
 
   function fecharPainel() {
@@ -489,6 +538,9 @@ export function AgrupamentoDetalhePage() {
       acao={(
         <div className="flex items-center gap-3">
           {podeEscrever && !painelDePecaAberto && <Botao ref={botaoNovaPeca} onClick={abrirNovaPeca}>Nova Peça</Botao>}
+          {podeEscrever && !painelDeImportacaoAberto && (
+            <Botao ref={botaoImportarBom} variante="secundario" onClick={abrirImportarBom}>Importar BOM</Botao>
+          )}
           <span className="font-mono text-xs text-tinta-fraca">{`Id ${agrupamentoId}`}</span>
         </div>
       )}
@@ -544,6 +596,18 @@ export function AgrupamentoDetalhePage() {
             Criar Peça
           </Botao>
         </PainelDeEscrita>
+      )}
+
+      {podeEscrever && painelDeImportacaoAberto && (
+        <PainelDoArquivoDoBom
+          titulo="Importar BOM"
+          subtitulo="Cria um rascunho da estrutura a partir da lista de materiais do CAD. Nada é gravado na estrutura até você conferir e confirmar."
+          rotuloDoEnvio="Importar"
+          rotuloEnviando="Importando…"
+          fallbackDoErro={`Não foi possível importar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`}
+          aoEnviar={importarBom}
+          aoFechar={fecharPainelDeImportacao}
+        />
       )}
 
       {painel && (
@@ -700,6 +764,10 @@ export function AgrupamentoDetalhePage() {
           />
         )
       )}
+
+      {/* Abaixo da árvore: um rascunho esquecido bloqueia a exclusão do Agrupamento, e é daqui que
+          se continua ou descarta. Só para quem escreve: a conferência e o descarte são escritas. */}
+      {podeEscrever && arvoreJaCarregou && erro === null && <ImportacoesEmConferencia agrupamentoId={agrupamentoId} versao={versaoDasImportacoes} />}
 
       <Confirmacao
         aberto={noParaExcluir !== null}

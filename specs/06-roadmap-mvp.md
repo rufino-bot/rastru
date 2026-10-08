@@ -5,6 +5,13 @@ uma sessão de agent com escopo fechado, referenciando os arquivos desta pasta c
 contexto. Recomenda-se não avançar de fase sem os "pontos em aberto" da fase anterior
 resolvidos (ou conscientemente adiados).
 
+**O schema pode mudar quando uma spec encontra a necessidade** (decisão do usuário de 2026-10-02).
+Uma frase como "não muda o schema", escrita numa fase ou num registro de decisão, descreve o que se
+sabia naquela data, não uma proibição: se o desenho de uma funcionalidade nova, ou a correção de algo
+que já existe, mostrar que precisa de schema, a spec dela o propõe com o motivo, e a mudança segue o
+caminho de sempre (`02-modelo-de-dados.sql` primeiro, depois o mapeamento, depois `01` se for regra).
+O caso que motivou a regra: o import da estrutura a partir do CAD.
+
 ## Fase 0 — Setup do projeto
 
 - Criar solution .NET (`Domain`, `Application`, `Infrastructure`, `Api`) conforme
@@ -561,6 +568,9 @@ branch. A spec e o plano da fase estão na `main` desde esse merge, e a branch
 
 ## Fase 3B — Kit e montagem
 
+> **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
+> «Import da estrutura a partir do CAD»). A ordem fica: filtros → 1F → **import do BOM** → 3B.
+
 - `Setor.UtilizaKit` (regra 25 de `01`); o schema entra no início desta fase. A montagem, o destino
   "montado" e `QuantidadePorPai` já existem desde a Fase 3, e o início de um nó com filhos consome os
   filhos desde a 3D.
@@ -676,7 +686,14 @@ fotografadas na condição de captura pretendida (fundo claro, maior superfície
 mostra), medindo a **taxa de acerto no top-3 dentro de uma lista de setor**. É resultado
 empírico — nenhuma análise substitui esse número. Só entra no roadmap depois dele.
 
-## Fora das fases — importar a estrutura a partir do CAD (decidido em 2026-08-04)
+## Import da estrutura a partir do CAD (decidido em 2026-08-04; executa antes da 3B)
+
+> **Executa antes da Fase 3B**, por decisão do usuário de 2026-10-02: a 3B mexe em montagem e Kit, e o
+> import não depende dela. Spec: `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`,
+> que detalha o fluxo (o BOM alimenta o Agrupamento **e** o catálogo, a conferência é um rascunho salvo no
+> servidor). Até 2026-10-02 esta seção se chamava «Fora das fases — importar a estrutura a partir do
+> CAD», e é por esse nome que planos e specs anteriores a citam. O texto abaixo é o de 2026-08-04, que
+> continua valendo, menos o parágrafo do schema, revisto na mesma data.
 
 **Problema que motiva:** hoje a árvore de uma Peça é digitada à mão, item por item — e ela já
 existe, pronta e correta, dentro do arquivo de montagem do CAD.
@@ -716,8 +733,11 @@ entrega valor, e a fase não carrega o requisito de resolver o caso ambíguo.
 
 **Forma:** o import gera uma **proposta** que um humano confere e confirma; nunca gravação direta.
 
-**Não muda o schema.** As tabelas de `Componente`/receita padrão (Fases 1B e 1C) e `EstruturaItem`
-(Fase 2) já são o destino do import.
+**Schema: o destino não muda, a área de trabalho é nova.** As tabelas de `Componente`/receita padrão
+(Fases 1B e 1C) e `EstruturaItem` (Fase 2) continuam sendo o destino do import, sem mudança. O texto de
+2026-08-04 dizia "não muda o schema"; o brainstorm de 2026-10-02 achou a necessidade de três tabelas
+de rascunho (a conferência leva horas ou dias e precisa sobreviver a F5), e o usuário decidiu que isso
+não é exceção a uma regra, e sim a regra geral do cabeçalho deste arquivo.
 
 **Efeito único sobre a Fase 1C:** o caso de uso que grava a receita padrão deve aceitar **uma lista
 de linhas de uma vez**, e não só uma linha por chamada. É quase de graça agora e evita reescrever o

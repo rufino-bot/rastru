@@ -53,6 +53,15 @@ public class ComponenteRepository : IComponenteRepository
     return (itens, total);
   }
 
+  // Sem Where(Ativo): o import precisa ver o inativo para oferecer reativa-lo. Sem ToLower() nem
+  // comparacao ordinal: a collation da coluna ja ignora a caixa, e e ela que UQ_Componente_Codigo usa.
+  public async Task<IReadOnlyList<Componente>> ListarPorCodigosAsync(
+      IReadOnlyCollection<string> codigos, CancellationToken ct)
+  {
+    if (codigos.Count == 0) return [];
+    return await _db.Componentes.Where(c => codigos.Contains(c.Codigo)).ToListAsync(ct);
+  }
+
   public async Task AdicionarAsync(Componente componente, CancellationToken ct) =>
       await _db.Componentes.AddAsync(componente, ct);
 

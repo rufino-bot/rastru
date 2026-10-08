@@ -256,7 +256,8 @@ export interface NovoAgrupamento {
 }
 
 /** Desfechos do DELETE. A tela precisa distinguir os dois 409 para explicar o que houve. */
-export type ResultadoExclusao = 'ok' | 'AgrupamentoNaoVazio' | 'PedidoNaoAberto' | 'NaoEncontrado'
+export type ResultadoExclusao =
+  | 'ok' | 'AgrupamentoNaoVazio' | 'PedidoNaoAberto' | 'AgrupamentoComImportacao' | 'NaoEncontrado'
 
 export async function listarAgrupamentos(pedidoId: number): Promise<AgrupamentoDto[]> {
   const resp = await apiFetch(`/pedidos/${pedidoId}/agrupamentos`)
@@ -299,7 +300,9 @@ export async function excluirAgrupamento(id: number): Promise<ResultadoExclusao>
   if (resp.status === 404) return 'NaoEncontrado'
   if (resp.status === 409) {
     const corpo = (await resp.json()) as { erro?: string }
-    return corpo.erro === 'PedidoNaoAberto' ? 'PedidoNaoAberto' : 'AgrupamentoNaoVazio'
+    // `AgrupamentoComImportacao`: há rascunho de importação do BOM esperando conferência.
+    if (corpo.erro === 'PedidoNaoAberto' || corpo.erro === 'AgrupamentoComImportacao') return corpo.erro
+    return 'AgrupamentoNaoVazio'
   }
   throw new ErroDeApi(resp.status, `Falha ao excluir o agrupamento (${resp.status}).`)
 }

@@ -38,8 +38,13 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     // linha de proposito). Antes do Componente que ela referencia — FK_EstruturaItem_Componente
     // nao aceita a ordem inversa.
     foreach (var id in ids)
+    {
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.EstruturaItem WHERE AgrupamentoId IN (SELECT Id FROM dbo.Agrupamento WHERE PedidoId = {id})");
+      // Rascunho de import so de cabecalho (sem registros), o unico que este arquivo cria.
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.ImportacaoDeEstrutura WHERE AgrupamentoId IN (SELECT Id FROM dbo.Agrupamento WHERE PedidoId = {id})");
+    }
 
     db.Componentes.RemoveRange(
         await db.Componentes.Where(c => _componentesCriados.Contains(c.Id)).ToListAsync());
@@ -373,6 +378,39 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
     Assert.Equal("AgrupamentoNaoVazio", corpo.GetProperty("erro").GetString());
+  }
+
+  [Fact]
+  public async Task Excluir_agrupamento_com_rascunho_responde_409_AgrupamentoComImportacao()
+  {
+    var cliente = ClienteComo("PCP");
+    var pedidoId = await NovoPedido(cliente);
+    var id = await NovoAgrupamento(cliente, pedidoId);
+
+    // So o cabecalho do rascunho: o que a guarda consulta e a existencia da linha com a FK para o
+    // Agrupamento, e sem a guarda o DELETE esbarraria na FK e subiria como 500.
+    int rascunhoId;
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var rascunho = new ImportacaoDeEstrutura
+      {
+        AgrupamentoId = id, NomeDoArquivo = "conjunto.csv", CriadoPorUsuarioId = IdDeUsuarioReal(),
+      };
+      db.ImportacoesDeEstrutura.Add(rascunho);
+      await db.SaveChangesAsync();
+      rascunhoId = rascunho.Id;
+    }
+
+    var resposta = await cliente.DeleteAsync($"/api/agrupamentos/{id}");
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("AgrupamentoComImportacao", corpo.GetProperty("erro").GetString());
+
+    // Descartado o rascunho, o Agrupamento volta a poder ser excluido.
+    Assert.Equal(HttpStatusCode.NoContent, (await cliente.DeleteAsync($"/api/importacoes/{rascunhoId}")).StatusCode);
+    Assert.Equal(HttpStatusCode.NoContent, (await cliente.DeleteAsync($"/api/agrupamentos/{id}")).StatusCode);
   }
 
   [Fact]

@@ -162,6 +162,16 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST estrutura/{id:int}/filhos"] = ["PCP", "Administrador"],
     ["PUT estrutura/{id:int}"] = ["PCP", "Administrador"],
     ["DELETE estrutura/{id:int}"] = ["PCP", "Administrador"],
+    // Import da estrutura a partir do BOM: mesmos perfis da estrutura (o recurso `estrutura` do front).
+    // Os GET (lista e rascunho) nao entram: leitura e de qualquer autenticado.
+    ["POST agrupamentos/{agrupamentoId:int}/importacoes"] = ["PCP", "Administrador"],
+    ["DELETE importacoes/{id:int}"] = ["PCP", "Administrador"],
+    ["PUT importacoes/{id:int}"] = ["PCP", "Administrador"],
+    ["PUT importacoes/{id:int}/componentes/{registroId:int}"] = ["PCP", "Administrador"],
+    ["PUT importacoes/{id:int}/filhos/{filhoId:int}"] = ["PCP", "Administrador"],
+    ["POST importacoes/{id:int}/componentes/{registroId:int}/solido"] = ["PCP", "Administrador"],
+    ["POST importacoes/{id:int}/arquivo"] = ["PCP", "Administrador"],
+    ["POST importacoes/{id:int}/confirmacao"] = ["PCP", "Administrador"],
 
     // Execucao (Fase 3): um controller por conjunto de perfis — a guarda do front compara todo
     // `[Authorize(Roles)]` de um arquivo com UMA entrada de `permissoes.ts` (desvio D1 do plano 2).

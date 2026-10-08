@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { caminhoDoSolido, enviarSolido } from '../api/cadastros'
 import { UploadDeSolido } from './UploadDeSolido'
 import { respostaBinaria, respostaJson } from '../testes/api'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -27,7 +28,8 @@ describe('UploadDeSolido', () => {
   it('mostra que o componente ainda não tem sólido', () => {
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -48,7 +50,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -74,7 +77,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -102,7 +106,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -139,7 +144,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -165,7 +171,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -191,7 +198,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -218,7 +226,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -240,7 +249,8 @@ describe('UploadDeSolido', () => {
   it('quando já tem sólido, mostra nome e tamanho e oferece substituir e baixar', () => {
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido
         nomeDoSolido="suporte.stl"
         tamanhoDoSolidoEmBytes={684}
@@ -263,7 +273,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido={false}
         nomeDoSolido={null}
         tamanhoDoSolidoEmBytes={null}
@@ -296,7 +307,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido
         nomeDoSolido="suporte-lateral.stl"
         tamanhoDoSolidoEmBytes={684}
@@ -317,7 +329,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido
         nomeDoSolido="suporte.stl"
         tamanhoDoSolidoEmBytes={684}
@@ -344,7 +357,8 @@ describe('UploadDeSolido', () => {
 
     render(
       <UploadDeSolido
-        componenteId={7}
+        caminho={caminhoDoSolido(7)}
+        enviar={(a) => enviarSolido(7, a)}
         temSolido
         nomeDoSolido="suporte.stl"
         tamanhoDoSolidoEmBytes={684}
@@ -356,5 +370,52 @@ describe('UploadDeSolido', () => {
     await waitFor(() => expect(revogar).toHaveBeenCalled())
     expect(criar).toHaveBeenCalledTimes(1)
     expect(revogar).toHaveBeenCalledWith(urlCriada)
+  })
+
+  it('Usa_o_caminho_recebido: envia por `enviar` e baixa do caminho, sem montar a rota do catálogo', async () => {
+    const enviar = vi.fn(() => Promise.resolve())
+    const aoEnviar = vi.fn()
+    const fetchMock = vi.fn((_url: string | URL, _init?: RequestInit) =>
+      Promise.resolve(respostaBinaria(new Uint8Array(684), 'pendente.stl')))
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:http://localhost/x'), revokeObjectURL: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(
+      <UploadDeSolido
+        caminho="/importacoes/5/componentes/9/solido"
+        enviar={enviar}
+        temSolido
+        nomeDoSolido="pendente.stl"
+        tamanhoDoSolidoEmBytes={684}
+        aoEnviar={aoEnviar}
+      />,
+    )
+    const arquivo = arquivoStl('novo.stl')
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivo] } })
+
+    await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+    expect(enviar).toHaveBeenCalledWith(arquivo)
+    // Quem envia é `enviar`: o componente não faz requisição de envio por conta própria.
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /baixar/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(String(fetchMock.mock.calls[0][0])).toBe('/api/importacoes/5/componentes/9/solido')
+  })
+
+  it('desabilitado trava o campo de arquivo', () => {
+    render(
+      <UploadDeSolido
+        caminho="/componentes/7/solido"
+        enviar={() => Promise.resolve()}
+        desabilitado
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={() => {}}
+      />,
+    )
+    expect((screen.getByLabelText(/sólido/i) as HTMLInputElement).disabled).toBe(true)
   })
 })

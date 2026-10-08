@@ -1,33 +1,25 @@
 import { useState, type ChangeEvent } from 'react'
 import { apiFetch } from '../api/client'
-import { caminhoDoSolido, enviarSolido, TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES } from '../api/cadastros'
+import { TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES } from '../api/cadastros'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import { BannerDeErro } from './BannerDeErro'
 import { Botao } from './Botao'
 import { Campo, CLASSES_DE_CONTROLE } from './Campo'
+import { formatarTamanho } from './tamanhoDeArquivo'
 
 interface Props {
-  componenteId: number
+  /** Caminho do binário a baixar, SEM o prefixo `/api` (ex.: `caminhoDoSolido(id)`). */
+  caminho: string
+  /** Faz o envio do arquivo; rejeitar mostra o erro no banner. O componente só valida o tamanho. */
+  enviar: (arquivo: File) => Promise<void>
+  /** Trava o campo de arquivo (quem chama tem uma escrita em voo, ou o alvo não aceita upload). */
+  desabilitado?: boolean
   temSolido: boolean
   nomeDoSolido: string | null
   tamanhoDoSolidoEmBytes: number | null
   /** Chamado depois de um envio com sucesso — a tela precisa reler o componente, senão
       `temSolido`/nome/tamanho continuam velhos e a interface mente. */
   aoEnviar: () => void
-}
-
-/**
- * Abaixo de 1024 bytes, "N bytes"; abaixo de 1 MiB, KiB com uma casa; acima, MiB com uma casa —
- * sempre com `toLocaleString('pt-BR', …)`, para a vírgula decimal.
- */
-function formatarTamanho(bytes: number): string {
-  if (bytes < 1024) return `${bytes.toLocaleString('pt-BR')} bytes`
-  const kib = bytes / 1024
-  if (kib < 1024) {
-    return `${kib.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KiB`
-  }
-  const mib = kib / 1024
-  return `${mib.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MiB`
 }
 
 /** "16 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
@@ -45,7 +37,7 @@ const FALLBACK_DO_ENVIO = `Não foi possível enviar o sólido. Envie um arquivo
  * `VisualizadorDeSolido` (Task 7), não por aqui.
  */
 export function UploadDeSolido({
-  componenteId, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes, aoEnviar,
+  caminho, enviar, desabilitado = false, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes, aoEnviar,
 }: Props) {
   const [enviando, setEnviando] = useState(false)
   // A frase pronta, e não o erro cru: o envio tem duas origens de recusa — o tamanho, checado aqui
@@ -72,7 +64,7 @@ export function UploadDeSolido({
     setEnviando(true)
     setErroEnvio(null)
     try {
-      await enviarSolido(componenteId, arquivo)
+      await enviar(arquivo)
       aoEnviar()
     } catch (erro) {
       setErroEnvio(mensagemDeErro(erro, FALLBACK_DO_ENVIO))
@@ -89,7 +81,7 @@ export function UploadDeSolido({
     setBaixando(true)
     setErroDownload(null)
     try {
-      const resp = await apiFetch(caminhoDoSolido(componenteId))
+      const resp = await apiFetch(caminho)
       if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao baixar o sólido (${resp.status}).`)
       const blob = await resp.blob()
       const url = URL.createObjectURL(blob)
@@ -116,7 +108,7 @@ export function UploadDeSolido({
             id={idDoCampo}
             type="file"
             accept=".stl"
-            disabled={enviando}
+            disabled={enviando || desabilitado}
             onChange={aoEscolherArquivo}
             className={CLASSES_DE_CONTROLE}
           />
@@ -130,11 +122,13 @@ export function UploadDeSolido({
       {temSolido && (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-tinta">
-            {nomeDoSolido}
-            {' '}
-            <span className="text-tinta-fraca">
-              ({tamanhoDoSolidoEmBytes === null ? '' : formatarTamanho(tamanhoDoSolidoEmBytes)})
-            </span>
+            {nomeDoSolido ?? 'Sólido do catálogo'}
+            {tamanhoDoSolidoEmBytes !== null && (
+              <>
+                {' '}
+                <span className="text-tinta-fraca">({formatarTamanho(tamanhoDoSolidoEmBytes)})</span>
+              </>
+            )}
           </p>
           <p className="text-tinta-fraca">Substituir: escolha outro arquivo acima.</p>
           <Botao

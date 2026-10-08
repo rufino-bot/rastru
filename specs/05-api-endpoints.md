@@ -202,11 +202,17 @@ mesmo status HTTP para coisas diferentes.
 - `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, tipo }`
 - `DELETE /agrupamentos/{id}` *(PCP, Administrador)* — 204. **A única exclusão física do
   sistema**, e é guardada: 409 `{ "erro": "AgrupamentoNaoVazio" }` se já houver `EstruturaItem`,
-  409 `{ "erro": "PedidoNaoAberto" }` se o Pedido não estiver `Aberto`.
-  A ordem de verificação é **existe → Pedido `Aberto` → vazio**, então quando as duas recusas
-  valem ao mesmo tempo a resposta é sempre `PedidoNaoAberto`. Um Agrupamento com estrutura num
-  Pedido não `Aberto` **nunca** responde `AgrupamentoNaoVazio` — o cliente não pode assumir que
-  recebe o código mais específico
+  409 `{ "erro": "PedidoNaoAberto" }` se o Pedido não estiver `Aberto`, e 409
+  `{ "erro": "AgrupamentoComImportacao" }` se houver rascunho de importação do BOM esperando conferência
+  (seção "Importação da estrutura"): quem quer excluir descarta o rascunho antes. O rascunho tem FK para o
+  Agrupamento e não é estrutura — nenhum `EstruturaItem` existe até a confirmação —, então
+  `AgrupamentoNaoVazio` não o enxerga.
+  A ordem de verificação é **existe → Pedido `Aberto` → vazio → sem rascunho**, então quando duas recusas
+  valem ao mesmo tempo a resposta é a primeira da ordem: com o Pedido não `Aberto`, sempre `PedidoNaoAberto`;
+  com estrutura num Pedido `Aberto`, `AgrupamentoNaoVazio`. Um Agrupamento com estrutura num Pedido não
+  `Aberto` **nunca** responde `AgrupamentoNaoVazio`, e um com rascunho **só** responde
+  `AgrupamentoComImportacao` se passou pelas três verificações que o antecedem na ordem — o cliente não pode assumir que recebe o
+  código mais específico
 
 ## Contrato de erro dos cadastros
 
@@ -228,7 +234,9 @@ mesmo status HTTP para coisas diferentes.
   `Ativo`, então um nome ocupado por linha inativa continua ocupado. Em `Pedido` e `Agrupamento` é
   sempre `false`.
 - **409 regra de negócio** — só no `DELETE /agrupamentos/{id}`:
-  `{ "erro": "AgrupamentoNaoVazio" }` ou `{ "erro": "PedidoNaoAberto" }`.
+  `{ "erro": "AgrupamentoNaoVazio" }`, `{ "erro": "PedidoNaoAberto" }` ou
+  `{ "erro": "AgrupamentoComImportacao" }` (rascunho de importação do BOM pendente; ver "Importação da
+  estrutura").
 
 A duplicidade é verificada **no use case, antes do insert**; o índice `UNIQUE` permanece como rede
 de segurança para a corrida entre a verificação e a escrita.
@@ -356,6 +364,180 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   contra receita corrompida ou cópia recursiva desgovernada, por isso não entram em
   `01-dominio-e-regras-de-negocio.md` (ver o comentário do planejador da cópia, no código, se o
   contrato mudar).
+
+## Importação da estrutura
+
+*(Spec: `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`. O BOM exportado do CAD
+vira um **rascunho** salvo no servidor, que um humano confere e confirma; só a confirmação grava
+catálogo e cria a Peça. Perfis de escrita: `PCP, Administrador`, o mesmo valor da constante
+`PerfisDeEscrita` do `EstruturaController`, declarada à parte no `ImportacaoController` — quem monta a árvore
+importa o BOM dela. Leitura: qualquer perfil autenticado. As
+rotas são de `ImportacaoController`, que declara a própria rota em cada ação: as de criar e listar são
+aninhadas sob Agrupamento, as de rascunho são de topo.)*
+
+- `POST /agrupamentos/{id}/importacoes` *(PCP, Administrador)* — `multipart/form-data` com o campo
+  `arquivo` (`.csv` ou `.xlsx`, até **5 MiB**). Lê, casa com o catálogo e cria o rascunho → **201** com o
+  `ImportacaoDto`. **400** `BomInvalido` com a lista de erros do arquivo (ver "Contrato de erro da Importação");
+  **404** se o Agrupamento não existe. Sem guarda de status do Pedido, pelo mesmo motivo dos `POST` da
+  Estrutura. O autor vem da claim `sub`
+- `GET /agrupamentos/{id}/importacoes` — os rascunhos do Agrupamento, do mais novo para o mais antigo:
+  `ResumoDeImportacaoDto[]`. 404 se o Agrupamento não existe
+- `GET /importacoes/{id}` — o estado completo do rascunho (`ImportacaoDto`), **calculado a cada leitura**
+  contra o catálogo de agora e nunca gravado. 404
+- `PUT /importacoes/{id}` *(PCP, Administrador)* — a Peça: `{ versao, quantidadeDaPeca,
+  requerRelatorioDimensional }`. `quantidadeDaPeca` nula a limpa (e é o bloqueio `QuantidadeDaPecaAusente`).
+  → 200 `ImportacaoDto`
+- `PUT /importacoes/{id}/componentes/{cid}` *(PCP, Administrador)* — um registro do rascunho (`{cid}` é o
+  `registroId` do DTO; um por **código** distinto): `{ versao, componenteId, codigoNovo, descricaoNova,
+  tipoNovo, escolhaDeReceita }`. `componenteId` preenchido **casa** o registro com aquele Componente e
+  descarta os dados do "criar novo"; nulo o deixa "criar novo", e `codigoNovo`, `descricaoNova` e `tipoNovo`
+  (`Bruto`, `Fabricado` ou `Montagem`), quando preenchidos, são os dados dele (nulo mantém o que está).
+  `escolhaDeReceita` é o **estado inteiro** da escolha — `Catalogo`, `Importada` ou nulo, que a limpa. Quatro
+  recusas de regra, todas 400 (ver "Contrato de erro da Importação"): casar com um Componente que outro registro do rascunho
+  já tem; mandar `escolhaDeReceita` **na mesma escrita** em que o casamento muda; mandar `escolhaDeReceita`
+  num registro que não diverge; e passar a `Bruto` um "criar novo" que tem filhos no BOM (só uma folha passa a
+  `Bruto`; o `Bruto` que o reimport manteve num código que ganhou filhos continua aceito). → 200 `ImportacaoDto`
+- `PUT /importacoes/{id}/filhos/{fid}` *(PCP, Administrador)* — corrige a quantidade por pai de uma linha da
+  receita lida (`{fid}` é o `filhoId` do nó): `{ versao, quantidade }`. A quantidade vale de `0,0001` ao teto
+  da coluna, com no máximo 4 casas. → 200 `ImportacaoDto`
+- `POST /importacoes/{id}/componentes/{cid}/solido` *(PCP, Administrador)* — envia o STL **pendente** do
+  registro: `multipart/form-data` com `arquivo` e o campo de formulário `versao`. As mesmas validações de
+  `POST /componentes/{id}/solido` (16 MiB, estrutura de STL, mesmas frases). O arquivo vive em
+  `dbo.ArquivoDeComponente` sem nenhum Componente apontando para ele até a confirmação; um pendente anterior
+  do mesmo registro é apagado depois que o novo estiver ligado. → 200 `ImportacaoDto`
+- `GET /importacoes/{id}/componentes/{cid}/solido` — o STL pendente (`application/octet-stream`), para o
+  visualizador e o download. **404** sem corpo para rascunho, registro ou pendente que não existe — o cliente
+  não distingue os três
+- `POST /importacoes/{id}/arquivo` *(PCP, Administrador)* — **reimporta**: `multipart/form-data` com `arquivo`
+  e `versao`. Lê o arquivo exatamente como a criação (mesmos erros, mesmo limite) e substitui as receitas
+  lidas; preserva, **por código** que continua no arquivo, o sólido pendente, o casamento manual e os dados do
+  "criar novo"; zera a escolha de receita do código cuja receita lida mudou; apaga o pendente de código que
+  saiu. Arquivo recusado deixa o rascunho como estava. → 200 `ImportacaoDto`; 400 `BomInvalido`
+- `DELETE /importacoes/{id}` *(PCP, Administrador)* — descarta: apaga o rascunho, os registros, as linhas da
+  receita e os sólidos pendentes, numa transação. **Não pede a `versao`** — é a saída de um rascunho que
+  ninguém mais quer. → 204; 404
+- `POST /importacoes/{id}/confirmacao` *(PCP, Administrador)* — `{ versao }`. Confirma: numa transação,
+  cria os Componentes novos, reativa os inativos que têm registro, grava os sólidos pendentes e as receitas,
+  cria a Peça pelo mesmo planejamento de cópia do `POST /agrupamentos/{id}/estrutura` e apaga o rascunho. →
+  **201** com o `EstruturaItemDto` da Peça (a mesma forma do `POST` da Estrutura). A Peça é **idêntica** à que
+  o `POST` da Estrutura criaria a partir do catálogo resultante
+
+### Formato do arquivo
+
+O BOM indentado exportado do CAD, CSV ou XLSX, com uma linha de cabeçalho e as quatro colunas da tabela a seguir. Os
+**apelidos de cabeçalho são provisórios** (cobrem o SolidWorks em português e em inglês; o BOM real de cada
+CAD confirma ou derruba, e a emenda mexe só na tabela `ColunasDoBom`). O cabeçalho é normalizado — maiúsculas,
+sem acento nem pontuação, sem o sinal de "Nº" — antes de comparar.
+
+| Coluna | Apelidos aceitos | Conteúdo |
+|---|---|---|
+| Nível | `Nº do item`, `Item no`, `Item`, `Número do item` | `1`, `1.2`, `1.2.3`: inteiros positivos separados por ponto; `01` e `1` são o mesmo. Um item de nível `1` é filho da raiz |
+| Código | `Nº da peça`, `Part number`, `Número da peça` | o part number; **pode ficar em branco na linha** (vira Componente novo com código em branco), mas a coluna tem de estar no cabeçalho |
+| Descrição | `Descrição`, `Description` | texto, até 200 caracteres |
+| Quantidade | `Qtd`, `Qty`, `Quantidade` | por pai: `1,5` ou `1.5`, sem separador de milhar, de `0,0001` ao teto da coluna (`DECIMAL(18,4)`), até 4 casas |
+
+- **Um arquivo é uma Peça.** A montagem de topo é a **raiz**, sem linha no arquivo: ela nasce com a descrição
+  igual ao nome do arquivo sem extensão e o código em branco, que a conferência exige preencher ou casar.
+- **CSV:** separador `;` ou `,`, decidido pela linha de cabeçalho (empate fica com `;`); aspas no padrão
+  RFC 4180. Codificação: UTF-8 com BOM; **sem BOM, tenta UTF-8 estrito e, se houver byte inválido, lê como
+  Windows-1252** — ler UTF-8 sem BOM como Windows-1252 estragaria os acentos em silêncio.
+- **XLSX:** só a **primeira** planilha; o cabeçalho é a primeira linha com conteúdo. A quantidade pode ser
+  numérica. O nível numérico **inteiro** (`2`) é aceito; o **não inteiro** (`1.1`, `1.10`) é recusado — são o
+  mesmo número no Excel e itens diferentes no BOM —, e a saída é salvar a coluna como texto.
+- O mesmo filho repetido sob o mesmo pai **soma** as quantidades. O pai de uma linha é a última linha lida
+  cujo nível é o prefixo do dela.
+- **Erros do arquivo** (cada um vira uma linha da lista do 400): arquivo vazio, acima de 5 MiB ou de extensão
+  que não seja `.csv`/`.xlsx`; XLSX que descompactado passa de 64 MiB (o limite de 5 MiB é do arquivo
+  compactado); nome do arquivo acima de 260 caracteres ou, sem a extensão, acima de 200 (a raiz usa esse nome
+  como descrição); coluna ausente do cabeçalho; XLSX corrompido; aspas não fechadas; nível
+  inválido ou que pula um degrau (`1` direto para `1.2.3`); quantidade não numérica, fora da faixa ou com
+  mais de 4 casas; o **mesmo código com filhos diferentes**; **ciclo entre códigos**; árvore acima de
+  `PlanejadorDeCopia.ProfundidadeMaxima` (20 níveis) ou `NosMaximos` (500); código acima de 50 caracteres,
+  descrição vazia ou acima de 200. Os erros **se acumulam por etapa**, não no arquivo todo: a leitura
+  (formato, colunas, linhas), a montagem da árvore e a conferência de tamanhos rodam em sequência, e a etapa
+  seguinte só roda se a anterior não achou nenhum erro. Dentro de uma etapa vêm todos, não só o primeiro;
+  corrigidos esses, o arquivo pode ainda trazer os da etapa seguinte.
+
+### Estado do rascunho (`ImportacaoDto`)
+
+JSON em `camelCase`. A árvore e as situações são **calculadas** a cada leitura; só o que o usuário decidiu
+está gravado.
+
+```text
+ImportacaoDto { id, agrupamentoId, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm, versao,
+                quantidadeDaPeca: number|null, requerRelatorioDimensional,
+                raiz: NoDaImportacaoDto|null, componentes: SituacaoDoComponenteDto[], bloqueios: BloqueioDto[] }
+NoDaImportacaoDto { registroId: number|null, componenteId: number|null, filhoId: number|null,
+                    codigo, descricao, quantidadePorPai: number|null, origem: "Bom"|"Catalogo",
+                    pendencias: ("Novo"|"Inativo"|"Divergente"|"SemSolido")[], filhos: NoDaImportacaoDto[] }
+SituacaoDoComponenteDto { registroId, codigoLido, descricaoLida, componenteId, codigoDoCatalogo,
+                    descricaoDoCatalogo, tipo, ativo, temSolido, temSolidoPendente,
+                    nomeDoSolido, tamanhoDoSolidoEmBytes,
+                    codigoNovo, descricaoNova, tipoNovo, divergente, escolhaDeReceita: "Catalogo"|"Importada"|null,
+                    comparativo: { codigo, descricao, noCatalogo: number|null, noBom: number|null,
+                                   situacao: "Igual"|"QuantidadeMuda"|"Entra"|"Sai" }[],
+                    efeitoDeManterCatalogo: { retira, traz } | null, naArvoreFinal }
+BloqueioDto { tipo, registroId: number|null, componenteId: number|null, mensagem }
+ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
+```
+
+- **`versao`** é o `ROWVERSION` do cabeçalho, em **base64** (o `byte[]` serializado pelo `System.Text.Json`).
+  Toda escrita a manda no corpo (`versao`) ou, no multipart, no campo de formulário `versao`. Versão diferente
+  da do banco → 409 `ImportacaoDesatualizada`. **Toda escrita no rascunho** — do cabeçalho, de um registro ou
+  de uma linha — troca a versão, e por isso `atualizadoEm` existe no cabeçalho: sem ele, uma escrita num
+  registro não mudaria o `ROWVERSION`.
+- **`raiz`** é nula quando a expansão é recusada (ciclo, profundidade, tamanho ou quantidade fora da coluna):
+  o motivo está em `bloqueios`. `registroId` é nulo no nó que veio **só do catálogo**; `componenteId`, no
+  registro "criar novo"; `filhoId`, na raiz e na aresta que vem do catálogo.
+- **`componentes`** tem um item por registro do rascunho, **inclusive os que saíram da árvore final** por uma
+  escolha `Catalogo` acima deles (`naArvoreFinal: false`). `divergente` é verdadeiro quando o código está
+  casado, o Componente tem receita no catálogo e ela (filhos diretos e quantidades) difere da lida — inclusive
+  quando o BOM não traz filhos e o catálogo traz; casado **sem receita no catálogo** não diverge, traga o BOM
+  filhos ou não; é aí que `comparativo`
+  (um nível) e `efeitoDeManterCatalogo` (quantos nós saem e quantos entram se a escolha for `Catalogo`)
+  vêm preenchidos. Descrição de casado vale a **do catálogo**; a lida fica ao lado.
+- **`bloqueios[].tipo`**, em português com acento na `mensagem`, que é texto de tela: `QuantidadeDaPecaAusente`,
+  `SemSolido`, `DivergenciaSemEscolha`, `CodigoVazio`, `CodigoJaExiste` (código do "criar novo" que já existe
+  no catálogo **ou** que se repete em outro "criar novo" do mesmo rascunho), `QuantidadeForaDaFaixa` (a
+  quantidade da Peça, multiplicada pela receita, sai da faixa da coluna) e os três do `PlanejadorDeCopia` —
+  `CicloNaReceita`, `EstruturaProfundaDemais`, `EstruturaGrandeDemais`. Os de registro (código, divergência,
+  sólido) valem **só para a árvore final**. Confirmar é possível com a lista vazia.
+
+### Contrato de erro da Importação
+
+- **400** — mesma dupla origem da Estrutura: o formato do ASP.NET para corpo malformado e campo obrigatório
+  ausente (o `arquivo` do multipart, por exemplo), e `{ "erro": ..., "mensagem"?: ... }` do caso de uso.
+  - **`BomInvalido`**, em `POST /agrupamentos/{id}/importacoes` e `POST /importacoes/{id}/arquivo`:
+    `erro` é o **código** e `mensagem` traz **uma linha por erro do arquivo, separadas por `\n`** (`"Linha 7:
+    quantidade inválida '0': ...\nLinha 9: ..."`; sem o prefixo "Linha N:" quando o erro é do arquivo
+    inteiro). As linhas são texto de tela, em português com acento; a tela escreve o título e lista as linhas
+    como vêm. As **demais** frases de erro da Importação (abaixo) seguem sem acento, e a tela não as mostra.
+  - **`ImportacaoComBloqueios`**, em `POST /importacoes/{id}/confirmacao`: o rascunho ainda tem bloqueio. **Sem
+    a lista** — a tela relê o `GET`, que a traz, e a lista não existe em dois contratos.
+  - `versao` **ausente ou vazia** (corpo JSON ou campo do multipart) não chega ao caso de uso: o parâmetro
+    é `string` não anulável, e o MVC o recusa antes com o 400 no formato do ASP.NET.
+  - Nas demais, `erro` é uma **frase** (como nos 400 da Estrutura): `versao` que não é base64
+    («Versao do rascunho invalida.»); quantidade fora da faixa ou com mais de 4 casas; `tipoNovo` fora de `Bruto`/`Fabricado`/`Montagem`;
+    `escolhaDeReceita` fora de `Catalogo`/`Importada`; código acima de 50 caracteres ou descrição acima de 200;
+    Componente já casado com outro registro do rascunho; escolha de receita enviada junto de uma troca de
+    casamento («Escolha a receita depois de conferir o novo casamento.»); escolha de receita num registro que
+    não diverge; `Bruto` num "criar novo" com filhos no BOM («So um Componente sem filhos no BOM pode passar a
+    Bruto.»); e o que `POST /componentes/{id}/solido` já recusa no STL.
+- **401** — além do token ausente ou inválido, em `POST /agrupamentos/{id}/importacoes` e
+  `POST /importacoes/{id}/componentes/{cid}/solido`, o **token assinado por nós mas sem a claim `sub`**: essas
+  duas rotas gravam o autor (do rascunho e do arquivo) e leem o usuário da claim, então sem ela respondem
+  401 sem corpo e não 500. As demais rotas de escrita não leem a claim.
+- **403** — perfil sem permissão, do `[Authorize(Roles = "PCP,Administrador")]` nas rotas de escrita.
+- **404** — Agrupamento, rascunho, registro, linha da receita ou Componente-alvo inexistentes, **sem corpo**.
+- **409** — três códigos, com `erro` estável:
+
+  | Código | Onde | Motivo |
+  |---|---|---|
+  | `ImportacaoDesatualizada` | toda escrita com `versao`, e a confirmação | a `versao` do corpo não é a do banco, ou outra escrita chegou entre a leitura e o salvamento. Nada foi gravado; a tela relê. Sem `mensagem` |
+  | `ReceitaDoCatalogoMudou` | `POST /importacoes/{id}/confirmacao` | a receita de catálogo de um Componente com escolha mudou depois da escolha (a impressão SHA-256 que o servidor guardou não bate). A transação é desfeita, e a escolha daquele código é zerada **em melhor esforço**, fora dela: a limpeza é pulada se a versão do rascunho mudou nesse meio-tempo, e qualquer falha dela é engolida, porque a resposta já é o 409 — o pior desfecho é a escolha velha continuar, e a confirmação seguinte devolve o mesmo 409. Leva `mensagem` nomeando os códigos |
+  | `ConflitoDeConcorrencia` | `POST /importacoes/{id}/confirmacao` | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na transação da confirmação; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`, a mesma frase das demais escritas de estrutura |
+
+  O `DELETE /agrupamentos/{id}` ganha o `AgrupamentoComImportacao`, descrito na seção "Pedido / Agrupamento".
 
 ## Execução / Rastreamento
 

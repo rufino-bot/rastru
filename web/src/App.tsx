@@ -8,6 +8,7 @@ import { ComponenteDetalhePage } from './pages/ComponenteDetalhePage'
 import { PedidosPage } from './pages/PedidosPage'
 import { PedidoDetalhePage } from './pages/PedidoDetalhePage'
 import { AgrupamentoDetalhePage } from './pages/AgrupamentoDetalhePage'
+import { ConferenciaDeImportacaoPage } from './pages/ConferenciaDeImportacaoPage'
 import { FilaPage } from './pages/FilaPage'
 import { FilaDoSetorPage } from './pages/FilaDoSetorPage'
 import { TarefasPage } from './pages/TarefasPage'
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/pedidos" element={<PedidosPage />} />
         <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
         <Route path="/agrupamentos/:id" element={<AgrupamentoDetalhePage />} />
+        <Route path="/importacoes/:id" element={<ConferenciaDeImportacaoPage />} />
         <Route path="/fila" element={<FilaPage />} />
         <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
         <Route path="/tarefas" element={<TarefasPage />} />

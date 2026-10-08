@@ -130,12 +130,17 @@ public class ReceitaPadraoRepository : IReceitaPadraoRepository
   {
     try
     {
-      await using var tx =
-          await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+      // Dentro de uma transacao do chamador (a confirmacao do import grava a receita na transacao da
+      // execucao, tambem SERIALIZABLE), usa a dele: abrir uma segunda na mesma conexao lancaria, e a
+      // atomicidade do apaga-e-grava passa a ser a da transacao maior.
+      await using var tx = _db.Database.CurrentTransaction is null
+          ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+          : null;
       await tabela.Where(doComponente).ExecuteDeleteAsync(ct);
       tabela.AddRange(novas);
       await _db.SaveChangesAsync(ct);
-      await tx.CommitAsync(ct);
+      if (tx is not null)
+        await tx.CommitAsync(ct);
     }
     catch (Exception e) when (EhConflitoDeConcorrencia(e))
     {
