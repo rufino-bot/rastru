@@ -320,7 +320,7 @@ export function PainelDoComponenteDaImportacao({
                     </p>
                   )}
                   <p className="text-sm text-tinta-fraca">
-                    Usar a importada grava a receita do BOM no catálogo, no lugar da de hoje.
+                    Usar a importada substitui a receita do catálogo pela do BOM.
                   </p>
                 </fieldset>
               </div>

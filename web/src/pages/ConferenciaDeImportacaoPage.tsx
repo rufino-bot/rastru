@@ -4,7 +4,8 @@ import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import {
   alterarFilho, alterarPeca, AVISO_IMPORTACAO_DESATUALIZADA, confirmarImportacao, descartarImportacao,
   ehImportacaoDesatualizada, LIMITE_DO_BOM_LEGIVEL, obterImportacao, reimportar,
-  type ImportacaoDto, type NoDaImportacaoDto, type PendenciaDoNo,
+  type EscolhaDeReceita, type ImportacaoDto, type NoDaImportacaoDto, type PendenciaDoNo,
+  type SituacaoDoComponenteDto,
 } from '../api/importacao'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
@@ -29,7 +30,7 @@ const AVISO_RECEITA_MUDOU =
 
 /** O que a tela escreve por pendência no resumo: o tom segue o da pílula na árvore. */
 const RESUMO_DA_PENDENCIA: Record<PendenciaDoNo, { singular: string; plural: string; tom: TomDePilula }> = {
-  Divergente: { singular: 'divergência', plural: 'divergências', tom: 'atencao' },
+  Divergente: { singular: 'divergência a decidir', plural: 'divergências a decidir', tom: 'atencao' },
   SemSolido: { singular: 'sem sólido', plural: 'sem sólido', tom: 'atencao' },
   Inativo: { singular: 'inativo', plural: 'inativos', tom: 'atencao' },
   Novo: { singular: 'novo', plural: 'novos', tom: 'neutro' },
@@ -42,10 +43,23 @@ function nosEmOrdem(no: NoDaImportacaoDto, saida: NoDaImportacaoDto[] = []): NoD
   return saida
 }
 
-function resumir(raiz: NoDaImportacaoDto) {
+/**
+ * A escolha de receita de cada registro que já escolheu. A pendência `Divergente` continua no nó
+ * depois da escolha (o servidor a calcula pela receita, não pela decisão), então é este mapa que
+ * separa a divergência decidida da que falta decidir.
+ */
+function escolhasPorRegistro(componentes: SituacaoDoComponenteDto[]): Map<number, EscolhaDeReceita> {
+  const escolhas = new Map<number, EscolhaDeReceita>()
+  for (const c of componentes) if (c.escolhaDeReceita !== null) escolhas.set(c.registroId, c.escolhaDeReceita)
+  return escolhas
+}
+
+/** As pendências do resumo, por código. A divergência já decidida não entra: o resumo mostra o que falta. */
+function resumir(raiz: NoDaImportacaoDto, escolhas: ReadonlyMap<number, EscolhaDeReceita>) {
   const resumo = new Map<PendenciaDoNo, { codigos: Set<string>; primeiro: NoDaImportacaoDto }>()
   for (const no of nosEmOrdem(raiz)) {
     for (const p of no.pendencias) {
+      if (p === 'Divergente' && no.registroId !== null && escolhas.has(no.registroId)) continue
       const atual = resumo.get(p)
       if (atual) atual.codigos.add(chaveDoCodigo(no) ?? '')
       else resumo.set(p, { codigos: new Set([chaveDoCodigo(no) ?? '']), primeiro: no })
@@ -238,7 +252,8 @@ export function ConferenciaDeImportacaoPage() {
   const daRaiz: SelecaoDaArvore | null = raiz ? { registroId: raiz.registroId, componenteId: raiz.componenteId } : null
   const selecaoEfetiva = selecao && raiz && acharNo(raiz, selecao) ? selecao : daRaiz
   const noSelecionado = raiz && selecaoEfetiva ? (acharNo(raiz, selecaoEfetiva) ?? raiz) : null
-  const resumo = raiz ? resumir(raiz) : []
+  const escolhasDeReceita = escolhasPorRegistro(importacao.componentes)
+  const resumo = raiz ? resumir(raiz, escolhasDeReceita) : []
   const travado = enviando || !podeEscrever
 
   return (
@@ -386,6 +401,7 @@ export function ConferenciaDeImportacaoPage() {
                   void escrever((a) => alterarFilho(a.id, filhoId, a.versao, quantidade))
                 } : undefined}
                 desabilitado={enviando}
+                escolhasDeReceita={escolhasDeReceita}
               />
             ) : (
               <EstadoVazio

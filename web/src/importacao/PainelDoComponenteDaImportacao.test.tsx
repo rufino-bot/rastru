@@ -189,6 +189,14 @@ describe('PainelDoComponenteDaImportacao', () => {
     expect(screen.getByRole('table', { name: 'Comparativo da receita' })).toBeTruthy()
   })
 
+  it('a frase sob as opções diz que a importada substitui a receita do catálogo pela do BOM', () => {
+    painel(2, 200)
+
+    const grupo = screen.getByRole('group', { name: 'Receita deste Componente' })
+    expect(within(grupo).getByText('Usar a importada substitui a receita do catálogo pela do BOM.')).toBeTruthy()
+    expect(within(grupo).queryByText(/grava a receita/)).toBeNull()
+  })
+
   it('com escolha gravada, a opção vem marcada', () => {
     const marcada = importacao({
       componentes: SITUACOES.map((s) => (s.registroId === 2 ? { ...s, escolhaDeReceita: 'Importada' as const } : s)),

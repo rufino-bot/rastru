@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { NoDaImportacaoDto, PendenciaDoNo } from '../api/importacao'
+import type { EscolhaDeReceita, NoDaImportacaoDto, PendenciaDoNo } from '../api/importacao'
 import { lerQuantidadeDaConferencia } from '../importacao/quantidade'
 import { Campo, CLASSES_DE_CONTROLE } from './Campo'
 import { Pilula, type TomDePilula } from './Pilula'
@@ -44,6 +44,12 @@ interface Props {
   aoAlterarQuantidade?: (filhoId: number, quantidade: number) => void
   /** Uma escrita em voo: trava os campos de quantidade. */
   desabilitado?: boolean
+  /**
+   * A escolha de receita já feita, por `registroId` (só os registros que escolheram entram). A
+   * pendência `Divergente` continua no nó depois da escolha, e é por este mapa que a pílula dela
+   * passa a dizer qual receita foi escolhida. Ausente = nenhuma escolha à vista.
+   */
+  escolhasDeReceita?: ReadonlyMap<number, EscolhaDeReceita>
 }
 
 // `atencao` para o que pede decisão ou cuidado de quem confere; `neutro` para "Novo", que descreve
@@ -53,6 +59,16 @@ const PILULA_DA_PENDENCIA: Record<PendenciaDoNo, { rotulo: string; tom: TomDePil
   Divergente: { rotulo: 'Receita divergente', tom: 'atencao' },
   SemSolido: { rotulo: 'Sem sólido', tom: 'atencao' },
   Inativo: { rotulo: 'Inativo', tom: 'atencao' },
+}
+
+/**
+ * A pílula de uma pendência. A `Divergente` troca com a escolha: o âmbar fica só onde falta decidir,
+ * e a receita já escolhida vira `neutro` — "cor de estado nunca decora" (CLAUDE.md, seção Interface).
+ */
+function pilulaDaPendencia(pendencia: PendenciaDoNo, escolha: EscolhaDeReceita | undefined) {
+  if (pendencia === 'Divergente' && escolha === 'Catalogo') return { rotulo: 'Receita do catálogo', tom: 'neutro' as const }
+  if (pendencia === 'Divergente' && escolha === 'Importada') return { rotulo: 'Receita importada', tom: 'neutro' as const }
+  return PILULA_DA_PENDENCIA[pendencia]
 }
 
 const RECUO_BASE_PX = 12
@@ -92,6 +108,7 @@ function caminhoDaSelecionada(
  */
 export function ArvoreDaImportacao({
   raiz, selecionado, pedidoDeRolagem = 0, revisao = 0, aoSelecionar, aoAlterarQuantidade, desabilitado = false,
+  escolhasDeReceita,
 }: Props) {
   const [clicado, setClicado] = useState<string | null>(null)
   const ocorrencias = nosEmOrdem(raiz, '0', [])
@@ -114,6 +131,7 @@ export function ArvoreDaImportacao({
         }}
         aoAlterarQuantidade={aoAlterarQuantidade}
         desabilitado={desabilitado}
+        escolhasDeReceita={escolhasDeReceita}
       />
     </ul>
   )
@@ -130,10 +148,12 @@ interface PropsDaLinha {
   aoClicar: (caminho: string, no: NoDaImportacaoDto) => void
   aoAlterarQuantidade?: (filhoId: number, quantidade: number) => void
   desabilitado: boolean
+  escolhasDeReceita?: ReadonlyMap<number, EscolhaDeReceita>
 }
 
 function LinhaDoNo({
   no, caminho, nivel, chave, atual, pedidoDeRolagem, revisao, aoClicar, aoAlterarQuantidade, desabilitado,
+  escolhasDeReceita,
 }: PropsDaLinha) {
   const ehAtual = atual === caminho
   const ehMesmoCodigo = !ehAtual && chave !== null && chaveDoCodigo(no) === chave
@@ -189,9 +209,10 @@ function LinhaDoNo({
             <span className="font-mono text-sm text-tinta-fraca">{no.codigo}</span>
             <span className="text-tinta">{no.descricao}</span>
           </button>
-          {no.pendencias.map((p) => (
-            <Pilula key={p} tom={PILULA_DA_PENDENCIA[p].tom}>{PILULA_DA_PENDENCIA[p].rotulo}</Pilula>
-          ))}
+          {no.pendencias.map((p) => {
+            const pilula = pilulaDaPendencia(p, no.registroId === null ? undefined : escolhasDeReceita?.get(no.registroId))
+            return <Pilula key={p} tom={pilula.tom}>{pilula.rotulo}</Pilula>
+          })}
           {ehMesmoCodigo && <span className="text-xs text-tinta-fraca">mesmo código</span>}
         </div>
         {editavel ? (
@@ -223,6 +244,7 @@ function LinhaDoNo({
               aoClicar={aoClicar}
               aoAlterarQuantidade={aoAlterarQuantidade}
               desabilitado={desabilitado}
+              escolhasDeReceita={escolhasDeReceita}
             />
           ))}
         </ul>

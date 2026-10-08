@@ -88,6 +88,97 @@ describe('ArvoreDaImportacao', () => {
     expect(classes(novo)).not.toContain('bg-atencao-fundo')
   })
 
+  describe('pílula da receita divergente', () => {
+    const classes = (el: HTMLElement) => el.className.split(/\s+/)
+    // O Suporte (registro 2) é o divergente de RAIZ; a linha dele é a 0-0.
+    const linhaDoSuporte = () => screen.getByTestId('linha-importacao-0-0')
+
+    it('sem escolha, diz Receita divergente em atencao', () => {
+      render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+      const pilula = within(linhaDoSuporte()).getByText('Receita divergente')
+      expect(classes(pilula)).toContain('bg-atencao-fundo')
+    })
+
+    it('escolhida a do catálogo, a pílula troca para Receita do catálogo em neutro', () => {
+      render(
+        <ArvoreDaImportacao
+          raiz={RAIZ}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[2, 'Catalogo']])}
+        />,
+      )
+
+      const linha = within(linhaDoSuporte())
+      expect(linha.queryByText('Receita divergente')).toBeNull()
+      expect(linha.queryByText('Receita importada')).toBeNull()
+      const pilula = linha.getByText('Receita do catálogo')
+      expect(classes(pilula)).toContain('bg-acao-fundo')
+      expect(classes(pilula)).toContain('text-acao')
+      expect(classes(pilula)).not.toContain('bg-atencao-fundo')
+    })
+
+    it('escolhida a importada, a pílula troca para Receita importada em neutro', () => {
+      render(
+        <ArvoreDaImportacao
+          raiz={RAIZ}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[2, 'Importada']])}
+        />,
+      )
+
+      const linha = within(linhaDoSuporte())
+      expect(linha.queryByText('Receita divergente')).toBeNull()
+      expect(linha.queryByText('Receita do catálogo')).toBeNull()
+      const pilula = linha.getByText('Receita importada')
+      expect(classes(pilula)).toContain('bg-acao-fundo')
+      expect(classes(pilula)).not.toContain('bg-atencao-fundo')
+    })
+
+    it('a escolha não mexe nas outras pílulas da linha', () => {
+      render(
+        <ArvoreDaImportacao
+          raiz={RAIZ}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[2, 'Catalogo']])}
+        />,
+      )
+
+      const linha = within(linhaDoSuporte())
+      expect(classes(linha.getByText('Sem sólido'))).toContain('bg-atencao-fundo')
+      expect(classes(linha.getByText('Inativo'))).toContain('bg-atencao-fundo')
+    })
+
+    it('a escolha de um registro vale para todas as ocorrências do código', () => {
+      const raiz = no({
+        registroId: 1, codigo: 'CH-100', descricao: 'Chassi',
+        filhos: [
+          no({ registroId: 7, componenteId: 700, filhoId: 70, codigo: 'MT-1030', descricao: 'Mola', pendencias: ['Divergente'] }),
+          no({
+            registroId: 8, componenteId: 800, filhoId: 80, codigo: 'SU-800', descricao: 'Suporte', pendencias: [],
+            filhos: [
+              no({ registroId: 7, componenteId: 700, filhoId: 71, codigo: 'MT-1030', descricao: 'Mola', pendencias: ['Divergente'] }),
+            ],
+          }),
+        ],
+      })
+      render(
+        <ArvoreDaImportacao
+          raiz={raiz}
+          selecionado={null}
+          aoSelecionar={() => {}}
+          escolhasDeReceita={new Map([[7, 'Importada']])}
+        />,
+      )
+
+      expect(screen.getAllByText('Receita importada')).toHaveLength(2)
+      expect(screen.queryByText('Receita divergente')).toBeNull()
+    })
+  })
+
   it('Ocorrencias_do_mesmo_codigo_ficam_destacadas_juntas', () => {
     const { rerender } = render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
     expect(screen.queryByText('mesmo código')).toBeNull()

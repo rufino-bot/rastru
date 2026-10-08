@@ -228,7 +228,7 @@ describe('ConferenciaDeImportacaoPage', () => {
     expect(within(painel).getByText('PA-300')).toBeTruthy()
     expect(screen.getByRole('button', { name: /PA-300 Parafuso/ }).getAttribute('aria-current')).toBe('true')
 
-    fireEvent.click(screen.getByRole('button', { name: '2 divergências' }))
+    fireEvent.click(screen.getByRole('button', { name: '2 divergências a decidir' }))
     expect(within(painel).getByText('SU-200')).toBeTruthy()
     expect(screen.getByRole('button', { name: /SU-200 Suporte/ }).getAttribute('aria-current')).toBe('true')
     expect(screen.getByRole('button', { name: /AR-400 Arruela/ }).getAttribute('aria-current')).toBeNull()
@@ -615,6 +615,62 @@ describe('ConferenciaDeImportacaoPage', () => {
     expect(rolar).toHaveBeenCalledTimes(1)
     fireEvent.click(pilula)
     expect(rolar).toHaveBeenCalledTimes(2)
+  })
+
+  describe('escolha de receita no resumo e na árvore', () => {
+    // Suporte (registro 2) e Arruela (registro 4) são divergentes em RAIZ.
+    const situacao = (registroId: number, escolhaDeReceita: 'Catalogo' | 'Importada' | null): SituacaoDoComponenteDto => ({
+      registroId, codigoLido: null, descricaoLida: '', componenteId: null,
+      codigoDoCatalogo: null, descricaoDoCatalogo: null, tipo: null, ativo: null,
+      temSolido: true, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+      codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: true, escolhaDeReceita,
+      comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true,
+    })
+    const carregar = (componentes: SituacaoDoComponenteDto[]) => vi.stubGlobal('fetch', montarFetch({
+      'GET /api/importacoes/5': () => respostaJson(importacao({ componentes })),
+      'GET /api/componentes': () => respostaJson({ itens: [], total: 0, pagina: 1, tamanho: 20 }),
+    }))
+
+    it('o resumo conta só as divergências sem escolha, e o botão leva à primeira delas', async () => {
+      carregar([situacao(2, 'Catalogo'), situacao(4, null)])
+
+      renderizar()
+
+      const botao = await screen.findByRole('button', { name: '1 divergência a decidir' })
+      fireEvent.click(botao)
+      // O Suporte é o primeiro divergente na árvore, mas já foi decidido: o botão vai à Arruela.
+      expect(screen.getByRole('button', { name: /AR-400 Arruela/ }).getAttribute('aria-current')).toBe('true')
+      expect(screen.getByRole('button', { name: /SU-200 Suporte/ }).getAttribute('aria-current')).toBeNull()
+    })
+
+    it('a divergência decidida não conta, e o resumo ainda diz as que faltam', async () => {
+      carregar([situacao(2, null), situacao(4, 'Importada')])
+
+      renderizar()
+
+      expect(await screen.findByRole('button', { name: '1 divergência a decidir' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /2 divergências/ })).toBeNull()
+    })
+
+    it('com todas as divergências decididas, a pílula do resumo some', async () => {
+      carregar([situacao(2, 'Catalogo'), situacao(4, 'Importada')])
+
+      renderizar()
+
+      await screen.findByRole('button', { name: '2 sem sólido' })
+      expect(screen.queryByRole('button', { name: /divergência/ })).toBeNull()
+    })
+
+    it('a linha da árvore mostra a receita escolhida no lugar da divergente', async () => {
+      carregar([situacao(2, 'Catalogo'), situacao(4, null)])
+
+      renderizar()
+
+      await screen.findByRole('button', { name: '1 divergência a decidir' })
+      const arvore = screen.getByRole('list', { name: 'Árvore da importação' })
+      expect(within(within(arvore).getByTestId('linha-importacao-0-0')).getByText('Receita do catálogo')).toBeTruthy()
+      expect(within(within(arvore).getByTestId('linha-importacao-0-2')).getByText('Receita divergente')).toBeTruthy()
+    })
   })
 
   describe('painel do Componente selecionado', () => {
