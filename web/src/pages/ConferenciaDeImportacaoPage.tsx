@@ -438,7 +438,7 @@ function CampoDeQuantidadeDaPeca({
 
   return (
     <>
-      <div className="w-32">
+      <div className="w-44">
         <Campo rotulo="Quantidade da Peça">
           {(id) => (
             <input
