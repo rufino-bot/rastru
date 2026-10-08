@@ -98,11 +98,12 @@ public sealed record ContagemDeStatusDto(string Status, int Quantidade);
 
 /// <remarks>
 /// `PorStatus` traz SEMPRE os cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive.
-/// `MaisAntigosAbertos` sao os Pedidos ainda nao encerrados, do mais antigo ao mais novo.
+/// `MaisUrgentes` sao ate cinco Pedidos ainda nao encerrados, do prazo mais antigo ao mais novo (o mais
+/// atrasado primeiro).
 /// </remarks>
 public sealed record ResumoDePedidosDto(
     IReadOnlyList<ContagemDeStatusDto> PorStatus,
-    IReadOnlyList<PedidoDto> MaisAntigosAbertos);
+    IReadOnlyList<PedidoDto> MaisUrgentes);
 
 /// <remarks>
 /// So `Numero`, `Cliente` e `DataEntrega`: `Tipo` e `Status` sao decididos pelo use case, e o autor vem

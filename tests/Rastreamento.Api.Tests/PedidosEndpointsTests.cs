@@ -171,7 +171,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   }
 
   [Fact]
-  public async Task Listagem_sem_ordem_mantem_a_ordem_por_data_de_abertura()
+  public async Task Ordem_recentes_ordena_por_data_de_abertura()
   {
     // Numeros em ordem CONTRARIA a das datas: so a ordem por DataAbertura decrescente acerta.
     var cliente = $"cli-{Guid.NewGuid():N}";
@@ -181,8 +181,21 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     var recente = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-c", t1.AddHours(2));
     var meio = await GravarPedidoAsync(cliente, "Aberto", $"{tok}-b", t1.AddHours(1));
 
-    Assert.Equal([recente, meio, antigo], await IdsListadosAsync(cliente, ""));
     Assert.Equal([recente, meio, antigo], await IdsListadosAsync(cliente, "&ordem=recentes"));
+  }
+
+  [Fact]
+  public async Task Listagem_sem_ordem_ordena_por_prazo_de_entrega()
+  {
+    // Prazos em ordem CONTRARIA a das aberturas: a ordem antiga (Recentes) devolveria o inverso.
+    var cliente = $"cli-{Guid.NewGuid():N}";
+    var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    var prazoTarde = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1, dataEntrega: new DateOnly(2026, 12, 1));
+    var prazoMeio = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1.AddHours(1), dataEntrega: new DateOnly(2026, 11, 1));
+    var prazoCedo = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1.AddHours(2), dataEntrega: new DateOnly(2026, 10, 1));
+
+    Assert.Equal([prazoCedo, prazoMeio, prazoTarde], await IdsListadosAsync(cliente, ""));
+    Assert.Equal([prazoCedo, prazoMeio, prazoTarde], await IdsListadosAsync(cliente, "&ordem=entrega"));
   }
 
   [Fact]
@@ -217,7 +230,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
     Assert.Equal(
-        "Ordem 'Numero' desconhecida. Aceitas: recentes, numero, cliente.",
+        "Ordem 'Numero' desconhecida. Aceitas: entrega, recentes, numero, cliente.",
         corpo.GetProperty("erro").GetString());
   }
 
@@ -253,7 +266,8 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     Assert.Equal(
         ["Aberto", "EmProducao", "AguardandoExpedicao", "Concluido", "Cancelado"],
         corpo.GetProperty("porStatus").EnumerateArray().Select(c => c.GetProperty("status").GetString()));
-    Assert.True(corpo.GetProperty("maisAntigosAbertos").GetArrayLength() <= 5);
+    Assert.True(corpo.GetProperty("maisUrgentes").GetArrayLength() <= 5);
+    Assert.False(corpo.TryGetProperty("maisAntigosAbertos", out _));
   }
 
   [Theory]

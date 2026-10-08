@@ -34,12 +34,13 @@ public sealed class CadastroDePedidoUseCase
   private static readonly string[] StatusValidos =
       ["Aberto", "EmProducao", "AguardandoExpedicao", "Concluido", "Cancelado"];
 
-  private const int QuantosMaisAntigos = 5;
+  private const int QuantosMaisUrgentes = 5;
 
-  // A ordem das chaves e a ordem da frase de erro de `Listar`.
+  // A ordem das chaves e a ordem da frase de erro de `Listar`; a padrao vem primeiro.
   private static readonly IReadOnlyDictionary<string, OrdemDePedidos> OrdensAceitas =
       new Dictionary<string, OrdemDePedidos>(StringComparer.Ordinal)
       {
+        ["entrega"] = OrdemDePedidos.Entrega,
         ["recentes"] = OrdemDePedidos.Recentes,
         ["numero"] = OrdemDePedidos.Numero,
         ["cliente"] = OrdemDePedidos.Cliente,
@@ -152,7 +153,7 @@ public sealed class CadastroDePedidoUseCase
     }
 
     // Ausente, vazia ou so espacos e a padrao; fora do dicionario — comparacao ordinal — e 400.
-    var ordemDaConsulta = OrdemDePedidos.Recentes;
+    var ordemDaConsulta = OrdemDePedidos.Entrega;
     if (!string.IsNullOrWhiteSpace(ordem) && !OrdensAceitas.TryGetValue(ordem, out ordemDaConsulta))
       return Result<PaginaDto<PedidoDto>>.Falha(
           $"Ordem '{ordem}' desconhecida. Aceitas: {string.Join(", ", OrdensAceitas.Keys)}.",
@@ -176,11 +177,11 @@ public sealed class CadastroDePedidoUseCase
   public async Task<ResumoDePedidosDto> Resumo(CancellationToken ct)
   {
     var contagem = await _repositorio.ContarPorStatusAsync(ct);
-    var maisAntigos = await _repositorio.ListarMaisAntigosAsync(PrazoDeEntrega.StatusEncerrados, QuantosMaisAntigos, ct);
+    var maisUrgentes = await _repositorio.ListarMaisUrgentesAsync(PrazoDeEntrega.StatusEncerrados, QuantosMaisUrgentes, ct);
 
     return new ResumoDePedidosDto(
         StatusValidos.Select(s => new ContagemDeStatusDto(s, contagem.GetValueOrDefault(s))).ToList(),
-        await ProjetarComPausas(maisAntigos, ct));
+        await ProjetarComPausas(maisUrgentes, ct));
   }
 
   public async Task<IReadOnlyList<MaterialResumoDto>> MateriaisEmUso(CancellationToken ct) =>

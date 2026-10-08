@@ -279,7 +279,7 @@ public class CadastroDePedidoUseCaseTests
   [InlineData(null)]
   [InlineData("")]
   [InlineData("  ")]
-  public async Task Listar_sem_ordem_pede_Recentes(string? ordem)
+  public async Task Listar_sem_ordem_pede_Entrega(string? ordem)
   {
     var repo = new FakePedidoRepo();
 
@@ -287,10 +287,11 @@ public class CadastroDePedidoUseCaseTests
         .Listar(null, null, null, ordem, 1, 20, CancellationToken.None);
 
     Assert.True(resultado.Sucesso);
-    Assert.Equal(OrdemDePedidos.Recentes, repo.UltimoFiltro!.Ordem);
+    Assert.Equal(OrdemDePedidos.Entrega, repo.UltimoFiltro!.Ordem);
   }
 
   [Theory]
+  [InlineData("entrega", OrdemDePedidos.Entrega)]
   [InlineData("recentes", OrdemDePedidos.Recentes)]
   [InlineData("numero", OrdemDePedidos.Numero)]
   [InlineData("cliente", OrdemDePedidos.Cliente)]
@@ -319,7 +320,7 @@ public class CadastroDePedidoUseCaseTests
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
-    Assert.Equal($"Ordem '{ordem}' desconhecida. Aceitas: recentes, numero, cliente.", resultado.Erro);
+    Assert.Equal($"Ordem '{ordem}' desconhecida. Aceitas: entrega, recentes, numero, cliente.", resultado.Erro);
     Assert.Null(repo.UltimoFiltro);
   }
 
@@ -369,21 +370,21 @@ public class CadastroDePedidoUseCaseTests
   }
 
   [Fact]
-  public async Task Resumo_pede_os_mais_antigos_fora_dos_encerrados_e_no_maximo_cinco()
+  public async Task Resumo_pede_os_mais_urgentes_fora_dos_encerrados_e_no_maximo_cinco()
   {
     var repo = new FakePedidoRepo();
     var desde = new DateTime(2026, 9, 28, 13, 14, 0, DateTimeKind.Utc);
-    repo.MaisAntigos.Add(new Pedido { Id = 1, Numero = "PED-001", Cliente = "A", Status = "Aberto" });
-    repo.MaisAntigos.Add(new Pedido { Id = 2, Numero = "PED-002", Cliente = "B", Status = "EmProducao" });
+    repo.MaisUrgentes.Add(new Pedido { Id = 1, Numero = "PED-001", Cliente = "A", Status = "Aberto" });
+    repo.MaisUrgentes.Add(new Pedido { Id = 2, Numero = "PED-002", Cliente = "B", Status = "EmProducao" });
     repo.PausasAbertas[2] = new PausaAberta(2, desde, 7, "PCP", "parado");
 
     var resumo = await NovoUseCase(repo).Resumo(CancellationToken.None);
 
-    Assert.Equal(["Cancelado", "Concluido"], repo.MaisAntigosForaDosStatus!.Order());
-    Assert.Equal(5, repo.MaisAntigosQuantos);
-    Assert.Equal([1, 2], resumo.MaisAntigosAbertos.Select(p => p.Id));
-    Assert.Null(resumo.MaisAntigosAbertos[0].Pausa);
-    Assert.Equal(new PausaResumoDto(desde, "PCP", "parado"), resumo.MaisAntigosAbertos[1].Pausa);
+    Assert.Equal(["Cancelado", "Concluido"], repo.MaisUrgentesForaDosStatus!.Order());
+    Assert.Equal(5, repo.MaisUrgentesQuantos);
+    Assert.Equal([1, 2], resumo.MaisUrgentes.Select(p => p.Id));
+    Assert.Null(resumo.MaisUrgentes[0].Pausa);
+    Assert.Equal(new PausaResumoDto(desde, "PCP", "parado"), resumo.MaisUrgentes[1].Pausa);
   }
 
   [Fact]
