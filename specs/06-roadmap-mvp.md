@@ -760,7 +760,7 @@ front **1330 / 76** em `ebbf5d9`, verde, e `npm run build` limpo; backend em `b4
 de backend depois dele), `dotnet build Rastreamento.slnx -warnaserror` com 0 avisos e
 `dotnet test Rastreamento.slnx -m:1` verde, **1241** (Api 345 · Application 685 · Infrastructure 211).
 O BOM de uma montagem real **ainda não foi testado**: as suposições sobre o formato do arquivo
-continuam as da seção 10 da spec.
+continuam as da seção 10 da spec, com as emendas que a implementação fez nela (seção 13).
 
 ## Fora das fases — dívida: CRUD de Usuário e permissão por Perfil (registrada em 2026-09-15)
 
