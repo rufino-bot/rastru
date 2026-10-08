@@ -42,7 +42,7 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são três. A
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são quatro. A
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
@@ -54,7 +54,11 @@ partir do CAD (BOM)**, que era "fora das fases", executa **depois da 1F e antes 
 2026-10-02, porque a 3B mexe em montagem e o import não depende dela; ver a seção «Import da estrutura
 a partir do CAD» de `06-roadmap-mvp.md` e a spec
 `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`). O import foi concluído e
-mesclado em 2026-10-08 (rufino-bot/rastru#31); a próxima da ordem é a **Fase 3B**.
+mesclado em 2026-10-08 (rufino-bot/rastru#31). A quarta: a **data de entrega do Pedido** executa
+**depois do import e antes da 3B** (decisão de 2026-10-08, porque não depende de Kit nem de montagem;
+ver a seção «Data de entrega do Pedido» de `06-roadmap-mvp.md` e a spec
+`docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`). É a próxima da ordem; depois
+dela, a **Fase 3B**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 

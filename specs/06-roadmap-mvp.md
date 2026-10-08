@@ -566,11 +566,31 @@ rufino-bot/rastru#28 (merge `e5fdc81`), cuja árvore é idêntica à de `0d2d38f
 branch. A spec e o plano da fase estão na `main` desde esse merge, e a branch
 `fase-1f-cadastro-sob-demanda` foi apagada.
 
+## Data de entrega do Pedido (decidido em 2026-10-08; executa antes da 3B)
+
+> **Executa antes da Fase 3B**, por decisão do usuário de 2026-10-08: não depende de Kit nem de
+> montagem, e por isso é item próprio, em branch própria, e não emenda da 3B. Spec:
+> `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`. É o candidato que a §5 da
+> spec da Fase 1E registrou ("prazo de entrega" e "pedidos em atraso").
+
+- `Pedido.DataEntrega` (`DATE NOT NULL`), informada no cadastro e editável em qualquer status, com
+  qualquer data aceita.
+- Edição de número, cliente e data de entrega na página do Pedido (até aqui o `PUT /pedidos/{id}` só
+  existia no backend).
+- Pílula **Atrasado** num tom próprio (roxo, o quarto estado reservado) na lista de Pedidos, na Home e
+  na página do Pedido. O atraso é decidido no backend, com o "hoje" de Brasília.
+- A lista de Pedidos abre ordenada por **prazo de entrega**, e a seção da Home vira **"Prazos de
+  entrega"** (os cinco não encerrados mais urgentes).
+- **Fica para um item seguinte:** a pílula na Fila do Setor e nas Tarefas. **Fica para uma spec
+  própria:** a auditoria de edição de cadastro, que não existe hoje (seção 8 da spec).
+- Critério de pronto: a seção 1 da spec.
+
 ## Fase 3B — Kit e montagem
 
 > **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
-> «Import da estrutura a partir do CAD»). A ordem fica: filtros → 1F → **import do BOM** → 3B. O
-> import foi concluído e mesclado em 2026-10-08; a 3B é a próxima.
+> «Import da estrutura a partir do CAD») **e a data de entrega do Pedido** (decisão de 2026-10-08; ver
+> a seção «Data de entrega do Pedido»). A ordem fica: filtros → 1F → **import do BOM** → **data de
+> entrega** → 3B. O import foi concluído e mesclado em 2026-10-08; a data de entrega é a próxima.
 
 - **Título da página do Agrupamento com o Pedido** (pedido do usuário na conferência do import, em
   2026-10-08, emendado nesta fase por decisão dele, porque a 3B mexe no Agrupamento): o título passa a
