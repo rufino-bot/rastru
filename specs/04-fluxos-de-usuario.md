@@ -68,8 +68,10 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    (`/importacoes/:id`).
 2. A **conferência** é uma tela de **PC**: o BOM só existe no computador de quem cadastra, e no celular ela
    não quebra, mas não é otimizada. De cima para baixo:
-   - o **painel do Componente selecionado**, fixo no topo da tela a partir da largura `md`: o sólido (ver e
-     enviar o STL), o casamento com o catálogo e, se a receita diverge, o comparativo e a escolha;
+   - o **painel do Componente selecionado**: o sólido (ver e enviar o STL), o casamento com o catálogo e,
+     se a receita diverge, o comparativo e a escolha. A partir da largura `lg` ele fica numa coluna à
+     direita, fixo enquanto a tela rola, e a faixa da Peça e a árvore ficam à esquerda, sempre à vista;
+     abaixo disso é um bloco comum no alto da tela;
    - a **faixa da Peça**: quantidade e "Requer relatório dimensional", o resumo das pendências em pílulas
      (cada uma leva ao primeiro nó com aquela pendência), a lista do que falta para confirmar, **Confirmar**
      e **Descartar**;

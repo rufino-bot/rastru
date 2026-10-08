@@ -516,11 +516,21 @@ describe('PainelDoComponenteDaImportacao', () => {
     })
   })
 
-  it('o painel só fica fixo de md para cima', () => {
+  it('o painel só fica fixo de lg para cima, onde fica ao lado da árvore', () => {
     painel(2, 200)
 
     const classes = regiao().className.split(' ')
-    expect(classes).toContain('md:sticky')
+    expect(classes).toContain('lg:sticky')
+    expect(classes).toContain('lg:overflow-y-auto')
     expect(classes).not.toContain('sticky')
+    // Abaixo de `lg` ele é um bloco comum no alto da tela: fixo no topo, cobria a árvore.
+    expect(classes).not.toContain('md:sticky')
+  })
+
+  it('o conteúdo do painel fica numa coluna só, que é a largura da coluna lateral', () => {
+    painel(2, 200)
+
+    const grades = regiao().querySelectorAll('[class*="grid-cols-"]')
+    expect(Array.from(grades).map((g) => g.className)).toEqual([])
   })
 })

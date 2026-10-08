@@ -439,10 +439,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `PainelDoComponenteDaImportacao`; medido em 2026-10-03 com
   `grep -rn "<UploadDeSolido\|<VisualizadorDeSolido" web/src --include=*.tsx | grep -v "\.test\."`). A
   árvore da conferência é **própria**, `ArvoreDaImportacao`, e não a `ArvoreDeEstrutura`: o contrato
-  daquela é o nó real, com ações, posições e Roteiro que o rascunho não tem. O painel do Componente
-  selecionado é fixo (`sticky`) só de `md` para cima (D16 da spec: é tela de PC), e quem o fixa não pode
-  deixar um campo da árvore pintar por cima dele — a linha é `isolate`, que prende o `z-index` do campo de
-  quantidade dentro da linha.
+  daquela é o nó real, com ações, posições e Roteiro que o rascunho não tem. De `lg` para cima a tela tem
+  duas colunas, a faixa da Peça e a árvore à esquerda e o painel do Componente selecionado à direita, fixo
+  (`sticky`) e com rolagem própria, para a árvore continuar à vista (decisão do usuário, 2026-10-07); abaixo
+  de `lg` o painel é um bloco comum no topo (D16 da spec: é tela de PC). Para caber, a tela usa
+  `<Pagina largura="ampla">`: a largura vem da primitiva, não de container próprio, e a `ampla` é para tela
+  de duas colunas, não para lista nem cadastro. A linha da árvore é `isolate`, que prende o `z-index` do
+  campo de quantidade dentro da linha, acima do overlay do seletor.
   A faixa da Peça traz o "Reimportar" ao lado de Confirmar e Descartar: ele abre o `PainelDoArquivoDoBom` (ver
   o bullet do `PainelDeEscrita`), e a escrita passa pela mesma `escrever` da tela, com a falha devolvida ao
   painel em vez de virar aviso no topo.

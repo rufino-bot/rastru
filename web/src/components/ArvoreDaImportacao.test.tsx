@@ -154,8 +154,9 @@ describe('ArvoreDaImportacao', () => {
     // Nenhum pedido novo: nenhuma rolagem (clicar numa linha não rola).
     rerender(<ArvoreDaImportacao raiz={RAIZ} selecionado={selecao} aoSelecionar={() => {}} pedidoDeRolagem={2} />)
     expect(rolar).toHaveBeenCalledTimes(2)
-    // A linha declara a margem que a mantém fora da região fixa do topo.
-    expect(screen.getByTestId('linha-importacao-0-0-0').className).toContain('scroll-mt-')
+    // Nenhuma região fixa fica acima da árvore (o painel fixo é lateral), então a linha não precisa
+    // de margem de rolagem.
+    expect(screen.getByTestId('linha-importacao-0-0-0').className).not.toContain('scroll-mt-')
   })
 
   it('A_linha_inteira_e_alvo_de_toque_e_o_campo_de_quantidade_fica_acima', () => {
@@ -165,7 +166,7 @@ describe('ArvoreDaImportacao', () => {
     // ArvoreDeEstrutura), não a geometria.
     const linha = screen.getByTestId('linha-importacao-0-0')
     expect(linha.className.split(/\s+/)).toContain('relative')
-    // `isolate`: o z-index do campo fica preso à linha e não disputa com o painel fixo da tela.
+    // `isolate`: o z-index do campo fica preso à linha e não disputa com o resto da tela.
     expect(linha.className.split(/\s+/)).toContain('isolate')
     const botao = within(linha).getByRole('button', { name: /SU-200 Suporte/ })
     expect(botao.className).toContain('after:absolute')
@@ -174,7 +175,7 @@ describe('ArvoreDaImportacao', () => {
     const envoltorio = campo.closest('div[class*="z-["]')
     expect(envoltorio).not.toBeNull()
     expect(envoltorio!.className.split(/\s+/)).toContain('z-[1]')
-    // Nunca o z-10 do painel fixo da tela: acima do overlay (`z-auto`), abaixo do painel.
+    // O mínimo que basta para ficar acima do overlay (`z-auto`), e nada maior.
     expect(envoltorio!.className.split(/\s+/)).not.toContain('z-10')
   })
 

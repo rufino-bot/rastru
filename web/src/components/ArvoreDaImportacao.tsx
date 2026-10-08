@@ -157,9 +157,7 @@ function LinhaDoNo({
         ref={linha}
         data-testid={`linha-importacao-${caminho}`}
         className={
-          // `md:scroll-mt`: sem ele o `scrollIntoView` deixa a linha sob a região fixa do topo da tela, que só
-          // é fixa de `md` para cima.
-          'relative isolate md:scroll-mt-28 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
+          'relative isolate flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border py-2 pr-3 '
           + (ehAtual ? 'border-acao bg-acao-fundo' : ehMesmoCodigo ? 'border-borda bg-acao-fundo' : 'border-borda bg-superficie')
         }
         style={{ paddingLeft: `${RECUO_BASE_PX + nivel * RECUO_POR_NIVEL_PX}px` }}
@@ -183,9 +181,9 @@ function LinhaDoNo({
             onClick={() => aoClicar(caminho, no)}
             // `after:absolute after:inset-0` estica a área de toque do botão por toda a linha (que é
             // `relative isolate`): no celular, acertar só o texto é difícil. O campo de quantidade
-            // fica acima do overlay com `z-[1]`, e o `isolate` prende esse z-index DENTRO da linha —
-            // sem ele o campo disputaria a raiz com o painel fixo do topo da tela (`z-10`) e, mais
-            // adiante no DOM, pintaria por cima dele quando a árvore rola por baixo.
+            // fica acima do overlay com `z-[1]`, e o `isolate` prende esse z-index DENTRO da linha:
+            // o campo só disputa a pintura com o overlay da própria linha, nunca com o que a tela
+            // ponha por cima da árvore.
             className="inline-flex flex-wrap items-center gap-2 rounded text-left after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-solid focus-visible:after:outline-offset-1 focus-visible:after:outline-acao"
           >
             <span className="font-mono text-sm text-tinta-fraca">{no.codigo}</span>

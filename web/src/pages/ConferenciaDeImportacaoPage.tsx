@@ -242,145 +242,160 @@ export function ConferenciaDeImportacaoPage() {
   const travado = enviando || !podeEscrever
 
   return (
-    <Pagina titulo="Conferência da importação">
-      <BannerDeErro mensagem={aviso} />
+    <Pagina titulo="Conferência da importação" largura="ampla">
+      {/* De `lg` para cima, duas colunas: a faixa da Peça e a árvore à esquerda, o painel fixo à direita,
+          para a árvore continuar à vista enquanto o painel mostra um Componente. A ordem no DOM é a do
+          celular e a do leitor de tela (aviso, painel, faixa, árvore); quem põe cada um na sua coluna é a
+          grade. A célula do painel ocupa as duas linhas e estica (`self-stretch`): é a altura dela que
+          deixa o painel `sticky` acompanhar a rolagem da árvore. */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] lg:items-start lg:gap-6">
+        {aviso && (
+          <div className="lg:col-start-1">
+            <BannerDeErro mensagem={aviso} />
+          </div>
+        )}
 
-      {/* Região 1 — o painel fixo do Componente selecionado. */}
-      {noSelecionado ? (
-        <PainelDoComponenteDaImportacao
-          importacao={importacao}
-          registroId={noSelecionado.registroId}
-          componenteId={noSelecionado.componenteId}
-          escrever={escrever}
-          desabilitado={enviando}
-          revisao={revisao}
-        />
-      ) : (
-        <section aria-label="Componente selecionado" className="rounded-lg border border-borda bg-superficie px-4 py-3">
-          <span className="text-tinta-fraca">Nenhum componente para mostrar.</span>
-        </section>
-      )}
-
-      {/* Região 2 — a faixa da Peça. */}
-      <section aria-labelledby="titulo-da-peca" className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie px-4 py-4">
-        <div className="flex flex-col gap-1">
-          <h2 id="titulo-da-peca" className="text-lg font-medium text-tinta">Peça</h2>
-          <p className="text-sm text-tinta-fraca">
-            {`${importacao.nomeDoArquivo} · ${importacao.criadoPor}`}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
-          <CampoDeQuantidadeDaPeca
-            key={`${importacao.quantidadeDaPeca}-${revisao}`}
-            valor={importacao.quantidadeDaPeca}
-            desabilitado={travado}
-            aoConfirmar={(q) => { void escrever((a) => alterarPeca(a.id, a.versao, q, a.requerRelatorioDimensional)) }}
-          />
-          <label className="flex items-center gap-2 pb-2.5 text-sm text-tinta-fraca">
-            <input
-              type="checkbox"
-              checked={importacao.requerRelatorioDimensional}
-              disabled={travado}
-              onChange={(e) => {
-                const requer = e.target.checked
-                void escrever((a) => alterarPeca(a.id, a.versao, a.quantidadeDaPeca, requer))
-              }}
-              className="size-4 accent-acao"
+        {/* Região 1 — o painel fixo do Componente selecionado. */}
+        <div className="lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:self-stretch">
+          {noSelecionado ? (
+            <PainelDoComponenteDaImportacao
+              importacao={importacao}
+              registroId={noSelecionado.registroId}
+              componenteId={noSelecionado.componenteId}
+              escrever={escrever}
+              desabilitado={enviando}
+              revisao={revisao}
             />
-            Requer relatório dimensional
-          </label>
+          ) : (
+            <section aria-label="Componente selecionado" className="rounded-lg border border-borda bg-superficie px-4 py-3">
+              <span className="text-tinta-fraca">Nenhum componente para mostrar.</span>
+            </section>
+          )}
         </div>
 
-        {resumo.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {resumo.map(({ pendencia, quantidade, primeiro }) => {
-              const texto = RESUMO_DA_PENDENCIA[pendencia]
-              const rotulo = `${quantidade} ${quantidade === 1 ? texto.singular : texto.plural}`
-              return (
-                <Botao
-                  key={pendencia}
-                  variante="secundario"
-                  onClick={() => {
-                    setSelecao({ registroId: primeiro.registroId, componenteId: primeiro.componenteId })
-                    setPedidoDeRolagem((n) => n + 1)
+        <div className="flex flex-col gap-6 lg:col-start-1">
+          {/* Região 2 — a faixa da Peça. */}
+          <section aria-labelledby="titulo-da-peca" className="flex flex-col gap-4 rounded-lg border border-borda bg-superficie px-4 py-4">
+            <div className="flex flex-col gap-1">
+              <h2 id="titulo-da-peca" className="text-lg font-medium text-tinta">Peça</h2>
+              <p className="text-sm text-tinta-fraca">
+                {`${importacao.nomeDoArquivo} · ${importacao.criadoPor}`}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+              <CampoDeQuantidadeDaPeca
+                key={`${importacao.quantidadeDaPeca}-${revisao}`}
+                valor={importacao.quantidadeDaPeca}
+                desabilitado={travado}
+                aoConfirmar={(q) => { void escrever((a) => alterarPeca(a.id, a.versao, q, a.requerRelatorioDimensional)) }}
+              />
+              <label className="flex items-center gap-2 pb-2.5 text-sm text-tinta-fraca">
+                <input
+                  type="checkbox"
+                  checked={importacao.requerRelatorioDimensional}
+                  disabled={travado}
+                  onChange={(e) => {
+                    const requer = e.target.checked
+                    void escrever((a) => alterarPeca(a.id, a.versao, a.quantidadeDaPeca, requer))
                   }}
-                >
-                  <Pilula tom={texto.tom}>{rotulo}</Pilula>
-                </Botao>
-              )
-            })}
-          </div>
-        )}
+                  className="size-4 accent-acao"
+                />
+                Requer relatório dimensional
+              </label>
+            </div>
 
-        {bloqueios.length > 0 && (
-          <ul
-            id={idDosBloqueios}
-            aria-label="O que falta para confirmar"
-            className="list-disc pl-5 text-sm text-tinta"
-          >
-            {bloqueios.map((b, i) => <li key={`${b.tipo}-${b.registroId}-${i}`}>{b.mensagem}</li>)}
-          </ul>
-        )}
-
-        {podeEscrever && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Botao
-              onClick={confirmar}
-              disabled={bloqueios.length > 0}
-              carregando={enviando}
-              aria-describedby={bloqueios.length > 0 ? idDosBloqueios : undefined}
-            >
-              Confirmar
-            </Botao>
-            {/* Some enquanto o painel está aberto, como o botão que abre qualquer `PainelDeEscrita`. */}
-            {!reimportando && (
-              <Botao ref={botaoReimportar} variante="secundario" disabled={enviando} onClick={() => setReimportando(true)}>
-                Reimportar
-              </Botao>
+            {resumo.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {resumo.map(({ pendencia, quantidade, primeiro }) => {
+                  const texto = RESUMO_DA_PENDENCIA[pendencia]
+                  const rotulo = `${quantidade} ${quantidade === 1 ? texto.singular : texto.plural}`
+                  return (
+                    <Botao
+                      key={pendencia}
+                      variante="secundario"
+                      onClick={() => {
+                        setSelecao({ registroId: primeiro.registroId, componenteId: primeiro.componenteId })
+                        setPedidoDeRolagem((n) => n + 1)
+                      }}
+                    >
+                      <Pilula tom={texto.tom}>{rotulo}</Pilula>
+                    </Botao>
+                  )
+                })}
+              </div>
             )}
-            <Botao variante="secundario" disabled={enviando} onClick={() => setDescartando(true)}>
-              Descartar
-            </Botao>
-          </div>
-        )}
 
-        {podeEscrever && reimportando && (
-          <PainelDoArquivoDoBom
-            titulo="Reimportar BOM"
-            subtitulo="Troca o arquivo do rascunho. O que você decidiu por código que continua no arquivo é mantido; as quantidades voltam ao que o arquivo diz."
-            rotuloDoEnvio="Reimportar"
-            rotuloEnviando="Reimportando…"
-            fallbackDoErro={`Não foi possível reimportar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`}
-            aoEnviar={reimportarArquivo}
-            aoFechar={() => setReimportando(false)}
-            mensagemDoErro={(e) => (ehImportacaoDesatualizada(e) ? AVISO_DESATUALIZADA : null)}
-          />
-        )}
-      </section>
+            {bloqueios.length > 0 && (
+              <ul
+                id={idDosBloqueios}
+                aria-label="O que falta para confirmar"
+                className="list-disc pl-5 text-sm text-tinta"
+              >
+                {bloqueios.map((b, i) => <li key={`${b.tipo}-${b.registroId}-${i}`}>{b.mensagem}</li>)}
+              </ul>
+            )}
 
-      {/* Região 3 — a árvore expandida. */}
-      <section aria-labelledby="titulo-da-estrutura" className="flex flex-col gap-3">
-        <h2 id="titulo-da-estrutura" className="text-lg font-medium text-tinta">Estrutura</h2>
-        {raiz ? (
-          <ArvoreDaImportacao
-            raiz={raiz}
-            selecionado={selecaoEfetiva}
-            pedidoDeRolagem={pedidoDeRolagem}
-            revisao={revisao}
-            aoSelecionar={(registroId, componenteId) => setSelecao({ registroId, componenteId })}
-            aoAlterarQuantidade={podeEscrever ? (filhoId, quantidade) => {
-              void escrever((a) => alterarFilho(a.id, filhoId, a.versao, quantidade))
-            } : undefined}
-            desabilitado={enviando}
-          />
-        ) : (
-          <EstadoVazio
-            titulo="A estrutura não pôde ser expandida"
-            descricao="O motivo está na lista do que falta para confirmar, acima."
-          />
-        )}
-      </section>
+            {podeEscrever && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Botao
+                  onClick={confirmar}
+                  disabled={bloqueios.length > 0}
+                  carregando={enviando}
+                  aria-describedby={bloqueios.length > 0 ? idDosBloqueios : undefined}
+                >
+                  Confirmar
+                </Botao>
+                {/* Some enquanto o painel está aberto, como o botão que abre qualquer `PainelDeEscrita`. */}
+                {!reimportando && (
+                  <Botao ref={botaoReimportar} variante="secundario" disabled={enviando} onClick={() => setReimportando(true)}>
+                    Reimportar
+                  </Botao>
+                )}
+                <Botao variante="secundario" disabled={enviando} onClick={() => setDescartando(true)}>
+                  Descartar
+                </Botao>
+              </div>
+            )}
+
+            {podeEscrever && reimportando && (
+              <PainelDoArquivoDoBom
+                titulo="Reimportar BOM"
+                subtitulo="Troca o arquivo do rascunho. O que você decidiu por código que continua no arquivo é mantido; as quantidades voltam ao que o arquivo diz."
+                rotuloDoEnvio="Reimportar"
+                rotuloEnviando="Reimportando…"
+                fallbackDoErro={`Não foi possível reimportar o BOM. Envie um arquivo .xlsx ou .csv de até ${LIMITE_DO_BOM_LEGIVEL}.`}
+                aoEnviar={reimportarArquivo}
+                aoFechar={() => setReimportando(false)}
+                mensagemDoErro={(e) => (ehImportacaoDesatualizada(e) ? AVISO_DESATUALIZADA : null)}
+              />
+            )}
+          </section>
+
+          {/* Região 3 — a árvore expandida. */}
+          <section aria-labelledby="titulo-da-estrutura" className="flex flex-col gap-3">
+            <h2 id="titulo-da-estrutura" className="text-lg font-medium text-tinta">Estrutura</h2>
+            {raiz ? (
+              <ArvoreDaImportacao
+                raiz={raiz}
+                selecionado={selecaoEfetiva}
+                pedidoDeRolagem={pedidoDeRolagem}
+                revisao={revisao}
+                aoSelecionar={(registroId, componenteId) => setSelecao({ registroId, componenteId })}
+                aoAlterarQuantidade={podeEscrever ? (filhoId, quantidade) => {
+                  void escrever((a) => alterarFilho(a.id, filhoId, a.versao, quantidade))
+                } : undefined}
+                desabilitado={enviando}
+              />
+            ) : (
+              <EstadoVazio
+                titulo="A estrutura não pôde ser expandida"
+                descricao="O motivo está na lista do que falta para confirmar, acima."
+              />
+            )}
+          </section>
+        </div>
+      </div>
 
       <Confirmacao
         aberto={descartando}

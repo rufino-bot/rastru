@@ -72,6 +72,10 @@ function plural(n: number): string {
  * o casamento (casar com outro Componente ou criar novo) e, quando a receita do BOM diverge da do
  * catálogo, o comparativo e a escolha entre as duas.
  *
+ * De `lg` para cima ele é a coluna lateral da tela, fixo (`sticky`) ao lado da árvore e com rolagem
+ * própria; abaixo disso é um bloco comum no alto da tela, porque fixo no topo ele cobria a árvore. O
+ * conteúdo fica numa coluna só, que é a largura da coluna lateral.
+ *
  * O painel não guarda estado de servidor: cada escrita passa por `escrever`, que devolve o rascunho
  * inteiro à tela, e o que ele mostra sai sempre do `ImportacaoDto` que recebe.
  */
@@ -182,7 +186,7 @@ export function PainelDoComponenteDaImportacao({
   return (
     <section
       aria-label="Componente selecionado"
-      className="rounded-lg border border-borda bg-superficie p-4 md:sticky md:top-0 md:z-10 md:max-h-[85vh] md:overflow-y-auto"
+      className="rounded-lg border border-borda bg-superficie p-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto"
     >
       {erro && erro.registroId === registroId && (
         <div className="mb-4"><BannerDeErro mensagem={erro.mensagem} /></div>
@@ -190,7 +194,7 @@ export function PainelDoComponenteDaImportacao({
       {!no && !situacao ? (
         <p className="text-tinta-fraca">Nenhum componente para mostrar.</p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3">
             {caminhoDoSolidoMostrado !== null && temSolido && (
               <VisualizadorDeSolido key={chaveDoSolido} caminho={caminhoDoSolidoMostrado} />

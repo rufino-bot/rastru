@@ -322,11 +322,14 @@ pelos tokens.
 - seção **"Importações em conferência"**, só quando houver rascunho: arquivo, autor, data,
   "Continuar" e "Descartar" (este pela `Confirmacao`).
 
-**Tela de conferência, `/importacoes/:id`**, de cima para baixo:
+**Tela de conferência, `/importacoes/:id`**, de cima para baixo (de `lg` para cima, o painel vai para uma
+coluna à direita; ver o item 1):
 
-1. **Painel fixo (sticky) do Componente selecionado** — fixo só de `md` para cima (D16); no celular é um
-   bloco comum no topo, que rola com a tela. À esquerda, `VisualizadorDeSolido` com
-   `UploadDeSolido`. À direita: código e descrição (a do BOM ao lado da do catálogo quando difere); o
+1. **Painel fixo (sticky) do Componente selecionado** — de `lg` para cima ele é a coluna da direita, fixo
+   ao lado da faixa da Peça e da árvore, que ficam à esquerda e continuam à vista enquanto o painel mostra
+   um Componente (a tela usa a largura ampla da `Pagina`); abaixo de `lg` é um bloco comum no topo, que
+   rola com a tela (D16: é tela de PC). O conteúdo é uma coluna só: no alto, `VisualizadorDeSolido` com
+   `UploadDeSolido`; abaixo, código e descrição (a do BOM ao lado da do catálogo quando difere); o
    casamento — `SeletorComBusca` para trocar, ou os campos do Componente novo com o `Tipo`; e, se o
    código diverge, a **tabela de comparativo** de um nível e a escolha "manter a do catálogo / usar a
    importada", sem padrão marcado, com o efeito ("retira N, traz M") mostrado antes de salvar.
@@ -531,6 +534,12 @@ suposição. O que a seção 3 muda no schema está lá; o contrato HTTP fechado
 - A conferência usa árvore **própria**, `ArvoreDaImportacao`: o contrato da `ArvoreDeEstrutura` é o nó real,
   com ações, posições e Roteiro que o rascunho não tem. Cada linha tem um `<button>` como seletor do nó
   (exceção escrita em `CLAUDE.md`, seção "Interface") e a quantidade por pai editável na linha.
+- O painel do Componente era fixo no topo da tela de `md` para cima, com até 85% da altura dela. Nas
+  capturas da verificação no navegador, em 1366×900, um Componente divergente ou com sólido para visualizar
+  deixava cerca de 15% da tela para a árvore. Decisão do usuário (2026-10-07): a árvore continua visível ao lado do painel. De `lg` para cima a tela tem
+  duas colunas — a faixa da Peça e a árvore à esquerda, o painel fixo à direita, com rolagem própria — e,
+  para caber, a `Pagina` ganhou a opção de largura `ampla`. Abaixo de `lg` o painel é um bloco comum no
+  topo. A ordem no DOM continua painel, faixa e árvore, que é a do celular e a do leitor de tela.
 - `UploadDeSolido` e `VisualizadorDeSolido` passaram a receber o **caminho** do binário (e, o upload, a função
   `enviar`), para servir tanto ao sólido do Componente quanto ao pendente do rascunho.
 - A seção "Importações em conferência" só aparece para quem escreve em `estrutura` e depois de a árvore do

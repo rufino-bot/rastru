@@ -4,7 +4,18 @@ interface Props {
   titulo: string
   /** Ação principal da tela, alinhada ao título (ex.: "Novo pedido"). */
   acao?: ReactNode
+  /**
+   * `padrao` (768px) para toda tela de lista e cadastro; `ampla` (1280px) só para a tela que põe duas
+   * colunas lado a lado em tela de PC, como a conferência da importação (a árvore e o painel do
+   * Componente). A largura vem daqui, e não de um container da tela.
+   */
+  largura?: 'padrao' | 'ampla'
   children: ReactNode
+}
+
+const MAX_W: Record<NonNullable<Props['largura']>, string> = {
+  padrao: 'max-w-3xl',
+  ampla: 'max-w-7xl',
 }
 
 /**
@@ -25,9 +36,9 @@ interface Props {
  * `Pagina` renderizada FORA do shell deixa de ser landmark — hoje nenhuma tela faz isso, e a
  * `LoginPage` (Task 12) não usa `Pagina`.
  */
-export function Pagina({ titulo, acao, children }: Props) {
+export function Pagina({ titulo, acao, largura = 'padrao', children }: Props) {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 flex flex-col gap-6">
+    <div className={`mx-auto w-full ${MAX_W[largura]} px-4 py-8 sm:px-6 flex flex-col gap-6`}>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-tinta">{titulo}</h1>
         {acao}

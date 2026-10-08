@@ -166,6 +166,32 @@ describe('ConferenciaDeImportacaoPage', () => {
     expect(within(painel).getByText('Parafuso')).toBeTruthy()
   })
 
+  it('de lg para cima o painel fica numa coluna ao lado da faixa da Peça e da árvore', async () => {
+    vi.stubGlobal('fetch', montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) }))
+
+    renderizar()
+
+    await screen.findByRole('button', { name: /SU-200 Suporte/ })
+    // jsdom não roda Tailwind: o que se prende é a declaração das classes; o layout é conferido no
+    // navegador. A página é a larga, porque duas colunas não cabem na padrão.
+    const pagina = screen.getByRole('heading', { level: 1 }).closest('header')!.parentElement!
+    expect(pagina.className.split(/\s+/)).toContain('max-w-7xl')
+
+    const painel = screen.getByRole('region', { name: 'Componente selecionado' })
+    const peca = screen.getByRole('region', { name: 'Peça' })
+    const estrutura = screen.getByRole('region', { name: 'Estrutura' })
+    const grade = painel.closest('[class~="lg:grid"]') as HTMLElement
+    expect(grade).not.toBeNull()
+    expect(grade.className.split(/\s+/)).toContain('lg:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)]')
+    const celula = (el: HTMLElement) => Array.from(grade.children).find((c) => c.contains(el))!
+    expect(celula(painel).className.split(/\s+/)).toContain('lg:col-start-2')
+    expect(celula(peca).className.split(/\s+/)).toContain('lg:col-start-1')
+    expect(celula(estrutura)).toBe(celula(peca))
+    // No DOM, a ordem continua painel, faixa e árvore: é a do celular e a do leitor de tela.
+    expect(painel.compareDocumentPosition(peca) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(peca.compareDocumentPosition(estrutura) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('Confirmar_fica_desabilitado_e_lista_os_bloqueios', async () => {
     vi.stubGlobal('fetch', montarFetch({ 'GET /api/importacoes/5': () => respostaJson(importacao()) }))
 
