@@ -178,6 +178,23 @@ describe('ArvoreDaImportacao', () => {
     expect(envoltorio!.className.split(/\s+/)).not.toContain('z-10')
   })
 
+  it('O_anel_de_foco_contorna_a_linha_inteira_e_e_um_so', () => {
+    render(<ArvoreDaImportacao raiz={RAIZ} selecionado={null} aoSelecionar={() => {}} />)
+
+    // O botão É a linha: o anel mora no `::after`, que cobre a linha toda, e não no texto do botão.
+    // Um anel nos dois lugares desenharia dois contornos.
+    const botao = within(screen.getByTestId('linha-importacao-0-0')).getByRole('button', { name: /SU-200 Suporte/ })
+    const classes = botao.className.split(/\s+/)
+    expect(classes).toContain('focus-visible:after:outline-acao')
+    expect(classes).toContain('focus-visible:after:outline-2')
+    expect(classes).toContain('focus-visible:outline-none')
+    // O `outline-none` do botão zera a variável de estilo do contorno, que o `::after` herda: sem o
+    // estilo declarado no próprio `::after`, o anel não aparece.
+    expect(classes).toContain('focus-visible:after:outline-solid')
+    expect(classes).not.toContain('focus-visible:outline-acao')
+    expect(classes).not.toContain('focus-visible:outline-2')
+  })
+
   it('Selecao_vinda_de_fora_marca_a_primeira_ocorrencia', () => {
     render(<ArvoreDaImportacao raiz={RAIZ} selecionado={{ registroId: 3, componenteId: 300 }} aoSelecionar={() => {}} />)
 

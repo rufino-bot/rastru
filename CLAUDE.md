@@ -288,8 +288,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `<button>` crus, e "quatro" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
   são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da Task 7 da Fase
   2): aceitar a exceção e escrevê-la, não extrair uma primitiva. Essa decisão cobre os três primeiros
-  controles; o **quarto** (o seletor de linha) foi enquadrado pela implementação, ao fazer a tela de
-  conferência, e está **pendente** de o usuário confirmar a exceção ou preferir uma primitiva.
+  controles. O **quarto**, o seletor de linha da `ArvoreDaImportacao`, foi enquadrado pela implementação,
+  ao fazer a tela de conferência, e **aceito pelo usuário em 2026-10-07**, depois da verificação no
+  navegador do import da estrutura: também fica sem primitiva.
 
   O motivo é técnico, e são **motivos diferentes** — a review da Task 7 errou ao tratá-los como o mesmo.
   Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um controle de ícone —
@@ -301,11 +302,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `after:absolute after:inset-0` estica a área de toque por toda a linha da árvore (no celular, acertar só
   o texto é difícil), e a `Botao` traz borda e padding de botão com rótulo, que fariam a árvore inteira
   virar uma pilha de botões. O controle tem nome acessível (o código e a descrição do nó) e
-  `aria-current` no selecionado.
+  `aria-current` no selecionado, e o anel de foco mora no `::after`, para contornar a linha inteira e não
+  só o texto do botão.
 
   **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
   rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. O seletor de linha da
-  `ArvoreDaImportacao`, enquanto pendente, só se sustenta como **navegação**: escolhe qual nó o painel
+  `ArvoreDaImportacao` só se sustenta como **navegação**: escolhe qual nó o painel
   mostra e não grava nada, e a ação da linha (a quantidade por pai) é um `Campo`, não um botão. Quem
   escrever o próximo caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes —
   saída que o implementer propôs e que o usuário adiou, não descartou.

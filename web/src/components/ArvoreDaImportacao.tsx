@@ -169,7 +169,13 @@ function LinhaDoNo({
               caso é o mais próximo do limite dela: é controle de NAVEGAÇÃO — escolhe qual nó o painel
               mostra, não dispara ação de formulário. `Botao` não serve: a `secundario` traz borda e
               `px-4 py-2` de botão com rótulo, e a linha inteira da árvore viraria uma pilha de
-              botões. Anel de foco pelo mesmo token que a `BASE` do `Botao` usa. */}
+              botões. Anel de foco pelo mesmo token que a `BASE` do `Botao` usa, mas no `::after`: o botão
+              É a linha, e o anel contorna a linha inteira, não só o texto. É `outline`, e não `ring`, para
+              sobreviver ao modo de alto contraste, e fica por fora da borda, com folga de 1px: a linha
+              selecionada já tem borda da mesma cor, e um anel por dentro dela não se distinguiria da
+              seleção. O do próprio botão é `outline-none`, e não `outline-hidden`: este desenha um contorno
+              transparente que o modo de alto contraste pinta, e o anel viraria dois. Os dois zeram a variável de
+              estilo do contorno, que o `::after` herda do botão: por isso o `::after` declara `outline-solid`. */}
           <button
             type="button"
             aria-label={`${no.codigo} ${no.descricao}`}
@@ -180,7 +186,7 @@ function LinhaDoNo({
             // fica acima do overlay com `z-[1]`, e o `isolate` prende esse z-index DENTRO da linha —
             // sem ele o campo disputaria a raiz com o painel fixo do topo da tela (`z-10`) e, mais
             // adiante no DOM, pintaria por cima dele quando a árvore rola por baixo.
-            className="inline-flex flex-wrap items-center gap-2 rounded text-left after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+            className="inline-flex flex-wrap items-center gap-2 rounded text-left after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-solid focus-visible:after:outline-offset-1 focus-visible:after:outline-acao"
           >
             <span className="font-mono text-sm text-tinta-fraca">{no.codigo}</span>
             <span className="text-tinta">{no.descricao}</span>
