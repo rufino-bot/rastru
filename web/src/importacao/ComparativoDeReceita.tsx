@@ -25,7 +25,7 @@ export function ComparativoDeReceita({ linhas }: { linhas: LinhaDoComparativoDto
         <thead>
           <tr className="border-b border-borda text-tinta-fraca">
             <th scope="col" className="py-1.5 pr-3 font-medium">Filho</th>
-            <th scope="col" className="py-1.5 pr-3 text-right font-medium">Catálogo hoje</th>
+            <th scope="col" className="py-1.5 pr-3 text-right font-medium">Catálogo</th>
             <th scope="col" className="py-1.5 pr-3 text-right font-medium">BOM</th>
             <th scope="col" className="py-1.5 font-medium">Situação</th>
           </tr>

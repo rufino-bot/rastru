@@ -14,12 +14,12 @@ const LINHAS: LinhaDoComparativoDto[] = [
 ]
 
 describe('ComparativoDeReceita', () => {
-  it('tem o cabeçalho Filho / Catálogo hoje / BOM / Situação', () => {
+  it('tem o cabeçalho Filho / Catálogo / BOM / Situação', () => {
     render(<ComparativoDeReceita linhas={LINHAS} />)
 
     const tabela = screen.getByRole('table', { name: 'Comparativo da receita' })
     expect(within(tabela).getAllByRole('columnheader').map((c) => c.textContent))
-      .toEqual(['Filho', 'Catálogo hoje', 'BOM', 'Situação'])
+      .toEqual(['Filho', 'Catálogo', 'BOM', 'Situação'])
   })
 
   it('as quatro situações saem com texto legível, e a quantidade ausente vira travessão', () => {
