@@ -94,6 +94,9 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
      "manter a receita do catálogo" ou "usar a receita importada" — com o efeito de manter o catálogo ("retira
      N itens do BOM e traz M do catálogo") à vista antes de decidir. A escolha vale para todas as ocorrências
      do Componente. Trocar o casamento zera a escolha: ela é feita depois de ver o comparativo do casamento novo.
+     Depois da escolha, a linha da árvore passa a dizer qual receita foi escolhida ("Receita do catálogo" ou
+     "Receita importada", sem o âmbar), e o resumo da faixa da Peça deixa de contar aquele código entre as
+     divergências a decidir.
    - **Quantidades.** Corrige na linha (a tecla Enter ou sair do campo salva) e informa a quantidade da Peça.
 4. **Confirmar** fica desabilitado enquanto houver bloqueio, e a lista diz o que falta. Confirmar cria os
    Componentes novos, reativa os inativos, grava sólidos e receitas no catálogo e cria a Peça, **idêntica**

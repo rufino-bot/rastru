@@ -334,7 +334,7 @@ coluna à direita; ver o item 1):
    código diverge, a **tabela de comparativo** de um nível e a escolha "manter a do catálogo / usar a
    importada", sem padrão marcado, com o efeito ("retira N, traz M") mostrado antes de salvar.
 2. **Faixa da Peça**: quantidade e Relatório Dimensional; resumo das pendências em pílulas ("3
-   divergências", "5 sem sólido"), cada uma levando ao primeiro nó com aquela pendência; **Confirmar**,
+   divergências a decidir", "5 sem sólido"), cada uma levando ao primeiro nó com aquela pendência; **Confirmar**,
    desabilitado enquanto houver bloqueio, com a lista do que falta; Descartar.
 3. **Árvore expandida.** Cada nó: código, descrição, quantidade (editável na linha) e pílulas de
    situação — *novo*, *inativo*, *receita divergente*, *sem sólido*. Clicar ou tocar seleciona o nó no
@@ -343,8 +343,9 @@ coluna à direita; ver o item 1):
 
 **Cores.** *Divergente*, *sem sólido* e *inativo* usam **`atencao`** — são estado que pede atenção,
 o que cumpre "cor de estado nunca decora". *Novo* é neutra. A pílula de atenção no início da árvore,
-pedida pelo usuário para a receita divergente, é parte do resumo de pendências; o texto exato fica
-para depois, por decisão dele.
+pedida pelo usuário para a receita divergente, é parte do resumo de pendências. Como a pílula da linha
+e a do resumo se comportam depois que o usuário escolhe a receita está nas emendas da seção 13
+("Telas", decisão de 2026-10-08).
 
 **Reuso.** A `ArvoreDeEstrutura` recebe o DTO da árvore real. Se o contrato dela não comportar o
 rascunho sem virar outra coisa, a conferência ganha uma árvore própria em `web/src/components/`, com
@@ -540,6 +541,17 @@ suposição. O que a seção 3 muda no schema está lá; o contrato HTTP fechado
   duas colunas — a faixa da Peça e a árvore à esquerda, o painel fixo à direita, com rolagem própria — e,
   para caber, a `Pagina` ganhou a opção de largura `ampla`. Abaixo de `lg` o painel é um bloco comum no
   topo. A ordem no DOM continua painel, faixa e árvore, que é a do celular e a do leitor de tela.
+- **A escolha de receita aparece na árvore e no resumo.** Decisão do usuário (2026-10-08), na conferência no
+  navegador. A pendência `Divergente` vem do servidor e continua no nó depois da escolha (ela diz que a
+  receita do BOM difere da do catálogo, não que falta decidir), então a tela cruza o nó com a escolha do
+  registro dele (`escolhaDeReceita`). A **pílula da linha** troca, em vez de ganhar uma segunda: sem escolha,
+  "Receita divergente" em `atencao`; escolhida a do catálogo, "Receita do catálogo"; escolhida a importada,
+  "Receita importada", as duas em `neutro`. O âmbar fica só onde falta decidir ("cor de estado nunca
+  decora"), e a troca vale para todas as ocorrências do mesmo código, porque a escolha é do registro. A
+  **pílula do resumo** conta só as divergências sem escolha, com o texto "N divergência a decidir" ou "N
+  divergências a decidir", e some quando todas estão decididas; o clique nela leva à primeira divergência
+  **sem** escolha. As pílulas de inativo, novo e sem sólido não mudam. A frase sob as opções de receita
+  passou a ser "Usar a importada substitui a receita do catálogo pela do BOM."
 - `UploadDeSolido` e `VisualizadorDeSolido` passaram a receber o **caminho** do binário (e, o upload, a função
   `enviar`), para servir tanto ao sólido do Componente quanto ao pendente do rascunho.
 - A seção "Importações em conferência" só aparece para quem escreve em `estrutura` e depois de a árvore do
