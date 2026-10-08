@@ -569,7 +569,16 @@ branch. A spec e o plano da fase estão na `main` desde esse merge, e a branch
 ## Fase 3B — Kit e montagem
 
 > **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
-> «Import da estrutura a partir do CAD»). A ordem fica: filtros → 1F → **import do BOM** → 3B.
+> «Import da estrutura a partir do CAD»). A ordem fica: filtros → 1F → **import do BOM** → 3B. O
+> import foi concluído e mesclado em 2026-10-08; a 3B é a próxima.
+
+- **Título da página do Agrupamento com o Pedido** (pedido do usuário na conferência do import, em
+  2026-10-08, emendado nesta fase por decisão dele, porque a 3B mexe no Agrupamento): o título passa a
+  "Pedido X — {código do Agrupamento} — {Avulso|Kit}", com "Pedido X" como **link** para a página do
+  Pedido. O número vem na resposta de `GET /agrupamentos/{id}` (campo novo, com
+  `05-api-endpoints.md` atualizado), não numa segunda requisição do front. Motivo dele: os
+  Agrupamentos devem ganhar códigos de lote interno da empresa, e é preciso ver qual Pedido está
+  sendo alterado.
 
 - `Setor.UtilizaKit` (regra 25 de `01`); o schema entra no início desta fase. A montagem, o destino
   "montado" e `QuantidadePorPai` já existem desde a Fase 3, e o início de um nó com filhos consome os
@@ -742,6 +751,16 @@ não é exceção a uma regra, e sim a regra geral do cabeçalho deste arquivo.
 **Efeito único sobre a Fase 1C:** o caso de uso que grava a receita padrão deve aceitar **uma lista
 de linhas de uma vez**, e não só uma linha por chamada. É quase de graça agora e evita reescrever o
 caso de uso quando o import chegar; a tela continua digitando linha a linha.
+
+**Estado em 2026-10-08, depois do merge:** **concluído e mesclado na `main`** pelo PR
+rufino-bot/rastru#31 (merge `b555d92`), cuja árvore é idêntica à de `ebbf5d9`, o último commit da
+branch. O usuário conferiu o fluxo inteiro no navegador numa sessão local, em 2026-10-08, e pediu
+cinco ajustes de tela, que entraram na própria branch antes do merge. Suítes medidas na mesma data:
+front **1330 / 76** em `ebbf5d9`, verde, e `npm run build` limpo; backend em `b43e8c6` (sem mudança
+de backend depois dele), `dotnet build Rastreamento.slnx -warnaserror` com 0 avisos e
+`dotnet test Rastreamento.slnx -m:1` verde, **1241** (Api 345 · Application 685 · Infrastructure 211).
+O BOM de uma montagem real **ainda não foi testado**: as suposições sobre o formato do arquivo
+continuam as da seção 10 da spec.
 
 ## Fora das fases — dívida: CRUD de Usuário e permissão por Perfil (registrada em 2026-09-15)
 

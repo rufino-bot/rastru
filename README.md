@@ -27,7 +27,7 @@ local de expedição) + o que já foi montado dentro do pai + expedido + perdido
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql` e `alter-fase-3d.sql`, que levam um banco criado antes dessas fases até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql` e `alter-importacao-bom.sql`, que levam um banco criado antes dessas fases até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -107,8 +107,8 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
 roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
-A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** rodou antes da 3B,
-e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
+A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** e o **import
+do BOM** rodaram antes da 3B, e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
 decidida.
 
 Concluídas até aqui:
@@ -146,6 +146,11 @@ Concluídas até aqui:
   Setores, também o de editar), a ordem das listas é escolhida pelo usuário e o cartão inteiro é
   clicável na Fila, no detalhe do Pedido e em Componentes. Verificada no navegador e mesclada na
   `main` pelo PR #28, em 2026-10-02.
+- **Import da estrutura a partir do BOM do CAD** (seção própria do roadmap, sem letra de fase): o
+  BOM indentado exportado do CAD (CSV ou XLSX), enviado na página do Agrupamento, vira um rascunho
+  salvo no servidor, conferido numa tela própria — casamento com o catálogo, Componentes novos,
+  receita divergente, quantidades e sólidos — e confirmado numa transação que grava o catálogo e cria
+  a Peça. Verificado no navegador e mesclado na `main` pelo PR #31, em 2026-10-08.
 
 A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
 de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de

@@ -53,7 +53,8 @@ do Setor, as Tarefas e a lista de Pedidos, mais a ação em lote) → Fase 1F �
 partir do CAD (BOM)**, que era "fora das fases", executa **depois da 1F e antes da 3B** (decisão de
 2026-10-02, porque a 3B mexe em montagem e o import não depende dela; ver a seção «Import da estrutura
 a partir do CAD» de `06-roadmap-mvp.md` e a spec
-`docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`).
+`docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`). O import foi concluído e
+mesclado em 2026-10-08 (rufino-bot/rastru#31); a próxima da ordem é a **Fase 3B**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
