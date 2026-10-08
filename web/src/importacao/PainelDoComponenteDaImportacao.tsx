@@ -39,6 +39,12 @@ interface Props {
 
 const TIPOS: TipoDeComponente[] = ['Bruto', 'Fabricado', 'Montagem']
 
+/**
+ * Quanto tempo a recusa local do casamento fica na tela. Ela só diz que a escolha não foi aceita e o
+ * que fazer, não pede resposta: some sozinha, ou antes, na próxima ação do usuário no painel.
+ */
+const TEMPO_DA_RECUSA_LOCAL_MS = 8_000
+
 const TEXTO_DO_NO_DO_CATALOGO = 'Este item vem da receita do catálogo; o sólido se envia no cadastro dele.'
 
 /** A frase da falha de uma escrita do painel: o 409 de versão velha tem a dele, o resto a do status. */
@@ -85,6 +91,21 @@ export function PainelDoComponenteDaImportacao({
   const podeEscrever = usePodeEscrever('estrutura')
   // O erro da última escrita do painel, com o registro dela: trocar de nó não o leva junto.
   const [erro, setErro] = useState<{ registroId: number; mensagem: string } | null>(null)
+  // A recusa local do casamento (o Componente já é de outro código), que não chega ao servidor. É
+  // estado à parte do `erro` porque a vida dela é outra: some por tempo, na próxima ação do painel e
+  // na troca de nó, e não volta ao reabrir o nó. O erro de escrita fica até a escrita seguinte.
+  const [recusa, setRecusa] = useState<{ registroId: number; mensagem: string } | null>(null)
+
+  // Cada recusa tem o próprio temporizador: o cleanup do efeito o limpa quando outra recusa a
+  // substitui (o objeto novo refaz o efeito), quando a recusa some por outro caminho e na desmontagem.
+  useEffect(() => {
+    if (recusa === null) return
+    const temporizador = setTimeout(() => setRecusa(null), TEMPO_DA_RECUSA_LOCAL_MS)
+    return () => clearTimeout(temporizador)
+  }, [recusa])
+
+  // Trocar de nó descarta a recusa: ela é do nó que estava aberto, e não deve esperar por ele.
+  useEffect(() => { setRecusa(null) }, [registroId, componenteId])
   const situacao = registroId === null
     ? undefined
     : importacao.componentes.find((c) => c.registroId === registroId)
@@ -119,6 +140,7 @@ export function PainelDoComponenteDaImportacao({
    */
   async function gravar(id: number, montar: (s: SituacaoDoComponenteDto) => AlteracaoDeComponente) {
     setErro(null)
+    setRecusa(null)
     try {
       await escrever((atual) => {
         const s = atual.componentes.find((c) => c.registroId === id)
@@ -140,7 +162,8 @@ export function PainelDoComponenteDaImportacao({
     const outro = importacao.componentes.find((x) => x.registroId !== s.registroId && x.componenteId === c.id)
     if (outro) {
       const quem = outro.codigoLido === null ? 'outro código do BOM' : `o código ${outro.codigoLido} do BOM`
-      setErro({
+      setErro(null)
+      setRecusa({
         registroId: s.registroId,
         mensagem: `${c.codigo} já está casado com ${quem}. `
           + 'Escolha outro Componente, ou case aquele código com outro antes.',
@@ -167,6 +190,7 @@ export function PainelDoComponenteDaImportacao({
 
   /** O envio do STL: a falha volta ao `UploadDeSolido`, que a mostra no próprio campo. */
   async function enviarSolido(id: number, arquivo: File) {
+    setRecusa(null)
     try {
       await escrever((atual) => enviarSolidoPendente(atual.id, id, atual.versao, arquivo), true)
     } catch (e) {
@@ -190,6 +214,9 @@ export function PainelDoComponenteDaImportacao({
     >
       {erro && erro.registroId === registroId && (
         <div className="mb-4"><BannerDeErro mensagem={erro.mensagem} /></div>
+      )}
+      {recusa && recusa.registroId === registroId && (
+        <div className="mb-4"><BannerDeErro mensagem={recusa.mensagem} /></div>
       )}
       {!no && !situacao ? (
         <p className="text-tinta-fraca">Nenhum componente para mostrar.</p>
@@ -251,7 +278,9 @@ export function PainelDoComponenteDaImportacao({
             </div>
 
             {situacao && podeEscrever && (
-              <div className="flex flex-col gap-3">
+              // `onInput` sobe de todo campo de texto deste bloco (a busca e os do Componente novo): digitar
+              // é a próxima ação do usuário, e a recusa local já cumpriu o papel dela.
+              <div className="flex flex-col gap-3" onInput={() => setRecusa(null)}>
                 <SeletorComBusca
                   rotulo="Casar com outro Componente"
                   valorSelecionado={casado ? {

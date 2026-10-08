@@ -342,6 +342,117 @@ describe('PainelDoComponenteDaImportacao', () => {
     expect(chamadas(fetchMock)).toHaveLength(0)
   })
 
+  describe('recusa local do casamento', () => {
+    const FRASE = 'CA-500 já está casado com o código CA-500 do BOM. Escolha outro Componente, ou case aquele código com outro antes.'
+    const CATALOGO_COM_CALCO = () => respostaJson({
+      itens: [{ id: 500, codigo: 'CA-500', descricao: 'Calço', tipo: 'Fabricado', ativo: true, temSolido: true }],
+      total: 1, pagina: 1, tamanho: 20,
+    })
+
+    beforeEach(() => { vi.useFakeTimers({ shouldAdvanceTime: true }) })
+    afterEach(() => { vi.useRealTimers() })
+
+    /** Tenta casar o registro aberto com o CA-500, que o registro 4 já tem: a recusa local. */
+    async function tentarCasarComOCalco() {
+      fireEvent.focus(screen.getByRole('combobox', { name: 'Casar com outro Componente' }))
+      fireEvent.click(await screen.findByRole('option', { name: /CA-500/ }))
+      return within(regiao()).findByRole('alert')
+    }
+
+    function passar(ms: number) {
+      act(() => { vi.advanceTimersByTime(ms) })
+    }
+
+    it('some sozinha depois de 8 s', async () => {
+      montarFetch({ 'GET /api/componentes': CATALOGO_COM_CALCO })
+      painel(2, 200)
+      expect((await tentarCasarComOCalco()).textContent).toBe(FRASE)
+
+      passar(7_900)
+      expect(within(regiao()).queryByRole('alert')).toBeTruthy()
+      passar(200)
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+    })
+
+    it('some com a troca de nó e não volta ao reabrir o nó', async () => {
+      montarFetch({ 'GET /api/componentes': CATALOGO_COM_CALCO })
+      const { rerender, props } = painel(2, 200)
+      await tentarCasarComOCalco()
+
+      rerender(<PainelDoComponenteDaImportacao {...props} registroId={3} componenteId={null} />)
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+      rerender(<PainelDoComponenteDaImportacao {...props} />)
+
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+    })
+
+    it('some na próxima ação: digitar na busca', async () => {
+      montarFetch({ 'GET /api/componentes': CATALOGO_COM_CALCO })
+      painel(2, 200)
+      await tentarCasarComOCalco()
+
+      fireEvent.input(screen.getByRole('combobox', { name: 'Casar com outro Componente' }), { target: { value: 'SU' } })
+
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+    })
+
+    it('some na próxima ação: escolher a receita', async () => {
+      montarFetch({
+        'GET /api/componentes': CATALOGO_COM_CALCO,
+        'PUT /api/importacoes/5/componentes/2': () => respostaJson(importacao()),
+      })
+      painel(2, 200)
+      await tentarCasarComOCalco()
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Usar a receita importada' }))
+
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+    })
+
+    it('some na próxima ação: digitar num campo do Componente novo', async () => {
+      montarFetch({ 'GET /api/componentes': () => respostaJson({
+        itens: [{ id: 600, codigo: 'PI-600', descricao: 'Pino', tipo: 'Fabricado', ativo: true, temSolido: true }],
+        total: 1, pagina: 1, tamanho: 20,
+      }) })
+      painel(3, null)
+      fireEvent.focus(screen.getByRole('combobox', { name: 'Casar com outro Componente' }))
+      fireEvent.click(await screen.findByRole('option', { name: /PI-600/ }))
+      await within(regiao()).findByRole('alert')
+
+      fireEvent.input(screen.getByLabelText('Descrição'), { target: { value: 'Parafuso M8' } })
+
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+    })
+
+    it('o erro de uma escrita que chegou ao servidor não some por tempo', async () => {
+      montarFetch({ 'PUT /api/importacoes/5/componentes/2': () => respostaJson({}, 500) })
+      painel(2, 200)
+
+      fireEvent.click(screen.getByRole('radio', { name: 'Usar a receita importada' }))
+      const alerta = await within(regiao()).findByRole('alert')
+      const frase = alerta.textContent
+
+      passar(60_000)
+
+      expect(within(regiao()).getByRole('alert').textContent).toBe(frase)
+    })
+
+    it('o temporizador de uma recusa antiga não apaga a recusa nova', async () => {
+      montarFetch({ 'GET /api/componentes': CATALOGO_COM_CALCO })
+      painel(2, 200)
+      await tentarCasarComOCalco()
+      passar(5_000)
+
+      await tentarCasarComOCalco()
+      // 10 s depois da primeira, 5 s depois da segunda: a primeira já teria vencido.
+      passar(5_000)
+      expect(within(regiao()).queryByRole('alert')).toBeTruthy()
+
+      passar(3_100)
+      expect(within(regiao()).queryByRole('alert')).toBeNull()
+    })
+  })
+
   it('o seletor mostra o Componente casado e escolher o mesmo não escreve', async () => {
     montarFetch({
       'GET /api/componentes': () => respostaJson({
