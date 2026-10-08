@@ -24,13 +24,15 @@ public class PedidoRepositoryTests : TesteComBanco
 
   /// <summary>Pedido solto (sem Agrupamento); a limpeza dele e <see cref="ApagarPedidosAsync"/>.</summary>
   private static async Task<int> NovoPedidoAsync(
-      RastreamentoDbContext db, string numero, string cliente, string status = "Aberto", DateTime? dataAbertura = null)
+      RastreamentoDbContext db, string numero, string cliente, string status = "Aberto", DateTime? dataAbertura = null,
+      DateOnly? dataEntrega = null)
   {
     var autor = (await db.Usuarios.AsNoTracking().SingleAsync(u => u.NomeUsuario == "admin")).Id;
     var pedido = new Pedido
     {
       Numero = numero, Cliente = cliente, Tipo = "Fabricacao", Status = status,
-      DataAbertura = dataAbertura ?? DateTime.UtcNow, CriadoPorUsuarioId = autor,
+      DataAbertura = dataAbertura ?? DateTime.UtcNow, DataEntrega = dataEntrega ?? new DateOnly(2026, 10, 22),
+      CriadoPorUsuarioId = autor,
     };
     db.Pedidos.Add(pedido);
     await db.SaveChangesAsync();

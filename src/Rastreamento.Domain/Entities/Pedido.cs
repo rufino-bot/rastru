@@ -15,6 +15,13 @@ public class Pedido
   public string? MotivoRetrabalho { get; set; }
   public string Status { get; set; } = string.Empty;
   public DateTime DataAbertura { get; set; }
+
+  /// <summary>
+  /// Prazo combinado com o cliente: um dia, sem hora nem fuso (`DATE`). `DateOnly`, e nao `DateTime`,
+  /// para nao passar pela conversao de fuso da borda da API, que deslocaria o dia.
+  /// </summary>
+  public DateOnly DataEntrega { get; set; }
+
   public DateTime? DataConclusao { get; set; }
 
   /// <summary>Autoria: responde "quem abriu este pedido". FK para dbo.Usuario.</summary>

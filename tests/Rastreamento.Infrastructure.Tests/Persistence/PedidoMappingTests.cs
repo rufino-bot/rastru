@@ -27,6 +27,7 @@ public class PedidoMappingTests : TesteComBanco
       Tipo = "Fabricacao",
       Status = "Aberto",
       DataAbertura = DateTime.UtcNow,
+      DataEntrega = new DateOnly(2026, 10, 22),
       CriadoPorUsuarioId = autor,
     };
 
@@ -56,17 +57,56 @@ public class PedidoMappingTests : TesteComBanco
   }
 
   [Fact]
+  public async Task Data_de_entrega_vai_e_volta_da_coluna_date_sem_deslocar_o_dia()
+  {
+    // `DateOnly` contra `DATE`: o dia gravado e o dia lido. Um mapeamento por `DateTime`, com
+    // conversao de fuso no caminho, devolveria o dia anterior — e e isso que este teste pega. O tipo e
+    // a nulidade da coluna saem do catalogo do banco, nao do modelo do EF.
+    await using var db = NovoContexto();
+    var autor = await IdDoAdmin(db);
+    var pedido = new Pedido
+    {
+      Numero = $"ent-{Guid.NewGuid():N}"[..25], Cliente = "Teste", Tipo = "Fabricacao", Status = "Aberto",
+      DataAbertura = DateTime.UtcNow, DataEntrega = new DateOnly(2026, 10, 22), CriadoPorUsuarioId = autor,
+    };
+    db.Pedidos.Add(pedido);
+    await db.SaveChangesAsync();
+
+    try
+    {
+      await using var dbLeitura = NovoContexto();
+      var lido = await dbLeitura.Pedidos.AsNoTracking().SingleAsync(p => p.Id == pedido.Id);
+      Assert.Equal(new DateOnly(2026, 10, 22), lido.DataEntrega);
+
+      var tipo = await dbLeitura.Database.SqlQuery<string>(
+          $"SELECT DATA_TYPE AS [Value] FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Pedido' AND COLUMN_NAME = 'DataEntrega'")
+          .SingleAsync();
+      var anulavel = await dbLeitura.Database.SqlQuery<string>(
+          $"SELECT IS_NULLABLE AS [Value] FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Pedido' AND COLUMN_NAME = 'DataEntrega'")
+          .SingleAsync();
+      Assert.Equal("date", tipo);
+      Assert.Equal("NO", anulavel);
+    }
+    finally
+    {
+      await using var dbLimpeza = NovoContexto();
+      await dbLimpeza.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {pedido.Id}");
+    }
+  }
+
+  [Fact]
   public async Task Data_de_abertura_e_status_nascem_pelos_defaults_do_banco()
   {
     // INSERT cru omitindo Status e DataAbertura: e o unico jeito de provar DF_Pedido_Status e
     // DF_Pedido_DataAbertura, porque o EF sempre manda as colunas (Database First — os DEFAULT
-    // vivem so no .sql, e o use case e quem define os valores no caminho normal).
+    // vivem so no .sql, e o use case e quem define os valores no caminho normal). `DataEntrega` vai no
+    // `INSERT` porque nao tem `DEFAULT` (D2 da spec da data de entrega).
     await using var db = NovoContexto();
     var autor = await IdDoAdmin(db);
     var numero = $"def-{Guid.NewGuid():N}"[..25];
 
     await db.Database.ExecuteSqlInterpolatedAsync(
-        $"INSERT INTO dbo.Pedido (Numero, Cliente, Tipo, CriadoPorUsuarioId) VALUES ({numero}, 'Teste', 'Fabricacao', {autor})");
+        $"INSERT INTO dbo.Pedido (Numero, Cliente, Tipo, DataEntrega, CriadoPorUsuarioId) VALUES ({numero}, 'Teste', 'Fabricacao', '2026-10-22', {autor})");
 
     var id = await db.Database
         .SqlQuery<int>($"SELECT Id AS [Value] FROM dbo.Pedido WHERE Numero = {numero}").SingleAsync();

@@ -1002,6 +1002,19 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-importacao-bom.sql
 ```
 
+**Data de entrega do Pedido — `db/alter-data-entrega.sql`.** Mesmo formato dos anteriores (idempotente,
+`-b -f 65001`). Leva um banco anterior até o `02-modelo-de-dados.sql`: a coluna `Pedido.DataEntrega`
+(`DATE NOT NULL`), em três passos — nasce nula, os Pedidos existentes recebem a **data de abertura em
+Brasília** (um valor inventado, que faz todo Pedido antigo ainda aberto aparecer como atrasado; seção 3.2
+da spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`) e vira `NOT NULL`. Não
+precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-data-entrega.sql sqlserver:/tmp/alter-data-entrega.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-data-entrega.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

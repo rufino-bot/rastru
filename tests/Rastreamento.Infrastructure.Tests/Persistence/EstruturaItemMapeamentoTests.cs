@@ -29,6 +29,7 @@ public class EstruturaItemMapeamentoTests : TesteComBanco
       Tipo = "Fabricacao",
       Status = "Aberto",
       DataAbertura = DateTime.UtcNow,
+      DataEntrega = new DateOnly(2026, 10, 22),
       CriadoPorUsuarioId = autor,
     };
     db.Pedidos.Add(pedido);

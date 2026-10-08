@@ -207,6 +207,7 @@ CREATE TABLE dbo.Pedido (
     MotivoRetrabalho    NVARCHAR(30)        NULL,      -- preenchido só quando Tipo = Retrabalho
     Status              NVARCHAR(20)        NOT NULL CONSTRAINT DF_Pedido_Status DEFAULT ('Aberto'),
     DataAbertura        DATETIME2           NOT NULL CONSTRAINT DF_Pedido_DataAbertura DEFAULT (SYSUTCDATETIME()),
+    DataEntrega         DATE                NOT NULL,  -- prazo combinado com o cliente; dia, sem hora nem fuso
     DataConclusao       DATETIME2           NULL,
     CriadoPorUsuarioId  INT                 NOT NULL,  -- autoria: responde "quem abriu este pedido"
     CONSTRAINT PK_Pedido PRIMARY KEY CLUSTERED (Id),

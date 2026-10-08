@@ -130,7 +130,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
 
   /// <summary>Pedido gravado direto no banco (o cadastro pela API so cria `Aberto`), com numero limpo pelo `DisposeAsync`.</summary>
   private async Task<int> GravarPedidoAsync(
-      string cliente, string status, string? numero = null, DateTime? dataAbertura = null)
+      string cliente, string status, string? numero = null, DateTime? dataAbertura = null, DateOnly? dataEntrega = null)
   {
     if (numero is not null) _numerosCriados.Add(numero);
     using var escopo = _factory.Services.CreateScope();
@@ -138,7 +138,8 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     var pedido = new Pedido
     {
       Numero = numero ?? NumeroUnico(), Cliente = cliente, Tipo = "Fabricacao", Status = status,
-      DataAbertura = dataAbertura ?? DateTime.UtcNow, CriadoPorUsuarioId = IdDeUsuarioReal(),
+      DataAbertura = dataAbertura ?? DateTime.UtcNow, DataEntrega = dataEntrega ?? new DateOnly(2026, 10, 22),
+      CriadoPorUsuarioId = IdDeUsuarioReal(),
     };
     db.Pedidos.Add(pedido);
     await db.SaveChangesAsync();
