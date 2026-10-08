@@ -187,12 +187,13 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   [Fact]
   public async Task Listagem_sem_ordem_ordena_por_prazo_de_entrega()
   {
-    // Prazos em ordem CONTRARIA a das aberturas: a ordem antiga (Recentes) devolveria o inverso.
+    // Aberturas crescem JUNTO com os prazos (o de prazo mais cedo foi aberto primeiro): a ordem `recentes`
+    // (DataAbertura decrescente) devolveria exatamente o inverso, entao so a ordem por prazo acerta.
     var cliente = $"cli-{Guid.NewGuid():N}";
     var t1 = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
-    var prazoTarde = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1, dataEntrega: new DateOnly(2026, 12, 1));
+    var prazoCedo = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1, dataEntrega: new DateOnly(2026, 10, 1));
     var prazoMeio = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1.AddHours(1), dataEntrega: new DateOnly(2026, 11, 1));
-    var prazoCedo = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1.AddHours(2), dataEntrega: new DateOnly(2026, 10, 1));
+    var prazoTarde = await GravarPedidoAsync(cliente, "Aberto", dataAbertura: t1.AddHours(2), dataEntrega: new DateOnly(2026, 12, 1));
 
     Assert.Equal([prazoCedo, prazoMeio, prazoTarde], await IdsListadosAsync(cliente, ""));
     Assert.Equal([prazoCedo, prazoMeio, prazoTarde], await IdsListadosAsync(cliente, "&ordem=entrega"));

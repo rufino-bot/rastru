@@ -343,21 +343,30 @@ public class PedidoRepositoryTests : TesteComBanco
       // consulta devolveu.
       var abertura = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
       var chaves = new Dictionary<int, (DateOnly Prazo, DateTime Abertura)>();
-      async Task<int> CriarAsync(string status, DateOnly prazo)
+      async Task<int> CriarAsync(string status, DateOnly prazo, DateTime aberturaDoPedido)
       {
-        var id = await NovoPedidoAsync(db, "U-" + Unico(), "Cliente", status, abertura, prazo);
+        var id = await NovoPedidoAsync(db, "U-" + Unico(), "Cliente", status, aberturaDoPedido, prazo);
         ids.Add(id);   // entra na limpeza logo apos criar: nao ha janela de vazamento
-        chaves[id] = (prazo, abertura);
+        chaves[id] = (prazo, aberturaDoPedido);
         return id;
       }
 
+      // Os prazos dos quatro primeiros correm CONTRA a ordem de criacao (criado depois = prazo mais cedo),
+      // e a abertura e igual: ordenar por (DataAbertura, Id), a chave antiga, devolveria outra ordem.
       var abertos = new List<int>();
-      var statusDosAbertos = new[] { "Aberto", "EmProducao", "AguardandoExpedicao", "Aberto", "EmProducao", "Aberto" };
-      for (var i = 0; i < statusDosAbertos.Length; i++)
-        abertos.Add(await CriarAsync(statusDosAbertos[i], new DateOnly(1990, 1, 1 + i)));
+      var statusDosQuatro = new[] { "Aberto", "EmProducao", "AguardandoExpedicao", "Aberto" };
+      for (var i = 0; i < statusDosQuatro.Length; i++)
+        abertos.Add(await CriarAsync(statusDosQuatro[i], new DateOnly(1990, 1, 20 - i), abertura));
+      // Par de mesmo prazo, aberturas OPOSTAS aos Ids: so o desempate por DataAbertura poe o segundo antes.
+      var pares = new[]
+      {
+        await CriarAsync("EmProducao", new DateOnly(1990, 1, 10), abertura.AddHours(2)),
+        await CriarAsync("Aberto", new DateOnly(1990, 1, 10), abertura.AddHours(1)),
+      };
+      abertos.AddRange(pares);
       // Encerrados com o prazo MAIS ANTIGO de todos: entrariam primeiro se nao fossem excluidos.
-      var concluido = await CriarAsync("Concluido", new DateOnly(1989, 1, 1));
-      var cancelado = await CriarAsync("Cancelado", new DateOnly(1989, 1, 2));
+      var concluido = await CriarAsync("Concluido", new DateOnly(1989, 1, 1), abertura);
+      var cancelado = await CriarAsync("Cancelado", new DateOnly(1989, 1, 2), abertura);
 
       var achados = await new PedidoRepository(db).ListarMaisUrgentesAsync(
           ["Concluido", "Cancelado"], 5, CancellationToken.None);
