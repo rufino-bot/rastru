@@ -6,7 +6,6 @@ import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
-import { formatarTamanho } from '../components/tamanhoDeArquivo'
 
 interface Props {
   /** O nome da ação ("Importar BOM", "Reimportar BOM"): o `<h2>` e o nome acessível do `<form>`. */
@@ -51,16 +50,17 @@ export function PainelDoArquivoDoBom({
 
   function escolher(e: ChangeEvent<HTMLInputElement>) {
     const escolhido = e.target.files?.[0] ?? null
-    // Zera o valor do campo (o File já está em `escolhido`): sem isso, escolher DE NOVO o mesmo
-    // caminho, depois de corrigir a planilha, não dispara `onChange` e o File velho seguiria em
-    // estado. Mesmo cuidado de `UploadDeSolido`.
-    e.target.value = ''
     setErro(null)
     setLinhas([])
     // Antes de qualquer requisição, e `>` e não `>=`: o backend aceita o limite exato. Acima dele o
     // servidor fecha a conexão com o corpo subindo e o `fetch` rejeitaria sem resposta, então a
     // frase certa só pode vir daqui.
     if (escolhido && escolhido.size > TAMANHO_MAXIMO_DO_BOM_EM_BYTES) {
+      // O campo só é zerado quando o arquivo é recusado (aqui e na falha do envio): na escolha
+      // aceita ele segue mostrando o nome do arquivo. O custo, aceito: escolher DE NOVO o mesmo
+      // caminho sem ter enviado não dispara `onChange`; mas o envio lê o arquivo do disco na hora,
+      // e se ele falhar o campo é zerado.
+      e.target.value = ''
       setArquivo(null)
       setErro(
         `O arquivo passa do limite de ${LIMITE_DO_BOM_LEGIVEL} do BOM. Exporte só a tabela da lista de materiais e envie de novo.`,
@@ -104,14 +104,9 @@ export function PainelDoArquivoDoBom({
       aoFechar={aoFechar}
       enviando={enviando}
     >
-      {/* O campo nativo diz "nenhum arquivo" depois de escolher, porque `escolher` zera o valor dele:
-          quem diz o que vai ser enviado é a dica, que o leitor de tela lê junto com o campo. */}
-      <Campo
-        rotulo="Arquivo do BOM (.xlsx ou .csv)"
-        dica={arquivo
-          ? `Escolhido: ${arquivo.name} (${formatarTamanho(arquivo.size)}). Até ${LIMITE_DO_BOM_LEGIVEL}.`
-          : `Até ${LIMITE_DO_BOM_LEGIVEL}.`}
-      >
+      {/* O campo nativo mostra o arquivo escolhido: `escolher` só o zera quando recusa o arquivo, e
+          `enviar` quando o envio falha. A dica diz só o limite. */}
+      <Campo rotulo="Arquivo do BOM (.xlsx ou .csv)" dica={`Até ${LIMITE_DO_BOM_LEGIVEL}.`}>
         {(idDoCampo, idDaDica) => (
           <input
             id={idDoCampo}

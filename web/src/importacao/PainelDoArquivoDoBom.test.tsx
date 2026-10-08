@@ -33,6 +33,22 @@ function escolherArquivo(nome: string, tamanho?: number) {
   return arquivo
 }
 
+/**
+ * Registra o que o painel escreve em `value` do campo de arquivo. O jsdom não reflete o `files`
+ * injetado pelo `fireEvent.change` no `value`, então olhar `campo.value` não distingue "zerou" de
+ * "nunca teve valor": o que o teste afirma é a escrita. Chame antes de escolher o arquivo.
+ */
+function rastrearEscritasDoValor(): string[] {
+  const escritas: string[] = []
+  const campo = screen.getByLabelText(/Arquivo do BOM/) as HTMLInputElement
+  Object.defineProperty(campo, 'value', {
+    configurable: true,
+    get: () => '',
+    set: (v: string) => { escritas.push(v) },
+  })
+  return escritas
+}
+
 function botaoDeEnvio() {
   return screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement
 }
@@ -100,28 +116,47 @@ describe('PainelDoArquivoDoBom', () => {
       .toEqual(['Linha 3: quantidade invalida.', 'Linha 9: codigo vazio.'])
   })
 
-  it('o arquivo escolhido aparece pelo nome e tamanho, na dica ligada ao campo', () => {
+  it('a dica do campo é só o limite, com ou sem arquivo escolhido', () => {
     renderizar()
+    const campo = screen.getByLabelText(/Arquivo do BOM/) as HTMLInputElement
+    const dica = () => document.getElementById(campo.getAttribute('aria-describedby')!)!.textContent
 
+    expect(dica()).toBe('Até 5 MiB.')
     escolherArquivo('estrutura do chassi.csv', 2048)
 
-    // O campo nativo diz "nenhum arquivo", porque o valor dele é zerado ao escolher: quem diz o que
-    // vai ser enviado é a dica.
-    const campo = screen.getByLabelText(/Arquivo do BOM/) as HTMLInputElement
-    const dica = document.getElementById(campo.getAttribute('aria-describedby')!)!
-    expect(dica.textContent).toBe('Escolhido: estrutura do chassi.csv (2,0 KiB). Até 5 MiB.')
+    expect(dica()).toBe('Até 5 MiB.')
+    expect(screen.queryByText(/Escolhido:/)).toBeNull()
   })
 
-  it('o nome do arquivo some depois de uma falha do envio', async () => {
-    renderizar(async () => { throw new ErroDeApi(422, 'Falha (422).') })
+  it('a escolha aceita não zera o campo: ele segue mostrando o arquivo escolhido', () => {
+    renderizar()
+    const escritas = rastrearEscritasDoValor()
+
     escolherArquivo('bom.csv')
-    expect(screen.getByText(/Escolhido: bom\.csv/)).toBeTruthy()
+
+    expect(escritas).toEqual([])
+    expect(botaoDeEnvio().disabled).toBe(false)
+  })
+
+  it('a recusa por tamanho zera o campo', () => {
+    renderizar()
+    const escritas = rastrearEscritasDoValor()
+
+    escolherArquivo('bom-enorme.xlsx', TAMANHO_MAXIMO_DO_BOM_EM_BYTES + 1)
+
+    expect(escritas).toEqual([''])
+  })
+
+  it('a falha do envio zera o campo', async () => {
+    renderizar(async () => { throw new ErroDeApi(422, 'Falha (422).') })
+    const escritas = rastrearEscritasDoValor()
+    escolherArquivo('bom.csv')
+    expect(escritas).toEqual([])
 
     fireEvent.click(botaoDeEnvio())
 
     await screen.findByRole('alert')
-    expect(screen.queryByText(/Escolhido:/)).toBeNull()
-    expect(screen.getByText('Até 5 MiB.')).toBeTruthy()
+    expect(escritas).toEqual([''])
   })
 
   it('qualquer falha descarta o arquivo escolhido: o envio volta a ficar desabilitado', async () => {
