@@ -228,6 +228,51 @@ public class CadastroDeAgrupamentoUseCaseTests
   }
 
   [Fact]
+  public async Task Obter_traz_o_numero_do_Pedido()
+  {
+    // C2 da spec da Fase 3B: o titulo da pagina do Agrupamento mostra o Pedido.
+    var repo = new FakeAgrupamentoRepo(new Agrupamento { Id = 5, PedidoId = 2, Codigo = "AG-01", Tipo = "Kit" });
+    var useCase = new CadastroDeAgrupamentoUseCase(
+        repo, new FakePedidoRepo(PedidoAberto(), PedidoAberto(2)), new FakeImportacaoRepo());
+
+    var resultado = await useCase.Obter(5, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal("PED-002", resultado.Valor!.PedidoNumero);
+  }
+
+  [Fact]
+  public async Task ListarPorPedido_traz_o_numero_do_Pedido_em_todos()
+  {
+    var repo = new FakeAgrupamentoRepo(
+        new Agrupamento { Id = 5, PedidoId = 2, Codigo = "AG-01", Tipo = "Kit" },
+        new Agrupamento { Id = 6, PedidoId = 2, Codigo = "AG-02", Tipo = "Avulso" },
+        new Agrupamento { Id = 7, PedidoId = 1, Codigo = "AG-03", Tipo = "Kit" });
+    var useCase = new CadastroDeAgrupamentoUseCase(
+        repo, new FakePedidoRepo(PedidoAberto(), PedidoAberto(2)), new FakeImportacaoRepo());
+
+    var lista = await useCase.ListarPorPedido(2, CancellationToken.None);
+
+    Assert.Equal(2, lista.Count);
+    Assert.All(lista, a => Assert.Equal("PED-002", a.PedidoNumero));
+  }
+
+  [Fact]
+  public async Task Cadastrar_e_Editar_trazem_o_numero_do_Pedido()
+  {
+    var repo = new FakeAgrupamentoRepo();
+    var useCase = new CadastroDeAgrupamentoUseCase(
+        repo, new FakePedidoRepo(PedidoAberto(), PedidoAberto(2)), new FakeImportacaoRepo());
+
+    var criado = await useCase.Cadastrar(2, Kit(), UsuarioDaSessao, CancellationToken.None);
+    Assert.Equal("PED-002", criado.Valor!.PedidoNumero);
+
+    var editado = await useCase.Editar(
+        criado.Valor.Id, new NovoAgrupamentoDto("AG-01", "Avulso"), CancellationToken.None);
+    Assert.Equal("PED-002", editado.Valor!.PedidoNumero);
+  }
+
+  [Fact]
   public async Task Editar_nao_troca_o_pedido_nem_o_autor()
   {
     var repo = new FakeAgrupamentoRepo(new Agrupamento

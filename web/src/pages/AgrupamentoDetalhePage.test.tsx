@@ -49,7 +49,7 @@ const COMPONENTE_SEM_SOLIDO_BUSCA: ComponenteDto = { id: 20, codigo: 'SF-050', d
 
 /** `AgrupamentoDto` que `GET /agrupamentos/21` devolve — Task 8b, o cabeçalho da tela. */
 const AGRUPAMENTO: AgrupamentoDto = {
-  id: 21, pedidoId: 4, codigo: 'AGR-01', tipo: 'Kit',
+  id: 21, pedidoId: 4, pedidoNumero: 'PED-2026-01', codigo: 'AGR-01', tipo: 'Kit',
   criadoEm: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
 }
 
@@ -612,12 +612,24 @@ describe('AgrupamentoDetalhePage', () => {
   // Task 8b: cabeçalho (obterAgrupamento), decisão do usuário de 2026-09-02.
   // ---------------------------------------------------------------------------------------------
 
-  it('cabeçalho mostra código e tipo do Agrupamento quando a busca dá certo', async () => {
+  it('cabeçalho mostra o Pedido, o código e o tipo do Agrupamento quando a busca dá certo', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [] }))
 
     renderizarDetalhe()
 
-    expect(await screen.findByRole('heading', { name: 'AGR-01 — Kit' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Pedido PED-2026-01 — AGR-01 — Kit' })).toBeTruthy()
+  })
+
+  it('o título traz o Pedido com link, o código e o tipo', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    const h1 = screen.getByRole('heading', { level: 1 })
+    const link = within(h1).getByRole('link', { name: 'Pedido PED-2026-01' })
+    expect(link.getAttribute('href')).toBe('/pedidos/4')
+    expect(h1.textContent).toBe('Pedido PED-2026-01 — AGR-01 — Kit')
   })
 
   // O caminho degradado: `obterAgrupamento` falha, e a tela NÃO ganha um terceiro banner — o

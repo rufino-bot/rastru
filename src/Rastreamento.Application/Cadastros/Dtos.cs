@@ -126,6 +126,7 @@ public sealed record NovoPedidoDto(
 public sealed record AgrupamentoDto(
     int Id,
     int PedidoId,
+    string PedidoNumero,
     string Codigo,
     string Tipo,
     DateTime CriadoEm,

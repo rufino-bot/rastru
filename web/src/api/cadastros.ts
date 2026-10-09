@@ -263,6 +263,8 @@ export function editarPedido(id: number, p: NovoPedido): Promise<PedidoDto | Con
 export interface AgrupamentoDto {
   id: number
   pedidoId: number
+  /** Número do Pedido, para o título da página do Agrupamento. */
+  pedidoNumero: string
   codigo: string
   tipo: string
   /** ISO 8601 com offset -03:00, como `PedidoDto.dataAbertura`. */

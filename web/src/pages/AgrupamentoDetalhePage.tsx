@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   obterEstrutura, criarPeca, acrescentarFilho, editarNo, excluirNo, ehConflitoDeEstrutura,
   type NoDaEstrutura, type NovoFilho, type EdicaoDeNo, type ResultadoDeEstrutura,
@@ -504,7 +504,20 @@ export function AgrupamentoDetalhePage() {
     )
   }
 
-  const titulo = agrupamento ? `${agrupamento.codigo} — ${agrupamento.tipo}` : `Agrupamento ${agrupamentoId}`
+  // C2 da spec da Fase 3B: o Pedido no título, com link, para quem altera o Agrupamento ver de qual Pedido ele é.
+  const titulo = agrupamento
+    ? (
+      <>
+        <Link
+          to={`/pedidos/${agrupamento.pedidoId}`}
+          className="rounded text-acao underline underline-offset-4 hover:text-acao-forte focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acao"
+        >
+          {`Pedido ${agrupamento.pedidoNumero}`}
+        </Link>
+        {` — ${agrupamento.codigo} — ${agrupamento.tipo}`}
+      </>
+    )
+    : `Agrupamento ${agrupamentoId}`
 
   const paiDoPainel = painel?.tipo === 'acrescentarFilho' ? localizarNo(nos, painel.paiId) : null
   const rotuloDoNoDoPainel = painel?.tipo === 'editar'

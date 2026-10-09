@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, within } from '@testing-library/react'
+import { Link, MemoryRouter } from 'react-router-dom'
 import { Pagina } from './Pagina'
 
 afterEach(cleanup)
@@ -11,6 +12,18 @@ describe('Pagina', () => {
 
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Setores')
     expect(screen.getByText('conteúdo')).toBeTruthy()
+  })
+
+  it('aceita um título com link dentro do h1', () => {
+    render(
+      <MemoryRouter>
+        <Pagina titulo={<><Link to="/pedidos/4">Pedido P-1</Link> — AG-01</>}>conteúdo</Pagina>
+      </MemoryRouter>,
+    )
+
+    const h1 = screen.getByRole('heading', { level: 1 })
+    expect(within(h1).getByRole('link', { name: 'Pedido P-1' }).getAttribute('href')).toBe('/pedidos/4')
+    expect(h1.textContent).toBe('Pedido P-1 — AG-01')
   })
 
   it('mostra a ação de cabeçalho quando ela existe', () => {

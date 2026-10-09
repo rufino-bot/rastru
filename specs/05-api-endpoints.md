@@ -212,6 +212,9 @@ mesmo status HTTP para coisas diferentes.
   `tipo ∈ Kit | Avulso`
 - `GET /agrupamentos/{id}`
 - `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, tipo }`
+- Toda resposta de Agrupamento (as quatro rotas acima que devolvem um) traz `{ id, pedidoId, pedidoNumero,
+  codigo, tipo, criadoEm, criadoPorUsuarioId }`. O `pedidoNumero` serve ao título da página do Agrupamento
+  ("Pedido X — código — Kit|Avulso", com o Pedido como link) e vem em todas porque o DTO é um só.
 - `DELETE /agrupamentos/{id}` *(PCP, Administrador)* — 204. **A única exclusão física do
   sistema**, e é guardada: 409 `{ "erro": "AgrupamentoNaoVazio" }` se já houver `EstruturaItem`,
   409 `{ "erro": "PedidoNaoAberto" }` se o Pedido não estiver `Aberto`, e 409

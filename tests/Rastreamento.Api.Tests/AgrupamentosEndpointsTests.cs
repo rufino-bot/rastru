@@ -273,6 +273,24 @@ public class AgrupamentosEndpointsTests : IClassFixture<WebApplicationFactory<Pr
   }
 
   [Fact]
+  public async Task Obter_agrupamento_traz_o_numero_do_pedido()
+  {
+    // C2 da spec da Fase 3B: o titulo da pagina do Agrupamento mostra "Pedido {numero}".
+    var cliente = ClienteComo("PCP");
+    var pedidoId = await NovoPedido(cliente);
+    var numeroDoPedido = JsonDocument.Parse(await cliente.GetStringAsync($"/api/pedidos/{pedidoId}"))
+        .RootElement.GetProperty("numero").GetString();
+    var id = await NovoAgrupamento(cliente, pedidoId);
+
+    var unico = JsonDocument.Parse(await cliente.GetStringAsync($"/api/agrupamentos/{id}")).RootElement;
+    var lista = JsonDocument.Parse(await cliente.GetStringAsync($"/api/pedidos/{pedidoId}/agrupamentos")).RootElement;
+
+    Assert.False(string.IsNullOrEmpty(numeroDoPedido));
+    Assert.Equal(numeroDoPedido, unico.GetProperty("pedidoNumero").GetString());
+    Assert.Equal(numeroDoPedido, lista[0].GetProperty("pedidoNumero").GetString());
+  }
+
+  [Fact]
   public async Task Editar_agrupamento_troca_tipo_sem_mexer_no_pedido_nem_na_autoria()
   {
     var cliente = ClienteComo("PCP");
