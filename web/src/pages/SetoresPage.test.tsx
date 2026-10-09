@@ -411,6 +411,8 @@ describe('SetoresPage', () => {
     const classes = pilula.className.split(/\s+/)
     expect(classes).toContain('bg-acao-fundo')
     expect(classes).toContain('text-acao')
+    // O azul cheio é do nó de Kit na Fila; a marca do Setor é só rótulo neutro.
+    expect(classes).not.toContain('bg-kit')
     const linhaDoCorte = screen.getByText('Corte').closest('li')!
     expect(within(linhaDoCorte).queryByText('Utiliza Kit')).toBeNull()
   })

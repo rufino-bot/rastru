@@ -74,6 +74,7 @@ const PARES: Array<{ frente: string; fundo: string; minimo: number; onde: string
   { frente: 'atencao-texto', fundo: 'superficie', minimo: TEXTO, onde: 'rótulo de estado de atenção sobre cartão' },
   { frente: 'atraso-texto', fundo: 'atraso-fundo', minimo: TEXTO, onde: 'texto da pílula de atraso do Pedido' },
   { frente: 'atraso-texto', fundo: 'superficie', minimo: TEXTO, onde: 'rótulo de atraso sobre cartão' },
+  { frente: 'superficie', fundo: 'kit', minimo: TEXTO, onde: 'texto branco da pílula de Kit' },
   { frente: 'borda-campo', fundo: 'superficie', minimo: INTERFACE, onde: 'borda de input e de botão secundário' },
   { frente: 'acao', fundo: 'fundo', minimo: INTERFACE, onde: 'anel de foco sobre o fundo da página' },
   { frente: 'chrome-tinta-fraca', fundo: 'chrome', minimo: TEXTO, onde: 'link inativo da barra de navegação' },
@@ -98,7 +99,7 @@ describe('paleta declarada em index.css', () => {
       'chrome', 'marca', 'acao', 'acao-forte', 'acao-fundo',
       'positivo', 'positivo-texto', 'negativo', 'negativo-texto', 'negativo-fundo',
       'atencao-texto', 'atencao-fundo',
-      'atraso-texto', 'atraso-fundo',
+      'atraso-texto', 'atraso-fundo', 'kit',
       'tinta', 'tinta-fraca', 'borda', 'borda-campo', 'fundo', 'superficie',
       'chrome-tinta-fraca', 'chrome-tinta-apagada', 'chrome-ativo', 'chrome-hover', 'chrome-borda',
     ]) {

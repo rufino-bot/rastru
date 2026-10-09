@@ -30,7 +30,7 @@ const FILA_CHEIA = fila({
   emTrabalho: [{ no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
   aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
   aguardandoMontagem: [{
-    pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
+    pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
     filhos: [
       { no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 },
       { no: PARAFUSO, quantidadePorPai: 1, presente: 5, necessarioParaProxima: 3, faltaParaProxima: 0 },
@@ -176,7 +176,7 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoMontagem: [{
-          pai: CHASSI, faltaMontar: 2, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
+          pai: CHASSI, faltaMontar: 2, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
           filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 8, necessarioParaProxima: null, faltaParaProxima: null }],
         }],
       })),
@@ -359,10 +359,23 @@ const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10,
 
 const FORA_DO_PRIMEIRO_PASSO = fila({
   aguardandoMontagem: [{
-    pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+    pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: false,
     filhos: [
       { no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 },
       { no: PARAFUSO, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 3, faltaParaProxima: 3 },
+    ],
+  }],
+})
+
+// Kit que começa num Setor com `UtilizaKit` (Solda): o pai recebe os filhos só em conjunto completo.
+// Suporte 8 (razão 4) forma 2 conjuntos; Parafuso 3 (razão 1) forma 3; o Kit leva o menor, 2.
+const KIT_FORA_DO_PRIMEIRO_PASSO = fila({
+  aguardandoMontagem: [{
+    pai: no({ ...CHASSI, agrupamentoTipo: 'Kit' }), faltaMontar: 10, daParaMontar: 0, iniciaAqui: false,
+    primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: true,
+    filhos: [
+      { no: SUPORTE, quantidadePorPai: 4, presente: 8, necessarioParaProxima: 12, faltaParaProxima: 4 },
+      { no: PARAFUSO, quantidadePorPai: 1, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 },
     ],
   }],
 })
@@ -435,11 +448,11 @@ describe('FilaDoSetorPage — ações', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorId: 1, setorNome: 'Corte',
-        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
       })),
       '/api/setores/2/fila': () => respostaJson(fila({
         setorId: 2, setorNome: 'Dobra',
-        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 5, iniciaAqui: true, primeiroPassoDoPai: { id: 2, nome: 'Dobra' }, filhos: [] }],
+        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 5, iniciaAqui: true, primeiroPassoDoPai: { id: 2, nome: 'Dobra' }, conjuntoCompleto: false, filhos: [] }],
       })),
     }))
 
@@ -464,7 +477,7 @@ describe('FilaDoSetorPage — ações', () => {
   it('"dá para iniciar 0" não oferece Iniciar', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
-        pai: CHASSI, faltaMontar: 10, daParaMontar: 0, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
+        pai: CHASSI, faltaMontar: 10, daParaMontar: 0, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 }],
       }],
     })]).fetchMock)
@@ -610,6 +623,139 @@ describe('FilaDoSetorPage — ações', () => {
 
     expect(await screen.findByText('Chassi não tem Roteiro. Peça ao PCP para cadastrá-lo.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
+  })
+
+  it('nó de Kit mostra a pílula Kit, e o de Avulso não', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aIniciar: [
+        { no: no({ agrupamentoTipo: 'Kit' }), ordem: 1, quantidade: 10, estornaveis: [] },
+        { no: PARAFUSO, ordem: 1, quantidade: 3, estornaveis: [] },
+      ],
+    })]).fetchMock)
+
+    renderizar()
+
+    const linhaDoKit = (await screen.findByText('SUP-01 — Suporte')).closest('li')!
+    const classes = within(linhaDoKit).getByText('Kit').className.split(/\s+/)
+    expect(classes).toContain('bg-kit')
+    expect(classes).toContain('text-superficie')
+    const linhaAvulsa = screen.getByText('Parafuso').closest('li')!
+    expect(within(linhaAvulsa).queryByText('Kit')).toBeNull()
+  })
+
+  it('grupo de Kit fora do primeiro passo leva o Kit inteiro', async () => {
+    const { fetchMock } = montarFetch([KIT_FORA_DO_PRIMEIRO_PASSO], { '/api/entregas': () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    // Nenhum botão por filho: o Kit se move em conjunto, todos os filhos juntos.
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar o Kit para Solda CH-01 — Chassi' }))
+    expect(screen.queryByRole('button', { name: /^Levar para/ })).toBeNull()
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByLabelText('Conjuntos')).toHaveProperty('value', '2')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Levar' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/entregas')).toEqual({
+      itens: [
+        { estruturaItemId: 7, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null }, quantidade: 8 },
+        { estruturaItemId: 8, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null }, quantidade: 2 },
+      ],
+    }))
+  })
+
+  it('levar um conjunto só manda uma razão de cada filho', async () => {
+    const { fetchMock } = montarFetch([KIT_FORA_DO_PRIMEIRO_PASSO], { '/api/entregas': () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar o Kit para Solda CH-01 — Chassi' }))
+    fireEvent.change(screen.getByLabelText('Conjuntos'), { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Levar' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/entregas')).toEqual({
+      itens: [
+        { estruturaItemId: 7, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null }, quantidade: 4 },
+        { estruturaItemId: 8, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null }, quantidade: 1 },
+      ],
+    }))
+  })
+
+  it('conjuntos fracionados ou acima do que existe não confirmam', async () => {
+    vi.stubGlobal('fetch', montarFetch([KIT_FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Levar o Kit para Solda CH-01 — Chassi' }))
+
+    fireEvent.change(screen.getByLabelText('Conjuntos'), { target: { value: '1,5' } })
+    expect(screen.getByRole('button', { name: 'Levar' })).toHaveProperty('disabled', true)
+    fireEvent.change(screen.getByLabelText('Conjuntos'), { target: { value: '3' } })
+    expect(screen.getByRole('button', { name: 'Levar' })).toHaveProperty('disabled', true)
+    expect(screen.getByText('No máximo 2.')).toBeTruthy()
+  })
+
+  it('grupo de Kit sem conjunto completo presente não oferece levar', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{
+        ...KIT_FORA_DO_PRIMEIRO_PASSO.aguardandoMontagem[0],
+        filhos: [
+          { no: SUPORTE, quantidadePorPai: 4, presente: 8, necessarioParaProxima: 12, faltaParaProxima: 4 },
+          { no: PARAFUSO, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 3, faltaParaProxima: 3 },
+        ],
+      }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Levar/ })).toBeNull()
+  })
+
+  it('grupo sem conjuntoCompleto continua por filho, mesmo com o pai de um Kit', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      aguardandoMontagem: [{ ...KIT_FORA_DO_PRIMEIRO_PASSO.aguardandoMontagem[0], conjuntoCompleto: false }],
+    })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Levar para Solda Parafuso' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Levar o Kit/ })).toBeNull()
+  })
+
+  it('o Operador não leva o Kit', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', montarFetch([KIT_FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Chassi começa em Solda: leve os filhos para lá.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Levar/ })).toBeNull()
+  })
+
+  it('o conjunto que deixa de estar completo fecha o formulário do Kit com aviso', async () => {
+    vi.useFakeTimers()
+    const incompleto = fila({
+      aguardandoMontagem: [{
+        ...KIT_FORA_DO_PRIMEIRO_PASSO.aguardandoMontagem[0],
+        filhos: [
+          { no: SUPORTE, quantidadePorPai: 4, presente: 8, necessarioParaProxima: 12, faltaParaProxima: 4 },
+          { no: PARAFUSO, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 3, faltaParaProxima: 3 },
+        ],
+      }],
+    })
+    vi.stubGlobal('fetch', montarFetch([KIT_FORA_DO_PRIMEIRO_PASSO, incompleto]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByRole('button', { name: 'Levar o Kit para Solda CH-01 — Chassi' }))
+    expect(screen.getByLabelText('Conjuntos')).toBeTruthy()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+    expect(screen.queryByLabelText('Conjuntos')).toBeNull()
+    expect(screen.getByRole('alert').textContent)
+      .toBe('O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.')
   })
 })
 
@@ -984,7 +1130,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
   it('o pai de Pedido pausado no card de montagem nao tem Iniciar, mas o card e os filhos continuam', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
-        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' },
+        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
       }],
     })]).fetchMock)
@@ -1010,7 +1156,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
     perfil = 'Movimentador'
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
-        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+        pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: false,
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
       }],
     })]).fetchMock)
@@ -1065,10 +1211,10 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
   it('a pausa do pai fecha o formulario de Iniciar do card de montagem', async () => {
     vi.useFakeTimers()
     const livre = fila({
-      aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+      aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
     })
     const pausada = fila({
-      aguardandoMontagem: [{ pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, filhos: [] }],
+      aguardandoMontagem: [{ pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
     })
     vi.stubGlobal('fetch', montarFetch([livre, pausada]).fetchMock)
 
@@ -1179,7 +1325,7 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
       aIniciar: [linha(DO_PEDIDO_1)],
       aguardandoMontagem: [{
         pai: no({ id: 30, descricao: 'Estrutura', codigoDoComponente: 'ES-01', pedidoId: 2, pedidoNumero: 'PED-2026-02', pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null }),
-        faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, filhos: [],
+        faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, filhos: [],
       }],
       aguardandoColeta: [{ ...linha(DO_PEDIDO_1), destino: destinoColeta }],
       sobra: [{ no: DO_PEDIDO_2, origem: 'UltimoPasso', ordem: 1, quantidade: 1, emMaisDeUmSetor: false, estornaveis: [] }],
@@ -1333,7 +1479,7 @@ describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', (
       aguardandoMontagem: [
         ...FILA_CHEIA.aguardandoMontagem,
         {
-          pai: EIXO, faltaMontar: 4, daParaMontar: 1, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' },
+          pai: EIXO, faltaMontar: 4, daParaMontar: 1, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: false,
           filhos: [{ no: PARAFUSO, quantidadePorPai: 1, presente: 1, necessarioParaProxima: 1, faltaParaProxima: 0 }],
         },
       ],

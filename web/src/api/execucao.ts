@@ -80,6 +80,8 @@ export interface NoResumoDto {
   materiais: MaterialResumoDto[]
   /** A pausa aberta do Pedido do nó; `null` quando o Pedido não está pausado. */
   pausa: PausaResumoDto | null
+  /** O tipo do Agrupamento do nó; `Kit` leva a pílula da Fila e o redirecionamento por conjuntos. */
+  agrupamentoTipo: 'Kit' | 'Avulso'
 }
 
 export interface SetorResumidoDto {
@@ -149,6 +151,8 @@ export interface GrupoAguardandoMontagem {
   iniciaAqui: boolean
   /** Para onde levar os filhos quando não é aqui; `null` se o pai não tem Roteiro. */
   primeiroPassoDoPai: SetorResumidoDto | null
+  /** O pai recebe os filhos só em conjunto completo (regra 25): a Fila leva o Kit inteiro, não filho a filho. */
+  conjuntoCompleto: boolean
   /** TODOS os filhos diretos do pai, inclusive os ausentes deste Setor (`presente` 0). */
   filhos: FilhoNaMontagem[]
 }

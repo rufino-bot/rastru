@@ -91,4 +91,28 @@ describe('FormularioDeQuantidade', () => {
 
     expect(aoCancelar).toHaveBeenCalledTimes(1)
   })
+
+  it('em modo inteiro o campo se chama Conjuntos, nasce com o máximo e recusa fração', () => {
+    const { aoConfirmar } = renderizar({ campo: 'Conjuntos', inteiro: true, maximo: 3, rotulo: 'Levar' })
+
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.getByLabelText('Conjuntos')).toHaveProperty('value', '3')
+    expect(screen.getByLabelText('Conjuntos').getAttribute('inputmode')).toBe('numeric')
+
+    fireEvent.change(screen.getByLabelText('Conjuntos'), { target: { value: '1,5' } })
+
+    expect(screen.getByRole('button', { name: 'Levar' })).toHaveProperty('disabled', true)
+    expect(screen.getByLabelText('Conjuntos').getAttribute('aria-invalid')).toBe('true')
+    fireEvent.submit(screen.getByLabelText('Conjuntos').closest('form')!)
+    expect(aoConfirmar).not.toHaveBeenCalled()
+  })
+
+  it('em modo inteiro confirma o número de conjuntos digitado', async () => {
+    const { aoConfirmar } = renderizar({ campo: 'Conjuntos', inteiro: true, maximo: 3, rotulo: 'Levar' })
+
+    fireEvent.change(screen.getByLabelText('Conjuntos'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Levar' }))
+
+    await waitFor(() => expect(aoConfirmar).toHaveBeenCalledWith(2))
+  })
 })

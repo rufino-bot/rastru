@@ -15,7 +15,7 @@ function linha(n: ReturnType<typeof no>, ordem: number, quantidade: number): Lin
 
 function grupo(parcial: Partial<GrupoAguardandoMontagem> = {}): GrupoAguardandoMontagem {
   return {
-    pai: CHASSI, faltaMontar: 10, daParaMontar: 3, iniciaAqui: true, primeiroPassoDoPai: null, filhos: [],
+    pai: CHASSI, faltaMontar: 10, daParaMontar: 3, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, filhos: [],
     ...parcial,
   }
 }

@@ -85,7 +85,7 @@ describe('facetasDaFila', () => {
   it('cartao de montagem casa pelo filho presente e conta uma vez por opcao', () => {
     const CHASSI_SEM_MATERIAL = no({ id: 2, descricao: 'Chassi', paiId: null, paiDescricao: null, materiais: [] })
     const cartao = {
-      pai: CHASSI_SEM_MATERIAL, faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null,
+      pai: CHASSI_SEM_MATERIAL, faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [
         { no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null },
         { no: P1_CH3_B, quantidadePorPai: 1, presente: 2, necessarioParaProxima: null, faltaParaProxima: null },
@@ -106,7 +106,7 @@ describe('facetasDaFila', () => {
   it('filho ausente do cartao nao faz o cartao casar', () => {
     const cartao = {
       pai: no({ id: 2, paiId: null, paiDescricao: null, materiais: [] }),
-      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null,
+      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [
         { no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null },
         { no: P1_CH6, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 1, faltaParaProxima: 1 },
@@ -120,7 +120,7 @@ describe('facetasDaFila', () => {
   it('o pai do cartao tambem faz o cartao casar, pelo proprio material ou Pedido', () => {
     const cartao = {
       pai: no({ id: 2, paiId: null, paiDescricao: null, materiais: [CHAPA_6] }),
-      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null,
+      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [{ no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null }],
     }
     const f = fila({ aguardandoMontagem: [cartao] })
@@ -156,7 +156,7 @@ describe('facetasDaFila', () => {
   it('filtrar a fila age em todas as secoes e preserva a ordem de cada uma', () => {
     const destinoColeta = destino()
     const cartao = (pai: ReturnType<typeof no>, filho: ReturnType<typeof no>) => ({
-      pai, faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null,
+      pai, faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [{ no: filho, quantidadePorPai: 1, presente: 1, necessarioParaProxima: null, faltaParaProxima: null }],
     })
     const f = fila({

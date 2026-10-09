@@ -10,6 +10,7 @@ import {
   caminhoDoNo, descreverDestino, formatarQuantidade, mensagemDoEstorno, rotuloDaAcao, rotuloDoNo,
 } from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
+import { conjuntosPresentes, quantidadeDoConjunto } from '../execucao/conjuntos'
 import {
   alternar, chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar, erroDaLinha, itensDeInicio, itensDeTermino,
   linhasDoLote, marcarTodos, reconciliar, SAIU_DO_LOTE, TITULO_DA_SECAO, todosMarcados,
@@ -70,6 +71,7 @@ export function FilaDoSetorPage() {
  */
 const chaveDeLevar = (paiId: number, filhoId: number) => `levar:${paiId}:${filhoId}`
 const chaveDeEstornar = (secao: string, noId: number, ordem: number | null) => `estornar:${secao}:${noId}:${ordem ?? ''}`
+const chaveDeLevarKit = (paiId: number) => `levar-kit:${paiId}`
 
 /** Toda ação que a fila de agora ainda oferece — a que sumiu não pode continuar aberta. */
 function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
@@ -80,7 +82,12 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   for (const g of fila.aguardandoMontagem) {
     if (g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null) chaves.add(chaveDeIniciarPai(g.pai.id))
     if (!g.iniciaAqui && g.primeiroPassoDoPai !== null) {
-      for (const f of g.filhos) if (f.presente > 0) chaves.add(chaveDeLevar(g.pai.id, f.no.id))
+      if (g.conjuntoCompleto) {
+        // O Kit se move em conjuntos inteiros: uma ação só, e só enquanto há ao menos um conjunto completo aqui.
+        if (conjuntosPresentes(g.filhos) >= 1) chaves.add(chaveDeLevarKit(g.pai.id))
+      } else {
+        for (const f of g.filhos) if (f.presente > 0) chaves.add(chaveDeLevar(g.pai.id, f.no.id))
+      }
     }
   }
   // A lista curta do estorno só existe com mais de um registro; com um só, o botão vai à confirmação.
@@ -581,10 +588,17 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
           {fila.aguardandoMontagem.map((g) => {
             const filhoAberto = g.filhos.find((f) => chaveDeLevar(g.pai.id, f.no.id) === aberta)
             const levarPara = g.primeiroPassoDoPai
+            // Kit que começa num Setor com `UtilizaKit`: o redirecionamento leva conjuntos inteiros, todos os
+            // filhos juntos (regra 25; D8 da spec da Fase 3B, seção 5.2). Os filhos não ganham botão próprio.
+            const levaOKit = g.conjuntoCompleto && !g.iniciaAqui && levarPara !== null
+            const conjuntos = conjuntosPresentes(g.filhos)
             // O pai começa aqui consumindo os filhos (spec da Fase 3D, §2.1). "Dá para iniciar 0"
             // não oferece o botão: o backend recusaria qualquer N.
             const iniciarPai = apontar && g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null
               ? botaoDeApontar(chaveDeIniciarPai(g.pai.id), rotuloDeIniciar, g.pai)
+              : undefined
+            const levarOKitAqui = levaOKit && podeEntregar && conjuntos >= 1
+              ? botao(chaveDeLevarKit(g.pai.id), `Levar o Kit para ${levarPara.nome}`, g.pai)
               : undefined
             const { caixa, campo } = g.iniciaAqui
               ? controlesDoLote(chaveDeIniciarPai(g.pai.id), `Marcar ${rotuloDoNo(g.pai)} para iniciar`)
@@ -592,7 +606,7 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
             return (
               <ItemComAcao
                 key={g.pai.id}
-                acao={caixa || iniciarPai ? <>{caixa}{iniciarPai}</> : undefined}
+                acao={caixa || iniciarPai || levarOKitAqui ? <>{caixa}{iniciarPai}{levarOKitAqui}</> : undefined}
                 painel={juntar(campo,
                   painel(chaveDeIniciarPai(g.pai.id), (
                     <FormularioDeQuantidade
@@ -602,6 +616,20 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
                       aoCancelar={fechar}
                     />
                   ))
+                  ?? (levaOKit ? painel(chaveDeLevarKit(g.pai.id), (
+                    <FormularioDeQuantidade
+                      rotulo="Levar"
+                      campo="Conjuntos"
+                      inteiro
+                      maximo={conjuntos}
+                      aoConfirmar={(n) => registrar(() => entregar(g.filhos.map((f) => ({
+                        estruturaItemId: f.no.id,
+                        origem: { posicao: 'AguardandoMontagem', setorId, ordem: null },
+                        quantidade: quantidadeDoConjunto(n, f.quantidadePorPai),
+                      }))))}
+                      aoCancelar={fechar}
+                    />
+                  )) : undefined)
                   ?? (filhoAberto && levarPara && painel(chaveDeLevar(g.pai.id, filhoAberto.no.id), (
                     <FormularioDeQuantidade
                       rotulo="Levar"
@@ -618,7 +646,7 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
               >
                 <GrupoDeMontagem
                   grupo={g}
-                  acaoDoFilho={(f) => (podeEntregar && !g.iniciaAqui && levarPara && f.presente > 0
+                  acaoDoFilho={(f) => (podeEntregar && !g.iniciaAqui && !g.conjuntoCompleto && levarPara && f.presente > 0
                     ? botao(chaveDeLevar(g.pai.id, f.no.id), `Levar para ${levarPara.nome}`, f.no)
                     : undefined)}
                 />
@@ -715,6 +743,7 @@ function CabecalhoDoNo({ no }: { no: NoResumoDto }) {
     <>
       <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
         {rotuloDoNo(no)}
+        {no.agrupamentoTipo === 'Kit' && <Pilula tom="kit">Kit</Pilula>}
         {no.pausa && <Pilula tom="atencao">Pausado</Pilula>}
       </span>
       <span className="text-xs text-tinta-fraca">{caminhoDoNo(no)}</span>
