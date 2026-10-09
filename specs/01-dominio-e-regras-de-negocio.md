@@ -333,9 +333,10 @@ entra no início de cada fase.*
       **desalinhada** entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um
       filho de razão 4 e 1 de um filho de razão 1. Contada pelo filho mais adiantado
       (⌈7 ÷ 4⌉ = 2), a espera leva o teto a zero: o Kit some das Tarefas, a entrega para esse pai é
-      recusada, e o teto continua zero mesmo depois de iniciar o pai. Com o Kit marcado desde o início isso não acontece, porque a
-      entrada e o início andam em conjuntos inteiros; é o mesmo mecanismo da perda dentro da Solda,
-      e vai com ela para a Fase 5.
+      recusada, e o teto continua zero mesmo depois de iniciar o pai. Com o Kit marcado desde o
+      início isso não acontece: a entrada só aceita conjuntos completos, e o início tira de cada
+      filho `N × QuantidadePorPai`, então a espera continua na proporção das razões. É o mesmo
+      mecanismo da perda dentro da Solda, e vai com ela para a Fase 5.
 26. **`EstruturaItem.QuantidadePorPai`** guarda quantos daquele nó entram em **uma** unidade do
     pai, **ao lado** da quantidade absoluta (`EstruturaItem.Quantidade`). É **obrigatória em todo
     Item e nula na Peça**. A cópia da receita a preenche com

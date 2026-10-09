@@ -97,8 +97,9 @@ Agrupamento de Avulso para Kit, ou marcar `UtilizaKit` num Setor com Kit já em 
 espera **desalinhada** entre os filhos. Exemplo: um pai de quantidade 2, com 7 aguardando montagem de um filho
 de razão 4 e 1 de um filho de razão 1. Pela contagem da D5, os conjuntos à espera são ⌈7 ÷ 4⌉ = 2, e o teto
 fica em 0: o Kit some das Tarefas, a entrega para esse pai é recusada, e o teto continua 0 mesmo depois de
-iniciar o pai. Em operação normal, com o Kit desde o início, isso não acontece, porque entrada e início andam
-em conjuntos inteiros. É o mesmo mecanismo da perda dentro da Solda, e vai com ela para a Fase 5 (D5). O código
+iniciar o pai. Em operação normal, com o Kit desde o início, isso não acontece: a entrada só aceita conjuntos
+completos, e o início tira de cada filho `N × QuantidadePorPai`, então a espera continua na proporção das razões.
+É o mesmo mecanismo da perda dentro da Solda, e vai com ela para a Fase 5 (D5). O código
 não muda; a limitação está escrita na regra 25 do `01` e no item da Fase 5 do `06`.
 
 ### D5 — Os conjuntos à espera são contados pelo filho mais adiantado; a perda nos tetos fica para a Fase 5
