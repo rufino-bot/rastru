@@ -679,7 +679,7 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
   pai começa num Setor com `UtilizaKit`, **não** aparece aqui: aparece no cartão do Kit enquanto o
   pai ainda precisa receber conjuntos (teto da regra 25 acima de zero); com o teto em zero, não
-  aparece em lugar nenhum das Tarefas, como a sobra do Avulso. Na
+  aparece em lugar nenhum das Tarefas. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
   `setorId` nulo. `kitsMontaveis` e `kitsIncompletos`: `{ pai, destino, conjuntos, filhos }[]`, em que

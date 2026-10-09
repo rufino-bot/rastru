@@ -58,8 +58,9 @@ mesclado em 2026-10-08 (rufino-bot/rastru#31). A quarta: a **data de entrega do 
 **depois do import e antes da 3B** (decisão de 2026-10-08, porque não depende de Kit nem de montagem;
 ver a seção «Data de entrega do Pedido» de `06-roadmap-mvp.md` e a spec
 `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`). A data de entrega foi concluída
-e mesclada em 2026-10-09 (rufino-bot/rastru#32); a próxima da ordem é a **Fase 3B**, em implementação
-na branch `fase-3b` (spec `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`).
+e mesclada em 2026-10-09 (rufino-bot/rastru#32); a próxima da ordem é a **Fase 3B**, implementada
+na branch `fase-3b`, ainda não mesclada (spec
+`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 

@@ -257,7 +257,7 @@ entra no início de cada fase.*
     com algum filho pronto, mas que ainda não fecha um conjunto aparece em **"Kits incompletos"**,
     uma seção recolhida e só informativa, que não conta como tarefa. Com o teto da regra 25 em
     zero, o Kit não aparece em nenhuma das duas, e os filhos prontos dele não aparecem em lugar
-    nenhum das Tarefas, como a sobra.
+    nenhum das Tarefas.
 
     Notificação no celular é reforço desta lista, não substituto (Fase 3C).
 24. **Montagem e trava de montagem.** A montagem é registro de **todo** nó com filhos, de Agrupamento
@@ -275,10 +275,12 @@ entra no início de cada fase.*
       produção naquele passo, na mesma transação. Iniciar um nó com filhos **exige** os filhos: o
       sistema aceita se N não passar do mínimo, entre os filhos diretos, de
       ⌊quantidade do filho no Setor ÷ `QuantidadePorPai`⌋, **nem do que ainda falta iniciar do nó**
-      — a quantidade dele menos o que já saiu de "a iniciar". Este teto é outro que o da regra 25,
-      e vale mesmo com ele: o da regra 25 só existe para Kit num Setor com `UtilizaKit` e confere a
-      entrega, e o que já aguardava montagem antes de o Agrupamento virar Kit ou de o Setor ganhar
-      a marca não passou por ele (D4 da spec da Fase 3B). O filho cujo último passo é no próprio
+      — a quantidade dele menos o que já saiu de "a iniciar". O limite do que ainda falta iniciar
+      não repete o teto de entrada da regra 25, e vale também onde aquele teto vale: o da regra 25
+      só existe para Kit num Setor com `UtilizaKit` e confere só a entrega, e há o que escapa dele
+      — por exemplo, o que já aguardava montagem antes de o Agrupamento virar Kit ou de o Setor
+      ganhar a marca (D4 da spec da Fase 3B), ou a quantidade do nó reduzida depois de os
+      conjuntos entrarem. O filho cujo último passo é no próprio
       Setor onde o pai começa não é exceção: termina, aguarda coleta e é entregue ali mesmo, como
       os outros (D2 da mesma spec). A montagem pode ser **parcial** (iniciar 6 de 10), o que casa
       com a expedição parcial (regra 16).
@@ -328,15 +330,19 @@ entra no início de cada fase.*
       próprio Roteiro, nem para o nó com filhos que volta a ela para seguir o próprio Roteiro: eles
       entram no Setor para ser trabalhados, não para a montagem do pai, e não contam como à espera. A Peça de Kit não tem pai e segue para o local de expedição como as
       outras.
-    - **Limitação conhecida (D4 e D5 da spec da Fase 3B).** Trocar o Tipo do Agrupamento de Avulso
-      para Kit, ou marcar `UtilizaKit` num Setor quando já há Kit em produção, pode deixar a espera
-      **desalinhada** entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um
-      filho de razão 4 e 1 de um filho de razão 1. Contada pelo filho mais adiantado
-      (⌈7 ÷ 4⌉ = 2), a espera leva o teto a zero: o Kit some das Tarefas, a entrega para esse pai é
-      recusada, e o teto continua zero mesmo depois de iniciar o pai. Com o Kit marcado desde o
-      início isso não acontece: a entrada só aceita conjuntos completos, e o início tira de cada
-      filho `N × QuantidadePorPai`, então a espera continua na proporção das razões. É o mesmo
-      mecanismo da perda dentro da Solda, e vai com ela para a Fase 5.
+    - **Limitação conhecida (D4 e D5 da spec da Fase 3B).** A espera pode ficar **desalinhada**
+      entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um filho de razão 4 e
+      1 de um filho de razão 1. Contada pelo filho mais adiantado (⌈7 ÷ 4⌉ = 2), a espera leva o
+      teto a zero: o Kit some das Tarefas, a entrega para esse pai é recusada, e o teto continua
+      zero mesmo depois de iniciar o pai. A entrada, que só aceita conjuntos completos, e o início,
+      que tira de cada filho `N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das
+      razões. Ela só se desalinha quando se forma ou muda sem passar por eles, ou quando a razão
+      muda depois. Por exemplo: ao trocar o Tipo do Agrupamento de Avulso para Kit, ou marcar
+      `UtilizaKit` num Setor, quando já há Kit em produção; ao estornar uma linha só de uma entrega
+      de Kit, porque o estorno é feito linha a linha e não confere o conjunto; e ao editar a
+      `QuantidadePorPai` de um filho que tem conjuntos à espera. É o mesmo mecanismo da perda
+      dentro da Solda (uma espera que deixou de ser feita de conjuntos inteiros), e vai com ela
+      para a Fase 5.
 26. **`EstruturaItem.QuantidadePorPai`** guarda quantos daquele nó entram em **uma** unidade do
     pai, **ao lado** da quantidade absoluta (`EstruturaItem.Quantidade`). É **obrigatória em todo
     Item e nula na Peça**. A cópia da receita a preenche com

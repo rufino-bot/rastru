@@ -685,10 +685,12 @@ navegador. Que ele funciona no aparelho é inferência do usuário, e o risco fo
 - **A perda nos tetos do Kit** (D5 da spec da Fase 3B): como a perda do próprio nó entra nos dois
   tetos, o que o nó ainda precisa receber (regras 23 e 25) e o que ainda falta montar (regra 24). A
   3B conta os conjuntos à espera pelo filho mais adiantado, e um conjunto que perde parte dentro da
-  Solda continua contado. A **espera desalinhada** que trocar o Tipo do Agrupamento de Avulso para
-  Kit, ou marcar `UtilizaKit` num Setor com Kit em produção, pode criar (D4 da mesma spec; a
-  limitação conhecida da regra 25 de `01`) é o mesmo mecanismo, e é tratada aqui junto: com ela, o
-  teto do Kit pode ficar em zero, e o Kit, travado.
+  Solda continua contado. A **espera desalinhada** (a limitação conhecida da regra 25 de `01`; nota
+  da D4 da mesma spec) é o mesmo mecanismo, e é tratada aqui junto: com ela, o teto do Kit pode
+  ficar em zero, e o Kit, travado. Ela pode nascer, por exemplo, de trocar o Tipo do Agrupamento de
+  Avulso para Kit, ou marcar `UtilizaKit` num Setor, com Kit em produção; de estornar uma linha só
+  de uma entrega de Kit, porque o estorno é feito linha a linha e não confere o conjunto; e de
+  editar a `QuantidadePorPai` de um filho que tem conjuntos à espera.
 - **Estrutura alterada no meio da produção** (D1 da spec da Fase 3B): hoje acrescentar filho a nó
   já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
   usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
