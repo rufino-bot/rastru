@@ -18,7 +18,7 @@ vi.mock('../auth/AuthContext', () => ({
   }),
 }))
 
-const CORTE = { id: 1, nome: 'Corte', ativo: true, atividade: null }
+const CORTE = { id: 1, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false }
 
 // A tela abre em leitura: o formulário só existe depois do clique em "Novo setor" (o botão do
 // cabeçalho; o `<h2>` do painel tem o mesmo texto, por isso a busca é por papel).
@@ -142,7 +142,7 @@ describe('SetoresPage', () => {
         chamadas += 1
         if (chamadas === 1) return respostaJson([])
         if (chamadas === 2) return new Promise<Response>((r) => { liberar = r })
-        return respostaJson([{ id: 2, nome: 'Solda', ativo: true, atividade: null }])
+        return respostaJson([{ id: 2, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }])
       },
     }))
 
@@ -154,7 +154,7 @@ describe('SetoresPage', () => {
     const botao = await screen.findByText('Salvando…')
     expect((botao as HTMLButtonElement).disabled).toBe(true)
 
-    liberar(respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201))
+    liberar(respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }, 201))
 
     // No sucesso o painel fecha, então o botão some junto: a reabilitação se prova ao reabrir o
     // painel, depois da recarga. `salvar` solta o envio em dois lugares (antes da recarga e no
@@ -178,7 +178,7 @@ describe('SetoresPage', () => {
         // 1ª chamada = GET inicial; 2ª = POST do cadastro; 3ª = GET da recarga que `salvar`
         // dispara no sucesso — as duas GETs precisam devolver ARRAY, senão `setores.map`
         // quebra no próximo render.
-        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }, 201)
         return respostaJson([])
       },
     }))
@@ -216,7 +216,7 @@ describe('SetoresPage', () => {
     const fetchMock = fetchPorRota({
       '/api/setores': () => {
         chamadas += 1
-        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }, 201)
         return respostaJson([])
       },
     })
@@ -229,7 +229,7 @@ describe('SetoresPage', () => {
 
     await esperarPainelFechar()
     const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
-    expect(corpo).toEqual({ nome: 'Solda', atividade: null })
+    expect(corpo).toEqual({ nome: 'Solda', atividade: null, utilizaKit: false })
   })
 
   it('cadastrar manda o texto da atividade quando o campo está preenchido', async () => {
@@ -237,7 +237,7 @@ describe('SetoresPage', () => {
     const fetchMock = fetchPorRota({
       '/api/setores': () => {
         chamadas += 1
-        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: 'montagem' }, 201)
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: 'montagem', utilizaKit: false }, 201)
         return respostaJson([])
       },
     })
@@ -251,18 +251,18 @@ describe('SetoresPage', () => {
 
     await esperarPainelFechar()
     const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
-    expect(corpo).toEqual({ nome: 'Solda', atividade: 'montagem' })
+    expect(corpo).toEqual({ nome: 'Solda', atividade: 'montagem', utilizaKit: false })
   })
 
   it('"Editar" carrega nome e atividade no painel, e "Salvar alterações" faz PUT e recarrega', async () => {
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda', utilizaKit: false }
     let chamadasDeLista = 0
     const fetchMock = fetchPorRota({
       '/api/setores': () => {
         chamadasDeLista += 1
         return respostaJson([SOLDA])
       },
-      '/api/setores/3': () => respostaJson({ ...SOLDA, atividade: 'montagem' }, 200),
+      '/api/setores/3': () => respostaJson({ ...SOLDA, atividade: 'montagem', utilizaKit: false }, 200),
     })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -278,7 +278,7 @@ describe('SetoresPage', () => {
     await esperarPainelFechar()
     const chamadaPut = fetchMock.mock.calls.find((c) => String(c[0]).endsWith('/api/setores/3'))!
     expect((chamadaPut[1] as RequestInit).method).toBe('PUT')
-    expect(JSON.parse((chamadaPut[1] as RequestInit).body as string)).toEqual({ nome: 'Solda', atividade: 'montagem' })
+    expect(JSON.parse((chamadaPut[1] as RequestInit).body as string)).toEqual({ nome: 'Solda', atividade: 'montagem', utilizaKit: false })
     expect(chamadasDeLista).toBe(2)
   })
 
@@ -286,7 +286,7 @@ describe('SetoresPage', () => {
     // A oferta de reativar é ação de CRIAÇÃO (o `!editando &&` de `salvar`): editar para um nome
     // que colide com outro Setor inativo não é o mesmo caso — o `existeInativo` do 409 aqui se
     // refere ao homônimo, não ao próprio Setor em edição, então reativá-lo não resolveria nada.
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda', utilizaKit: false }
     const fetchMock = fetchPorRota({
       '/api/setores': () => respostaJson([SOLDA]),
       '/api/setores/3': () => respostaJson(
@@ -304,7 +304,7 @@ describe('SetoresPage', () => {
   })
 
   it('"Cancelar" na edição fecha o painel, e o painel de novo setor abre com o formulário vazio', async () => {
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda', utilizaKit: false }
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA]) }))
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
@@ -323,8 +323,8 @@ describe('SetoresPage', () => {
   it('a lista mostra a atividade ao lado do nome, e nada ao lado de quem não tem uma', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores': () => respostaJson([
-        { id: 3, nome: 'Solda', ativo: true, atividade: 'montagem' },
-        { id: 4, nome: 'Corte', ativo: true, atividade: null },
+        { id: 3, nome: 'Solda', ativo: true, atividade: 'montagem', utilizaKit: false },
+        { id: 4, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false },
       ]),
     }))
 
@@ -333,6 +333,86 @@ describe('SetoresPage', () => {
     expect(await screen.findByText('· montagem')).toBeTruthy()
     const linhaDoCorte = screen.getByText('Corte').closest('li')!
     expect(within(linhaDoCorte).queryByText(/·/)).toBeNull()
+  })
+
+  it('cadastrar com Utiliza Kit marcado manda utilizaKit verdadeiro', async () => {
+    let chamadas = 0
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => {
+        chamadas += 1
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null, utilizaKit: true }, 201)
+        return respostaJson([])
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    await abrirNovoSetor()
+    fireEvent.change(await screen.findByLabelText('Nome do setor'), { target: { value: 'Solda' } })
+    const caixa = screen.getByRole('checkbox', { name: 'Utiliza Kit' }) as HTMLInputElement
+    expect(caixa.checked).toBe(false)
+    fireEvent.click(caixa)
+    fireEvent.click(screen.getByText('Adicionar'))
+
+    await esperarPainelFechar()
+    const corpo = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string)
+    expect(corpo).toEqual({ nome: 'Solda', atividade: null, utilizaKit: true })
+  })
+
+  it('editar abre com a caixa no valor do setor, e desmarcar manda utilizaKit falso no PUT', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: true }
+    const fetchMock = fetchPorRota({
+      '/api/setores': () => respostaJson([SOLDA]),
+      '/api/setores/3': () => respostaJson({ ...SOLDA, utilizaKit: false }, 200),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+
+    const caixa = screen.getByRole('checkbox', { name: 'Utiliza Kit' }) as HTMLInputElement
+    expect(caixa.checked).toBe(true)
+    fireEvent.click(caixa)
+    fireEvent.click(screen.getByText('Salvar alterações'))
+
+    await esperarPainelFechar()
+    const chamadaPut = fetchMock.mock.calls.find((c) => String(c[0]).endsWith('/api/setores/3'))!
+    expect((chamadaPut[1] as RequestInit).method).toBe('PUT')
+    expect(JSON.parse((chamadaPut[1] as RequestInit).body as string))
+      .toEqual({ nome: 'Solda', atividade: null, utilizaKit: false })
+  })
+
+  it('editar um setor sem a marca abre com a caixa desmarcada, e abrir "Novo setor" depois também', async () => {
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: true }
+    const CORTE_SEM_MARCA = { id: 1, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false }
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA, CORTE_SEM_MARCA]) }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar Solda' }))
+    expect((screen.getByRole('checkbox', { name: 'Utiliza Kit' }) as HTMLInputElement).checked).toBe(true)
+
+    fireEvent.click(screen.getByText('Cancelar'))
+    await abrirNovoSetor()
+    expect((screen.getByRole('checkbox', { name: 'Utiliza Kit' }) as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('setor com Utiliza Kit mostra a pílula neutra na lista, e quem não tem a marca não mostra', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores': () => respostaJson([
+        { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: true },
+        { id: 4, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false },
+      ]),
+    }))
+
+    render(<MemoryRouter><SetoresPage /></MemoryRouter>)
+
+    const linhaDaSolda = (await screen.findByText('Solda')).closest('li')!
+    const pilula = within(linhaDaSolda).getByText('Utiliza Kit')
+    const classes = pilula.className.split(/\s+/)
+    expect(classes).toContain('bg-acao-fundo')
+    expect(classes).toContain('text-acao')
+    const linhaDoCorte = screen.getByText('Corte').closest('li')!
+    expect(within(linhaDoCorte).queryByText('Utiliza Kit')).toBeNull()
   })
 
   it('abre em leitura: sem formulario antes do clique', async () => {
@@ -370,8 +450,8 @@ describe('SetoresPage', () => {
   })
 
   it('salvar novo com sucesso fecha o painel, volta a Mais recentes e o setor novo e o primeiro', async () => {
-    const ANTIGO = { id: 1, nome: 'Antigo', ativo: true, atividade: null }
-    const NOVO = { id: 9, nome: 'Zeta', ativo: true, atividade: null }
+    const ANTIGO = { id: 1, nome: 'Antigo', ativo: true, atividade: null, utilizaKit: false }
+    const NOVO = { id: 9, nome: 'Zeta', ativo: true, atividade: null, utilizaKit: false }
     let criou = false
     const fetchMock = fetchPorRota({
       '/api/setores': () => {
@@ -405,7 +485,7 @@ describe('SetoresPage', () => {
   })
 
   it('Editar abre o painel com o nome preenchido e o titulo Editar setor', async () => {
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: 'solda', utilizaKit: false }
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores': () => respostaJson([SOLDA]) }))
 
     render(<MemoryRouter><SetoresPage /></MemoryRouter>)
@@ -418,7 +498,7 @@ describe('SetoresPage', () => {
   })
 
   it('salvar edicao com sucesso fecha o painel e mantem a ordem escolhida', async () => {
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }
     const fetchMock = fetchPorRota({
       '/api/setores': () => respostaJson([SOLDA]),
       '/api/setores/3': () => respostaJson(SOLDA),
@@ -447,8 +527,8 @@ describe('SetoresPage', () => {
   it('Editar outro setor com o painel aberto troca o conteudo', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores': () => respostaJson([
-        { id: 3, nome: 'Solda', ativo: true, atividade: 'solda' },
-        { id: 1, nome: 'Corte', ativo: true, atividade: null },
+        { id: 3, nome: 'Solda', ativo: true, atividade: 'solda', utilizaKit: false },
+        { id: 1, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false },
       ]),
     }))
 
@@ -487,7 +567,7 @@ describe('SetoresPage', () => {
   it('reativar com sucesso fecha o painel e volta a Mais recentes', async () => {
     let reativou = false
     const base = fetchPorRota({
-      '/api/setores': () => respostaJson(reativou ? [CORTE, { id: 9, nome: 'Solda', ativo: true, atividade: null }] : [CORTE]),
+      '/api/setores': () => respostaJson(reativou ? [CORTE, { id: 9, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }] : [CORTE]),
       '/api/setores/9/ativo': () => { reativou = true; return respostaJson({}, 200) },
     })
     const fetchMock = vi.fn((url: string | URL, init?: RequestInit) =>
@@ -540,9 +620,9 @@ describe('SetoresPage', () => {
   it('ordenar por nome reordena a lista no cliente sem nova requisicao', async () => {
     const fetchMock = fetchPorRota({
       '/api/setores': () => respostaJson([
-        { id: 1, nome: 'Corte', ativo: true, atividade: null },
-        { id: 3, nome: 'Solda', ativo: true, atividade: null },
-        { id: 2, nome: 'Ajuste', ativo: true, atividade: null },
+        { id: 1, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false },
+        { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false },
+        { id: 2, nome: 'Ajuste', ativo: true, atividade: null, utilizaKit: false },
       ]),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -588,8 +668,8 @@ describe('SetoresPage', () => {
   it('Cancelar na edicao devolve o foco ao Editar do mesmo setor', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores': () => respostaJson([
-        { id: 3, nome: 'Solda', ativo: true, atividade: null },
-        { id: 1, nome: 'Corte', ativo: true, atividade: null },
+        { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false },
+        { id: 1, nome: 'Corte', ativo: true, atividade: null, utilizaKit: false },
       ]),
     }))
 
@@ -601,8 +681,8 @@ describe('SetoresPage', () => {
   })
 
   it('salvar edicao devolve o foco ao Editar do mesmo setor depois da recarga', async () => {
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
-    const CORTADO = { id: 1, nome: 'Corte fino', ativo: true, atividade: null }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }
+    const CORTADO = { id: 1, nome: 'Corte fino', ativo: true, atividade: null, utilizaKit: false }
     let editou = false
     // A recarga fica pendurada até o teste soltá-la: é durante ela que a lista dá lugar ao
     // "Carregando…" e o "Editar" de destino não está no DOM.
@@ -629,7 +709,7 @@ describe('SetoresPage', () => {
   })
 
   it('salvar edicao de um setor que nao voltou na recarga devolve o foco ao Novo setor', async () => {
-    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null }
+    const SOLDA = { id: 3, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }
     let editou = false
     let soltarRecarga: () => void = () => {}
     vi.stubGlobal('fetch', fetchPorRota({
@@ -697,7 +777,7 @@ describe('SetoresPage', () => {
       '/api/setores': () => {
         chamadas += 1
         if (chamadas === 1) return respostaJson([])
-        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null }, 201)
+        if (chamadas === 2) return respostaJson({ id: 2, nome: 'Solda', ativo: true, atividade: null, utilizaKit: false }, 201)
         // A recarga pós-salvar nunca termina: o que se mede é o estado do painel enquanto ela voa.
         return new Promise<Response>(() => {})
       },

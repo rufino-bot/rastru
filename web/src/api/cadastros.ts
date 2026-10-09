@@ -7,12 +7,16 @@ export interface SetorDto {
   ativo: boolean
   /** Completa os botões da fila ("Iniciar montagem"); `null` = "Iniciar"/"Terminar". */
   atividade: string | null
+  /** Marca o Setor onde o Kit é montado (regra 25). */
+  utilizaKit: boolean
 }
 
 export interface NovoSetor {
   nome: string
   /** Opcional; em branco, o servidor grava nula. */
   atividade: string | null
+  /** Marca o Setor onde o Kit é montado (regra 25). */
+  utilizaKit: boolean
 }
 
 /** Corpo do 409 de duplicidade. `existeInativo` habilita o botão de reativar. */
@@ -58,7 +62,7 @@ export function criarSetor(s: NovoSetor): Promise<SetorDto | ConflitoDeCadastro>
   }).then(lerOuFalhar<SetorDto>)
 }
 
-/** `PUT` é substituição inteira: nome e atividade vão sempre juntos. */
+/** `PUT` é substituição inteira: nome, atividade e utilizaKit vão sempre juntos. */
 export function editarSetor(id: number, s: NovoSetor): Promise<SetorDto | ConflitoDeCadastro> {
   return apiFetch(`/setores/${id}`, {
     method: 'PUT',

@@ -10,6 +10,7 @@ import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { SeletorDeOrdem, type OpcaoDeOrdem } from '../components/SeletorDeOrdem'
 import { ordenarCadastro } from '../cadastros/ordenarCadastro'
 import { Botao } from '../components/Botao'
+import { Pilula } from '../components/Pilula'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
@@ -31,6 +32,7 @@ export function SetoresPage() {
   const [ordem, setOrdem] = useState<Ordem>('recentes')
   const [nome, setNome] = useState('')
   const [atividade, setAtividade] = useState('')
+  const [utilizaKit, setUtilizaKit] = useState(false)
   const [painel, setPainel] = useState<Painel | null>(null)
   // `erro`: carga e Inativar/Reativar do item, fora do painel. `erroDeEscrita`: salvar e "Reativar
   // o existente", dentro do painel (decisão D8 do plano da 1F).
@@ -90,6 +92,7 @@ export function SetoresPage() {
     setIdReativavel(null)
     setNome('')
     setAtividade('')
+    setUtilizaKit(false)
     setPainel({ tipo: 'novo' })
   }
 
@@ -97,6 +100,7 @@ export function SetoresPage() {
     setPainel(null)
     setNome('')
     setAtividade('')
+    setUtilizaKit(false)
     setErroDeEscrita(null)
     setIdReativavel(null)
   }
@@ -106,7 +110,7 @@ export function SetoresPage() {
     setErroDeEscrita(null)
     setIdReativavel(null)
     setEnviando(true)
-    const corpo = { nome, atividade: atividade.trim() === '' ? null : atividade }
+    const corpo = { nome, atividade: atividade.trim() === '' ? null : atividade, utilizaKit }
     try {
       const resultado = editando ? await editarSetor(editando.id, corpo) : await criarSetor(corpo)
       if (ehConflito(resultado)) {
@@ -139,6 +143,7 @@ export function SetoresPage() {
     setIdReativavel(null)
     setNome(setor.nome)
     setAtividade(setor.atividade ?? '')
+    setUtilizaKit(setor.utilizaKit)
     setPainel({ tipo: 'editar', setor })
   }
 
@@ -206,6 +211,18 @@ export function SetoresPage() {
               )}
             </Campo>
           </div>
+          <label className="flex items-center gap-2 text-sm text-tinta">
+            <input
+              type="checkbox"
+              checked={utilizaKit}
+              onChange={(e) => setUtilizaKit(e.target.checked)}
+              className="size-4 accent-acao"
+            />
+            Utiliza Kit
+          </label>
+          <p className="text-xs text-tinta-fraca">
+            Marque o Setor onde o Kit é montado: lá, os filhos de um Kit só entram em conjunto completo.
+          </p>
           <BannerDeErro mensagem={erroDeEscrita} />
           {idReativavel !== null && (
             <Botao variante="secundario" onClick={() => reativar(idReativavel)} className="self-start">
@@ -273,6 +290,7 @@ export function SetoresPage() {
             >
               {s.nome}
               {s.atividade && <span className="ml-2 text-sm text-tinta-fraca">{`· ${s.atividade}`}</span>}
+              {s.utilizaKit && <span className="ml-2"><Pilula>Utiliza Kit</Pilula></span>}
             </ItemDeCadastro>
           ))}
         </ListaDeCadastro>
