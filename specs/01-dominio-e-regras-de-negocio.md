@@ -16,7 +16,7 @@
 | **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
 | **Material.Codigo** | O **identificador único do material** dentro deste sistema. **Mesma regra do `Componente.Codigo`**, por decisão explícita: alfanumérico (`NVARCHAR(50)`), **único global** (`UQ_Material_Codigo`), atribuído por quem cadastra, sem geração nem validação de formato pelo sistema. A numeração de fornecedor **não** é modelada aqui. |
 | **Setor** | Departamento de produção (ex.: Corte e Dobra, Usinagem) pelo qual um `EstruturaItem` pode passar. |
-| **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa o conjunto completo (regra 25); a trava de montagem deixou de depender dele na Fase 3D (regra 24). Decidida em 2026-09-15; a coluna entra no schema no início da Fase 3B. |
+| **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa o conjunto completo (regra 25); a trava de montagem deixou de depender dele na Fase 3D (regra 24). Decidida em 2026-09-15; a coluna entrou no schema na Fase 3B, com default 0: um Setor só ganha a marca quando o Administrador a liga no cadastro. |
 | **Roteiro** | Sequência de Setores que um `EstruturaItem` percorre. Pode ser padrão (catálogo) ou específico daquele Pedido/Agrupamento. |
 | **Aguardando coleta** | Estado da quantidade que ainda não foi levada ao próximo destino depois de o operador dá-la como terminada num Setor (regra 22) — ou, no Pedido de Retrabalho, depois de nascer marcada **pronta** (regra 27). Conta como **em produção** para a conservação de quantidade (regra 9) e é o que alimenta as tarefas do Movimentador (regra 23). No banco, é uma posição do livro de movimentações (`dbo.Movimentacao`), guardada no Setor e no passo em que a quantidade terminou; o destino é calculado (regra 29). |
 | **Relatório Dimensional** | Avaliação de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado no cadastro via EstruturaItem.RequerRelatorioDimensional). Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada gera uma RelatorioDimensionalAvaliacao com quantidade aprovada/reprovada. Aprovação/reprovação é por quantidade. Reprovação não exige retrabalho imediato. |
@@ -24,7 +24,7 @@
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
 | **Expedição (remessa)** | Saída de uma quantidade de uma Peça para o cliente. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Cada remessa é uma linha em Expedicao. |
 | **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regras 25 e 30). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
-| **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao iniciar N do pai, baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso, e nasce do Iniciar do pai (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor, para todo nó que já tem filhos quando entra em produção (regra 24; a exceção é o nó que ganha filho depois de iniciado). |
+| **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao iniciar N do pai, baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso, e nasce do Iniciar do pai (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor, para todo nó com filhos (regra 24; sem exceção desde a Fase 3B, que recusa acrescentar filho a nó já iniciado). |
 | **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
 | **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição (Fase 5). |
 | **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
@@ -228,6 +228,9 @@ a 25, em 2026-09-19 — e são implementadas nas Fases 3, 3B e 5 de `06-roadmap-
 de todo nó e `QuantidadePorPai`, na Fase 3, por decisão de 2026-09-24); o schema correspondente
 entra no início de cada fase.*
 
+*A Fase 3B (spec `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`) emendou as regras
+23, 24 e 25.*
+
 22. **Terminar e mover são ações separadas** — na fábrica, feitas por pessoas diferentes. O
     operador registra que terminou o trabalho num Setor, e aquela quantidade passa a **aguardar
     coleta**; o **Movimentador** a leva e registra a entrada no próximo destino. Vale para todo
@@ -237,15 +240,24 @@ entra no início de cada fase.*
 23. **As tarefas do Movimentador são calculadas a partir do estado**, não gravadas como aviso:
     quando alguém leva, a tarefa some sozinha. São duas:
     - **Item pronto** — quantidade aguardando coleta, menos a sobra (regra 30). É tarefa, exceto
-      para filho de Agrupamento Kit a caminho de Setor com `UtilizaKit`, em que é só informativo,
-      porque esse filho não vai sozinho (regra 25).
+      para o filho de Agrupamento Kit no último passo do Roteiro cujo pai começa num Setor com
+      `UtilizaKit`: esse filho não vai sozinho (regra 25), e por isso **não** aparece como Item
+      pronto — aparece no cartão do Kit do pai, enquanto o pai ainda precisa receber conjuntos.
     - **Kit pronto para montagem** — tarefa que aparece quando os filhos diretos de um nó,
-      aguardando coleta, formam ao menos um conjunto completo **que o nó ainda precisa receber**
-      (regra 25). O número de conjuntos é o mínimo, entre os filhos diretos, de
-      ⌊quantidade aguardando coleta ÷ `QuantidadePorPai`⌋, sem passar desse mesmo teto, o da
-      entrada na regra 25. Sem o teto, a divisão contaria a sobra de refugo que a regra 26 admite:
-      se um filho de 45 com razão 4 sob um pai de 10 fosse o único filho direto, daria 11
-      conjuntos.
+      aguardando coleta no último passo do Roteiro deles, formam ao menos um conjunto completo
+      **que o nó ainda precisa receber** (regra 25). O número de conjuntos é o mínimo, entre os
+      filhos diretos, de ⌊quantidade aguardando coleta ÷ `QuantidadePorPai`⌋, sem passar desse
+      mesmo teto, o da entrada na regra 25. Sem o teto, a divisão contaria a sobra de refugo que a
+      regra 26 admite: se um filho de 45 com razão 4 sob um pai de 10 fosse o único filho direto,
+      daria 11 conjuntos.
+
+    Na tela de Tarefas, desde a Fase 3B, o Kit pronto é um cartão por pai na seção **"Kits
+    montáveis"**, em que o Movimentador escolhe **quantos conjuntos** leva, e não quanto de cada
+    filho: a tela não consegue compor um conjunto incompleto. O Kit que o nó ainda precisa receber,
+    com algum filho pronto, mas que ainda não fecha um conjunto aparece em **"Kits incompletos"**,
+    uma seção recolhida e só informativa, que não conta como tarefa. Com o teto da regra 25 em
+    zero, o Kit não aparece em nenhuma das duas, e os filhos prontos dele não aparecem em lugar
+    nenhum das Tarefas, como a sobra.
 
     Notificação no celular é reforço desta lista, não substituto (Fase 3C).
 24. **Montagem e trava de montagem.** A montagem é registro de **todo** nó com filhos, de Agrupamento
@@ -254,9 +266,9 @@ entra no início de cada fase.*
     `docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`, seção 2.1). Olha
     só os **filhos diretos** do nó. O registro, os dois tetos e a baixa dos filhos valem para todo nó;
     o que depende de Kit é só o **conjunto completo** na entrada (regra 25), e a **saída limitada ao
-    total montado** vale, por construção, para todo nó que já tem filhos quando entra em produção,
-    não por uma condição de Agrupamento ou de Setor (a exceção, do nó que ganha filho depois de
-    iniciado, está na "Exceção conhecida" do item sobre a saída do nó).
+    total montado** vale, por construção, para todo nó com filhos, não por uma condição de
+    Agrupamento ou de Setor — desde a Fase 3B sem exceção, porque acrescentar filho a nó já
+    iniciado é recusado (item sobre a saída do nó).
     - **Montar não é ação.** O operador registra **iniciar N** do nó com filhos, no **primeiro
       passo** do Roteiro dele, no Setor onde os filhos estão — e é esse início que grava
       a montagem: consome `N × QuantidadePorPai` de cada filho direto presente e põe N do pai em
@@ -264,10 +276,12 @@ entra no início de cada fase.*
       sistema aceita se N não passar do mínimo, entre os filhos diretos, de
       ⌊quantidade do filho no Setor ÷ `QuantidadePorPai`⌋, **nem do que ainda falta iniciar do nó**
       — a quantidade dele menos o que já saiu de "a iniciar". Este teto é outro que o da regra 25,
-      e vale mesmo com ele, porque nem todo filho chega ao Setor por uma entrada: um filho pode ser
-      montado no mesmo Setor em que o pai será montado, caso que a spec da Fase 3B decide. A
-      montagem pode ser **parcial** (iniciar 6 de 10), o que casa com a expedição parcial
-      (regra 16).
+      e vale mesmo com ele: o da regra 25 só existe para Kit num Setor com `UtilizaKit` e confere a
+      entrega, e o que já aguardava montagem antes de o Agrupamento virar Kit ou de o Setor ganhar
+      a marca não passou por ele (D4 da spec da Fase 3B). O filho cujo último passo é no próprio
+      Setor onde o pai começa não é exceção: termina, aguarda coleta e é entregue ali mesmo, como
+      os outros (D2 da mesma spec). A montagem pode ser **parcial** (iniciar 6 de 10), o que casa
+      com a expedição parcial (regra 16).
     - Ao iniciar, baixa-se `N × QuantidadePorPai` de cada filho direto para o destino terminal
       **"montado"**, **gravando a baixa de cada filho**, e não só N — editar a razão depois não
       reescreve o passado. N soma ao **total montado** do nó. O movimento de início do pai aponta a
@@ -279,26 +293,49 @@ entra no início de cada fase.*
       isso **vale, sem validação própria, para todo nó que já tem filhos quando entra em
       produção**, porque o pai só entra em produção consumindo os filhos: tudo o que ele termina,
       entrega ou leva à expedição já foi montado (o que saiu de "a iniciar" é igual ao total
-      montado). **Exceção conhecida:** acrescentar filho a um nó **já iniciado** é livre (spec da
-      Fase 3, seção 4.7) — o nó saiu de "a iniciar" sem consumir o filho novo, a igualdade entre o que saiu de "a iniciar" e o
-      total montado não vale para ele, e a saída dele pode passar do total montado. A trava estava prevista só
-      para Kit num Setor com `UtilizaKit`, e a Fase 3 a deixara para a Fase 3B; o que sobra à 3B
-      são o conjunto completo (regra 25), a tarefa **Kit pronto** (regra 23) e esse caso.
+      montado). Desde a Fase 3B, vale **sem exceção**: acrescentar filho a um nó que já saiu
+      de "a iniciar", líquido de estorno, é recusado (`PaiJaIniciado`, D1 da spec da Fase 3B). Até
+      ali era livre (spec da Fase 3, seção 4.7), e o nó saía de "a iniciar" sem consumir o filho
+      novo: a igualdade entre o que saiu de "a iniciar" e o total montado não valia para ele, e a
+      saída dele podia passar do total montado. Se todo início do nó for estornado, ele volta a
+      aceitar filho. A guarda é a resposta da 3B; o tratamento de estrutura alterada no meio da
+      produção fica para a Fase 5.
     - A ordem de baixo para cima é consequência, não cálculo: um nó intermediário só existe no
       Setor depois de montado, então o pai dele só monta depois.
 25. **Conjunto completo.** Um Kit pode ir à Solda em parte do pai (os conjuntos de 7 de 10), mas
     **nunca incompleto nem além do necessário**: a entrada de filhos de Agrupamento Kit num Setor
-    com `UtilizaKit` só é aceita em conjuntos completos — `N × QuantidadePorPai` de **todos** os
-    filhos diretos, juntos, na mesma movimentação —, e com N **sem passar do que o nó ainda
+    com `UtilizaKit`, para a montagem do pai, só é aceita em conjuntos completos —
+    `N × QuantidadePorPai` de **todos** os filhos diretos, juntos, na mesma movimentação —, e com
+    N **sem passar do que o nó ainda
     precisa receber**: a quantidade dele, menos o total já montado e menos os conjuntos que já
     estão à espera de montagem em **qualquer** Setor com `UtilizaKit`. Esses conjuntos à espera são
     os que **entraram e ainda não foram montados**, não o mínimo por filho: uma unidade que perdeu
-    parte dentro da Solda não se completa com refugo novo. (Como a perda do próprio nó entra nesta
-    conta é decisão da spec da Fase 3B.) O motivo é físico: peça solta ou a mais na Solda ocupa espaço, e, se
-    houver perda antes de o resto chegar, aquele espaço fica sem destino. Não há exceção para
-    completar conjunto que perdeu parte dentro da Solda — isso é perda (regra 27). A **sobra** —
-    tudo o que passa do que o nó precisa, feche conjunto ou não (ex.: refugo além do necessário)
-    — nunca entra na Solda e, se não for usada, sai como perda de motivo `Descarte` (regra 17).
+    parte dentro da Solda não se completa com refugo novo. Desde a Fase 3B eles são contados pelo
+    **filho mais adiantado**: o maior, entre os filhos diretos, de
+    ⌈quantidade aguardando montagem ÷ `QuantidadePorPai`⌉, somando só os Setores com `UtilizaKit`
+    (D5 da spec da Fase 3B). Sem perda, e com toda entrada em conjunto completo, isso é exatamente o
+    número de conjuntos que entraram; o arredondamento para cima mantém contado o conjunto que
+    perdeu parte. (Como a perda do próprio nó entra nesta conta é decisão da Fase 5.) O motivo é
+    físico: peça solta ou a mais na Solda ocupa espaço, e, se houver perda antes de o resto chegar,
+    aquele espaço fica sem destino. Não há exceção para completar conjunto que perdeu parte dentro
+    da Solda — isso é perda (regra 27). A **sobra** — tudo o que passa do que o nó precisa, feche
+    conjunto ou não (ex.: refugo além do necessário) — nunca entra na Solda e, se não for usada, sai como perda de motivo `Descarte` (regra 17).
+    - **Onde vale (D3 da spec da Fase 3B).** O nó é de Agrupamento Kit, tem filhos e o **primeiro
+      passo** do Roteiro dele é num Setor com `UtilizaKit`; o conjunto completo vale para a entrega
+      que leva os filhos a **aguardar montagem** nesse Setor — a que vem da coleta e também o
+      redirecionamento, em que a quantidade que sai da espera de um Setor com `UtilizaKit` já estava
+      contada e não ocupa o teto duas vezes. **Não** vale para a folha que passa pela Solda no
+      próprio Roteiro, nem para o nó com filhos que volta a ela para seguir o próprio Roteiro: eles
+      entram no Setor para ser trabalhados, não para a montagem do pai, e não contam como à espera. A Peça de Kit não tem pai e segue para o local de expedição como as
+      outras.
+    - **Limitação conhecida (D4 e D5 da spec da Fase 3B).** Trocar o Tipo do Agrupamento de Avulso
+      para Kit, ou marcar `UtilizaKit` num Setor quando já há Kit em produção, pode deixar a espera
+      **desalinhada** entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um
+      filho de razão 4 e 1 de um filho de razão 1. Contada pelo filho mais adiantado
+      (⌈7 ÷ 4⌉ = 2), a espera leva o teto a zero: o Kit some das Tarefas, a entrega para esse pai é
+      recusada, e o teto continua zero mesmo depois de iniciar o pai. Com o Kit marcado desde o início isso não acontece, porque a
+      entrada e o início andam em conjuntos inteiros; é o mesmo mecanismo da perda dentro da Solda,
+      e vai com ela para a Fase 5.
 26. **`EstruturaItem.QuantidadePorPai`** guarda quantos daquele nó entram em **uma** unidade do
     pai, **ao lado** da quantidade absoluta (`EstruturaItem.Quantidade`). É **obrigatória em todo
     Item e nula na Peça**. A cópia da receita a preenche com
@@ -444,5 +481,7 @@ dela para o que a implementação fixou).*
 > pai só entra em produção iniciando-o, o que consome os filhos, então a saída dele já é limitada ao
 > total montado, em qualquer Agrupamento (regra 24) — para o nó que já tem filhos ao entrar em
 > produção; o nó que ganha filho depois de iniciado é a exceção, da 3B.
+> **Atualizado em 2026-10-09** (spec da Fase 3B, D1): desde a Fase 3B, acrescentar filho a nó já
+> iniciado é recusado, e a exceção deixou de existir.
 
 Itens de infraestrutura (CI/CD, detalhes de deploy) estão em `03-arquitetura-tecnica.md`.

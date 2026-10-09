@@ -677,7 +677,9 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos }` (Fase 3B; antes era só a lista de
   grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
   fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
-  pai começa num Setor com `UtilizaKit`, **não** aparece aqui, e sim no cartão do Kit. Na
+  pai começa num Setor com `UtilizaKit`, **não** aparece aqui: aparece no cartão do Kit enquanto o
+  pai ainda precisa receber conjuntos (teto da regra 25 acima de zero); com o teto em zero, não
+  aparece em lugar nenhum das Tarefas, como a sobra do Avulso. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
   `setorId` nulo. `kitsMontaveis` e `kitsIncompletos`: `{ pai, destino, conjuntos, filhos }[]`, em que
@@ -687,7 +689,8 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   e `ordem` são o último passo do filho, onde ele aguarda coleta (nulos se ele não tem Roteiro),
   `pronto` é o que aguarda lá e `jaNoDestino` diz que esse passo é no Setor do pai. A quantidade de
   cada filho na entrega é `conjuntos × quantidadePorPai`, e quem a calcula é o front. Cai em
-  `kitsMontaveis` o Kit com `conjuntos` de 1 para cima.
+  `kitsMontaveis` o Kit com `conjuntos` de 1 para cima, e em `kitsIncompletos` o de zero; nas duas,
+  só o Kit com teto acima de zero e algum filho com `pronto` acima de zero.
 - `GET /tarefas/contagem` — só o número, para o contador do menu. Cada Kit montável conta como uma
   tarefa; os incompletos não contam.
 - `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total

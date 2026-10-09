@@ -18,7 +18,7 @@ CREATE TABLE dbo.Setor (
     -- Substantivo que nomeia os botões da fila: 'montagem' -> "Iniciar montagem" / "Terminar montagem".
     -- NULL = "Iniciar" / "Terminar" (spec da Fase 3D, seção 2.3).
     Atividade       NVARCHAR(40)        NULL,
-    -- Regra 25: o Setor onde o Kit é montado (a Solda). Só a filhos de Agrupamento Kit que vão à montagem do pai
+    -- Regra 25: o Setor onde o Kit é montado (a Solda). Só de filhos de Agrupamento Kit que vão à montagem do pai
     -- num Setor marcado se exige conjunto completo (spec da Fase 3B, D3).
     UtilizaKit      BIT                 NOT NULL CONSTRAINT DF_Setor_UtilizaKit DEFAULT (0),
     CONSTRAINT PK_Setor PRIMARY KEY CLUSTERED (Id),

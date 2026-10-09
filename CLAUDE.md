@@ -58,7 +58,8 @@ mesclado em 2026-10-08 (rufino-bot/rastru#31). A quarta: a **data de entrega do 
 **depois do import e antes da 3B** (decisão de 2026-10-08, porque não depende de Kit nem de montagem;
 ver a seção «Data de entrega do Pedido» de `06-roadmap-mvp.md` e a spec
 `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`). A data de entrega foi concluída
-e mesclada em 2026-10-09 (rufino-bot/rastru#32); a próxima da ordem é a **Fase 3B**.
+e mesclada em 2026-10-09 (rufino-bot/rastru#32); a próxima da ordem é a **Fase 3B**, em implementação
+na branch `fase-3b` (spec `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -485,6 +486,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`: a mesma linha pode estar
   reprovada **e** atrasada, e as duas em vermelho não se distinguiriam). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
+  O azul `kit` (D8 da spec `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`) é a
+  primeira cor de **categoria**: a identidade do nó de Agrupamento Kit, na pílula "Kit", e só na Fila
+  do Setor. Até ele, toda categoria era neutra. Ele é cheio (fundo `kit` com texto `superficie`, par
+  declarado em `web/src/tema/contraste.test.ts`), e as pílulas de estado são tingidas: a forma também separa
+  categoria de estado. Azul nunca significa estado; a pílula "Utiliza Kit" da lista de Setores é
+  atributo do Setor, não identidade de Kit, e fica neutra.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
   sumir**.
@@ -576,10 +583,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
   permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
   produção assim, a **saída limitada ao total montado vale, sem validação própria, para todo nó que
-  já tem filhos quando entra em produção**, Kit ou Avulso. **Exceção conhecida:** acrescentar filho a
-  um nó **já iniciado** é livre (spec da Fase 3, seção 4.7), e esse nó pode sair acima do montado;
-  o caso é da Fase 3B. O que continua **só do Kit**: em Setor com `UtilizaKit`, os filhos só entram
-  em **conjuntos completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
+  já tem filhos quando entra em produção**, Kit ou Avulso. Desde a Fase 3B isso vale **sem
+  exceção**: acrescentar filho a um nó que já saiu de "a iniciar" (líquido de estorno) é recusado com
+  409 `PaiJaIniciado` (D1 da spec da Fase 3B; até ali era livre, pela seção 4.7 da spec da Fase 3), e
+  o tratamento de estrutura alterada no meio da produção fica para a Fase 5. O que continua **só do
+  Kit**: em Setor com `UtilizaKit`, os filhos que vão à montagem do pai só entram em **conjuntos
+  completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
   Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,
   decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a partir da
   Fase 3; o início que consome os filhos, decidido em 2026-09-28, é da Fase 3D.)

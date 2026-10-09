@@ -135,7 +135,7 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 
 ## 2. Apontamento em Setor
 
-*Perfis: Operador, Movimentador e PCP*
+*Perfis: Operador, Movimentador e PCP (marcar o Setor que monta Kit: Administrador)*
 
 > **Reescrito em 2026-09-24** pela spec da Fase 3
 > (`docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`), que decidiu o que a
@@ -145,11 +145,20 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 > montagem estrutural para todo nó que já tem filhos quando entra em produção; o **conjunto
 > completo** na entrada de Setor com `UtilizaKit` (regra 25) e o caso do nó que ganha filho depois
 > de iniciado continuam na Fase 3B.
+>
+> **Emendado em 2026-10-09** pela spec da Fase 3B
+> (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`): os cartões de Kit em
+> Tarefas (passos 4 e 10), a pílula "Kit" e o "Levar o Kit" na fila (passos 2 e 5), o filtro nos
+> cartões de Kit (passo 8) e a marca "Utiliza Kit" do Setor (passo 11). O caso do nó que ganha
+> filho depois de iniciado deixou de existir: acrescentar filho a nó já iniciado passou a ser
+> recusado (regra 24).
 
 1. **PCP** confere que todo nó tem Roteiro; nó sem Roteiro aparece como pendência na árvore, e o PCP
    o edita (regra 28).
 2. **Operador** abre a fila do seu Setor e vê, nesta ordem, o que está em trabalho, o que está a
-   iniciar ali, o que está aguardando montagem, o que está aguardando coleta e a sobra.
+   iniciar ali, o que está aguardando montagem, o que está aguardando coleta e a sobra. O card de
+   nó de Agrupamento Kit traz a pílula **Kit**, em azul cheio, em qualquer seção; é a única tela
+   que a mostra.
 3. Ao pegar o material para trabalhar num nó cujo primeiro passo é ali, **inicia** uma quantidade
    (regra 28). Ao terminar, **termina** a quantidade feita: ela passa a aguardar coleta. O lote é
    divisível, e o que se valida é a conservação de quantidade (nunca movimentar mais do que existe
@@ -159,10 +168,27 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    próximo passo; na montagem do pai, no **primeiro passo do Roteiro do pai**, que o sistema calcula
    — o Movimentador não escolhe o Setor —; ou, se for Peça no fim do Roteiro, no local de expedição
    (regra 29).
+
+   O filho de Agrupamento Kit no último passo, cujo pai começa num Setor com **Utiliza Kit**, não
+   vai sozinho e não aparece entre os Itens prontos: os filhos vão juntos, em conjuntos completos
+   (regras 23 e 25). No topo da tela, **Kits montáveis** traz um cartão por pai, com o caminho,
+   "Destino: {Setor} (início de {pai})", "Dá para levar N conjunto(s)" e cada filho com a origem
+   ("de {Setor}, passo k", ou "já está em {Setor}" quando o filho terminou no próprio Setor do pai)
+   e a quantidade. A caixa **Levar** abre o campo **Conjuntos**, um inteiro de 1 a N que já vem com
+   N, e a quantidade de cada filho acompanha o número digitado: o Movimentador escolhe quantos
+   conjuntos leva, não quanto de cada filho. No fim da tela, **Kits incompletos**, recolhida e com
+   a contagem no título, mostra o Kit que o pai ainda precisa receber mas que não fecha um conjunto, com o que cada filho
+   tem pronto e o que falta para 1 conjunto, sem caixa de marcar. Kits e itens marcados vão numa
+   entrega só, e o botão os conta separados ("Entregar 2 Kits e 3 itens"). O sistema recusa o
+   conjunto incompleto e o Kit além do que o pai ainda precisa receber, e a recusa aparece no aviso
+   de erro da entrega.
 5. **Operador** do primeiro passo do pai vê "Dá para iniciar N; falta iniciar X" e **inicia** o pai:
    iniciar é o que consome os filhos presentes no Setor e põe o pai em produção (regra 24). Não há
    mais "montar". Em outro Setor que ainda tenha filhos aguardando (entregues antes de o PCP editar
-   o primeiro passo do pai), o card não oferece Iniciar: diz para onde levar os filhos.
+   o primeiro passo do pai), o card não oferece Iniciar: diz para onde levar os filhos. Se o pai é
+   de Agrupamento Kit e começa num Setor com Utiliza Kit, quem entrega não leva filho a filho: o
+   card oferece **Levar o Kit para {Setor}**, que pede o número de conjuntos e leva todos os filhos
+   juntos — só os conjuntos completos que estão ali (regra 25).
 6. Registro errado se corrige por **estorno**, pelo autor ou pelo PCP, enquanto a quantidade não
    tiver andado. O operador estorna **na própria fila**: as linhas de "Em trabalho", "Aguardando
    coleta" e a sobra do último passo oferecem "Estornar", que abre a lista curta dos registros que
@@ -182,7 +208,8 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    marcada que sai da lista (a atualização periódica tirou o último item daquele Pedido) continua
    marcada, com 0, até o operador removê-la. O filtro age em todas as seções da fila; no card de
    **Aguardando montagem**, o card casa se o pai **ou** algum filho presente casar, e aparece
-   inteiro. Um nó sem material — o Item ad-hoc, por exemplo — some quando há filtro de Material. A
+   inteiro; em Tarefas, o cartão de Kit, montável ou incompleto, casa do mesmo jeito, pelo pai ou
+   por algum filho pronto. Um nó sem material — o Item ad-hoc, por exemplo — some quando há filtro de Material. A
    seção que perde todas as linhas mostra "Nada nesta seção com esses filtros"; a fila inteira
    esvaziada pelo filtro diz "Nada nesta fila com esses filtros" e oferece "Limpar filtros"; em
    Tarefas, o grupo sem item some, e o vazio é "Nada para levar com esses filtros". A seleção mora na
@@ -230,9 +257,18 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    - **Estorno** continua por linha; não existe "estornar lote".
 10. **Movimentador marca todos em Tarefas.** Além de marcar item a item, o botão **Marcar todos** no
     topo da lista marca todos os itens visíveis depois do filtro, em todos os grupos, e pula o que não
-    se pode marcar (o pai sem Roteiro). Com todos marcados vira "Desmarcar todos", que desmarca só
-    esses: o marcado oculto pelo filtro continua marcado. O resto do "Levar" não muda: ele já é uma
-    entrega em lote, numa requisição, tudo ou nada.
+    se pode marcar (o pai sem Roteiro). Marca também os Kits montáveis visíveis, cada um com o número
+    máximo de conjuntos; os Kits incompletos não se marcam. Com todos marcados vira "Desmarcar
+    todos", que desmarca só esses: o marcado oculto pelo filtro continua marcado. Marcar não reescreve
+    a quantidade nem os conjuntos de quem já estava marcado. O resto do "Levar" não muda: ele já é
+    uma entrega em lote, numa requisição, tudo ou nada.
+11. **Administrador marca o Setor que monta Kit.** No painel de criar ou editar Setor, a caixa
+    **Utiliza Kit** diz que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a
+    Solda. A lista de Setores mostra a pílula neutra "Utiliza Kit" nos marcados: é atributo do Setor,
+    não a identidade de Kit da pílula azul da fila. A marca vale da troca em diante, e a tela de
+    Tarefas recalcula na carga seguinte (D4 da spec da Fase 3B); o mesmo vale para trocar o Tipo de
+    um Agrupamento. Trocar com Kit já em produção pode travar aquele Kit: ver a limitação conhecida
+    da regra 25.
 
 ## 3. Separação de Material
 

@@ -598,11 +598,14 @@ navegador. Que ele funciona no aparelho é inferência do usuário, e o risco fo
 
 ## Fase 3B — Kit e montagem
 
+**Implementada na branch `fase-3b`**, ainda não mesclada. Spec:
+`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`.
+
 > **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
 > «Import da estrutura a partir do CAD») **e a data de entrega do Pedido** (decisão de 2026-10-08; ver
 > a seção «Data de entrega do Pedido»). A ordem fica: filtros → 1F → **import do BOM** → **data de
 > entrega** → 3B. O import foi concluído e mesclado em 2026-10-08, e a data de entrega em
-> 2026-10-09; a 3B é a próxima.
+> 2026-10-09; a 3B veio em seguida.
 
 - **Título da página do Agrupamento com o Pedido** (pedido do usuário na conferência do import, em
   2026-10-08, emendado nesta fase por decisão dele, porque a 3B mexe no Agrupamento): o título passa a
@@ -612,25 +615,26 @@ navegador. Que ele funciona no aparelho é inferência do usuário, e o risco fo
   Agrupamentos devem ganhar códigos de lote interno da empresa, e é preciso ver qual Pedido está
   sendo alterado.
 
-- `Setor.UtilizaKit` (regra 25 de `01`); o schema entra no início desta fase. A montagem, o destino
-  "montado" e `QuantidadePorPai` já existem desde a Fase 3, e o início de um nó com filhos consome os
-  filhos desde a 3D.
+- `Setor.UtilizaKit` (regra 25 de `01`); a coluna entrou no schema no início desta fase
+  (`db/alter-fase-3b.sql` para banco anterior). A montagem, o destino "montado" e `QuantidadePorPai`
+  já existem desde a Fase 3, e o início de um nó com filhos consome os filhos desde a 3D.
 - **A trava de montagem, em regra, já não é desta fase:** desde a **Fase 3D** ela é **estrutural**
   para todo nó, Kit ou Avulso, **que já tem filhos quando entra em produção** — o pai só entra em
   produção consumindo os filhos, então tudo o que ele termina, entrega ou leva à expedição já foi
-  montado. **Fica de fora um caso, devolvido à 3B por decisão do usuário de 2026-09-29:** acrescentar filho a um nó **já iniciado** é livre
-  (seção 4.7 da spec da Fase 3), e esse nó pode sair acima do montado. A 3B fica com `Setor.UtilizaKit`,
-  o conjunto completo (regra 25), a tarefa Kit pronto (regra 23) e esse caso.
+  montado. **Fica de fora um caso, devolvido à 3B por decisão do usuário de 2026-09-29:** o filho
+  acrescentado a um nó **já iniciado**, que era livre (seção 4.7 da spec da Fase 3). A 3B fica com
+  `Setor.UtilizaKit`, o conjunto completo (regra 25), a tarefa Kit pronto (regra 23) e esse caso,
+  que ela resolveu recusando: acrescentar filho a nó já iniciado devolve 409 `PaiJaIniciado` (D1 da
+  spec da Fase 3B), e a saída limitada ao total montado vale sem exceção.
 - Conjunto completo na entrada de Setor com `UtilizaKit`, sem passar do que o nó ainda precisa
   receber (regra 25).
 - Tarefa **Kit pronto para montagem** na tela Tarefas (regra 23).
 - A decidir na spec desta fase: as perguntas que a seção 9 da spec
   `2026-09-15-kit-montagem-e-movimentacao-design.md` ("Deixado para a spec de cada fase") deixa
-  para a Fase 3B.
+  para a Fase 3B. Decididas na spec da Fase 3B; a errata de 2026-10-09 daquela spec fecha cada uma.
 - Critério de pronto: um Kit de três níveis é montado de baixo para cima com montagem parcial; o
-  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e a saída acima do
-  montado — esta, **restrita ao nó que ganhou filho depois de iniciado**, o único a que a 3D não
-  chega —; a tarefa Kit pronto aparece e some quando o Kit é levado.
+  sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e o filho
+  acrescentado a nó já iniciado; a tarefa Kit pronto aparece e some quando o Kit é levado.
 
 ## Fase 3C — Notificação push
 
@@ -678,6 +682,18 @@ navegador. Que ele funciona no aparelho é inferência do usuário, e o risco fo
   unidade saem junto, e, no Pedido de Retrabalho que o PCP cadastra para repor, o que já existe é
   marcado **pronto**. A decidir na spec desta fase: as perguntas que a seção 9 da spec
   `2026-09-15-kit-montagem-e-movimentacao-design.md` deixa para a Fase 5.
+- **A perda nos tetos do Kit** (D5 da spec da Fase 3B): como a perda do próprio nó entra nos dois
+  tetos, o que o nó ainda precisa receber (regras 23 e 25) e o que ainda falta montar (regra 24). A
+  3B conta os conjuntos à espera pelo filho mais adiantado, e um conjunto que perde parte dentro da
+  Solda continua contado. A **espera desalinhada** que trocar o Tipo do Agrupamento de Avulso para
+  Kit, ou marcar `UtilizaKit` num Setor com Kit em produção, pode criar (D4 da mesma spec; a
+  limitação conhecida da regra 25 de `01`) é o mesmo mecanismo, e é tratada aqui junto: com ela, o
+  teto do Kit pode ficar em zero, e o Kit, travado.
+- **Estrutura alterada no meio da produção** (D1 da spec da Fase 3B): hoje acrescentar filho a nó
+  já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
+  usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
+  da produção é o mesmo assunto de alterar projeto ou descontinuar, o do item «Descartar Peça ou
+  Item em Pedido rodando».
 - Regra de fechamento de Agrupamento (todas as Peças concluídas — expedidas ou
   perdidas) e de Pedido (último Agrupamento concluído).
 - Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
