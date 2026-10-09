@@ -7,7 +7,8 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
 
 *Perfil: PCP (pausar e retomar o Pedido: PCP ou Gestão)*
 
-1. PCP cadastra Pedido (`Tipo = Fabricacao`), com Cliente e Número.
+1. PCP cadastra Pedido (`Tipo = Fabricacao`), com Cliente, Número e **Data de entrega** (o prazo,
+   obrigatório; qualquer data vale, inclusive no passado — regra 33 em `01`).
 2. PCP cadastra N Agrupamentos para o Pedido (cada um com Tipo `'Kit'` ou `'Avulso'`).
 3. Para cada Agrupamento, PCP monta a estrutura (`EstruturaItem`):
    - Pode puxar de um `Componente` padrão do catálogo (copia `ComponenteFilhoPadrao`,
@@ -21,7 +22,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    (`Status = EmProducao`).
 5. Quando outro Pedido precisa passar na frente, **PCP ou Gestão pausam** o Pedido, com um motivo
    opcional, e o **retomam** depois (regra 31). A pausa não muda o status; ela só recusa o início
-   de nós dele. A **lista** de Pedidos mostra só a pílula "Pausado", ao lado do status; quem
+   de nós dele. A **lista** de Pedidos mostra da pausa só a pílula "Pausado", ao lado do status; quem
    pausou, desde quando e por quê aparecem no **detalhe** do Pedido, onde também ficam os botões
    Pausar e Retomar.
 6. Para achar um Pedido, o PCP usa a **lista de Pedidos**, que é **paginada** (20 por página) e tem
@@ -34,20 +35,35 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    e a busca, E. Busca, filtros e página ficam na URL, então o F5 e o "voltar" do detalhe de um Pedido
    devolvem a lista como estava. Sem resultado, a tela diz "Nenhum pedido com essa busca ou esses
    filtros" e oferece "Limpar filtros"; sem nenhum Pedido cadastrado, diz "Nenhum pedido aberto". A
-   Home não lista Pedidos: lê o **resumo** do servidor (contagem por status e até cinco abertos há mais
-   tempo), que conta todos os Pedidos e não só a primeira página.
+   Home não pagina Pedidos: lê o **resumo** do servidor (contagem por status e os cinco Pedidos não
+   encerrados de prazo mais urgente, na seção **"Prazos de entrega"**), que conta todos os Pedidos e não
+   só a primeira página.
+
+   Cada Pedido da lista e da Home mostra o prazo ("entrega em dd/mm/aaaa") ao lado da data de abertura,
+   e a pílula **Atrasado** (em tom próprio, roxo) quando o prazo é anterior a hoje e o Pedido ainda não
+   encerrou: **vencer hoje não é atraso**, e `Concluido` e `Cancelado` nunca ficam atrasados. Quem decide
+   é o servidor, com o "hoje" de Brasília (regra 33 em `01`); a tela não recalcula.
 
    A lista também é onde o Pedido nasce, e desde a Fase 1F
    (`docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`) ela **abre em
    leitura**: não há campos no topo. Quem pode escrever (PCP e Administrador) usa o botão **Novo
-   pedido**, no cabeçalho, que abre o cadastro (Código do pedido e Cliente) num painel acima da busca;
-   "Cancelar" fecha o painel e descarta o digitado, e um erro ao salvar — número repetido, falha de
-   rede — aparece dentro dele, que continua aberto. Quem não pode escrever não vê o botão. A lista se
-   **ordena** por **Mais recentes** (a padrão: data de abertura, a mais nova primeiro), **Número** ou
-   **Cliente**, num seletor "Ordenar por" que todo perfil vê. A ordem vai na URL como a busca, os
-   filtros e a página, e a padrão não é escrita lá: `/pedidos` sem nada é "Mais recentes". Abrir o
-   Pedido com sucesso fecha o painel e **devolve a lista ao padrão** — URL limpa, sem busca nem filtro,
-   página 1, "Mais recentes" —, para o Pedido recém-aberto aparecer no topo.
+   pedido**, no cabeçalho, que abre o cadastro (Código do pedido, Cliente e **Data de entrega**, os três
+   obrigatórios) num painel acima da busca;
+   "Cancelar" fecha o painel e descarta o digitado, e um erro ao salvar — número repetido, falha de rede —
+   aparece dentro dele, que continua aberto. Quem não pode escrever não vê o botão. A lista se
+   **ordena** por **Prazo de entrega** (a padrão: os não encerrados por prazo, do mais atrasado ao mais
+   distante, e depois os encerrados, do prazo mais recente ao mais antigo), **Mais recentes** (data de
+   abertura, a mais nova primeiro), **Número** ou **Cliente**, num seletor "Ordenar por" que todo perfil
+   vê. A ordem vai na URL como a busca, os filtros e a página, e a padrão não é escrita lá: `/pedidos` sem
+   nada é "Prazo de entrega". Abrir o Pedido com sucesso fecha o painel e leva a lista a **"Mais
+   recentes"** (`?ordem=recentes`), com busca e filtros zerados e na página 1, para o Pedido
+   recém-aberto aparecer no topo — a ordem por prazo o mandaria para o fim quando o prazo é distante.
+
+   Na página do Pedido, quem pode escrever (PCP e Administrador) usa o botão **Editar pedido**, no
+   cabeçalho, que abre um painel com número, cliente e data de entrega, e que vale **em qualquer
+   status**, inclusive o prazo de um Pedido já concluído (o Pedido é documento e se corrige por edição).
+   O número repetido aparece como erro dentro do painel. O cabeçalho mostra o prazo e, quando é o caso, a
+   pílula Atrasado.
 
 ### Importar a estrutura de um BOM
 

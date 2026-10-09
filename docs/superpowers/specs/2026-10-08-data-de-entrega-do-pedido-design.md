@@ -13,6 +13,14 @@ a definição de "atraso" no `01`. Esta spec é esse candidato.
 `CLAUDE.md` só admite exceção declarada por escrito em `specs/06-roadmap-mvp.md`. O registro faz parte
 dos ajustes da seção 9 e vem **antes** do plano.
 
+> **Emenda de 2026-10-09 (duas decisões do plano).** O plano
+> (`docs/superpowers/plans/2026-10-08-data-de-entrega-do-pedido.md`) decidiu duas coisas diferentes do que
+> esta spec descreve, e o texto das seções fica como foi desenhado. **§7.1:** o teste de banco de
+> `ListarMaisUrgentesAsync` não chama com `quantos = int.MaxValue`; ele usa `quantos = 5`, com seis
+> candidatos próprios (decisão P4 do plano). **§6.5:** o prazo da página do Pedido não é um "Entrega em
+> 22/10/2026" isolado no cabeçalho; ele vai na mesma linha das pílulas, no formato da `LinhaDePedido`
+> ("entrega em … · aberto em …"; decisão P7 do plano).
+
 ## 1. O que se quer, e o que conta como pronto
 
 **Problema.** O Pedido não tem prazo. A Home mostra os cinco Pedidos abertos **há mais tempo**, o que

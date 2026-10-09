@@ -398,11 +398,11 @@ dela para o que a implementação fixou).*
     o que nenhuma das duas tinha sozinha.
 
 *A regra 33 foi decidida em 2026-10-08, na spec da data de entrega do Pedido
-(`docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`, decisões D2, D3, D4 e D12).*
+(`docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`, decisões D2, D3, D4, D8 e D12).*
 
 33. **Todo Pedido tem data de entrega, e o atraso é derivado dela.**
-    - **Obrigatória e livre (D2, D3).** A `DataEntrega` é informada no cadastro e pode ser editada em
-      qualquer status. Aceita qualquer dia, inclusive anterior à abertura: um Pedido pode chegar ao
+    - **Obrigatória, livre e editável (D2, D3, D8).** A `DataEntrega` é informada no cadastro e pode
+      ser editada em qualquer status. Aceita qualquer dia, inclusive anterior à abertura: um Pedido pode chegar ao
       sistema já atrasado, e um Retrabalho pode ser aberto pelo cliente bem depois de as peças terem
       sido expedidas. É um dia, sem hora nem fuso.
     - **Atrasado (D12).** Um Pedido está **atrasado** quando a `DataEntrega` é anterior a **hoje** e o
