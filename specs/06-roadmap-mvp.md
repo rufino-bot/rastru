@@ -585,12 +585,18 @@ branch. A spec e o plano da fase estão na `main` desde esse merge, e a branch
   própria:** a auditoria de edição de cadastro, que não existe hoje (seção 8 da spec).
 - Critério de pronto: a seção 1 da spec.
 
+**Estado em 2026-10-09, depois do merge:** **concluída e mesclada na `main`** pelo PR
+rufino-bot/rastru#32 (merge `7074559`), cuja árvore é idêntica à de `bf0882d`, o último commit da
+branch. Os itens deixados para depois continuam como a spec os registra, nas seções 8 e 10, entre
+eles a pílula na Fila do Setor e nas Tarefas e a auditoria de edição de cadastro.
+
 ## Fase 3B — Kit e montagem
 
 > **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
 > «Import da estrutura a partir do CAD») **e a data de entrega do Pedido** (decisão de 2026-10-08; ver
 > a seção «Data de entrega do Pedido»). A ordem fica: filtros → 1F → **import do BOM** → **data de
-> entrega** → 3B. O import foi concluído e mesclado em 2026-10-08; a data de entrega é a próxima.
+> entrega** → 3B. O import foi concluído e mesclado em 2026-10-08, e a data de entrega em
+> 2026-10-09; a 3B é a próxima.
 
 - **Título da página do Agrupamento com o Pedido** (pedido do usuário na conferência do import, em
   2026-10-08, emendado nesta fase por decisão dele, porque a 3B mexe no Agrupamento): o título passa a
