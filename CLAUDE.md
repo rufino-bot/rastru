@@ -42,7 +42,7 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são três. A
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são quatro. A
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
@@ -54,7 +54,11 @@ partir do CAD (BOM)**, que era "fora das fases", executa **depois da 1F e antes 
 2026-10-02, porque a 3B mexe em montagem e o import não depende dela; ver a seção «Import da estrutura
 a partir do CAD» de `06-roadmap-mvp.md` e a spec
 `docs/superpowers/specs/2026-10-02-import-de-estrutura-do-bom-design.md`). O import foi concluído e
-mesclado em 2026-10-08 (rufino-bot/rastru#31); a próxima da ordem é a **Fase 3B**.
+mesclado em 2026-10-08 (rufino-bot/rastru#31). A quarta: a **data de entrega do Pedido** executa
+**depois do import e antes da 3B** (decisão de 2026-10-08, porque não depende de Kit nem de montagem;
+ver a seção «Data de entrega do Pedido» de `06-roadmap-mvp.md` e a spec
+`docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`). É a próxima da ordem; depois
+dela, a **Fase 3B**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -263,7 +267,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — passaram a isso na Fase 1F. **Ficaram
   de fora, por decisão escrita** (seção "Fora de escopo" daquela spec), `PedidoDetalhePage` e
   `ComponenteDetalhePage`: nelas o formulário de cadastro fica numa seção com `<h2>` próprio, não
-  logo abaixo do título, e o defeito é bem menor. Não são modelo para tela nova.
+  logo abaixo do título, e o defeito é bem menor. Não são modelo para tela nova. (Ficar de fora vale
+  para o formulário de Agrupamento da `PedidoDetalhePage`. A edição do próprio Pedido, que a página ganhou com a
+  data de entrega, não é exceção: é um `PainelDeEscrita` aberto pelo `acao` da `Pagina`, como nas cinco
+  telas.)
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela. O `BannerDeErro`
@@ -390,16 +397,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   abriu o painel. O controle focado sai do DOM junto com o painel, e sem o hook o foco cairia no
   `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
   tiver caído no `<body>`**: fechar um painel porque outro abriu não tira o foco do campo do painel
-  novo. A origem é o botão do cabeçalho nas cinco telas de cadastro; no modo de edição da `SetoresPage`, é o
+  novo. A origem é o botão do cabeçalho nas cinco telas de cadastro e na `PedidoDetalhePage` (o "Editar pedido"); no modo de edição da `SetoresPage`, é o
   "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. Na
   `AgrupamentoDetalhePage`, o do "Nova Peça" devolve ao "Nova Peça" e o do "Importar BOM", ao "Importar
   BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
   cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Hoje o hook tem
-  **seis** telas consumidoras e **sete** chamadas (medido em 2026-10-02 com
+  **sete** telas consumidoras e **oito** chamadas (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
-  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma): `SetoresPage`, `MateriaisPage`,
-  `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage` e `ConferenciaDeImportacaoPage`. O usuário decidiu
+  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, e de novo em 2026-10-09: oito, porque a
+  `PedidoDetalhePage` tem uma): `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage`,
+  `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage` e `PedidoDetalhePage`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -410,15 +418,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **seis** telas consumidoras (cinco escrevem o
-  `<PainelDeEscrita` à mão e uma só o usa por dentro do `PainelDoArquivoDoBom`), com **sete**
-  linhas de uso no código e **oito** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **sete** telas consumidoras (seis escrevem o
+  `<PainelDeEscrita` à mão e uma só o usa por dentro do `PainelDoArquivoDoBom`), com **oito**
+  linhas de uso no código e **nove** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
-  "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`). As sete linhas são
-  seis nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
-  `PedidosPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do nó, editar e
-  acrescentar sub-Item) — mais a do `PainelDoArquivoDoBom`. Os oito painéis são esses seis mais os dois
+  "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
+  oito, porque a `PedidoDetalhePage` ganhou o "Editar pedido"). As oito linhas são
+  sete nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
+  `PedidosPage`, `PedidoDetalhePage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do
+  nó, editar e acrescentar sub-Item) — mais a do `PainelDoArquivoDoBom`. Os nove painéis são esses sete mais os dois
   usos do `PainelDoArquivoDoBom`: o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
   `ConferenciaDeImportacaoPage` (`grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
   duas linhas em 2026-10-07). Na `AgrupamentoDetalhePage` os três painéis nunca coexistem: abrir um fecha os
@@ -471,7 +480,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   então ficavam **verdes**, porque teste de tela monta componente no jsdom e nunca olha o documento
   que hospeda o React.
 - **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`),
-  vermelho (`negativo`) e âmbar (`atencao`) são reservados a aprovado/ativo, reprovado/perda/erro e atenção (hoje, Pedido pausado). É o que faz a tela
+  vermelho (`negativo`), âmbar (`atencao`) e roxo (`atraso`) são reservados a aprovado/ativo,
+  reprovado/perda/erro, atenção (hoje, Pedido pausado) e Pedido atrasado (desde a data de entrega, D5 da
+  spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`: a mesma linha pode estar
+  reprovada **e** atrasada, e as duas em vermelho não se distinguiriam). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
@@ -501,7 +513,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   com um uso (medido em 2026-09-29 com
   `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`): `FilaDoSetorPage`,
   `TarefasPage` e `PedidosPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
-  estado** (`positivo`, `negativo`, `atencao`): filtro ativo não é estado de negócio, então a
+  estado** (`positivo`, `negativo`, `atencao`, `atraso`): filtro ativo não é estado de negócio, então a
   pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
   morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
   histórico) e a vírgula sai codificada (`?material=3%2C5`), embora o hook leia as duas formas.
@@ -514,19 +526,28 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `GET /componentes` e `GET /pedidos`, que entra no `useBuscaPaginada` pelos `filtros`: trocar a
   ordem volta à página 1) e `ordenarCadastro` (`web/src/cadastros/`) em `SetoresPage` e
   `MateriaisPage`, que recebem a lista inteira — os endpoints delas não mudaram, porque alimentam
-  outros seletores. **A padrão é "Mais recentes" nas quatro telas**, para o item recém-criado vir no
-  topo: `Id` decrescente, e em Pedidos `DataAbertura` decrescente com `Id` desempatando. **Salvar
-  com sucesso devolve a consulta ao padrão** (decisão 7 da spec da 1F) — ordem "Mais recentes" e,
-  onde a tela os tem, busca vazia, sem filtros, página 1, sem inativos: em Componentes e Pedidos
-  pelo `voltarAoInicio()` do `useBuscaPaginada`, com a tela zerando a ordem (e, em Pedidos, a URL
-  inteira) no mesmo handler; em Setores e Materiais, a própria tela zera ordem e "Mostrar inativos"
-  e recarrega. "Reativar o
-  existente" com sucesso conta como salvar; **editar** um setor, não — a edição recarrega mantendo
-  ordem e inativos, porque o item editado já estava na tela. A ordem vai para a URL **só** em
-  `PedidosPage`, e a padrão não é escrita lá (`/pedidos` limpa é "Mais recentes"); valor
-  desconhecido lido da URL cai na padrão e não é enviado ao servidor, onde seria 400. Ordenar é
-  leitura: o seletor aparece para todo perfil. Hoje tem **quatro** telas consumidoras, cada uma com
-  um uso (medido em 2026-10-01 com
+  outros seletores.
+
+  **A padrão** é "Mais recentes" (`Id` decrescente) em `SetoresPage`, `MateriaisPage` e `ComponentesPage`,
+  para o item recém-criado vir no topo, e **"Prazo de entrega" em `PedidosPage`** (D10 da spec
+  `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`): a lista abre pelo prazo mais
+  urgente, e a ordem por prazo **não** põe o item novo no topo. "Mais recentes" em Pedidos é
+  `DataAbertura` decrescente com `Id` desempatando.
+
+  **Salvar com sucesso**, nas três telas de "Mais recentes", devolve a consulta ao padrão (decisão 7 da
+  spec da 1F) — ordem "Mais recentes" e, onde a tela os tem, busca vazia, página 1, sem inativos: em
+  Componentes pelo `voltarAoInicio()` do `useBuscaPaginada`, com a tela zerando a ordem no mesmo handler;
+  em Setores e Materiais, a própria tela zera ordem e "Mostrar inativos" e recarrega. **Em Pedidos salvar
+  não volta à padrão** (D11 da spec da data de entrega): zera busca, filtros e página, põe a ordem em "Mais recentes"
+  escrita na URL (`?ordem=recentes`) e chama o `voltarAoInicio()` do hook, para o Pedido novo aparecer no
+  topo — a padrão, por prazo, o mandaria para o fim quando o prazo é distante. "Reativar o existente" com
+  sucesso conta como salvar; **editar** um setor, não — a edição recarrega mantendo ordem e inativos,
+  porque o item editado já estava na tela.
+
+  A ordem vai para a URL **só** em `PedidosPage`, e a padrão não é escrita lá (`/pedidos` limpa é
+  "Prazo de entrega"); valor desconhecido lido da URL cai na padrão e não é enviado ao servidor, onde
+  seria 400. Ordenar é leitura: o seletor aparece para todo perfil. Hoje tem **quatro** telas
+  consumidoras, cada uma com um uso (medido em 2026-10-01 com
   `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
   `MateriaisPage`, `ComponentesPage` e `PedidosPage`. A Fila do Setor e as Tarefas **não** ordenam
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica.
@@ -996,6 +1017,19 @@ também.
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-importacao-bom.sql sqlserver:/tmp/alter-importacao-bom.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-importacao-bom.sql
+```
+
+**Data de entrega do Pedido — `db/alter-data-entrega.sql`.** Mesmo formato dos anteriores (idempotente,
+`-b -f 65001`). Leva um banco anterior até o `02-modelo-de-dados.sql`: a coluna `Pedido.DataEntrega`
+(`DATE NOT NULL`), em três passos — nasce nula, os Pedidos existentes recebem a **data de abertura em
+Brasília** (um valor inventado, que faz todo Pedido antigo ainda aberto aparecer como atrasado; seção 3.2
+da spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`) e vira `NOT NULL`. Não
+precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-data-entrega.sql sqlserver:/tmp/alter-data-entrega.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-data-entrega.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

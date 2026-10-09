@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
-  listarPedidos, criarPedido, obterPedido, formatarDataHora,
+  listarPedidos, criarPedido, editarPedido, obterPedido, formatarDataHora, formatarData,
   obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
   listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
@@ -10,6 +10,7 @@ import {
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
 import { ErroDeApi } from './erros'
+import { respostaJson } from '../testes/api'
 
 describe('cadastros', () => {
   beforeEach(() => {
@@ -315,8 +316,8 @@ describe('cadastros', () => {
     expect([...url.searchParams.keys()]).toEqual(['busca', 'status', 'material', 'pagina', 'tamanho'])
   })
 
-  // D3 do plano da 1F: a ordem padrao nao vai na URL, para as URLs de hoje (e o SeletorComBusca,
-  // que nao passa ordem) ficarem como estao.
+  // A ordem padrao nao vai na URL (D3 do plano da 1F). Desde a data de entrega a padrao e `entrega`
+  // (D10 da spec da data de entrega), e `recentes` passou a ir.
   it('listarPedidos nao manda ordem quando e a padrao', async () => {
     // `mockImplementation`: um `Response` so se le uma vez, e este teste faz duas chamadas.
     const fetchMock = vi.fn().mockImplementation(async () =>
@@ -326,10 +327,21 @@ describe('cadastros', () => {
     const base = { busca: '', status: [], material: [], pagina: 1, tamanho: 20 }
 
     await listarPedidos(base)
-    await listarPedidos({ ...base, ordem: 'recentes' })
+    await listarPedidos({ ...base, ordem: 'entrega' })
 
     expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20')
     expect(fetchMock.mock.calls[1][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20')
+  })
+
+  it('listarPedidos manda ordem=recentes, que deixou de ser a padrao', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarPedidos({ busca: '', status: [], material: [], pagina: 1, tamanho: 20, ordem: 'recentes' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20&ordem=recentes')
   })
 
   it('listarPedidos manda ordem quando nao e a padrao', async () => {
@@ -360,7 +372,8 @@ describe('cadastros', () => {
   it('listarPedidos devolve o envelope de pagina', async () => {
     const pedido = {
       id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-      status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+      status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+      criadoPorUsuarioId: 1, pausa: null,
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ itens: [pedido], total: 57, pagina: 2, tamanho: 20 }), { status: 200 }),
@@ -383,7 +396,7 @@ describe('cadastros', () => {
   it('obterResumoDePedidos le /pedidos/resumo', async () => {
     const resumo = {
       porStatus: [{ status: 'Aberto', quantidade: 12 }],
-      maisAntigosAbertos: [],
+      maisUrgentes: [],
     }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(resumo), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
@@ -425,7 +438,7 @@ describe('cadastros', () => {
       ),
     ))
 
-    const resultado = await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
+    const resultado = await criarPedido({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' })
 
     expect(ehConflito(resultado)).toBe(true)
     expect(ehConflito(resultado) && resultado.existeInativo).toBe(false)
@@ -434,24 +447,46 @@ describe('cadastros', () => {
   // Molde de 'manda os tres campos do material no corpo do POST' (linha 146): sem isto, um POST
   // na URL errada, com metodo errado ou com corpo errado passaria verde so com o teste de 409
   // acima, que devolve 409 independente dos argumentos da chamada.
-  it('manda os dois campos do pedido no corpo do POST', async () => {
+  it('manda os tres campos do pedido no corpo do POST', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
           id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+      criadoPorUsuarioId: 1, pausa: null,
         }),
         { status: 201 },
       ),
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
+    await criarPedido({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' })
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/api/pedidos')
     expect(init.method).toBe('POST')
-    expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X' }))
+    expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' }))
+  })
+
+  it('editarPedido faz PUT na rota do id com os tres campos', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(respostaJson({ id: 7 })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await editarPedido(7, { numero: 'PED-007', cliente: 'Cliente X', dataEntrega: '2026-11-30' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos/7')
+    const init = fetchMock.mock.calls[0][1]!
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(String(init.body))).toEqual({ numero: 'PED-007', cliente: 'Cliente X', dataEntrega: '2026-11-30' })
+  })
+
+  it('editarPedido devolve o conflito de numero duplicado', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaJson(
+      { erro: 'ValorDuplicado', campo: 'numero', existeInativo: false, idExistente: 3 }, 409))))
+
+    const resultado = await editarPedido(7, { numero: 'PED-003', cliente: 'Cliente X', dataEntrega: '2026-11-30' })
+
+    expect(ehConflito(resultado)).toBe(true)
   })
 
   // POST /pedidos e [Authorize(Roles = "PCP,Administrador")] e o link aparece para todos os
@@ -461,7 +496,7 @@ describe('cadastros', () => {
   it('criarPedido lanca quando o backend responde 403', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 403 })))
 
-    await expect(criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })).rejects.toThrow()
+    await expect(criarPedido({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' })).rejects.toThrow()
   })
 
   // obterPedido nasce nesta task sem chamador (a tela de detalhe e da Task 11), mas ainda precisa
@@ -471,7 +506,8 @@ describe('cadastros', () => {
       new Response(
         JSON.stringify({
           id: 9, numero: 'PED-009', cliente: 'Cliente Y', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+      criadoPorUsuarioId: 1, pausa: null,
         }),
         { status: 200 },
       ),
@@ -493,6 +529,20 @@ describe('cadastros', () => {
 
   it('formata a data no fuso que a API entregou, sem reconverter pelo aparelho', () => {
     expect(formatarDataHora('2026-07-28T09:30:00-03:00')).toBe('28/07/2026 09:30')
+  })
+
+  it('formatarData corta a string e nao passa por Date, que em Brasilia cairia no dia anterior', () => {
+    const fusoAnterior = process.env.TZ
+    process.env.TZ = 'America/Sao_Paulo'
+    try {
+      // Controle positivo: neste fuso, o caminho por `Date` erra o dia. Sem ele, o teste passaria numa
+      // máquina em UTC mesmo com a implementação trocada por `new Date(...)`.
+      expect(new Date('2026-10-22').getDate()).toBe(21)
+      expect(formatarData('2026-10-22')).toBe('22/10/2026')
+    } finally {
+      if (fusoAnterior === undefined) delete process.env.TZ
+      else process.env.TZ = fusoAnterior
+    }
   })
 
   // O wire real do HorarioDeBrasiliaJsonConverter: um DateTimeOffset serializado pelo

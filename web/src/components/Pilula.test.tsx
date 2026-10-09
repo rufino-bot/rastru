@@ -38,6 +38,18 @@ describe('Pilula', () => {
     expect(classes.some((c) => c.includes('/'))).toBe(false)
   })
 
+  it('o tom atraso usa o par roxo declarado, sem verde, vermelho, ambar nem a tinta de acao', () => {
+    // Token a token, pelo mesmo motivo do teste do tom neutro. Roxo e o quarto estado reservado: so
+    // Pedido atrasado (D5 da spec da data de entrega).
+    render(<Pilula tom="atraso">Atrasado</Pilula>)
+
+    const classes = screen.getByText('Atrasado').className.split(/\s+/)
+    expect(classes).toContain('bg-atraso-fundo')
+    expect(classes).toContain('text-atraso-texto')
+    expect(classes.some((c) => /positivo-|negativo-|atencao-|acao/.test(c))).toBe(false)
+    expect(classes.some((c) => c.includes('/'))).toBe(false)
+  })
+
   it('reserva verde e vermelho para estado, em tons declarados', () => {
     const { container } = render(
       <div>

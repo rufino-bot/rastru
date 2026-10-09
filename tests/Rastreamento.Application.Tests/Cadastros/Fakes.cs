@@ -132,12 +132,12 @@ public class FakePedidoRepo : IPedidoRepository
   /// <summary>Status -> quantidade que `ContarPorStatusAsync` devolve. Arranjo do teste.</summary>
   public Dictionary<string, int> ContagemPorStatus { get; } = new();
 
-  /// <summary>O que `ListarMaisAntigosAsync` devolve. Arranjo do teste.</summary>
-  public List<Pedido> MaisAntigos { get; } = [];
+  /// <summary>O que `ListarMaisUrgentesAsync` devolve. Arranjo do teste.</summary>
+  public List<Pedido> MaisUrgentes { get; } = [];
 
-  /// <summary>Os argumentos que `ListarMaisAntigosAsync` recebeu; nulos enquanto nao foi chamado.</summary>
-  public IReadOnlyCollection<string>? MaisAntigosForaDosStatus { get; private set; }
-  public int? MaisAntigosQuantos { get; private set; }
+  /// <summary>Os argumentos que `ListarMaisUrgentesAsync` recebeu; nulos enquanto nao foi chamado.</summary>
+  public IReadOnlyCollection<string>? MaisUrgentesForaDosStatus { get; private set; }
+  public int? MaisUrgentesQuantos { get; private set; }
 
   /// <summary>O que `ListarMateriaisEmUsoAsync` devolve. Arranjo do teste.</summary>
   public List<Material> MateriaisEmUso { get; } = [];
@@ -157,6 +157,12 @@ public class FakePedidoRepo : IPedidoRepository
     {
       OrdemDePedidos.Numero => _linhas.OrderBy(p => p.Numero, StringComparer.Ordinal),
       OrdemDePedidos.Cliente => _linhas.OrderBy(p => p.Cliente, StringComparer.Ordinal).ThenByDescending(p => p.Id),
+      OrdemDePedidos.Entrega => _linhas
+          .OrderBy(p => Encerrado(p) ? 1 : 0)
+          .ThenBy(p => Encerrado(p) ? DateOnly.MinValue : p.DataEntrega)
+          .ThenByDescending(p => Encerrado(p) ? p.DataEntrega : DateOnly.MinValue)
+          .ThenBy(p => Encerrado(p) ? DateTime.MinValue : p.DataAbertura)
+          .ThenBy(p => Encerrado(p) ? -p.Id : p.Id),
       _ => _linhas.OrderByDescending(p => p.DataAbertura).ThenByDescending(p => p.Id),
     };
     IReadOnlyList<Pedido> pagina = ordenadas
@@ -169,13 +175,15 @@ public class FakePedidoRepo : IPedidoRepository
   public Task<IReadOnlyDictionary<string, int>> ContarPorStatusAsync(CancellationToken ct) =>
       Task.FromResult<IReadOnlyDictionary<string, int>>(ContagemPorStatus);
 
-  public Task<IReadOnlyList<Pedido>> ListarMaisAntigosAsync(
+  public Task<IReadOnlyList<Pedido>> ListarMaisUrgentesAsync(
       IReadOnlyCollection<string> foraDosStatus, int quantos, CancellationToken ct)
   {
-    MaisAntigosForaDosStatus = foraDosStatus;
-    MaisAntigosQuantos = quantos;
-    return Task.FromResult<IReadOnlyList<Pedido>>(MaisAntigos);
+    MaisUrgentesForaDosStatus = foraDosStatus;
+    MaisUrgentesQuantos = quantos;
+    return Task.FromResult<IReadOnlyList<Pedido>>(MaisUrgentes);
   }
+
+  private static bool Encerrado(Pedido p) => p.Status is "Concluido" or "Cancelado";
 
   public Task<IReadOnlyList<Material>> ListarMateriaisEmUsoAsync(CancellationToken ct) =>
       Task.FromResult<IReadOnlyList<Material>>(MateriaisEmUso);

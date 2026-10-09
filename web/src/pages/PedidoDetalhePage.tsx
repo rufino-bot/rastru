@@ -1,13 +1,15 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, ehConflito,
-  formatarDataHora, type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
-  type ResultadoExclusao,
+  obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito,
+  type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
+  type NovoPedido, type ResultadoExclusao,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
+import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -16,6 +18,7 @@ import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ControleDePausa } from '../pedidos/ControleDePausa'
+import { DatasDoPedido } from '../pedidos/DatasDoPedido'
 import { rotuloDoStatus } from '../pedidos/statusDoPedido'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
@@ -43,6 +46,50 @@ export function PedidoDetalhePage() {
   const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
 
   const podeEscrever = usePodeEscrever('agrupamentos')
+  // A edição do Pedido é do recurso `pedidos` (PCP e Administrador), não do `agrupamentos` da lista abaixo.
+  const podeEditarPedido = usePodeEscrever('pedidos')
+  const [edicaoAberta, setEdicaoAberta] = useState(false)
+  const [formDoPedido, setFormDoPedido] = useState<NovoPedido>({ numero: '', cliente: '', dataEntrega: '' })
+  const [erroDeEdicao, setErroDeEdicao] = useState<string | null>(null)
+  const [salvandoPedido, setSalvandoPedido] = useState(false)
+
+  // O "Editar pedido" some com o painel aberto; ao fechar, o foco volta a ele.
+  const botaoEditar = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(edicaoAberta, () => botaoEditar.current)
+
+  function abrirEdicao() {
+    if (!pedido) return
+    setFormDoPedido({ numero: pedido.numero, cliente: pedido.cliente, dataEntrega: pedido.dataEntrega })
+    setErroDeEdicao(null)
+    setEdicaoAberta(true)
+  }
+
+  function fecharEdicao() {
+    setEdicaoAberta(false)
+    setErroDeEdicao(null)
+  }
+
+  // A resposta do PUT é o Pedido inteiro (o mesmo DTO do GET, com pausa e atraso): a tela a aplica
+  // direto, sem recarregar o cabeçalho nem os Agrupamentos.
+  async function salvarPedido(e: FormEvent) {
+    e.preventDefault()
+    setErroDeEdicao(null)
+    setSalvandoPedido(true)
+    try {
+      const resultado = await editarPedido(pedidoId, formDoPedido)
+      if (ehConflito(resultado)) {
+        // Pedido não tem reativação (não há coluna Ativo): o caminho é corrigir o número.
+        setErroDeEdicao('Já existe um pedido com este número.')
+        return
+      }
+      setPedido(resultado)
+      fecharEdicao()
+    } catch (e) {
+      setErroDeEdicao(mensagemDeErro(e, 'Não foi possível salvar o pedido.'))
+    } finally {
+      setSalvandoPedido(false)
+    }
+  }
 
   // Recebe o id como argumento (em vez de fechar sobre `pedidoId` de fora) porque a dependência do
   // useEffect precisa aparecer usada dentro do corpo do callback, senão o exhaustive-deps acusa
@@ -106,7 +153,57 @@ export function PedidoDetalhePage() {
   // demolia a tela a cada ação (o que se sente como lentidão) e escondia a mensagem de recusa da
   // exclusão atrás do "Carregando…". O estado de carregamento fica ESCOPADO à lista.
   return (
-    <Pagina titulo={pedido ? pedido.numero : 'Pedido'}>
+    <Pagina
+      titulo={pedido ? pedido.numero : 'Pedido'}
+      acao={podeEditarPedido && pedido && !edicaoAberta && (
+        <Botao ref={botaoEditar} variante="secundario" onClick={abrirEdicao}>Editar pedido</Botao>
+      )}
+    >
+      {podeEditarPedido && edicaoAberta && (
+        <PainelDeEscrita titulo="Editar pedido" aoEnviar={salvarPedido} aoFechar={fecharEdicao} enviando={salvandoPedido}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Campo rotulo="Código do pedido">
+              {(id) => (
+                <input
+                  id={id}
+                  value={formDoPedido.numero}
+                  onChange={(e) => setFormDoPedido({ ...formDoPedido, numero: e.target.value })}
+                  required
+                  className={`${CLASSES_DE_CONTROLE} font-mono`}
+                />
+              )}
+            </Campo>
+            <Campo rotulo="Cliente">
+              {(id) => (
+                <input
+                  id={id}
+                  value={formDoPedido.cliente}
+                  onChange={(e) => setFormDoPedido({ ...formDoPedido, cliente: e.target.value })}
+                  required
+                  className={CLASSES_DE_CONTROLE}
+                />
+              )}
+            </Campo>
+            <Campo rotulo="Data de entrega">
+              {(id) => (
+                <input
+                  id={id}
+                  type="date"
+                  value={formDoPedido.dataEntrega}
+                  onChange={(e) => setFormDoPedido({ ...formDoPedido, dataEntrega: e.target.value })}
+                  required
+                  className={CLASSES_DE_CONTROLE}
+                />
+              )}
+            </Campo>
+          </div>
+          <BannerDeErro mensagem={erroDeEdicao} />
+          <Botao type="submit" carregando={salvandoPedido} rotuloCarregando="Salvando…" className="self-start">
+            Salvar
+          </Botao>
+        </PainelDeEscrita>
+      )}
+
       {pedido && (
         <div className="flex flex-col gap-2 rounded-lg border border-borda bg-superficie p-4">
           <p className="text-lg text-tinta">{pedido.cliente}</p>
@@ -114,7 +211,8 @@ export function PedidoDetalhePage() {
             <Pilula>{pedido.tipo}</Pilula>
             <Pilula>{rotuloDoStatus(pedido.status)}</Pilula>
             {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
-            aberto em {formatarDataHora(pedido.dataAbertura)}
+            {pedido.atrasado && <Pilula tom="atraso">Atrasado</Pilula>}
+            <DatasDoPedido dataEntrega={pedido.dataEntrega} dataAbertura={pedido.dataAbertura} />
           </p>
           <ControleDePausa pedido={pedido} aoMudar={() => carregar(pedidoId)} />
         </div>

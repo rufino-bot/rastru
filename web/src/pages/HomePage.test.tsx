@@ -14,26 +14,29 @@ afterEach(cleanup)
 const STATUS_NA_ORDEM = ['Aberto', 'EmProducao', 'AguardandoExpedicao', 'Concluido', 'Cancelado'] as const
 
 function pedido(id: number, numero: string, cliente: string, status: string, dataAbertura: string) {
-  return { id, numero, cliente, tipo: 'Normal', status, dataAbertura, criadoPorUsuarioId: 1, pausa: null }
+  return {
+    id, numero, cliente, tipo: 'Normal', status, dataAbertura, dataEntrega: '2026-10-22', atrasado: false,
+    criadoPorUsuarioId: 1, pausa: null,
+  }
 }
 
 function resumoCom(
   quantidades: Partial<Record<(typeof STATUS_NA_ORDEM)[number], number>>,
-  maisAntigosAbertos: ReturnType<typeof pedido>[] = [],
+  maisUrgentes: ReturnType<typeof pedido>[] = [],
 ) {
   return {
     porStatus: STATUS_NA_ORDEM.map((status) => ({ status, quantidade: quantidades[status] ?? 0 })),
-    maisAntigosAbertos,
+    maisUrgentes,
   }
 }
 
-// Na ordem em que o servidor os manda: do mais antigo ao mais novo, só os não encerrados.
-const MAIS_ANTIGOS = [
+// Na ordem em que o servidor os manda: do prazo mais antigo ao mais novo, só os não encerrados.
+const MAIS_URGENTES = [
   pedido(3, 'PED-003', 'Gama', 'Aberto', '2026-08-01T09:00:00-03:00'),
   pedido(4, 'PED-004', 'Delta', 'EmProducao', '2026-08-03T09:00:00-03:00'),
   pedido(1, 'PED-001', 'Alfa', 'Aberto', '2026-08-06T09:00:00-03:00'),
 ]
-const RESUMO = resumoCom({ Aberto: 2, EmProducao: 1, Concluido: 1, Cancelado: 1 }, MAIS_ANTIGOS)
+const RESUMO = resumoCom({ Aberto: 2, EmProducao: 1, Concluido: 1, Cancelado: 1 }, MAIS_URGENTES)
 
 function apiCompleta() {
   return fetchPorRota({
@@ -218,7 +221,7 @@ describe('HomePage', () => {
   })
 
   // O nome diz SÓ o que este teste prova. Ele não afirma "e preserva a reserva na linha de
-  // pedido": essa metade é estruturalmente improvável aqui — a seção "há mais tempo" exclui
+  // pedido": essa metade é estruturalmente improvável aqui — a seção "Prazos de entrega" exclui
   // `Concluido`/`Cancelado` por definição, e o `EmProducao` que sobra já é neutro, igual ao padrão
   // da `Pilula`. Quem prova a reserva são `LinhaDePedido.test.tsx` e `PedidosPage.test.tsx`, e o
   // comentário no fim deste teste aponta para lá.
@@ -251,7 +254,7 @@ describe('HomePage', () => {
       expect(pilula.className).not.toMatch(/negativo-/)
     }
 
-    // A reserva não sumiu do sistema — só do resumo. Na seção "há mais tempo" a pílula É o estado
+    // A reserva não sumiu do sistema — só do resumo. Na seção "Prazos de entrega" a pílula É o estado
     // de um pedido concreto (via `LinhaDePedido`, que continua chamando `tomDoStatus`), não
     // rótulo de contagem — e essa distinção é o que faz o vermelho continuar certo ali.
     // O fixture desta seção só tem status NÃO encerrados (o servidor exclui Concluido/Cancelado
@@ -263,7 +266,7 @@ describe('HomePage', () => {
     // tingida pelo tom que `tomDoStatus` devolve para esse status (neutro, para os três status
     // que aparecem nesta seção) — e não texto solto sem classe nenhuma, que uma correção afoita
     // na linha errada poderia produzir.
-    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    const secao = screen.getByRole('list', { name: 'Prazos de entrega' })
     const pilulaNaSecao = within(secao).getByText('Em produção')
     expect(pilulaNaSecao.className).toMatch(/bg-acao-fundo/)
     expect(pilulaNaSecao.className).toMatch(/text-acao\b/)
@@ -294,11 +297,12 @@ describe('HomePage', () => {
     expect(within(cartao).queryAllByRole('link')).toHaveLength(0)
   })
 
-  // A regra dos "abertos há mais tempo" (só os não encerrados, do mais antigo ao mais novo, no máximo
-  // cinco) mora no servidor, e quem a prova é `PedidoRepositoryTests.Mais_antigos_deixa_encerrados_de_fora_e_para_no_limite`.
+  // A regra dos mais urgentes (só os não encerrados, do prazo mais antigo ao mais novo, no máximo
+  // cinco) mora no servidor, e quem a prova é
+  // `PedidoRepositoryTests.Mais_urgentes_deixa_encerrados_de_fora_ordena_por_prazo_e_para_no_limite`.
   // Aqui a Home só apresenta o que o resumo manda — e por isso a ordem da fixture é DELIBERADAMENTE
   // não cronológica: uma Home que reordenasse por data no cliente trocaria PED-004 e PED-003.
-  it('mostra os mais antigos na ordem em que o resumo os manda', async () => {
+  it('mostra os mais urgentes na ordem em que o resumo os manda', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/componentes': () => respostaJson({ itens: [], total: 41, pagina: 1, tamanho: 1 }),
       '/api/pedidos/resumo': () => respostaJson(resumoCom({ Aberto: 2, EmProducao: 1 }, [
@@ -313,12 +317,22 @@ describe('HomePage', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     await screen.findByText('41')
 
-    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    const secao = screen.getByRole('list', { name: 'Prazos de entrega' })
     const linhas = within(secao).getAllByRole('listitem').map((li) => li.textContent)
     expect(linhas).toHaveLength(3)
     expect(linhas[0]).toContain('PED-004')
     expect(linhas[1]).toContain('PED-003')
     expect(linhas[2]).toContain('PED-001')
+  })
+
+  it('a secao de pedidos se chama Prazos de entrega', async () => {
+    vi.stubGlobal('fetch', apiCompleta())
+
+    render(<MemoryRouter><HomePage /></MemoryRouter>)
+    await screen.findByText('41')
+
+    expect(screen.getByRole('heading', { name: 'Prazos de entrega' })).toBeTruthy()
+    expect(screen.queryByText('Pedidos abertos há mais tempo')).toBeNull()
   })
 
   it('leva ao pedido certo por cada linha da lista', async () => {
@@ -329,7 +343,7 @@ describe('HomePage', () => {
     render(<MemoryRouter><HomePage /></MemoryRouter>)
     await screen.findByText('41')
 
-    const secao = screen.getByRole('list', { name: 'Pedidos abertos há mais tempo' })
+    const secao = screen.getByRole('list', { name: 'Prazos de entrega' })
     const primeira = within(secao).getAllByRole('listitem')[0]
     expect(within(primeira).getByRole('link').getAttribute('href')).toBe('/pedidos/3')
   })
@@ -348,14 +362,14 @@ describe('HomePage', () => {
     await screen.findByText('41')
 
     expect(screen.getByText('Nenhum pedido em aberto.')).toBeTruthy()
-    expect(screen.queryByRole('list', { name: 'Pedidos abertos há mais tempo' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Prazos de entrega' })).toBeNull()
     // A descrição é a metade que distingue esta causa da do teste seguinte: aqui HÁ pedido
     // cadastrado, e o que não há é pedido em aberto.
     expect(screen.getByText('Todos os pedidos cadastrados estão concluídos ou cancelados.')).toBeTruthy()
   })
 
   it('distingue cadastro vazio de todos encerrados, que caem no mesmo vazio', async () => {
-    // Os dois caminhos chegam a `maisAntigos.length === 0`, e o título é o mesmo nos dois. Sem
+    // Os dois caminhos chegam a `urgentes.length === 0`, e o título é o mesmo nos dois. Sem
     // esta ramificação a tela afirmaria que "todos os pedidos cadastrados estão concluídos ou
     // cancelados" sobre um cadastro que não tem pedido nenhum — o `CLAUDE.md` exige que o vazio
     // distinga "não achei" de "não há nada".
@@ -389,6 +403,6 @@ describe('HomePage', () => {
     await screen.findByText('O servidor não respondeu como esperado. Tente de novo em instantes.')
 
     expect(screen.queryByText('Nenhum pedido em aberto.')).toBeNull()
-    expect(screen.queryByRole('list', { name: 'Pedidos abertos há mais tempo' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Prazos de entrega' })).toBeNull()
   })
 })

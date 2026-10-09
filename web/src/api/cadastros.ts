@@ -133,6 +133,10 @@ export interface PedidoDto {
   status: string
   /** ISO 8601 com offset -03:00 — a API ja converteu (HorarioDeBrasiliaJsonConverter). */
   dataAbertura: string
+  /** Dia do prazo, `aaaa-mm-dd`, sem hora nem fuso (`DateOnly` no servidor). Exibir com `formatarData`. */
+  dataEntrega: string
+  /** Decidido no servidor com o "hoje" de Brasília (regra 33 do `01`); a tela só desenha a pílula. */
+  atrasado: boolean
   criadoPorUsuarioId: number
   /** `null` quando o Pedido não está pausado. */
   pausa: PausaResumoDto | null
@@ -141,6 +145,8 @@ export interface PedidoDto {
 export interface NovoPedido {
   numero: string
   cliente: string
+  /** `aaaa-mm-dd`, o valor do `<input type="date">`; vazio só no formulário em branco. */
+  dataEntrega: string
 }
 
 /**
@@ -154,8 +160,17 @@ export function formatarDataHora(isoComOffset: string): string {
   return `${dia}/${mes}/${ano} ${hora.slice(0, 5)}`
 }
 
-/** Ordem de `GET /pedidos`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
-export type OrdemDePedidos = 'recentes' | 'numero' | 'cliente'
+/**
+ * `"2026-10-22"` → `22/10/2026`, cortando a string. NÃO passa por `Date`: `new Date("2026-10-22")` é
+ * lido como meia-noite UTC e, num navegador em Brasília, cai no dia 21.
+ */
+export function formatarData(iso: string): string {
+  const [ano, mes, dia] = iso.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
+/** Ordem de `GET /pedidos`; `'entrega'` é a padrão do servidor e não vai na URL (D10 da spec da data de entrega). */
+export type OrdemDePedidos = 'entrega' | 'recentes' | 'numero' | 'cliente'
 
 /** Ordem de `GET /componentes`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
 export type OrdemDeComponentes = 'recentes' | 'codigo' | 'descricao'
@@ -168,7 +183,7 @@ export interface FiltroDePedidos {
   material: string[]
   pagina: number
   tamanho: number
-  /** Ausente ou `'recentes'`: o parâmetro não vai, e o servidor aplica a padrão. */
+  /** Ausente ou `'entrega'`: o parâmetro não vai, e o servidor aplica a padrão. */
   ordem?: OrdemDePedidos
 }
 
@@ -186,12 +201,12 @@ export interface ContagemDeStatusDto {
 
 /**
  * O que a Home mostra dos Pedidos, contado no servidor sobre TODOS eles: `porStatus` traz sempre os
- * cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive; `maisAntigosAbertos` são até cinco
- * Pedidos fora de `Concluido`/`Cancelado`, do mais antigo ao mais novo.
+ * cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive; `maisUrgentes` são até cinco
+ * Pedidos fora de `Concluido`/`Cancelado`, do prazo mais antigo ao mais novo (o mais atrasado primeiro).
  */
 export interface ResumoDePedidosDto {
   porStatus: ContagemDeStatusDto[]
-  maisAntigosAbertos: PedidoDto[]
+  maisUrgentes: PedidoDto[]
 }
 
 /**
@@ -204,7 +219,7 @@ export async function listarPedidos(f: FiltroDePedidos): Promise<PaginaDe<Pedido
   if (f.material.length > 0) params.set('material', f.material.join(','))
   params.set('pagina', String(f.pagina))
   params.set('tamanho', String(f.tamanho))
-  if (f.ordem !== undefined && f.ordem !== 'recentes') params.set('ordem', f.ordem)
+  if (f.ordem !== undefined && f.ordem !== 'entrega') params.set('ordem', f.ordem)
   const resp = await apiFetch(`/pedidos?${params}`)
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar pedidos (${resp.status}).`)
   return (await resp.json()) as PaginaDe<PedidoDto>
@@ -236,9 +251,14 @@ export function criarPedido(p: NovoPedido): Promise<PedidoDto | ConflitoDeCadast
   }).then(lerOuFalhar<PedidoDto>)
 }
 
-// Sem editarPedido aqui, de proposito: o PUT /pedidos/{id} existe e esta testado no backend
-// (Task 8), mas nenhuma tela de 1A tem UI de edicao — exportar a funcao sem chamador seria
-// codigo morto. Ela nasce junto com a tela que a usar.
+/** `PUT` é substituição inteira: número, cliente e data de entrega vão sempre juntos. */
+export function editarPedido(id: number, p: NovoPedido): Promise<PedidoDto | ConflitoDeCadastro> {
+  return apiFetch(`/pedidos/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(p),
+  }).then(lerOuFalhar<PedidoDto>)
+}
 
 export interface AgrupamentoDto {
   id: number

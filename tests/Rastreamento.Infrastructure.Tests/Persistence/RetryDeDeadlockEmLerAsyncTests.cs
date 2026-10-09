@@ -158,7 +158,8 @@ public class RetryDeDeadlockEmLerAsyncTests : TesteComBanco
     var pedido = new Pedido
     {
       Numero = $"ler-{Guid.NewGuid():N}"[..25], Cliente = "Cliente de teste", Tipo = "Fabricacao",
-      Status = "Aberto", DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = autor.Id,
+      Status = "Aberto", DataAbertura = DateTime.UtcNow, DataEntrega = new DateOnly(2026, 10, 22),
+      CriadoPorUsuarioId = autor.Id,
     };
     db.Pedidos.Add(pedido);
     await db.SaveChangesAsync();

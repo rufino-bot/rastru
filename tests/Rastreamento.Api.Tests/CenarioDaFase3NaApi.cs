@@ -93,7 +93,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       }
 
       var pcp = c.Como(c.Pcp);
-      c.PedidoId = await IdAsync(await pcp.PostAsJsonAsync("/api/pedidos", new { numero = $"f3-{rotulo}", cliente = "Cliente F3" }));
+      c.PedidoId = await IdAsync(await pcp.PostAsJsonAsync("/api/pedidos", new { numero = $"f3-{rotulo}", cliente = "Cliente F3", dataEntrega = "2026-10-22" }));
       c.AgrupamentoId = await IdAsync(await pcp.PostAsJsonAsync(
           $"/api/pedidos/{c.PedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Avulso" }));
       c.A = await IdAsync(await pcp.PostAsJsonAsync(

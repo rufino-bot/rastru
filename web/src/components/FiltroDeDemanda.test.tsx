@@ -236,6 +236,6 @@ describe('FiltroDeDemanda', () => {
     abrir()
 
     const html = container.innerHTML
-    expect(html).not.toMatch(/positivo|negativo|atencao/)
+    expect(html).not.toMatch(/positivo|negativo|atencao|atraso/)
   })
 })

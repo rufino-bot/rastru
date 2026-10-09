@@ -9,6 +9,11 @@ public class PedidoRepository : IPedidoRepository
   // Ignora caixa E acento; a das colunas (`SQL_Latin1_General_CP1_CI_AS`) so ignora caixa.
   private const string CollationDaBusca = "Latin1_General_CI_AI";
 
+  // Os status em que o Pedido acabou, como no `CK_Pedido_Status`. A ordem `Entrega` os separa dentro do
+  // SQL, e a Infrastructure nao referencia a Application, dona da lista da regra de atraso
+  // (decisao P3 do plano da data de entrega).
+  private static readonly string[] StatusEncerrados = ["Concluido", "Cancelado"];
+
   private readonly RastreamentoDbContext _db;
 
   public PedidoRepository(RastreamentoDbContext db) => _db = db;
@@ -65,11 +70,22 @@ public class PedidoRepository : IPedidoRepository
 
     // Toda opcao termina em ordem TOTAL, sem a qual Skip/Take repete e pula linhas entre paginas:
     // Numero e unico (UQ_Pedido_Numero), e as demais desempatam por Id (`DataAbertura` e `Cliente`
-    // nao sao unicos). Recentes e a padrao e a ordem que a listagem sempre teve.
+    // nao sao unicos).
     var ordenada = filtro.Ordem switch
     {
       OrdemDePedidos.Numero => consulta.OrderBy(p => p.Numero),
       OrdemDePedidos.Cliente => consulta.OrderBy(p => p.Cliente).ThenByDescending(p => p.Id),
+      // Abertos por prazo crescente (o mais atrasado no topo), com abertura e Id crescentes no empate;
+      // depois os encerrados por prazo DECRESCENTE e Id decrescente. Ordenar so pela data poria os
+      // Concluidos antigos no topo. As tres chaves do meio (prazo, prazo decrescente e abertura) valem
+      // NULL no grupo em que nao se aplicam, entao nao interferem nele. A ultima nunca e nula: vale
+      // `Id` num grupo e `-Id` no outro, e e ela que torna a ordem total para a paginacao.
+      OrdemDePedidos.Entrega => consulta
+          .OrderBy(p => StatusEncerrados.Contains(p.Status) ? 1 : 0)
+          .ThenBy(p => StatusEncerrados.Contains(p.Status) ? (DateOnly?)null : p.DataEntrega)
+          .ThenByDescending(p => StatusEncerrados.Contains(p.Status) ? p.DataEntrega : (DateOnly?)null)
+          .ThenBy(p => StatusEncerrados.Contains(p.Status) ? (DateTime?)null : p.DataAbertura)
+          .ThenBy(p => StatusEncerrados.Contains(p.Status) ? -p.Id : p.Id),
       _ => consulta.OrderByDescending(p => p.DataAbertura).ThenByDescending(p => p.Id),
     };
     var itens = await ordenada
@@ -86,11 +102,12 @@ public class PedidoRepository : IPedidoRepository
           .Select(g => new { Status = g.Key, Quantidade = g.Count() })
           .ToDictionaryAsync(x => x.Status, x => x.Quantidade, ct);
 
-  public async Task<IReadOnlyList<Pedido>> ListarMaisAntigosAsync(
+  public async Task<IReadOnlyList<Pedido>> ListarMaisUrgentesAsync(
       IReadOnlyCollection<string> foraDosStatus, int quantos, CancellationToken ct) =>
       await _db.Pedidos.AsNoTracking()
           .Where(p => !foraDosStatus.Contains(p.Status))
-          .OrderBy(p => p.DataAbertura)
+          .OrderBy(p => p.DataEntrega)
+          .ThenBy(p => p.DataAbertura)
           .ThenBy(p => p.Id)
           .Take(quantos)
           .ToListAsync(ct);

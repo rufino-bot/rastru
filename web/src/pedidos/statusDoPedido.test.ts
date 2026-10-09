@@ -11,14 +11,16 @@ describe('statusDoPedido', () => {
     ])
   })
 
-  // `ENCERRADOS` é o que a seção "há mais tempo" (Task 5) exclui. Se alguém acrescentar
-  // 'Cancelado' e esquecer 'Concluido' — ou vice-versa —, a Home listaria pedido encerrado como
-  // "parado há mais tempo".
+  // `ENCERRADOS` é o que o front trata como encerrado: a Home o exclui da contagem de abertos, e o
+  // `ControleDePausa` não oferece pausa a Pedido encerrado. Se alguém acrescentar 'Cancelado' e
+  // esquecer 'Concluido' — ou vice-versa —, a Home contaria Pedido encerrado como aberto. O servidor
+  // tem a lista dele (`PrazoDeEntrega.StatusEncerrados`), e quem exclui os encerrados da seção "Prazos
+  // de entrega" é ele, não o front.
   it('trata Concluido e Cancelado como encerrados, e mais nenhum', () => {
     expect(ENCERRADOS).toEqual(['Concluido', 'Cancelado'])
 
-    // O complemento, afirmado explicitamente: os três que SOBRAM são os que a seção "há mais
-    // tempo" tem de listar. Sem esta metade, acrescentar 'Aberto' a ENCERRADOS por engano passaria
+    // O complemento, afirmado explicitamente: os três que SOBRAM são os que contam como abertos na
+    // Home. Sem esta metade, acrescentar 'Aberto' a ENCERRADOS por engano passaria
     // — a primeira asserção sozinha não diz nada sobre quem ficou de fora.
     // `.some(===)` e não `.includes`: `ENCERRADOS` é uma tupla `readonly`, e `.includes` exigiria
     // um cast para aceitar um status que não está nela.

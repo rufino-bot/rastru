@@ -8,7 +8,7 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>
 /// `PedidoRepository` contra o SQL Server real: busca, filtro por status e por Material, ordem e
-/// total da pagina, os mais antigos e os Materiais em uso. Cada teste cria os SEUS Pedidos, com um
+/// total da pagina, os mais urgentes e os Materiais em uso. Cada teste cria os SEUS Pedidos, com um
 /// texto unico (cliente ou parte do numero) que a busca usa, e afirma so sobre os Ids que criou —
 /// nunca contagem global de tabela compartilhada.
 /// </summary>
@@ -24,13 +24,15 @@ public class PedidoRepositoryTests : TesteComBanco
 
   /// <summary>Pedido solto (sem Agrupamento); a limpeza dele e <see cref="ApagarPedidosAsync"/>.</summary>
   private static async Task<int> NovoPedidoAsync(
-      RastreamentoDbContext db, string numero, string cliente, string status = "Aberto", DateTime? dataAbertura = null)
+      RastreamentoDbContext db, string numero, string cliente, string status = "Aberto", DateTime? dataAbertura = null,
+      DateOnly? dataEntrega = null)
   {
     var autor = (await db.Usuarios.AsNoTracking().SingleAsync(u => u.NomeUsuario == "admin")).Id;
     var pedido = new Pedido
     {
       Numero = numero, Cliente = cliente, Tipo = "Fabricacao", Status = status,
-      DataAbertura = dataAbertura ?? DateTime.UtcNow, CriadoPorUsuarioId = autor,
+      DataAbertura = dataAbertura ?? DateTime.UtcNow, DataEntrega = dataEntrega ?? new DateOnly(2026, 10, 22),
+      CriadoPorUsuarioId = autor,
     };
     db.Pedidos.Add(pedido);
     await db.SaveChangesAsync();
@@ -329,49 +331,120 @@ public class PedidoRepositoryTests : TesteComBanco
   }
 
   [Fact]
-  public async Task Mais_antigos_deixa_encerrados_de_fora_e_para_no_limite()
+  public async Task Mais_urgentes_deixa_encerrados_de_fora_ordena_por_prazo_e_para_no_limite()
   {
     var ids = new List<int>();
     await using var db = NovoContexto();
     try
     {
-      // `ListarMaisAntigosAsync` nao tem como ser escopado: le a tabela inteira. Por isso a asercao
-      // vale com QUALQUER linha de terceiros no banco (inclusive sobra de execucao interrompida) e
-      // so compara as linhas deste teste com o que a consulta devolveu.
-      var datas = new Dictionary<int, DateTime>();
-      async Task<int> CriarAsync(string status, DateTime data)
+      // `ListarMaisUrgentesAsync` nao tem como ser escopado: le a tabela inteira. Por isso a asercao
+      // vale com QUALQUER linha de terceiros no banco (inclusive sobra de execucao interrompida, ou um
+      // Pedido gravado sem data, que vale 0001-01-01) e so compara as linhas deste teste com o que a
+      // consulta devolveu.
+      var abertura = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+      var chaves = new Dictionary<int, (DateOnly Prazo, DateTime Abertura)>();
+      async Task<int> CriarAsync(string status, DateOnly prazo, DateTime aberturaDoPedido)
       {
-        var id = await NovoPedidoAsync(db, "M-" + Unico(), "Cliente", status, data);
+        var id = await NovoPedidoAsync(db, "U-" + Unico(), "Cliente", status, aberturaDoPedido, prazo);
         ids.Add(id);   // entra na limpeza logo apos criar: nao ha janela de vazamento
-        datas[id] = data;
+        chaves[id] = (prazo, aberturaDoPedido);
         return id;
       }
 
+      // Os prazos dos quatro primeiros correm CONTRA a ordem de criacao (criado depois = prazo mais cedo),
+      // e a abertura e igual: ordenar por (DataAbertura, Id), a chave antiga, devolveria outra ordem.
       var abertos = new List<int>();
-      var statusDosAbertos = new[] { "Aberto", "EmProducao", "AguardandoExpedicao", "Aberto", "EmProducao", "Aberto" };
-      for (var i = 0; i < statusDosAbertos.Length; i++)
-        abertos.Add(await CriarAsync(statusDosAbertos[i], new DateTime(1990, 1, 1 + i, 8, 0, 0, DateTimeKind.Utc)));
-      var concluido = await CriarAsync("Concluido", new DateTime(1989, 1, 1, 8, 0, 0, DateTimeKind.Utc));
-      var cancelado = await CriarAsync("Cancelado", new DateTime(1989, 1, 2, 8, 0, 0, DateTimeKind.Utc));
+      var statusDosQuatro = new[] { "Aberto", "EmProducao", "AguardandoExpedicao", "Aberto" };
+      for (var i = 0; i < statusDosQuatro.Length; i++)
+        abertos.Add(await CriarAsync(statusDosQuatro[i], new DateOnly(1990, 1, 20 - i), abertura));
+      // Par de mesmo prazo, aberturas OPOSTAS aos Ids: so o desempate por DataAbertura poe o segundo antes.
+      var pares = new[]
+      {
+        await CriarAsync("EmProducao", new DateOnly(1990, 1, 10), abertura.AddHours(2)),
+        await CriarAsync("Aberto", new DateOnly(1990, 1, 10), abertura.AddHours(1)),
+      };
+      abertos.AddRange(pares);
+      // Encerrados com o prazo MAIS ANTIGO de todos: entrariam primeiro se nao fossem excluidos.
+      var concluido = await CriarAsync("Concluido", new DateOnly(1989, 1, 1), abertura);
+      var cancelado = await CriarAsync("Cancelado", new DateOnly(1989, 1, 2), abertura);
 
-      var achados = await new PedidoRepository(db).ListarMaisAntigosAsync(
+      var achados = await new PedidoRepository(db).ListarMaisUrgentesAsync(
           ["Concluido", "Cancelado"], 5, CancellationToken.None);
 
       // Para no limite: exatamente cinco, com seis candidatos nossos.
       Assert.Equal(5, achados.Count);
-      // Do mais antigo ao mais novo, com desempate por Id.
+      // Prazo crescente, depois abertura, depois Id.
       Assert.Equal(
-          achados.OrderBy(p => p.DataAbertura).ThenBy(p => p.Id).Select(p => p.Id),
+          achados.OrderBy(p => p.DataEntrega).ThenBy(p => p.DataAbertura).ThenBy(p => p.Id).Select(p => p.Id),
           achados.Select(p => p.Id));
-      // Nenhum encerrado, nem os nossos (mais antigos que todos os abertos: entrariam se nao fossem excluidos).
       Assert.DoesNotContain(achados, p => p.Status is "Concluido" or "Cancelado");
       Assert.DoesNotContain(achados, p => p.Id == concluido || p.Id == cancelado);
-      // Nenhuma linha nossa que devia entrar ficou de fora: as nossas ausentes rankeiam depois do quinto.
+      // Nenhuma linha nossa que devia entrar ficou de fora: as nossas ausentes rankeiam depois da quinta.
       var quinto = achados[^1];
       foreach (var id in abertos.Where(id => achados.All(p => p.Id != id)))
         Assert.True(
-            (datas[id], id).CompareTo((quinto.DataAbertura, quinto.Id)) >= 0,
-            $"Pedido {id} (aberto, {datas[id]:O}) devia ter entrado antes do quinto ({quinto.Id}, {quinto.DataAbertura:O}).");
+            (chaves[id].Prazo, chaves[id].Abertura, id).CompareTo((quinto.DataEntrega, quinto.DataAbertura, quinto.Id)) >= 0,
+            $"Pedido {id} (aberto, prazo {chaves[id].Prazo:O}) devia ter entrado antes do quinto ({quinto.Id}, {quinto.DataEntrega:O}).");
+    }
+    finally
+    {
+      await ApagarPedidosAsync(ids);
+    }
+  }
+
+  [Fact]
+  public async Task Entrega_poe_os_abertos_por_prazo_e_depois_os_encerrados_do_prazo_mais_recente()
+  {
+    // Cada mutacao da ordem troca o resultado: o encerrado de prazo MAIS ANTIGO de todos (ordenar so pela
+    // data o poria no topo), dois encerrados (prazo crescente entre eles inverteria o par) e dois abertos
+    // de mesmo prazo (o desempate por abertura decide). Escopado pela busca do cliente unico do teste.
+    var cliente = $"cli-{Unico()}";
+    var abertura = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    await using var db = NovoContexto();
+    var ids = new List<int>();
+    try
+    {
+      var concluidoAntigo = await NovoPedidoAsync(db, "E1-" + Unico(), cliente, "Concluido", abertura, new DateOnly(2020, 1, 1));
+      var canceladoRecente = await NovoPedidoAsync(db, "E2-" + Unico(), cliente, "Cancelado", abertura, new DateOnly(2020, 6, 1));
+      var abertoTarde = await NovoPedidoAsync(db, "A1-" + Unico(), cliente, "Aberto", abertura, new DateOnly(2026, 12, 1));
+      var empateAbertoDepois = await NovoPedidoAsync(db, "A2-" + Unico(), cliente, "EmProducao", abertura.AddHours(2), new DateOnly(2026, 11, 1));
+      var empateAbertoAntes = await NovoPedidoAsync(db, "A3-" + Unico(), cliente, "Aberto", abertura.AddHours(1), new DateOnly(2026, 11, 1));
+      ids.AddRange([concluidoAntigo, canceladoRecente, abertoTarde, empateAbertoDepois, empateAbertoAntes]);
+
+      var (itens, _) = await new PedidoRepository(db).ListarAsync(
+          Filtro(busca: cliente, ordem: OrdemDePedidos.Entrega), CancellationToken.None);
+
+      Assert.Equal(
+          [empateAbertoAntes, empateAbertoDepois, abertoTarde, canceladoRecente, concluidoAntigo],
+          itens.Select(p => p.Id));
+    }
+    finally
+    {
+      await ApagarPedidosAsync(ids);
+    }
+  }
+
+  [Fact]
+  public async Task Entrega_desempata_abertos_por_Id_crescente_e_encerrados_por_Id_decrescente()
+  {
+    // Mesmo prazo e mesma abertura em cada par: so o Id decide, e em direcoes opostas.
+    var cliente = $"cli-{Unico()}";
+    var abertura = new DateTime(2001, 1, 1, 8, 0, 0, DateTimeKind.Utc);
+    var prazo = new DateOnly(2026, 11, 1);
+    await using var db = NovoContexto();
+    var ids = new List<int>();
+    try
+    {
+      var aberto1 = await NovoPedidoAsync(db, "A1-" + Unico(), cliente, "Aberto", abertura, prazo);
+      var aberto2 = await NovoPedidoAsync(db, "A2-" + Unico(), cliente, "Aberto", abertura, prazo);
+      var encerrado1 = await NovoPedidoAsync(db, "E1-" + Unico(), cliente, "Concluido", abertura, prazo);
+      var encerrado2 = await NovoPedidoAsync(db, "E2-" + Unico(), cliente, "Concluido", abertura, prazo);
+      ids.AddRange([aberto1, aberto2, encerrado1, encerrado2]);
+
+      var (itens, _) = await new PedidoRepository(db).ListarAsync(
+          Filtro(busca: cliente, ordem: OrdemDePedidos.Entrega), CancellationToken.None);
+
+      Assert.Equal([aberto1, aberto2, encerrado2, encerrado1], itens.Select(p => p.Id));
     }
     finally
     {

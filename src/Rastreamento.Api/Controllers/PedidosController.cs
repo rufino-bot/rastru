@@ -14,9 +14,10 @@ public class PedidosController : CadastroControllerBase
   public PedidosController(CadastroDePedidoUseCase cadastro) => _cadastro = cadastro;
 
   /// <summary>
-  /// Pagina do filtro. `status` e `material` sao listas separadas por virgula; `ordem` e
-  /// `recentes` (a padrao), `numero` ou `cliente`. Faixa, status, material ou ordem invalidos
-  /// respondem 400 com `erro`; pagina alem do fim e 200 com `itens` vazio.
+  /// Pagina do filtro. `status` e `material` sao listas separadas por virgula; `ordem` e `entrega`
+  /// (a padrao: os nao encerrados por prazo, depois os encerrados), `recentes`, `numero` ou `cliente`.
+  /// Faixa, status, material ou ordem invalidos respondem 400 com `erro`; pagina alem do fim e 200
+  /// com `itens` vazio.
   /// </summary>
   [HttpGet]
   public async Task<IActionResult> Listar(
@@ -34,7 +35,7 @@ public class PedidosController : CadastroControllerBase
         : BadRequest(new { erro = resultado.Erro });
   }
 
-  /// <summary>Contagem por status sobre todos os Pedidos e os mais antigos ainda abertos.</summary>
+  /// <summary>Contagem por status sobre todos os Pedidos e ate cinco nao encerrados de prazo mais urgente.</summary>
   [HttpGet("resumo")]
   public async Task<IActionResult> Resumo(CancellationToken ct) =>
       Ok(await _cadastro.Resumo(ct));

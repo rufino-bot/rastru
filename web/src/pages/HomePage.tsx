@@ -71,7 +71,7 @@ export function HomePage() {
         setores: setores.length,
       })
     } catch (e) {
-      // Sem isto, uma falha numa releitura futura deixaria a seção "há mais tempo" mostrando dado
+      // Sem isto, uma falha numa releitura futura deixaria a seção "Prazos de entrega" mostrando dado
       // velho ao lado do banner de erro — o que a spec §3.4 proíbe. Hoje `carregar` roda uma vez só
       // e não há caminho que exercite isto; está aqui porque a alternativa é depender de a Home
       // nunca ganhar um botão de recarregar.
@@ -98,12 +98,12 @@ export function HomePage() {
       .filter(({ status }) => !ENCERRADOS.some((encerrado) => encerrado === status))
       .reduce((soma, { quantidade }) => soma + quantidade, 0)
 
-  // Os mais antigos chegam prontos: a regra (só os não encerrados, do mais antigo ao mais novo, no
-  // máximo cinco) é do servidor, e a Home apresenta na ordem em que vieram.
-  const maisAntigos = resumo?.maisAntigosAbertos ?? null
+  // Os mais urgentes chegam prontos: a regra (só os não encerrados, do prazo mais antigo ao mais
+  // novo, no máximo cinco) é do servidor, e a Home apresenta na ordem em que vieram.
+  const urgentes = resumo?.maisUrgentes ?? null
 
   // Derivado aqui, e não no JSX, porque lá dentro o TypeScript não estreita `porStatus` pela porta
-  // `maisAntigos !== null` — são duas variáveis diferentes para ele, mesmo que nasçam do mesmo dado.
+  // `urgentes !== null` — são duas variáveis diferentes para ele, mesmo que nasçam do mesmo dado.
   const cadastroVazio = porStatus !== null && porStatus.every(({ quantidade }) => quantidade === 0)
 
   return (
@@ -127,7 +127,7 @@ export function HomePage() {
                 //
                 // SEM `tom` de propósito — a pílula fica no tom neutro padrão. Verde e vermelho
                 // ficam reservados a ESTADO de um pedido concreto: é o que `PedidosPage` e a
-                // linha de "Pedidos abertos há mais tempo" (via `LinhaDePedido`) continuam
+                // linha de "Prazos de entrega" (via `LinhaDePedido`) continuam
                 // fazendo, e continua certo lá. Aqui a pílula é rótulo de uma CONTAGEM, não de um
                 // pedido — "Concluido 0" em verde ou "Cancelado 0" em vermelho estaria colorindo
                 // um zero, e um zero não é nem aprovação nem erro para alarmar sobre. Achado
@@ -148,15 +148,15 @@ export function HomePage() {
         <CartaoDeContagem titulo="setores ativos" valor={contagens?.setores ?? null} para="/setores" />
       </div>
 
-      {/* `maisAntigos !== null` cobre carregando E erro de uma vez: nos dois casos `resumo` é
-          `null`. Não troque por `maisAntigos?.length` — durante o carregando isso renderizaria o
+      {/* `urgentes !== null` cobre carregando E erro de uma vez: nos dois casos `resumo` é
+          `null`. Não troque por `urgentes?.length` — durante o carregando isso renderizaria o
           `EstadoVazio`, que tem `role="status"` igual ao `EstadoCarregando`, e o teste
           `mostra o indicador de carregando` faz `getByRole('status')`, que LANÇA com dois. Além
           de, claro, dizer "não há pedidos abertos" quando a verdade é "ainda não perguntei". */}
-      {maisAntigos !== null && (
+      {urgentes !== null && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold text-tinta">Pedidos abertos há mais tempo</h2>
-          {maisAntigos.length === 0 ? (
+          <h2 className="text-lg font-semibold text-tinta">Prazos de entrega</h2>
+          {urgentes.length === 0 ? (
             // Duas causas diferentes caem neste mesmo `length === 0`, e o `CLAUDE.md` exige que o
             // vazio distinga "não achei" de "não há nada": com o cadastro vazio, dizer que "todos
             // estão concluídos ou cancelados" afirma algo sobre um conjunto que não existe.
@@ -169,8 +169,8 @@ export function HomePage() {
               }
             />
           ) : (
-            <ListaDeCadastro rotulo="Pedidos abertos há mais tempo">
-              {maisAntigos.map((p) => (
+            <ListaDeCadastro rotulo="Prazos de entrega">
+              {urgentes.map((p) => (
                 <ItemDeCadastro key={p.id}>
                   <LinhaDePedido pedido={p} />
                 </ItemDeCadastro>

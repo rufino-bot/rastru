@@ -106,7 +106,7 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
   {
     var numero = $"ped-{Guid.NewGuid():N}"[..25];
     _numerosCriados.Add(numero);
-    var pedido = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X" });
+    var pedido = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
     return (await Json(pedido)).GetProperty("id").GetInt32();
   }
 

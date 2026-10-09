@@ -32,7 +32,7 @@ internal sealed class ArvoreDeTesteNoBanco
     var pedido = new Pedido
     {
       Numero = prefixo, Cliente = "Cliente de teste", Tipo = "Fabricacao", Status = "Aberto",
-      DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = autor,
+      DataAbertura = DateTime.UtcNow, DataEntrega = new DateOnly(2026, 10, 22), CriadoPorUsuarioId = autor,
     };
     db.Pedidos.Add(pedido);
     await db.SaveChangesAsync();

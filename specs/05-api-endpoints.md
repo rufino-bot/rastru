@@ -152,9 +152,11 @@ mesmo status HTTP para coisas diferentes.
 
 - `GET /pedidos` *(qualquer perfil autenticado)* — **página** de Pedidos, com busca e filtro. Todos
   os parâmetros são opcionais: `?busca=`, `?status=Aberto,EmProducao`, `?material=3,5`,
-  `?ordem=recentes|numero|cliente`, `?pagina=1`, `?tamanho=20` (teto 100). Responde `{ itens, total, pagina, tamanho }`, o mesmo envelope de
+  `?ordem=entrega|recentes|numero|cliente`, `?pagina=1`, `?tamanho=20` (teto 100). Responde `{ itens, total, pagina, tamanho }`, o mesmo envelope de
   `GET /componentes`; `total` é contado com os mesmos filtros da página. Cada item traz `pausa`:
-  `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31).
+  `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31). Cada item traz
+  também `dataEntrega` (`"aaaa-mm-dd"`, sem hora nem fuso) e `atrasado` (regra 33, calculado no
+  servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`.
   - `busca` acha o Pedido pelo **número**, pelo **cliente** ou pelo **código do Componente de
     qualquer nó dele** (a Peça ou um Item, inclusive filho). O texto é literal: `%`, `_` e `[` não
     são curinga de `LIKE`. Ignora caixa **e acento** ("metalurgica" acha "Metalúrgica"). O texto é
@@ -166,32 +168,39 @@ mesmo status HTTP para coisas diferentes.
     nunca o da receita do catálogo (`ComponenteMaterialPadrao`).
   - Entre `busca`, `status` e `material` vale **E**. Nas duas listas, pedaço vazio é ignorado e
     valor repetido colapsa (`material=3,,3` é `material=3`).
-  - `ordem`: `recentes` (a padrão — também quando ausente, vazia ou só espaços) é `DataAbertura`
-    decrescente e, no empate, `Id` decrescente, a ordem que a listagem sempre teve; `numero` é
+  - `ordem`: `entrega` (a padrão — também quando ausente, vazia ou só espaços) põe primeiro os
+    Pedidos **não encerrados** (nem `Concluido` nem `Cancelado`) por `DataEntrega` crescente — o mais
+    atrasado no topo — e, no empate, `DataAbertura` e `Id` crescentes; depois os **encerrados**, por
+    `DataEntrega` decrescente e, no empate, `Id` decrescente (ordenar só pela data poria os concluídos
+    antigos no topo). `recentes` é `DataAbertura` decrescente e, no empate, `Id` decrescente (a
+    ordem que a listagem tinha antes de 2026-10-08, quando passou a ser a padrão `entrega`); `numero` é
     `Numero` crescente (único); `cliente` é `Cliente` crescente e, no empate, `Id` decrescente. O
     desempate por `Id` (e a unicidade de `Numero`) é o que faz `Skip/Take` não repetir nem pular
     linha entre páginas. A comparação é ordinal: `Numero` (com maiúscula) é valor desconhecido.
   - **400** `{ "erro": "..." }` para `pagina` menor que 1, `tamanho` menor que 1 ou maior que 100,
     `status` fora dos cinco (a frase nomeia o valor recusado), `material` que não seja lista de
-    inteiros positivos e `ordem` desconhecida (`Ordem 'x' desconhecida. Aceitas: recentes, numero,
+    inteiros positivos e `ordem` desconhecida (`Ordem 'x' desconhecida. Aceitas: entrega, recentes, numero,
     cliente.`). A `ordem` é a última a ser validada: faixa, status e material inválidos ganham dela. **Página além do fim não é erro**: responde 200 com `itens` vazio.
 - `GET /pedidos/resumo` *(qualquer perfil autenticado)* — sem parâmetros. Responde
-  `{ porStatus, maisAntigosAbertos }`. `porStatus` é `{ status, quantidade }[]`, contado no servidor
+  `{ porStatus, maisUrgentes }`. `porStatus` é `{ status, quantidade }[]`, contado no servidor
   sobre **todos** os Pedidos (nunca sobre uma página) e com **sempre os cinco status**, na ordem do
   `CK_Pedido_Status` (`Aberto`, `EmProducao`, `AguardandoExpedicao`, `Concluido`, `Cancelado`),
-  zeros inclusive. `maisAntigosAbertos` são até 5 Pedidos, no mesmo formato de `itens` de `GET /pedidos` (com
-  `pausa`), fora de `Concluido` e `Cancelado`, por `DataAbertura` crescente — é o que a Home mostra
-  em "pedidos abertos há mais tempo".
+  zeros inclusive. `maisUrgentes` são até 5 Pedidos, no mesmo formato de `itens` de `GET /pedidos` (com
+  `pausa`), fora de `Concluido` e `Cancelado`, por `DataEntrega` crescente (desempate `DataAbertura` e
+  `Id`) — é o que a Home mostra em "Prazos de entrega". O campo se chamava `maisAntigosAbertos` até
+  2026-10-08.
 - `GET /pedidos/materiais` *(qualquer perfil autenticado)* — sem parâmetros. `{ id, codigo,
   descricao }[]` dos Materiais que aparecem em **algum nó de algum Pedido** (`EstruturaMaterial`),
   ativos ou não, por descrição e, no empate, por código. São as opções do filtro de Material da
   tela de Pedidos, sem contagem por opção.
-- `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente }`. `Tipo` nasce `Fabricacao`,
+- `POST /pedidos` *(PCP, Administrador)* — `{ numero, cliente, dataEntrega }`, com `dataEntrega` em
+  `"aaaa-mm-dd"`, obrigatória (ausente → 400) e de qualquer dia (regra 33). `Tipo` nasce `Fabricacao`,
   `Status` nasce `Aberto` e o autor vem da claim `sub` da sessão — nenhum dos três se aceita do
   cliente
 - `GET /pedidos/{id}` — só o cabeçalho, com `pausa` como em `GET /pedidos`; os Agrupamentos saem
   pelo sub-recurso abaixo
-- `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente }`. Não existe `DELETE`:
+- `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente, dataEntrega }`, substituição inteira,
+  em qualquer status. Não existe `DELETE`:
   Pedido é documento e se corrige por edição
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
   Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`

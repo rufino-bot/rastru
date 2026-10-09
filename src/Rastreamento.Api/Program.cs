@@ -108,6 +108,10 @@ builder.Services.AddScoped<IAutenticarUsuarioUseCase, AutenticarUsuarioUseCase>(
 builder.Services.AddScoped<IRenovarTokenUseCase, RenovarTokenUseCase>();
 builder.Services.AddScoped<IRevogarTokenUseCase, RevogarTokenUseCase>();
 
+// O "hoje" da regra de atraso do Pedido (PrazoDeEntrega). Injetado, e nao `DateTime.UtcNow` no use
+// case, para o teste fixar o dia.
+builder.Services.AddSingleton(TimeProvider.System);
+
 // Cadastros (Fases 1A e 1B — Componente entrou na 1B). Sem interface de use case de proposito:
 // nada os substitui por fake — os testes de Application fakeiam o repositorio. Ver a decisao
 // registrada no plano da Fase 1A.

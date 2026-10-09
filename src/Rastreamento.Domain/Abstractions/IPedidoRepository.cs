@@ -3,10 +3,11 @@ using Rastreamento.Domain.Entities;
 namespace Rastreamento.Domain.Abstractions;
 
 /// <summary>
-/// Ordem de uma pagina de Pedidos. <c>Recentes</c> (<c>DataAbertura</c> decrescente, depois
-/// <c>Id</c> decrescente) e a padrao e a que a listagem sempre teve.
+/// Ordem de uma pagina de Pedidos. <c>Entrega</c> e a padrao (D10 da spec da data de entrega): nao
+/// encerrados por prazo crescente, depois os encerrados por prazo decrescente. <c>Recentes</c> e
+/// <c>DataAbertura</c> decrescente, depois <c>Id</c> decrescente.
 /// </summary>
-public enum OrdemDePedidos { Recentes, Numero, Cliente }
+public enum OrdemDePedidos { Recentes, Numero, Cliente, Entrega }
 
 /// <summary>
 /// Filtro, ordem e faixa de uma pagina de Pedidos. <c>Pagina</c> e 1-based. Lista vazia NAO restringe:
@@ -16,7 +17,7 @@ public enum OrdemDePedidos { Recentes, Numero, Cliente }
 /// </summary>
 public sealed record FiltroDePedidos(
     string? Busca, IReadOnlyList<string> Status, IReadOnlyList<int> Materiais, int Pagina, int Tamanho,
-    OrdemDePedidos Ordem = OrdemDePedidos.Recentes);
+    OrdemDePedidos Ordem = OrdemDePedidos.Entrega);
 
 public interface IPedidoRepository
 {
@@ -31,11 +32,13 @@ public interface IPedidoRepository
 
   /// <summary>
   /// Uma pagina do filtro, com o total do MESMO filtro. Ordem, a de `FiltroDePedidos.Ordem`:
-  /// `Recentes` (a padrao) e `DataAbertura` decrescente, depois `Id` decrescente; `Numero` e
-  /// `Numero` crescente; `Cliente` e `Cliente` crescente, depois `Id` decrescente. Toda opcao
-  /// termina em ordem total (`Numero` e unico, o desempate por `Id` cobre o resto), sem a qual
-  /// `Skip/Take` repete e pula linhas entre paginas. Pedido nao tem `Ativo`: nao ha filtro de
-  /// ativo/inativo.
+  /// `Entrega` (a padrao) poe primeiro os nao encerrados (nem `Concluido` nem `Cancelado`) por
+  /// `DataEntrega` crescente, depois `DataAbertura` e `Id` crescentes, e depois os encerrados por
+  /// `DataEntrega` decrescente, depois `Id` decrescente; `Recentes` e `DataAbertura` decrescente,
+  /// depois `Id` decrescente; `Numero` e `Numero` crescente; `Cliente` e `Cliente` crescente, depois
+  /// `Id` decrescente. Toda opcao termina em ordem total (`Numero` e unico, o desempate por `Id`
+  /// cobre o resto), sem a qual `Skip/Take` repete e pula linhas entre paginas. Pedido nao tem
+  /// `Ativo`: nao ha filtro de ativo/inativo.
   /// </summary>
   Task<(IReadOnlyList<Pedido> Itens, int Total)> ListarAsync(FiltroDePedidos filtro, CancellationToken ct);
 
@@ -43,10 +46,10 @@ public interface IPedidoRepository
   Task<IReadOnlyDictionary<string, int>> ContarPorStatusAsync(CancellationToken ct);
 
   /// <summary>
-  /// Os `quantos` Pedidos mais antigos (`DataAbertura` crescente) cujo status NAO esta em
-  /// `foraDosStatus`.
+  /// Os `quantos` Pedidos mais urgentes cujo status NAO esta em `foraDosStatus`: `DataEntrega`
+  /// crescente (o mais atrasado primeiro), depois `DataAbertura` e `Id` crescentes.
   /// </summary>
-  Task<IReadOnlyList<Pedido>> ListarMaisAntigosAsync(
+  Task<IReadOnlyList<Pedido>> ListarMaisUrgentesAsync(
       IReadOnlyCollection<string> foraDosStatus, int quantos, CancellationToken ct);
 
   /// <summary>
