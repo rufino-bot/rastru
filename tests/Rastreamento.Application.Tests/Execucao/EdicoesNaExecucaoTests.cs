@@ -77,6 +77,47 @@ public class EdicoesNaExecucaoTests
   }
 
   [Fact]
+  public async Task Acrescentar_filho_a_no_ja_iniciado_da_PaiJaIniciado()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte);
+    c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 6m);
+
+    var r = await c.Estrutura().AcrescentarFilho(1, new NovoFilhoDto(null, "Arruela", 20m, 2m), Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(CodigosDaExecucao.PaiJaIniciado, r.Erro);
+    Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Contains("No 1", r.Detalhe);
+    Assert.DoesNotContain(c.Estruturas.Itens, i => i.EstruturaPaiId == 1);
+  }
+
+  [Fact]
+  public async Task Acrescentar_filho_a_no_que_nao_saiu_de_a_iniciar_e_aceito_e_trava_o_pai()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte);
+
+    var r = await c.Estrutura().AcrescentarFilho(1, new NovoFilhoDto(null, "Arruela", 20m, 2m), Ct);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal(new[] { 1 }, Assert.Single(c.Execucao.Travas));
+  }
+
+  [Fact]
+  public async Task Depois_de_estornar_todo_inicio_acrescentar_filho_volta_a_ser_aceito()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte);
+    var inicio = c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 6m);
+    c.Mover(1, TiposDeMovimentacao.Estorno, Local.NoSetor(Corte, 1), Local.AIniciar, 6m).EstornoDeId = inicio.Id;
+
+    var r = await c.Estrutura().AcrescentarFilho(1, new NovoFilhoDto(null, "Arruela", 20m, 2m), Ct);
+
+    Assert.True(r.Sucesso);
+  }
+
+  [Fact]
   public async Task Excluir_trava_a_subarvore_inteira_antes_de_ler_o_status()
   {
     var c = new CenarioDeExecucao();

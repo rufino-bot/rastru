@@ -277,7 +277,8 @@ perfil autenticado.)*
   os filhos copiados da receita abaixo dele a recebem de `ComponenteFilhoPadrao.QuantidadePadrao`.
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
   `descricao`, se informada, sobrepõe a herdada (regra 19). Sem `componenteId` (ad-hoc):
-  `descricao` é obrigatória
+  `descricao` é obrigatória. Desde a Fase 3B (D1), o pai é travado e só aceita filho novo enquanto
+  nada dele saiu de "a iniciar" (líquido de estorno): se já saiu, 409 `PaiJaIniciado`
 - `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao`, `Quantidade` e, num Item,
   `QuantidadePorPai` do nó `{id}`. Body: `{ descricao?, quantidade, quantidadePorPai? }`
   (`quantidadePorPai` obrigatória no Item, proibida na Peça). Desde a Fase 3, a quantidade não desce
@@ -356,7 +357,7 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — seis códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — sete códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
   levam `mensagem` junto do `erro`, e o `ConflitoDeConcorrencia` também (a frase de
@@ -370,6 +371,7 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
   | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
+  | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
   | `ConflitoDeConcorrencia` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}`, `DELETE /estrutura/{id}` (e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento") | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na escrita; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`; o `PUT` e o `DELETE` já podiam emitir desde a Fase 3, e os dois `POST` desde 2026-10-01 |
 
   `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas

@@ -783,6 +783,29 @@ describe('AgrupamentoDetalhePage', () => {
     expect(bannerDoPainel.closest('form')).toBe(screen.getByTestId('painel-de-escrita'))
   })
 
+  it('acrescentar filho a nó já iniciado mostra a frase do servidor no painel', async () => {
+    const frase = 'Chassi já entrou em produção: não se acrescenta filho a um nó já iniciado.'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaFilhos: { status: 409, corpo: { erro: 'PaiJaIniciado', mensagem: frase } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByRole('combobox'))
+    const listbox = await within(painel).findByRole('listbox')
+    fireEvent.click(await within(listbox).findByText('CH-100'))
+    fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
+    fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
+
+    const banner = await screen.findByText(frase)
+    expect(banner.closest('form')).toBe(screen.getByTestId('painel-de-escrita'))
+  })
+
   // Teste 5. D4 por asserção de corpo: nenhum campo além de descrição, quantidade e razão (nem
   // `componenteId`) vaza no PUT. Na Peça a razão vai `null` — é o que o backend exige (regra 26).
   it('editar uma Peça envia descrição, quantidade e a razão nula', async () => {

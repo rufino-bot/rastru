@@ -61,6 +61,8 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   // Fase 3: `ExcluirNo` roda no esquema de trava da execução (spec §8.1). `QuantidadeAbaixoDoMovimentado`
   // só existe no `EditarNo`, mas o `Record` é exaustivo sobre o tipo inteiro.
   QuantidadeAbaixoDoMovimentado: 'Não foi possível excluir: conflito na estrutura.',
+  // Fase 3B: `PaiJaIniciado` é do `acrescentarFilho`, nunca do `ExcluirNo`; entra pelo mesmo motivo.
+  PaiJaIniciado: 'Não foi possível excluir: conflito na estrutura.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 

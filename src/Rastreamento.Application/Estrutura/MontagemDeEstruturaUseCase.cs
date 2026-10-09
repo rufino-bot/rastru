@@ -269,15 +269,24 @@ public sealed class MontagemDeEstruturaUseCase
     }
 
     // Mesmo motivo de `CriarPeca`: gravar e ler de volta na transacao da execucao (retry de 1205, 409
-    // no esgotamento — o 500 medido em 2026-10-01), com o catalogo e o planejamento FORA dela (secao
-    // 3.2 da spec do conserto). Sem trava do pai: acrescentar filho e livre, ate a no ja iniciado
-    // (spec da Fase 3, secao 4.7).
+    // no esgotamento), com o catalogo e o planejamento FORA dela. Desde a Fase 3B o pai e TRAVADO e o
+    // livro dele e lido antes de gravar: acrescentar filho a no que ja saiu de "a iniciar" e recusado
+    // (spec da Fase 3B, D1) — as unidades ja iniciadas nao consumiriam o filho novo e sairiam acima do
+    // montado. A trava serializa com o Iniciar, que trava o mesmo no.
     //
-    // Residual conhecido, nao consertado (secao 3.6 da spec do conserto): o pai e lido FORA da
-    // transacao. Um `DELETE /estrutura/{id}` concorrente do pai, entre essa leitura e a gravacao, faz o
-    // INSERT do filho esbarrar na FK de `EstruturaPaiId` (547), que nao e 1205/1222 e sobe cru, como 500.
+    // Residual conhecido, nao consertado: o pai e lido FORA da transacao para planejar a copia. Um
+    // `DELETE /estrutura/{id}` concorrente do pai, entre essa leitura e a trava, faz `TravarNosAsync` nao o
+    // achar, e a escrita devolve 404 em vez de esbarrar na FK.
     return await _execucao.ExecutarAsync(async () =>
     {
+      var travado = await _execucao.TravarNosAsync([paiId], ct);
+      if (travado.Count == 0)
+        return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+      var estado = await _leitor.CarregarAsync(travado, ct);
+      if (estado.Calc.SaidoDeAIniciar(paiId) > 0m)
+        return Result<EstruturaItemDto>.Falha(CodigosDaExecucao.PaiJaIniciado, TipoDeErro.Conflito,
+            $"{estado.Nome(paiId)} já entrou em produção: não se acrescenta filho a um nó já iniciado.");
+
       var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
 
       var arvore = await _montador.MontarAsync(pai.AgrupamentoId, ct);
