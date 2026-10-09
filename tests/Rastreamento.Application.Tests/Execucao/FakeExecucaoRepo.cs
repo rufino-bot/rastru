@@ -184,7 +184,8 @@ public class FakeExecucaoRepo : IExecucaoRepository
           .Select(m => new MaterialDoNo(m.MaterialId, CatalogoDeMateriais[m.MaterialId].Codigo, CatalogoDeMateriais[m.MaterialId].Descricao))
           .OrderBy(m => m.Codigo, StringComparer.Ordinal).ToList();
       lista.Add(new ContextoDoNo(item, ag.PedidoId, ag.PedidoNumero, ClienteDoPedido.GetValueOrDefault(ag.PedidoId, ""),
-          item.AgrupamentoId, ag.Codigo, PausaDoPedido(ag.PedidoId), materiais));
+          item.AgrupamentoId, ag.Codigo, AgrupamentosKit.Contains(item.AgrupamentoId) ? "Kit" : "Avulso",
+          PausaDoPedido(ag.PedidoId), materiais));
     }
     return Task.FromResult<IReadOnlyList<ContextoDoNo>>(lista);
   }

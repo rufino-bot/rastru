@@ -219,14 +219,80 @@ public class KitsDaColetaTests
   }
 
   [Fact]
-  public async Task Consulta_le_o_Kit_pelo_repositorio()
+  public async Task Tarefas_trazem_o_Kit_montavel_e_os_filhos_saem_dos_grupos()
   {
     var c = Cenario();
     Pronto(c, 2, Corte, 8m);
     Pronto(c, 3, Dobra, 2m);
 
-    // O 2 e o 3 vao no cartao do Kit e saem do Item pronto; sem a fiacao do leitor, o Kit nao existiria e os dois
-    // seriam Item pronto.
-    Assert.Empty((await c.Consulta().Tarefas(CancellationToken.None)).Valor!.SelectMany(g => g.Itens));
+    var tarefas = (await c.Consulta().Tarefas(CancellationToken.None)).Valor!;
+    var contagem = (await c.Consulta().ContagemDeTarefas(CancellationToken.None)).Valor!;
+
+    Assert.Empty(tarefas.Grupos);
+    var kit = Assert.Single(tarefas.KitsMontaveis);
+    Assert.Empty(tarefas.KitsIncompletos);
+    Assert.Equal(1, kit.Pai.Id);
+    Assert.Equal(new SetorResumoDto(Solda, "Solda"), kit.Destino);
+    Assert.Equal(2m, kit.Conjuntos);
+    Assert.Equal(new[] { (2, 8m, "Corte"), (3, 2m, "Dobra") },
+        kit.Filhos.Select(f => (f.No.Id, f.Pronto, f.Origem!.Nome)));
+    Assert.Equal(1, contagem.Total);
+  }
+
+  [Fact]
+  public async Task Kit_incompleto_vai_para_os_incompletos_e_nao_conta()
+  {
+    var c = Cenario();
+    Pronto(c, 2, Corte, 8m);
+
+    var tarefas = (await c.Consulta().Tarefas(CancellationToken.None)).Valor!;
+
+    Assert.Empty(tarefas.KitsMontaveis);
+    Assert.Equal(1, Assert.Single(tarefas.KitsIncompletos).Pai.Id);
+    Assert.Equal(0, (await c.Consulta().ContagemDeTarefas(CancellationToken.None)).Valor!.Total);
+  }
+
+  [Fact]
+  public async Task Resumo_do_no_traz_o_tipo_do_Agrupamento()
+  {
+    var c = Cenario();
+    Pronto(c, 2, Corte, 8m);
+
+    var kit = Assert.Single((await c.Consulta().Tarefas(CancellationToken.None)).Valor!.KitsIncompletos);
+
+    Assert.Equal("Kit", kit.Pai.AgrupamentoTipo);
+  }
+
+  [Fact]
+  public async Task Resumo_do_no_de_Agrupamento_Avulso_diz_Avulso()
+  {
+    var c = Cenario(kit: false);
+    Pronto(c, 2, Corte, 8m);
+
+    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(CancellationToken.None)).Valor!.Grupos).Itens);
+
+    Assert.Equal("Avulso", tarefa.No.AgrupamentoTipo);
+  }
+
+  [Fact]
+  public async Task Grupo_de_montagem_diz_se_recebe_em_conjunto()
+  {
+    var c = Cenario();
+    EmEspera(c, 2, Corte, Solda, 4m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Solda, ComoPcp, CancellationToken.None)).Valor!.AguardandoMontagem);
+
+    Assert.True(grupo.ConjuntoCompleto);
+  }
+
+  [Fact]
+  public async Task Grupo_de_montagem_de_Avulso_nao_recebe_em_conjunto()
+  {
+    var c = Cenario(kit: false);
+    EmEspera(c, 2, Corte, Solda, 4m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Solda, ComoPcp, CancellationToken.None)).Valor!.AguardandoMontagem);
+
+    Assert.False(grupo.ConjuntoCompleto);
   }
 }

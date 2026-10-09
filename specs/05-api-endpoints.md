@@ -613,6 +613,12 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   — preenchido, dá 400 `DestinoIndevido`, mesmo que aponte o Setor certo. Redirecionar o que aguarda
   montagem fora do primeiro passo do pai é uma entrega com origem `AguardandoMontagem`, e leva ao
   primeiro passo de agora; se já está nele, 409 `RedirecionamentoSemEfeito`.
+  **Kit (Fase 3B, regra 25).** Quando o pai é de Agrupamento `Kit` e o primeiro passo dele é num Setor
+  com `UtilizaKit`, a entrega que vai à `AguardandoMontagem` desse Setor só entra em conjunto completo:
+  400 `ConjuntoIncompleto` se a lista não traz todos os filhos diretos do pai, e 409
+  `AlemDoQueOPaiPrecisa` se ela passa do que o pai ainda precisa receber (o teto: a quantidade do pai,
+  menos o já montado, menos os conjuntos que já aguardam). A entrega para o próximo passo de um Setor
+  sem `UtilizaKit` segue como antes.
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
   enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que
@@ -661,12 +667,26 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   `materiais`: `{ id, codigo, descricao }[]`, os Materiais **do próprio nó** (`EstruturaMaterial`,
   não os do catálogo do Componente), por código; lista vazia — nunca nula — quando o nó não tem
   nenhum, como o Item ad-hoc. A fila e as Tarefas **não têm parâmetro de filtro**: chegam inteiras e
-  a tela filtra no cliente, por Material e por Pedido.
-- `GET /tarefas` — os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na fila), com destino calculado, agrupados pelo Setor de origem. Na
+  a tela filtra no cliente, por Material e por Pedido. Todo nó resumido ganha ainda `agrupamentoTipo`
+  (`Kit` ou `Avulso`, o tipo do Agrupamento do nó), e o grupo de `aguardandoMontagem` ganha
+  `conjuntoCompleto` (Fase 3B): `true` quando o pai recebe os filhos só em conjunto completo (regra
+  25), e a tela oferece levar o Kit inteiro em vez de filho a filho.
+- `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos }` (Fase 3B; antes era só a lista de
+  grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
+  fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
+  pai começa num Setor com `UtilizaKit`, **não** aparece aqui, e sim no cartão do Kit. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
-  `setorId` nulo.
-- `GET /tarefas/contagem` — só o número, para o contador do menu.
+  `setorId` nulo. `kitsMontaveis` e `kitsIncompletos`: `{ pai, destino, conjuntos, filhos }[]`, em que
+  `pai` é o nó resumido, `destino` é `{ id, nome }` do Setor onde o pai começa, `conjuntos` é quantos
+  conjuntos completos dá para levar agora (um inteiro, já limitado pelo teto da regra 25; zero nos
+  incompletos) e cada filho é `{ no, quantidadePorPai, origem, ordem, pronto, jaNoDestino }`: `origem`
+  e `ordem` são o último passo do filho, onde ele aguarda coleta (nulos se ele não tem Roteiro),
+  `pronto` é o que aguarda lá e `jaNoDestino` diz que esse passo é no Setor do pai. A quantidade de
+  cada filho na entrega é `conjuntos × quantidadePorPai`, e quem a calcula é o front. Cai em
+  `kitsMontaveis` o Kit com `conjuntos` de 1 para cima.
+- `GET /tarefas/contagem` — só o número, para o contador do menu. Cada Kit montável conta como uma
+  tarefa; os incompletos não contam.
 - `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total
   montado dos nós com filhos.
 - `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno.

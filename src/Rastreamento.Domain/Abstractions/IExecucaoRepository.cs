@@ -9,7 +9,7 @@ namespace Rastreamento.Domain.Abstractions;
 /// </summary>
 public sealed record ContextoDoNo(
     EstruturaItem No, int PedidoId, string PedidoNumero, string PedidoCliente, int AgrupamentoId,
-    string AgrupamentoCodigo, PausaAberta? Pausa, IReadOnlyList<MaterialDoNo> Materiais);
+    string AgrupamentoCodigo, string AgrupamentoTipo, PausaAberta? Pausa, IReadOnlyList<MaterialDoNo> Materiais);
 
 /// <summary>Um material gravado no no: o que o filtro da fila e das tarefas oferece e casa.</summary>
 public sealed record MaterialDoNo(int Id, string Codigo, string Descricao);

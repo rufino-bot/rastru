@@ -201,12 +201,12 @@ public class ExecucaoRepository : IExecucaoRepository
                         join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
                         where p.Status != StatusConcluido && p.Status != StatusCancelado
                         orderby e.Id
-                        select new { No = e, PedidoId = p.Id, p.Numero, p.Cliente, AgrupamentoId = a.Id, a.Codigo })
+                        select new { No = e, PedidoId = p.Id, p.Numero, p.Cliente, AgrupamentoId = a.Id, a.Codigo, AgrupamentoTipo = a.Tipo })
         .ToListAsync(ct);
     var pausas = await PausasAbertas.ListarAsync(_db, linhas.Select(l => l.PedidoId).Distinct().ToList(), ct);
     var materiais = await MateriaisDosNosAsync(linhas.Select(l => l.No.Id).ToList(), ct);
     return linhas.Select(l => new ContextoDoNo(
-        l.No, l.PedidoId, l.Numero, l.Cliente, l.AgrupamentoId, l.Codigo, pausas.GetValueOrDefault(l.PedidoId),
+        l.No, l.PedidoId, l.Numero, l.Cliente, l.AgrupamentoId, l.Codigo, l.AgrupamentoTipo, pausas.GetValueOrDefault(l.PedidoId),
         materiais.GetValueOrDefault(l.No.Id) ?? [])).ToList();
   }
 

@@ -383,7 +383,7 @@ public partial class ExecucaoEndpointsTests
   {
     var nos = new[] { c.A, c.B, c.C };
     var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
-    return tarefas.EnumerateArray()
+    return tarefas.GetProperty("grupos").EnumerateArray()
         .SelectMany(s => s.GetProperty("itens").EnumerateArray())
         .Where(i => nos.Contains(i.GetProperty("no").GetProperty("id").GetInt32()))
         .ToList();

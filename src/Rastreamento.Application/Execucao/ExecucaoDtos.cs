@@ -67,7 +67,7 @@ public sealed record RoteiroDoNoDto(int EstruturaItemId, IReadOnlyList<PassoDoRo
 /// </summary>
 public sealed record NoResumoDto(
     int Id, string Descricao, string? CodigoDoComponente, int PedidoId, string PedidoNumero,
-    string PedidoCliente, int AgrupamentoId, string AgrupamentoCodigo, int? PaiId, string? PaiDescricao,
+    string PedidoCliente, int AgrupamentoId, string AgrupamentoCodigo, string AgrupamentoTipo, int? PaiId, string? PaiDescricao,
     PausaResumoDto? Pausa, IReadOnlyList<MaterialResumoDto> Materiais);
 
 /// <summary>A pausa aberta como as telas a mostram: desde quando, por quem, e o motivo.</summary>
@@ -114,11 +114,12 @@ public sealed record FilhoNaMontagemDto(
 /// <summary>
 /// Um pai com filhos aguardando neste Setor. `IniciaAqui`: este Setor e o primeiro passo do pai, onde
 /// iniciar o pai consome os filhos (spec da Fase 3D, secao 2.1). `PrimeiroPassoDoPai`: para onde levar
-/// os filhos quando nao e aqui; nulo se o pai nao tem Roteiro.
+/// os filhos quando nao e aqui; nulo se o pai nao tem Roteiro. `ConjuntoCompleto`: o pai recebe os filhos so em
+/// conjunto completo (regra 25); a Fila oferece levar o Kit inteiro em vez de filho a filho.
 /// </summary>
 public sealed record MontagemPendenteDto(
     NoResumoDto Pai, decimal FaltaMontar, decimal DaParaMontar, bool IniciaAqui, SetorResumoDto? PrimeiroPassoDoPai,
-    IReadOnlyList<FilhoNaMontagemDto> Filhos);
+    IReadOnlyList<FilhoNaMontagemDto> Filhos, bool ConjuntoCompleto);
 
 /// <summary>`Origem`: UltimoPasso (com `Ordem`) | Montagem (sem `Ordem`; excesso no nivel do no).</summary>
 public sealed record LinhaDeSobraDto(
@@ -135,6 +136,23 @@ public sealed record FilaDoSetorDto(
 public sealed record TarefaDto(NoResumoDto No, int Ordem, decimal Quantidade, DestinoDto Destino);
 
 public sealed record TarefasDoSetorDto(int SetorId, string SetorNome, IReadOnlyList<TarefaDto> Itens);
+
+/// <summary>
+/// Um filho no cartao do Kit (spec da Fase 3B, secao 5.1). `Origem` e `Ordem`: o ultimo passo do filho, onde ele
+/// aguarda coleta; nulos quando ele nao tem Roteiro. `JaNoDestino`: esse passo e no Setor onde o pai comeca.
+/// </summary>
+public sealed record FilhoDoKitDto(
+    NoResumoDto No, decimal QuantidadePorPai, SetorResumoDto? Origem, int? Ordem, decimal Pronto, bool JaNoDestino);
+
+/// <summary>
+/// Um Kit nas Tarefas (regra 23). `Conjuntos`: quantos conjuntos completos da para levar agora; zero nos incompletos.
+/// A quantidade de cada filho na entrega e `Conjuntos x QuantidadePorPai`, e quem a calcula e o front.
+/// </summary>
+public sealed record KitDto(NoResumoDto Pai, SetorResumoDto Destino, decimal Conjuntos, IReadOnlyList<FilhoDoKitDto> Filhos);
+
+/// <summary>`GET /tarefas`: os "Item pronto" por Setor de origem, e os Kits (spec da Fase 3B, secao 4.5).</summary>
+public sealed record TarefasDto(
+    IReadOnlyList<TarefasDoSetorDto> Grupos, IReadOnlyList<KitDto> KitsMontaveis, IReadOnlyList<KitDto> KitsIncompletos);
 
 public sealed record ContagemDeTarefasDto(int Total);
 
