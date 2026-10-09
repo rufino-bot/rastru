@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
-  listarPedidos, criarPedido, obterPedido, formatarDataHora, formatarData,
+  listarPedidos, criarPedido, editarPedido, obterPedido, formatarDataHora, formatarData,
   obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
   listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
@@ -10,6 +10,7 @@ import {
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
 import { ErroDeApi } from './erros'
+import { respostaJson } from '../testes/api'
 
 describe('cadastros', () => {
   beforeEach(() => {
@@ -465,6 +466,27 @@ describe('cadastros', () => {
     expect(url).toBe('/api/pedidos')
     expect(init.method).toBe('POST')
     expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' }))
+  })
+
+  it('editarPedido faz PUT na rota do id com os tres campos', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(respostaJson({ id: 7 })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await editarPedido(7, { numero: 'PED-007', cliente: 'Cliente X', dataEntrega: '2026-11-30' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos/7')
+    const init = fetchMock.mock.calls[0][1]!
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(String(init.body))).toEqual({ numero: 'PED-007', cliente: 'Cliente X', dataEntrega: '2026-11-30' })
+  })
+
+  it('editarPedido devolve o conflito de numero duplicado', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(respostaJson(
+      { erro: 'ValorDuplicado', campo: 'numero', existeInativo: false, idExistente: 3 }, 409))))
+
+    const resultado = await editarPedido(7, { numero: 'PED-003', cliente: 'Cliente X', dataEntrega: '2026-11-30' })
+
+    expect(ehConflito(resultado)).toBe(true)
   })
 
   // POST /pedidos e [Authorize(Roles = "PCP,Administrador")] e o link aparece para todos os

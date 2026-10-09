@@ -251,9 +251,14 @@ export function criarPedido(p: NovoPedido): Promise<PedidoDto | ConflitoDeCadast
   }).then(lerOuFalhar<PedidoDto>)
 }
 
-// Sem editarPedido aqui, de proposito: o PUT /pedidos/{id} existe e esta testado no backend
-// (Task 8), mas nenhuma tela de 1A tem UI de edicao — exportar a funcao sem chamador seria
-// codigo morto. Ela nasce junto com a tela que a usar.
+/** `PUT` é substituição inteira: número, cliente e data de entrega vão sempre juntos. */
+export function editarPedido(id: number, p: NovoPedido): Promise<PedidoDto | ConflitoDeCadastro> {
+  return apiFetch(`/pedidos/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(p),
+  }).then(lerOuFalhar<PedidoDto>)
+}
 
 export interface AgrupamentoDto {
   id: number

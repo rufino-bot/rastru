@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { PedidoDetalhePage } from './PedidoDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
@@ -51,6 +51,16 @@ function renderizarDetalhe() {
       </Routes>
     </MemoryRouter>,
   )
+}
+
+// O PUT de editar e o GET do cabeçalho caem no mesmo caminho: o mock separa pelo método.
+function apiComPut(put: () => Response | Promise<Response>) {
+  return vi.fn((url: string | URL, init?: RequestInit) => {
+    const caminho = String(url).split('?')[0]
+    if (caminho === '/api/pedidos/7') return Promise.resolve(init?.method === 'PUT' ? put() : respostaJson(PEDIDO))
+    if (caminho === '/api/pedidos/7/agrupamentos') return Promise.resolve(respostaJson([AGRUPAMENTO]))
+    return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+  })
 }
 
 describe('PedidoDetalhePage', () => {
@@ -530,5 +540,110 @@ describe('PedidoDetalhePage', () => {
 
     await screen.findByText('Não foi possível carregar o pedido.')
     expect(screen.queryByText('Nenhum agrupamento neste pedido')).toBeNull()
+  })
+
+  it('mostra o prazo de entrega e a pilula Atrasado so quando o servidor diz que esta atrasado', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson({ ...PEDIDO, atrasado: true }),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText(/entrega em 22\/10\/2026/)).toBeTruthy()
+    const pilula = screen.getByText('Atrasado')
+    expect(pilula.className.split(/\s+/)).toContain('text-atraso-texto')
+    cleanup()
+
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+    renderizarDetalhe()
+    await screen.findByText(/entrega em 22\/10\/2026/)
+    expect(screen.queryByText('Atrasado')).toBeNull()
+  })
+
+  describe('editar o pedido', () => {
+    it('quem nao escreve pedidos nao ve o Editar pedido', async () => {
+      perfil = 'Operador'
+      vi.stubGlobal('fetch', apiComPut(() => respostaJson(PEDIDO)))
+
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+
+      expect(screen.queryByRole('button', { name: 'Editar pedido' })).toBeNull()
+    })
+
+    it('abre o painel com numero, cliente e prazo preenchidos', async () => {
+      vi.stubGlobal('fetch', apiComPut(() => respostaJson(PEDIDO)))
+
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+
+      const painel = screen.getByRole('form', { name: 'Editar pedido' })
+      expect((within(painel).getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('PED-001')
+      expect((within(painel).getByLabelText('Cliente') as HTMLInputElement).value).toBe('Fábrica Alfa')
+      expect((within(painel).getByLabelText('Data de entrega') as HTMLInputElement).value).toBe('2026-10-22')
+    })
+
+    it('salvar manda o PUT com os tres campos, aplica a resposta e devolve o foco ao Editar pedido', async () => {
+      const editado = { ...PEDIDO, numero: 'PED-001-A', dataEntrega: '2026-12-01', atrasado: false }
+      const fetchMock = apiComPut(() => respostaJson(editado))
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+      fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'PED-001-A' } })
+      fireEvent.change(screen.getByLabelText('Data de entrega'), { target: { value: '2026-12-01' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Editar pedido' })).toBeNull())
+      const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
+      expect(JSON.parse(String(put[1]!.body))).toEqual({ numero: 'PED-001-A', cliente: 'Fábrica Alfa', dataEntrega: '2026-12-01' })
+      expect(screen.getByText(/entrega em 01\/12\/2026/)).toBeTruthy()
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar pedido' }))
+      // A resposta do PUT é o Pedido novo: sem segundo GET do cabeçalho (decisão P2 do plano).
+      expect(fetchMock.mock.calls.filter(([url, init]) => String(url) === '/api/pedidos/7' && init?.method !== 'PUT'))
+        .toHaveLength(1)
+    })
+
+    it('numero duplicado mantem o painel aberto com a mensagem dentro dele', async () => {
+      vi.stubGlobal('fetch', apiComPut(() => respostaJson(
+        { erro: 'ValorDuplicado', campo: 'numero', existeInativo: false, idExistente: 3 }, 409)))
+
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+      fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'PED-003' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+
+      const painel = await screen.findByRole('form', { name: 'Editar pedido' })
+      expect(await within(painel).findByText('Já existe um pedido com este número.')).toBeTruthy()
+      expect((within(painel).getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('PED-003')
+    })
+
+    it('com a edicao em voo, Cancelar fica desabilitado', async () => {
+      vi.stubGlobal('fetch', apiComPut(() => new Promise<Response>(() => {})))
+
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+
+      await screen.findByText('Salvando…')
+      expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('Cancelar fecha sem salvar e devolve o foco ao Editar pedido', async () => {
+      const fetchMock = apiComPut(() => respostaJson(PEDIDO))
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByRole('form', { name: 'Editar pedido' })).toBeNull()
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar pedido' }))
+    })
   })
 })

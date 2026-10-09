@@ -267,7 +267,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `ComponentesPage`, `PedidosPage` e `AgrupamentoDetalhePage` — passaram a isso na Fase 1F. **Ficaram
   de fora, por decisão escrita** (seção "Fora de escopo" daquela spec), `PedidoDetalhePage` e
   `ComponenteDetalhePage`: nelas o formulário de cadastro fica numa seção com `<h2>` próprio, não
-  logo abaixo do título, e o defeito é bem menor. Não são modelo para tela nova.
+  logo abaixo do título, e o defeito é bem menor. Não são modelo para tela nova. (Vale para o formulário
+  de Agrupamento da `PedidoDetalhePage`; a edição do próprio Pedido, que a página ganhou com a data de
+  entrega, é um `PainelDeEscrita` aberto pelo `acao` da `Pagina`, como as cinco telas.)
 - **Não escreva campo, botão, banner de erro, item de lista, pílula, paginação, estado vazio ou
   estado de carregando à mão.** As primitivas estão em `web/src/components/` (`EstadoCarregando`
   inclusive). Se faltar uma, crie-a lá com teste próprio — não a embuta na tela. O `BannerDeErro`
@@ -394,16 +396,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   abriu o painel. O controle focado sai do DOM junto com o painel, e sem o hook o foco cairia no
   `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
   tiver caído no `<body>`**: fechar um painel porque outro abriu não tira o foco do campo do painel
-  novo. A origem é o botão do cabeçalho nas cinco telas de cadastro; no modo de edição da `SetoresPage`, é o
+  novo. A origem é o botão do cabeçalho nas cinco telas de cadastro e na `PedidoDetalhePage` (o "Editar pedido"); no modo de edição da `SetoresPage`, é o
   "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. Na
   `AgrupamentoDetalhePage`, o do "Nova Peça" devolve ao "Nova Peça" e o do "Importar BOM", ao "Importar
   BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
   cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Hoje o hook tem
-  **seis** telas consumidoras e **sete** chamadas (medido em 2026-10-02 com
+  **sete** telas consumidoras e **oito** chamadas (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
-  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma): `SetoresPage`, `MateriaisPage`,
-  `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage` e `ConferenciaDeImportacaoPage`. O usuário decidiu
+  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, e de novo em 2026-10-09: oito, porque a
+  `PedidoDetalhePage` tem uma): `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage`,
+  `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage` e `PedidoDetalhePage`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -414,15 +417,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **seis** telas consumidoras (cinco escrevem o
-  `<PainelDeEscrita` à mão e uma só o usa por dentro do `PainelDoArquivoDoBom`), com **sete**
-  linhas de uso no código e **oito** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **sete** telas consumidoras (seis escrevem o
+  `<PainelDeEscrita` à mão e uma só o usa por dentro do `PainelDoArquivoDoBom`), com **oito**
+  linhas de uso no código e **nove** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
-  "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`). As sete linhas são
-  seis nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
-  `PedidosPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do nó, editar e
-  acrescentar sub-Item) — mais a do `PainelDoArquivoDoBom`. Os oito painéis são esses seis mais os dois
+  "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
+  oito, porque a `PedidoDetalhePage` ganhou o "Editar pedido"). As oito linhas são
+  sete nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
+  `PedidosPage`, `PedidoDetalhePage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do
+  nó, editar e acrescentar sub-Item) — mais a do `PainelDoArquivoDoBom`. Os nove painéis são esses sete mais os dois
   usos do `PainelDoArquivoDoBom`: o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
   `ConferenciaDeImportacaoPage` (`grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
   duas linhas em 2026-10-07). Na `AgrupamentoDetalhePage` os três painéis nunca coexistem: abrir um fecha os
