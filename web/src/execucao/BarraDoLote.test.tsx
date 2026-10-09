@@ -96,7 +96,7 @@ describe('BarraDoLote', () => {
 
     for (const el of Array.from(container.querySelectorAll('*'))) {
       if (el === banner) continue
-      expect(el.className, el.outerHTML).not.toMatch(/positivo|negativo|atencao/)
+      expect(el.className, el.outerHTML).not.toMatch(/positivo|negativo|atencao|atraso/)
     }
   })
 })

@@ -1,14 +1,14 @@
 import { Link } from 'react-router-dom'
-import { formatarDataHora, type PedidoDto } from '../api/cadastros'
+import { formatarData, formatarDataHora, type PedidoDto } from '../api/cadastros'
 import { Pilula } from '../components/Pilula'
 import { rotuloDoStatus, tomDoStatus } from './statusDoPedido'
 
 /**
- * Uma linha de Pedido: número, cliente, status e data de abertura, com o item inteiro como alvo do
- * clique.
+ * Uma linha de Pedido: número, cliente, status, prazo de entrega e data de abertura, com o item
+ * inteiro como alvo do clique.
  *
  * Hoje tem dois consumidores, e é isso que a faz primitiva: a `PedidosPage` (a lista inteira) e a
- * seção "abertos há mais tempo" da `HomePage` (os cinco mais antigos). Ambas mostram o MESMO item
+ * seção "Prazos de entrega" da `HomePage` (os cinco mais urgentes). Ambas mostram o MESMO item
  * de Pedido.
  *
  * A extração veio ANTES do segundo consumidor existir, e de propósito: em `7dbb61b` só a
@@ -37,10 +37,11 @@ export function LinhaDePedido({ pedido }: { pedido: PedidoDto }) {
       <span className="font-medium">
         <span className="font-mono">{pedido.numero}</span> — {pedido.cliente}
       </span>
-      <span className="flex items-center gap-2 text-sm text-tinta-fraca">
+      <span className="flex flex-wrap items-center gap-2 text-sm text-tinta-fraca">
         <Pilula tom={tomDoStatus(pedido.status)}>{rotuloDoStatus(pedido.status)}</Pilula>
         {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
-        aberto em {formatarDataHora(pedido.dataAbertura)}
+        {pedido.atrasado && <Pilula tom="atraso">Atrasado</Pilula>}
+        entrega em {formatarData(pedido.dataEntrega)} · aberto em {formatarDataHora(pedido.dataAbertura)}
       </span>
     </Link>
   )

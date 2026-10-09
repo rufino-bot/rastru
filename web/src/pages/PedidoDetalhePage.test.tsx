@@ -28,6 +28,7 @@ const PEDIDO = {
   tipo: 'Normal',
   status: 'Aberto',
   dataAbertura: '2026-08-06T09:30:00-03:00',
+  dataEntrega: '2026-10-22', atrasado: false,
   criadoPorUsuarioId: 1, pausa: null,
 }
 

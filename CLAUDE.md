@@ -475,7 +475,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   então ficavam **verdes**, porque teste de tela monta componente no jsdom e nunca olha o documento
   que hospeda o React.
 - **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`),
-  vermelho (`negativo`) e âmbar (`atencao`) são reservados a aprovado/ativo, reprovado/perda/erro e atenção (hoje, Pedido pausado). É o que faz a tela
+  vermelho (`negativo`), âmbar (`atencao`) e roxo (`atraso`) são reservados a aprovado/ativo,
+  reprovado/perda/erro, atenção (hoje, Pedido pausado) e Pedido atrasado (desde a data de entrega, D5 da
+  spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`: a mesma linha pode estar
+  reprovada **e** atrasada, e as duas em vermelho não se distinguiriam). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
@@ -505,7 +508,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   com um uso (medido em 2026-09-29 com
   `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`): `FilaDoSetorPage`,
   `TarefasPage` e `PedidosPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
-  estado** (`positivo`, `negativo`, `atencao`): filtro ativo não é estado de negócio, então a
+  estado** (`positivo`, `negativo`, `atencao`, `atraso`): filtro ativo não é estado de negócio, então a
   pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
   morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
   histórico) e a vírgula sai codificada (`?material=3%2C5`), embora o hook leia as duas formas.

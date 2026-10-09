@@ -133,6 +133,8 @@
   --color-negativo-fundo: #FDF4F4;   /* tinta do banner de erro; valor FIXO, não composto */
   --color-atencao-texto: #854D0E;    /* rótulo de estado de atenção (âmbar escuro) */
   --color-atencao-fundo: #FEF9C3;    /* tinta da pílula de atenção (amarelo claro); valor FIXO, não composto */
+  --color-atraso-texto: #6B21A8;     /* rótulo de estado de atraso do Pedido (roxo escuro): 7,39:1 sobre o fundo de atraso */
+  --color-atraso-fundo: #F3E8FF;     /* tinta da pílula de atraso (lilás claro); valor FIXO, não composto */
 
   /* Neutros, com viés verde-acinzentado para casarem com o chrome */
   --color-tinta: #1C2422;

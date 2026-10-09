@@ -9,7 +9,8 @@ afterEach(cleanup)
 
 const PEDIDO: PedidoDto = {
   id: 7, numero: 'PED-042', cliente: 'Metalúrgica Alfa', tipo: 'Fabricacao',
-  status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+  status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+  criadoPorUsuarioId: 1, pausa: null,
 }
 
 function renderizar(pedido: PedidoDto) {
@@ -86,6 +87,32 @@ describe('LinhaDePedido', () => {
     expect(classes).toContain('bg-atencao-fundo')
     expect(classes).toContain('text-atencao-texto')
     expect(classes.some((c) => /positivo-|negativo-/.test(c))).toBe(false)
+  })
+
+  it('mostra o prazo de entrega antes da data de abertura', () => {
+    renderizar(PEDIDO)
+
+    expect(screen.getByText(/entrega em 22\/10\/2026 · aberto em 01\/08\/2026 09:30/)).toBeTruthy()
+  })
+
+  it('mostra a pilula Atrasado so quando o servidor diz que esta atrasado', () => {
+    // A tela nao recalcula o atraso: um Pedido de prazo vencido com `atrasado: false` (encerrado) nao
+    // ganha pilula.
+    renderizar({ ...PEDIDO, dataEntrega: '2020-01-01', atrasado: false })
+    expect(screen.queryByText('Atrasado')).toBeNull()
+    cleanup()
+
+    renderizar({ ...PEDIDO, atrasado: true })
+    expect(screen.getByText('Atrasado')).toBeTruthy()
+  })
+
+  it('a pilula Atrasado usa o tom roxo, e nao o vermelho nem o ambar', () => {
+    renderizar({ ...PEDIDO, atrasado: true })
+
+    const classes = screen.getByText('Atrasado').className.split(/\s+/)
+    expect(classes).toContain('bg-atraso-fundo')
+    expect(classes).toContain('text-atraso-texto')
+    expect(classes.some((c) => /negativo-|atencao-/.test(c))).toBe(false)
   })
 
   it('estende a area clicavel ao item inteiro', () => {

@@ -133,6 +133,10 @@ export interface PedidoDto {
   status: string
   /** ISO 8601 com offset -03:00 — a API ja converteu (HorarioDeBrasiliaJsonConverter). */
   dataAbertura: string
+  /** Dia do prazo, `aaaa-mm-dd`, sem hora nem fuso (`DateOnly` no servidor). Exibir com `formatarData`. */
+  dataEntrega: string
+  /** Decidido no servidor com o "hoje" de Brasília (regra 33 do `01`); a tela só desenha a pílula. */
+  atrasado: boolean
   criadoPorUsuarioId: number
   /** `null` quando o Pedido não está pausado. */
   pausa: PausaResumoDto | null
@@ -154,8 +158,17 @@ export function formatarDataHora(isoComOffset: string): string {
   return `${dia}/${mes}/${ano} ${hora.slice(0, 5)}`
 }
 
+/**
+ * `"2026-10-22"` → `22/10/2026`, cortando a string. NÃO passa por `Date`: `new Date("2026-10-22")` é
+ * lido como meia-noite UTC e, num navegador em Brasília, cai no dia 21.
+ */
+export function formatarData(iso: string): string {
+  const [ano, mes, dia] = iso.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
 /** Ordem de `GET /pedidos`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
-export type OrdemDePedidos = 'recentes' | 'numero' | 'cliente'
+export type OrdemDePedidos = 'entrega' | 'recentes' | 'numero' | 'cliente'
 
 /** Ordem de `GET /componentes`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
 export type OrdemDeComponentes = 'recentes' | 'codigo' | 'descricao'
@@ -186,12 +199,12 @@ export interface ContagemDeStatusDto {
 
 /**
  * O que a Home mostra dos Pedidos, contado no servidor sobre TODOS eles: `porStatus` traz sempre os
- * cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive; `maisAntigosAbertos` são até cinco
- * Pedidos fora de `Concluido`/`Cancelado`, do mais antigo ao mais novo.
+ * cinco status, na ordem do `CK_Pedido_Status`, zeros inclusive; `maisUrgentes` são até cinco
+ * Pedidos fora de `Concluido`/`Cancelado`, do prazo mais antigo ao mais novo (o mais atrasado primeiro).
  */
 export interface ResumoDePedidosDto {
   porStatus: ContagemDeStatusDto[]
-  maisAntigosAbertos: PedidoDto[]
+  maisUrgentes: PedidoDto[]
 }
 
 /**

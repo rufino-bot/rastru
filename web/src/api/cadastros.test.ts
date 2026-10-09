@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
   listarMateriais, criarMaterial, definirAtivoMaterial,
-  listarPedidos, criarPedido, obterPedido, formatarDataHora,
+  listarPedidos, criarPedido, obterPedido, formatarDataHora, formatarData,
   obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
   listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
@@ -360,7 +360,8 @@ describe('cadastros', () => {
   it('listarPedidos devolve o envelope de pagina', async () => {
     const pedido = {
       id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-      status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+      status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+      criadoPorUsuarioId: 1, pausa: null,
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ itens: [pedido], total: 57, pagina: 2, tamanho: 20 }), { status: 200 }),
@@ -383,7 +384,7 @@ describe('cadastros', () => {
   it('obterResumoDePedidos le /pedidos/resumo', async () => {
     const resumo = {
       porStatus: [{ status: 'Aberto', quantidade: 12 }],
-      maisAntigosAbertos: [],
+      maisUrgentes: [],
     }
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(resumo), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
@@ -439,7 +440,8 @@ describe('cadastros', () => {
       new Response(
         JSON.stringify({
           id: 1, numero: 'PED-001', cliente: 'Cliente X', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+      criadoPorUsuarioId: 1, pausa: null,
         }),
         { status: 201 },
       ),
@@ -471,7 +473,8 @@ describe('cadastros', () => {
       new Response(
         JSON.stringify({
           id: 9, numero: 'PED-009', cliente: 'Cliente Y', tipo: 'Fabricacao',
-          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, pausa: null,
+          status: 'Aberto', dataAbertura: '2026-07-28T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
+      criadoPorUsuarioId: 1, pausa: null,
         }),
         { status: 200 },
       ),
@@ -493,6 +496,20 @@ describe('cadastros', () => {
 
   it('formata a data no fuso que a API entregou, sem reconverter pelo aparelho', () => {
     expect(formatarDataHora('2026-07-28T09:30:00-03:00')).toBe('28/07/2026 09:30')
+  })
+
+  it('formatarData corta a string e nao passa por Date, que em Brasilia cairia no dia anterior', () => {
+    const fusoAnterior = process.env.TZ
+    process.env.TZ = 'America/Sao_Paulo'
+    try {
+      // Controle positivo: neste fuso, o caminho por `Date` erra o dia. Sem ele, o teste passaria numa
+      // máquina em UTC mesmo com a implementação trocada por `new Date(...)`.
+      expect(new Date('2026-10-22').getDate()).toBe(21)
+      expect(formatarData('2026-10-22')).toBe('22/10/2026')
+    } finally {
+      if (fusoAnterior === undefined) delete process.env.TZ
+      else process.env.TZ = fusoAnterior
+    }
   })
 
   // O wire real do HorarioDeBrasiliaJsonConverter: um DateTimeOffset serializado pelo
