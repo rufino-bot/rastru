@@ -1056,6 +1056,16 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-data-entrega.sql
 ```
 
+**Fase 3B — `db/alter-fase-3b.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql`: a coluna `Setor.UtilizaKit` (`BIT NOT NULL`, default `0`). Todo Setor
+existente nasce sem a marca; a Solda é marcada pela tela de Setores. Não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3b.sql sqlserver:/tmp/alter-fase-3b.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3b.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

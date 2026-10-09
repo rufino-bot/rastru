@@ -204,4 +204,32 @@ public class CadastroDeSetorUseCaseTests
 
     Assert.Equal("solda", Assert.Single(await new CadastroDeSetorUseCase(repo).Listar(false, CancellationToken.None)).Atividade);
   }
+
+  [Fact]
+  public async Task Cadastrar_grava_UtilizaKit()
+  {
+    var repo = new FakeSetorRepo();
+    var r = await new CadastroDeSetorUseCase(repo).Cadastrar(new NovoSetorDto("Solda", null, true), CancellationToken.None);
+
+    Assert.True(r.Valor!.UtilizaKit);
+    Assert.True(Assert.Single(await new CadastroDeSetorUseCase(repo).Listar(false, CancellationToken.None)).UtilizaKit);
+  }
+
+  [Fact]
+  public async Task Cadastrar_sem_UtilizaKit_grava_falso()
+  {
+    var r = await new CadastroDeSetorUseCase(new FakeSetorRepo()).Cadastrar(new NovoSetorDto("Corte"), CancellationToken.None);
+
+    Assert.False(r.Valor!.UtilizaKit);
+  }
+
+  [Fact]
+  public async Task Editar_liga_e_desliga_UtilizaKit()
+  {
+    var repo = new FakeSetorRepo(new Setor { Id = 1, Nome = "Solda", Ativo = true });
+    var uc = new CadastroDeSetorUseCase(repo);
+
+    Assert.True((await uc.Editar(1, new NovoSetorDto("Solda", null, true), CancellationToken.None)).Valor!.UtilizaKit);
+    Assert.False((await uc.Editar(1, new NovoSetorDto("Solda", null, false), CancellationToken.None)).Valor!.UtilizaKit);
+  }
 }

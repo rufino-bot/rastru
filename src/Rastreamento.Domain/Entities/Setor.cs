@@ -13,4 +13,10 @@ public class Setor
   /// ficam "Iniciar" e "Terminar" (spec da Fase 3D, secao 2.3).
   /// </summary>
   public string? Atividade { get; set; }
+
+  /// <summary>
+  /// Regra 25: o Setor onde o Kit e montado. Filho de Agrupamento Kit que vai a montagem do pai num Setor
+  /// marcado so entra em conjunto completo (spec da Fase 3B, D3). Sem HasDefaultValue no EF: o default vive no .sql.
+  /// </summary>
+  public bool UtilizaKit { get; set; }
 }

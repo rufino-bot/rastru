@@ -50,12 +50,15 @@ reenvia e a sessão morre no primeiro refresh.
 
 - `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*. Cada item
   ganha `atividade` (spec da Fase 3D, §2.3): substantivo que nomeia os botões da fila
-  ("montagem" → "Iniciar montagem"/"Terminar montagem"); `null` quando o Setor não tem uma.
-- `POST /setores` *(Administrador)* — `{ nome, atividade? }`. `atividade` é opcional: ausente ou
+  ("montagem" → "Iniciar montagem"/"Terminar montagem"); `null` quando o Setor não tem uma. Cada
+  item ganha também `utilizaKit` (booleano, Fase 3B): marca o Setor onde o Kit é montado (regra 25).
+- `POST /setores` *(Administrador)* — `{ nome, atividade?, utilizaKit? }`. `atividade` é opcional: ausente ou
   só espaços grava `null`; espaços são aparados, mas o texto não é forçado a minúscula (desvio D5
-  do plano da Fase 3D — siglas como "CNC" são legítimas). A resposta ganha `atividade`.
-- `PUT /setores/{id}` *(Administrador)* — `{ nome, atividade? }`; substituição inteira — sem
-  `atividade` no corpo, ela é limpa. A resposta ganha `atividade`.
+  do plano da Fase 3D — siglas como "CNC" são legítimas). `utilizaKit` é opcional e o padrão é falso
+  (marca o Setor onde o Kit é montado, regra 25). A resposta ganha `atividade` e `utilizaKit`.
+- `PUT /setores/{id}` *(Administrador)* — `{ nome, atividade?, utilizaKit? }`; substituição inteira — sem
+  `atividade` no corpo, ela é limpa, e sem `utilizaKit` ele volta a falso. A resposta ganha `atividade` e
+  `utilizaKit`.
 - `PATCH /setores/{id}/ativo` *(Administrador)* — `{ ativo }`; cobre inativar **e** reativar.
   Não existe `DELETE`: catálogo se inativa, não se exclui (ver a política de exclusão na spec da
   Fase 1).

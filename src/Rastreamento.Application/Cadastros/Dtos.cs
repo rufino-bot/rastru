@@ -33,7 +33,7 @@ public sealed record DefinirAtivoDto([Required] bool? Ativo);
 // Setor
 // ---------------------------------------------------------------------------
 
-public sealed record SetorDto(int Id, string Nome, bool Ativo, string? Atividade);
+public sealed record SetorDto(int Id, string Nome, bool Ativo, string? Atividade, bool UtilizaKit);
 
 /// <remarks>
 /// `MaxLength` espelha o NVARCHAR(100) de `dbo.Setor.Nome`: nome longo demais vira 400 do proprio
@@ -46,8 +46,11 @@ public sealed record SetorDto(int Id, string Nome, bool Ativo, string? Atividade
 ///
 /// `Atividade` e opcional: ausente ou so com espacos grava NULL. `MaxLength` espelha o NVARCHAR(40)
 /// de `dbo.Setor.Atividade`.
+///
+/// `UtilizaKit` ausente grava falso; como o `PUT` é substituição inteira, quem edita manda o valor atual.
 /// </remarks>
-public sealed record NovoSetorDto([MaxLength(100)] string Nome, [MaxLength(40)] string? Atividade = null);
+public sealed record NovoSetorDto(
+    [MaxLength(100)] string Nome, [MaxLength(40)] string? Atividade = null, bool UtilizaKit = false);
 
 // ---------------------------------------------------------------------------
 // Material
