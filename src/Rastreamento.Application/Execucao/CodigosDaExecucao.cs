@@ -3,7 +3,9 @@ namespace Rastreamento.Application.Execucao;
 /// <summary>
 /// Os codigos estaveis do campo `erro` da Fase 3 (spec secao 8.2; `OrigemInvalida` e o desvio D3 do
 /// plano 2; `LoteVazio`, `LoteGrandeDemais` e `ItemRepetido` sao do iniciar e terminar em lote, spec dos
-/// filtros e do lote, secao 6.3; `PaiJaIniciado` e da guarda de acrescentar filho, spec da Fase 3B, D1). O front comuta por eles; a frase para o operador vai em `Result.Detalhe`.
+/// filtros e do lote, secao 6.3; `PaiJaIniciado` e da guarda de acrescentar filho, spec da Fase 3B, D1;
+/// `ConjuntoIncompleto` e `AlemDoQueOPaiPrecisa` sao da regra 25 na entrega, spec da Fase 3B, secao 4.3). O front
+/// comuta por eles; a frase para o operador vai em `Result.Detalhe`.
 /// </summary>
 public static class CodigosDaExecucao
 {
@@ -22,6 +24,8 @@ public static class CodigosDaExecucao
   public const string PassoJaAlcancado = "PassoJaAlcancado";
   public const string QuantidadeAbaixoDoMovimentado = "QuantidadeAbaixoDoMovimentado";
   public const string PaiJaIniciado = "PaiJaIniciado";
+  public const string ConjuntoIncompleto = "ConjuntoIncompleto";
+  public const string AlemDoQueOPaiPrecisa = "AlemDoQueOPaiPrecisa";
   public const string EstornoImpossivel = "EstornoImpossivel";
   public const string JaEstornado = "JaEstornado";
   public const string PedidoFechado = "PedidoFechado";

@@ -6,8 +6,9 @@ namespace Rastreamento.Application.Execucao;
 
 /// <summary>
 /// O Movimentador entrega uma LISTA, numa transacao so: ou tudo grava, ou nada (spec da Fase 3, secao
-/// 4.3). A lista ja serve a 3B, cujo conjunto completo exige que os filhos entrem juntos. Um mesmo no
-/// pode aparecer mais de uma vez: cada item desconta do saldo que os anteriores ja consumiram.
+/// 4.3). Filhos de Kit que vao a montagem num Setor com `UtilizaKit` entram em conjunto completo
+/// (`ConjuntoCompleto`). Um mesmo no pode aparecer mais de uma vez: cada item desconta do saldo que os
+/// anteriores ja consumiram.
 /// </summary>
 public sealed class EntregaUseCase
 {
@@ -54,12 +55,14 @@ public sealed class EntregaUseCase
         if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(id, ct)))
           return Falhas.PedidoFechado<IReadOnlyList<MovimentacaoDto>>();
 
-      // Os pais entram no estado (Roteiro, para o destino de montagem), mas nao sao travados: a entrega
-      // so le o Roteiro deles, nao escreve nada neles.
-      var paiIds = travados.Where(n => n.EstruturaPaiId is not null).Select(n => n.EstruturaPaiId!.Value)
-          .Except(ids).Distinct().ToList();
-      var pais = await _execucao.ListarNosAsync(paiIds, ct);
-      var estado = await _leitor.CarregarAsync([.. travados, .. pais], ct);
+      // Os pais e os irmaos entram no estado, mas nao sao travados: a entrega so le o Roteiro dos pais e, para o
+      // conjunto completo, os filhos de cada pai (spec da Fase 3B, secao 4.3). So os nos da lista sao escritos, e
+      // o conjunto completo obriga a lista a trazer todos os filhos: duas entregas do mesmo Kit travam os mesmos nos.
+      var paiIds = travados.Where(n => n.EstruturaPaiId is not null).Select(n => n.EstruturaPaiId!.Value).Distinct().ToList();
+      var pais = await _execucao.ListarNosAsync(paiIds.Except(ids).ToList(), ct);
+      var irmaos = new List<EstruturaItem>();
+      foreach (var paiId in paiIds) irmaos.AddRange(await _execucao.ListarFilhosAsync(paiId, ct));
+      var estado = await _leitor.CarregarAsync([.. travados, .. pais, .. irmaos], ct);
 
       var setorIds = origens.Select(o => o.SetorId!.Value)
           .Concat(travados.Where(n => n.EstruturaPaiId is not null)
@@ -71,6 +74,7 @@ public sealed class EntregaUseCase
 
       var consumido = new Dictionary<(int Item, Local Local), decimal>();
       var movimentos = new List<Movimentacao>();
+      var destinados = new List<ConjuntoCompleto.ItemDestinado>();
       for (var i = 0; i < itens.Count; i++)
       {
         var item = itens[i];
@@ -87,9 +91,13 @@ public sealed class EntregaUseCase
           return Result<IReadOnlyList<MovimentacaoDto>>.Falha(recusa.Codigo, recusa.Tipo, recusa.Mensagem);
 
         consumido[chave] = consumido.GetValueOrDefault(chave) + item.Quantidade;
+        destinados.Add(new ConjuntoCompleto.ItemDestinado(item.EstruturaItemId, origem, destino!.Value, item.Quantidade));
         movimentos.Add(NovoMovimento.De(
             item.EstruturaItemId, TiposDeMovimentacao.Entrega, item.Quantidade, origem, destino!.Value, usuarioId));
       }
+
+      if (ConjuntoCompleto.Conferir(estado, destinados) is { } recusaDoConjunto)
+        return Result<IReadOnlyList<MovimentacaoDto>>.Falha(recusaDoConjunto.Codigo, recusaDoConjunto.Tipo, recusaDoConjunto.Mensagem);
 
       foreach (var movimento in movimentos) _execucao.Adicionar(movimento);
       await _execucao.SalvarAlteracoesAsync(ct);
