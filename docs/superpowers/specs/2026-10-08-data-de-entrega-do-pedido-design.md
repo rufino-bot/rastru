@@ -16,7 +16,7 @@ dos ajustes da seção 9 e vem **antes** do plano.
 > **Emenda de 2026-10-09 (decisões do plano que mudam o corpo desta spec).** O plano
 > (`docs/superpowers/plans/2026-10-08-data-de-entrega-do-pedido.md`, seção "Decisões deste plano", P1 a P7)
 > decidiu, em quatro delas, algo diferente do que o corpo desta spec afirma, e o texto das seções fica como
-> foi desenhado: vale o que está aqui. As outras três (P3, P5 e P6) detalham o que a spec deixou em aberto
+> foi desenhado; onde ele diverge, vale esta nota. As outras três (P3, P5 e P6) detalham o que a spec deixou em aberto
 > e não a contradizem.
 >
 > - **§6.5, "No sucesso, o painel fecha e o Pedido é recarregado" (P2).** A tela aplica a resposta do
