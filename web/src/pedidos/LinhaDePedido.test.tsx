@@ -89,10 +89,15 @@ describe('LinhaDePedido', () => {
     expect(classes.some((c) => /positivo-|negativo-/.test(c))).toBe(false)
   })
 
-  it('mostra o prazo de entrega antes da data de abertura', () => {
+  it('mostra o prazo de entrega antes da data de abertura, cada um num bloco que nao quebra', () => {
     renderizar(PEDIDO)
 
-    expect(screen.getByText(/entrega em 22\/10\/2026 · aberto em 01\/08\/2026 09:30/)).toBeTruthy()
+    const entrega = screen.getByText('entrega em 22/10/2026 ·')
+    const abertura = screen.getByText('aberto em 01/08/2026 09:30')
+    expect(entrega.className.split(/\s+/)).toContain('whitespace-nowrap')
+    expect(abertura.className.split(/\s+/)).toContain('whitespace-nowrap')
+    // Ordem no documento: o prazo vem antes da abertura.
+    expect(entrega.compareDocumentPosition(abertura) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('mostra a pilula Atrasado so quando o servidor diz que esta atrasado', () => {

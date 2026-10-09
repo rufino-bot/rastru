@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito,
-  formatarData, formatarDataHora, type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
+  type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
   type NovoPedido, type ResultadoExclusao,
 } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
@@ -18,6 +18,7 @@ import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ControleDePausa } from '../pedidos/ControleDePausa'
+import { DatasDoPedido } from '../pedidos/DatasDoPedido'
 import { rotuloDoStatus } from '../pedidos/statusDoPedido'
 
 const FORMULARIO_VAZIO: NovoAgrupamento = { codigo: '', tipo: 'Kit' }
@@ -211,7 +212,7 @@ export function PedidoDetalhePage() {
             <Pilula>{rotuloDoStatus(pedido.status)}</Pilula>
             {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
             {pedido.atrasado && <Pilula tom="atraso">Atrasado</Pilula>}
-            entrega em {formatarData(pedido.dataEntrega)} · aberto em {formatarDataHora(pedido.dataAbertura)}
+            <DatasDoPedido dataEntrega={pedido.dataEntrega} dataAbertura={pedido.dataAbertura} />
           </p>
           <ControleDePausa pedido={pedido} aoMudar={() => carregar(pedidoId)} />
         </div>

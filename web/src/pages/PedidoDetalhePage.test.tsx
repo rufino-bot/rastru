@@ -564,6 +564,20 @@ describe('PedidoDetalhePage', () => {
     expect(screen.queryByText('Atrasado')).toBeNull()
   })
 
+  it('mostra o prazo e a abertura em blocos proprios que nao quebram por dentro', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+
+    renderizarDetalhe()
+
+    const entrega = await screen.findByText('entrega em 22/10/2026 ·')
+    const abertura = screen.getByText('aberto em 06/08/2026 09:30')
+    expect(entrega.className.split(/\s+/)).toContain('whitespace-nowrap')
+    expect(abertura.className.split(/\s+/)).toContain('whitespace-nowrap')
+  })
+
   describe('editar o pedido', () => {
     it('quem nao escreve pedidos nao ve o Editar pedido', async () => {
       perfil = 'Operador'

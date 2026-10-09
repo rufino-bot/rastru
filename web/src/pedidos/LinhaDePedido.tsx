@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { formatarData, formatarDataHora, type PedidoDto } from '../api/cadastros'
+import type { PedidoDto } from '../api/cadastros'
 import { Pilula } from '../components/Pilula'
+import { DatasDoPedido } from './DatasDoPedido'
 import { rotuloDoStatus, tomDoStatus } from './statusDoPedido'
 
 /**
@@ -41,7 +42,7 @@ export function LinhaDePedido({ pedido }: { pedido: PedidoDto }) {
         <Pilula tom={tomDoStatus(pedido.status)}>{rotuloDoStatus(pedido.status)}</Pilula>
         {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
         {pedido.atrasado && <Pilula tom="atraso">Atrasado</Pilula>}
-        entrega em {formatarData(pedido.dataEntrega)} · aberto em {formatarDataHora(pedido.dataAbertura)}
+        <DatasDoPedido dataEntrega={pedido.dataEntrega} dataAbertura={pedido.dataAbertura} />
       </span>
     </Link>
   )
