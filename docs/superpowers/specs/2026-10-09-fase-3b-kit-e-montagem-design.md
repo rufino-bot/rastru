@@ -247,7 +247,9 @@ pronto"), sem caixa de marcar.
 itens separados ("Entregar 2 Kits e 3 itens"), e a lista enviada é uma só.
 
 **Os filtros** (`FiltroDeDemanda`, facetas de Material e Pedido) valem para os cartões de Kit, avaliados
-pelo pai. O comportamento com os marcados ocultos pelo filtro é o de hoje.
+pelo pai e pelos filhos prontos, como o cartão de montagem da Fila já é: o Material mora nos filhos, e avaliar só o
+pai esconderia o Kit de quem filtra pela chapa do filho (decisão P5 do plano da Fase 3B). O comportamento com os
+marcados ocultos pelo filtro é o de hoje.
 
 **A recusa da API** usa o banner de erro da entrega que já existe, e a tela recarrega no 409, como hoje.
 
