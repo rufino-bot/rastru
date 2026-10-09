@@ -389,6 +389,23 @@ public class ExecucaoRepository : IExecucaoRepository
         .ToDictionaryAsync(x => x.Id, x => x.Total, ct);
   }
 
+  /// <summary>Valor de `CK_Agrupamento_Tipo` que liga o conjunto completo (regra 25).</summary>
+  private const string TipoKit = "Kit";
+
+  public async Task<IReadOnlySet<int>> ListarNosDeKitAsync(IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new HashSet<int>();
+    var lista = ids.ToList();
+    var achados = await (from e in _db.Estruturas.AsNoTracking()
+                         join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                         where lista.Contains(e.Id) && a.Tipo == TipoKit
+                         select e.Id).ToListAsync(ct);
+    return achados.ToHashSet();
+  }
+
+  public async Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct) =>
+      (await _db.Setores.AsNoTracking().Where(s => s.UtilizaKit).Select(s => s.Id).ToListAsync(ct)).ToHashSet();
+
   public async Task<IReadOnlyList<(int EstruturaItemId, int Ordem)>> ListarPassosAlcancadosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct)
   {

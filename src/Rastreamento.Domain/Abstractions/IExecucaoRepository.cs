@@ -102,6 +102,15 @@ public interface IExecucaoRepository
   Task<IReadOnlyList<(int EstruturaItemId, int Ordem)>> ListarPassosAlcancadosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct);
 
+  /// <summary>Dos nos pedidos, os que vivem num Agrupamento `Kit` (regra 25). No inexistente nao volta.</summary>
+  Task<IReadOnlySet<int>> ListarNosDeKitAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Todo Setor com `UtilizaKit`, inativos inclusive: o que ja aguarda montagem num Setor inativado continua
+  /// contando nos conjuntos a espera (spec da Fase 3B, D5).
+  /// </summary>
+  Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct);
+
   Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct);
 
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct);

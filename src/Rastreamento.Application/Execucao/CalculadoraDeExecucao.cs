@@ -5,9 +5,13 @@ namespace Rastreamento.Application.Execucao;
 
 public readonly record struct PassoDoCalculo(int SetorId, int Ordem);
 
-/// <summary>Um no como a calculadora o ve. `Roteiro` em ordem de `Ordem`.</summary>
+/// <summary>
+/// Um no como a calculadora o ve. `Roteiro` em ordem de `Ordem`. `DeKit`: o no vive num Agrupamento Kit
+/// (regra 25); o padrao falso mantem Avulso toda construcao que nao o diz.
+/// </summary>
 public sealed record NoDoCalculo(
-    int Id, int? PaiId, decimal Quantidade, decimal? QuantidadePorPai, IReadOnlyList<PassoDoCalculo> Roteiro)
+    int Id, int? PaiId, decimal Quantidade, decimal? QuantidadePorPai, IReadOnlyList<PassoDoCalculo> Roteiro,
+    bool DeKit = false)
 {
   public bool EhPeca => PaiId is null;
 }
@@ -36,6 +40,19 @@ public sealed record Montabilidade(
 public sealed record ColetaPendente(int EstruturaItemId, int SetorId, int Ordem, decimal Tarefa);
 
 /// <summary>
+/// Um filho direto num Kit (spec da Fase 3B, secao 4.4). `Pronto`: o que aguarda coleta no ultimo passo dele.
+/// `UltimoPasso` nulo: filho sem Roteiro, que nunca aguarda coleta. `JaNoDestino`: o ultimo passo e no Setor
+/// onde o pai comeca (D2 da spec da Fase 3B).
+/// </summary>
+public sealed record FilhoDoKit(int FilhoId, decimal QuantidadePorPai, PassoDoCalculo? UltimoPasso, decimal Pronto, bool JaNoDestino);
+
+/// <summary>`Conjuntos`: quantos conjuntos completos da para levar agora, sem passar do `Teto` (zero = incompleto).</summary>
+public sealed record KitDaColeta(int PaiId, int SetorDeDestinoId, decimal Teto, decimal Conjuntos, IReadOnlyList<FilhoDoKit> Filhos)
+{
+  public bool Montavel => Conjuntos >= 1m;
+}
+
+/// <summary>
 /// A regra da fila e das tarefas (spec da Fase 3, secao 7), em funcoes puras. Recebe os nos, os saldos
 /// liquidos do livro, os totais montados e os passos ja alcancados; nao le nada. As escritas validam
 /// com as MESMAS funcoes que a leitura mostra — e isso que fecha, por construcao, a tela oferecer
@@ -43,6 +60,8 @@ public sealed record ColetaPendente(int EstruturaItemId, int SetorId, int Ordem,
 ///
 /// Enxerga so os nos que recebe: o destino e a tarefa de um Item precisam do PAI na entrada. Ver o
 /// "Contrato de uso" do plano 2, Task 3.
+///
+/// Recebe tambem quais Setores tem `UtilizaKit`, para a regra do Kit (spec da Fase 3B).
 /// </summary>
 public sealed class CalculadoraDeExecucao
 {
@@ -53,12 +72,14 @@ public sealed class CalculadoraDeExecucao
   private readonly Dictionary<int, Dictionary<Local, decimal>> _liquido = new();
   private readonly IReadOnlyDictionary<int, decimal> _totaisMontados;
   private readonly Dictionary<int, HashSet<int>> _alcancados = new();
+  private readonly IReadOnlySet<int> _setoresComKit;
 
   public CalculadoraDeExecucao(
       IEnumerable<NoDoCalculo> nos,
       IEnumerable<SaldoLiquido> saldos,
       IReadOnlyDictionary<int, decimal> totaisMontados,
-      IEnumerable<(int EstruturaItemId, int Ordem)> passosAlcancados)
+      IEnumerable<(int EstruturaItemId, int Ordem)> passosAlcancados,
+      IReadOnlySet<int>? setoresComKit = null)
   {
     _nos = nos.ToDictionary(n => n.Id);
     _filhos = _nos.Values.Where(n => n.PaiId is not null).OrderBy(n => n.Id).ToLookup(n => n.PaiId!.Value);
@@ -79,6 +100,8 @@ public sealed class CalculadoraDeExecucao
         _alcancados[item] = doNo = new HashSet<int>();
       doNo.Add(ordem);
     }
+
+    _setoresComKit = setoresComKit ?? new HashSet<int>();
   }
 
   public IEnumerable<NoDoCalculo> Nos => _nos.Values.OrderBy(n => n.Id);
@@ -227,7 +250,84 @@ public sealed class CalculadoraDeExecucao
     return new Montabilidade(paiId, setorId, falta, n, lista);
   }
 
-  /// <summary>Todo (no, passo) que aguarda coleta com tarefa positiva, por Setor, no e passo.</summary>
+  public bool SetorUtilizaKit(int setorId) => _setoresComKit.Contains(setorId);
+
+  /// <summary>
+  /// Regra 25 (D3 da spec da Fase 3B): o pai de Agrupamento Kit, com filhos, cujo PRIMEIRO passo e num Setor com
+  /// `UtilizaKit` recebe os filhos so em conjuntos completos.
+  /// </summary>
+  public bool RecebeEmConjunto(int paiId) =>
+      _nos.TryGetValue(paiId, out var pai) && pai.DeKit && TemFilhos(paiId)
+      && PrimeiroPasso(paiId) is PassoDoCalculo primeiro && _setoresComKit.Contains(primeiro.SetorId);
+
+  /// <summary>O que o filho aguarda montagem em Setores com `UtilizaKit`, menos o que esta saindo de la.</summary>
+  private decimal EmEsperaNoKit(int filhoId, decimal saindo) =>
+      LiquidoDo(filhoId)
+          .Where(kv => kv.Key.Posicao == Posicoes.AguardandoMontagem && _setoresComKit.Contains(kv.Key.SetorId!.Value))
+          .Sum(kv => kv.Value) - saindo;
+
+  /// <summary>
+  /// Os conjuntos que entraram e ainda nao foram montados (regra 25), contados pelo filho mais adiantado: o maior
+  /// `ceil(espera / razao)` entre os filhos diretos (D5 da spec da Fase 3B). Arredondar para cima e o que mantem
+  /// contado o conjunto que perdeu parte dentro da Solda. `saindo` (filho -> quantidade) e o que um
+  /// redirecionamento tira da espera de um Setor com `UtilizaKit`: ja estava contado, nao conta de novo.
+  /// </summary>
+  public decimal ConjuntosAEspera(int paiId, IReadOnlyDictionary<int, decimal>? saindo = null)
+  {
+    var maior = 0m;
+    foreach (var filho in Filhos(paiId))
+    {
+      var razao = Razao(filho);
+      if (razao <= 0m) continue;
+      var espera = EmEsperaNoKit(filho.Id, saindo?.GetValueOrDefault(filho.Id) ?? 0m);
+      if (espera > 0m) maior = Math.Max(maior, Math.Ceiling(espera / razao));
+    }
+    return maior;
+  }
+
+  /// <summary>Quantos conjuntos o pai ainda precisa receber (regra 25): quantidade, menos o montado, menos a espera.</summary>
+  public decimal TetoDeEntrada(int paiId, IReadOnlyDictionary<int, decimal>? saindo = null) =>
+      Math.Max(0m, FaltaMontar(paiId) - ConjuntosAEspera(paiId, saindo));
+
+  private PassoDoCalculo? UltimoPasso(int id) => _nos[id].Roteiro.Count == 0 ? null : _nos[id].Roteiro[^1];
+
+  /// <summary>O filho de Kit que aguarda coleta no ULTIMO passo vai para o cartao do Kit, nao para o "Item pronto".</summary>
+  private bool VaiNoKit(int id, int ordem) =>
+      _nos[id].PaiId is int paiId && ProximoPasso(id, ordem) is null && RecebeEmConjunto(paiId);
+
+  /// <summary>
+  /// Os Kits que as Tarefas mostram (regra 23; spec da Fase 3B, secao 4.4): todo pai que recebe em conjunto, com
+  /// teto maior que zero e algum filho pronto. `Conjuntos` = min(teto, min por filho de floor(pronto / razao)).
+  /// </summary>
+  public IReadOnlyList<KitDaColeta> KitsDaColeta()
+  {
+    var lista = new List<KitDaColeta>();
+    foreach (var pai in Nos)
+    {
+      if (!RecebeEmConjunto(pai.Id)) continue;
+      var teto = TetoDeEntrada(pai.Id);
+      if (teto <= 0m) continue;
+      var destino = PrimeiroPasso(pai.Id)!.Value.SetorId;
+      var filhos = Filhos(pai.Id).Select(c =>
+      {
+        var ultimo = UltimoPasso(c.Id);
+        var pronto = ultimo is PassoDoCalculo u ? Math.Max(0m, Saldo(c.Id, Local.AguardandoColeta(u.SetorId, u.Ordem))) : 0m;
+        return new FilhoDoKit(c.Id, Razao(c), ultimo, pronto, ultimo?.SetorId == destino);
+      }).ToList();
+      if (filhos.All(f => f.Pronto <= 0m)) continue;
+
+      var conjuntos = Math.Floor(teto);
+      foreach (var f in filhos)
+        conjuntos = Math.Min(conjuntos, f.QuantidadePorPai <= 0m ? 0m : Math.Floor(f.Pronto / f.QuantidadePorPai));
+      lista.Add(new KitDaColeta(pai.Id, destino, teto, conjuntos, filhos));
+    }
+    return lista;
+  }
+
+  /// <summary>
+  /// Todo (no, passo) que aguarda coleta com tarefa positiva, por Setor, no e passo. Sem os filhos de Kit no
+  /// ultimo passo, que vao no cartao do Kit (`KitsDaColeta`).
+  /// </summary>
   public IReadOnlyList<ColetaPendente> ColetasPendentes()
   {
     var lista = new List<ColetaPendente>();
@@ -237,6 +337,7 @@ public sealed class CalculadoraDeExecucao
       foreach (var local in locais.Keys)
       {
         if (local.Posicao != Posicoes.AguardandoColeta) continue;
+        if (VaiNoKit(id, local.Ordem!.Value)) continue;
         var tarefa = Tarefa(id, local.SetorId!.Value, local.Ordem!.Value);
         if (tarefa > 0m) lista.Add(new ColetaPendente(id, local.SetorId.Value, local.Ordem.Value, tarefa));
       }

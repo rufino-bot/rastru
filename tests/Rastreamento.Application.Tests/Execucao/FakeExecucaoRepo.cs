@@ -35,6 +35,12 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>AgrupamentoId -> (Codigo, PedidoId, PedidoNumero). Arranjo do teste.</summary>
   public Dictionary<int, (string Codigo, int PedidoId, string PedidoNumero)> Agrupamentos { get; } = new();
 
+  /// <summary>AgrupamentoIds de Agrupamento `Kit`. Arranjo do teste; o padrao e Avulso.</summary>
+  public HashSet<int> AgrupamentosKit { get; } = new();
+
+  /// <summary>SetorIds com `UtilizaKit`. Arranjo do teste.</summary>
+  public HashSet<int> SetoresComKit { get; } = new();
+
   public Dictionary<int, string> StatusDoPedido { get; } = new();
 
   /// <summary>PedidoId -> Cliente. Arranjo do teste; pedido sem entrada volta com cliente vazio.</summary>
@@ -266,6 +272,14 @@ public class FakeExecucaoRepo : IExecucaoRepository
     }
     return Task.FromResult<IReadOnlyList<(int EstruturaItemId, int Ordem)>>(passos.ToList());
   }
+
+  public Task<IReadOnlySet<int>> ListarNosDeKitAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlySet<int>>(_estruturas.Itens
+          .Where(i => ids.Contains(i.Id) && AgrupamentosKit.Contains(i.AgrupamentoId))
+          .Select(i => i.Id).ToHashSet());
+
+  public Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct) =>
+      Task.FromResult<IReadOnlySet<int>>(SetoresComKit.ToHashSet());
 
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));
