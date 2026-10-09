@@ -742,6 +742,20 @@ nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de 
    dos dois parágrafos acima. O que fecha isso não é técnica e sim forma: gerar brief ou pacote é
    uma chamada, `git add` é outra, e o `git add` do ledger vai por caminho explícito.
 
+   **O segundo limite, medido em 2026-10-09: o diretório de trabalho.** O script resolvia a raiz
+   do projeto com `git rev-parse --show-toplevel`, a partir do cwd de quem o chama, e o hook roda no
+   cwd que a última chamada de Bash deixou. Quando essa chamada terminava dentro de `.superpowers/`,
+   que é outro repositório git, o `rev-parse` devolvia a raiz do **ledger**, o alvo virava
+   `.superpowers/.superpowers/sdd/.gitignore`, que não existe, e o script saía com 0 sem apagar nada:
+   com cwd na raiz do código ou em `web/` o arquivo era apagado, com cwd em `.superpowers/` ele
+   continuava lá, e o hook ao vivo deu o mesmo resultado. Está **consertado**: a raiz agora vem da
+   **localização do próprio script** (`BASH_SOURCE`, o mesmo idioma do `scripts/estado`), sem `git` e
+   sem depender do cwd. Os casos foram exercitados de novo na data — cwd na raiz do código, em
+   `.superpowers/`, em `web/` e fora de qualquer repositório (`C:/`) apagam; conteúdo deliberado fica
+   intocado; arquivo ausente sai com 0 sem saída — e a versão antiga, com cwd em `.superpowers/`,
+   serviu de controle negativo (não apagou). Isso fecha o limite do cwd e **só** ele: o limite
+   "entre chamadas" do parágrafo anterior continua valendo, e o hook segue não sendo absoluto.
+
 Backend (solution `Rastreamento.slnx`, na raiz):
 
 ```bash

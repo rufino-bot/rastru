@@ -30,9 +30,18 @@
 # -----------------
 # Se o arquivo existir com QUALQUER outro conteudo, ele nao toca -- pode ser exclusao deliberada
 # que alguem escreveu, e apagar isso seria o mesmo erro em sentido contrario.
+#
+# DE ONDE VEM A RAIZ
+# ------------------
+# A raiz do projeto vem da LOCALIZAÇÃO DESTE SCRIPT, não do diretório de trabalho de quem o chama.
+# O hook roda no cwd que a última chamada de Bash deixou, e esse cwd pode estar dentro de
+# `.superpowers/`, que é outro repositório git: ali, `git rev-parse --show-toplevel` devolve a
+# raiz do LEDGER, o alvo vira `.superpowers/.superpowers/sdd/.gitignore`, que não existe, e o
+# script sai com 0 sem fazer nada -- um no-op silencioso, indistinguível de "nada a desarmar".
+# Resolver pela localização do arquivo não depende de `git` nem do cwd.
 set -euo pipefail
 
-raiz=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+raiz=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd) || exit 0
 alvo="$raiz/.superpowers/sdd/.gitignore"
 
 [ -f "$alvo" ] || exit 0
