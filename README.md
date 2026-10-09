@@ -151,6 +151,12 @@ Concluídas até aqui:
   salvo no servidor, conferido numa tela própria — casamento com o catálogo, Componentes novos,
   receita divergente, quantidades e sólidos — e confirmado numa transação que grava o catálogo e cria
   a Peça. Verificado no navegador e mesclado na `main` pelo PR #31, em 2026-10-08.
+- **Data de entrega do Pedido** (seção própria do roadmap, sem letra de fase): o Pedido ganha uma
+  data de entrega, obrigatória no cadastro e editável em qualquer status, junto com número e cliente,
+  na página do Pedido. A lista de Pedidos mostra a data, abre ordenada por prazo de entrega e marca
+  com a pílula **Atrasado** (roxo, um tom que só significa atraso) o Pedido vencido; a Home ganha a
+  seção "Prazos de entrega", com os cinco não encerrados mais urgentes. Mesclada na `main` pelo
+  PR #32, em 2026-10-09.
 
 A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
 de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de
