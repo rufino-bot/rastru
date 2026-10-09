@@ -100,9 +100,10 @@ async function abrirNovoPedido() {
   fireEvent.click(await screen.findByRole('button', { name: 'Novo pedido' }))
 }
 
-function preencherEEnviar(numero: string, cliente: string) {
+function preencherEEnviar(numero: string, cliente: string, dataEntrega = '2026-10-22') {
   fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: numero } })
   fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: cliente } })
+  fireEvent.change(screen.getByLabelText('Data de entrega'), { target: { value: dataEntrega } })
   fireEvent.click(screen.getByRole('button', { name: 'Abrir pedido' }))
 }
 
@@ -256,6 +257,7 @@ describe('PedidosPage', () => {
     await abrirNovoPedido()
     expect((screen.getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('Cliente') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Data de entrega') as HTMLInputElement).value).toBe('')
   })
 
   it('mostra estado vazio de cadastro quando nao ha pedidos e nenhum filtro', async () => {
@@ -587,6 +589,7 @@ describe('PedidosPage', () => {
     await abrirNovoPedido()
     fireEvent.change(screen.getByLabelText('Código do pedido'), { target: { value: 'RASCUNHO' } })
     fireEvent.change(screen.getByLabelText('Cliente'), { target: { value: 'Rascunho SA' } })
+    fireEvent.change(screen.getByLabelText('Data de entrega'), { target: { value: '2026-12-01' } })
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
     expect(screen.queryByRole('form')).toBeNull()
@@ -595,12 +598,14 @@ describe('PedidosPage', () => {
     await abrirNovoPedido()
     expect((screen.getByLabelText('Código do pedido') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('Cliente') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Data de entrega') as HTMLInputElement).value).toBe('')
   })
 
-  // Review Focus 3 do plano da 1F: a URL inteira preenchida. Salvar a limpa por completo e a consulta volta ao
-  // padrão numa requisição só — duas (uma com os parâmetros antigos, outra limpa) deixariam o
-  // último GET igual e passariam despercebidas sem a contagem.
-  it('salvar com sucesso limpa a URL inteira e a consulta volta ao padrao', async () => {
+  // Review Focus 3 do plano da 1F: a URL inteira preenchida. Salvar a zera por completo e põe a lista em
+  // "Mais recentes" (D11 da spec da data de entrega, que emenda a decisão 7 da 1F), numa requisição só —
+  // duas (uma com os parâmetros antigos, outra limpa) deixariam o último GET igual e passariam
+  // despercebidas sem a contagem.
+  it('salvar com sucesso zera a consulta e poe a lista em Mais recentes', async () => {
     const fetchMock = api({ '/api/pedidos': () => respostaJson(pagina([PEDIDO], 45, 2)) })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -609,7 +614,7 @@ describe('PedidosPage', () => {
     await abrirNovoPedido()
     preencherEEnviar('PED-002', 'Fábrica Beta')
 
-    await waitFor(() => expect(localizacao()).toBe('/pedidos'))
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=recentes'))
     await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
     await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
     expect(aposOPost(fetchMock)).toHaveLength(1)
@@ -618,9 +623,9 @@ describe('PedidosPage', () => {
     expect(ultima.searchParams.get('busca') ?? '').toBe('')
     expect(ultima.searchParams.has('status')).toBe(false)
     expect(ultima.searchParams.has('material')).toBe(false)
-    expect(ultima.searchParams.has('ordem')).toBe(false)
+    expect(ultima.searchParams.get('ordem')).toBe('recentes')
     expect(ultima.searchParams.get('pagina')).toBe('1')
-    expect(localizacao()).toBe('/pedidos')
+    expect(localizacao()).toBe('/pedidos?ordem=recentes')
     expect(screen.queryByRole('form')).toBeNull()
     expect((screen.getByLabelText('Buscar por número, cliente ou código de peça') as HTMLInputElement).value).toBe('')
     const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
@@ -641,7 +646,7 @@ describe('PedidosPage', () => {
     await screen.findByText('PED-001')
     await abrirNovoPedido()
     preencherEEnviar('PED-002', 'Fábrica Beta')
-    await waitFor(() => expect(localizacao()).toBe('/pedidos'))
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=recentes'))
     await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
 
     fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'numero' } })
@@ -659,11 +664,11 @@ describe('PedidosPage', () => {
   })
 
   // Review Focus 1 do plano da 1F, em Pedidos: nada da consulta muda, e a lista tem de buscar de novo mesmo assim.
-  it('salvar com sucesso na consulta padrao ainda recarrega, uma vez', async () => {
+  it('salvar com sucesso ja em Mais recentes ainda recarrega, uma vez', async () => {
     const fetchMock = api()
     vi.stubGlobal('fetch', fetchMock)
 
-    renderizar()
+    renderizar('/pedidos?ordem=recentes')
     await screen.findByText('PED-001')
     await abrirNovoPedido()
     preencherEEnviar('PED-002', 'Fábrica Beta')
@@ -671,6 +676,48 @@ describe('PedidosPage', () => {
     await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
     await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
     expect(aposOPost(fetchMock)).toHaveLength(1)
+  })
+
+  it('o painel pede a data de entrega, obrigatoria, e a manda no corpo do POST', async () => {
+    const fetchMock = apiComPost(() => respostaJson({ ...PEDIDO, id: 2, numero: 'PED-002' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByText('PED-001')
+    await abrirNovoPedido()
+    const campo = screen.getByLabelText('Data de entrega') as HTMLInputElement
+    expect(campo.type).toBe('date')
+    expect(campo.required).toBe(true)
+    preencherEEnviar('PED-002', 'Fábrica Beta', '2026-11-30')
+
+    await waitFor(() => expect(aposOPost(fetchMock)).toHaveLength(1))
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
+    expect(JSON.parse(String(post[1]!.body))).toEqual({ numero: 'PED-002', cliente: 'Fábrica Beta', dataEntrega: '2026-11-30' })
+  })
+
+  it('a lista abre por prazo de entrega, sem ordem na URL nem na requisicao', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByText('PED-001')
+
+    const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
+    expect(seletor.selectedOptions[0].textContent).toBe('Prazo de entrega')
+    expect(localizacao()).toBe('/pedidos')
+    for (const url of listagens(fetchMock)) expect(url.searchParams.has('ordem')).toBe(false)
+  })
+
+  it('escolher Mais recentes poe ordem=recentes na URL e na requisicao', async () => {
+    const fetchMock = api()
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    await screen.findByText('PED-001')
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'recentes' } })
+
+    await waitFor(() => expect(localizacao()).toBe('/pedidos?ordem=recentes'))
+    await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('recentes'))
   })
 
   it('ordem lida da URL e respeitada', async () => {
@@ -696,18 +743,18 @@ describe('PedidosPage', () => {
     expect(listagens(fetchMock).length).toBeGreaterThan(0)
     for (const url of listagens(fetchMock)) expect(url.searchParams.has('ordem')).toBe(false)
     const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
-    expect(seletor.selectedOptions[0].textContent).toBe('Mais recentes')
+    expect(seletor.selectedOptions[0].textContent).toBe('Prazo de entrega')
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('escolher Mais recentes tira ordem da URL', async () => {
+  it('escolher Prazo de entrega tira ordem da URL', async () => {
     const fetchMock = api()
     vi.stubGlobal('fetch', fetchMock)
 
     renderizar('/pedidos?status=Aberto&ordem=cliente')
     await screen.findByText('PED-001')
 
-    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'recentes' } })
+    fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'entrega' } })
 
     await waitFor(() => expect(localizacao()).toBe('/pedidos?status=Aberto'))
     await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.has('ordem')).toBe(false))
@@ -722,7 +769,7 @@ describe('PedidosPage', () => {
     await screen.findByText('PED-001')
     const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
     expect(Array.from(seletor.options).map((o) => o.textContent))
-      .toEqual(['Mais recentes', 'Número (A→Z)', 'Cliente (A→Z)'])
+      .toEqual(['Prazo de entrega', 'Mais recentes', 'Número (A→Z)', 'Cliente (A→Z)'])
 
     fireEvent.change(seletor, { target: { value: 'numero' } })
     await waitFor(() => expect(listagens(fetchMock).at(-1)!.searchParams.get('ordem')).toBe('numero'))

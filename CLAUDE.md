@@ -521,16 +521,20 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `GET /componentes` e `GET /pedidos`, que entra no `useBuscaPaginada` pelos `filtros`: trocar a
   ordem volta à página 1) e `ordenarCadastro` (`web/src/cadastros/`) em `SetoresPage` e
   `MateriaisPage`, que recebem a lista inteira — os endpoints delas não mudaram, porque alimentam
-  outros seletores. **A padrão é "Mais recentes" nas quatro telas**, para o item recém-criado vir no
-  topo: `Id` decrescente, e em Pedidos `DataAbertura` decrescente com `Id` desempatando. **Salvar
-  com sucesso devolve a consulta ao padrão** (decisão 7 da spec da 1F) — ordem "Mais recentes" e,
+  outros seletores. **A padrão é "Mais recentes" em três telas, e "Prazo de entrega" em Pedidos**, para o
+  item recém-criado vir no topo: `Id` decrescente (em Pedidos, `DataAbertura` decrescente com `Id`
+  desempatando, que continua sendo a ordem "Mais recentes" de lá). Pedidos abre por prazo desde a data de
+  entrega (D10 da spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`).
+  **Salvar com sucesso devolve a consulta ao padrão** (decisão 7 da spec da 1F) — ordem "Mais recentes" e,
   onde a tela os tem, busca vazia, sem filtros, página 1, sem inativos: em Componentes e Pedidos
   pelo `voltarAoInicio()` do `useBuscaPaginada`, com a tela zerando a ordem (e, em Pedidos, a URL
   inteira) no mesmo handler; em Setores e Materiais, a própria tela zera ordem e "Mostrar inativos"
-  e recarrega. "Reativar o
+  e recarrega. **Emenda para Pedidos:** salvar zera busca, filtros e página e põe a ordem em "Mais
+  recentes", escrita na URL (`?ordem=recentes`), para o Pedido novo aparecer no topo, já que a padrão,
+  por prazo, o mandaria para o fim quando o prazo é distante (D11 daquela spec). "Reativar o
   existente" com sucesso conta como salvar; **editar** um setor, não — a edição recarrega mantendo
   ordem e inativos, porque o item editado já estava na tela. A ordem vai para a URL **só** em
-  `PedidosPage`, e a padrão não é escrita lá (`/pedidos` limpa é "Mais recentes"); valor
+  `PedidosPage`, e a padrão não é escrita lá (`/pedidos` limpa é "Prazo de entrega"); valor
   desconhecido lido da URL cai na padrão e não é enviado ao servidor, onde seria 400. Ordenar é
   leitura: o seletor aparece para todo perfil. Hoje tem **quatro** telas consumidoras, cada uma com
   um uso (medido em 2026-10-01 com

@@ -23,11 +23,13 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { ControlesDePaginacao } from '../components/ControlesDePaginacao'
 import { FiltroDeDemanda, type Faceta } from '../components/FiltroDeDemanda'
 
-const FORMULARIO_VAZIO: NovoPedido = { numero: '', cliente: '' }
+const FORMULARIO_VAZIO: NovoPedido = { numero: '', cliente: '', dataEntrega: '' }
 
 const CHAVES_DO_FILTRO = ['status', 'material'] as const
 
+// A padrão vem primeiro (D10 da spec da data de entrega): a lista abre por prazo.
 const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<OrdemDePedidos>[] = [
+  { valor: 'entrega', rotulo: 'Prazo de entrega' },
   { valor: 'recentes', rotulo: 'Mais recentes' },
   { valor: 'numero', rotulo: 'Número (A→Z)' },
   { valor: 'cliente', rotulo: 'Cliente (A→Z)' },
@@ -47,7 +49,7 @@ function ehIdValido(valor: string): boolean {
 // Valor desconhecido na URL (um link velho, um `?ordem=lixo` colado à mão) vale a ordem padrão e não
 // vai ao servidor: lá seria 400.
 function ordemDaUrl(bruto: string | null): OrdemDePedidos {
-  return OPCOES_DE_ORDEM.find((o) => o.valor === bruto)?.valor ?? 'recentes'
+  return OPCOES_DE_ORDEM.find((o) => o.valor === bruto)?.valor ?? 'entrega'
 }
 
 function paginaDaUrl(bruto: string | null): number {
@@ -109,14 +111,14 @@ export function PedidosPage() {
     ordem: [ordem],
   }), [selecao, ordem])
 
-  // O padrão não vai à URL: escolher "Mais recentes" apaga o parâmetro. Como as facetas, escreve com
+  // O padrão não vai à URL: escolher "Prazo de entrega" apaga o parâmetro. Como as facetas, escreve com
   // `replace` — trocar a ordem não cria entrada de histórico.
   const mudarOrdem = useCallback(
     (nova: OrdemDePedidos) => {
       setParams(
         (anterior) => {
           const proxima = new URLSearchParams(anterior)
-          if (nova === 'recentes') proxima.delete('ordem')
+          if (nova === 'entrega') proxima.delete('ordem')
           else proxima.set('ordem', nova)
           return proxima
         },
@@ -192,16 +194,17 @@ export function PedidosPage() {
     setErroDeEscrita(null)
   }
 
-  // Desfecho de sucesso: fecha o painel e devolve a consulta ao padrão — busca, página, facetas e
-  // ordem —, para o pedido novo aparecer (decisão 7 da spec da 1F). O router aplica a mudança de URL
-  // em `startTransition`, e a seleção e a ordem saem da URL; se o `voltarAoInicio` ficasse de fora,
-  // o estado do hook (urgente) commitaria antes da URL: a lista buscaria duas vezes, e o efeito do
-  // hook que copia a consulta para a URL partiria da URL ainda antiga e a reescreveria. Os dois
-  // juntos na mesma transição commitam num render só: uma requisição, com a URL já zerada.
+  // Desfecho de sucesso: fecha o painel, zera busca, página e facetas e põe a lista em "Mais recentes",
+  // para o pedido novo aparecer no topo — não na padrão, por prazo, em que um prazo distante o mandaria
+  // para o fim (D11 da spec da data de entrega, emenda da decisão 7 da 1F). O router aplica a mudança de
+  // URL em `startTransition`, e a seleção e a ordem saem da URL; se o `voltarAoInicio` ficasse de fora,
+  // o estado do hook (urgente) commitaria antes da URL: a lista buscaria duas vezes, e o efeito do hook
+  // que copia a consulta para a URL partiria da URL ainda antiga e a reescreveria. Os dois juntos na
+  // mesma transição commitam num render só: uma requisição, com a URL já zerada.
   function concluirComSucesso() {
     fecharPainel()
     startTransition(() => {
-      setParams(new URLSearchParams(), { replace: true })
+      setParams(new URLSearchParams({ ordem: 'recentes' }), { replace: true })
       lista.voltarAoInicio()
     })
   }
@@ -250,6 +253,18 @@ export function PedidosPage() {
                   id={id}
                   value={form.cliente}
                   onChange={(e) => setForm({ ...form, cliente: e.target.value })}
+                  required
+                  className={CLASSES_DE_CONTROLE}
+                />
+              )}
+            </Campo>
+            <Campo rotulo="Data de entrega">
+              {(id) => (
+                <input
+                  id={id}
+                  type="date"
+                  value={form.dataEntrega}
+                  onChange={(e) => setForm({ ...form, dataEntrega: e.target.value })}
                   required
                   className={CLASSES_DE_CONTROLE}
                 />

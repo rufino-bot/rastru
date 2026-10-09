@@ -145,6 +145,8 @@ export interface PedidoDto {
 export interface NovoPedido {
   numero: string
   cliente: string
+  /** `aaaa-mm-dd`, o valor do `<input type="date">`; vazio só no formulário em branco. */
+  dataEntrega: string
 }
 
 /**
@@ -167,7 +169,7 @@ export function formatarData(iso: string): string {
   return `${dia}/${mes}/${ano}`
 }
 
-/** Ordem de `GET /pedidos`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
+/** Ordem de `GET /pedidos`; `'entrega'` é a padrão do servidor e não vai na URL (D10 da spec da data de entrega). */
 export type OrdemDePedidos = 'entrega' | 'recentes' | 'numero' | 'cliente'
 
 /** Ordem de `GET /componentes`; `'recentes'` é a padrão do servidor e não vai na URL (decisão D3 do plano da 1F). */
@@ -181,7 +183,7 @@ export interface FiltroDePedidos {
   material: string[]
   pagina: number
   tamanho: number
-  /** Ausente ou `'recentes'`: o parâmetro não vai, e o servidor aplica a padrão. */
+  /** Ausente ou `'entrega'`: o parâmetro não vai, e o servidor aplica a padrão. */
   ordem?: OrdemDePedidos
 }
 
@@ -217,7 +219,7 @@ export async function listarPedidos(f: FiltroDePedidos): Promise<PaginaDe<Pedido
   if (f.material.length > 0) params.set('material', f.material.join(','))
   params.set('pagina', String(f.pagina))
   params.set('tamanho', String(f.tamanho))
-  if (f.ordem !== undefined && f.ordem !== 'recentes') params.set('ordem', f.ordem)
+  if (f.ordem !== undefined && f.ordem !== 'entrega') params.set('ordem', f.ordem)
   const resp = await apiFetch(`/pedidos?${params}`)
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao listar pedidos (${resp.status}).`)
   return (await resp.json()) as PaginaDe<PedidoDto>

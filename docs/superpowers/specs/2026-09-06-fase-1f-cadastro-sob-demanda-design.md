@@ -124,6 +124,11 @@ Todas do usuário.
 12. **Cartão inteiro clicável** em `FilaPage`, `PedidoDetalhePage` e `ComponentesPage` (decisão de
     2026-09-28, posta nesta fase).
 
+> **Emenda de 2026-10-08 (só para Pedidos).** As decisões 7 e 9 foram emendadas pela spec da data de
+> entrega (`docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`, D10 e D11): a lista de
+> Pedidos abre por "Prazo de entrega", e salvar a põe em "Mais recentes" em vez de devolvê-la à padrão. As
+> outras três telas não mudam. O texto acima fica como foi decidido.
+
 ## O desenho — painel sob demanda
 
 ### Estado normal da tela

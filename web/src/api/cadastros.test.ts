@@ -315,8 +315,8 @@ describe('cadastros', () => {
     expect([...url.searchParams.keys()]).toEqual(['busca', 'status', 'material', 'pagina', 'tamanho'])
   })
 
-  // D3 do plano da 1F: a ordem padrao nao vai na URL, para as URLs de hoje (e o SeletorComBusca,
-  // que nao passa ordem) ficarem como estao.
+  // A ordem padrao nao vai na URL (D3 do plano da 1F). Desde a data de entrega a padrao e `entrega`
+  // (D10 da spec da data de entrega), e `recentes` passou a ir.
   it('listarPedidos nao manda ordem quando e a padrao', async () => {
     // `mockImplementation`: um `Response` so se le uma vez, e este teste faz duas chamadas.
     const fetchMock = vi.fn().mockImplementation(async () =>
@@ -326,10 +326,21 @@ describe('cadastros', () => {
     const base = { busca: '', status: [], material: [], pagina: 1, tamanho: 20 }
 
     await listarPedidos(base)
-    await listarPedidos({ ...base, ordem: 'recentes' })
+    await listarPedidos({ ...base, ordem: 'entrega' })
 
     expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20')
     expect(fetchMock.mock.calls[1][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20')
+  })
+
+  it('listarPedidos manda ordem=recentes, que deixou de ser a padrao', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ itens: [], total: 0, pagina: 1, tamanho: 20 }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await listarPedidos({ busca: '', status: [], material: [], pagina: 1, tamanho: 20, ordem: 'recentes' })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/pedidos?busca=&pagina=1&tamanho=20&ordem=recentes')
   })
 
   it('listarPedidos manda ordem quando nao e a padrao', async () => {
@@ -426,7 +437,7 @@ describe('cadastros', () => {
       ),
     ))
 
-    const resultado = await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
+    const resultado = await criarPedido({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' })
 
     expect(ehConflito(resultado)).toBe(true)
     expect(ehConflito(resultado) && resultado.existeInativo).toBe(false)
@@ -435,7 +446,7 @@ describe('cadastros', () => {
   // Molde de 'manda os tres campos do material no corpo do POST' (linha 146): sem isto, um POST
   // na URL errada, com metodo errado ou com corpo errado passaria verde so com o teste de 409
   // acima, que devolve 409 independente dos argumentos da chamada.
-  it('manda os dois campos do pedido no corpo do POST', async () => {
+  it('manda os tres campos do pedido no corpo do POST', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -448,12 +459,12 @@ describe('cadastros', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })
+    await criarPedido({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' })
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
     expect(url).toBe('/api/pedidos')
     expect(init.method).toBe('POST')
-    expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X' }))
+    expect(init.body).toBe(JSON.stringify({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' }))
   })
 
   // POST /pedidos e [Authorize(Roles = "PCP,Administrador")] e o link aparece para todos os
@@ -463,7 +474,7 @@ describe('cadastros', () => {
   it('criarPedido lanca quando o backend responde 403', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 403 })))
 
-    await expect(criarPedido({ numero: 'PED-001', cliente: 'Cliente X' })).rejects.toThrow()
+    await expect(criarPedido({ numero: 'PED-001', cliente: 'Cliente X', dataEntrega: '2026-10-22' })).rejects.toThrow()
   })
 
   // obterPedido nasce nesta task sem chamador (a tela de detalhe e da Task 11), mas ainda precisa
