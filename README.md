@@ -107,8 +107,8 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
 roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
-A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D** e o **import
-do BOM** rodaram antes da 3B, e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
+A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D**, o **import
+do BOM** e a **data de entrega do Pedido** rodaram antes da 3B, e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
 decidida.
 
 Concluídas até aqui:
@@ -154,10 +154,13 @@ Concluídas até aqui:
 - **Data de entrega do Pedido** (seção própria do roadmap, sem letra de fase): o Pedido ganha uma
   data de entrega, obrigatória no cadastro e editável em qualquer status, junto com número e cliente,
   na página do Pedido. A lista de Pedidos mostra a data, abre ordenada por prazo de entrega e marca
-  com a pílula **Atrasado** (roxo, um tom que só significa atraso) o Pedido vencido; a Home ganha a
-  seção "Prazos de entrega", com até cinco não encerrados mais urgentes. Verificada no navegador (o
-  seletor de data nativo do Android, só em emulação no Chrome de PC) e mesclada na `main` pelo PR #32,
-  em 2026-10-09.
+  com a pílula **Atrasado** (roxo, um tom que só significa atraso) o Pedido não encerrado com prazo
+  vencido (a pílula aparece também na Home e na página do Pedido); a seção da Home vira "Prazos de
+  entrega", com até cinco não encerrados mais urgentes. Verificada no navegador (pílula, ordem, Home, lista com e sem
+  filtro de status, criar e editar, inclusive o número duplicado, e o perfil sem escrita); o seletor de
+  data nativo do Android não foi conferido: o celular não alcançou o PC, e na emulação de celular do
+  Chrome de PC o seletor não abriu com o toque emulado ligado e, desligado, abriu o do próprio
+  navegador. Mesclada na `main` pelo PR #32, em 2026-10-09.
 
 A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
 de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de

@@ -750,7 +750,11 @@ nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de 
    com cwd na raiz do código ou em `web/` o arquivo era apagado, com cwd em `.superpowers/` ele
    continuava lá, e o hook ao vivo deu o mesmo resultado. Está **consertado**: a raiz agora vem da
    **localização do próprio script** (`BASH_SOURCE`, o mesmo idioma do `scripts/estado`), sem `git` e
-   sem depender do cwd. Os casos foram exercitados de novo na data — cwd na raiz do código, em
+   sem depender do cwd. Isso vale para o **script**, não para o comando do hook: ele chama o script
+   por `${CLAUDE_PROJECT_DIR:-.}`, e a premissa é que o Claude Code passe `CLAUDE_PROJECT_DIR` ao hook (não medido aqui); sem a
+   variável, o fallback `.` só acha o script com o cwd na raiz, e de dentro de `.superpowers/` ou de
+   `web/` o `bash` não o encontra (medido: sai com 127, engolido pelo `|| true`, e o arquivo fica).
+   Os casos foram exercitados de novo na data — cwd na raiz do código, em
    `.superpowers/`, em `web/` e fora de qualquer repositório (`C:/`) apagam; conteúdo deliberado fica
    intocado; arquivo ausente sai com 0 sem saída — e a versão antiga, com cwd em `.superpowers/`,
    serviu de controle negativo (não apagou). Isso fecha o limite do cwd e **só** ele: o limite

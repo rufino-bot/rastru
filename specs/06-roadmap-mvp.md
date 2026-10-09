@@ -590,6 +590,12 @@ rufino-bot/rastru#32 (merge `7074559`), cuja árvore é idêntica à de `bf0882d
 branch. Os itens deixados para depois continuam como a spec os registra, nas seções 8 e 10, entre
 eles a pílula na Fila do Setor e nas Tarefas e a auditoria de edição de cadastro.
 
+**Conferência no navegador e risco aceito:** o usuário conferiu a pílula, a ordem, a Home, a lista com
+e sem o filtro de status, criar e editar (inclusive o número duplicado, o 409) e o perfil sem escrita.
+O seletor de data nativo do Android **não foi conferido**: o celular não alcançou o PC, e na emulação de
+celular do Chrome de PC o seletor não abriu com o toque emulado ligado e, desligado, abriu o do próprio
+navegador. Que ele funciona no aparelho é inferência do usuário, e o risco foi aceito.
+
 ## Fase 3B — Kit e montagem
 
 > **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
