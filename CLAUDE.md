@@ -750,15 +750,21 @@ nome de cada um é o par de SHAs — `git diff A..B` reconstrói) e o estado de 
    com cwd na raiz do código ou em `web/` o arquivo era apagado, com cwd em `.superpowers/` ele
    continuava lá, e o hook ao vivo deu o mesmo resultado. Está **consertado**: a raiz agora vem da
    **localização do próprio script** (`BASH_SOURCE`, o mesmo idioma do `scripts/estado`), sem `git` e
-   sem depender do cwd. Isso vale para o **script**, não para o comando do hook: ele chama o script
-   por `${CLAUDE_PROJECT_DIR:-.}`, e a premissa é que o Claude Code passe `CLAUDE_PROJECT_DIR` ao hook (não medido aqui); sem a
-   variável, o fallback `.` só acha o script com o cwd na raiz, e de dentro de `.superpowers/` ou de
-   `web/` o `bash` não o encontra (medido: sai com 127, engolido pelo `|| true`, e o arquivo fica).
-   Os casos foram exercitados de novo na data — cwd na raiz do código, em
-   `.superpowers/`, em `web/` e fora de qualquer repositório (`C:/`) apagam; conteúdo deliberado fica
-   intocado; arquivo ausente sai com 0 sem saída — e a versão antiga, com cwd em `.superpowers/`,
-   serviu de controle negativo (não apagou). Isso fecha o limite do cwd e **só** ele: o limite
-   "entre chamadas" do parágrafo anterior continua valendo, e o hook segue não sendo absoluto.
+   sem depender do cwd. Há duas evidências, e são **separadas**. A primeira é do **script** rodado
+   direto, de novo na data: cwd na raiz do código, em `.superpowers/`, em `web/` e fora de qualquer
+   repositório (`C:/`) apagam; conteúdo deliberado fica intocado; arquivo ausente sai com 0 sem
+   saída — e a versão antiga, com cwd em `.superpowers/`, serviu de controle negativo (não apagou).
+   Esses casos não passam pelo hook. A segunda é do **hook ao vivo**, também em 2026-10-09: com o
+   script consertado no checkout principal, uma chamada de Bash criou `.superpowers/sdd/.gitignore`
+   com `*` e **terminou com o cwd dentro de `.superpowers/`**; na chamada seguinte o arquivo tinha
+   sumido, apagado pelo `PostToolUse` real. Isso prova que o conserto funciona pelo hook com o cwd no
+   ledger e que o Claude Code passa `CLAUDE_PROJECT_DIR` ao hook — sem ela, o fallback não alcançaria
+   o script. O comando do hook chama o script por `${CLAUDE_PROJECT_DIR:-.}`, e o fallback `.` é o
+   que valeria **sem** a variável: ele só acha o script com o cwd na raiz, e de dentro de
+   `.superpowers/` ou de `web/` o `bash` não o encontra (medido rodando o comando sem a variável: sai
+   com 127, engolido pelo `|| true`, e o arquivo fica). Isso fecha o limite do cwd e **só** ele: o
+   limite "entre chamadas" do parágrafo «O alcance do hook, medido — ele não é absoluto.» continua
+   valendo, e o hook segue não sendo absoluto.
 
 Backend (solution `Rastreamento.slnx`, na raiz):
 
