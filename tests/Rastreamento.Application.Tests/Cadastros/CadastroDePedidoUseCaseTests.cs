@@ -513,4 +513,79 @@ public class CadastroDePedidoUseCaseTests
 
     Assert.False(resultado.Valor!.Atrasado);
   }
+
+  // Os testes abaixo provam o `Atrasado` VERDADEIRO nos caminhos que o usuario ve: a lista, a Home, a
+  // pagina do Pedido e a edicao. Sem eles, um "hoje" esquecido em `default` (que nenhum prazo antecede)
+  // deixaria todo Pedido como "nao atrasado" e a suite verde. O relogio da classe marca 2026-10-08.
+
+  private static readonly DateOnly PrazoVencido = new(2026, 10, 7);
+
+  private static Pedido PedidoComPrazoVencido(int id, string status) => new()
+  {
+    Id = id, Numero = $"PED-{id:000}", Cliente = "Y", Tipo = "Fabricacao", Status = status, DataEntrega = PrazoVencido,
+  };
+
+  [Fact]
+  public async Task Listar_marca_atrasado_o_aberto_vencido_e_nao_o_concluido()
+  {
+    var repo = new FakePedidoRepo(PedidoComPrazoVencido(1, "Aberto"), PedidoComPrazoVencido(2, "Concluido"));
+
+    var resultado = await NovoUseCase(repo).Listar(null, null, null, null, 1, 20, CancellationToken.None);
+
+    var pedidos = resultado.Valor!.Itens;
+    Assert.True(pedidos.Single(p => p.Id == 1).Atrasado);
+    Assert.False(pedidos.Single(p => p.Id == 2).Atrasado);
+  }
+
+  [Fact]
+  public async Task Resumo_marca_atrasado_o_aberto_vencido_e_nao_o_concluido()
+  {
+    var repo = new FakePedidoRepo();
+    repo.MaisUrgentes.Add(PedidoComPrazoVencido(1, "Aberto"));
+    repo.MaisUrgentes.Add(PedidoComPrazoVencido(2, "Concluido"));
+
+    var resumo = await NovoUseCase(repo).Resumo(CancellationToken.None);
+
+    Assert.True(resumo.MaisUrgentes.Single(p => p.Id == 1).Atrasado);
+    Assert.False(resumo.MaisUrgentes.Single(p => p.Id == 2).Atrasado);
+  }
+
+  [Fact]
+  public async Task Obter_marca_atrasado_o_aberto_vencido_e_nao_o_concluido()
+  {
+    var repo = new FakePedidoRepo(PedidoComPrazoVencido(1, "Aberto"), PedidoComPrazoVencido(2, "Concluido"));
+    var useCase = NovoUseCase(repo);
+
+    Assert.True((await useCase.Obter(1, CancellationToken.None)).Valor!.Atrasado);
+    Assert.False((await useCase.Obter(2, CancellationToken.None)).Valor!.Atrasado);
+  }
+
+  [Fact]
+  public async Task Editar_levando_o_prazo_de_um_Aberto_para_o_passado_devolve_atrasado()
+  {
+    var repo = new FakePedidoRepo(new Pedido
+    {
+      Id = 1, Numero = "PED-001", Cliente = "Y", Tipo = "Fabricacao", Status = "Aberto", DataEntrega = Prazo,
+    });
+
+    var resultado = await NovoUseCase(repo).Editar(
+        1, new NovoPedidoDto("PED-001", "Y", PrazoVencido), CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.True(resultado.Valor!.Atrasado);
+  }
+
+  [Fact]
+  public async Task Listar_calcula_o_atraso_contra_o_dia_de_Brasilia_e_nao_contra_o_dia_UTC()
+  {
+    // 02h59 UTC de 2026-10-08 ainda e 2026-10-07 em Brasilia. O prazo 2026-10-07 e atrasado para quem lesse
+    // o dia UTC (2026-10-08) e nao e para Brasilia, onde esse e o proprio dia de hoje.
+    var repo = new FakePedidoRepo(PedidoComPrazoVencido(1, "Aberto"));
+    var useCase = new CadastroDePedidoUseCase(
+        repo, new RelogioFixo(new DateTimeOffset(2026, 10, 8, 2, 59, 0, TimeSpan.Zero)));
+
+    var resultado = await useCase.Listar(null, null, null, null, 1, 20, CancellationToken.None);
+
+    Assert.False(resultado.Valor!.Itens.Single().Atrasado);
+  }
 }
