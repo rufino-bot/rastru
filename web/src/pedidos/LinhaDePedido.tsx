@@ -9,7 +9,7 @@ import { rotuloDoStatus, tomDoStatus } from './statusDoPedido'
  * inteiro como alvo do clique.
  *
  * Hoje tem dois consumidores, e é isso que a faz primitiva: a `PedidosPage` (a lista inteira) e a
- * seção "Prazos de entrega" da `HomePage` (os cinco mais urgentes). Ambas mostram o MESMO item
+ * seção "Prazos de entrega" da `HomePage` (até cinco, os mais urgentes). Ambas mostram o MESMO item
  * de Pedido.
  *
  * A extração veio ANTES do segundo consumidor existir, e de propósito: em `7dbb61b` só a

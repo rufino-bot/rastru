@@ -538,7 +538,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   spec da 1F) — ordem "Mais recentes" e, onde a tela os tem, busca vazia, página 1, sem inativos: em
   Componentes pelo `voltarAoInicio()` do `useBuscaPaginada`, com a tela zerando a ordem no mesmo handler;
   em Setores e Materiais, a própria tela zera ordem e "Mostrar inativos" e recarrega. **Em Pedidos salvar
-  não volta à padrão** (D11 daquela spec): zera busca, filtros e página, põe a ordem em "Mais recentes"
+  não volta à padrão** (D11 da spec da data de entrega): zera busca, filtros e página, põe a ordem em "Mais recentes"
   escrita na URL (`?ordem=recentes`) e chama o `voltarAoInicio()` do hook, para o Pedido novo aparecer no
   topo — a padrão, por prazo, o mandaria para o fim quando o prazo é distante. "Reativar o existente" com
   sucesso conta como salvar; **editar** um setor, não — a edição recarrega mantendo ordem e inativos,

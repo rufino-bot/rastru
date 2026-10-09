@@ -514,9 +514,14 @@ public class CadastroDePedidoUseCaseTests
     Assert.False(resultado.Valor!.Atrasado);
   }
 
-  // Os testes abaixo provam o `Atrasado` VERDADEIRO nos caminhos que o usuario ve: a lista, a Home, a
-  // pagina do Pedido e a edicao. Sem eles, um "hoje" esquecido em `default` (que nenhum prazo antecede)
-  // deixaria todo Pedido como "nao atrasado" e a suite verde. O relogio da classe marca 2026-10-08.
+  // Provam o `Atrasado` VERDADEIRO nos caminhos que o usuario ve (a lista, a Home, a pagina do Pedido e a
+  // edicao), cada um com o seu teste:
+  //   - `Listar_marca_atrasado_o_aberto_vencido_e_nao_o_concluido`
+  //   - `Resumo_marca_atrasado_o_aberto_vencido_e_nao_o_concluido`
+  //   - `Obter_marca_atrasado_o_aberto_vencido_e_nao_o_concluido`
+  //   - `Editar_levando_o_prazo_de_um_Aberto_para_o_passado_devolve_atrasado`
+  // Sem eles, um "hoje" esquecido em `default` (que nenhum prazo antecede) deixaria todo Pedido como "nao
+  // atrasado" e a suite verde. O `Relogio` da classe, que o `NovoUseCase` usa, marca 2026-10-08.
 
   private static readonly DateOnly PrazoVencido = new(2026, 10, 7);
 

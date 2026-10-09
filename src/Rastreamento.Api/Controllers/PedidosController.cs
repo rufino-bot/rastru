@@ -35,7 +35,7 @@ public class PedidosController : CadastroControllerBase
         : BadRequest(new { erro = resultado.Erro });
   }
 
-  /// <summary>Contagem por status sobre todos os Pedidos e os cinco nao encerrados de prazo mais urgente.</summary>
+  /// <summary>Contagem por status sobre todos os Pedidos e ate cinco nao encerrados de prazo mais urgente.</summary>
   [HttpGet("resumo")]
   public async Task<IActionResult> Resumo(CancellationToken ct) =>
       Ok(await _cadastro.Resumo(ct));

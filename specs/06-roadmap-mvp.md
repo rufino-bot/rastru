@@ -580,7 +580,7 @@ branch. A spec e o plano da fase estão na `main` desde esse merge, e a branch
 - Pílula **Atrasado** num tom próprio (roxo, o quarto estado reservado) na lista de Pedidos, na Home e
   na página do Pedido. O atraso é decidido no backend, com o "hoje" de Brasília.
 - A lista de Pedidos abre ordenada por **prazo de entrega**, e a seção da Home vira **"Prazos de
-  entrega"** (os cinco não encerrados mais urgentes).
+  entrega"** (até cinco, os não encerrados mais urgentes).
 - **Fica para um item seguinte:** a pílula na Fila do Setor e nas Tarefas. **Fica para uma spec
   própria:** a auditoria de edição de cadastro, que não existe hoje (seção 8 da spec).
 - Critério de pronto: a seção 1 da spec.

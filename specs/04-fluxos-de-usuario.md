@@ -35,7 +35,7 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    e a busca, E. Busca, filtros e página ficam na URL, então o F5 e o "voltar" do detalhe de um Pedido
    devolvem a lista como estava. Sem resultado, a tela diz "Nenhum pedido com essa busca ou esses
    filtros" e oferece "Limpar filtros"; sem nenhum Pedido cadastrado, diz "Nenhum pedido aberto". A
-   Home não pagina Pedidos: lê o **resumo** do servidor (contagem por status e os cinco Pedidos não
+   Home não pagina Pedidos: lê o **resumo** do servidor (contagem por status e até cinco Pedidos não
    encerrados de prazo mais urgente, na seção **"Prazos de entrega"**), que conta todos os Pedidos e não
    só a primeira página.
 

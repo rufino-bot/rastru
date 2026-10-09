@@ -13,13 +13,29 @@ a definição de "atraso" no `01`. Esta spec é esse candidato.
 `CLAUDE.md` só admite exceção declarada por escrito em `specs/06-roadmap-mvp.md`. O registro faz parte
 dos ajustes da seção 9 e vem **antes** do plano.
 
-> **Emenda de 2026-10-09 (duas decisões do plano).** O plano
-> (`docs/superpowers/plans/2026-10-08-data-de-entrega-do-pedido.md`) decidiu duas coisas diferentes do que
-> esta spec descreve, e o texto das seções fica como foi desenhado. **§7.1:** o teste de banco de
-> `ListarMaisUrgentesAsync` não chama com `quantos = int.MaxValue`; ele usa `quantos = 5`, com seis
-> candidatos próprios (decisão P4 do plano). **§6.5:** o prazo da página do Pedido não é um "Entrega em
-> 22/10/2026" isolado no cabeçalho; ele vai na mesma linha das pílulas, no formato da `LinhaDePedido`
-> ("entrega em … · aberto em …"; decisão P7 do plano).
+> **Emenda de 2026-10-09 (decisões do plano que mudam o corpo desta spec).** O plano
+> (`docs/superpowers/plans/2026-10-08-data-de-entrega-do-pedido.md`, seção "Decisões deste plano", P1 a P7)
+> decidiu, em quatro delas, algo diferente do que o corpo desta spec afirma, e o texto das seções fica como
+> foi desenhado: vale o que está aqui. As outras três (P3, P5 e P6) detalham o que a spec deixou em aberto
+> e não a contradizem.
+>
+> - **§6.5, "No sucesso, o painel fecha e o Pedido é recarregado" (P2).** A tela aplica a resposta do
+>   `PUT /pedidos/{id}`, que já é o `PedidoDto` inteiro (com `pausa` e `atrasado`), e não faz segunda
+>   requisição nem recarrega os Agrupamentos. Vale: o painel fecha e o Pedido passa a ser o devolvido pelo
+>   `PUT`.
+> - **§6.5, "Entrega em 22/10/2026" no cabeçalho (P7).** O prazo não é uma frase isolada; ele vai na mesma
+>   linha das pílulas, no formato da `LinhaDePedido` ("entrega em … · aberto em …").
+> - **§7.1, os `new Pedido` que "passam a informar a data" (P1).** Informam a data os montados para o
+>   **banco** (`Infrastructure.Tests` e `Api.Tests`), onde `0001-01-01` viraria o Pedido mais atrasado da
+>   tabela compartilhada. Em `Application.Tests`, que roda contra fake, a data só entra no teste que é sobre
+>   ela.
+> - **§7.1, a ordem `entrega` com "`Tamanho = int.MaxValue` direto no repositório" (P4).** Os testes de
+>   banco da ordem usam o `Filtro` do helper existente, com a página de 100, escopados pela busca do cliente
+>   único de cada teste.
+> - **§7.1, o teste de banco de `ListarMaisUrgentesAsync` com `quantos = int.MaxValue` (P4).** Ele chama com
+>   `quantos = 5`, com seis candidatos próprios, e por isso afirma também o corte em cinco, e não só a
+>   ordem relativa. O padrão é o do teste que já existia para `ListarMaisAntigosAsync`, robusto a linhas de
+>   terceiros.
 
 ## 1. O que se quer, e o que conta como pronto
 
