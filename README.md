@@ -27,7 +27,7 @@ local de expedição) + o que já foi montado dentro do pai + expedido + perdido
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql` e `alter-importacao-bom.sql`, que levam um banco criado antes da Fase 3, da Fase 3D ou do import do BOM até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql` e `alter-data-entrega.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM ou da data de entrega do Pedido até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -155,8 +155,9 @@ Concluídas até aqui:
   data de entrega, obrigatória no cadastro e editável em qualquer status, junto com número e cliente,
   na página do Pedido. A lista de Pedidos mostra a data, abre ordenada por prazo de entrega e marca
   com a pílula **Atrasado** (roxo, um tom que só significa atraso) o Pedido vencido; a Home ganha a
-  seção "Prazos de entrega", com os cinco não encerrados mais urgentes. Mesclada na `main` pelo
-  PR #32, em 2026-10-09.
+  seção "Prazos de entrega", com até cinco não encerrados mais urgentes. Verificada no navegador (o
+  seletor de data nativo do Android, só em emulação no Chrome de PC) e mesclada na `main` pelo PR #32,
+  em 2026-10-09.
 
 A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
 de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de
