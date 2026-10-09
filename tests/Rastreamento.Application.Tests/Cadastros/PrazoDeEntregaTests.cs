@@ -33,8 +33,9 @@ public class PrazoDeEntregaTests
   public void Os_encerrados_sao_Concluido_e_Cancelado() =>
       Assert.Equal(["Cancelado", "Concluido"], PrazoDeEntrega.StatusEncerrados.Order());
 
-  // A virada do dia em Brasilia (GMT-3 fixo) e as 03h00 UTC. As duas pontas: um "hoje" calculado em UTC
-  // erraria a primeira, e um offset trocado de sinal erraria as duas.
+  // A virada do dia em Brasilia (GMT-3 fixo) e as 03h00 UTC. As duas pontas fixam o offset em exatamente
+  // -3h: a das 02h59 recusa todo offset acima de -3h (o UTC e o +3h inclusive), e a das 03h00 recusa todo
+  // offset abaixo de -3h.
   [Fact]
   public void As_02h59_UTC_ainda_e_o_dia_anterior_em_Brasilia() =>
       Assert.Equal(

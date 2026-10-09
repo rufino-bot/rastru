@@ -8,7 +8,7 @@ namespace Rastreamento.Infrastructure.Tests.Persistence;
 
 /// <summary>
 /// `PedidoRepository` contra o SQL Server real: busca, filtro por status e por Material, ordem e
-/// total da pagina, os mais antigos e os Materiais em uso. Cada teste cria os SEUS Pedidos, com um
+/// total da pagina, os mais urgentes e os Materiais em uso. Cada teste cria os SEUS Pedidos, com um
 /// texto unico (cliente ou parte do numero) que a busca usa, e afirma so sobre os Ids que criou —
 /// nunca contagem global de tabela compartilhada.
 /// </summary>

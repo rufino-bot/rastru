@@ -77,8 +77,9 @@ public class PedidoRepository : IPedidoRepository
       OrdemDePedidos.Cliente => consulta.OrderBy(p => p.Cliente).ThenByDescending(p => p.Id),
       // Abertos por prazo crescente (o mais atrasado no topo), com abertura e Id crescentes no empate;
       // depois os encerrados por prazo DECRESCENTE e Id decrescente. Ordenar so pela data poria os
-      // Concluidos antigos no topo. Cada chave condicional vale NULL no grupo em que nao se aplica,
-      // entao nao interfere nele.
+      // Concluidos antigos no topo. As tres chaves do meio (prazo, prazo decrescente e abertura) valem
+      // NULL no grupo em que nao se aplicam, entao nao interferem nele. A ultima nunca e nula: vale
+      // `Id` num grupo e `-Id` no outro, e e ela que torna a ordem total para a paginacao.
       OrdemDePedidos.Entrega => consulta
           .OrderBy(p => StatusEncerrados.Contains(p.Status) ? 1 : 0)
           .ThenBy(p => StatusEncerrados.Contains(p.Status) ? (DateOnly?)null : p.DataEntrega)

@@ -59,9 +59,11 @@ public class PedidoMappingTests : TesteComBanco
   [Fact]
   public async Task Data_de_entrega_vai_e_volta_da_coluna_date_sem_deslocar_o_dia()
   {
-    // `DateOnly` contra `DATE`: o dia gravado e o dia lido. Um mapeamento por `DateTime`, com
-    // conversao de fuso no caminho, devolveria o dia anterior — e e isso que este teste pega. O tipo e
-    // a nulidade da coluna saem do catalogo do banco, nao do modelo do EF.
+    // `DateOnly` contra `DATE`: o dia gravado e o dia lido, sem deslocamento (nao ha conversao de fuso
+    // no caminho do EF ate o SQL). O teste NAO prova o tipo do mapeamento: trocar a propriedade para
+    // `DateTime` quebraria a compilacao, nao este teste. O tipo e a nulidade da coluna vem do catalogo
+    // do banco, que nasce do `.sql`, e nao do modelo do EF: o que se afirma e que o catalogo diz
+    // `date` e `NO`.
     await using var db = NovoContexto();
     var autor = await IdDoAdmin(db);
     var pedido = new Pedido

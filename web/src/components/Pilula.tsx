@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 export type TomDePilula = 'neutro' | 'positivo' | 'negativo' | 'atencao' | 'atraso'
 
-// Os cinco tons são PARES DECLARADOS, medidos pela guarda da Task 4 — nenhum modificador de
+// Os cinco tons são PARES DECLARADOS, medidos pela guarda de contraste (`contraste.test.ts`) — nenhum modificador de
 // opacidade. `bg-positivo/10` e `bg-negativo/10` (a versão anterior) viravam
 // `color-mix(in oklab, …)`, que não é declaração `--color-*` e escapava da guarda inteira; medido,
 // os quatro casos reprovavam AA (4,32 / 4,11 / 4,13 / 3,95 contra os 4,5 exigidos).
