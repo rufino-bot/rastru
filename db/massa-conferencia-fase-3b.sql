@@ -7,17 +7,18 @@
 --   * o Agrupamento KIT-01, tipo Kit;
 --   * a estrutura de tres niveis, sem nenhuma movimentacao (o fluxo e feito na tela):
 --
---       A  Peca, 5                 Roteiro: Solda -> Pintura   (Componente do catalogo com solido)
+--       A  Peca, 5                 Roteiro: Solda -> Pintura   (Componente MT-1020 do catalogo)
 --       |- B  Item, 5, razao 1     Roteiro: Solda
 --       |  |- D  Item, 20, razao 4 Roteiro: Corte a Laser
 --       |  `- E  Item, 10, razao 2 Roteiro: Dobra
 --       `- C  Item, 10, razao 2    Roteiro: Corte a Laser -> Dobra
 --
---   Os Itens sao ad-hoc (descricao propria, sem Componente); a Peca usa o primeiro Componente ativo com
---   ArquivoSolidoId nao nulo, porque Peca sempre referencia um Componente (CK_EstruturaItem_PecaTemComponente).
+--   Os Itens sao ad-hoc (descricao propria, sem Componente); a Peca usa o Componente MT-1020 (ativo), porque Peca
+--   sempre referencia um Componente (CK_EstruturaItem_PecaTemComponente). O solido 3D NAO e exigido: o seed-demo.sql
+--   nao cria nenhum, e ele so existe se alguem o enviar pela tela do Componente.
 --
 -- Pre-requisitos: db/seed.sql (usuario admin), db/seed-demo.sql (Setores Corte a Laser, Dobra, Solda e Pintura
--- e Componentes com solido) e db/alter-fase-3b.sql (coluna Setor.UtilizaKit). Falta de qualquer um para o
+-- e o Componente MT-1020) e db/alter-fase-3b.sql (coluna Setor.UtilizaKit). Falta de qualquer um para o
 -- script com erro.
 --
 -- Idempotente: se o Pedido CONF-3B ja existe, nada e criado de novo (so reafirma a marca da Solda).
@@ -40,15 +41,14 @@ DECLARE @Solda       INT = (SELECT Id FROM dbo.Setor WHERE Nome = N'Solda');
 DECLARE @Pintura     INT = (SELECT Id FROM dbo.Setor WHERE Nome = N'Pintura');
 DECLARE @Corte       INT = (SELECT Id FROM dbo.Setor WHERE Nome = N'Corte a Laser');
 DECLARE @Dobra       INT = (SELECT Id FROM dbo.Setor WHERE Nome = N'Dobra');
-DECLARE @ComponenteId INT = (SELECT TOP 1 Id FROM dbo.Componente
-                              WHERE Ativo = 1 AND ArquivoSolidoId IS NOT NULL ORDER BY Id);
+DECLARE @ComponenteId INT = (SELECT Id FROM dbo.Componente WHERE Codigo = N'MT-1020' AND Ativo = 1);
 
 IF @UsuarioId IS NULL
-    RAISERROR(N'Usuario admin nao encontrado: carregue db/seed.sql antes.', 16, 1);
+    THROW 50000, N'Usuario admin nao encontrado: carregue db/seed.sql antes.', 1;
 IF @Solda IS NULL OR @Pintura IS NULL OR @Corte IS NULL OR @Dobra IS NULL
-    RAISERROR(N'Setores Solda, Pintura, Corte a Laser e Dobra nao encontrados: carregue db/seed-demo.sql antes.', 16, 1);
+    THROW 50000, N'Setores Solda, Pintura, Corte a Laser e Dobra nao encontrados: carregue db/seed-demo.sql antes.', 1;
 IF @ComponenteId IS NULL
-    RAISERROR(N'Nenhum Componente ativo com solido: carregue db/seed-demo.sql antes.', 16, 1);
+    THROW 50000, N'Componente MT-1020 ativo nao encontrado: carregue db/seed-demo.sql antes.', 1;
 
 -- A marca do Setor e reafirmada a cada carga (a tela de Setores pode te-la desmarcado).
 UPDATE dbo.Setor SET UtilizaKit = 1 WHERE Id = @Solda AND UtilizaKit = 0;
