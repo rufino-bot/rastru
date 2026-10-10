@@ -689,8 +689,10 @@ navegador. Que ele funciona no aparelho é inferência do usuário, e o risco fo
   da D4 da mesma spec) é o mesmo mecanismo, e é tratada aqui junto: com ela, o teto do Kit pode
   ficar em zero, e o Kit, travado. Ela pode nascer, por exemplo, de trocar o Tipo do Agrupamento de
   Avulso para Kit, ou marcar `UtilizaKit` num Setor, com Kit em produção; de estornar uma linha só
-  de uma entrega de Kit, porque o estorno é feito linha a linha e não confere o conjunto; e de
-  editar a `QuantidadePorPai` de um filho que tem conjuntos à espera.
+  de uma entrega de Kit, porque o estorno é feito linha a linha e não confere o conjunto; de
+  editar a `QuantidadePorPai` de um filho cujo pai tem conjuntos à espera; e de acrescentar filho a
+  um pai de Kit que ainda não iniciou, mas já tem conjuntos à espera (a guarda `PaiJaIniciado`
+  recusa o pai que já saiu de "a iniciar", e esse não saiu).
 - **Estrutura alterada no meio da produção** (D1 da spec da Fase 3B): hoje acrescentar filho a nó
   já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
   usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio

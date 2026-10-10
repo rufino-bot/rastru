@@ -315,9 +315,10 @@ entra no início de cada fase.*
     parte dentro da Solda não se completa com refugo novo. Desde a Fase 3B eles são contados pelo
     **filho mais adiantado**: o maior, entre os filhos diretos, de
     ⌈quantidade aguardando montagem ÷ `QuantidadePorPai`⌉, somando só os Setores com `UtilizaKit`
-    (D5 da spec da Fase 3B). Sem perda, e com toda entrada em conjunto completo, isso é exatamente o
-    número de conjuntos que entraram; o arredondamento para cima mantém contado o conjunto que
-    perdeu parte. (Como a perda do próprio nó entra nesta conta é decisão da Fase 5.) O motivo é
+    (D5 da spec da Fase 3B). Sem perda, e sem nenhum caminho por fora da entrada em conjunto
+    completo e do início (o bullet «Limitação conhecida» desta regra dá exemplos deles), isso é o
+    número de conjuntos que entraram e ainda não foram montados por inteiro; o arredondamento para cima
+    mantém contado o conjunto que perdeu parte. (Como a perda do próprio nó entra nesta conta é decisão da Fase 5.) O motivo é
     físico: peça solta ou a mais na Solda ocupa espaço, e, se houver perda antes de o resto chegar,
     aquele espaço fica sem destino. Não há exceção para completar conjunto que perdeu parte dentro
     da Solda — isso é perda (regra 27). A **sobra** — tudo o que passa do que o nó precisa, feche
@@ -334,13 +335,15 @@ entra no início de cada fase.*
       entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um filho de razão 4 e
       1 de um filho de razão 1. Contada pelo filho mais adiantado (⌈7 ÷ 4⌉ = 2), a espera leva o
       teto a zero: o Kit some das Tarefas, a entrega para esse pai é recusada, e o teto continua
-      zero mesmo depois de iniciar o pai. A entrada, que só aceita conjuntos completos, e o início,
-      que tira de cada filho `N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das
-      razões. Ela só se desalinha quando se forma ou muda sem passar por eles, ou quando a razão
-      muda depois. Por exemplo: ao trocar o Tipo do Agrupamento de Avulso para Kit, ou marcar
-      `UtilizaKit` num Setor, quando já há Kit em produção; ao estornar uma linha só de uma entrega
-      de Kit, porque o estorno é feito linha a linha e não confere o conjunto; e ao editar a
-      `QuantidadePorPai` de um filho que tem conjuntos à espera. É o mesmo mecanismo da perda
+      zero mesmo depois de iniciar o pai. A entrada em conjunto completo e o início, que tira de
+      cada filho `N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das razões; caminhos
+      por fora deles podem desalinhá-la. Alguns exemplos, sem pretender esgotar a lista: trocar o
+      Tipo do Agrupamento de Avulso para Kit, ou marcar `UtilizaKit` num Setor, quando já há Kit em
+      produção; estornar uma linha só de uma entrega de Kit, porque o estorno é feito linha a linha
+      e não confere o conjunto; editar a `QuantidadePorPai` de um filho cujo pai tem conjuntos à
+      espera; e acrescentar filho a um pai de Kit que ainda não iniciou, mas já tem conjuntos à
+      espera — a guarda `PaiJaIniciado` (D1 da spec da Fase 3B) recusa o pai que já saiu de "a
+      iniciar", e esse não saiu; o filho novo nasce sem nada à espera. É o mesmo mecanismo da perda
       dentro da Solda (uma espera que deixou de ser feita de conjuntos inteiros), e vai com ela
       para a Fase 5.
 26. **`EstruturaItem.QuantidadePorPai`** guarda quantos daquele nó entram em **uma** unidade do

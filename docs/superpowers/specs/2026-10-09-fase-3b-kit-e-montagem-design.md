@@ -97,11 +97,13 @@ Agrupamento de Avulso para Kit, ou marcar `UtilizaKit` num Setor com Kit já em 
 espera **desalinhada** entre os filhos. Exemplo: um pai de quantidade 2, com 7 aguardando montagem de um filho
 de razão 4 e 1 de um filho de razão 1. Pela contagem da D5, os conjuntos à espera são ⌈7 ÷ 4⌉ = 2, e o teto
 fica em 0: o Kit some das Tarefas, a entrega para esse pai é recusada, e o teto continua 0 mesmo depois de
-iniciar o pai. A troca não é o único caminho. A entrada, que só aceita conjuntos completos, e o início, que tira
-de cada filho `N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das razões; ela só se desalinha
-quando se forma ou muda sem passar por eles, ou quando a razão muda depois. Além da troca, por exemplo: o
-estorno de uma linha só de uma entrega de Kit (o estorno é feito linha a linha e não confere o conjunto) e a
-edição da `QuantidadePorPai` de um filho que tem conjuntos à espera. É o mesmo mecanismo da perda dentro da
+iniciar o pai. A troca não é o único caminho. A entrada em conjunto completo e o início, que tira de cada filho
+`N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das razões; caminhos por fora deles podem
+desalinhá-la. Alguns exemplos além da troca, sem pretender esgotar a lista: o estorno de uma linha só de uma
+entrega de Kit (o estorno é feito linha a linha e não confere o conjunto); a edição da `QuantidadePorPai` de um
+filho cujo pai tem conjuntos à espera; e um filho acrescentado a um pai de Kit que ainda não iniciou, mas já tem
+conjuntos à espera (a guarda da D1 recusa o pai que já saiu de "a iniciar", e esse não saiu; o filho novo nasce
+sem nada à espera). É o mesmo mecanismo da perda dentro da
 Solda (uma espera que deixou de ser feita de conjuntos inteiros), e vai com ela para a Fase 5 (D5). O código
 não muda; a limitação está escrita na regra 25 do `01` e no item da Fase 5 do `06`.
 
@@ -110,7 +112,8 @@ não muda; a limitação está escrita na regra 25 do `01` e no item da Fase 5 d
 A regra 25 define os conjuntos à espera como "os que entraram e ainda não foram montados, não o mínimo por
 filho". A 3B os conta como o **maior**, entre os filhos diretos, de
 `⌈AguardandoMontagem(c) ÷ QuantidadePorPai(c)⌉`, somado em todos os Setores com `UtilizaKit`. Sem perda,
-com toda entrada em conjunto completo, isso é exatamente o número de conjuntos que entraram. Um conjunto que
+e sem nenhum caminho por fora da entrada em conjunto completo e do início (a nota da D4 dá exemplos deles), isso
+é o número de conjuntos que entraram e ainda não foram montados por inteiro. Um conjunto que
 perde parte dentro da Solda continua contado como à espera, e por isso não se completa com refugo novo.
 
 **Como a perda do próprio nó entra nos dois tetos** (seção 9 da spec do Kit) passa para a **Fase 5**. Na 3B
