@@ -2624,3 +2624,131 @@ usuário (primeira classe do `CLAUDE.md`). A justificativa vai no ledger e no re
 - [ ] **Step 3:** O controlador escreve `conferencia/relatorio.md` com o que o usuário aprovou, o que pediu de ajuste e
   as decisões dele. Ajuste pedido vira task nova com gate próprio.
 - [ ] **Step 4:** Só depois: a review de branch inteira (opus), o fix wave, e o PR.
+
+## Ajustes da conferência no navegador (Tasks 13 a 17)
+
+Saíram da conferência do usuário, em 2026-10-11, e estão no relatório da Task 12 (ajustes A1 a A6). Cada task tem o
+gate inteiro (implementer → review → fix pass → re-review), e a review de branch inteira vem depois da Task 17. Valem as
+Global Constraints acima. Os textos entre aspas abaixo são **exatos**.
+
+Toda task que muda um comportamento descrito numa spec acrescenta uma nota datada no ponto que descreve o comportamento
+antigo: "Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B: …". O texto antigo não é apagado. As specs
+em jogo são a da Fase 3B (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`) e a dos filtros
+(`docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`).
+
+### Task 13: "Kits incompletos" com moldura e com "(0)" quando o filtro esconde todos (A6 e A5)
+
+**Arquivos:** `web/src/components/SecaoRecolhivel.tsx` e `web/src/pages/TarefasPage.tsx`, com os testes de cada uma.
+
+- [ ] **A6, moldura.** A `SecaoRecolhivel` passa a ter moldura **no padrão dos cartões da tela**. Use as mesmas classes
+  de borda, raio, fundo e espaçamento interno da caixa do `ItemComAcao`/`ItemDeCadastro`: copie as da primitiva
+  existente, não invente outras, e só por token. O `<summary>` e o conteúdo ficam dentro da moldura. O comentário da
+  primitiva, que hoje diz "Sem moldura própria…", passa a dar o motivo novo. Teste: a classe de borda está no elemento de
+  fora, e o teste morre se ela sair.
+- [ ] **A5, "(0)".** Hoje a `TarefasPage` só mostra a seção quando `incompletosVisiveis.length > 0`, e o comentário diz
+  "Some quando o filtro esconde todos, como o grupo por Setor que fica sem item". Passa a valer:
+  - **Há Kits incompletos (`incompletos.length > 0`) e o filtro esconde todos:** a seção aparece como **"Kits incompletos
+    (0)"**. Aberta, mostra **"Nenhum Kit incompleto combina com os filtros."**, escrito com a primitiva de estado vazio
+    de `web/src/components/`, não à mão.
+  - **Não há nenhum Kit incompleto antes do filtro:** a seção **não** aparece, como hoje.
+  - **Testes:** esses dois casos e o caso com Kits visíveis, cada um morrendo se o comportamento sumir. O comentário da
+    página é atualizado.
+- [ ] Se a spec da Fase 3B descrever a seção recolhida (D7) ou a falta de moldura, ela ganha a emenda.
+- [ ] Rodar `npm test -- --run` e `npm run build` em `web/` e pôr o delta de testes no relatório.
+
+### Task 14: A lista de filhos começa recolhida (A1)
+
+**Arquivos:** uma primitiva nova em `web/src/components/`, com teste próprio; o `GrupoDeMontagem` da
+`web/src/pages/FilaDoSetorPage.tsx`; os dois cartões de `web/src/execucao/CartaoDeKit.tsx`; e os testes afetados.
+
+Decisões do usuário (2026-10-11): vale para a Fila e para as Tarefas; a lista começa sempre recolhida; fechada, mostra só
+a contagem. **Exceção:** se algum filho da lista tem ação própria, a lista começa **aberta** e continua recolhível. A ação
+própria é o "Levar para {Setor}" por filho do `GrupoDeMontagem`, que aparece quando o pai começa em outro Setor.
+
+- [ ] **Primitiva nova**, `ListaRecolhivel` (o nome técnico é livre, desde que descreva o que é). Ela é o disclosure
+  **dentro de um cartão**, sem moldura e com texto pequeno. É distinta da `SecaoRecolhivel`, que é seção de página, com
+  título grande e, desde a Task 13, moldura.
+  - Usa `<details>` nativo, e o `<summary>` é o nome do controle: **"Filhos (N)"**, com N o número de filhos da lista.
+  - O anel de foco é só por token, como o da `SecaoRecolhivel`.
+  - Recebe a indicação de que algum item tem ação. Se ela é verdadeira na montagem, a lista nasce aberta. Se passa de
+    falsa a verdadeira com a lista fechada, a lista abre, para a ação nunca ficar escondida; isso importa porque a Fila
+    recarrega sozinha de tempos em tempos. O usuário pode fechar de novo.
+  - **Teste próprio:** nasce fechada; nasce aberta com ação; abre quando a ação aparece; o `<summary>` traz a contagem.
+- [ ] **Fila:** o `<ul aria-label="Filhos de …">` do `GrupoDeMontagem` vai para dentro da primitiva. A linha "Dá para
+  iniciar N; falta iniciar M." e o aviso de onde o pai começa ficam **fora** da lista. "Tem ação" é algum filho ter o
+  "Levar para {Setor}".
+- [ ] **Tarefas:** as listas de filhos do `CartaoDeKitMontavel` e do `CartaoDeKitIncompleto` vão para dentro da primitiva
+  e sempre nascem fechadas, porque os cartões não têm ação por filho. No montável, a lista continua no mesmo lugar,
+  acima do campo "Conjuntos" do painel; o usuário aprovou essa posição.
+- [ ] Os testes existentes que leem os filhos continuam afirmando o mesmo conteúdo, abrindo a lista quando preciso.
+  Nenhum teste é apagado para passar.
+- [ ] A spec da Fase 3B ganha a emenda na seção 5.1 e onde mais descrever a lista de filhos dos cartões. Se a spec da
+  Fase 3 ou a da 3D descrever o cartão de "Aguardando montagem", ela também ganha.
+- [ ] Rodar `npm test -- --run` e `npm run build` em `web/` e pôr o delta de testes no relatório.
+
+### Task 15: As pílulas de posição dizem o estado de cada unidade (A2)
+
+**Arquivos:** `web/src/execucao/formatacao.ts` (`rotuloDoSaldo`, `rotuloDoLocal`), `web/src/components/ResumoDePosicoes.tsx`
+e os testes que afirmam os textos antigos.
+
+Decisão do usuário (2026-10-11), com os textos exatos:
+
+- [ ] **`rotuloDoSaldo`, posição `AguardandoMontagem`:** **"{q} pronto, aguardando a montagem do pai em {Setor}"**, com
+  "prontos" no plural. A regra do número: singular quando a quantidade é menor que 2 ("1 pronto", "1,5 pronto"), plural
+  a partir de 2 ("2 prontos").
+- [ ] **`rotuloDoLocal`, posição `AguardandoMontagem`** (a ponta do movimento no histórico do nó): **"aguardando a
+  montagem do pai em {Setor}"**.
+- [ ] **A pílula de `totalMontado` do `ResumoDePosicoes`:** **"{q} montado a partir dos filhos"** ou **"{q} montados a
+  partir dos filhos"**, com a mesma regra do número. O comentário dela é atualizado.
+- [ ] A pílula `Montado` ("{q} montados no pai") **não muda**.
+- [ ] Procurar em `web/src/` o texto antigo ("aguardando montagem em", "total montado") e dizer no relatório onde mais ele
+  aparecia. O título da seção "Aguardando montagem" da Fila **não** é este texto e não muda.
+- [ ] Os testes que afirmam os textos antigos passam a afirmar os novos, com um caso a mais para o plural.
+- [ ] Se a spec da Fase 3 (seção 6.3) ou a da 3B tratarem os rótulos antigos como contrato, ganham a emenda.
+- [ ] Rodar `npm test -- --run` e `npm run build` em `web/` e pôr o delta de testes no relatório.
+
+### Task 16: O histórico do nó não mostra o Id (A3)
+
+**Arquivos:** `web/src/execucao/HistoricoDoNo.tsx` e o teste dele.
+
+Decisão do usuário (2026-10-11): a mudança é **só de texto**. O estorno continua usando o `id` do registro guardado no
+estado (`setAConfirmar({ ..., registro })`), e isso não muda. **Não** entra atributo `data-` com o Id.
+
+- [ ] **Título da movimentação:** **"{Tipo} de {q}"**; sai o "nº {id} · ".
+- [ ] **Título da montagem:** **"Montagem de {q} em {Setor}"**; sai o "nº {id}".
+- [ ] **Linha do estorno:** **"Desfaz: {Tipo} de {q}, em {data e hora}."** O tipo, a quantidade e a data e hora são **do
+  registro desfeito**, achado no livro pelo `estornoDeId`, e a data e hora seguem o formato de `formatarDataHora`. Se o
+  registro desfeito não estiver no livro carregado, o texto é **"Desfaz um registro anterior."**.
+- [ ] **Diálogo de confirmação:**
+  - Registro: **"Estornar este registro ({Tipo} de {q}, em {data e hora})? O movimento inverso fica no histórico."**
+  - Montagem: **"Estornar esta montagem ({q} em {Setor}, em {data e hora})? Os filhos voltam a aguardar montagem, e o
+    estorno fica no histórico."**
+- [ ] **Nome acessível dos botões:** **"Estornar: {Tipo} de {q}, em {data e hora}"** e **"Estornar a montagem de {q} em
+  {Setor}, em {data e hora}"**.
+- [ ] Nenhum "nº" de Id sobra no texto visível nem no nome acessível do componente. As chaves React (`key`) continuam
+  usando o Id. **Testes:** os textos novos, e um teste que morre se o "nº {id}" voltar ao título.
+- [ ] Rodar `npm test -- --run` e `npm run build` em `web/` e pôr o delta de testes no relatório.
+
+### Task 17: As Tarefas ganham a barra fixa do lote, igual à da Fila (A4)
+
+**Arquivos:** `web/src/execucao/BarraDoLote.tsx` e o teste dela; `web/src/pages/FilaDoSetorPage.tsx`, só o uso da barra;
+`web/src/pages/TarefasPage.tsx` e o teste dela; e a spec dos filtros.
+
+Decisão do usuário (2026-10-11): o "Entregar" das Tarefas vira uma barra inferior fixa, **igual à da Fila**.
+
+- [ ] **Generalizar a `BarraDoLote`** para servir às duas telas, sem duplicar a barra. O rótulo do botão e o de
+  carregando passam a vir de quem a usa, em vez de serem derivados da `secao`. A Fila continua escrevendo exatamente o
+  que escreve hoje ("Iniciar 5 itens", "Terminar 1 item", "Registrando…"), e os testes da Fila não mudam de texto.
+- [ ] **Tarefas:** o bloco do "Entregar" no fim da lista sai. Enquanto há seleção (algum item ou Kit marcado), a barra fixa
+  aparece; sem seleção, ela não aparece. A barra traz:
+  - o botão com o rótulo atual (`rotuloDoEntregar`: "Entregar 1 Kit", "Entregar 2 Kits e 3 itens"…), "Entregando…"
+    enquanto envia, e desabilitado nos mesmos casos de hoje (`algumInvalido`);
+  - **"Limpar seleção"**, que desmarca itens e Kits;
+  - o aviso de marcados ocultos pelo filtro;
+  - o banner da recusa da entrega.
+- [ ] O comportamento da entrega não muda: uma requisição, tudo ou nada, recarga depois, e a seleção mantida na recusa.
+- [ ] **Testes:** a barra aparece só com seleção; "Limpar seleção" desmarca itens e Kits; o rótulo; o banner de recusa
+  dentro dela. Os testes existentes do Entregar continuam valendo.
+- [ ] A spec dos filtros ganha a emenda na seção 5.7: as Tarefas passam a usar a barra fixa da seção 5.4. A spec da Fase
+  3B também ganha, se descrever o botão "Entregar" no fim da lista.
+- [ ] Rodar `npm test -- --run` e `npm run build` em `web/` e pôr o delta de testes no relatório.
