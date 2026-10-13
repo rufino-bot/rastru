@@ -289,6 +289,13 @@ Ganham **"Marcar todos"** no topo, que marca todos os itens visíveis depois do 
 grupos, e pula os bloqueados (como o de pai sem Roteiro). O resto do "Levar" não muda: ele já é lote,
 numa requisição, tudo ou nada.
 
+- **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** as Tarefas passam a usar a **barra fixa
+  da seção 5.4**, a mesma `BarraDoLote` da Fila, no lugar do "Entregar" que ficava no fim da lista. A barra só
+  aparece enquanto há seleção (item ou Kit); traz "Entregar …" (o texto da seção 5.1 da spec da Fase 3B), "Limpar
+  seleção" (desmarca itens e Kits, e não mexe nos filtros), o aviso de marcados ocultos e o banner da recusa. O
+  comportamento da entrega não muda. O texto acima, que mantinha o "Levar" como estava, vale para a requisição, e
+  não mais para o lugar do botão.
+
 ## 6. Lote no backend
 
 ### 6.1 Rotas

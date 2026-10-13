@@ -21,6 +21,7 @@ import { ItemComAcao } from '../components/ItemComAcao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Botao } from '../components/Botao'
 import { Pilula } from '../components/Pilula'
+import { BarraDoLote } from '../execucao/BarraDoLote'
 import { FiltroDeDemanda } from '../components/FiltroDeDemanda'
 import { SecaoRecolhivel } from '../components/SecaoRecolhivel'
 
@@ -121,6 +122,7 @@ export function TarefasPage() {
 
   function alternar(chave: string, item: ItemDeTarefa, marcado: boolean) {
     setAviso(null)
+    setErroDaEntrega(null)
     setEscolhas((atuais) => {
       if (!marcado) {
         const { [chave]: _removida, ...resto } = atuais
@@ -133,6 +135,7 @@ export function TarefasPage() {
   /** Marcar o Kit põe no campo o N máximo; desmarcar tira o texto. */
   function alternarKit(kit: KitDto, marcado: boolean) {
     setAviso(null)
+    setErroDaEntrega(null)
     setConjuntos((atuais) => {
       if (!marcado) {
         const { [kit.pai.id]: _removido, ...resto } = atuais
@@ -154,6 +157,7 @@ export function TarefasPage() {
    */
   function alternarTodos() {
     setAviso(null)
+    setErroDaEntrega(null)
     setEscolhas((atuais) => {
       if (todosMarcados) {
         const resto = { ...atuais }
@@ -178,6 +182,14 @@ export function TarefasPage() {
       }
       return novos
     })
+  }
+
+  /** "Limpar seleção" da barra: desmarca itens e Kits e apaga a recusa; os filtros ficam como estão. */
+  function limparSelecao() {
+    setAviso(null)
+    setErroDaEntrega(null)
+    setEscolhas({})
+    setConjuntos({})
   }
 
   function mudar(chave: string, parcial: Partial<Escolha>) {
@@ -253,6 +265,9 @@ export function TarefasPage() {
     <Pagina titulo="Tarefas">
       <BannerDeErro mensagem={erro} />
       <BannerDeErro mensagem={aviso} />
+      {/* A recusa da entrega mora na barra do lote. Se a recarga que veio com ela deixou a seleção vazia, a
+          barra sumiu, e a frase do servidor sobe para cá em vez de se perder. */}
+      <BannerDeErro mensagem={totalMarcado === 0 ? erroDaEntrega : null} />
       {/* Só com dado de verdade: sem nenhuma tarefa nem Kit não há o que filtrar. */}
       {(haTarefa || incompletos.length > 0) && (
         <FiltroDeDemanda facetas={facetas} selecao={selecao} aoMudar={mudarSelecao} />
@@ -303,24 +318,17 @@ export function TarefasPage() {
           aoMudar={mudar}
         />
       ))}
-      {podeEntregar && haTarefa && (
-        <div className="flex flex-col gap-3">
-          <BannerDeErro mensagem={erroDaEntrega} />
-          <Botao
-            onClick={enviar}
-            carregando={enviando}
-            rotuloCarregando="Entregando…"
-            disabled={totalMarcado === 0 || algumInvalido}
-            className="self-start"
-          >
-            {rotuloDoEntregar(kitsMarcados.length, marcados.length)}
-          </Botao>
-          {ocultos > 0 && (
-            <p className="text-sm text-tinta-fraca">
-              {ocultos === 1 ? '1 marcado oculto pelo filtro' : `${ocultos} marcados ocultos pelo filtro`}
-            </p>
-          )}
-        </div>
+      {podeEntregar && totalMarcado > 0 && (
+        <BarraDoLote
+          rotulo={rotuloDoEntregar(kitsMarcados.length, marcados.length)}
+          rotuloCarregando="Entregando…"
+          ocultos={ocultos}
+          invalido={algumInvalido}
+          enviando={enviando}
+          erro={erroDaEntrega}
+          aoEnviar={enviar}
+          aoLimpar={limparSelecao}
+        />
       )}
       {/* Havendo Kit incompleto antes do filtro, a seção fica mesmo com "(0)", para o usuário saber que o filtro
           escondeu algo. Sem nenhum Kit incompleto, ela nem aparece. */}

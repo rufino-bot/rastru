@@ -206,7 +206,8 @@ describe('TarefasPage', () => {
     fireEvent.click(screen.getByLabelText('Levar SUP-01 — Suporte'))
 
     expect(screen.queryByLabelText('Quantidade')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Entregar' })).toHaveProperty('disabled', true)
+    // Sem seleção a barra do lote some: não há mais "Entregar" desabilitado esperando.
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
   })
 
   it('item cujo pai não tem Roteiro aparece, mas não se marca', async () => {
@@ -319,7 +320,7 @@ describe('TarefasPage', () => {
     fireEvent.click(checkbox)
 
     expect(screen.getAllByText('Peça ao PCP o Roteiro do pai antes de levar.')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Entregar' })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
   })
 
   it('a atualização periódica preserva a seleção e o que foi digitado', async () => {
@@ -337,6 +338,79 @@ describe('TarefasPage', () => {
     expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '3')
     expect(screen.queryByRole('alert')).toBeNull()
   })
+  it('a barra fixa do lote só existe com algo marcado, e some quando a seleção esvazia', async () => {
+    vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS, [KIT_QUADRO])]).fetchMock)
+
+    renderizar()
+    await screen.findByLabelText('Levar SUP-01 — Suporte')
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Limpar seleção' })).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Levar SUP-01 — Suporte'))
+    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Limpar seleção' }).closest('.sticky')).not.toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Levar SUP-01 — Suporte'))
+    // Só o Kit marcado já basta para a barra aparecer.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Levar o Kit QD-01 — Quadro' }))
+    expect(screen.getByRole('button', { name: 'Entregar 1 Kit' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Limpar seleção' })).toBeTruthy()
+  })
+
+  it('Limpar seleção desmarca itens e Kits e leva a barra embora', async () => {
+    vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS, [KIT_QUADRO])]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Levar o Kit QD-01 — Quadro' }))
+    expect(screen.getByRole('button', { name: 'Entregar 1 Kit e 1 item' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar seleção' }))
+
+    const marcado = (nome: string) => (screen.getByLabelText(nome) as HTMLInputElement).checked
+    expect(marcado('Levar SUP-01 — Suporte')).toBe(false)
+    expect(marcado('Levar o Kit QD-01 — Quadro')).toBe(false)
+    expect(screen.queryByLabelText('Quantidade')).toBeNull()
+    expect(screen.queryByLabelText('Conjuntos')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Limpar seleção' })).toBeNull()
+  })
+
+  it('a recusa da entrega aparece dentro da barra, e Limpar seleção a apaga', async () => {
+    const { fetchMock } = montarFetch([tarefas(TAREFAS)], () => respostaJson(
+      { erro: 'Proibido', mensagem: 'Só o Movimentador pode registrar entregas.' }, 403))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 1 item' }))
+
+    const recusa = await screen.findByText('Só o Movimentador pode registrar entregas.')
+    const barra = screen.getByRole('button', { name: 'Limpar seleção' }).closest('.sticky')
+    expect(barra).not.toBeNull()
+    expect(barra!.contains(recusa)).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar seleção' }))
+
+    expect(screen.queryByText('Só o Movimentador pode registrar entregas.')).toBeNull()
+  })
+
+  it('a recusa que a recarga deixa sem nada marcado não se perde junto com a barra', async () => {
+    // O único item marcado foi levado por outra pessoa: o 409 recarrega, o item sai da seleção e a barra
+    // some — a frase do servidor sobe para o topo em vez de sumir com ela.
+    const { fetchMock } = montarFetch([tarefas(TAREFAS), tarefas(TAREFAS.slice(1))], () => respostaJson(
+      { erro: 'SaldoInsuficiente', mensagem: 'Só há 2 de Suporte aguardando coleta no Corte (passo 1).' }, 409))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 1 item' }))
+
+    expect(await screen.findByText(/Um item que você tinha marcado não está mais pronto/)).toBeTruthy()
+    expect(screen.getByText('Só há 2 de Suporte aguardando coleta no Corte (passo 1).')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
+  })
+
   it.each(['Operador', 'Gestao'])('%s lê as tarefas, sem marcar nem entregar', async (quem) => {
     perfil = quem
     vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
@@ -702,6 +776,22 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
       expect(screen.queryByRole('button', { name: /^(Marcar|Desmarcar) todos$/ })).toBeNull()
     })
   })
+
+  it('Limpar seleção desmarca o que o filtro esconde e não mexe nos filtros', async () => {
+    vi.stubGlobal('fetch', montarFetch([tarefas(DOIS_PEDIDOS)]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar TP-01 — Tampa'))
+    abrirFiltro()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'PED-2026-01 · Metalúrgica Alfa' }))
+    expect(screen.getByText('1 marcado oculto pelo filtro')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar seleção' }))
+
+    expect(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' })).toBeTruthy()
+    expect(screen.queryByText(/oculto/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
+  })
 })
 
 describe('TarefasPage — Kits', () => {
@@ -837,7 +927,7 @@ describe('TarefasPage — Kits', () => {
 
     expect(marcado('Levar o Kit QD-01 — Quadro')).toBe(false)
     expect(marcado('Levar o Kit CX-01 — Caixa')).toBe(false)
-    expect(screen.getByRole('button', { name: 'Entregar' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
   })
 
   it('Marcar todos preserva os conjuntos já digitados', async () => {
@@ -924,7 +1014,7 @@ describe('TarefasPage — Kits', () => {
 
     expect(getsDasTarefas()).toBe(2)
     expect(screen.getByText(SAIU)).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Entregar' })).toHaveProperty('disabled', true)
+    expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
   })
 
   it('Kit que virou incompleto na recarga também sai da seleção com aviso', async () => {

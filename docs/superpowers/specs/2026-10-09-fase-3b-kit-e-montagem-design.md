@@ -272,6 +272,12 @@ pronto"), sem caixa de marcar.
 **"Marcar todos"** marca também os Kits montáveis, cada um com o N máximo. O botão passa a contar Kits e
 itens separados ("Entregar 2 Kits e 3 itens"), e a lista enviada é uma só.
 
+- **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** o botão "Entregar" deixa de ser um bloco
+  no fim da lista, sempre visível e desabilitado sem seleção, e passa à **barra fixa do lote** da Fila (seção 5.4 da
+  spec dos filtros): ela só aparece enquanto há algo marcado (item ou Kit), traz o botão com o rótulo acima, o
+  "Limpar seleção" — que desmarca itens e Kits —, o aviso de marcados ocultos pelo filtro e o banner da recusa.
+  Se a recarga que acompanha uma recusa deixa a seleção vazia, a barra some e a frase do servidor sobe para o topo da tela.
+
 **Os filtros** (`FiltroDeDemanda`, facetas de Material e Pedido) valem para os cartões de Kit, avaliados
 pelo pai e pelos filhos prontos, como o cartão de montagem da Fila já é: o Material mora nos filhos, e avaliar só o
 pai esconderia o Kit de quem filtra pela chapa do filho (decisão P5 do plano da Fase 3B). O comportamento com os

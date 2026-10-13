@@ -101,6 +101,12 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   return chaves
 }
 
+/** O botão do lote é o verbo puro — "Iniciar 5 itens", sem a atividade do Setor que o botão da linha usa. */
+function rotuloDoLote(secao: SecaoDoLote, marcados: number): string {
+  const verbo = secao === 'emTrabalho' ? 'Terminar' : 'Iniciar'
+  return `${verbo} ${marcados} ${marcados === 1 ? 'item' : 'itens'}`
+}
+
 /** Nenhuma seção, nenhuma linha: a fila realmente vazia (não a que o filtro esvaziou). */
 function estaVazia(fila: FilaDoSetorDto): boolean {
   return fila.aIniciar.length === 0 && fila.emTrabalho.length === 0
@@ -306,8 +312,8 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
       )}
       {lote !== null && (
         <BarraDoLote
-          secao={lote.secao}
-          marcados={marcadas.length}
+          rotulo={rotuloDoLote(lote.secao, marcadas.length)}
+          rotuloCarregando="Registrando…"
           ocultos={ocultos}
           invalido={invalido}
           enviando={enviandoLote}
