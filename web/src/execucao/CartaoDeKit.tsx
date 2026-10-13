@@ -1,5 +1,6 @@
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { ItemComAcao } from '../components/ItemComAcao'
+import { ListaRecolhivel } from '../components/ListaRecolhivel'
 import { Pilula } from '../components/Pilula'
 import type { FilhoDoKitDto, KitDto } from '../api/execucao'
 import { caminhoDoNo, formatarQuantidade, rotuloDoNo } from './formatacao'
@@ -68,13 +69,15 @@ export function CartaoDeKitMontavel({ kit, podeEntregar, conjuntos, aoAlternar, 
       <span className="text-xs text-tinta-fraca">{caminhoDoNo(kit.pai)}</span>
       <span className="text-sm text-tinta">{`Destino: ${kit.destino.nome} (início de ${kit.pai.descricao})`}</span>
       <span className="text-sm text-tinta">{`Dá para levar ${formatarQuantidade(kit.conjuntos)} conjunto(s)`}</span>
-      <ul aria-label={`Filhos do Kit ${kit.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
-        {kit.filhos.map((f) => (
-          <li key={f.no.id}>
-            {`${rotuloDoNo(f.no)}: ${formatarQuantidade(quantidadeDoConjunto(n, f.quantidadePorPai))} (${origemDoFilho(f, kit.destino.nome)})`}
-          </li>
-        ))}
-      </ul>
+      <ListaRecolhivel contagem={kit.filhos.length} temAcao={false}>
+        <ul aria-label={`Filhos do Kit ${kit.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
+          {kit.filhos.map((f) => (
+            <li key={f.no.id}>
+              {`${rotuloDoNo(f.no)}: ${formatarQuantidade(quantidadeDoConjunto(n, f.quantidadePorPai))} (${origemDoFilho(f, kit.destino.nome)})`}
+            </li>
+          ))}
+        </ul>
+      </ListaRecolhivel>
     </ItemComAcao>
   )
 }
@@ -85,18 +88,20 @@ export function CartaoDeKitIncompleto({ kit }: { kit: KitDto }) {
     <ItemComAcao>
       <span className="font-medium text-tinta">{rotuloDoNo(kit.pai)}</span>
       <span className="text-xs text-tinta-fraca">{caminhoDoNo(kit.pai)}</span>
-      <ul aria-label={`Filhos do Kit ${kit.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
-        {kit.filhos.map((f) => {
-          const falta = Math.max(0, quantidadeDoConjunto(1, f.quantidadePorPai - f.pronto))
-          return (
-            <li key={f.no.id}>
-              {f.pronto > 0
-                ? `${rotuloDoNo(f.no)}: pronto ${formatarQuantidade(f.pronto)}${falta > 0 ? `, falta ${formatarQuantidade(falta)} para 1 conjunto` : ''}`
-                : `${rotuloDoNo(f.no)}: nenhum pronto, falta ${formatarQuantidade(f.quantidadePorPai)} para 1 conjunto`}
-            </li>
-          )
-        })}
-      </ul>
+      <ListaRecolhivel contagem={kit.filhos.length} temAcao={false}>
+        <ul aria-label={`Filhos do Kit ${kit.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
+          {kit.filhos.map((f) => {
+            const falta = Math.max(0, quantidadeDoConjunto(1, f.quantidadePorPai - f.pronto))
+            return (
+              <li key={f.no.id}>
+                {f.pronto > 0
+                  ? `${rotuloDoNo(f.no)}: pronto ${formatarQuantidade(f.pronto)}${falta > 0 ? `, falta ${formatarQuantidade(falta)} para 1 conjunto` : ''}`
+                  : `${rotuloDoNo(f.no)}: nenhum pronto, falta ${formatarQuantidade(f.quantidadePorPai)} para 1 conjunto`}
+              </li>
+            )
+          })}
+        </ul>
+      </ListaRecolhivel>
     </ItemComAcao>
   )
 }

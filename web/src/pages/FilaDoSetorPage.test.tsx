@@ -172,6 +172,19 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(filhos).getByText('Parafuso: 5 aqui, 1 por unidade')).toBeTruthy()
   })
 
+  it('a lista de filhos nasce recolhida, com a contagem, quando nenhum filho tem ação', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
+
+    renderizar()
+
+    const filhos = await screen.findByRole('list', { name: 'Filhos de Chassi' })
+    const lista = filhos.closest('details')!
+    expect(lista.open).toBe(false)
+    expect(within(lista).getByText('Filhos (2)').tagName).toBe('SUMMARY')
+    // A linha de resumo fica fora da lista recolhida.
+    expect(screen.getByText('Dá para iniciar 2; falta iniciar 10.').closest('details')).toBeNull()
+  })
+
   it('sem próxima unidade a montar, não há "falta" nenhum', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
@@ -603,6 +616,27 @@ describe('FilaDoSetorPage — ações', () => {
       itens: [{ estruturaItemId: 7, origem: { posicao: 'AguardandoMontagem', setorId: 1, ordem: null }, quantidade: 5 }],
     }))
     expect(screen.queryByLabelText('Setor de destino')).toBeNull()
+  })
+
+  it('a lista de filhos nasce aberta quando algum filho tem o Levar, e o aviso do pai fica fora dela', async () => {
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+
+    const botao = await screen.findByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' })
+    expect(botao.closest('details')!.open).toBe(true)
+    expect(screen.getByText('Chassi começa em Solda: leve os filhos para lá.').closest('details')).toBeNull()
+  })
+
+  it('abrir o formulário de Levar de um filho não fecha a lista', async () => {
+    vi.stubGlobal('fetch', montarFetch([FORA_DO_PRIMEIRO_PASSO]).fetchMock)
+
+    renderizar()
+    const lista = (await screen.findByRole('list', { name: 'Filhos de Chassi' })).closest('details')!
+    fireEvent.click(screen.getByRole('button', { name: 'Levar para Solda SUP-01 — Suporte' }))
+
+    await screen.findByLabelText('Quantidade')
+    expect(lista.open).toBe(true)
   })
 
   it('filho ausente não ganha Levar', async () => {

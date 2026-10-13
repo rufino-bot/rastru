@@ -261,6 +261,11 @@ De cima para baixo:
 Marcada a caixa, abre o campo **Conjuntos**, inteiro de 1 a N, que já vem com N. Abaixo dele, cada filho com
 a origem ("de {Setor}, passo k" ou "já está em {Setor}") e a quantidade, que acompanha o N digitado.
 
+- **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** a lista de filhos do cartão começa
+  **recolhida**, atrás de um "Filhos (N)", com N o número de filhos (uma Peça pode ter dezenas, e a lista inteira
+  empurrava o resto da tela). Fechada, mostra só a contagem. No cartão montável a lista continua no mesmo lugar,
+  acima do campo "Conjuntos"; os cartões de Tarefas não têm ação por filho, então sempre nascem fechados.
+
 **O cartão do Kit incompleto** mostra os filhos com "pronto: X" e "falta para 1 conjunto: Y" (ou "nenhum
 pronto"), sem caixa de marcar.
 
@@ -281,6 +286,14 @@ marcados ocultos pelo filtro é o de hoje.
 - **Redirecionamento de Kit:** quando o destino do redirecionamento é um Setor com `UtilizaKit` e o
   Agrupamento é Kit, o "Levar ao Setor P1" deixa de ser por filho e passa a ser um botão **por Kit**, que
   leva os conjuntos completos que estão ali.
+
+- **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** a lista de filhos do cartão de
+  "Aguardando montagem" começa **recolhida**, atrás de "Filhos (N)"; a linha "Dá para iniciar N; falta iniciar M." e o
+  aviso de onde o pai começa ficam fora da lista. **Exceção:** se algum filho tem ação própria — o "Levar para
+  {Setor}" por filho, que aparece quando o pai começa em outro Setor —, a lista começa **aberta** e continua
+  recolhível. Se a ação aparece depois, com a lista fechada (a Fila recarrega sozinha), a lista abre, para a ação
+  nunca ficar escondida; o usuário pode fechá-la de novo, e ela só reabre numa nova passagem de falso para
+  verdadeiro.
 
 ### 5.3 Setores
 

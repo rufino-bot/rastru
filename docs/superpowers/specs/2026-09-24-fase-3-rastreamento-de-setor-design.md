@@ -479,6 +479,10 @@ seções:
 | Aguardando montagem | agrupado por pai: filhos presentes, "dá para montar N; falta X de Y para a próxima" | **Montar** (Operador); **Levar para outro Setor** (Movimentador) |
 | Sobra | o que passa do que o pai precisa (seção 7) | nenhuma — o descarte é da Fase 5 |
 
+> **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** a lista de filhos do card de "Aguardando
+> montagem" começa recolhida, atrás de "Filhos (N)", e abre sozinha quando algum filho tem ação própria (ver 5.2 da
+> spec da Fase 3B). O texto da tabela acima descreve o conteúdo, não o estado inicial da lista.
+
 Toda ação abre um campo de quantidade já preenchido com todo o disponível, que o operador pode diminuir
 (lote divisível). As ações aparecem conforme o perfil (`usePodeEscrever`); os demais leem. Os estados
 vazios distinguem "nada neste Setor agora" de erro.

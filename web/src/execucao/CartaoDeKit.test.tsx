@@ -63,6 +63,33 @@ describe('CartaoDeKitMontavel', () => {
     ])
   })
 
+  it('a lista de filhos nasce recolhida, com a contagem, e marcar o Kit não a abre', () => {
+    const { rerender } = render(
+      <ul>
+        <CartaoDeKitMontavel kit={kit()} podeEntregar conjuntos={undefined} aoAlternar={vi.fn()} aoMudar={vi.fn()} />
+      </ul>,
+    )
+
+    const lista = screen.getByRole('list', { name: 'Filhos do Kit Chassi' }).closest('details')!
+    expect(lista.open).toBe(false)
+    expect(within(lista).getByText('Filhos (2)').tagName).toBe('SUMMARY')
+
+    rerender(
+      <ul>
+        <CartaoDeKitMontavel kit={kit()} podeEntregar conjuntos="1" aoAlternar={vi.fn()} aoMudar={vi.fn()} />
+      </ul>,
+    )
+    expect(screen.getByRole('list', { name: 'Filhos do Kit Chassi' }).closest('details')!.open).toBe(false)
+  })
+
+  it('a lista de filhos fica acima do campo Conjuntos', () => {
+    montavel({ conjuntos: '2' })
+
+    const lista = screen.getByRole('list', { name: 'Filhos do Kit Chassi' }).closest('details')!
+    const campo = screen.getByLabelText('Conjuntos')
+    expect(lista.compareDocumentPosition(campo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('desmarcado não mostra o campo Conjuntos', () => {
     montavel()
 
@@ -169,5 +196,13 @@ describe('CartaoDeKitIncompleto', () => {
     ])
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByLabelText('Conjuntos')).toBeNull()
+  })
+
+  it('a lista de filhos nasce recolhida, com a contagem', () => {
+    render(<ul><CartaoDeKitIncompleto kit={kit({ conjuntos: 0 })} /></ul>)
+
+    const lista = screen.getByRole('list', { name: 'Filhos do Kit Chassi' }).closest('details')!
+    expect(lista.open).toBe(false)
+    expect(within(lista).getByText('Filhos (2)').tagName).toBe('SUMMARY')
   })
 })

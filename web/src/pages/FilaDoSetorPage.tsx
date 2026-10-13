@@ -30,6 +30,7 @@ import { EstadoVazio } from '../components/EstadoVazio'
 import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { FiltroDeDemanda } from '../components/FiltroDeDemanda'
 import { ItemComAcao } from '../components/ItemComAcao'
+import { ListaRecolhivel } from '../components/ListaRecolhivel'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Confirmacao } from '../components/Confirmacao'
@@ -592,6 +593,11 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
             // filhos juntos (regra 25; D8 da spec da Fase 3B, seção 5.2). Os filhos não ganham botão próprio.
             const levaOKit = g.conjuntoCompleto && !g.iniciaAqui && levarPara !== null
             const conjuntos = conjuntosPresentes(g.filhos)
+            // O "Levar para {Setor}" por filho. É a condição, e não o botão devolvido, que diz se a lista tem
+            // ação: o botão some enquanto o formulário daquele filho está aberto, e a lista não pode fechar
+            // nessa hora.
+            const filhoPodeSerLevado = (f: GrupoAguardandoMontagem['filhos'][number]) =>
+              podeEntregar && !g.iniciaAqui && !g.conjuntoCompleto && levarPara !== null && f.presente > 0
             // O pai começa aqui consumindo os filhos (spec da Fase 3D, §2.1). "Dá para iniciar 0"
             // não oferece o botão: o backend recusaria qualquer N.
             const iniciarPai = apontar && g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null
@@ -646,7 +652,8 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
               >
                 <GrupoDeMontagem
                   grupo={g}
-                  acaoDoFilho={(f) => (podeEntregar && !g.iniciaAqui && !g.conjuntoCompleto && levarPara && f.presente > 0
+                  temAcaoNosFilhos={g.filhos.some(filhoPodeSerLevado)}
+                  acaoDoFilho={(f) => (filhoPodeSerLevado(f) && levarPara
                     ? botao(chaveDeLevar(g.pai.id, f.no.id), `Levar para ${levarPara.nome}`, f.no)
                     : undefined)}
                 />
@@ -760,9 +767,14 @@ function Detalhe({ children }: { children: ReactNode }) {
  * "Dá para iniciar N; falta iniciar M" (spec da Fase 3, §7.6). O "falta" por filho é o que ele precisa
  * para a unidade N+1, e só existe enquanto há próxima unidade — a API manda `null` quando não há.
  * Fora do primeiro passo do pai, o card diz para onde levar os filhos (spec da Fase 3D, §4.4).
+ *
+ * A lista de filhos mora numa `ListaRecolhivel`: uma Peça pode ter dezenas de filhos, então ela nasce recolhida,
+ * com a contagem. A linha de resumo e o aviso de onde o pai começa ficam fora dela. `temAcaoNosFilhos` é algum
+ * filho ter a ação própria; com ela a lista nasce aberta.
  */
-function GrupoDeMontagem({ grupo, acaoDoFilho }: {
+function GrupoDeMontagem({ grupo, temAcaoNosFilhos, acaoDoFilho }: {
   grupo: GrupoAguardandoMontagem
+  temAcaoNosFilhos: boolean
   acaoDoFilho: (filho: GrupoAguardandoMontagem['filhos'][number]) => ReactNode
 }) {
   return (
@@ -778,18 +790,20 @@ function GrupoDeMontagem({ grupo, acaoDoFilho }: {
             : `${grupo.pai.descricao} não tem Roteiro. Peça ao PCP para cadastrá-lo.`}
         </span>
       )}
-      <ul aria-label={`Filhos de ${grupo.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
-        {grupo.filhos.map((f) => (
-          <li key={f.no.id} className="flex flex-wrap items-center justify-between gap-2">
-            <span>
-              {`${rotuloDoNo(f.no)}: ${formatarQuantidade(f.presente)} aqui, ${formatarQuantidade(f.quantidadePorPai)} por unidade`}
-              {f.faltaParaProxima !== null && f.faltaParaProxima > 0 && f.necessarioParaProxima !== null
-                && ` — falta ${formatarQuantidade(f.faltaParaProxima)} de ${formatarQuantidade(f.necessarioParaProxima)} para a próxima`}
-            </span>
-            {acaoDoFilho(f)}
-          </li>
-        ))}
-      </ul>
+      <ListaRecolhivel contagem={grupo.filhos.length} temAcao={temAcaoNosFilhos}>
+        <ul aria-label={`Filhos de ${grupo.pai.descricao}`} className="flex flex-col gap-1 text-sm text-tinta-fraca">
+          {grupo.filhos.map((f) => (
+            <li key={f.no.id} className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                {`${rotuloDoNo(f.no)}: ${formatarQuantidade(f.presente)} aqui, ${formatarQuantidade(f.quantidadePorPai)} por unidade`}
+                {f.faltaParaProxima !== null && f.faltaParaProxima > 0 && f.necessarioParaProxima !== null
+                  && ` — falta ${formatarQuantidade(f.faltaParaProxima)} de ${formatarQuantidade(f.necessarioParaProxima)} para a próxima`}
+              </span>
+              {acaoDoFilho(f)}
+            </li>
+          ))}
+        </ul>
+      </ListaRecolhivel>
     </>
   )
 }
