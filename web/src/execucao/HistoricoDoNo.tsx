@@ -37,6 +37,29 @@ function doMaisRecente(livro: LivroDoNoDto): Estornavel[] {
     Date.parse(b.registro.dataHora) - Date.parse(a.registro.dataHora) || b.registro.id - a.registro.id)
 }
 
+/**
+ * O que o operador lê para reconhecer um registro: o tipo e a quantidade. O Id do banco não entra em
+ * texto nenhum desta tela — é a chave da linha e o que o estorno envia, mas não significa nada para
+ * quem lê.
+ */
+function tituloDaMovimentacao(m: MovimentacaoDto): string {
+  return `${rotuloDoTipo(m.tipo)} de ${formatarQuantidade(m.quantidade)}`
+}
+
+/** O título mais o instante: o suficiente para distinguir um registro do outro no diálogo e no botão. */
+function descricaoDoRegistro(m: MovimentacaoDto): string {
+  return `${tituloDaMovimentacao(m)}, em ${formatarDataHora(m.dataHora)}`
+}
+
+/**
+ * A linha do estorno diz o que ele desfaz, com os dados do registro desfeito, achado no livro pelo
+ * `estornoDeId`. Se o original não estiver no livro carregado, não há o que descrever.
+ */
+function linhaDoEstorno(livro: LivroDoNoDto, estornoDeId: number): string {
+  const desfeito = livro.movimentacoes.find((m) => m.id === estornoDeId)
+  return desfeito ? `Desfaz: ${descricaoDoRegistro(desfeito)}.` : 'Desfaz um registro anterior.'
+}
+
 interface Props {
   noId: number
   /** Autor, ou PCP/Administrador (spec §4.5). Quem decide é o 403 `Proibido` do backend. */
@@ -124,7 +147,7 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                   acao={!mo.estornada && podeEstornar(mo.usuarioId) && (
                     <Botao
                       variante="secundario"
-                      aria-label={`Estornar a montagem nº ${mo.id}`}
+                      aria-label={`Estornar a montagem de ${formatarQuantidade(mo.quantidade)} em ${mo.setorNome}, em ${formatarDataHora(mo.dataHora)}`}
                       onClick={() => setAConfirmar({ tipo: 'montagem', registro: mo })}
                       disabled={estornando}
                     >
@@ -133,7 +156,7 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                   )}
                 >
                   <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
-                    {`Montagem nº ${mo.id} de ${formatarQuantidade(mo.quantidade)} em ${mo.setorNome}`}
+                    {`Montagem de ${formatarQuantidade(mo.quantidade)} em ${mo.setorNome}`}
                     {mo.estornada && <Pilula>estornada</Pilula>}
                   </span>
                   <span className="text-xs text-tinta-fraca">{`${mo.usuarioNome} · ${formatarDataHora(mo.dataHora)}`}</span>
@@ -150,7 +173,7 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                 acao={estornavel && podeEstornar(m.usuarioId) && (
                   <Botao
                     variante="secundario"
-                    aria-label={`Estornar o registro nº ${m.id}`}
+                    aria-label={`Estornar: ${descricaoDoRegistro(m)}`}
                     onClick={() => setAConfirmar({ tipo: 'movimentacao', registro: m })}
                     disabled={estornando}
                   >
@@ -159,13 +182,13 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                 )}
               >
                 <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
-                  {`nº ${m.id} · ${rotuloDoTipo(m.tipo)} de ${formatarQuantidade(m.quantidade)}`}
+                  {tituloDaMovimentacao(m)}
                   {m.estornada && <Pilula>estornado</Pilula>}
                 </span>
                 <span className="text-sm text-tinta">{`${rotuloDoLocal(m.origem)} → ${rotuloDoLocal(m.destino)}`}</span>
                 <span className="text-xs text-tinta-fraca">{`${m.usuarioNome} · ${formatarDataHora(m.dataHora)}`}</span>
                 {m.estornoDeId !== null && (
-                  <span className="text-xs text-tinta-fraca">{`Desfaz o registro nº ${m.estornoDeId}.`}</span>
+                  <span className="text-xs text-tinta-fraca">{linhaDoEstorno(livro, m.estornoDeId)}</span>
                 )}
                 {m.montagemId !== null && m.tipo === 'Montagem' && !m.estornada && (
                   <span className="text-xs text-tinta-fraca">Parte de uma montagem do pai: estorna-se a montagem inteira, no pai.</span>
@@ -178,8 +201,8 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
       <Confirmacao
         aberto={aConfirmar !== null}
         mensagem={aConfirmar && (aConfirmar.tipo === 'movimentacao'
-          ? `Estornar o registro nº ${aConfirmar.registro.id} (${rotuloDoTipo(aConfirmar.registro.tipo)} de ${formatarQuantidade(aConfirmar.registro.quantidade)})? O movimento inverso fica no histórico.`
-          : `Estornar a montagem nº ${aConfirmar.registro.id} (${formatarQuantidade(aConfirmar.registro.quantidade)} em ${aConfirmar.registro.setorNome})? Os filhos voltam a aguardar montagem, e o estorno fica no histórico.`)}
+          ? `Estornar este registro (${descricaoDoRegistro(aConfirmar.registro)})? O movimento inverso fica no histórico.`
+          : `Estornar esta montagem (${formatarQuantidade(aConfirmar.registro.quantidade)} em ${aConfirmar.registro.setorNome}, em ${formatarDataHora(aConfirmar.registro.dataHora)})? Os filhos voltam a aguardar montagem, e o estorno fica no histórico.`)}
         rotuloConfirmar="Estornar"
         // Estorno é correção, não destruição: nada some do livro. Por isso `primario`, não `perigo`.
         varianteConfirmar="primario"

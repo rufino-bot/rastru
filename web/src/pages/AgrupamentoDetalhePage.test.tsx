@@ -1375,7 +1375,7 @@ describe('AgrupamentoDetalhePage', () => {
     renderizarDetalhe()
     await screen.findByText('Chassi')
     fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
 
     await waitFor(() => expect(getsDePosicoes()).toBe(2))
