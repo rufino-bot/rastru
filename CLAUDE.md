@@ -920,20 +920,20 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
 ```
 
-**Terceiro usuário, `operador`/`Admin@123`, perfil `Operador`, sem permissão de escrita, existe só
-no banco desta máquina — deliberadamente FORA de `db/seed.sql`.** Criado à mão em 2026-08-25 para o
-V5 da Task 12 da Fase 1C (gating por perfil) ser verificável: `admin` e `pcp`, os dois usuários do
-seed acima, **escrevem** — sem um usuário de perfil sem-escrita no banco não dá para provar que a
-AÇÃO some para quem não pode escrever (ver seção Interface, "Gating de perfil vai na AÇÃO"). Ele
-reusa o hash BCrypt do próprio `admin` (`db/seed.sql:12`, válido para `Admin@123`). **Decisão da
-Task 13 (documentação): não entrou no seed.** Razão: `db/seed.sql:17-21` registra que o `pcp`
-recebeu hash e senha distintos do `admin` de propósito no seed, "para não virar mina para quem
-tentar logar depois" — versionar `operador` reusando o hash do `admin` sob outro nome de usuário
-quebraria esse padrão. Consequência: **a próxima verificação manual de gating por um perfil sem
-escrita** (Operador, Almoxarifado, Qualidade ou Gestão) **precisa recriar este usuário à mão de
-novo**, no mesmo padrão idempotente do bloco `pcp` acima — reusando o hash do `admin`, como da
-primeira vez — este parágrafo existe para que essa recriação não parta do zero, redescobrindo por
-que nenhum usuário sem-escrita está disponível.
+**Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`) e
+`movimentador`/`Movimentador@123` (perfil `Movimentador`), no `db/seed.sql` desde 2026-10-13.**
+Existem para ver a tela como o chão de fábrica a vê e para verificar à mão o gating por perfil (ver a
+seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem**, e sem um usuário
+sem-escrita no banco não dá para provar que a AÇÃO some para quem não pode escrever. Até essa data o
+`operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
+ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
+de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
+outro nome quebraria esse padrão. **Decisão do usuário (2026-10-13): os dois entram no seed, cada um
+com senha e hash próprios**, gerados com o mesmo `BCryptPasswordHasher` de produção. Isso respeita o
+padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O teste
+`Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador` e
+`movimentador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
+`db/seed.sql` de novo os acrescenta: ele é idempotente.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
 composto por N Peças, e a contagem de Peças já responde "quantas são"; indicar uma quantidade no

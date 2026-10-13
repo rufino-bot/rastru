@@ -26,3 +26,24 @@ SELECT 'pcp',
        'Planejamento e Controle',
        (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'),
        1;
+
+-- Usuarios de perfil sem escrita de cadastro, para ver a tela como o chao de fabrica a ve: o
+-- 'operador' inicia e termina no Setor, o 'movimentador' leva o que ficou pronto (as Tarefas). Sem
+-- eles, a verificacao manual do gating por perfil precisava recria-los a mao a cada banco novo.
+-- Mesmo padrao do 'pcp': hash BCrypt real (custo 11), gerado com o BCryptPasswordHasher de
+-- producao, com senha e hash proprios — 'Operador@123' e 'Movimentador@123'.
+IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'operador')
+INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
+SELECT 'operador',
+       '$2a$11$xRh4vVSSJLbrNKEmCyrKfusUk4OY0W0QTG9kflfaZCGv7563GPLMK',
+       N'Operador de Produção',
+       (SELECT Id FROM dbo.Perfil WHERE Nome = 'Operador'),
+       1;
+
+IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'movimentador')
+INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
+SELECT 'movimentador',
+       '$2a$11$3EX6uhKCdVGYnT9RlXowuuUbGwW2hHAx8gYKeMRMY3k1lZhf62JC6',
+       'Movimentador de Materiais',
+       (SELECT Id FROM dbo.Perfil WHERE Nome = 'Movimentador'),
+       1;
