@@ -1,5 +1,5 @@
 import type { SaldoDto } from '../api/execucao'
-import { formatarQuantidade, rotuloDoSaldo } from '../execucao/formatacao'
+import { quantidadeConcordada, rotuloDoSaldo } from '../execucao/formatacao'
 import { Pilula } from './Pilula'
 
 interface Props {
@@ -16,7 +16,9 @@ interface Props {
  * Tom NEUTRO em todas, inclusive "aguardando coleta": verde e vermelho são reservados a estado
  * (aprovado/reprovado, perda, erro) e uma posição no livro não é nenhum deles (spec §6.4).
  *
- * `totalMontado` 0 não aparece — "0 montados" num pai que ninguém começou a montar seria ruído.
+ * `totalMontado` é o que já foi montado a partir dos filhos ("3 montados a partir dos filhos"), e não
+ * uma posição: é conta do próprio nó, que as pílulas de posição não somam. Aparece no singular abaixo
+ * de 2. O 0 não aparece — "0 montados" num pai que ninguém começou a montar seria ruído.
  */
 export function ResumoDePosicoes({ saldos, totalMontado }: Props) {
   const mostraMontado = totalMontado !== null && totalMontado > 0
@@ -31,7 +33,7 @@ export function ResumoDePosicoes({ saldos, totalMontado }: Props) {
       ))}
       {mostraMontado && (
         <li>
-          <Pilula>{`total montado: ${formatarQuantidade(totalMontado)}`}</Pilula>
+          <Pilula>{`${quantidadeConcordada(totalMontado, 'montado', 'montados')} a partir dos filhos`}</Pilula>
         </li>
       )}
     </ul>
