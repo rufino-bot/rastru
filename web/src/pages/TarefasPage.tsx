@@ -322,12 +322,17 @@ export function TarefasPage() {
           )}
         </div>
       )}
-      {/* Some quando o filtro esconde todos, como o grupo por Setor que fica sem item. */}
-      {incompletosVisiveis.length > 0 && (
+      {/* Havendo Kit incompleto antes do filtro, a seção fica mesmo com "(0)", para o usuário saber que o filtro
+          escondeu algo. Sem nenhum Kit incompleto, ela nem aparece. */}
+      {incompletos.length > 0 && (
         <SecaoRecolhivel titulo="Kits incompletos" contagem={incompletosVisiveis.length}>
-          <ListaDeCadastro rotulo="Kits incompletos">
-            {incompletosVisiveis.map((kit) => <CartaoDeKitIncompleto key={kit.pai.id} kit={kit} />)}
-          </ListaDeCadastro>
+          {incompletosVisiveis.length > 0 ? (
+            <ListaDeCadastro rotulo="Kits incompletos">
+              {incompletosVisiveis.map((kit) => <CartaoDeKitIncompleto key={kit.pai.id} kit={kit} />)}
+            </ListaDeCadastro>
+          ) : (
+            <EstadoVazio titulo="Nenhum Kit incompleto combina com os filtros." />
+          )}
         </SecaoRecolhivel>
       )}
     </Pagina>

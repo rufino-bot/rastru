@@ -148,6 +148,11 @@ Descartadas:
 - **"Kits incompletos" vem recolhida, com a contagem no título.** Ressalva do usuário: de 60% a 70% da
   produção passa pela Solda, e a seção pode ficar grande. Se ficar demais, **essa parte** se revisita
   sozinha; o resto do desenho fica.
+- **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** a seção recolhida ganha **moldura** no
+  padrão dos cartões da tela (borda, raio, fundo e respiro das classes da caixa do `ItemComAcao`), com o título e o
+  conteúdo dentro dela. E ela **não some quando o filtro esconde todos os Kits incompletos**: havendo Kit
+  incompleto antes do filtro, a seção fica como "Kits incompletos (0)" e, aberta, mostra "Nenhum Kit incompleto
+  combina com os filtros." Sem nenhum Kit incompleto antes do filtro, ela continua não aparecendo.
 
 ### D8 — Pílula "Kit" em azul cheio, só na Fila do Setor
 

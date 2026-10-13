@@ -12,11 +12,12 @@ interface Props {
  * de tela sem código, e o `<summary>` é o nome do controle. Não é para seção com ação: o que se faz não fica
  * escondido.
  *
- * Sem moldura própria: os itens de dentro já são cartões, e o título segue o `<h2>` das seções vizinhas.
+ * Tem moldura no padrão dos cartões da tela (as classes da caixa do `ItemComAcao`): sem ela, o título solto no
+ * fim da tela parecia um texto qualquer, e não uma seção que abre. O `<summary>` e o conteúdo ficam dentro dela.
  */
 export function SecaoRecolhivel({ titulo, contagem, children }: Props) {
   return (
-    <details>
+    <details className="rounded-lg border border-borda bg-superficie px-4 py-3">
       <summary
         className={
           'cursor-pointer rounded text-lg font-medium text-tinta ' +

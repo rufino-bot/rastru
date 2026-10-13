@@ -438,9 +438,27 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
     expect(screen.getByText('Kits incompletos (2)')).toBeTruthy()
   })
 
-  it('o filtro que esconde todos os Kits incompletos esconde a seção', async () => {
+  it('o filtro que esconde todos os Kits incompletos mantém a seção como "(0)", com o vazio dentro', async () => {
     const incompleto: KitDto = { ...CAIXA_SEM_MATERIAL, conjuntos: 0 }
     vi.stubGlobal('fetch', montarFetch([tarefas(DOIS_PEDIDOS, [], [incompleto])]).fetchMock)
+
+    renderizar('/?material=6')
+
+    await screen.findByRole('list', { name: 'Prontos em Solda' })
+    const resumo = screen.getByText('Kits incompletos (0)')
+    const secao = resumo.closest('details')!
+    expect(secao.open).toBe(false)
+    expect(within(secao).getByRole('status').textContent).toContain('Nenhum Kit incompleto combina com os filtros.')
+    expect(within(secao).queryByRole('list', { name: 'Kits incompletos' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Chapa SAE 1020 6,00 mm' }))
+
+    expect(screen.getByText('Kits incompletos (1)')).toBeTruthy()
+    expect(screen.queryByText(/Nenhum Kit incompleto combina/)).toBeNull()
+  })
+
+  it('o filtro sem nenhum Kit incompleto antes dele não mostra a seção', async () => {
+    vi.stubGlobal('fetch', montarFetch([tarefas(DOIS_PEDIDOS, [])]).fetchMock)
 
     renderizar('/?material=6')
 

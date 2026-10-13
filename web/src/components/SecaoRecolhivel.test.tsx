@@ -22,6 +22,17 @@ describe('SecaoRecolhivel', () => {
     expect(screen.getByText('Kits incompletos (1)').closest('details')?.open).toBe(true)
   })
 
+  it('a moldura (borda, raio, fundo e respiro dos cartões da tela) está no elemento de fora', () => {
+    render(<SecaoRecolhivel titulo="Kits incompletos" contagem={1}><p>dentro</p></SecaoRecolhivel>)
+
+    const fora = screen.getByText('Kits incompletos (1)').closest('details')!
+    expect(fora.className).toContain('border-borda')
+    expect(fora.className).toContain('rounded-lg')
+    expect(fora.className).toContain('bg-superficie')
+    expect(fora.className).toContain('px-4')
+    expect(fora.className).toContain('py-3')
+  })
+
   it('o conteúdo mora dentro do details, não ao lado', () => {
     render(<SecaoRecolhivel titulo="Kits incompletos" contagem={1}><p>dentro</p></SecaoRecolhivel>)
 
