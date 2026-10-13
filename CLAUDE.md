@@ -236,7 +236,10 @@ ocorrências — uma em `specs/01-dominio-e-regras-de-negocio.md`, que cita `Rec
 por número de linha, e quatro no próprio `CLAUDE.md`, que citam `historico/05-fase-1c.md` e
 `db/seed.sql` assim. **Nenhuma foi consertada**, por escolha de escopo — a regra vale para texto
 novo. A prosa dos planos (`docs/superpowers/`) e a do ledger (`.superpowers/`) continuam **não
-medidas**.
+medidas**. **Remedido em 2026-10-13**, com o mesmo comando: **3** ocorrências, a de `specs/` e duas do
+`CLAUDE.md`, ambas para `historico/05-fase-1c.md`. As duas citações de `db/seed.sql` saíram quando o
+parágrafo dos usuários de perfil foi reescrito, porque o texto novo cita pelo nome. Não foram
+consertadas por uma varredura.
 
 - A regra vale para texto **novo**; **não** existe mandato para varrer nem consertar as que já
   estão lá — as 37 do código nem as 5 da prosa. Os dois números são a medição de uma data, não uma
@@ -923,8 +926,9 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
 **Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`) e
 `movimentador`/`Movimentador@123` (perfil `Movimentador`), no `db/seed.sql` desde 2026-10-13.**
 Existem para ver a tela como o chão de fábrica a vê e para verificar à mão o gating por perfil (ver a
-seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem**, e sem um usuário
-sem-escrita no banco não dá para provar que a AÇÃO some para quem não pode escrever. Até essa data o
+seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem no cadastro**, e sem um
+usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador` e o
+`movimentador` escrevem só na execução, um no apontamento e o outro na entrega. Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
