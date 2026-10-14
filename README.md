@@ -27,7 +27,7 @@ local de expedição) + o que já foi montado dentro do pai + expedido + perdido
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql` e `alter-data-entrega.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM ou da data de entrega do Pedido até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql` e `alter-fase-3b.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido ou da Fase 3B até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -161,11 +161,12 @@ Concluídas até aqui:
   data nativo do Android não foi conferido: o celular não alcançou o PC, e na emulação de celular do
   Chrome de PC o seletor não abriu com o toque emulado ligado e, desligado, abriu o do próprio
   navegador. Mesclada na `main` pelo PR #32, em 2026-10-09.
+- **Fase 3B:** Kit e montagem — conjunto completo na entrada do Setor marcado como de montagem
+  (`UtilizaKit`, hoje a Solda), a tarefa Kit pronto, e o nó que ganha filho depois de iniciado, que
+  passa a ser recusado com 409 `PaiJaIniciado` (a trava de montagem vale, assim, sem exceção).
+  Mesclada na `main` pelo PR #33, em 2026-10-14.
 
-A seguir vem a **Fase 3B** (Kit: conjunto completo na entrada do Setor marcado como
-de montagem — hoje, a Solda — e a tarefa Kit pronto, mais o caso do nó que ganha filho depois de
-iniciado; a trava de montagem, para o nó que já tem filhos ao entrar em produção, já é estrutural
-desde a 3D). Depois, as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+A seguir vêm as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 

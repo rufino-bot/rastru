@@ -598,7 +598,8 @@ navegador. Que ele funciona no aparelho é inferência do usuário, e o risco fo
 
 ## Fase 3B — Kit e montagem
 
-**Implementada na branch `fase-3b`**, ainda não mesclada. Spec:
+**Concluída e mesclada na `main` em 2026-10-14**, pelo PR rufino-bot/rastru#33 (merge `35d45a8`, cujo
+segundo pai é `8984ce9`, o último commit da branch `fase-3b`). Spec:
 `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`.
 
 > **Antes dela, o import da estrutura a partir do CAD** (decisão do usuário de 2026-10-02; ver a seção
