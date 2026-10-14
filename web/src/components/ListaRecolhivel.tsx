@@ -10,10 +10,10 @@ interface Props {
 
 /**
  * A lista de filhos dentro de um cartão, que nasce recolhida e mostra só a contagem: uma Peça pode ter dezenas
- * de filhos, e a lista inteira empurrava o resto da tela (ajuste A1 da conferência da Fase 3B). É o disclosure de
- * DENTRO do cartão: sem moldura e com texto pequeno. A seção de página, com título grande e moldura própria, é a
- * `SecaoRecolhivel`. `<details>` nativo: abre no teclado e no leitor de tela sem código, e o `<summary>` é o nome
- * do controle.
+ * de filhos, e a lista inteira empurrava o resto da tela (emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da
+ * Fase 3B). É o disclosure de DENTRO do cartão: sem moldura e com texto pequeno. A seção de página, com título
+ * grande e moldura própria, é a `SecaoRecolhivel`. `<details>` nativo: abre no teclado e no leitor de tela sem
+ * código, e o `<summary>` é o nome do controle.
  *
  * Exceção: se algum item tem ação, a lista nasce aberta, e continua recolhível. Se a ação aparece depois, com a
  * lista fechada (a Fila recarrega sozinha), a lista abre — só na passagem de falso para verdadeiro, para o
