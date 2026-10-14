@@ -49,6 +49,29 @@ public class KitNaApiTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
+  public async Task Entrega_de_Kit_alem_do_que_o_pai_precisa_da_409_AlemDoQueOPaiPrecisa()
+  {
+    // Os filhos tem mais que Quantidade x razao do pai (sobra de refugo, legitima pela regra 26): B 22 e C 11 fecham
+    // 11 conjuntos, e o pai (10) so precisa de 10. Cada filho esta dentro do que o Roteiro dele permite iniciar.
+    await using var c = await CriarAsync(_factory, kit: true);
+    var pcp = c.Como(c.Pcp);
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}",
+        new { descricao = "Suporte", quantidade = 22m, quantidadePorPai = 2m }));
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{c.C}",
+        new { descricao = "Calço", quantidade = 11m, quantidadePorPai = 1m }));
+    await ProntoAsync(c, c.B, c.Corte, 22m);
+    await ProntoAsync(c, c.C, c.Dobra, 11m);
+
+    var resposta = await c.Como(c.Movimentador).PostAsJsonAsync("/api/entregas",
+        new { itens = new[] { DaColeta(c.B, c.Corte, 22m), DaColeta(c.C, c.Dobra, 11m) } });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal("AlemDoQueOPaiPrecisa", corpo.GetProperty("erro").GetString());
+    Assert.Contains("só precisa receber 10 conjunto", corpo.GetProperty("mensagem").GetString());
+  }
+
+  [Fact]
   public async Task Kit_montavel_aparece_e_some_quando_levado()
   {
     await using var c = await CriarAsync(_factory, kit: true);
