@@ -201,12 +201,12 @@ public class ExecucaoRepository : IExecucaoRepository
                         join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
                         where p.Status != StatusConcluido && p.Status != StatusCancelado
                         orderby e.Id
-                        select new { No = e, PedidoId = p.Id, p.Numero, p.Cliente, AgrupamentoId = a.Id, a.Codigo })
+                        select new { No = e, PedidoId = p.Id, p.Numero, p.Cliente, AgrupamentoId = a.Id, a.Codigo, AgrupamentoTipo = a.Tipo })
         .ToListAsync(ct);
     var pausas = await PausasAbertas.ListarAsync(_db, linhas.Select(l => l.PedidoId).Distinct().ToList(), ct);
     var materiais = await MateriaisDosNosAsync(linhas.Select(l => l.No.Id).ToList(), ct);
     return linhas.Select(l => new ContextoDoNo(
-        l.No, l.PedidoId, l.Numero, l.Cliente, l.AgrupamentoId, l.Codigo, pausas.GetValueOrDefault(l.PedidoId),
+        l.No, l.PedidoId, l.Numero, l.Cliente, l.AgrupamentoId, l.Codigo, l.AgrupamentoTipo, pausas.GetValueOrDefault(l.PedidoId),
         materiais.GetValueOrDefault(l.No.Id) ?? [])).ToList();
   }
 
@@ -388,6 +388,23 @@ public class ExecucaoRepository : IExecucaoRepository
         .Select(g => new { Id = g.Key, Total = g.Sum(x => x.Quantidade) })
         .ToDictionaryAsync(x => x.Id, x => x.Total, ct);
   }
+
+  /// <summary>Valor de `CK_Agrupamento_Tipo` que liga o conjunto completo (regra 25).</summary>
+  private const string TipoKit = "Kit";
+
+  public async Task<IReadOnlySet<int>> ListarNosDeKitAsync(IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new HashSet<int>();
+    var lista = ids.ToList();
+    var achados = await (from e in _db.Estruturas.AsNoTracking()
+                         join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                         where lista.Contains(e.Id) && a.Tipo == TipoKit
+                         select e.Id).ToListAsync(ct);
+    return achados.ToHashSet();
+  }
+
+  public async Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct) =>
+      (await _db.Setores.AsNoTracking().Where(s => s.UtilizaKit).Select(s => s.Id).ToListAsync(ct)).ToHashSet();
 
   public async Task<IReadOnlyList<(int EstruturaItemId, int Ordem)>> ListarPassosAlcancadosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct)

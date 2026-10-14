@@ -50,12 +50,15 @@ reenvia e a sessão morre no primeiro refresh.
 
 - `GET /setores` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*. Cada item
   ganha `atividade` (spec da Fase 3D, §2.3): substantivo que nomeia os botões da fila
-  ("montagem" → "Iniciar montagem"/"Terminar montagem"); `null` quando o Setor não tem uma.
-- `POST /setores` *(Administrador)* — `{ nome, atividade? }`. `atividade` é opcional: ausente ou
+  ("montagem" → "Iniciar montagem"/"Terminar montagem"); `null` quando o Setor não tem uma. Cada
+  item ganha também `utilizaKit` (booleano, Fase 3B): marca o Setor onde o Kit é montado (regra 25).
+- `POST /setores` *(Administrador)* — `{ nome, atividade?, utilizaKit? }`. `atividade` é opcional: ausente ou
   só espaços grava `null`; espaços são aparados, mas o texto não é forçado a minúscula (desvio D5
-  do plano da Fase 3D — siglas como "CNC" são legítimas). A resposta ganha `atividade`.
-- `PUT /setores/{id}` *(Administrador)* — `{ nome, atividade? }`; substituição inteira — sem
-  `atividade` no corpo, ela é limpa. A resposta ganha `atividade`.
+  do plano da Fase 3D — siglas como "CNC" são legítimas). `utilizaKit` é opcional e o padrão é falso
+  (marca o Setor onde o Kit é montado, regra 25). A resposta ganha `atividade` e `utilizaKit`.
+- `PUT /setores/{id}` *(Administrador)* — `{ nome, atividade?, utilizaKit? }`; substituição inteira — sem
+  `atividade` no corpo, ela é limpa, e sem `utilizaKit` ele volta a falso. A resposta ganha `atividade` e
+  `utilizaKit`.
 - `PATCH /setores/{id}/ativo` *(Administrador)* — `{ ativo }`; cobre inativar **e** reativar.
   Não existe `DELETE`: catálogo se inativa, não se exclui (ver a política de exclusão na spec da
   Fase 1).
@@ -209,6 +212,9 @@ mesmo status HTTP para coisas diferentes.
   `tipo ∈ Kit | Avulso`
 - `GET /agrupamentos/{id}`
 - `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, tipo }`
+- Toda resposta de Agrupamento (as quatro rotas acima que devolvem um) traz `{ id, pedidoId, pedidoNumero,
+  codigo, tipo, criadoEm, criadoPorUsuarioId }`. O `pedidoNumero` serve ao título da página do Agrupamento
+  ("Pedido X — código — Kit|Avulso", com o Pedido como link) e vem em todas porque o DTO é um só.
 - `DELETE /agrupamentos/{id}` *(PCP, Administrador)* — 204. **A única exclusão física do
   sistema**, e é guardada: 409 `{ "erro": "AgrupamentoNaoVazio" }` se já houver `EstruturaItem`,
   409 `{ "erro": "PedidoNaoAberto" }` se o Pedido não estiver `Aberto`, e 409
@@ -274,7 +280,8 @@ perfil autenticado.)*
   os filhos copiados da receita abaixo dele a recebem de `ComponenteFilhoPadrao.QuantidadePadrao`.
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
   `descricao`, se informada, sobrepõe a herdada (regra 19). Sem `componenteId` (ad-hoc):
-  `descricao` é obrigatória
+  `descricao` é obrigatória. Desde a Fase 3B (D1), o pai é travado e só aceita filho novo enquanto
+  nada dele saiu de "a iniciar" (líquido de estorno): se já saiu, 409 `PaiJaIniciado`
 - `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao`, `Quantidade` e, num Item,
   `QuantidadePorPai` do nó `{id}`. Body: `{ descricao?, quantidade, quantidadePorPai? }`
   (`quantidadePorPai` obrigatória no Item, proibida na Peça). Desde a Fase 3, a quantidade não desce
@@ -353,11 +360,12 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — seis códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — sete códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
-  levam `mensagem` junto do `erro`, e o `ConflitoDeConcorrencia` também (a frase de
-  `CodigosDaExecucao.MensagemDeConflito`); `PedidoNaoAberto` não — mesmo precedente do
+  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado` e o
+  `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`);
+  `PedidoNaoAberto` não — mesmo precedente do
   `DELETE /agrupamentos/{id}`.
 
   | Código | Onde | Motivo |
@@ -367,6 +375,7 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
   | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
+  | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
   | `ConflitoDeConcorrencia` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}`, `DELETE /estrutura/{id}` (e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento") | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na escrita; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`; o `PUT` e o `DELETE` já podiam emitir desde a Fase 3, e os dois `POST` desde 2026-10-01 |
 
   `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas
@@ -608,6 +617,16 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   — preenchido, dá 400 `DestinoIndevido`, mesmo que aponte o Setor certo. Redirecionar o que aguarda
   montagem fora do primeiro passo do pai é uma entrega com origem `AguardandoMontagem`, e leva ao
   primeiro passo de agora; se já está nele, 409 `RedirecionamentoSemEfeito`.
+  **Kit (Fase 3B, regra 25).** A regra vale para a entrega que vai à `AguardandoMontagem` de um pai de
+  Agrupamento `Kit` cujo primeiro passo é num Setor com `UtilizaKit`: ela só entra em conjunto completo.
+  Há três causas de 400 `ConjuntoIncompleto` — a lista não traz todos os filhos diretos do pai; a
+  quantidade de algum filho não fecha um número inteiro de conjuntos (menos de 1, ou fração); ou os
+  filhos não dão o mesmo número de conjuntos — e uma de 409 `AlemDoQueOPaiPrecisa`, quando os
+  conjuntos passam do que o pai ainda precisa receber (o teto: a quantidade do pai, menos o já
+  montado, menos os conjuntos que já aguardam). As duas levam `mensagem`, e nada é gravado. **Três casos
+  ficam de fora e seguem como antes:** o pai de Agrupamento `Avulso`; o pai cujo primeiro passo é num
+  Setor sem `UtilizaKit`; e o filho que passa pela Solda no próprio Roteiro, cuja entrega para o
+  próximo passo entra em `NoSetor` e não é conjunto, mesmo que o Setor tenha `UtilizaKit`.
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
   enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que
@@ -656,12 +675,29 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   `materiais`: `{ id, codigo, descricao }[]`, os Materiais **do próprio nó** (`EstruturaMaterial`,
   não os do catálogo do Componente), por código; lista vazia — nunca nula — quando o nó não tem
   nenhum, como o Item ad-hoc. A fila e as Tarefas **não têm parâmetro de filtro**: chegam inteiras e
-  a tela filtra no cliente, por Material e por Pedido.
-- `GET /tarefas` — os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na fila), com destino calculado, agrupados pelo Setor de origem. Na
+  a tela filtra no cliente, por Material e por Pedido. Todo nó resumido ganha ainda `agrupamentoTipo`
+  (`Kit` ou `Avulso`, o tipo do Agrupamento do nó), e o grupo de `aguardandoMontagem` ganha
+  `conjuntoCompleto` (Fase 3B): `true` quando o pai recebe os filhos só em conjunto completo (regra
+  25), e a tela oferece levar o Kit inteiro em vez de filho a filho.
+- `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos }` (Fase 3B; antes era só a lista de
+  grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
+  fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
+  pai começa num Setor com `UtilizaKit`, **não** aparece aqui: aparece no cartão do Kit enquanto o
+  pai ainda precisa receber conjuntos (teto da regra 25 acima de zero); com o teto em zero, não
+  aparece em lugar nenhum das Tarefas. Na
   montagem, `destino.setorId`/`setorNome` são o primeiro passo do pai (sem `ordem`); `destino` não
   traz mais `sugestaoSetorId` nem `setoresPossiveis` (Fase 3D). Pai sem Roteiro: `paiSemRoteiro` e
-  `setorId` nulo.
-- `GET /tarefas/contagem` — só o número, para o contador do menu.
+  `setorId` nulo. `kitsMontaveis` e `kitsIncompletos`: `{ pai, destino, conjuntos, filhos }[]`, em que
+  `pai` é o nó resumido, `destino` é `{ id, nome }` do Setor onde o pai começa, `conjuntos` é quantos
+  conjuntos completos dá para levar agora (um inteiro, já limitado pelo teto da regra 25; zero nos
+  incompletos) e cada filho é `{ no, quantidadePorPai, origem, ordem, pronto, jaNoDestino }`: `origem`
+  e `ordem` são o último passo do filho, onde ele aguarda coleta (nulos se ele não tem Roteiro),
+  `pronto` é o que aguarda lá e `jaNoDestino` diz que esse passo é no Setor do pai. A quantidade de
+  cada filho na entrega é `conjuntos × quantidadePorPai`, e quem a calcula é o front. Cai em
+  `kitsMontaveis` o Kit com `conjuntos` de 1 para cima, e em `kitsIncompletos` o de zero; nas duas,
+  só o Kit com teto acima de zero e algum filho com `pronto` acima de zero.
+- `GET /tarefas/contagem` — só o número, para o contador do menu. Cada Kit montável conta como uma
+  tarefa; os incompletos não contam.
 - `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total
   montado dos nós com filhos.
 - `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno.

@@ -78,6 +78,7 @@ export interface EdicaoDeNo {
  * §8.1): os dois podem responder `ConflitoDeConcorrencia`, e `EditarNo` também
  * `QuantidadeAbaixoDoMovimentado` (reduzir abaixo do que já andou, spec §4.7). Sem os dois aqui,
  * `lerNoOuConflito` trataria esse 409 como "formato inesperado" e a frase do servidor se perderia.
+ * Desde a Fase 3B, `acrescentarFilho` também responde `PaiJaIniciado` (D1 da spec da Fase 3B).
  */
 export type CodigoDeConflitoDeEstrutura =
   | 'CicloNaReceita'
@@ -86,6 +87,7 @@ export type CodigoDeConflitoDeEstrutura =
   | 'PedidoNaoAberto'
   | 'QuantidadeAbaixoDoMovimentado'
   | 'ConflitoDeConcorrencia'
+  | 'PaiJaIniciado'
 
 /**
  * Corpo do 409 dos endpoints de escrita da árvore: `{ "erro": "<código>", "mensagem": "<frase>" }`.
@@ -107,7 +109,7 @@ export interface ConflitoDeEstrutura {
 
 const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
-  'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia',
+  'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado',
 ]
 
 export function ehConflitoDeEstrutura(r: unknown): r is ConflitoDeEstrutura {

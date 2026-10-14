@@ -9,7 +9,7 @@ namespace Rastreamento.Domain.Abstractions;
 /// </summary>
 public sealed record ContextoDoNo(
     EstruturaItem No, int PedidoId, string PedidoNumero, string PedidoCliente, int AgrupamentoId,
-    string AgrupamentoCodigo, PausaAberta? Pausa, IReadOnlyList<MaterialDoNo> Materiais);
+    string AgrupamentoCodigo, string AgrupamentoTipo, PausaAberta? Pausa, IReadOnlyList<MaterialDoNo> Materiais);
 
 /// <summary>Um material gravado no no: o que o filtro da fila e das tarefas oferece e casa.</summary>
 public sealed record MaterialDoNo(int Id, string Codigo, string Descricao);
@@ -101,6 +101,15 @@ public interface IExecucaoRepository
   /// <summary>Toda `Ordem` que aparece como origem ou destino no livro do no (spec secao 4.6).</summary>
   Task<IReadOnlyList<(int EstruturaItemId, int Ordem)>> ListarPassosAlcancadosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>Dos nos pedidos, os que vivem num Agrupamento `Kit` (regra 25). No inexistente nao volta.</summary>
+  Task<IReadOnlySet<int>> ListarNosDeKitAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Todo Setor com `UtilizaKit`, inativos inclusive: o que ja aguarda montagem num Setor inativado continua
+  /// contando nos conjuntos a espera (spec da Fase 3B, D5).
+  /// </summary>
+  Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct);
 
   Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct);
 

@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react'
 
 interface Props {
-  titulo: string
+  /**
+   * Texto, ou texto com link (o Pedido no título do Agrupamento, C2 da spec da Fase 3B). O `<h1>` é um
+   * só; quem passa o link não escreve outro cabeçalho.
+   */
+  titulo: ReactNode
   /** Ação principal da tela, alinhada ao título (ex.: "Novo pedido"). */
   acao?: ReactNode
   /**

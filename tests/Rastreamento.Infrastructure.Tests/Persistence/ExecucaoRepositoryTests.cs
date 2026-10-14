@@ -152,6 +152,24 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Nos_de_Kit_e_Setores_com_UtilizaKit_vem_do_banco() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+
+    var antes = await repo.ListarNosDeKitAsync(c.Nos, CancellationToken.None);
+    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Agrupamento SET Tipo = 'Kit' WHERE Id = {c.Arvore.AgrupamentoId}");
+    await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Setor SET UtilizaKit = 1 WHERE Id = {c.Solda}");
+    var depois = await repo.ListarNosDeKitAsync(c.Nos, CancellationToken.None);
+    var setores = await repo.ListarSetoresComKitAsync(CancellationToken.None);
+
+    Assert.Empty(antes);
+    Assert.Equal(c.Nos.OrderBy(i => i), depois.OrderBy(i => i));
+    Assert.Contains(c.Solda, setores);
+    Assert.DoesNotContain(c.Corte, setores);
+  });
+
+  [Fact]
   public Task Passos_alcancados_juntam_origem_e_destino_sem_repetir() => NoCenarioAsync(async c =>
   {
     await GravarAsync(Mov(c, c.ItemA, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Corte, 1), 5m));

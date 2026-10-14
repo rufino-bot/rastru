@@ -15,7 +15,9 @@ const TERMINO_DE_OUTRO = movimentacao({
   origem: { posicao: 'NoSetor', setorId: 1, setorNome: 'Corte', ordem: 1 },
   destino: { posicao: 'AguardandoColeta', setorId: 1, setorNome: 'Corte', ordem: 1 },
 })
-const JA_ESTORNADO = movimentacao({ id: 43, estornada: true })
+// Quantidade e hora próprias: o título e o nome acessível já não carregam o Id, e o que distingue
+// um registro do outro é o tipo, a quantidade e o horário.
+const JA_ESTORNADO = movimentacao({ id: 43, estornada: true, quantidade: 3, dataHora: '2026-09-25T10:30:00-03:00' })
 const ESTORNO = movimentacao({
   id: 44, tipo: 'Estorno', estornoDeId: 43,
   origem: { posicao: 'NoSetor', setorId: 1, setorNome: 'Corte', ordem: 1 },
@@ -59,7 +61,10 @@ function renderizar(podeEstornar = soOAutor, aoEstornar = vi.fn()) {
   return { aoEstornar }
 }
 
-const linhaDo = (id: number) => screen.getByText(new RegExp(`^nº ${id} ·`)).closest('li')!
+const linhaDo = (titulo: string) => screen.getByText(titulo).closest('li')!
+
+/** O título de cada linha: o primeiro `span` do item, antes da pílula de estado. */
+const tituloDe = (li: HTMLElement) => li.querySelector('span')?.firstChild?.textContent
 
 describe('HistoricoDoNo', () => {
   beforeEach(() => {
@@ -80,7 +85,7 @@ describe('HistoricoDoNo', () => {
 
     renderizar()
 
-    const linha = (await screen.findByText('nº 41 · Início de 4')).closest('li')!
+    const linha = (await screen.findByText('Início de 4')).closest('li')!
     expect(within(linha).getByText('a iniciar → Corte (passo 1)')).toBeTruthy()
     // A data vem em GMT-3 e é mostrada sem passar por `Date` (`formatarDataHora`).
     expect(within(linha).getByText('Operador do Corte · 25/09/2026 10:14')).toBeTruthy()
@@ -89,8 +94,8 @@ describe('HistoricoDoNo', () => {
   it('movimentações e montagens numa lista só, do registro mais recente ao mais antigo', async () => {
     // O backend devolve as duas coleções separadas, cada uma em ordem crescente. A montagem (11:00)
     // cai entre movimentações de 10:20 e 12:00: só uma lista intercalada por horário a põe no meio.
-    const DEPOIS_DA_MONTAGEM = movimentacao({ id: 47, tipo: 'Termino', dataHora: '2026-09-25T12:00:00-03:00' })
-    const ANTES_DA_MONTAGEM = { ...TERMINO_DE_OUTRO, dataHora: '2026-09-25T10:20:00-03:00' }
+    const DEPOIS_DA_MONTAGEM = movimentacao({ id: 47, tipo: 'Termino', quantidade: 9, dataHora: '2026-09-25T12:00:00-03:00' })
+    const ANTES_DA_MONTAGEM = { ...TERMINO_DE_OUTRO, quantidade: 5, dataHora: '2026-09-25T10:20:00-03:00' }
     vi.stubGlobal('fetch', montarFetch([{
       movimentacoes: [INICIO, ANTES_DA_MONTAGEM, DEPOIS_DA_MONTAGEM], montagens: [MONTAGEM],
     }]).fetchMock)
@@ -98,10 +103,8 @@ describe('HistoricoDoNo', () => {
     renderizar()
 
     const lista = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
-    const titulos = within(lista).getAllByRole('listitem')
-      .map((li) => li.textContent ?? '')
-      .map((t) => t.match(/^(nº \d+|Montagem nº \d+)/)?.[1])
-    expect(titulos).toEqual(['nº 47', 'Montagem nº 5', 'nº 42', 'nº 41'])
+    const titulos = within(lista).getAllByRole('listitem').map(tituloDe)
+    expect(titulos).toEqual(['Término de 9', 'Montagem de 2 em Solda', 'Término de 5', 'Início de 4'])
   })
 
   it('no mesmo instante, o registro de Id maior vem primeiro', async () => {
@@ -113,8 +116,8 @@ describe('HistoricoDoNo', () => {
     renderizar()
 
     const lista = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
-    const titulos = within(lista).getAllByRole('listitem').map((li) => li.textContent?.match(/^nº \d+/)?.[0])
-    expect(titulos).toEqual(['nº 50', 'nº 41'])
+    const titulos = within(lista).getAllByRole('listitem').map(tituloDe)
+    expect(titulos).toEqual(['Término de 4', 'Início de 4'])
   })
 
   it('"Estornar" só aparece para quem pode, e só no que se estorna', async () => {
@@ -123,20 +126,20 @@ describe('HistoricoDoNo', () => {
     }]).fetchMock)
 
     renderizar()
-    await screen.findByText('nº 41 · Início de 4')
+    await screen.findByText('Início de 4')
 
-    expect(within(linhaDo(41)).getByRole('button', { name: 'Estornar o registro nº 41' })).toBeTruthy()
+    expect(within(linhaDo('Início de 4')).getByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' })).toBeTruthy()
     // Registro de outra pessoa, sem ser PCP/Administrador.
-    expect(within(linhaDo(42)).queryByRole('button')).toBeNull()
+    expect(within(linhaDo('Término de 4')).queryByRole('button')).toBeNull()
     // Já estornado: marcado, sem botão.
-    expect(within(linhaDo(43)).getByText('estornado')).toBeTruthy()
-    expect(within(linhaDo(43)).queryByRole('button')).toBeNull()
-    // Estorno não se estorna; aponta o que desfaz.
-    expect(within(linhaDo(44)).queryByRole('button')).toBeNull()
-    expect(within(linhaDo(44)).getByText('Desfaz o registro nº 43.')).toBeTruthy()
+    expect(within(linhaDo('Início de 3')).getByText('estornado')).toBeTruthy()
+    expect(within(linhaDo('Início de 3')).queryByRole('button')).toBeNull()
+    // Estorno não se estorna; aponta o que desfaz, com o tipo, a quantidade e a hora do registro desfeito.
+    expect(within(linhaDo('Estorno de 4')).queryByRole('button')).toBeNull()
+    expect(within(linhaDo('Estorno de 4')).getByText('Desfaz: Início de 3, em 25/09/2026 10:30.')).toBeTruthy()
     // Baixa de filho: estorna-se a montagem, no pai.
-    expect(within(linhaDo(45)).queryByRole('button')).toBeNull()
-    expect(within(linhaDo(45)).getByText(/estorna-se a montagem inteira, no pai/)).toBeTruthy()
+    expect(within(linhaDo('Baixa de montagem de 4')).queryByRole('button')).toBeNull()
+    expect(within(linhaDo('Baixa de montagem de 4')).getByText(/estorna-se a montagem inteira, no pai/)).toBeTruthy()
   })
 
   it('PCP e Administrador veem "Estornar" também no registro alheio', async () => {
@@ -144,7 +147,7 @@ describe('HistoricoDoNo', () => {
 
     renderizar(() => true)
 
-    expect(await screen.findByRole('button', { name: 'Estornar o registro nº 42' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Estornar: Término de 4, em 25/09/2026 10:14' })).toBeTruthy()
   })
 
   it('estornar pede confirmação, grava, recarrega o livro e avisa a tela', async () => {
@@ -155,9 +158,9 @@ describe('HistoricoDoNo', () => {
     vi.stubGlobal('fetch', fetchMock)
     const { aoEstornar } = renderizar()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
     const dialogo = screen.getByRole('dialog')
-    expect(within(dialogo).getByText(/Estornar o registro nº 41 \(Início de 4\)\?/)).toBeTruthy()
+    expect(within(dialogo).getByText('Estornar este registro (Início de 4, em 25/09/2026 10:14)? O movimento inverso fica no histórico.')).toBeTruthy()
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Estornar' }))
 
     expect(await screen.findByText('estornado')).toBeTruthy()
@@ -172,7 +175,7 @@ describe('HistoricoDoNo', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
 
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -187,7 +190,7 @@ describe('HistoricoDoNo', () => {
     vi.stubGlobal('fetch', fetchMock)
     const { aoEstornar } = renderizar()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
 
     expect(await screen.findByText('A quantidade já saiu de Corte (passo 1) depois deste registro.')).toBeTruthy()
@@ -202,7 +205,7 @@ describe('HistoricoDoNo', () => {
     vi.stubGlobal('fetch', fetchMock)
     const { aoEstornar } = renderizar()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
 
     expect(await screen.findByText('Só quem fez o registro, o PCP ou o Administrador pode estorná-lo.')).toBeTruthy()
@@ -227,11 +230,11 @@ describe('HistoricoDoNo', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderizar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Estornar o registro nº 41' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
 
     // O pedido ainda está em voo: a linha não oferece mais "Estornar" para um segundo toque.
-    const botaoDaLinha = screen.queryByRole('button', { name: 'Estornar o registro nº 41' })!
+    const botaoDaLinha = screen.queryByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' })!
     expect(botaoDaLinha).toHaveProperty('disabled', true)
     // O segundo toque (botão desabilitado) não abre uma segunda confirmação.
     fireEvent.click(botaoDaLinha)
@@ -253,9 +256,9 @@ describe('HistoricoDoNo', () => {
 
     renderizar()
     const montagens = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
-    expect(within(montagens).getByText('Montagem nº 5 de 2 em Solda')).toBeTruthy()
-    fireEvent.click(within(montagens).getByRole('button', { name: 'Estornar a montagem nº 5' }))
-    expect(within(screen.getByRole('dialog')).getByText(/Os filhos voltam a aguardar montagem/)).toBeTruthy()
+    expect(within(montagens).getByText('Montagem de 2 em Solda')).toBeTruthy()
+    fireEvent.click(within(montagens).getByRole('button', { name: 'Estornar a montagem de 2 em Solda, em 25/09/2026 11:00' }))
+    expect(within(screen.getByRole('dialog')).getByText('Estornar esta montagem (2 em Solda, em 25/09/2026 11:00)? Os filhos voltam a aguardar montagem, e o estorno fica no histórico.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]) === '/api/montagens/5/estorno')).toBe(true))
@@ -267,7 +270,34 @@ describe('HistoricoDoNo', () => {
     renderizar()
 
     expect(await screen.findByText('estornada')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Estornar a montagem nº 5' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Estornar a montagem de 2 em Solda, em 25/09/2026 11:00' })).toBeNull()
+  })
+
+  it('o estorno cujo original não está no livro carregado diz só que desfaz um registro anterior', async () => {
+    const ORFAO = movimentacao({ id: 44, tipo: 'Estorno', estornoDeId: 999 })
+    vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [ORFAO], montagens: [] }]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Desfaz um registro anterior.')).toBeTruthy()
+  })
+
+  it('o Id do banco não aparece no título, na linha do estorno, no diálogo nem no nome do botão', async () => {
+    // O "nº 10271" que o operador via não significa nada para ele: é a chave do banco. O Id segue
+    // nas chaves React e no que o estorno envia, mas não no texto.
+    vi.stubGlobal('fetch', montarFetch([{
+      movimentacoes: [movimentacao({ id: 10271 }), JA_ESTORNADO, ESTORNO], montagens: [{ ...MONTAGEM, id: 6180 }],
+    }]).fetchMock)
+
+    renderizar()
+    const lista = await screen.findByRole('list', { name: 'Registros, do mais recente ao mais antigo' })
+
+    expect(lista.textContent).not.toMatch(/nº|10271|6180/)
+    for (const botao of within(lista).getAllByRole('button')) {
+      expect(botao.getAttribute('aria-label')).not.toMatch(/nº|10271|6180/)
+    }
+    fireEvent.click(within(lista).getByRole('button', { name: 'Estornar a montagem de 2 em Solda, em 25/09/2026 11:00' }))
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/nº|10271|6180/)
   })
 
   it('livro vazio diz que não há registro', async () => {

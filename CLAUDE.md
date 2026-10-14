@@ -58,7 +58,9 @@ mesclado em 2026-10-08 (rufino-bot/rastru#31). A quarta: a **data de entrega do 
 **depois do import e antes da 3B** (decisão de 2026-10-08, porque não depende de Kit nem de montagem;
 ver a seção «Data de entrega do Pedido» de `06-roadmap-mvp.md` e a spec
 `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`). A data de entrega foi concluída
-e mesclada em 2026-10-09 (rufino-bot/rastru#32); a próxima da ordem é a **Fase 3B**.
+e mesclada em 2026-10-09 (rufino-bot/rastru#32); a próxima da ordem é a **Fase 3B**, implementada
+na branch `fase-3b`, ainda não mesclada (spec
+`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`).
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -488,6 +490,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`: a mesma linha pode estar
   reprovada **e** atrasada, e as duas em vermelho não se distinguiriam). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
+  O azul `kit` (D8 da spec `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`) é a
+  primeira cor de **categoria**: a identidade do nó de Agrupamento Kit, na pílula "Kit", e só na Fila
+  do Setor. Até ele, toda categoria era neutra. Ele é cheio (fundo `kit` com texto `superficie`, par
+  declarado em `web/src/tema/contraste.test.ts`), e as pílulas de estado são tingidas: a forma também separa
+  categoria de estado. Azul nunca significa estado; a pílula "Utiliza Kit" da lista de Setores é
+  atributo do Setor, não identidade de Kit, e fica neutra.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
   sumir**.
@@ -554,6 +562,30 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
   `MateriaisPage`, `ComponentesPage` e `PedidosPage`. A Fila do Setor e as Tarefas **não** ordenam
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica.
+- **Conteúdo que nasce recolhido usa `SecaoRecolhivel` ou `ListaRecolhivel`** (`web/src/components/`,
+  com teste próprio), nunca um `<details>` escrito na tela. As duas são `<details>` nativo — abre no
+  teclado e no leitor de tela sem código, e o `<summary>` é o nome do controle — e se separam pelo
+  gatilho. **`SecaoRecolhivel`** é a seção **informativa de página**: título grande, moldura no padrão
+  dos cartões e a contagem no título ("Kits incompletos (23)"), para a lista que pode crescer muito e
+  **não pede ação** — o que se faz não fica escondido. **`ListaRecolhivel`** é o disclosure **de dentro
+  de um cartão**: sem moldura, texto pequeno, "Filhos (N)", para a lista de filhos que uma Peça pode ter
+  às dezenas. Ela nasce recolhida, mas **abre quando algum item tem ação própria** (`temAcao`), continua
+  recolhível, e, se a ação aparece depois com a lista fechada (a Fila recarrega sozinha), abre só na
+  passagem de falso para verdadeiro, para quem a fechou de propósito não ser contrariado a cada recarga.
+  Origem: D7 e as emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da Fase 3B
+  (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). Hoje a `SecaoRecolhivel` tem
+  **um** uso, na `TarefasPage`, e a `ListaRecolhivel` tem **três**, em duas telas (os dois cartões de Kit,
+  em `CartaoDeKit`, e o cartão de "Aguardando montagem" da `FilaDoSetorPage`); medido em 2026-10-14 com
+  `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas),
+  e o `<details>` cru só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
+  grep -v "\.test\."` devolve duas linhas de elemento e duas de comentário que citam a tag).
+
+  **A `BarraDoLote`** (`web/src/execucao/`, com teste próprio) é a barra fixa do lote e **serve a Fila
+  do Setor e as Tarefas**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, e o texto do botão
+  vem de quem a usa (`rotulo` e `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide
+  isso — e só usa tinta e superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em
+  lote usa a barra, não escreve outra. Dois usos, um por tela (`grep -rn "<BarraDoLote" web/src
+  --include=*.tsx | grep -v "\.test\."`, medido em 2026-10-14).
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -579,10 +611,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
   permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
   produção assim, a **saída limitada ao total montado vale, sem validação própria, para todo nó que
-  já tem filhos quando entra em produção**, Kit ou Avulso. **Exceção conhecida:** acrescentar filho a
-  um nó **já iniciado** é livre (spec da Fase 3, seção 4.7), e esse nó pode sair acima do montado;
-  o caso é da Fase 3B. O que continua **só do Kit**: em Setor com `UtilizaKit`, os filhos só entram
-  em **conjuntos completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
+  já tem filhos quando entra em produção**, Kit ou Avulso. Desde a Fase 3B isso vale **sem
+  exceção**: acrescentar filho a um nó que já saiu de "a iniciar" (líquido de estorno) é recusado com
+  409 `PaiJaIniciado` (D1 da spec da Fase 3B; até ali era livre, pela seção 4.7 da spec da Fase 3), e
+  o tratamento de estrutura alterada no meio da produção fica para a Fase 5. O que continua **só do
+  Kit**: em Setor com `UtilizaKit`, os filhos que vão à montagem do pai só entram em **conjuntos
+  completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
   Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,
   decididas em 2026-09-15 — os tetos das regras 23 a 25, em 2026-09-19 — e implementadas a partir da
   Fase 3; o início que consome os filhos, decidido em 2026-09-28, é da Fase 3D.)
@@ -1058,6 +1092,16 @@ precisa regenerar o banco.
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-data-entrega.sql sqlserver:/tmp/alter-data-entrega.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-data-entrega.sql
+```
+
+**Fase 3B — `db/alter-fase-3b.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql`: a coluna `Setor.UtilizaKit` (`BIT NOT NULL`, default `0`). Todo Setor
+existente nasce sem a marca; a Solda é marcada pela tela de Setores. Não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3b.sql sqlserver:/tmp/alter-fase-3b.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3b.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

@@ -103,7 +103,7 @@ public class CriterioDeProntoDaFase3Tests : IClassFixture<WebApplicationFactory<
   {
     var nos = new[] { c.A, c.B, c.C };
     var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
-    return tarefas.EnumerateArray()
+    return tarefas.GetProperty("grupos").EnumerateArray()
         .SelectMany(s => s.GetProperty("itens").EnumerateArray())
         .Select(i => (No: i.GetProperty("no").GetProperty("id").GetInt32(), Destino: i.GetProperty("destino").GetProperty("tipo").GetString()!))
         .Where(t => nos.Contains(t.No))

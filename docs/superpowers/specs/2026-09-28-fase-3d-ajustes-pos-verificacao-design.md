@@ -377,6 +377,10 @@ aparecem na fila dele com **"Levar ao Setor P1"** (redirecionamento) e sem Inici
 | Aguardando coleta | como hoje | **Estornar** |
 | Sobra | como hoje | **Estornar**, na sobra do último passo |
 
+> **Emenda de 2026-10-11, decisão do usuário na conferência da Fase 3B:** a lista de filhos do card de "Aguardando
+> montagem" começa recolhida, atrás de "Filhos (N)", e abre sozinha quando algum filho tem ação própria (ver 5.2 da
+> spec da Fase 3B). O texto da tabela acima descreve o conteúdo, não o estado inicial da lista.
+
 **Emenda de 2026-09-29** (verificação no celular): as seções aparecem na ordem da tabela — o que o operador está fazendo primeiro, o que tem a fazer depois, o que espera coleta por último; "Sobra" fecha a tela. O grupo "Pausados" continua no fim de "A iniciar aqui".
 
 - `{atividade}` é a do Setor da fila; sem atividade, os botões são "Iniciar" e "Terminar". A mensagem de

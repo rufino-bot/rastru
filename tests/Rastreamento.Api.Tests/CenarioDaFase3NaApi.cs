@@ -10,7 +10,7 @@ using Rastreamento.Infrastructure.Persistence;
 namespace Rastreamento.Api.Tests;
 
 /// <summary>
-/// Um Pedido Avulso pronto para a Fase 3: Peca A (10; Roteiro Solda -> Pintura) com dois filhos ad-hoc,
+/// Um Pedido Avulso, ou Kit com a Solda marcada `UtilizaKit`, pronto para a Fase 3: Peca A (10; Roteiro Solda -> Pintura) com dois filhos ad-hoc,
 /// B (20, razao 2; Corte) e C (10, razao 1; Dobra), e um usuario REAL por perfil — a autoria do livro e
 /// FK para `dbo.Usuario`, e o estorno compara o autor. Criado pela API onde existe rota (Pedido,
 /// Agrupamento, arvore, Roteiro); Setores e o Componente com solido vao direto no banco, como em
@@ -50,7 +50,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
   /// so nao acham linha — nenhuma referencia nula no caminho, e a lista de usuarios so contem quem de
   /// fato foi criado.
   /// </summary>
-  public static async Task<CenarioDaFase3NaApi> CriarAsync(WebApplicationFactory<Program> factory)
+  public static async Task<CenarioDaFase3NaApi> CriarAsync(WebApplicationFactory<Program> factory, bool kit = false)
   {
     var c = new CenarioDaFase3NaApi(factory);
     try
@@ -65,7 +65,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       {
         var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
         var setores = new[] { "Corte", "Dobra", "Solda", "Pintura" }
-            .Select(n => new Setor { Nome = $"f3-{rotulo}-{n}", Ativo = true }).ToArray();
+            .Select(n => new Setor { Nome = $"f3-{rotulo}-{n}", Ativo = true, UtilizaKit = kit && n == "Solda" }).ToArray();
         db.Setores.AddRange(setores);
         // O autor do arquivo e um usuario do PROPRIO cenario (c.Pcp), nao o admin do seed
         // (CriadoPorUsuarioId = 1) — spec 9.3, "sem depender do seed".
@@ -95,7 +95,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       var pcp = c.Como(c.Pcp);
       c.PedidoId = await IdAsync(await pcp.PostAsJsonAsync("/api/pedidos", new { numero = $"f3-{rotulo}", cliente = "Cliente F3", dataEntrega = "2026-10-22" }));
       c.AgrupamentoId = await IdAsync(await pcp.PostAsJsonAsync(
-          $"/api/pedidos/{c.PedidoId}/agrupamentos", new { codigo = "AG-01", tipo = "Avulso" }));
+          $"/api/pedidos/{c.PedidoId}/agrupamentos", new { codigo = "AG-01", tipo = kit ? "Kit" : "Avulso" }));
       c.A = await IdAsync(await pcp.PostAsJsonAsync(
           $"/api/agrupamentos/{c.AgrupamentoId}/estrutura",
           new { componenteId = c.ComponenteId, quantidade = 10m, requerRelatorioDimensional = false }));

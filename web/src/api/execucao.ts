@@ -80,6 +80,8 @@ export interface NoResumoDto {
   materiais: MaterialResumoDto[]
   /** A pausa aberta do Pedido do nó; `null` quando o Pedido não está pausado. */
   pausa: PausaResumoDto | null
+  /** O tipo do Agrupamento do nó; `Kit` leva a pílula da Fila e o redirecionamento por conjuntos. */
+  agrupamentoTipo: 'Kit' | 'Avulso'
 }
 
 export interface SetorResumidoDto {
@@ -149,6 +151,8 @@ export interface GrupoAguardandoMontagem {
   iniciaAqui: boolean
   /** Para onde levar os filhos quando não é aqui; `null` se o pai não tem Roteiro. */
   primeiroPassoDoPai: SetorResumidoDto | null
+  /** O pai recebe os filhos só em conjunto completo (regra 25): a Fila leva o Kit inteiro, não filho a filho. */
+  conjuntoCompleto: boolean
   /** TODOS os filhos diretos do pai, inclusive os ausentes deste Setor (`presente` 0). */
   filhos: FilhoNaMontagem[]
 }
@@ -188,6 +192,34 @@ export interface TarefasDoSetorDto {
   setorId: number
   setorNome: string
   itens: ItemDeTarefa[]
+}
+
+/**
+ * Um filho no cartão do Kit. `origem` e `ordem`: o último passo do filho, onde ele aguarda coleta; `null` quando ele
+ * não tem Roteiro. `jaNoDestino`: esse passo é no Setor onde o pai começa.
+ */
+export interface FilhoDoKitDto {
+  no: NoResumoDto
+  quantidadePorPai: number
+  origem: SetorResumidoDto | null
+  ordem: number | null
+  pronto: number
+  jaNoDestino: boolean
+}
+
+/** Um Kit nas Tarefas (regra 23). `conjuntos` é zero nos incompletos. */
+export interface KitDto {
+  pai: NoResumoDto
+  destino: SetorResumidoDto
+  conjuntos: number
+  filhos: FilhoDoKitDto[]
+}
+
+/** `GET /tarefas`: os "Item pronto" por Setor de origem, sem os filhos de Kit, e os Kits (spec da Fase 3B, D7). */
+export interface TarefasDto {
+  grupos: TarefasDoSetorDto[]
+  kitsMontaveis: KitDto[]
+  kitsIncompletos: KitDto[]
 }
 
 export interface SaldoDto extends LocalDto {
@@ -314,8 +346,8 @@ export function obterFila(setorId: number): Promise<FilaDoSetorDto> {
   return ler(`/setores/${setorId}/fila`, 'carregar a fila')
 }
 
-export function listarTarefas(): Promise<TarefasDoSetorDto[]> {
-  return ler('/tarefas', 'carregar as tarefas')
+export function listarTarefas(): Promise<TarefasDto> {
+  return ler<TarefasDto>('/tarefas', 'carregar as tarefas')
 }
 
 export async function contarTarefas(): Promise<number> {

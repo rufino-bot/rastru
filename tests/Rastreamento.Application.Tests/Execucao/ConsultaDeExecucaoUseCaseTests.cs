@@ -213,7 +213,7 @@ public class ConsultaDeExecucaoUseCaseTests
     c.Material(1, 30, "CH-300", "Chapa 3,00 mm");
     c.Mover(1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 4m);
 
-    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!).Itens);
+    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!.Grupos).Itens);
 
     Assert.Equal(new[] { new MaterialResumoDto(30, "CH-300", "Chapa 3,00 mm") }, tarefa.No.Materiais.ToArray());
     Assert.Equal("Cliente do cenário", tarefa.No.PedidoCliente);
@@ -250,7 +250,7 @@ public class ConsultaDeExecucaoUseCaseTests
     c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Dobra, 1), Local.AguardandoColeta(Dobra, 1), 3m);
     c.Mover(1, TiposDeMovimentacao.Termino, Local.NoSetor(Dobra, 2), Local.AguardandoColeta(Dobra, 2), 2m);
 
-    var tarefas = (await c.Consulta().Tarefas(Ct)).Valor!;
+    var tarefas = (await c.Consulta().Tarefas(Ct)).Valor!.Grupos;
     var contagem = (await c.Consulta().ContagemDeTarefas(Ct)).Valor!;
 
     Assert.Equal(new[] { Corte, Dobra }, tarefas.Select(t => t.SetorId).ToArray());
@@ -267,7 +267,7 @@ public class ConsultaDeExecucaoUseCaseTests
     c.No(2, 1, 10m, 1m, Corte);
     c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 10m);
 
-    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!).Itens);
+    var tarefa = Assert.Single(Assert.Single((await c.Consulta().Tarefas(Ct)).Valor!.Grupos).Itens);
 
     Assert.True(tarefa.Destino.PaiSemRoteiro);
     Assert.Null(tarefa.Destino.SetorId);
@@ -285,7 +285,7 @@ public class ConsultaDeExecucaoUseCaseTests
 
     Assert.Empty(fila.AIniciar);
     Assert.Empty(fila.AguardandoColeta);
-    Assert.Empty((await c.Consulta().Tarefas(Ct)).Valor!);
+    Assert.Empty((await c.Consulta().Tarefas(Ct)).Valor!.Grupos);
     Assert.Equal(0, (await c.Consulta().ContagemDeTarefas(Ct)).Valor!.Total);
   }
 

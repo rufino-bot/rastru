@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { formatarQuantidade } from './formatacao'
+import { lerConjuntos } from './conjuntos'
 import { lerQuantidade, quantidadeParaCampo } from './quantidade'
 
 interface Props {
@@ -9,6 +10,10 @@ interface Props {
   rotulo: string
   /** Todo o disponível. O campo nasce com ele (spec §6.1) e não aceita mais do que ele. */
   maximo: number
+  /** Rótulo do campo; padrão 'Quantidade'. */
+  campo?: string
+  /** Conjuntos de Kit: só inteiros, lidos por `lerConjuntos`. */
+  inteiro?: boolean
   /** Campos a mais, antes da quantidade. */
   children?: ReactNode
   /** Validade dos campos a mais. `false` desabilita o confirmar, como uma quantidade inválida. */
@@ -26,12 +31,12 @@ interface Props {
  * sobra: dois `submit` no MESMO quadro, antes de o React redesenhar o botão desabilitado. Se o
  * segundo passar mesmo assim, a validação de saldo do backend limita o estrago e o estorno corrige.
  */
-export function FormularioDeQuantidade({ rotulo, maximo, children, completo = true, aoConfirmar, aoCancelar }: Props) {
-  const [texto, setTexto] = useState(() => quantidadeParaCampo(maximo))
+export function FormularioDeQuantidade({ rotulo, maximo, campo = 'Quantidade', inteiro = false, children, completo = true, aoConfirmar, aoCancelar }: Props) {
+  const [texto, setTexto] = useState(() => (inteiro ? String(maximo) : quantidadeParaCampo(maximo)))
   const [enviando, setEnviando] = useState(false)
   const enviandoRef = useRef(false)
 
-  const leitura = lerQuantidade(texto, maximo)
+  const leitura = inteiro ? lerConjuntos(texto, maximo) : lerQuantidade(texto, maximo)
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -51,12 +56,12 @@ export function FormularioDeQuantidade({ rotulo, maximo, children, completo = tr
   return (
     <form onSubmit={enviar} className="flex flex-col gap-3 border-t border-borda pt-3">
       {children}
-      <Campo rotulo="Quantidade" dica={leitura.erro ?? `Disponível: ${formatarQuantidade(maximo)}`}>
+      <Campo rotulo={campo} dica={leitura.erro ?? `Disponível: ${formatarQuantidade(maximo)}`}>
         {(id, idDaDica) => (
           <input
             id={id}
             type="text"
-            inputMode="decimal"
+            inputMode={inteiro ? 'numeric' : 'decimal'}
             autoComplete="off"
             value={texto}
             onChange={(e) => setTexto(e.target.value)}

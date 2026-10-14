@@ -32,11 +32,14 @@ public sealed class CadastroDeSetorUseCase
     if (await _repositorio.ObterPorNomeAsync(nome, ct) is not null)
       return Result<SetorDto>.Falha(ErroDeNomeDuplicado, TipoDeErro.Conflito);
 
-    var setor = new Setor { Nome = nome, Ativo = true, Atividade = NormalizarOpcional(novo.Atividade) };
+    var setor = new Setor
+    {
+      Nome = nome, Ativo = true, Atividade = NormalizarOpcional(novo.Atividade), UtilizaKit = novo.UtilizaKit,
+    };
     await _repositorio.AdicionarAsync(setor, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo, setor.Atividade));
+    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo, setor.Atividade, setor.UtilizaKit));
   }
 
   public async Task<Result<SetorDto>> Editar(int id, NovoSetorDto alterado, CancellationToken ct)
@@ -56,15 +59,16 @@ public sealed class CadastroDeSetorUseCase
 
     setor.Nome = nome;
     setor.Atividade = NormalizarOpcional(alterado.Atividade);
+    setor.UtilizaKit = alterado.UtilizaKit;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo, setor.Atividade));
+    return Result<SetorDto>.Ok(new SetorDto(setor.Id, setor.Nome, setor.Ativo, setor.Atividade, setor.UtilizaKit));
   }
 
   public async Task<IReadOnlyList<SetorDto>> Listar(bool incluirInativos, CancellationToken ct)
   {
     var setores = await _repositorio.ListarAsync(incluirInativos, ct);
-    return setores.Select(s => new SetorDto(s.Id, s.Nome, s.Ativo, s.Atividade)).ToList();
+    return setores.Select(s => new SetorDto(s.Id, s.Nome, s.Ativo, s.Atividade, s.UtilizaKit)).ToList();
   }
 
   /// <summary>Cobre inativar e reativar — o mesmo endpoint `PATCH /setores/{id}/ativo`.</summary>

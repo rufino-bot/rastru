@@ -245,4 +245,23 @@ public class SetoresEndpointsTests : IClassFixture<WebApplicationFactory<Program
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
+
+  [Fact]
+  public async Task Cadastrar_e_editar_com_UtilizaKit_e_ele_volta_na_lista()
+  {
+    var admin = ClienteComo("Administrador");
+    var nome = NomeUnico();
+    var criado = await admin.PostAsJsonAsync("/api/setores", new { nome, utilizaKit = true });
+    var id = (await criado.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+    var antes = (await admin.GetFromJsonAsync<JsonElement>("/api/setores")).EnumerateArray()
+        .Single(s => s.GetProperty("id").GetInt32() == id).GetProperty("utilizaKit").GetBoolean();
+    var editado = await admin.PutAsJsonAsync($"/api/setores/{id}", new { nome, utilizaKit = false });
+    var depois = (await admin.GetFromJsonAsync<JsonElement>("/api/setores")).EnumerateArray()
+        .Single(s => s.GetProperty("id").GetInt32() == id).GetProperty("utilizaKit").GetBoolean();
+
+    Assert.Equal(HttpStatusCode.Created, criado.StatusCode);
+    Assert.Equal(HttpStatusCode.OK, editado.StatusCode);
+    Assert.True(antes);
+    Assert.False(depois);
+  }
 }

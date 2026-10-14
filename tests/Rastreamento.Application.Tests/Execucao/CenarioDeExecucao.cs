@@ -86,6 +86,17 @@ internal sealed class CenarioDeExecucao
     return materialId;
   }
 
+  /// <summary>
+  /// O Agrupamento do cenario vira Kit e a Solda ganha `UtilizaKit` (spec da Fase 3B, D3). A `Setor` do fake
+  /// tambem e marcada, para quem le o catalogo ver o mesmo que a execucao.
+  /// </summary>
+  public void Kit(int agrupamento = AgrupamentoId)
+  {
+    Execucao.AgrupamentosKit.Add(agrupamento);
+    Execucao.SetoresComKit.Add(Solda);
+    foreach (var s in Catalogo.Setores.Where(s => s.Id == Solda)) s.UtilizaKit = true;
+  }
+
   /// <summary>Arranjo direto no livro, sem caso de uso.</summary>
   public Movimentacao Mover(int item, string tipo, Local de, Local para, decimal quantidade, int usuario = Operador) =>
       Execucao.Semear(new Movimentacao
@@ -127,7 +138,8 @@ internal sealed class CenarioDeExecucao
   public CalculadoraDeExecucao Calcular() =>
       new(Estruturas.Itens.Select(i => new NoDoCalculo(i.Id, i.EstruturaPaiId, i.Quantidade, i.QuantidadePorPai,
               Estruturas.Roteiros.Where(r => r.EstruturaItemId == i.Id).OrderBy(r => r.Ordem)
-                  .Select(r => new PassoDoCalculo(r.SetorId, r.Ordem)).ToList())),
+                  .Select(r => new PassoDoCalculo(r.SetorId, r.Ordem)).ToList(),
+              Execucao.AgrupamentosKit.Contains(i.AgrupamentoId))),
           Livro.SomarSaldos(Execucao.Movimentacoes),
           Execucao.Montagens.Where(g => g.EstornadaEm is null).GroupBy(g => g.EstruturaItemId)
               .ToDictionary(g => g.Key, g => g.Sum(x => x.Quantidade)),
@@ -136,5 +148,6 @@ internal sealed class CenarioDeExecucao
               .Where(p => p.Item2 is not null)
               .Select(p => (p.Item1, p.Item2!.Value))
               .Distinct()
-              .ToList());
+              .ToList(),
+          Execucao.SetoresComKit);
 }

@@ -104,7 +104,8 @@ public sealed class ConsultaDeExecucaoUseCase
               primeiro?.SetorId == setorId,
               primeiro is PassoDoCalculo p ? new SetorResumoDto(p.SetorId, nomes.GetValueOrDefault(p.SetorId, string.Empty)) : null,
               m.Filhos.Select(f => new FilhoNaMontagemDto(
-                  resumos[f.FilhoId], f.QuantidadePorPai, f.Presente, f.NecessarioParaProxima, f.FaltaParaProxima)).ToList());
+                  resumos[f.FilhoId], f.QuantidadePorPai, f.Presente, f.NecessarioParaProxima, f.FaltaParaProxima)).ToList(),
+              calc.RecebeEmConjunto(paiId));
         })
         .ToList();
 
@@ -162,32 +163,46 @@ public sealed class ConsultaDeExecucaoUseCase
     }
   }
 
-  public Task<Result<IReadOnlyList<TarefasDoSetorDto>>> Tarefas(CancellationToken ct) =>
+  public Task<Result<TarefasDto>> Tarefas(CancellationToken ct) =>
       _execucao.ConsultarAsync(() => TarefasAsync(ct), ct);
 
-  private async Task<Result<IReadOnlyList<TarefasDoSetorDto>>> TarefasAsync(CancellationToken ct)
+  private async Task<Result<TarefasDto>> TarefasAsync(CancellationToken ct)
   {
     var (estado, resumos) = await CarregarEmProducaoAsync(ct);
     var nomes = await NomesDosSetoresAsync(ct);
+    var calc = estado.Calc;
 
-    return Result<IReadOnlyList<TarefasDoSetorDto>>.Ok(estado.Calc.ColetasPendentes()
+    var grupos = calc.ColetasPendentes()
         .GroupBy(p => p.SetorId)
         .OrderBy(g => g.Key)
         .Select(g => new TarefasDoSetorDto(g.Key, nomes.GetValueOrDefault(g.Key, string.Empty),
             g.Select(p => new TarefaDto(resumos[p.EstruturaItemId], p.Ordem, p.Tarefa,
-                Destino(estado.Calc.DestinoDaColeta(p.EstruturaItemId, p.Ordem), nomes))).ToList()))
-        .ToList());
+                Destino(calc.DestinoDaColeta(p.EstruturaItemId, p.Ordem), nomes))).ToList()))
+        .ToList();
+
+    SetorResumoDto Setor(int id) => new(id, nomes.GetValueOrDefault(id, string.Empty));
+    var kits = calc.KitsDaColeta().Select(k => new KitDto(
+        resumos[k.PaiId], Setor(k.SetorDeDestinoId), k.Conjuntos,
+        k.Filhos.Select(f => new FilhoDoKitDto(
+            resumos[f.FilhoId], f.QuantidadePorPai,
+            f.UltimoPasso is PassoDoCalculo u ? Setor(u.SetorId) : null,
+            f.UltimoPasso?.Ordem, f.Pronto, f.JaNoDestino)).ToList())).ToList();
+
+    return Result<TarefasDto>.Ok(new TarefasDto(
+        grupos, kits.Where(k => k.Conjuntos >= 1m).ToList(), kits.Where(k => k.Conjuntos < 1m).ToList()));
   }
 
   /// <summary>
   /// A mesma conta de `Tarefas` (spec secao 7.7), sem montar os DTOs — ver `CarregarEmProducaoAsync`
-  /// para o motivo de nao repetir a carga do estado.
+  /// para o motivo de nao repetir a carga do estado. Cada Kit montavel conta como uma tarefa; os
+  /// incompletos nao contam (spec da Fase 3B, secao 4.5).
   /// </summary>
   public Task<Result<ContagemDeTarefasDto>> ContagemDeTarefas(CancellationToken ct) =>
       _execucao.ConsultarAsync(async () =>
       {
         var (estado, _) = await CarregarEmProducaoAsync(ct);
-        return Result<ContagemDeTarefasDto>.Ok(new ContagemDeTarefasDto(estado.Calc.ColetasPendentes().Count));
+        return Result<ContagemDeTarefasDto>.Ok(new ContagemDeTarefasDto(
+            estado.Calc.ColetasPendentes().Count + estado.Calc.KitsDaColeta().Count(k => k.Montavel)));
       }, ct);
 
   public Task<Result<IReadOnlyList<PosicoesDoNoDto>>> Posicoes(int agrupamentoId, CancellationToken ct) =>
@@ -238,7 +253,7 @@ public sealed class ConsultaDeExecucaoUseCase
     var estado = await _leitor.CarregarAsync(contexto.Select(x => x.No).ToList(), ct);
     IReadOnlyDictionary<int, NoResumoDto> resumos = contexto.ToDictionary(x => x.No.Id, x => new NoResumoDto(
         x.No.Id, estado.Nome(x.No.Id), estado.Codigos.GetValueOrDefault(x.No.Id), x.PedidoId, x.PedidoNumero,
-        x.PedidoCliente, x.AgrupamentoId, x.AgrupamentoCodigo, x.No.EstruturaPaiId,
+        x.PedidoCliente, x.AgrupamentoId, x.AgrupamentoCodigo, x.AgrupamentoTipo, x.No.EstruturaPaiId,
         x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null, PausaResumoDto.De(x.Pausa),
         x.Materiais.Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao)).ToList()));
     return (estado, resumos);

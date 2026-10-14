@@ -182,6 +182,18 @@ describe('execucao', () => {
     expect(mensagemDeErro(erro, 'x')).toBe('Este registro não existe mais.')
   })
 
+  it('listarTarefas devolve o objeto com os grupos e os Kits', async () => {
+    const pai = { id: 2, descricao: 'Chassi' }
+    const corpo = {
+      grupos: [{ setorId: 1, setorNome: 'Corte', itens: [] }],
+      kitsMontaveis: [{ pai, destino: { id: 4, nome: 'Solda' }, conjuntos: 2, filhos: [] }],
+      kitsIncompletos: [{ pai, destino: { id: 4, nome: 'Solda' }, conjuntos: 0, filhos: [] }],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson(corpo)))
+
+    expect(await listarTarefas()).toEqual(corpo)
+  })
+
   it('corpo que não é JSON não substitui o erro original', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>gateway</html>', { status: 502 })))
 

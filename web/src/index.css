@@ -136,6 +136,10 @@
   --color-atraso-texto: #6B21A8;     /* rótulo de estado de atraso do Pedido (roxo escuro): 7,39:1 sobre o fundo de atraso */
   --color-atraso-fundo: #F3E8FF;     /* tinta da pílula de atraso (lilás claro); valor FIXO, não composto */
 
+  /* Identidade de categoria — NUNCA estado. O Kit (spec da Fase 3B, D8): preenchimento cheio com texto branco,
+     6,70:1, para se separar das pílulas de estado, que são tingidas. Só na Fila do Setor. */
+  --color-kit: #1D4ED8;
+
   /* Neutros, com viés verde-acinzentado para casarem com o chrome */
   --color-tinta: #1C2422;
   --color-tinta-fraca: #55605D;

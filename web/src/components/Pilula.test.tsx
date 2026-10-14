@@ -72,4 +72,13 @@ describe('Pilula', () => {
     expect(negativa).toContain('bg-negativo-fundo')
     expect([...positiva, ...negativa].some((c) => c.includes('/'))).toBe(false)
   })
+
+  it('o tom kit é azul cheio com texto branco, sem cor de estado nem a tinta de ação', () => {
+    render(<Pilula tom="kit">Kit</Pilula>)
+
+    const classes = screen.getByText('Kit').className.split(/\s+/)
+    expect(classes).toContain('bg-kit')
+    expect(classes).toContain('text-superficie')
+    expect(classes.some((c) => /positivo|negativo|atencao|atraso|acao/.test(c))).toBe(false)
+  })
 })

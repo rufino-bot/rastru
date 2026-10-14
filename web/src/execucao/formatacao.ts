@@ -12,6 +12,14 @@ export function formatarQuantidade(n: number): string {
   return NUMERO.format(n)
 }
 
+/**
+ * A quantidade seguida da palavra no número certo: singular abaixo de 2 ("1 pronto", "1,5 pronto"),
+ * plural de 2 em diante ("2 prontos"). A fração fica no singular porque lê-se "um e meio pronto".
+ */
+export function quantidadeConcordada(n: number, singular: string, plural: string): string {
+  return `${formatarQuantidade(n)} ${n < 2 ? singular : plural}`
+}
+
 /** "SUP-01 — Suporte", ou só "Suporte" no nó ad-hoc (sem Componente, sem código). */
 export function rotuloDoNo(no: Pick<NoResumoDto, 'codigoDoComponente' | 'descricao'>): string {
   return no.codigoDoComponente ? `${no.codigoDoComponente} — ${no.descricao}` : no.descricao
@@ -45,6 +53,10 @@ export function descreverDestino(destino: DestinoDto, no: NoResumoDto): string {
  * Corte · 2 aguardando coleta"). "em Corte", e não "no Corte": o nome do Setor é livre, e
  * "no/na" dependeria do gênero dele ("na Solda"). O passo aparece sempre que a posição o tem,
  * porque o mesmo Setor pode estar duas vezes no Roteiro (regra 21).
+ *
+ * "Pronto, aguardando a montagem do pai" diz que são unidades distintas das que estão no Setor: o filho
+ * terminou e espera o início do pai, que o consome. Sem isso, "1 em Solda" ao lado de "1 aguardando
+ * montagem em Solda" se lia como a mesma unidade em dois estados.
  */
 export function rotuloDoSaldo(s: SaldoDto): string {
   const q = formatarQuantidade(s.quantidade)
@@ -52,7 +64,7 @@ export function rotuloDoSaldo(s: SaldoDto): string {
     case 'AIniciar': return `${q} a iniciar`
     case 'NoSetor': return `${q} em ${s.setorNome} (passo ${s.ordem})`
     case 'AguardandoColeta': return `${q} aguardando coleta em ${s.setorNome} (passo ${s.ordem})`
-    case 'AguardandoMontagem': return `${q} aguardando montagem em ${s.setorNome}`
+    case 'AguardandoMontagem': return `${quantidadeConcordada(s.quantidade, 'pronto', 'prontos')}, aguardando a montagem do pai em ${s.setorNome}`
     case 'NaExpedicao': return `${q} no local de expedição`
     case 'Montado': return `${q} montados no pai`
   }
@@ -64,7 +76,7 @@ export function rotuloDoLocal(l: LocalDto): string {
     case 'AIniciar': return 'a iniciar'
     case 'NoSetor': return `${l.setorNome} (passo ${l.ordem})`
     case 'AguardandoColeta': return `aguardando coleta em ${l.setorNome} (passo ${l.ordem})`
-    case 'AguardandoMontagem': return `aguardando montagem em ${l.setorNome}`
+    case 'AguardandoMontagem': return `aguardando a montagem do pai em ${l.setorNome}`
     case 'NaExpedicao': return 'local de expedição'
     case 'Montado': return 'montado no pai'
   }

@@ -433,3 +433,37 @@ Anexada sem reescrever o texto acima (precedente da errata da §2.1 da spec da F
   `AguardandoMontagem` no mesmo Setor.
 - A dívida **m12** da review de branch desta spec (o `Descarte` sem ator nem momento) foi fechada
   pela regra 30.
+
+## Errata — 2026-10-09, spec da Fase 3B
+
+Anexada sem reescrever o texto acima. Fonte:
+`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`. Fecha, uma a uma, as perguntas
+que a §9 deixava para a Fase 3B e que a errata de 2026-09-24 não tinha respondido.
+
+- **Trocar o Tipo do Agrupamento ou a marca `UtilizaKit` com produção em andamento (D4):** as duas
+  trocas continuam livres, e a regra vale da troca em diante. O conjunto completo é verificado só no
+  momento da entrega; o que já aguarda montagem fica onde está, e o início do pai continua consumindo
+  o que houver. Limitação conhecida, anotada na regra 25 do `01`: a troca com Kit já em produção
+  pode deixar a espera desalinhada entre os filhos e o teto do pai em zero — o mesmo mecanismo da
+  perda nos tetos, que vai para a Fase 5.
+- **Filho que conclui a própria montagem na mesma Solda em que o pai será montado (D2):** entrega
+  como os outros. Termina, aguarda coleta e é entregue de Solda para Solda; no Kit, essa entrega entra
+  **no mesmo conjunto** dos irmãos vindos de fora, e o cartão do Kit nas Tarefas o mostra como "já
+  está" no Setor.
+- **Qual das duas ações da regra 22 o limite pelo total montado trava (D1 e D3):** nenhuma ganha
+  validação nova. Desde a Fase 3D o pai só entra em produção consumindo os filhos, e a 3B recusa
+  acrescentar filho a nó já iniciado (`PaiJaIniciado`); com isso a saída limitada ao total montado
+  vale por construção para todo nó com filhos, em terminar e em mover.
+- **A entrada num Setor `UtilizaKit` que não é para a montagem do pai (D3):** a posição separa os
+  casos. O conjunto completo vale só para a entrega com destino "aguardando montagem" de um Setor com
+  `UtilizaKit`, para o pai de Agrupamento Kit que começa ali. A folha cujo próprio Roteiro tem passo
+  na Solda, e o nó com filhos que volta à Solda para seguir o próprio Roteiro, entram "no Setor", e
+  não são validados como conjunto.
+- **Se essa quantidade conta como conjunto à espera no teto (D3 e D5):** não conta. Os conjuntos à
+  espera somam só o que aguarda montagem em Setores com `UtilizaKit`, contados pelo filho mais
+  adiantado (o maior `⌈espera ÷ QuantidadePorPai⌉` entre os filhos diretos); o que está "no Setor" fica
+  fora, e o pai de 10 do exemplo da §9 não tem o teto zerado pela folha de 40.
+- **Como a perda do próprio nó entra nos dois tetos (D5):** passa para a **Fase 5**. Na 3B não existe
+  como registrar perda, e uma regra escrita agora não teria código que a exercitasse. A conta da 3B
+  já mantém contado como à espera o conjunto que perder parte dentro da Solda, porque conta pelo filho
+  mais adiantado e arredonda para cima.

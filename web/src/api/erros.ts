@@ -42,7 +42,10 @@ export class ErroDeApi extends Error {
   }
 }
 
-/** Os códigos de erro da execução (spec da Fase 3 §8.2, mais `OrigemInvalida`, desvio D3 do plano 2). */
+/**
+ * Os códigos de erro da execução (spec da Fase 3 §8.2, mais `OrigemInvalida`, desvio D3 do plano 2). Os dois do
+ * Kit, `ConjuntoIncompleto` e `AlemDoQueOPaiPrecisa`, são da entrega, desde a Fase 3B.
+ */
 export type CodigoDeErroDaExecucao =
   | 'QuantidadeInvalida'
   | 'DestinoIndevido'
@@ -69,6 +72,8 @@ export type CodigoDeErroDaExecucao =
   | 'LoteVazio'
   | 'LoteGrandeDemais'
   | 'ItemRepetido'
+  | 'ConjuntoIncompleto'
+  | 'AlemDoQueOPaiPrecisa'
 
 /**
  * A tradução de cada código (spec §8.3: "cada código tem tradução em `mensagemDeErro`"). Só entra
@@ -102,6 +107,8 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   LoteVazio: 'Marque pelo menos um item.',
   LoteGrandeDemais: 'O lote passou do máximo de itens. Divida a seleção.',
   ItemRepetido: 'Um item foi marcado duas vezes. Atualize a tela e tente de novo.',
+  ConjuntoIncompleto: 'Um Kit só entra na Solda com todos os filhos juntos, em conjuntos completos.',
+  AlemDoQueOPaiPrecisa: 'O Kit não precisa de tantos conjuntos. Atualize a tela e tente de novo.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {

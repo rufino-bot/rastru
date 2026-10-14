@@ -153,6 +153,16 @@ describe('estrutura', () => {
     expect(ehConflitoDeEstrutura(resultado) && resultado.erro).toBe('EstruturaProfundaDemais')
   })
 
+  it('acrescentarFilho devolve o conflito PaiJaIniciado com a frase do servidor', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'PaiJaIniciado', mensagem: 'frase do servidor' }), { status: 409 }),
+    ))
+
+    const resultado = await acrescentarFilho(7, { componenteId: null, descricao: 'Arruela', quantidade: 4, quantidadePorPai: 2 })
+
+    expect(resultado).toEqual({ erro: 'PaiJaIniciado', mensagem: 'frase do servidor' })
+  })
+
   // Teste 7: editarNo faz PUT em /estrutura/:id e devolve o no atualizado.
   it('editarNo faz PUT em /estrutura/:id e devolve o no atualizado', async () => {
     const noEditado = {

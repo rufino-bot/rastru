@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila, facetasDasTarefas, filtrarTarefas,
+  CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila, facetasDasTarefas, filtrarTarefas, filtrarKits,
 } from './filtroDaDemanda'
-import type { LinhaDaFila, TarefasDoSetorDto } from '../api/execucao'
+import type { FilhoDoKitDto, KitDto, LinhaDaFila, TarefasDoSetorDto, TarefasDto } from '../api/execucao'
 import type { MaterialResumoDto } from '../api/cadastros'
 import type { Faceta } from '../components/FiltroDeDemanda'
 import { destino, fila, no } from '../testes/execucao'
@@ -85,7 +85,7 @@ describe('facetasDaFila', () => {
   it('cartao de montagem casa pelo filho presente e conta uma vez por opcao', () => {
     const CHASSI_SEM_MATERIAL = no({ id: 2, descricao: 'Chassi', paiId: null, paiDescricao: null, materiais: [] })
     const cartao = {
-      pai: CHASSI_SEM_MATERIAL, faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null,
+      pai: CHASSI_SEM_MATERIAL, faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [
         { no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null },
         { no: P1_CH3_B, quantidadePorPai: 1, presente: 2, necessarioParaProxima: null, faltaParaProxima: null },
@@ -106,7 +106,7 @@ describe('facetasDaFila', () => {
   it('filho ausente do cartao nao faz o cartao casar', () => {
     const cartao = {
       pai: no({ id: 2, paiId: null, paiDescricao: null, materiais: [] }),
-      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null,
+      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [
         { no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null },
         { no: P1_CH6, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 1, faltaParaProxima: 1 },
@@ -120,7 +120,7 @@ describe('facetasDaFila', () => {
   it('o pai do cartao tambem faz o cartao casar, pelo proprio material ou Pedido', () => {
     const cartao = {
       pai: no({ id: 2, paiId: null, paiDescricao: null, materiais: [CHAPA_6] }),
-      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null,
+      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [{ no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null }],
     }
     const f = fila({ aguardandoMontagem: [cartao] })
@@ -156,7 +156,7 @@ describe('facetasDaFila', () => {
   it('filtrar a fila age em todas as secoes e preserva a ordem de cada uma', () => {
     const destinoColeta = destino()
     const cartao = (pai: ReturnType<typeof no>, filho: ReturnType<typeof no>) => ({
-      pai, faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null,
+      pai, faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
       filhos: [{ no: filho, quantidadePorPai: 1, presente: 1, necessarioParaProxima: null, faltaParaProxima: null }],
     })
     const f = fila({
@@ -204,11 +204,53 @@ describe('tarefas', () => {
     { setorId: 3, setorNome: 'Pintura', itens: [item(P1_CH6)] },
   ]
 
+  const soGrupos = (grupos: TarefasDoSetorDto[]): TarefasDto => ({ grupos, kitsMontaveis: [], kitsIncompletos: [] })
+
+  const filhoDoKit = (n: ReturnType<typeof no>, pronto: number): FilhoDoKitDto => ({
+    no: n, quantidadePorPai: 1, origem: { id: 1, nome: 'Corte' }, ordem: 1, pronto, jaNoDestino: false,
+  })
+  // Pai sem Material, no Pedido 2: o Material do Kit mora nos filhos.
+  const KIT_CH6: KitDto = {
+    pai: no({ id: 40, descricao: 'Chassi', materiais: [], paiId: null, paiDescricao: null, ...PEDIDO_2 }),
+    destino: { id: 4, nome: 'Solda' },
+    conjuntos: 1,
+    filhos: [filhoDoKit(no({ id: 41, descricao: 'Base', materiais: [CHAPA_6], ...PEDIDO_2 }), 2)],
+  }
+  // Pedido 1: o filho de CHAPA_3 ainda não está pronto, e o pronto não tem Material.
+  const KIT_CH3_NAO_PRONTO: KitDto = {
+    pai: no({ id: 50, descricao: 'Quadro', materiais: [], paiId: null, paiDescricao: null }),
+    destino: { id: 4, nome: 'Solda' },
+    conjuntos: 0,
+    filhos: [
+      filhoDoKit(no({ id: 51, descricao: 'Travessa', materiais: [CHAPA_3] }), 0),
+      filhoDoKit(no({ id: 52, descricao: 'Pino', materiais: [] }), 3),
+    ],
+  }
+
   it('facetas das tarefas contam os itens de todos os grupos', () => {
     // Cada faceta conta sob a seleção da OUTRA: o Pedido 2 tem 3 itens, dois deles de CHAPA_3.
-    expect(contagens(faceta(facetasDasTarefas(GRUPOS, { material: ['6'] }), 'pedido'))).toEqual({ 1: 1, 2: 0 })
-    expect(contagens(faceta(facetasDasTarefas(GRUPOS, { pedido: ['2'] }), 'material'))).toEqual({ 3: 2, 6: 0 })
-    expect(contagens(faceta(facetasDasTarefas(GRUPOS, {}), 'pedido'))).toEqual({ 1: 3, 2: 3 })
+    expect(contagens(faceta(facetasDasTarefas(soGrupos(GRUPOS), { material: ['6'] }), 'pedido'))).toEqual({ 1: 1, 2: 0 })
+    expect(contagens(faceta(facetasDasTarefas(soGrupos(GRUPOS), { pedido: ['2'] }), 'material'))).toEqual({ 3: 2, 6: 0 })
+    expect(contagens(faceta(facetasDasTarefas(soGrupos(GRUPOS), {}), 'pedido'))).toEqual({ 1: 3, 2: 3 })
+  })
+
+  it('facetas das tarefas contam cada Kit uma vez, montável ou incompleto, pelo pai e pelos filhos prontos', () => {
+    const tarefas: TarefasDto = { grupos: GRUPOS, kitsMontaveis: [KIT_CH6], kitsIncompletos: [KIT_CH3_NAO_PRONTO] }
+
+    // Pedido 2: os 3 itens e o Kit de CHAPA_6; Pedido 1: os 3 itens e o Kit incompleto.
+    expect(contagens(faceta(facetasDasTarefas(tarefas, {}), 'pedido'))).toEqual({ 1: 4, 2: 4 })
+    // CHAPA_6: o item do Pintura e o Kit cujo FILHO pronto é de CHAPA_6.
+    expect(contagens(faceta(facetasDasTarefas(tarefas, {}), 'material'))).toEqual({ 3: 4, 6: 2 })
+  })
+
+  it('filtrarKits: o Kit cujo filho pronto tem o Material aparece; o filho não pronto não faz o Kit casar', () => {
+    const kits = [KIT_CH6, KIT_CH3_NAO_PRONTO]
+
+    expect(filtrarKits(kits, { material: ['6'] })).toEqual([KIT_CH6])
+    expect(filtrarKits(kits, { material: ['3'] })).toEqual([])
+    // O pai casa pelo Pedido.
+    expect(filtrarKits(kits, { pedido: ['1'] })).toEqual([KIT_CH3_NAO_PRONTO])
+    expect(filtrarKits(kits, {})).toEqual(kits)
   })
 
   it('tarefas: grupo sem item depois do filtro sai; itens de cada grupo mantem a ordem', () => {

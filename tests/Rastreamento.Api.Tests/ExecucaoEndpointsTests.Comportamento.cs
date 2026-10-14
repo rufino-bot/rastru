@@ -193,6 +193,19 @@ public partial class ExecucaoEndpointsTests
   }
 
   [Fact]
+  public async Task Acrescentar_filho_a_no_ja_iniciado_da_409_PaiJaIniciado()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 2m }));
+
+    var resposta = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.B}/filhos",
+        new { componenteId = (int?)null, descricao = "Arruela", quantidade = 40m, quantidadePorPai = 2m });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    Assert.Equal("PaiJaIniciado", (await CorpoAsync(resposta)).GetProperty("erro").GetString());
+  }
+
+  [Fact]
   public async Task Roteiro_marca_o_alcancado_e_recusa_mexer_nele()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
@@ -370,7 +383,7 @@ public partial class ExecucaoEndpointsTests
   {
     var nos = new[] { c.A, c.B, c.C };
     var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
-    return tarefas.EnumerateArray()
+    return tarefas.GetProperty("grupos").EnumerateArray()
         .SelectMany(s => s.GetProperty("itens").EnumerateArray())
         .Where(i => nos.Contains(i.GetProperty("no").GetProperty("id").GetInt32()))
         .ToList();

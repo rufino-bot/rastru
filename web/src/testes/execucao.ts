@@ -12,7 +12,7 @@ export function no(parcial: Partial<NoResumoDto> = {}): NoResumoDto {
     id: 7, descricao: 'Suporte', codigoDoComponente: 'SUP-01',
     pedidoId: 1, pedidoNumero: 'PED-2026-01', pedidoCliente: 'Metalúrgica Alfa',
     agrupamentoId: 3, agrupamentoCodigo: 'AG-01',
-    paiId: 2, paiDescricao: 'Chassi', materiais: [], pausa: null,
+    paiId: 2, paiDescricao: 'Chassi', materiais: [], pausa: null, agrupamentoTipo: 'Avulso',
     ...parcial,
   }
 }

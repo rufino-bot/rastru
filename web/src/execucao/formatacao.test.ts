@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  formatarQuantidade, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
+  formatarQuantidade, quantidadeConcordada, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
   rotuloDaAcao, rotuloDoEstornavel, mensagemDoEstorno,
 } from './formatacao'
 import type { DestinoDto, Estornavel, NoResumoDto } from '../api/execucao'
@@ -10,7 +10,7 @@ const SUPORTE: NoResumoDto = {
   id: 7, descricao: 'Suporte', codigoDoComponente: 'SUP-01',
   pedidoId: 1, pedidoNumero: 'PED-2026-01', pedidoCliente: 'Metalúrgica Alfa',
   agrupamentoId: 3, agrupamentoCodigo: 'AG-01',
-  paiId: 2, paiDescricao: 'Chassi', materiais: [], pausa: null,
+  paiId: 2, paiDescricao: 'Chassi', materiais: [], pausa: null, agrupamentoTipo: 'Avulso',
 }
 
 const DESTINO_VAZIO: DestinoDto = {
@@ -24,6 +24,20 @@ describe('formatarQuantidade', () => {
     expect(formatarQuantidade(2.5)).toBe('2,5')
     expect(formatarQuantidade(0.1234)).toBe('0,1234')
     expect(formatarQuantidade(1234)).toBe('1.234')
+  })
+})
+
+describe('quantidadeConcordada', () => {
+  it.each([
+    [0, '0 pronto'],
+    [1, '1 pronto'],
+    [1.5, '1,5 pronto'],
+    [1.9999, '1,9999 pronto'],
+    [2, '2 prontos'],
+    [2.5, '2,5 prontos'],
+    [10, '10 prontos'],
+  ])('%s vira "%s"', (q, texto) => {
+    expect(quantidadeConcordada(q, 'pronto', 'prontos')).toBe(texto)
   })
 })
 
@@ -76,7 +90,11 @@ describe('rotuloDoSaldo', () => {
     [{ posicao: 'AguardandoColeta' as const, setorId: 1, setorNome: 'Corte', ordem: 3, quantidade: 2 },
       '2 aguardando coleta em Corte (passo 3)'],
     [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null, quantidade: 2.5 },
-      '2,5 aguardando montagem em Solda'],
+      '2,5 prontos, aguardando a montagem do pai em Solda'],
+    [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null, quantidade: 1 },
+      '1 pronto, aguardando a montagem do pai em Solda'],
+    [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null, quantidade: 1.5 },
+      '1,5 pronto, aguardando a montagem do pai em Solda'],
     [{ ...base, posicao: 'NaExpedicao' as const, quantidade: 10 }, '10 no local de expedição'],
     [{ ...base, posicao: 'Montado' as const, quantidade: 8 }, '8 montados no pai'],
   ])('%o vira "%s"', (saldo, texto) => {
@@ -91,7 +109,7 @@ describe('rotuloDoLocal', () => {
     [{ ...vazio, posicao: 'AIniciar' as const }, 'a iniciar'],
     [{ posicao: 'NoSetor' as const, setorId: 1, setorNome: 'Corte', ordem: 1 }, 'Corte (passo 1)'],
     [{ posicao: 'AguardandoColeta' as const, setorId: 1, setorNome: 'Corte', ordem: 1 }, 'aguardando coleta em Corte (passo 1)'],
-    [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null }, 'aguardando montagem em Solda'],
+    [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null }, 'aguardando a montagem do pai em Solda'],
     [{ ...vazio, posicao: 'NaExpedicao' as const }, 'local de expedição'],
     [{ ...vazio, posicao: 'Montado' as const }, 'montado no pai'],
   ])('%o vira "%s"', (local, texto) => {

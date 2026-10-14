@@ -75,6 +75,13 @@ describe('mensagemDeErro', () => {
       .toBe('Um item foi marcado duas vezes. Atualize a tela e tente de novo.')
   })
 
+  it('traduz os dois códigos do Kit quando o servidor não mandou frase', () => {
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'ConjuntoIncompleto'), PADRAO))
+      .toBe('Um Kit só entra na Solda com todos os filhos juntos, em conjuntos completos.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'AlemDoQueOPaiPrecisa'), PADRAO))
+      .toBe('O Kit não precisa de tantos conjuntos. Atualize a tela e tente de novo.')
+  })
+
   it('a frase que o servidor manda no PedidoPausado (com o número do Pedido) ganha da tradução', () => {
     expect(mensagemDeErro(new ErroDeApi(409, 'x', 'O Pedido PED-9 está pausado.', 'PedidoPausado'), PADRAO))
       .toBe('O Pedido PED-9 está pausado.')

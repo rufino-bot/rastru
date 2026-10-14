@@ -347,7 +347,7 @@ describe('ArvoreDeEstrutura', () => {
 
     const doFilho = within(screen.getByTestId('linha-no-2')).getByRole('list', { name: 'Onde está' })
     expect(within(doFilho).getAllByRole('listitem').map((i) => i.textContent)).toEqual([
-      '3 em Corte (passo 1)', '1 aguardando coleta em Corte (passo 1)', 'total montado: 1',
+      '3 em Corte (passo 1)', '1 aguardando coleta em Corte (passo 1)', '1 montado a partir dos filhos',
     ])
     expect(within(screen.getByTestId('linha-no-1')).getByText('1 a iniciar')).toBeTruthy()
     // Nó sem entrada no mapa (a folha, id 3): nenhuma pílula de posição.

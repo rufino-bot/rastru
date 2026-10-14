@@ -1,5 +1,5 @@
 import type {
-  FilaDoSetorDto, GrupoAguardandoMontagem, NoResumoDto, TarefasDoSetorDto,
+  FilaDoSetorDto, GrupoAguardandoMontagem, KitDto, NoResumoDto, TarefasDoSetorDto, TarefasDto,
 } from '../api/execucao'
 import { casaComFiltro, type Faceta, type Selecao } from '../components/FiltroDeDemanda'
 
@@ -97,8 +97,26 @@ export function filtrarFila(fila: FilaDoSetorDto, selecao: Selecao): FilaDoSetor
   }
 }
 
-export function facetasDasTarefas(grupos: TarefasDoSetorDto[], selecao: Selecao): Faceta[] {
-  return facetasDeUnidades(grupos.flatMap((g) => g.itens.map((i) => [i.no])), selecao)
+/**
+ * O pai e os filhos prontos: o Material mora nos filhos (decisão P5 do plano da Fase 3B; mesmo critério de
+ * `nosDoCartao`). O filho que ainda não tem nada pronto não faz o Kit casar.
+ */
+function nosDoKit(k: KitDto): Unidade {
+  return [k.pai, ...k.filhos.filter((f) => f.pronto > 0).map((f) => f.no)]
+}
+
+/** Cada item solto é uma unidade; cada Kit, montável ou incompleto, outra. */
+export function facetasDasTarefas(tarefas: TarefasDto, selecao: Selecao): Faceta[] {
+  return facetasDeUnidades([
+    ...tarefas.grupos.flatMap((g) => g.itens.map((i) => [i.no])),
+    ...tarefas.kitsMontaveis.map(nosDoKit),
+    ...tarefas.kitsIncompletos.map(nosDoKit),
+  ], selecao)
+}
+
+/** Os Kits que sobram sob a seleção, na ordem em que vieram. */
+export function filtrarKits(kits: KitDto[], selecao: Selecao): KitDto[] {
+  return kits.filter((k) => casa(nosDoKit(k), selecao))
 }
 
 /** Grupo que fica sem item some; os itens de cada grupo mantêm a ordem. */

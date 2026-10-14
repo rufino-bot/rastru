@@ -23,13 +23,19 @@ describe('ResumoDePosicoes', () => {
   it('mostra o total montado no nó com filhos', () => {
     render(<ResumoDePosicoes saldos={[A_INICIAR]} totalMontado={3} />)
 
-    expect(screen.getByText('total montado: 3')).toBeTruthy()
+    expect(screen.getByText('3 montados a partir dos filhos')).toBeTruthy()
   })
 
-  it('não mostra "total montado: 0"', () => {
+  it('diz "montado", no singular, quando o total é menor que 2', () => {
+    render(<ResumoDePosicoes saldos={[A_INICIAR]} totalMontado={1} />)
+
+    expect(screen.getByText('1 montado a partir dos filhos')).toBeTruthy()
+  })
+
+  it('não mostra o total montado quando é 0', () => {
     render(<ResumoDePosicoes saldos={[A_INICIAR]} totalMontado={0} />)
 
-    expect(screen.queryByText(/total montado/)).toBeNull()
+    expect(screen.queryByText(/a partir dos filhos/)).toBeNull()
   })
 
   it('não desenha lista vazia', () => {

@@ -9,7 +9,7 @@ type Props = Parameters<typeof BarraDoLote>[0]
 
 function barra(parcial: Partial<Props> = {}) {
   const props: Props = {
-    secao: 'aIniciar', marcados: 5, ocultos: 0, invalido: false, enviando: false, erro: null,
+    rotulo: 'Iniciar 5 itens', rotuloCarregando: 'Registrando…', ocultos: 0, invalido: false, enviando: false, erro: null,
     aoEnviar: vi.fn(), aoLimpar: vi.fn(),
     ...parcial,
   }
@@ -17,17 +17,13 @@ function barra(parcial: Partial<Props> = {}) {
 }
 
 describe('BarraDoLote', () => {
-  it('mostra o verbo da secao e a contagem', () => {
-    const { unmount } = barra({ secao: 'aIniciar', marcados: 5 })
+  it('o botao escreve o rotulo que quem usa a barra manda', () => {
+    const { unmount } = barra({ rotulo: 'Iniciar 5 itens' })
     expect(screen.getByRole('button', { name: 'Iniciar 5 itens' })).toBeTruthy()
     unmount()
 
-    const outra = barra({ secao: 'aguardandoMontagem', marcados: 5 })
-    expect(screen.getByRole('button', { name: 'Iniciar 5 itens' })).toBeTruthy()
-    outra.unmount()
-
-    barra({ secao: 'emTrabalho', marcados: 1 })
-    expect(screen.getByRole('button', { name: 'Terminar 1 item' })).toBeTruthy()
+    barra({ rotulo: 'Entregar 2 Kits e 3 itens' })
+    expect(screen.getByRole('button', { name: 'Entregar 2 Kits e 3 itens' })).toBeTruthy()
   })
 
   it('o botao chama aoEnviar', () => {
@@ -63,11 +59,13 @@ describe('BarraDoLote', () => {
     expect((screen.getByRole('button', { name: 'Iniciar 5 itens' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('enquanto envia, troca o rotulo e desabilita', () => {
-    barra({ enviando: true })
+  it('enquanto envia, troca pelo rotulo de carregando que veio de fora e desabilita', () => {
+    const { unmount } = barra({ enviando: true })
+    expect((screen.getByRole('button', { name: 'Registrando…' }) as HTMLButtonElement).disabled).toBe(true)
+    unmount()
 
-    const botao = screen.getByRole('button', { name: 'Registrando…' }) as HTMLButtonElement
-    expect(botao.disabled).toBe(true)
+    barra({ enviando: true, rotuloCarregando: 'Entregando…' })
+    expect((screen.getByRole('button', { name: 'Entregando…' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('mostra a recusa no banner', () => {

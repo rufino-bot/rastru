@@ -50,7 +50,8 @@ public sealed class CadastroDeAgrupamentoUseCase
     var invalido = Validar(codigo, tipo);
     if (invalido is not null) return Result<AgrupamentoDto>.Falha(invalido, TipoDeErro.Validacao);
 
-    if (await _pedidos.ObterPorIdAsync(pedidoId, ct) is null)
+    var pedido = await _pedidos.ObterPorIdAsync(pedidoId, ct);
+    if (pedido is null)
       return Result<AgrupamentoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
     // Checagem ANTES do insert: erro de negocio claro em vez de excecao de
@@ -71,7 +72,7 @@ public sealed class CadastroDeAgrupamentoUseCase
     await _repositorio.AdicionarAsync(agrupamento, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<AgrupamentoDto>.Ok(Projetar(agrupamento));
+    return Result<AgrupamentoDto>.Ok(Projetar(agrupamento, pedido.Numero));
   }
 
   /// <remarks>
@@ -101,14 +102,17 @@ public sealed class CadastroDeAgrupamentoUseCase
     agrupamento.Tipo = tipo;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<AgrupamentoDto>.Ok(Projetar(agrupamento));
+    return Result<AgrupamentoDto>.Ok(Projetar(agrupamento, await NumeroDoPedido(agrupamento.PedidoId, ct)));
   }
 
   public async Task<IReadOnlyList<AgrupamentoDto>> ListarPorPedido(
       int pedidoId, CancellationToken ct)
   {
     var agrupamentos = await _repositorio.ListarPorPedidoAsync(pedidoId, ct);
-    return agrupamentos.Select(Projetar).ToList();
+    if (agrupamentos.Count == 0) return [];
+
+    var pedidoNumero = await NumeroDoPedido(pedidoId, ct);
+    return agrupamentos.Select(a => Projetar(a, pedidoNumero)).ToList();
   }
 
   public async Task<Result<AgrupamentoDto>> Obter(int id, CancellationToken ct)
@@ -116,8 +120,15 @@ public sealed class CadastroDeAgrupamentoUseCase
     var agrupamento = await _repositorio.ObterPorIdAsync(id, ct);
     return agrupamento is null
         ? Result<AgrupamentoDto>.Falha(ErroDeAgrupamentoNaoEncontrado, TipoDeErro.NaoEncontrado)
-        : Result<AgrupamentoDto>.Ok(Projetar(agrupamento));
+        : Result<AgrupamentoDto>.Ok(Projetar(agrupamento, await NumeroDoPedido(agrupamento.PedidoId, ct)));
   }
+
+  /// <summary>
+  /// O Pedido de um Agrupamento existente sempre existe (FK_Agrupamento_Pedido), entao um null aqui e
+  /// violacao de integridade, nao caso de negocio: deixar estourar e mais honesto que inventar um numero.
+  /// </summary>
+  private async Task<string> NumeroDoPedido(int pedidoId, CancellationToken ct) =>
+      (await _pedidos.ObterPorIdAsync(pedidoId, ct))!.Numero;
 
   /// <summary>
   /// Exclusao fisica guardada. As tres recusas viajam como CODIGO no `Erro` ("AgrupamentoNaoVazio",
@@ -173,6 +184,10 @@ public sealed class CadastroDeAgrupamentoUseCase
   /// </summary>
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
-  private static AgrupamentoDto Projetar(Agrupamento a) =>
-      new(a.Id, a.PedidoId, a.Codigo, a.Tipo, a.CriadoEm, a.CriadoPorUsuarioId);
+  /// <remarks>
+  /// `PedidoNumero` serve ao titulo da pagina do Agrupamento (C2 da spec da Fase 3B); vai em toda
+  /// resposta porque o DTO e um so (decisao P8 do plano da Fase 3B).
+  /// </remarks>
+  private static AgrupamentoDto Projetar(Agrupamento a, string pedidoNumero) =>
+      new(a.Id, a.PedidoId, pedidoNumero, a.Codigo, a.Tipo, a.CriadoEm, a.CriadoPorUsuarioId);
 }
