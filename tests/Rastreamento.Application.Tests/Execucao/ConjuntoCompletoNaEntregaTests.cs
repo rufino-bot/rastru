@@ -166,10 +166,36 @@ public class ConjuntoCompletoNaEntregaTests
   [Fact]
   public async Task Avulso_nao_exige_conjunto()
   {
+    // A Solda tem `UtilizaKit` e o pai comeca nela; so o Tipo Avulso do Agrupamento o deixa de fora da regra 25.
+    // Sem a marca na Solda, o teste passaria mesmo se a entrega ignorasse o Tipo.
     var c = Cenario(kit: false);
+    c.Execucao.SetoresComKit.Add(Solda);
     Pronto(c, 2, Corte, 8m);
 
     Assert.True((await Entregar(c, DaColeta(2, Corte, 8m))).Sucesso);
+  }
+
+  [Fact]
+  public async Task Redirecionamento_de_Setor_sem_UtilizaKit_nao_sai_da_espera_do_Kit()
+  {
+    // O pai de 3 comeca na Solda (UtilizaKit) e ja tem 2 conjuntos esperando la: o teto e 3 - 0 - 2 = 1. Na Pintura,
+    // que nao tem a marca, esperam outros 2 conjuntos, que nunca entraram na espera do Kit. Levar os 2 a Solda passa
+    // do teto; se a quantidade que sai da Pintura fosse descontada da espera, a espera cairia a 0 e o teto subiria a 3.
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 3m, null, Solda);
+    c.No(2, 1, 20m, 4m, Corte);
+    c.No(3, 1, 5m, 1m, Corte);
+    c.Kit();
+    AguardandoMontagemEm(c, 2, Corte, Solda, 8m);
+    AguardandoMontagemEm(c, 3, Corte, Solda, 2m);
+    AguardandoMontagemEm(c, 2, Corte, Pintura, 8m);
+    AguardandoMontagemEm(c, 3, Corte, Pintura, 2m);
+    var antes = c.Execucao.Movimentacoes.Count;
+
+    var r = await Entregar(c, DaMontagem(2, Pintura, 8m), DaMontagem(3, Pintura, 2m));   // leva 2, teto 1
+
+    AfirmarRecusa(r, CodigosDaExecucao.AlemDoQueOPaiPrecisa, TipoDeErro.Conflito, c, antes);
+    Assert.Contains("só precisa receber 1 conjunto", r.Detalhe);
   }
 
   [Fact]
