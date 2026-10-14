@@ -359,6 +359,10 @@ despachada depois dela. A massa é preparada por script de API (a Solda marcada 
 Kit de três níveis com filhos espalhados por Setores), fora do `db/seed-demo.sql`, para o demo não mudar de
 comportamento.
 
+- **Emenda de 2026-10-14, da review de branch da Fase 3B:** a massa da conferência não foi preparada por script de
+  API, como o parágrafo acima diz: é o script SQL `db/massa-conferencia-fase-3b.sql`, que também fica fora do
+  `db/seed-demo.sql`. O resto vale como está escrito.
+
 ## 9. Fora de escopo
 
 - A perda nos tetos (D5) e o filho acrescentado a nó iniciado (D1): Fase 5.

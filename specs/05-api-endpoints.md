@@ -363,8 +363,9 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
 - **409** — sete códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
-  levam `mensagem` junto do `erro`, e o `ConflitoDeConcorrencia` também (a frase de
-  `CodigosDaExecucao.MensagemDeConflito`); `PedidoNaoAberto` não — mesmo precedente do
+  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado` e o
+  `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`);
+  `PedidoNaoAberto` não — mesmo precedente do
   `DELETE /agrupamentos/{id}`.
 
   | Código | Onde | Motivo |
@@ -616,12 +617,16 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   — preenchido, dá 400 `DestinoIndevido`, mesmo que aponte o Setor certo. Redirecionar o que aguarda
   montagem fora do primeiro passo do pai é uma entrega com origem `AguardandoMontagem`, e leva ao
   primeiro passo de agora; se já está nele, 409 `RedirecionamentoSemEfeito`.
-  **Kit (Fase 3B, regra 25).** Quando o pai é de Agrupamento `Kit` e o primeiro passo dele é num Setor
-  com `UtilizaKit`, a entrega que vai à `AguardandoMontagem` desse Setor só entra em conjunto completo:
-  400 `ConjuntoIncompleto` se a lista não traz todos os filhos diretos do pai, e 409
-  `AlemDoQueOPaiPrecisa` se ela passa do que o pai ainda precisa receber (o teto: a quantidade do pai,
-  menos o já montado, menos os conjuntos que já aguardam). A entrega para o próximo passo de um Setor
-  sem `UtilizaKit` segue como antes.
+  **Kit (Fase 3B, regra 25).** A regra vale para a entrega que vai à `AguardandoMontagem` de um pai de
+  Agrupamento `Kit` cujo primeiro passo é num Setor com `UtilizaKit`: ela só entra em conjunto completo.
+  Há três causas de 400 `ConjuntoIncompleto` — a lista não traz todos os filhos diretos do pai; a
+  quantidade de algum filho não fecha um número inteiro de conjuntos (menos de 1, ou fração); ou os
+  filhos não dão o mesmo número de conjuntos — e uma de 409 `AlemDoQueOPaiPrecisa`, quando os
+  conjuntos passam do que o pai ainda precisa receber (o teto: a quantidade do pai, menos o já
+  montado, menos os conjuntos que já aguardam). As duas levam `mensagem`, e nada é gravado. **Três casos
+  ficam de fora e seguem como antes:** o pai de Agrupamento `Avulso`; o pai cujo primeiro passo é num
+  Setor sem `UtilizaKit`; e o filho que passa pela Solda no próprio Roteiro, cuja entrega para o
+  próximo passo entra em `NoSetor` e não é conjunto, mesmo que o Setor tenha `UtilizaKit`.
 - `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
   enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que

@@ -559,6 +559,30 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
   `MateriaisPage`, `ComponentesPage` e `PedidosPage`. A Fila do Setor e as Tarefas **não** ordenam
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica.
+- **Conteúdo que nasce recolhido usa `SecaoRecolhivel` ou `ListaRecolhivel`** (`web/src/components/`,
+  com teste próprio), nunca um `<details>` escrito na tela. As duas são `<details>` nativo — abre no
+  teclado e no leitor de tela sem código, e o `<summary>` é o nome do controle — e se separam pelo
+  gatilho. **`SecaoRecolhivel`** é a seção **informativa de página**: título grande, moldura no padrão
+  dos cartões e a contagem no título ("Kits incompletos (23)"), para a lista que pode crescer muito e
+  **não pede ação** — o que se faz não fica escondido. **`ListaRecolhivel`** é o disclosure **de dentro
+  de um cartão**: sem moldura, texto pequeno, "Filhos (N)", para a lista de filhos que uma Peça pode ter
+  às dezenas. Ela nasce recolhida, mas **abre quando algum item tem ação própria** (`temAcao`), continua
+  recolhível, e, se a ação aparece depois com a lista fechada (a Fila recarrega sozinha), abre só na
+  passagem de falso para verdadeiro, para quem a fechou de propósito não ser contrariado a cada recarga.
+  Origem: D7 e as emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da Fase 3B
+  (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). Hoje a `SecaoRecolhivel` tem
+  **um** uso, na `TarefasPage`, e a `ListaRecolhivel` tem **três**, em duas telas (os dois cartões de Kit,
+  em `CartaoDeKit`, e o cartão de "Aguardando montagem" da `FilaDoSetorPage`); medido em 2026-10-14 com
+  `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas),
+  e o `<details>` cru só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
+  grep -v "\.test\."` devolve duas linhas de elemento e duas de comentário que citam a tag).
+
+  **A `BarraDoLote`** (`web/src/execucao/`, com teste próprio) é a barra fixa do lote e **serve a Fila
+  do Setor e as Tarefas**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, e o texto do botão
+  vem de quem a usa (`rotulo` e `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide
+  isso — e só usa tinta e superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em
+  lote usa a barra, não escreve outra. Dois usos, um por tela (`grep -rn "<BarraDoLote" web/src
+  --include=*.tsx | grep -v "\.test\."`, medido em 2026-10-14).
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**

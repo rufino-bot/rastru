@@ -212,7 +212,9 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    por algum filho pronto. Um nó sem material — o Item ad-hoc, por exemplo — some quando há filtro de Material. A
    seção que perde todas as linhas mostra "Nada nesta seção com esses filtros"; a fila inteira
    esvaziada pelo filtro diz "Nada nesta fila com esses filtros" e oferece "Limpar filtros"; em
-   Tarefas, o grupo sem item some, e o vazio é "Nada para levar com esses filtros". A seleção mora na
+   Tarefas, o grupo sem item some, e o vazio é "Nada para levar com esses filtros"; a única exceção é "Kits
+   incompletos", que, havendo algum Kit incompleto antes do filtro, fica com "(0)" e o texto "Nenhum Kit
+   incompleto combina com os filtros.", para o filtro não parecer ter feito o Kit sumir. A seleção mora na
    URL (`?material=…&pedido=…`), sobrevive ao F5 e permite compartilhar o link ("a fila do Corte, só
    a chapa de 3 mm"). O filtro só muda o que se desenha: esconder uma linha não é "outra pessoa
    agiu", então não dispara o aviso de que o item saiu da fila; em Tarefas, o item já marcado que o
