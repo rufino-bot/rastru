@@ -185,6 +185,8 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
     ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
     ["PUT estrutura/{id:int}/roteiro"] = ["PCP", "Administrador"],
+    // Separacao de material (Fase 4): um controller por conjunto de perfis (decisao P6 do plano de backend).
+    ["PUT estrutura/{id:int}/materiais"] = ["PCP", "Administrador"],
     // Pausa de Pedido (Fase 3D): PCP e Gestao — prioridade e decisao de planejamento.
     ["POST pedidos/{id:int}/pausas"] = ["PCP", "Gestao", "Administrador"],
     ["POST pedidos/{id:int}/retomada"] = ["PCP", "Gestao", "Administrador"],

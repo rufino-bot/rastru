@@ -1,0 +1,108 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Xunit;
+using static Rastreamento.Api.Tests.CenarioDaFase3NaApi;
+
+namespace Rastreamento.Api.Tests;
+
+/// <summary>
+/// As rotas da separacao de material (Fase 4) no cenario da Fase 3, com Materiais criados no banco por ele.
+/// Toda asercao escopada no proprio cenario. Esta classe e estendida pelas rotas seguintes da separacao.
+/// </summary>
+public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+{
+  private readonly WebApplicationFactory<Program> _factory;
+
+  public SeparacaoEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
+
+  [Fact]
+  public async Task Pcp_substitui_e_le_os_materiais_do_no()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await c.CriarMaterialAsync("PAR");
+    var chapa = await c.CriarMaterialAsync("CH", setorDeEstoqueId: c.Corte);
+    var pcp = c.Como(c.Pcp);
+
+    var put = await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}/materiais",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 10m }, new { materialId = chapa, quantidade = 2.5m } } });
+
+    Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+    var corpo = await CorpoAsync(put);
+    Assert.Equal(c.B, corpo.GetProperty("estruturaItemId").GetInt32());
+    var itens = corpo.GetProperty("materiais").EnumerateArray().ToList();
+    Assert.Equal(2, itens.Count);
+
+    var doParafuso = itens.Single(i => i.GetProperty("materialId").GetInt32() == parafuso);
+    Assert.Equal(JsonValueKind.Null, doParafuso.GetProperty("ficaEm").ValueKind);
+    Assert.Equal(10m, doParafuso.GetProperty("planejado").GetDecimal());
+    Assert.Equal(0m, doParafuso.GetProperty("separado").GetDecimal());
+    Assert.Equal(10m, doParafuso.GetProperty("pendencia").GetDecimal());
+    Assert.True(doParafuso.GetProperty("noPlanejado").GetBoolean());
+    Assert.False(doParafuso.GetProperty("acimaDoPlanejado").GetBoolean());
+
+    // Fica no Corte: nunca tem pendencia (D6), e o "Fica em" sai com o id e o nome do Setor.
+    var daChapa = itens.Single(i => i.GetProperty("materialId").GetInt32() == chapa);
+    Assert.Equal(c.Corte, daChapa.GetProperty("ficaEm").GetProperty("setorId").GetInt32());
+    Assert.StartsWith("f3-", daChapa.GetProperty("ficaEm").GetProperty("nome").GetString());
+    Assert.Equal(2.5m, daChapa.GetProperty("planejado").GetDecimal());
+    Assert.Equal(0m, daChapa.GetProperty("pendencia").GetDecimal());
+
+    var get = await pcp.GetAsync($"/api/estrutura/{c.B}/materiais");
+    Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+    var lido = (await CorpoAsync(get)).GetProperty("materiais").EnumerateArray()
+        .Select(i => i.GetProperty("materialId").GetInt32()).ToHashSet();
+    Assert.Equal(new HashSet<int> { parafuso, chapa }, lido);
+
+    // Substituir de novo troca a lista inteira; `[]` limpa.
+    var limpo = await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}/materiais", new { linhas = Array.Empty<object>() });
+    Assert.Equal(HttpStatusCode.OK, limpo.StatusCode);
+    Assert.Empty((await CorpoAsync(limpo)).GetProperty("materiais").EnumerateArray());
+  }
+
+  [Theory]
+  [InlineData("Operador")]
+  [InlineData("Separador")]
+  public async Task Operador_e_Separador_nao_substituem_materiais_do_no(string perfil)
+  {
+    await using var c = await CriarAsync(_factory);
+    var cliente = perfil == "Operador" ? c.Como(c.Operador) : c.Como(c.Separador);
+
+    var resposta = await cliente.PutAsJsonAsync($"/api/estrutura/{c.B}/materiais", new { linhas = Array.Empty<object>() });
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Separador_le_os_materiais_do_no()
+  {
+    await using var c = await CriarAsync(_factory);
+
+    var resposta = await c.Como(c.Separador).GetAsync($"/api/estrutura/{c.B}/materiais");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Empty((await CorpoAsync(resposta)).GetProperty("materiais").EnumerateArray());
+  }
+
+  [Fact]
+  public async Task Material_invalido_ou_no_inexistente_nao_grava_e_responde_o_status_certo()
+  {
+    await using var c = await CriarAsync(_factory);
+    var inativo = await c.CriarMaterialAsync("INA", ativo: false);
+    var pcp = c.Como(c.Pcp);
+
+    var recusado = await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}/materiais",
+        new { linhas = new[] { new { materialId = inativo, quantidade = 1m } } });
+    var semLinhas = await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}/materiais", new { });
+    var semNo = await pcp.PutAsJsonAsync("/api/estrutura/999999/materiais", new { linhas = Array.Empty<object>() });
+    var leituraSemNo = await pcp.GetAsync("/api/estrutura/999999/materiais");
+
+    Assert.Equal(HttpStatusCode.BadRequest, recusado.StatusCode);
+    Assert.Equal("MaterialInvalido", (await CorpoAsync(recusado)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.BadRequest, semLinhas.StatusCode);
+    Assert.Equal(HttpStatusCode.NotFound, semNo.StatusCode);
+    Assert.Equal(HttpStatusCode.NotFound, leituraSemNo.StatusCode);
+    Assert.Empty((await CorpoAsync(await pcp.GetAsync($"/api/estrutura/{c.B}/materiais"))).GetProperty("materiais").EnumerateArray());
+  }
+}

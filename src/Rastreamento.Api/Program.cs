@@ -14,6 +14,7 @@ using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Importacao;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Importacao;
 using Rastreamento.Infrastructure.Persistence;
@@ -151,6 +152,7 @@ builder.Services.AddScoped<EntregaUseCase>();
 builder.Services.AddScoped<EstornoUseCase>();
 builder.Services.AddScoped<PausaDePedidoUseCase>();
 builder.Services.AddScoped<RoteiroDoNoUseCase>();
+builder.Services.AddScoped<MateriaisDoNoUseCase>();
 builder.Services.AddScoped<ConsultaDeExecucaoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
