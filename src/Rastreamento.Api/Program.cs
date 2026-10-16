@@ -153,6 +153,8 @@ builder.Services.AddScoped<EstornoUseCase>();
 builder.Services.AddScoped<PausaDePedidoUseCase>();
 builder.Services.AddScoped<RoteiroDoNoUseCase>();
 builder.Services.AddScoped<MateriaisDoNoUseCase>();
+builder.Services.AddScoped<SeparacaoUseCase>();
+builder.Services.AddScoped<ConsultaDeSeparacaoUseCase>();
 builder.Services.AddScoped<ConsultaDeExecucaoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

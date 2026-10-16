@@ -29,6 +29,9 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
   public UsuarioDeTeste Pcp { get; private set; } = null!;
   public UsuarioDeTeste Gestao { get; private set; } = null!;
   public UsuarioDeTeste Separador { get; private set; } = null!;
+
+  /// <summary>Um segundo Separador: o estorno de separacao compara o autor, e "outro Separador" precisa existir.</summary>
+  public UsuarioDeTeste OutroSeparador { get; private set; } = null!;
   public int Corte { get; private set; }
   public int Dobra { get; private set; }
   public int Solda { get; private set; }
@@ -62,6 +65,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       c.Pcp = await c.UsuarioAsync("f3-pcp", "PCP");
       c.Gestao = await c.UsuarioAsync("f3-gestao", "Gestao");
       c.Separador = await c.UsuarioAsync("f3-separador", "Separador");
+      c.OutroSeparador = await c.UsuarioAsync("f3-separador2", "Separador");
 
       var rotulo = $"{Guid.NewGuid():N}"[..8];
       using (var escopo = factory.Services.CreateScope())

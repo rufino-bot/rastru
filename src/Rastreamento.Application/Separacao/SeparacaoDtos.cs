@@ -36,7 +36,8 @@ public sealed record SeparacaoNovaDto([Required] IReadOnlyList<LinhaDeMaterialDt
 
 /// <summary>
 /// Uma linha do livro de separacao. `Tipo` e um dos `TiposDeSeparacao`; `EstornoDeId` so no estorno.
-/// `Estornavel`: separacao ainda nao estornada (o perfil de quem pede nao entra aqui).
+/// `Estornavel` e calculado para quem pede, como os `estornaveis` da Fila (spec da Fase 4, secao 5.2): uma
+/// `Separacao` ainda sem estorno, do proprio leitor ou de qualquer autor para o PCP e o Administrador.
 /// </summary>
 public sealed record SeparacaoDto(
     int Id, string Tipo, int MaterialId, string MaterialCodigo, string MaterialDescricao, string UnidadeMedida,

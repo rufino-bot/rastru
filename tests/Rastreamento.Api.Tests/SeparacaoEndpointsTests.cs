@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Infrastructure.Persistence;
 using Xunit;
 using static Rastreamento.Api.Tests.CenarioDaFase3NaApi;
 
@@ -104,5 +107,200 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(HttpStatusCode.NotFound, semNo.StatusCode);
     Assert.Equal(HttpStatusCode.NotFound, leituraSemNo.StatusCode);
     Assert.Empty((await CorpoAsync(await pcp.GetAsync($"/api/estrutura/{c.B}/materiais"))).GetProperty("materiais").EnumerateArray());
+  }
+
+  // -------------------------------------------------------------------------
+  // Separar, estornar e o historico do no
+  // -------------------------------------------------------------------------
+
+  /// <summary>Planeja `quantidade` de um Material novo do almoxarifado no no B, pelo PCP, e devolve o Id dele.</summary>
+  private static async Task<int> PlanejarParafusoAsync(CenarioDaFase3NaApi c, decimal quantidade = 10m)
+  {
+    var parafuso = await c.CriarMaterialAsync("PAR");
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.B}/materiais",
+        new { linhas = new[] { new { materialId = parafuso, quantidade } } }));
+    return parafuso;
+  }
+
+  /// <summary>Uma separacao de `quantidade` do material no no B, por `quem`; devolve o Id da linha gravada.</summary>
+  private static async Task<int> SepararAsync(CenarioDaFase3NaApi c, UsuarioDeTeste quem, int materialId, decimal quantidade)
+  {
+    var resposta = await c.Como(quem).PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes",
+        new { linhas = new[] { new { materialId, quantidade } } });
+    await Garantir(resposta);
+    return (await CorpoAsync(resposta)).GetProperty("separacoes")[0].GetProperty("id").GetInt32();
+  }
+
+  [Fact]
+  public async Task Separador_separa_e_le_o_historico()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    var separador = c.Como(c.Separador);
+
+    var post = await separador.PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 12m } } });
+
+    Assert.Equal(HttpStatusCode.Created, post.StatusCode);
+    var corpo = await CorpoAsync(post);
+    var linha = Assert.Single(corpo.GetProperty("separacoes").EnumerateArray());
+    Assert.Equal("Separacao", linha.GetProperty("tipo").GetString());
+    Assert.Equal(parafuso, linha.GetProperty("materialId").GetInt32());
+    Assert.Equal(12m, linha.GetProperty("quantidade").GetDecimal());
+    Assert.Equal(c.Separador.Id, linha.GetProperty("usuarioId").GetInt32());
+    Assert.Equal("Usuario de Teste", linha.GetProperty("usuarioNome").GetString());
+    Assert.Equal(JsonValueKind.Null, linha.GetProperty("estornoDeId").ValueKind);
+    Assert.True(linha.GetProperty("estornavel").GetBoolean());
+    // O horario sai no fuso de Brasilia (HorarioDeBrasiliaJsonConverter), como o resto da API.
+    Assert.EndsWith("-03:00", linha.GetProperty("dataHora").GetString());
+    var material = Assert.Single(corpo.GetProperty("materiais").EnumerateArray());
+    Assert.Equal(12m, material.GetProperty("separado").GetDecimal());
+    Assert.Equal(0m, material.GetProperty("pendencia").GetDecimal());
+    Assert.True(material.GetProperty("acimaDoPlanejado").GetBoolean());
+
+    var get = await separador.GetAsync($"/api/estrutura/{c.B}/separacoes");
+
+    Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+    var historico = (await CorpoAsync(get)).EnumerateArray().ToList();
+    var lida = Assert.Single(historico);
+    Assert.Equal(linha.GetProperty("id").GetInt32(), lida.GetProperty("id").GetInt32());
+    Assert.True(lida.GetProperty("estornavel").GetBoolean());
+    Assert.EndsWith("-03:00", lida.GetProperty("dataHora").GetString());
+    // Para outro Separador a mesma linha nao e estornavel.
+    var deOutro = (await CorpoAsync(await c.Como(c.OutroSeparador).GetAsync($"/api/estrutura/{c.B}/separacoes"))).EnumerateArray();
+    Assert.False(Assert.Single(deOutro).GetProperty("estornavel").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Separar_fora_do_planejado_e_409_e_no_inexistente_e_404()
+  {
+    await using var c = await CriarAsync(_factory);
+    await PlanejarParafusoAsync(c);
+    var fora = await c.CriarMaterialAsync("FORA");
+    var separador = c.Como(c.Separador);
+
+    var recusado = await separador.PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes",
+        new { linhas = new[] { new { materialId = fora, quantidade = 1m } } });
+    var semNo = await separador.PostAsJsonAsync("/api/estrutura/999999/separacoes",
+        new { linhas = new[] { new { materialId = fora, quantidade = 1m } } });
+    var semLinhas = await separador.PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes", new { });
+    var vazia = await separador.PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes", new { linhas = Array.Empty<object>() });
+
+    Assert.Equal(HttpStatusCode.Conflict, recusado.StatusCode);
+    Assert.Equal("MaterialForaDoPlanejado", (await CorpoAsync(recusado)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.NotFound, semNo.StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest, semLinhas.StatusCode);
+    Assert.Equal(HttpStatusCode.BadRequest, vazia.StatusCode);
+    Assert.Equal("SeparacaoVazia", (await CorpoAsync(vazia)).GetProperty("erro").GetString());
+    Assert.Empty((await CorpoAsync(await separador.GetAsync($"/api/estrutura/{c.B}/separacoes"))).EnumerateArray());
+  }
+
+  [Fact]
+  public async Task Operador_nao_separa()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+
+    var resposta = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 1m } } });
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Movimentador_nao_estorna_separacao()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    var separacao = await SepararAsync(c, c.Separador, parafuso, 2m);
+
+    var resposta = await c.Como(c.Movimentador).PostAsync($"/api/separacoes/{separacao}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Separador_nao_estorna_separacao_de_outro_Separador()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    var separacao = await SepararAsync(c, c.Separador, parafuso, 2m);
+
+    var resposta = await c.Como(c.OutroSeparador).PostAsync($"/api/separacoes/{separacao}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+    Assert.Equal("Proibido", (await CorpoAsync(resposta)).GetProperty("erro").GetString());
+    Assert.Single((await CorpoAsync(await c.Como(c.Pcp).GetAsync($"/api/estrutura/{c.B}/separacoes"))).EnumerateArray());
+  }
+
+  [Fact]
+  public async Task Pcp_estorna_separacao_de_outro()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    var separacao = await SepararAsync(c, c.Separador, parafuso, 2m);
+
+    var resposta = await c.Como(c.Pcp).PostAsync($"/api/separacoes/{separacao}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var estorno = await CorpoAsync(resposta);
+    Assert.Equal("Estorno", estorno.GetProperty("tipo").GetString());
+    Assert.Equal(separacao, estorno.GetProperty("estornoDeId").GetInt32());
+    Assert.Equal(c.Pcp.Id, estorno.GetProperty("usuarioId").GetInt32());
+    Assert.Equal(2m, estorno.GetProperty("quantidade").GetDecimal());
+    Assert.False(estorno.GetProperty("estornavel").GetBoolean());
+    Assert.EndsWith("-03:00", estorno.GetProperty("dataHora").GetString());
+
+    // O separado volta a zero e a pendencia ao planejado.
+    var material = Assert.Single((await CorpoAsync(await c.Como(c.Pcp).GetAsync($"/api/estrutura/{c.B}/materiais")))
+        .GetProperty("materiais").EnumerateArray());
+    Assert.Equal(0m, material.GetProperty("separado").GetDecimal());
+    Assert.Equal(10m, material.GetProperty("pendencia").GetDecimal());
+  }
+
+  [Fact]
+  public async Task Separador_estorna_a_propria_e_o_estorno_de_novo_e_409()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    var separacao = await SepararAsync(c, c.Separador, parafuso, 2m);
+    var separador = c.Como(c.Separador);
+
+    var estorno = await separador.PostAsync($"/api/separacoes/{separacao}/estorno", null);
+    var deNovo = await separador.PostAsync($"/api/separacoes/{separacao}/estorno", null);
+    var doEstorno = await separador.PostAsync(
+        $"/api/separacoes/{(await CorpoAsync(estorno)).GetProperty("id").GetInt32()}/estorno", null);
+    var inexistente = await separador.PostAsync("/api/separacoes/999999999/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Created, estorno.StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, deNovo.StatusCode);
+    Assert.Equal("JaEstornada", (await CorpoAsync(deNovo)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.Conflict, doEstorno.StatusCode);
+    Assert.Equal("EstornoDeEstorno", (await CorpoAsync(doEstorno)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.NotFound, inexistente.StatusCode);
+  }
+
+  [Fact]
+  public async Task Dois_estornos_simultaneos_da_mesma_separacao_dao_um_201_e_um_409()
+  {
+    // Review Focus 3: a corrida e fechada pelo indice unico UX_MaterialSeparacao_EstornoDe; nunca 500.
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    var separacao = await SepararAsync(c, c.Separador, parafuso, 2m);
+    var separador = c.Como(c.Separador);
+    var pcp = c.Como(c.Pcp);
+
+    var respostas = await Task.WhenAll(
+        separador.PostAsync($"/api/separacoes/{separacao}/estorno", null),
+        pcp.PostAsync($"/api/separacoes/{separacao}/estorno", null));
+
+    Assert.Equal([HttpStatusCode.Created, HttpStatusCode.Conflict],
+        respostas.Select(r => r.StatusCode).OrderBy(s => (int)s).ToArray());
+    var conflito = respostas.Single(r => r.StatusCode == HttpStatusCode.Conflict);
+    Assert.Equal("JaEstornada", (await CorpoAsync(conflito)).GetProperty("erro").GetString());
+
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.Equal(1, await db.Separacoes.CountAsync(s => s.EstornoDeId == separacao));
   }
 }
