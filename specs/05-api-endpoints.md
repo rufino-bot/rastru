@@ -67,9 +67,16 @@ reenvia e a sessão morre no primeiro refresh.
   204. Até 2026-08-05 o campo era `bool` não-anulável sem `[Required]`, então corpo sem `ativo`
   vinculava `false` e **inativava a linha em silêncio** — o oposto de "catálogo se inativa, não se
   exclui", que só faz sentido se a inativação for sempre pedida explicitamente
-- `GET /materiais` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*
-- `POST /materiais` *(Administrador)* — `{ codigo, descricao, unidadeMedida }`
-- `PUT /materiais/{id}` *(Administrador)* — idem
+- `GET /materiais` — `?incluirInativos=false` por padrão *(qualquer perfil autenticado)*. Cada item
+  traz `ficaEm` (Fase 4, D6): `null` quando o Material fica no almoxarifado, ou `{ setorId, nome }` do
+  Setor onde ele é estocado — o nome do Setor sai mesmo que o Setor tenha sido inativado depois.
+- `POST /materiais` *(Administrador)* — `{ codigo, descricao, unidadeMedida, setorDeEstoqueId? }`.
+  `setorDeEstoqueId` é opcional: ausente ou `null` grava o almoxarifado. Setor inexistente ou inativo →
+  **400** `{ "erro": "SetorDeEstoqueInvalido" }` (sem `mensagem`, no formato dos cadastros)
+- `PUT /materiais/{id}` *(Administrador)* — idem; substituição inteira, então sem `setorDeEstoqueId` no
+  corpo o Material volta ao almoxarifado, e quem edita manda o valor atual. **O `PUT` aceita o Setor
+  que o Material já tem mesmo que ele esteja inativo** (editar a descrição não pode ser recusado por
+  isso); só um Setor **novo** inexistente ou inativo dá `SetorDeEstoqueInvalido`
 - `PATCH /materiais/{id}/ativo` *(Administrador)* — `{ ativo }`
 - `GET /componentes` — `?busca=` (casa em código **ou** descrição), `?incluirInativos=false`,
   `?ordem=recentes|codigo|descricao`, `?pagina=1`, `?tamanho=20` (teto 100) *(qualquer perfil
@@ -297,26 +304,27 @@ perfil autenticado.)*
   2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada. Esta guarda também
   impede apagar nó que já tem movimento no livro (Fase 3): o primeiro `Inicio` de qualquer nó põe o
   Pedido em `EmProducao`, e o status não volta, nem com o estorno (regra 28 e spec da Fase 3, seção
-  4.1)
+  4.1). Desde a Fase 4 ela impede também apagar nó cuja subárvore tem **qualquer linha de separação de
+  material**, ainda que já estornada: 409 `NoComSeparacao`, e nada é apagado (regra 34; decisão P2 do
+  plano de backend da Fase 4). A separação pode existir num Pedido `Aberto`, porque se separa por
+  antecipação, e o livro dela é só de inclusão
 
 **Roteiro e Materiais do nó depois da cópia.** As cinco rotas de `EstruturaController` cobrem criar,
 ler, editar e excluir o nó — nenhuma cobre **editar** o Roteiro ou os Materiais de um nó já
-existente depois de copiados da receita. É o outro lado da regra 7 de
+existente depois de copiados da receita; isso é de rotas próprias, abaixo. É o outro lado da regra 7 de
 `01-dominio-e-regras-de-negocio.md` — o roteiro de Setores pode ser copiado de um padrão do
 catálogo (`Componente`), mas pode ser customizado por Pedido/Agrupamento, não é fixo.
 
 - **Roteiro — Fase 3.** `GET` e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento":
   sem ele, um Item ad-hoc nasce sem Roteiro e nunca pode ter a primeira entrada (regra 28).
-- **Materiais — sem fase atribuída.** `GET/POST /estrutura-itens/{id}/materiais` *(planejado)*.
-  `06-roadmap-mvp.md` não tem bullet para customizar os Materiais **por nó**; a Fase 4 (Separação de
-  materiais) é o registro de `MaterialSeparacao` e a requisição de material, e separar material não
-  é editar a lista de materiais do nó. Quem for atribuir a fase decide primeiro no roadmap, e só
-  depois aqui.
+- **Materiais — Fase 4.** `GET` e `PUT /estrutura/{id}/materiais`, na seção "Separação de materiais"
+  (D8 da spec da Fase 4): o PCP edita o planejado de qualquer nó, e a leitura traz, junto de cada
+  material, o separado e a pendência. Atribuída à Fase 4 em 2026-10-16; até então esta rota estava
+  "sem fase atribuída", com outro nome (`estrutura-itens/{id}/materiais`).
 
-Note o prefixo: `estrutura/{id}` (sem "itens") é o real, implementado na Fase 2 e usado também pelas
-rotas de nó da Fase 3. `estrutura-itens/{id}` sobra só nas duas rotas ainda planejadas — os
-Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as implementar deve passá-las para
-`estrutura/{id}`.
+O prefixo é `estrutura/{id}` (sem "itens"), o real, implementado na Fase 2 e usado também pelas rotas de nó
+da Fase 3 e da Fase 4. Não existe rota sob `estrutura-itens/{id}`: as duas que esta seção chamava assim
+foram implementadas sob `estrutura/{id}`.
 
 ### Contrato de erro da Estrutura
 
@@ -360,10 +368,10 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — sete códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — oito códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
-  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado` e o
+  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `NoComSeparacao` e o
   `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`);
   `PedidoNaoAberto` não — mesmo precedente do
   `DELETE /agrupamentos/{id}`.
@@ -374,6 +382,7 @@ Materiais do nó (sem fase) e `separacoes-material` (Fase 4) —, e quem as impl
   | `EstruturaProfundaDemais` | idem | a cópia recursiva passaria de 20 níveis de profundidade |
   | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
   | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
+  | `NoComSeparacao` | `DELETE /estrutura/{id}` | alguma linha do livro de separação aponta o nó ou um descendente dele, mesmo estornada; leva `mensagem` (Fase 4, decisão P2) |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
   | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
   | `ConflitoDeConcorrencia` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}`, `DELETE /estrutura/{id}` (e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento") | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na escrita; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`; o `PUT` e o `DELETE` já podiam emitir desde a Fase 3, e os dois `POST` desde 2026-10-01 |
@@ -678,7 +687,14 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   a tela filtra no cliente, por Material e por Pedido. Todo nó resumido ganha ainda `agrupamentoTipo`
   (`Kit` ou `Avulso`, o tipo do Agrupamento do nó), e o grupo de `aguardandoMontagem` ganha
   `conjuntoCompleto` (Fase 3B): `true` quando o pai recebe os filhos só em conjunto completo (regra
-  25), e a tela oferece levar o Kit inteiro em vez de filho a filho.
+  25), e a tela oferece levar o Kit inteiro em vez de filho a filho. Na Fase 4 (D12, D15) a **linha**
+  de "a iniciar" e o grupo de `aguardandoMontagem` ganham `material`: `{ completos, total }` ou `null`.
+  Só vem preenchido no nó que **inicia naquele Setor** — na linha de "a iniciar", e no grupo de montagem
+  apenas quando `iniciaAqui` é verdadeiro, com o resumo do **pai** —, e só quando o nó tem material do
+  almoxarifado no planejado; fora disso é `null`. `total` é o número de materiais do almoxarifado no
+  planejado do nó e `completos` os que estão sem pendência: conta **materiais, não quantidades**. O resumo
+  é informação: o início não é bloqueado por ele (regra 5). O campo está na linha e no grupo, e **não** no
+  nó resumido, porque "inicia aqui" depende do Setor da fila (decisão P4 do plano de backend da Fase 4).
 - `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos }` (Fase 3B; antes era só a lista de
   grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
   fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
@@ -713,8 +729,8 @@ seção "Contrato JSON novo" do plano 1 dos filtros da demanda
 (`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`). O corpo e as respostas de `POST /inicios` e
 `POST /terminos` estão na seção "Contrato JSON novo" do plano 2 (`docs/superpowers/plans/2026-09-30-filtros-plano-2.md`).
 
-**Fase 4, ainda planejada:** `POST /estrutura-itens/{id}/separacoes-material` (ver o bloco "Roteiro
-e Materiais do nó depois da cópia", na seção Estrutura, sobre o prefixo).
+**Fase 4:** as rotas de separação de material e de edição dos materiais do nó estão na seção
+"Separação de materiais", abaixo. O campo `material` da fila está descrito em `GET /setores/{id}/fila`.
 
 ### Contrato de erro da Execução
 
@@ -749,6 +765,135 @@ Setor e números quando ajudam.
 | 409 | `PedidoJaPausado` | pausar Pedido que já tem pausa aberta |
 | 409 | `PedidoNaoPausado` | retomar Pedido sem pausa aberta |
 | 409 | `ConflitoDeConcorrencia` | outra pessoa registrou no mesmo item ao mesmo tempo |
+
+## Separação de materiais
+
+*(Fase 4, spec `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`, seção 5.2, sobre as regras
+4, 5 e 34 de `01-dominio-e-regras-de-negocio.md`. Rotas de nó no prefixo `estrutura/{id}`. Leitura liberada a
+qualquer perfil autenticado; cada rota de escrita declara os perfis. As decisões P1 a P8 citadas são as do plano
+de backend da Fase 4, `docs/superpowers/plans/2026-10-16-fase-4-backend.md`.)*
+
+**Materiais do nó (D8)**
+
+- `GET /estrutura/{id}/materiais` — os materiais do nó com a conta da regra 34. `404` se o nó não existe.
+  Responde `MateriaisDoNoDto` (abaixo). A lista traz o material planejado **e** o que saiu do plano mas tem
+  separação, que vem com `noPlanejado: false`, `planejado: 0` e `pendencia: 0` (D14).
+- `PUT /estrutura/{id}/materiais` *(PCP, Administrador)* — **substitui a lista inteira**, no molde do
+  `PUT /estrutura/{id}/roteiro`; `[]` limpa o planejado. Body: `{ linhas: [{ materialId, quantidade }] }`;
+  corpo sem `linhas` é recusado antes do caso de uso, no formato de binding do ASP.NET (o mesmo da seção
+  "Contrato de erro dos cadastros"), para `{}` não ser lido como `[]`. Responde **200** com o mesmo
+  `MateriaisDoNoDto` do `GET`, já relido. As mesmas regras dos materiais da receita padrão: material
+  repetido, inexistente ou inativo e quantidade fora da regra são **400**; nó inexistente, **404**. A ordem
+  é nó (404) → quantidade → repetido → material existente e ativo, e nada é gravado se alguma falhar. Tirar
+  do plano um material que já tem separação é permitido (D14); editar o planejado é livre a qualquer
+  momento.
+
+**Separação (regra 34)**
+
+- `POST /estrutura/{id}/separacoes` *(Separador, Administrador)* — registra o que o Separador levou.
+  Body: `{ linhas: [{ materialId, quantidade }] }`, **tudo ou nada** numa transação. **201** com
+  `ResultadoDaSeparacaoDto`: as linhas gravadas e o resumo novo de cada material tocado — o item que passou
+  do planejado volta com `acimaDoPlanejado: true` (D9: a tela já avisou antes do envio, e o sistema
+  aceita). O material que fica num Setor é aceito se estiver no planejado (D16). A ordem das validações é
+  a da decisão P8: nó inexistente (404) → lista vazia (400 `SeparacaoVazia`) → quantidade (400
+  `QuantidadeInvalida`) → material repetido (400 `MaterialRepetido`) → material fora do planejado (409
+  `MaterialForaDoPlanejado`). **A pausa do Pedido não recusa a separação** (regra 31: ela recusa só o
+  início).
+- `GET /estrutura/{id}/separacoes` — o histórico do nó, mais recente primeiro (`dataHora` e, no empate, `id`
+  decrescente), com as separações e os estornos. `estornavel` é **calculado para quem pede**, como os
+  `estornaveis` da Fila: é verdadeiro só na linha `Separacao` ainda sem estorno e que o leitor pode
+  estornar (o autor, ou qualquer autor para o PCP e o Administrador). `404` se o nó não existe.
+- `POST /separacoes/{id}/estorno` *(Separador, PCP, Administrador)* — sem corpo; grava o inverso da linha
+  inteira, apontando-a. **201** com o `SeparacaoDto` do estorno (`estornavel: false`). O `[Authorize]`
+  deixa passar o Separador, que só estorna a que **ele** registrou: de outro autor, **403** `Proibido` com
+  corpo, decidido no caso de uso (o PCP e o Administrador estornam qualquer uma). A ordem é a da decisão
+  P8: linha inexistente (404) → não é o autor nem PCP/Administrador (403 `Proibido`) → a linha é um estorno
+  (409 `EstornoDeEstorno`) → já estornada (409 `JaEstornada`). Dois estornos simultâneos da mesma linha dão
+  um **201** e um **409** `JaEstornada`, nunca 500: o índice único `UX_MaterialSeparacao_EstornoDe` fecha a
+  corrida (decisão P1). Estornar não olha o planejado: a separação de um material que saiu do plano continua
+  estornável.
+
+**A lista do Separador (D11)**
+
+- `GET /separacoes/pendencias` — todo nó com pendência maior que zero em material do almoxarifado, de
+  Pedido **aberto** (status diferente de `Concluido` e de `Cancelado`). O nó entra desde que existe, e o
+  Pedido pausado continua na lista, com a `pausa`. Um nó sem Roteiro aparece, com `destino: null`. Ordem:
+  `dataEntrega` do Pedido, depois `pedido.id`, depois `no.id`. Chega **inteira** e a tela filtra no
+  cliente (setor de destino, Pedido, Material), como a Fila e as Tarefas. O material que fica num Setor, o
+  que está acima do planejado ou fora dele e o nó sem pendência não entram.
+
+### Contrato JSON
+
+camelCase, como o resto da API. Decimais como número. `dataHora` em ISO 8601 com offset `-03:00`;
+`dataEntrega` como `"yyyy-MM-dd"`.
+
+```jsonc
+// GET e PUT /estrutura/{id}/materiais  (MateriaisDoNoDto); materiais por código
+{ "estruturaItemId": 42,
+  "materiais": [
+    { "materialId": 7, "codigo": "PAR-M8", "descricao": "Parafuso M8", "unidadeMedida": "UN",
+      "ficaEm": null,                         // ou { "setorId": 1, "nome": "Corte a Laser" }
+      "planejado": 10, "separado": 8, "pendencia": 2,
+      "noPlanejado": true, "acimaDoPlanejado": false } ] }
+// PUT /estrutura/{id}/materiais  (corpo)  e  POST /estrutura/{id}/separacoes  (corpo)
+{ "linhas": [ { "materialId": 7, "quantidade": 2 } ] }
+
+// POST /estrutura/{id}/separacoes  → 201  (ResultadoDaSeparacaoDto)
+{ "separacoes": [ /* SeparacaoDto, estornavel: true */ ],
+  "materiais":  [ /* item de MateriaisDoNoDto, só os materiais tocados */ ] }
+
+// SeparacaoDto  (GET /estrutura/{id}/separacoes devolve a lista; POST /separacoes/{id}/estorno devolve um)
+{ "id": 91, "tipo": "Separacao",              // ou "Estorno"
+  "materialId": 7, "materialCodigo": "PAR-M8", "materialDescricao": "Parafuso M8", "unidadeMedida": "UN",
+  "quantidade": 2,                            // sempre positiva; o Estorno subtrai pelo tipo
+  "dataHora": "2026-10-16T09:12:00-03:00", "usuarioId": 15, "usuarioNome": "Separador",
+  "estornoDeId": null,                        // só no Estorno: o id da linha que ele desfaz
+  "estornavel": true }
+
+// GET /separacoes/pendencias  (PendenciaDeSeparacaoDto[])
+[ { "no": { "id": 42, "descricao": "Quadro soldado", "codigoDoComponente": "QD-01",
+            "agrupamentoId": 3, "agrupamentoCodigo": "AG-01" },
+    "pedido": { "id": 5, "numero": "PED-77", "cliente": "Cliente X", "dataEntrega": "2026-10-20",
+                "atrasado": false,
+                "pausa": null },              // ou { desde, porUsuarioNome, motivo }, como na Fila
+    "destino": { "setorId": 3, "nome": "Solda" },   // null = nó sem Roteiro
+    "materiais": [ { "materialId": 7, "codigo": "PAR-M8", "descricao": "Parafuso M8", "unidadeMedida": "UN",
+                     "planejado": 10, "separado": 8, "pendencia": 2 } ] } ]
+```
+
+Regras do contrato que o formato não diz sozinho:
+
+- **`pendencia`** só é maior que zero no material que **fica no almoxarifado** (`ficaEm: null`) **e está no
+  planejado**. Em material de Setor, ou fora do planejado, é sempre `0`.
+- **`acimaDoPlanejado`** é verdadeiro só no material que **está no planejado** com `separado` maior que
+  `planejado`. O material que saiu do plano tem `noPlanejado: false` e `acimaDoPlanejado: false`, ainda que
+  tenha separado (a tela o mostra como "fora do planejado"). O campo vai em todo item de material do nó, não só
+  na resposta do `POST` (decisão P5).
+- **`destino`** da lista do Separador é o Setor do **primeiro passo** do Roteiro do nó (regra 5): `{ setorId,
+  nome }`, ou `null` para nó sem Roteiro. É o `SetorDeDestinoDto`, que usa `setorId` como o `ficaEm`.
+- **`atrasado`** é decidido no servidor, com a regra 33, como em `GET /pedidos`.
+
+### Contrato de erro da Separação
+
+Formato `{ erro, mensagem }` do "Contrato de erro da Execução": `erro` é o código estável, `mensagem` a frase
+para o operador. As mensagens de `MaterialForaDoPlanejado`, `JaEstornada` e `EstornoDeEstorno` **nomeiam o
+material** ("PAR-M8 (Parafuso M8)") **e o nó** ("do nó Quadro soldado"; o nó sem descrição própria aparece como
+"do item 42"). O `404` vai sem corpo. O `403` do `[Authorize(Roles)]` também vai sem corpo; o `403` `Proibido`
+com corpo é o do caso de uso, no estorno.
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (`DECIMAL(18,4)`) em alguma linha do `POST /estrutura/{id}/separacoes` ou do `PUT /estrutura/{id}/materiais`; é o código da Execução, reusado |
+| 400 | `SeparacaoVazia` | `POST /estrutura/{id}/separacoes` com `linhas` vazia (sem a chave, é o erro de binding do ASP.NET) |
+| 400 | `MaterialRepetido` | o mesmo material duas vezes no corpo, no `POST` de separação ou no `PUT` de materiais |
+| 400 | `MaterialInvalido` | `PUT /estrutura/{id}/materiais` com material inexistente ou inativo; a `mensagem` o nomeia |
+| 400 | `SetorDeEstoqueInvalido` | `POST /materiais` ou `PUT /materiais/{id}` com Setor inexistente ou inativo em `setorDeEstoqueId`; o `PUT` aceita o Setor que o Material já tem. **Sem `mensagem`**: é o formato `{ erro }` dos cadastros |
+| 403 | `Proibido` | `POST /separacoes/{id}/estorno` de linha de outro autor, por quem não é PCP nem Administrador; é o código da Execução, reusado |
+| 404 | — | nó ou linha de separação inexistente |
+| 409 | `MaterialForaDoPlanejado` | `POST /estrutura/{id}/separacoes` com material que não está no planejado do nó (D9); a `mensagem` o nomeia e manda o PCP acrescentá-lo nos materiais do nó |
+| 409 | `JaEstornada` | a linha já tem estorno, inclusive na corrida de dois estornos simultâneos |
+| 409 | `EstornoDeEstorno` | tentar estornar uma linha que já é um estorno |
+| 409 | `NoComSeparacao` | `DELETE /estrutura/{id}` de nó com linha de separação na subárvore (ver "Contrato de erro da Estrutura") |
 
 ## Expedição
 

@@ -39,9 +39,9 @@ tests/
 
 - **Login próprio** (usuário/senha) com **JWT** — não usar Windows Authentication.
 - Tabelas `Usuario` e `Perfil` já estão no DDL (`02-modelo-de-dados.sql`).
-- Perfis do MVP: Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador
+- Perfis do MVP: Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador
   (ver `00-visao-geral.md`). O Movimentador foi decidido em 2026-09-15 e passa a existir no
-  sistema na Fase 3.
+  sistema na Fase 3. O Separador é o Almoxarifado renomeado na Fase 4 (D5 da spec da Fase 4).
 - **Decidido na Fase 0:** hash de senha com **BCrypt** (`BCrypt.Net-Next`) — não ASP.NET
   Core Identity (mais enxuto e compatível com o Database First das tabelas `Usuario`/`Perfil`).
   Emissão de JWT manual contendo `PerfilNome` como claim `role`; autorização por perfil via

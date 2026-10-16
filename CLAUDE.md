@@ -18,7 +18,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 - **Backend**: .NET (C#), ASP.NET Core Web API
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
-- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
+- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3, e o Separador é o Almoxarifado renomeado na Fase 4)
 - **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
 
 ## Mapa da pasta `specs/`
@@ -626,6 +626,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   por isso que o estrago é silencioso: o saldo de uma posição pode ficar negativo, a baixa de filho
   de uma `Montagem` perde o vínculo com ela, e o histórico — quem fez o quê, quando — deixa de ser
   verdade. (Spec da Fase 3, seções 3.3 e 4.5.)
+- **O livro de separação (`dbo.MaterialSeparacao`) também é só de inclusão.** O separado de um material num
+  nó é a soma das separações menos a dos estornos, sempre calculado — nunca uma coluna —, e a correção é
+  um estorno, no máximo um por linha (`UX_MaterialSeparacao_EstornoDe`). Por isso nó com qualquer linha
+  de separação, ainda que estornada, não se exclui (409 `NoComSeparacao`). Separar nunca condiciona o
+  início do nó. (Regra 34 de `specs/01`, Fase 4.)
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma
@@ -833,10 +838,13 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte tem **785 testes** (medido em 2026-09-26, em `44b1d54`, com `dotnet test` de cada projeto e
-`--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
-ar: 267 em `Api.Tests`, 403 em `Application.Tests`, 115 em `Infrastructure.Tests`, 0 em
-`Domain.Tests`; a execução da suíte no mesmo commit deu os mesmos 785). Quantos
+A suíte tem **1.451 testes descobertos** (medido em 2026-10-16, em `441d109`, com `dotnet test` de cada
+projeto e `--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
+ar; a métrica é a de linhas da listagem, em que cada caso de `[Theory]` conta como um: 381 em `Api.Tests`,
+828 em `Application.Tests`, 242 em `Infrastructure.Tests`, 0 em `Domain.Tests`). **A execução da suíte
+não foi remedida nesta passada** — o número anterior, 785, era de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0,
+e a execução no mesmo commit deu os mesmos 785), e o "passa 785 de 785" da seção de nuvem acima é dessa
+data, não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
 exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
 falha por erro de conexão em vez de mensagem útil, e a task que escreveu este parágrafo é
@@ -957,20 +965,24 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
 ```
 
-**Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`) e
-`movimentador`/`Movimentador@123` (perfil `Movimentador`), no `db/seed.sql` desde 2026-10-13.**
+**Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`),
+`movimentador`/`Movimentador@123` (perfil `Movimentador`) e `separador`/`Separador@123` (perfil
+`Separador`), no `db/seed.sql` — os dois primeiros desde 2026-10-13, o `separador` desde a Fase 4
+(2026-10-16).**
 Existem para ver a tela como o chão de fábrica a vê e para verificar à mão o gating por perfil (ver a
 seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem no cadastro**, e sem um
-usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador` e o
-`movimentador` escrevem só na execução, um no apontamento e o outro na entrega. Até essa data o
+usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador`, o
+`movimentador` e o `separador` escrevem só na execução e na separação de material: um no apontamento,
+outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
 outro nome quebraria esse padrão. **Decisão do usuário (2026-10-13): os dois entram no seed, cada um
 com senha e hash próprios**, gerados com o mesmo `BCryptPasswordHasher` de produção. Isso respeita o
-padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O teste
-`Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador` e
-`movimentador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
+padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O `separador` da Fase 4 seguiu o mesmo
+padrão, com senha e hash próprios, também gerado com o `BCryptPasswordHasher` de produção. O teste
+`Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador`,
+`movimentador` e `separador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
 `db/seed.sql` de novo os acrescenta: ele é idempotente.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
