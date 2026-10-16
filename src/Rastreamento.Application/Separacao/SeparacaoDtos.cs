@@ -64,7 +64,14 @@ public sealed record MaterialPendenteDto(
     int MaterialId, string Codigo, string Descricao, string UnidadeMedida, decimal Planejado, decimal Separado,
     decimal Pendencia);
 
+/// <summary>
+/// O Setor do primeiro passo do Roteiro do no, para onde o material vai (regra 5). Proprio, e nao o
+/// `SetorResumoDto` (que sai `id`) nem o `SetorDeEstoqueDto` (onde o Material fica): o contrato da spec da
+/// Fase 4, secao 5.2, pede `setorId`.
+/// </summary>
+public sealed record SetorDeDestinoDto(int SetorId, string Nome);
+
 /// <summary>Um no com material pendente na lista do Separador. `Destino` nulo = no sem Roteiro.</summary>
 public sealed record PendenciaDeSeparacaoDto(
-    NoDaPendenciaDto No, PedidoDaPendenciaDto Pedido, SetorResumoDto? Destino,
+    NoDaPendenciaDto No, PedidoDaPendenciaDto Pedido, SetorDeDestinoDto? Destino,
     IReadOnlyList<MaterialPendenteDto> Materiais);
