@@ -364,4 +364,53 @@ public class CadastroDeMaterialUseCaseTests
     Assert.Equal(new SetorDeEstoqueDto(setor.Id, "Corte"), lista[0].FicaEm);
     Assert.Null(lista[1].FicaEm);
   }
+
+  [Fact]
+  public async Task Editar_mantendo_o_setor_ja_inativado_e_aceito()
+  {
+    // O que ja esta gravado fica: so a descricao muda, o Setor apontado foi inativado depois.
+    var setor = Corte(ativo: false);
+    var repo = new FakeMaterialRepo(new Material
+    {
+      Id = 1,
+      Codigo = "CH-001",
+      Descricao = "Chapa",
+      UnidadeMedida = "KG",
+      Ativo = true,
+      SetorDeEstoqueId = setor.Id,
+    });
+    var useCase = new CadastroDeMaterialUseCase(repo, new FakeSetorRepo(setor));
+
+    var resultado = await useCase.Editar(1, ChapaQueFicaEm(setor.Id), CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.Equal(new SetorDeEstoqueDto(setor.Id, "Corte"), resultado.Valor!.FicaEm);
+    Assert.Equal("Chapa de aco 3mm", resultado.Valor.Descricao);
+    Assert.Equal(1, repo.Saves);
+    Assert.Equal(setor.Id, (await repo.ObterPorIdAsync(1, CancellationToken.None))!.SetorDeEstoqueId);
+  }
+
+  [Fact]
+  public async Task Editar_para_outro_setor_inativo_continua_recusado()
+  {
+    var atual = Corte(ativo: false);
+    var outro = new Setor { Id = 5, Nome = "Solda", Ativo = false };
+    var repo = new FakeMaterialRepo(new Material
+    {
+      Id = 1,
+      Codigo = "CH-001",
+      Descricao = "Chapa",
+      UnidadeMedida = "KG",
+      Ativo = true,
+      SetorDeEstoqueId = atual.Id,
+    });
+    var useCase = new CadastroDeMaterialUseCase(repo, new FakeSetorRepo(atual, outro));
+
+    var resultado = await useCase.Editar(1, ChapaQueFicaEm(outro.Id), CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal("SetorDeEstoqueInvalido", resultado.Erro);
+    Assert.Equal(0, repo.Saves);
+    Assert.Equal(atual.Id, (await repo.ObterPorIdAsync(1, CancellationToken.None))!.SetorDeEstoqueId);
+  }
 }

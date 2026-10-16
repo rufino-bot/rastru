@@ -36,7 +36,7 @@ public sealed class CadastroDeMaterialUseCase
     if (codigo.Length == 0 || descricao.Length == 0 || unidade.Length == 0)
       return Result<MaterialDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
-    var setor = await ResolverSetorDeEstoque(novo.SetorDeEstoqueId, ct);
+    var setor = await ResolverSetorDeEstoque(novo.SetorDeEstoqueId, jaApontado: null, ct);
     if (setor.Falhou)
       return Result<MaterialDto>.Falha(ErroDeSetorDeEstoqueInvalido, TipoDeErro.Validacao);
 
@@ -70,7 +70,8 @@ public sealed class CadastroDeMaterialUseCase
     if (material is null)
       return Result<MaterialDto>.Falha(ErroDeMaterialNaoEncontrado, TipoDeErro.NaoEncontrado);
 
-    var setor = await ResolverSetorDeEstoque(alterado.SetorDeEstoqueId, ct);
+    var setor = await ResolverSetorDeEstoque(
+        alterado.SetorDeEstoqueId, material.SetorDeEstoqueId, ct);
     if (setor.Falhou)
       return Result<MaterialDto>.Falha(ErroDeSetorDeEstoqueInvalido, TipoDeErro.Validacao);
 
@@ -138,17 +139,22 @@ public sealed class CadastroDeMaterialUseCase
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
   /// <summary>
-  /// Ausente = almoxarifado (valido, sem Setor). Informado, o Setor tem de existir e estar ativo:
-  /// apontar um Setor inativo recusa, mas um Material ja apontado nao perde o vinculo quando o Setor
-  /// e inativado depois (ver `Listar`).
+  /// Ausente = almoxarifado (valido, sem Setor). Informado, o Setor tem de existir e estar ativo,
+  /// salvo se for o que o Material JA aponta (`jaApontado`, so na edicao): o que ja esta gravado
+  /// fica mesmo com o Setor inativado depois, mesmo criterio do Roteiro do no. Setor DIFERENTE do
+  /// atual, inexistente ou inativo, e recusado.
   /// </summary>
-  private async Task<(bool Falhou, Setor? Setor)> ResolverSetorDeEstoque(int? setorId, CancellationToken ct)
+  private async Task<(bool Falhou, Setor? Setor)> ResolverSetorDeEstoque(
+      int? setorId, int? jaApontado, CancellationToken ct)
   {
     if (setorId is null)
       return (false, null);
 
     var setor = await _setores.ObterPorIdAsync(setorId.Value, ct);
-    return setor is { Ativo: true } ? (false, setor) : (true, null);
+    if (setor is null)
+      return (true, null);
+
+    return setor.Ativo || setorId == jaApontado ? (false, setor) : (true, null);
   }
 
   private static MaterialDto Projetar(Material m, Setor? setor) =>
