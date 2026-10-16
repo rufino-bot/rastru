@@ -56,6 +56,16 @@ public class CalculoDaSeparacaoTests
   }
 
   [Fact]
+  public void Separado_igual_ao_planejado_nao_e_acima_e_nao_tem_pendencia()
+  {
+    var resumo = Assert.Single(CalculoDaSeparacao.Resumir(
+        new[] { Planejado(10) }, new[] { Separacao(10) }, Almoxarifado(Parafuso)));
+
+    Assert.Equal(0m, resumo.Pendencia);
+    Assert.False(resumo.AcimaDoPlanejado);
+  }
+
+  [Fact]
   public void Material_que_fica_num_Setor_nao_tem_pendencia()
   {
     var resumo = Assert.Single(CalculoDaSeparacao.Resumir(
@@ -79,6 +89,8 @@ public class CalculoDaSeparacaoTests
     Assert.Equal(0m, resumo.Planejado);
     Assert.Equal(4m, resumo.Separado);
     Assert.Equal(0m, resumo.Pendencia);
+    // Fora do plano o aviso e so "fora do planejado"; "acima" e de quem tem plano.
+    Assert.False(resumo.AcimaDoPlanejado);
   }
 
   [Fact]

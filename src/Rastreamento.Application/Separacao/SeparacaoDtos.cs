@@ -23,6 +23,7 @@ public sealed record MateriaisDoNoDto(int EstruturaItemId, IReadOnlyList<Materia
 public sealed record LinhaDeMaterialDto(int MaterialId, decimal Quantidade);
 
 /// <summary>Corpo do `PUT` dos materiais do no: substitui a lista inteira; lista vazia limpa.</summary>
+/// <remarks>`[Required]` na lista anulavel pelo mesmo motivo do `ReceitaDeMateriaisDto`: `{}` vira 400, nao lista vazia.</remarks>
 public sealed record MateriaisNovosDoNoDto([Required] IReadOnlyList<LinhaDeMaterialDto>? Linhas);
 
 // ---------------------------------------------------------------------------
@@ -30,6 +31,7 @@ public sealed record MateriaisNovosDoNoDto([Required] IReadOnlyList<LinhaDeMater
 // ---------------------------------------------------------------------------
 
 /// <summary>Corpo do `POST` de separacao: uma linha por material.</summary>
+/// <remarks>`[Required]` na lista anulavel pelo mesmo motivo do `ReceitaDeMateriaisDto`: `{}` vira 400.</remarks>
 public sealed record SeparacaoNovaDto([Required] IReadOnlyList<LinhaDeMaterialDto>? Linhas);
 
 /// <summary>

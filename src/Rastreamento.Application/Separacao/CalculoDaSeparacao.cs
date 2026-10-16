@@ -5,13 +5,14 @@ namespace Rastreamento.Application.Separacao;
 /// <summary>
 /// O que a regra 34 diz de um (no, material). `Pendencia` so existe para o material do almoxarifado que
 /// esta no planejado (D6 da spec da Fase 4): o que fica num Setor o operador pega ali, e o que saiu do
-/// plano nao tem mais o que faltar. `AcimaDoPlanejado` e aviso, nao recusa (D9).
+/// plano nao tem mais o que faltar. `AcimaDoPlanejado` e aviso, nao recusa (D9), e tambem so existe para o
+/// material no planejado: o que saiu do plano com historico aparece so como "fora do planejado".
 /// </summary>
 public sealed record ResumoDoMaterial(
     int EstruturaItemId, int MaterialId, decimal Planejado, decimal Separado, bool NoPlanejado, bool DoAlmoxarifado)
 {
   public decimal Pendencia => DoAlmoxarifado && NoPlanejado ? Math.Max(0m, Planejado - Separado) : 0m;
-  public bool AcimaDoPlanejado => Separado > Planejado;
+  public bool AcimaDoPlanejado => NoPlanejado && Separado > Planejado;
 }
 
 /// <summary>

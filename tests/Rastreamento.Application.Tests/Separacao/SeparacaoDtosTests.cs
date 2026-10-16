@@ -29,6 +29,7 @@ public class SeparacaoDtosTests
     Assert.Equal(3, destino.GetProperty("setorId").GetInt32());
     Assert.Equal("Solda", destino.GetProperty("nome").GetString());
     Assert.False(destino.TryGetProperty("id", out _));
+    Assert.Equal("2026-10-20", json.RootElement.GetProperty("pedido").GetProperty("dataEntrega").GetString());
   }
 
   [Fact]
