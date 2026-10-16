@@ -71,7 +71,7 @@ describe('mensagemDeErro', () => {
     expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'SetorDeEstoqueInvalido'), PADRAO))
       .toBe('O Setor escolhido em "Fica em" não existe ou está inativo.')
     expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'NoComSeparacao'), PADRAO))
-      .toBe('Este item, ou um item abaixo dele, já tem material separado e não pode ser excluído.')
+      .toBe('Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.')
   })
 
   it('a frase do servidor ganha da tradução de um código da separação', () => {

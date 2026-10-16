@@ -28,7 +28,7 @@ const PECA_B = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId
 const FILA_CHEIA = fila({
   aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
   emTrabalho: [{ material: null, no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
-  aguardandoColeta: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
+  aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
   aguardandoMontagem: [{
     material: null,
     pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
@@ -147,8 +147,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoColeta: [
-          { material: null, no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] },
-          { material: null, no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM, estornaveis: [] },
+          { no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] },
+          { no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM, estornaveis: [] },
         ],
       })),
     }))
@@ -893,7 +893,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
   })
 
   const COLETA = (estornaveis: Estornavel[]) => fila({
-    aguardandoColeta: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 8, destino: destino(), estornaveis }],
+    aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 8, destino: destino(), estornaveis }],
   })
 
   it('com um registro só, vai direto à confirmação e estorna o movimento', async () => {
@@ -1369,7 +1369,7 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
         pai: no({ id: 30, descricao: 'Estrutura', codigoDoComponente: 'ES-01', pedidoId: 2, pedidoNumero: 'PED-2026-02', pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null }),
         faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, filhos: [],
       }],
-      aguardandoColeta: [{ ...linha(DO_PEDIDO_1), destino: destinoColeta }],
+      aguardandoColeta: [{ no: DO_PEDIDO_1, ordem: 1, quantidade: 5, estornaveis: [], destino: destinoColeta }],
       sobra: [{ no: DO_PEDIDO_2, origem: 'UltimoPasso', ordem: 1, quantidade: 1, emMaisDeUmSetor: false, estornaveis: [] }],
     })
     vi.stubGlobal('fetch', montarFetch([f]).fetchMock)

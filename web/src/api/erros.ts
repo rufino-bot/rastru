@@ -125,7 +125,7 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   MaterialRepetido: 'Um material foi informado duas vezes.',
   MaterialInvalido: 'Um dos materiais não existe ou está inativo.',
   SetorDeEstoqueInvalido: 'O Setor escolhido em "Fica em" não existe ou está inativo.',
-  NoComSeparacao: 'Este item, ou um item abaixo dele, já tem material separado e não pode ser excluído.',
+  NoComSeparacao: 'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {

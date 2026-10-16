@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila, facetasDasTarefas, filtrarTarefas, filtrarKits,
 } from './filtroDaDemanda'
-import type { FilhoDoKitDto, KitDto, LinhaDaFila, TarefasDoSetorDto, TarefasDto } from '../api/execucao'
+import type {
+  DestinoDto, FilhoDoKitDto, KitDto, LinhaAguardandoColeta, LinhaDaFila, TarefasDoSetorDto, TarefasDto,
+} from '../api/execucao'
 import type { MaterialResumoDto } from '../api/cadastros'
 import type { Faceta } from '../components/FiltroDeDemanda'
 import { destino, fila, no } from '../testes/execucao'
@@ -20,6 +22,9 @@ const P2_CH3 = no({ id: 21, descricao: 'Tampa', materiais: [CHAPA_3], ...PEDIDO_
 const P2_SEM_MATERIAL = no({ id: 22, descricao: 'Parafuso', materiais: [], ...PEDIDO_2 })
 
 const linha = (n: ReturnType<typeof no>, ordem = 1): LinhaDaFila => ({ material: null, no: n, ordem, quantidade: 5, estornaveis: [] })
+// A linha de coleta não tem `material`: o servidor só o manda em `LinhaDaFila`.
+const coleta = (n: ReturnType<typeof no>, ordem: number, destino: DestinoDto): LinhaAguardandoColeta =>
+  ({ no: n, ordem, quantidade: 5, estornaveis: [], destino })
 
 function faceta(facetas: Faceta[], chave: string): Faceta {
   const achada = facetas.find((f) => f.chave === chave)
@@ -163,9 +168,9 @@ describe('facetasDaFila', () => {
       emTrabalho: [linha(P1_CH3), linha(P2_CH3), linha(P1_CH3_B)],
       aIniciar: [linha(P1_CH6), linha(P2_CH3, 2), linha(P1_CH3_B, 2)],
       aguardandoColeta: [
-        { ...linha(P2_CH3, 3), destino: destinoColeta },
-        { ...linha(P1_CH3, 3), destino: destinoColeta },
-        { ...linha(P1_CH3_B, 3), destino: destinoColeta },
+        coleta(P2_CH3, 3, destinoColeta),
+        coleta(P1_CH3, 3, destinoColeta),
+        coleta(P1_CH3_B, 3, destinoColeta),
       ],
       aguardandoMontagem: [
         cartao(no({ id: 41, pedidoId: 3, pedidoNumero: 'PED-3' }), no({ id: 42, pedidoId: 3, pedidoNumero: 'PED-3' })),

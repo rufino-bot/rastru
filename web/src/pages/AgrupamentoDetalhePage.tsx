@@ -63,9 +63,9 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   QuantidadeAbaixoDoMovimentado: 'Não foi possível excluir: conflito na estrutura.',
   // Fase 3B: `PaiJaIniciado` é do `acrescentarFilho`, nunca do `ExcluirNo`; entra pelo mesmo motivo.
   PaiJaIniciado: 'Não foi possível excluir: conflito na estrutura.',
-  // Fase 4: nó com linha de separação na subárvore, ainda que estornada (regra 34). Aqui a recusa é do
-  // servidor, que sabe qual é o nó, mas sem frase a tela diz o que o código quer dizer.
-  NoComSeparacao: 'Este item, ou um item abaixo dele, já tem material separado e não pode ser excluído.',
+  // Fase 4: nó com linha de separação na subárvore, ainda que estornada (regra 34). `excluirNo` devolve só o
+  // código e descarta a `mensagem` do servidor, então a frase mostrada é sempre esta.
+  NoComSeparacao: 'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 

@@ -141,7 +141,8 @@ export interface LinhaDaFila {
   material: ResumoDeMaterial | null
 }
 
-export interface LinhaAguardandoColeta extends LinhaDaFila {
+/** A linha de coleta não leva o resumo de material: o servidor só o manda em `LinhaDaFila` e no grupo de montagem. */
+export interface LinhaAguardandoColeta extends Omit<LinhaDaFila, 'material'> {
   destino: DestinoDto
 }
 
@@ -166,7 +167,10 @@ export interface GrupoAguardandoMontagem {
   conjuntoCompleto: boolean
   /** TODOS os filhos diretos do pai, inclusive os ausentes deste Setor (`presente` 0). */
   filhos: FilhoNaMontagem[]
-  /** O resumo de material do PAI, que é quem recebe o material na montagem; `null` sem material a separar. */
+  /**
+   * O resumo de material do PAI, que é quem recebe o material na montagem. `null` sem material a separar e
+   * também sempre que `iniciaAqui` é falso: o pai só começa (e recebe o material) no primeiro passo dele.
+   */
   material: ResumoDeMaterial | null
 }
 
