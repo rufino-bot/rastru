@@ -18,15 +18,27 @@ public sealed class CadastroDeMaterialUseCase
 
   private const string ErroDeMaterialNaoEncontrado = "Material nao encontrado.";
 
-  private readonly IMaterialRepository _repositorio;
+  // Codigo proprio do cadastro: nao entra em CodigosDaSeparacao (decisao P7 do plano de backend da Fase 4).
+  private const string ErroDeSetorDeEstoqueInvalido = "SetorDeEstoqueInvalido";
 
-  public CadastroDeMaterialUseCase(IMaterialRepository repositorio) => _repositorio = repositorio;
+  private readonly IMaterialRepository _repositorio;
+  private readonly ISetorRepository _setores;
+
+  public CadastroDeMaterialUseCase(IMaterialRepository repositorio, ISetorRepository setores)
+  {
+    _repositorio = repositorio;
+    _setores = setores;
+  }
 
   public async Task<Result<MaterialDto>> Cadastrar(NovoMaterialDto novo, CancellationToken ct)
   {
     var (codigo, descricao, unidade) = Normalizar(novo);
     if (codigo.Length == 0 || descricao.Length == 0 || unidade.Length == 0)
       return Result<MaterialDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
+
+    var setor = await ResolverSetorDeEstoque(novo.SetorDeEstoqueId, ct);
+    if (setor.Falhou)
+      return Result<MaterialDto>.Falha(ErroDeSetorDeEstoqueInvalido, TipoDeErro.Validacao);
 
     // Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Material_Codigo
     // vazando ate a API. O indice segue como rede de seguranca para a corrida entre as duas.
@@ -39,11 +51,12 @@ public sealed class CadastroDeMaterialUseCase
       Descricao = descricao,
       UnidadeMedida = unidade,
       Ativo = true,
+      SetorDeEstoqueId = novo.SetorDeEstoqueId,
     };
     await _repositorio.AdicionarAsync(material, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<MaterialDto>.Ok(Projetar(material));
+    return Result<MaterialDto>.Ok(Projetar(material, setor.Setor));
   }
 
   public async Task<Result<MaterialDto>> Editar(
@@ -57,6 +70,10 @@ public sealed class CadastroDeMaterialUseCase
     if (material is null)
       return Result<MaterialDto>.Falha(ErroDeMaterialNaoEncontrado, TipoDeErro.NaoEncontrado);
 
+    var setor = await ResolverSetorDeEstoque(alterado.SetorDeEstoqueId, ct);
+    if (setor.Falhou)
+      return Result<MaterialDto>.Falha(ErroDeSetorDeEstoqueInvalido, TipoDeErro.Validacao);
+
     // So e conflito se o codigo pertencer a OUTRA linha: manter o proprio codigo e no-op.
     var homonimo = await _repositorio.ObterPorCodigoAsync(codigo, ct);
     if (homonimo is not null && homonimo.Id != id)
@@ -65,15 +82,23 @@ public sealed class CadastroDeMaterialUseCase
     material.Codigo = codigo;
     material.Descricao = descricao;
     material.UnidadeMedida = unidade;
+    material.SetorDeEstoqueId = alterado.SetorDeEstoqueId;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<MaterialDto>.Ok(Projetar(material));
+    return Result<MaterialDto>.Ok(Projetar(material, setor.Setor));
   }
 
   public async Task<IReadOnlyList<MaterialDto>> Listar(bool incluirInativos, CancellationToken ct)
   {
     var materiais = await _repositorio.ListarAsync(incluirInativos, ct);
-    return materiais.Select(Projetar).ToList();
+
+    // Uma leitura de todos os Setores (inativos inclusive: o Material continua dizendo onde fica
+    // depois de o Setor ser inativado), e nao uma por Material.
+    var setores = (await _setores.ListarAsync(incluirInativos: true, ct)).ToDictionary(s => s.Id);
+    return materiais
+        .Select(m => Projetar(
+            m, m.SetorDeEstoqueId is { } id && setores.TryGetValue(id, out var s) ? s : null))
+        .ToList();
   }
 
   /// <summary>Cobre inativar e reativar — o mesmo endpoint `PATCH /materiais/{id}/ativo`.</summary>
@@ -112,6 +137,21 @@ public sealed class CadastroDeMaterialUseCase
   /// </summary>
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
-  private static MaterialDto Projetar(Material m) =>
-      new(m.Id, m.Codigo, m.Descricao, m.UnidadeMedida, m.Ativo);
+  /// <summary>
+  /// Ausente = almoxarifado (valido, sem Setor). Informado, o Setor tem de existir e estar ativo:
+  /// apontar um Setor inativo recusa, mas um Material ja apontado nao perde o vinculo quando o Setor
+  /// e inativado depois (ver `Listar`).
+  /// </summary>
+  private async Task<(bool Falhou, Setor? Setor)> ResolverSetorDeEstoque(int? setorId, CancellationToken ct)
+  {
+    if (setorId is null)
+      return (false, null);
+
+    var setor = await _setores.ObterPorIdAsync(setorId.Value, ct);
+    return setor is { Ativo: true } ? (false, setor) : (true, null);
+  }
+
+  private static MaterialDto Projetar(Material m, Setor? setor) =>
+      new(m.Id, m.Codigo, m.Descricao, m.UnidadeMedida, m.Ativo,
+          setor is null ? null : new SetorDeEstoqueDto(setor.Id, setor.Nome));
 }

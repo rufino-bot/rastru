@@ -17,6 +17,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 {
   private readonly WebApplicationFactory<Program> _factory;
   private readonly List<string> _codigosCriados = [];
+  private readonly List<int> _setoresCriados = [];
 
   public MateriaisEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
@@ -29,6 +30,25 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     db.Materiais.RemoveRange(
         await db.Materiais.Where(m => _codigosCriados.Contains(m.Codigo)).ToListAsync());
     await db.SaveChangesAsync();
+
+    // Depois dos Materiais: FK_Material_SetorDeEstoque impede apagar o Setor que ainda e apontado.
+    db.Setores.RemoveRange(await db.Setores.Where(x => _setoresCriados.Contains(x.Id)).ToListAsync());
+    await db.SaveChangesAsync();
+  }
+
+  private async Task<int> CriarSetorNoBanco()
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var setor = new Rastreamento.Domain.Entities.Setor
+    {
+      Nome = $"fe-{Guid.NewGuid():N}"[..20],
+      Ativo = true,
+    };
+    db.Setores.Add(setor);
+    await db.SaveChangesAsync();
+    _setoresCriados.Add(setor.Id);
+    return setor.Id;
   }
 
   private string CodigoUnico()
@@ -56,6 +76,57 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
         .PostAsJsonAsync("/api/materiais", CorpoValido(CodigoUnico()));
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Administrador_cadastra_material_com_Fica_em_e_le_de_volta()
+  {
+    var setorId = await CriarSetorNoBanco();
+    var codigo = CodigoUnico();
+    var cliente = ClienteComo("Administrador");
+
+    var resposta = await cliente.PostAsJsonAsync("/api/materiais", new
+    {
+      codigo,
+      descricao = "Chapa de aco 3mm",
+      unidadeMedida = "KG",
+      setorDeEstoqueId = setorId,
+    });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var lista = JsonDocument.Parse(await cliente.GetStringAsync("/api/materiais")).RootElement;
+    var item = lista.EnumerateArray().Single(m => m.GetProperty("codigo").GetString() == codigo);
+    Assert.Equal(setorId, item.GetProperty("ficaEm").GetProperty("setorId").GetInt32());
+    Assert.False(string.IsNullOrEmpty(item.GetProperty("ficaEm").GetProperty("nome").GetString()));
+  }
+
+  [Fact]
+  public async Task Material_sem_Fica_em_le_ficaEm_nulo()
+  {
+    var codigo = CodigoUnico();
+    var cliente = ClienteComo("Administrador");
+    await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
+
+    var lista = JsonDocument.Parse(await cliente.GetStringAsync("/api/materiais")).RootElement;
+    var item = lista.EnumerateArray().Single(m => m.GetProperty("codigo").GetString() == codigo);
+
+    Assert.Equal(JsonValueKind.Null, item.GetProperty("ficaEm").ValueKind);
+  }
+
+  [Fact]
+  public async Task Setor_inexistente_em_Fica_em_da_400()
+  {
+    var resposta = await ClienteComo("Administrador").PostAsJsonAsync("/api/materiais", new
+    {
+      codigo = CodigoUnico(),
+      descricao = "Chapa",
+      unidadeMedida = "KG",
+      setorDeEstoqueId = 999999,
+    });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("SetorDeEstoqueInvalido", corpo.GetProperty("erro").GetString());
   }
 
   [Theory]
