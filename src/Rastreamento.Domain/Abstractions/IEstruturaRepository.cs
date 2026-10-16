@@ -43,6 +43,13 @@ public interface IEstruturaRepository
   /// </summary>
   Task RemoverSubarvoreAsync(int id, CancellationToken ct);
 
+  /// <summary>
+  /// Algum dos nos tem linha no livro de separacao de material? Qualquer linha conta, estornada ou nao
+  /// (decisao P2 do plano de backend da Fase 4): o livro e so de inclusao, e apagar o no levaria o
+  /// historico junto — ou estouraria na FK.
+  /// </summary>
+  Task<bool> TemSeparacaoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
+
   Task SalvarAlteracoesAsync(CancellationToken ct);
 }
 

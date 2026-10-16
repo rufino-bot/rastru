@@ -127,6 +127,9 @@ public class EstruturaRepository : IEstruturaRepository
 
   public Task SalvarAlteracoesAsync(CancellationToken ct) => _db.SaveChangesAsync(ct);
 
+  public Task<bool> TemSeparacaoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      _db.Separacoes.AnyAsync(s => estruturaItemIds.Contains(s.EstruturaItemId), ct);
+
   /// <summary>
   /// Desde a Fase 3 roda DENTRO da transacao SERIALIZABLE de `MontagemDeEstruturaUseCase.ExcluirNo`,
   /// que ja travou a subarvore inteira e leu o status do Pedido com a trava (spec da Fase 3, secao

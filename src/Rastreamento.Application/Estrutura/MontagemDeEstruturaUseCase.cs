@@ -1,5 +1,6 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 
 namespace Rastreamento.Application.Estrutura;
@@ -378,6 +379,13 @@ public sealed class MontagemDeEstruturaUseCase
       var pedido = agrupamento is null ? null : await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
       if (pedido is null || pedido.Status != StatusAberto)
         return Result<bool>.Falha("PedidoNaoAberto", TipoDeErro.Conflito);
+
+      // A separacao pode ser antecipada (D11 da spec da Fase 4), entao um Pedido `Aberto` pode ter
+      // linhas no livro, que e so de inclusao: o no nao se apaga (decisao P2 do plano de backend).
+      // Dentro da transacao, com a subarvore ja travada.
+      if (await _estruturas.TemSeparacaoAsync(ids, ct))
+        return Result<bool>.Falha(CodigosDaSeparacao.NoComSeparacao, TipoDeErro.Conflito,
+            "Este item tem separação de material registrada e não pode ser excluído: o histórico de separação não se apaga.");
 
       await _estruturas.RemoverSubarvoreAsync(id, ct);
       return Result<bool>.Ok(true);

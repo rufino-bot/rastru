@@ -29,6 +29,7 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   private readonly WebApplicationFactory<Program> _factory;
   private readonly List<string> _numerosCriados = [];
   private readonly List<int> _componentesCriados = [];
+  private readonly List<int> _materiaisCriados = [];
 
   public EstruturaEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
@@ -49,6 +50,12 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     foreach (var agId in agrupamentoIds)
     {
+      // O livro de separacao aponta o no (FK_MaterialSeparacao_EstruturaItem) e o estorno aponta a
+      // linha original: estornos primeiro, depois o resto, antes de qualquer no.
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.MaterialSeparacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {agId})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.MaterialSeparacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {agId})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.EstruturaMaterial WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {agId})");
       await db.Database.ExecuteSqlInterpolatedAsync(
@@ -84,6 +91,10 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     await db.SaveChangesAsync();
 
     db.Pedidos.RemoveRange(pedidos);
+    await db.SaveChangesAsync();
+
+    // Material por ultimo: a separacao e o EstruturaMaterial que apontavam para ele ja se foram.
+    db.Materiais.RemoveRange(await db.Materiais.Where(m => _materiaisCriados.Contains(m.Id)).ToListAsync());
     await db.SaveChangesAsync();
   }
 
@@ -334,6 +345,59 @@ public class EstruturaEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
     Assert.Equal("PedidoNaoAberto", corpo.GetProperty("erro").GetString());
+  }
+
+  /// <summary>
+  /// Review Focus 1 da Fase 4: o Pedido esta `Aberto` (a separacao pode ser antecipada), a subarvore
+  /// tem uma linha no livro de separacao, e sem a guarda o `DELETE` estouraria na FK com 500. Escopo:
+  /// o no e a linha sao deste teste, e a limpeza esta no `DisposeAsync`.
+  /// </summary>
+  [Fact]
+  public async Task Delete_de_no_com_separacao_responde_409_NoComSeparacao()
+  {
+    var cliente = ClienteComo("PCP");
+    var (agrupamentoId, componenteId, _) = await NovoAgrupamentoComComponente(cliente);
+    var criada = await cliente.PostAsJsonAsync(
+        $"/api/agrupamentos/{agrupamentoId}/estrutura", NovaPeca(componenteId));
+    var raizId = JsonDocument.Parse(await criada.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+    var filho = await cliente.PostAsJsonAsync(
+        $"/api/estrutura/{raizId}/filhos",
+        new { componenteId = (int?)null, descricao = "Sub-item com separacao", quantidade = 1m, quantidadePorPai = 1m });
+    var filhoId = JsonDocument.Parse(await filho.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetInt32();
+
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var material = new Material
+      {
+        Codigo = $"MS-{Guid.NewGuid():N}"[..12], Descricao = "Material da separacao de teste",
+        UnidadeMedida = "UN", Ativo = true,
+      };
+      db.Materiais.Add(material);
+      await db.SaveChangesAsync();
+      _materiaisCriados.Add(material.Id);
+
+      db.Separacoes.Add(new MaterialSeparacao
+      {
+        EstruturaItemId = filhoId, MaterialId = material.Id, Tipo = TiposDeSeparacao.Separacao,
+        Quantidade = 2m, DataHora = DateTime.UtcNow, UsuarioId = 1,
+      });
+      await db.SaveChangesAsync();
+    }
+
+    // Apaga a RAIZ: a separacao esta num descendente, e e a subarvore inteira que conta.
+    var resposta = await cliente.DeleteAsync($"/api/estrutura/{raizId}");
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("NoComSeparacao", corpo.GetProperty("erro").GetString());
+    Assert.Contains("separação", corpo.GetProperty("mensagem").GetString());
+    using var escopoDeLeitura = _factory.Services.CreateScope();
+    var dbDeLeitura = escopoDeLeitura.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.True(await dbDeLeitura.Estruturas.AnyAsync(i => i.Id == raizId));
+    Assert.True(await dbDeLeitura.Estruturas.AnyAsync(i => i.Id == filhoId));
   }
 
   /// <summary>
