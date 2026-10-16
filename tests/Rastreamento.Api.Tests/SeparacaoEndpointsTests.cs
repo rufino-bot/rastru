@@ -187,7 +187,11 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     var vazia = await separador.PostAsJsonAsync($"/api/estrutura/{c.B}/separacoes", new { linhas = Array.Empty<object>() });
 
     Assert.Equal(HttpStatusCode.Conflict, recusado.StatusCode);
-    Assert.Equal("MaterialForaDoPlanejado", (await CorpoAsync(recusado)).GetProperty("erro").GetString());
+    var corpoRecusado = await CorpoAsync(recusado);
+    Assert.Equal("MaterialForaDoPlanejado", corpoRecusado.GetProperty("erro").GetString());
+    // A frase nomeia o material (codigo) e o no (a descricao do B do cenario).
+    Assert.Contains("-FORA", corpoRecusado.GetProperty("mensagem").GetString());
+    Assert.Contains("do nó Suporte", corpoRecusado.GetProperty("mensagem").GetString());
     Assert.Equal(HttpStatusCode.NotFound, semNo.StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest, semLinhas.StatusCode);
     Assert.Equal(HttpStatusCode.BadRequest, vazia.StatusCode);
@@ -274,7 +278,10 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     Assert.Equal(HttpStatusCode.Created, estorno.StatusCode);
     Assert.Equal(HttpStatusCode.Conflict, deNovo.StatusCode);
-    Assert.Equal("JaEstornada", (await CorpoAsync(deNovo)).GetProperty("erro").GetString());
+    var corpoDeNovo = await CorpoAsync(deNovo);
+    Assert.Equal("JaEstornada", corpoDeNovo.GetProperty("erro").GetString());
+    Assert.Contains("-PAR", corpoDeNovo.GetProperty("mensagem").GetString());
+    Assert.Contains("do nó Suporte", corpoDeNovo.GetProperty("mensagem").GetString());
     Assert.Equal(HttpStatusCode.Conflict, doEstorno.StatusCode);
     Assert.Equal("EstornoDeEstorno", (await CorpoAsync(doEstorno)).GetProperty("erro").GetString());
     Assert.Equal(HttpStatusCode.NotFound, inexistente.StatusCode);

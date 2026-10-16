@@ -54,7 +54,7 @@ public sealed class SeparacaoUseCase
     var fora = linhas.FirstOrDefault(l => !planejados.Contains(l.MaterialId));
     if (fora is not null)
       return Falhas.Conflito<ResultadoDaSeparacaoDto>(CodigosDaSeparacao.MaterialForaDoPlanejado,
-          $"O material {Nome(fora.MaterialId, catalogo)} não está no planejado deste nó. "
+          $"O material {Nome(fora.MaterialId, catalogo)} não está no planejado {await DoNoAsync(noId, ct)}. "
           + "O PCP o acrescenta nos materiais do nó, se ele for mesmo deste nó.");
 
     var agora = DateTime.UtcNow;
@@ -95,8 +95,9 @@ public sealed class SeparacaoUseCase
     if (original.UsuarioId != usuarioId && !podeEstornarDeOutros) return Falhas.Proibido<SeparacaoDto>();
     if (original.Tipo == TiposDeSeparacao.Estorno)
       return Falhas.Conflito<SeparacaoDto>(CodigosDaSeparacao.EstornoDeEstorno,
-          "Estorno não se estorna: registre de novo a separação.");
-    if (await _separacao.FoiEstornadaAsync(original.Id, ct)) return JaEstornada();
+          $"Este registro é um estorno de {await DoRegistroAsync(original, ct)}, e estorno não se estorna: "
+          + "registre de novo a separação.");
+    if (await _separacao.FoiEstornadaAsync(original.Id, ct)) return await JaEstornadaAsync(original, ct);
 
     var estorno = new MaterialSeparacao
     {
@@ -105,15 +106,34 @@ public sealed class SeparacaoUseCase
     };
     // A leitura acima nao fecha a corrida: dois estornos simultaneos passam por ela, e o indice unico
     // recusa o segundo na gravacao.
-    if (!await _separacao.GravarEstornoAsync(estorno, ct)) return JaEstornada();
+    if (!await _separacao.GravarEstornoAsync(estorno, ct)) return await JaEstornadaAsync(original, ct);
 
     var material = (await _separacao.ListarMateriaisAsync([estorno.MaterialId], ct)).Single();
     return Result<SeparacaoDto>.Ok(
         ProjecaoDaSeparacao.Linha(estorno, material, await NomeDoUsuarioAsync(usuarioId, ct), estornavel: false));
   }
 
-  private static Result<SeparacaoDto> JaEstornada() =>
-      Falhas.Conflito<SeparacaoDto>(CodigosDaSeparacao.JaEstornada, "Esta separação já foi estornada.");
+  private async Task<Result<SeparacaoDto>> JaEstornadaAsync(MaterialSeparacao original, CancellationToken ct) =>
+      Falhas.Conflito<SeparacaoDto>(CodigosDaSeparacao.JaEstornada,
+          $"A separação de {await DoRegistroAsync(original, ct)} já foi estornada.");
+
+  /// <summary>"PAR-M8 (Parafuso M8) do nó Quadro": o material e o no de uma linha do livro, para a frase.</summary>
+  private async Task<string> DoRegistroAsync(MaterialSeparacao linha, CancellationToken ct)
+  {
+    var catalogo = (await _separacao.ListarMateriaisAsync([linha.MaterialId], ct)).ToDictionary(m => m.Id);
+    return $"{Nome(linha.MaterialId, catalogo)} {await DoNoAsync(linha.EstruturaItemId, ct)}";
+  }
+
+  /// <summary>
+  /// "do nó Quadro" pela descricao do proprio no; "do item 42" quando ele nao tem descricao propria. A
+  /// heranca da descricao do Componente (regra 19) pediria o catalogo, que este caso de uso nao le: a
+  /// frase so precisa identificar o no, e o Id identifica.
+  /// </summary>
+  private async Task<string> DoNoAsync(int noId, CancellationToken ct)
+  {
+    var no = (await _execucao.ListarNosAsync([noId], ct)).SingleOrDefault();
+    return string.IsNullOrWhiteSpace(no?.Descricao) ? $"do item {noId}" : $"do nó {no.Descricao}";
+  }
 
   private async Task<string> NomeDoUsuarioAsync(int usuarioId, CancellationToken ct) =>
       (await _execucao.ListarNomesDeUsuariosAsync([usuarioId], ct)).GetValueOrDefault(usuarioId, string.Empty);

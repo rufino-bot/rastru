@@ -155,8 +155,23 @@ public class SeparacaoUseCaseTests
     Assert.Contains("CO-1", r.Detalhe);
     Assert.Contains("Cola de contato", r.Detalhe);
     Assert.Contains("PCP", r.Detalhe);
+    Assert.Contains("do nó Quadro", r.Detalhe);   // spec da Fase 4, secao 5.4: a frase nomeia o material e o no
     Assert.Equal(0, c.Separacao.Gravacoes);
     Assert.Empty(c.Separacao.Linhas);
+  }
+
+  [Fact]
+  public async Task Mensagem_nomeia_o_item_pelo_id_quando_o_no_nao_tem_descricao_propria()
+  {
+    var c = new Cenario();
+    c.Estruturas.Itens.Single(i => i.Id == No).Descricao = null;
+    c.Planejar(Parafuso, 10m);
+
+    var r = await c.Uso().Separar(No, Corpo((Cola, 1m)), Separador, CancellationToken.None);
+
+    Assert.Equal(CodigosDaSeparacao.MaterialForaDoPlanejado, r.Erro);
+    Assert.Contains("CO-1", r.Detalhe);
+    Assert.Contains($"do item {No}", r.Detalhe);
   }
 
   [Fact]
@@ -340,6 +355,8 @@ public class SeparacaoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(CodigosDaSeparacao.EstornoDeEstorno, r.Erro);
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Contains("PAR-M8 (Parafuso M8)", r.Detalhe);
+    Assert.Contains("do nó Quadro", r.Detalhe);
     Assert.Equal(2, c.Separacao.Linhas.Count);
   }
 
@@ -357,6 +374,8 @@ public class SeparacaoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(CodigosDaSeparacao.JaEstornada, r.Erro);
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Contains("PAR-M8 (Parafuso M8)", r.Detalhe);
+    Assert.Contains("do nó Quadro", r.Detalhe);
     Assert.Equal(2, c.Separacao.Linhas.Count);
   }
 
@@ -374,7 +393,27 @@ public class SeparacaoUseCaseTests
     Assert.False(r.Sucesso);
     Assert.Equal(CodigosDaSeparacao.JaEstornada, r.Erro);
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Contains("PAR-M8 (Parafuso M8)", r.Detalhe);
+    Assert.Contains("do nó Quadro", r.Detalhe);
     Assert.Single(c.Separacao.Linhas);
+  }
+
+  [Fact]
+  public async Task Estornar_ja_estornada_por_quem_nao_e_autor_nem_PCP_e_403_e_nao_409()
+  {
+    // A ordem da decisao P8 do plano de backend da Fase 4: o 403 vem antes do "ja estornada" — quem nao
+    // pode estornar nao fica sabendo do estado da linha.
+    var c = new Cenario();
+    c.Planejar(Parafuso, 10m);
+    var original = await c.SepararAntesAsync(Parafuso, 6m, Separador);
+    Assert.True((await c.Uso().Estornar(original.Id, Separador, false, CancellationToken.None)).Sucesso);
+
+    var r = await c.Uso().Estornar(original.Id, OutroSeparador, podeEstornarDeOutros: false, CancellationToken.None);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(CodigosDaExecucao.Proibido, r.Erro);
+    Assert.Equal(TipoDeErro.Proibido, r.TipoDoErro);
+    Assert.Equal(2, c.Separacao.Linhas.Count);
   }
 
   [Fact]
