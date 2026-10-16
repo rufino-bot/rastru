@@ -25,6 +25,13 @@ internal static class ErrosDoSqlServer
   public static bool EhConflitoDeConcorrencia(Exception e) => EhDeadlock(e) || EhLockTimeout(e);
 
   /// <summary>
+  /// 2601 = violacao de indice unico; 2627 = violacao de UNIQUE/PRIMARY KEY constraint. Um indice unico
+  /// criado com `CREATE UNIQUE INDEX` (como `UX_MaterialSeparacao_EstornoDe`) da 2601, mas quem troca o
+  /// indice por constraint passa a dar 2627 — os dois significam "a linha duplicada chegou antes".
+  /// </summary>
+  public static bool EhViolacaoDeUnicidade(Exception e) => TemNumero(e, 2601) || TemNumero(e, 2627);
+
+  /// <summary>
   /// Percorre a CADEIA de inner exceptions, porque a profundidade varia com o caminho (SqlException
   /// pelado numa consulta, embrulhado em DbUpdateException num SaveChanges). Qualquer outro numero
   /// passa cru de proposito.
