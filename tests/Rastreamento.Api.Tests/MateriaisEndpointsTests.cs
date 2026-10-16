@@ -62,9 +62,9 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   [InlineData("POST", "/api/materiais")]
   [InlineData("PUT", "/api/materiais/999999")]
   [InlineData("PATCH", "/api/materiais/999999/ativo")]
-  public async Task Almoxarifado_nao_escreve_em_material(string metodo, string rota)
+  public async Task Separador_nao_escreve_em_material(string metodo, string rota)
   {
-    // Almoxarifado e o perfil que MAIS mexe com material no dia a dia e mesmo assim nao escreve
+    // Separador e o perfil que MAIS mexe com material no dia a dia e mesmo assim nao escreve
     // no catalogo: os tres verbos sao [Authorize(Roles = "Administrador")]. Cobrir os tres, e
     // nao so o POST, e o que impede apagar o atributo do PUT ou do PATCH em silencio.
     // O [Authorize(Roles)] roda antes do model binding e da action, entao um id inexistente
@@ -73,21 +73,21 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     // registrar o codigo na lista de limpeza do DisposeAsync seria inofensivo mas deselegante.
     object corpo = metodo == "PATCH"
         ? new { ativo = false }
-        : new { codigo = "almoxarifado-nao-pode", descricao = "Chapa", unidadeMedida = "KG" };
+        : new { codigo = "separador-nao-pode", descricao = "Chapa", unidadeMedida = "KG" };
     var requisicao = new HttpRequestMessage(new HttpMethod(metodo), rota)
     {
       Content = JsonContent.Create(corpo)
     };
 
-    var resposta = await ClienteComo("Almoxarifado").SendAsync(requisicao);
+    var resposta = await ClienteComo("Separador").SendAsync(requisicao);
 
     Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
   }
 
   [Fact]
-  public async Task Almoxarifado_le_a_lista_de_materiais()
+  public async Task Separador_le_a_lista_de_materiais()
   {
-    var resposta = await ClienteComo("Almoxarifado").GetAsync("/api/materiais");
+    var resposta = await ClienteComo("Separador").GetAsync("/api/materiais");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
   }

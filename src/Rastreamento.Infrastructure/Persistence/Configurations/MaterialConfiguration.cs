@@ -14,5 +14,7 @@ public class MaterialConfiguration : IEntityTypeConfiguration<Material>
     b.Property(m => m.Descricao).HasMaxLength(200).IsRequired();
     b.Property(m => m.UnidadeMedida).HasMaxLength(10).IsRequired();
     // Sem HasDefaultValue para Ativo: Database First — o default vive so no .sql.
+    // SetorDeEstoqueId e um int? por convencao; a FK FK_Material_SetorDeEstoque vive so no .sql, sem
+    // navegacao: ninguem precisa do Setor a partir do Material alem do Id.
   }
 }

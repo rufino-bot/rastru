@@ -1104,6 +1104,22 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3b.sql
 ```
 
+**Fase 4 — `db/alter-fase-4.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em três blocos: a coluna `Material.SetorDeEstoqueId` com a FK
+`FK_Material_SetorDeEstoque`; a `dbo.MaterialSeparacao` reescrita como livro (`Tipo`, `EstornoDeId`, `DataHora`,
+`UsuarioId`, os dois índices) **só se a tabela ainda tiver a forma antiga e estiver vazia** — com alguma linha na
+forma antiga ele **aborta** (`THROW 50001`) em vez de descartar dado em silêncio; e o perfil `Almoxarifado`, que
+vira `Separador` (renomeado, ou, se os dois já existem, com os usuários movidos para o `Separador` e o
+`Almoxarifado` apagado). O usuário `separador` não entra por ele: **depois dele, reaplique o `db/seed.sql`**,
+que é idempotente (e, num banco que já tem o seed antigo, pode ser reaplicado também **antes**: os dois perfis
+passam a coexistir e o `alter` os une). Não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-4.sql sqlserver:/tmp/alter-fase-4.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-4.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

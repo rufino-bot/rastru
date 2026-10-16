@@ -17,6 +17,14 @@ public class DbContextMappingTests : TesteComBanco
   }
 
   [Fact]
+  public async Task O_perfil_Almoxarifado_virou_Separador()
+  {
+    await using var db = NovoContexto();
+    Assert.True(await db.Perfis.AnyAsync(p => p.Nome == "Separador"));
+    Assert.False(await db.Perfis.AnyAsync(p => p.Nome == "Almoxarifado"));
+  }
+
+  [Fact]
   public async Task Carrega_admin_com_perfil_navegacao()
   {
     await using var db = NovoContexto();

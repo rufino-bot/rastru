@@ -1,6 +1,6 @@
 SET NOCOUNT ON;
 MERGE dbo.Perfil AS alvo
-USING (VALUES ('Operador'),('Almoxarifado'),('Movimentador'),('PCP'),('Qualidade'),('Gestao'),('Administrador')) AS origem(Nome)
+USING (VALUES ('Operador'),('Separador'),('Movimentador'),('PCP'),('Qualidade'),('Gestao'),('Administrador')) AS origem(Nome)
 ON alvo.Nome = origem.Nome
 WHEN NOT MATCHED THEN INSERT (Nome) VALUES (origem.Nome);
 
@@ -46,4 +46,15 @@ SELECT 'movimentador',
        '$2a$11$3EX6uhKCdVGYnT9RlXowuuUbGwW2hHAx8gYKeMRMY3k1lZhf62JC6',
        'Movimentador de Materiais',
        (SELECT Id FROM dbo.Perfil WHERE Nome = 'Movimentador'),
+       1;
+
+-- O 'separador' (Fase 4) separa material no almoxarifado: e o perfil que a lista de pendencias serve.
+-- Mesmo padrao do 'operador' e do 'movimentador': hash BCrypt real (custo 11), gerado com o
+-- BCryptPasswordHasher de producao, com senha e hash proprios — 'Separador@123'.
+IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'separador')
+INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
+SELECT 'separador',
+       '$2a$11$wjxXcXaIyKIsTnb9Bx6w9eVAQYIIQfpmqsWI0lGbXNky7QIiBjkrq',
+       N'Separador de Materiais',
+       (SELECT Id FROM dbo.Perfil WHERE Nome = 'Separador'),
        1;

@@ -31,8 +31,12 @@ CREATE TABLE dbo.Material (
     Descricao       NVARCHAR(200)       NOT NULL,
     UnidadeMedida   NVARCHAR(10)        NOT NULL, -- ex: UN, M, KG, M2
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Material_Ativo DEFAULT (1),
+    -- Onde o material fica (Fase 4, D6). NULL = almoxarifado: entra na lista do Separador.
+    -- Um Setor = estocado ali (a chapa no Corte): o operador pega no proprio Setor.
+    SetorDeEstoqueId INT                NULL,
     CONSTRAINT PK_Material PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT UQ_Material_Codigo UNIQUE (Codigo)
+    CONSTRAINT UQ_Material_Codigo UNIQUE (Codigo),
+    CONSTRAINT FK_Material_SetorDeEstoque FOREIGN KEY (SetorDeEstoqueId) REFERENCES dbo.Setor (Id)
 );
 
 /* ---------------------------------------------------------------------
@@ -41,7 +45,7 @@ CREATE TABLE dbo.Material (
 
 CREATE TABLE dbo.Perfil (
     Id      INT IDENTITY(1,1) NOT NULL,
-    Nome    NVARCHAR(30)      NOT NULL, -- Operador | Almoxarifado | Movimentador | PCP | Qualidade | Gestao | Administrador
+    Nome    NVARCHAR(30)      NOT NULL, -- Operador | Separador | Movimentador | PCP | Qualidade | Gestao | Administrador
     CONSTRAINT PK_Perfil PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Perfil_Nome UNIQUE (Nome)
 );
@@ -523,19 +527,33 @@ CREATE TABLE dbo.Movimentacao (
 );
 GO
 
+-- Livro de separacao de material (Fase 4): SO INCLUSAO, como dbo.Movimentacao. Correcao e um Estorno
+-- que aponta a linha original; separado = soma das Separacao menos soma dos Estorno, sempre calculado.
+-- A linha aponta (no, material) e NAO a linha de EstruturaMaterial: o PCP pode tirar do plano um
+-- material que ja tem separacao (D14).
 CREATE TABLE dbo.MaterialSeparacao (
     Id                  INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId     INT                 NOT NULL,
     MaterialId          INT                 NOT NULL,
-    Quantidade          DECIMAL(18,4)       NOT NULL,
-    DataSeparacao       DATETIME2           NOT NULL CONSTRAINT DF_MaterialSeparacao_Data DEFAULT (SYSUTCDATETIME()),
-    Responsavel         NVARCHAR(100)       NOT NULL,
+    Tipo                NVARCHAR(20)        NOT NULL, -- Separacao | Estorno
+    Quantidade          DECIMAL(18,4)       NOT NULL, -- sempre positiva; o Estorno subtrai pelo Tipo
+    EstornoDeId         INT                 NULL,     -- so no Estorno: a separacao que ele desfaz
+    DataHora            DATETIME2           NOT NULL CONSTRAINT DF_MaterialSeparacao_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId           INT                 NOT NULL, -- autor
     CONSTRAINT PK_MaterialSeparacao PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_MaterialSeparacao_EstruturaItem
-        FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
-    CONSTRAINT FK_MaterialSeparacao_Material
-        FOREIGN KEY (MaterialId) REFERENCES dbo.Material (Id)
+    CONSTRAINT FK_MaterialSeparacao_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_MaterialSeparacao_Material FOREIGN KEY (MaterialId) REFERENCES dbo.Material (Id),
+    CONSTRAINT FK_MaterialSeparacao_EstornoDe FOREIGN KEY (EstornoDeId) REFERENCES dbo.MaterialSeparacao (Id),
+    CONSTRAINT FK_MaterialSeparacao_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_MaterialSeparacao_QuantidadePositiva CHECK (Quantidade > 0),
+    CONSTRAINT CK_MaterialSeparacao_Tipo CHECK (Tipo IN ('Separacao', 'Estorno')),
+    CONSTRAINT CK_MaterialSeparacao_EstornoApontaOriginal
+        CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
+            OR (Tipo = 'Separacao' AND EstornoDeId IS NULL))
 );
+
+CREATE UNIQUE INDEX UX_MaterialSeparacao_EstornoDe ON dbo.MaterialSeparacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
+CREATE INDEX IX_MaterialSeparacao_EstruturaItem ON dbo.MaterialSeparacao (EstruturaItemId);
 
 -- Remessa de expedição. Expedição parcial = várias linhas cuja soma <= Quantidade da Peça
 -- (a validação "soma <= total" é feita na camada de aplicação, não como constraint).
