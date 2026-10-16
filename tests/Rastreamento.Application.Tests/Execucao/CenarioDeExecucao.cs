@@ -2,6 +2,8 @@ using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Estrutura;
+using Rastreamento.Application.Tests.Separacao;
+using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
 namespace Rastreamento.Application.Tests.Execucao;
@@ -28,8 +30,12 @@ internal sealed class CenarioDeExecucao
   public FakeSetorRepo Setores { get; }
   public FakeReceitaPadraoRepo Catalogo { get; } = new();
 
+  /// <summary>A separacao de material sobre o MESMO planejado da arvore (`Estruturas.Materiais`).</summary>
+  public FakeSeparacaoRepo Separacao { get; }
+
   public CenarioDeExecucao()
   {
+    Separacao = new FakeSeparacaoRepo(Estruturas);
     Execucao = new FakeExecucaoRepo(Estruturas);
     var setores = new[]
     {
@@ -75,16 +81,29 @@ internal sealed class CenarioDeExecucao
     return id;
   }
 
-  /// <summary>Um material no catalogo do fake e gravado no no — o que `EstruturaMaterial` guarda.</summary>
-  public int Material(int noId, int materialId, string codigo, string descricao)
+  /// <summary>
+  /// Um material no catalogo do fake e gravado no no — o que `EstruturaMaterial` guarda. Entra tambem no
+  /// catalogo da separacao: do almoxarifado quando `setorDeEstoqueId` e nulo, senao "fica em" esse Setor.
+  /// </summary>
+  public int Material(int noId, int materialId, string codigo, string descricao, decimal quantidade = 1m, int? setorDeEstoqueId = null)
   {
     Execucao.CatalogoDeMateriais[materialId] = (codigo, descricao);
+    Separacao.Materiais[materialId] = new MaterialDaSeparacao(
+        materialId, codigo, descricao, "UN", true, setorDeEstoqueId, null);
     Estruturas.Materiais.Add(new EstruturaMaterial
     {
-      Id = 1000 + Estruturas.Materiais.Count, EstruturaItemId = noId, MaterialId = materialId, Quantidade = 1m,
+      Id = 1000 + Estruturas.Materiais.Count, EstruturaItemId = noId, MaterialId = materialId, Quantidade = quantidade,
     });
     return materialId;
   }
+
+  /// <summary>Arranjo direto no livro de separacao: `quantidade` do material separada para o no.</summary>
+  public void Separar(int noId, int materialId, decimal quantidade) =>
+      Separacao.Linhas.Add(new MaterialSeparacao
+      {
+        Id = Separacao.Linhas.Count + 1, EstruturaItemId = noId, MaterialId = materialId,
+        Tipo = TiposDeSeparacao.Separacao, Quantidade = quantidade, DataHora = DateTime.UtcNow, UsuarioId = Operador,
+      });
 
   /// <summary>
   /// O Agrupamento do cenario vira Kit e a Solda ganha `UtilizaKit` (spec da Fase 3B, D3). A `Setor` do fake
@@ -129,7 +148,7 @@ internal sealed class CenarioDeExecucao
   public ConsultaDeExecucaoUseCase Consulta() =>
       new(Execucao, Estruturas, Setores,
           new FakeAgrupamentoRepo(new Agrupamento { Id = AgrupamentoId, PedidoId = PedidoId, Codigo = "AG-01", Tipo = "Avulso" }),
-          Catalogo);
+          Catalogo, Separacao);
 
   /// <summary>
   /// A calculadora sobre o estado inteiro do cenario, lida direto dos fakes — para os testes afirmarem

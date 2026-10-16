@@ -382,6 +382,29 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   [Fact]
+  public async Task Fila_do_Setor_traz_o_resumo_de_material_so_na_linha_que_comeca_ali()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c, 10m);
+    var separador = c.Como(c.Separador);
+
+    var antes = await CorpoAsync(await separador.GetAsync($"/api/setores/{c.Corte}/fila"));
+    await SepararAsync(c, c.Separador, parafuso, 10m);
+    var depois = await CorpoAsync(await separador.GetAsync($"/api/setores/{c.Corte}/fila"));
+    var daDobra = await CorpoAsync(await separador.GetAsync($"/api/setores/{c.Dobra}/fila"));
+
+    static JsonElement LinhaDe(JsonElement fila, int noId) =>
+        fila.GetProperty("aIniciar").EnumerateArray().Single(l => l.GetProperty("no").GetProperty("id").GetInt32() == noId);
+
+    var pendente = LinhaDe(antes, c.B).GetProperty("material");
+    Assert.Equal((0, 1), (pendente.GetProperty("completos").GetInt32(), pendente.GetProperty("total").GetInt32()));
+    var completo = LinhaDe(depois, c.B).GetProperty("material");
+    Assert.Equal((1, 1), (completo.GetProperty("completos").GetInt32(), completo.GetProperty("total").GetInt32()));
+    // O no C comeca na Dobra e nao tem material no planejado: o campo vem, nulo.
+    Assert.Equal(JsonValueKind.Null, LinhaDe(daDobra, c.C).GetProperty("material").ValueKind);
+  }
+
+  [Fact]
   public async Task Pendencias_exige_autenticacao()
   {
     var resposta = await _factory.CreateClient().GetAsync("/api/separacoes/pendencias");

@@ -1,5 +1,6 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using PosicaoConst = Rastreamento.Domain.Entities.Posicoes;
@@ -23,17 +24,19 @@ public sealed class ConsultaDeExecucaoUseCase
   private readonly IEstruturaRepository _estruturas;
   private readonly ISetorRepository _setores;
   private readonly IAgrupamentoRepository _agrupamentos;
+  private readonly ISeparacaoRepository _separacao;
   private readonly LeitorDeEstado _leitor;
   private readonly ProjetorDoLivro _projetor;
 
   public ConsultaDeExecucaoUseCase(
       IExecucaoRepository execucao, IEstruturaRepository estruturas, ISetorRepository setores,
-      IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo)
+      IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo, ISeparacaoRepository separacao)
   {
     _execucao = execucao;
     _estruturas = estruturas;
     _setores = setores;
     _agrupamentos = agrupamentos;
+    _separacao = separacao;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
   }
@@ -109,6 +112,15 @@ public sealed class ConsultaDeExecucaoUseCase
         })
         .ToList();
 
+    // O resumo de material so vai onde o no COMECA neste Setor: a linha de `aIniciar` (so folha) e o
+    // cartao do pai que `IniciaAqui` (decisao P4 do plano de backend da Fase 4).
+    var resumosDeMaterial = await ResumosDeMaterialAsync(
+        aIniciar.Select(l => l.No.Id).Concat(montagem.Where(m => m.IniciaAqui).Select(m => m.Pai.Id)).ToList(), ct);
+    aIniciar = aIniciar.Select(l => l with { Material = resumosDeMaterial.GetValueOrDefault(l.No.Id) }).ToList();
+    montagem = montagem
+        .Select(m => m.IniciaAqui ? m with { Material = resumosDeMaterial.GetValueOrDefault(m.Pai.Id) } : m)
+        .ToList();
+
     return Result<FilaDoSetorDto>.Ok(new FilaDoSetorDto(
         setorId, setor.Nome, setor.Atividade,
         // O que e de Pedido pausado vai para o fim, e a tela o agrupa em "Pausados" (spec da Fase 3D,
@@ -116,6 +128,30 @@ public sealed class ConsultaDeExecucaoUseCase
         aIniciar.OrderBy(l => l.No.Pausa is null ? 0 : 1).ToList(),
         emTrabalho, coleta, montagem,
         sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList()));
+  }
+
+  /// <summary>
+  /// O resumo de material de cada no pedido (`CalculoDaSeparacao.ResumoDaFila`), numa leitura de planejado,
+  /// de linhas e de materiais para todos. So entram no mapa os nos que tem material do almoxarifado no
+  /// planejado; os outros ficam sem chave.
+  /// </summary>
+  private async Task<IReadOnlyDictionary<int, ResumoDeMaterialDto>> ResumosDeMaterialAsync(
+      IReadOnlyCollection<int> noIds, CancellationToken ct)
+  {
+    var resumos = new Dictionary<int, ResumoDeMaterialDto>();
+    if (noIds.Count == 0) return resumos;
+
+    var planejado = await _separacao.ListarPlanejadoAsync(noIds, ct);
+    if (planejado.Count == 0) return resumos;
+
+    var linhas = await _separacao.ListarLinhasAsync(noIds, ct);
+    var materiais = await _separacao.ListarMateriaisAsync(planejado.Select(p => p.MaterialId).Distinct().ToList(), ct);
+    var doAlmoxarifado = materiais.Where(m => m.SetorDeEstoqueId is null).Select(m => m.Id).ToHashSet();
+
+    foreach (var porNo in CalculoDaSeparacao.Resumir(planejado, linhas, doAlmoxarifado).GroupBy(r => r.EstruturaItemId))
+      if (CalculoDaSeparacao.ResumoDaFila(porNo) is ResumoDeMaterialDto resumo)
+        resumos[porNo.Key] = resumo;
+    return resumos;
   }
 
   private async Task<Estornaveis> EstornaveisAsync(int setorId, CalculadoraDeExecucao calc, QuemLe quem, CancellationToken ct)
