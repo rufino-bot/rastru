@@ -6,7 +6,7 @@ using Rastreamento.Application.Separacao;
 namespace Rastreamento.Api.Controllers;
 
 /// <summary>
-/// Separar material para um no e ler o historico dele (spec da Fase 4, regra 34). Controller proprio, um
+/// Separar material para um no, ler o historico dele e a lista do Separador (spec da Fase 4, regra 34). Controller proprio, um
 /// por conjunto de perfis (decisao P6 do plano de backend da Fase 4): o estorno da separacao deixa passar
 /// o PCP tambem, e vive em `EstornoDeSeparacaoController`.
 /// </summary>
@@ -40,4 +40,9 @@ public class SeparacaoController : ExecucaoControllerBase
     if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
     return Traduzir(await _consulta.Historico(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
   }
+
+  /// <summary>A lista do Separador: os nos de Pedido em producao com material do almoxarifado pendente.</summary>
+  [HttpGet("separacoes/pendencias")]
+  public async Task<IActionResult> Pendencias(CancellationToken ct) =>
+      Traduzir(await _consulta.Pendencias(ct));
 }

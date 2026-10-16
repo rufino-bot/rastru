@@ -310,4 +310,80 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
     Assert.Equal(1, await db.Separacoes.CountAsync(s => s.EstornoDeId == separacao));
   }
+
+  // -------------------------------------------------------------------------
+  // A lista do Separador
+  // -------------------------------------------------------------------------
+
+  [Fact]
+  public async Task Pendencias_traz_o_no_do_cenario_com_destino_e_prazo()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarParafusoAsync(c);
+    await SepararAsync(c, c.Separador, parafuso, 4m);
+
+    var resposta = await c.Como(c.Separador).GetAsync("/api/separacoes/pendencias");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    // A lista e global: so o no B do cenario interessa (a asercao e escopada nele).
+    var pendencia = Assert.Single((await CorpoAsync(resposta)).EnumerateArray().ToList(),
+        p => p.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    var no = pendencia.GetProperty("no");
+    Assert.Equal("Suporte", no.GetProperty("descricao").GetString());
+    Assert.Equal(JsonValueKind.Null, no.GetProperty("codigoDoComponente").ValueKind);
+    Assert.Equal(c.AgrupamentoId, no.GetProperty("agrupamentoId").GetInt32());
+    Assert.Equal("AG-01", no.GetProperty("agrupamentoCodigo").GetString());
+
+    var pedido = pendencia.GetProperty("pedido");
+    Assert.Equal(c.PedidoId, pedido.GetProperty("id").GetInt32());
+    Assert.Equal("Cliente F3", pedido.GetProperty("cliente").GetString());
+    // O DateOnly sai como "yyyy-MM-dd", como no PedidoDto.
+    Assert.Equal("2026-10-22", pedido.GetProperty("dataEntrega").GetString());
+    Assert.Equal(JsonValueKind.False, pedido.GetProperty("atrasado").ValueKind);
+    Assert.Equal(JsonValueKind.Null, pedido.GetProperty("pausa").ValueKind);
+
+    // O primeiro (e unico) passo do Roteiro de B e o Corte.
+    var destino = pendencia.GetProperty("destino");
+    Assert.Equal(c.Corte, destino.GetProperty("setorId").GetInt32());
+    Assert.StartsWith("f3-", destino.GetProperty("nome").GetString());
+    Assert.EndsWith("-Corte", destino.GetProperty("nome").GetString());
+
+    var material = Assert.Single(pendencia.GetProperty("materiais").EnumerateArray());
+    Assert.Equal(parafuso, material.GetProperty("materialId").GetInt32());
+    Assert.Equal("UN", material.GetProperty("unidadeMedida").GetString());
+    Assert.Equal((10m, 4m, 6m), (material.GetProperty("planejado").GetDecimal(),
+        material.GetProperty("separado").GetDecimal(), material.GetProperty("pendencia").GetDecimal()));
+  }
+
+  [Fact]
+  public async Task Pendencias_nao_traz_no_de_Pedido_concluido()
+  {
+    // Mata a mutacao "tirar o filtro de Pedido aberto": o filtro mora no ExecucaoRepository real, que o
+    // fake da Application nao exercita.
+    await using var c = await CriarAsync(_factory);
+    await PlanejarParafusoAsync(c);
+    var separador = c.Como(c.Separador);
+    Assert.Contains((await CorpoAsync(await separador.GetAsync("/api/separacoes/pendencias"))).EnumerateArray(),
+        p => p.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Pedido SET Status = 'Concluido' WHERE Id = {c.PedidoId}");
+    }
+
+    var depois = await separador.GetAsync("/api/separacoes/pendencias");
+
+    Assert.Equal(HttpStatusCode.OK, depois.StatusCode);
+    Assert.DoesNotContain((await CorpoAsync(depois)).EnumerateArray(),
+        p => p.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+  }
+
+  [Fact]
+  public async Task Pendencias_exige_autenticacao()
+  {
+    var resposta = await _factory.CreateClient().GetAsync("/api/separacoes/pendencias");
+
+    Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
+  }
 }
