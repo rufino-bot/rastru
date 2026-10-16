@@ -26,10 +26,11 @@ vi.mock('../auth/AuthContext', () => ({
 const PECA_B = no({ id: 9, descricao: 'Base', codigoDoComponente: 'BA-01', paiId: null, paiDescricao: null })
 
 const FILA_CHEIA = fila({
-  aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
-  emTrabalho: [{ no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
-  aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
+  aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+  emTrabalho: [{ material: null, no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+  aguardandoColeta: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] }],
   aguardandoMontagem: [{
+    material: null,
     pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
     filhos: [
       { no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 },
@@ -112,8 +113,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorAtividade: 'corte',
-        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
-        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
+        aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+        emTrabalho: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
       })),
     }))
 
@@ -127,8 +128,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorAtividade: 'corte',
-        aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
-        emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
+        aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+        emTrabalho: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 2, estornaveis: [] }],
       })),
     }))
 
@@ -146,8 +147,8 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoColeta: [
-          { no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] },
-          { no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM, estornaveis: [] },
+          { material: null, no: SUPORTE, ordem: 1, quantidade: 4, destino: destino(), estornaveis: [] },
+          { material: null, no: SUPORTE, ordem: 3, quantidade: 2, destino: DESTINO_MONTAGEM, estornaveis: [] },
         ],
       })),
     }))
@@ -189,6 +190,7 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         aguardandoMontagem: [{
+          material: null,
           pai: CHASSI, faltaMontar: 2, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
           filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 8, necessarioParaProxima: null, faltaParaProxima: null }],
         }],
@@ -227,7 +229,7 @@ describe('FilaDoSetorPage — leitura', () => {
 
   it('seção sem nada não aparece', async () => {
     vi.stubGlobal('fetch', fetchPorRota({
-      '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })),
+      '/api/setores/1/fila': () => respostaJson(fila({ aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })),
     }))
 
     renderizar()
@@ -305,8 +307,8 @@ describe('FilaDoSetorPage — leitura', () => {
       '/api/setores/1/fila': () => {
         chamadas += 1
         return respostaJson(chamadas === 1
-          ? fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
-          : fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] }))
+          ? fila({ aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
+          : fila({ aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] }))
       },
     }))
 
@@ -325,7 +327,7 @@ describe('FilaDoSetorPage — leitura', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => {
         chamadas += 1
-        if (chamadas === 1) return respostaJson(fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] }))
+        if (chamadas === 1) return respostaJson(fila({ aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] }))
         return Promise.reject(new TypeError('Failed to fetch'))
       },
     }))
@@ -368,10 +370,11 @@ function corpoDe(fetchMock: ReturnType<typeof vi.fn>, caminho: string): unknown 
   return JSON.parse(init.body as string)
 }
 
-const COM_A_INICIAR = fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
+const COM_A_INICIAR = fila({ aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }] })
 
 const FORA_DO_PRIMEIRO_PASSO = fila({
   aguardandoMontagem: [{
+    material: null,
     pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: false,
     filhos: [
       { no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 },
@@ -384,6 +387,7 @@ const FORA_DO_PRIMEIRO_PASSO = fila({
 // Suporte 8 (razão 4) forma 2 conjuntos; Parafuso 3 (razão 1) forma 3; o Kit leva o menor, 2.
 const KIT_FORA_DO_PRIMEIRO_PASSO = fila({
   aguardandoMontagem: [{
+    material: null,
     pai: no({ ...CHASSI, agrupamentoTipo: 'Kit' }), faltaMontar: 10, daParaMontar: 0, iniciaAqui: false,
     primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: true,
     filhos: [
@@ -419,7 +423,7 @@ describe('FilaDoSetorPage — ações', () => {
   })
 
   it('terminar manda o passo da linha', async () => {
-    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ no: SUPORTE, ordem: 3, quantidade: 6, estornaveis: [] }] })], {
+    const { fetchMock } = montarFetch([fila({ emTrabalho: [{ material: null, no: SUPORTE, ordem: 3, quantidade: 6, estornaveis: [] }] })], {
       '/api/estrutura/7/terminos': () => respostaJson({}, 201),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -461,11 +465,11 @@ describe('FilaDoSetorPage — ações', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/setores/1/fila': () => respostaJson(fila({
         setorId: 1, setorNome: 'Corte',
-        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
+        aguardandoMontagem: [{ material: null, pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
       })),
       '/api/setores/2/fila': () => respostaJson(fila({
         setorId: 2, setorNome: 'Dobra',
-        aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 5, iniciaAqui: true, primeiroPassoDoPai: { id: 2, nome: 'Dobra' }, conjuntoCompleto: false, filhos: [] }],
+        aguardandoMontagem: [{ material: null, pai: CHASSI, faltaMontar: 10, daParaMontar: 5, iniciaAqui: true, primeiroPassoDoPai: { id: 2, nome: 'Dobra' }, conjuntoCompleto: false, filhos: [] }],
       })),
     }))
 
@@ -490,6 +494,7 @@ describe('FilaDoSetorPage — ações', () => {
   it('"dá para iniciar 0" não oferece Iniciar', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
+        material: null,
         pai: CHASSI, faltaMontar: 10, daParaMontar: 0, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 }],
       }],
@@ -502,7 +507,7 @@ describe('FilaDoSetorPage — ações', () => {
   })
 
   it('409 mostra a frase do servidor no formulário e recarrega a fila', async () => {
-    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] })], {
+    const { fetchMock, getsDaFila } = montarFetch([COM_A_INICIAR, fila({ aIniciar: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }] })], {
       '/api/estrutura/7/inicios': () => respostaJson(
         { erro: 'SaldoInsuficiente', mensagem: 'Só há 6 de Suporte a iniciar.' }, 409),
     })
@@ -662,8 +667,8 @@ describe('FilaDoSetorPage — ações', () => {
   it('nó de Kit mostra a pílula Kit, e o de Avulso não', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aIniciar: [
-        { no: no({ agrupamentoTipo: 'Kit' }), ordem: 1, quantidade: 10, estornaveis: [] },
-        { no: PARAFUSO, ordem: 1, quantidade: 3, estornaveis: [] },
+        { material: null, no: no({ agrupamentoTipo: 'Kit' }), ordem: 1, quantidade: 10, estornaveis: [] },
+        { material: null, no: PARAFUSO, ordem: 1, quantidade: 3, estornaveis: [] },
       ],
     })]).fetchMock)
 
@@ -888,7 +893,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
   })
 
   const COLETA = (estornaveis: Estornavel[]) => fila({
-    aguardandoColeta: [{ no: SUPORTE, ordem: 1, quantidade: 8, destino: destino(), estornaveis }],
+    aguardandoColeta: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 8, destino: destino(), estornaveis }],
   })
 
   it('com um registro só, vai direto à confirmação e estorna o movimento', async () => {
@@ -945,7 +950,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
 
   it('o registro maior que a linha (desvio D4) aparece e estorna com a quantidade dele', async () => {
     const { fetchMock } = montarFetch([fila({
-      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 40, estornaveis: [ESTORNAVEL(41, 45)] }],
+      emTrabalho: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 40, estornaveis: [ESTORNAVEL(41, 45)] }],
     })], { '/api/movimentacoes/41/estorno': () => respostaJson({}, 201) })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -959,7 +964,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
 
   it('a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
-      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [ESTORNAVEL(41, 5)] }],
+      emTrabalho: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [ESTORNAVEL(41, 5)] }],
       sobra: [{ no: PARAFUSO, origem: 'UltimoPasso', ordem: 2, quantidade: 1, emMaisDeUmSetor: false, estornaveis: [ESTORNAVEL(50, 1)] }],
     })]).fetchMock)
 
@@ -972,7 +977,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
 
   it('o início de um pai estorna pela rota da montagem', async () => {
     const { fetchMock } = montarFetch([fila({
-      emTrabalho: [{ no: CHASSI, ordem: 1, quantidade: 3, estornaveis: [{ ...ESTORNAVEL(9, 3), tipo: 'Montagem' }] }],
+      emTrabalho: [{ material: null, no: CHASSI, ordem: 1, quantidade: 3, estornaveis: [{ ...ESTORNAVEL(9, 3), tipo: 'Montagem' }] }],
     })], { '/api/montagens/9/estorno': () => respostaJson([], 201) })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -1072,7 +1077,7 @@ describe('FilaDoSetorPage — estorno rápido', () => {
   it('linha sem ação nenhuma não ganha o contêiner de ações vazio', async () => {
     perfil = 'Movimentador' // não apura: sem Terminar; e sem registro estornável na linha
     vi.stubGlobal('fetch', montarFetch([fila({
-      emTrabalho: [{ no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }],
+      emTrabalho: [{ material: null, no: SUPORTE, ordem: 1, quantidade: 6, estornaveis: [] }],
     })]).fetchMock)
 
     renderizar()
@@ -1109,8 +1114,8 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
   // que o servidor os manda.
   const A_INICIAR_MISTA = fila({
     aIniciar: [
-      { no: BASE_PAUSADA, ordem: 1, quantidade: 3, estornaveis: [] },
-      { no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] },
+      { material: null, no: BASE_PAUSADA, ordem: 1, quantidade: 3, estornaveis: [] },
+      { material: null, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] },
     ],
   })
 
@@ -1164,6 +1169,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
   it('o pai de Pedido pausado no card de montagem nao tem Iniciar, mas o card e os filhos continuam', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
+        material: null,
         pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
       }],
@@ -1190,6 +1196,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
     perfil = 'Movimentador'
     vi.stubGlobal('fetch', montarFetch([fila({
       aguardandoMontagem: [{
+        material: null,
         pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: false,
         filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 9, necessarioParaProxima: 12, faltaParaProxima: 3 }],
       }],
@@ -1202,7 +1209,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
 
   it('a linha em trabalho de Pedido pausado continua com Terminar, e leva a pilula', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
-      emTrabalho: [{ no: BASE_PAUSADA, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+      emTrabalho: [{ material: null, no: BASE_PAUSADA, ordem: 1, quantidade: 2.5, estornaveis: [] }],
     })]).fetchMock)
 
     renderizar()
@@ -1215,7 +1222,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
 
   it('pausa sem motivo mostra a pilula e nenhuma linha "Pausa:"', async () => {
     vi.stubGlobal('fetch', montarFetch([fila({
-      emTrabalho: [{ no: no({ pausa: { ...PAUSA, motivo: null } }), ordem: 1, quantidade: 2, estornaveis: [] }],
+      emTrabalho: [{ material: null, no: no({ pausa: { ...PAUSA, motivo: null } }), ordem: 1, quantidade: 2, estornaveis: [] }],
     })]).fetchMock)
 
     renderizar()
@@ -1226,7 +1233,7 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
 
   it('o Pedido pausado enquanto o formulario de Iniciar esta aberto: a atualizacao fecha o formulario com aviso', async () => {
     vi.useFakeTimers()
-    const pausado = fila({ aIniciar: [{ no: no({ pausa: PAUSA }), ordem: 1, quantidade: 10, estornaveis: [] }] })
+    const pausado = fila({ aIniciar: [{ material: null, no: no({ pausa: PAUSA }), ordem: 1, quantidade: 10, estornaveis: [] }] })
     vi.stubGlobal('fetch', montarFetch([COM_A_INICIAR, pausado]).fetchMock)
 
     renderizar()
@@ -1245,10 +1252,10 @@ describe('FilaDoSetorPage — Pedido pausado (spec da Fase 3D, §6.3)', () => {
   it('a pausa do pai fecha o formulario de Iniciar do card de montagem', async () => {
     vi.useFakeTimers()
     const livre = fila({
-      aguardandoMontagem: [{ pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
+      aguardandoMontagem: [{ material: null, pai: CHASSI, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
     })
     const pausada = fila({
-      aguardandoMontagem: [{ pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
+      aguardandoMontagem: [{ material: null, pai: CHASSI_PAUSADO, faltaMontar: 10, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false, filhos: [] }],
     })
     vi.stubGlobal('fetch', montarFetch([livre, pausada]).fetchMock)
 
@@ -1280,7 +1287,7 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
     id: 21, descricao: 'Tampa', codigoDoComponente: 'TP-01', pedidoId: 2, pedidoNumero: 'PED-2026-02',
     pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null, materiais: [CHAPA_6],
   })
-  const linha = (n: ReturnType<typeof no>, ordem = 1) => ({ no: n, ordem, quantidade: 5, estornaveis: [] as Estornavel[] })
+  const linha = (n: ReturnType<typeof no>, ordem = 1) => ({ no: n, ordem, quantidade: 5, estornaveis: [] as Estornavel[], material: null })
 
   const DOIS_PEDIDOS = fila({ aIniciar: [linha(DO_PEDIDO_1), linha(DO_PEDIDO_2)] })
 
@@ -1358,6 +1365,7 @@ describe('FilaDoSetorPage — filtro de Material e Pedido', () => {
       emTrabalho: [linha(DO_PEDIDO_2)],
       aIniciar: [linha(DO_PEDIDO_1)],
       aguardandoMontagem: [{
+        material: null,
         pai: no({ id: 30, descricao: 'Estrutura', codigoDoComponente: 'ES-01', pedidoId: 2, pedidoNumero: 'PED-2026-02', pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null }),
         faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, filhos: [],
       }],
@@ -1493,7 +1501,7 @@ describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', (
     pedidoCliente: 'Beta Máquinas', paiId: null, paiDescricao: null,
   })
   const PAUSA = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
-  const linha = (n: ReturnType<typeof no>, quantidade = 10, ordem = 1) => ({ no: n, ordem, quantidade, estornaveis: [] as Estornavel[] })
+  const linha = (n: ReturnType<typeof no>, quantidade = 10, ordem = 1) => ({ no: n, ordem, quantidade, estornaveis: [] as Estornavel[], material: null })
   const DOIS_A_INICIAR = fila({ aIniciar: [linha(SUPORTE), linha(TAMPA, 5)] })
   const INICIOS = '/api/inicios'
   const TERMINOS = '/api/terminos'
@@ -1513,6 +1521,7 @@ describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', (
       aguardandoMontagem: [
         ...FILA_CHEIA.aguardandoMontagem,
         {
+          material: null,
           pai: EIXO, faltaMontar: 4, daParaMontar: 1, iniciaAqui: false, primeiroPassoDoPai: { id: 4, nome: 'Solda' }, conjuntoCompleto: false,
           filhos: [{ no: PARAFUSO, quantidadePorPai: 1, presente: 1, necessarioParaProxima: 1, faltaParaProxima: 0 }],
         },

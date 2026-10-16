@@ -123,11 +123,22 @@ export interface Estornavel {
   dataHora: string
 }
 
+/**
+ * O resumo de material de um nó na Fila (regra 34): quantos materiais do almoxarifado no planejado estão
+ * completos, de quantos. Conta materiais, não quantidades. `null` quando o nó não tem material do
+ * almoxarifado a separar — a Fila então não escreve nada.
+ */
+export interface ResumoDeMaterial {
+  completos: number
+  total: number
+}
+
 export interface LinhaDaFila {
   no: NoResumoDto
   ordem: number
   quantidade: number
   estornaveis: Estornavel[]
+  material: ResumoDeMaterial | null
 }
 
 export interface LinhaAguardandoColeta extends LinhaDaFila {
@@ -155,6 +166,8 @@ export interface GrupoAguardandoMontagem {
   conjuntoCompleto: boolean
   /** TODOS os filhos diretos do pai, inclusive os ausentes deste Setor (`presente` 0). */
   filhos: FilhoNaMontagem[]
+  /** O resumo de material do PAI, que é quem recebe o material na montagem; `null` sem material a separar. */
+  material: ResumoDeMaterial | null
 }
 
 export interface LinhaDeSobra {
@@ -270,7 +283,7 @@ export interface ItemDaEntrega {
  * cuidado de `detalheDoCorpo`, em `receitaPadrao.ts`). O 404 da execução vem sem `erro` — às vezes
  * com um ProblemDetails do ASP.NET no corpo, que não tem nenhum dos dois campos.
  */
-async function falhar(resp: Response, oQue: string): Promise<never> {
+export async function falhar(resp: Response, oQue: string): Promise<never> {
   let codigo: string | undefined
   let mensagem: string | undefined
   try {
@@ -286,7 +299,7 @@ async function falhar(resp: Response, oQue: string): Promise<never> {
   throw new ErroDeApi(resp.status, `Falha ao ${oQue} (${resp.status}).`, mensagem, codigo)
 }
 
-async function ler<T>(caminho: string, oQue: string): Promise<T> {
+export async function ler<T>(caminho: string, oQue: string): Promise<T> {
   const resp = await apiFetch(caminho)
   if (!resp.ok) return falhar(resp, oQue)
   return (await resp.json()) as T

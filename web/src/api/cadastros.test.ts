@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
-  listarMateriais, criarMaterial, definirAtivoMaterial,
+  listarMateriais, criarMaterial, editarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, editarPedido, obterPedido, formatarDataHora, formatarData,
   obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
@@ -89,6 +89,38 @@ describe('cadastros', () => {
     expect(url).toBe('/api/setores/3')
     expect(init.method).toBe('PUT')
     expect(init.body).toBe(JSON.stringify({ nome: 'Solda', atividade: 'montagem', utilizaKit: false }))
+  })
+
+  it('editarMaterial manda PUT na rota do id com o setorDeEstoqueId', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        id: 7, codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', ativo: true,
+        ficaEm: { setorId: 4, nome: 'Corte a Laser' },
+      }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resultado = await editarMaterial(7, {
+      codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', setorDeEstoqueId: 4,
+    })
+
+    expect(ehConflito(resultado)).toBe(false)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/materiais/7')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body as string)).toEqual({
+      codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', setorDeEstoqueId: 4,
+    })
+  })
+
+  it('editarMaterial devolve o conflito quando o código já existe', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 9,
+    }), { status: 409 })))
+
+    const resultado = await editarMaterial(7, { codigo: 'PAR-M8', descricao: 'x', unidadeMedida: 'UN' })
+
+    expect(ehConflito(resultado)).toBe(true)
   })
 
   // A tela chama isto em dois lugares (inativar e reativar) e e a unica chamada com PATCH.

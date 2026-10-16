@@ -86,6 +86,8 @@ export interface MaterialDto {
   descricao: string
   unidadeMedida: string
   ativo: boolean
+  /** O Setor onde o Material fica (regra 4); `null` = almoxarifado. */
+  ficaEm: { setorId: number; nome: string } | null
 }
 
 /**
@@ -96,6 +98,8 @@ export interface NovoMaterial {
   codigo: string
   descricao: string
   unidadeMedida: string
+  /** O Setor onde o Material fica; ausente ou `null` = almoxarifado. */
+  setorDeEstoqueId?: number | null
 }
 
 export async function listarMateriais(incluirInativos: boolean): Promise<MaterialDto[]> {
@@ -108,6 +112,18 @@ export async function listarMateriais(incluirInativos: boolean): Promise<Materia
 export function criarMaterial(m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro> {
   return apiFetch('/materiais', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(m),
+  }).then(lerOuFalhar<MaterialDto>)
+}
+
+/**
+ * `PUT` é substituição inteira: código, descrição, unidade e `setorDeEstoqueId` vão sempre juntos. O
+ * único 409 possível é `ValorDuplicado` sobre `codigo`, como no `criarMaterial`.
+ */
+export function editarMaterial(id: number, m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro> {
+  return apiFetch(`/materiais/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(m),
   }).then(lerOuFalhar<MaterialDto>)

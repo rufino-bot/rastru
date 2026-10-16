@@ -101,6 +101,14 @@ describe('estrutura', () => {
     expect(await excluirNo(7)).toBe('PedidoNaoAberto')
   })
 
+  it('excluirNo devolve NoComSeparacao no 409 de nó com separação, sem lançar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'NoComSeparacao', mensagem: 'x' }), { status: 409 }),
+    ))
+
+    expect(await excluirNo(7)).toBe('NoComSeparacao')
+  })
+
   // Teste 5: o 404 e DESFECHO, nao excecao — mesmo padrao de excluirAgrupamento. Prova por mutacao:
   // trocar o `return 'NaoEncontrado'` por um `throw` mataria este teste (ele falharia porque a
   // promise rejeitaria em vez de resolver).

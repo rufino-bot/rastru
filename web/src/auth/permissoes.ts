@@ -10,9 +10,12 @@ export type Recurso =
   | 'roteiro'
   | 'estorno'
   | 'pausa'
+  | 'separacao'
+  | 'estornoDeSeparacao'
+  | 'materiaisDoNo'
 
 /**
- * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-09-26.
+ * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-10-16.
  *
  * **Isto é conveniência de interface, não segurança.** A autorização real é do backend e continua
  * sendo: esconder um botão não impede requisição nenhuma. O que esta tabela evita é o usuário
@@ -57,6 +60,15 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   // Pausar e retomar um Pedido (Fase 3D): PCP e Gestão — a primeira escrita da Gestão. Não é
   // `pedidos`: os perfis divergem (o cadastro de Pedido é só do PCP).
   pausa: ['PCP', 'Gestao', 'Administrador'],
+  // Fase 4 — separação de material. Registrar o que o Separador levou ao nó (`SeparacaoController`).
+  separacao: ['Separador', 'Administrador'],
+  // Estornar uma linha da separação: quem pode ser autor dela, mais o PCP. Não é `separacao`: os perfis
+  // divergem (o PCP estorna e não separa). O botão ainda compara o autor, e quem decide é o 403
+  // `Proibido` do backend (`EstornoDeSeparacaoController`).
+  estornoDeSeparacao: ['Separador', 'PCP', 'Administrador'],
+  // Editar os materiais planejados de um nó (`PUT /estrutura/{id}/materiais`). Não é `estrutura`, embora os
+  // perfis hoje coincidam — mesmo motivo do comentário de `estrutura`.
+  materiaisDoNo: ['PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

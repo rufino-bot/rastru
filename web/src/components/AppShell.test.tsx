@@ -91,7 +91,7 @@ describe('AppShell', () => {
 
   it('mostra os links mesmo para perfil que não pode escrever neles', () => {
     // Decisão do usuário em 2026-08-06: gating vai na AÇÃO, não no link. O PCP não escreve em
-    // Setores nem Materiais, mas LÊ os dois — e a Fase 4 depende disso para o Almoxarifado.
+    // Setores nem Materiais, mas LÊ os dois — e a Fase 4 depende disso para o Separador.
     renderizarShell()
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))

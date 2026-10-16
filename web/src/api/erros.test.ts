@@ -55,6 +55,30 @@ describe('mensagemDeErro', () => {
       .toBe('Não há filhos suficientes aqui para iniciar essa quantidade.')
   })
 
+  it('traduz os códigos da separação quando o servidor não mandou frase', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'MaterialForaDoPlanejado'), PADRAO))
+      .toBe('Este material não está nos materiais do item. Peça ao PCP para acrescentá-lo.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'JaEstornada'), PADRAO))
+      .toBe('Esta separação já foi estornada.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'EstornoDeEstorno'), PADRAO))
+      .toBe('Um estorno não pode ser estornado.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'SeparacaoVazia'), PADRAO))
+      .toBe('Informe a quantidade de pelo menos um material.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'MaterialRepetido'), PADRAO))
+      .toBe('Um material foi informado duas vezes.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'MaterialInvalido'), PADRAO))
+      .toBe('Um dos materiais não existe ou está inativo.')
+    expect(mensagemDeErro(new ErroDeApi(400, 'x', undefined, 'SetorDeEstoqueInvalido'), PADRAO))
+      .toBe('O Setor escolhido em "Fica em" não existe ou está inativo.')
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'NoComSeparacao'), PADRAO))
+      .toBe('Este item, ou um item abaixo dele, já tem material separado e não pode ser excluído.')
+  })
+
+  it('a frase do servidor ganha da tradução de um código da separação', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', 'PAR-M8 já foi estornada.', 'JaEstornada'), PADRAO))
+      .toBe('PAR-M8 já foi estornada.')
+  })
+
   it('traduz os quatro códigos da pausa quando o servidor não mandou frase', () => {
     expect(mensagemDeErro(new ErroDeApi(409, 'x', undefined, 'PedidoPausado'), PADRAO))
       .toBe('O pedido deste item está pausado: nada dele começa até alguém retomá-lo.')
