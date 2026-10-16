@@ -105,6 +105,22 @@ public class SeparacaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task SubstituirPlanejadoAsync_com_o_mesmo_material_e_outra_quantidade_deixa_uma_linha_so() => NoCenarioAsync(async c =>
+  {
+    // UQ_EstruturaMaterial (no, material): apagar e inserir a mesma chave no mesmo SaveChanges.
+    await using (var db = NovoContexto())
+      await c.Arvore.MaterialNoNoAsync(db, c.PecaId, c.Material1);
+
+    await using var contexto = NovoContexto();
+    await new SeparacaoRepository(contexto).SubstituirPlanejadoAsync(c.PecaId, [(c.Material1, 5m)], CancellationToken.None);
+
+    await using var leitura = NovoContexto();
+    var linha = Assert.Single(await new SeparacaoRepository(leitura).ListarPlanejadoAsync([c.PecaId], CancellationToken.None));
+    Assert.Equal(c.Material1, linha.MaterialId);
+    Assert.Equal(5m, linha.Quantidade);
+  });
+
+  [Fact]
   public Task SubstituirPlanejadoAsync_com_lista_vazia_limpa() => NoCenarioAsync(async c =>
   {
     await using (var db = NovoContexto())
@@ -141,6 +157,21 @@ public class SeparacaoRepositoryTests : TesteComBanco
     Assert.Equal(1, await leitura.Separacoes.CountAsync(s => s.EstornoDeId == original.Id));
     Assert.DoesNotContain(segundo.ChangeTracker.Entries<MaterialSeparacao>(), e => e.Entity == estornoB);
     Assert.True(await new SeparacaoRepository(segundo).NoExisteAsync(c.PecaId, CancellationToken.None));
+  });
+
+  [Fact]
+  public Task GravarEstornoAsync_propaga_o_erro_que_nao_e_de_unicidade() => NoCenarioAsync(async c =>
+  {
+    // EstornoDeId inexistente: viola a FK (547), que nao e a corrida de estorno e nao pode virar `false`.
+    var orfao = new MaterialSeparacao
+    {
+      EstruturaItemId = c.PecaId, MaterialId = c.Material1, Tipo = TiposDeSeparacao.Estorno, Quantidade = 1m,
+      EstornoDeId = int.MaxValue, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    };
+
+    await using var db = NovoContexto();
+    await Assert.ThrowsAsync<DbUpdateException>(
+        () => new SeparacaoRepository(db).GravarEstornoAsync(orfao, CancellationToken.None));
   });
 
   [Fact]
