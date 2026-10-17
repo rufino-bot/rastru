@@ -12,6 +12,7 @@ import { ConferenciaDeImportacaoPage } from './pages/ConferenciaDeImportacaoPage
 import { FilaPage } from './pages/FilaPage'
 import { FilaDoSetorPage } from './pages/FilaDoSetorPage'
 import { TarefasPage } from './pages/TarefasPage'
+import { SeparacaoPage } from './pages/SeparacaoPage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './components/AppShell'
 
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/fila" element={<FilaPage />} />
         <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
         <Route path="/tarefas" element={<TarefasPage />} />
+        <Route path="/separacao" element={<SeparacaoPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

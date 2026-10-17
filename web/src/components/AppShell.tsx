@@ -24,8 +24,13 @@ interface ItemDeNavegacao {
  * que este comentário previa (desvio D4 do plano 3). Remedido em 2026-09-25, Chromium headless
  * contra o CSS do build, com os sete links e o contador "Tarefas 12": o cabeçalho pede **888px**;
  * em 768px estourava 120px, e em 1024px sobram 136px. O celular e o tablet em retrato já usavam a
- * gaveta, e continuam usando. O oitavo link (Qualidade, Fase 5) deve caber nos 136px — remeça
- * quando ele chegar; o agrupamento continua sendo a saída se não couber.
+ * gaveta, e continuam usando. O oitavo link deve caber nos 136px — remeça quando ele chegar; o
+ * agrupamento continua sendo a saída se não couber.
+ *
+ * **O oitavo link chegou na Fase 4** (Separação, spec da Fase 4 §6.1), e **não foi remedido** quando
+ * entrou: a sessão que o acrescentou não tinha navegador. A conta dos 136px de sobra em 1024px é a de
+ * sete links; quem tiver Chromium remede com os oito antes de contar com folga para o nono (Qualidade,
+ * Fase 5).
  *
  * **O `end` do item `/` é REDUNDANTE nesta versão, e isso foi medido — não suposto.** Apagar os
  * dois `end={i.para === '/'}` deixa a suíte 10/10 VERDE (mutação M7, medida em 2026-08-10 com
@@ -40,10 +45,11 @@ interface ItemDeNavegacao {
  */
 const ITENS: ItemDeNavegacao[] = [
   { para: '/', rotulo: 'Início' },
-  // Fila e Tarefas logo depois do Início: são as telas do chão de fábrica, abertas o dia inteiro
-  // no celular — os cadastros são do escritório.
+  // Fila, Tarefas e Separação logo depois do Início: são as telas do chão de fábrica, abertas o dia
+  // inteiro no celular — os cadastros são do escritório.
   { para: '/fila', rotulo: 'Fila' },
   { para: '/tarefas', rotulo: 'Tarefas' },
+  { para: '/separacao', rotulo: 'Separação' },
   { para: '/pedidos', rotulo: 'Pedidos' },
   { para: '/componentes', rotulo: 'Componentes' },
   { para: '/materiais', rotulo: 'Materiais' },

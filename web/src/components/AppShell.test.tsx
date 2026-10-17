@@ -84,8 +84,28 @@ describe('AppShell', () => {
     renderizarShell()
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
-    for (const d of ['/', '/fila', '/tarefas', '/pedidos', '/componentes', '/materiais', '/setores']) {
+    for (const d of ['/', '/fila', '/tarefas', '/separacao', '/pedidos', '/componentes', '/materiais', '/setores']) {
       expect(destinos, `link para ${d}`).toContain(d)
+    }
+  })
+
+  it('o menu tem Separação para todo perfil', () => {
+    // A leitura da lista de separação é livre; quem não separa vê a lista sem o botão (gating na ação).
+    for (const perfil of ['Operador', 'Movimentador', 'Separador', 'PCP', 'Qualidade', 'Gestao', 'Administrador']) {
+      vi.mocked(useAuth).mockReturnValue({
+        estado: { status: 'autenticado', usuario: { id: 3, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+        login: async () => {},
+        logout,
+      })
+      renderizarShell()
+
+      const barra = screen.getByRole('navigation', { name: 'Principal' })
+      const separacao = within(barra).getByRole('link', { name: 'Separação' })
+      expect(separacao.getAttribute('href'), perfil).toBe('/separacao')
+      // Logo depois de Tarefas: as telas do chão de fábrica ficam juntas.
+      const rotulos = within(barra).getAllByRole('link').map((l) => l.textContent)
+      expect(rotulos.indexOf('Separação'), perfil).toBe(rotulos.findIndex((r) => r?.startsWith('Tarefas')) + 1)
+      cleanup()
     }
   })
 
