@@ -160,6 +160,86 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(coleta).getByText('Destino: Montagem de Chassi em Solda')).toBeTruthy()
   })
 
+  it('a linha a iniciar e o cartão que inicia aqui mostram o resumo de material', async () => {
+    const pausado = no({ id: 11, descricao: 'Tampa', codigoDoComponente: 'TP-01', pausa: { desde: '2026-09-28T09:00:00-03:00', porUsuarioNome: 'PCP', motivo: 'Falta de chapa' } })
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        aIniciar: [
+          { material: { completos: 1, total: 3 }, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] },
+          { material: { completos: 2, total: 2 }, no: PECA_B, ordem: 1, quantidade: 4, estornaveis: [] },
+          { material: { completos: 0, total: 1 }, no: pausado, ordem: 1, quantidade: 2, estornaveis: [] },
+        ],
+        aguardandoMontagem: [{
+          ...FILA_CHEIA.aguardandoMontagem[0], material: { completos: 0, total: 2 },
+        }],
+      })),
+    }))
+
+    renderizar()
+
+    const aIniciar = await screen.findByRole('list', { name: 'A iniciar aqui' })
+    const linhaDoSuporte = within(aIniciar).getByText('SUP-01 — Suporte').closest('li')!
+    expect(within(linhaDoSuporte).getByText('Material: 1 de 3 completos')).toBeTruthy()
+    const linhaDaBase = within(aIniciar).getByText('BA-01 — Base').closest('li')!
+    expect(within(linhaDaBase).getByText('Material completo')).toBeTruthy()
+    // A linha pausada não inicia, mas o material dela continua sendo informação da Fila.
+    const linhaPausada = within(aIniciar).getByText('TP-01 — Tampa').closest('li')!
+    expect(within(linhaPausada).getByText('Material: 0 de 1 completos')).toBeTruthy()
+    const montagem = screen.getByRole('list', { name: 'Aguardando montagem' })
+    expect(within(montagem).getByText('Material: 0 de 2 completos')).toBeTruthy()
+  })
+
+  it('o resumo vem depois da linha de quantidade', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        aIniciar: [{ material: { completos: 1, total: 3 }, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] }],
+      })),
+    }))
+
+    renderizar()
+
+    const quantidade = await screen.findByText('10 a iniciar · passo 1')
+    const resumo = screen.getByText('Material: 1 de 3 completos')
+    expect(quantidade.compareDocumentPosition(resumo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('sem resumo, nenhum texto de material', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
+
+    renderizar()
+
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    expect(screen.queryByText(/^Material(:| completo)/)).toBeNull()
+  })
+
+  it('o resumo de material não usa cor de estado', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        aIniciar: [
+          { material: { completos: 1, total: 3 }, no: SUPORTE, ordem: 1, quantidade: 10, estornaveis: [] },
+          { material: { completos: 2, total: 2 }, no: PECA_B, ordem: 1, quantidade: 4, estornaveis: [] },
+        ],
+        aguardandoMontagem: [{
+          ...FILA_CHEIA.aguardandoMontagem[0], material: { completos: 0, total: 2 },
+        }],
+      })),
+    }))
+
+    renderizar()
+
+    await screen.findByRole('list', { name: 'A iniciar aqui' })
+    const resumos = [
+      screen.getByText('Material: 1 de 3 completos'),
+      screen.getByText('Material completo'),
+      screen.getByText('Material: 0 de 2 completos'),
+    ]
+    for (const r of resumos) {
+      for (const cor of ['text-positivo', 'text-negativo', 'text-atencao', 'text-atraso']) {
+        expect(r.className.split(/\s+/)).not.toContain(cor)
+      }
+    }
+  })
+
   it('aguardando montagem diz quanto dá para iniciar e o que falta para a próxima', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
 

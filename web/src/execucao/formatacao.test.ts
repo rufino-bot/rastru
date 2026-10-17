@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   formatarQuantidade, quantidadeConcordada, rotuloDoNo, caminhoDoNo, descreverDestino, rotuloDoSaldo, rotuloDoLocal, rotuloDoTipo,
-  rotuloDaAcao, rotuloDoEstornavel, mensagemDoEstorno,
+  rotuloDaAcao, rotuloDoEstornavel, mensagemDoEstorno, textoDoResumoDeMaterial,
 } from './formatacao'
 import type { DestinoDto, Estornavel, NoResumoDto } from '../api/execucao'
 import { destino, DESTINO_MONTAGEM } from '../testes/execucao'
@@ -157,5 +157,16 @@ describe('mensagemDoEstorno', () => {
   it('no início de um pai, diz que o pai volta a "a iniciar" e os filhos a aguardar montagem', () => {
     expect(mensagemDoEstorno({ ...TERMINO, tipo: 'Montagem' }))
       .toBe('Estornar o início de 5 (com o consumo dos filhos), registrado por Operador do Corte em 28/09/2026 10:14? O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes; o estorno fica no histórico.')
+  })
+})
+
+describe('textoDoResumoDeMaterial', () => {
+  it('com todos os materiais completos, diz que o material está completo', () => {
+    expect(textoDoResumoDeMaterial({ completos: 3, total: 3 })).toBe('Material completo')
+  })
+
+  it('com material faltando, diz quantos estão completos de quantos', () => {
+    expect(textoDoResumoDeMaterial({ completos: 1, total: 3 })).toBe('Material: 1 de 3 completos')
+    expect(textoDoResumoDeMaterial({ completos: 0, total: 2 })).toBe('Material: 0 de 2 completos')
   })
 })
