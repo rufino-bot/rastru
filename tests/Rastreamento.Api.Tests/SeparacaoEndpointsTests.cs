@@ -312,6 +312,146 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   // -------------------------------------------------------------------------
+  // Separar em lote (POST /separacoes)
+  // -------------------------------------------------------------------------
+
+  /// <summary>Um Material novo do almoxarifado planejado em B (10) e em C (4); devolve o Id dele.</summary>
+  private static async Task<int> PlanejarEmBeCAsync(CenarioDaFase3NaApi c)
+  {
+    var parafuso = await c.CriarMaterialAsync("PAR");
+    var pcp = c.Como(c.Pcp);
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}/materiais",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 10m } } }));
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{c.C}/materiais",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 4m } } }));
+    return parafuso;
+  }
+
+  private static object NoDoLote(int estruturaItemId, int materialId, decimal quantidade) =>
+      new { estruturaItemId, linhas = new[] { new { materialId, quantidade } } };
+
+  private static async Task<int> LinhasNoLivroAsync(CenarioDaFase3NaApi c, int no) =>
+      (await CorpoAsync(await c.Como(c.Pcp).GetAsync($"/api/estrutura/{no}/separacoes"))).GetArrayLength();
+
+  [Fact]
+  public async Task Lote_grava_dois_nos_e_devolve_201_com_uma_entrada_por_no_na_ordem_do_corpo()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarEmBeCAsync(c);
+
+    var resposta = await c.Como(c.Separador).PostAsJsonAsync("/api/separacoes",
+        new { nos = new[] { NoDoLote(c.C, parafuso, 4m), NoDoLote(c.B, parafuso, 6m) } });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var entradas = (await CorpoAsync(resposta)).EnumerateArray().ToList();
+    Assert.Equal([c.C, c.B], entradas.Select(e => e.GetProperty("estruturaItemId").GetInt32()).ToArray());
+    var deC = entradas[0];
+    var linha = Assert.Single(deC.GetProperty("separacoes").EnumerateArray());
+    Assert.Equal(4m, linha.GetProperty("quantidade").GetDecimal());
+    Assert.Equal(c.Separador.Id, linha.GetProperty("usuarioId").GetInt32());
+    Assert.True(linha.GetProperty("estornavel").GetBoolean());
+    Assert.EndsWith("-03:00", linha.GetProperty("dataHora").GetString());
+    var materialDeC = Assert.Single(deC.GetProperty("materiais").EnumerateArray());
+    Assert.Equal(0m, materialDeC.GetProperty("pendencia").GetDecimal());
+    var materialDeB = Assert.Single(entradas[1].GetProperty("materiais").EnumerateArray());
+    Assert.Equal((6m, 4m), (materialDeB.GetProperty("separado").GetDecimal(), materialDeB.GetProperty("pendencia").GetDecimal()));
+
+    Assert.Equal((1, 1), (await LinhasNoLivroAsync(c, c.B), await LinhasNoLivroAsync(c, c.C)));
+  }
+
+  [Fact]
+  public async Task Lote_com_o_segundo_no_fora_do_planejado_e_409_com_o_nome_do_no_e_nada_gravado()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarEmBeCAsync(c);
+    var fora = await c.CriarMaterialAsync("FORA");
+
+    var resposta = await c.Como(c.Separador).PostAsJsonAsync("/api/separacoes",
+        new { nos = new[] { NoDoLote(c.B, parafuso, 2m), NoDoLote(c.C, fora, 1m) } });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal("MaterialForaDoPlanejado", corpo.GetProperty("erro").GetString());
+    Assert.Contains("do nó Calço", corpo.GetProperty("mensagem").GetString());
+    // Tudo ou nada: o primeiro no, que era valido, tambem nao gravou.
+    Assert.Equal((0, 0), (await LinhasNoLivroAsync(c, c.B), await LinhasNoLivroAsync(c, c.C)));
+  }
+
+  [Fact]
+  public async Task Lote_com_no_inexistente_e_404_sem_corpo_e_nada_gravado()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarEmBeCAsync(c);
+
+    var resposta = await c.Como(c.Separador).PostAsJsonAsync("/api/separacoes",
+        new { nos = new[] { NoDoLote(c.B, parafuso, 2m), NoDoLote(999999, parafuso, 1m) } });
+
+    // "Sem corpo" e o contrato da API para o 404: sem o `{ erro, mensagem }` das outras recusas (o ProblemDetails
+    // padrao do `NotFound()` e o mesmo da rota individual).
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+    Assert.DoesNotContain("\"erro\"", await resposta.Content.ReadAsStringAsync());
+    Assert.Equal(0, await LinhasNoLivroAsync(c, c.B));
+  }
+
+  [Theory]
+  [InlineData("vazio", "LoteVazio")]
+  [InlineData("ausente", "LoteVazio")]
+  [InlineData("acima-do-teto", "LoteGrandeDemais")]
+  [InlineData("repetido", "ItemRepetido")]
+  public async Task Lote_invalido_na_entrada_e_400_com_o_codigo_do_lote_da_execucao(string caso, string codigo)
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarEmBeCAsync(c);
+    object corpo = caso switch
+    {
+      "vazio" => new { nos = Array.Empty<object>() },
+      "ausente" => new { },
+      "acima-do-teto" => new { nos = Enumerable.Range(0, 101).Select(i => NoDoLote(c.B + i, parafuso, 1m)).ToArray() },
+      _ => new { nos = new[] { NoDoLote(c.B, parafuso, 1m), NoDoLote(c.B, parafuso, 2m) } },
+    };
+
+    var resposta = await c.Como(c.Separador).PostAsJsonAsync("/api/separacoes", corpo);
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var lido = await CorpoAsync(resposta);
+    Assert.Equal(codigo, lido.GetProperty("erro").GetString());
+    Assert.False(string.IsNullOrEmpty(lido.GetProperty("mensagem").GetString()));
+    Assert.Equal(0, await LinhasNoLivroAsync(c, c.B));
+  }
+
+  [Theory]
+  [InlineData("Operador")]
+  [InlineData("PCP")]
+  public async Task Operador_e_PCP_nao_separam_em_lote(string perfil)
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarEmBeCAsync(c);
+    var cliente = perfil == "Operador" ? c.Como(c.Operador) : c.Como(c.Pcp);
+
+    var resposta = await cliente.PostAsJsonAsync("/api/separacoes", new { nos = new[] { NoDoLote(c.B, parafuso, 1m) } });
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+    Assert.Equal(0, await LinhasNoLivroAsync(c, c.B));
+  }
+
+  [Fact]
+  public async Task Administrador_separa_em_lote()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await PlanejarEmBeCAsync(c);
+    // O autor precisa ser um usuario real (FK de `MaterialSeparacao.UsuarioId`): o token de Administrador vai com
+    // o Id de um usuario do proprio cenario, sem depender do `admin` do seed.
+    var administrador = _factory.CreateClient();
+    administrador.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+        "Bearer", TokenDeTeste.Emitir(_factory, "Administrador", c.Separador.Id));
+
+    var resposta = await administrador.PostAsJsonAsync("/api/separacoes", new { nos = new[] { NoDoLote(c.B, parafuso, 1m) } });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    Assert.Equal(1, await LinhasNoLivroAsync(c, c.B));
+  }
+
+  // -------------------------------------------------------------------------
   // A lista do Separador
   // -------------------------------------------------------------------------
 

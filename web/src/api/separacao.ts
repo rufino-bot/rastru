@@ -73,6 +73,17 @@ export interface ResultadoDaSeparacaoDto {
   materiais: MaterialDoNoComSeparacao[]
 }
 
+/** Um nó do lote de separação, com as linhas dele como no `POST` individual. */
+export interface NoDoLoteDeSeparacao {
+  estruturaItemId: number
+  linhas: LinhaDeMaterial[]
+}
+
+/** Uma entrada da resposta do lote: o nó e o mesmo conteúdo da resposta individual. */
+export interface ResultadoDaSeparacaoDoNo extends ResultadoDaSeparacaoDto {
+  estruturaItemId: number
+}
+
 export interface MaterialPendente {
   materialId: number
   codigo: string
@@ -129,6 +140,14 @@ export function substituirMateriaisDoNo(noId: number, linhas: LinhaDeMaterial[])
 /** Tudo ou nada: se uma linha for recusada, nenhuma é gravada. */
 export function separar(noId: number, linhas: LinhaDeMaterial[]): Promise<ResultadoDaSeparacaoDto> {
   return escrever(`/estrutura/${noId}/separacoes`, 'POST', { linhas }, 'registrar a separação')
+}
+
+/**
+ * Vários nós num `POST` só, tudo ou nada: se um nó for recusado, nada é gravado, e a frase do servidor traz
+ * o nome dele. A resposta vem na ordem do corpo.
+ */
+export function separarEmLote(nos: NoDoLoteDeSeparacao[]): Promise<ResultadoDaSeparacaoDoNo[]> {
+  return escrever('/separacoes', 'POST', { nos }, 'registrar a separação')
 }
 
 export function obterHistoricoDeSeparacoes(noId: number): Promise<SeparacaoDto[]> {

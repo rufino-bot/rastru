@@ -19,6 +19,16 @@ internal static class Falhas
       Validacao<T>(CodigosDaExecucao.QuantidadeInvalida,
           $"A quantidade {Quantidades.Formatar(quantidade)} não vale: tem de ser maior que zero e ter no máximo quatro casas decimais.");
 
+  /// <summary>
+  /// A lista vazia e o teto de todo lote (iniciar, terminar e separar), com o mesmo codigo e a mesma frase
+  /// (desvio D4 do plano 2 dos filtros; o lote de separacao da Fase 4 os reusa).
+  /// </summary>
+  public static Result<T> LoteVazio<T>() => Validacao<T>(CodigosDaExecucao.LoteVazio, "Marque pelo menos um item.");
+
+  public static Result<T> LoteGrandeDemais<T>() =>
+      Validacao<T>(CodigosDaExecucao.LoteGrandeDemais,
+          $"Um lote tem no máximo {ApontamentoUseCase.TamanhoMaximoDoLote} itens.");
+
   public static Result<T> PedidoFechado<T>() =>
       Conflito<T>(CodigosDaExecucao.PedidoFechado, "O Pedido deste item já foi concluído ou cancelado.");
 

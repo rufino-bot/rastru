@@ -31,56 +31,135 @@ public sealed class SeparacaoUseCase
   public async Task<Result<ResultadoDaSeparacaoDto>> Separar(
       int noId, SeparacaoNovaDto dto, int usuarioId, CancellationToken ct)
   {
-    // O 404 vem antes de olhar o corpo: o no que nao existe nao tem o que validar.
-    if (!await _separacao.NoExisteAsync(noId, ct)) return Falhas.NaoEncontrado<ResultadoDaSeparacaoDto>();
+    var validada = await ValidarAsync(noId, dto.Linhas, ct);
+    if (!validada.Sucesso) return Falhas.Repassar<ResultadoDaSeparacaoDto, SeparacaoValidada>(validada);
 
-    if (dto.Linhas is not { Count: > 0 } linhas)
-      return Falhas.Validacao<ResultadoDaSeparacaoDto>(CodigosDaSeparacao.SeparacaoVazia,
+    var doNo = (await GravarEProjetarAsync([validada.Valor!], usuarioId, ct)).Single();
+    return Result<ResultadoDaSeparacaoDto>.Ok(new ResultadoDaSeparacaoDto(doNo.Separacoes, doNo.Materiais));
+  }
+
+  /// <summary>
+  /// Separar em varios nos num corpo so, tudo ou nada (`POST /separacoes`). Antes de olhar os nos, as recusas
+  /// de entrada do lote da execucao, nesta ordem: lista vazia, teto, no repetido. Depois cada no, na ordem do
+  /// corpo, pelo MESMO nucleo da rota individual (<see cref="ValidarAsync"/>), parando na primeira recusa,
+  /// com o nome do no. So com todos validos as linhas de todos vao num `GravarAsync` so: como na rota
+  /// individual, sem a transacao da execucao (decisao P1 do plano de backend da Fase 4). A resposta e uma
+  /// entrada por no, na ordem do corpo.
+  /// </summary>
+  public async Task<Result<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>> SepararEmLote(
+      LoteDeSeparacaoDto dto, int usuarioId, CancellationToken ct)
+  {
+    var nos = dto.Nos ?? [];
+    if (nos.Count == 0) return Falhas.LoteVazio<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>();
+    if (nos.Count > ApontamentoUseCase.TamanhoMaximoDoLote)
+      return Falhas.LoteGrandeDemais<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>();
+    var vistos = new HashSet<int>();
+    foreach (var no in nos)
+      if (!vistos.Add(no.EstruturaItemId))
+        return Falhas.Validacao<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>(CodigosDaExecucao.ItemRepetido,
+            $"O nó {no.EstruturaItemId} aparece mais de uma vez no lote.");
+
+    var validadas = new List<SeparacaoValidada>(nos.Count);
+    foreach (var no in nos)
+    {
+      var validada = await ValidarAsync(no.EstruturaItemId, no.Linhas, ct);
+      if (!validada.Sucesso) return await NomeadaAsync(validada, no.EstruturaItemId, ct);
+      validadas.Add(validada.Valor!);
+    }
+    return Result<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>.Ok(await GravarEProjetarAsync(validadas, usuarioId, ct));
+  }
+
+  /// <summary>O que passou pelas regras de UM no: as linhas do corpo e o catalogo dos materiais delas.</summary>
+  private sealed record SeparacaoValidada(
+      int NoId, IReadOnlyList<LinhaDeMaterialDto> Linhas, IReadOnlyDictionary<int, MaterialDaSeparacao> Catalogo);
+
+  /// <summary>
+  /// As regras de separar em UM no, a unica copia delas: a rota individual e o lote passam por aqui. Nao
+  /// escreve nada. A ordem e a da decisao P8 do plano de backend da Fase 4.
+  /// </summary>
+  private async Task<Result<SeparacaoValidada>> ValidarAsync(
+      int noId, IReadOnlyList<LinhaDeMaterialDto>? doCorpo, CancellationToken ct)
+  {
+    // O 404 vem antes de olhar o corpo: o no que nao existe nao tem o que validar.
+    if (!await _separacao.NoExisteAsync(noId, ct)) return Falhas.NaoEncontrado<SeparacaoValidada>();
+
+    if (doCorpo is not { Count: > 0 } linhas)
+      return Falhas.Validacao<SeparacaoValidada>(CodigosDaSeparacao.SeparacaoVazia,
           "Informe ao menos um material para separar.");
 
     foreach (var linha in linhas)
       if (!Quantidades.CabeNaColuna(linha.Quantidade))
-        return Falhas.QuantidadeInvalida<ResultadoDaSeparacaoDto>(linha.Quantidade);
+        return Falhas.QuantidadeInvalida<SeparacaoValidada>(linha.Quantidade);
 
     var ids = linhas.Select(l => l.MaterialId).Distinct().ToList();
     var catalogo = (await _separacao.ListarMateriaisAsync(ids, ct)).ToDictionary(m => m.Id);
 
     var repetido = linhas.GroupBy(l => l.MaterialId).FirstOrDefault(g => g.Count() > 1);
     if (repetido is not null)
-      return Falhas.Validacao<ResultadoDaSeparacaoDto>(CodigosDaSeparacao.MaterialRepetido,
+      return Falhas.Validacao<SeparacaoValidada>(CodigosDaSeparacao.MaterialRepetido,
           $"O material {Nome(repetido.Key, catalogo)} aparece mais de uma vez na separação.");
 
     var planejados = (await _separacao.ListarPlanejadoAsync([noId], ct)).Select(p => p.MaterialId).ToHashSet();
     var fora = linhas.FirstOrDefault(l => !planejados.Contains(l.MaterialId));
     if (fora is not null)
-      return Falhas.Conflito<ResultadoDaSeparacaoDto>(CodigosDaSeparacao.MaterialForaDoPlanejado,
+      return Falhas.Conflito<SeparacaoValidada>(CodigosDaSeparacao.MaterialForaDoPlanejado,
           $"O material {Nome(fora.MaterialId, catalogo)} não está no planejado {await DoNoAsync(noId, ct)}. "
           + "O PCP o acrescenta nos materiais do nó, se ele for mesmo deste nó.");
 
-    var agora = DateTime.UtcNow;
-    var novas = linhas.Select(l => new MaterialSeparacao
-    {
-      EstruturaItemId = noId, MaterialId = l.MaterialId, Tipo = TiposDeSeparacao.Separacao,
-      Quantidade = l.Quantidade, DataHora = agora, UsuarioId = usuarioId,
-    }).ToList();
-    await _separacao.GravarAsync(novas, ct);
-
-    // Relido depois da escrita: o resumo inclui o que outro Separador gravou no mesmo no ate aqui.
-    var planejado = await _separacao.ListarPlanejadoAsync([noId], ct);
-    var doLivro = await _separacao.ListarLinhasAsync([noId], ct);
-    var doAlmoxarifado = catalogo.Values.Where(m => m.SetorDeEstoqueId is null).Select(m => m.Id).ToHashSet();
-    var tocados = ids.ToHashSet();
-    var materiais = CalculoDaSeparacao.Resumir(planejado, doLivro, doAlmoxarifado)
-        .Where(r => tocados.Contains(r.MaterialId))
-        .Select(r => ProjecaoDaSeparacao.Projetar(r, catalogo[r.MaterialId]))
-        .OrderBy(i => i.Codigo, StringComparer.OrdinalIgnoreCase).ThenBy(i => i.MaterialId)
-        .ToList();
-
-    var nome = await NomeDoUsuarioAsync(usuarioId, ct);
-    // Quem acabou de separar e o autor: toda linha nova e estornavel por ele.
-    var separacoes = novas.Select(l => ProjecaoDaSeparacao.Linha(l, catalogo[l.MaterialId], nome, estornavel: true)).ToList();
-    return Result<ResultadoDaSeparacaoDto>.Ok(new ResultadoDaSeparacaoDto(separacoes, materiais));
+    return Result<SeparacaoValidada>.Ok(new SeparacaoValidada(noId, linhas, catalogo));
   }
+
+  /// <summary>
+  /// Grava as linhas de todos os nos num `GravarAsync` so (tudo ou nada) e devolve, por no e na ordem
+  /// recebida, as linhas gravadas e os materiais que elas tocaram, com a conta relida depois da escrita.
+  /// </summary>
+  private async Task<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>> GravarEProjetarAsync(
+      IReadOnlyList<SeparacaoValidada> validadas, int usuarioId, CancellationToken ct)
+  {
+    var agora = DateTime.UtcNow;
+    var novasPorNo = validadas.Select(v => v.Linhas.Select(l => new MaterialSeparacao
+    {
+      EstruturaItemId = v.NoId, MaterialId = l.MaterialId, Tipo = TiposDeSeparacao.Separacao,
+      Quantidade = l.Quantidade, DataHora = agora, UsuarioId = usuarioId,
+    }).ToList()).ToList();
+    await _separacao.GravarAsync(novasPorNo.SelectMany(n => n).ToList(), ct);
+
+    // Relido depois da escrita: o resumo inclui o que outro Separador gravou nos mesmos nos ate aqui.
+    var nos = validadas.Select(v => v.NoId).ToList();
+    var planejado = await _separacao.ListarPlanejadoAsync(nos, ct);
+    var doLivro = await _separacao.ListarLinhasAsync(nos, ct);
+    var catalogo = validadas.SelectMany(v => v.Catalogo.Values).DistinctBy(m => m.Id).ToDictionary(m => m.Id);
+    var doAlmoxarifado = catalogo.Values.Where(m => m.SetorDeEstoqueId is null).Select(m => m.Id).ToHashSet();
+    var resumos = CalculoDaSeparacao.Resumir(planejado, doLivro, doAlmoxarifado);
+    var nome = await NomeDoUsuarioAsync(usuarioId, ct);
+
+    return validadas.Select((v, i) =>
+    {
+      var tocados = v.Linhas.Select(l => l.MaterialId).ToHashSet();
+      var materiais = resumos
+          .Where(r => r.EstruturaItemId == v.NoId && tocados.Contains(r.MaterialId))
+          .Select(r => ProjecaoDaSeparacao.Projetar(r, catalogo[r.MaterialId]))
+          .OrderBy(m => m.Codigo, StringComparer.OrdinalIgnoreCase).ThenBy(m => m.MaterialId)
+          .ToList();
+      // Quem acabou de separar e o autor: toda linha nova e estornavel por ele.
+      var separacoes = novasPorNo[i]
+          .Select(l => ProjecaoDaSeparacao.Linha(l, catalogo[l.MaterialId], nome, estornavel: true))
+          .ToList();
+      return new ResultadoDaSeparacaoDoNoDto(v.NoId, separacoes, materiais);
+    }).ToList();
+  }
+
+  /// <summary>
+  /// A recusa de um no do lote com o nome dele na frente da frase, como o `Nomeada` do lote da execucao. Nao
+  /// levam o prefixo o 404, que continua sem corpo, e a recusa cuja frase ja nomeia o no (o "fora do
+  /// planejado" diz "do nó Quadro").
+  /// </summary>
+  private async Task<Result<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>> NomeadaAsync(
+      Result<SeparacaoValidada> falha, int noId, CancellationToken ct) =>
+      falha.TipoDoErro == TipoDeErro.NaoEncontrado || falha.Erro == CodigosDaSeparacao.MaterialForaDoPlanejado
+          ? Falhas.Repassar<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>, SeparacaoValidada>(falha)
+          : Falhas.Repassar<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>, SeparacaoValidada>(
+              falha, $"{await NomeDoNoAsync(noId, ct)}: {falha.Detalhe}");
 
   /// <summary>
   /// Grava o inverso da linha, apontando-a. Ordem da decisao P8 do plano de backend da Fase 4: linha (404),
@@ -131,8 +210,18 @@ public sealed class SeparacaoUseCase
   /// </summary>
   private async Task<string> DoNoAsync(int noId, CancellationToken ct)
   {
+    var descricao = await DescricaoPropriaAsync(noId, ct);
+    return descricao is null ? $"do item {noId}" : $"do nó {descricao}";
+  }
+
+  /// <summary>O nome do no na frente da recusa do lote: o mesmo criterio de <see cref="DoNoAsync"/>.</summary>
+  private async Task<string> NomeDoNoAsync(int noId, CancellationToken ct) =>
+      await DescricaoPropriaAsync(noId, ct) ?? $"item {noId}";
+
+  private async Task<string?> DescricaoPropriaAsync(int noId, CancellationToken ct)
+  {
     var no = (await _execucao.ListarNosAsync([noId], ct)).SingleOrDefault();
-    return string.IsNullOrWhiteSpace(no?.Descricao) ? $"do item {noId}" : $"do nó {no.Descricao}";
+    return string.IsNullOrWhiteSpace(no?.Descricao) ? null : no.Descricao;
   }
 
   private async Task<string> NomeDoUsuarioAsync(int usuarioId, CancellationToken ct) =>

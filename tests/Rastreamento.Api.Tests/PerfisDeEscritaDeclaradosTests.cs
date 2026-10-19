@@ -188,6 +188,8 @@ public class PerfisDeEscritaDeclaradosTests
     // Separacao de material (Fase 4): um controller por conjunto de perfis (decisao P6 do plano de backend).
     ["PUT estrutura/{id:int}/materiais"] = ["PCP", "Administrador"],
     ["POST estrutura/{id:int}/separacoes"] = ["Separador", "Administrador"],
+    // O lote de separacao: os mesmos perfis da rota de um no.
+    ["POST separacoes"] = ["Separador", "Administrador"],
     // Estorno de separacao: o `[Authorize]` deixa passar o Separador (autor possivel) e o PCP; autor x PCP
     // quem decide e o caso de uso (403 `Proibido`), como no estorno da execucao.
     ["POST separacoes/{id:int}/estorno"] = ["Separador", "PCP", "Administrador"],

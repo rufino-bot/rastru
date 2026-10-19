@@ -47,6 +47,22 @@ public sealed record SeparacaoDto(
 public sealed record ResultadoDaSeparacaoDto(
     IReadOnlyList<SeparacaoDto> Separacoes, IReadOnlyList<MaterialDoNoComSeparacaoDto> Materiais);
 
+/// <summary>
+/// Um no do lote de separacao, com as linhas dele como no `POST` individual. `Linhas` anulavel e sem
+/// `[Required]` de proposito: ausente vira 400 `SeparacaoVazia` com o nome do no na frase, como a lista vazia.
+/// </summary>
+public sealed record NoDoLoteDeSeparacaoDto(int EstruturaItemId, IReadOnlyList<LinhaDeMaterialDto>? Linhas);
+
+/// <summary>
+/// Corpo do `POST /separacoes`: separar em varios nos, tudo ou nada. `Nos` anulavel de proposito: ausente vira
+/// 400 `LoteVazio` com frase, como no lote da execucao (`LoteDeInicioDto`).
+/// </summary>
+public sealed record LoteDeSeparacaoDto(IReadOnlyList<NoDoLoteDeSeparacaoDto>? Nos);
+
+/// <summary>Uma entrada da resposta do lote: o no e o mesmo conteudo do <see cref="ResultadoDaSeparacaoDto"/>.</summary>
+public sealed record ResultadoDaSeparacaoDoNoDto(
+    int EstruturaItemId, IReadOnlyList<SeparacaoDto> Separacoes, IReadOnlyList<MaterialDoNoComSeparacaoDto> Materiais);
+
 // ---------------------------------------------------------------------------
 // Resumo da Fila e lista do Separador
 // ---------------------------------------------------------------------------

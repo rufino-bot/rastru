@@ -34,6 +34,15 @@ public class SeparacaoController : ExecucaoControllerBase
     return Traduzir(await _separacao.Separar(id, dto, usuarioId, ct), criado: true);
   }
 
+  /// <summary>Separar em varios nos, tudo ou nada: os mesmos perfis da rota de um no.</summary>
+  [HttpPost("separacoes")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> SepararEmLote([FromBody] LoteDeSeparacaoDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _separacao.SepararEmLote(dto, usuarioId, ct), criado: true);
+  }
+
   [HttpGet("estrutura/{id:int}/separacoes")]
   public async Task<IActionResult> Historico(int id, CancellationToken ct)
   {

@@ -1,39 +1,13 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { separar, type LinhaDeMaterial, type MaterialPendente, type PendenciaDeSeparacaoDto } from '../api/separacao'
+import { separar, type PendenciaDeSeparacaoDto } from '../api/separacao'
 import { ehConflito } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
-import { formatarQuantidade, rotuloDoNo } from '../execucao/formatacao'
-import { lerQuantidade, quantidadeParaCampo } from '../execucao/quantidade'
-
-/** O que um campo diz: não vai no corpo (vazio ou zero), vai com este valor, ou está errado. */
-type LeituraDoCampo = { tipo: 'nao-vai' } | { tipo: 'vai'; valor: number } | { tipo: 'erro'; erro: string }
-
-// Zero escrito de qualquer jeito ("0", "0,0", "00.00"): é o Separador dizendo "deste não levei", não erro.
-const ZERO = /^0+([.,]0+)?$/
-
-/**
- * Lê um campo sem máximo: acima do planejado é aceito (D9 da spec da Fase 4 — o parafuso que caiu), então
- * `lerQuantidade` recebe infinito e só recusa o formato.
- */
-function lerCampo(texto: string): LeituraDoCampo {
-  const aparado = texto.trim()
-  if (aparado === '' || ZERO.test(aparado)) return { tipo: 'nao-vai' }
-  const leitura = lerQuantidade(aparado, Number.POSITIVE_INFINITY)
-  return leitura.erro === null ? { tipo: 'vai', valor: leitura.valor } : { tipo: 'erro', erro: leitura.erro }
-}
-
-/** O texto embaixo do campo: o erro, o aviso de "acima" (neutro) ou quanto falta. */
-function dicaDo(m: MaterialPendente, leitura: LeituraDoCampo): string {
-  if (leitura.tipo === 'erro') return leitura.erro
-  if (leitura.tipo === 'vai' && leitura.valor > m.pendencia) {
-    return `acima do planejado em ${formatarQuantidade(leitura.valor - m.pendencia)} ${m.unidadeMedida}`
-  }
-  return `Falta ${formatarQuantidade(m.pendencia)} ${m.unidadeMedida}`
-}
+import { rotuloDoNo } from '../execucao/formatacao'
+import { camposDoNo, camposInvalidos, dicaDoCampo, linhasDosCampos } from './loteDaSeparacao'
 
 interface Props {
   pendencia: PendenciaDeSeparacaoDto
@@ -62,17 +36,13 @@ export function PainelDeSeparacao({ pendencia, aoFechar, aoSalvar }: Props) {
   const [erro, setErro] = useState<string | null>(null)
   const enviandoRef = useRef(false)
 
-  const campos = pendencia.materiais.map((m) => {
-    const texto = textos[m.materialId] ?? quantidadeParaCampo(m.pendencia)
-    return { material: m, texto, leitura: lerCampo(texto) }
-  })
-  const algumErro = campos.some((c) => c.leitura.tipo === 'erro')
-  const linhas: LinhaDeMaterial[] = campos.flatMap((c) =>
-    c.leitura.tipo === 'vai' ? [{ materialId: c.material.materialId, quantidade: c.leitura.valor }] : [])
+  const campos = camposDoNo(pendencia, textos)
+  const invalido = camposInvalidos(campos)
+  const linhas = linhasDosCampos(campos)
 
   async function enviar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (enviandoRef.current || algumErro || linhas.length === 0) return
+    if (enviandoRef.current || invalido) return
     enviandoRef.current = true
     setEnviando(true)
     setErro(null)
@@ -98,7 +68,7 @@ export function PainelDeSeparacao({ pendencia, aoFechar, aoSalvar }: Props) {
       enviando={enviando}
     >
       {campos.map(({ material: m, texto, leitura }) => (
-        <Campo key={m.materialId} rotulo={`${m.codigo} ${m.descricao} (${m.unidadeMedida})`} dica={dicaDo(m, leitura)}>
+        <Campo key={m.materialId} rotulo={`${m.codigo} ${m.descricao} (${m.unidadeMedida})`} dica={dicaDoCampo(m, leitura)}>
           {(id, idDaDica) => (
             <input
               id={id}
@@ -123,7 +93,7 @@ export function PainelDeSeparacao({ pendencia, aoFechar, aoSalvar }: Props) {
         type="submit"
         carregando={enviando}
         rotuloCarregando="Registrando…"
-        disabled={algumErro || linhas.length === 0}
+        disabled={invalido}
         className="self-start"
       >
         Registrar separação

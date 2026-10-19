@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterMateriaisDoNo, substituirMateriaisDoNo, separar, obterHistoricoDeSeparacoes, estornarSeparacao,
-  listarPendenciasDeSeparacao,
+  listarPendenciasDeSeparacao, separarEmLote,
 } from './separacao'
 import { aoMudarOLivro } from './sinalDoLivro'
 import { inicializar, _resetParaTeste } from './client'
@@ -46,6 +46,21 @@ describe('separacao', () => {
     expect(url).toBe(caminho)
     expect(init.method).toBe(metodo)
     expect(JSON.parse(init.body as string)).toEqual({ linhas: LINHAS })
+  })
+
+  it('separarEmLote faz POST em /separacoes com o corpo { nos } e devolve uma entrada por nó', async () => {
+    const resposta = [{ estruturaItemId: 42, separacoes: [], materiais: [] }]
+    const fetchMock = vi.fn().mockResolvedValue(respostaJson(resposta, 201))
+    vi.stubGlobal('fetch', fetchMock)
+    const nos = [{ estruturaItemId: 42, linhas: LINHAS }, { estruturaItemId: 43, linhas: [LINHAS[0]] }]
+
+    const lido = await separarEmLote(nos)
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/separacoes')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({ nos })
+    expect(lido).toEqual(resposta)
   })
 
   it('substituirMateriaisDoNo com lista vazia manda { linhas: [] }, não corpo vazio', async () => {
