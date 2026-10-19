@@ -91,6 +91,56 @@ public class MateriaisDoNoUseCaseTests
   }
 
   [Fact]
+  public async Task Obter_nao_traz_o_material_fora_do_plano_com_toda_separacao_estornada()
+  {
+    var (uso, repo) = Montar();
+    repo.Planejado.Add(Plano(Chapa, 5m));
+    var separacao = Linha(TiposDeSeparacao.Separacao, Parafuso, 3m);
+    await repo.GravarAsync([separacao], CancellationToken.None);
+    await repo.GravarAsync([Linha(TiposDeSeparacao.Estorno, Parafuso, 3m, separacao.Id)], CancellationToken.None);
+
+    var r = await uso.Obter(No, CancellationToken.None);
+
+    Assert.True(r.Sucesso);
+    var unico = Assert.Single(r.Valor!.Materiais);
+    Assert.Equal(Chapa, unico.MaterialId);
+    // As linhas continuam no livro: quem as mostra e o historico, nao a lista de materiais.
+    Assert.Equal(2, repo.Linhas.Count);
+  }
+
+  [Fact]
+  public async Task Obter_traz_o_material_fora_do_plano_com_separado_liquido_maior_que_zero()
+  {
+    var (uso, repo) = Montar();
+    var primeira = Linha(TiposDeSeparacao.Separacao, Parafuso, 3m);
+    await repo.GravarAsync([primeira, Linha(TiposDeSeparacao.Separacao, Parafuso, 2m)], CancellationToken.None);
+    await repo.GravarAsync([Linha(TiposDeSeparacao.Estorno, Parafuso, 3m, primeira.Id)], CancellationToken.None);
+
+    var r = await uso.Obter(No, CancellationToken.None);
+
+    var parafuso = Assert.Single(r.Valor!.Materiais);
+    Assert.False(parafuso.NoPlanejado);
+    Assert.Equal(2m, parafuso.Separado);
+  }
+
+  [Fact]
+  public async Task Obter_traz_o_material_do_plano_sem_separacao_com_a_pendencia_inteira()
+  {
+    var (uso, repo) = Montar();
+    repo.Planejado.Add(Plano(Parafuso, 10m));
+    // Separado e estornado de novo: o separado liquido volta a zero, e o material do plano continua.
+    var separacao = Linha(TiposDeSeparacao.Separacao, Parafuso, 4m);
+    await repo.GravarAsync([separacao], CancellationToken.None);
+    await repo.GravarAsync([Linha(TiposDeSeparacao.Estorno, Parafuso, 4m, separacao.Id)], CancellationToken.None);
+
+    var r = await uso.Obter(No, CancellationToken.None);
+
+    var parafuso = Assert.Single(r.Valor!.Materiais);
+    Assert.True(parafuso.NoPlanejado);
+    Assert.Equal((10m, 0m, 10m), (parafuso.Planejado, parafuso.Separado, parafuso.Pendencia));
+  }
+
+  [Fact]
   public async Task Substituir_troca_a_lista_inteira_e_devolve_o_resumo_novo()
   {
     var (uso, repo) = Montar();

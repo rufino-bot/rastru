@@ -7,7 +7,8 @@ namespace Rastreamento.Application.Separacao;
 /// <summary>
 /// Os materiais planejados de UM no, editaveis pelo PCP (spec da Fase 4, D8). O `PUT` substitui a lista
 /// inteira: `[]` limpa o planejado. Tirar do plano um material que ja tem separacao e permitido — a linha
-/// do livro continua e o item volta no `GET` com `NoPlanejado = false` (D14). Toda validacao vem antes da
+/// do livro continua e o item volta no `GET` com `NoPlanejado = false` (D14), enquanto o separado liquido
+/// for maior que zero (decisao do usuario na conferencia de 2026-10-19). Toda validacao vem antes da
 /// unica escrita; a ordem e: no (404), quantidade, material repetido, material existente e ativo.
 /// </summary>
 public sealed class MateriaisDoNoUseCase
@@ -68,7 +69,11 @@ public sealed class MateriaisDoNoUseCase
     var materiais = (await _separacao.ListarMateriaisAsync(ids, ct)).ToDictionary(m => m.Id);
     var doAlmoxarifado = materiais.Values.Where(m => m.SetorDeEstoqueId is null).Select(m => m.Id).ToHashSet();
 
+    // O material fora do planejado so fica enquanto tem separado liquido: com toda separacao estornada, nao
+    // resta nada dele no no, e as linhas continuam no historico (`GET .../separacoes`). O do planejado vem
+    // sempre, mesmo com separado zero.
     var itens = CalculoDaSeparacao.Resumir(planejado, linhas, doAlmoxarifado)
+        .Where(r => r.NoPlanejado || r.Separado > 0m)
         .Select(r => ProjecaoDaSeparacao.Projetar(r, materiais[r.MaterialId]))
         .OrderBy(i => i.Codigo, StringComparer.OrdinalIgnoreCase).ThenBy(i => i.MaterialId)
         .ToList();
