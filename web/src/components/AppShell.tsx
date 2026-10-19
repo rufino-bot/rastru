@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { contarTarefas } from '../api/execucao'
 import { aoMudarOLivro } from '../api/sinalDoLivro'
@@ -24,29 +24,23 @@ interface ItemDeNavegacao {
  * que este comentário previa (desvio D4 do plano 3). Remedido em 2026-09-25, Chromium headless
  * contra o CSS do build, com os sete links e o contador "Tarefas 12": o cabeçalho pede **888px**;
  * em 768px estourava 120px, e em 1024px sobram 136px. O celular e o tablet em retrato já usavam a
- * gaveta, e continuam usando. O oitavo link deve caber nos 136px — remeça quando ele chegar; o
- * agrupamento continua sendo a saída se não couber.
+ * gaveta, e continuam usando.
  *
- * **O oitavo link chegou na Fase 4** (Separação, spec da Fase 4 §6.1), e **não foi remedido** quando
- * entrou: a sessão que o acrescentou não tinha navegador. A conta dos 136px de sobra em 1024px é a de
- * sete links; quem tiver Chromium remede com os oito antes de contar com folga para o nono (Qualidade,
- * Fase 5).
+ * **O oitavo link chegou na Fase 4** (Separação, spec da Fase 4 §6.1), e não coube: na conferência do
+ * usuário no navegador (2026-10-19), o cabeçalho quebrou em duas linhas em 1024px com o contador
+ * "Tarefas N". A saída foi tirar o "Início" do menu, na barra e na gaveta: a marca "Rastru" do
+ * cabeçalho virou o link para a Home. São sete links de novo, mas não os sete medidos em 2026-09-25
+ * (Separação no lugar de Início), e esta mudança **não foi medida** com navegador: quem confirma que o
+ * cabeçalho volta a uma linha em 1024px é a conferência do usuário. Antes do nono link (Qualidade,
+ * Fase 5), meça.
  *
- * **O `end` do item `/` é REDUNDANTE nesta versão, e isso foi medido — não suposto.** Apagar os
- * dois `end={i.para === '/'}` deixa a suíte 10/10 VERDE (mutação M7, medida em 2026-08-10 com
- * react-router 7.18.1). O motivo está na implementação do `NavLink`: além de `startsWith`, ele
- * exige que o caractere logo após o caminho seja `/`, então `to="/"` em `/setores` compara
- * `charAt(1)`, que é `s`, e não casa. O `end` fica assim mesmo, por duas razões: declara a
- * intenção no ponto de uso, e esse comportamento do react-router já mudou uma vez — versões v6
- * iniciais casavam `/` com tudo, que é justamente o bug que o `end` existe para evitar.
- *
- * Consequência para quem for medir mutação aqui: **M7 é mutante EQUIVALENTE, não lacuna de
- * teste.** Não escreva teste tentando matá-la; não há comportamento que a distinga.
+ * A marca é `Link`, não `NavLink`: a Home não é item do menu, então não ganha `aria-current` nem o
+ * estilo de item ativo. Por isso nenhum item precisa mais do `end` que impedia `/` de casar com toda
+ * rota.
  */
 const ITENS: ItemDeNavegacao[] = [
-  { para: '/', rotulo: 'Início' },
-  // Fila, Tarefas e Separação logo depois do Início: são as telas do chão de fábrica, abertas o dia
-  // inteiro no celular — os cadastros são do escritório.
+  // Fila, Tarefas e Separação primeiro: são as telas do chão de fábrica, abertas o dia inteiro no
+  // celular — os cadastros são do escritório.
   { para: '/fila', rotulo: 'Fila' },
   { para: '/tarefas', rotulo: 'Tarefas' },
   { para: '/separacao', rotulo: 'Separação' },
@@ -140,12 +134,24 @@ export function AppShell() {
     <div className="min-h-screen bg-fundo font-sans text-tinta">
       <header className="bg-chrome">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <span className="text-lg font-semibold tracking-tight text-marca">Rastru</span>
+          {/* A marca leva à Home (o "Início" saiu do menu). O nome acessível diz para onde ela leva; o anel
+              de foco é o `marca` dos links do menu, pelo mesmo contraste sobre o chrome. A gaveta fecha
+              pelo efeito sobre `location.key`, como em qualquer outra navegação. */}
+          <Link
+            to="/"
+            aria-label="Rastru — Início"
+            className={
+              'rounded-lg text-lg font-semibold tracking-tight text-marca '
+              + 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca'
+            }
+          >
+            Rastru
+          </Link>
 
           {/* Barra: some abaixo de 1024px, onde a gaveta assume (desvio D4 do plano 3 da Fase 3). */}
           <nav aria-label="Principal" className="hidden lg:flex lg:items-center lg:gap-1">
             {ITENS.map((i) => (
-              <NavLink key={i.para} to={i.para} end={i.para === '/'} className={classesDoLink}>
+              <NavLink key={i.para} to={i.para} className={classesDoLink}>
                 <RotuloDoItem item={i} totalDeTarefas={totalDeTarefas} />
               </NavLink>
             ))}
@@ -184,7 +190,7 @@ export function AppShell() {
         {gavetaAberta && (
           <nav aria-label="Menu" className="flex flex-col gap-1 border-t border-chrome-ativo px-4 pb-4 lg:hidden">
             {ITENS.map((i) => (
-              <NavLink key={i.para} to={i.para} end={i.para === '/'} className={classesDoLink}>
+              <NavLink key={i.para} to={i.para} className={classesDoLink}>
                 <RotuloDoItem item={i} totalDeTarefas={totalDeTarefas} />
               </NavLink>
             ))}
