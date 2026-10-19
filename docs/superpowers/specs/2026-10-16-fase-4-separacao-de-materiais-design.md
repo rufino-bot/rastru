@@ -190,6 +190,11 @@ Todas sob `/api`, com as rotas de nó sob `estrutura/{id}` (o `05` pede que as r
   descrição, unidade, `ficaEm` (`{ setorId, nome }` ou `null` = almoxarifado), `planejado`, `separado`,
   `pendencia` e `noPlanejado`. A lista inclui o material que saiu do plano e tem separação, com
   `noPlanejado: false` e `planejado: 0`.
+  - **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** o material que saiu do plano só
+    vem **enquanto o separado líquido for maior que zero**. Fora do planejado e com toda separação estornada,
+    ele sai da lista: não resta nada dele no nó, e as linhas continuam no `GET /estrutura/{id}/separacoes`
+    (o histórico não muda). O material do planejado vem sempre, mesmo com separado zero e a pendência
+    inteira. O filtro mora no backend, porque é o contrato da rota; o `PUT` devolve a lista pela mesma regra.
 - **`PUT /estrutura/{id}/materiais`** — PCP e Administrador. Corpo `[{ materialId, quantidade }]`, que
   **substitui** a lista inteira, no molde do `PUT /estrutura/{id}/roteiro`. Valida com as mesmas regras
   dos materiais da receita padrão (`ReceitaPadraoUseCase.SubstituirMateriais`): material repetido, material
@@ -204,6 +209,22 @@ Todas sob `/api`, com as rotas de nó sob `estrutura/{id}` (o `05` pede que as r
   - `409 MaterialForaDoPlanejado` quando algum material não está no planejado do nó, nomeando-o;
     `400` para quantidade inválida, lista vazia ou material repetido no corpo; `404` para nó inexistente.
   - Material que fica num Setor e está no planejado é aceito (D16).
+- **`POST /separacoes`** (**emenda de 2026-10-19, decisão do usuário na conferência da Fase 4**) — Separador e
+  Administrador, os mesmos perfis da rota de um nó. Separar em vários nós de uma vez, **tudo ou nada**. Corpo
+  `{ nos: [{ estruturaItemId, linhas: [{ materialId, quantidade }] }] }`.
+  - Antes de olhar os nós, as recusas de entrada do lote da execução, nesta ordem: lista de nós vazia ou
+    ausente (`400 LoteVazio`, "Marque pelo menos um item."), mais nós que o teto do lote da execução
+    (`ApontamentoUseCase.TamanhoMaximoDoLote`, `400 LoteGrandeDemais`) e nó repetido no corpo
+    (`400 ItemRepetido`).
+  - Depois, cada nó pelas **mesmas regras e na mesma ordem** da rota de um nó (404, linhas vazias,
+    quantidade, material repetido, fora do planejado), na ordem do corpo, parando no primeiro recusado. É o
+    mesmo núcleo de validação, não uma cópia. A recusa de um nó leva o nome dele na frente da frase
+    (`"{nome}: {frase}"`), como o lote da Fila; não levam o prefixo o `404`, que continua sem corpo, e o
+    `409 MaterialForaDoPlanejado`, cuja frase já nomeia o nó.
+  - Sem a transação da execução, como a rota de um nó (decisão P1 do plano de backend): valida todos os nós e
+    só então grava as linhas de todos numa escrita só.
+  - `201` com uma entrada por nó, na ordem do corpo: o `estruturaItemId` e o mesmo conteúdo da resposta da
+    rota de um nó (as linhas gravadas e o resumo de cada material tocado).
 - **`GET /estrutura/{id}/separacoes`** — qualquer autenticado. O histórico do nó, mais recente primeiro:
   `id`, `tipo`, material, `quantidade`, `dataHora`, autor, `estornoDeId` e `estornavel` (calculado para quem
   pede, como os `estornaveis` da Fase 3D).
@@ -236,7 +257,7 @@ Todas sob `/api`, com as rotas de nó sob `estrutura/{id}` (o `05` pede que as r
 
 | Ação | Perfis |
 |---|---|
-| Separar | Separador, Administrador |
+| Separar (um nó ou em lote) | Separador, Administrador |
 | Estornar uma separação | Separador (só a própria), PCP, Administrador |
 | Editar os materiais do nó | PCP, Administrador |
 | "Fica em" do Material | Administrador (como o resto do cadastro de Material) |
@@ -248,11 +269,20 @@ O `05` ganha a tabela **"Contrato de erro da Separação"**, no formato `{ erro,
 Execução: `MaterialForaDoPlanejado`, `JaEstornada`, `EstornoDeEstorno` e `Proibido`, com o status de cada
 um. As mensagens nomeiam o material e o nó.
 
+**Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** o `POST /separacoes` (seção 5.2) reusa
+os códigos do lote da execução, `LoteVazio`, `LoteGrandeDemais` e `ItemRepetido` (os três `400`, com a mesma
+frase do lote da Fila nos dois primeiros), e devolve, para o nó recusado, o código e o status da rota de um
+nó, com o nome do nó na frente da frase. O `404` continua sem corpo, e o `409 MaterialForaDoPlanejado` passa
+sem o prefixo, porque a frase dele já nomeia o nó.
+
 ## 6. Front
 
 ### 6.1 Tela nova "Separação" (`/separacao`)
 
 - Item **"Separação"** no menu do `AppShell`, visível a todos (leitura é livre; o gating vai na ação).
+  **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** com o oitavo link, o cabeçalho quebrou
+  em duas linhas em 1024px; o item "Início" saiu do menu (barra e gaveta), e a marca "Rastru" do cabeçalho virou
+  o link para a Home, com o nome acessível "Rastru — Início".
 - `<Pagina titulo="Separação">`, pensada para o **celular**: um cartão por nó, com o código e a descrição do
   nó; o Pedido com cliente e data de entrega; a pílula "Atrasado" e a de pausa, quando se aplicam (são
   estado, e usam os tons já reservados); o destino ("→ Solda", "→ Expedição" ou "sem Roteiro"); e uma
@@ -267,11 +297,36 @@ um. As mensagens nomeiam o material e o nó.
   os demais.
 - Os três estados, cada um com teste que morre se o estado sumir: carregando; vazio, distinguindo "Nada a
   separar" de "Nenhum item com esses filtros"; e erro (`mensagemDeErro`).
+- **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4 — separar em lote**, no molde da Fila e
+  das Tarefas (desvios D7 a D12 do plano 2 dos filtros), com a lógica pura em `web/src/separacao/loteDaSeparacao.ts`:
+  - Uma caixa por cartão, só para quem separa, com nome acessível que distingue o nó **e** o Pedido ("Marcar
+    QD-01 — Quadro (PED-1)"): o mesmo código de Componente aparece em Pedidos diferentes. A caixa marca o
+    **cartão inteiro**, com todos os materiais pendentes dele.
+  - O cartão marcado mostra um campo por material pendente, preenchido com a pendência e lido como o do
+    painel individual, com o mesmo aviso neutro "acima do planejado em …". O nome acessível de cada campo
+    acrescenta o cartão ao rótulo do material, para ser único na tela. A **quantidade é editável no lote**.
+  - Campo vazio ou zero não vai. Cartão marcado com todos os campos vazios ou zero, ou com algum texto que não
+    é número, deixa o lote inválido, e o botão não envia.
+  - A `BarraDoLote`, fixa no rodapé enquanto há seleção: "Separar 2 itens" ou "Separar 1 item", contando
+    cartões; "Registrando…" durante o envio; "Limpar seleção"; os marcados que o filtro esconde vão no lote,
+    com o aviso da barra. "Marcar todos" age sobre os cartões visíveis.
+  - Marcar ou desmarcar fecha o painel individual aberto; o "Separar" de cada cartão continua.
+  - Um `POST /separacoes` leva todos os marcados. Sucesso limpa a seleção e recarrega. Recusa recarrega,
+    mantém a seleção e mostra a frase do servidor na barra. A recarga que tira da lista um cartão marcado o
+    tira da seleção, com aviso, e o texto digitado nos cartões que ficam não é reescrito (o campo que
+    ninguém tocou mostra a pendência atual, como no painel individual). Dois toques enviam uma vez.
 
 ### 6.2 Painel do nó (`AgrupamentoDetalhePage`, `PainelDoNo`)
 
 - Seção **"Materiais"**: cada material com planejado, separado, pendência e "Fica em"; o que saiu do
   planejado e tem histórico, marcado "fora do planejado".
+  - **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** "tem histórico" quer dizer separado
+    líquido maior que zero. O material fora do planejado com toda separação estornada sai da seção (a regra
+    mora no `GET /estrutura/{id}/materiais`, seção 5.2); as linhas dele continuam em "Separações".
+  - **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** no editor, o "Remover" de cada
+    linha fica na linha da caixa do campo, da altura dela, e a dica (descrição e unidade) embaixo; a linha de
+    adicionar tem os rótulos na mesma linha, e o `<select>`, o campo e o "Adicionar" alinhados. O arranjo é o
+    `aoLado` do `Campo`.
 - **"Editar materiais"**, sob `usePodeEscrever('materiaisDoNo')`, abre um editor no molde do
   `EditorDeRoteiroDoNo`, com o mesmo seletor de material que a receita padrão usa na
   `ComponenteDetalhePage`.

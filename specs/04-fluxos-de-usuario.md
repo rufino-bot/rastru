@@ -313,6 +313,12 @@ ao contrário, fica estocada no Corte, e o operador a pega ali mesmo. **A execu�
    pendência some. Um material que fica num Setor também pode ser registrado, se estiver no planejado
    do nó (D16); ele só não aparece na lista. **Fora do planejado, a separação é recusada** (409
    `MaterialForaDoPlanejado`): é erro de plano, e o PCP o corrige no passo 1.
+   **Em lote** (decisão do usuário na conferência da Fase 4, 2026-10-19): a caixa de cada cartão o marca
+   inteiro, e o cartão marcado mostra um campo por material pendente, já preenchido com a pendência e
+   editável. A barra fixa no rodapé envia todos os marcados numa requisição só, **tudo ou nada**
+   (`POST /separacoes`): "Separar 2 itens". Se um nó é recusado, nada é gravado, a lista recarrega, a seleção
+   fica e a frase do servidor, com o nome do nó, aparece na barra; o cartão que saiu da lista sai da seleção,
+   com aviso. "Marcar todos" marca os cartões visíveis, e o marcado que o filtro esconde vai junto.
 5. **Estornar.** A correção é um **estorno** da linha inteira, uma vez só (D10); não há saldo de
    estoque nem devolução. O Separador estorna só a que ele mesmo registrou; o PCP e o Administrador,
    qualquer uma. Estornar uma separação que saiu do plano é possível.

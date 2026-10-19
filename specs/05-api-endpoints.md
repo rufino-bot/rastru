@@ -777,7 +777,11 @@ de backend da Fase 4, `docs/superpowers/plans/2026-10-16-fase-4-backend.md`.)*
 
 - `GET /estrutura/{id}/materiais` — os materiais do nó com a conta da regra 34. `404` se o nó não existe.
   Responde `MateriaisDoNoDto` (abaixo). A lista traz o material planejado **e** o que saiu do plano mas tem
-  separação, que vem com `noPlanejado: false`, `planejado: 0` e `pendencia: 0` (D14).
+  separação, que vem com `noPlanejado: false`, `planejado: 0` e `pendencia: 0` (D14). O que saiu do plano só
+  vem **enquanto o separado líquido for maior que zero**: com toda separação estornada ele sai da lista, e as
+  linhas continuam no `GET /estrutura/{id}/separacoes` (decisão do usuário na conferência da Fase 4,
+  2026-10-19). O material do planejado vem sempre, mesmo com separado zero. O `PUT` devolve a lista pela mesma
+  regra.
 - `PUT /estrutura/{id}/materiais` *(PCP, Administrador)* — **substitui a lista inteira**, no molde do
   `PUT /estrutura/{id}/roteiro`; `[]` limpa o planejado. Body: `{ linhas: [{ materialId, quantidade }] }`;
   corpo sem `linhas` é recusado antes do caso de uso, no formato de binding do ASP.NET (o mesmo da seção
@@ -799,6 +803,17 @@ de backend da Fase 4, `docs/superpowers/plans/2026-10-16-fase-4-backend.md`.)*
   `QuantidadeInvalida`) → material repetido (400 `MaterialRepetido`) → material fora do planejado (409
   `MaterialForaDoPlanejado`). **A pausa do Pedido não recusa a separação** (regra 31: ela recusa só o
   início).
+- `POST /separacoes` *(Separador, Administrador)* — separar em vários nós de uma vez, **tudo ou nada** (a tela
+  "Separação" em lote; decisão do usuário na conferência da Fase 4, 2026-10-19). Body:
+  `{ nos: [{ estruturaItemId, linhas: [{ materialId, quantidade }] }] }`. Antes de olhar os nós, as recusas de
+  entrada do lote da Execução, nesta ordem: `nos` vazia ou ausente (400 `LoteVazio`), mais nós que o teto do
+  lote da Execução (400 `LoteGrandeDemais`) e nó repetido no corpo (400 `ItemRepetido`). Depois cada nó, na
+  ordem do corpo, pelas **mesmas regras e na mesma ordem** do `POST /estrutura/{id}/separacoes` (o mesmo
+  núcleo), parando no primeiro recusado; a recusa leva o nome do nó na frente da frase (`"{nome}: {frase}"`),
+  salvo o 404, que continua sem corpo, e o 409 `MaterialForaDoPlanejado`, cuja frase já nomeia o nó. Como a
+  rota de um nó, sem a transação da Execução (decisão P1): valida todos os nós e grava as linhas de todos numa
+  escrita só. **201** com uma entrada por nó, na ordem do corpo: o `estruturaItemId` e o mesmo conteúdo do
+  `ResultadoDaSeparacaoDto`.
 - `GET /estrutura/{id}/separacoes` — o histórico do nó, mais recente primeiro (`dataHora` e, no empate, `id`
   decrescente), com as separações e os estornos. `estornavel` é **calculado para quem pede**, como os
   `estornaveis` da Fila: é verdadeiro só na linha `Separacao` ainda sem estorno e que o leitor pode
@@ -842,6 +857,11 @@ camelCase, como o resto da API. Decimais como número. `dataHora` em ISO 8601 co
 { "separacoes": [ /* SeparacaoDto, estornavel: true */ ],
   "materiais":  [ /* item de MateriaisDoNoDto, só os materiais tocados */ ] }
 
+// POST /separacoes  (corpo)
+{ "nos": [ { "estruturaItemId": 42, "linhas": [ { "materialId": 7, "quantidade": 2 } ] } ] }
+// POST /separacoes  → 201  (uma entrada por nó, na ordem do corpo)
+[ { "estruturaItemId": 42, "separacoes": [ /* SeparacaoDto */ ], "materiais": [ /* só os tocados */ ] } ]
+
 // SeparacaoDto  (GET /estrutura/{id}/separacoes devolve a lista; POST /separacoes/{id}/estorno devolve um)
 { "id": 91, "tipo": "Separacao",              // ou "Estorno"
   "materialId": 7, "materialCodigo": "PAR-M8", "materialDescricao": "Parafuso M8", "unidadeMedida": "UN",
@@ -879,13 +899,18 @@ Formato `{ erro, mensagem }` do "Contrato de erro da Execução": `erro` é o c�
 para o operador. As mensagens de `MaterialForaDoPlanejado`, `JaEstornada` e `EstornoDeEstorno` **nomeiam o
 material** ("PAR-M8 (Parafuso M8)") **e o nó** ("do nó Quadro soldado"; o nó sem descrição própria aparece como
 "do item 42"). O `404` vai sem corpo. O `403` do `[Authorize(Roles)]` também vai sem corpo; o `403` `Proibido`
-com corpo é o do caso de uso, no estorno.
+com corpo é o do caso de uso, no estorno. No `POST /separacoes`, a recusa de um nó vem com o código e o status
+da rota de um nó, e a frase com o nome do nó na frente ("Quadro soldado: …"; "item 42: …" sem descrição
+própria), salvo `MaterialForaDoPlanejado`, que já o nomeia.
 
 | Status | Código | Quando |
 |---|---|---|
 | 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (`DECIMAL(18,4)`) em alguma linha do `POST /estrutura/{id}/separacoes` ou do `PUT /estrutura/{id}/materiais`; é o código da Execução, reusado |
 | 400 | `SeparacaoVazia` | `POST /estrutura/{id}/separacoes` com `linhas` vazia (sem a chave, é o erro de binding do ASP.NET) |
 | 400 | `MaterialRepetido` | o mesmo material duas vezes no corpo, no `POST` de separação ou no `PUT` de materiais |
+| 400 | `LoteVazio` | `POST /separacoes` com `nos` vazia ou ausente ("Marque pelo menos um item."); é o código do lote da Execução, reusado |
+| 400 | `LoteGrandeDemais` | `POST /separacoes` com mais nós que o teto do lote da Execução; código reusado |
+| 400 | `ItemRepetido` | `POST /separacoes` com o mesmo nó duas vezes; código reusado |
 | 400 | `MaterialInvalido` | `PUT /estrutura/{id}/materiais` com material inexistente ou inativo; a `mensagem` o nomeia |
 | 400 | `SetorDeEstoqueInvalido` | `POST /materiais` ou `PUT /materiais/{id}` com Setor inexistente ou inativo em `setorDeEstoqueId`; o `PUT` aceita o Setor que o Material já tem. **Sem `mensagem`**: é o formato `{ erro }` dos cadastros |
 | 403 | `Proibido` | `POST /separacoes/{id}/estorno` de linha de outro autor, por quem não é PCP nem Administrador; é o código da Execução, reusado |

@@ -496,7 +496,9 @@ e a decisão P2 do plano de backend da Fase 4).*
     - **Editar o planejado é livre (D14).** O PCP edita os materiais de qualquer nó a qualquer momento, inclusive
       depois de separar. O que já foi separado é fato e continua no histórico; o material separado que saiu do
       plano volta na leitura com `noPlanejado: false`, `planejado: 0` e **sem pendência** — aparece como "fora
-      do planejado", e a separação dele continua estornável.
+      do planejado", e a separação dele continua estornável. Ele volta **enquanto o separado for maior que
+      zero**: estornada toda a separação, não resta nada dele no nó, e ele sai da lista de materiais do nó (as
+      linhas continuam no histórico; decisão do usuário na conferência da Fase 4, 2026-10-19).
     - **Livro só de inclusão (D10, D13).** Nunca `UPDATE` nem `DELETE` numa linha de `dbo.MaterialSeparacao`,
       pelo mesmo motivo do livro de movimentações. Por isso **nó com qualquer linha de separação, ainda que
       estornada, não se exclui** (409 `NoComSeparacao`, decisão P2 do plano de backend da Fase 4): com a

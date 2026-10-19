@@ -595,15 +595,18 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   grep -v "\.test\."` devolve duas linhas de elemento e duas de comentário que citam a tag).
 
   **A `BarraDoLote`** (`web/src/execucao/`, com teste próprio) é a barra fixa do lote e **serve a Fila
-  do Setor e as Tarefas**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, e o texto do botão
-  vem de quem a usa (`rotulo` e `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide
-  isso — e só usa tinta e superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em
-  lote usa a barra, não escreve outra. Dois usos, um por tela (`grep -rn "<BarraDoLote" web/src
-  --include=*.tsx | grep -v "\.test\."`, medido em 2026-10-14).
+  do Setor, as Tarefas e a Separação**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, a
+  Separação para Separar (desde a conferência da Fase 4), e o texto do botão vem de quem a usa (`rotulo` e
+  `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide isso — e só usa tinta e
+  superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em lote usa a barra, não
+  escreve outra. Três usos, um por tela (`grep -rn "<BarraDoLote" web/src --include=*.tsx | grep -v
+  "\.test\."`, medido em 2026-10-14 com dois e remedido em 2026-10-19 com o mesmo comando: três linhas, porque
+  a `SeparacaoPage` entrou; a métrica é **linhas**).
 - **A separação de material** (Fase 4, spec
   `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`) mora em `web/src/separacao/`: o
   `PainelDeSeparacao` ("Separar material"), o `MateriaisDoNo` e o `HistoricoDeSeparacoes` (as seções "Materiais" e
-  "Separações" do `PainelDoNo`), o `filtroDaSeparacao` e o `usePermissoesDaSeparacao`. Esse hook diz o que a sessão
+  "Separações" do `PainelDoNo`), o `filtroDaSeparacao`, o `loteDaSeparacao` (o campo de quantidade do painel e
+  do lote, e a lógica pura do lote da tela, no molde do `loteDaFila`) e o `usePermissoesDaSeparacao`. Esse hook diz o que a sessão
   pode fazer na separação (`separar`, `editarMateriais` e `podeEstornarSeparacao(autorId)`, que repete a regra do
   estorno: o autor, ou PCP e Administrador) e é o único lugar que lê `permissoes.ts` para ela, no molde do
   `usePermissoesDaExecucao`; tela e painel da separação não chamam `usePodeEscrever` direto. **A regra de cor:**
