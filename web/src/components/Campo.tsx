@@ -9,6 +9,13 @@ interface Props {
    */
   children: (id: string, idDaDica?: string) => ReactNode
   dica?: string
+  /**
+   * Um controle de fora — o "Remover" de uma linha, o "Adicionar" de quem acrescenta — na mesma linha da
+   * caixa do campo, esticado à altura dela, com a dica embaixo dos dois. Sem ele, um botão posto ao lado do
+   * `Campo` numa grade com `items-end` se alinha com a base da dica, e não com a caixa. Opcional: sem ele, o
+   * campo é o de sempre.
+   */
+  aoLado?: ReactNode
 }
 
 /**
@@ -23,7 +30,7 @@ interface Props {
  * que ele possa acrescentar `font-mono` num campo de código sem lutar contra a primitiva. Nasceu
  * nas Tasks 5/6 sem consumidor: a Task 8 é a primeira a usar `CLASSES_DE_CONTROLE` de verdade.
  */
-export function Campo({ rotulo, children, dica }: Props) {
+export function Campo({ rotulo, children, dica, aoLado }: Props) {
   const id = useId()
   const idDaDica = `${id}-dica`
 
@@ -36,7 +43,15 @@ export function Campo({ rotulo, children, dica }: Props) {
           ao campo focado, e num `<div>` externo ele nunca é anunciado. Por isso a render prop
           recebe os dois ids. Quando não há dica o segundo é `undefined`, e React omite o atributo
           em vez de apontar para um id inexistente — apontar para o vazio é pior que não apontar. */}
-      {children(id, dica ? idDaDica : undefined)}
+      {aoLado ? (
+        // `items-stretch`: o controle de fora fica da altura da caixa do campo (a mais alta da linha).
+        <div className="flex items-stretch gap-2">
+          <div className="min-w-0 flex-1">{children(id, dica ? idDaDica : undefined)}</div>
+          {aoLado}
+        </div>
+      ) : (
+        children(id, dica ? idDaDica : undefined)
+      )}
       {dica && <p id={idDaDica} className="text-sm text-tinta-fraca">{dica}</p>}
     </div>
   )

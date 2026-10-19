@@ -194,8 +194,23 @@ export function MateriaisDoNo({ noId, podeEditar, aoSalvar }: Props) {
           {linhas.length > 0 && (
             <ul aria-label="Materiais planejados" className="flex flex-col gap-3">
               {linhas.map((l) => (
-                <li key={l.materialId} className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
-                  <Campo rotulo={`Quantidade de ${l.codigo}`} dica={`${l.descricao} (${l.unidadeMedida})`}>
+                <li key={l.materialId}>
+                  {/* O "Remover" vai no `aoLado`: fica na linha da caixa do campo, da altura dela, e a dica
+                      (descrição e unidade) desce para baixo dos dois. */}
+                  <Campo
+                    rotulo={`Quantidade de ${l.codigo}`}
+                    dica={`${l.descricao} (${l.unidadeMedida})`}
+                    aoLado={(
+                      <Botao
+                        variante="secundario"
+                        aria-label={`Remover ${l.codigo}`}
+                        onClick={() => remover(l.materialId)}
+                        disabled={salvando}
+                      >
+                        Remover
+                      </Botao>
+                    )}
+                  >
                     {(id, idDaDica) => (
                       <input
                         id={id}
@@ -208,19 +223,14 @@ export function MateriaisDoNo({ noId, podeEditar, aoSalvar }: Props) {
                       />
                     )}
                   </Campo>
-                  <Botao
-                    variante="secundario"
-                    aria-label={`Remover ${l.codigo}`}
-                    onClick={() => remover(l.materialId)}
-                    disabled={salvando}
-                  >
-                    Remover
-                  </Botao>
                 </li>
               ))}
             </ul>
           )}
-          <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          {/* Duas colunas alinhadas pelo início: os rótulos ficam na mesma linha, e o `<select>` e a caixa da
+              Quantidade, com as mesmas classes, na de baixo; o "Adicionar" vai no `aoLado` da Quantidade, da
+              altura da caixa dela. */}
+          <div className="grid gap-3 sm:grid-cols-2">
             <Campo rotulo="Material">
               {(id) => (
                 <select
@@ -235,7 +245,18 @@ export function MateriaisDoNo({ noId, podeEditar, aoSalvar }: Props) {
                 </select>
               )}
             </Campo>
-            <Campo rotulo="Quantidade">
+            <Campo
+              rotulo="Quantidade"
+              aoLado={(
+                <Botao
+                  variante="secundario"
+                  onClick={adicionar}
+                  disabled={materialEscolhido === null || leituraDaNova.valor === null || salvando}
+                >
+                  Adicionar
+                </Botao>
+              )}
+            >
               {(id) => (
                 <input
                   id={id}
@@ -247,13 +268,6 @@ export function MateriaisDoNo({ noId, podeEditar, aoSalvar }: Props) {
                 />
               )}
             </Campo>
-            <Botao
-              variante="secundario"
-              onClick={adicionar}
-              disabled={materialEscolhido === null || leituraDaNova.valor === null || salvando}
-            >
-              Adicionar
-            </Botao>
           </div>
           <BannerDeErro mensagem={erroDoCatalogo} />
           <BannerDeErro mensagem={erroAoSalvar} />

@@ -180,6 +180,33 @@ describe('MateriaisDoNo', () => {
     expect(await screen.findByText('Planejado 12,5 UN · Separado 8 UN · Pendência 2 UN')).toBeTruthy()
   })
 
+  it('no editor, o botão Remover fica na linha do campo, e a dica fora dela; a linha de adicionar fica nivelada', async () => {
+    // O jsdom não mede pixel: o teste prova a estrutura que dá o alinhamento (ver o `aoLado` do `Campo`).
+    vi.stubGlobal('fetch', montarFetch())
+    renderizar()
+
+    const form = await abrirEditor()
+
+    const campo = within(form).getByLabelText('Quantidade de PAR-M8')
+    const remover = within(form).getByRole('button', { name: 'Remover PAR-M8' })
+    const dica = document.getElementById(campo.getAttribute('aria-describedby')!)!
+    expect(dica.textContent).toBe('Parafuso M8 (UN)')
+    const linha = remover.parentElement!
+    expect(linha.contains(campo)).toBe(true)
+    expect(linha.contains(dica)).toBe(false)
+    expect(linha.className.split(/\s+/)).toContain('items-stretch')
+
+    // Adicionar: o botão na linha da caixa da Quantidade; o Material ao lado, com os rótulos no topo
+    // das duas colunas (a grade alinha pelo início, não pela base).
+    const quantidade = within(form).getByLabelText('Quantidade')
+    const adicionar = within(form).getByRole('button', { name: 'Adicionar' })
+    expect(adicionar.parentElement!.contains(quantidade)).toBe(true)
+    expect(adicionar.parentElement!.className.split(/\s+/)).toContain('items-stretch')
+    const grade = within(form).getByLabelText('Material').closest('.grid')!
+    expect(grade.contains(quantidade)).toBe(true)
+    expect(grade.className).not.toMatch(/items-end/)
+  })
+
   it('quantidade inválida no editor não envia nada e diz qual linha', async () => {
     const fetchMock = montarFetch()
     vi.stubGlobal('fetch', fetchMock)
