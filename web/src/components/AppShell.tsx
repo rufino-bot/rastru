@@ -30,9 +30,9 @@ interface ItemDeNavegacao {
  * usuário no navegador (2026-10-19), o cabeçalho quebrou em duas linhas em 1024px com o contador
  * "Tarefas N". A saída foi tirar o "Início" do menu, na barra e na gaveta: a marca "Rastru" do
  * cabeçalho virou o link para a Home. São sete links de novo, mas não os sete medidos em 2026-09-25
- * (Separação no lugar de Início), e esta mudança **não foi medida** com navegador: quem confirma que o
- * cabeçalho volta a uma linha em 1024px é a conferência do usuário. Antes do nono link (Qualidade,
- * Fase 5), meça.
+ * (Separação no lugar de Início), e esta mudança **não foi medida** com instrumento (a largura que o
+ * cabeçalho pede não foi remedida): o usuário a conferiu no navegador e a aprovou na conferência de
+ * 2026-10-19. Antes do nono link (Qualidade, Fase 5), meça.
  *
  * A marca é `Link`, não `NavLink`: a Home não é item do menu, então não ganha `aria-current` nem o
  * estilo de item ativo. Por isso nenhum item precisa mais do `end` que impedia `/` de casar com toda
