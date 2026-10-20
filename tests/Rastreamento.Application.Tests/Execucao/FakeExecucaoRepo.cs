@@ -89,6 +89,13 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// </summary>
   public List<string> Eventos { get; } = new();
 
+  /// <summary>
+  /// Quantos <see cref="Eventos"/> ja existiam a cada `ObterPedidoDoNoAsync`: prova de que a leitura do Pedido
+  /// veio DEPOIS da trava dele (a ordem que evita o deadlock em `PK_Pedido`). Lista a parte, e nao um evento a
+  /// mais em <see cref="Eventos"/>, para nao mudar as sequencias que outros testes afirmam inteiras.
+  /// </summary>
+  public List<int> PedidoLidoAposEventos { get; } = new();
+
   /// <summary>Se ha uma transacao aberta agora: prova de que uma escrita aconteceu dentro ou fora dela.</summary>
   public bool EmTransacao => _emTransacao;
 
@@ -230,6 +237,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
   public Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct)
   {
+    PedidoLidoAposEventos.Add(Eventos.Count);
     var item = _estruturas.Itens.SingleOrDefault(i => i.Id == estruturaItemId);
     if (item is null || !Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag))
       return Task.FromResult<PedidoDoNo?>(null);

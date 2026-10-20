@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Application.Importacao;
 using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
@@ -59,6 +60,7 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
   [InlineData(typeof(RoteiroDoNoUseCase))]
   [InlineData(typeof(MateriaisDoNoUseCase))]
   [InlineData(typeof(ConsultaDeExecucaoUseCase))]
+  [InlineData(typeof(AfericaoUseCase))]
   public void Servico_e_registrado_como_Scoped(Type servico)
   {
     using var escopo = _factory.Services.CreateScope();

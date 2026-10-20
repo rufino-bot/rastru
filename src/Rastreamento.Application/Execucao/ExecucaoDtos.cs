@@ -14,9 +14,14 @@ public sealed record LocalDto(string Posicao, int? SetorId, string? SetorNome, i
           local.Ordem);
 }
 
+/// <summary>
+/// `ContagemId`, `LiberacaoId` e `RemessaId`: o registro do fim do caminho a que a linha pertence (decisao P1 do
+/// plano de backend da Fase 5A), nulos nas linhas que nao pertencem a nenhum.
+/// </summary>
 public sealed record MovimentacaoDto(
     int Id, int EstruturaItemId, string Tipo, decimal Quantidade, LocalDto Origem, LocalDto Destino,
-    int? MontagemId, int? EstornoDeId, DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada);
+    int? MontagemId, int? EstornoDeId, DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada,
+    int? ContagemId = null, int? LiberacaoId = null, int? RemessaId = null);
 
 public sealed record MontagemDto(
     int Id, int EstruturaItemId, int SetorId, string SetorNome, decimal Quantidade, DateTime DataHora,

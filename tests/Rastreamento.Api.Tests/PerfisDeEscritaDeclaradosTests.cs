@@ -196,6 +196,11 @@ public class PerfisDeEscritaDeclaradosTests
     // Pausa de Pedido (Fase 3D): PCP e Gestao — prioridade e decisao de planejamento.
     ["POST pedidos/{id:int}/pausas"] = ["PCP", "Gestao", "Administrador"],
     ["POST pedidos/{id:int}/retomada"] = ["PCP", "Gestao", "Administrador"],
+    // Expedicao (Fase 5A): aferir, contar e mandar para conserto sao da Qualidade, a pessoa da expedicao (D1 e
+    // secao 5.2 da spec da Fase 5A). Um controller por conjunto de perfis (decisao P7 do plano de backend).
+    ["POST estrutura/{id:int}/afericoes"] = ["Qualidade", "Administrador"],
+    ["POST estrutura/{id:int}/contagens"] = ["Qualidade", "Administrador"],
+    ["POST estrutura/{id:int}/consertos"] = ["Qualidade", "Administrador"],
   };
 
   /// <summary>

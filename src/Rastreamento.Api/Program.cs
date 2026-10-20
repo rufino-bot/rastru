@@ -13,6 +13,7 @@ using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Application.Importacao;
 using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
@@ -161,6 +162,7 @@ builder.Services.AddScoped<MateriaisDoNoUseCase>();
 builder.Services.AddScoped<SeparacaoUseCase>();
 builder.Services.AddScoped<ConsultaDeSeparacaoUseCase>();
 builder.Services.AddScoped<ConsultaDeExecucaoUseCase>();
+builder.Services.AddScoped<AfericaoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

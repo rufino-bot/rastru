@@ -1,5 +1,6 @@
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Estrutura;
 using Rastreamento.Application.Tests.Expedicao;
@@ -143,6 +144,8 @@ internal sealed class CenarioDeExecucao
   public EstornoUseCase Estorno() => new(Execucao, Estruturas, Catalogo);
 
   public PausaDePedidoUseCase Pausa() => new(Execucao);
+
+  public AfericaoUseCase Afericao() => new(Execucao, Expedicao, Estruturas, Setores, Catalogo);
 
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
 
