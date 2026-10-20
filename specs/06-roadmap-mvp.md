@@ -688,16 +688,19 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
 - **Separar em lote** (`POST /separacoes`, decisão do usuário na conferência de 2026-10-19): o Separador marca
   vários cartões da lista e separa de uma vez, tudo ou nada, no molde da Fila; cada nó passa pelas mesmas
   regras da rota de um nó, e a recusa de um nó leva o nome dele na frente da frase.
-- **Estado da fase (2026-10-20):** o plano de backend foi implementado na branch em 2026-10-16 — schema,
+- **Estado da fase (2026-10-20):** **concluída e mesclada na `main`** em 2026-10-20, pelo PR
+  rufino-bot/rastru#34 (merge `cdad1f9`, cujo segundo pai é `85a76c8`, o último commit da branch). O plano de
+  backend foi implementado na branch em 2026-10-16 — schema,
   regras, rotas, lista do Separador, resumo da Fila e a recusa de excluir nó com separação (409
   `NoComSeparacao`, decisão P2 do plano). O plano de front (`docs/superpowers/plans/2026-10-16-fase-4-front.md`)
   também está feito: as telas, o painel do nó, o resumo na Fila e o "Fica em" do cadastro de Material. A
   **conferência no navegador foi feita pelo usuário** em 2026-10-19, com quatro ajustes pedidos e aprovados
   (o lote na Separação, o menu sem "Início" com a marca "Rastru" levando à Home, o editor de materiais com os
   botões alinhados ao campo, e o material fora do plano e todo estornado saindo de "Materiais"), e a **review
-  de branch inteira foi feita**: os dois achados Important e parte dos Minor foram consertados numa rodada, e o
-  resto ficou como dívida registrada (entre elas, a receita padrão ainda recusa material inativo já gravado). A
-  fase **ainda não está mesclada** na `main`.
+  de branch inteira foi feita**: os dois problemas que ela apontou como bloqueantes e parte dos menores foram
+  consertados antes do merge, e o resto ficou como dívida (entre elas, a receita padrão ainda recusa material
+  inativo já gravado, como a spec da fase registra na emenda de 2026-10-20 do `PUT /estrutura/{id}/materiais`).
+  A próxima da sequência é a Fase 5; a 3C fica depois dela.
 - Critério de pronto: dá para saber quais materiais já foram separados/entregues para cada item em
   fabricação; o Separador tem uma lista do que falta levar para cada nó, só do material do almoxarifado,
   ordenada pelo prazo do Pedido, e registra pelo celular o que levou; o PCP edita os materiais planejados de

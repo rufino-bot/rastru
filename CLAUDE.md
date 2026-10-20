@@ -60,7 +60,10 @@ ver a seção «Data de entrega do Pedido» de `06-roadmap-mvp.md` e a spec
 `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`). A data de entrega foi concluída
 e mesclada em 2026-10-09 (rufino-bot/rastru#32). A **Fase 3B** veio em seguida, concluída e mesclada em
 2026-10-14 (rufino-bot/rastru#33; spec
-`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`).
+`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). A **Fase 4** veio em seguida,
+concluída e mesclada em 2026-10-20 (rufino-bot/rastru#34; spec
+`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`); a próxima da sequência é a
+Fase 5.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 

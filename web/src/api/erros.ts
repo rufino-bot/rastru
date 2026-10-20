@@ -29,7 +29,8 @@ export class ErroDeApi extends Error {
    * Código do erro que o SERVIDOR mandou no campo `erro`, quando o endpoint fala por código — a
    * execução da Fase 3 (`{ erro: "SaldoInsuficiente", mensagem: "Só há 6 de ..." }`, spec §8.2).
    * Opcional pelo mesmo motivo de `detalhe`: só populam o cliente da execução (`api/execucao.ts`), o da
-   * separação (`api/separacao.ts`) e o dos cadastros (`api/cadastros.ts`, no 400).
+   * separação (`api/separacao.ts`), o dos cadastros (`api/cadastros.ts`, no 400) e o do import da estrutura
+   * (`api/importacao.ts`, em `lerEscrita` e `confirmarImportacao`).
    * `mensagemDeErro` o traduz por `TRADUCAO_DOS_CODIGOS` quando o servidor não mandou frase.
    */
   readonly codigo?: string
