@@ -50,7 +50,10 @@ public class SeparacaoController : ExecucaoControllerBase
     return Traduzir(await _consulta.Historico(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
   }
 
-  /// <summary>A lista do Separador: os nos de Pedido em producao com material do almoxarifado pendente.</summary>
+  /// <summary>
+  /// A lista do Separador: os nos de Pedido aberto (nem Concluido nem Cancelado) com material do almoxarifado
+  /// pendente.
+  /// </summary>
   [HttpGet("separacoes/pendencias")]
   public async Task<IActionResult> Pendencias(CancellationToken ct) =>
       Traduzir(await _consulta.Pendencias(ct));

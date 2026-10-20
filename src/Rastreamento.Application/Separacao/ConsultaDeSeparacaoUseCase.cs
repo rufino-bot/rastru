@@ -59,9 +59,9 @@ public sealed class ConsultaDeSeparacaoUseCase
   }
 
   /// <summary>
-  /// A lista do Separador (spec da Fase 4, secao 5.2): todo no de Pedido em producao com ao menos um
-  /// material do almoxarifado pendente, do prazo de entrega mais proximo para o mais distante (`Id` do Pedido
-  /// e `Id` do no desempatando). Pedido pausado continua na lista, com a pausa: separar e antecipar, e a
+  /// A lista do Separador (spec da Fase 4, secao 5.2): todo no de Pedido aberto (nem Concluido nem Cancelado)
+  /// com ao menos um material do almoxarifado pendente, do prazo de entrega mais proximo para o mais distante
+  /// (`Id` do Pedido e `Id` do no desempatando). Pedido pausado continua na lista, com a pausa: separar e antecipar, e a
   /// pausa recusa so o inicio (regra 31). Pedido concluido ou cancelado nao vem de `ListarNosEmProducaoAsync`.
   /// </summary>
   public Task<Result<IReadOnlyList<PendenciaDeSeparacaoDto>>> Pendencias(CancellationToken ct) =>
