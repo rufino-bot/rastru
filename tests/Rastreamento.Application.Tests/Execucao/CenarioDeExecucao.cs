@@ -2,6 +2,7 @@ using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Estrutura;
+using Rastreamento.Application.Tests.Expedicao;
 using Rastreamento.Application.Tests.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -17,7 +18,7 @@ namespace Rastreamento.Application.Tests.Execucao;
 internal sealed class CenarioDeExecucao
 {
   public const int Corte = 1, Dobra = 2, Solda = 3, Pintura = 4, Inativo = 9;
-  public const int Operador = 10, Movimentador = 11, Pcp = 12;
+  public const int Operador = 10, Movimentador = 11, Pcp = 12, Qualidade = 13, Gestao = 14;
   public const int PedidoId = 1, AgrupamentoId = 1;
   public const int PedidoId2 = 2, AgrupamentoId2 = 2;
 
@@ -33,10 +34,17 @@ internal sealed class CenarioDeExecucao
   /// <summary>A separacao de material sobre o MESMO planejado da arvore (`Estruturas.Materiais`).</summary>
   public FakeSeparacaoRepo Separacao { get; }
 
+  /// <summary>
+  /// Os registros do fim do caminho da Peca (afericao, contagem, liberacao, remessa). Participa da transacao do
+  /// `Execucao`, como o `DbContext` compartilhado do codigo real.
+  /// </summary>
+  public FakeExpedicaoRepo Expedicao { get; }
+
   public CenarioDeExecucao()
   {
     Separacao = new FakeSeparacaoRepo(Estruturas);
     Execucao = new FakeExecucaoRepo(Estruturas);
+    Expedicao = new FakeExpedicaoRepo(Execucao, Estruturas);
     var setores = new[]
     {
       new Setor { Id = Corte, Nome = "Corte", Ativo = true },
@@ -56,6 +64,8 @@ internal sealed class CenarioDeExecucao
     Execucao.Usuarios[Operador] = "Operador do Corte";
     Execucao.Usuarios[Movimentador] = "Movimentador";
     Execucao.Usuarios[Pcp] = "PCP";
+    Execucao.Usuarios[Qualidade] = "Qualidade";
+    Execucao.Usuarios[Gestao] = "Gestão";
   }
 
   /// <summary>Um no com Roteiro de um passo por Setor, `Ordem` 1, 2, 3... Sem Setor: sem Roteiro.</summary>

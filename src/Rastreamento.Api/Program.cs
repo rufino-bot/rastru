@@ -146,6 +146,11 @@ builder.Services.AddScoped<ISeparacaoRepository, SeparacaoRepository>();
 
 // Execucao (Fase 3): o livro de movimentacoes e o que as escritas precisam em volta dele.
 builder.Services.AddScoped<IExecucaoRepository, ExecucaoRepository>();
+
+// Expedicao (Fase 5A): afericao, contagem, liberacao e remessa. Sem `Salvar` proprio: o `DbContext` escopado e o
+// mesmo da execucao, e quem persiste e o `SalvarAlteracoesAsync` do `IExecucaoRepository`.
+builder.Services.AddScoped<IExpedicaoRepository, ExpedicaoRepository>();
+
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 builder.Services.AddScoped<ApontamentoUseCase>();
 builder.Services.AddScoped<EntregaUseCase>();

@@ -518,6 +518,45 @@ public class ExecucaoRepository : IExecucaoRepository
     await _db.SaveChangesAsync(ct);
   }
 
+  public async Task<IReadOnlyList<PecaDoPedido>> ListarPecasDosPedidosAsync(
+      IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    if (pedidoIds.Count == 0) return [];
+    var ids = pedidoIds.ToList();
+    // So o no raiz: o INNER JOIN com Agrupamento deixa de fora o Agrupamento sem Peca (C16) por construcao.
+    return await (from e in _db.Estruturas.AsNoTracking()
+                  join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                  where e.EstruturaPaiId == null && ids.Contains(a.PedidoId)
+                  orderby a.PedidoId, a.Id, e.Id
+                  select new PecaDoPedido(a.PedidoId, a.Id, e.Id, e.Quantidade))
+        .ToListAsync(ct);
+  }
+
+  public async Task GravarFechamentoAsync(FechamentoCalculado fechamento, DateTime agora, CancellationToken ct)
+  {
+    // O COALESCE preserva a data ja gravada; o ramo e escolhido em C#, e nao por um ternario sobre a variavel
+    // capturada, para o SQL ser sempre o mesmo UPDATE simples de cada ramo.
+    if (fechamento.PedidoConcluido)
+      await _db.Pedidos.Where(p => p.Id == fechamento.PedidoId)
+          .ExecuteUpdateAsync(s => s
+              .SetProperty(p => p.Status, fechamento.Status)
+              .SetProperty(p => p.DataConclusao, p => p.DataConclusao ?? (DateTime?)agora), ct);
+    else
+      await _db.Pedidos.Where(p => p.Id == fechamento.PedidoId)
+          .ExecuteUpdateAsync(s => s
+              .SetProperty(p => p.Status, fechamento.Status)
+              .SetProperty(p => p.DataConclusao, (DateTime?)null), ct);
+
+    var concluidos = fechamento.Agrupamentos.Where(a => a.Concluido).Select(a => a.AgrupamentoId).ToList();
+    var abertos = fechamento.Agrupamentos.Where(a => !a.Concluido).Select(a => a.AgrupamentoId).ToList();
+    if (concluidos.Count > 0)
+      await _db.Agrupamentos.Where(a => concluidos.Contains(a.Id) && a.PedidoId == fechamento.PedidoId)
+          .ExecuteUpdateAsync(s => s.SetProperty(a => a.DataConclusao, a => a.DataConclusao ?? (DateTime?)agora), ct);
+    if (abertos.Count > 0)
+      await _db.Agrupamentos.Where(a => abertos.Contains(a.Id) && a.PedidoId == fechamento.PedidoId)
+          .ExecuteUpdateAsync(s => s.SetProperty(a => a.DataConclusao, (DateTime?)null), ct);
+  }
+
   public void Adicionar(Movimentacao movimentacao) => _db.Movimentacoes.Add(movimentacao);
 
   public void Adicionar(Montagem montagem) => _db.Montagens.Add(montagem);

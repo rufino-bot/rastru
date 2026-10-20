@@ -40,10 +40,16 @@ public sealed record FechamentoCalculado(
 public sealed record AgrupamentoNoFechamento(int AgrupamentoId, bool Concluido);
 
 /// <summary>
+/// Uma Peca (no raiz) de um Pedido, com o Agrupamento em que vive e a quantidade total dela: o que o fechamento
+/// (C11, C12 e C16 da spec da Fase 5A) precisa para decidir o status do Pedido e a conclusao dos Agrupamentos.
+/// </summary>
+public sealed record PecaDoPedido(int PedidoId, int AgrupamentoId, int PecaId, decimal Quantidade);
+
+/// <summary>
 /// O livro de movimentacoes e o que as escritas da Fase 3 precisam em volta dele (spec da Fase 3,
 /// secoes 7 e 8). Toda leitura devolve dado SOLTO (sem change tracking); as escritas sao
-/// `Adicionar` + `SalvarAlteracoesAsync`, e as tres unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
-/// `MarcarMontagemEstornadaAsync`, `FecharPausaAsync`) sao conjuntistas — nenhuma toca `Movimentacao`,
+/// `Adicionar` + `SalvarAlteracoesAsync`, e as unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
+/// `MarcarMontagemEstornadaAsync`, `FecharPausaAsync`, `GravarFechamentoAsync`) sao conjuntistas — nenhuma toca `Movimentacao`,
 /// que e so de inclusao.
 /// </summary>
 public interface IExecucaoRepository
@@ -184,6 +190,20 @@ public interface IExecucaoRepository
 
   /// <summary>Fecha o intervalo: conjuntista e condicionado a `RetomadoEm IS NULL`, nunca sobrescreve.</summary>
   Task FecharPausaAsync(int pausaId, int usuarioId, DateTime em, CancellationToken ct);
+
+  /// <summary>
+  /// As Pecas (nos raiz, `EstruturaPaiId` nulo) dos Agrupamentos dos Pedidos pedidos. Agrupamento sem Peca nao
+  /// aparece (C16: nao conclui e nao segura o Pedido); Item nunca aparece. Pedido sem Peca simplesmente nao volta.
+  /// </summary>
+  Task<IReadOnlyList<PecaDoPedido>> ListarPecasDosPedidosAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
+  /// <summary>
+  /// Grava o <see cref="FechamentoCalculado"/>: o `Status` do Pedido e a `DataConclusao` dele e dos Agrupamentos
+  /// que a lista traz (e so eles). Conjuntista, como as demais atualizacoes: `DataConclusao` vira
+  /// `COALESCE(DataConclusao, agora)` quando concluido — uma data ja gravada nao e sobrescrita — e `NULL` quando
+  /// nao (o estorno de remessa a limpa, C13). Dentro da transacao do movimento que mudou o fechamento.
+  /// </summary>
+  Task GravarFechamentoAsync(FechamentoCalculado fechamento, DateTime agora, CancellationToken ct);
 
   void Adicionar(Movimentacao movimentacao);
 

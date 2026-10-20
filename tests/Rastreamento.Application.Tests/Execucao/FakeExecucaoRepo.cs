@@ -14,12 +14,26 @@ namespace Rastreamento.Application.Tests.Execucao;
 /// </summary>
 public class FakeExecucaoRepo : IExecucaoRepository
 {
+  /// <summary>
+  /// O que outro fake que compartilha esta "transacao" (hoje o <see cref="Expedicao.FakeExpedicaoRepo"/>, que no
+  /// codigo real divide o `DbContext` com a execucao) precisa fazer nos tres momentos dela: gravar o pendente
+  /// no `SalvarAlteracoesAsync`, tirar o retrato do que a transacao pode mudar (para desfazer quando
+  /// `confirmar` recusa) e descartar o pendente no fim.
+  /// </summary>
+  public interface IParticipanteDaTransacao
+  {
+    void AoSalvar();
+    Action TirarRetrato();
+    void DescartarPendentes();
+  }
+
   private readonly FakeEstruturaRepo _estruturas;
   private readonly List<Movimentacao> _movimentosPendentes = new();
   private readonly List<Montagem> _montagensPendentes = new();
   private readonly List<PedidoPausa> _pausasPendentes = new();
   private int _proximoId = 5000;
   private bool _emTransacao;
+  private readonly List<IParticipanteDaTransacao> _participantes = new();
 
   public FakeExecucaoRepo(FakeEstruturaRepo estruturas)
   {
@@ -42,6 +56,15 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public HashSet<int> SetoresComKit { get; } = new();
 
   public Dictionary<int, string> StatusDoPedido { get; } = new();
+
+  /// <summary>
+  /// A `DataConclusao` gravada por <see cref="GravarFechamentoAsync"/>: PedidoId -> data (nulo = limpa).
+  /// Arranjo do teste tambem: um Pedido sem entrada tem `DataConclusao` nula.
+  /// </summary>
+  public Dictionary<int, DateTime?> DataConclusaoDoPedido { get; } = new();
+
+  /// <summary>Como <see cref="DataConclusaoDoPedido"/>, por AgrupamentoId.</summary>
+  public Dictionary<int, DateTime?> DataConclusaoDoAgrupamento { get; } = new();
 
   /// <summary>PedidoId -> Cliente. Arranjo do teste; pedido sem entrada volta com cliente vazio.</summary>
   public Dictionary<int, string> ClienteDoPedido { get; } = new();
@@ -68,6 +91,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
   /// <summary>Se ha uma transacao aberta agora: prova de que uma escrita aconteceu dentro ou fora dela.</summary>
   public bool EmTransacao => _emTransacao;
+
+  /// <summary>Liga outro fake a esta transacao (ver <see cref="IParticipanteDaTransacao"/>).</summary>
+  public void Participar(IParticipanteDaTransacao participante) => _participantes.Add(participante);
 
   public int Transacoes { get; private set; }
   public int Saves { get; private set; }
@@ -97,6 +123,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
     var montagens = Montagens.ToList();
     var pausas = Pausas.ToList();
     var status = new Dictionary<int, string>(StatusDoPedido);
+    var conclusaoDosPedidos = new Dictionary<int, DateTime?>(DataConclusaoDoPedido);
+    var conclusaoDosAgrupamentos = new Dictionary<int, DateTime?>(DataConclusaoDoAgrupamento);
+    var restauracoes = _participantes.Select(p => p.TirarRetrato()).ToList();
     var estadoDasMontagens = montagens.Select(g => (g, g.EstornadaEm, g.EstornadaPorUsuarioId)).ToList();
     var estadoDasPausas = pausas.Select(p => (p, p.RetomadoEm, p.RetomadoPorUsuarioId)).ToList();
     try
@@ -115,6 +144,11 @@ public class FakeExecucaoRepo : IExecucaoRepository
         Pausas.AddRange(pausas);
         StatusDoPedido.Clear();
         foreach (var (pedidoId, valor) in status) StatusDoPedido[pedidoId] = valor;
+        DataConclusaoDoPedido.Clear();
+        foreach (var (pedidoId, valor) in conclusaoDosPedidos) DataConclusaoDoPedido[pedidoId] = valor;
+        DataConclusaoDoAgrupamento.Clear();
+        foreach (var (agrupamentoId, valor) in conclusaoDosAgrupamentos) DataConclusaoDoAgrupamento[agrupamentoId] = valor;
+        foreach (var restaurar in restauracoes) restaurar();
         foreach (var (g, em, por) in estadoDasMontagens) { g.EstornadaEm = em; g.EstornadaPorUsuarioId = por; }
         foreach (var (p, em, por) in estadoDasPausas) { p.RetomadoEm = em; p.RetomadoPorUsuarioId = por; }
       }
@@ -126,6 +160,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
       _movimentosPendentes.Clear();
       _montagensPendentes.Clear();
       _pausasPendentes.Clear();
+      foreach (var participante in _participantes) participante.DescartarPendentes();
     }
   }
 
@@ -252,6 +287,29 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task MarcarPedidoEmProducaoAsync(int pedidoId, CancellationToken ct)
   {
     if (StatusDoPedido.GetValueOrDefault(pedidoId) == "Aberto") StatusDoPedido[pedidoId] = "EmProducao";
+    return Task.CompletedTask;
+  }
+
+  public Task<IReadOnlyList<PecaDoPedido>> ListarPecasDosPedidosAsync(
+      IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<PecaDoPedido>>(_estruturas.Itens
+          .Where(i => i.EstruturaPaiId is null && Agrupamentos.TryGetValue(i.AgrupamentoId, out var ag)
+              && pedidoIds.Contains(ag.PedidoId))
+          .Select(i => new PecaDoPedido(Agrupamentos[i.AgrupamentoId].PedidoId, i.AgrupamentoId, i.Id, i.Quantidade))
+          .OrderBy(p => p.PedidoId).ThenBy(p => p.AgrupamentoId).ThenBy(p => p.PecaId)
+          .ToList());
+
+  public Task GravarFechamentoAsync(FechamentoCalculado fechamento, DateTime agora, CancellationToken ct)
+  {
+    StatusDoPedido[fechamento.PedidoId] = fechamento.Status;
+    // COALESCE(DataConclusao, agora) quando concluido: a data ja gravada fica; NULL quando nao.
+    DataConclusaoDoPedido[fechamento.PedidoId] = fechamento.PedidoConcluido
+        ? DataConclusaoDoPedido.GetValueOrDefault(fechamento.PedidoId) ?? agora
+        : null;
+    foreach (var a in fechamento.Agrupamentos)
+      DataConclusaoDoAgrupamento[a.AgrupamentoId] = a.Concluido
+          ? DataConclusaoDoAgrupamento.GetValueOrDefault(a.AgrupamentoId) ?? agora
+          : null;
     return Task.CompletedTask;
   }
 
@@ -386,6 +444,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
     _montagensPendentes.Clear();
     _movimentosPendentes.Clear();
     _pausasPendentes.Clear();
+    foreach (var participante in _participantes) participante.AoSalvar();
     return Task.CompletedTask;
   }
 
