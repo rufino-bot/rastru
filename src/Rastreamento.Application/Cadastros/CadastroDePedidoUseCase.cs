@@ -240,5 +240,5 @@ public sealed class CadastroDePedidoUseCase
   private static PedidoDto Projetar(Pedido p, PausaAberta? pausa, DateOnly hoje) =>
       new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.DataEntrega,
           PrazoDeEntrega.EstaAtrasado(p.DataEntrega, p.Status, hoje),
-          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa));
+          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa), p.DataConclusao);
 }

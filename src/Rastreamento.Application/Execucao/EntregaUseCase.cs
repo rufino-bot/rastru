@@ -1,4 +1,5 @@
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -18,6 +19,7 @@ public sealed class EntregaUseCase
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly LeitorDeEstado _leitor;
   private readonly ProjetorDoLivro _projetor;
+  private readonly FechamentoDoPedido _fechamento;
 
   public EntregaUseCase(IExecucaoRepository execucao, IEstruturaRepository estruturas, IReceitaPadraoRepository catalogo)
   {
@@ -25,6 +27,7 @@ public sealed class EntregaUseCase
     _catalogo = catalogo;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
+    _fechamento = new FechamentoDoPedido(execucao);
   }
 
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> Entregar(EntregaDto dto, int usuarioId, CancellationToken ct)
@@ -51,6 +54,11 @@ public sealed class EntregaUseCase
       var ids = itens.Select(i => i.EstruturaItemId).Distinct().ToList();
       var travados = await _execucao.TravarNosAsync(ids, ct);
       if (travados.Count != ids.Count) return Falhas.NaoEncontrado<IReadOnlyList<MovimentacaoDto>>();
+      // So a Peca chega ao local de expedicao, entao so ela pode mudar o fechamento: o Pedido dela e travado
+      // depois dos nos (spec da Fase 3, secao 8.1) e antes da primeira leitura dele (decisao P4 do plano de
+      // backend da Fase 5A). Entrega so de Item nao trava Pedido nenhum.
+      var pecas = travados.Where(n => n.EstruturaPaiId is null).Select(n => n.Id).ToList();
+      var pedidosTravados = pecas.Count > 0 ? await _execucao.TravarPedidosDosNosAsync(pecas, ct) : [];
       foreach (var id in ids)
         if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(id, ct)))
           return Falhas.PedidoFechado<IReadOnlyList<MovimentacaoDto>>();
@@ -101,6 +109,8 @@ public sealed class EntregaUseCase
 
       foreach (var movimento in movimentos) _execucao.Adicionar(movimento);
       await _execucao.SalvarAlteracoesAsync(ct);
+      if (movimentos.Any(Posicoes.TocaOFimDoCaminho))
+        await _fechamento.RecalcularAsync(pedidosTravados, DateTime.UtcNow, ct);
       return Result<IReadOnlyList<MovimentacaoDto>>.Ok(await _projetor.ProjetarMovimentacoesAsync(movimentos, ct));
     }, ct);
   }

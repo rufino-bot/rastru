@@ -91,7 +91,8 @@ public sealed record NovoMaterialDto(
 /// `DataAbertura` sai daqui em UTC; quem converte para GMT-3 e o HorarioDeBrasiliaJsonConverter,
 /// registrado uma vez em Program.cs — nenhum endpoint precisa converter na mao. `DataEntrega` e
 /// `DateOnly` e nao passa por ele: sai como "aaaa-mm-dd". `Atrasado` e decidido aqui, no servidor
-/// (`PrazoDeEntrega`), e a tela so desenha a pilula.
+/// (`PrazoDeEntrega`), e a tela so desenha a pilula. `DataConclusao` (UTC, pelo mesmo conversor) e a da
+/// remessa que concluiu o Pedido, nula enquanto ele nao conclui (decisao P8 do plano de backend da Fase 5A).
 /// </remarks>
 public sealed record PedidoDto(
     int Id,
@@ -103,7 +104,8 @@ public sealed record PedidoDto(
     DateOnly DataEntrega,
     bool Atrasado,
     int CriadoPorUsuarioId,
-    PausaResumoDto? Pausa);
+    PausaResumoDto? Pausa,
+    DateTime? DataConclusao = null);
 
 public sealed record ContagemDeStatusDto(string Status, int Quantidade);
 
@@ -131,6 +133,10 @@ public sealed record NovoPedidoDto(
 // Agrupamento
 // ---------------------------------------------------------------------------
 
+/// <remarks>
+/// `DataConclusao`: a da remessa que concluiu o Agrupamento, nula enquanto ele nao conclui (decisao P8 do plano
+/// de backend da Fase 5A).
+/// </remarks>
 public sealed record AgrupamentoDto(
     int Id,
     int PedidoId,
@@ -138,7 +144,8 @@ public sealed record AgrupamentoDto(
     string Codigo,
     string Tipo,
     DateTime CriadoEm,
-    int CriadoPorUsuarioId);
+    int CriadoPorUsuarioId,
+    DateTime? DataConclusao = null);
 
 /// <remarks>
 /// Sem `PedidoId`: ele vem da rota (`POST /pedidos/{pedidoId}/agrupamentos`), nao do corpo — assim

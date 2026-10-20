@@ -1,4 +1,5 @@
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -9,19 +10,22 @@ namespace Rastreamento.Application.Execucao;
 /// (spec da Fase 3, secao 4.5). So enquanto a quantidade nao andou — o destino original ainda tem de
 /// comportar o que volta. Uma vez so por registro (`UX_Movimentacao_EstornoDe` garante no banco).
 /// Estorno nao se estorna; a baixa de filho de uma montagem so sai com a montagem inteira — e
-/// estornar a montagem desfaz tambem o Inicio do pai que ela gravou (Fase 3D).
+/// estornar a montagem desfaz tambem o Inicio do pai que ela gravou (Fase 3D). A linha de contagem, de
+/// liberacao ou de remessa tambem so sai com o registro inteiro, pela rota dele (C17 da spec da Fase 5A).
 /// </summary>
 public sealed class EstornoUseCase
 {
   private readonly IExecucaoRepository _execucao;
   private readonly LeitorDeEstado _leitor;
   private readonly ProjetorDoLivro _projetor;
+  private readonly FechamentoDoPedido _fechamento;
 
   public EstornoUseCase(IExecucaoRepository execucao, IEstruturaRepository estruturas, IReceitaPadraoRepository catalogo)
   {
     _execucao = execucao;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
+    _fechamento = new FechamentoDoPedido(execucao);
   }
 
   public async Task<Result<MovimentacaoDto>> EstornarMovimentacao(
@@ -38,11 +42,18 @@ public sealed class EstornoUseCase
           original.Tipo == TiposDeMovimentacao.Inicio
               ? $"Este início consumiu os filhos na montagem {montagemId}: estorne a montagem inteira."
               : $"Esta baixa faz parte da montagem {montagemId}: estorne a montagem inteira.");
+    if (RecusaDeRegistroComposto(original) is { } recusa)
+      return Falhas.Conflito<MovimentacaoDto>(CodigosDaExecucao.EstornoImpossivel, recusa);
 
     return await _execucao.ExecutarAsync(async () =>
     {
       var nos = await _execucao.TravarNosAsync([original.EstruturaItemId], ct);
       if (nos.Count == 0) return Falhas.NaoEncontrado<MovimentacaoDto>();
+      // O mesmo criterio da entrega (decisao P4 do plano de backend da Fase 5A): so o movimento de Peca pode
+      // mudar o fechamento, e o Pedido dela e travado depois do no e antes da primeira leitura dele.
+      var pedidosTravados = nos[0].EstruturaPaiId is null
+          ? await _execucao.TravarPedidosDosNosAsync([original.EstruturaItemId], ct)
+          : [];
       if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(original.EstruturaItemId, ct)))
         return Falhas.PedidoFechado<MovimentacaoDto>();
       // Relido DEPOIS da trava: dois estornos simultaneos do mesmo registro travam o mesmo no, e o
@@ -62,9 +73,24 @@ public sealed class EstornoUseCase
           destino, Local.DaOrigem(original), usuarioId, estornoDeId: original.Id);
       _execucao.Adicionar(estorno);
       await _execucao.SalvarAlteracoesAsync(ct);
+      if (Posicoes.TocaOFimDoCaminho(estorno))
+        await _fechamento.RecalcularAsync(pedidosTravados, DateTime.UtcNow, ct);
       return Result<MovimentacaoDto>.Ok((await _projetor.ProjetarMovimentacoesAsync([estorno], ct)).Single());
     }, ct);
   }
+
+  /// <summary>
+  /// A linha de um registro composto se estorna com ele inteiro, pela rota dele (C17 da spec da Fase 5A): a
+  /// contagem (as duas linhas `Medicao`), a liberacao (o pedido ou a resposta) e a remessa (C8). Nula quando a
+  /// linha nao pertence a nenhum.
+  /// </summary>
+  private static string? RecusaDeRegistroComposto(Movimentacao original) => original switch
+  {
+    { ContagemId: int id } => $"Esta linha faz parte da contagem {id}: estorne a contagem inteira.",
+    { LiberacaoId: int id } => $"Esta linha faz parte da liberação {id}: estorne a liberação inteira.",
+    { RemessaId: int id } => $"Esta linha faz parte da remessa {id}: estorne a remessa inteira.",
+    _ => null,
+  };
 
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> EstornarMontagem(
       int montagemId, int usuarioId, bool podeEstornarDeOutros, CancellationToken ct)

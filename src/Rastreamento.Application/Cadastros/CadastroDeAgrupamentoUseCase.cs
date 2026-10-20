@@ -189,5 +189,5 @@ public sealed class CadastroDeAgrupamentoUseCase
   /// resposta porque o DTO e um so (decisao P8 do plano da Fase 3B).
   /// </remarks>
   private static AgrupamentoDto Projetar(Agrupamento a, string pedidoNumero) =>
-      new(a.Id, a.PedidoId, pedidoNumero, a.Codigo, a.Tipo, a.CriadoEm, a.CriadoPorUsuarioId);
+      new(a.Id, a.PedidoId, pedidoNumero, a.Codigo, a.Tipo, a.CriadoEm, a.CriadoPorUsuarioId, a.DataConclusao);
 }

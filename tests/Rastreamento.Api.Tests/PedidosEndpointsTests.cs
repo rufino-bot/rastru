@@ -85,6 +85,23 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   }
 
   [Fact]
+  public async Task Pedido_traz_dataConclusao_nula_enquanto_aberto()
+  {
+    var cliente = ClienteComo("PCP");
+    var criado = await cliente.PostAsJsonAsync(
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    Assert.Equal(HttpStatusCode.Created, criado.StatusCode);
+    var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetInt32();
+
+    var lido = JsonDocument.Parse(await cliente.GetStringAsync($"/api/pedidos/{id}")).RootElement;
+
+    // A propriedade vem, e nula: a tela distingue "nao concluido" de um campo que sumiu do contrato
+    // (decisao P8 do plano de backend da Fase 5A).
+    Assert.Equal("Aberto", lido.GetProperty("status").GetString());
+    Assert.Equal(JsonValueKind.Null, lido.GetProperty("dataConclusao").ValueKind);
+  }
+
+  [Fact]
   public async Task Administrador_tambem_cadastra_pedido()
   {
     var resposta = await ClienteComo("Administrador")
