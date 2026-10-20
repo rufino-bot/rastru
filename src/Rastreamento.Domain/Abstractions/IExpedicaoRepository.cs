@@ -2,6 +2,9 @@ using Rastreamento.Domain.Entities;
 
 namespace Rastreamento.Domain.Abstractions;
 
+/// <summary>O Pedido em que um no vive, com o numero e o status de AGORA (as linhas da remessa e o estorno dela).</summary>
+public sealed record PedidoDaPeca(int PedidoId, string Numero, string Status);
+
 /// <summary>
 /// Os registros do fim do caminho da Peca (spec da Fase 5A, secao 3): afericoes, contagens, liberacoes e
 /// remessas, e as linhas do livro que apontam cada um. Toda leitura devolve dado SOLTO (sem change tracking);
@@ -52,6 +55,12 @@ public interface IExpedicaoRepository
   Task<IReadOnlyList<Movimentacao>> ListarLinhasDasLiberacoesAsync(IReadOnlyCollection<int> liberacaoIds, CancellationToken ct);
 
   Task<IReadOnlyList<Movimentacao>> ListarLinhasDasRemessasAsync(IReadOnlyCollection<int> remessaIds, CancellationToken ct);
+
+  /// <summary>
+  /// O Pedido de cada no pedido, por Id do no, numa consulta so (nunca uma por Peca). No inexistente nao volta.
+  /// Le a linha do Pedido sem trava propria: quem vai escrever ja a travou (`TravarPedidosDosNosAsync`).
+  /// </summary>
+  Task<IReadOnlyDictionary<int, PedidoDaPeca>> ListarPedidosDasPecasAsync(IReadOnlyCollection<int> pecaIds, CancellationToken ct);
 
   /// <summary>Das afericoes pedidas, as que ja tem um Estorno apontando para elas.</summary>
   Task<IReadOnlySet<int>> ListarAfericoesEstornadasAsync(IReadOnlyCollection<int> afericaoIds, CancellationToken ct);

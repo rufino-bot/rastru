@@ -412,4 +412,25 @@ public class ExpedicaoRepositoryTests : TesteComBanco
     }
     finally { await outra.LimparAsync(NovoContexto); }
   });
+
+  [Fact]
+  public Task Pedidos_das_pecas_traz_numero_e_status_de_cada_no() => NoCenarioAsync(async c =>
+  {
+    int item;
+    await using (var db = NovoContexto())
+    {
+      item = await c.Arvore.NovoItemAsync(db, c.PecaId, 20m, 2m);
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE dbo.Pedido SET Status = 'Concluido' WHERE Id = {c.Arvore.PedidoId}");
+    }
+
+    await using var leitura = NovoContexto();
+    var pedidos = await new ExpedicaoRepository(leitura)
+        .ListarPedidosDasPecasAsync([c.PecaId, item, int.MaxValue], CancellationToken.None);
+
+    var numero = (await LerPedidoAsync(leitura, c.Arvore.PedidoId)).Numero;
+    Assert.Equal(new[] { c.PecaId, item }, pedidos.Keys.Order());   // o no inexistente nao volta
+    Assert.All(pedidos.Values, p => Assert.Equal(new PedidoDaPeca(c.Arvore.PedidoId, numero, "Concluido"), p));
+    Assert.Empty(await new ExpedicaoRepository(leitura).ListarPedidosDasPecasAsync([], CancellationToken.None));
+  });
 }

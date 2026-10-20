@@ -20,7 +20,7 @@ namespace Rastreamento.Application.Tests.Expedicao;
 /// <para>
 /// As linhas do livro que cada registro aponta sao as de <c>Execucao.Movimentacoes</c> — o fake nao tem
 /// livro proprio. `Estruturas` e `Execucao` dao o Pedido de cada Peca para
-/// <see cref="ListarPedidosDeLiberacaoAsync"/>.
+/// <see cref="ListarPedidosDeLiberacaoAsync"/> e <see cref="ListarPedidosDasPecasAsync"/>.
 /// </para>
 /// </summary>
 public class FakeExpedicaoRepo : IExpedicaoRepository, FakeExecucaoRepo.IParticipanteDaTransacao
@@ -102,6 +102,16 @@ public class FakeExpedicaoRepo : IExpedicaoRepository, FakeExecucaoRepo.IPartici
   public Task<IReadOnlyList<Movimentacao>> ListarLinhasDasRemessasAsync(IReadOnlyCollection<int> remessaIds, CancellationToken ct) =>
       Task.FromResult<IReadOnlyList<Movimentacao>>(_execucao.Movimentacoes
           .Where(m => m.RemessaId is int r && remessaIds.Contains(r)).OrderBy(m => m.Id).ToList());
+
+  public Task<IReadOnlyDictionary<int, PedidoDaPeca>> ListarPedidosDasPecasAsync(
+      IReadOnlyCollection<int> pecaIds, CancellationToken ct)
+  {
+    var pedidos = new Dictionary<int, PedidoDaPeca>();
+    foreach (var no in _estruturas.Itens.Where(i => pecaIds.Contains(i.Id)))
+      if (_execucao.Agrupamentos.TryGetValue(no.AgrupamentoId, out var ag))
+        pedidos[no.Id] = new PedidoDaPeca(ag.PedidoId, ag.PedidoNumero, _execucao.StatusDoPedido[ag.PedidoId]);
+    return Task.FromResult<IReadOnlyDictionary<int, PedidoDaPeca>>(pedidos);
+  }
 
   public Task<IReadOnlySet<int>> ListarAfericoesEstornadasAsync(IReadOnlyCollection<int> afericaoIds, CancellationToken ct) =>
       Task.FromResult<IReadOnlySet<int>>(Afericoes

@@ -5,8 +5,9 @@ using Rastreamento.Application.Expedicao;
 namespace Rastreamento.Api.Controllers;
 
 /// <summary>
-/// A Qualidade no local de expedicao (D1 da spec da Fase 5A): aferir, contar, mandar para conserto e pedir
-/// liberacao a Gestao (D7; a resposta da Gestao fica em `LiberacaoController`, outro conjunto de perfis). Um
+/// A Qualidade no local de expedicao (D1 da spec da Fase 5A): aferir, contar, mandar para conserto, pedir
+/// liberacao a Gestao (D7; a resposta da Gestao fica em `LiberacaoController`, outro conjunto de perfis) e
+/// expedir (C8, C9; o estorno da remessa fica em `EstornoDaExpedicaoController`). Um
 /// controller por conjunto de perfis (decisao P7 do plano de backend da Fase 5A): todo `[Authorize(Roles)]`
 /// deste arquivo espelha UMA entrada de `permissoes.ts`.
 /// </summary>
@@ -19,11 +20,13 @@ public class ExpedicaoController : ExecucaoControllerBase
 
   private readonly AfericaoUseCase _afericao;
   private readonly LiberacaoUseCase _liberacao;
+  private readonly RemessaUseCase _remessa;
 
-  public ExpedicaoController(AfericaoUseCase afericao, LiberacaoUseCase liberacao)
+  public ExpedicaoController(AfericaoUseCase afericao, LiberacaoUseCase liberacao, RemessaUseCase remessa)
   {
     _afericao = afericao;
     _liberacao = liberacao;
+    _remessa = remessa;
   }
 
   [HttpPost("estrutura/{id:int}/afericoes")]
@@ -56,5 +59,14 @@ public class ExpedicaoController : ExecucaoControllerBase
   {
     if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
     return Traduzir(await _liberacao.Pedir(id, dto, usuarioId, ct), criado: true);
+  }
+
+  /// <summary>Uma Peca ou um lote numa remessa so, tudo ou nada; o `201` traz os avisos de D8 (decisao P5 do plano de backend da Fase 5A).</summary>
+  [HttpPost("remessas")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> Expedir([FromBody] NovaRemessaDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _remessa.Expedir(dto, usuarioId, ct), criado: true);
   }
 }

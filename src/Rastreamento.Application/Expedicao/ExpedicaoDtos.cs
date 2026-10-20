@@ -48,3 +48,38 @@ public sealed record RespostaDeLiberacaoDto(decimal QuantidadeLiberada, string? 
 public sealed record LiberacaoDto(
     int Id, string Tipo, int? PedidoDeLiberacaoId, int EstruturaItemId, decimal Quantidade, string? Texto,
     DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada, bool Estornavel);
+
+/// <summary>Uma Peca da remessa e quantas unidades dela saem. A remessa escolhe sozinha de onde tira (C10).</summary>
+public sealed record ItemDaRemessaDto(int EstruturaItemId, decimal Quantidade);
+
+/// <summary>
+/// `POST /remessas`: uma ou mais Pecas, de um ou mais Pedidos, numa remessa so (C8 e C9 da spec da Fase 5A).
+/// Tudo ou nada.
+/// </summary>
+public sealed record NovaRemessaDto(IReadOnlyList<ItemDaRemessaDto>? Itens);
+
+/// <summary>
+/// Uma linha `Expedicao` da remessa: a Peca (descricao pela regra 19), o Pedido dela e de onde a quantidade saiu
+/// (`Origem`, uma das posicoes de C10). `PedidoConcluido` e o status do Pedido AGORA, nao o da hora da remessa:
+/// e o que a tela usa para dizer que o estorno reabre o Pedido (C20).
+/// </summary>
+public sealed record LinhaDaRemessaDto(
+    int PecaId, string PecaDescricao, string? CodigoDoComponente, int PedidoId, string PedidoNumero,
+    bool PedidoConcluido, string Origem, decimal Quantidade);
+
+/// <summary>
+/// Uma remessa (C8 e D9 da spec da Fase 5A): quando, quem expediu e as linhas dela. `Estornada`: as linhas dela
+/// foram estornadas. `Estornavel`: quem le pode estorna-la agora (C7; nunca a de Pedido `Cancelado`, C13).
+/// </summary>
+public sealed record RemessaDto(
+    int Id, DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada, bool Estornavel,
+    IReadOnlyList<LinhaDaRemessaDto> Linhas);
+
+/// <summary>Um aviso de expedir (D8) de uma Peca da remessa: um dos `TiposDeAviso` e quantas unidades sairam assim.</summary>
+public sealed record AvisoDaPecaDto(int PecaId, string Tipo, decimal Quantidade);
+
+/// <summary>
+/// O `201` de `POST /remessas`: a remessa gravada e os avisos de D8, calculados aqui e nao confirmados antes
+/// (decisao P5 do plano de backend da Fase 5A: o backend nao trava nem pede confirmacao).
+/// </summary>
+public sealed record ResultadoDaRemessaDto(RemessaDto Remessa, IReadOnlyList<AvisoDaPecaDto> Avisos);

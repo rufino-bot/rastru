@@ -122,6 +122,20 @@ public class ExpedicaoRepository : IExpedicaoRepository
         .ToListAsync(ct);
   }
 
+  public async Task<IReadOnlyDictionary<int, PedidoDaPeca>> ListarPedidosDasPecasAsync(
+      IReadOnlyCollection<int> pecaIds, CancellationToken ct)
+  {
+    if (pecaIds.Count == 0) return new Dictionary<int, PedidoDaPeca>();
+    var ids = pecaIds.ToList();
+    var linhas = await (from e in _db.Estruturas.AsNoTracking()
+                        join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                        join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
+                        where ids.Contains(e.Id)
+                        select new { e.Id, PedidoId = p.Id, p.Numero, p.Status })
+        .ToListAsync(ct);
+    return linhas.ToDictionary(l => l.Id, l => new PedidoDaPeca(l.PedidoId, l.Numero, l.Status));
+  }
+
   public async Task<IReadOnlySet<int>> ListarAfericoesEstornadasAsync(
       IReadOnlyCollection<int> afericaoIds, CancellationToken ct)
   {

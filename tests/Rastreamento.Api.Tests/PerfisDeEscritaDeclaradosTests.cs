@@ -205,6 +205,10 @@ public class PerfisDeEscritaDeclaradosTests
     // Liberacao (D7 da spec da Fase 5A): a Qualidade pede, a Gestao responde.
     ["POST estrutura/{id:int}/pedidos-de-liberacao"] = ["Qualidade", "Administrador"],
     ["POST liberacoes/{id:int}/resposta"] = ["Gestao", "Administrador"],
+    // Remessa (C8 e C9 da spec da Fase 5A): expedir e da Qualidade; o estorno de um registro composto deixa passar
+    // quem pode ser autor (Qualidade, Gestao) e o PCP, e autor x PCP quem decide e o caso de uso (403 `Proibido`).
+    ["POST remessas"] = ["Qualidade", "Administrador"],
+    ["POST remessas/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
   };
 
   /// <summary>
