@@ -29,6 +29,17 @@ public sealed record PedidoTravado(int Id, string Numero, string Status);
 public sealed record RegistrosDoSetor(IReadOnlyList<Movimentacao> Movimentos, IReadOnlyList<Montagem> Montagens);
 
 /// <summary>
+/// O status e o fechamento de um Pedido como a regra 13 os calcula (C11, C12 e C13 da spec da Fase 5A), para
+/// o repositorio gravar. `PedidoConcluido` e sempre `Status == "Concluido"`. `Agrupamentos` traz so os que tem
+/// Peca (C16): o que nao aparece aqui nao e tocado.
+/// </summary>
+public sealed record FechamentoCalculado(
+    int PedidoId, string Status, bool PedidoConcluido, IReadOnlyList<AgrupamentoNoFechamento> Agrupamentos);
+
+/// <summary>Um Agrupamento com Peca no <see cref="FechamentoCalculado"/>: concluido quando todas as Pecas dele concluem.</summary>
+public sealed record AgrupamentoNoFechamento(int AgrupamentoId, bool Concluido);
+
+/// <summary>
 /// O livro de movimentacoes e o que as escritas da Fase 3 precisam em volta dele (spec da Fase 3,
 /// secoes 7 e 8). Toda leitura devolve dado SOLTO (sem change tracking); as escritas sao
 /// `Adicionar` + `SalvarAlteracoesAsync`, e as tres unicas atualizacoes (`MarcarPedidoEmProducaoAsync`,
