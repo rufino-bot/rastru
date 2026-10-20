@@ -169,7 +169,10 @@ public sealed class ApontamentoUseCase
       var r = await ItemAItemAsync(itens, i => i.EstruturaItemId,
           i => i.Conserto
               ? TerminarConsertoNoAsync(travados.FirstOrDefault(n => n.Id == i.EstruturaItemId), i.Quantidade, setor, usuarioId, ct)
-              : TerminarNoAsync(i.EstruturaItemId, i.Ordem!.Value, i.Quantidade, setor, usuarioId, ct),
+              // Sem `Ordem` aqui so chega item de no inexistente (a forma dos existentes ja foi conferida): 404.
+              : i.Ordem is int ordem
+                  ? TerminarNoAsync(i.EstruturaItemId, ordem, i.Quantidade, setor, usuarioId, ct)
+                  : Task.FromResult(Falhas.NaoEncontrado<Movimentacao>()),
           estado, ct);
       if (r.Sucesso && pedidos.Count > 0) await _fechamento.RecalcularAsync(pedidos, DateTime.UtcNow, ct);
       return r;

@@ -333,7 +333,7 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Equal(2, tarefas.Consertos.Count);
     var ida = tarefas.Consertos[0];
     Assert.Equal((1, 1m), (ida.No.Id, ida.Quantidade));
-    Assert.Equal(new LocalDto(Posicoes.NaExpedicao, null, null, null), ida.Origem);
+    Assert.Equal(new LocalDto(Posicoes.AguardandoConserto, Dobra, "Dobra", null), ida.Origem);
     Assert.Equal(new LocalDto(Posicoes.EmConserto, Dobra, "Dobra", null), ida.Destino);
     var volta = tarefas.Consertos[1];
     Assert.Equal(("Chapa dobrada 3 mm", 0.5m), (volta.No.Descricao, volta.Quantidade));
@@ -341,6 +341,23 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Equal(new LocalDto(Posicoes.NaExpedicao, null, null, null), volta.Destino);
     // O que esta EmConserto e do Operador (a Fila): nao e tarefa de ninguem.
     Assert.Empty(tarefas.Grupos);
+  }
+
+  [Fact]
+  public async Task A_origem_de_cada_tarefa_de_conserto_serve_como_esta_na_entrega()
+  {
+    var c = ComConserto();
+    var tarefas = (await c.Consulta().Tarefas(Ct)).Valor!.Consertos;
+
+    foreach (var t in tarefas)
+    {
+      var origem = new OrigemDaEntregaDto(t.Origem.Posicao, t.Origem.SetorId, t.Origem.Ordem);
+      var r = await c.Entrega().Entregar(
+          new EntregaDto([new ItemDaEntregaDto(t.No.Id, origem, null, t.Quantidade)]), Movimentador, Ct);
+
+      Assert.True(r.Sucesso, r.Detalhe);
+      Assert.Equal(t.Destino, Assert.Single(r.Valor!).Destino);
+    }
   }
 
   [Fact]

@@ -183,8 +183,9 @@ public sealed record FilhoDoKitDto(
 public sealed record KitDto(NoResumoDto Pai, SetorResumoDto Destino, decimal Conjuntos, IReadOnlyList<FilhoDoKitDto> Filhos);
 
 /// <summary>
-/// Uma ida ou uma volta do conserto para o Movimentador. Ida: `Origem` e o local de expedicao, `Destino` e
-/// `EmConserto` no Setor. Volta: `Origem` e `ConsertoPronto` no Setor, `Destino` e o local de expedicao.
+/// Uma ida ou uma volta do conserto para o Movimentador. Ida: `Origem` e `AguardandoConserto` no Setor, `Destino` e
+/// `EmConserto` no mesmo Setor. Volta: `Origem` e `ConsertoPronto` no Setor, `Destino` e o local de expedicao.
+/// A `Origem` e a posicao que a entrega consome: serve como esta em `POST /entregas`.
 /// </summary>
 public sealed record TarefaDeConsertoDto(NoResumoDto No, LocalDto Origem, LocalDto Destino, decimal Quantidade);
 

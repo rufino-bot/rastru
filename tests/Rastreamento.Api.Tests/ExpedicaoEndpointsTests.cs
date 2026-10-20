@@ -129,15 +129,27 @@ public class ExpedicaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 
     // A ida: o Movimentador a ve nas Tarefas, com o destino calculado, e a entrega ao Setor.
     var ida = Assert.Single(await TarefasDeConsertoAsync());
-    Assert.Equal("NaExpedicao", ida.GetProperty("origem").GetProperty("posicao").GetString());
+    Assert.Equal("AguardandoConserto", ida.GetProperty("origem").GetProperty("posicao").GetString());
+    Assert.Equal(c.Dobra, ida.GetProperty("origem").GetProperty("setorId").GetInt32());
+    Assert.Equal(JsonValueKind.Null, ida.GetProperty("origem").GetProperty("ordem").ValueKind);
     Assert.Equal("EmConserto", ida.GetProperty("destino").GetProperty("posicao").GetString());
     Assert.Equal(c.Dobra, ida.GetProperty("destino").GetProperty("setorId").GetInt32());
     Assert.Equal(1m, ida.GetProperty("quantidade").GetDecimal());
     Assert.Empty(await FilaDeConsertoAsync());
 
+    // A origem da tarefa volta como esta na entrega (cada tarefa serve de corpo para a sua).
+    var origemDaIda = ida.GetProperty("origem");
     var entrega = await movimentador.PostAsJsonAsync("/api/entregas", new
     {
-      itens = new[] { new { estruturaItemId = peca, origem = new { posicao = "AguardandoConserto", setorId = c.Dobra, ordem = (int?)null }, destinoSetorId = (int?)null, quantidade = 1m } },
+      itens = new[]
+      {
+        new
+        {
+          estruturaItemId = peca,
+          origem = new { posicao = origemDaIda.GetProperty("posicao").GetString(), setorId = origemDaIda.GetProperty("setorId").GetInt32(), ordem = (int?)null },
+          destinoSetorId = (int?)null, quantidade = 1m,
+        },
+      },
     });
     Assert.Equal(HttpStatusCode.Created, entrega.StatusCode);
     Assert.Equal("EmConserto", (await CorpoAsync(entrega))[0].GetProperty("destino").GetProperty("posicao").GetString());
@@ -208,6 +220,13 @@ public class ExpedicaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     });
     Assert.Equal(HttpStatusCode.BadRequest, semOrdem.StatusCode);
     Assert.Equal("OrigemInvalida", (await CorpoAsync(semOrdem)).GetProperty("erro").GetString());
+
+    // No inexistente sem `ordem` continua 404 (nunca 500).
+    var inexistente = await c.Como(c.Operador).PostAsJsonAsync("/api/terminos", new
+    {
+      setorId = c.Dobra, itens = new[] { new { estruturaItemId = 2_000_000_000, ordem = (int?)null, quantidade = 1m, conserto = false } },
+    });
+    Assert.Equal(HttpStatusCode.NotFound, inexistente.StatusCode);
 
     var lote = await c.Como(c.Operador).PostAsJsonAsync("/api/terminos", corpo);
     Assert.Equal(HttpStatusCode.Created, lote.StatusCode);

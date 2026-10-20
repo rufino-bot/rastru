@@ -237,14 +237,15 @@ public sealed class ConsultaDeExecucaoUseCase
   }
 
   /// <summary>
-  /// A ida (`AguardandoConserto`: do local de expedicao a `EmConserto` no Setor) e a volta (`ConsertoPronto`: do
-  /// Setor ao local de expedicao) do conserto, com o destino calculado, sem escolha (D4 da spec da Fase 5A).
+  /// A ida (`AguardandoConserto`: da posicao que espera no local de expedicao a `EmConserto` no Setor) e a volta
+  /// (`ConsertoPronto`: do Setor ao local de expedicao) do conserto, com o destino calculado, sem escolha (D4 da
+  /// spec da Fase 5A). A `Origem` e sempre a posicao do livro que a entrega consome, para ser reenviada como esta.
   /// </summary>
   private static TarefaDeConsertoDto TarefaDeConserto(
       ConsertoPendente c, NoResumoDto no, IReadOnlyDictionary<int, string> nomes)
   {
     var (origem, destino) = c.Local.Posicao == PosicaoConst.AguardandoConserto
-        ? (Local.NaExpedicao, Local.EmConserto(c.Local.SetorId!.Value))
+        ? (c.Local, Local.EmConserto(c.Local.SetorId!.Value))
         : (c.Local, Local.NaExpedicao);
     return new TarefaDeConsertoDto(no, LocalDto.De(origem, nomes), LocalDto.De(destino, nomes), c.Quantidade);
   }

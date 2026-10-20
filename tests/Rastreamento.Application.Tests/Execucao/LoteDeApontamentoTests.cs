@@ -540,6 +540,23 @@ public class LoteDeApontamentoTests
     Assert.Equal(livroAntes, LivroDe(c));
   }
 
+  [Theory]
+  [InlineData(false)]
+  [InlineData(true)]
+  public async Task Item_sem_ordem_de_no_inexistente_da_404(bool conserto)
+  {
+    var c = NaDobraComConserto();
+    var livroAntes = LivroDe(c);
+
+    // O no nao existe: nao ha Peca para nomear na recusa de forma, e a resposta continua a de antes (404).
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [new ItemDeTerminoDto(999, null, 1m, conserto)]), Operador, Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.NaoEncontrado, r.TipoDoErro);
+    Assert.Equal(livroAntes, LivroDe(c));
+  }
+
   [Fact]
   public async Task Item_malformado_depois_de_um_valido_nao_deixa_o_valido_gravar()
   {
