@@ -234,6 +234,97 @@ public class ExpedicaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   [Fact]
+  public async Task Gestao_responde_o_pedido_da_Qualidade()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    var gestao = c.Como(c.Gestao);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+
+    var semJustificativa = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao", new { quantidade = 2m, justificativa = "  " });
+    Assert.Equal(HttpStatusCode.BadRequest, semJustificativa.StatusCode);
+    Assert.Equal("JustificativaObrigatoria", (await CorpoAsync(semJustificativa)).GetProperty("erro").GetString());
+
+    var pedido = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao",
+        new { quantidade = 2m, justificativa = "Aba da dobra 1,5 mm fora; o cliente não usa." });
+    Assert.Equal(HttpStatusCode.Created, pedido.StatusCode);
+    var corpoDoPedido = await CorpoAsync(pedido);
+    var pedidoId = corpoDoPedido.GetProperty("id").GetInt32();
+    Assert.Equal("Pedido", corpoDoPedido.GetProperty("tipo").GetString());
+    Assert.Equal(JsonValueKind.Null, corpoDoPedido.GetProperty("pedidoDeLiberacaoId").ValueKind);
+    Assert.Equal(peca, corpoDoPedido.GetProperty("estruturaItemId").GetInt32());
+    Assert.Equal(2m, corpoDoPedido.GetProperty("quantidade").GetDecimal());
+    Assert.Equal("Aba da dobra 1,5 mm fora; o cliente não usa.", corpoDoPedido.GetProperty("texto").GetString());
+    Assert.Equal(c.Qualidade.Id, corpoDoPedido.GetProperty("usuarioId").GetInt32());
+    Assert.False(corpoDoPedido.GetProperty("estornada").GetBoolean());
+    Assert.True(corpoDoPedido.GetProperty("estornavel").GetBoolean());
+    Assert.EndsWith("-03:00", corpoDoPedido.GetProperty("dataHora").GetString());
+
+    // No maximo um em aberto por Peca (C18).
+    var outro = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao", new { quantidade = 1m, justificativa = "outro" });
+    Assert.Equal(HttpStatusCode.Conflict, outro.StatusCode);
+    Assert.Equal("LiberacaoEmAberto", (await CorpoAsync(outro)).GetProperty("erro").GetString());
+
+    var resposta = await gestao.PostAsJsonAsync($"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 1m, observacao = (string?)null });
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var corpoDaResposta = await CorpoAsync(resposta);
+    var respostaId = corpoDaResposta.GetProperty("id").GetInt32();
+    Assert.Equal("Resposta", corpoDaResposta.GetProperty("tipo").GetString());
+    Assert.Equal(pedidoId, corpoDaResposta.GetProperty("pedidoDeLiberacaoId").GetInt32());
+    Assert.Equal(1m, corpoDaResposta.GetProperty("quantidade").GetDecimal());
+    Assert.Equal(JsonValueKind.Null, corpoDaResposta.GetProperty("texto").ValueKind);
+    Assert.Equal(c.Gestao.Id, corpoDaResposta.GetProperty("usuarioId").GetInt32());
+
+    // Respondido, nao se responde de novo; e o id da resposta nao e pedido.
+    var segunda = await gestao.PostAsJsonAsync($"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 1m });
+    Assert.Equal(HttpStatusCode.Conflict, segunda.StatusCode);
+    Assert.Equal("LiberacaoNaoPendente", (await CorpoAsync(segunda)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.NotFound,
+        (await gestao.PostAsJsonAsync($"/api/liberacoes/{respostaId}/resposta", new { quantidadeLiberada = 0m })).StatusCode);
+
+    // 4 conformes, 1 liberada e 1 de volta a nao conforme (C5).
+    var posicoes = (await CorpoAsync(await qualidade.GetAsync($"/api/agrupamentos/{c.AgrupamentoId}/posicoes")))
+        .EnumerateArray().Single(p => p.GetProperty("estruturaItemId").GetInt32() == peca)
+        .GetProperty("saldos").EnumerateArray()
+        .Select(s => (s.GetProperty("posicao").GetString()!, s.GetProperty("quantidade").GetDecimal()))
+        .OrderBy(x => x.Item1, StringComparer.Ordinal).ToArray();
+    Assert.Equal(new[] { ("Conforme", 4m), ("Liberada", 1m), ("NaoConforme", 1m) }, posicoes);
+
+    // O livro do no: o pedido aponta o pedido, as duas da resposta apontam a resposta.
+    var livro = (await CorpoAsync(await qualidade.GetAsync($"/api/estrutura/{peca}/movimentacoes")))
+        .GetProperty("movimentacoes").EnumerateArray()
+        .Where(m => m.GetProperty("liberacaoId").ValueKind != JsonValueKind.Null)
+        .Select(m => (m.GetProperty("tipo").GetString()!, m.GetProperty("liberacaoId").GetInt32()))
+        .OrderBy(x => x.Item1, StringComparer.Ordinal).ToArray();
+    Assert.Equal(new[] { ("Liberacao", respostaId), ("PedidoDeLiberacao", pedidoId), ("Recusa", respostaId) }, livro);
+  }
+
+  [Fact]
+  public async Task Qualidade_nao_responde()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+    var pedido = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao",
+        new { quantidade = 2m, justificativa = "Fora de cota, o cliente aceita." });
+    await Garantir(pedido);
+    var pedidoId = (await CorpoAsync(pedido)).GetProperty("id").GetInt32();
+
+    foreach (var usuario in new[] { c.Qualidade, c.Pcp, c.Operador, c.Movimentador })
+      Assert.Equal(HttpStatusCode.Forbidden, (await c.Como(usuario).PostAsJsonAsync(
+          $"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 2m })).StatusCode);
+
+    // E o pedido e so da Qualidade: a Gestao responde, nao pede.
+    foreach (var usuario in new[] { c.Gestao, c.Pcp, c.Operador })
+      Assert.Equal(HttpStatusCode.Forbidden, (await c.Como(usuario).PostAsJsonAsync(
+          $"/api/estrutura/{peca}/pedidos-de-liberacao", new { quantidade = 1m, justificativa = "x" })).StatusCode);
+  }
+
+  [Fact]
   public async Task Operador_nao_afere()
   {
     await using var c = await CriarAsync(_factory);

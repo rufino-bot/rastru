@@ -157,33 +157,10 @@ public sealed class AfericaoUseCase
     }, ct);
   }
 
-  /// <summary>
-  /// O comeco comum das tres escritas, dentro da transacao: trava o no; 404 se nao existe; trava o Pedido dele
-  /// (so a Peca, e so quando `travarPedido`) ANTES da primeira leitura do Pedido, que a trava converteria de S
-  /// para U e deadlockaria (`PK_Pedido`); recusa Pedido fechado; recusa Item (so a Peca chega ao local de
-  /// expedicao, regra 29).
-  /// </summary>
-  private async Task<(PecaTravada? Peca, Result<T>? Recusa)> TravarAPecaAsync<T>(
-      int pecaId, bool travarPedido, CancellationToken ct)
-  {
-    var no = (await _execucao.TravarNosAsync([pecaId], ct)).SingleOrDefault();
-    if (no is null) return (null, Falhas.NaoEncontrado<T>());
-    var ehPeca = no.EstruturaPaiId is null;
-    var pedidos = travarPedido && ehPeca ? await _execucao.TravarPedidosDosNosAsync([pecaId], ct) : [];
-
-    if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(pecaId, ct)))
-      return (null, Falhas.PedidoFechado<T>());
-    if (!ehPeca)
-    {
-      var nome = (await _leitor.CarregarAsync([no], ct)).Nome(pecaId);
-      return (null, Falhas.Validacao<T>(CodigosDaExpedicao.NaoEhPeca,
-          $"{nome} é um Item: só a Peça chega ao local de expedição."));
-    }
-    return (new PecaTravada(no, pedidos), null);
-  }
-
-  /// <summary>A Peca travada e os Pedidos travados com ela (vazio quando nao se travou Pedido), para o fechamento.</summary>
-  private sealed record PecaTravada(EstruturaItem No, IReadOnlyList<int> Pedidos);
+  /// <summary>O comeco comum das tres escritas: <see cref="TravaDaPeca.TravarAsync{T}"/>.</summary>
+  private Task<(PecaTravada? Peca, Result<T>? Recusa)> TravarAPecaAsync<T>(
+      int pecaId, bool travarPedido, CancellationToken ct) =>
+      TravaDaPeca.TravarAsync<T>(_execucao, _leitor, pecaId, travarPedido, ct);
 
   private static Movimentacao Medicao(int pecaId, decimal quantidade, Local destino, int contagemId, DateTime agora, int usuarioId)
   {

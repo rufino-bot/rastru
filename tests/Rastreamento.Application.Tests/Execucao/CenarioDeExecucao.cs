@@ -174,6 +174,8 @@ internal sealed class CenarioDeExecucao
 
   public AfericaoUseCase Afericao() => new(Execucao, Expedicao, Estruturas, Setores, Catalogo);
 
+  public LiberacaoUseCase Liberacao() => new(Execucao, Expedicao, Estruturas, Catalogo);
+
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
 
   public MontagemDeEstruturaUseCase Estrutura() =>

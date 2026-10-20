@@ -163,6 +163,7 @@ builder.Services.AddScoped<SeparacaoUseCase>();
 builder.Services.AddScoped<ConsultaDeSeparacaoUseCase>();
 builder.Services.AddScoped<ConsultaDeExecucaoUseCase>();
 builder.Services.AddScoped<AfericaoUseCase>();
+builder.Services.AddScoped<LiberacaoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

@@ -202,6 +202,9 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST estrutura/{id:int}/afericoes"] = ["Qualidade", "Administrador"],
     ["POST estrutura/{id:int}/contagens"] = ["Qualidade", "Administrador"],
     ["POST estrutura/{id:int}/consertos"] = ["Qualidade", "Administrador"],
+    // Liberacao (D7 da spec da Fase 5A): a Qualidade pede, a Gestao responde.
+    ["POST estrutura/{id:int}/pedidos-de-liberacao"] = ["Qualidade", "Administrador"],
+    ["POST liberacoes/{id:int}/resposta"] = ["Gestao", "Administrador"],
   };
 
   /// <summary>

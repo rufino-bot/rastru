@@ -26,3 +26,25 @@ public sealed record AfericaoDto(
 public sealed record ContagemDto(
     int Id, decimal Conformes, decimal NaoConformes, DateTime DataHora, int UsuarioId, string UsuarioNome,
     bool Estornada, bool Estornavel);
+
+/// <summary>
+/// `POST /estrutura/{id}/pedidos-de-liberacao`: quantas unidades `NaoConforme` a Qualidade pede a Gestao que
+/// libere, e por que (a justificativa e obrigatoria, C6 da spec da Fase 5A).
+/// </summary>
+public sealed record NovoPedidoDeLiberacaoDto(decimal Quantidade, string? Justificativa);
+
+/// <summary>
+/// `POST /liberacoes/{id}/resposta`: quantas das pedidas a Gestao libera, de zero (recusa total) ate a pedida, e
+/// a observacao opcional (C5 e C6 da spec da Fase 5A). O resto volta a `NaoConforme`.
+/// </summary>
+public sealed record RespostaDeLiberacaoDto(decimal QuantidadeLiberada, string? Observacao);
+
+/// <summary>
+/// Um registro da liberacao (secao 3.6 da spec da Fase 5A; decisao P2 do plano de backend): o pedido
+/// (`Tipo = Pedido`, `Quantidade` a pedida, `Texto` a justificativa) ou a resposta (`Tipo = Resposta`,
+/// `PedidoDeLiberacaoId` o pedido, `Quantidade` a liberada, `Texto` a observacao). `Estornada`: as linhas do livro
+/// dele foram estornadas. `Estornavel`: quem le pode estorna-lo agora (C7).
+/// </summary>
+public sealed record LiberacaoDto(
+    int Id, string Tipo, int? PedidoDeLiberacaoId, int EstruturaItemId, decimal Quantidade, string? Texto,
+    DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada, bool Estornavel);
