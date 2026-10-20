@@ -239,6 +239,43 @@ public class MateriaisDoNoUseCaseTests
     Assert.Equal(Chapa, Assert.Single(repo.Planejado).MaterialId);
   }
 
+  private const int Fita = 11;      // almoxarifado, inativo
+
+  [Fact]
+  public async Task Substituir_mantendo_material_ja_planejado_e_depois_inativado_e_aceito()
+  {
+    var (uso, repo) = Montar();
+    // A Cola esta no planejado do no e foi inativada no catalogo depois: o PUT reenvia a lista inteira, e
+    // mudar a quantidade do Parafuso nao pode exigir tirar a Cola do plano.
+    repo.Planejado.AddRange([Plano(Parafuso, 10m), Plano(Cola, 2m)]);
+
+    var r = await uso.Substituir(No, Corpo((Parafuso, 12m), (Cola, 2m)), CancellationToken.None);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal(
+        [(Parafuso, 12m), (Cola, 2m)],
+        repo.Planejado.OrderBy(p => p.MaterialId == Cola).Select(p => (p.MaterialId, p.Quantidade)).ToList());
+    var cola = r.Valor!.Materiais.Single(i => i.MaterialId == Cola);
+    Assert.True(cola.NoPlanejado);
+    Assert.Equal(2m, cola.Planejado);
+  }
+
+  [Fact]
+  public async Task Acrescentar_material_inativo_novo_continua_400_mesmo_com_outro_inativo_ja_planejado()
+  {
+    var (uso, repo) = Montar();
+    repo.Materiais[Fita] = new MaterialDaSeparacao(Fita, "FI-1", "Fita", "M", false, null, null);
+    repo.Planejado.AddRange([Plano(Parafuso, 10m), Plano(Cola, 2m)]);
+
+    var r = await uso.Substituir(No, Corpo((Parafuso, 10m), (Cola, 2m), (Fita, 1m)), CancellationToken.None);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal("MaterialInvalido", r.Erro);
+    Assert.Contains("FI-1", r.Detalhe);
+    Assert.Equal([Parafuso, Cola], repo.Planejado.Select(p => p.MaterialId).ToList());
+  }
+
   [Fact]
   public async Task Substituir_no_inexistente_e_404_antes_de_validar_o_corpo()
   {

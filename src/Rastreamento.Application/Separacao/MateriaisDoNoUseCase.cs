@@ -9,7 +9,10 @@ namespace Rastreamento.Application.Separacao;
 /// inteira: `[]` limpa o planejado. Tirar do plano um material que ja tem separacao e permitido — a linha
 /// do livro continua e o item volta no `GET` com `NoPlanejado = false` (D14), enquanto o separado liquido
 /// for maior que zero (decisao do usuario na conferencia de 2026-10-19). Toda validacao vem antes da
-/// unica escrita; a ordem e: no (404), quantidade, material repetido, material existente e ativo.
+/// unica escrita; a ordem e: no (404), quantidade, material repetido, material existente e ativo. O material
+/// inativo so passa se ja esta no planejado atual do no (emenda de 2026-10-20 da spec da Fase 4, secao 5.2):
+/// como o `PUT` e a lista inteira, recusa-lo travaria toda edicao dos outros materiais do no, no mesmo
+/// criterio do Roteiro do no e do "Fica em" do Material, que aceitam o Setor inativo ja apontado.
 /// </summary>
 public sealed class MateriaisDoNoUseCase
 {
@@ -46,12 +49,13 @@ public sealed class MateriaisDoNoUseCase
 
     var materiais = (await _separacao.ListarMateriaisAsync(linhas.Select(l => l.MaterialId).ToList(), ct))
         .ToDictionary(m => m.Id);
+    var jaPlanejados = (await _separacao.ListarPlanejadoAsync([noId], ct)).Select(p => p.MaterialId).ToHashSet();
     foreach (var linha in linhas)
     {
       if (!materiais.TryGetValue(linha.MaterialId, out var material))
         return Falhas.Validacao<MateriaisDoNoDto>(CodigosDaSeparacao.MaterialInvalido,
             $"O material {linha.MaterialId} não existe.");
-      if (!material.Ativo)
+      if (!material.Ativo && !jaPlanejados.Contains(material.Id))
         return Falhas.Validacao<MateriaisDoNoDto>(CodigosDaSeparacao.MaterialInvalido,
             $"O material {material.Codigo} está inativo e não entra no planejado.");
     }
