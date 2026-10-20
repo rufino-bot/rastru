@@ -866,17 +866,18 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte tem **1.451 testes descobertos** (medido em 2026-10-16, em `441d109`, com `dotnet test` de cada
+A suíte tem **1.475 testes descobertos** (medido em 2026-10-20, em `4cca2f4`, com `dotnet test` de cada
 projeto e `--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
-ar; a métrica é a de linhas da listagem, em que cada caso de `[Theory]` conta como um: 381 em `Api.Tests`,
-828 em `Application.Tests`, 242 em `Infrastructure.Tests`, 0 em `Domain.Tests`). **A execução da suíte
-não foi remedida nesta passada** — o número anterior, 785, era de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0,
-e a execução no mesmo commit deu os mesmos 785), e o "passa 785 de 785" da seção de nuvem acima é dessa
-data, não do estado atual. Quantos
+ar; a métrica é a de linhas da listagem, em que cada caso de `[Theory]` conta como um: 391 em `Api.Tests`,
+842 em `Application.Tests`, 242 em `Infrastructure.Tests`, 0 em `Domain.Tests`). **A suíte inteira foi
+executada** em 2026-10-20, em `4cca2f4`, com `dotnet test Rastreamento.slnx -m:1`: 391 (Api) + 842
+(Application) + 242 (Infrastructure) = 1.475, todos passando, e 0 em Domain — a execução bate com a
+descoberta. O "passa 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
+não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
 exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
-falha por erro de conexão em vez de mensagem útil, e a task que escreveu este parágrafo é
-documentação pura, sem delta de teste, então não executou a suíte para medir isso. O que se sabe
+falha por erro de conexão em vez de mensagem útil, e a execução de 2026-10-20 não separou
+os testes por dependência de banco. O que se sabe
 por leitura de código, sem precisar rodar nada: `Application.Tests` usa fakes e não precisa de
 banco (nenhum teste seu); `Infrastructure.Tests` e `Api.Tests` precisam **em parte**, sem a fração
 medida.

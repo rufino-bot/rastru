@@ -170,8 +170,9 @@ Concluídas até aqui:
   materiais de qualquer nó; e a lista do Separador, o painel do nó e a Fila do Setor mostram o que falta
   levar. O Separador também separa vários nós de uma vez (`POST /separacoes`, tudo ou nada). Backend e front
   feitos; o usuário fez a conferência no navegador (2026-10-19) e aprovou os ajustes que pediu; a review de
-  branch inteira foi feita, e os achados dela foram consertados numa rodada antes do merge. Ainda **não** foi
-  mesclada na `main`.
+  branch inteira foi feita; os dois achados Important e parte dos Minor foram consertados numa rodada, e o resto
+  ficou como dívida registrada (entre elas, a receita padrão ainda recusa material inativo já gravado). Ainda
+  **não** foi mesclada na `main`.
 
 A seguir vêm as Fases 5 e 6 — Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor

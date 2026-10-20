@@ -695,8 +695,9 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
   **conferência no navegador foi feita pelo usuário** em 2026-10-19, com quatro ajustes pedidos e aprovados
   (o lote na Separação, o menu sem "Início" com a marca "Rastru" levando à Home, o editor de materiais com os
   botões alinhados ao campo, e o material fora do plano e todo estornado saindo de "Materiais"), e a **review
-  de branch inteira foi feita**, com os achados consertados numa rodada antes do merge. A fase **ainda não
-  está mesclada** na `main`.
+  de branch inteira foi feita**: os dois achados Important e parte dos Minor foram consertados numa rodada, e o
+  resto ficou como dívida registrada (entre elas, a receita padrão ainda recusa material inativo já gravado). A
+  fase **ainda não está mesclada** na `main`.
 - Critério de pronto: dá para saber quais materiais já foram separados/entregues para cada item em
   fabricação; o Separador tem uma lista do que falta levar para cada nó, só do material do almoxarifado,
   ordenada pelo prazo do Pedido, e registra pelo celular o que levou; o PCP edita os materiais planejados de

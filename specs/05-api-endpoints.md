@@ -798,7 +798,8 @@ de backend da Fase 4, `docs/superpowers/plans/2026-10-16-fase-4-backend.md`.)*
 **Separação (regra 34)**
 
 - `POST /estrutura/{id}/separacoes` *(Separador, Administrador)* — registra o que o Separador levou.
-  Body: `{ linhas: [{ materialId, quantidade }] }`, **tudo ou nada** numa transação. **201** com
+  Body: `{ linhas: [{ materialId, quantidade }] }`, **tudo ou nada** numa escrita só, sem a transação da Execução (o lote
+  `POST /separacoes`, abaixo, faz o mesmo). **201** com
   `ResultadoDaSeparacaoDto`: as linhas gravadas e o resumo novo de cada material tocado — o item que passou
   do planejado volta com `acimaDoPlanejado: true` (D9: a tela já avisou antes do envio, e o sistema
   aceita). O material que fica num Setor é aceito se estiver no planejado (D16). A ordem das validações é

@@ -205,7 +205,7 @@ Todas sob `/api`, com as rotas de nó sob `estrutura/{id}` (o `05` pede que as r
     que o `PUT` é a lista inteira: recusar o inativo já planejado travava toda edição dos outros materiais do
     nó (nem a quantidade de outro material salvava) até o PCP tirá-lo do plano, o que apaga uma necessidade
     real da peça e, se ele já tinha separação, o transforma em "fora do planejado". É o critério que o Roteiro
-    do nó e o "Fica em" do Material já têm para o Setor inativo já apontado (R5). A receita padrão
+    do nó e o "Fica em" do Material já têm para o Setor inativo já apontado (o teste `Editar_mantendo_o_setor_ja_inativado_e_aceito`, do cadastro de Material). A receita padrão
     (`ReceitaPadraoUseCase.SubstituirMateriais`) **não muda**: segue recusando o inativo, e fica como dívida
     registrada.
 
