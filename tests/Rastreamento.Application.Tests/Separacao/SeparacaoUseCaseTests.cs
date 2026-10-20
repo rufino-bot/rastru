@@ -29,6 +29,7 @@ public class SeparacaoUseCaseTests
     public FakeEstruturaRepo Estruturas { get; } = new();
     public FakeSeparacaoRepo Separacao { get; } = new();
     public FakeExecucaoRepo Execucao { get; }
+    public FakeReceitaPadraoRepo Catalogo { get; } = new();
 
     public Cenario()
     {
@@ -50,10 +51,10 @@ public class SeparacaoUseCaseTests
       Separacao.Materiais[Cola] = new MaterialDaSeparacao(Cola, "CO-1", "Cola de contato", "L", true, null, null);
     }
 
-    public SeparacaoUseCase Uso() => new(Separacao, Execucao);
+    public SeparacaoUseCase Uso() => new(Separacao, Execucao, Estruturas, Catalogo);
 
     public ConsultaDeSeparacaoUseCase Consulta() =>
-        new(Separacao, Execucao, Estruturas, new FakeReceitaPadraoRepo(),
+        new(Separacao, Execucao, Estruturas, Catalogo,
             new RelogioFixo(new DateTimeOffset(2026, 10, 16, 12, 0, 0, TimeSpan.Zero)));
 
     public void Planejar(int materialId, decimal quantidade) =>
@@ -161,17 +162,45 @@ public class SeparacaoUseCaseTests
   }
 
   [Fact]
-  public async Task Mensagem_nomeia_o_item_pelo_id_quando_o_no_nao_tem_descricao_propria()
+  public async Task Mensagem_nomeia_o_no_copiado_pelo_rotulo_do_Componente_regra_19()
   {
     var c = new Cenario();
-    c.Estruturas.Itens.Single(i => i.Id == No).Descricao = null;
+    // No copiado do catalogo: sem descricao propria, so o Componente (regra 19).
+    var no = c.Estruturas.Itens.Single(i => i.Id == No);
+    no.Descricao = null;
+    no.ComponenteId = 70;
+    c.Catalogo.Componentes.Add(
+        new Componente { Id = 70, Codigo = "QD-01", Descricao = "Quadro de comando", Tipo = "Fabricado", Ativo = true });
     c.Planejar(Parafuso, 10m);
 
     var r = await c.Uso().Separar(No, Corpo((Cola, 1m)), Separador, CancellationToken.None);
 
     Assert.Equal(CodigosDaSeparacao.MaterialForaDoPlanejado, r.Erro);
     Assert.Contains("CO-1", r.Detalhe);
-    Assert.Contains($"do item {No}", r.Detalhe);
+    Assert.Contains("do nó Quadro de comando", r.Detalhe);
+    Assert.DoesNotContain($"item {No}", r.Detalhe);
+  }
+
+  [Fact]
+  public async Task Estorno_ja_feito_nomeia_o_no_copiado_pelo_rotulo_do_Componente()
+  {
+    var c = new Cenario();
+    var no = c.Estruturas.Itens.Single(i => i.Id == No);
+    no.Descricao = null;
+    no.ComponenteId = 70;
+    c.Catalogo.Componentes.Add(
+        new Componente { Id = 70, Codigo = "QD-01", Descricao = "Quadro de comando", Tipo = "Fabricado", Ativo = true });
+    c.Planejar(Parafuso, 10m);
+    var original = await c.SepararAntesAsync(Parafuso, 6m, Separador);
+    var estorno = await c.Uso().Estornar(original.Id, Separador, false, CancellationToken.None);
+
+    var jaEstornada = await c.Uso().Estornar(original.Id, Pcp, true, CancellationToken.None);
+    var deEstorno = await c.Uso().Estornar(estorno.Valor!.Id, Separador, false, CancellationToken.None);
+
+    Assert.Equal(CodigosDaSeparacao.JaEstornada, jaEstornada.Erro);
+    Assert.Contains("do nó Quadro de comando", jaEstornada.Detalhe);
+    Assert.Equal(CodigosDaSeparacao.EstornoDeEstorno, deEstorno.Erro);
+    Assert.Contains("do nó Quadro de comando", deEstorno.Detalhe);
   }
 
   [Fact]

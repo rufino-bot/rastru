@@ -16,11 +16,15 @@ public sealed class SeparacaoUseCase
 {
   private readonly ISeparacaoRepository _separacao;
   private readonly IExecucaoRepository _execucao;
+  private readonly LeitorDeEstado _leitor;
 
-  public SeparacaoUseCase(ISeparacaoRepository separacao, IExecucaoRepository execucao)
+  public SeparacaoUseCase(
+      ISeparacaoRepository separacao, IExecucaoRepository execucao, IEstruturaRepository estruturas,
+      IReceitaPadraoRepository catalogo)
   {
     _separacao = separacao;
     _execucao = execucao;
+    _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
   }
 
   /// <summary>
@@ -152,7 +156,7 @@ public sealed class SeparacaoUseCase
   /// <summary>
   /// A recusa de um no do lote com o nome dele na frente da frase, como o `Nomeada` do lote da execucao. Nao
   /// levam o prefixo o 404, que continua sem corpo, e a recusa cuja frase ja nomeia o no (o "fora do
-  /// planejado" diz "do nó Quadro").
+  /// planejado" diz "do nó Quadro"). O nome e o da regra 19, o mesmo que a tela mostra.
   /// </summary>
   private async Task<Result<IReadOnlyList<ResultadoDaSeparacaoDoNoDto>>> NomeadaAsync(
       Result<SeparacaoValidada> falha, int noId, CancellationToken ct) =>
@@ -203,25 +207,18 @@ public sealed class SeparacaoUseCase
     return $"{Nome(linha.MaterialId, catalogo)} {await DoNoAsync(linha.EstruturaItemId, ct)}";
   }
 
+  /// <summary>"do nó Quadro": o nome do no (<see cref="NomeDoNoAsync"/>) para a frase.</summary>
+  private async Task<string> DoNoAsync(int noId, CancellationToken ct) => $"do nó {await NomeDoNoAsync(noId, ct)}";
+
   /// <summary>
-  /// "do nó Quadro" pela descricao do proprio no; "do item 42" quando ele nao tem descricao propria. A
-  /// heranca da descricao do Componente (regra 19) pediria o catalogo, que este caso de uso nao le: a
-  /// frase so precisa identificar o no, e o Id identifica.
+  /// O nome do no como a tela o mostra, pela regra 19: a descricao propria e, sem ela, a do Componente. E o
+  /// mesmo <see cref="LeitorDeEstado"/> da lista do Separador, para a regra morar num lugar so. Serve a
+  /// frase de um 409 e ao prefixo da recusa do lote, que sao o caminho de recusa, nao o quente.
   /// </summary>
-  private async Task<string> DoNoAsync(int noId, CancellationToken ct)
+  private async Task<string> NomeDoNoAsync(int noId, CancellationToken ct)
   {
-    var descricao = await DescricaoPropriaAsync(noId, ct);
-    return descricao is null ? $"do item {noId}" : $"do nó {descricao}";
-  }
-
-  /// <summary>O nome do no na frente da recusa do lote: o mesmo criterio de <see cref="DoNoAsync"/>.</summary>
-  private async Task<string> NomeDoNoAsync(int noId, CancellationToken ct) =>
-      await DescricaoPropriaAsync(noId, ct) ?? $"item {noId}";
-
-  private async Task<string?> DescricaoPropriaAsync(int noId, CancellationToken ct)
-  {
-    var no = (await _execucao.ListarNosAsync([noId], ct)).SingleOrDefault();
-    return string.IsNullOrWhiteSpace(no?.Descricao) ? null : no.Descricao;
+    var nos = await _execucao.ListarNosAsync([noId], ct);
+    return (await _leitor.CarregarAsync(nos, ct)).Nome(noId);
   }
 
   private async Task<string> NomeDoUsuarioAsync(int usuarioId, CancellationToken ct) =>

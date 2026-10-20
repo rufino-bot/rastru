@@ -1,6 +1,7 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Separacao;
+using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Estrutura;
 using Rastreamento.Application.Tests.Execucao;
 using Rastreamento.Domain.Abstractions;
@@ -30,6 +31,7 @@ public class SeparacaoEmLoteTests
     public FakeEstruturaRepo Estruturas { get; } = new();
     public FakeSeparacaoRepo Separacao { get; } = new();
     public FakeExecucaoRepo Execucao { get; }
+    public FakeReceitaPadraoRepo Catalogo { get; } = new();
 
     public Cenario()
     {
@@ -51,7 +53,7 @@ public class SeparacaoEmLoteTests
       Separacao.Materiais[Cola] = new MaterialDaSeparacao(Cola, "CO-1", "Cola de contato", "L", true, null, null);
     }
 
-    public SeparacaoUseCase Uso() => new(Separacao, Execucao);
+    public SeparacaoUseCase Uso() => new(Separacao, Execucao, Estruturas, Catalogo);
 
     public void Planejar(int no, int materialId, decimal quantidade) =>
         Separacao.Planejado.Add(new EstruturaMaterial { EstruturaItemId = no, MaterialId = materialId, Quantidade = quantidade });
@@ -203,6 +205,10 @@ public class SeparacaoEmLoteTests
     c.Planejar(Quadro, Parafuso, 10m);
     c.Planejar(Tampa, Parafuso, 3m);
     c.Planejar(SemDescricao, Parafuso, 3m);
+    // No copiado do catalogo: sem descricao propria, o nome vem do Componente (regra 19).
+    c.Estruturas.Itens.Single(i => i.Id == SemDescricao).ComponenteId = 70;
+    c.Catalogo.Componentes.Add(
+        new Componente { Id = 70, Codigo = "TP-01", Descricao = "Tampa de inspecao", Tipo = "Fabricado", Ativo = true });
 
     var vazia = await c.Uso().SepararEmLote(Lote(No(Quadro, (Parafuso, 1m)), No(Tampa)), Separador, CancellationToken.None);
     var semLinhas = await c.Uso().SepararEmLote(
@@ -220,8 +226,9 @@ public class SeparacaoEmLoteTests
     Assert.StartsWith("Tampa: A quantidade 0 não vale", quantidade.Detalhe);
     Assert.Equal(CodigosDaSeparacao.MaterialRepetido, repetido.Erro);
     Assert.StartsWith("Tampa: O material PAR-M8", repetido.Detalhe);
-    // Sem descricao propria o no e nomeado pelo Id, como na frase da rota individual.
-    Assert.StartsWith($"item {SemDescricao}: ", semNome.Detalhe);
+    // Sem descricao propria o no e nomeado pelo rotulo do Componente (regra 19), nunca pelo Id.
+    Assert.StartsWith("Tampa de inspecao: ", semNome.Detalhe);
+    Assert.DoesNotContain($"item {SemDescricao}", semNome.Detalhe);
     Assert.Equal(0, c.Separacao.Gravacoes);
   }
 }
