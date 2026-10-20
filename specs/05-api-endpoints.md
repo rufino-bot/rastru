@@ -786,9 +786,12 @@ de backend da Fase 4, `docs/superpowers/plans/2026-10-16-fase-4-backend.md`.)*
   `PUT /estrutura/{id}/roteiro`; `[]` limpa o planejado. Body: `{ linhas: [{ materialId, quantidade }] }`;
   corpo sem `linhas` é recusado antes do caso de uso, no formato de binding do ASP.NET (o mesmo da seção
   "Contrato de erro dos cadastros"), para `{}` não ser lido como `[]`. Responde **200** com o mesmo
-  `MateriaisDoNoDto` do `GET`, já relido. As mesmas regras dos materiais da receita padrão: material
-  repetido, inexistente ou inativo e quantidade fora da regra são **400**; nó inexistente, **404**. A ordem
-  é nó (404) → quantidade → repetido → material existente e ativo, e nada é gravado se alguma falhar. Tirar
+  `MateriaisDoNoDto` do `GET`, já relido. Material repetido, inexistente ou inativo e quantidade fora da
+  regra são **400**; nó inexistente, **404**. O inativo só é recusado se **não** estiver no planejado atual
+  do nó: o que já está nele é aceito (emenda de 2026-10-20), porque o `PUT` reenvia a lista inteira. É a
+  diferença para os materiais da receita padrão, que continuam recusando o inativo. A ordem
+  é nó (404) → quantidade → repetido → material existente e ativo (ou já planejado), e nada é gravado se
+  alguma falhar. Tirar
   do plano um material que já tem separação é permitido (D14); editar o planejado é livre a qualquer
   momento.
 
@@ -897,11 +900,10 @@ Regras do contrato que o formato não diz sozinho:
 
 Formato `{ erro, mensagem }` do "Contrato de erro da Execução": `erro` é o código estável, `mensagem` a frase
 para o operador. As mensagens de `MaterialForaDoPlanejado`, `JaEstornada` e `EstornoDeEstorno` **nomeiam o
-material** ("PAR-M8 (Parafuso M8)") **e o nó** ("do nó Quadro soldado"; o nó sem descrição própria aparece como
-"do item 42"). O `404` vai sem corpo. O `403` do `[Authorize(Roles)]` também vai sem corpo; o `403` `Proibido`
+material** ("PAR-M8 (Parafuso M8)") **e o nó** ("do nó Quadro soldado"), pelo nome da regra 19: a descrição
+própria do nó e, sem ela, o rótulo do Componente (a descrição dele), o mesmo que a tela mostra. O `404` vai sem corpo. O `403` do `[Authorize(Roles)]` também vai sem corpo; o `403` `Proibido`
 com corpo é o do caso de uso, no estorno. No `POST /separacoes`, a recusa de um nó vem com o código e o status
-da rota de um nó, e a frase com o nome do nó na frente ("Quadro soldado: …"; "item 42: …" sem descrição
-própria), salvo `MaterialForaDoPlanejado`, que já o nomeia.
+da rota de um nó, e a frase com o nome do nó na frente ("Quadro soldado: …", o mesmo nome da regra 19), salvo `MaterialForaDoPlanejado`, que já o nomeia.
 
 | Status | Código | Quando |
 |---|---|---|
@@ -911,7 +913,7 @@ própria), salvo `MaterialForaDoPlanejado`, que já o nomeia.
 | 400 | `LoteVazio` | `POST /separacoes` com `nos` vazia ou ausente ("Marque pelo menos um item."); é o código do lote da Execução, reusado |
 | 400 | `LoteGrandeDemais` | `POST /separacoes` com mais nós que o teto do lote da Execução; código reusado |
 | 400 | `ItemRepetido` | `POST /separacoes` com o mesmo nó duas vezes; código reusado |
-| 400 | `MaterialInvalido` | `PUT /estrutura/{id}/materiais` com material inexistente ou inativo; a `mensagem` o nomeia |
+| 400 | `MaterialInvalido` | `PUT /estrutura/{id}/materiais` com material inexistente, ou inativo que **não** está no planejado atual do nó (o inativo que já está nele é aceito); a `mensagem` o nomeia |
 | 400 | `SetorDeEstoqueInvalido` | `POST /materiais` ou `PUT /materiais/{id}` com Setor inexistente ou inativo em `setorDeEstoqueId`; o `PUT` aceita o Setor que o Material já tem. **Sem `mensagem`**: é o formato `{ erro }` dos cadastros |
 | 403 | `Proibido` | `POST /separacoes/{id}/estorno` de linha de outro autor, por quem não é PCP nem Administrador; é o código da Execução, reusado |
 | 404 | — | nó ou linha de separação inexistente |

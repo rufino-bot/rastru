@@ -199,11 +199,21 @@ Todas sob `/api`, com as rotas de nó sob `estrutura/{id}` (o `05` pede que as r
   **substitui** a lista inteira, no molde do `PUT /estrutura/{id}/roteiro`. Valida com as mesmas regras
   dos materiais da receita padrão (`ReceitaPadraoUseCase.SubstituirMateriais`): material repetido, material
   inativo, quantidade não positiva ou fora da escala `DECIMAL(18,4)` → `400`; nó inexistente → `404`.
+  - **Emenda de 2026-10-20, decisão do usuário na review de branch da Fase 4 ("aceitar só no nó"):** a regra
+    do material inativo **não é a da receita padrão**. O `PUT` aceita o material inativo que **já está no
+    planejado atual do nó** e continua recusando (`400 MaterialInvalido`) o inativo que não está. O motivo é
+    que o `PUT` é a lista inteira: recusar o inativo já planejado travava toda edição dos outros materiais do
+    nó (nem a quantidade de outro material salvava) até o PCP tirá-lo do plano, o que apaga uma necessidade
+    real da peça e, se ele já tinha separação, o transforma em "fora do planejado". É o critério que o Roteiro
+    do nó e o "Fica em" do Material já têm para o Setor inativo já apontado (R5). A receita padrão
+    (`ReceitaPadraoUseCase.SubstituirMateriais`) **não muda**: segue recusando o inativo, e fica como dívida
+    registrada.
 
 **Separação:**
 
 - **`POST /estrutura/{id}/separacoes`** — Separador e Administrador. Corpo `{ linhas: [{ materialId,
-  quantidade }] }`, **tudo ou nada** numa transação, como o lote da Fila.
+  quantidade }] }`, **tudo ou nada**: valida tudo e grava as linhas numa escrita só, **sem** a transação da
+  execução (decisão P1 do plano de backend), diferente do lote da Fila.
   - `201` com as linhas gravadas e o resumo novo de cada material tocado; a linha que passou do planejado
     volta com `acimaDoPlanejado: true` (a tela já avisou antes do envio).
   - `409 MaterialForaDoPlanejado` quando algum material não está no planejado do nó, nomeando-o;
@@ -267,7 +277,11 @@ Todas sob `/api`, com as rotas de nó sob `estrutura/{id}` (o `05` pede que as r
 
 O `05` ganha a tabela **"Contrato de erro da Separação"**, no formato `{ erro, mensagem }` do contrato da
 Execução: `MaterialForaDoPlanejado`, `JaEstornada`, `EstornoDeEstorno` e `Proibido`, com o status de cada
-um. As mensagens nomeiam o material e o nó.
+um. As mensagens nomeiam o material e o nó. **Nomear o nó segue a regra 19** (emenda de 2026-10-20, decisão da
+review de branch da Fase 4): a descrição própria do nó e, sem ela, o rótulo do Componente, o mesmo que a tela
+mostra e que a lista do Separador já resolve ("do nó Quadro de comando"). O nó copiado do catálogo, que é o
+caso comum, não tem descrição própria, e antes desta emenda a frase saía com o Id ("do item 42"), que a tela
+não mostra em lugar nenhum. O mesmo nome vai na frente da frase do lote (`"{nome}: {frase}"`).
 
 **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** o `POST /separacoes` (seção 5.2) reusa
 os códigos do lote da execução, `LoteVazio`, `LoteGrandeDemais` e `ItemRepetido` (os três `400`, com a mesma
@@ -320,6 +334,8 @@ sem o prefixo, porque a frase dele já nomeia o nó.
 
 - Seção **"Materiais"**: cada material com planejado, separado, pendência e "Fica em"; o que saiu do
   planejado e tem histórico, marcado "fora do planejado".
+  - **Exceção, decidida na conferência de 2026-10-19:** o material que fica num Setor **não mostra
+    pendência** (regra 34: o operador o pega ali); a linha dele traz só planejado, separado e o "Fica em".
   - **Emenda de 2026-10-19, decisão do usuário na conferência da Fase 4:** "tem histórico" quer dizer separado
     líquido maior que zero. O material fora do planejado com toda separação estornada sai da seção (a regra
     mora no `GET /estrutura/{id}/materiais`, seção 5.2); as linhas dele continuam em "Separações".
