@@ -37,6 +37,9 @@ public class LoteDeApontamentoTests
   private static LoteDeTerminoDto Terminos(int setor, params (int No, int Ordem, decimal Quantidade)[] itens) =>
       new(setor, itens.Select(i => new ItemDeTerminoDto(i.No, i.Ordem, i.Quantidade)).ToList());
 
+  /// <summary>Um item de conserto: sem `Ordem`, com `Conserto` (decisao P6 do plano de backend da Fase 5A).</summary>
+  private static ItemDeTerminoDto DeConserto(int no, decimal quantidade) => new(no, null, quantidade, Conserto: true);
+
   /// <summary>O livro sem Id nem hora: o que tem de ser igual entre o lote e os mesmos itens um a um.</summary>
   private static object[] LivroDe(CenarioDeExecucao c) =>
       c.Execucao.Movimentacoes
@@ -440,6 +443,143 @@ public class LoteDeApontamentoTests
     Assert.Empty(c.Execucao.TravasDePedido);
     Assert.Equal(new[] { 1, 4 }, IdsDo(c.Execucao.Eventos[0]).Order().ToArray());
     Assert.True(c.Execucao.Eventos.IndexOf("save") > 0);
+  }
+
+  // ------------------------------------------------------------------ conserto (Fase 5A, decisao P6)
+
+  /// <summary>
+  /// Na Dobra: o no 10 (Roteiro Dobra) com 4 no passo 1 e a Peca 1 copiada do catalogo, de 6, com 2 `EmConserto`
+  /// (o Movimentador ja as entregou) e 4 em `NaExpedicao`.
+  /// </summary>
+  private static CenarioDeExecucao NaDobraComConserto()
+  {
+    var c = new CenarioDeExecucao();
+    c.PecaNoConserto(1, 6m, Dobra, 2m);
+    c.Mover(1, TiposDeMovimentacao.Entrega, Local.AguardandoConserto(Dobra), Local.EmConserto(Dobra), 2m, Movimentador);
+    c.No(10, null, 10m, null, Dobra);
+    c.Mover(10, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Dobra, 1), 4m);
+    return c;
+  }
+
+  [Fact]
+  public async Task Lote_de_termino_mistura_item_normal_e_conserto()
+  {
+    var c = NaDobraComConserto();
+
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [new ItemDeTerminoDto(10, 1, 3m), DeConserto(1, 2m)]), Operador, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal(new[] { 10, 1 }, r.Valor!.Select(m => m.EstruturaItemId).ToArray());   // a ordem do corpo
+    Assert.Equal(new LocalDto(Posicoes.AguardandoColeta, Dobra, "Dobra", 1), r.Valor![0].Destino);
+    Assert.Equal(new LocalDto(Posicoes.EmConserto, Dobra, "Dobra", null), r.Valor[1].Origem);
+    Assert.Equal(new LocalDto(Posicoes.ConsertoPronto, Dobra, "Dobra", null), r.Valor[1].Destino);
+    // As duas linhas numa transacao so.
+    Assert.Equal(1, c.Execucao.Commits);
+    var calc = c.Calcular();
+    Assert.Equal(1m, calc.Saldo(10, Local.NoSetor(Dobra, 1)));
+    Assert.Equal(3m, calc.Saldo(10, Local.AguardandoColeta(Dobra, 1)));
+    Assert.Equal(0m, calc.Saldo(1, Local.EmConserto(Dobra)));
+    Assert.Equal(2m, calc.Saldo(1, Local.ConsertoPronto(Dobra)));
+    // So o Pedido do item de conserto e travado: o terminar normal nao escreve no Pedido.
+    Assert.Equal(new[] { 1 }, Assert.Single(c.Execucao.TravasDePedido));
+  }
+
+  [Fact]
+  public async Task Lote_de_conserto_produz_o_mesmo_livro_que_o_terminar_conserto_individual()
+  {
+    var emLote = NaDobraComConserto();
+    var individual = NaDobraComConserto();
+
+    var lote = await emLote.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [DeConserto(1, 1.5m)]), Operador, Ct);
+    var um = await individual.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 1.5m), Operador, Ct);
+
+    Assert.True(lote.Sucesso, lote.Detalhe);
+    Assert.True(um.Sucesso, um.Detalhe);
+    Assert.Equal(LivroDe(individual), LivroDe(emLote));
+  }
+
+  [Fact]
+  public async Task Lote_de_conserto_recalcula_o_fechamento_do_Pedido()
+  {
+    var c = NaDobraComConserto();
+    c.Execucao.StatusDoPedido[PedidoId] = "AguardandoExpedicao";   // defasado de proposito: so o recalculo o corrige
+
+    var r = await c.Apontamento().TerminarEmLote(new LoteDeTerminoDto(Dobra, [DeConserto(1, 1m)]), Operador, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal("EmProducao", c.Execucao.StatusDoPedido[PedidoId]);
+  }
+
+  [Fact]
+  public async Task Item_de_conserto_com_ordem_e_recusado()
+  {
+    var c = NaDobraComConserto();
+    var livroAntes = LivroDe(c);
+
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [new ItemDeTerminoDto(1, 1, 1m, Conserto: true)]), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.OrigemInvalida, TipoDeErro.Validacao);
+    Assert.StartsWith("Chapa dobrada 3 mm:", r.Detalhe);
+    Assert.Equal(livroAntes, LivroDe(c));
+  }
+
+  [Fact]
+  public async Task Item_normal_sem_ordem_e_recusado()
+  {
+    var c = NaDobraComConserto();
+    var livroAntes = LivroDe(c);
+
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [new ItemDeTerminoDto(1, null, 1m)]), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.OrigemInvalida, TipoDeErro.Validacao);
+    Assert.StartsWith("Chapa dobrada 3 mm:", r.Detalhe);
+    Assert.Equal(livroAntes, LivroDe(c));
+  }
+
+  [Fact]
+  public async Task Item_malformado_depois_de_um_valido_nao_deixa_o_valido_gravar()
+  {
+    var c = NaDobraComConserto();
+    var livroAntes = LivroDe(c);
+
+    // A forma de TODOS os itens e conferida antes do primeiro gravar: o 400 nao passa por um 409 anterior.
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [new ItemDeTerminoDto(10, 1, 99m), new ItemDeTerminoDto(1, null, 1m)]), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.OrigemInvalida, TipoDeErro.Validacao);
+    Assert.Equal(livroAntes, LivroDe(c));
+  }
+
+  [Fact]
+  public async Task Lote_com_conserto_acima_do_saldo_nao_grava_nada()
+  {
+    var c = NaDobraComConserto();
+    var livroAntes = LivroDe(c);
+
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [new ItemDeTerminoDto(10, 1, 3m), DeConserto(1, 5m)]), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.SaldoInsuficiente, TipoDeErro.Conflito);
+    Assert.Equal("Só há 2 de Chapa dobrada 3 mm em conserto no Setor Dobra.", r.Detalhe);   // a frase nomeia a Peca
+    Assert.Equal(livroAntes, LivroDe(c));   // nem o item normal, que gravou antes
+    Assert.Equal(1, c.Execucao.Desfeitas);
+    Assert.Equal(0, c.Execucao.Commits);
+  }
+
+  [Fact]
+  public async Task O_mesmo_conserto_duas_vezes_no_lote_da_ItemRepetido()
+  {
+    var c = NaDobraComConserto();
+
+    var r = await c.Apontamento().TerminarEmLote(
+        new LoteDeTerminoDto(Dobra, [DeConserto(1, 1m), DeConserto(1, 1m)]), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.ItemRepetido, TipoDeErro.Validacao);
+    Assert.Equal(0, c.Execucao.Transacoes);   // recusado antes de abrir transacao
   }
 
   private static int[] IdsDo(string evento) =>

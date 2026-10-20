@@ -58,6 +58,7 @@ public sealed class ConsultaDeExecucaoUseCase
     var emTrabalho = new List<LinhaDaFilaDto>();
     var coleta = new List<LinhaAguardandoColetaDto>();
     var sobra = new List<LinhaDeSobraDto>();
+    var conserto = new List<LinhaDeConsertoDto>();
 
     foreach (var no in calc.Nos)
     {
@@ -88,6 +89,11 @@ public sealed class ConsultaDeExecucaoUseCase
             sobra.Add(new LinhaDeSobraDto(resumos[no.Id], UltimoPasso, ordem, sobraDaColeta, false,
                 tarefa > 0m ? [] : registros));
         }
+        else if (local.Posicao is PosicaoConst.EmConserto or PosicaoConst.ConsertoPronto)
+          // O conserto da Peca neste Setor (D4 da spec da Fase 5A): `EmConserto` o Operador termina; `ConsertoPronto`
+          // espera o Movimentador. `AguardandoConserto` ainda e do Movimentador e fica nas Tarefas.
+          conserto.Add(new LinhaDeConsertoDto(resumos[no.Id], local.Posicao, quantidade,
+              estornaveis.DoLocal(no.Id, local, quantidade)));
         else if (local.Posicao == PosicaoConst.AguardandoMontagem && calc.ExcessoEmMontagem(no.Id) is var excesso && excesso > 0m)
           sobra.Add(new LinhaDeSobraDto(resumos[no.Id], EmMontagem, null, excesso,
               calc.SetoresOndeAguardaMontagem(no.Id).Count > 1, []));
@@ -127,7 +133,8 @@ public sealed class ConsultaDeExecucaoUseCase
         // secao 2.5). OrderBy e estavel: dentro de cada grupo, a ordem de antes.
         aIniciar.OrderBy(l => l.No.Pausa is null ? 0 : 1).ToList(),
         emTrabalho, coleta, montagem,
-        sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList()));
+        sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList(),
+        conserto));
   }
 
   /// <summary>
@@ -225,20 +232,35 @@ public sealed class ConsultaDeExecucaoUseCase
             f.UltimoPasso?.Ordem, f.Pronto, f.JaNoDestino)).ToList())).ToList();
 
     return Result<TarefasDto>.Ok(new TarefasDto(
-        grupos, kits.Where(k => k.Conjuntos >= 1m).ToList(), kits.Where(k => k.Conjuntos < 1m).ToList()));
+        grupos, kits.Where(k => k.Conjuntos >= 1m).ToList(), kits.Where(k => k.Conjuntos < 1m).ToList(),
+        calc.ConsertosPendentes().Select(c => TarefaDeConserto(c, resumos[c.EstruturaItemId], nomes)).ToList()));
+  }
+
+  /// <summary>
+  /// A ida (`AguardandoConserto`: do local de expedicao a `EmConserto` no Setor) e a volta (`ConsertoPronto`: do
+  /// Setor ao local de expedicao) do conserto, com o destino calculado, sem escolha (D4 da spec da Fase 5A).
+  /// </summary>
+  private static TarefaDeConsertoDto TarefaDeConserto(
+      ConsertoPendente c, NoResumoDto no, IReadOnlyDictionary<int, string> nomes)
+  {
+    var (origem, destino) = c.Local.Posicao == PosicaoConst.AguardandoConserto
+        ? (Local.NaExpedicao, Local.EmConserto(c.Local.SetorId!.Value))
+        : (c.Local, Local.NaExpedicao);
+    return new TarefaDeConsertoDto(no, LocalDto.De(origem, nomes), LocalDto.De(destino, nomes), c.Quantidade);
   }
 
   /// <summary>
   /// A mesma conta de `Tarefas` (spec secao 7.7), sem montar os DTOs — ver `CarregarEmProducaoAsync`
   /// para o motivo de nao repetir a carga do estado. Cada Kit montavel conta como uma tarefa; os
-  /// incompletos nao contam (spec da Fase 3B, secao 4.5).
+  /// incompletos nao contam (spec da Fase 3B, secao 4.5). Cada ida e cada volta do conserto tambem e uma.
   /// </summary>
   public Task<Result<ContagemDeTarefasDto>> ContagemDeTarefas(CancellationToken ct) =>
       _execucao.ConsultarAsync(async () =>
       {
         var (estado, _) = await CarregarEmProducaoAsync(ct);
         return Result<ContagemDeTarefasDto>.Ok(new ContagemDeTarefasDto(
-            estado.Calc.ColetasPendentes().Count + estado.Calc.KitsDaColeta().Count(k => k.Montavel)));
+            estado.Calc.ColetasPendentes().Count + estado.Calc.KitsDaColeta().Count(k => k.Montavel)
+            + estado.Calc.ConsertosPendentes().Count));
       }, ct);
 
   public Task<Result<IReadOnlyList<PosicoesDoNoDto>>> Posicoes(int agrupamentoId, CancellationToken ct) =>

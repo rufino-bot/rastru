@@ -39,14 +39,25 @@ public sealed record ItemDeInicioDto(int EstruturaItemId, decimal Quantidade);
 /// </summary>
 public sealed record LoteDeInicioDto(int SetorId, IReadOnlyList<ItemDeInicioDto>? Itens);
 
-public sealed record ItemDeTerminoDto(int EstruturaItemId, int Ordem, decimal Quantidade);
+/// <summary>
+/// Terminar o conserto de uma Peca no Setor: `EmConserto` -> `ConsertoPronto`, sem Roteiro e sem passo (decisao P6
+/// do plano de backend da Fase 5A). Rota propria porque o `TerminoDto` carrega `Ordem`, que o conserto nao tem.
+/// </summary>
+public sealed record TerminoDeConsertoDto(int SetorId, decimal Quantidade);
+
+/// <summary>
+/// `Conserto` verdadeiro: o item termina `EmConserto` -> `ConsertoPronto` e vem SEM `Ordem`; falso, termina o
+/// passo `Ordem` do Roteiro, e `Ordem` e obrigatoria. `Ordem` anulavel de proposito: a ausencia (ou a
+/// incoerencia com `Conserto`) vira 400 `OrigemInvalida` com frase, e nao um zero silencioso.
+/// </summary>
+public sealed record ItemDeTerminoDto(int EstruturaItemId, int? Ordem, decimal Quantidade, bool Conserto = false);
 
 /// <summary>Terminar varios nos no mesmo Setor, tudo ou nada. Ver <see cref="LoteDeInicioDto"/>.</summary>
 public sealed record LoteDeTerminoDto(int SetorId, IReadOnlyList<ItemDeTerminoDto>? Itens);
 
 /// <summary>
-/// `Posicao`: `AguardandoColeta` (com `SetorId` e `Ordem`) ou `AguardandoMontagem` (com `SetorId`, sem
-/// `Ordem`). Tudo anulavel de proposito: um corpo incompleto vira 400 `OrigemInvalida` com frase, e nao
+/// `Posicao`: `AguardandoColeta` (com `SetorId` e `Ordem`), `AguardandoMontagem`, `AguardandoConserto` ou
+/// `ConsertoPronto` (as tres com `SetorId`, sem `Ordem`). Tudo anulavel de proposito: um corpo incompleto vira 400 `OrigemInvalida` com frase, e nao
 /// um erro de binding sem codigo.
 /// </summary>
 public sealed record OrigemDaEntregaDto(string? Posicao, int? SetorId, int? Ordem);
@@ -138,13 +149,21 @@ public sealed record MontagemPendenteDto(
 public sealed record LinhaDeSobraDto(
     NoResumoDto No, string Origem, int? Ordem, decimal Quantidade, bool EmMaisDeUmSetor, IReadOnlyList<EstornavelDto> Estornaveis);
 
+/// <summary>
+/// Uma Peca em conserto neste Setor (D4 da spec da Fase 5A). `Posicao`: `EmConserto` (o Operador termina) ou
+/// `ConsertoPronto` (espera o Movimentador levar ao local de expedicao). Sem `Ordem`: o conserto nao tem passo.
+/// </summary>
+public sealed record LinhaDeConsertoDto(
+    NoResumoDto No, string Posicao, decimal Quantidade, IReadOnlyList<EstornavelDto> Estornaveis);
+
 public sealed record FilaDoSetorDto(
     int SetorId, string SetorNome, string? SetorAtividade,
     IReadOnlyList<LinhaDaFilaDto> AIniciar,
     IReadOnlyList<LinhaDaFilaDto> EmTrabalho,
     IReadOnlyList<LinhaAguardandoColetaDto> AguardandoColeta,
     IReadOnlyList<MontagemPendenteDto> AguardandoMontagem,
-    IReadOnlyList<LinhaDeSobraDto> Sobra);
+    IReadOnlyList<LinhaDeSobraDto> Sobra,
+    IReadOnlyList<LinhaDeConsertoDto> Conserto);
 
 public sealed record TarefaDto(NoResumoDto No, int Ordem, decimal Quantidade, DestinoDto Destino);
 
@@ -163,9 +182,19 @@ public sealed record FilhoDoKitDto(
 /// </summary>
 public sealed record KitDto(NoResumoDto Pai, SetorResumoDto Destino, decimal Conjuntos, IReadOnlyList<FilhoDoKitDto> Filhos);
 
-/// <summary>`GET /tarefas`: os "Item pronto" por Setor de origem, e os Kits (spec da Fase 3B, secao 4.5).</summary>
+/// <summary>
+/// Uma ida ou uma volta do conserto para o Movimentador. Ida: `Origem` e o local de expedicao, `Destino` e
+/// `EmConserto` no Setor. Volta: `Origem` e `ConsertoPronto` no Setor, `Destino` e o local de expedicao.
+/// </summary>
+public sealed record TarefaDeConsertoDto(NoResumoDto No, LocalDto Origem, LocalDto Destino, decimal Quantidade);
+
+/// <summary>
+/// `GET /tarefas`: os "Item pronto" por Setor de origem, e os Kits (spec da Fase 3B, secao 4.5); e o conserto
+/// (D4 da spec da Fase 5A), no fim.
+/// </summary>
 public sealed record TarefasDto(
-    IReadOnlyList<TarefasDoSetorDto> Grupos, IReadOnlyList<KitDto> KitsMontaveis, IReadOnlyList<KitDto> KitsIncompletos);
+    IReadOnlyList<TarefasDoSetorDto> Grupos, IReadOnlyList<KitDto> KitsMontaveis, IReadOnlyList<KitDto> KitsIncompletos,
+    IReadOnlyList<TarefaDeConsertoDto> Consertos);
 
 public sealed record ContagemDeTarefasDto(int Total);
 

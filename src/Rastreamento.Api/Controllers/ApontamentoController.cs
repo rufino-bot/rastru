@@ -41,6 +41,18 @@ public class ApontamentoController : ExecucaoControllerBase
     return Traduzir(await _apontamento.Terminar(id, dto, usuarioId, ct), criado: true);
   }
 
+  /// <summary>
+  /// Terminar o conserto de uma Peca (decisao P6 do plano de backend da Fase 5A): rota propria porque o `TerminoDto`
+  /// carrega `Ordem`, que o conserto nao tem. Os mesmos perfis do terminar de sempre.
+  /// </summary>
+  [HttpPost("estrutura/{id:int}/terminos-de-conserto")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> TerminarConserto(int id, [FromBody] TerminoDeConsertoDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _apontamento.TerminarConserto(id, dto, usuarioId, ct), criado: true);
+  }
+
   /// <summary>Spec dos filtros e do lote, secao 6.1: os mesmos perfis da rota de um no.</summary>
   [HttpPost("inicios")]
   [Authorize(Roles = PerfisDeEscrita)]

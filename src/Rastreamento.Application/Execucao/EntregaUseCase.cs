@@ -44,8 +44,8 @@ public sealed class EntregaUseCase
         return Falhas.QuantidadeInvalida<IReadOnlyList<MovimentacaoDto>>(item.Quantidade);
       if (OrigemValida(item.Origem) is not Local origem)
         return Falhas.Validacao<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.OrigemInvalida,
-            "A origem de uma entrega é o que aguarda coleta (com Setor e passo) ou o que aguarda montagem "
-            + "(com Setor, sem passo).");
+            "A origem de uma entrega é o que aguarda coleta (com Setor e passo) ou o que aguarda montagem, "
+            + "aguarda conserto ou está pronto do conserto (com Setor, sem passo).");
       origens.Add(origem);
     }
 
@@ -119,13 +119,22 @@ public sealed class EntregaUseCase
   {
     { Posicao: Posicoes.AguardandoColeta, SetorId: int s, Ordem: int k } => Local.AguardandoColeta(s, k),
     { Posicao: Posicoes.AguardandoMontagem, SetorId: int s, Ordem: null } => Local.AguardandoMontagem(s),
+    { Posicao: Posicoes.AguardandoConserto, SetorId: int s, Ordem: null } => Local.AguardandoConserto(s),
+    { Posicao: Posicoes.ConsertoPronto, SetorId: int s, Ordem: null } => Local.ConsertoPronto(s),
     _ => null,
   };
 
-  private static string Onde(Local origem, Func<int, string> nomeDoSetor) =>
-      origem.Posicao == Posicoes.AguardandoColeta
-          ? $"aguardando coleta no Setor {nomeDoSetor(origem.SetorId!.Value)} (passo {origem.Ordem})"
-          : $"aguardando montagem no Setor {nomeDoSetor(origem.SetorId!.Value)}";
+  private static string Onde(Local origem, Func<int, string> nomeDoSetor)
+  {
+    var setor = nomeDoSetor(origem.SetorId!.Value);
+    return origem.Posicao switch
+    {
+      Posicoes.AguardandoColeta => $"aguardando coleta no Setor {setor} (passo {origem.Ordem})",
+      Posicoes.AguardandoConserto => $"aguardando conserto no Setor {setor}",
+      Posicoes.ConsertoPronto => $"pronto do conserto no Setor {setor}",
+      _ => $"aguardando montagem no Setor {setor}",
+    };
+  }
 
   /// <summary>A tabela da spec secao 4.3, linha a linha.</summary>
   private static (Local? Destino, Recusa? Recusa) Destino(
@@ -133,6 +142,18 @@ public sealed class EntregaUseCase
   {
     var id = item.EstruturaItemId;
     var nome = estado.Nome(id);
+
+    // O conserto vai e volta sem escolha (D4 da spec da Fase 5A): ao `EmConserto` do mesmo Setor, e ao local de
+    // expedicao. O destino mandado e recusado alto, como nas outras origens.
+    if (origem.Posicao is Posicoes.AguardandoConserto or Posicoes.ConsertoPronto)
+    {
+      var ida = origem.Posicao == Posicoes.AguardandoConserto;
+      if (item.DestinoSetorId is not null)
+        return (null, Indevido(ida
+            ? $"{nome} vai para o conserto em {nomeDoSetor(origem.SetorId!.Value)}; esse destino não se escolhe."
+            : $"{nome} volta do conserto para o local de expedição; esse destino não se escolhe."));
+      return (ida ? Local.EmConserto(origem.SetorId!.Value) : Local.NaExpedicao, null);
+    }
 
     if (origem.Posicao == Posicoes.AguardandoColeta)
     {

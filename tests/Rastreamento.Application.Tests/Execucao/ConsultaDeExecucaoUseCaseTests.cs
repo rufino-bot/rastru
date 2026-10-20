@@ -275,6 +275,86 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Empty(linha.No.Materiais);
   }
 
+  // ------------------------------------------------------------------ conserto (Fase 5A, D4)
+
+  /// <summary>
+  /// Peca 1 de 6 copiada do catalogo, com 3 mandadas para o conserto na Dobra: 1 aguardando o Movimentador, 1,5
+  /// `EmConserto` e 0,5 `ConsertoPronto` (o termino e do Operador); as outras 3 em `NaExpedicao`.
+  /// </summary>
+  private static CenarioDeExecucao ComConserto()
+  {
+    var c = new CenarioDeExecucao();
+    c.PecaNoConserto(1, 6m, Dobra, 3m);
+    c.Mover(1, TiposDeMovimentacao.Entrega, Local.AguardandoConserto(Dobra), Local.EmConserto(Dobra), 2m, Movimentador);
+    c.Mover(1, TiposDeMovimentacao.Termino, Local.EmConserto(Dobra), Local.ConsertoPronto(Dobra), 0.5m);
+    return c;
+  }
+
+  [Fact]
+  public async Task Fila_mostra_EmConserto_e_ConsertoPronto_na_lista_conserto()
+  {
+    var c = ComConserto();
+
+    var dobra = (await c.Consulta().Fila(Dobra, ComoOperador, Ct)).Valor!;
+
+    Assert.Equal(new[] { (Posicoes.EmConserto, 1.5m), (Posicoes.ConsertoPronto, 0.5m) },
+        dobra.Conserto.Select(l => (l.Posicao, l.Quantidade)).ToArray());
+    Assert.All(dobra.Conserto, l => Assert.Equal(("Chapa dobrada 3 mm", "CHP-220", "PED-01"),
+        (l.No.Descricao, l.No.CodigoDoComponente, l.No.PedidoNumero)));
+    // O conserto nao vira linha de nenhuma outra secao da Fila, nem da Fila de outro Setor.
+    Assert.Empty(dobra.AIniciar);
+    Assert.Empty(dobra.EmTrabalho);
+    Assert.Empty(dobra.AguardandoColeta);
+    Assert.Empty(dobra.Sobra);
+    Assert.Empty((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.Conserto);
+  }
+
+  [Fact]
+  public async Task Fila_do_conserto_traz_como_estornavel_o_termino_de_quem_le()
+  {
+    var c = ComConserto();
+
+    var comoOperador = (await c.Consulta().Fila(Dobra, ComoOperador, Ct)).Valor!.Conserto;
+    var comoMovimentador = (await c.Consulta().Fila(Dobra, new QuemLe(Movimentador, false), Ct)).Valor!.Conserto;
+
+    Assert.Empty(comoOperador.Single(l => l.Posicao == Posicoes.EmConserto).Estornaveis);
+    var termino = Assert.Single(comoOperador.Single(l => l.Posicao == Posicoes.ConsertoPronto).Estornaveis);
+    Assert.Equal((TiposDeMovimentacao.Termino, 0.5m, Operador), (termino.Tipo, termino.Quantidade, termino.UsuarioId));
+    Assert.All(comoMovimentador, l => Assert.Empty(l.Estornaveis));   // o autor ve os seus; os de outros, so PCP e Administrador
+  }
+
+  [Fact]
+  public async Task Tarefas_mostram_a_ida_e_a_volta_do_conserto_com_origem_e_destino()
+  {
+    var c = ComConserto();
+
+    var tarefas = (await c.Consulta().Tarefas(Ct)).Valor!;
+
+    Assert.Equal(2, tarefas.Consertos.Count);
+    var ida = tarefas.Consertos[0];
+    Assert.Equal((1, 1m), (ida.No.Id, ida.Quantidade));
+    Assert.Equal(new LocalDto(Posicoes.NaExpedicao, null, null, null), ida.Origem);
+    Assert.Equal(new LocalDto(Posicoes.EmConserto, Dobra, "Dobra", null), ida.Destino);
+    var volta = tarefas.Consertos[1];
+    Assert.Equal(("Chapa dobrada 3 mm", 0.5m), (volta.No.Descricao, volta.Quantidade));
+    Assert.Equal(new LocalDto(Posicoes.ConsertoPronto, Dobra, "Dobra", null), volta.Origem);
+    Assert.Equal(new LocalDto(Posicoes.NaExpedicao, null, null, null), volta.Destino);
+    // O que esta EmConserto e do Operador (a Fila): nao e tarefa de ninguem.
+    Assert.Empty(tarefas.Grupos);
+  }
+
+  [Fact]
+  public async Task Contagem_de_tarefas_inclui_os_consertos()
+  {
+    var c = ComConserto();
+
+    var contagem = (await c.Consulta().ContagemDeTarefas(Ct)).Valor!;
+    var tarefas = (await c.Consulta().Tarefas(Ct)).Valor!;
+
+    Assert.Equal(2, contagem.Total);   // a ida e a volta, uma tarefa cada
+    Assert.Equal(tarefas.Consertos.Count, contagem.Total);
+  }
+
   [Fact]
   public async Task Tarefas_trazem_os_materiais_do_no()
   {

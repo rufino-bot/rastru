@@ -177,6 +177,7 @@ public class PerfisDeEscritaDeclaradosTests
     // `[Authorize(Roles)]` de um arquivo com UMA entrada de `permissoes.ts` (desvio D1 do plano 2).
     ["POST estrutura/{id:int}/inicios"] = ["Operador", "Administrador"],
     ["POST estrutura/{id:int}/terminos"] = ["Operador", "Administrador"],
+    ["POST estrutura/{id:int}/terminos-de-conserto"] = ["Operador", "Administrador"],
     ["POST inicios"] = ["Operador", "Administrador"],
     ["POST terminos"] = ["Operador", "Administrador"],
     ["POST entregas"] = ["Movimentador", "Administrador"],

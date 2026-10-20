@@ -127,6 +127,33 @@ internal sealed class CenarioDeExecucao
     foreach (var s in Catalogo.Setores.Where(s => s.Id == Solda)) s.UtilizaKit = true;
   }
 
+  /// <summary>
+  /// Uma Peca de `quantidade` COPIADA DO CATALOGO (sem descricao propria: o nome nas frases e o do Componente,
+  /// regra 19), com Roteiro no Corte, que chegou inteira ao local de expedicao, em Pedido `EmProducao`, e da qual
+  /// `aguardando` unidades foram medidas nao conformes e mandadas para o conserto no `setorDoConserto`: ficam em
+  /// `AguardandoConserto`, e o resto em `NaExpedicao`. Arranjo direto no livro, sem caso de uso.
+  /// </summary>
+  public int PecaNoConserto(int id, decimal quantidade, int setorDoConserto, decimal aguardando)
+  {
+    No(id, null, quantidade, null, Corte);
+    var peca = Estruturas.Itens.Single(i => i.Id == id);
+    peca.Descricao = null;
+    peca.ComponenteId = 70;
+    peca.RequerRelatorioDimensional = true;
+    if (Catalogo.Componentes.All(x => x.Id != 70))
+      Catalogo.Componentes.Add(new Componente
+      {
+        Id = 70, Codigo = "CHP-220", Descricao = "Chapa dobrada 3 mm", Tipo = "Fabricado", Ativo = true,
+      });
+    Execucao.StatusDoPedido[PedidoId] = "EmProducao";
+    Mover(id, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), quantidade);
+    Mover(id, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), quantidade);
+    Mover(id, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.NaExpedicao, quantidade, Movimentador);
+    Mover(id, TiposDeMovimentacao.Medicao, Local.NaExpedicao, Local.NaoConforme, aguardando, Qualidade);
+    Mover(id, TiposDeMovimentacao.Conserto, Local.NaoConforme, Local.AguardandoConserto(setorDoConserto), aguardando, Qualidade);
+    return id;
+  }
+
   /// <summary>Arranjo direto no livro, sem caso de uso.</summary>
   public Movimentacao Mover(int item, string tipo, Local de, Local para, decimal quantidade, int usuario = Operador) =>
       Execucao.Semear(new Movimentacao

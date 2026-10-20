@@ -101,6 +101,120 @@ public class ExpedicaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   [Fact]
+  public async Task Conserto_ida_e_volta_pela_API()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    var movimentador = c.Como(c.Movimentador);
+    var operador = c.Como(c.Operador);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/consertos", new { setorId = c.Dobra, quantidade = 1m }));
+
+    async Task<JsonElement[]> TarefasDeConsertoAsync() =>
+        (await CorpoAsync(await movimentador.GetAsync("/api/tarefas"))).GetProperty("consertos").EnumerateArray()
+            .Where(t => t.GetProperty("no").GetProperty("id").GetInt32() == peca).ToArray();
+
+    async Task<JsonElement[]> FilaDeConsertoAsync() =>
+        (await CorpoAsync(await operador.GetAsync($"/api/setores/{c.Dobra}/fila"))).GetProperty("conserto").EnumerateArray()
+            .Where(l => l.GetProperty("no").GetProperty("id").GetInt32() == peca).ToArray();
+
+    async Task<decimal> NaExpedicaoAsync() =>
+        (await CorpoAsync(await qualidade.GetAsync($"/api/agrupamentos/{c.AgrupamentoId}/posicoes")))
+            .EnumerateArray().Single(p => p.GetProperty("estruturaItemId").GetInt32() == peca)
+            .GetProperty("saldos").EnumerateArray()
+            .Where(s => s.GetProperty("posicao").GetString() == "NaExpedicao")
+            .Select(s => s.GetProperty("quantidade").GetDecimal()).SingleOrDefault();
+
+    // A ida: o Movimentador a ve nas Tarefas, com o destino calculado, e a entrega ao Setor.
+    var ida = Assert.Single(await TarefasDeConsertoAsync());
+    Assert.Equal("NaExpedicao", ida.GetProperty("origem").GetProperty("posicao").GetString());
+    Assert.Equal("EmConserto", ida.GetProperty("destino").GetProperty("posicao").GetString());
+    Assert.Equal(c.Dobra, ida.GetProperty("destino").GetProperty("setorId").GetInt32());
+    Assert.Equal(1m, ida.GetProperty("quantidade").GetDecimal());
+    Assert.Empty(await FilaDeConsertoAsync());
+
+    var entrega = await movimentador.PostAsJsonAsync("/api/entregas", new
+    {
+      itens = new[] { new { estruturaItemId = peca, origem = new { posicao = "AguardandoConserto", setorId = c.Dobra, ordem = (int?)null }, destinoSetorId = (int?)null, quantidade = 1m } },
+    });
+    Assert.Equal(HttpStatusCode.Created, entrega.StatusCode);
+    Assert.Equal("EmConserto", (await CorpoAsync(entrega))[0].GetProperty("destino").GetProperty("posicao").GetString());
+    Assert.Empty(await TarefasDeConsertoAsync());
+
+    // O Operador a ve na Fila do Setor e termina o conserto.
+    var naFila = Assert.Single(await FilaDeConsertoAsync());
+    Assert.Equal("EmConserto", naFila.GetProperty("posicao").GetString());
+    Assert.Equal(1m, naFila.GetProperty("quantidade").GetDecimal());
+    var termino = await operador.PostAsJsonAsync($"/api/estrutura/{peca}/terminos-de-conserto", new { setorId = c.Dobra, quantidade = 1m });
+    Assert.Equal(HttpStatusCode.Created, termino.StatusCode);
+    var corpoDoTermino = await CorpoAsync(termino);
+    Assert.Equal("Termino", corpoDoTermino.GetProperty("tipo").GetString());
+    Assert.Equal("EmConserto", corpoDoTermino.GetProperty("origem").GetProperty("posicao").GetString());
+    Assert.Equal("ConsertoPronto", corpoDoTermino.GetProperty("destino").GetProperty("posicao").GetString());
+    Assert.Equal("ConsertoPronto", Assert.Single(await FilaDeConsertoAsync()).GetProperty("posicao").GetString());
+
+    // A volta: o Movimentador a leva ao local de expedicao, e a unidade volta a ter la.
+    var volta = Assert.Single(await TarefasDeConsertoAsync());
+    Assert.Equal("ConsertoPronto", volta.GetProperty("origem").GetProperty("posicao").GetString());
+    Assert.Equal(c.Dobra, volta.GetProperty("origem").GetProperty("setorId").GetInt32());
+    Assert.Equal("NaExpedicao", volta.GetProperty("destino").GetProperty("posicao").GetString());
+    Assert.Equal(0m, await NaExpedicaoAsync());
+    var trazida = await movimentador.PostAsJsonAsync("/api/entregas", new
+    {
+      itens = new[] { new { estruturaItemId = peca, origem = new { posicao = "ConsertoPronto", setorId = c.Dobra, ordem = (int?)null }, destinoSetorId = (int?)null, quantidade = 1m } },
+    });
+    Assert.Equal(HttpStatusCode.Created, trazida.StatusCode);
+    Assert.Equal("NaExpedicao", (await CorpoAsync(trazida))[0].GetProperty("destino").GetProperty("posicao").GetString());
+    Assert.Equal(1m, await NaExpedicaoAsync());
+    Assert.Empty(await TarefasDeConsertoAsync());
+    Assert.Empty(await FilaDeConsertoAsync());
+  }
+
+  [Fact]
+  public async Task Conserto_no_lote_de_termino_da_API_e_so_do_Operador()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/consertos", new { setorId = c.Dobra, quantidade = 2m }));
+    await Garantir(await c.Como(c.Movimentador).PostAsJsonAsync("/api/entregas", new
+    {
+      itens = new[] { new { estruturaItemId = peca, origem = new { posicao = "AguardandoConserto", setorId = c.Dobra, ordem = (int?)null }, destinoSetorId = (int?)null, quantidade = 2m } },
+    }));
+    var corpo = new { setorId = c.Dobra, itens = new[] { new { estruturaItemId = peca, ordem = (int?)null, quantidade = 2m, conserto = true } } };
+
+    var proibidos = new[] { c.Movimentador, c.Qualidade, c.Pcp };
+    foreach (var usuario in proibidos)
+    {
+      Assert.Equal(HttpStatusCode.Forbidden, (await c.Como(usuario).PostAsJsonAsync("/api/terminos", corpo)).StatusCode);
+      Assert.Equal(HttpStatusCode.Forbidden, (await c.Como(usuario).PostAsJsonAsync(
+          $"/api/estrutura/{peca}/terminos-de-conserto", new { setorId = c.Dobra, quantidade = 2m })).StatusCode);
+    }
+
+    // Com `ordem` o item de conserto e 400 OrigemInvalida; sem `ordem` e sem `conserto`, tambem.
+    var comOrdem = await c.Como(c.Operador).PostAsJsonAsync("/api/terminos", new
+    {
+      setorId = c.Dobra, itens = new[] { new { estruturaItemId = peca, ordem = (int?)1, quantidade = 2m, conserto = true } },
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, comOrdem.StatusCode);
+    Assert.Equal("OrigemInvalida", (await CorpoAsync(comOrdem)).GetProperty("erro").GetString());
+    var semOrdem = await c.Como(c.Operador).PostAsJsonAsync("/api/terminos", new
+    {
+      setorId = c.Dobra, itens = new[] { new { estruturaItemId = peca, ordem = (int?)null, quantidade = 2m, conserto = false } },
+    });
+    Assert.Equal(HttpStatusCode.BadRequest, semOrdem.StatusCode);
+    Assert.Equal("OrigemInvalida", (await CorpoAsync(semOrdem)).GetProperty("erro").GetString());
+
+    var lote = await c.Como(c.Operador).PostAsJsonAsync("/api/terminos", corpo);
+    Assert.Equal(HttpStatusCode.Created, lote.StatusCode);
+    Assert.Equal("ConsertoPronto", (await CorpoAsync(lote))[0].GetProperty("destino").GetProperty("posicao").GetString());
+  }
+
+  [Fact]
   public async Task Operador_nao_afere()
   {
     await using var c = await CriarAsync(_factory);

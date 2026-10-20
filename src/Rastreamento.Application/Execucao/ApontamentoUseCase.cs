@@ -1,4 +1,5 @@
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -9,8 +10,10 @@ namespace Rastreamento.Application.Execucao;
 /// secoes 4.1 e 4.2, com a emenda da Fase 3D, secao 4.1: iniciar um no COM filhos consome os filhos
 /// presentes no Setor, e e o unico jeito de o pai entrar em producao. Cada escrita: valida a
 /// entrada, abre a transacao, trava os nos, le o estado e valida com a calculadora, e so entao grava.
-/// A regra de cada um mora num nucleo por item (<see cref="IniciarNoAsync"/>, <see cref="TerminarNoAsync"/>)
-/// com dois pontos de entrada: a rota de um no e o lote (spec dos filtros e do lote, secao 6.2).
+/// A regra de cada um mora num nucleo por item (<see cref="IniciarNoAsync"/>, <see cref="TerminarNoAsync"/>,
+/// <see cref="TerminarConsertoNoAsync"/>) com dois pontos de entrada: a rota de um no e o lote (spec dos
+/// filtros e do lote, secao 6.2). Terminar o conserto (D4 da spec da Fase 5A) e o terminar da Peca em
+/// `EmConserto`, sem Roteiro e sem passo.
 /// </summary>
 public sealed class ApontamentoUseCase
 {
@@ -18,6 +21,7 @@ public sealed class ApontamentoUseCase
   private readonly ISetorRepository _setores;
   private readonly LeitorDeEstado _leitor;
   private readonly ProjetorDoLivro _projetor;
+  private readonly FechamentoDoPedido _fechamento;
 
   public ApontamentoUseCase(
       IExecucaoRepository execucao, IEstruturaRepository estruturas, ISetorRepository setores,
@@ -29,6 +33,7 @@ public sealed class ApontamentoUseCase
     // criterio do `MontadorDeArvoreDeEstrutura` em `MontagemDeEstruturaUseCase`.
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
+    _fechamento = new FechamentoDoPedido(execucao);
   }
 
   /// <summary>
@@ -69,6 +74,31 @@ public sealed class ApontamentoUseCase
   }
 
   /// <summary>
+  /// Terminar o conserto de uma Peca: `EmConserto` -> `ConsertoPronto` no mesmo Setor (decisao P6 do plano de backend
+  /// da Fase 5A). O Setor inativado continua valendo, como no terminar de sempre: o conserto so e recusado ao ser
+  /// MANDADO para Setor inativo. A pausa do Pedido nao recusa (regra 31). A unidade continua em producao, mas o
+  /// fechamento e recalculado do mesmo jeito (decisao P4): o status nao muda aqui, e quem o corrige e o recalculo.
+  /// </summary>
+  public async Task<Result<MovimentacaoDto>> TerminarConserto(int noId, TerminoDeConsertoDto dto, int usuarioId, CancellationToken ct)
+  {
+    if (!Quantidades.CabeNaColuna(dto.Quantidade)) return Falhas.QuantidadeInvalida<MovimentacaoDto>(dto.Quantidade);
+    var setor = await _setores.ObterPorIdAsync(dto.SetorId, ct);
+    if (setor is null) return Falhas.NaoEncontrado<MovimentacaoDto>();
+
+    return await _execucao.ExecutarAsync(async () =>
+    {
+      var nos = await _execucao.TravarNosAsync([noId], ct);
+      if (nos.Count == 0) return Falhas.NaoEncontrado<MovimentacaoDto>();
+      // So a Peca esta em conserto, entao so ela pode mudar o fechamento: o Pedido dela e travado depois do no e
+      // antes da primeira leitura dele (decisao P4).
+      var pedidos = nos[0].EstruturaPaiId is null ? await _execucao.TravarPedidosDosNosAsync([noId], ct) : [];
+      var r = await TerminarConsertoNoAsync(nos[0], dto.Quantidade, setor, usuarioId, ct);
+      if (r.Sucesso) await _fechamento.RecalcularAsync(pedidos, DateTime.UtcNow, ct);
+      return await ProjetarAsync(r, ct);
+    }, ct);
+  }
+
+  /// <summary>
   /// O iniciar aplicado item a item, numa transacao so: ou todos gravam, ou nada (spec dos filtros e do
   /// lote, secao 6.2). Cada item passa pelo MESMO nucleo da rota individual — o lote nao valida saldo,
   /// Roteiro nem filhos por conta propria — e desconta do que os anteriores ja gravaram. Antes do
@@ -102,14 +132,19 @@ public sealed class ApontamentoUseCase
 
   /// <summary>
   /// O terminar item a item, tudo ou nada, como <see cref="IniciarEmLote"/>. O mesmo no pode vir em
-  /// passos diferentes; a chave do repetido e o par no + passo. Nao trava Pedido: o terminar nao escreve
-  /// nele, como a rota individual.
+  /// passos diferentes; a chave do repetido e o par no + passo, e o conserto tem a chave propria (sem passo). Um
+  /// item `Conserto` termina `EmConserto` -> `ConsertoPronto` no Setor do lote e vem sem `Ordem`; o normal exige
+  /// `Ordem` (decisao P6 do plano de backend da Fase 5A). O terminar normal nao trava Pedido: nao escreve nele,
+  /// como a rota individual. O de conserto sim, pelo mesmo criterio da rota individual, e recalcula o fechamento
+  /// no fim, uma vez, depois de todos os itens.
   /// </summary>
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> TerminarEmLote(LoteDeTerminoDto dto, int usuarioId, CancellationToken ct)
   {
     var itens = dto.Itens ?? [];
-    if (RecusaDaEntrada(itens, i => i.Quantidade, i => (i.EstruturaItemId, i.Ordem),
-            i => $"O nó {i.EstruturaItemId} no passo {i.Ordem} aparece mais de uma vez no lote.") is { } recusa)
+    if (RecusaDaEntrada(itens, i => i.Quantidade, i => (i.EstruturaItemId, i.Ordem, i.Conserto),
+            i => i.Conserto
+                ? $"O nó {i.EstruturaItemId} aparece mais de uma vez no lote como conserto."
+                : $"O nó {i.EstruturaItemId} no passo {i.Ordem} aparece mais de uma vez no lote.") is { } recusa)
       return recusa;
     var setor = await _setores.ObterPorIdAsync(dto.SetorId, ct);
     if (setor is null) return Falhas.NaoEncontrado<IReadOnlyList<MovimentacaoDto>>();
@@ -117,12 +152,35 @@ public sealed class ApontamentoUseCase
     return await _execucao.ExecutarAsync(async () =>
     {
       var travados = await _execucao.TravarNosAsync(itens.Select(i => i.EstruturaItemId).Distinct().ToList(), ct);
+      // Os Pedidos dos itens de conserto, todos antes de qualquer leitura de Pedido (decisao P4): so a Peca.
+      var pecasEmConserto = travados
+          .Where(n => n.EstruturaPaiId is null && itens.Any(i => i.Conserto && i.EstruturaItemId == n.Id))
+          .Select(n => n.Id).ToList();
+      var pedidos = pecasEmConserto.Count > 0 ? await _execucao.TravarPedidosDosNosAsync(pecasEmConserto, ct) : [];
       var estado = await _leitor.CarregarAsync(travados, ct);   // so para os nomes da recusa
 
-      return await ItemAItemAsync(itens, i => i.EstruturaItemId,
-          i => TerminarNoAsync(i.EstruturaItemId, i.Ordem, i.Quantidade, setor, usuarioId, ct), estado, ct);
+      // A forma de todos os itens, antes de gravar o primeiro: o 400 nao passa por um 409 anterior. Item de no
+      // inexistente fica para o nucleo, que responde 404.
+      foreach (var item in itens)
+        if (travados.Any(n => n.Id == item.EstruturaItemId) && FormaInvalida(item) is { } frase)
+          return Falhas.Validacao<IReadOnlyList<MovimentacaoDto>>(
+              CodigosDaExecucao.OrigemInvalida, $"{estado.Nome(item.EstruturaItemId)}: {frase}");
+
+      var r = await ItemAItemAsync(itens, i => i.EstruturaItemId,
+          i => i.Conserto
+              ? TerminarConsertoNoAsync(travados.FirstOrDefault(n => n.Id == i.EstruturaItemId), i.Quantidade, setor, usuarioId, ct)
+              : TerminarNoAsync(i.EstruturaItemId, i.Ordem!.Value, i.Quantidade, setor, usuarioId, ct),
+          estado, ct);
+      if (r.Sucesso && pedidos.Count > 0) await _fechamento.RecalcularAsync(pedidos, DateTime.UtcNow, ct);
+      return r;
     }, ct);
   }
+
+  /// <summary>A frase da incoerencia entre `Conserto` e `Ordem`, ou nulo quando o item esta bem formado.</summary>
+  private static string? FormaInvalida(ItemDeTerminoDto item) =>
+      item.Conserto && item.Ordem is not null ? "o conserto não tem passo do Roteiro; tire a ordem deste item."
+      : !item.Conserto && item.Ordem is null ? "informe o passo (ordem) em que este item termina."
+      : null;
 
   /// <summary>
   /// As recusas de entrada do lote, todas antes de abrir a transacao, nesta ordem fixa: lista vazia,
@@ -278,6 +336,30 @@ public sealed class ApontamentoUseCase
 
     var movimento = NovoMovimento.De(noId, TiposDeMovimentacao.Termino, quantidade,
         origem, Local.AguardandoColeta(setor.Id, ordem), usuarioId);
+    _execucao.Adicionar(movimento);
+    await _execucao.SalvarAlteracoesAsync(ct);
+    return Result<Movimentacao>.Ok(movimento);
+  }
+
+  /// <summary>
+  /// O terminar do conserto de UM no, a unica copia da regra: a rota individual e o lote passam por aqui, com o no
+  /// ja travado (e, se Peca, o Pedido dele) por quem chama. Nao recalcula o fechamento: quem chama o faz uma vez.
+  /// </summary>
+  private async Task<Result<Movimentacao>> TerminarConsertoNoAsync(
+      EstruturaItem? no, decimal quantidade, Setor setor, int usuarioId, CancellationToken ct)
+  {
+    if (no is null) return Falhas.NaoEncontrado<Movimentacao>();
+    if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(no.Id, ct))) return Falhas.PedidoFechado<Movimentacao>();
+
+    var estado = await _leitor.CarregarAsync([no], ct);
+    var origem = Local.EmConserto(setor.Id);
+    var disponivel = estado.Calc.Saldo(no.Id, origem);
+    if (quantidade > disponivel)
+      return Falhas.Conflito<Movimentacao>(CodigosDaExecucao.SaldoInsuficiente,
+          $"Só há {Quantidades.Formatar(Math.Max(0m, disponivel))} de {estado.Nome(no.Id)} em conserto no Setor {setor.Nome}.");
+
+    var movimento = NovoMovimento.De(no.Id, TiposDeMovimentacao.Termino, quantidade,
+        origem, Local.ConsertoPronto(setor.Id), usuarioId);
     _execucao.Adicionar(movimento);
     await _execucao.SalvarAlteracoesAsync(ct);
     return Result<Movimentacao>.Ok(movimento);
