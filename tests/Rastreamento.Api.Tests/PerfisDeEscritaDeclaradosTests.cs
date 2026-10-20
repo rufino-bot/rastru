@@ -183,8 +183,9 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST entregas"] = ["Movimentador", "Administrador"],
     // Estorno: o `[Authorize]` deixa passar quem pode ser autor, mais o PCP; autor x PCP quem decide e o
     // caso de uso (403 `Proibido`). O de montagem declara o Movimentador tambem (desvio D2 do plano 2).
-    ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
-    ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
+    // A Qualidade entra na Fase 5A: o conserto que ela manda se estorna por aqui.
+    ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "Qualidade", "PCP", "Administrador"],
+    ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "Qualidade", "PCP", "Administrador"],
     ["PUT estrutura/{id:int}/roteiro"] = ["PCP", "Administrador"],
     // Separacao de material (Fase 4): um controller por conjunto de perfis (decisao P6 do plano de backend).
     ["PUT estrutura/{id:int}/materiais"] = ["PCP", "Administrador"],
@@ -209,6 +210,9 @@ public class PerfisDeEscritaDeclaradosTests
     // quem pode ser autor (Qualidade, Gestao) e o PCP, e autor x PCP quem decide e o caso de uso (403 `Proibido`).
     ["POST remessas"] = ["Qualidade", "Administrador"],
     ["POST remessas/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    ["POST afericoes/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    ["POST contagens/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    ["POST liberacoes/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
   };
 
   /// <summary>

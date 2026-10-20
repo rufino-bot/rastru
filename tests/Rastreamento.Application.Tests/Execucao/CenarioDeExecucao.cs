@@ -178,6 +178,8 @@ internal sealed class CenarioDeExecucao
 
   public RemessaUseCase Remessa() => new(Execucao, Expedicao, Estruturas, Catalogo);
 
+  public EstornoDaExpedicaoUseCase EstornoDaExpedicao() => new(Execucao, Expedicao, Estruturas, Catalogo);
+
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
 
   public MontagemDeEstruturaUseCase Estrutura() =>

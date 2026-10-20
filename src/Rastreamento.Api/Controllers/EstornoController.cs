@@ -8,13 +8,15 @@ namespace Rastreamento.Api.Controllers;
 /// Estornar e ler o livro do no. O `[Authorize]` deixa passar quem pode ser autor de um registro, mais o
 /// PCP; "o autor ou PCP/Administrador" e decisao do caso de uso, que devolve 403 `Proibido` com corpo
 /// (spec secoes 4.5 e 5.1). Os dois estornos declaram os mesmos perfis porque vivem aqui (desvio D2 do
-/// plano 2): no de montagem, o Movimentador nunca e autor, e cai no 403 do caso de uso.
+/// plano 2): no de montagem, o Movimentador nunca e autor, e cai no 403 do caso de uso. A Qualidade entra
+/// na Fase 5A porque o conserto que ela manda (sem agrupador) se estorna por aqui; as linhas de contagem,
+/// liberacao e remessa tem as rotas proprias de `EstornoDaExpedicaoController` (C17).
 /// </summary>
 [ApiController]
 [Authorize]
 public class EstornoController : ExecucaoControllerBase
 {
-  private const string PerfisDeEscrita = "Operador,Movimentador,PCP,Administrador";
+  private const string PerfisDeEscrita = "Operador,Movimentador,Qualidade,PCP,Administrador";
 
   private readonly EstornoUseCase _estorno;
   private readonly ConsultaDeExecucaoUseCase _consulta;

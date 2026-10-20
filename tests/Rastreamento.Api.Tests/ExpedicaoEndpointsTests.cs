@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Infrastructure.Persistence;
 using Xunit;
 using static Rastreamento.Api.Tests.CenarioDaFase3NaApi;
 
@@ -336,5 +339,157 @@ public class ExpedicaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(HttpStatusCode.Forbidden, afericao.StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, contagem.StatusCode);
     Assert.Equal(HttpStatusCode.Forbidden, conserto.StatusCode);
+  }
+
+  [Fact]
+  public async Task Qualidade_estorna_a_propria_contagem()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    var afericao = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" });
+    await Garantir(afericao);
+    var afericaoId = (await CorpoAsync(afericao)).GetProperty("id").GetInt32();
+    var contagem = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m });
+    await Garantir(contagem);
+    var contagemId = (await CorpoAsync(contagem)).GetProperty("id").GetInt32();
+
+    // A aferição nao conforme depende da contagem: enquanto ela vale, nao se estorna.
+    var recusada = await qualidade.PostAsync($"/api/afericoes/{afericaoId}/estorno", null);
+    Assert.Equal(HttpStatusCode.Conflict, recusada.StatusCode);
+    Assert.Equal("EstornoImpossivel", (await CorpoAsync(recusada)).GetProperty("erro").GetString());
+
+    // Alheia: a Gestao passa pelo [Authorize], mas nao e a autora (403 do caso de uso, com corpo).
+    var alheia = await c.Como(c.Gestao).PostAsync($"/api/contagens/{contagemId}/estorno", null);
+    Assert.Equal(HttpStatusCode.Forbidden, alheia.StatusCode);
+    Assert.Equal("Proibido", (await CorpoAsync(alheia)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.Como(c.Operador).PostAsync($"/api/contagens/{contagemId}/estorno", null)).StatusCode);
+
+    // A linha de uma contagem nao se estorna sozinha (C17); a contagem, inteira, sim.
+    var medicao = (await CorpoAsync(await qualidade.GetAsync($"/api/estrutura/{peca}/movimentacoes")))
+        .GetProperty("movimentacoes").EnumerateArray()
+        .First(m => m.GetProperty("tipo").GetString() == "Medicao");
+    var generico = await qualidade.PostAsync($"/api/movimentacoes/{medicao.GetProperty("id").GetInt32()}/estorno", null);
+    Assert.Equal(HttpStatusCode.Conflict, generico.StatusCode);
+
+    var estorno = await qualidade.PostAsync($"/api/contagens/{contagemId}/estorno", null);
+    Assert.Equal(HttpStatusCode.Created, estorno.StatusCode);
+    var linhas = (await CorpoAsync(estorno)).EnumerateArray().ToList();
+    Assert.Equal(2, linhas.Count);
+    Assert.All(linhas, l =>
+    {
+      Assert.Equal("Estorno", l.GetProperty("tipo").GetString());
+      Assert.Equal(contagemId, l.GetProperty("contagemId").GetInt32());
+      Assert.Equal("NaExpedicao", l.GetProperty("destino").GetProperty("posicao").GetString());
+    });
+    var segundo = await qualidade.PostAsync($"/api/contagens/{contagemId}/estorno", null);
+    Assert.Equal(HttpStatusCode.Conflict, segundo.StatusCode);
+    Assert.Equal("JaEstornado", (await CorpoAsync(segundo)).GetProperty("erro").GetString());
+
+    // Sem contagem valida, a aferição nao conforme se estorna; e a PCP estorna a de outro.
+    var daAfericao = await c.Como(c.Pcp).PostAsync($"/api/afericoes/{afericaoId}/estorno", null);
+    Assert.Equal(HttpStatusCode.Created, daAfericao.StatusCode);
+    var corpoDaAfericao = await CorpoAsync(daAfericao);
+    Assert.Equal(afericaoId, corpoDaAfericao.GetProperty("id").GetInt32());
+    Assert.True(corpoDaAfericao.GetProperty("estornada").GetBoolean());
+    Assert.False(corpoDaAfericao.GetProperty("estornavel").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Gestao_estorna_a_propria_resposta()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, pedidoId) = await PedidoDeLiberacaoAsync(c);
+    var gestao = c.Como(c.Gestao);
+    var resposta = await gestao.PostAsJsonAsync($"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 1m });
+    await Garantir(resposta);
+    var respostaId = (await CorpoAsync(resposta)).GetProperty("id").GetInt32();
+
+    // O pedido com resposta valida nao se estorna; e a resposta e da Gestao, nao da Qualidade.
+    var pedidoComResposta = await c.Como(c.Qualidade).PostAsync($"/api/liberacoes/{pedidoId}/estorno", null);
+    Assert.Equal(HttpStatusCode.Conflict, pedidoComResposta.StatusCode);
+    Assert.Equal("EstornoImpossivel", (await CorpoAsync(pedidoComResposta)).GetProperty("erro").GetString());
+    Assert.Equal(HttpStatusCode.Forbidden, (await c.Como(c.Qualidade).PostAsync($"/api/liberacoes/{respostaId}/estorno", null)).StatusCode);
+
+    var estorno = await gestao.PostAsync($"/api/liberacoes/{respostaId}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Created, estorno.StatusCode);
+    var linhas = (await CorpoAsync(estorno)).EnumerateArray().ToList();
+    Assert.Equal(2, linhas.Count);   // a liberada e a recusa
+    Assert.All(linhas, l => Assert.Equal(respostaId, l.GetProperty("liberacaoId").GetInt32()));
+    // O pedido voltou a pendente: a Gestao responde de novo.
+    var outra = await gestao.PostAsJsonAsync($"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 0m });
+    Assert.Equal(HttpStatusCode.Created, outra.StatusCode);
+    Assert.Equal(peca, (await CorpoAsync(outra)).GetProperty("estruturaItemId").GetInt32());
+  }
+
+  [Fact]
+  public async Task Qualidade_estorna_o_proprio_conserto_pela_rota_generica()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+    var conserto = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/consertos", new { setorId = c.Dobra, quantidade = 1m });
+    await Garantir(conserto);
+    var consertoId = (await CorpoAsync(conserto)).GetProperty("id").GetInt32();
+
+    var estorno = await qualidade.PostAsync($"/api/movimentacoes/{consertoId}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Created, estorno.StatusCode);
+    Assert.Equal("NaoConforme", (await CorpoAsync(estorno)).GetProperty("destino").GetProperty("posicao").GetString());
+  }
+
+  [Theory]
+  [InlineData(true)]
+  [InlineData(false)]
+  public async Task Resposta_e_estorno_do_pedido_ao_mesmo_tempo_nao_deixam_resposta_pendurada(bool respostaSaiPrimeiro)
+  {
+    // Review Focus 2: a Gestao responde ao mesmo tempo em que a Qualidade estorna o pedido. A trava da Peca
+    // serializa as duas; quem chega depois ve o que a outra fez. A ordem de disparo varia entre os dois casos.
+    await using var c = await CriarAsync(_factory);
+    var (peca, pedidoId) = await PedidoDeLiberacaoAsync(c);
+    var gestao = c.Como(c.Gestao);
+    var qualidade = c.Como(c.Qualidade);
+    Task<HttpResponseMessage> Responder() =>
+        gestao.PostAsJsonAsync($"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 1m });
+    Task<HttpResponseMessage> Estornar() => qualidade.PostAsync($"/api/liberacoes/{pedidoId}/estorno", null);
+
+    var disparos = respostaSaiPrimeiro
+        ? new[] { Responder(), Estornar() }
+        : new[] { Estornar(), Responder() };
+    var respostas = await Task.WhenAll(disparos);
+
+    Assert.Single(respostas, r => r.StatusCode == HttpStatusCode.Created);
+    var recusada = Assert.Single(respostas, r => r.StatusCode != HttpStatusCode.Created);
+    Assert.Equal(HttpStatusCode.Conflict, recusada.StatusCode);
+    Assert.Contains((await CorpoAsync(recusada)).GetProperty("erro").GetString(),
+        new[] { "LiberacaoNaoPendente", "EstornoImpossivel" });
+
+    // No banco: se o pedido foi estornado, nenhuma resposta a ele tem linha valida.
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var linhas = await db.Movimentacoes.AsNoTracking().Where(m => m.LiberacaoId != null && m.EstruturaItemId == peca).ToListAsync();
+    var estornadas = linhas.Where(l => l.EstornoDeId != null).Select(l => l.EstornoDeId!.Value).ToHashSet();
+    var idsDasRespostas = await db.Liberacoes.AsNoTracking()
+        .Where(l => l.PedidoDeLiberacaoId == pedidoId).Select(l => l.Id).ToListAsync();
+    var pedidoEstornado = linhas.Any(l => l.LiberacaoId == pedidoId && l.Tipo != "Estorno" && estornadas.Contains(l.Id));
+    var respostaValida = linhas.Any(l => l.LiberacaoId is int id && idsDasRespostas.Contains(id)
+        && l.Tipo != "Estorno" && !estornadas.Contains(l.Id));
+    Assert.False(pedidoEstornado && respostaValida, "resposta com linha valida num pedido estornado");
+  }
+
+  /// <summary>Aferição nao conforme, contagem de 4 e 2 e um pedido de liberacao de 2: devolve a Peca e o pedido.</summary>
+  private static async Task<(int Peca, int PedidoId)> PedidoDeLiberacaoAsync(CenarioDaFase3NaApi c)
+  {
+    var peca = await PecaNaExpedicaoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+    var pedido = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao",
+        new { quantidade = 2m, justificativa = "Aba da dobra 1,5 mm fora; o cliente não usa." });
+    await Garantir(pedido);
+    return (peca, (await CorpoAsync(pedido)).GetProperty("id").GetInt32());
   }
 }
