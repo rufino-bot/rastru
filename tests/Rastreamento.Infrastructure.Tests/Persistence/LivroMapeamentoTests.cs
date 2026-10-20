@@ -163,7 +163,7 @@ public class LivroMapeamentoTests : TesteComBanco
   public Task Tipo_fora_da_lista_e_recusado_pelo_tipo_ou_pela_transicao() => NoCenarioAsync(c =>
   {
     var m = Inicio(c);
-    m.Tipo = "Pronto";   // tipo da Fase 5, ainda nao existe
+    m.Tipo = "Pronto";   // tipo da Fase 5B, ainda nao existe
     return AfirmarRecusaAsync(m, "CK_Movimentacao_Tipo", "CK_Movimentacao_Transicao");
   });
 
@@ -174,7 +174,7 @@ public class LivroMapeamentoTests : TesteComBanco
     await AfirmarRecusaAsync(new Movimentacao
     {
       EstruturaItemId = c.PecaId, Tipo = TiposDeMovimentacao.Estorno, Quantidade = 1m, EstornoDeId = original,
-      OrigemPosicao = "Expedido", DestinoPosicao = Posicoes.AIniciar,
+      OrigemPosicao = "Perdida", DestinoPosicao = Posicoes.AIniciar,
       DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
     }, "CK_Movimentacao_OrigemPosicao", "CK_Movimentacao_OrigemCoerente");
   });

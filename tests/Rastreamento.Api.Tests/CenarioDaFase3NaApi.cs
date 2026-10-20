@@ -14,7 +14,7 @@ namespace Rastreamento.Api.Tests;
 /// B (20, razao 2; Corte) e C (10, razao 1; Dobra), e um usuario REAL por perfil — a autoria do livro e
 /// FK para `dbo.Usuario`, e o estorno compara o autor. Criado pela API onde existe rota (Pedido,
 /// Agrupamento, arvore, Roteiro); Setores e o Componente com solido vao direto no banco, como em
-/// `EstruturaEndpointsTests`. A limpeza respeita as FKs: estornos, movimentos, montagens, arvore,
+/// `EstruturaEndpointsTests`. A limpeza respeita as FKs: estornos, movimentos, os agrupadores do fim do caminho, montagens, arvore,
 /// Agrupamento, Pedido, Componente, Setores e, por ultimo, os usuarios.
 /// </summary>
 internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
@@ -29,6 +29,9 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
   public UsuarioDeTeste Pcp { get; private set; } = null!;
   public UsuarioDeTeste Gestao { get; private set; } = null!;
   public UsuarioDeTeste Separador { get; private set; } = null!;
+
+  /// <summary>A Qualidade e a pessoa da expedicao (D1 da spec da Fase 5A): afere, conta, expede.</summary>
+  public UsuarioDeTeste Qualidade { get; private set; } = null!;
 
   /// <summary>Um segundo Separador: o estorno de separacao compara o autor, e "outro Separador" precisa existir.</summary>
   public UsuarioDeTeste OutroSeparador { get; private set; } = null!;
@@ -65,6 +68,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       c.Pcp = await c.UsuarioAsync("f3-pcp", "PCP");
       c.Gestao = await c.UsuarioAsync("f3-gestao", "Gestao");
       c.Separador = await c.UsuarioAsync("f3-separador", "Separador");
+      c.Qualidade = await c.UsuarioAsync("f3-qualidade", "Qualidade");
       c.OutroSeparador = await c.UsuarioAsync("f3-separador2", "Separador");
 
       var rotulo = $"{Guid.NewGuid():N}"[..8];
@@ -199,6 +203,21 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
           $"DELETE FROM dbo.Movimentacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      // O livro aponta os agrupadores do fim do caminho por FK, entao eles saem DEPOIS dele: a remessa pelos
+      // usuarios do cenario (quem aponta a remessa e o livro, nao o no), a contagem, a liberacao e a afericao
+      // pelo no. A resposta de liberacao e o estorno de afericao apontam a propria tabela: saem primeiro.
+      foreach (var usuario in _usuarios)
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Remessa WHERE UsuarioId = {usuario.Id}");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.ContagemDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.LiberacaoDimensional WHERE Tipo = 'Resposta' AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.LiberacaoDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.RelatorioDimensional WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.RelatorioDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Montagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       // O livro de separacao tambem e so de inclusao: estornos primeiro (EstornoDeId nao nulo), depois o resto.

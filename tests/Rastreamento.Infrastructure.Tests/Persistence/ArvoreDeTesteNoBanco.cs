@@ -22,6 +22,12 @@ internal sealed class ArvoreDeTesteNoBanco
   public List<int> MaterialIds { get; } = [];
   public List<int> ComponenteExtraIds { get; } = [];
 
+  /// <summary>
+  /// As remessas que o teste criou. `dbo.Remessa` nao aponta o no (quem aponta a remessa e o livro), entao a
+  /// limpeza nao a acha pelo Agrupamento; uma remessa sem linha no livro so se apaga pelo Id guardado aqui.
+  /// </summary>
+  public List<int> RemessaIds { get; } = [];
+
   private ArvoreDeTesteNoBanco(string prefixo) => _prefixo = prefixo;
 
   public static async Task<ArvoreDeTesteNoBanco> CriarAsync(RastreamentoDbContext db, string rotulo)
@@ -153,10 +159,29 @@ internal sealed class ArvoreDeTesteNoBanco
   {
     await using var db = novoContexto();
     var ag = AgrupamentoId;
+    // As remessas das linhas do livro, lidas ANTES de as linhas sumirem: depois nada mais aponta a remessa.
+    var remessas = await db.Movimentacoes.AsNoTracking()
+        .Where(m => m.RemessaId != null && db.Estruturas.Any(e => e.Id == m.EstruturaItemId && e.AgrupamentoId == ag))
+        .Select(m => m.RemessaId!.Value).Distinct().ToListAsync();
+    remessas.AddRange(RemessaIds);
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.Movimentacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    // O livro aponta os agrupadores por FK, entao eles saem DEPOIS dele; o estorno de afericao e a resposta de
+    // liberacao apontam a propria tabela, entao saem antes da linha que desfazem ou respondem.
+    foreach (var remessaId in remessas.Distinct())
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Remessa WHERE Id = {remessaId}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.ContagemDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.LiberacaoDimensional WHERE Tipo = 'Resposta' AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.LiberacaoDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.RelatorioDimensional WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.RelatorioDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.Montagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(

@@ -461,6 +461,67 @@ CREATE TABLE dbo.Montagem (
     CONSTRAINT CK_Montagem_EstornoAposMontagem CHECK (EstornadaEm IS NULL OR EstornadaEm >= DataHora)
 );
 
+-- Fim do caminho da Peca (Fase 5A). As tres tabelas abaixo sao SO INCLUSAO, como dbo.Movimentacao e
+-- dbo.MaterialSeparacao: nenhum codigo as edita nem apaga, e "estornado" e sempre calculado (existe
+-- estorno apontando). Ficam antes do livro porque dbo.Movimentacao aponta cada uma por FK.
+
+-- Agrupador da expedicao (C8 da spec da Fase 5A): quando e quem. As quantidades sao as linhas
+-- Tipo = 'Expedicao' do livro que apontam a remessa (Movimentacao.RemessaId). Uma remessa leva uma ou
+-- mais Pecas; estorna-se a remessa inteira, com um Estorno do livro para cada linha dela.
+CREATE TABLE dbo.Remessa (
+    Id        INT IDENTITY(1,1)  NOT NULL,
+    DataHora  DATETIME2           NOT NULL CONSTRAINT DF_Remessa_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId INT                 NOT NULL, -- quem expediu (D9)
+    CONSTRAINT PK_Remessa PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Remessa_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id)
+);
+
+-- Medicao de uma Peca depois de uma afericao nao conforme (D4): "medi 6, 4 conformes e 2 nao". As duas
+-- linhas Tipo = 'Medicao' do livro apontam esta contagem (Movimentacao.ContagemId); estorna-se a
+-- contagem inteira (C17).
+CREATE TABLE dbo.ContagemDimensional (
+    Id               INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId  INT                 NOT NULL, -- a Peca medida (NivelHierarquico = 'Peca')
+    Conformes        DECIMAL(18,4)       NOT NULL,
+    NaoConformes     DECIMAL(18,4)       NOT NULL,
+    DataHora         DATETIME2           NOT NULL CONSTRAINT DF_ContagemDimensional_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId        INT                 NOT NULL,
+    CONSTRAINT PK_ContagemDimensional PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_ContagemDimensional_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_ContagemDimensional_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_ContagemDimensional_ConformesNaoNegativo CHECK (Conformes >= 0),
+    CONSTRAINT CK_ContagemDimensional_NaoConformesNaoNegativo CHECK (NaoConformes >= 0),
+    CONSTRAINT CK_ContagemDimensional_AlgumaUnidade CHECK (Conformes + NaoConformes > 0)
+);
+CREATE INDEX IX_ContagemDimensional_EstruturaItem ON dbo.ContagemDimensional (EstruturaItemId);
+
+-- Liberacao de unidades nao conformes pela Gestao (D7, C5, C6): o PEDIDO da Qualidade (Quantidade
+-- pedida e a justificativa, em Texto) e a RESPOSTA da Gestao (Quantidade liberada, de zero ate a pedida,
+-- e a observacao opcional, em Texto), na mesma tabela e distinguidos por Tipo. A resposta aponta o pedido
+-- (PedidoDeLiberacaoId). As linhas PedidoDeLiberacao, Liberacao e Recusa do livro apontam o registro
+-- (Movimentacao.LiberacaoId). Estornar e estornar as linhas do livro; este registro nao muda.
+CREATE TABLE dbo.LiberacaoDimensional (
+    Id                   INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId      INT                 NOT NULL, -- a Peca (NivelHierarquico = 'Peca')
+    Tipo                 NVARCHAR(20)        NOT NULL, -- Pedido | Resposta
+    PedidoDeLiberacaoId  INT                 NULL,     -- so na Resposta: o pedido que ela responde
+    Quantidade           DECIMAL(18,4)       NOT NULL,
+    Texto                NVARCHAR(500)       NULL,     -- Pedido: justificativa (obrigatoria); Resposta: observacao
+    DataHora             DATETIME2           NOT NULL CONSTRAINT DF_LiberacaoDimensional_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId            INT                 NOT NULL,
+    CONSTRAINT PK_LiberacaoDimensional PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_LiberacaoDimensional_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_LiberacaoDimensional_Pedido FOREIGN KEY (PedidoDeLiberacaoId) REFERENCES dbo.LiberacaoDimensional (Id),
+    CONSTRAINT FK_LiberacaoDimensional_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_LiberacaoDimensional_Tipo CHECK (Tipo IN ('Pedido', 'Resposta')),
+    CONSTRAINT CK_LiberacaoDimensional_PedidoCoerente
+        CHECK (Tipo <> 'Pedido' OR (PedidoDeLiberacaoId IS NULL AND Quantidade > 0 AND Texto IS NOT NULL)),
+    CONSTRAINT CK_LiberacaoDimensional_RespostaCoerente
+        CHECK (Tipo <> 'Resposta' OR (PedidoDeLiberacaoId IS NOT NULL AND Quantidade >= 0))
+);
+CREATE INDEX IX_LiberacaoDimensional_EstruturaItem ON dbo.LiberacaoDimensional (EstruturaItemId);
+GO
+
 -- Livro de movimentações: cada linha move Quantidade de um nó de uma posição para outra.
 -- SÓ INSERÇÃO: não se edita nem se apaga; correção é um Estorno (movimento inverso que aponta o
 -- original). Saldo de uma posição = Σ Quantidade onde ela é destino − Σ onde ela é origem;
@@ -469,7 +530,7 @@ CREATE TABLE dbo.Montagem (
 CREATE TABLE dbo.Movimentacao (
     Id               INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId  INT                 NOT NULL,
-    Tipo             NVARCHAR(20)        NOT NULL, -- Inicio | Termino | Entrega | Montagem | Estorno
+    Tipo             NVARCHAR(20)        NOT NULL, -- Inicio | Termino | Entrega | Montagem | Medicao | Conserto | PedidoDeLiberacao | Liberacao | Recusa | Expedicao | Estorno
     Quantidade       DECIMAL(18,4)       NOT NULL,
     OrigemPosicao    NVARCHAR(20)        NOT NULL,
     OrigemSetorId    INT                 NULL,
@@ -478,6 +539,9 @@ CREATE TABLE dbo.Movimentacao (
     DestinoSetorId   INT                 NULL,
     DestinoOrdem     INT                 NULL,
     MontagemId       INT                 NULL,     -- baixa de filho (e o estorno dela)
+    ContagemId       INT                 NULL,     -- Medicao (e o estorno dela): a contagem da Peca
+    LiberacaoId      INT                 NULL,     -- PedidoDeLiberacao, Liberacao, Recusa (e o estorno): o registro da liberacao
+    RemessaId        INT                 NULL,     -- Expedicao (e o estorno dela): a remessa
     EstornoDeId      INT                 NULL,     -- só no Estorno: o movimento que ele desfaz
     DataHora         DATETIME2           NOT NULL CONSTRAINT DF_Movimentacao_DataHora DEFAULT (SYSUTCDATETIME()),
     UsuarioId        INT                 NOT NULL, -- autor
@@ -486,24 +550,37 @@ CREATE TABLE dbo.Movimentacao (
     CONSTRAINT FK_Movimentacao_OrigemSetor FOREIGN KEY (OrigemSetorId) REFERENCES dbo.Setor (Id),
     CONSTRAINT FK_Movimentacao_DestinoSetor FOREIGN KEY (DestinoSetorId) REFERENCES dbo.Setor (Id),
     CONSTRAINT FK_Movimentacao_Montagem FOREIGN KEY (MontagemId) REFERENCES dbo.Montagem (Id),
+    CONSTRAINT FK_Movimentacao_Contagem FOREIGN KEY (ContagemId) REFERENCES dbo.ContagemDimensional (Id),
+    CONSTRAINT FK_Movimentacao_Liberacao FOREIGN KEY (LiberacaoId) REFERENCES dbo.LiberacaoDimensional (Id),
+    CONSTRAINT FK_Movimentacao_Remessa FOREIGN KEY (RemessaId) REFERENCES dbo.Remessa (Id),
     CONSTRAINT FK_Movimentacao_EstornoDe FOREIGN KEY (EstornoDeId) REFERENCES dbo.Movimentacao (Id),
     CONSTRAINT FK_Movimentacao_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT CK_Movimentacao_QuantidadePositiva CHECK (Quantidade > 0),
     CONSTRAINT CK_Movimentacao_Tipo
-        CHECK (Tipo IN ('Inicio', 'Termino', 'Entrega', 'Montagem', 'Estorno')),
+        CHECK (Tipo IN ('Inicio', 'Termino', 'Entrega', 'Montagem', 'Medicao', 'Conserto',
+                        'PedidoDeLiberacao', 'Liberacao', 'Recusa', 'Expedicao', 'Estorno')),
     CONSTRAINT CK_Movimentacao_OrigemPosicao
-        CHECK (OrigemPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'NaExpedicao', 'Montado')),
+        CHECK (OrigemPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'AguardandoConserto', 'EmConserto', 'ConsertoPronto',
+                               'NaExpedicao', 'Conforme', 'NaoConforme', 'AguardandoLiberacao', 'Liberada', 'Montado', 'Expedido')),
     CONSTRAINT CK_Movimentacao_DestinoPosicao
-        CHECK (DestinoPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'NaExpedicao', 'Montado')),
-    -- Setor e passo combinam com a posição (tabela da seção 3.1 da spec da Fase 3)
+        CHECK (DestinoPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'AguardandoConserto', 'EmConserto', 'ConsertoPronto',
+                               'NaExpedicao', 'Conforme', 'NaoConforme', 'AguardandoLiberacao', 'Liberada', 'Montado', 'Expedido')),
+    -- Setor e passo combinam com a posição (tabela da seção 3.1 da spec da Fase 3 e da 3.1 da Fase 5A):
+    -- sem Setor e sem passo, com Setor e passo, ou com Setor e sem passo (a montagem e o conserto)
     CONSTRAINT CK_Movimentacao_OrigemCoerente
-        CHECK ((OrigemPosicao IN ('AIniciar', 'NaExpedicao', 'Montado') AND OrigemSetorId IS NULL AND OrigemOrdem IS NULL)
+        CHECK ((OrigemPosicao IN ('AIniciar', 'NaExpedicao', 'Montado', 'Conforme', 'NaoConforme',
+                                  'AguardandoLiberacao', 'Liberada', 'Expedido')
+                AND OrigemSetorId IS NULL AND OrigemOrdem IS NULL)
             OR (OrigemPosicao IN ('NoSetor', 'AguardandoColeta') AND OrigemSetorId IS NOT NULL AND OrigemOrdem IS NOT NULL)
-            OR (OrigemPosicao = 'AguardandoMontagem' AND OrigemSetorId IS NOT NULL AND OrigemOrdem IS NULL)),
+            OR (OrigemPosicao IN ('AguardandoMontagem', 'AguardandoConserto', 'EmConserto', 'ConsertoPronto')
+                AND OrigemSetorId IS NOT NULL AND OrigemOrdem IS NULL)),
     CONSTRAINT CK_Movimentacao_DestinoCoerente
-        CHECK ((DestinoPosicao IN ('AIniciar', 'NaExpedicao', 'Montado') AND DestinoSetorId IS NULL AND DestinoOrdem IS NULL)
+        CHECK ((DestinoPosicao IN ('AIniciar', 'NaExpedicao', 'Montado', 'Conforme', 'NaoConforme',
+                                   'AguardandoLiberacao', 'Liberada', 'Expedido')
+                AND DestinoSetorId IS NULL AND DestinoOrdem IS NULL)
             OR (DestinoPosicao IN ('NoSetor', 'AguardandoColeta') AND DestinoSetorId IS NOT NULL AND DestinoOrdem IS NOT NULL)
-            OR (DestinoPosicao = 'AguardandoMontagem' AND DestinoSetorId IS NOT NULL AND DestinoOrdem IS NULL)),
+            OR (DestinoPosicao IN ('AguardandoMontagem', 'AguardandoConserto', 'EmConserto', 'ConsertoPronto')
+                AND DestinoSetorId IS NOT NULL AND DestinoOrdem IS NULL)),
     -- Cada tipo só faz as transições dele; o Estorno é o inverso de um dos outros
     CONSTRAINT CK_Movimentacao_Transicao
         CHECK ((Tipo = 'Inicio'   AND OrigemPosicao = 'AIniciar' AND DestinoPosicao = 'NoSetor')
@@ -514,6 +591,19 @@ CREATE TABLE dbo.Movimentacao (
             OR (Tipo = 'Entrega'  AND OrigemPosicao = 'AguardandoMontagem'   -- redirecionamento
                                   AND DestinoPosicao = 'AguardandoMontagem')
             OR (Tipo = 'Montagem' AND OrigemPosicao = 'AguardandoMontagem' AND DestinoPosicao = 'Montado')
+            -- Fase 5A, tabela da seção 3.3 da spec: medicao, conserto, liberacao e expedicao
+            OR (Tipo = 'Medicao'  AND OrigemPosicao = 'NaExpedicao' AND DestinoPosicao IN ('Conforme', 'NaoConforme'))
+            OR (Tipo = 'Conserto' AND OrigemPosicao = 'NaoConforme' AND DestinoPosicao = 'AguardandoConserto')
+            OR (Tipo = 'Entrega'  AND OrigemPosicao = 'AguardandoConserto' AND DestinoPosicao = 'EmConserto'
+                                  AND OrigemSetorId = DestinoSetorId)
+            OR (Tipo = 'Termino'  AND OrigemPosicao = 'EmConserto' AND DestinoPosicao = 'ConsertoPronto'
+                                  AND OrigemSetorId = DestinoSetorId)
+            OR (Tipo = 'Entrega'  AND OrigemPosicao = 'ConsertoPronto' AND DestinoPosicao = 'NaExpedicao')
+            OR (Tipo = 'PedidoDeLiberacao' AND OrigemPosicao = 'NaoConforme' AND DestinoPosicao = 'AguardandoLiberacao')
+            OR (Tipo = 'Liberacao' AND OrigemPosicao = 'AguardandoLiberacao' AND DestinoPosicao = 'Liberada')
+            OR (Tipo = 'Recusa'   AND OrigemPosicao = 'AguardandoLiberacao' AND DestinoPosicao = 'NaoConforme')
+            OR (Tipo = 'Expedicao' AND OrigemPosicao IN ('Liberada', 'Conforme', 'NaExpedicao', 'NaoConforme')
+                                   AND DestinoPosicao = 'Expedido')
             OR (Tipo = 'Estorno')),
     -- MontagemId: obrigatorio na baixa de filho; opcional no Inicio (so o inicio de um pai, que
     -- consumiu os filhos, aponta a Montagem — spec da Fase 3D, secao 3.3); livre no Estorno.
@@ -521,6 +611,20 @@ CREATE TABLE dbo.Movimentacao (
         CHECK ((Tipo = 'Montagem' AND MontagemId IS NOT NULL)
             OR (Tipo IN ('Inicio', 'Estorno'))
             OR (Tipo NOT IN ('Montagem', 'Inicio', 'Estorno') AND MontagemId IS NULL)),
+    -- Agrupador do registro composto (Fase 5A): Medicao exige a contagem; PedidoDeLiberacao, Liberacao
+    -- e Recusa exigem a liberacao; Expedicao exige a remessa. Cada coluna so aparece no seu tipo ou no
+    -- Estorno dele, e no maximo uma esta preenchida (o estorno repete a do original).
+    CONSTRAINT CK_Movimentacao_RegistroCoerente
+        CHECK ((Tipo = 'Medicao' AND ContagemId IS NOT NULL AND LiberacaoId IS NULL AND RemessaId IS NULL)
+            OR (Tipo IN ('PedidoDeLiberacao', 'Liberacao', 'Recusa')
+                AND LiberacaoId IS NOT NULL AND ContagemId IS NULL AND RemessaId IS NULL)
+            OR (Tipo = 'Expedicao' AND RemessaId IS NOT NULL AND ContagemId IS NULL AND LiberacaoId IS NULL)
+            OR (Tipo = 'Estorno'
+                AND (CASE WHEN ContagemId IS NULL THEN 0 ELSE 1 END
+                   + CASE WHEN LiberacaoId IS NULL THEN 0 ELSE 1 END
+                   + CASE WHEN RemessaId IS NULL THEN 0 ELSE 1 END) <= 1)
+            OR (Tipo IN ('Inicio', 'Termino', 'Entrega', 'Montagem', 'Conserto')
+                AND ContagemId IS NULL AND LiberacaoId IS NULL AND RemessaId IS NULL)),
     CONSTRAINT CK_Movimentacao_EstornoApontaOriginal
         CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
             OR (Tipo <> 'Estorno' AND EstornoDeId IS NULL))
@@ -555,60 +659,36 @@ CREATE TABLE dbo.MaterialSeparacao (
 CREATE UNIQUE INDEX UX_MaterialSeparacao_EstornoDe ON dbo.MaterialSeparacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
 CREATE INDEX IX_MaterialSeparacao_EstruturaItem ON dbo.MaterialSeparacao (EstruturaItemId);
 
--- Remessa de expedição. Expedição parcial = várias linhas cuja soma <= Quantidade da Peça
--- (a validação "soma <= total" é feita na camada de aplicação, não como constraint).
-CREATE TABLE dbo.Expedicao (
-    Id              INT IDENTITY(1,1)  NOT NULL,
-    EstruturaItemId INT                 NOT NULL, -- Peça expedida (NivelHierarquico = 'Peca')
-    Quantidade      DECIMAL(18,4)       NOT NULL,
-    DataExpedicao   DATETIME2           NOT NULL CONSTRAINT DF_Expedicao_Data DEFAULT (SYSUTCDATETIME()),
-    Responsavel     NVARCHAR(100)       NOT NULL,
-    CONSTRAINT PK_Expedicao PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_Expedicao_EstruturaItem
-        FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
-    CONSTRAINT CK_Expedicao_QuantidadePositiva CHECK (Quantidade > 0)
-);
-GO
-
 /* ---------------------------------------------------------------------
    DIMENSIONAL / QUALIDADE
    --------------------------------------------------------------------- */
 
--- Header: no máx. um Relatório Dimensional por Peça (opcional; só quando o cliente exige,
--- flag EstruturaItem.RequerRelatorioDimensional). Acumulativo via RelatorioDimensionalAvaliacao.
+-- Aferição da Peça (Fase 5A, seção 3.4 da spec): a amostra que decide o significado de NaExpedicao para
+-- ela (D3). SÓ INCLUSÃO, como dbo.Movimentacao: uma linha por aferição (Tipo = 'Afericao', com o
+-- Resultado) e o estorno como linha própria que aponta a original, no máximo um por linha. A aferição
+-- válida da Peça é a última não estornada. Não guarda cotas nem medidas (D2). Só Peça com
+-- EstruturaItem.RequerRelatorioDimensional recebe aferição (regra de aplicação).
 CREATE TABLE dbo.RelatorioDimensional (
-    Id                      INT IDENTITY(1,1)  NOT NULL,
-    EstruturaItemId         INT                 NOT NULL, -- peça avaliada (NivelHierarquico = 'Peca')
-    CriadoEm                DATETIME2           NOT NULL CONSTRAINT DF_RelatorioDimensional_CriadoEm DEFAULT (SYSUTCDATETIME()),
+    Id               INT IDENTITY(1,1)  NOT NULL,
+    EstruturaItemId  INT                 NOT NULL, -- a Peça aferida (NivelHierarquico = 'Peca')
+    Tipo             NVARCHAR(20)        NOT NULL, -- Afericao | Estorno
+    Resultado        NVARCHAR(20)        NULL,     -- Conforme | NaoConforme; obrigatório na Afericao
+    EstornoDeId      INT                 NULL,     -- só no Estorno: a aferição que ele desfaz
+    DataHora         DATETIME2           NOT NULL CONSTRAINT DF_RelatorioDimensional_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId        INT                 NOT NULL, -- autor
     CONSTRAINT PK_RelatorioDimensional PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_RelatorioDimensional_EstruturaItem
-        FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
-    CONSTRAINT UQ_RelatorioDimensional_EstruturaItem UNIQUE (EstruturaItemId)
+    CONSTRAINT FK_RelatorioDimensional_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_RelatorioDimensional_EstornoDe FOREIGN KEY (EstornoDeId) REFERENCES dbo.RelatorioDimensional (Id),
+    CONSTRAINT FK_RelatorioDimensional_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_RelatorioDimensional_Tipo CHECK (Tipo IN ('Afericao', 'Estorno')),
+    CONSTRAINT CK_RelatorioDimensional_Resultado CHECK (Resultado IS NULL OR Resultado IN ('Conforme', 'NaoConforme')),
+    CONSTRAINT CK_RelatorioDimensional_ResultadoNaAfericao CHECK (Tipo = 'Estorno' OR Resultado IS NOT NULL),
+    CONSTRAINT CK_RelatorioDimensional_EstornoApontaOriginal
+        CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
+            OR (Tipo = 'Afericao' AND EstornoDeId IS NULL))
 );
-GO
-
--- Detalhe: uma avaliação por remessa avaliada pelo cliente (chega conforme a expedição parcial).
--- Aprovação/reprovação é por quantidade; retrabalho (opcional) fica vinculado à avaliação.
-CREATE TABLE dbo.RelatorioDimensionalAvaliacao (
-    Id                     INT IDENTITY(1,1) NOT NULL,
-    RelatorioDimensionalId INT               NOT NULL,
-    QuantidadeAvaliada     DECIMAL(18,4)      NOT NULL,
-    QuantidadeAprovada     DECIMAL(18,4)      NOT NULL,
-    QuantidadeReprovada    DECIMAL(18,4)      NOT NULL,
-    Medidas                NVARCHAR(MAX)      NULL,
-    InformadoPor           NVARCHAR(200)      NOT NULL, -- contato do cliente que informou
-    DataAvaliacao          DATETIME2          NOT NULL CONSTRAINT DF_RDA_Data DEFAULT (SYSUTCDATETIME()),
-    PedidoRetrabalhoId     INT               NULL,      -- retrabalho aberto por causa desta avaliação (opcional)
-    CONSTRAINT PK_RelatorioDimensionalAvaliacao PRIMARY KEY CLUSTERED (Id),
-    CONSTRAINT FK_RDA_Relatorio
-        FOREIGN KEY (RelatorioDimensionalId) REFERENCES dbo.RelatorioDimensional (Id),
-    CONSTRAINT FK_RDA_PedidoRetrabalho
-        FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
-    CONSTRAINT CK_RDA_Quantidades
-        CHECK (QuantidadeAprovada + QuantidadeReprovada = QuantidadeAvaliada
-           AND QuantidadeAvaliada > 0
-           AND QuantidadeAprovada >= 0 AND QuantidadeReprovada >= 0)
-);
+CREATE UNIQUE INDEX UX_RelatorioDimensional_EstornoDe ON dbo.RelatorioDimensional (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
+CREATE INDEX IX_RelatorioDimensional_EstruturaItem ON dbo.RelatorioDimensional (EstruturaItemId);
 GO
 
 -- Baixa de quantidade perdida em produção (some no armazém ou morre após processo).
@@ -647,13 +727,15 @@ CREATE INDEX IX_Movimentacao_OrigemSetor ON dbo.Movimentacao (OrigemSetorId) WHE
 CREATE UNIQUE INDEX UX_Movimentacao_EstornoDe ON dbo.Movimentacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
 CREATE UNIQUE INDEX UX_Movimentacao_UmInicioPorMontagem
     ON dbo.Movimentacao (MontagemId) WHERE Tipo = 'Inicio' AND MontagemId IS NOT NULL;
+-- O agrupador acha as linhas do livro que o apontam (estornar uma contagem, uma remessa, uma liberacao).
+CREATE INDEX IX_Movimentacao_Contagem ON dbo.Movimentacao (ContagemId) WHERE ContagemId IS NOT NULL;
+CREATE INDEX IX_Movimentacao_Liberacao ON dbo.Movimentacao (LiberacaoId) WHERE LiberacaoId IS NOT NULL;
+CREATE INDEX IX_Movimentacao_Remessa ON dbo.Movimentacao (RemessaId) WHERE RemessaId IS NOT NULL;
 CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
 -- No máximo uma pausa aberta por Pedido.
 CREATE UNIQUE INDEX UX_PedidoPausa_UmaAbertaPorPedido
     ON dbo.PedidoPausa (PedidoId) WHERE RetomadoEm IS NULL;
-CREATE INDEX IX_Expedicao_EstruturaItem ON dbo.Expedicao (EstruturaItemId);
-CREATE INDEX IX_RDA_Relatorio ON dbo.RelatorioDimensionalAvaliacao (RelatorioDimensionalId);
 CREATE INDEX IX_Perda_EstruturaItem ON dbo.Perda (EstruturaItemId);
 GO
 

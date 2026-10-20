@@ -22,6 +22,18 @@ public class Movimentacao
   /// <summary>So na baixa de filho de uma montagem, e no estorno dela.</summary>
   public int? MontagemId { get; set; }
 
+  /// <summary>
+  /// So na `Medicao` (e no estorno dela): a contagem a que a linha pertence. Uma contagem sao duas linhas
+  /// `Medicao`, e estorna-se a contagem inteira (C17 da spec da Fase 5A).
+  /// </summary>
+  public int? ContagemId { get; set; }
+
+  /// <summary>So em `PedidoDeLiberacao`, `Liberacao` e `Recusa` (e no estorno delas): o registro da liberacao.</summary>
+  public int? LiberacaoId { get; set; }
+
+  /// <summary>So na `Expedicao` (e no estorno dela): a remessa. Estorna-se a remessa inteira (C8).</summary>
+  public int? RemessaId { get; set; }
+
   /// <summary>So no Estorno: o movimento que ele desfaz (`UX_Movimentacao_EstornoDe`: uma vez so).</summary>
   public int? EstornoDeId { get; set; }
 

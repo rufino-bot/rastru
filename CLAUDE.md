@@ -998,23 +998,27 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
 ```
 
 **Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`),
-`movimentador`/`Movimentador@123` (perfil `Movimentador`) e `separador`/`Separador@123` (perfil
-`Separador`), no `db/seed.sql` — os dois primeiros desde 2026-10-13, o `separador` desde a Fase 4
-(2026-10-16).**
+`movimentador`/`Movimentador@123` (perfil `Movimentador`), `separador`/`Separador@123` (perfil
+`Separador`), `qualidade`/`Qualidade@123` (perfil `Qualidade`) e `gestao`/`Gestao@123` (perfil `Gestao`), no
+`db/seed.sql` — os dois primeiros desde 2026-10-13, o `separador` desde a Fase 4 (2026-10-16), o `qualidade` e o
+`gestao` desde a Fase 5A (2026-10-20).**
 Existem para ver a tela como o chão de fábrica a vê e para verificar à mão o gating por perfil (ver a
 seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem no cadastro**, e sem um
 usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador`, o
 `movimentador` e o `separador` escrevem só na execução e na separação de material: um no apontamento,
-outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). Até essa data o
+outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). O `qualidade` e o
+`gestao` escrevem só no fim do caminho da Peça (Fase 5A): a Qualidade, que é a pessoa da expedição, afere, conta,
+manda para conserto, pede liberação e expede; a Gestão responde aos pedidos de liberação. Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
 outro nome quebraria esse padrão. **Decisão do usuário (2026-10-13): os dois entram no seed, cada um
 com senha e hash próprios**, gerados com o mesmo `BCryptPasswordHasher` de produção. Isso respeita o
 padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O `separador` da Fase 4 seguiu o mesmo
-padrão, com senha e hash próprios, também gerado com o `BCryptPasswordHasher` de produção. O teste
+padrão, com senha e hash próprios, também gerado com o `BCryptPasswordHasher` de produção, e o `qualidade` e o
+`gestao` da Fase 5A também. O teste
 `Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador`,
-`movimentador` e `separador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
+`movimentador`, `separador`, `qualidade` e `gestao`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
 `db/seed.sql` de novo os acrescenta: ele é idempotente.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
@@ -1162,6 +1166,23 @@ passam a coexistir e o `alter` os une). Não precisa regenerar o banco.
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-4.sql sqlserver:/tmp/alter-fase-4.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-4.sql
+```
+
+**Fase 5A — `db/alter-fase-5a.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em cinco blocos: o **aborto** (`THROW 50002`) se `dbo.Expedicao`,
+`dbo.RelatorioDimensionalAvaliacao` ou a forma antiga de `dbo.RelatorioDimensional` (a sem a coluna `Tipo`) tiver
+alguma linha, em vez de descartar dado em silêncio; o `DROP` das três, só vazias; o `CREATE` das quatro tabelas
+novas (`dbo.Remessa`, `dbo.ContagemDimensional`, `dbo.LiberacaoDimensional` e a `dbo.RelatorioDimensional`
+reescrita como registro de aferições) com os índices; as colunas `ContagemId`, `LiberacaoId` e `RemessaId` de
+`dbo.Movimentacao`, com FK e índice filtrado; e as sete constraints do livro recriadas com as posições e os tipos
+novos (`DROP` se existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Não precisa
+regenerar o banco. O `qualidade` e o `gestao` não entram por ele: **depois dele, reaplique o `db/seed.sql`**, que é
+idempotente.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5a.sql sqlserver:/tmp/alter-fase-5a.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5a.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
