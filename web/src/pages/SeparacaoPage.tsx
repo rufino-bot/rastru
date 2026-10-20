@@ -204,7 +204,7 @@ export function SeparacaoPage() {
                           else botoes.current.delete(item.no.id)
                         }}
                         variante="secundario"
-                        aria-label={`Separar ${rotuloDoNo(item.no)}`}
+                        aria-label={`Separar ${nomeDoCartao(item)}`}
                         onClick={() => abrir(item.no.id)}
                       >
                         Separar

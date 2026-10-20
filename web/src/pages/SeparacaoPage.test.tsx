@@ -158,19 +158,34 @@ describe('SeparacaoPage', () => {
     }
   })
 
+  it('o Separar de dois cartões do mesmo item em Pedidos diferentes tem nomes diferentes', async () => {
+    const QUADRO_DO_PED_3: PendenciaDeSeparacaoDto = {
+      ...QUADRO,
+      no: { ...QUADRO.no, id: 31 },
+      pedido: { ...QUADRO.pedido, id: 3, numero: 'PED-3' },
+    }
+    vi.stubGlobal('fetch', montarFetch([[QUADRO, QUADRO_DO_PED_3]]).fetchMock)
+
+    renderizar()
+    await lista()
+
+    const nomes = screen.getAllByRole('button', { name: /^Separar/ }).map((b) => b.getAttribute('aria-label'))
+    expect(nomes).toEqual(['Separar QD-01 — Quadro (PED-1)', 'Separar QD-01 — Quadro (PED-3)'])
+  })
+
   it('o painel abre logo abaixo do cartão escolhido, um por vez', async () => {
     vi.stubGlobal('fetch', montarFetch([[QUADRO, TAMPA]]).fetchMock)
 
     renderizar()
     await lista()
 
-    fireEvent.click(within(cartao('Quadro')).getByRole('button', { name: 'Separar QD-01 — Quadro' }))
+    fireEvent.click(within(cartao('Quadro')).getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' }))
     const painel = screen.getByRole('form', { name: 'Separar material' })
     expect(cartao('Quadro').contains(painel)).toBe(true)
     // O Separar do cartão aberto some enquanto o painel está aberto.
     expect(within(cartao('Quadro')).queryByRole('button', { name: /^Separar/ })).toBeNull()
 
-    fireEvent.click(within(cartao('Tampa')).getByRole('button', { name: 'Separar Tampa' }))
+    fireEvent.click(within(cartao('Tampa')).getByRole('button', { name: 'Separar Tampa (PED-2)' }))
     expect(screen.getAllByRole('form', { name: 'Separar material' })).toHaveLength(1)
     expect(cartao('Tampa').contains(screen.getByRole('form', { name: 'Separar material' }))).toBe(true)
   })
@@ -188,17 +203,17 @@ describe('SeparacaoPage', () => {
     renderizar()
     await lista()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' }))
     fireEvent.change(screen.getByRole('textbox', { name: /ELE-01/ }), { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar separação' }))
 
     await waitFor(() => expect(gets()).toBe(2))
-    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Separar QD-01 — Quadro' })))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' })))
     expect(screen.queryByRole('form', { name: 'Separar material' })).toBeNull()
     expect(within(cartao('Quadro')).getAllByRole('listitem').map((li) => li.textContent))
       .toEqual(['ELE-01 Eletrodo · falta 0,5 KG (0,5 de 1)'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Registrar separação' }))
 
     await waitFor(() => expect(gets()).toBe(3))
@@ -219,10 +234,10 @@ describe('SeparacaoPage', () => {
     renderizar()
     await lista()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Registrar separação' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Registrando…' })).toBeTruthy())
-    fireEvent.click(screen.getByRole('button', { name: 'Separar Tampa' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Separar Tampa (PED-2)' }))
     await act(async () => { responder(respostaJson({ separacoes: [], materiais: [] }, 201)) })
 
     await waitFor(() => expect(gets()).toBe(2))
@@ -236,10 +251,10 @@ describe('SeparacaoPage', () => {
     renderizar()
     await lista()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Separar Tampa' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Separar Tampa (PED-2)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
 
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Separar Tampa' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Separar Tampa (PED-2)' }))
     expect(gets()).toBe(1)
   })
 
@@ -255,7 +270,7 @@ describe('SeparacaoPage', () => {
     renderizar()
     await lista()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Registrar separação' }))
 
     await waitFor(() => expect(gets()).toBe(2))
@@ -473,14 +488,14 @@ describe('SeparacaoPage', () => {
 
       renderizar()
       await lista()
-      fireEvent.click(screen.getByRole('button', { name: 'Separar Tampa' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Separar Tampa (PED-2)' }))
       expect(screen.getByRole('form', { name: 'Separar material' })).toBeTruthy()
 
       marcar('Marcar QD-01 — Quadro (PED-1)')
 
       expect(screen.queryByRole('form', { name: 'Separar material' })).toBeNull()
-      expect(screen.getByRole('button', { name: 'Separar Tampa' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Separar QD-01 — Quadro' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Separar Tampa (PED-2)' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Separar QD-01 — Quadro (PED-1)' })).toBeTruthy()
     })
 
     it('dois toques enviam uma vez', async () => {
