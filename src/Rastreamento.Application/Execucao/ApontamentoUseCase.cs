@@ -132,11 +132,8 @@ public sealed class ApontamentoUseCase
   private static Result<IReadOnlyList<MovimentacaoDto>>? RecusaDaEntrada<TItem, TChave>(
       IReadOnlyList<TItem> itens, Func<TItem, decimal> quantidade, Func<TItem, TChave> chave, Func<TItem, string> repetido)
   {
-    if (itens.Count == 0)
-      return Falhas.Validacao<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.LoteVazio, "Marque pelo menos um item.");
-    if (itens.Count > TamanhoMaximoDoLote)
-      return Falhas.Validacao<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.LoteGrandeDemais,
-          $"Um lote tem no máximo {TamanhoMaximoDoLote} itens.");
+    if (itens.Count == 0) return Falhas.LoteVazio<IReadOnlyList<MovimentacaoDto>>();
+    if (itens.Count > TamanhoMaximoDoLote) return Falhas.LoteGrandeDemais<IReadOnlyList<MovimentacaoDto>>();
     foreach (var item in itens)
       if (!Quantidades.CabeNaColuna(quantidade(item)))
         return Falhas.QuantidadeInvalida<IReadOnlyList<MovimentacaoDto>>(quantidade(item));

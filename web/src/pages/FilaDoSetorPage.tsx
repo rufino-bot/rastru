@@ -2,12 +2,13 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { Link, useParams } from 'react-router-dom'
 import {
   obterFila, iniciar, terminar, entregar, estornar, ehConflito, iniciarEmLote, terminarEmLote,
-  type Estornavel, type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto,
+  type Estornavel, type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto, type ResumoDeMaterial,
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
 import {
   caminhoDoNo, descreverDestino, formatarQuantidade, mensagemDoEstorno, rotuloDaAcao, rotuloDoNo,
+  textoDoResumoDeMaterial,
 } from '../execucao/formatacao'
 import { lembrarSetor } from '../execucao/setorLembrado'
 import { conjuntosPresentes, quantidadeDoConjunto } from '../execucao/conjuntos'
@@ -565,6 +566,7 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
               >
                 <CabecalhoDoNo no={l.no} />
                 <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem}`}</Detalhe>
+                <ResumoDeMaterialDaFila resumo={l.material} />
               </ItemComAcao>
             )
           })}
@@ -584,6 +586,7 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
               <ItemComAcao key={`${l.no.id}-${l.ordem}`} acao={caixa} painel={campo || undefined}>
                 <CabecalhoDoNo no={l.no} />
                 <Detalhe>{`${formatarQuantidade(l.quantidade)} a iniciar · passo ${l.ordem} · Pedido pausado`}</Detalhe>
+                <ResumoDeMaterialDaFila resumo={l.material} />
               </ItemComAcao>
             )
           })}
@@ -765,6 +768,16 @@ function CabecalhoDoNo({ no }: { no: NoResumoDto }) {
   )
 }
 
+/**
+ * O resumo de material do nó (regra 34), logo depois da quantidade. Texto neutro de propósito: material
+ * faltando não é estado de negócio, e a cor de estado da Fila fica para a pausa. Sem resumo (`null`: nada
+ * do almoxarifado a separar, ou a linha de outra seção), não escreve nada.
+ */
+function ResumoDeMaterialDaFila({ resumo }: { resumo: ResumoDeMaterial | null }) {
+  if (resumo === null) return null
+  return <Detalhe>{textoDoResumoDeMaterial(resumo)}</Detalhe>
+}
+
 function Detalhe({ children }: { children: ReactNode }) {
   return <span className="text-sm text-tinta">{children}</span>
 }
@@ -789,6 +802,7 @@ function GrupoDeMontagem({ grupo, temAcaoNosFilhos, acaoDoFilho }: {
       <Detalhe>
         {`Dá para iniciar ${formatarQuantidade(grupo.daParaMontar)}; falta iniciar ${formatarQuantidade(grupo.faltaMontar)}.`}
       </Detalhe>
+      <ResumoDeMaterialDaFila resumo={grupo.material} />
       {!grupo.iniciaAqui && (
         <span className="text-xs text-tinta-fraca">
           {grupo.primeiroPassoDoPai

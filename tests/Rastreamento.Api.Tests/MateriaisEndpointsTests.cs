@@ -17,6 +17,7 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
 {
   private readonly WebApplicationFactory<Program> _factory;
   private readonly List<string> _codigosCriados = [];
+  private readonly List<int> _setoresCriados = [];
 
   public MateriaisEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
@@ -29,6 +30,25 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     db.Materiais.RemoveRange(
         await db.Materiais.Where(m => _codigosCriados.Contains(m.Codigo)).ToListAsync());
     await db.SaveChangesAsync();
+
+    // Depois dos Materiais: FK_Material_SetorDeEstoque impede apagar o Setor que ainda e apontado.
+    db.Setores.RemoveRange(await db.Setores.Where(x => _setoresCriados.Contains(x.Id)).ToListAsync());
+    await db.SaveChangesAsync();
+  }
+
+  private async Task<int> CriarSetorNoBanco()
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var setor = new Rastreamento.Domain.Entities.Setor
+    {
+      Nome = $"fe-{Guid.NewGuid():N}"[..20],
+      Ativo = true,
+    };
+    db.Setores.Add(setor);
+    await db.SaveChangesAsync();
+    _setoresCriados.Add(setor.Id);
+    return setor.Id;
   }
 
   private string CodigoUnico()
@@ -58,13 +78,64 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
 
+  [Fact]
+  public async Task Administrador_cadastra_material_com_Fica_em_e_le_de_volta()
+  {
+    var setorId = await CriarSetorNoBanco();
+    var codigo = CodigoUnico();
+    var cliente = ClienteComo("Administrador");
+
+    var resposta = await cliente.PostAsJsonAsync("/api/materiais", new
+    {
+      codigo,
+      descricao = "Chapa de aco 3mm",
+      unidadeMedida = "KG",
+      setorDeEstoqueId = setorId,
+    });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var lista = JsonDocument.Parse(await cliente.GetStringAsync("/api/materiais")).RootElement;
+    var item = lista.EnumerateArray().Single(m => m.GetProperty("codigo").GetString() == codigo);
+    Assert.Equal(setorId, item.GetProperty("ficaEm").GetProperty("setorId").GetInt32());
+    Assert.False(string.IsNullOrEmpty(item.GetProperty("ficaEm").GetProperty("nome").GetString()));
+  }
+
+  [Fact]
+  public async Task Material_sem_Fica_em_le_ficaEm_nulo()
+  {
+    var codigo = CodigoUnico();
+    var cliente = ClienteComo("Administrador");
+    await cliente.PostAsJsonAsync("/api/materiais", CorpoValido(codigo));
+
+    var lista = JsonDocument.Parse(await cliente.GetStringAsync("/api/materiais")).RootElement;
+    var item = lista.EnumerateArray().Single(m => m.GetProperty("codigo").GetString() == codigo);
+
+    Assert.Equal(JsonValueKind.Null, item.GetProperty("ficaEm").ValueKind);
+  }
+
+  [Fact]
+  public async Task Setor_inexistente_em_Fica_em_da_400()
+  {
+    var resposta = await ClienteComo("Administrador").PostAsJsonAsync("/api/materiais", new
+    {
+      codigo = CodigoUnico(),
+      descricao = "Chapa",
+      unidadeMedida = "KG",
+      setorDeEstoqueId = 999999,
+    });
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("SetorDeEstoqueInvalido", corpo.GetProperty("erro").GetString());
+  }
+
   [Theory]
   [InlineData("POST", "/api/materiais")]
   [InlineData("PUT", "/api/materiais/999999")]
   [InlineData("PATCH", "/api/materiais/999999/ativo")]
-  public async Task Almoxarifado_nao_escreve_em_material(string metodo, string rota)
+  public async Task Separador_nao_escreve_em_material(string metodo, string rota)
   {
-    // Almoxarifado e o perfil que MAIS mexe com material no dia a dia e mesmo assim nao escreve
+    // Separador e o perfil que MAIS mexe com material no dia a dia e mesmo assim nao escreve
     // no catalogo: os tres verbos sao [Authorize(Roles = "Administrador")]. Cobrir os tres, e
     // nao so o POST, e o que impede apagar o atributo do PUT ou do PATCH em silencio.
     // O [Authorize(Roles)] roda antes do model binding e da action, entao um id inexistente
@@ -73,21 +144,21 @@ public class MateriaisEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     // registrar o codigo na lista de limpeza do DisposeAsync seria inofensivo mas deselegante.
     object corpo = metodo == "PATCH"
         ? new { ativo = false }
-        : new { codigo = "almoxarifado-nao-pode", descricao = "Chapa", unidadeMedida = "KG" };
+        : new { codigo = "separador-nao-pode", descricao = "Chapa", unidadeMedida = "KG" };
     var requisicao = new HttpRequestMessage(new HttpMethod(metodo), rota)
     {
       Content = JsonContent.Create(corpo)
     };
 
-    var resposta = await ClienteComo("Almoxarifado").SendAsync(requisicao);
+    var resposta = await ClienteComo("Separador").SendAsync(requisicao);
 
     Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
   }
 
   [Fact]
-  public async Task Almoxarifado_le_a_lista_de_materiais()
+  public async Task Separador_le_a_lista_de_materiais()
   {
-    var resposta = await ClienteComo("Almoxarifado").GetAsync("/api/materiais");
+    var resposta = await ClienteComo("Separador").GetAsync("/api/materiais");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
   }

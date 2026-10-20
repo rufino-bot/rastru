@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import {
   CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila, facetasDasTarefas, filtrarTarefas, filtrarKits,
 } from './filtroDaDemanda'
-import type { FilhoDoKitDto, KitDto, LinhaDaFila, TarefasDoSetorDto, TarefasDto } from '../api/execucao'
+import type {
+  DestinoDto, FilhoDoKitDto, KitDto, LinhaAguardandoColeta, LinhaDaFila, TarefasDoSetorDto, TarefasDto,
+} from '../api/execucao'
 import type { MaterialResumoDto } from '../api/cadastros'
 import type { Faceta } from '../components/FiltroDeDemanda'
 import { destino, fila, no } from '../testes/execucao'
@@ -19,7 +21,10 @@ const P1_CH6 = no({ id: 13, descricao: 'Base', materiais: [CHAPA_6] })
 const P2_CH3 = no({ id: 21, descricao: 'Tampa', materiais: [CHAPA_3], ...PEDIDO_2 })
 const P2_SEM_MATERIAL = no({ id: 22, descricao: 'Parafuso', materiais: [], ...PEDIDO_2 })
 
-const linha = (n: ReturnType<typeof no>, ordem = 1): LinhaDaFila => ({ no: n, ordem, quantidade: 5, estornaveis: [] })
+const linha = (n: ReturnType<typeof no>, ordem = 1): LinhaDaFila => ({ material: null, no: n, ordem, quantidade: 5, estornaveis: [] })
+// A linha de coleta não tem `material`: o servidor só o manda em `LinhaDaFila`.
+const coleta = (n: ReturnType<typeof no>, ordem: number, destino: DestinoDto): LinhaAguardandoColeta =>
+  ({ no: n, ordem, quantidade: 5, estornaveis: [], destino })
 
 function faceta(facetas: Faceta[], chave: string): Faceta {
   const achada = facetas.find((f) => f.chave === chave)
@@ -85,7 +90,7 @@ describe('facetasDaFila', () => {
   it('cartao de montagem casa pelo filho presente e conta uma vez por opcao', () => {
     const CHASSI_SEM_MATERIAL = no({ id: 2, descricao: 'Chassi', paiId: null, paiDescricao: null, materiais: [] })
     const cartao = {
-      pai: CHASSI_SEM_MATERIAL, faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
+      pai: CHASSI_SEM_MATERIAL, faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, material: null,
       filhos: [
         { no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null },
         { no: P1_CH3_B, quantidadePorPai: 1, presente: 2, necessarioParaProxima: null, faltaParaProxima: null },
@@ -106,7 +111,7 @@ describe('facetasDaFila', () => {
   it('filho ausente do cartao nao faz o cartao casar', () => {
     const cartao = {
       pai: no({ id: 2, paiId: null, paiDescricao: null, materiais: [] }),
-      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
+      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, material: null,
       filhos: [
         { no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null },
         { no: P1_CH6, quantidadePorPai: 1, presente: 0, necessarioParaProxima: 1, faltaParaProxima: 1 },
@@ -120,7 +125,7 @@ describe('facetasDaFila', () => {
   it('o pai do cartao tambem faz o cartao casar, pelo proprio material ou Pedido', () => {
     const cartao = {
       pai: no({ id: 2, paiId: null, paiDescricao: null, materiais: [CHAPA_6] }),
-      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
+      faltaMontar: 6, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, material: null,
       filhos: [{ no: P1_CH3, quantidadePorPai: 1, presente: 3, necessarioParaProxima: null, faltaParaProxima: null }],
     }
     const f = fila({ aguardandoMontagem: [cartao] })
@@ -156,16 +161,16 @@ describe('facetasDaFila', () => {
   it('filtrar a fila age em todas as secoes e preserva a ordem de cada uma', () => {
     const destinoColeta = destino()
     const cartao = (pai: ReturnType<typeof no>, filho: ReturnType<typeof no>) => ({
-      pai, faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false,
+      pai, faltaMontar: 1, daParaMontar: 1, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, material: null,
       filhos: [{ no: filho, quantidadePorPai: 1, presente: 1, necessarioParaProxima: null, faltaParaProxima: null }],
     })
     const f = fila({
       emTrabalho: [linha(P1_CH3), linha(P2_CH3), linha(P1_CH3_B)],
       aIniciar: [linha(P1_CH6), linha(P2_CH3, 2), linha(P1_CH3_B, 2)],
       aguardandoColeta: [
-        { ...linha(P2_CH3, 3), destino: destinoColeta },
-        { ...linha(P1_CH3, 3), destino: destinoColeta },
-        { ...linha(P1_CH3_B, 3), destino: destinoColeta },
+        coleta(P2_CH3, 3, destinoColeta),
+        coleta(P1_CH3, 3, destinoColeta),
+        coleta(P1_CH3_B, 3, destinoColeta),
       ],
       aguardandoMontagem: [
         cartao(no({ id: 41, pedidoId: 3, pedidoNumero: 'PED-3' }), no({ id: 42, pedidoId: 3, pedidoNumero: 'PED-3' })),

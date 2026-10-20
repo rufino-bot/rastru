@@ -17,7 +17,7 @@ local de expedição) + o que já foi montado dentro do pai + expedido + perdido
 - **Backend:** .NET (C#), ASP.NET Core Web API, Clean Architecture (Domain / Application / Infrastructure / Api)
 - **Banco:** SQL Server numa VPS paga com domínio próprio, EF Core em modo **Database First**
 - **Frontend:** React + TypeScript (Vite) + Tailwind CSS, mobile-first, com three.js (carregado sob demanda) no visualizador de sólido 3D
-- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador existe desde a Fase 3)
+- **Auth:** login próprio (usuário/senha) + JWT, com perfis (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador existe desde a Fase 3, e o Separador é o Almoxarifado renomeado na Fase 4)
 
 ## Estrutura do repositório
 
@@ -27,7 +27,7 @@ local de expedição) + o que já foi montado dentro do pai + expedido + perdido
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql` e `alter-fase-3b.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido ou da Fase 3B até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql` e `alter-fase-4.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B ou da Fase 4 até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -165,8 +165,16 @@ Concluídas até aqui:
   (`UtilizaKit`, hoje a Solda), a tarefa Kit pronto, e o nó que ganha filho depois de iniciado, que
   passa a ser recusado com 409 `PaiJaIniciado` (a trava de montagem vale, assim, sem exceção).
   Mesclada na `main` pelo PR #33, em 2026-10-14.
+- **Fase 4:** separação de materiais — o perfil Almoxarifado vira Separador; o Material diz onde fica
+  (almoxarifado ou um Setor); a separação é um livro só de inclusão, corrigido por estorno; o PCP edita os
+  materiais de qualquer nó; e a lista do Separador, o painel do nó e a Fila do Setor mostram o que falta
+  levar. O Separador também separa vários nós de uma vez (`POST /separacoes`, tudo ou nada). Backend e front
+  feitos; o usuário fez a conferência no navegador (2026-10-19) e aprovou os ajustes que pediu; a review de
+  branch inteira foi feita; os dois achados Important e parte dos Minor foram consertados numa rodada, e o resto
+  ficou como dívida registrada (entre elas, a receita padrão ainda recusa material inativo já gravado). Ainda
+  **não** foi mesclada na `main`.
 
-A seguir vêm as Fases 4 a 6 — separação de materiais; Relatório Dimensional, expedição,
+A seguir vêm as Fases 5 e 6 — Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
 e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 

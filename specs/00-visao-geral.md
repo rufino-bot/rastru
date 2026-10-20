@@ -27,7 +27,11 @@ perfil (não é "todo usuário vê tudo").
 
 - **Operador** de setor (registra o trabalho no seu setor, inclusive que terminou — ver regra 22 de
   `01-dominio-e-regras-de-negocio.md`)
-- **Almoxarifado** / Separação (registra separação de materiais)
+- **Separador** (separa o material que fica no almoxarifado e o leva, ou busca, para o Setor que
+  precisa dele, e registra o que levou; ver as regras 4, 5 e 34 de
+  `01-dominio-e-regras-de-negocio.md`). É o perfil que se chamava **Almoxarifado**, renomeado na
+  Fase 4 (D5 da spec da Fase 4, `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`):
+  continuam sendo sete perfis.
 - **Movimentador** (leva ao próximo destino o que aguarda coleta — em Agrupamento Kit, os filhos
   vão ao Setor de montagem, hoje a Solda, em conjuntos completos; ver regras 22 e 25 de
   `01-dominio-e-regras-de-negocio.md`; perfil decidido em 2026-09-15)

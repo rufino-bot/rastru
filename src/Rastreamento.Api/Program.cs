@@ -14,6 +14,7 @@ using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Importacao;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Importacao;
 using Rastreamento.Infrastructure.Persistence;
@@ -140,6 +141,9 @@ builder.Services.AddScoped<ReceitaPadraoUseCase>();
 // Estrutura real (Fase 2): a arvore EstruturaItem, copiada da receita padrao do catalogo.
 builder.Services.AddScoped<IEstruturaRepository, EstruturaRepository>();
 
+// Separacao de material (Fase 4): repositorio proprio, sem a transacao da execucao.
+builder.Services.AddScoped<ISeparacaoRepository, SeparacaoRepository>();
+
 // Execucao (Fase 3): o livro de movimentacoes e o que as escritas precisam em volta dele.
 builder.Services.AddScoped<IExecucaoRepository, ExecucaoRepository>();
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
@@ -148,6 +152,9 @@ builder.Services.AddScoped<EntregaUseCase>();
 builder.Services.AddScoped<EstornoUseCase>();
 builder.Services.AddScoped<PausaDePedidoUseCase>();
 builder.Services.AddScoped<RoteiroDoNoUseCase>();
+builder.Services.AddScoped<MateriaisDoNoUseCase>();
+builder.Services.AddScoped<SeparacaoUseCase>();
+builder.Services.AddScoped<ConsultaDeSeparacaoUseCase>();
 builder.Services.AddScoped<ConsultaDeExecucaoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

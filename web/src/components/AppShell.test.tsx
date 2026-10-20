@@ -84,14 +84,57 @@ describe('AppShell', () => {
     renderizarShell()
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
-    for (const d of ['/', '/fila', '/tarefas', '/pedidos', '/componentes', '/materiais', '/setores']) {
+    for (const d of ['/', '/fila', '/tarefas', '/separacao', '/pedidos', '/componentes', '/materiais', '/setores']) {
       expect(destinos, `link para ${d}`).toContain(d)
+    }
+  })
+
+  it('o menu não tem "Início", na barra nem na gaveta; a marca "Rastru — Início" é o link para "/"', () => {
+    renderizarShell('/setores')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    for (const nome of ['Principal', 'Menu']) {
+      const menu = screen.getByRole('navigation', { name: nome })
+      expect(within(menu).queryByRole('link', { name: 'Início' }), nome).toBeNull()
+      expect(within(menu).getAllByRole('link').map((l) => l.getAttribute('href')), nome).not.toContain('/')
+    }
+
+    const marca = screen.getByRole('link', { name: 'Rastru — Início' })
+    expect(marca.getAttribute('href')).toBe('/')
+    // O texto visível continua "Rastru"; o nome acessível diz para onde o link leva.
+    expect(marca.textContent).toBe('Rastru')
+    // Anel de foco visível sobre o chrome escuro, como os links do menu: `marca`, não `acao`.
+    expect(marca.className.split(/\s+/)).toContain('focus-visible:outline-marca')
+
+    fireEvent.click(marca)
+    expect(screen.getByText('conteúdo da home')).toBeTruthy()
+    // Navegar pela marca fecha a gaveta, como os outros links.
+    expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy()
+  })
+
+  it('o menu tem Separação para todo perfil', () => {
+    // A leitura da lista de separação é livre; quem não separa vê a lista sem o botão (gating na ação).
+    for (const perfil of ['Operador', 'Movimentador', 'Separador', 'PCP', 'Qualidade', 'Gestao', 'Administrador']) {
+      vi.mocked(useAuth).mockReturnValue({
+        estado: { status: 'autenticado', usuario: { id: 3, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+        login: async () => {},
+        logout,
+      })
+      renderizarShell()
+
+      const barra = screen.getByRole('navigation', { name: 'Principal' })
+      const separacao = within(barra).getByRole('link', { name: 'Separação' })
+      expect(separacao.getAttribute('href'), perfil).toBe('/separacao')
+      // Logo depois de Tarefas: as telas do chão de fábrica ficam juntas.
+      const rotulos = within(barra).getAllByRole('link').map((l) => l.textContent)
+      expect(rotulos.indexOf('Separação'), perfil).toBe(rotulos.findIndex((r) => r?.startsWith('Tarefas')) + 1)
+      cleanup()
     }
   })
 
   it('mostra os links mesmo para perfil que não pode escrever neles', () => {
     // Decisão do usuário em 2026-08-06: gating vai na AÇÃO, não no link. O PCP não escreve em
-    // Setores nem Materiais, mas LÊ os dois — e a Fase 4 depende disso para o Almoxarifado.
+    // Setores nem Materiais, mas LÊ os dois — e a Fase 4 depende disso para o Separador.
     renderizarShell()
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))

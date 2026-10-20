@@ -88,6 +88,7 @@ export type CodigoDeConflitoDeEstrutura =
   | 'QuantidadeAbaixoDoMovimentado'
   | 'ConflitoDeConcorrencia'
   | 'PaiJaIniciado'
+  | 'NoComSeparacao'
 
 /**
  * Corpo do 409 dos endpoints de escrita da árvore: `{ "erro": "<código>", "mensagem": "<frase>" }`.
@@ -109,7 +110,7 @@ export interface ConflitoDeEstrutura {
 
 const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
-  'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado',
+  'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado', 'NoComSeparacao',
 ]
 
 export function ehConflitoDeEstrutura(r: unknown): r is ConflitoDeEstrutura {

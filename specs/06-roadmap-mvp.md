@@ -72,7 +72,7 @@ O caso que motivou a regra: o import da estrutura a partir do CAD.
 > **O gating de perfil ficou na AÇÃO, não no link** — o link continua visível para todos porque a
 > leitura de todos estes recursos é liberada a qualquer usuário autenticado no backend; o que some
 > para quem não pode escrever é o formulário e os botões de (in)ativar. Esconder o link de Materiais
-> do Almoxarifado tiraria dele uma leitura de que a **Fase 4** depende.
+> do Separador (então chamado Almoxarifado) tiraria dele uma leitura de que a **Fase 4** depende.
 >
 > **Corolário registrado:** se daqui a três fases o sistema precisar de outra passada de UI, isso não
 > é uma fase planejada que faltou — é sinal de que o padrão não pegou. Não existe "Fase 1D parte 2".
@@ -657,12 +657,53 @@ segundo pai é `8984ce9`, o último commit da branch `fase-3b`). Spec:
 
 ## Fase 4 — Separação de materiais
 
-- Registro de `MaterialSeparacao` vinculado a um `EstruturaItem`.
-- **Onde cada material fica** — no almoxarifado, ou estocado num Setor (as chapas no Corte) —, e a
-  **requisição de material** que o operador abre para o que falta e o Almoxarifado atende (decisão
-  de 2026-09-24, no brainstorm da Fase 3).
-- Critério de pronto: dá para saber quais materiais já foram separados/entregues para
-  cada item em fabricação.
+Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md` (desenho aprovado em
+2026-10-16). Executa na ordem do roadmap, depois da Fase 3B. Dois planos, como na Fase 3: o de **backend**
+(`docs/superpowers/plans/2026-10-16-fase-4-backend.md`) e o de **front**.
+
+- **Livro de separação** (`dbo.MaterialSeparacao`, reescrita como livro só de inclusão): registra o que o
+  Separador tirou de cada material para cada `EstruturaItem`, com autor e data; o separado é sempre
+  **calculado**, e a correção é por **estorno** (regra 34 de `01`, D10 e D13). Sem saldo de estoque e sem
+  devolução.
+- **Onde cada material fica** (`Material.SetorDeEstoqueId`, "Fica em"): no almoxarifado (o padrão) ou
+  estocado num Setor — as chapas no Corte, que o operador pega ali mesmo (D6). Só o material do
+  almoxarifado entra na lista do Separador.
+- **O perfil `Almoxarifado` vira `Separador`** (D5): continuam sendo sete perfis. O usuário `separador` entra
+  no `db/seed.sql`, e `db/alter-fase-4.sql` leva um banco anterior até o schema novo.
+- **Editar os materiais do nó** (`GET`/`PUT /estrutura/{id}/materiais`, pelo PCP): atribui a esta fase o que
+  o `05-api-endpoints.md` deixava "sem fase atribuída" (D8). Qualquer nó pode ter Materiais — a regra 4 foi
+  corrigida (D2) — e o PCP os edita livremente, inclusive depois de separar (D14).
+- **A lista do Separador** (`GET /separacoes/pendencias`), ordenada pelo prazo do Pedido, e a tela
+  "Separação" para registrar pelo celular o que levou. O painel de separar abre preenchido com a pendência
+  (D17); acima do planejado a tela avisa e aceita, fora do planejado recusa (D9).
+- **O painel do nó e a Fila do Setor** mostram o separado: o painel com planejado, separado, pendência e
+  histórico, e a Fila com o resumo neutro "Material: 2 de 3 completos" na linha do nó que inicia ali (D12,
+  D15). **O início não é bloqueado** por falta de material.
+- **Fica de fora, registrado como não feito:** a **requisição de material** que o operador abre para o que
+  falta e o Separador atende, que este roadmap previa (decisão de 2026-09-24, no brainstorm da Fase 3). A
+  lista calculada — planejado menos separado — já responde "o que falta", e o Separador se antecipa em vez
+  de esperar pedido de ninguém (D1, D7). Volta se a fábrica sentir falta dela, com uma spec própria. Também
+  ficam fora o saldo de estoque e a devolução (D10), a notificação ao Separador (Fase 3C) e a separação em
+  Pedido concluído (a conclusão só nasce na Fase 5, que herda a guarda).
+- **Separar em lote** (`POST /separacoes`, decisão do usuário na conferência de 2026-10-19): o Separador marca
+  vários cartões da lista e separa de uma vez, tudo ou nada, no molde da Fila; cada nó passa pelas mesmas
+  regras da rota de um nó, e a recusa de um nó leva o nome dele na frente da frase.
+- **Estado da fase (2026-10-20):** o plano de backend foi implementado na branch em 2026-10-16 — schema,
+  regras, rotas, lista do Separador, resumo da Fila e a recusa de excluir nó com separação (409
+  `NoComSeparacao`, decisão P2 do plano). O plano de front (`docs/superpowers/plans/2026-10-16-fase-4-front.md`)
+  também está feito: as telas, o painel do nó, o resumo na Fila e o "Fica em" do cadastro de Material. A
+  **conferência no navegador foi feita pelo usuário** em 2026-10-19, com quatro ajustes pedidos e aprovados
+  (o lote na Separação, o menu sem "Início" com a marca "Rastru" levando à Home, o editor de materiais com os
+  botões alinhados ao campo, e o material fora do plano e todo estornado saindo de "Materiais"), e a **review
+  de branch inteira foi feita**: os dois achados Important e parte dos Minor foram consertados numa rodada, e o
+  resto ficou como dívida registrada (entre elas, a receita padrão ainda recusa material inativo já gravado). A
+  fase **ainda não está mesclada** na `main`.
+- Critério de pronto: dá para saber quais materiais já foram separados/entregues para cada item em
+  fabricação; o Separador tem uma lista do que falta levar para cada nó, só do material do almoxarifado,
+  ordenada pelo prazo do Pedido, e registra pelo celular o que levou; o PCP edita os materiais planejados de
+  qualquer nó, inclusive o que nasceu sem receita; o painel do nó mostra, para cada material, planejado,
+  separado e pendência, com o histórico; a Fila do Setor mostra, na linha do nó que inicia ali, se o material
+  dele está completo; e o cadastro de Material diz onde cada material fica.
 
 ## Fase 5 — Dimensional e fechamento
 

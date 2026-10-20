@@ -160,6 +160,10 @@ internal sealed class ArvoreDeTesteNoBanco
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.Montagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.MaterialSeparacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.MaterialSeparacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.EstruturaMaterial WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.EstruturaRoteiro WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");

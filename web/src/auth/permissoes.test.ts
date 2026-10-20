@@ -6,6 +6,7 @@ describe('podeEscrever', () => {
     for (const r of [
       'setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos', 'estrutura',
       'apontamento', 'entrega', 'roteiro', 'estorno', 'pausa',
+      'separacao', 'estornoDeSeparacao', 'materiaisDoNo',
     ] as const) {
       expect(podeEscrever('Administrador', r), r).toBe(true)
     }
@@ -24,7 +25,7 @@ describe('podeEscrever', () => {
     expect(podeEscrever('PCP', 'materiais')).toBe(false)
   })
 
-  it('não deixa Operador, Almoxarifado, Qualidade nem Gestao escreverem em nenhum cadastro', () => {
+  it('não deixa Operador, Separador, Qualidade nem Gestao escreverem em nenhum cadastro', () => {
     // `Gestao` sem acento: é o valor que está em `db/seed.sql`, e o perfil chega do backend como
     // claim. Escrever "Gestão" aqui faria a comparação falhar em silêncio.
     // CONFERIDO no pré-flight de 2026-08-10, remedido na Fase 3 (2026-09-25): o `MERGE` de perfis de
@@ -33,7 +34,7 @@ describe('podeEscrever', () => {
     // `estorno` (ver `Fase 3: cada ação de execução é de quem a faz no chão de fábrica`), então
     // "em nada" ficou falso para ele — este `for` continua valendo, só que restrito aos CADASTROS
     // (os cinco recursos de antes da Fase 3).
-    for (const p of ['Operador', 'Almoxarifado', 'Qualidade', 'Gestao']) {
+    for (const p of ['Operador', 'Separador', 'Qualidade', 'Gestao']) {
       for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
       }
@@ -51,7 +52,7 @@ describe('podeEscrever', () => {
     for (const p of ['Operador', 'Movimentador', 'PCP']) {
       expect(podeEscrever(p, 'estorno'), p).toBe(true)
     }
-    for (const p of ['Almoxarifado', 'Qualidade', 'Gestao']) {
+    for (const p of ['Separador', 'Qualidade', 'Gestao']) {
       for (const r of ['apontamento', 'entrega', 'roteiro', 'estorno'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
       }
@@ -64,8 +65,33 @@ describe('podeEscrever', () => {
     for (const p of ['PCP', 'Gestao']) {
       expect(podeEscrever(p, 'pausa'), p).toBe(true)
     }
-    for (const p of ['Operador', 'Movimentador', 'Almoxarifado', 'Qualidade']) {
+    for (const p of ['Operador', 'Movimentador', 'Separador', 'Qualidade']) {
       expect(podeEscrever(p, 'pausa'), p).toBe(false)
+    }
+  })
+
+  it('Fase 4: o Separador separa e estorna separação, e não escreve em materiais do nó nem em cadastro', () => {
+    // Espelha `SeparacaoController` e `EstornoDeSeparacaoController`.
+    expect(podeEscrever('Separador', 'separacao')).toBe(true)
+    expect(podeEscrever('Separador', 'estornoDeSeparacao')).toBe(true)
+    expect(podeEscrever('Separador', 'materiaisDoNo')).toBe(false)
+    for (const r of ['setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos', 'estrutura'] as const) {
+      expect(podeEscrever('Separador', r), r).toBe(false)
+    }
+  })
+
+  it('Fase 4: o PCP edita os materiais do nó e estorna separação, mas não separa', () => {
+    // Espelha `MateriaisDoNoController` (PUT) e `EstornoDeSeparacaoController`.
+    expect(podeEscrever('PCP', 'materiaisDoNo')).toBe(true)
+    expect(podeEscrever('PCP', 'estornoDeSeparacao')).toBe(true)
+    expect(podeEscrever('PCP', 'separacao')).toBe(false)
+  })
+
+  it('Fase 4: Operador, Movimentador, Qualidade e Gestão não fazem nenhuma das três', () => {
+    for (const p of ['Operador', 'Movimentador', 'Qualidade', 'Gestao']) {
+      for (const r of ['separacao', 'estornoDeSeparacao', 'materiaisDoNo'] as const) {
+        expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
+      }
     }
   })
 

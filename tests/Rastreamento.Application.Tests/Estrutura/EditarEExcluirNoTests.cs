@@ -191,6 +191,45 @@ public class EditarEExcluirNoTests
     Assert.Empty(estruturas.Itens);
   }
 
+  [Fact]
+  public async Task Excluir_no_cuja_subarvore_tem_separacao_e_409_e_nao_apaga()
+  {
+    // A separacao esta num DESCENDENTE: apagar a raiz levaria a linha junto, e o livro e so de inclusao.
+    var pedido = NovoPedido();
+    var (useCase, estruturas, _, _, _) = Montar(NovoAgrupamento(pedidoId: pedido.Id), pedido);
+    estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
+    estruturas.Itens.Add(NovoNo(2, 1, 1, 40m, nivel: "Item", componenteId: 101));
+    estruturas.Itens.Add(NovoNo(3, 1, 2, 5m, nivel: "Item", componenteId: 102));
+    estruturas.NosComSeparacao.Add(3);
+
+    var resultado = await useCase.ExcluirNo(1, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
+    Assert.Equal("NoComSeparacao", resultado.Erro);
+    Assert.Equal(
+        "Este item tem separação de material registrada e não pode ser excluído: o histórico de separação não se apaga.",
+        resultado.Detalhe);
+    Assert.Equal([1, 2, 3], estruturas.Itens.Select(i => i.Id).Order());   // a arvore continua inteira
+  }
+
+  [Fact]
+  public async Task Excluir_no_com_separacao_estornada_continua_409()
+  {
+    // Decisao P2 do plano de backend da Fase 4: a linha estornada tambem fica no livro, entao tambem barra.
+    // O fake nao distingue estornada de nao estornada — a consulta real ignora o saldo de proposito.
+    var pedido = NovoPedido();
+    var (useCase, estruturas, _, _, _) = Montar(NovoAgrupamento(pedidoId: pedido.Id), pedido);
+    estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
+    estruturas.NosComSeparacao.Add(1);
+
+    var resultado = await useCase.ExcluirNo(1, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal("NoComSeparacao", resultado.Erro);
+    Assert.Single(estruturas.Itens);
+  }
+
   // ---- Adicionais (+3), fora da contagem "+8" do brief — ver XML doc da classe e o relatorio ----
 
   [Fact]

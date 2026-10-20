@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   listarSetores, criarSetor, editarSetor, definirAtivoSetor, ehConflito,
-  listarMateriais, criarMaterial, definirAtivoMaterial,
+  listarMateriais, criarMaterial, editarMaterial, definirAtivoMaterial,
   listarPedidos, criarPedido, editarPedido, obterPedido, formatarDataHora, formatarData,
   obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
@@ -9,7 +9,7 @@ import {
   type ConflitoDeCadastro, type FiltroDePedidos,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
-import { ErroDeApi } from './erros'
+import { ErroDeApi, mensagemDeErro } from './erros'
 import { respostaJson } from '../testes/api'
 
 describe('cadastros', () => {
@@ -89,6 +89,38 @@ describe('cadastros', () => {
     expect(url).toBe('/api/setores/3')
     expect(init.method).toBe('PUT')
     expect(init.body).toBe(JSON.stringify({ nome: 'Solda', atividade: 'montagem', utilizaKit: false }))
+  })
+
+  it('editarMaterial manda PUT na rota do id com o setorDeEstoqueId', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        id: 7, codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', ativo: true,
+        ficaEm: { setorId: 4, nome: 'Corte a Laser' },
+      }), { status: 200 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resultado = await editarMaterial(7, {
+      codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', setorDeEstoqueId: 4,
+    })
+
+    expect(ehConflito(resultado)).toBe(false)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/materiais/7')
+    expect(init.method).toBe('PUT')
+    expect(JSON.parse(init.body as string)).toEqual({
+      codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', setorDeEstoqueId: 4,
+    })
+  })
+
+  it('editarMaterial devolve o conflito quando o código já existe', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      erro: 'ValorDuplicado', campo: 'codigo', existeInativo: false, idExistente: 9,
+    }), { status: 409 })))
+
+    const resultado = await editarMaterial(7, { codigo: 'PAR-M8', descricao: 'x', unidadeMedida: 'UN' })
+
+    expect(ehConflito(resultado)).toBe(true)
   })
 
   // A tela chama isto em dois lugares (inativar e reativar) e e a unica chamada com PATCH.
@@ -968,6 +1000,32 @@ describe('cadastros', () => {
         new Response(JSON.stringify({ erro: 'x' }), { status: 409 }),
       ))
       await expect(listarSetores(false)).rejects.toMatchObject({ name: 'ErroDeApi', status: 409 })
+    })
+
+    it('lerOuFalhar leva o erro do corpo do 400 como codigo, e tolera o 400 sem ele', async () => {
+      const material = { codigo: 'PAR-M8', descricao: 'Parafuso', unidadeMedida: 'UN', setorDeEstoqueId: 99 }
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: 'SetorDeEstoqueInvalido' }), { status: 400 }),
+      ))
+      const falha = await criarMaterial(material).catch((e: unknown) => e)
+      expect(falha).toMatchObject({ name: 'ErroDeApi', status: 400, codigo: 'SetorDeEstoqueInvalido' })
+      // Chega à tela como a tradução do código, não como a frase genérica.
+      expect(mensagemDeErro(falha, 'Não foi possível salvar.')).toBe('O Setor escolhido em "Fica em" não existe ou está inativo.')
+
+      // Frase de validação no `erro`: o código fica guardado, mas nenhuma tradução o reconhece.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: 'Codigo e descricao sao obrigatorios.' }), { status: 400 }),
+      ))
+      expect(mensagemDeErro(await criarMaterial(material).catch((e: unknown) => e), 'Não foi possível salvar.'))
+        .toBe('Não foi possível salvar.')
+
+      // Corpo vazio, ou ProblemDetails do MVC (sem `erro`): continua sendo um ErroDeApi 400 sem código.
+      for (const corpo of ['', JSON.stringify({ title: 'One or more validation errors occurred.' })]) {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(corpo, { status: 400 })))
+        const semCodigo = await criarMaterial(material).catch((e: unknown) => e)
+        expect(semCodigo).toMatchObject({ name: 'ErroDeApi', status: 400 })
+        expect((semCodigo as { codigo?: string }).codigo).toBeUndefined()
+      }
     })
 
     it('lerOuFalhar propaga o status da resposta', async () => {

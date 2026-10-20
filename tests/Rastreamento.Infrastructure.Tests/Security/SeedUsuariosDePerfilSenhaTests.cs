@@ -14,6 +14,7 @@ public class SeedUsuariosDePerfilSenhaTests : TesteComBanco
   [InlineData("pcp", "Pcp@123", "PCP")]
   [InlineData("operador", "Operador@123", "Operador")]
   [InlineData("movimentador", "Movimentador@123", "Movimentador")]
+  [InlineData("separador", "Separador@123", "Separador")]
   public async Task Usuario_seedado_valida_a_propria_senha_no_proprio_perfil(string nomeUsuario, string senha, string perfil)
   {
     await using var db = NovoContexto();

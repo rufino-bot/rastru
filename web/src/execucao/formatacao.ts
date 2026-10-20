@@ -1,4 +1,4 @@
-import type { DestinoDto, Estornavel, LocalDto, NoResumoDto, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
+import type { DestinoDto, Estornavel, LocalDto, NoResumoDto, ResumoDeMaterial, SaldoDto, TipoDeMovimentacao } from '../api/execucao'
 import { formatarDataHora } from '../api/cadastros'
 
 const NUMERO = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 })
@@ -18,6 +18,14 @@ export function formatarQuantidade(n: number): string {
  */
 export function quantidadeConcordada(n: number, singular: string, plural: string): string {
   return `${formatarQuantidade(n)} ${n < 2 ? singular : plural}`
+}
+
+/**
+ * O resumo de material da Fila (regra 34): "Material completo" quando todo material do almoxarifado no
+ * planejado está completo, senão quantos estão de quantos. Conta materiais, não quantidades.
+ */
+export function textoDoResumoDeMaterial(r: ResumoDeMaterial): string {
+  return r.completos === r.total ? 'Material completo' : `Material: ${r.completos} de ${r.total} completos`
 }
 
 /** "SUP-01 — Suporte", ou só "Suporte" no nó ad-hoc (sem Componente, sem código). */

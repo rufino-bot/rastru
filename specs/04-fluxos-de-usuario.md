@@ -274,13 +274,61 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 
 ## 3. Separação de Material
 
-*Perfil: Almoxarifado*
+*Perfil: Separador (separa e estorna); PCP (edita os materiais do nó e estorna); Administrador (tudo isso e o
+"Fica em" do Material). Leitura: qualquer perfil autenticado.*
 
-1. Antes (ou durante) a fabricação de um `EstruturaItem` folha, o Almoxarifado separa
-   os Materiais necessários (`EstruturaMaterial`).
-2. Cada separação é registrada em `MaterialSeparacao` (quantidade, responsável, data).
-3. Regra a validar: sistema pode alertar (não necessariamente bloquear) se a
-   quantidade separada for menor que a quantidade planejada em `EstruturaMaterial`.
+*(Fase 4, spec `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`, regras 4, 5 e 34 de
+`01-dominio-e-regras-de-negocio.md`. O backend é o plano de backend da Fase 4; as telas são do plano de front,
+e o desenho delas está na seção 6 da spec.)*
+
+O material do almoxarifado é separado **por antecipação**, olhando o que vai ser fabricado (D1), e principalmente
+em dois casos: o **Kit** da Fase 3B, montado na Solda, e a **montagem final**, que acontece sempre na
+Expedição — uma Peça com Roteiro de um passo só, a Expedição, cujo início é a montagem (D2). Nos dois casos o
+material pertence a um **nó com filhos** e é usado no Setor do **primeiro passo** do Roteiro dele. A chapa,
+ao contrário, fica estocada no Corte, e o operador a pega ali mesmo. **A execução não muda.**
+
+1. **O planejado do nó.** Os materiais planejados de um `EstruturaItem` (`EstruturaMaterial`) nascem
+   copiados da receita padrão, já multiplicados pela quantidade do nó. O **PCP** os edita a qualquer
+   momento, em qualquer nó — inclusive o que nasceu sem receita —, pelo editor de materiais do painel do
+   nó (`PUT /estrutura/{id}/materiais`, que substitui a lista inteira). Tirar do plano um material que já
+   foi separado é permitido: a separação continua no histórico, como "fora do planejado" (D14).
+2. **Onde o material fica.** O cadastro de Material tem o campo **"Fica em"** (Administrador): o
+   almoxarifado, que é o padrão, ou um Setor. Só o material do almoxarifado entra na lista do Separador
+   (D6).
+3. **A lista do Separador.** A tela **Separação** traz, em cartões pensados para o celular, todo nó com
+   material do almoxarifado pendente (planejado menos separado) de Pedido ainda aberto — `Concluido` e
+   `Cancelado` ficam de fora. O nó entra na lista **desde que existe**, não só quando o Pedido entra em
+   produção; Pedido **pausado** fica na lista, marcado (separar é antecipar, e a pausa recusa só o
+   início — regra 31), e o Pedido atrasado traz a pílula "Atrasado". Cada cartão mostra o nó, o Pedido
+   com cliente e data de entrega, o **destino** — o Setor do primeiro passo do Roteiro do nó, ou "sem
+   Roteiro", que é pendência do PCP (regra 28) — e uma linha por material pendente
+   ("PAR-M8 Parafuso M8 · falta 2 UN (8 de 10)"). A ordem é a **data de entrega** do Pedido (D11). A
+   lista chega inteira e a tela filtra no cliente por **Setor de destino**, **Pedido** e **Material**,
+   com a seleção na URL.
+4. **Separar.** O botão "Separar" do cartão abre um painel **já preenchido com a pendência** de cada
+   material (D17): o caso comum é um toque só. Campo vazio ou zero não vai. Um campo acima da pendência
+   mostra, embaixo, "acima do planejado em 2 UN", como texto neutro e não como erro: o sistema aceita
+   (o parafuso que caiu, D9). O envio é uma requisição só, **tudo ou nada**
+   (`POST /estrutura/{id}/separacoes`); no sucesso, o painel fecha, a lista recarrega e o cartão sem
+   pendência some. Um material que fica num Setor também pode ser registrado, se estiver no planejado
+   do nó (D16); ele só não aparece na lista. **Fora do planejado, a separação é recusada** (409
+   `MaterialForaDoPlanejado`): é erro de plano, e o PCP o corrige no passo 1.
+   **Em lote** (decisão do usuário na conferência da Fase 4, 2026-10-19): a caixa de cada cartão o marca
+   inteiro, e o cartão marcado mostra um campo por material pendente, já preenchido com a pendência e
+   editável. A barra fixa no rodapé envia todos os marcados numa requisição só, **tudo ou nada**
+   (`POST /separacoes`): "Separar 2 itens". Se um nó é recusado, nada é gravado, a lista recarrega, a seleção
+   fica e a frase do servidor, com o nome do nó, aparece na barra; o cartão que saiu da lista sai da seleção,
+   com aviso. "Marcar todos" marca os cartões visíveis, e o marcado que o filtro esconde vai junto.
+5. **Estornar.** A correção é um **estorno** da linha inteira, uma vez só (D10); não há saldo de
+   estoque nem devolução. O Separador estorna só a que ele mesmo registrou; o PCP e o Administrador,
+   qualquer uma. Estornar uma separação que saiu do plano é possível.
+6. **O painel do nó** (na página do Agrupamento) mostra, para cada material, o planejado, o separado, a
+   pendência e o "Fica em", com o histórico de separações (quem, quando, quanto) e o botão de estornar nas
+   linhas que o usuário pode estornar.
+7. **A Fila do Setor** mostra, na linha do nó **que inicia ali** e que tem material do almoxarifado no
+   planejado, um resumo neutro: "Material: 2 de 3 completos", ou "Material completo". Conta
+   **materiais completos, não quantidades** (D15). **O início não é bloqueado nem pede confirmação**
+   (D12): a falta de material é informação, não bloqueio.
 
 ## 4. Expedição e Relatório Dimensional
 

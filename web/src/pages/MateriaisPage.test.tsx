@@ -490,4 +490,261 @@ describe('MateriaisPage', () => {
       expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(true)
     })
   })
+  // "Fica em" e edição (Fase 4). O `GET /setores` só é pedido para quem escreve, e só traz os ativos.
+  describe('Fica em e edição', () => {
+    const CORTE = { id: 3, nome: 'Corte a Laser', atividade: null, utilizaKit: false, ativo: true }
+    const SOLDA = { id: 4, nome: 'Solda', atividade: null, utilizaKit: true, ativo: true }
+    const NO_CORTE = { ...CHAPA, ficaEm: { setorId: 3, nome: 'Corte a Laser' } }
+    const NO_ALMOXARIFADO = { ...CHAPA, ficaEm: null }
+
+    // Mock com os três recursos; `aoEscrever` recebe o corpo do POST/PUT de /materiais.
+    function mockDaTela(materiais: unknown[], opcoes: { setores?: unknown[]; aoEscrever?: (metodo: string, corpo: unknown) => Response } = {}) {
+      const fetchMock = fetchPorRota({
+        '/api/setores': () => respostaJson(opcoes.setores ?? [CORTE, SOLDA]),
+        '/api/materiais': () => {
+          const init = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][1] as RequestInit | undefined
+          if (init?.method === 'POST' && opcoes.aoEscrever) return opcoes.aoEscrever('POST', JSON.parse(String(init.body)))
+          return respostaJson(materiais)
+        },
+        '/api/materiais/1': () => {
+          const init = fetchMock.mock.calls[fetchMock.mock.calls.length - 1][1] as RequestInit
+          return opcoes.aoEscrever
+            ? opcoes.aoEscrever(String(init.method), JSON.parse(String(init.body)))
+            : respostaJson(NO_CORTE)
+        },
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+
+    function corpoDaEscrita(fetchMock: ReturnType<typeof mockDaTela>, metodo: string) {
+      const chamada = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === metodo)
+      expect(chamada).toBeTruthy()
+      return JSON.parse(String((chamada![1] as RequestInit).body))
+    }
+
+    it('o painel de novo material traz "Fica em" com Almoxarifado e os setores ativos', async () => {
+      mockDaTela([NO_ALMOXARIFADO])
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      await abrirNovoMaterial()
+
+      const campo = await screen.findByRole('combobox', { name: 'Fica em' }) as HTMLSelectElement
+      await waitFor(() => {
+        expect(within(campo).getAllByRole('option').map((o) => o.textContent))
+          .toEqual(['Almoxarifado', 'Corte a Laser', 'Solda'])
+      })
+      expect(campo.value).toBe('')
+    })
+
+    it('salvar com um setor manda o setorDeEstoqueId, e Almoxarifado manda null', async () => {
+      const fetchMock = mockDaTela([], { aoEscrever: () => respostaJson({ ...CHAPA, id: 2, ficaEm: null }, 201) })
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      const preencher = async () => {
+        await abrirNovoMaterial()
+        fireEvent.change(await screen.findByLabelText('Código'), { target: { value: 'PR-001' } })
+        fireEvent.change(screen.getByLabelText('Descrição'), { target: { value: 'Perfil' } })
+        fireEvent.change(screen.getByLabelText('Unidade'), { target: { value: 'M' } })
+      }
+
+      await preencher()
+      await screen.findByRole('option', { name: 'Corte a Laser' })
+      fireEvent.change(screen.getByRole('combobox', { name: 'Fica em' }), { target: { value: '3' } })
+      fireEvent.click(screen.getByText('Adicionar'))
+      await esperarPainelFechar()
+      expect(corpoDaEscrita(fetchMock, 'POST').setorDeEstoqueId).toBe(3)
+
+      fetchMock.mockClear()
+      await preencher()
+      fireEvent.click(screen.getByText('Adicionar'))
+      await esperarPainelFechar()
+      const corpo = corpoDaEscrita(fetchMock, 'POST')
+      expect('setorDeEstoqueId' in corpo).toBe(true)
+      expect(corpo.setorDeEstoqueId).toBeNull()
+    })
+
+    it('a lista mostra "Fica em: Corte a Laser" só quando o material não é do almoxarifado', async () => {
+      mockDaTela([
+        NO_CORTE,
+        { id: 2, codigo: 'PR-001', descricao: 'Perfil', unidadeMedida: 'M', ativo: true, ficaEm: null },
+      ])
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      await screen.findByText('CH-001')
+
+      const itens = screen.getAllByRole('listitem')
+      const doCorte = itens.find((li) => li.textContent?.includes('CH-001'))!
+      const doAlmoxarifado = itens.find((li) => li.textContent?.includes('PR-001'))!
+      expect(within(doCorte).getByText('Fica em: Corte a Laser')).toBeTruthy()
+      expect(within(doAlmoxarifado).queryByText(/Fica em/)).toBeNull()
+    })
+
+    it('Editar abre "Editar material" com os campos do material e salva por PUT', async () => {
+      const fetchMock = mockDaTela([NO_CORTE], {
+        aoEscrever: () => respostaJson({ ...NO_CORTE, descricao: 'Chapa de aco 5mm' }),
+      })
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+
+      const painel = screen.getByRole('form', { name: 'Editar material' })
+      expect((within(painel).getByLabelText('Código') as HTMLInputElement).value).toBe('CH-001')
+      expect((within(painel).getByLabelText('Descrição') as HTMLInputElement).value).toBe('Chapa de aco 3mm')
+      expect((within(painel).getByLabelText('Unidade') as HTMLInputElement).value).toBe('KG')
+      await within(painel).findByRole('option', { name: 'Solda' })
+      expect((within(painel).getByRole('combobox', { name: 'Fica em' }) as HTMLSelectElement).value).toBe('3')
+
+      fireEvent.change(within(painel).getByLabelText('Descrição'), { target: { value: 'Chapa de aco 5mm' } })
+      fireEvent.change(within(painel).getByRole('combobox', { name: 'Fica em' }), { target: { value: '4' } })
+      fireEvent.click(within(painel).getByRole('button', { name: 'Salvar alterações' }))
+
+      await esperarPainelFechar()
+      const chamada = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'PUT')!
+      expect(String(chamada[0])).toBe('/api/materiais/1')
+      expect(corpoDaEscrita(fetchMock, 'PUT')).toEqual({
+        codigo: 'CH-001', descricao: 'Chapa de aco 5mm', unidadeMedida: 'KG', setorDeEstoqueId: 4,
+      })
+    })
+
+    // O PUT é substituição inteira: omitir o campo devolveria o material ao almoxarifado.
+    it('o PUT da edição leva sempre o setorDeEstoqueId: o atual, ou null no almoxarifado', async () => {
+      const fetchMock = mockDaTela([NO_CORTE, { ...CHAPA, id: 2, codigo: 'PR-001', ficaEm: null }])
+      fetchMock.mockClear()
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+      await screen.findByRole('option', { name: 'Solda' })
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+      await esperarPainelFechar()
+      expect(corpoDaEscrita(fetchMock, 'PUT').setorDeEstoqueId).toBe(3)
+    })
+
+    it('editar um material do almoxarifado salva setorDeEstoqueId null', async () => {
+      const fetchMock = mockDaTela([NO_ALMOXARIFADO], { aoEscrever: () => respostaJson(NO_ALMOXARIFADO) })
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+      await screen.findByRole('option', { name: 'Solda' })
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+      await esperarPainelFechar()
+      const corpo = corpoDaEscrita(fetchMock, 'PUT')
+      expect('setorDeEstoqueId' in corpo).toBe(true)
+      expect(corpo.setorDeEstoqueId).toBeNull()
+    })
+
+    it('editar recarrega mantendo a ordem e os inativos', async () => {
+      const fetchMock = mockDaTela([NO_CORTE], { aoEscrever: () => respostaJson(NO_CORTE) })
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      await screen.findByText('CH-001')
+      fireEvent.change(screen.getByLabelText('Ordenar por'), { target: { value: 'codigo' } })
+      fireEvent.click(screen.getByLabelText('Mostrar inativos'))
+      await waitFor(() => {
+        expect(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0])).toContain('incluirInativos=true')
+      })
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+      await esperarPainelFechar()
+
+      await waitFor(() => {
+        expect(String(fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0])).toContain('incluirInativos=true')
+      })
+      expect((screen.getByLabelText('Ordenar por') as HTMLSelectElement).value).toBe('codigo')
+      expect((screen.getByLabelText('Mostrar inativos') as HTMLInputElement).checked).toBe(true)
+    })
+
+    it('conflito de código ao editar mostra o erro dentro do painel, sem Reativar o existente', async () => {
+      mockDaTela([NO_CORTE], {
+        aoEscrever: () => respostaJson({ erro: 'ValorDuplicado', campo: 'codigo', existeInativo: true, idExistente: 9 }, 409),
+      })
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+
+      const painel = await screen.findByRole('form', { name: 'Editar material' })
+      expect(await within(painel).findByText('Já existe um material com este código.')).toBeTruthy()
+      expect(within(painel).queryByRole('button', { name: 'Reativar o existente' })).toBeNull()
+    })
+
+    it('ao fechar a edição o foco volta ao Editar daquele material', async () => {
+      mockDaTela([NO_CORTE, { ...CHAPA, id: 2, codigo: 'PR-001', ficaEm: null }])
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar PR-001' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar PR-001' }))
+    })
+
+    it('salvar a edição devolve o foco ao Editar do mesmo material depois da recarga', async () => {
+      mockDaTela([NO_CORTE], { aoEscrever: () => respostaJson(NO_CORTE) })
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+      await esperarPainelFechar()
+
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar CH-001' }))
+      })
+    })
+
+    it('o Fica em de um setor inativo aparece selecionado na edição', async () => {
+      // Review Focus 4: o `GET /setores` só traz ativos; sem a opção extra o <select> cairia em
+      // "Almoxarifado" e salvar trocaria o setor em silêncio.
+      const fetchMock = mockDaTela(
+        [{ ...CHAPA, ficaEm: { setorId: 7, nome: 'Setor Antigo' } }],
+        { aoEscrever: () => respostaJson(CHAPA) },
+      )
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+
+      const campo = await screen.findByRole('combobox', { name: 'Fica em' }) as HTMLSelectElement
+      await within(campo).findByRole('option', { name: 'Solda' })
+      expect(campo.selectedOptions[0].textContent).toBe('Setor Antigo (inativo)')
+      expect(campo.value).toBe('7')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+      await esperarPainelFechar()
+      expect(corpoDaEscrita(fetchMock, 'PUT').setorDeEstoqueId).toBe(7)
+    })
+
+    it('um Setor inativo não aparece como opção no painel de novo material', async () => {
+      mockDaTela([{ ...CHAPA, ficaEm: { setorId: 7, nome: 'Setor Antigo' } }])
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      await abrirNovoMaterial()
+      await screen.findByRole('option', { name: 'Solda' })
+
+      expect(screen.queryByRole('option', { name: /Setor Antigo/ })).toBeNull()
+    })
+
+    it('falha ao carregar os setores avisa dentro do painel e mantém o setor atual na edição', async () => {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/setores': () => Promise.reject(new Error('rede caiu')),
+        '/api/materiais': () => respostaJson([NO_CORTE]),
+      }))
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar CH-001' }))
+
+      const painel = screen.getByRole('form', { name: 'Editar material' })
+      expect(await within(painel).findByText('Não foi possível carregar os setores.')).toBeTruthy()
+      expect((within(painel).getByRole('combobox', { name: 'Fica em' }) as HTMLSelectElement).value).toBe('3')
+    })
+
+    it('quem não escreve em materiais não vê Editar nem pede os setores', async () => {
+      perfil = 'PCP'
+      const fetchMock = mockDaTela([NO_CORTE])
+
+      render(<MemoryRouter><MateriaisPage /></MemoryRouter>)
+
+      expect(await screen.findByText('CH-001')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /^Editar/ })).toBeNull()
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).startsWith('/api/setores'))).toBe(false)
+    })
+  })
 })

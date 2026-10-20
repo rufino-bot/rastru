@@ -56,8 +56,12 @@ public sealed record NovoSetorDto(
 // Material
 // ---------------------------------------------------------------------------
 
+/// <summary>Onde o Material fica estocado quando nao e no almoxarifado: o Setor e o nome dele, inativo inclusive.</summary>
+public sealed record SetorDeEstoqueDto(int SetorId, string Nome);
+
+/// <remarks>`FicaEm` nulo = o Material fica no almoxarifado.</remarks>
 public sealed record MaterialDto(
-    int Id, string Codigo, string Descricao, string UnidadeMedida, bool Ativo);
+    int Id, string Codigo, string Descricao, string UnidadeMedida, bool Ativo, SetorDeEstoqueDto? FicaEm);
 
 /// <summary>O material como as listas de filtro o mostram: so o que identifica (sem unidade nem situacao).</summary>
 public sealed record MaterialResumoDto(int Id, string Codigo, string Descricao);
@@ -69,11 +73,15 @@ public sealed record MaterialResumoDto(int Id, string Codigo, string Descricao);
 /// (enum / `[RegularExpression]`): o DDL cita `UN, M, KG, M2` como comentario, sem `CHECK`, e a
 /// aplicacao nao inventa restricao que o schema nao tem. Campo so de espacos continua sendo regra
 /// do use case: o atributo nao enxerga isso.
+///
+/// `SetorDeEstoqueId` ausente grava NULL (o Material fica no almoxarifado); como o `PUT` e substituicao
+/// inteira, quem edita manda o valor atual.
 /// </remarks>
 public sealed record NovoMaterialDto(
     [MaxLength(50)] string Codigo,
     [MaxLength(200)] string Descricao,
-    [MaxLength(10)] string UnidadeMedida);
+    [MaxLength(10)] string UnidadeMedida,
+    int? SetorDeEstoqueId = null);
 
 // ---------------------------------------------------------------------------
 // Pedido

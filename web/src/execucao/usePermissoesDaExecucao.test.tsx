@@ -44,7 +44,7 @@ describe('usePermissoesDaExecucao', () => {
     ['Movimentador', { apontar: false, entregar: true, editarRoteiro: false }],
     ['PCP', { apontar: false, entregar: false, editarRoteiro: true }],
     ['Administrador', { apontar: true, entregar: true, editarRoteiro: true }],
-    ['Almoxarifado', { apontar: false, entregar: false, editarRoteiro: false }],
+    ['Separador', { apontar: false, entregar: false, editarRoteiro: false }],
     ['Qualidade', { apontar: false, entregar: false, editarRoteiro: false }],
     ['Gestao', { apontar: false, entregar: false, editarRoteiro: false }],
   ])('%s: cada ação é de quem a faz (spec §4.8)', (perfil, esperado) => {

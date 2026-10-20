@@ -22,11 +22,16 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
   private readonly WebApplicationFactory<Program> _factory;
   private readonly List<UsuarioDeTeste> _usuarios = [];
   private int _arquivoId;
+  private readonly List<int> _materiais = [];
 
   public UsuarioDeTeste Operador { get; private set; } = null!;
   public UsuarioDeTeste Movimentador { get; private set; } = null!;
   public UsuarioDeTeste Pcp { get; private set; } = null!;
   public UsuarioDeTeste Gestao { get; private set; } = null!;
+  public UsuarioDeTeste Separador { get; private set; } = null!;
+
+  /// <summary>Um segundo Separador: o estorno de separacao compara o autor, e "outro Separador" precisa existir.</summary>
+  public UsuarioDeTeste OutroSeparador { get; private set; } = null!;
   public int Corte { get; private set; }
   public int Dobra { get; private set; }
   public int Solda { get; private set; }
@@ -59,6 +64,8 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       c.Movimentador = await c.UsuarioAsync("f3-movimentador", "Movimentador");
       c.Pcp = await c.UsuarioAsync("f3-pcp", "PCP");
       c.Gestao = await c.UsuarioAsync("f3-gestao", "Gestao");
+      c.Separador = await c.UsuarioAsync("f3-separador", "Separador");
+      c.OutroSeparador = await c.UsuarioAsync("f3-separador2", "Separador");
 
       var rotulo = $"{Guid.NewGuid():N}"[..8];
       using (var escopo = factory.Services.CreateScope())
@@ -126,6 +133,25 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
     }
   }
 
+  /// <summary>
+  /// Um Material so deste cenario (codigo unico por execucao), apagado no `DisposeAsync` depois do
+  /// planejado e do livro que o apontam. `setorDeEstoqueId` nulo = almoxarifado.
+  /// </summary>
+  public async Task<int> CriarMaterialAsync(string sufixo, int? setorDeEstoqueId = null, bool ativo = true)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var material = new Material
+    {
+      Codigo = $"f4-{Guid.NewGuid():N}"[..20] + $"-{sufixo}", Descricao = $"Material {sufixo}", UnidadeMedida = "UN",
+      Ativo = ativo, SetorDeEstoqueId = setorDeEstoqueId,
+    };
+    db.Materiais.Add(material);
+    await db.SaveChangesAsync();
+    _materiais.Add(material.Id);
+    return material.Id;
+  }
+
   public HttpClient Como(UsuarioDeTeste usuario)
   {
     var cliente = _factory.CreateClient();
@@ -175,6 +201,11 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
           $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Montagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      // O livro de separacao tambem e so de inclusao: estornos primeiro (EstornoDeId nao nulo), depois o resto.
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.MaterialSeparacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.MaterialSeparacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.EstruturaMaterial WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
@@ -185,6 +216,9 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {PedidoId}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Componente WHERE Id = {ComponenteId}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.ArquivoDeComponente WHERE Id = {_arquivoId}");
+      // Os Materiais do cenario antes dos Setores: um "Fica em" aponta o Setor.
+      foreach (var material in _materiais)
+        await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Material WHERE Id = {material}");
       foreach (var setor in new[] { Corte, Dobra, Solda, Pintura })
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Setor WHERE Id = {setor}");
     }

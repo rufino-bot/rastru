@@ -18,7 +18,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 - **Backend**: .NET (C#), ASP.NET Core Web API
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
-- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3)
+- **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3, e o Separador é o Almoxarifado renomeado na Fase 4)
 - **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
 
 ## Mapa da pasta `specs/`
@@ -403,16 +403,22 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `<body>`. Ao fechar, por `Cancelar` ou por sucesso, o foco volta ao botão de origem, mas **só se
   tiver caído no `<body>`**: fechar um painel porque outro abriu não tira o foco do campo do painel
   novo. A origem é o botão do cabeçalho nas cinco telas de cadastro e na `PedidoDetalhePage` (o "Editar pedido"); no modo de edição da `SetoresPage`, é o
-  "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga. Na
+  "Editar" daquele setor, e o "Novo setor" do cabeçalho quando o "Editar" não volta com a recarga; a
+  `MateriaisPage`, que ganhou a edição na Fase 4, faz o mesmo com o "Editar" do material e a reserva no "Novo
+  material". Na `SeparacaoPage` a origem é o "Separar" do cartão, depois da recarga, e o título da tela quando o
+  cartão saiu da lista (não falta mais nada); no `MateriaisDoNo`, é o "Editar materiais" do próprio bloco. Na
   `AgrupamentoDetalhePage`, o do "Nova Peça" devolve ao "Nova Peça" e o do "Importar BOM", ao "Importar
   BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
   cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Hoje o hook tem
-  **sete** telas consumidoras e **oito** chamadas (medido em 2026-10-02 com
+  **dez** chamadas em **nove** arquivos — oito telas e o `MateriaisDoNo`, que não é tela: é um componente do
+  `PainelDoNo` da `AgrupamentoDetalhePage` — (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
-  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, e de novo em 2026-10-09: oito, porque a
-  `PedidoDetalhePage` tem uma): `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage`,
-  `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage` e `PedidoDetalhePage`. O usuário decidiu
+  2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, de novo em 2026-10-09: oito, porque a
+  `PedidoDetalhePage` tem uma, e de novo em 2026-10-17: dez, porque a `SeparacaoPage` e o `MateriaisDoNo` têm uma
+  cada; a métrica é **linhas**, e a `AgrupamentoDetalhePage` é a única com duas): `SetoresPage`, `MateriaisPage`,
+  `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage`,
+  `PedidoDetalhePage`, `SeparacaoPage` e, fora das telas, o `MateriaisDoNo`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -423,20 +429,27 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **sete** telas consumidoras (seis escrevem o
-  `<PainelDeEscrita` à mão e uma só o usa por dentro do `PainelDoArquivoDoBom`), com **oito**
-  linhas de uso no código e **nove** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **oito** telas consumidoras (seis escrevem o
+  `<PainelDeEscrita` à mão e duas só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
+  `PainelDoArquivoDoBom`, e a `SeparacaoPage`, pelo `PainelDeSeparacao`), com **dez**
+  linhas de uso no código e **onze** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
   "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
-  oito, porque a `PedidoDetalhePage` ganhou o "Editar pedido"). As oito linhas são
-  sete nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage`, `ComponentesPage`,
+  oito, porque a `PedidoDetalhePage` ganhou o "Editar pedido", e de novo em 2026-10-17: dez, porque entraram o
+  "Editar materiais" do `MateriaisDoNo` e o "Separar material" do `PainelDeSeparacao`; a métrica é **linhas**, não
+  usos). As dez linhas são
+  sete nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage` (novo e editar material, no mesmo
+  uso, desde a Fase 4), `ComponentesPage`,
   `PedidosPage`, `PedidoDetalhePage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do
-  nó, editar e acrescentar sub-Item) — mais a do `PainelDoArquivoDoBom`. Os nove painéis são esses sete mais os dois
-  usos do `PainelDoArquivoDoBom`: o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
-  `ConferenciaDeImportacaoPage` (`grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
-  duas linhas em 2026-10-07). Na `AgrupamentoDetalhePage` os três painéis nunca coexistem: abrir um fecha os
-  outros.
+  nó, editar e acrescentar sub-Item) — mais três em componentes: a do `PainelDoArquivoDoBom`, a do
+  `MateriaisDoNo` (o "Editar materiais", dentro do `PainelDoNo` da `AgrupamentoDetalhePage`) e a do
+  `PainelDeSeparacao`. Os onze painéis são os sete das linhas das telas (uma linha, um painel) mais os dois
+  usos do `PainelDoArquivoDoBom` (o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
+  `ConferenciaDeImportacaoPage`; `grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
+  duas linhas em 2026-10-07 e em 2026-10-17), mais o "Editar materiais" e o "Separar material". Na
+  `AgrupamentoDetalhePage` os três painéis de escrita da tela (Nova Peça, Importar BOM e o do nó) nunca coexistem:
+  abrir um fecha os outros; o "Editar materiais" mora no `PainelDoNo` e fica fora dessa regra.
 
   **O `PainelDoArquivoDoBom`** (`web/src/importacao/`, com teste próprio) é o painel do arquivo do BOM, e o
   erro dele, inclusive a lista de linhas do arquivo, mora dentro dele. Guarda o que os dois usos pedem igual:
@@ -515,15 +528,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `SeletorComBusca`; **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **ordenar uma
   lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **restringir uma lista de demanda
   por Material, Pedido, Status…** é `FiltroDeDemanda`, seja a lista filtrada **no cliente** (a fila
-  do Setor e as Tarefas, que chegam inteiras: as opções e a contagem saem da própria resposta, e
+  do Setor, as Tarefas e a lista de separação, que chegam inteiras: as opções e a contagem saem da própria resposta, e
   `casaComFiltro`, exportada pelo módulo do componente, é a única implementação da regra — OU dentro
   da faceta, E entre facetas, faceta vazia não restringe; nenhuma página a reescreve) ou **no
   servidor** (a `PedidosPage`, cujos filtros vão como parâmetros de `GET /pedidos` por
   `useBuscaPaginada`). O componente é controlado: recebe `facetas` e `selecao` e devolve a seleção
-  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **três** telas consumidoras, cada uma
+  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **quatro** telas consumidoras, cada uma
   com um uso (medido em 2026-09-29 com
-  `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`): `FilaDoSetorPage`,
-  `TarefasPage` e `PedidosPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
+  `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`, com três, e remedido em
+  2026-10-17 com o mesmo comando: quatro linhas, uma por tela, porque a `SeparacaoPage` entrou):
+  `FilaDoSetorPage`, `TarefasPage`, `PedidosPage` e `SeparacaoPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
   estado** (`positivo`, `negativo`, `atencao`, `atraso`): filtro ativo não é estado de negócio, então a
   pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
   morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
@@ -581,11 +595,25 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   grep -v "\.test\."` devolve duas linhas de elemento e duas de comentário que citam a tag).
 
   **A `BarraDoLote`** (`web/src/execucao/`, com teste próprio) é a barra fixa do lote e **serve a Fila
-  do Setor e as Tarefas**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, e o texto do botão
-  vem de quem a usa (`rotulo` e `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide
-  isso — e só usa tinta e superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em
-  lote usa a barra, não escreve outra. Dois usos, um por tela (`grep -rn "<BarraDoLote" web/src
-  --include=*.tsx | grep -v "\.test\."`, medido em 2026-10-14).
+  do Setor, as Tarefas e a Separação**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, a
+  Separação para Separar (desde a conferência da Fase 4), e o texto do botão vem de quem a usa (`rotulo` e
+  `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide isso — e só usa tinta e
+  superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em lote usa a barra, não
+  escreve outra. Três usos, um por tela (`grep -rn "<BarraDoLote" web/src --include=*.tsx | grep -v
+  "\.test\."`, medido em 2026-10-14 com dois e remedido em 2026-10-19 com o mesmo comando: três linhas, porque
+  a `SeparacaoPage` entrou; a métrica é **linhas**).
+- **A separação de material** (Fase 4, spec
+  `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`) mora em `web/src/separacao/`: o
+  `PainelDeSeparacao` ("Separar material"), o `MateriaisDoNo` e o `HistoricoDeSeparacoes` (as seções "Materiais" e
+  "Separações" do `PainelDoNo`), o `filtroDaSeparacao`, o `loteDaSeparacao` (o campo de quantidade do painel e
+  do lote, e a lógica pura do lote da tela, no molde do `loteDaFila`) e o `usePermissoesDaSeparacao`. Esse hook diz o que a sessão
+  pode fazer na separação (`separar`, `editarMateriais` e `podeEstornarSeparacao(autorId)`, que repete a regra do
+  estorno: o autor, ou PCP e Administrador) e é o único lugar que lê `permissoes.ts` para ela, no molde do
+  `usePermissoesDaExecucao`; tela e painel da separação não chamam `usePodeEscrever` direto. **A regra de cor:**
+  pendência, "acima do planejado", "fora do planejado" e o resumo de material da Fila são **texto neutro**
+  (`text-tinta`, `text-tinta-fraca`) ou `Pilula` neutra, porque material faltando não é estado de negócio; só
+  "Atrasado" (`atraso`) e "Pausado" (`atencao`) usam tom, como já usam em `LinhaDePedido`. A lista (`SeparacaoPage`,
+  em `/separacao`) chega inteira e se filtra no cliente.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -626,6 +654,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   por isso que o estrago é silencioso: o saldo de uma posição pode ficar negativo, a baixa de filho
   de uma `Montagem` perde o vínculo com ela, e o histórico — quem fez o quê, quando — deixa de ser
   verdade. (Spec da Fase 3, seções 3.3 e 4.5.)
+- **O livro de separação (`dbo.MaterialSeparacao`) também é só de inclusão.** O separado de um material num
+  nó é a soma das separações menos a dos estornos, sempre calculado — nunca uma coluna —, e a correção é
+  um estorno, no máximo um por linha (`UX_MaterialSeparacao_EstornoDe`). Por isso nó com qualquer linha
+  de separação, ainda que estornada, não se exclui (409 `NoComSeparacao`). Separar nunca condiciona o
+  início do nó. (Regra 34 de `specs/01`, Fase 4.)
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma
@@ -833,14 +866,18 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte tem **785 testes** (medido em 2026-09-26, em `44b1d54`, com `dotnet test` de cada projeto e
-`--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
-ar: 267 em `Api.Tests`, 403 em `Application.Tests`, 115 em `Infrastructure.Tests`, 0 em
-`Domain.Tests`; a execução da suíte no mesmo commit deu os mesmos 785). Quantos
+A suíte tem **1.475 testes descobertos** (medido em 2026-10-20, em `4cca2f4`, com `dotnet test` de cada
+projeto e `--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
+ar; a métrica é a de linhas da listagem, em que cada caso de `[Theory]` conta como um: 391 em `Api.Tests`,
+842 em `Application.Tests`, 242 em `Infrastructure.Tests`, 0 em `Domain.Tests`). **A suíte inteira foi
+executada** em 2026-10-20, em `4cca2f4`, com `dotnet test Rastreamento.slnx -m:1`: 391 (Api) + 842
+(Application) + 242 (Infrastructure) = 1.475, todos passando, e 0 em Domain — a execução bate com a
+descoberta. O "passa 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
+não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
 exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
-falha por erro de conexão em vez de mensagem útil, e a task que escreveu este parágrafo é
-documentação pura, sem delta de teste, então não executou a suíte para medir isso. O que se sabe
+falha por erro de conexão em vez de mensagem útil, e a execução de 2026-10-20 não separou
+os testes por dependência de banco. O que se sabe
 por leitura de código, sem precisar rodar nada: `Application.Tests` usa fakes e não precisa de
 banco (nenhum teste seu); `Infrastructure.Tests` e `Api.Tests` precisam **em parte**, sem a fração
 medida.
@@ -957,20 +994,24 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -Q "IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'pcp') INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo) SELECT 'pcp', '\$2a\$11\$gbL2eZQIk1S1zAYieDUJO.Um1Sbom9oC56Xpd3RcdYdIYRDygpSuG', 'Planejamento e Controle', (SELECT Id FROM dbo.Perfil WHERE Nome = 'PCP'), 1;"
 ```
 
-**Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`) e
-`movimentador`/`Movimentador@123` (perfil `Movimentador`), no `db/seed.sql` desde 2026-10-13.**
+**Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`),
+`movimentador`/`Movimentador@123` (perfil `Movimentador`) e `separador`/`Separador@123` (perfil
+`Separador`), no `db/seed.sql` — os dois primeiros desde 2026-10-13, o `separador` desde a Fase 4
+(2026-10-16).**
 Existem para ver a tela como o chão de fábrica a vê e para verificar à mão o gating por perfil (ver a
 seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem no cadastro**, e sem um
-usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador` e o
-`movimentador` escrevem só na execução, um no apontamento e o outro na entrega. Até essa data o
+usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador`, o
+`movimentador` e o `separador` escrevem só na execução e na separação de material: um no apontamento,
+outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
 outro nome quebraria esse padrão. **Decisão do usuário (2026-10-13): os dois entram no seed, cada um
 com senha e hash próprios**, gerados com o mesmo `BCryptPasswordHasher` de produção. Isso respeita o
-padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O teste
-`Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador` e
-`movimentador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
+padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O `separador` da Fase 4 seguiu o mesmo
+padrão, com senha e hash próprios, também gerado com o `BCryptPasswordHasher` de produção. O teste
+`Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador`,
+`movimentador` e `separador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
 `db/seed.sql` de novo os acrescenta: ele é idempotente.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
@@ -1102,6 +1143,22 @@ existente nasce sem a marca; a Solda é marcada pela tela de Setores. Não preci
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-3b.sql sqlserver:/tmp/alter-fase-3b.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-3b.sql
+```
+
+**Fase 4 — `db/alter-fase-4.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em três blocos: a coluna `Material.SetorDeEstoqueId` com a FK
+`FK_Material_SetorDeEstoque`; a `dbo.MaterialSeparacao` reescrita como livro (`Tipo`, `EstornoDeId`, `DataHora`,
+`UsuarioId`, os dois índices) **só se a tabela ainda tiver a forma antiga e estiver vazia** — com alguma linha na
+forma antiga ele **aborta** (`THROW 50001`) em vez de descartar dado em silêncio; e o perfil `Almoxarifado`, que
+vira `Separador` (renomeado, ou, se os dois já existem, com os usuários movidos para o `Separador` e o
+`Almoxarifado` apagado). O usuário `separador` não entra por ele: **depois dele, reaplique o `db/seed.sql`**,
+que é idempotente (e, num banco que já tem o seed antigo, pode ser reaplicado também **antes**: os dois perfis
+passam a coexistir e o `alter` os une). Não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-4.sql sqlserver:/tmp/alter-fase-4.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-4.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

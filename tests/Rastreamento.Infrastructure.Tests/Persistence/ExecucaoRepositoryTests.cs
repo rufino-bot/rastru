@@ -432,6 +432,19 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Nos_em_producao_trazem_a_data_de_entrega_e_o_status_do_Pedido() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+
+    var contexto = (await repo.ListarNosEmProducaoAsync(CancellationToken.None))
+        .Where(x => c.Nos.Contains(x.No.Id)).ToList();
+
+    Assert.Equal(3, contexto.Count);
+    Assert.All(contexto, x => Assert.Equal((new DateOnly(2026, 10, 22), "Aberto"), (x.PedidoDataEntrega, x.PedidoStatus)));
+  });
+
+  [Fact]
   public Task Nos_em_producao_trazem_o_cliente_e_os_materiais_do_proprio_no() => NoCenarioAsync(async c =>
   {
     await using var escrita = NovoContexto();

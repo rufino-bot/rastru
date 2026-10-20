@@ -23,6 +23,12 @@ public class FakeEstruturaRepo : IEstruturaRepository
   public int Saves { get; private set; }
 
   /// <summary>
+  /// Nos que tem alguma linha de separacao de material (estornada ou nao) — arranjo do teste.
+  /// `TemSeparacaoAsync` responde sim quando algum Id consultado esta aqui.
+  /// </summary>
+  public HashSet<int> NosComSeparacao { get; } = [];
+
+  /// <summary>
   /// Preenchido pelo construtor de <see cref="FakeExecucaoRepo"/>: quando presente e devolve `false`,
   /// `GravarArvoreAsync` recusa, como o repositorio real recusa fora de `EmTransacaoAsync`. Fake usado
   /// sem `FakeExecucaoRepo` fica sem a guarda.
@@ -118,6 +124,9 @@ public class FakeEstruturaRepo : IEstruturaRepository
       IReadOnlyList<int> itemIds, CancellationToken ct) =>
       Task.FromResult<IReadOnlyList<EstruturaRoteiro>>(
           Roteiros.Where(r => itemIds.Contains(r.EstruturaItemId)).OrderBy(r => r.Ordem).ToList());
+
+  public Task<bool> TemSeparacaoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      Task.FromResult(estruturaItemIds.Any(NosComSeparacao.Contains));
 
   public Task SalvarAlteracoesAsync(CancellationToken ct)
   {

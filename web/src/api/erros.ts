@@ -28,7 +28,8 @@ export class ErroDeApi extends Error {
   /**
    * Código do erro que o SERVIDOR mandou no campo `erro`, quando o endpoint fala por código — a
    * execução da Fase 3 (`{ erro: "SaldoInsuficiente", mensagem: "Só há 6 de ..." }`, spec §8.2).
-   * Opcional pelo mesmo motivo de `detalhe`: só o cliente da execução (`api/execucao.ts`) popula.
+   * Opcional pelo mesmo motivo de `detalhe`: só populam o cliente da execução (`api/execucao.ts`), o da
+   * separação (`api/separacao.ts`) e o dos cadastros (`api/cadastros.ts`, no 400).
    * `mensagemDeErro` o traduz por `TRADUCAO_DOS_CODIGOS` quando o servidor não mandou frase.
    */
   readonly codigo?: string
@@ -44,7 +45,8 @@ export class ErroDeApi extends Error {
 
 /**
  * Os códigos de erro da execução (spec da Fase 3 §8.2, mais `OrigemInvalida`, desvio D3 do plano 2). Os dois do
- * Kit, `ConjuntoIncompleto` e `AlemDoQueOPaiPrecisa`, são da entrega, desde a Fase 3B.
+ * Kit, `ConjuntoIncompleto` e `AlemDoQueOPaiPrecisa`, são da entrega, desde a Fase 3B. Os oito últimos são da
+ * separação de material (Fase 4): `ErroDeApi` e `mensagemDeErro` são os mesmos, então a tradução mora aqui.
  */
 export type CodigoDeErroDaExecucao =
   | 'QuantidadeInvalida'
@@ -74,6 +76,14 @@ export type CodigoDeErroDaExecucao =
   | 'ItemRepetido'
   | 'ConjuntoIncompleto'
   | 'AlemDoQueOPaiPrecisa'
+  | 'MaterialForaDoPlanejado'
+  | 'JaEstornada'
+  | 'EstornoDeEstorno'
+  | 'SeparacaoVazia'
+  | 'MaterialRepetido'
+  | 'MaterialInvalido'
+  | 'SetorDeEstoqueInvalido'
+  | 'NoComSeparacao'
 
 /**
  * A tradução de cada código (spec §8.3: "cada código tem tradução em `mensagemDeErro`"). Só entra
@@ -109,6 +119,14 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   ItemRepetido: 'Um item foi marcado duas vezes. Atualize a tela e tente de novo.',
   ConjuntoIncompleto: 'Um Kit só entra na Solda com todos os filhos juntos, em conjuntos completos.',
   AlemDoQueOPaiPrecisa: 'O Kit não precisa de tantos conjuntos. Atualize a tela e tente de novo.',
+  MaterialForaDoPlanejado: 'Este material não está nos materiais do item. Peça ao PCP para acrescentá-lo.',
+  JaEstornada: 'Esta separação já foi estornada.',
+  EstornoDeEstorno: 'Um estorno não pode ser estornado.',
+  SeparacaoVazia: 'Informe a quantidade de pelo menos um material.',
+  MaterialRepetido: 'Um material foi informado duas vezes.',
+  MaterialInvalido: 'Um dos materiais não existe ou está inativo.',
+  SetorDeEstoqueInvalido: 'O Setor escolhido em "Fica em" não existe ou está inativo.',
+  NoComSeparacao: 'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {

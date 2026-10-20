@@ -10,6 +10,7 @@ import type { AgrupamentoDto, ComponenteDto } from '../api/cadastros'
 import type { LivroDoNoDto, PosicoesDoNoDto } from '../api/execucao'
 import { movimentacao } from '../testes/execucao'
 import type { FilhoPadraoDto } from '../api/receitaPadrao'
+import type { MaterialDoNoComSeparacao, SeparacaoDto } from '../api/separacao'
 
 afterEach(cleanup)
 
@@ -122,6 +123,10 @@ function montarFetch({
   respostaEstorno = null,
   importacoes = [],
   respostaImportar = null,
+  materiaisDoNo = [],
+  separacoes = [],
+  respostaEstornoDeSeparacao = null,
+  aoLerMateriais = () => {},
 }: {
   estruturaInicial: NoDaEstrutura[]
   estruturaAposCriar?: NoDaEstrutura[] | null
@@ -138,6 +143,14 @@ function montarFetch({
   importacoes?: unknown[]
   /** Desfecho de `POST /agrupamentos/21/importacoes`; `null` = 201 com a importação 5. */
   respostaImportar?: { status: number; corpo: unknown } | null
+  /** Os materiais de QUALQUER nó (`GET /estrutura/:id/materiais`), que o painel de detalhes busca ao abrir. */
+  materiaisDoNo?: MaterialDoNoComSeparacao[]
+  /** O histórico de separação de QUALQUER nó (`GET /estrutura/:id/separacoes`). */
+  separacoes?: SeparacaoDto[]
+  /** Desfecho de `POST /separacoes/:id/estorno`; `null` = 201. */
+  respostaEstornoDeSeparacao?: { status: number; corpo: unknown } | null
+  /** Chamado a cada `GET /estrutura/:id/materiais`, para o teste contar as recargas. */
+  aoLerMateriais?: () => void
 }) {
   let getsDeEstrutura = 0
   return vi.fn((url: string | URL, init?: RequestInit) => {
@@ -155,6 +168,18 @@ function montarFetch({
     if (caminho === '/api/componentes/10/filhos-padrao') return Promise.resolve(respostaJson(receitaDoPai))
     if (caminho === '/api/setores') return Promise.resolve(respostaJson([]))
     if (/^\/api\/estrutura\/\d+\/movimentacoes$/.test(caminho)) return Promise.resolve(respostaJson(livro))
+    if (/^\/api\/estrutura\/\d+\/materiais$/.test(caminho) && metodo === 'GET') {
+      aoLerMateriais()
+      return Promise.resolve(respostaJson({ estruturaItemId: Number(caminho.split('/')[3]), materiais: materiaisDoNo }))
+    }
+    if (/^\/api\/estrutura\/\d+\/separacoes$/.test(caminho) && metodo === 'GET') return Promise.resolve(respostaJson(separacoes))
+    if (caminho === '/api/materiais') return Promise.resolve(respostaJson([]))
+    if (/^\/api\/separacoes\/\d+\/estorno$/.test(caminho) && metodo === 'POST') {
+      if (respostaEstornoDeSeparacao) {
+        return Promise.resolve(respostaJson(respostaEstornoDeSeparacao.corpo, respostaEstornoDeSeparacao.status))
+      }
+      return Promise.resolve(respostaJson({}, 201))
+    }
     if (/^\/api\/estrutura\/\d+\/roteiro$/.test(caminho)) {
       return Promise.resolve(respostaJson({ estruturaItemId: Number(caminho.split('/')[3]), passos: [] }))
     }
@@ -1309,6 +1334,24 @@ describe('AgrupamentoDetalhePage', () => {
     expect(await screen.findByText('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')).toBeTruthy()
   })
 
+  it('excluir nó com separação mostra a frase de NoComSeparacao', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaExcluir: { status: 409, corpo: { erro: 'NoComSeparacao', mensagem: 'frase do servidor' } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-100')).getByRole('button', { name: 'Excluir' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByText(
+      'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
+    )).toBeTruthy()
+    expect(screen.queryByText('Não foi possível excluir o nó.')).toBeNull()
+    expect(screen.queryByText('Não foi possível excluir: conflito na estrutura.')).toBeNull()
+  })
+
   it('mostra onde está cada nó, e o "Sem Roteiro"', async () => {
     vi.stubGlobal('fetch', montarFetch({
       estruturaInicial: [PECA],
@@ -1352,6 +1395,66 @@ describe('AgrupamentoDetalhePage', () => {
     expect(within(painel).getByText(/Este nó não tem Roteiro/)).toBeTruthy()
     fireEvent.click(within(painel).getByRole('button', { name: 'Fechar' }))
     expect(screen.queryByRole('region', { name: 'Detalhes de Chassi' })).toBeNull()
+  })
+
+  it('"Detalhes" mostra os materiais e as separações do nó, depois do histórico', async () => {
+    perfil = 'Gestao'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      materiaisDoNo: [{
+        materialId: 3, codigo: 'PAR-M8', descricao: 'Parafuso M8', unidadeMedida: 'UN', ficaEm: null,
+        planejado: 10, separado: 8, pendencia: 2, noPlanejado: true, acimaDoPlanejado: false,
+      }],
+      separacoes: [{
+        id: 1, tipo: 'Separacao', materialId: 3, materialCodigo: 'PAR-M8', materialDescricao: 'Parafuso M8',
+        unidadeMedida: 'UN', quantidade: 8, dataHora: '2026-10-16T09:00:00-03:00', usuarioId: 12,
+        usuarioNome: 'Separador do turno', estornoDeId: null, estornavel: false,
+      }],
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+
+    const painel = screen.getByRole('region', { name: 'Detalhes de Chassi' })
+    const materiais = within(painel).getByRole('region', { name: 'Materiais' })
+    const separacoes = within(painel).getByRole('region', { name: 'Separações' })
+    expect(await within(materiais).findByText('Planejado 10 UN · Separado 8 UN · Pendência 2 UN')).toBeTruthy()
+    expect(await within(separacoes).findByText('Separação de 8 UN')).toBeTruthy()
+    // Gestão lê, não edita.
+    expect(within(materiais).queryByRole('button', { name: 'Editar materiais' })).toBeNull()
+    // A ordem do painel: Roteiro, histórico do livro, Materiais, Separações.
+    const historico = within(painel).getByRole('region', { name: 'Histórico do nó' })
+    expect(historico.compareDocumentPosition(materiais) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(materiais.compareDocumentPosition(separacoes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  // Os materiais e as separações se recarregam um ao outro pelo `key` do `PainelDoNo`. Se o estorno
+  // remontasse o próprio histórico, a frase do 409 sumiria junto com ele.
+  it('estorno de separação com 409 no painel recarrega os materiais e mantém a frase', async () => {
+    let leiturasDeMateriais = 0
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      separacoes: [{
+        id: 1, tipo: 'Separacao', materialId: 3, materialCodigo: 'PAR-M8', materialDescricao: 'Parafuso M8',
+        unidadeMedida: 'UN', quantidade: 8, dataHora: '2026-10-16T09:00:00-03:00', usuarioId: 12,
+        usuarioNome: 'Separador do turno', estornoDeId: null, estornavel: true,
+      }],
+      respostaEstornoDeSeparacao: { status: 409, corpo: { erro: 'JaEstornada' } },
+      aoLerMateriais: () => { leiturasDeMateriais += 1 },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+    const separacoes = within(screen.getByRole('region', { name: 'Detalhes de Chassi' })).getByRole('region', { name: 'Separações' })
+    fireEvent.click(await within(separacoes).findByRole('button', { name: /^Estornar a separação de 8 UN/ }))
+    await waitFor(() => expect(leiturasDeMateriais).toBe(1))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
+
+    expect(await screen.findByText('Esta separação já foi estornada.')).toBeTruthy()
+    await waitFor(() => expect(leiturasDeMateriais).toBe(2))
+    expect(screen.getByText('Esta separação já foi estornada.')).toBeTruthy()
   })
 
   it('"Detalhes" move o foco para o título do painel, para o celular rolar até ele (I3 da review de branch da Fase 3)', async () => {

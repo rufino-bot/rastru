@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Rastreamento.Application.Cadastros;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 
 namespace Rastreamento.Application.Execucao;
@@ -103,7 +104,13 @@ public sealed record QuemLe(int UsuarioId, bool VeRegistrosDeTodos);
 /// </summary>
 public sealed record EstornavelDto(string Tipo, int Id, decimal Quantidade, int UsuarioId, string UsuarioNome, DateTime DataHora);
 
-public sealed record LinhaDaFilaDto(NoResumoDto No, int Ordem, decimal Quantidade, IReadOnlyList<EstornavelDto> Estornaveis);
+/// <summary>
+/// Uma linha da Fila. `Material`: o resumo da separacao (spec da Fase 4), so na linha de `AIniciar` — o
+/// no que COMECA neste Setor —, e nulo quando o no nao tem material do almoxarifado no planejado.
+/// </summary>
+public sealed record LinhaDaFilaDto(
+    NoResumoDto No, int Ordem, decimal Quantidade, IReadOnlyList<EstornavelDto> Estornaveis,
+    ResumoDeMaterialDto? Material = null);
 
 public sealed record LinhaAguardandoColetaDto(
     NoResumoDto No, int Ordem, decimal Quantidade, DestinoDto Destino, IReadOnlyList<EstornavelDto> Estornaveis);
@@ -115,11 +122,12 @@ public sealed record FilhoNaMontagemDto(
 /// Um pai com filhos aguardando neste Setor. `IniciaAqui`: este Setor e o primeiro passo do pai, onde
 /// iniciar o pai consome os filhos (spec da Fase 3D, secao 2.1). `PrimeiroPassoDoPai`: para onde levar
 /// os filhos quando nao e aqui; nulo se o pai nao tem Roteiro. `ConjuntoCompleto`: o pai recebe os filhos so em
-/// conjunto completo (regra 25); a Fila oferece levar o Kit inteiro em vez de filho a filho.
+/// conjunto completo (regra 25); a Fila oferece levar o Kit inteiro em vez de filho a filho. `Material`: o
+/// resumo da separacao do PAI, so quando `IniciaAqui` (decisao P4 do plano de backend da Fase 4).
 /// </summary>
 public sealed record MontagemPendenteDto(
     NoResumoDto Pai, decimal FaltaMontar, decimal DaParaMontar, bool IniciaAqui, SetorResumoDto? PrimeiroPassoDoPai,
-    IReadOnlyList<FilhoNaMontagemDto> Filhos, bool ConjuntoCompleto);
+    IReadOnlyList<FilhoNaMontagemDto> Filhos, bool ConjuntoCompleto, ResumoDeMaterialDto? Material = null);
 
 /// <summary>`Origem`: UltimoPasso (com `Ordem`) | Montagem (sem `Ordem`; excesso no nivel do no).</summary>
 public sealed record LinhaDeSobraDto(

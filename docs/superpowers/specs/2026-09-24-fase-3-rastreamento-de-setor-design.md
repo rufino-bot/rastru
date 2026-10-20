@@ -89,12 +89,24 @@ entrada** (reabre o buraco que a spec do Kit mandou fechar) e **um perfil "Separ
 matéria-prima (ele é o Almoxarifado da `00`; o custo real seria acoplar a primeira entrada à separação
 de material da Fase 4 e exigir um gatilho de liberação).
 
+> **Nota (2026-10-16, Fase 4):** o descarte do perfil "Separador" foi **revisto** na spec da Fase 4
+> (`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`, D5 e seção 9). O motivo daquele
+> descarte era acoplar a primeira entrada à separação de material; na Fase 4 a separação não dispara nada
+> (a regra 28 não muda, e separar nunca condiciona o início — regra 5 de `specs/01`), então o motivo deixou
+> de valer. E o Separador não é um perfil a mais: é o Almoxarifado **renomeado**, e continuam sendo sete
+> perfis. A decisão acima sobre a primeira entrada, que é do operador, continua de pé.
+
 ### 2.3 O que falta para começar — filhos aqui, materiais na Fase 4
 
 O usuário quis que o operador saiba o que falta. As duas leituras foram separadas: **filhos que faltam
 para montar** entram nesta fase, calculados pelo estado (seção 7); **materiais que faltam** vão para a
 Fase 4, que ganha "onde cada material fica" (chapa é do Corte, não de todo Setor) e a **requisição do
 operador** atendida pelo Almoxarifado — uma tabela, porque requisição é evento, não estado duplicado.
+
+> **Nota (2026-10-16, Fase 4):** a Fase 4 trouxe "onde cada material fica" (`Material.SetorDeEstoqueId`), mas **não** a
+> requisição do operador: a lista calculada — planejado menos separado — já responde "o que falta", e o
+> Separador se antecipa (D1 e D7 da spec da Fase 4). A requisição volta, com spec própria, se a fábrica
+> sentir falta dela.
 
 ### 2.4 Para onde vai o filho que terminou o próprio Roteiro — o Movimentador escolhe
 

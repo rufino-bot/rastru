@@ -65,6 +65,36 @@ describe('Campo', () => {
     expect((screen.getByLabelText('Tipo') as HTMLSelectElement).tagName).toBe('SELECT')
   })
 
+  it('aoLado põe o controle de fora na linha do campo, esticado à altura dele, e a dica embaixo dos dois', () => {
+    // O jsdom não mede pixel: o teste prova a ESTRUTURA que dá o alinhamento. O botão e o campo dividem uma
+    // linha `flex` com `items-stretch` (o botão fica da altura da caixa do campo), e a dica mora fora dela —
+    // senão o botão se alinharia com a base da dica.
+    render(
+      <Campo rotulo="Quantidade de PAR-M8" dica="Parafuso M8 (UN)" aoLado={<Botao variante="secundario">Remover</Botao>}>
+        {(id, idDaDica) => <input id={id} aria-describedby={idDaDica} />}
+      </Campo>,
+    )
+
+    const controle = screen.getByLabelText('Quantidade de PAR-M8')
+    const botao = screen.getByRole('button', { name: 'Remover' })
+    const dica = screen.getByText('Parafuso M8 (UN)')
+    const linha = botao.parentElement!
+    expect(linha.contains(controle)).toBe(true)
+    expect(linha.contains(dica)).toBe(false)
+    expect(linha.contains(screen.getByText('Quantidade de PAR-M8'))).toBe(false)
+    expect(linha.className.split(/\s+/)).toEqual(expect.arrayContaining(['flex', 'items-stretch']))
+    // A dica vem depois da linha, e continua ligada ao controle.
+    expect(linha.compareDocumentPosition(dica) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(controle.getAttribute('aria-describedby')).toBe(dica.id)
+  })
+
+  it('sem aoLado, o controle fica direto no campo, como antes', () => {
+    render(<Campo rotulo="Código" dica="Único">{(id) => <input id={id} />}</Campo>)
+
+    const controle = screen.getByLabelText('Código')
+    expect(controle.parentElement!.querySelector('label')).not.toBeNull()
+  })
+
   it('o anel de foco de CLASSES_DE_CONTROLE é o mesmo do Botao', () => {
     // P4/I3 da review da Task 5: o trio `focus-visible:outline-2 focus-visible:outline-offset-2
     // focus-visible:outline-acao` vive em dois lugares (Botao.tsx e Campo.tsx) sem nada prendendo

@@ -1,6 +1,7 @@
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Entities;
 using Xunit;
 using static Rastreamento.Application.Tests.Execucao.CenarioDeExecucao;
@@ -118,6 +119,75 @@ public class ConsultaDeExecucaoUseCaseTests
 
     Assert.Empty(solda.AIniciar);
     Assert.Equal(new[] { 2, 3 }, corte.AIniciar.Select(l => l.No.Id).ToArray());
+  }
+
+  [Fact]
+  public async Task Folha_a_iniciar_aqui_traz_o_resumo_de_material()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Corte);
+    c.Material(1, 30, "PAR-M8", "Parafuso M8", quantidade: 10m);
+    c.Material(1, 31, "ARR-8", "Arruela 8", quantidade: 4m);
+    c.Separar(1, 30, 10m);   // completo
+    c.Separar(1, 31, 1m);    // falta
+
+    var linha = Assert.Single((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.AIniciar);
+
+    Assert.Equal(new ResumoDeMaterialDto(1, 2), linha.Material);
+  }
+
+  [Fact]
+  public async Task Pai_que_inicia_aqui_traz_o_resumo_no_cartao_de_montagem()
+  {
+    var c = Kit();
+    c.Material(1, 30, "PAR-M8", "Parafuso M8", quantidade: 10m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.True(grupo.IniciaAqui);
+    Assert.Equal(new ResumoDeMaterialDto(0, 1), grupo.Material);
+  }
+
+  [Fact]
+  public async Task Cartao_de_montagem_que_nao_inicia_aqui_vem_sem_resumo()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda, Pintura);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Material(1, 30, "PAR-M8", "Parafuso M8", quantidade: 10m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 2m);
+
+    var grupo = Assert.Single((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.AguardandoMontagem);
+
+    Assert.False(grupo.IniciaAqui);
+    Assert.Null(grupo.Material);
+  }
+
+  [Fact]
+  public async Task Em_trabalho_vem_sem_resumo()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Corte);
+    c.Material(1, 30, "PAR-M8", "Parafuso M8", quantidade: 10m);
+    c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 4m);
+
+    var fila = (await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!;
+
+    Assert.Equal(new ResumoDeMaterialDto(0, 1), Assert.Single(fila.AIniciar).Material);
+    Assert.Null(Assert.Single(fila.EmTrabalho).Material);
+  }
+
+  [Fact]
+  public async Task No_so_com_material_de_Setor_vem_sem_resumo()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Corte);
+    c.Material(1, 30, "CH-3", "Chapa 3 mm", quantidade: 4m, setorDeEstoqueId: Corte);
+
+    var linha = Assert.Single((await c.Consulta().Fila(Corte, ComoOperador, Ct)).Valor!.AIniciar);
+
+    Assert.Null(linha.Material);
   }
 
   [Fact]

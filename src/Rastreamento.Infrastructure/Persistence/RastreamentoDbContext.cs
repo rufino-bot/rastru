@@ -24,6 +24,7 @@ public class RastreamentoDbContext : DbContext
   public DbSet<EstruturaRoteiro> EstruturaRoteiros => Set<EstruturaRoteiro>();
   public DbSet<Movimentacao> Movimentacoes => Set<Movimentacao>();
   public DbSet<Montagem> Montagens => Set<Montagem>();
+  public DbSet<MaterialSeparacao> Separacoes => Set<MaterialSeparacao>();
   public DbSet<PedidoPausa> PedidoPausas => Set<PedidoPausa>();
   public DbSet<ImportacaoDeEstrutura> ImportacoesDeEstrutura => Set<ImportacaoDeEstrutura>();
   public DbSet<ImportacaoDeEstruturaComponente> ImportacoesDeEstruturaComponentes => Set<ImportacaoDeEstruturaComponente>();

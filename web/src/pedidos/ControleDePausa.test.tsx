@@ -78,7 +78,7 @@ describe('ControleDePausa', () => {
     expect(screen.queryByRole('button', { name: 'Pausar' })).toBeNull()
   })
 
-  it.each(['Operador', 'Almoxarifado', 'Movimentador', 'Qualidade'])(
+  it.each(['Operador', 'Separador', 'Movimentador', 'Qualidade'])(
     '%s não vê Pausar nem Retomar, mas vê o aviso da pausa aberta',
     (p) => {
       perfil = p

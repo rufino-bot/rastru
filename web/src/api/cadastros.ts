@@ -44,8 +44,24 @@ async function lerOuFalhar<T>(resp: Response): Promise<T | ConflitoDeCadastro> {
     if (ehConflito(corpo)) return corpo
     throw new ErroDeApi(409, 'Falha na requisição (409): formato de conflito inesperado.')
   }
+  if (resp.status === 400) throw new ErroDeApi(400, 'Falha na requisição (400).', undefined, await codigoDoCorpo(resp))
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha na requisição (${resp.status}).`)
   return (await resp.json()) as T
+}
+
+/**
+ * O `erro` do corpo de um 400, para o `codigo` do `ErroDeApi`: é por ele que `mensagemDeErro` acha a
+ * tradução de `SetorDeEstoqueInvalido`. Os outros 400 dos cadastros trazem frase no `erro`, que nenhuma
+ * tradução reconhece e portanto cai no texto da tela como antes; corpo que não é JSON, ou sem `erro` de
+ * texto (a validação do MVC), dá `undefined`.
+ */
+async function codigoDoCorpo(resp: Response): Promise<string | undefined> {
+  try {
+    const erro = ((await resp.json()) as { erro?: unknown } | null)?.erro
+    return typeof erro === 'string' ? erro : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export async function listarSetores(incluirInativos: boolean): Promise<SetorDto[]> {
@@ -86,6 +102,8 @@ export interface MaterialDto {
   descricao: string
   unidadeMedida: string
   ativo: boolean
+  /** O Setor onde o Material fica (regra 4); `null` = almoxarifado. */
+  ficaEm: { setorId: number; nome: string } | null
 }
 
 /**
@@ -96,6 +114,8 @@ export interface NovoMaterial {
   codigo: string
   descricao: string
   unidadeMedida: string
+  /** O Setor onde o Material fica; ausente ou `null` = almoxarifado. */
+  setorDeEstoqueId?: number | null
 }
 
 export async function listarMateriais(incluirInativos: boolean): Promise<MaterialDto[]> {
@@ -108,6 +128,18 @@ export async function listarMateriais(incluirInativos: boolean): Promise<Materia
 export function criarMaterial(m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro> {
   return apiFetch('/materiais', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(m),
+  }).then(lerOuFalhar<MaterialDto>)
+}
+
+/**
+ * `PUT` é substituição inteira: código, descrição, unidade e `setorDeEstoqueId` vão sempre juntos. O
+ * único 409 possível é `ValorDuplicado` sobre `codigo`, como no `criarMaterial`.
+ */
+export function editarMaterial(id: number, m: NovoMaterial): Promise<MaterialDto | ConflitoDeCadastro> {
+  return apiFetch(`/materiais/${id}`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(m),
   }).then(lerOuFalhar<MaterialDto>)

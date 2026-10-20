@@ -10,12 +10,12 @@ import {
 const PAUSA = { desde: '2026-09-30T09:00:00-03:00', porUsuarioNome: 'PCP', motivo: null }
 
 function linha(n: ReturnType<typeof no>, ordem: number, quantidade: number): LinhaDaFila {
-  return { no: n, ordem, quantidade, estornaveis: [] }
+  return { no: n, ordem, quantidade, estornaveis: [], material: null }
 }
 
 function grupo(parcial: Partial<GrupoAguardandoMontagem> = {}): GrupoAguardandoMontagem {
   return {
-    pai: CHASSI, faltaMontar: 10, daParaMontar: 3, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, filhos: [],
+    pai: CHASSI, faltaMontar: 10, daParaMontar: 3, iniciaAqui: true, primeiroPassoDoPai: null, conjuntoCompleto: false, filhos: [], material: null,
     ...parcial,
   }
 }

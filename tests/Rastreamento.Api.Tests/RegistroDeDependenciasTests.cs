@@ -4,6 +4,7 @@ using Rastreamento.Application.Auth;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Importacao;
+using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Persistence;
 
@@ -56,6 +57,7 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
   [InlineData(typeof(EstornoUseCase))]
   [InlineData(typeof(PausaDePedidoUseCase))]
   [InlineData(typeof(RoteiroDoNoUseCase))]
+  [InlineData(typeof(MateriaisDoNoUseCase))]
   [InlineData(typeof(ConsultaDeExecucaoUseCase))]
   public void Servico_e_registrado_como_Scoped(Type servico)
   {

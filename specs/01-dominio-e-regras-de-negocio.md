@@ -13,14 +13,17 @@
 | **EstruturaItem** | A árvore **real** usada em um Agrupamento específico, podendo ter sido copiada do catálogo (`Componente`) e customizada. É recursiva: um `EstruturaItem` pode ter `EstruturaItem` filhos. O nó de topo (sem pai) é chamado de **Peça**; os nós com pai são chamados de **Item**. Representa um **lote agregado** (quantidade), não uma unidade física individual — e esse lote é divisível por quantidades livres (ver regra 9). |
 | **EstruturaItem.Descricao** | Nome próprio do nó dentro do Agrupamento. NULL = usa a descrição do `Componente` de origem. Serve ao item **ad-hoc** (`ComponenteId` NULL), que sem ela chega sem nome nenhum à tela do operador; ver regra 19. |
 | **EstruturaItem.QuantidadePorPai** | Quantos daquele nó entram em **uma** unidade do pai, guardado ao lado da quantidade absoluta (`EstruturaItem.Quantidade`). Obrigatória em todo Item, nula na Peça. Serve à montagem de todo nó com filhos, às tarefas do Movimentador e à sobra (regras 23, 24 e 30) e, no Kit, ao conjunto completo (regra 25); o apontamento continua movimentando a quantidade absoluta. Ver regra 26. Decidida em 2026-09-15; a coluna entra no schema na Fase 3 (decisão de 2026-09-24, que trouxe a montagem da 3B para a 3). |
-| **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. |
+| **Material** | Produto de estoque (chapas, parafusos, roelas, etc.) consumido para fabricar um `EstruturaItem`. Qualquer nó, folha ou com filhos, pode ter Materiais (regra 4). |
+| **Material.SetorDeEstoqueId ("Fica em")** | Onde o Material fica estocado: nulo é o **almoxarifado** (o padrão), e um Setor é o lugar onde ele fica guardado ali mesmo (a chapa no Corte, que o operador pega no próprio Setor). Só o material do almoxarifado entra na lista do Separador e tem pendência (regra 34). Decidido em 2026-10-16 (D6 da spec da Fase 4, `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`); a coluna entrou no schema na Fase 4. |
+| **Separação** | Registro de que o Separador tirou uma quantidade de um Material para um `EstruturaItem`. Vive num livro só de inclusão (`dbo.MaterialSeparacao`), onde a correção é um estorno; o **separado** de um material num nó é sempre calculado (regra 34). Separar não condiciona o início do nó (regra 5). |
+| **Separador** | Perfil de quem separa o material do almoxarifado e o leva, ou busca, até o Setor do primeiro passo do nó, registrando o que levou. É o perfil que se chamava Almoxarifado, renomeado na Fase 4 (D5 da spec da Fase 4). |
 | **Material.Codigo** | O **identificador único do material** dentro deste sistema. **Mesma regra do `Componente.Codigo`**, por decisão explícita: alfanumérico (`NVARCHAR(50)`), **único global** (`UQ_Material_Codigo`), atribuído por quem cadastra, sem geração nem validação de formato pelo sistema. A numeração de fornecedor **não** é modelada aqui. |
 | **Setor** | Departamento de produção (ex.: Corte e Dobra, Usinagem) pelo qual um `EstruturaItem` pode passar. |
 | **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa o conjunto completo (regra 25); a trava de montagem deixou de depender dele na Fase 3D (regra 24). Decidida em 2026-09-15; a coluna entrou no schema na Fase 3B, com default 0: um Setor só ganha a marca quando o Administrador a liga no cadastro. |
 | **Roteiro** | Sequência de Setores que um `EstruturaItem` percorre. Pode ser padrão (catálogo) ou específico daquele Pedido/Agrupamento. |
 | **Aguardando coleta** | Estado da quantidade que ainda não foi levada ao próximo destino depois de o operador dá-la como terminada num Setor (regra 22) — ou, no Pedido de Retrabalho, depois de nascer marcada **pronta** (regra 27). Conta como **em produção** para a conservação de quantidade (regra 9) e é o que alimenta as tarefas do Movimentador (regra 23). No banco, é uma posição do livro de movimentações (`dbo.Movimentacao`), guardada no Setor e no passo em que a quantidade terminou; o destino é calculado (regra 29). |
 | **Relatório Dimensional** | Avaliação de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado no cadastro via EstruturaItem.RequerRelatorioDimensional). Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada gera uma RelatorioDimensionalAvaliacao com quantidade aprovada/reprovada. Aprovação/reprovação é por quantidade. Reprovação não exige retrabalho imediato. |
-| **Usuário / Perfil** | Login próprio (usuário/senha + JWT). Cada Usuário tem um Perfil (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão, Administrador) que restringe telas/ações — ver `00-visao-geral.md`. |
+| **Usuário / Perfil** | Login próprio (usuário/senha + JWT). Cada Usuário tem um Perfil (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador) que restringe telas/ações — ver `00-visao-geral.md`. O Separador é o antigo Almoxarifado, renomeado na Fase 4 (D5 da spec da Fase 4). |
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
 | **Expedição (remessa)** | Saída de uma quantidade de uma Peça para o cliente. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Cada remessa é uma linha em Expedicao. |
 | **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regras 25 e 30). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
@@ -36,9 +39,20 @@
 3. Uma Peça pode ser composta por N Itens; um Item pode, por sua vez, ser composto por
    outros Itens — recursão sem limite de profundidade, resolvida numa única tabela
    autorreferenciada (`EstruturaItem`), evitando o ciclo conceitual entre "Peça" e "Item".
-4. Um `EstruturaItem` folha (sem filhos) é composto por N Materiais.
-5. Materiais precisam ser **separados** (retirados do estoque) e entregues ao setor
-   responsável antes da fabricação daquele item.
+4. Qualquer `EstruturaItem`, folha ou com filhos, pode ter Materiais (o planejado,
+   `EstruturaMaterial`). O material de um nó é usado no Setor do **primeiro passo** do Roteiro
+   dele: numa folha, onde ela é fabricada; num nó com filhos, onde ele inicia consumindo os filhos
+   (regra 24). *Reescrita em 2026-10-16 (spec da Fase 4, D2):* até então a regra dizia que só a
+   folha tinha Materiais, e a receita padrão já aceitava material num Componente com filhos — o
+   texto estava atrás do código. A montagem final, por exemplo, acontece na Expedição, no início de
+   uma Peça cujo Roteiro tem um passo só, e o material dela é separado para esse passo.
+5. O material que fica no almoxarifado é **separado** pelo Separador e levado, ou buscado, até o
+   Setor do primeiro passo do nó. O que fica num Setor, o operador pega ali (`Material.SetorDeEstoqueId`).
+   **Separar nunca condiciona o início**: a regra 28 não muda, e a falta de material é informação,
+   não bloqueio — o resumo aparece na Fila do Setor e no painel do nó, e o início não pede
+   confirmação (D12 da spec da Fase 4). *Reescrita em 2026-10-16:* a redação anterior falava em
+   "retirados do estoque" e "entregues ao setor responsável antes da fabricação", e sugeria que a
+   separação era um pré-requisito.
 6. Um `EstruturaItem` tem uma origem (primeiro Setor do seu roteiro) e pode passar por
    zero ou mais Setores adicionais antes de estar pronto.
 7. O roteiro de Setores pode ser copiado de um padrão do catálogo (`Componente`), mas
@@ -90,9 +104,11 @@
     Separar fila de execução dentro do Setor é decisão da Fase 6. **Alterada em 2026-09-24**
     (spec da Fase 3): antes, o início vinha de `EstruturaSetorHistorico.DataEntrada`, tabela que
     o livro de movimentações substituiu.
-15. Cada Usuário tem um Perfil (Operador, Almoxarifado, Movimentador, PCP, Qualidade, Gestão,
+15. Cada Usuário tem um Perfil (Operador, Separador, Movimentador, PCP, Qualidade, Gestão,
     Administrador) que restringe quais telas e ações ele acessa. O **Movimentador** entrou pela
-    decisão de 2026-09-15 (regra 22) e passa a existir no sistema na Fase 3.
+    decisão de 2026-09-15 (regra 22) e passa a existir no sistema na Fase 3. O **Separador** é o
+    Almoxarifado renomeado na Fase 4 (D5 da spec da Fase 4): o nome antigo existia no seed e não
+    autorizava nenhuma rota.
 16. A **expedição pode ser parcial** (remessas): o cliente aceita uma parte vital antes e o
     restante segue depois. Cada remessa é uma linha em `Expedicao` com a quantidade. A soma
     das remessas de uma Peça nunca excede a quantidade total (validado na aplicação).
@@ -376,7 +392,7 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
 28. **Todo nó nasce a iniciar, e a primeira entrada é do operador.** A quantidade inteira de um nó
     nasce **a iniciar**, que conta como em produção (regra 9). A fabricação começa quando o operador
     do primeiro Setor do Roteiro pega o material para trabalhar — parte do material já está no Setor,
-    parte é levada pelo almoxarifado —, e é esse operador quem registra a primeira entrada, sem o
+    parte é levada pelo Separador (regra 5) —, e é esse operador quem registra a primeira entrada, sem o
     Movimentador: não há o que levar. Para um nó **com filhos**, iniciar é o **consumo dos filhos**
     (regra 24): o pai só entra em produção consumindo `N × QuantidadePorPai` de cada filho direto
     presente no Setor, e esse é o único jeito de ele começar (spec da Fase 3D, seção 2.1). A
@@ -458,6 +474,49 @@ dela para o que a implementação fixou).*
       O atraso não é gravado: é calculado a cada leitura, no servidor.
     - **Retrabalho (D4, para a Fase 5).** O formulário do Pedido de Retrabalho traz, por padrão, a
       `DataEntrega` do Pedido de origem, e o campo é editável no cadastro.
+
+*A regra 34 foi decidida em 2026-10-16, na spec da Fase 4
+(`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`, decisões D6, D9, D10, D13 e D14,
+e a decisão P2 do plano de backend da Fase 4).*
+
+34. **A separação é um livro só de inclusão.**
+    - **Separado (D13).** O **separado** de um material num nó é a soma das separações menos a soma dos
+      estornos dele. É sempre **calculado**; não há coluna de quantidade separada em `EstruturaMaterial`.
+    - **Pendência (D6).** A **pendência** é o planejado menos o separado, quando positiva, e só existe para o
+      material que **fica no almoxarifado** (`Material.SetorDeEstoqueId` nulo) e **está no planejado** do nó.
+      O material que fica num Setor nunca tem pendência: o operador o pega ali. Mesmo assim o Separador
+      **pode** registrá-lo, se ele estiver no planejado (D16).
+    - **Só o planejado (D9).** Só se separa material que está no planejado do nó. Fora dele, a separação é
+      recusada (409 `MaterialForaDoPlanejado`): é erro de plano, e o PCP o corrige nos materiais do nó. **Acima
+      do planejado** o sistema aceita e avisa (o parafuso que caiu): `acimaDoPlanejado` vale só para o material
+      que está no planejado.
+    - **Estorno (D10).** A correção é um **estorno**, da linha inteira, **no máximo um por linha**, pelo autor da
+      separação, pelo PCP ou pelo Administrador. Estorno não se estorna. Não há saldo de estoque nem devolução: o
+      sistema registra o que saiu para cada nó, não quanto há no almoxarifado.
+    - **Editar o planejado é livre (D14).** O PCP edita os materiais de qualquer nó a qualquer momento, inclusive
+      depois de separar. O que já foi separado é fato e continua no histórico; o material separado que saiu do
+      plano volta na leitura com `noPlanejado: false`, `planejado: 0` e **sem pendência** — aparece como "fora
+      do planejado", e a separação dele continua estornável. Ele volta **enquanto o separado for maior que
+      zero**: estornada toda a separação, não resta nada dele no nó, e ele sai da lista de materiais do nó (as
+      linhas continuam no histórico; decisão do usuário na conferência da Fase 4, 2026-10-19).
+    - **Livro só de inclusão (D10, D13).** Nunca `UPDATE` nem `DELETE` numa linha de `dbo.MaterialSeparacao`,
+      pelo mesmo motivo do livro de movimentações. Por isso **nó com qualquer linha de separação, ainda que
+      estornada, não se exclui** (409 `NoComSeparacao`, decisão P2 do plano de backend da Fase 4): com a
+      separação antecipada (D11), ela pode existir num Pedido `Aberto`, e apagar o nó exigiria apagar linhas do
+      livro.
+    - **Não condiciona o início (regra 5, D12).** A pausa do Pedido (regra 31) também não: ela recusa só o
+      início, e separar continua.
+    - **Riscos aceitos (seção 8 da spec da Fase 4).** Uma separação concorrente com o `PUT` dos materiais
+      do nó pode passar por um material que acabou de sair do plano: ela fica no
+      histórico como "fora do planejado" e é estornável, e os dois não são serializados por isso. A lista do
+      Separador chega inteira, com o mesmo risco do limite de 2100 parâmetros do SQL Server já registrado para
+      o `Contains` sobre os nós de Pedidos abertos (medir junto). Um access token emitido com o perfil
+      `Almoxarifado` vale, depois da migração, no máximo `Jwt:AccessTokenMinutes` (15 min), e nenhuma rota
+      autoriza esse nome.
+    - **Fora do escopo (seção 10 da spec).** A requisição de material (D7), o saldo de estoque e a devolução
+      (D10), bloquear ou avisar no início (D12), a notificação ao Separador (Fase 3C) e a separação em Pedido
+      concluído (a conclusão só nasce na Fase 5, que herda a guarda: a lista do Separador já exclui Pedido
+      `Concluido` ou `Cancelado`).
 
 ## Pontos ainda em aberto
 
