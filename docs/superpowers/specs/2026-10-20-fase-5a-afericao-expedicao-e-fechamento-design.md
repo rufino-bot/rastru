@@ -2,7 +2,8 @@
 
 Data: 2026-10-20. Branch: `claude/brainstorm-fase-5-4otppt`, a partir da `main` em `141ae3c`. Desenho
 aprovado pelo usuário em chat, numa sessão de nuvem de 2026-10-20, com um esboço da tela da Expedição
-(página privada, fora do repositório) aprovado como base.
+(página privada, fora do repositório) aprovado como base. O documento escrito, com as chamadas do desenho
+C1–C20 (seção 2) e o resultado do builder check, foi aprovado pelo usuário em 2026-10-20.
 
 **Ponto de partida.** A seção "Fase 5 — Dimensional e fechamento" de `specs/06-roadmap-mvp.md` junta três
 assuntos que mal se tocam. O usuário aprovou dividi-la em três specs, cada uma com plano e PR próprios, nesta
