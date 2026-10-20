@@ -168,7 +168,10 @@ Concluídas até aqui:
 - **Fase 4:** separação de materiais — o perfil Almoxarifado vira Separador; o Material diz onde fica
   (almoxarifado ou um Setor); a separação é um livro só de inclusão, corrigido por estorno; o PCP edita os
   materiais de qualquer nó; e a lista do Separador, o painel do nó e a Fila do Setor mostram o que falta
-  levar. Em andamento: o backend está feito na branch, e as telas e a conferência no navegador vêm a seguir.
+  levar. O Separador também separa vários nós de uma vez (`POST /separacoes`, tudo ou nada). Backend e front
+  feitos; o usuário fez a conferência no navegador (2026-10-19) e aprovou os ajustes que pediu; a review de
+  branch inteira foi feita, e os achados dela foram consertados numa rodada antes do merge. Ainda **não** foi
+  mesclada na `main`.
 
 A seguir vêm as Fases 5 e 6 — Relatório Dimensional, expedição,
 perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor

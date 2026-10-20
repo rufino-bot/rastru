@@ -685,10 +685,18 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
   de esperar pedido de ninguém (D1, D7). Volta se a fábrica sentir falta dela, com uma spec própria. Também
   ficam fora o saldo de estoque e a devolução (D10), a notificação ao Separador (Fase 3C) e a separação em
   Pedido concluído (a conclusão só nasce na Fase 5, que herda a guarda).
-- **Estado do plano de backend:** implementado na branch da fase em 2026-10-16 — schema, regras, rotas, lista do Separador,
-  resumo da Fila e a recusa de excluir nó com separação (409 `NoComSeparacao`, decisão P2 do plano). As telas
-  são do plano de front, e a **conferência no navegador é do usuário** e vem antes da review de branch (regra
-  de 2026-10-07 do `CLAUDE.md`).
+- **Separar em lote** (`POST /separacoes`, decisão do usuário na conferência de 2026-10-19): o Separador marca
+  vários cartões da lista e separa de uma vez, tudo ou nada, no molde da Fila; cada nó passa pelas mesmas
+  regras da rota de um nó, e a recusa de um nó leva o nome dele na frente da frase.
+- **Estado da fase (2026-10-20):** o plano de backend foi implementado na branch em 2026-10-16 — schema,
+  regras, rotas, lista do Separador, resumo da Fila e a recusa de excluir nó com separação (409
+  `NoComSeparacao`, decisão P2 do plano). O plano de front (`docs/superpowers/plans/2026-10-16-fase-4-front.md`)
+  também está feito: as telas, o painel do nó, o resumo na Fila e o "Fica em" do cadastro de Material. A
+  **conferência no navegador foi feita pelo usuário** em 2026-10-19, com quatro ajustes pedidos e aprovados
+  (o lote na Separação, o menu sem "Início" com a marca "Rastru" levando à Home, o editor de materiais com os
+  botões alinhados ao campo, e o material fora do plano e todo estornado saindo de "Materiais"), e a **review
+  de branch inteira foi feita**, com os achados consertados numa rodada antes do merge. A fase **ainda não
+  está mesclada** na `main`.
 - Critério de pronto: dá para saber quais materiais já foram separados/entregues para cada item em
   fabricação; o Separador tem uma lista do que falta levar para cada nó, só do material do almoxarifado,
   ordenada pelo prazo do Pedido, e registra pelo celular o que levou; o PCP edita os materiais planejados de
