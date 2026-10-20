@@ -9,7 +9,7 @@ import {
   type ConflitoDeCadastro, type FiltroDePedidos,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
-import { ErroDeApi } from './erros'
+import { ErroDeApi, mensagemDeErro } from './erros'
 import { respostaJson } from '../testes/api'
 
 describe('cadastros', () => {
@@ -1000,6 +1000,32 @@ describe('cadastros', () => {
         new Response(JSON.stringify({ erro: 'x' }), { status: 409 }),
       ))
       await expect(listarSetores(false)).rejects.toMatchObject({ name: 'ErroDeApi', status: 409 })
+    })
+
+    it('lerOuFalhar leva o erro do corpo do 400 como codigo, e tolera o 400 sem ele', async () => {
+      const material = { codigo: 'PAR-M8', descricao: 'Parafuso', unidadeMedida: 'UN', setorDeEstoqueId: 99 }
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: 'SetorDeEstoqueInvalido' }), { status: 400 }),
+      ))
+      const falha = await criarMaterial(material).catch((e: unknown) => e)
+      expect(falha).toMatchObject({ name: 'ErroDeApi', status: 400, codigo: 'SetorDeEstoqueInvalido' })
+      // Chega à tela como a tradução do código, não como a frase genérica.
+      expect(mensagemDeErro(falha, 'Não foi possível salvar.')).toBe('O Setor escolhido em "Fica em" não existe ou está inativo.')
+
+      // Frase de validação no `erro`: o código fica guardado, mas nenhuma tradução o reconhece.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: 'Codigo e descricao sao obrigatorios.' }), { status: 400 }),
+      ))
+      expect(mensagemDeErro(await criarMaterial(material).catch((e: unknown) => e), 'Não foi possível salvar.'))
+        .toBe('Não foi possível salvar.')
+
+      // Corpo vazio, ou ProblemDetails do MVC (sem `erro`): continua sendo um ErroDeApi 400 sem código.
+      for (const corpo of ['', JSON.stringify({ title: 'One or more validation errors occurred.' })]) {
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(corpo, { status: 400 })))
+        const semCodigo = await criarMaterial(material).catch((e: unknown) => e)
+        expect(semCodigo).toMatchObject({ name: 'ErroDeApi', status: 400 })
+        expect((semCodigo as { codigo?: string }).codigo).toBeUndefined()
+      }
     })
 
     it('lerOuFalhar propaga o status da resposta', async () => {
