@@ -101,6 +101,12 @@ aqui para ele as conferir na leitura):
 | C12 | **Fechamento automático**, na mesma transação da remessa: a Peça conclui com tudo expedido (regra 13), o Agrupamento com a última Peça, o Pedido com o último Agrupamento | a regra 13 já estava escrita; faltava quem a executasse |
 | C13 | **Estornar uma remessa reabre** o que ela concluiu: Peça, Agrupamento e Pedido voltam a abertos, e o status do Pedido é recalculado. O estorno de remessa é a **única** escrita aceita num Pedido `Concluido` | sem isso, uma remessa digitada errada no último caminhão ficaria sem correção |
 | C14 | O PCP passa a **editar** `RequerRelatorioDimensional` de uma Peça, enquanto ela não tem aferição válida | hoje a marca só nasce na criação; o cliente pode exigir o relatório depois |
+| C15 | **Pedido `Concluido` recusa edição de estrutura** (criar Peça, acrescentar filho, editar nó, confirmar import) com `PedidoFechado`. Em Pedido rodando (`EmProducao` ou `AguardandoExpedicao`) a edição continua livre, como hoje, e **recalcula** status e fechamento na mesma transação: acrescentar Peça a um Pedido aguardando expedição o devolve a `EmProducao`; baixar a quantidade de uma Peça até o expedido a conclui, com a data da edição | acrescentar estrutura a Pedido em execução é o padrão da fábrica (decisão de 2026-08-29), mas concluído é fechado; quem precisar mudar um Pedido concluído estorna a última remessa (C13). Achado do builder check |
+| C16 | **Agrupamento sem Peças não conclui e não segura o Pedido**: o fechamento do Pedido olha só os Agrupamentos que têm Peças, e um Pedido sem Peça nenhuma não conclui | criar e excluir Agrupamento exige Pedido `Aberto`; sem isso, um Agrupamento vazio esquecido travaria o Pedido para sempre. Achado do builder check |
+| C17 | **Cada registro composto se estorna inteiro**, numa transação: a contagem (as duas linhas `Medicao`), a remessa (C8), o pedido de liberação, a resposta. A rota genérica de estorno de movimento **recusa** (`EstornoImpossivel`) uma linha que pertence a um desses, como já recusa o Início de pai que consumiu filhos. O mecanismo que liga as linhas de uma contagem é de quem implementa | "4 conformes e 2 não" é uma medição só; estornar metade dela inventaria uma contagem que ninguém fez. Achado do builder check |
+| C18 | **No máximo um pedido de liberação em aberto por Peça.** Para pedir mais, espera-se a resposta, ou estorna-se o pedido e pede-se de novo com a quantidade nova | o cartão e a lista da Gestão mostram "a liberação em aberto", no singular. Achado do builder check |
+| C19 | O conserto vai a **qualquer Setor ativo**, inclusive o Setor Expedição | o usuário: "volta pro setor que precisa corrigir"; quem sabe qual é a Qualidade, e restringir ao Roteiro recusaria a correção feita num Setor que não estava nele. Achado do builder check |
+| C20 | A `/expedicao` tem uma seção **"Remessas recentes"** (as dos últimos 30 dias, mais recente primeiro, com as Peças e quantidades de cada uma), e é **lá** que se estorna uma remessa, inclusive a que concluiu o Pedido. O estorno mostra, antes de confirmar, todas as Peças da remessa e os Pedidos que reabrem. O histórico da Peça mostra a remessa, mas não a estorna | a Peça toda expedida sai da lista, e o estorno da remessa desfaz mais de uma Peça: o lugar certo é a remessa, não a Peça. Achado do builder check |
 
 ## 3. Modelo de dados
 
@@ -230,7 +236,9 @@ Nenhuma coluna nova. Passam a ser escritos, sempre na transação do movimento q
 - `Agrupamento.DataConclusao` e `Pedido.DataConclusao`: a data da remessa que concluiu; limpas pelo estorno
   dela (C13).
 
-Um Agrupamento sem Peças não conclui (não há o que expedir). Pedido `Cancelado` fica fora de tudo isto.
+Um Agrupamento sem Peças não conclui (não há o que expedir) e não segura o Pedido (C16). Pedido `Cancelado`
+fica fora de tudo isto. A edição de estrutura em Pedido rodando também recalcula status e fechamento, e em
+Pedido `Concluido` é recusada (C15).
 
 ### 3.8 `EstruturaItem.RequerRelatorioDimensional`
 
@@ -297,6 +305,8 @@ cobrir:
   justificativa); responder liberação (quantidade liberada, observação); expedir (uma Peça ou um lote,
   cada uma com quantidade, numa remessa só, tudo ou nada); e os estornos (C7).
 - **Liberações pendentes**: as abertas, para a Gestão.
+- **Remessas recentes** (C20): as dos últimos 30 dias, com as linhas de cada uma (Peça, Pedido, quantidade,
+  posição de origem) e `estornavel` para quem lê.
 - A **Fila do Setor** e as **Tarefas** passam a trazer as posições do conserto (C4), com o destino
   calculado: `AguardandoConserto` vai ao Setor escolhido, `ConsertoPronto` vai ao local de expedição.
 - O **livro do nó** (`GET /estrutura/{id}/movimentacoes`) passa a mostrar os tipos novos.
@@ -330,6 +340,10 @@ entrada na tabela do `05`:
 - contar sem aferição válida não conforme, ou além do que está em `NaExpedicao`;
 - conserto, pedido de liberação ou expedição além do saldo da posição;
 - responder liberação já respondida, ou com quantidade acima da pedida;
+- pedir liberação com outra já em aberto na mesma Peça (C18);
+- mandar para conserto em Setor inativo (C19);
+- estornar pela rota genérica uma linha que pertence a um registro composto (C17, `EstornoImpossivel`);
+- edição de estrutura em Pedido `Concluido` (C15, `PedidoFechado`);
 - expedir quantidade acima do expedível (C10: tudo menos `AguardandoLiberacao`);
 - escrita num Pedido `Concluido` ou `Cancelado`, **exceto** estorno de remessa (C13);
 - editar `RequerRelatorioDimensional` com aferição válida.
@@ -356,7 +370,10 @@ Base: o esboço aprovado (D10).
   (quantidade e Setor), **Pedir liberação** (quantidade e justificativa), **Expedir** (quantidade; abre com
   o expedível preenchido, como o "Separar" da Fase 4). O **Expedir** mostra, **antes** de confirmar, o aviso
   do que vai sair sem aferição, sem medição ou não conforme sem liberação (D8), e não trava.
-- **Histórico** da Peça no cartão, com estorno onde `estornavel`.
+- **Histórico** da Peça no cartão, com estorno onde `estornavel` (menos a remessa, que se estorna na seção
+  abaixo).
+- **Remessas recentes** (C20), seção no fim da tela: cada remessa com data, quem expediu, e as Peças e
+  quantidades; o "Estornar remessa" abre um painel que lista o que ela desfaz e os Pedidos que reabrem.
 - **Lote** (C9): seleção de Peças e `BarraDoLote` "Expedir", com a quantidade de cada uma; o aviso do D8
   vale por Peça.
 - Os três estados (carregando, vazio — distinguindo "nada no local de expedição" de "nada casa com o
@@ -400,7 +417,9 @@ Entra "Expedição" (e "Liberações", se for tela própria). O menu já não te
 - **Backend**: cada transição da tabela 3.3, aceita e recusada pelo `CHECK` e pelo caso de uso; a
   conservação da regra 9 depois de cada uma; a tabela 3.2 (o aviso por situação da aferição); a ordem de
   tirada da remessa (C10), inclusive "aguardando liberação não sai"; o fechamento (C12) em Peça,
-  Agrupamento e Pedido, e o estorno que reabre (C13); a escrita recusada em Pedido concluído, menos o
+  Agrupamento e Pedido, e o estorno que reabre (C13); a edição de estrutura que recalcula e a recusada em
+  Pedido concluído (C15); o Agrupamento vazio que não segura o Pedido (C16); o estorno inteiro dos registros
+  compostos e a recusa da rota genérica (C17); a escrita recusada em Pedido concluído, menos o
   estorno de remessa; o status `AguardandoExpedicao` indo e voltando com o conserto; os perfis da 5.2; a
   recusa de lote nomeando a Peça copiada do catálogo; e o `db/alter-fase-5a.sql` abortando com dado.
 - **Front**: os três estados da tela; o aviso do Expedir por situação; cada painel; o lote; o gating por
