@@ -3,6 +3,7 @@ using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Domain.Entities;
 using Rastreamento.Application.Tests.Execucao;
+using Rastreamento.Application.Tests.Expedicao;
 using Xunit;
 
 namespace Rastreamento.Application.Tests.Estrutura;
@@ -20,19 +21,18 @@ public class CriarPecaTests
     // incompleto, nao por regressao. Quem quer o caso negativo (sem solido) sobrescreve
     // explicitamente com `catalogo.Componentes.Clear()` + `ComponenteSemSolido`.
     catalogo.Componentes.Add(ComponenteComSolido(1));
-    // FakePedidoRepo vazio: nenhum destes testes precisa de Pedido de verdade — `_pedidos` so e
-    // consultado e descartado (ver comentario em MontagemDeEstruturaUseCase.CriarPeca), entao
-    // devolver null e inocuo. `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido...` usa o helper
-    // dedicado abaixo, com um Pedido de verdade.
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, new FakePedidoRepo(), new FakeExecucaoRepo(estruturas));
+    // Sem Pedido no fake da execucao: `TravarPedidoAsync` devolve nulo e a Peca e criada sem fechamento a
+    // recalcular. Os testes de status do Pedido (C15) estao em `MontagemDeEstruturaUseCaseTests` e em
+    // `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido...`, que arranja o Pedido de verdade.
+    var execucao = new FakeExecucaoRepo(estruturas);
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, new FakePedidoRepo(), execucao, new FakeExpedicaoRepo(execucao, estruturas));
     return (useCase, estruturas, agrupamentosRepo, catalogo);
   }
 
   /// <summary>
-  /// Variante de <see cref="Montar"/> com um Pedido de verdade, alcancavel pelo caso de uso via
-  /// `IPedidoRepository` — usada so por
-  /// `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido_regra_de_dominio_2026_08_29`, que precisa que
-  /// o Pedido seja de fato consultavel (Minor 7 da review da Task 3).
+  /// Variante de <see cref="Montar"/> com um Pedido de verdade na execucao (Agrupamento e status), que o caso
+  /// de uso trava e le — usada so por
+  /// `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido_regra_de_dominio_2026_08_29`.
   /// </summary>
   private static (MontagemDeEstruturaUseCase UseCase, FakeEstruturaRepo Estruturas) MontarComPedido(
       Agrupamento agrupamento, Pedido pedido)
@@ -44,7 +44,10 @@ public class CriarPecaTests
     // Peca de verdade e morreria por cenario incompleto, nao pela guarda de status que ele quer provar.
     catalogo.Componentes.Add(ComponenteComSolido(1));
     var pedidosRepo = new FakePedidoRepo(pedido);
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo, new FakeExecucaoRepo(estruturas));
+    var execucao = new FakeExecucaoRepo(estruturas);
+    execucao.Agrupamentos[agrupamento.Id] = (agrupamento.Codigo, pedido.Id, pedido.Numero);
+    execucao.StatusDoPedido[pedido.Id] = pedido.Status;
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentosRepo, catalogo, pedidosRepo, execucao, new FakeExpedicaoRepo(execucao, estruturas));
     return (useCase, estruturas);
   }
 
@@ -235,20 +238,9 @@ public class CriarPecaTests
   public async Task Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido_regra_de_dominio_2026_08_29()
   {
     // Decisao de dominio (2026-08-29): cliente grande pede alteracao de projeto com o Pedido JA em
-    // execucao, e acrescentar Peca nova ao pedido rodando e o comportamento PADRAO — nao excecao.
-    //
-    // Minor 7 da review da Task 3: a versao ANTERIOR deste mesmo teste (nao um teste vizinho)
-    // montava um Pedido solto, nunca ligado a nada, e afirmava contra o proprio literal que acabara
-    // de escrever — passava mesmo que o codigo nunca olhasse Status. Hoje o Pedido esta de fato
-    // alcancavel pelo caso de uso (via
-    // `MontarComPedido`, que injeta um `IPedidoRepository` real), com `Status` fora de "Aberto", e
-    // a assercao e sobre o DESFECHO (Sucesso + gravacao), nao sobre o arranjo.
-    //
-    // Medido em 2026-08-29 (ver relatorio do fix pass): trocando o `_ = await _pedidos...` de
-    // `CriarPeca` por `if (pedido?.Status != "Aberto") return Falha(...)`, ESTE teste morre —
-    // `Assert.True(resultado.Sucesso)` falha — e nenhum outro `CriarPecaTests` morre junto (o
-    // `FakePedidoRepo` de `Montar()` fica vazio nos demais, entao a guarda hipotetica nem
-    // dispararia neles). Guarda revertida apos a medicao.
+    // execucao, e acrescentar Peca nova ao pedido rodando e o comportamento PADRAO — nao excecao. O C15
+    // da spec da Fase 5A fecha so o `Concluido` (ver `MontagemDeEstruturaUseCaseTests`). O Pedido aqui esta
+    // de fato na execucao, com `Status` fora de "Aberto": a assercao e sobre o DESFECHO (Sucesso + gravacao).
     var pedido = new Pedido
     {
       Id = 1, Numero = "PED-01", Cliente = "Cliente X", Tipo = "Normal", Status = "EmProducao",

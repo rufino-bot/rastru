@@ -1,7 +1,9 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
+using Rastreamento.Domain.Entities;
 
 namespace Rastreamento.Application.Estrutura;
 
@@ -33,6 +35,7 @@ public sealed class MontagemDeEstruturaUseCase
       "Descricao e obrigatoria para um no sem Componente associado (regra 19).";
 
   private const string StatusAberto = "Aberto";
+  private const string StatusConcluido = "Concluido";
 
   /// <summary>
   /// Piso e sinal na MESMA mensagem: `QuantidadeMinimaDaColuna` (0,0001) ja e maior que zero, entao
@@ -77,6 +80,9 @@ public sealed class MontagemDeEstruturaUseCase
   private const string ErroDeRazaoNaPeca =
       "Peca nao tem pai: quantidade por pai so se informa num Item (regra 26).";
 
+  private const string ErroDeRelatorioSoNaPeca =
+      "A marca de relatório dimensional é da Peça: um Item não a tem (regra 10).";
+
   private static bool RazaoValida(decimal? razao) =>
       razao is decimal r
       && r >= PlanejadorDeCopia.QuantidadeMinimaDaColuna
@@ -88,7 +94,11 @@ public sealed class MontagemDeEstruturaUseCase
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly IPedidoRepository _pedidos;
   private readonly IExecucaoRepository _execucao;
+  private readonly IExpedicaoRepository _expedicao;
   private readonly MontadorDeArvoreDeEstrutura _montador;
+
+  // Recalcula status e fechamento do Pedido depois de uma escrita de estrutura em Pedido rodando (C15).
+  private readonly FechamentoDoPedido _fechamento;
 
   // EditarNo valida a quantidade contra o livro com as MESMAS funcoes que a calculadora ja expoe
   // (SaidoDeAIniciar, TotalMontado) em vez de recalcular a partir de
@@ -99,8 +109,9 @@ public sealed class MontagemDeEstruturaUseCase
 
   public MontagemDeEstruturaUseCase(
       IEstruturaRepository estruturas, IAgrupamentoRepository agrupamentos, IReceitaPadraoRepository catalogo,
-      IPedidoRepository pedidos, IExecucaoRepository execucao)
+      IPedidoRepository pedidos, IExecucaoRepository execucao, IExpedicaoRepository expedicao)
   {
+    _expedicao = expedicao;
     _estruturas = estruturas;
     _agrupamentos = agrupamentos;
     _catalogo = catalogo;
@@ -110,6 +121,7 @@ public sealed class MontagemDeEstruturaUseCase
     // dependencias que o caso de uso ja recebe — nao ha razao para o container conhecer os tipos.
     _montador = new MontadorDeArvoreDeEstrutura(estruturas, catalogo);
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
+    _fechamento = new FechamentoDoPedido(execucao);
   }
 
   public async Task<Result<EstruturaItemDto>> CriarPeca(
@@ -148,21 +160,11 @@ public sealed class MontagemDeEstruturaUseCase
     var (plano, falha) = await PlanejarCopiaDoCatalogo(nova.ComponenteId, nova.Quantidade, ct);
     if (falha is not null) return falha;
 
-    // SEM guarda de status, e isso e decisao de negocio, nao omissao: cliente grande pede alteracao
-    // de projeto com o Pedido JA em execucao, e acrescentar peca nova ao pedido rodando e o
-    // comportamento PADRAO (informacao do usuario, 2026-08-29). O simetrico — o que sai do projeto
-    // "so para de ser produzido" — NAO e desta fase: e a Fase 3, onde "Pedido em execucao" passa a
-    // existir de fato (hoje nenhum Pedido sai de `Aberto`). Ver §2.3 da spec.
-    //
-    // `_pedidos` existe (Minor 7 da review da Task 3) so para que esta decisao seja TESTAVEL: sem
-    // injetar o repositorio, nenhum teste consegue provar que uma guarda futura quebraria — a
-    // decisao ficaria documentada so em comentario, sem forma barata de virar guarda executavel
-    // (a propria review reconhece isso). O valor lido e DESCARTADO de proposito: ler o Pedido aqui
-    // e prova de ALCANCE, nao guarda — se algum dia esta decisao mudar, e este `_ =` que vira o
-    // `if (pedido.Status != "Aberto") ...`. Medido em 2026-08-29 (ver relatorio): acrescentar essa
-    // guarda no lugar do descarte faz `Criar_Peca_em_Pedido_fora_de_Aberto_e_permitido_...` morrer,
-    // sem afetar as outras `CriarPecaTests` (o `FakePedidoRepo` de `Montar()` fica vazio nelas).
-    _ = await _pedidos.ObterPorIdAsync(agrupamento.PedidoId, ct);
+    // Pedido em execucao aceita Peca nova (decisao de 2026-08-29: alteracao de projeto com o Pedido rodando
+    // e o padrao da fabrica), mas Pedido `Concluido` nao (C15 da spec da Fase 5A): quem precisar muda-lo
+    // estorna a ultima remessa. O status e lido DEPOIS de travar o Pedido, dentro da transacao, e a Peca nova
+    // faz o fechamento ser recalculado (um Pedido aguardando expedicao volta a `EmProducao`). Pedido
+    // `Cancelado` segue como era: a escrita passa e o fechamento nao o toca.
 
     var paraGravar = ConverterParaGravar(plano!.Raiz!, ehRaiz: true, nova.RequerRelatorioDimensional);
 
@@ -180,7 +182,14 @@ public sealed class MontagemDeEstruturaUseCase
     // nao e 1205/1222 e sobe cru, como 500. Anterior a esta mudanca.
     return await _execucao.ExecutarAsync(async () =>
     {
+      // Nao ha no a travar (a Peca ainda nao existe): so o Pedido, que e o que o fechamento escreve. Nulo so
+      // se o Pedido sumiu entre a leitura do Agrupamento e aqui, e a FK de `Agrupamento` o impede.
+      var pedido = await _execucao.TravarPedidoAsync(agrupamento.PedidoId, ct);
+      if (pedido?.Status == StatusConcluido) return Falhas.PedidoFechado<EstruturaItemDto>();
+
       var raizId = await _estruturas.GravarArvoreAsync(agrupamentoId, null, paraGravar, ct);
+      if (pedido is not null && pedido.Status != StatusAberto)
+        await _fechamento.RecalcularAsync([pedido.Id], DateTime.UtcNow, ct);
 
       var arvore = await _montador.MontarAsync(agrupamentoId, ct);
       return Result<EstruturaItemDto>.Ok(arvore.Single(i => i.Id == raizId));
@@ -218,9 +227,10 @@ public sealed class MontagemDeEstruturaUseCase
   ///   roteiro — e por isso PRECISA de `Descricao` propria (regra 19): sem Componente para herdar
   ///   dela, um no sem descricao chegaria anonimo a tela do operador.
   ///
-  /// SEM guarda de status do Pedido, pelo mesmo motivo que `CriarPeca` nao tem: acrescentar
-  /// estrutura ao Pedido em execucao e o comportamento PADRAO da fabrica, nao excecao — ver o
-  /// comentario em `CriarPeca`. A assimetria com `ExcluirNo` (que CHECA status) e deliberada.
+  /// Pedido em execucao aceita (comportamento PADRAO da fabrica, nao excecao), `Concluido` nao (C15 da spec
+  /// da Fase 5A) — ver o comentario em `CriarPeca`. Nao recalcula o fechamento: um filho nao muda a
+  /// quantidade de nenhuma Peca nem o que ela ja expediu. A assimetria com `ExcluirNo` (que exige `Aberto`) e
+  /// deliberada.
   /// </summary>
   public async Task<Result<EstruturaItemDto>> AcrescentarFilho(int paiId, NovoFilhoDto novo, CancellationToken ct)
   {
@@ -283,6 +293,12 @@ public sealed class MontagemDeEstruturaUseCase
       var travado = await _execucao.TravarNosAsync([paiId], ct);
       if (travado.Count == 0)
         return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+      // O Pedido e travado depois do no e lido depois da trava: serializa com quem fecha o Pedido (a remessa,
+      // o estorno), que le as Pecas do Agrupamento sob a mesma ordem de aquisicao.
+      await _execucao.TravarPedidosDosNosAsync([paiId], ct);
+      if ((await _execucao.ObterPedidoDoNoAsync(paiId, ct))?.Status == StatusConcluido)
+        return Falhas.PedidoFechado<EstruturaItemDto>();
+
       var estado = await _leitor.CarregarAsync(travado, ct);
       if (estado.Calc.SaidoDeAIniciar(paiId) > 0m)
         return Result<EstruturaItemDto>.Falha(CodigosDaExecucao.PaiJaIniciado, TipoDeErro.Conflito,
@@ -321,6 +337,11 @@ public sealed class MontagemDeEstruturaUseCase
     {
       if ((await _execucao.TravarNosAsync([id], ct)).Count == 0)
         return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
+      // O Pedido depois do no (spec da Fase 3, secao 8.1) e lido depois da trava: `Concluido` recusa (C15), e
+      // o fechamento recalculado abaixo escreve nele.
+      var pedidosTravados = await _execucao.TravarPedidosDosNosAsync([id], ct);
+      var statusDoPedido = (await _execucao.ObterPedidoDoNoAsync(id, ct))?.Status;
+      if (statusDoPedido == StatusConcluido) return Falhas.PedidoFechado<EstruturaItemDto>();
       // Rastreado, e lido DEPOIS da trava: e esta instancia que o SaveChanges grava.
       var no = await _estruturas.ObterPorIdAsync(id, ct);
       if (no is null) return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
@@ -329,6 +350,22 @@ public sealed class MontagemDeEstruturaUseCase
         return Result<EstruturaItemDto>.Falha(ErroDeRazaoInvalida, TipoDeErro.Validacao);
       if (no.NivelHierarquico == "Peca" && edicao.QuantidadePorPai is not null)
         return Result<EstruturaItemDto>.Falha(ErroDeRazaoNaPeca, TipoDeErro.Validacao);
+
+      // C14: a marca e da Peca, e so muda enquanto ela nao tem afericao valida. Repetir o valor atual nao e
+      // mudar (o cliente reenvia a marca junto da quantidade), entao nao pesa a afericao.
+      if (edicao.RequerRelatorioDimensional is bool marca)
+      {
+        if (no.NivelHierarquico != "Peca")
+          return Result<EstruturaItemDto>.Falha(
+              CodigosDaExpedicao.RelatorioSoNaPeca, TipoDeErro.Validacao, ErroDeRelatorioSoNaPeca);
+        if (marca != no.RequerRelatorioDimensional
+            && CalculoDaExpedicao.AfericaoValida(await _expedicao.ListarAfericoesAsync([id], ct)) is not null)
+        {
+          var nome = (await _leitor.CarregarAsync([no], ct)).Nome(id);
+          return Result<EstruturaItemDto>.Falha(CodigosDaExpedicao.ComAfericao, TipoDeErro.Conflito,
+              $"{nome} já tem aferição válida: estorne a aferição antes de mudar a exigência do relatório dimensional.");
+        }
+      }
 
       var descricao = string.IsNullOrWhiteSpace(edicao.Descricao) ? null : edicao.Descricao.Trim();
       if (no.ComponenteId is null && descricao is null)
@@ -346,7 +383,11 @@ public sealed class MontagemDeEstruturaUseCase
       no.Descricao = descricao;
       no.Quantidade = edicao.Quantidade;
       no.QuantidadePorPai = edicao.QuantidadePorPai;
+      if (edicao.RequerRelatorioDimensional is bool novaMarca) no.RequerRelatorioDimensional = novaMarca;
       await _estruturas.SalvarAlteracoesAsync(ct);
+      // Mexer na quantidade da Peca muda o que falta expedir: o status e o fechamento saem do livro de novo (C15).
+      if (no.NivelHierarquico == "Peca" && statusDoPedido is not (null or StatusAberto))
+        await _fechamento.RecalcularAsync(pedidosTravados, DateTime.UtcNow, ct);
 
       var arvore = await _montador.MontarAsync(no.AgrupamentoId, ct);
       var noEditado = BuscarNo(arvore, id)

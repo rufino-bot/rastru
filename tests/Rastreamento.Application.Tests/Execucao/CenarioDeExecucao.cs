@@ -153,7 +153,7 @@ internal sealed class CenarioDeExecucao
             Id = PedidoId, Numero = "PED-01", Cliente = "Cliente", Tipo = "Normal",
             Status = Execucao.StatusDoPedido[PedidoId], DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = Pcp,
           }),
-          Execucao);
+          Execucao, Expedicao);
 
   public ConsultaDeExecucaoUseCase Consulta() =>
       new(Execucao, Estruturas, Setores,

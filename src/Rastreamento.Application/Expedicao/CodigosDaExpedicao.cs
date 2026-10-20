@@ -21,6 +21,7 @@ public static class CodigosDaExpedicao
   public const string LiberacaoNaoPendente = nameof(LiberacaoNaoPendente);
   public const string QuantidadeAcimaDaPedida = nameof(QuantidadeAcimaDaPedida);
   public const string ComAfericao = nameof(ComAfericao);
+  public const string RelatorioSoNaPeca = nameof(RelatorioSoNaPeca);
 
   /// <summary>O teto da justificativa do pedido de liberacao e da observacao da resposta (C6).</summary>
   public const int TamanhoMaximoDoTexto = 500;
