@@ -91,8 +91,10 @@ campo novo nasce lá primeiro. Este plano roda **depois** do plano 1, na mesma b
   mesma tabela.
 - **Q3 — Os códigos novos entram em `CodigoDeErroDaExecucao`** com tradução no `TRADUCAO_DOS_CODIGOS`, como os da
   separação.
-- **Q4 — O conserto entra no lote das Tarefas** como mais um item com origem, porque `POST /entregas` já leva a origem.
-  Na Fila, "Terminar conserto" é individual (a rota não tem lote, P6 do plano 1).
+- **Q4 — O conserto entra nos lotes de sempre.** Nas Tarefas, como mais um item com origem (`POST /entregas` já leva
+  a origem). Na Fila, a linha `EmConserto` tem a caixa e entra na `BarraDoLote` "Terminar" junto das de "Em trabalho",
+  com `conserto: true` e sem `ordem` (P6 do plano 1); o "Terminar conserto" da linha continua para uma só. Pedido do
+  usuário em 2026-10-20.
 - **Q5 — Permissões num hook próprio**, `usePermissoesDaExpedicao` (`registrar`, `responder`,
   `podeEstornar(autorId)`), no molde de `usePermissoesDaSeparacao`.
 
@@ -343,6 +345,7 @@ it('seção Conserto mostra o que está em conserto com Terminar conserto')
 it('Terminar conserto manda POST /estrutura/{id}/terminos-de-conserto com o Setor e a quantidade')
 it('o pronto do conserto aparece como "{q} pronto, aguardando levar à expedição", sem ação')
 it('sem permissão de apontamento não há Terminar conserto')
+it('a linha em conserto entra no lote Terminar com conserto true e sem ordem, junto de uma de Em trabalho')
 // TarefasPage
 it('seção Conserto lista a ida e a volta com os rótulos exatos')
 it('entregar um conserto manda a origem AguardandoConserto com o Setor e sem ordem')
@@ -357,7 +360,8 @@ it('409 ComAfericao aparece no painel do nó')
 
 - [ ] **Step 2: Rodar e ver falhar.**
 - [ ] **Step 3: Implementar.** A seção "Conserto" da Fila vem depois de "Aguardando coleta"; a das Tarefas, antes dos
-  Kits. `loteDaFila` ganha o item de conserto com a origem dele.
+  Kits. `loteDaFila` ganha o item de conserto nos dois lotes: no de término (`conserto: true`, sem `ordem`) e no de entrega
+  (com a origem).
 - [ ] **Step 4: Rodar** `npm test -- --run` e `npm run build`.
 - [ ] **Step 5: Commit** — `feat(fase-5a): conserto na Fila e nas Tarefas, status do Pedido e marca do relatorio`.
 

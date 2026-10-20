@@ -111,8 +111,12 @@ da própria task.
   nós, a ordem fixa da spec da Fase 3, seção 8.1) **só** quando algum nó da lista é Peça.
 - **P5 — O aviso da remessa é calculado no backend e devolvido no `201`**, e o front mostra a prévia com uma cópia da
   ordem C10 (plano 2). O backend não pede confirmação: o D8 é "não trava".
-- **P6 — Terminar conserto é rota própria** (`POST /estrutura/{id}/terminos-de-conserto`), sem lote: o `TerminoDto`
-  carrega `Ordem`, que o conserto não tem.
+- **P6 — Terminar conserto tem rota individual e entra no lote de término.** A individual é
+  `POST /estrutura/{id}/terminos-de-conserto` (o `TerminoDto` carrega `Ordem`, que o conserto não tem). No lote,
+  `ItemDeTerminoDto` ganha `bool Conserto = false`: com `true`, o item vem **sem** `Ordem` (com `Ordem` é `400
+  OrigemInvalida`) e termina `EmConserto` → `ConsertoPronto` no Setor do lote; o mesmo `POST /terminos` mistura itens
+  normais e de conserto, tudo ou nada. Pedido do usuário em 2026-10-20: o operador termina o conserto como termina o
+  resto, pela caixa e pela barra do lote.
 - **P7 — Quatro controllers novos**, um por conjunto de perfis (a guarda de espelhamento do front compara um arquivo
   com UMA entrada de `permissoes.ts`): `ExpedicaoController` (`expedicao`), `LiberacaoController`
   (`liberacao`), `EstornoDaExpedicaoController` (`estornoDaExpedicao`) e as leituras sem `Roles` nos mesmos arquivos.
@@ -215,6 +219,8 @@ camelCase. Decimais como número. `dataHora` ISO 8601 com `-03:00`; `dataEntrega
 
 // POST /estrutura/{id}/terminos-de-conserto  (Operador) → 201 MovimentacaoDto
 { "setorId": 2, "quantidade": 1 }
+// POST /terminos (existe): item novo de conserto, sem ordem
+{ "setorId": 2, "itens": [ { "estruturaItemId": 42, "ordem": null, "quantidade": 1, "conserto": true } ] }
 // POST /entregas (existe): origem nova { "posicao": "AguardandoConserto" | "ConsertoPronto", "setorId": 2, "ordem": null }
 
 // GET /setores/{id}/fila: campo novo no fim
@@ -661,12 +667,14 @@ void Escrita_de_estrutura_em_Pedido_Concluido_e_recusada(string operacao)   // 4
 **Files:**
 - Modify: `src/Rastreamento.Application/Execucao/{EntregaUseCase,ApontamentoUseCase,ConsultaDeExecucaoUseCase,ExecucaoDtos}.cs`
 - Modify: `src/Rastreamento.Api/Controllers/ApontamentoController.cs`
-- Test: `tests/Rastreamento.Application.Tests/Execucao/{EntregaUseCaseTests,ApontamentoUseCaseTests,ConsultaDeExecucaoUseCaseTests}.cs`,
+- Test: `tests/Rastreamento.Application.Tests/Execucao/{EntregaUseCaseTests,ApontamentoUseCaseTests,ConsultaDeExecucaoUseCaseTests,LoteDeApontamentoTests}.cs`,
   `tests/Rastreamento.Api.Tests/ExpedicaoEndpointsTests.cs`
 
 **Interfaces:**
 - Consumes: Task 6 (para ter o que está em `AguardandoConserto`), `FechamentoDoPedido`.
-- Produces: `TerminoDeConsertoDto(int SetorId, decimal Quantidade)`;
+- Produces: `TerminoDeConsertoDto(int SetorId, decimal Quantidade)`; `ItemDeTerminoDto(int EstruturaItemId, int? Ordem,
+  decimal Quantidade, bool Conserto = false)` (o `Ordem` passa a anulável; item normal sem `Ordem` é `400
+  OrigemInvalida`);
   `ApontamentoUseCase.TerminarConserto(int noId, TerminoDeConsertoDto dto, int usuarioId, CancellationToken ct) →
   Task<Result<MovimentacaoDto>>`; rota `POST estrutura/{id}/terminos-de-conserto` (`Operador,Administrador`);
   `LinhaDeConsertoDto(NoResumoDto No, string Posicao, decimal Quantidade, IReadOnlyList<EstornavelDto> Estornaveis)`;
@@ -687,6 +695,11 @@ void Escrita_de_estrutura_em_Pedido_Concluido_e_recusada(string operacao)   // 4
 [Fact] Terminar_conserto_move_de_EmConserto_para_ConsertoPronto
 [Fact] Terminar_conserto_acima_do_saldo_e_recusado                 // 409 SaldoInsuficiente
 [Fact] Terminar_conserto_em_Pedido_pausado_passa                   // a pausa recusa só o início
+// LoteDeApontamentoTests
+[Fact] Lote_de_termino_mistura_item_normal_e_conserto              // as duas linhas gravadas numa transação
+[Fact] Item_de_conserto_com_ordem_e_recusado                       // 400 OrigemInvalida
+[Fact] Item_normal_sem_ordem_e_recusado                            // 400 OrigemInvalida
+[Fact] Lote_com_conserto_acima_do_saldo_nao_grava_nada             // tudo ou nada; a frase nomeia a Peça
 // ConsultaDeExecucaoUseCaseTests
 [Fact] Fila_mostra_EmConserto_e_ConsertoPronto_na_lista_conserto
 [Fact] Tarefas_mostram_a_ida_e_a_volta_do_conserto_com_origem_e_destino
