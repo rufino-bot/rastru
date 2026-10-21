@@ -209,7 +209,7 @@ describe('tarefas', () => {
     { setorId: 3, setorNome: 'Pintura', itens: [item(P1_CH6)] },
   ]
 
-  const soGrupos = (grupos: TarefasDoSetorDto[]): TarefasDto => ({ grupos, kitsMontaveis: [], kitsIncompletos: [] })
+  const soGrupos = (grupos: TarefasDoSetorDto[]): TarefasDto => ({ grupos, kitsMontaveis: [], kitsIncompletos: [], consertos: [] })
 
   const filhoDoKit = (n: ReturnType<typeof no>, pronto: number): FilhoDoKitDto => ({
     no: n, quantidadePorPai: 1, origem: { id: 1, nome: 'Corte' }, ordem: 1, pronto, jaNoDestino: false,
@@ -240,7 +240,7 @@ describe('tarefas', () => {
   })
 
   it('facetas das tarefas contam cada Kit uma vez, montável ou incompleto, pelo pai e pelos filhos prontos', () => {
-    const tarefas: TarefasDto = { grupos: GRUPOS, kitsMontaveis: [KIT_CH6], kitsIncompletos: [KIT_CH3_NAO_PRONTO] }
+    const tarefas: TarefasDto = { grupos: GRUPOS, kitsMontaveis: [KIT_CH6], kitsIncompletos: [KIT_CH3_NAO_PRONTO], consertos: [] }
 
     // Pedido 2: os 3 itens e o Kit de CHAPA_6; Pedido 1: os 3 itens e o Kit incompleto.
     expect(contagens(faceta(facetasDasTarefas(tarefas, {}), 'pedido'))).toEqual({ 1: 4, 2: 4 })

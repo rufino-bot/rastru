@@ -63,6 +63,12 @@ export interface EdicaoDeNo {
   quantidade: number
   /** Obrigatória no Item e `null` na Peça (regra 26) — o backend recusa com 400 o contrário. */
   quantidadePorPai: number | null
+  /**
+   * A marca do relatório dimensional, só numa Peça (regra 10, Fase 5A): ausente ou `null` MANTÉM a marca, e repetir
+   * o valor atual não é mudar. Num Item o backend recusa com 400 `RelatorioSoNaPeca`; mudá-la numa Peça com
+   * aferição válida é 409 `ComAfericao`.
+   */
+  requerRelatorioDimensional?: boolean | null
 }
 
 /**
@@ -78,7 +84,9 @@ export interface EdicaoDeNo {
  * §8.1): os dois podem responder `ConflitoDeConcorrencia`, e `EditarNo` também
  * `QuantidadeAbaixoDoMovimentado` (reduzir abaixo do que já andou, spec §4.7). Sem os dois aqui,
  * `lerNoOuConflito` trataria esse 409 como "formato inesperado" e a frase do servidor se perderia.
- * Desde a Fase 3B, `acrescentarFilho` também responde `PaiJaIniciado` (D1 da spec da Fase 3B).
+ * Desde a Fase 3B, `acrescentarFilho` também responde `PaiJaIniciado` (D1 da spec da Fase 3B). Desde a Fase 5A,
+ * `criarPeca`, `acrescentarFilho` e `editarNo` respondem `PedidoFechado` (C15: a estrutura de um Pedido concluído
+ * não se edita) e `editarNo` responde `ComAfericao` (C14), os dois com `mensagem`.
  */
 export type CodigoDeConflitoDeEstrutura =
   | 'CicloNaReceita'
@@ -89,6 +97,8 @@ export type CodigoDeConflitoDeEstrutura =
   | 'ConflitoDeConcorrencia'
   | 'PaiJaIniciado'
   | 'NoComSeparacao'
+  | 'PedidoFechado'
+  | 'ComAfericao'
 
 /**
  * Corpo do 409 dos endpoints de escrita da árvore: `{ "erro": "<código>", "mensagem": "<frase>" }`.
@@ -111,6 +121,7 @@ export interface ConflitoDeEstrutura {
 const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
   'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado', 'NoComSeparacao',
+  'PedidoFechado', 'ComAfericao',
 ]
 
 export function ehConflitoDeEstrutura(r: unknown): r is ConflitoDeEstrutura {

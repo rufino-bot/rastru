@@ -33,7 +33,7 @@ export const DESTINO_MONTAGEM = destino({ tipo: 'Montagem', setorId: 4, setorNom
 export function fila(parcial: Partial<FilaDoSetorDto> = {}): FilaDoSetorDto {
   return {
     setorId: 1, setorNome: 'Corte', setorAtividade: null,
-    aIniciar: [], emTrabalho: [], aguardandoColeta: [], aguardandoMontagem: [], sobra: [],
+    aIniciar: [], emTrabalho: [], aguardandoColeta: [], aguardandoMontagem: [], sobra: [], conserto: [],
     ...parcial,
   }
 }
@@ -45,6 +45,7 @@ export function movimentacao(parcial: Partial<MovimentacaoDto> = {}): Movimentac
     destino: { posicao: 'NoSetor', setorId: 1, setorNome: 'Corte', ordem: 1 },
     montagemId: null, estornoDeId: null, dataHora: '2026-09-25T10:14:00-03:00',
     usuarioId: 12, usuarioNome: 'Operador do Corte', estornada: false,
+    contagemId: null, liberacaoId: null, remessaId: null,
     ...parcial,
   }
 }

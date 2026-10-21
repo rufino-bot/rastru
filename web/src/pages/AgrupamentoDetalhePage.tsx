@@ -66,6 +66,10 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   // Fase 4: nó com linha de separação na subárvore, ainda que estornada (regra 34). `excluirNo` devolve só o
   // código e descarta a `mensagem` do servidor, então a frase mostrada é sempre esta.
   NoComSeparacao: 'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
+  // Fase 5A: `PedidoFechado` é de criar, acrescentar e editar, e `ComAfericao` é só do editar; o `excluirNo`
+  // não os emite, mas o `Record` é exaustivo sobre o tipo inteiro.
+  PedidoFechado: 'Não foi possível excluir: o pedido está concluído ou cancelado.',
+  ComAfericao: 'Não foi possível excluir: conflito na estrutura.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 

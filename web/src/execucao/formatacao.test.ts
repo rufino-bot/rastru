@@ -100,6 +100,36 @@ describe('rotuloDoSaldo', () => {
   ])('%o vira "%s"', (saldo, texto) => {
     expect(rotuloDoSaldo(saldo)).toBe(texto)
   })
+
+  // Fase 5A: as oito posições novas do fim do caminho. As três do conserto nomeiam o Setor.
+  it.each([
+    ['AguardandoConserto', '1 aguardando levar ao conserto em Dobra'],
+    ['EmConserto', '1 em conserto em Dobra'],
+    ['ConsertoPronto', '1 pronto do conserto em Dobra'],
+    ['Conforme', '1 conforme no local de expedição'],
+    ['NaoConforme', '1 não conforme no local de expedição'],
+    ['AguardandoLiberacao', '1 aguardando liberação'],
+    ['Liberada', '1 liberada pela Gestão'],
+    ['Expedido', '1 expedido'],
+  ] as const)('rotuloDoSaldo de %s', (posicao, texto) => {
+    const doConserto = ['AguardandoConserto', 'EmConserto', 'ConsertoPronto'].includes(posicao)
+    const setor = doConserto
+      ? { setorId: 2, setorNome: 'Dobra' }
+      : { setorId: null, setorNome: null }
+
+    expect(rotuloDoSaldo({ posicao, ...setor, ordem: null, quantidade: 1 })).toBe(texto)
+  })
+
+  it('concorda o que é adjetivo no plural, e deixa em paz o que não é', () => {
+    const vazio = { setorId: null, setorNome: null, ordem: null }
+
+    expect(rotuloDoSaldo({ ...vazio, posicao: 'Conforme', quantidade: 2 })).toBe('2 conformes no local de expedição')
+    expect(rotuloDoSaldo({ ...vazio, posicao: 'NaoConforme', quantidade: 3 })).toBe('3 não conformes no local de expedição')
+    expect(rotuloDoSaldo({ ...vazio, posicao: 'Liberada', quantidade: 2 })).toBe('2 liberadas pela Gestão')
+    expect(rotuloDoSaldo({ ...vazio, posicao: 'Expedido', quantidade: 2.5 })).toBe('2,5 expedidos')
+    expect(rotuloDoSaldo({ posicao: 'EmConserto', setorId: 2, setorNome: 'Dobra', ordem: null, quantidade: 2 }))
+      .toBe('2 em conserto em Dobra')
+  })
 })
 
 describe('rotuloDoLocal', () => {
@@ -112,6 +142,15 @@ describe('rotuloDoLocal', () => {
     [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null }, 'aguardando a montagem do pai em Solda'],
     [{ ...vazio, posicao: 'NaExpedicao' as const }, 'local de expedição'],
     [{ ...vazio, posicao: 'Montado' as const }, 'montado no pai'],
+    [{ posicao: 'AguardandoConserto' as const, setorId: 2, setorNome: 'Dobra', ordem: null },
+      'aguardando levar ao conserto em Dobra'],
+    [{ posicao: 'EmConserto' as const, setorId: 2, setorNome: 'Dobra', ordem: null }, 'conserto em Dobra'],
+    [{ posicao: 'ConsertoPronto' as const, setorId: 2, setorNome: 'Dobra', ordem: null }, 'pronto do conserto em Dobra'],
+    [{ ...vazio, posicao: 'Conforme' as const }, 'local de expedição (conforme)'],
+    [{ ...vazio, posicao: 'NaoConforme' as const }, 'local de expedição (não conforme)'],
+    [{ ...vazio, posicao: 'AguardandoLiberacao' as const }, 'local de expedição (aguardando liberação)'],
+    [{ ...vazio, posicao: 'Liberada' as const }, 'local de expedição (liberada pela Gestão)'],
+    [{ ...vazio, posicao: 'Expedido' as const }, 'expedido'],
   ])('%o vira "%s"', (local, texto) => {
     expect(rotuloDoLocal(local)).toBe(texto)
   })
@@ -121,6 +160,11 @@ describe('rotuloDoTipo', () => {
   it('põe acento e chama a baixa de filho pelo que ela é', () => {
     expect((['Inicio', 'Termino', 'Entrega', 'Montagem', 'Estorno'] as const).map(rotuloDoTipo))
       .toEqual(['Início', 'Término', 'Entrega', 'Baixa de montagem', 'Estorno'])
+  })
+
+  it('rotuloDoTipo traduz os seis tipos novos', () => {
+    expect((['Medicao', 'Conserto', 'PedidoDeLiberacao', 'Liberacao', 'Recusa', 'Expedicao'] as const).map(rotuloDoTipo))
+      .toEqual(['Medição', 'Conserto', 'Pedido de liberação', 'Liberação', 'Recusa', 'Expedição'])
   })
 })
 
@@ -146,12 +190,22 @@ describe('rotuloDoEstornavel', () => {
     expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Inicio' })).toBe('Início de 5 · Operador do Corte · 28/09/2026 10:14')
     expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Montagem' })).toBe('Início de 5 (com o consumo dos filhos) · Operador do Corte · 28/09/2026 10:14')
   })
+
+  it('a ida ao conserto é uma entrega', () => {
+    // Fase 5A: a linha `EmConserto` da Fila traz como registro estornável a Entrega que pôs a Peça no Setor.
+    expect(rotuloDoEstornavel({ ...TERMINO, tipo: 'Entrega' })).toBe('Entrega de 5 · Operador do Corte · 28/09/2026 10:14')
+  })
 })
 
 describe('mensagemDoEstorno', () => {
   it('confirma o registro e diz o que acontece', () => {
     expect(mensagemDoEstorno(TERMINO))
       .toBe('Estornar o término de 5, registrado por Operador do Corte em 28/09/2026 10:14? O movimento inverso fica no histórico.')
+  })
+
+  it('na entrega do conserto, concorda o artigo', () => {
+    expect(mensagemDoEstorno({ ...TERMINO, tipo: 'Entrega' }))
+      .toBe('Estornar a entrega de 5, registrado por Operador do Corte em 28/09/2026 10:14? O movimento inverso fica no histórico.')
   })
 
   it('no início de um pai, diz que o pai volta a "a iniciar" e os filhos a aguardar montagem', () => {

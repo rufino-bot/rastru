@@ -51,7 +51,7 @@ const COMPONENTE_SEM_SOLIDO_BUSCA: ComponenteDto = { id: 20, codigo: 'SF-050', d
 /** `AgrupamentoDto` que `GET /agrupamentos/21` devolve — Task 8b, o cabeçalho da tela. */
 const AGRUPAMENTO: AgrupamentoDto = {
   id: 21, pedidoId: 4, pedidoNumero: 'PED-2026-01', codigo: 'AGR-01', tipo: 'Kit',
-  criadoEm: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1,
+  criadoEm: '2026-07-28T09:30:00-03:00', criadoPorUsuarioId: 1, dataConclusao: null,
 }
 
 /** O que a árvore mostra depois de um `acrescentarFilho` bem-sucedido em `PECA` — só usado pelo

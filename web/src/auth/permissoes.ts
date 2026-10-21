@@ -13,9 +13,12 @@ export type Recurso =
   | 'separacao'
   | 'estornoDeSeparacao'
   | 'materiaisDoNo'
+  | 'expedicao'
+  | 'liberacao'
+  | 'estornoDaExpedicao'
 
 /**
- * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-10-16.
+ * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-10-21.
  *
  * **Isto é conveniência de interface, não segurança.** A autorização real é do backend e continua
  * sendo: esconder um botão não impede requisição nenhuma. O que esta tabela evita é o usuário
@@ -56,7 +59,8 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   roteiro: ['PCP', 'Administrador'],
   // Quem PODE ser autor de um registro, mais o PCP. O botão ainda compara o autor, e quem decide é o
   // 403 `Proibido` do backend.
-  estorno: ['Operador', 'Movimentador', 'PCP', 'Administrador'],
+  // Desde a Fase 5A a Qualidade também: ela manda a Peça para o conserto e o estorna pela rota genérica da movimentação.
+  estorno: ['Operador', 'Movimentador', 'Qualidade', 'PCP', 'Administrador'],
   // Pausar e retomar um Pedido (Fase 3D): PCP e Gestão — a primeira escrita da Gestão. Não é
   // `pedidos`: os perfis divergem (o cadastro de Pedido é só do PCP).
   pausa: ['PCP', 'Gestao', 'Administrador'],
@@ -69,6 +73,15 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   // Editar os materiais planejados de um nó (`PUT /estrutura/{id}/materiais`). Não é `estrutura`, embora os
   // perfis hoje coincidam — mesmo motivo do comentário de `estrutura`.
   materiaisDoNo: ['PCP', 'Administrador'],
+  // Fase 5A — aferir, contar, mandar para conserto, pedir liberação e expedir (`ExpedicaoController`): a Qualidade, que
+  // é a pessoa da expedição.
+  expedicao: ['Qualidade', 'Administrador'],
+  // Responder ao pedido de liberação (`LiberacaoController`): só a Gestão decide liberar o que a Qualidade reprovou.
+  liberacao: ['Gestao', 'Administrador'],
+  // Estornar a aferição, a contagem, a liberação e a remessa (`EstornoDaExpedicaoController`): quem pode ser autor de
+  // um deles, mais o PCP. Não é `expedicao` nem `liberacao`: os perfis divergem. O botão ainda compara o autor, e quem
+  // decide é o 403 `Proibido` do backend.
+  estornoDaExpedicao: ['Qualidade', 'Gestao', 'PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

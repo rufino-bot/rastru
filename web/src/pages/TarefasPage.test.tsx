@@ -32,7 +32,7 @@ const TAREFAS: TarefasDoSetorDto[] = [
 ]
 
 function tarefas(grupos: TarefasDoSetorDto[], montaveis: KitDto[] = [], incompletos: KitDto[] = []): TarefasDto {
-  return { grupos, kitsMontaveis: montaveis, kitsIncompletos: incompletos }
+  return { grupos, kitsMontaveis: montaveis, kitsIncompletos: incompletos, consertos: [] }
 }
 
 function filhoDoKit(parcial: Partial<FilhoDoKitDto> = {}): FilhoDoKitDto {

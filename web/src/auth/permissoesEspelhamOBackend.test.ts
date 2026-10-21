@@ -48,6 +48,9 @@ const CONTROLLERS_POR_RECURSO: Record<Recurso, readonly string[]> = {
   separacao: ['SeparacaoController.cs'],
   estornoDeSeparacao: ['EstornoDeSeparacaoController.cs'],
   materiaisDoNo: ['MateriaisDoNoController.cs'],
+  expedicao: ['ExpedicaoController.cs'],
+  liberacao: ['LiberacaoController.cs'],
+  estornoDaExpedicao: ['EstornoDaExpedicaoController.cs'],
 }
 
 /**

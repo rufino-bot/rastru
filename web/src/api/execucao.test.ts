@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   obterFila, listarTarefas, contarTarefas, obterPosicoes, obterLivroDoNo, obterRoteiroDoNo,
-  iniciar, terminar, iniciarEmLote, terminarEmLote, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
+  iniciar, terminar, terminarConserto, iniciarEmLote, terminarEmLote, entregar, estornarMovimentacao, estornarMontagem, estornar, substituirRoteiroDoNo,
   ehConflito, pausarPedido, retomarPedido, type Estornavel,
 } from './execucao'
 import { aoMudarOLivro } from './sinalDoLivro'
@@ -45,6 +45,19 @@ describe('execucao', () => {
       }],
     ['terminarEmLote', () => terminarEmLote(1, [{ estruturaItemId: 7, ordem: 1, quantidade: 4 }]),
       '/api/terminos', 'POST', { setorId: 1, itens: [{ estruturaItemId: 7, ordem: 1, quantidade: 4 }] }],
+    // Fase 5A: o conserto não tem passo, então não leva `ordem` — e nem a rota própria nem o item do lote a mandam.
+    ['terminarConserto', () => terminarConserto(7, { setorId: 2, quantidade: 1 }),
+      '/api/estrutura/7/terminos-de-conserto', 'POST', { setorId: 2, quantidade: 1 }],
+    ['terminarEmLote com item de conserto',
+      () => terminarEmLote(2, [{ estruturaItemId: 7, ordem: null, quantidade: 1, conserto: true }]),
+      '/api/terminos', 'POST', { setorId: 2, itens: [{ estruturaItemId: 7, ordem: null, quantidade: 1, conserto: true }] }],
+    ['entregar a ida ao conserto', () => entregar([{
+      estruturaItemId: 7, origem: { posicao: 'AguardandoConserto', setorId: 2, ordem: null }, quantidade: 1,
+    }]), '/api/entregas', 'POST', {
+      itens: [{
+        estruturaItemId: 7, origem: { posicao: 'AguardandoConserto', setorId: 2, ordem: null }, quantidade: 1,
+      }],
+    }],
     ['entregar', () => entregar([{
       estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4,
     }]), '/api/entregas', 'POST', {

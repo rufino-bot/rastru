@@ -73,8 +73,16 @@ export function rotuloDoSaldo(s: SaldoDto): string {
     case 'NoSetor': return `${q} em ${s.setorNome} (passo ${s.ordem})`
     case 'AguardandoColeta': return `${q} aguardando coleta em ${s.setorNome} (passo ${s.ordem})`
     case 'AguardandoMontagem': return `${quantidadeConcordada(s.quantidade, 'pronto', 'prontos')}, aguardando a montagem do pai em ${s.setorNome}`
+    case 'AguardandoConserto': return `${q} aguardando levar ao conserto em ${s.setorNome}`
+    case 'EmConserto': return `${q} em conserto em ${s.setorNome}`
+    case 'ConsertoPronto': return `${q} pronto do conserto em ${s.setorNome}`
     case 'NaExpedicao': return `${q} no local de expedição`
+    case 'Conforme': return `${quantidadeConcordada(s.quantidade, 'conforme', 'conformes')} no local de expedição`
+    case 'NaoConforme': return `${quantidadeConcordada(s.quantidade, 'não conforme', 'não conformes')} no local de expedição`
+    case 'AguardandoLiberacao': return `${q} aguardando liberação`
+    case 'Liberada': return `${quantidadeConcordada(s.quantidade, 'liberada', 'liberadas')} pela Gestão`
     case 'Montado': return `${q} montados no pai`
+    case 'Expedido': return quantidadeConcordada(s.quantidade, 'expedido', 'expedidos')
   }
 }
 
@@ -85,8 +93,16 @@ export function rotuloDoLocal(l: LocalDto): string {
     case 'NoSetor': return `${l.setorNome} (passo ${l.ordem})`
     case 'AguardandoColeta': return `aguardando coleta em ${l.setorNome} (passo ${l.ordem})`
     case 'AguardandoMontagem': return `aguardando a montagem do pai em ${l.setorNome}`
+    case 'AguardandoConserto': return `aguardando levar ao conserto em ${l.setorNome}`
+    case 'EmConserto': return `conserto em ${l.setorNome}`
+    case 'ConsertoPronto': return `pronto do conserto em ${l.setorNome}`
     case 'NaExpedicao': return 'local de expedição'
+    case 'Conforme': return 'local de expedição (conforme)'
+    case 'NaoConforme': return 'local de expedição (não conforme)'
+    case 'AguardandoLiberacao': return 'local de expedição (aguardando liberação)'
+    case 'Liberada': return 'local de expedição (liberada pela Gestão)'
     case 'Montado': return 'montado no pai'
+    case 'Expedido': return 'expedido'
   }
 }
 
@@ -98,6 +114,12 @@ export function rotuloDoTipo(tipo: TipoDeMovimentacao): string {
     case 'Entrega': return 'Entrega'
     case 'Montagem': return 'Baixa de montagem'
     case 'Estorno': return 'Estorno'
+    case 'Medicao': return 'Medição'
+    case 'Conserto': return 'Conserto'
+    case 'PedidoDeLiberacao': return 'Pedido de liberação'
+    case 'Liberacao': return 'Liberação'
+    case 'Recusa': return 'Recusa'
+    case 'Expedicao': return 'Expedição'
   }
 }
 
@@ -114,6 +136,7 @@ export function rotuloDaAcao(verbo: 'Iniciar' | 'Terminar', atividade: string | 
 const NOME_DO_ESTORNAVEL: Record<Estornavel['tipo'], string> = {
   Inicio: 'início',
   Termino: 'término',
+  Entrega: 'entrega',
   Montagem: 'início',
 }
 
@@ -131,7 +154,8 @@ export function rotuloDoEstornavel(e: Estornavel): string {
 
 /** A pergunta da confirmação: o que se desfaz, e o que acontece depois (spec da Fase 3D, §2.4). */
 export function mensagemDoEstorno(e: Estornavel): string {
-  const oQue = `Estornar o ${descricaoDoEstornavel(e)}, `
+  const artigo = e.tipo === 'Entrega' ? 'a' : 'o'
+  const oQue = `Estornar ${artigo} ${descricaoDoEstornavel(e)}, `
     + `registrado por ${e.usuarioNome} em ${formatarDataHora(e.dataHora)}?`
   return e.tipo === 'Montagem'
     ? `${oQue} O pai volta para "a iniciar" e os filhos voltam a aguardar montagem, onde estavam antes; o estorno fica no histórico.`
