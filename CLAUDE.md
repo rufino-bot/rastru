@@ -670,7 +670,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   de separação, ainda que estornada, não se exclui (409 `NoComSeparacao`). Separar nunca condiciona o
   início do nó. (Regra 34 de `specs/01`, Fase 4.)
 - **Cada registro composto do fim do caminho se estorna inteiro, e o Rastru avisa em vez de travar.** A
-  contagem (as duas linhas `Medicao`), a remessa (uma linha `Expedicao` por posição de origem), o pedido de
+  contagem (uma linha `Medicao` por resultado diferente de zero, até duas), a remessa (uma linha `Expedicao` por posição de origem), o pedido de
   liberação e a resposta se estornam **por inteiro**, pela rota do registro, e a rota genérica
   `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar metade
   inventaria uma contagem ou uma remessa que ninguém fez. E nenhuma situação da aferição trava a remessa — ela

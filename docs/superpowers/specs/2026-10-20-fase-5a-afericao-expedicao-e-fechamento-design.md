@@ -109,6 +109,12 @@ aqui para ele as conferir na leitura):
 | C19 | O conserto vai a **qualquer Setor ativo**, inclusive o Setor Expedição | o usuário: "volta pro setor que precisa corrigir"; quem sabe qual é a Qualidade, e restringir ao Roteiro recusaria a correção feita num Setor que não estava nele. Achado do builder check |
 | C20 | A `/expedicao` tem uma seção **"Remessas recentes"** (as dos últimos 30 dias, mais recente primeiro, com as Peças e quantidades de cada uma), e é **lá** que se estorna uma remessa, inclusive a que concluiu o Pedido. O estorno mostra, antes de confirmar, todas as Peças da remessa e os Pedidos que reabrem. O histórico da Peça mostra a remessa, mas não a estorna | a Peça toda expedida sai da lista, e o estorno da remessa desfaz mais de uma Peça: o lugar certo é a remessa, não a Peça. Achado do builder check |
 
+*Emenda de 2026-10-21 (C13 e C17, na implementação):* o C13 vale para a **expedição** — das escritas dela, o estorno
+de remessa é a única que o Pedido `Concluido` aceita —, e a estrutura também o recusa (C15). Não vale para o
+Pedido inteiro: editar o Pedido, a separação de material, os materiais e o Roteiro do nó não têm guarda de Pedido
+concluído, e a fase não os alterou. No C17, "as duas linhas `Medicao`" é "as linhas `Medicao`" (uma por resultado
+diferente de zero).
+
 ## 3. Modelo de dados
 
 ### 3.1 Posições novas no livro
@@ -169,6 +175,8 @@ Novos tipos (todos com `UsuarioId` do autor, como os de hoje), e as transições
 | `Estorno` (existe) | o inverso de qualquer um acima | | autor, PCP ou Administrador (C7) |
 
 - Uma contagem ("medi 6: 4 conformes e 2 não") são **duas** linhas `Medicao`, gravadas juntas.
+  *Emenda de 2026-10-21:* a contagem grava **uma** linha `Medicao` por resultado diferente de zero, até duas:
+  "medi 6, todas conformes" é uma linha só. Vale também para o C17 ("as duas linhas `Medicao`").
 - O conserto usa `Entrega` e `Termino` de sempre, para o Movimentador e o operador não verem ação nova.
   *Emenda de 2026-10-21 (decisão P6 do plano de backend da Fase 5A, pedido do usuário de 2026-10-20):* terminar
   o conserto tem a rota individual `POST /estrutura/{id}/terminos-de-conserto` (o `TerminoDto` carrega `Ordem`,

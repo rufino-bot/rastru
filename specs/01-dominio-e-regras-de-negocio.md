@@ -115,7 +115,7 @@
     em `NaExpedicao` (a medir), e cada resultado vai para a posição `Conforme` ou `NaoConforme` do local
     de expedição. A contagem é **tudo ou nada** e vai até a quantidade que está em `NaExpedicao` (409
     `SaldoInsuficiente` acima disso); vazia é 400 `ContagemVazia`; sem aferição válida **não conforme**, 409
-    `SemAfericaoNaoConforme`. No livro são **duas** linhas `Medicao` (uma por resultado) ligadas por uma
+    `SemAfericaoNaoConforme`. No livro é **uma** linha `Medicao` por resultado diferente de zero (até duas) ligadas por uma
     `dbo.ContagemDimensional`, e a contagem se estorna **inteira**, nunca meia (C17), enquanto o que ela
     mediu não tiver andado. A contagem não diz **quais** unidades — é lote agregado, sem serial. Um
     Agrupamento pode ter Peças com resultados diferentes ao mesmo tempo. *Reescrita em 2026-10-20 (D4, C17):*
@@ -149,9 +149,11 @@
     - **Agrupamento sem Peças não conclui e não segura o Pedido** (C16): o fechamento olha só os
       Agrupamentos que têm Peças, e um Pedido sem Peça nenhuma não conclui.
     - **Estornar a remessa reabre** o que ela concluiu (C13): Peça, Agrupamento e Pedido voltam a abertos,
-      as datas de conclusão são limpas e o status é recalculado. É a **única** escrita aceita num Pedido
-      `Concluido`; no `Cancelado`, a remessa não se estorna. Toda outra escrita da expedição num Pedido
-      `Concluido` ou `Cancelado` é recusada (409 `PedidoFechado`).
+      as datas de conclusão são limpas e o status é recalculado. Entre as escritas da **expedição**, é a
+      **única** que um Pedido `Concluido` aceita; no `Cancelado`, a remessa não se estorna. Toda outra escrita da
+      expedição num Pedido `Concluido` ou `Cancelado` é recusada (409 `PedidoFechado`). A regra vale para a
+      expedição e para a estrutura (C15, abaixo), não para o Pedido inteiro: editar o Pedido, a separação de
+      material, os materiais e o Roteiro do nó não têm guarda de Pedido concluído.
     - **Pedido `Concluido` recusa edição de estrutura** (C15): criar Peça, acrescentar filho, editar nó e
       confirmar o import voltam 409 `PedidoFechado`. Em Pedido rodando (`EmProducao` ou
       `AguardandoExpedicao`) a edição continua livre, como era (decisão de 2026-08-29), e **recalcula** status

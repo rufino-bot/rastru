@@ -1035,7 +1035,7 @@ Cada registro composto se estorna **inteiro**, numa transação (C17). Todos res
   concluiu (C13), inclusive o Pedido.
 - `POST /afericoes/{id}/estorno` — a `AfericaoDto` da aferição **original**, agora com `estornada: true`. A
   aferição não conforme só se estorna sem contagem válida na Peça.
-- `POST /contagens/{id}/estorno` — as linhas `Estorno` das duas linhas `Medicao`, `MovimentacaoDto[]`.
+- `POST /contagens/{id}/estorno` — as linhas `Estorno` das linhas `Medicao` dela (uma por resultado diferente de zero, até duas), `MovimentacaoDto[]`.
 - `POST /liberacoes/{id}/estorno` — as linhas `Estorno` do **pedido** ou da **resposta** (`{id}` é o do registro),
   `MovimentacaoDto[]`. O pedido com resposta válida só se estorna depois dela, e a resposta só quando a Peça não
   tem outro pedido em aberto (C18).
