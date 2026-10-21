@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Expedicao;
 
 namespace Rastreamento.Api.Controllers;
@@ -21,12 +22,15 @@ public class ExpedicaoController : ExecucaoControllerBase
   private readonly AfericaoUseCase _afericao;
   private readonly LiberacaoUseCase _liberacao;
   private readonly RemessaUseCase _remessa;
+  private readonly ConsultaDaExpedicaoUseCase _consulta;
 
-  public ExpedicaoController(AfericaoUseCase afericao, LiberacaoUseCase liberacao, RemessaUseCase remessa)
+  public ExpedicaoController(
+      AfericaoUseCase afericao, LiberacaoUseCase liberacao, RemessaUseCase remessa, ConsultaDaExpedicaoUseCase consulta)
   {
     _afericao = afericao;
     _liberacao = liberacao;
     _remessa = remessa;
+    _consulta = consulta;
   }
 
   [HttpPost("estrutura/{id:int}/afericoes")]
@@ -68,5 +72,31 @@ public class ExpedicaoController : ExecucaoControllerBase
   {
     if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
     return Traduzir(await _remessa.Expedir(dto, usuarioId, ct), criado: true);
+  }
+
+  // As leituras (secao 5.1 da spec da Fase 5A) sao de todo perfil autenticado: ler nao e escrever.
+
+  /// <summary>A lista da Qualidade: Pedidos abertos com Peca no local de expedicao ou em conserto.</summary>
+  [HttpGet("expedicao")]
+  public async Task<IActionResult> Lista(CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _consulta.Lista(new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
+  }
+
+  /// <summary>O historico da Peca, mais recente primeiro (C20).</summary>
+  [HttpGet("estrutura/{id:int}/expedicao")]
+  public async Task<IActionResult> Historico(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _consulta.Historico(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
+  }
+
+  /// <summary>As remessas dos ultimos 30 dias (decisao P9 do plano de backend da Fase 5A), onde a remessa se estorna (C20).</summary>
+  [HttpGet("remessas/recentes")]
+  public async Task<IActionResult> RemessasRecentes(CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _consulta.RemessasRecentes(new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
   }
 }

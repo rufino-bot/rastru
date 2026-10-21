@@ -480,6 +480,127 @@ public class ExpedicaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.False(pedidoEstornado && respostaValida, "resposta com linha valida num pedido estornado");
   }
 
+  // ---------------------------------------------------------------- leituras (secao 5.1 e C20)
+
+  [Fact]
+  public async Task Lista_da_expedicao_traz_a_Peca_no_contrato_e_e_de_todo_perfil()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, pedidoId) = await PedidoDeLiberacaoAsync(c);
+
+    // Sem `Roles`: o Operador tambem le.
+    var resposta = await c.Como(c.Operador).GetAsync("/api/expedicao");
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var pedido = (await CorpoAsync(resposta)).GetProperty("pedidos").EnumerateArray()
+        .Single(p => p.GetProperty("id").GetInt32() == c.PedidoId);
+    Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", pedido.GetProperty("dataEntrega").GetString());
+    Assert.False(pedido.GetProperty("atrasado").GetBoolean());
+    Assert.Equal(JsonValueKind.Null, pedido.GetProperty("pausa").ValueKind);
+
+    var item = pedido.GetProperty("pecas").EnumerateArray().Single(p => p.GetProperty("id").GetInt32() == peca);
+    Assert.Equal("Chassi da Fase 3", item.GetProperty("descricao").GetString());
+    Assert.Equal(c.AgrupamentoId, item.GetProperty("agrupamentoId").GetInt32());
+    Assert.Equal(6m, item.GetProperty("quantidade").GetDecimal());
+    Assert.True(item.GetProperty("requerRelatorioDimensional").GetBoolean());
+    Assert.Equal("NaoConforme", item.GetProperty("situacao").GetString());
+    Assert.Equal("NaoConforme", item.GetProperty("afericao").GetProperty("resultado").GetString());
+    var posicoes = item.GetProperty("posicoes");
+    Assert.Equal(new[] { 0m, 4m, 0m, 2m, 0m, 0m, 0m },
+        new[] { "naExpedicao", "conforme", "naoConforme", "aguardandoLiberacao", "liberada", "emConserto", "expedido" }
+            .Select(n => posicoes.GetProperty(n).GetDecimal()));
+    Assert.False(posicoes.TryGetProperty("expedivel", out _));
+    Assert.Equal(4m, item.GetProperty("expedivel").GetDecimal());
+    Assert.Equal(0, item.GetProperty("consertos").GetArrayLength());
+    var pendente = item.GetProperty("liberacaoPendente");
+    Assert.Equal((pedidoId, 2m),
+        (pendente.GetProperty("id").GetInt32(), pendente.GetProperty("quantidade").GetDecimal()));
+    Assert.False(string.IsNullOrWhiteSpace(pendente.GetProperty("usuarioNome").GetString()));
+  }
+
+  [Fact]
+  public async Task Historico_da_Peca_vem_mais_recente_primeiro_e_marca_estornavel_pelo_leitor()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, pedidoId) = await PedidoDeLiberacaoAsync(c);
+
+    var comoQualidade = await c.Como(c.Qualidade).GetAsync($"/api/estrutura/{peca}/expedicao");
+    Assert.Equal(HttpStatusCode.OK, comoQualidade.StatusCode);
+    var historico = (await CorpoAsync(comoQualidade)).EnumerateArray().ToList();
+    Assert.Equal(new[] { "PedidoDeLiberacao", "Contagem", "Afericao" }, historico.Select(h => h.GetProperty("tipo").GetString()));
+    Assert.Equal(pedidoId, historico[0].GetProperty("id").GetInt32());
+    Assert.Equal(2m, historico[0].GetProperty("quantidade").GetDecimal());
+    Assert.Equal(4m, historico[1].GetProperty("conformes").GetDecimal());
+    Assert.Equal(2m, historico[1].GetProperty("naoConformes").GetDecimal());
+    Assert.Equal("NaoConforme", historico[2].GetProperty("resultado").GetString());
+    Assert.All(historico, h => Assert.True(h.GetProperty("estornavel").GetBoolean()));
+    Assert.All(historico, h => Assert.EndsWith("-03:00", h.GetProperty("dataHora").GetString()));
+
+    var comoOperador = await c.Como(c.Operador).GetAsync($"/api/estrutura/{peca}/expedicao");
+    Assert.All((await CorpoAsync(comoOperador)).EnumerateArray(), h => Assert.False(h.GetProperty("estornavel").GetBoolean()));
+
+    Assert.Equal(HttpStatusCode.NotFound, (await c.Como(c.Qualidade).GetAsync("/api/estrutura/0/expedicao")).StatusCode);
+  }
+
+  [Fact]
+  public async Task Pendentes_trazem_o_pedido_ate_a_Gestao_responder()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, pedidoId) = await PedidoDeLiberacaoAsync(c);
+    var gestao = c.Como(c.Gestao);
+
+    async Task<JsonElement[]> NossosAsync()
+    {
+      var resposta = await gestao.GetAsync("/api/liberacoes/pendentes");
+      Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+      return (await CorpoAsync(resposta)).EnumerateArray().Where(p => p.GetProperty("id").GetInt32() == pedidoId).ToArray();
+    }
+
+    var pendente = Assert.Single(await NossosAsync());
+    Assert.Equal(2m, pendente.GetProperty("quantidade").GetDecimal());
+    Assert.Contains("Aba da dobra", pendente.GetProperty("justificativa").GetString());
+    Assert.False(string.IsNullOrWhiteSpace(pendente.GetProperty("usuarioNome").GetString()));
+    Assert.Equal((peca, "Chassi da Fase 3"),
+        (pendente.GetProperty("peca").GetProperty("id").GetInt32(), pendente.GetProperty("peca").GetProperty("descricao").GetString()));
+    Assert.Equal(c.PedidoId, pendente.GetProperty("pedido").GetProperty("id").GetInt32());
+    Assert.False(pendente.GetProperty("pedido").GetProperty("atrasado").GetBoolean());
+
+    await Garantir(await gestao.PostAsJsonAsync($"/api/liberacoes/{pedidoId}/resposta", new { quantidadeLiberada = 1m }));
+
+    Assert.Empty(await NossosAsync());
+  }
+
+  [Fact]
+  public async Task Remessas_recentes_trazem_a_remessa_com_as_linhas_e_o_estornavel_do_leitor()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, _) = await PedidoDeLiberacaoAsync(c);
+    var expedida = await c.Como(c.Qualidade).PostAsJsonAsync("/api/remessas",
+        new { itens = new[] { new { estruturaItemId = peca, quantidade = 3m } } });
+    await Garantir(expedida);
+    var remessaId = (await CorpoAsync(expedida)).GetProperty("remessa").GetProperty("id").GetInt32();
+
+    async Task<JsonElement> NossaAsync(UsuarioDeTeste quem)
+    {
+      var resposta = await c.Como(quem).GetAsync("/api/remessas/recentes");
+      Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+      return (await CorpoAsync(resposta)).EnumerateArray().Single(r => r.GetProperty("id").GetInt32() == remessaId);
+    }
+
+    var remessa = await NossaAsync(c.Qualidade);
+    Assert.Equal(c.Qualidade.Id, remessa.GetProperty("usuarioId").GetInt32());
+    Assert.False(string.IsNullOrWhiteSpace(remessa.GetProperty("usuarioNome").GetString()));
+    Assert.False(remessa.GetProperty("estornada").GetBoolean());
+    Assert.True(remessa.GetProperty("estornavel").GetBoolean());
+    Assert.EndsWith("-03:00", remessa.GetProperty("dataHora").GetString());
+    var linha = Assert.Single(remessa.GetProperty("linhas").EnumerateArray());
+    Assert.Equal((peca, "Chassi da Fase 3", c.PedidoId, "Conforme", 3m),
+        (linha.GetProperty("pecaId").GetInt32(), linha.GetProperty("pecaDescricao").GetString(),
+            linha.GetProperty("pedidoId").GetInt32(), linha.GetProperty("origem").GetString(), linha.GetProperty("quantidade").GetDecimal()));
+    Assert.False(linha.GetProperty("pedidoConcluido").GetBoolean());
+
+    Assert.False((await NossaAsync(c.Operador)).GetProperty("estornavel").GetBoolean());
+  }
+
   /// <summary>Aferição nao conforme, contagem de 4 e 2 e um pedido de liberacao de 2: devolve a Peca e o pedido.</summary>
   private static async Task<(int Peca, int PedidoId)> PedidoDeLiberacaoAsync(CenarioDaFase3NaApi c)
   {

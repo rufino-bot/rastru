@@ -165,6 +165,7 @@ builder.Services.AddScoped<ConsultaDeExecucaoUseCase>();
 builder.Services.AddScoped<AfericaoUseCase>();
 builder.Services.AddScoped<LiberacaoUseCase>();
 builder.Services.AddScoped<RemessaUseCase>();
+builder.Services.AddScoped<ConsultaDaExpedicaoUseCase>();
 builder.Services.AddScoped<EstornoDaExpedicaoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();

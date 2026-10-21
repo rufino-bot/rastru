@@ -17,8 +17,13 @@ public class LiberacaoController : ExecucaoControllerBase
   private const string PerfisDeEscrita = "Gestao,Administrador";
 
   private readonly LiberacaoUseCase _liberacao;
+  private readonly ConsultaDaExpedicaoUseCase _consulta;
 
-  public LiberacaoController(LiberacaoUseCase liberacao) => _liberacao = liberacao;
+  public LiberacaoController(LiberacaoUseCase liberacao, ConsultaDaExpedicaoUseCase consulta)
+  {
+    _liberacao = liberacao;
+    _consulta = consulta;
+  }
 
   [HttpPost("liberacoes/{id:int}/resposta")]
   [Authorize(Roles = PerfisDeEscrita)]
@@ -27,4 +32,9 @@ public class LiberacaoController : ExecucaoControllerBase
     if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
     return Traduzir(await _liberacao.Responder(id, dto, usuarioId, ct), criado: true);
   }
+
+  /// <summary>Os pedidos que a Gestao ainda nao respondeu, do mais antigo ao mais novo. Leitura: de todo perfil autenticado.</summary>
+  [HttpGet("liberacoes/pendentes")]
+  public async Task<IActionResult> Pendentes(CancellationToken ct) =>
+      Traduzir(await _consulta.LiberacoesPendentes(ct));
 }
