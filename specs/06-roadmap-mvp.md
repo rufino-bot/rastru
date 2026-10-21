@@ -700,7 +700,8 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
   de branch inteira foi feita**: os dois problemas que ela apontou como bloqueantes e parte dos menores foram
   consertados antes do merge, e o resto ficou como dívida (entre elas, a receita padrão ainda recusa material
   inativo já gravado, como a spec da fase registra na emenda de 2026-10-20 do `PUT /estrutura/{id}/materiais`).
-  A próxima da sequência é a Fase 5; a 3C fica depois dela.
+  A próxima da sequência é a Fase 5 (partida em 5A, 5B e 5C em 2026-10-20; a 5A está em execução); a 3C fica
+  depois dela.
 - Critério de pronto: dá para saber quais materiais já foram separados/entregues para cada item em
   fabricação; o Separador tem uma lista do que falta levar para cada nó, só do material do almoxarifado,
   ordenada pelo prazo do Pedido, e registra pelo celular o que levou; o PCP edita os materiais planejados de
@@ -710,14 +711,68 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
 
 ## Fase 5 — Dimensional e fechamento
 
-- Registro opcional de `RelatorioDimensional` por Peça (perfil Qualidade), avaliado por
-  quantidade (`RelatorioDimensionalAvaliacao`).
-- Registro de `Expedicao` (remessas parciais), só de Peça — a expedição baixa do **local de
-  expedição** (regra 29 de `01`) —, e de `Perda`, de Peça e — desde 2026-09-15 — também de Item; a
-  perda ganha o motivo `Descarte` (regra 17 de `01`).
-- O nó **pronto** do Retrabalho (regra 27) nasce aguardando coleta pelo tipo de movimento `Pronto`;
-  `Expedido` e `Perdido` entram como posições do livro de movimentações; o `Descarte` da sobra é
-  registrado pelo ator da perda (regra 30).
+**Partida em três, em 2026-10-20.** Esta seção juntava três assuntos que mal se tocam — o fim do caminho da
+Peça (aferição, expedição, fechamento), a perda e a reposição, e as pontas do Kit que a 3B deixou. O usuário
+aprovou dividi-la em **três specs, cada uma com plano e PR próprios**, nesta ordem: **5A → 5B → 5C**. Não é
+exceção à ordem das fases: é a própria Fase 5, partida. O fechamento nasce na 5A contando só o **expedido**, e a
+5B acrescenta o **perdido** na mesma conta (regra 13 de `01`).
+
+### Fase 5A — Aferição, expedição e fechamento
+
+Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md` (desenho aprovado em
+2026-10-20; decisões D1 a D10 do usuário e C1 a C20 do desenho). Dois planos, como na Fase 4: o de **backend**
+(`docs/superpowers/plans/2026-10-20-fase-5a-backend.md`) e o de **front**
+(`docs/superpowers/plans/2026-10-20-fase-5a-front.md`), o de front depois do de backend.
+
+- **A aferição é da fábrica** (regras 10 e 11 de `01`): a Qualidade, que no Rastru é a pessoa da expedição,
+  mede **uma** unidade da Peça que exige relatório, e o resultado decide o lote inteiro; não conforme obriga a
+  medir todas, uma a uma, em contagens de conformes e não conformes. As cotas ficam fora do Rastru. Registro só
+  de inclusão (`dbo.RelatorioDimensional`, reescrita), corrigido por estorno. O PCP edita a marca
+  `RequerRelatorioDimensional` da Peça enquanto não há aferição válida (C14).
+- **O fim do caminho entra no livro de movimentações** (C1): oito posições novas (`Conforme`, `NaoConforme`,
+  `AguardandoLiberacao`, `Liberada`, `AguardandoConserto`, `EmConserto`, `ConsertoPronto` e `Expedido`) e seis tipos
+  (`Medicao`, `Conserto`, `PedidoDeLiberacao`, `Liberacao`, `Recusa` e `Expedicao`), com três agrupadores novos
+  (`dbo.ContagemDimensional`, `dbo.LiberacaoDimensional` e `dbo.Remessa`) que as linhas apontam. A conservação de
+  quantidade (regra 9) continua fechando.
+- **Conserto** (regra 35): a não conforme volta a um Setor ativo qualquer, dentro do mesmo Pedido; o
+  Movimentador leva, o operador termina — na caixa ou **no lote de término** da Fila — e o Movimentador traz de
+  volta ao local de expedição, onde ela é medida de novo.
+- **Liberação da Gestão** (regra 36): a Qualidade pede, com justificativa; a Gestão responde com a quantidade
+  liberada (de zero até a pedida), com o nome dela gravado.
+- **Remessa, com lote** (regras 16 e 37): expedir uma ou várias Peças numa remessa só, que escolhe sozinha de onde
+  tira (C10). O Rastru **avisa e deixa expedir**: nenhuma situação da aferição trava a remessa, e o aviso volta
+  no `201`. A remessa se estorna inteira.
+- **Fechamento automático** (regra 13): Peça, Agrupamento e Pedido concluem sozinhos, e o Pedido passa por
+  `AguardandoExpedicao`. Estornar a última remessa reabre o que ela concluiu (C13), e Pedido `Concluido` recusa
+  edição de estrutura (C15).
+- **No front:** a tela **Expedição** (`/expedicao`), os painéis de aferir, contar, mandar para conserto, pedir
+  liberação e expedir, as "Remessas recentes", a tela de **Liberações** da Gestão, o conserto na Fila do Setor e
+  nas Tarefas, e os status "Aguardando expedição" e "Concluído" de verdade nas listas, no detalhe e na Home.
+- **Migração:** `db/alter-fase-5a.sql` (idempotente; aborta se as tabelas antigas tiverem linha) e os usuários
+  `qualidade` e `gestao` no `db/seed.sql`. O banco não precisa ser regenerado.
+- **Fica de fora, para a 5B e a 5C:** "matar a peça", perda, `Descarte`, Pedido de Retrabalho e o vínculo dele
+  com a reclamação do cliente; as pontas do Kit. Fora de qualquer fase: cotas e medidas, número de nota fiscal e
+  transportadora (ERP). A notificação à Gestão quando há liberação pendente é a Fase 3C, que executa depois.
+- **Estado da fase (2026-10-21): em execução.** O plano de backend está implementado na branch
+  `claude/brainstorm-fase-5-4otppt` — schema, regras puras, fechamento, aferição, conserto no chão de fábrica,
+  liberação, remessa, estornos compostos e leituras — e estes documentos. Faltam o **plano de front**, a
+  **conferência no navegador, que é do usuário**, e a review de branch, que só é despachada depois dela (regra do
+  usuário de 2026-10-07, no `CLAUDE.md`).
+- Critério de pronto: a Qualidade tem uma tela com o que está no local de expedição, por Pedido e por prazo, e nela
+  afere, conta as não conformes, manda para conserto, pede liberação e expede; a Gestão vê as liberações pendentes e
+  libera ou recusa; o conserto anda pelo chão como as outras entregas; cada remessa registra quantas unidades de
+  cada Peça saíram, quando e quem expediu; e Peça, Agrupamento e Pedido concluem sozinhos quando tudo foi
+  expedido, com o Pedido passando por "Aguardando expedição".
+
+### Fase 5B — Perda e reposição
+
+Spec ainda por escrever. Executa depois da 5A.
+
+- Registro de `Perda`, de Peça e — desde 2026-09-15 — também de Item; a perda ganha o motivo `Descarte` (regra 17
+  de `01`).
+- O nó **pronto** do Retrabalho (regra 27) nasce aguardando coleta pelo tipo de movimento `Pronto`; `Perdido`
+  entra como posição do livro de movimentações; o `Descarte` da sobra é registrado pelo ator da perda (regra 30).
+  (`Expedido` já entrou na 5A.)
 - **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): parar de
   produzir o que saiu do projeto do cliente, pelo mesmo ator e pelo mesmo destino do `Descarte` da
   sobra. Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do `01`, e
@@ -727,6 +782,23 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
   unidade saem junto, e, no Pedido de Retrabalho que o PCP cadastra para repor, o que já existe é
   marcado **pronto**. A decidir na spec desta fase: as perguntas que a seção 9 da spec
   `2026-09-15-kit-montagem-e-movimentacao-design.md` deixa para a Fase 5.
+- **"Matar a peça"** reprovada: a terceira saída da não conforme (ao lado do conserto e da liberação da 5A), que
+  vira perda e é refeita do começo.
+- O fechamento passa a contar o **perdido** junto do expedido (regra 13): a Peça conclui com tudo expedido **ou**
+  perdido.
+- Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
+  de uma perda **ou de uma reclamação do cliente** (regras 17 e 27 de `01`), com `MotivoRetrabalho` obrigatório
+  (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`). O vínculo que o Retrabalho tinha com a
+  avaliação por remessa (`RelatorioDimensionalAvaliacao`) deixou de existir na 5A, e o desenho do vínculo com a
+  reclamação do cliente — depois de ele receber a Peça, motivo `SolicitacaoCliente` — é **desta** fase.
+- Critério de pronto: fluxo ponta a ponta funcionando — cadastro → produção →
+  expedição/perda → aferição → (se aplicável, e só quando o usuário decidir) retrabalho; e uma Peça ou um Item que
+  saiu do projeto do cliente deixa de ser produzido sem travar o fechamento do Pedido.
+
+### Fase 5C — As pontas do Kit que a 3B deixou
+
+Spec ainda por escrever. Executa depois da 5B.
+
 - **A perda nos tetos do Kit** (D5 da spec da Fase 3B): como a perda do próprio nó entra nos dois
   tetos, o que o nó ainda precisa receber (regras 23 e 25) e o que ainda falta montar (regra 24). A
   3B conta os conjuntos à espera pelo filho mais adiantado, e um conjunto que perde parte dentro da
@@ -742,15 +814,9 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
   já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
   usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
   da produção é o mesmo assunto de alterar projeto ou descontinuar, o do item «Descartar Peça ou
-  Item em Pedido rodando».
-- Regra de fechamento de Agrupamento (todas as Peças concluídas — expedidas ou
-  perdidas) e de Pedido (último Agrupamento concluído).
-- Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
-  de uma reprovação **ou de uma perda** (regras 17 e 27 de `01`), com `MotivoRetrabalho` obrigatório
-  (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`).
-- Critério de pronto: fluxo ponta a ponta funcionando — cadastro → produção →
-  expedição/perda → aprovação/reprovação → (se aplicável, e só quando o usuário decidir)
-  retrabalho.
+  Item em Pedido rodando» da 5B.
+- Critério de pronto: um Kit que perde parte de um conjunto, ou que ganha a espera desalinhada, continua
+  podendo ser montado, e a estrutura errada descoberta no meio da produção tem tratamento definido.
 
 ## Fase 6 — KPIs
 

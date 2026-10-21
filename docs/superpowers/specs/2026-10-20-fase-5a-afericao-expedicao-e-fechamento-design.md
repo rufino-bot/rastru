@@ -169,14 +169,20 @@ Novos tipos (todos com `UsuarioId` do autor, como os de hoje), e as transições
 | `Estorno` (existe) | o inverso de qualquer um acima | | autor, PCP ou Administrador (C7) |
 
 - Uma contagem ("medi 6: 4 conformes e 2 não") são **duas** linhas `Medicao`, gravadas juntas.
-- O conserto usa `Entrega` e `Termino` de sempre, para o Movimentador e o operador não verem ação nova. As
-  constraints de coerência (`CK_Movimentacao_OrigemCoerente`, `CK_Movimentacao_DestinoCoerente`) ganham as
+- O conserto usa `Entrega` e `Termino` de sempre, para o Movimentador e o operador não verem ação nova.
+  *Emenda de 2026-10-21 (decisão P6 do plano de backend da Fase 5A, pedido do usuário de 2026-10-20):* terminar
+  o conserto tem a rota individual `POST /estrutura/{id}/terminos-de-conserto` (o `TerminoDto` carrega `Ordem`,
+  que o conserto não tem) **e** entra no lote de término: um item de `POST /terminos` com `conserto: true`, sem
+  `ordem`, termina `EmConserto` → `ConsertoPronto` no Setor do lote, e o mesmo lote mistura itens normais e de
+  conserto, tudo ou nada. O operador termina o conserto como termina o resto, pela caixa e pela barra do lote.
+  As constraints de coerência (`CK_Movimentacao_OrigemCoerente`, `CK_Movimentacao_DestinoCoerente`) ganham as
   posições novas: as do local de expedição e `Expedido` sem Setor e sem passo; as três do conserto com Setor
   e **sem** passo, como `AguardandoMontagem`.
 - O conserto **não** mexe no `EstruturaRoteiro`: o Roteiro continua sendo o que foi planejado, e os passos
   dele continuam sendo histórico.
 - A linha de `Expedicao` aponta a remessa (`RemessaId`, seção 3.5), como a baixa de filho aponta a
-  `Montagem`. A resposta da Gestão aponta o pedido de liberação (seção 3.6).
+  `Montagem`. A resposta da Gestão aponta o pedido de liberação (seção 3.6; a emenda de 2026-10-21 dela diz o
+  que cada linha aponta).
 - **Pausa** (regra 31) não recusa nada disto: ela só recusa o início.
 
 O formato exato das constraints e das colunas novas é de quem implementa, desde que o livro continue só de
@@ -212,6 +218,11 @@ O estorno é **da remessa inteira**: um `Estorno` para cada linha dela, numa tra
 (`EstornoImpossivel`) se a remessa já foi estornada. Nada mais o impede: `Expedido` é terminal, então a
 quantidade expedida nunca "andou" depois.
 
+*Emenda de 2026-10-21 (decisão R6 da implementação):* a remessa **já estornada** responde 409 `JaEstornado`,
+o código que o resto da execução usa para "o registro já foi estornado", e não `EstornoImpossivel`. O que a
+regra recusa não mudou, só o código. A outra recusa que o código acrescenta é a do Pedido `Cancelado`: a
+remessa dele não se estorna (409 `PedidoFechado`; C13 abre exceção só para o `Concluido`).
+
 ### 3.6 Liberação — registro próprio, só de inclusão
 
 O pedido e a resposta da liberação guardam o que o livro não guarda:
@@ -224,6 +235,18 @@ O pedido e a resposta da liberação guardam o que o livro não guarda:
 - estornar a resposta estorna as linhas dela e devolve o pedido a "em aberto"; estornar o pedido (sem
   resposta válida) devolve a quantidade a `NaoConforme`. As duas só enquanto a quantidade não andou
   (`EstornoImpossivel` do livro).
+
+*Emenda de 2026-10-21 (decisão R5 da implementação):* as linhas `Liberacao` e `Recusa` apontam a **linha da
+resposta** em `dbo.LiberacaoDimensional` (`LiberacaoId` é o Id da resposta), e não a do pedido: o
+estorno de cada registro (pedido ou resposta) acha as linhas dele por esse vínculo, e as do pedido continuam
+valendo quando só a resposta é estornada. O pedido a que a resposta se refere está na própria linha da
+resposta (`PedidoDeLiberacaoId`).
+
+*Emenda de 2026-10-21 (C18 na implementação):* **estornar a resposta é recusado** (409 `EstornoImpossivel`) quando
+a Peça já tem **outro** pedido de liberação em aberto, porque devolver o pedido da resposta a "em aberto"
+deixaria dois abertos, e o C18 admite um. Quem quer desfazer a resposta estorna ou responde o outro antes.
+O pedido que já tem resposta válida também não se estorna sozinho (409 `EstornoImpossivel`: estorne a resposta
+primeiro).
 
 A forma das tabelas (uma tabela de pedidos com outra de respostas, ou um registro só com tipo) é de quem
 implementa, desde que nada seja sobrescrito.
@@ -310,6 +333,11 @@ cobrir:
   posição de origem) e `estornavel` para quem lê.
 - A **Fila do Setor** e as **Tarefas** passam a trazer as posições do conserto (C4), com o destino
   calculado: `AguardandoConserto` vai ao Setor escolhido, `ConsertoPronto` vai ao local de expedição.
+  *Emenda de 2026-10-21 (decisão R4 da implementação):* nas Tarefas, a `origem` da tarefa de ida é a **posição
+  do livro** `AguardandoConserto` **com o Setor escolhido** (e o destino, `EmConserto` no mesmo Setor), e não
+  "a expedição": é a posição que a entrega consome, e a tela a reenvia como está em `POST /entregas`. A da volta
+  tem origem `ConsertoPronto` no Setor e destino o local de expedição. Na Fila, a linha de conserto traz as
+  posições `EmConserto` (o operador termina) e `ConsertoPronto` (espera o Movimentador).
 - O **livro do nó** (`GET /estrutura/{id}/movimentacoes`) passa a mostrar os tipos novos.
 - **Editar `RequerRelatorioDimensional`** de uma Peça (C14).
 
@@ -390,7 +418,9 @@ seguindo "gating vai na ação, não no link".
 ### 6.3 Fila do Setor e Tarefas
 
 - **Fila**: a unidade `EmConserto` aparece num cartão marcado "Conserto", com a Peça e o Pedido, e o
-  "Terminar" de sempre (C4).
+  "Terminar" de sempre (C4). *Emenda de 2026-10-21 (decisão P6 do plano de backend):* o "Terminar" do conserto
+  deve entrar na seleção e na `BarraDoLote` "Terminar" da Fila, como item de conserto do `POST /terminos`
+  (seção 3.3).
 - **Tarefas**: "Levar ao conserto em {Setor}" para `AguardandoConserto`, e "Levar ao local de expedição"
   para `ConsertoPronto`, com o "Entregar" e o lote de sempre.
 

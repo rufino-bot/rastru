@@ -22,14 +22,17 @@
 | **Setor.UtilizaKit** | Marca, no cadastro do Setor, de que ali se montam os nós de Agrupamento Kit a partir dos filhos — hoje, a Solda; a regra não depende do nome do Setor. Em Agrupamento Kit, é o que ativa o conjunto completo (regra 25); a trava de montagem deixou de depender dele na Fase 3D (regra 24). Decidida em 2026-09-15; a coluna entrou no schema na Fase 3B, com default 0: um Setor só ganha a marca quando o Administrador a liga no cadastro. |
 | **Roteiro** | Sequência de Setores que um `EstruturaItem` percorre. Pode ser padrão (catálogo) ou específico daquele Pedido/Agrupamento. |
 | **Aguardando coleta** | Estado da quantidade que ainda não foi levada ao próximo destino depois de o operador dá-la como terminada num Setor (regra 22) — ou, no Pedido de Retrabalho, depois de nascer marcada **pronta** (regra 27). Conta como **em produção** para a conservação de quantidade (regra 9) e é o que alimenta as tarefas do Movimentador (regra 23). No banco, é uma posição do livro de movimentações (`dbo.Movimentacao`), guardada no Setor e no passo em que a quantidade terminou; o destino é calculado (regra 29). |
-| **Relatório Dimensional** | Avaliação de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado no cadastro via EstruturaItem.RequerRelatorioDimensional). Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada gera uma RelatorioDimensionalAvaliacao com quantidade aprovada/reprovada. Aprovação/reprovação é por quantidade. Reprovação não exige retrabalho imediato. |
+| **Relatório Dimensional** | A conferência de conformidade dimensional de uma Peça, **opcional** (o cliente exige em Peças específicas — ex.: primeira manufatura ou primeiro trabalho após reprovação no cliente; marcado em `EstruturaItem.RequerRelatorioDimensional`). É feito **pela fábrica**, pela Qualidade, no local de expedição, e se registra como **aferição** (regra 10) e, depois de uma aferição não conforme, como **contagem** unidade a unidade (regra 11). As cotas vêm do cliente com o pedido e ficam **fora** do Rastru, que guarda só o resultado, quem e quando. Reprovação não gera retrabalho (regra 12). Reescrito em 2026-10-20: até então o termo descrevia a avaliação por remessa do **cliente**, que não é o que a fábrica faz. |
+| **Aferição** | O registro de que a Qualidade mediu **uma** unidade de uma Peça que exige relatório, e que ela foi `Conforme` ou `NaoConforme`: esse resultado vale para o lote inteiro (regra 10). Registro só de inclusão (`dbo.RelatorioDimensional`), corrigido por estorno; a **válida** é a última não estornada. Não move quantidade. |
+| **Conserto** | Destino da unidade não conforme que volta a um Setor para ser corrigida, dentro do **mesmo Pedido** (não é Retrabalho): a Qualidade a manda, o Movimentador a leva, o operador a corrige e o Movimentador a traz de volta ao local de expedição, onde é medida de novo (regra 35). Conta como em produção. |
+| **Liberação** | A decisão da Gestão de que unidades não conformes **podem ser expedidas assim mesmo** — quando a medida fora não atrapalha o uso no cliente. A Qualidade **pede**, com justificativa, e a Gestão **responde**, com a quantidade liberada (de zero até a pedida) e o nome dela gravado (regra 36). |
 | **Usuário / Perfil** | Login próprio (usuário/senha + JWT). Cada Usuário tem um Perfil (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador) que restringe telas/ações — ver `00-visao-geral.md`. O Separador é o antigo Almoxarifado, renomeado na Fase 4 (D5 da spec da Fase 4). |
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
-| **Expedição (remessa)** | Saída de uma quantidade de uma Peça para o cliente. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Cada remessa é uma linha em Expedicao. |
+| **Remessa (expedição)** | Saída de quantidades de uma ou mais Peças para o cliente, registrada de uma vez por quem expede (a Qualidade): `dbo.Remessa` guarda **quando** e **quem**, e as quantidades são as linhas `Expedicao` do livro de movimentações que a apontam (`Movimentacao.RemessaId`), uma por posição de origem. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Uma remessa leva Peças de um ou mais Pedidos, e se estorna inteira (regra 16). Decidida em 2026-10-20 (C8 e C9 da spec da Fase 5A). |
 | **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regras 25 e 30). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5 (regra 17). |
 | **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao iniciar N do pai, baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso, e nasce do Iniciar do pai (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor, para todo nó com filhos (regra 24; sem exceção desde a Fase 3B, que recusa acrescentar filho a nó já iniciado). |
 | **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
-| **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição (Fase 5). |
+| **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição. Desde a Fase 5A a quantidade ali se reparte em cinco posições do livro — `NaExpedicao` (o significado depende da aferição da Peça, regra 37), `Conforme`, `NaoConforme`, `AguardandoLiberacao` e `Liberada` —, e o que sai numa remessa vai a `Expedido` (regras 9 e 16). |
 | **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
 
 ## Regras de negócio
@@ -77,25 +80,84 @@
    iniciar, aguardando montagem e no local de expedição (regras 28 e 29), e o destino "montado"
    entrou no schema na **Fase 3**, não na 3B, porque montar passou a valer para todo nó com filhos
    (regra 24).
+
+   **Fechada na Fase 5A** (spec da Fase 5A, seção 3.1): o "no local de expedição" é a soma das cinco
+   posições `NaExpedicao`, `Conforme`, `NaoConforme`, `AguardandoLiberacao` e `Liberada`; a unidade em
+   **conserto** (`AguardandoConserto`, `EmConserto`, `ConsertoPronto`) conta como em produção; e o "expedido"
+   é a posição terminal `Expedido` do livro, que as linhas `Expedicao` de uma remessa alimentam. O "perdido"
+   (`Perda`) é da Fase 5B.
 10. O Relatório Dimensional é **opcional**: só quando o cliente exige, em Peças específicas
     (ex.: primeira manufatura, primeiro trabalho após reprovação no cliente). Isso é sabido
     no cadastro do Pedido e marcado **por Peça** em `EstruturaItem.RequerRelatorioDimensional`.
-    Quando existe, é **um relatório por Peça, acumulativo**: cada remessa avaliada pelo
-    cliente gera uma `RelatorioDimensionalAvaliacao` (quantidade avaliada/aprovada/reprovada).
-11. Aprovação e reprovação são **por quantidade** dentro da Peça: numa mesma avaliação parte
-    das unidades pode aprovar e parte reprovar; e um Agrupamento pode ter Peças com
-    resultados diferentes ao mesmo tempo.
-12. Quando uma quantidade é reprovada, **pode** (não é obrigatório, nem imediato) ser aberto
-    um novo Pedido do tipo `Retrabalho` **para aquela quantidade**, vinculado ao Pedido
-    original (`PedidoOrigemId`) e à avaliação que o originou
-    (`RelatorioDimensionalAvaliacao.PedidoRetrabalhoId`). O Pedido de Retrabalho registra um
-    `MotivoRetrabalho` categorizado: `ReprovacaoDimensional`, `ErroInterno`,
-    `SolicitacaoCliente` ou `Perda`.
+    Quando exige, a **aferição** é da fábrica: feita pela **Qualidade**, que no Rastru é a pessoa da
+    expedição, no local de expedição, **uma por Peça** — mede-se **uma** unidade, e o resultado
+    (`Conforme` ou `NaoConforme`) decide o lote inteiro (D3). **Conforme** libera a Peça toda, inclusive
+    as remessas futuras, sem nova medição; **não conforme** obriga a medir todas as unidades, as presentes
+    e as que chegarem depois, uma a uma (regra 11). O Rastru **não guarda as cotas nem as medidas** (D2):
+    só o resultado, quem e quando.
+    - **Registro só de inclusão** (`dbo.RelatorioDimensional`): uma linha por aferição, e a correção é um
+      **estorno**, no máximo um por linha, de quem a registrou, do PCP ou do Administrador (C7). A
+      aferição **válida** da Peça é a última não estornada, e só se registra uma nova quando não há
+      válida (409 `AfericaoJaRegistrada`: estorne a anterior primeiro). A aferição não move quantidade (C2).
+    - **Só a Peça com a marca recebe aferição** (409 `SemRelatorioDimensional`). O PCP **edita a marca** de
+      uma Peça (`PUT /estrutura/{id}`) enquanto ela não tem aferição válida (C14; com aferição válida, 409
+      `ComAfericao`: estorne a aferição antes). A marca só existe na Peça (400 `RelatorioSoNaPeca`).
+    - **Estornar** uma aferição **não conforme** é recusado enquanto a Peça tem contagem válida (409
+      `EstornoImpossivel`: as contagens dependem dela); estornar uma **conforme** é livre, porque nada
+      no livro depende dela.
+
+    **Reescrita em 2026-10-20** (spec da Fase 5A, `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`, D1 a D4, C2 e C14).
+    A redação anterior descrevia "um relatório por Peça, acumulativo", com uma
+    `RelatorioDimensionalAvaliacao` por remessa **avaliada pelo cliente**: era a avaliação do cliente, não
+    o que a fábrica faz, e as duas tabelas saíram do schema sem nunca terem sido escritas por código.
+11. A **medição uma a uma**, depois de uma aferição não conforme (D4), é **por quantidade**: a Qualidade
+    registra uma **contagem** — "medi 6: 4 conformes e 2 não conformes" — sobre as unidades que estão
+    em `NaExpedicao` (a medir), e cada resultado vai para a posição `Conforme` ou `NaoConforme` do local
+    de expedição. A contagem é **tudo ou nada** e vai até a quantidade que está em `NaExpedicao` (409
+    `SaldoInsuficiente` acima disso); vazia é 400 `ContagemVazia`; sem aferição válida **não conforme**, 409
+    `SemAfericaoNaoConforme`. No livro são **duas** linhas `Medicao` (uma por resultado) ligadas por uma
+    `dbo.ContagemDimensional`, e a contagem se estorna **inteira**, nunca meia (C17), enquanto o que ela
+    mediu não tiver andado. A contagem não diz **quais** unidades — é lote agregado, sem serial. Um
+    Agrupamento pode ter Peças com resultados diferentes ao mesmo tempo. *Reescrita em 2026-10-20 (D4, C17):*
+    antes, aprovação e reprovação por quantidade eram o resultado da avaliação por remessa.
+12. A reprovação da aferição **não** abre Retrabalho. A unidade não conforme tem três destinos: **consertar**
+    (regra 35), **expedir assim mesmo, com a liberação da Gestão** (regra 36) ou, na Fase 5B, **"matar a
+    peça"** (vira perda e é refeita do começo). O Pedido do tipo `Retrabalho` continua sendo uma ação
+    **separada e opcional**, aberta **para aquela quantidade** e vinculada ao Pedido original
+    (`PedidoOrigemId`), com um `MotivoRetrabalho` categorizado: `ReprovacaoDimensional`, `ErroInterno`,
+    `SolicitacaoCliente` ou `Perda`. **Nota (2026-10-20, Fase 5A):** o vínculo que a regra dava ao
+    Retrabalho — a avaliação que o originou (`RelatorioDimensionalAvaliacao.PedidoRetrabalhoId`) — **deixou
+    de existir**, porque a avaliação por remessa deixou de existir (regra 10). Como o Retrabalho se liga à
+    reclamação do **cliente** (`SolicitacaoCliente`, depois de ele receber) é redesenhado na Fase 5B.
 13. Uma Peça está **concluída** quando nada dela está mais em produção — toda a quantidade
-    virou expedido (`Expedicao`) **ou** perdido (`Perda`). Um Agrupamento conclui quando
-    todas as suas Peças concluem (`Agrupamento.DataConclusao`), e um Pedido conclui quando o
+    virou expedido (a posição `Expedido` do livro) **ou** perdido (`Perda`, da Fase 5B). Um Agrupamento
+    conclui quando todas as suas Peças concluem (`Agrupamento.DataConclusao`), e um Pedido conclui quando o
     **último** Agrupamento conclui (`Pedido.DataConclusao`). Não depende mais de "avaliado",
     já que o Relatório Dimensional é opcional.
+
+    **Quem a executa (Fase 5A, C11 a C13, C15 e C16).** O fechamento é **recalculado do livro, do zero**, na
+    mesma transação de todo movimento que toca o fim do caminho — a remessa, o estorno dela, a entrega que
+    chega ao local de expedição, o conserto, a contagem... — e de criar, editar (a quantidade da Peça) ou
+    importar uma Peça num Pedido rodando; acrescentar filho não o recalcula, porque não muda a quantidade de
+    nenhuma Peça nem o que ela expediu. Como só o expedido conta (o perdido é da 5B), a Peça conclui com **toda** a quantidade em
+    `Expedido`. A data de conclusão do Agrupamento e do Pedido é a da escrita que os concluiu.
+    - **Status do Pedido** (C11): `AguardandoExpedicao` quando toda a quantidade ainda **não expedida** das
+      Peças do Pedido está no local de expedição (qualquer das cinco posições); `EmProducao` quando alguma
+      ainda está noutro lugar, **inclusive em conserto** — mandar para conserto tira a unidade do local de
+      expedição e devolve o Pedido a `EmProducao`. `Aberto` só vale antes do primeiro início, e o status
+      não volta a ele; `Cancelado` fica fora de tudo isto.
+    - **Agrupamento sem Peças não conclui e não segura o Pedido** (C16): o fechamento olha só os
+      Agrupamentos que têm Peças, e um Pedido sem Peça nenhuma não conclui.
+    - **Estornar a remessa reabre** o que ela concluiu (C13): Peça, Agrupamento e Pedido voltam a abertos,
+      as datas de conclusão são limpas e o status é recalculado. É a **única** escrita aceita num Pedido
+      `Concluido`; no `Cancelado`, a remessa não se estorna. Toda outra escrita da expedição num Pedido
+      `Concluido` ou `Cancelado` é recusada (409 `PedidoFechado`).
+    - **Pedido `Concluido` recusa edição de estrutura** (C15): criar Peça, acrescentar filho, editar nó e
+      confirmar o import voltam 409 `PedidoFechado`. Em Pedido rodando (`EmProducao` ou
+      `AguardandoExpedicao`) a edição continua livre, como era (decisão de 2026-08-29), e **recalcula** status
+      e fechamento: acrescentar Peça a um Pedido aguardando expedição o devolve a `EmProducao`; baixar a
+      quantidade de uma Peça até o que já foi expedido a conclui (a quantidade não desce abaixo do que já saiu
+      de "a iniciar", como sempre). Quem precisa mudar um Pedido concluído estorna a última remessa.
 14. O início real de produção de um Pedido é derivado (não armazenado) como a menor data entre
     as primeiras entradas (regra 28) dos nós daquele Pedido, no livro de movimentações — usado
     para separar tempo em fila de tempo de produção. A primeira entrada é o início do trabalho,
@@ -110,8 +172,25 @@
     Almoxarifado renomeado na Fase 4 (D5 da spec da Fase 4): o nome antigo existia no seed e não
     autorizava nenhuma rota.
 16. A **expedição pode ser parcial** (remessas): o cliente aceita uma parte vital antes e o
-    restante segue depois. Cada remessa é uma linha em `Expedicao` com a quantidade. A soma
-    das remessas de uma Peça nunca excede a quantidade total (validado na aplicação).
+    restante segue depois. A **remessa** (`dbo.Remessa`, C8) é o agrupador: guarda **quando** e **quem**
+    expediu (o usuário logado, D9 — não há nome digitado nem número de nota fiscal, que é do ERP), e as
+    quantidades são as linhas `Expedicao` do livro que a apontam, de uma posição de origem para `Expedido`.
+    Uma remessa leva **uma ou mais Peças**, de um ou mais Pedidos, **tudo ou nada** (C9: o lote, no molde da
+    Separação), e se estorna **inteira** (um estorno por linha, numa transação).
+    - **De onde tira (C10).** A remessa escolhe sozinha, nesta ordem: `Liberada`, `Conforme`,
+      `NaExpedicao` e, por último, `NaoConforme`. A Qualidade só diz a quantidade. A unidade
+      `AguardandoLiberacao` **não sai**: espera a resposta da Gestão (ou o pedido ser estornado). Tirar da não
+      conforme por último é o que faz o aviso da regra 37 valer. Acima do expedível (tudo do local de
+      expedição menos o que aguarda liberação), 409 `SaldoInsuficiente`, com a frase nomeando o que espera
+      a Gestão quando há.
+    - **A soma das remessas de uma Peça nunca excede a quantidade dela, por construção:** o livro só expede o
+      que está no local de expedição. *Reescrita em 2026-10-20 (spec da Fase 5A):* antes, "validado na
+      aplicação", com uma linha em `Expedicao` por Peça.
+    - **Só a Peça** chega ao local de expedição (regra 29): o Item numa remessa é 400 `NaoEhPeca`. A **pausa**
+      do Pedido (regra 31) não recusa a remessa nem o resto da expedição: ela recusa só o início.
+    - **Estorno da remessa.** Recusado se ela já foi estornada (409 `JaEstornado`) e, num Pedido `Cancelado`,
+      409 `PedidoFechado`. `Expedido` é terminal, então a quantidade expedida nunca "andou" depois, e nada mais
+      o impede. Quem estorna: o autor, o PCP ou o Administrador (C7).
 17. Uma **perda** registra baixa de quantidade em produção (`PerdaArmazem`, `MortaEmProcesso` ou
     `Descarte`), levando a quantidade ao bucket terminal "perdido". Pode ser registrada em
     **qualquer** `EstruturaItem`, Peça ou Item. Para repor, abre-se um Pedido de Retrabalho
@@ -121,7 +200,8 @@
     regra 27.
 
     **Alterada pela decisão de 2026-09-15:** entraram o motivo `Descarte` e a perda de Item. No
-    schema, o `Descarte` só entra no início da Fase 5 — até lá, a `CK_Perda_Motivo` de
+    schema, o `Descarte` só entra no início da Fase 5 (a **5B**, desde que a Fase 5 foi dividida em 5A, 5B e
+    5C em 2026-10-20) — até lá, a `CK_Perda_Motivo` de
     `02-modelo-de-dados.sql` aceita só `PerdaArmazem` e `MortaEmProcesso`. A perda de Item não
     depende de mudança de schema: `dbo.Perda` já referencia qualquer `EstruturaItem`.
 
@@ -406,8 +486,8 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
       **sem escolha**: é lá que o pai começa, consumindo os filhos (regra 24). Entregue antes de o
       PCP mudar o primeiro passo, redireciona-se com outra entrega, que leva ao primeiro passo de
       agora (spec da Fase 3D, seção 2.2 — revê a decisão 2.4 da Fase 3).
-    - **Peça** — o **local de expedição**, levada pelo Movimentador como tarefa; a expedição (Fase 5)
-      sai de lá.
+    - **Peça** — o **local de expedição**, levada pelo Movimentador como tarefa; a expedição (Fase 5A,
+      regra 16) sai de lá.
 30. **A sobra é identificada, não é tarefa, e só sai por descarte.** O que um Item tem, no fim do
     Roteiro ou entregue para a montagem, além do que o pai ainda precisa, é **sobra**: sai da lista
     de tarefas do Movimentador e aparece à parte, no Setor onde está. Só deixa de estar em produção
@@ -518,6 +598,77 @@ e a decisão P2 do plano de backend da Fase 4).*
       concluído (a conclusão só nasce na Fase 5, que herda a guarda: a lista do Separador já exclui Pedido
       `Concluido` ou `Cancelado`).
 
+*As regras 35 a 37 foram decididas em 2026-10-20, na spec da Fase 5A
+(`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`,
+decisões D1 a D10 do usuário e C1 a C20 do desenho, mais as decisões P1, P6 e P10 do plano de backend da fase
+e as R4 a R6 da implementação, registradas nas emendas de 2026-10-21 da spec).*
+
+35. **Conserto: a não conforme volta a um Setor, dentro do mesmo Pedido.**
+    - **Quem manda e para onde (D6, C19).** A **Qualidade** manda para conserto unidades `NaoConforme`
+      (quantidade e Setor) para **qualquer Setor ativo**, inclusive o Setor Expedição: quem sabe qual
+      corrige é a Qualidade, e restringir ao Roteiro recusaria a correção feita num Setor que não estava
+      nele. Setor inexistente ou inativo é 400 `SetorInvalido`; acima do `NaoConforme`, 409
+      `SaldoInsuficiente`. É o **mesmo Pedido**: não é Pedido de Retrabalho.
+    - **O caminho (C1, C3).** `AguardandoConserto` (no Setor escolhido, esperando o Movimentador no local de
+      expedição) → o Movimentador leva, e a unidade vai a `EmConserto` no mesmo Setor → o operador termina, e
+      vai a `ConsertoPronto` → o Movimentador a traz **direto ao local de expedição**, sem refazer o resto do
+      Roteiro. Ela volta como `NaExpedicao` e é **medida de novo** (regra 11). A ida e a volta são o `Entrega`
+      de sempre, e o terminar é o `Termino` de sempre, com a Peça sem passo do Roteiro: nenhuma ação nova
+      para o Movimentador e o operador. O conserto **não mexe no `EstruturaRoteiro`**, e conta como em
+      produção (regra 9).
+    - **Onde aparece (C4).** Na Fila do Setor, a unidade em conserto (`EmConserto` e `ConsertoPronto`) vem numa
+      seção própria, marcada como conserto, com o "Terminar" de sempre — individual
+      (`POST /estrutura/{id}/terminos-de-conserto`) ou no lote de término (item de conserto de
+      `POST /terminos`, decisão P6 do plano de backend). Nas Tarefas, a ida (`AguardandoConserto`, com o Setor,
+      para `EmConserto`) e a volta (`ConsertoPronto`, para o local de expedição) são tarefas como as outras, e
+      entram na contagem do menu.
+    - **Setor inativado com a peça lá dentro (decisão P10 do plano de backend).** Só **mandar** para Setor
+      inativo é recusado: o término e a entrega de volta continuam valendo, como no terminar de sempre.
+    - **Estorno (C7).** O conserto não tem agrupador: estorna-se como qualquer movimento, por
+      `POST /movimentacoes/{id}/estorno`, enquanto a quantidade não tiver andado; a Qualidade passou a ter
+      esse estorno.
+36. **Liberação da não conforme: a Qualidade pede, a Gestão responde, e fica gravado.**
+    - **Pedir (D7, C6, C18).** A Qualidade pede a liberação de uma quantidade `NaoConforme`, com
+      **justificativa obrigatória** (aparada; 400 `JustificativaObrigatoria`; no máximo 500 caracteres, 400
+      `TextoLongoDemais`). As unidades vão a `AguardandoLiberacao` e **não saem numa remessa** enquanto
+      esperam (regra 16). **No máximo um pedido em aberto por Peça** (409 `LiberacaoEmAberto`): para pedir
+      mais, espera-se a resposta, ou estorna-se o pedido e pede-se de novo com a quantidade nova.
+    - **Responder (D7, C5).** A **Gestão** (ou o Administrador) responde com a **quantidade liberada**, de
+      zero até a pedida (acima dela, 400 `QuantidadeAcimaDaPedida`), e uma observação opcional (até 500). A
+      liberada vai a `Liberada`; **o resto volta a `NaoConforme`** (a linha `Recusa`), e zero é a recusa
+      total. A resposta fica com o **nome de quem a deu**. Responder um pedido que já foi respondido ou
+      estornado é 409 `LiberacaoNaoPendente`. A pendência é relida depois da trava da Peça, a mesma que
+      serializa o pedido, a resposta e o estorno do mesmo pedido: se a Qualidade estorna o pedido no instante
+      em que a Gestão responde, quem chega depois recebe 409 (`LiberacaoNaoPendente` na resposta,
+      `EstornoImpossivel` no estorno), e não fica resposta válida num pedido estornado.
+    - **O que o livro guarda.** O pedido e a resposta são registros de `dbo.LiberacaoDimensional` (uma
+      tabela, `Tipo` `Pedido` ou `Resposta`), só de inclusão. A linha `PedidoDeLiberacao` aponta o **pedido**;
+      as linhas `Liberacao` e `Recusa` apontam a **resposta**. Um pedido está **pendente** quando a linha dele
+      não foi estornada e não há resposta com linha não estornada.
+    - **Estorno (C7, C17, C18).** Cada registro se estorna **inteiro**. O **pedido** só se estorna sem resposta
+      válida (estorne a resposta primeiro) e devolve a quantidade a `NaoConforme`. A **resposta** devolve o
+      pedido a "em aberto", e por isso é recusada quando a Peça já tem **outro** pedido em aberto
+      (409 `EstornoImpossivel`, para não haver dois). As duas só enquanto a quantidade não andou. Quem
+      estorna: o autor, o PCP ou o Administrador.
+37. **Avisar e deixar expedir (D8): o Rastru não trava a expedição pela aferição.** Nenhuma situação da
+    aferição recusa a remessa; ela **avisa**, e o aviso volta no `201` de `POST /remessas`, por Peça, com a
+    quantidade que sai assim. O que a unidade em `NaExpedicao` é, e se avisa ao expedi-la dali, depende da
+    aferição válida da Peça:
+
+    | A Peça | A unidade em `NaExpedicao` é | Expedir dali avisa? |
+    |---|---|---|
+    | não exige relatório | pronta para expedir | não |
+    | exige, **sem** aferição | aguardando aferição | **sim**: `SemAfericao` |
+    | aferição **conforme** | conforme (D3) | não |
+    | aferição **não conforme** | **a medir** (D4) | **sim**: `SemMedicao` |
+
+    A unidade que sai de `NaoConforme` (medida, não conforme e sem liberação) avisa **sempre**:
+    `NaoConformeSemLiberacao`. A que sai de `Liberada` ou de `Conforme` nunca avisa. A marca desligada vence: sem `RequerRelatorioDimensional`, a aferição
+    não conta. Por isso `Conforme` como posição só existe depois de uma aferição não conforme: com aferição
+    conforme, o lote inteiro já é conforme e ninguém o move. As linhas de cada remessa (`GET /remessas/recentes`)
+    trazem a posição de origem da quantidade, então "2 não conformes expedidas sem liberação" se lê sem
+    estado extra. **Risco aceito:** a unidade expedida antes da aferição fica sem resultado para sempre.
+
 ## Pontos ainda em aberto
 
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
@@ -542,6 +693,11 @@ e a decisão P2 do plano de backend da Fase 4).*
   no livro, e `Perdido` só nasce lá. Tem de existir antes do primeiro uso real. **Como** o descarte
   fecha a regra 13 (bucket próprio ou `Perda` com motivo `Descarte`) continua a decidir, na spec da
   Fase 5.
+
+> **Nota (2026-10-21, Fase 5A):** o fechamento que a regra 13 pedia nasceu na 5A **contando só o expedido**, e
+> o ponto «Descontinuar uma Peça trava o fechamento do Pedido» segue em aberto: a Peça descontinuada continua sem concluir até a **Fase 5B**, que traz o
+> `Perdido` e o descarte da Peça ou do Item em Pedido rodando (**obrigatório antes do primeiro uso real**, como
+> o roadmap marca).
 
 > **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
 > produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro

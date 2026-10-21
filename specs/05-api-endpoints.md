@@ -166,7 +166,11 @@ mesmo status HTTP para coisas diferentes.
   `GET /componentes`; `total` é contado com os mesmos filtros da página. Cada item traz `pausa`:
   `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31). Cada item traz
   também `dataEntrega` (`"aaaa-mm-dd"`, sem hora nem fuso) e `atrasado` (regra 33, calculado no
-  servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`.
+  servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`. Desde a Fase 5A cada
+  item traz também `dataConclusao` (UTC, como `dataAbertura`): a data da escrita que concluiu o Pedido, nula
+  enquanto ele não conclui e limpa quando o estorno de uma remessa o reabre (regra 13; decisão P8 do plano de
+  backend da Fase 5A). Os status `AguardandoExpedicao` e `Concluido`, que o filtro já oferecia, passam a ser
+  gravados pela expedição.
   - `busca` acha o Pedido pelo **número**, pelo **cliente** ou pelo **código do Componente de
     qualquer nó dele** (a Peça ou um Item, inclusive filho). O texto é literal: `%`, `_` e `[` não
     são curinga de `LIKE`. Ignora caixa **e acento** ("metalurgica" acha "Metalúrgica"). O texto é
@@ -214,13 +218,17 @@ mesmo status HTTP para coisas diferentes.
   Pedido é documento e se corrige por edição
 - `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
   Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`
+  *(Nota de 2026-10-21, Fase 5A: `relatorioDimensionalAvaliacaoId` deixou de ter a que apontar, porque
+  `RelatorioDimensionalAvaliacao` saiu do schema (regras 10 e 12 de `01`). Rota ainda não implementada: o
+  contrato é redesenhado na Fase 5B.)*
 - `GET /pedidos/{id}/agrupamentos` *(qualquer perfil autenticado)*
 - `POST /pedidos/{id}/agrupamentos` *(PCP, Administrador)* — `{ codigo, tipo }`,
   `tipo ∈ Kit | Avulso`
 - `GET /agrupamentos/{id}`
 - `PUT /agrupamentos/{id}` *(PCP, Administrador)* — `{ codigo, tipo }`
 - Toda resposta de Agrupamento (as quatro rotas acima que devolvem um) traz `{ id, pedidoId, pedidoNumero,
-  codigo, tipo, criadoEm, criadoPorUsuarioId }`. O `pedidoNumero` serve ao título da página do Agrupamento
+  codigo, tipo, criadoEm, criadoPorUsuarioId, dataConclusao }` (`dataConclusao`, desde a Fase 5A: a da escrita que
+  concluiu o Agrupamento, ou nula; regra 13). O `pedidoNumero` serve ao título da página do Agrupamento
   ("Pedido X — código — Kit|Avulso", com o Pedido como link) e vem em todas porque o DTO é um só.
 - `DELETE /agrupamentos/{id}` *(PCP, Administrador)* — 204. **A única exclusão física do
   sistema**, e é guardada: 409 `{ "erro": "AgrupamentoNaoVazio" }` se já houver `EstruturaItem`,
@@ -290,8 +298,11 @@ perfil autenticado.)*
   `descricao` é obrigatória. Desde a Fase 3B (D1), o pai é travado e só aceita filho novo enquanto
   nada dele saiu de "a iniciar" (líquido de estorno): se já saiu, 409 `PaiJaIniciado`
 - `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao`, `Quantidade` e, num Item,
-  `QuantidadePorPai` do nó `{id}`. Body: `{ descricao?, quantidade, quantidadePorPai? }`
-  (`quantidadePorPai` obrigatória no Item, proibida na Peça). Desde a Fase 3, a quantidade não desce
+  `QuantidadePorPai` do nó `{id}`. Body: `{ descricao?, quantidade, quantidadePorPai?, requerRelatorioDimensional? }`
+  (`quantidadePorPai` obrigatória no Item, proibida na Peça). `requerRelatorioDimensional` é a marca da
+  **Peça** (Fase 5A, C14; regra 10): nulo ou ausente **mantém** a marca, e repetir o valor atual não é mudar. Num
+  Item é 400 `RelatorioSoNaPeca`, e mudar a marca de uma Peça com aferição válida é 409 `ComAfericao` (estorne
+  a aferição antes). Desde a Fase 3, a quantidade não desce
   abaixo do que já saiu de "a iniciar" nem, num nó com filhos, abaixo do total montado; editar a
   razão é livre, porque a baixa já gravada não muda. Não cascateia a quantidade para os filhos — decisão de
   domínio, não lacuna (a cópia da receita é pré-preenchimento, não automação). `Descricao`
@@ -301,7 +312,10 @@ perfil autenticado.)*
   (Material e Roteiro de cada nó, filhos antes de pais). Só permitido com o Pedido `Aberto` — ver
   "Contrato de erro da Estrutura". **Sem** essa guarda nos dois `POST` acima, de propósito:
   acrescentar estrutura a um Pedido em execução é o comportamento padrão da fábrica (decisão do usuário,
-  2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada. Esta guarda também
+  2026-08-29), não exceção — a assimetria entre criar e excluir é deliberada. *(Emenda de 2026-10-21, Fase 5A,
+  C15:* o Pedido **`Concluido`** passou a recusar os dois `POST` e o `PUT` com 409 `PedidoFechado` — quem precisa
+  mudá-lo estorna a última remessa (regra 13) —, e em Pedido rodando, criar Peça e editar a quantidade dela
+  **recalculam** o status e o fechamento do Pedido na mesma transação. Pedido `Cancelado` segue como era.) Esta guarda também
   impede apagar nó que já tem movimento no livro (Fase 3): o primeiro `Inicio` de qualquer nó põe o
   Pedido em `EmProducao`, e o status não volta, nem com o estorno (regra 28 e spec da Fase 3, seção
   4.1). Desde a Fase 4 ela impede também apagar nó cuja subárvore tem **qualquer linha de separação de
@@ -332,7 +346,8 @@ foram implementadas sob `estrutura/{id}`.
 
   **Do caso de uso**, só nas três rotas com corpo: `{ "erro": "<mensagem em português>" }` — aqui o
   mesmo campo `erro` que no 409 carrega um código estável (`CicloNaReceita` etc.) carrega uma frase
-  pronta para o operador ler. São seis as causas de negócio:
+  pronta para o operador ler. São sete as causas de negócio (a da Fase 5A, `RelatorioSoNaPeca`, é a exceção:
+  leva código estável):
   - `quantidadePorPai` ausente ou ≤ 0 num Item, ou informada numa Peça (regra 26, desde a Fase 3);
   - quantidade **digitada** abaixo do piso da coluna (`0,0001`);
   - na cópia da receita, uma quantidade calculada sai da faixa da coluna (`DECIMAL(18,4)`) —
@@ -349,6 +364,8 @@ foram implementadas sob `estrutura/{id}`.
     ultrapassa o que o sistema suporta", sem números); **não** é o mesmo caso do teto da coluna, e
     as duas frases não devem ser lidas como sinônimas;
   - nó ad-hoc sem `Descricao`;
+  - `requerRelatorioDimensional` informado num **Item** (só a Peça tem a marca; regra 10, Fase 5A): é a
+    exceção das frases, `{ "erro": "RelatorioSoNaPeca", "mensagem": "<frase>" }`, com o código estável;
   - regra 18, segunda metade (cobrada desde a Fase 2B), só no
     `POST /agrupamentos/{id}/estrutura`: o `Componente` de origem da Peça não tem sólido 3D. Corpo
     `{ "erro": "Este Componente nao tem solido 3D (regra 18). Envie o arquivo STL no cadastro do
@@ -368,11 +385,12 @@ foram implementadas sob `estrutura/{id}`.
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — oito códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — dez códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
   levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `NoComSeparacao` e o
-  `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`);
+  `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`), como o
+  `PedidoFechado` e o `ComAfericao` da Fase 5A;
   `PedidoNaoAberto` não — mesmo precedente do
   `DELETE /agrupamentos/{id}`.
 
@@ -385,6 +403,8 @@ foram implementadas sob `estrutura/{id}`.
   | `NoComSeparacao` | `DELETE /estrutura/{id}` | alguma linha do livro de separação aponta o nó ou um descendente dele, mesmo estornada; leva `mensagem` (Fase 4, decisão P2) |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
   | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
+  | `PedidoFechado` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}` (e `POST /importacoes/{id}/confirmacao`) | o Pedido está `Concluido` (Fase 5A, C15): a estrutura de um Pedido concluído não se edita, e quem precisa mudá-lo estorna a última remessa; leva `mensagem` |
+  | `ComAfericao` | `PUT /estrutura/{id}` | mudar `requerRelatorioDimensional` de uma Peça que tem aferição válida (Fase 5A, C14); leva `mensagem` |
   | `ConflitoDeConcorrencia` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}`, `DELETE /estrutura/{id}` (e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento") | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na escrita; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`; o `PUT` e o `DELETE` já podiam emitir desde a Fase 3, e os dois `POST` desde 2026-10-01 |
 
   `EstruturaProfundaDemais` e `EstruturaGrandeDemais` não são regra de negócio — são para-quedas
@@ -406,7 +426,8 @@ aninhadas sob Agrupamento, as de rascunho são de topo.)*
   `arquivo` (`.csv` ou `.xlsx`, até **5 MiB**). Lê, casa com o catálogo e cria o rascunho → **201** com o
   `ImportacaoDto`. **400** `BomInvalido` com a lista de erros do arquivo (ver "Contrato de erro da Importação");
   **404** se o Agrupamento não existe. Sem guarda de status do Pedido, pelo mesmo motivo dos `POST` da
-  Estrutura. O autor vem da claim `sub`
+  Estrutura; desde a Fase 5A (C15) o Pedido `Concluido` é recusado só na **confirmação**, que é quando a Peça
+  nasce. O autor vem da claim `sub`
 - `GET /agrupamentos/{id}/importacoes` — os rascunhos do Agrupamento, do mais novo para o mais antigo:
   `ResumoDeImportacaoDto[]`. 404 se o Agrupamento não existe
 - `GET /importacoes/{id}` — o estado completo do rascunho (`ImportacaoDto`), **calculado a cada leitura**
@@ -556,13 +577,14 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
   401 sem corpo e não 500. As demais rotas de escrita não leem a claim.
 - **403** — perfil sem permissão, do `[Authorize(Roles = "PCP,Administrador")]` nas rotas de escrita.
 - **404** — Agrupamento, rascunho, registro, linha da receita ou Componente-alvo inexistentes, **sem corpo**.
-- **409** — três códigos, com `erro` estável:
+- **409** — quatro códigos, com `erro` estável:
 
   | Código | Onde | Motivo |
   |---|---|---|
   | `ImportacaoDesatualizada` | toda escrita com `versao`, e a confirmação | a `versao` do corpo não é a do banco, ou outra escrita chegou entre a leitura e o salvamento. Nada foi gravado; a tela relê. Sem `mensagem` |
   | `ReceitaDoCatalogoMudou` | `POST /importacoes/{id}/confirmacao` | a receita de catálogo de um Componente com escolha mudou depois da escolha (a impressão SHA-256 que o servidor guardou não bate). A transação é desfeita, e a escolha daquele código é zerada **em melhor esforço**, fora dela: a limpeza é pulada se a versão do rascunho mudou nesse meio-tempo, e qualquer falha dela é engolida, porque a resposta já é o 409 — o pior desfecho é a escolha velha continuar, e a confirmação seguinte devolve o mesmo 409. Leva `mensagem` nomeando os códigos |
   | `ConflitoDeConcorrencia` | `POST /importacoes/{id}/confirmacao` | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na transação da confirmação; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`, a mesma frase das demais escritas de estrutura |
+  | `PedidoFechado` | `POST /importacoes/{id}/confirmacao` | o Pedido do Agrupamento está `Concluido` (Fase 5A, C15); a transação é desfeita antes de qualquer escrita do catálogo, e o rascunho continua. Leva `mensagem` |
 
   O `DELETE /agrupamentos/{id}` ganha o `AgrupamentoComImportacao`, descrito na seção "Pedido / Agrupamento".
 
@@ -583,6 +605,13 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   Início, com `montagemId` preenchido quando houve consumo.
 - `POST /estrutura/{id}/terminos` *(Operador)* — terminar. Body: `{ setorId, ordem, quantidade }`; a
   quantidade passa a aguardar coleta no mesmo Setor e passo.
+- `POST /estrutura/{id}/terminos-de-conserto` *(Operador)* — terminar o **conserto** de uma Peça (Fase 5A, regra
+  35 de `01`; decisão P6 do plano de backend da Fase 5A). Body: `{ setorId, quantidade }`; a quantidade vai de
+  `EmConserto` a `ConsertoPronto` no mesmo Setor, sem Roteiro e sem passo — rota própria porque o `TerminoDto`
+  carrega `ordem`, que o conserto não tem. 201 com o movimento de `Termino`. Setor inexistente → 404 sem corpo;
+  o Setor **inativado** continua valendo (só *mandar* para Setor inativo é recusado, na seção "Aferição,
+  expedição e fechamento"); 409 `SaldoInsuficiente` se o Setor não tem tanto em conserto; 409 `PedidoFechado`.
+  A pausa do Pedido não recusa.
 - `POST /inicios` *(Operador)* — iniciar **vários nós** no mesmo Setor, tudo ou nada (spec
   `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`, seção 6). Body:
   `{ setorId, itens: [{ estruturaItemId, quantidade }] }`. Serve à seção "A iniciar aqui" e ao "Iniciar
@@ -595,15 +624,23 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   pai, é o movimento de Início dele (com `montagemId`), o mesmo que a rota individual devolve, e as
   baixas dos filhos ficam no livro.
 - `POST /terminos` *(Operador)* — terminar vários nós, tudo ou nada, como `POST /inicios`. Body:
-  `{ setorId, itens: [{ estruturaItemId, ordem, quantidade }] }`; cada quantidade passa a aguardar
-  coleta no mesmo Setor e passo. 201 com um movimento de Término por item, na ordem dos itens.
+  `{ setorId, itens: [{ estruturaItemId, ordem?, quantidade, conserto? }] }`; cada quantidade passa a aguardar
+  coleta no mesmo Setor e passo. 201 com um movimento de Término por item, na ordem dos itens. **Desde a Fase 5A
+  o mesmo lote termina também o conserto** (decisão P6 do plano de backend; pedido do usuário de 2026-10-20): um
+  item com `conserto: true` vem **sem `ordem`** e termina `EmConserto` → `ConsertoPronto` no Setor do lote, como
+  `POST /estrutura/{id}/terminos-de-conserto`; um item sem `conserto` (o padrão, `false`) exige `ordem`. Itens
+  das duas espécies se misturam, tudo ou nada. A forma de **todos** os itens é conferida antes de gravar o
+  primeiro: item de conserto **com** `ordem`, ou item normal **sem** `ordem`, é 400 `OrigemInvalida` com a frase
+  nomeando a Peça (um 400 não passa por um 409 anterior); item de nó inexistente fica com o 404 do núcleo.
 - **Lote — recusa na entrada** (`POST /inicios` e `POST /terminos`), antes de abrir a transação e nesta ordem: `itens` ausente ou vazio → 400
   `LoteVazio`; mais de **100** itens (`ApontamentoUseCase.TamanhoMaximoDoLote`, o mesmo teto de página
   de `GET /pedidos`) → 400 `LoteGrandeDemais`; quantidade de algum item fora da regra → 400
   `QuantidadeInvalida`, com a frase da rota individual; o mesmo nó mais de uma vez no Iniciar, ou o
   mesmo par nó + `ordem` no Terminar → 400 `ItemRepetido`, e a `mensagem` diz qual ("O nó 7 aparece
   mais de uma vez no lote." / "O nó 7 no passo 2 aparece mais de uma vez no lote."); por fim, Setor
-  inexistente → 404 sem corpo.
+  inexistente → 404 sem corpo. O repetido do conserto tem chave própria (nó, sem passo): o mesmo nó duas vezes
+  como conserto é 400 `ItemRepetido` ("O nó 7 aparece mais de uma vez no lote como conserto."), e o mesmo nó
+  como conserto e como passo normal não é repetido.
 - **Lote — a primeira recusa de negócio aborta tudo** (`POST /inicios` e `POST /terminos`). Os itens são avaliados na ordem do corpo; a primeira
   recusa devolve **o código e o status que a rota individual daria** — 409 `SaldoInsuficiente`,
   `SemRoteiro`, `NaoEhOPrimeiroPasso`, `FilhosInsuficientes`, `PedidoPausado`, `PedidoFechado`; 404
@@ -617,7 +654,8 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - **Lote — perfis e travas** (`POST /inicios` e `POST /terminos`). Os mesmos das rotas de um nó (`Operador` e `Administrador`). Antes do primeiro
   item o lote trava, na ordem fixa da spec da Fase 3 (seção 8.1): no Iniciar, os itens e os filhos
   de cada um, em ordem crescente de Id, e depois os Pedidos deles; no Terminar, só os itens, e nenhum
-  Pedido, como a rota de um nó.
+  Pedido, como a rota de um nó — exceto, desde a Fase 5A, os Pedidos das Peças dos itens de **conserto**, que o
+  lote trava depois dos nós e cujo fechamento recalcula uma vez, no fim.
 - `POST /entregas` *(Movimentador)* — entrega uma lista, tudo ou nada. Body:
   `{ itens: [{ estruturaItemId, origem: { posicao, setorId, ordem }, quantidade }] }`.
   **O destino é sempre calculado** (spec da Fase 3D, §2.2): o próximo passo, o local de expedição
@@ -626,6 +664,12 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   — preenchido, dá 400 `DestinoIndevido`, mesmo que aponte o Setor certo. Redirecionar o que aguarda
   montagem fora do primeiro passo do pai é uma entrega com origem `AguardandoMontagem`, e leva ao
   primeiro passo de agora; se já está nele, 409 `RedirecionamentoSemEfeito`.
+  **Conserto (Fase 5A, regra 35).** A origem também pode ser `AguardandoConserto` ou `ConsertoPronto`, com
+  `setorId` e **sem** `ordem`: `AguardandoConserto` leva a Peça a `EmConserto` no **mesmo** Setor, e
+  `ConsertoPronto` a traz de volta ao local de expedição (`NaExpedicao`). Sem escolha, como nas outras origens:
+  `destinoSetorId` mandado é 400 `DestinoIndevido`. Toda entrega que toca o fim do caminho (a ida e a volta
+  do conserto, e a chegada da Peça ao local de expedição) recalcula o status e o fechamento do Pedido na mesma
+  transação.
   **Kit (Fase 3B, regra 25).** A regra vale para a entrega que vai à `AguardandoMontagem` de um pai de
   Agrupamento `Kit` cujo primeiro passo é num Setor com `UtilizaKit`: ela só entra em conjunto completo.
   Há três causas de 400 `ConjuntoIncompleto` — a lista não traz todos os filhos diretos do pai; a
@@ -636,14 +680,18 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   ficam de fora e seguem como antes:** o pai de Agrupamento `Avulso`; o pai cujo primeiro passo é num
   Setor sem `UtilizaKit`; e o filho que passa pela Solda no próprio Roteiro, cuja entrega para o
   próximo passo entra em `NoSetor` e não é conjunto, mesmo que o Setor tenha `UtilizaKit`.
-- `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, PCP)* e
+- `POST /movimentacoes/{id}/estorno` *(Operador, Movimentador, Qualidade, PCP)* e
   `POST /montagens/{id}/estorno` *(Operador, PCP)* — desfazem um registro com o movimento inverso,
   enquanto a quantidade não tiver andado. Estornar uma montagem desfaz também o Início do pai que
   ela gravou (Fase 3D), desde que o pai ainda esteja onde o início o pôs; o Início de um pai que
-  consumiu filhos não se estorna por `/movimentacoes/{id}/estorno` (`EstornoImpossivel`). Só o
+  consumiu filhos não se estorna por `/movimentacoes/{id}/estorno` (`EstornoImpossivel`). **Desde a Fase 5A (C17)
+  essa rota também recusa, com 409 `EstornoImpossivel`, a linha que pertence a uma contagem, a uma liberação ou
+  a uma remessa**: cada um desses registros se estorna **inteiro**, pela rota dele (seção "Aferição, expedição e
+  fechamento"), e a frase da recusa diz qual. O `Conserto` não tem agrupador e se estorna por aqui, pela
+  Qualidade que o mandou; estornar movimento que toca o fim do caminho recalcula o fechamento do Pedido. Só o
   autor, ou PCP ou Administrador (403 para os demais, decidido no caso de uso). As duas rotas declaram os mesmos perfis no `[Authorize]` — Operador,
-  Movimentador e PCP —, porque vivem no mesmo controller; na de montagem, o Movimentador, que nunca é
-  autor de uma, recebe o 403 do caso de uso.
+  Movimentador, Qualidade e PCP —, porque vivem no mesmo controller; na de montagem, o Movimentador e a
+  Qualidade, que nunca são autores de uma, recebem o 403 do caso de uso.
 - `PUT /estrutura/{id}/roteiro` *(PCP)* — troca os passos do Roteiro do nó. Body:
   `{ passos: [setorId, …] }`, em ordem. Passo já alcançado não muda.
 - `POST /pedidos/{id}/pausas` *(PCP, Gestão)* — pausa o Pedido (regra 31; spec da Fase 3D, §2.5).
@@ -695,8 +743,13 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   planejado do nó e `completos` os que estão sem pendência: conta **materiais, não quantidades**. O resumo
   é informação: o início não é bloqueado por ele (regra 5). O campo está na linha e no grupo, e **não** no
   nó resumido, porque "inicia aqui" depende do Setor da fila (decisão P4 do plano de backend da Fase 4).
-- `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos }` (Fase 3B; antes era só a lista de
-  grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
+  Na Fase 5A a resposta ganha, **no fim**, `conserto`: `{ no, posicao, quantidade, estornaveis }[]`, as Peças em
+  conserto **neste Setor** — `posicao` é `EmConserto` (o operador termina) ou `ConsertoPronto` (espera o
+  Movimentador levar ao local de expedição), sem `ordem`, porque o conserto não tem passo; `estornaveis` no
+  mesmo formato das outras linhas. `AguardandoConserto` **não** aparece aqui: espera o Movimentador, e está
+  nas Tarefas.
+- `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos, consertos }` (Fase 3B, com `consertos` na Fase
+  5A; antes era só a lista de grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
   fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
   pai começa num Setor com `UtilizaKit`, **não** aparece aqui: aparece no cartão do Kit enquanto o
   pai ainda precisa receber conjuntos (teto da regra 25 acima de zero); com o teto em zero, não
@@ -711,12 +764,20 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   `pronto` é o que aguarda lá e `jaNoDestino` diz que esse passo é no Setor do pai. A quantidade de
   cada filho na entrega é `conjuntos × quantidadePorPai`, e quem a calcula é o front. Cai em
   `kitsMontaveis` o Kit com `conjuntos` de 1 para cima, e em `kitsIncompletos` o de zero; nas duas,
-  só o Kit com teto acima de zero e algum filho com `pronto` acima de zero.
+  só o Kit com teto acima de zero e algum filho com `pronto` acima de zero. `consertos` (Fase 5A): a ida e a
+  volta do conserto, `{ no, origem, destino, quantidade }[]`, por Setor, nó e posição, com `origem` e `destino`
+  no formato de `LocalDto` (`{ posicao, setorId, setorNome, ordem }`). Na **ida**, a `origem` é a posição do
+  livro `AguardandoConserto` **com o Setor escolhido**, e o `destino`, `EmConserto` no mesmo Setor; na
+  **volta**, a `origem` é `ConsertoPronto` no Setor, e o `destino`, o local de expedição (`NaExpedicao`, sem
+  Setor). A `origem` é sempre a posição que a entrega consome, então serve **como está** em `POST /entregas`.
 - `GET /tarefas/contagem` — só o número, para o contador do menu. Cada Kit montável conta como uma
-  tarefa; os incompletos não contam.
+  tarefa; os incompletos não contam. Cada ida e cada volta do conserto também conta como uma.
 - `GET /agrupamentos/{id}/posicoes` — saldo por posição de todos os nós do Agrupamento, e o total
   montado dos nós com filhos.
-- `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno.
+- `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno. Desde a Fase 5A mostra os tipos
+  novos (`Medicao`, `Conserto`, `PedidoDeLiberacao`, `Liberacao`, `Recusa` e `Expedicao`) e as posições novas,
+  e todo `MovimentacaoDto` ganha, no fim, `contagemId`, `liberacaoId` e `remessaId` (nulos quando a linha não
+  pertence a nenhum registro do fim do caminho).
 - `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
 
 O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON" do plano 2 da Fase 3
@@ -728,6 +789,9 @@ campos `pedidoCliente` e `materiais` do nó resumido e as três rotas `GET /pedi
 seção "Contrato JSON novo" do plano 1 dos filtros da demanda
 (`docs/superpowers/plans/2026-09-29-filtros-plano-1.md`). O corpo e as respostas de `POST /inicios` e
 `POST /terminos` estão na seção "Contrato JSON novo" do plano 2 (`docs/superpowers/plans/2026-09-30-filtros-plano-2.md`).
+O que a Fase 5A acrescentou ao chão de fábrica — o item `conserto` do `POST /terminos`, a origem do conserto em
+`POST /entregas`, o campo `conserto` da fila e o `consertos` das Tarefas — está na seção "Contrato JSON novo" do
+plano de backend da Fase 5A (`docs/superpowers/plans/2026-10-20-fase-5a-backend.md`).
 
 **Fase 4:** as rotas de separação de material e de edição dos materiais do nó estão na seção
 "Separação de materiais", abaixo. O campo `material` da fila está descrito em `GET /setores/{id}/fila`.
@@ -742,11 +806,11 @@ Setor e números quando ajudam.
 | 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (no lote, a de qualquer item, na entrada, com a mesma frase da rota individual; a do produto por filho, já dentro da transação, ganha o prefixo "{nome}: ") |
 | 400 | `LoteVazio` | `POST /inicios` ou `POST /terminos` sem `itens`, ou com a lista vazia |
 | 400 | `LoteGrandeDemais` | mais de 100 itens no lote (`ApontamentoUseCase.TamanhoMaximoDoLote`) |
-| 400 | `ItemRepetido` | o mesmo nó em `POST /inicios`, ou o mesmo nó e passo em `POST /terminos`; a `mensagem` diz qual |
-| 400 | `DestinoIndevido` | `destinoSetorId` mandado — o destino da entrega é sempre calculado |
+| 400 | `ItemRepetido` | o mesmo nó em `POST /inicios`, ou o mesmo nó e passo em `POST /terminos` (ou o mesmo nó duas vezes como `conserto`); a `mensagem` diz qual |
+| 400 | `DestinoIndevido` | `destinoSetorId` mandado — o destino da entrega é sempre calculado, também na entrega do conserto |
 | 400 | `EntregaVazia` | lista de entrega vazia |
 | 400 | `RoteiroInvalido` | Setor inexistente ou inativo entrando no Roteiro |
-| 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`, ou com Setor e passo que não combinam com a posição |
+| 400 | `OrigemInvalida` | origem da entrega fora de `AguardandoColeta`/`AguardandoMontagem`/`AguardandoConserto`/`ConsertoPronto`, ou com Setor e passo que não combinam com a posição; no `POST /terminos`, item de `conserto` **com** `ordem` ou item normal **sem** `ordem` |
 | 400 | `MotivoLongoDemais` | motivo da pausa com mais de 200 caracteres (o `[MaxLength]` do corpo já dá 400 antes; o caso de uso repete a guarda) |
 | 403 | `Proibido` | estorno de registro alheio sem ser PCP nem Administrador |
 | 404 | — | nó, Setor, movimento ou montagem inexistente (no lote, o Setor ou o nó de algum item, se for a primeira recusa) |
@@ -758,9 +822,9 @@ Setor e números quando ajudam.
 | 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |
-| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem, ou Início de pai que consumiu filhos, estornados sozinhos; estorno de montagem cujo pai já andou |
+| 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem, ou Início de pai que consumiu filhos, estornados sozinhos; estorno de montagem cujo pai já andou; linha de contagem, de liberação ou de remessa estornada sozinha por `POST /movimentacoes/{id}/estorno` (C17, Fase 5A) |
 | 409 | `JaEstornado` | o registro já foi estornado |
-| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado`, ou pausá-lo |
+| 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado`, ou pausá-lo. Desde a Fase 5A vale também para **estrutura** em Pedido `Concluido` (criar Peça, acrescentar filho, editar nó e confirmar o import; C15, seção "Estrutura"). **Não** recusa o estorno de uma remessa de Pedido `Concluido`, que o reabre (C13); o de Pedido `Cancelado`, sim |
 | 409 | `PedidoPausado` | iniciar nó (ou pai) de Pedido pausado — só o Iniciar é recusado |
 | 409 | `PedidoJaPausado` | pausar Pedido que já tem pausa aberta |
 | 409 | `PedidoNaoPausado` | retomar Pedido sem pausa aberta |
@@ -923,25 +987,231 @@ da rota de um nó, e a frase com o nome do nó na frente ("Quadro soldado: …",
 | 409 | `EstornoDeEstorno` | tentar estornar uma linha que já é um estorno |
 | 409 | `NoComSeparacao` | `DELETE /estrutura/{id}` de nó com linha de separação na subárvore (ver "Contrato de erro da Estrutura") |
 
-## Expedição
+## Aferição, expedição e fechamento
 
-*(Rotas em nível de Peça, `estruturaItemId`; nomes definitivos podem ser afinados na
-fase de implementação da API.)*
+*(Fase 5A, spec `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`, seção 5,
+sobre as regras 10, 11, 13, 16 e 35 a 37 de `01-dominio-e-regras-de-negocio.md`. Substitui as seções "Expedição" e
+"Dimensional" deste rascunho, que descreviam as rotas `/pecas/{estruturaItemId}/...` do modelo antigo
+(`Expedicao` por Peça, com `responsavel` digitado, e `RelatorioDimensionalAvaliacao` por remessa): nenhuma
+delas foi implementada. O contrato JSON é o da seção "Contrato JSON novo" do plano de backend da Fase 5A,
+`docs/superpowers/plans/2026-10-20-fase-5a-backend.md`, e as decisões P1 a P10 citadas são as dele. Rotas de Peça
+no prefixo `estrutura/{id}`, em que `{id}` é o da **Peça** (um Item é 400 `NaoEhPeca`); a resposta da Gestão e os
+estornos, em rotas de topo, pelo id do **registro**. Leitura liberada a qualquer perfil autenticado; cada rota de
+escrita declara os perfis, sempre com `Administrador`, e **todas respondem 201**. Um controller por conjunto
+de perfis (P7).)*
 
-- `POST /pecas/{estruturaItemId}/expedicoes` — registra uma remessa parcial.
-  Body: `{ quantidade, responsavel }`
-- `GET /pecas/{estruturaItemId}/expedicoes`
+**Escrita da Qualidade** *(Qualidade, Administrador)*
 
-## Dimensional
+- `POST /estrutura/{id}/afericoes` — registra a aferição da Peça (regra 10). Body: `{ resultado }`, com
+  `resultado` `Conforme` ou `NaoConforme`. 201 com a `AfericaoDto`. Só a Peça que exige relatório e **não** tem
+  aferição válida.
+- `POST /estrutura/{id}/contagens` — registra a contagem unidade a unidade (regra 11). Body: `{ conformes,
+  naoConformes }`, tudo ou nada; um dos dois pode ser zero, os dois não. Só com aferição válida **não conforme**, e
+  até a quantidade que está em `NaExpedicao`. 201 com a `ContagemDto`.
+- `POST /estrutura/{id}/consertos` — manda unidades `NaoConforme` para conserto (regra 35). Body: `{ setorId,
+  quantidade }`; o Setor é qualquer um **ativo**, inclusive o Expedição (C19). 201 com o `MovimentacaoDto` do
+  `Conserto`. O Setor só é conferido aqui (decisão P10): inativado depois, a peça lá dentro continua andando.
+- `POST /estrutura/{id}/pedidos-de-liberacao` — pede à Gestão a liberação de unidades `NaoConforme` (regra 36).
+  Body: `{ quantidade, justificativa }`; a justificativa é obrigatória, aparada, até 500 caracteres. 201 com a
+  `LiberacaoDto` (`tipo` `Pedido`). No máximo um pedido em aberto por Peça (C18).
+- `POST /remessas` — expede uma Peça ou um **lote** de Peças numa remessa só, **tudo ou nada** (regra 16; C8 e C9).
+  Body: `{ itens: [{ estruturaItemId, quantidade }] }`. A remessa escolhe de onde tira (C10), e **nenhuma
+  situação da aferição a recusa** (regra 37): o 201 traz a remessa e os `avisos`, calculados aqui e não
+  confirmados antes (decisão P5). Peça repetida no lote é recusada, em vez de somada.
 
-*(Modelo header + detalhe por quantidade. Rotas em nível de Peça, `estruturaItemId`;
-nomes definitivos podem ser afinados na fase de implementação da API.)*
+**Escrita da Gestão** *(Gestão, Administrador)*
 
-- `GET /pecas/{estruturaItemId}/relatorio-dimensional` — header do `RelatorioDimensional`
-  da Peça, com as `RelatorioDimensionalAvaliacao` (uma por remessa avaliada)
-- `POST /pecas/{estruturaItemId}/relatorio-dimensional/avaliacoes` — registra uma
-  avaliação por quantidade.
-  Body: `{ quantidadeAvaliada, quantidadeAprovada, quantidadeReprovada, medidas?, informadoPor }`
+- `POST /liberacoes/{id}/resposta` — responde ao pedido de liberação `{id}` (o id do **pedido**; o de uma resposta
+  é 404). Body: `{ quantidadeLiberada, observacao? }`, de zero (a recusa) até a quantidade pedida; a observação é
+  opcional, aparada, até 500 caracteres. 201 com a `LiberacaoDto` da **resposta** (`tipo` `Resposta`,
+  `pedidoDeLiberacaoId` apontando o pedido).
+
+**Estornos** *(Qualidade, Gestão, PCP, Administrador no `[Authorize]`; o caso de uso exige o autor, o PCP ou o
+Administrador, e devolve 403 `Proibido` **com corpo** para os demais, como o estorno da Execução)*
+
+Cada registro composto se estorna **inteiro**, numa transação (C17). Todos respondem 201.
+
+- `POST /remessas/{id}/estorno` — as linhas `Estorno` da remessa, `MovimentacaoDto[]`. Reabre o que a remessa
+  concluiu (C13), inclusive o Pedido.
+- `POST /afericoes/{id}/estorno` — a `AfericaoDto` da aferição **original**, agora com `estornada: true`. A
+  aferição não conforme só se estorna sem contagem válida na Peça.
+- `POST /contagens/{id}/estorno` — as linhas `Estorno` das duas linhas `Medicao`, `MovimentacaoDto[]`.
+- `POST /liberacoes/{id}/estorno` — as linhas `Estorno` do **pedido** ou da **resposta** (`{id}` é o do registro),
+  `MovimentacaoDto[]`. O pedido com resposta válida só se estorna depois dela, e a resposta só quando a Peça não
+  tem outro pedido em aberto (C18).
+- O `Conserto` se estorna por `POST /movimentacoes/{id}/estorno`, na seção "Execução / Rastreamento", que
+  **recusa** as linhas de contagem, de liberação e de remessa (C17).
+
+**No chão de fábrica** *(rotas da Execução, ampliadas; ver a seção "Execução / Rastreamento")*
+
+- `POST /estrutura/{id}/terminos-de-conserto` e o item `conserto` de `POST /terminos` *(Operador, Administrador)*
+  — terminar o conserto, `EmConserto` → `ConsertoPronto` (decisão P6).
+- `POST /entregas` *(Movimentador, Administrador)* — origens `AguardandoConserto` (a ida) e `ConsertoPronto` (a
+  volta).
+
+**Leitura**
+
+- `GET /expedicao` — a lista da Qualidade, `ExpedicaoDto`: os Pedidos **não encerrados** (nem `Concluido` nem
+  `Cancelado`) com Peça que tenha quantidade em alguma das cinco posições do local de expedição ou em conserto,
+  por `dataEntrega` (desempate: Pedido e Peça por `id`). Chega **inteira**, e a tela filtra no cliente. O Pedido
+  pausado continua nela, com a `pausa` (a pausa recusa só o início, regra 31). Peça toda expedida sai dela.
+- `GET /estrutura/{id}/expedicao` — o histórico da Peça, `RegistroDaExpedicaoDto[]`, do mais recente ao mais antigo
+  (`dataHora` e, no empate, `id` decrescente). 404 se o nó não existe.
+- `GET /liberacoes/pendentes` — os pedidos de liberação que a Gestão ainda não respondeu, do mais antigo ao mais
+  novo, `LiberacaoPendenteDto[]`. Só de Pedidos não encerrados.
+- `GET /remessas/recentes` — as remessas dos **últimos 30 dias** (decisão P9, contados do instante da consulta),
+  da mais recente à mais antiga, `RemessaDto[]`, com as linhas de cada uma. É onde a remessa se estorna (C20).
+
+### Contrato JSON
+
+camelCase, como o resto da API. Decimais como número. `dataHora` em ISO 8601 com offset `-03:00`; `dataEntrega`
+como `"yyyy-MM-dd"`. O formato é o do plano de backend da Fase 5A; aqui, o que a implementação fixou.
+
+```jsonc
+// POST /estrutura/{id}/afericoes  → 201 AfericaoDto
+{ "resultado": "Conforme" }                          // ou "NaoConforme"
+// AfericaoDto  (também POST /afericoes/{id}/estorno, com estornada: true)
+{ "id": 4, "resultado": "NaoConforme", "dataHora": "…", "usuarioId": 20, "usuarioNome": "Qualidade",
+  "estornada": false, "estornavel": true }
+
+// POST /estrutura/{id}/contagens  → 201 ContagemDto
+{ "conformes": 4, "naoConformes": 2 }
+// ContagemDto
+{ "id": 7, "conformes": 4, "naoConformes": 2, "dataHora": "…", "usuarioId": 20, "usuarioNome": "Qualidade",
+  "estornada": false, "estornavel": true }
+
+// POST /estrutura/{id}/consertos  → 201 MovimentacaoDto (tipo "Conserto", de NaoConforme a AguardandoConserto)
+{ "setorId": 2, "quantidade": 1 }
+
+// POST /estrutura/{id}/pedidos-de-liberacao  → 201 LiberacaoDto (tipo "Pedido")
+{ "quantidade": 2, "justificativa": "Aba da dobra 1,5 mm fora; o cliente não usa." }
+// POST /liberacoes/{id}/resposta  → 201 LiberacaoDto (tipo "Resposta")
+{ "quantidadeLiberada": 2, "observacao": null }       // 0 = recusa total
+// LiberacaoDto
+{ "id": 9, "tipo": "Pedido", "pedidoDeLiberacaoId": null, "estruturaItemId": 42, "quantidade": 2,
+  "texto": "…", "dataHora": "…", "usuarioId": 20, "usuarioNome": "Qualidade", "estornada": false, "estornavel": true }
+//   Pedido: quantidade = a pedida, texto = a justificativa.
+//   Resposta: pedidoDeLiberacaoId = o pedido, quantidade = a liberada, texto = a observação (ou null).
+
+// GET /liberacoes/pendentes  → LiberacaoPendenteDto[]  (mais antigo primeiro)
+[ { "id": 9, "quantidade": 2, "justificativa": "…", "dataHora": "…", "usuarioNome": "Qualidade",
+    "peca": { "id": 42, "descricao": "Chapa dobrada 3 mm", "codigoDoComponente": "CHP-220" },
+    "pedido": { "id": 5, "numero": "PED-2041", "cliente": "…", "dataEntrega": "2026-10-22", "atrasado": true } } ]
+
+// POST /remessas  → 201 ResultadoDaRemessaDto
+{ "itens": [ { "estruturaItemId": 42, "quantidade": 9 } ] }
+// ResultadoDaRemessaDto
+{ "remessa": { /* RemessaDto */ },
+  "avisos": [ { "pecaId": 42, "tipo": "NaoConformeSemLiberacao", "quantidade": 2 } ] }   // ou "SemAfericao" | "SemMedicao"
+// RemessaDto  (GET /remessas/recentes devolve a lista, mais recente primeiro)
+{ "id": 3, "dataHora": "…", "usuarioId": 20, "usuarioNome": "Qualidade", "estornada": false, "estornavel": true,
+  "linhas": [ { "pecaId": 42, "pecaDescricao": "Chapa dobrada 3 mm", "codigoDoComponente": "CHP-220",
+                "pedidoId": 5, "pedidoNumero": "PED-2041", "pedidoConcluido": false,   // o status de AGORA
+                "origem": "Conforme", "quantidade": 7 } ] }
+
+// GET /expedicao  → ExpedicaoDto
+{ "pedidos": [ { "id": 5, "numero": "PED-2041", "cliente": "…", "dataEntrega": "2026-10-22", "atrasado": true,
+    "pausa": null,                                   // ou { desde, porUsuarioNome, motivo }, como na Fila
+    "pecas": [ { "id": 42, "descricao": "Chapa dobrada 3 mm", "codigoDoComponente": "CHP-220",
+        "agrupamentoId": 3, "agrupamentoCodigo": "AG-01", "quantidade": 10, "requerRelatorioDimensional": true,
+        "situacao": "NaoConforme",                   // SemRelatorio | Pendente | Conforme | NaoConforme
+        "afericao": { /* AfericaoDto */ },            // a válida, ou null
+        "posicoes": { "naExpedicao": 0, "conforme": 7, "naoConforme": 2, "aguardandoLiberacao": 0, "liberada": 0,
+                      "emConserto": 1, "expedido": 0 },
+        "consertos": [ { "setorId": 2, "setorNome": "Dobra", "posicao": "EmConserto", "quantidade": 1 } ],
+        "liberacaoPendente": null,                    // ou { id, quantidade, justificativa, dataHora, usuarioNome }
+        "expedivel": 9 } ] } ] }
+
+// GET /estrutura/{id}/expedicao  → RegistroDaExpedicaoDto[]
+{ "tipo": "Contagem",                               // Afericao | Contagem | Conserto | PedidoDeLiberacao | RespostaDeLiberacao | Remessa
+  "id": 7, "dataHora": "…", "usuarioId": 20, "usuarioNome": "Qualidade",
+  "resultado": null, "conformes": 4, "naoConformes": 2, "quantidade": null, "setorNome": null, "texto": null,
+  "estornada": false, "estornavel": true }
+```
+
+Regras do contrato que o formato não diz sozinho:
+
+- **`situacao`** é a tabela da regra 37, decidida no servidor: `SemRelatorio` (a Peça não exige relatório; a marca
+  desligada vence qualquer aferição), `Pendente` (exige e não tem aferição válida), `Conforme` e `NaoConforme`
+  (o resultado da aferição válida, que vem em `afericao`).
+- **`posicoes`** soma, por posição, o saldo da Peça no livro. `emConserto` é a **soma** das três posições do
+  conserto, de qualquer Setor; o detalhe por Setor e posição está em `consertos` (só o que tem saldo, por
+  Setor e posição). `expedivel` é o que uma remessa pode tirar agora: `liberada + conforme + naExpedicao +
+  naoConforme` — **não** inclui `aguardandoLiberacao` (C10).
+- **`avisos`** vêm por Peça e por tipo, com a quantidade somada, e tipo com zero não sai. `SemAfericao` e
+  `SemMedicao` são o que saiu de `NaExpedicao` conforme a `situacao` (`Pendente` e `NaoConforme`);
+  `NaoConformeSemLiberacao` é o que saiu de `NaoConforme`, sempre. `Liberada` e `Conforme` nunca avisam. A
+  resposta é sempre 201: o aviso informa, não condiciona (regra 37).
+- **`origem`** de uma linha de remessa é a posição de onde a quantidade saiu: `Liberada`, `Conforme`,
+  `NaExpedicao` ou `NaoConforme`. Uma remessa com `n` posições de origem tem `n` linhas, e `estornada` marca
+  a remessa já estornada, que continua na lista. `pedidoConcluido` é o status do Pedido **de agora**, não o da hora
+  da remessa: é o que a tela usa para dizer que o estorno o reabre.
+- **`estornavel`**, nos registros de aferição, contagem, liberação e remessa, é **calculado para quem lê**, como o
+  `estornavel` da separação: verdadeiro quando o registro ainda não foi estornado e o leitor é o autor, o PCP ou
+  o Administrador. As demais recusas do estorno (a quantidade que já andou, a aferição não conforme com
+  contagem) ficam com a escrita, e não entram nesta conta. **A remessa é a exceção:** o `estornavel` dela é
+  falso também quando algum dos Pedidos dela está `Cancelado` (C13). Nos registros do histórico da
+  Peça, a **`Remessa` é sempre `estornavel: false`**: ela se estorna em "Remessas recentes" (C20).
+- **Histórico da Peça.** O estorno não é registro à parte: só marca o original como `estornada`. Uma remessa é
+  **um** registro por remessa, com a soma das linhas dela **nesta Peça** em `quantidade`. O `id` é o do registro
+  do tipo (aferição, contagem, liberação, remessa) — exceto no `Conserto`, em que é o da **linha do livro**, que é o
+  que `POST /movimentacoes/{id}/estorno` recebe. Os campos que o `tipo` não usa vão nulos.
+- **`atrasado`** é decidido no servidor, com a regra 33, como em `GET /pedidos`.
+
+### Contrato de erro da Aferição, expedição e fechamento
+
+Formato `{ erro, mensagem }` do "Contrato de erro da Execução": `erro` é o código estável, `mensagem` a frase para a
+Qualidade, a Gestão ou o operador. As frases que nomeiam uma Peça usam o nome da regra 19 (a descrição do nó e,
+sem ela, a do Componente), inclusive a Peça copiada do catálogo; no lote de `POST /remessas`, a recusa nomeia a Peça.
+O `404` e o `403` do `[Authorize(Roles)]` vão **sem corpo**; o `403` `Proibido` com corpo é o do caso de uso, nos
+estornos.
+
+**A ordem das recusas** é fixa, e é o que decide qual código a rota devolve quando duas valem:
+
+1. **A validação do corpo vem antes de tudo**, porque roda antes da transação e da trava — antes do 404, do
+   `NaoEhPeca` e do `PedidoFechado`: `ResultadoInvalido` na aferição; `QuantidadeInvalida` e `ContagemVazia` na
+   contagem; `QuantidadeInvalida` no conserto; `QuantidadeInvalida`, `JustificativaObrigatoria` e
+   `TextoLongoDemais` no pedido de liberação; `QuantidadeInvalida` e `TextoLongoDemais` na resposta; `LoteVazio`,
+   `LoteGrandeDemais`, `QuantidadeInvalida` e `ItemRepetido` na remessa.
+2. **Dentro da transação, com a Peça travada:** Peça inexistente (404) → Pedido `Concluido` ou `Cancelado` (409
+   `PedidoFechado`) → Item (400 `NaoEhPeca`) → a regra da rota (no conserto, `SetorInvalido` antes do saldo). A
+   remessa confere **cada item, na ordem do corpo**: 404, `NaoEhPeca`, `PedidoFechado`, `SaldoInsuficiente`.
+3. **A resposta da Gestão:** o pedido (404 se não existe, ou se o id é de uma resposta) → `QuantidadeAcimaDaPedida`
+   (400) → `PedidoFechado` → `LiberacaoNaoPendente`.
+4. **Os estornos:** o registro (404) → o autor, o PCP ou o Administrador (403 `Proibido`) → o que cada um
+   confere (estorno de estorno, na aferição) → dentro da transação, `PedidoFechado` → `JaEstornado` → o que
+   impede o estorno (`EstornoImpossivel`). **No da remessa** o `Concluido` é aceito (C13) e só o `Cancelado` dá
+   `PedidoFechado`.
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `ResultadoInvalido` | `POST /estrutura/{id}/afericoes` com `resultado` ausente ou fora de `Conforme`/`NaoConforme` |
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (`DECIMAL(18,4)`), em qualquer rota deste bloco; na contagem, `conformes` e `naoConformes` podem ser zero, mas não negativos; na resposta, `quantidadeLiberada` zero é a recusa. Código da Execução, reusado |
+| 400 | `ContagemVazia` | contagem com `conformes` e `naoConformes` zero |
+| 400 | `NaoEhPeca` | aferir, contar, mandar para conserto, pedir liberação ou expedir um **Item**: só a Peça chega ao local de expedição (regra 29) |
+| 400 | `SetorInvalido` | conserto para Setor inexistente ou inativo (C19, decisão P10) |
+| 400 | `JustificativaObrigatoria` | pedido de liberação sem justificativa, ou só com espaços (C6) |
+| 400 | `TextoLongoDemais` | justificativa do pedido ou observação da resposta com mais de 500 caracteres |
+| 400 | `QuantidadeAcimaDaPedida` | resposta com `quantidadeLiberada` maior que a quantidade pedida |
+| 400 | `LoteVazio`, `LoteGrandeDemais`, `ItemRepetido` | `POST /remessas` sem `itens`, com mais de 100, ou com a mesma Peça duas vezes (a `mensagem` a nomeia e manda somar num item só); códigos do lote da Execução, reusados |
+| 403 | `Proibido` | estorno de registro alheio por quem não é PCP nem Administrador; código da Execução, reusado |
+| 404 | — | Peça, aferição, contagem, pedido de liberação, remessa ou item de remessa inexistente; na resposta, o id de uma resposta |
+| 409 | `SemRelatorioDimensional` | aferir Peça que não exige relatório (regra 10) |
+| 409 | `AfericaoJaRegistrada` | aferir Peça que já tem aferição válida; a `mensagem` manda estornar a anterior |
+| 409 | `SemAfericaoNaoConforme` | contar sem aferição válida **não conforme** na Peça (regra 11) |
+| 409 | `SaldoInsuficiente` | a posição não tem a quantidade: contagem acima do que está em `NaExpedicao`; conserto ou pedido de liberação acima do `NaoConforme`; remessa acima do expedível (a frase diz o que aguarda a Gestão); terminar conserto acima do que está em `EmConserto` no Setor. Código da Execução, reusado |
+| 409 | `LiberacaoEmAberto` | pedir liberação com outro pedido em aberto na mesma Peça (C18) |
+| 409 | `LiberacaoNaoPendente` | responder pedido que já foi respondido ou estornado |
+| 409 | `EstornoImpossivel` | a quantidade já andou; aferição não conforme com contagem válida; estorno de estorno (aferição); pedido com resposta válida; resposta quando a Peça tem **outro** pedido em aberto (C18); linha de contagem, de liberação ou de remessa por `POST /movimentacoes/{id}/estorno` (C17) |
+| 409 | `JaEstornado` | o registro já foi estornado — aferição, contagem, pedido, resposta e **remessa** (decisão R6: não é `EstornoImpossivel`). Código da Execução, reusado |
+| 409 | `PedidoFechado` | escrever na expedição de Peça de Pedido `Concluido` ou `Cancelado`, **exceto** o estorno de remessa de Pedido `Concluido` (C13); estorno de remessa de Pedido `Cancelado`. Código da Execução, reusado |
+| 409 | `ConflitoDeConcorrencia` | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, numa escrita da transação da execução; nada foi gravado, e tentar de novo é seguro |
+
+Dois casos de **concorrência**, ambos com teste: duas remessas simultâneas da mesma Peça que somadas passam do
+expedível dão um 201 e um 409 (`SaldoInsuficiente`, ou `ConflitoDeConcorrencia` se o deadlock esgotou as tentativas),
+nunca 500 nem saldo negativo; e a Gestão responder a um pedido no instante em que a Qualidade o estorna dá um 201 e
+um 409 — `LiberacaoNaoPendente` na resposta que chega depois do estorno, `EstornoImpossivel` no estorno que chega
+depois da resposta —, nunca uma resposta com linha válida num pedido estornado.
 
 ## Perdas
 

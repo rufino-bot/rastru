@@ -62,8 +62,14 @@ e mesclada em 2026-10-09 (rufino-bot/rastru#32). A **Fase 3B** veio em seguida, 
 2026-10-14 (rufino-bot/rastru#33; spec
 `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). A **Fase 4** veio em seguida,
 concluída e mesclada em 2026-10-20 (rufino-bot/rastru#34; spec
-`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`); a próxima da sequência é a
-Fase 5.
+`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`). A **Fase 5** foi partida em
+três em 2026-10-20: **5A** (aferição, expedição e fechamento), **5B** (perda e reposição) e **5C** (as pontas do
+Kit que a 3B deixou), cada uma com spec, plano e PR próprios e **nesta ordem** — a partição não é exceção à
+sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A está em execução** (spec
+`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`; o plano de backend
+está implementado na branch `claude/brainstorm-fase-5-4otppt`, e falta o de front); a 5B e a 5C ainda não têm
+spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
+real**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -635,9 +641,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - Um `EstruturaItem` (lote) é **divisível por quantidades livres**: pode ter quantidades em
   Setores diferentes ao mesmo tempo. Não há identidade de sub-lote (sem serial). O
   invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
-  produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição) + montado
-  dentro do pai + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó (validado na
-  aplicação; regra 9).
+  produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição — as cinco
+  posições dele —, em conserto) + montado dentro do pai + expedido (a posição `Expedido` do livro, que as
+  linhas `Expedicao` de uma remessa alimentam) + perdido (`Perda`, da Fase 5B) = quantidade total do nó
+  (validado na aplicação; regra 9).
 - O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
   permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
@@ -662,6 +669,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   um estorno, no máximo um por linha (`UX_MaterialSeparacao_EstornoDe`). Por isso nó com qualquer linha
   de separação, ainda que estornada, não se exclui (409 `NoComSeparacao`). Separar nunca condiciona o
   início do nó. (Regra 34 de `specs/01`, Fase 4.)
+- **Cada registro composto do fim do caminho se estorna inteiro, e o Rastru avisa em vez de travar.** A
+  contagem (as duas linhas `Medicao`), a remessa (uma linha `Expedicao` por posição de origem), o pedido de
+  liberação e a resposta se estornam **por inteiro**, pela rota do registro, e a rota genérica
+  `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar metade
+  inventaria uma contagem ou uma remessa que ninguém fez. E nenhuma situação da aferição trava a remessa — ela
+  avisa (D8, regras 36 e 37 de `specs/01`, C17 da spec da Fase 5A).
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma

@@ -2,15 +2,16 @@
 
 Sistema de **rastreamento de peças dentro da fábrica** — do cadastro do Pedido até a
 entrega para a Expedição, passando pela estrutura recursiva de Peças/Itens, pela passagem
-por Setores de produção, pela separação de Materiais e pelo Relatório Dimensional (com
-possibilidade de abrir Retrabalho em caso de reprovação).
+por Setores de produção, pela separação de Materiais, pelo Relatório Dimensional (a aferição da
+Qualidade, com conserto ou liberação da Gestão para o que sai fora da medida) e pela expedição em remessas,
+com a possibilidade de abrir Retrabalho como ação separada e opcional.
 
 Projeto de TCC. O rastreamento é por **lote agregado** (não por unidade física individual),
 e o lote é **divisível por quantidades livres**: parte dele pode estar num Setor e parte em
 outro ao mesmo tempo. Não há identidade de sub-lote (sem etiqueta/serial) — controla-se
 apenas *quanto* está *onde*, sob o invariante de **conservação de quantidade**, para toda Peça e
-todo Item: o que está em produção (a iniciar, nos Setores, aguardando coleta ou montagem, ou no
-local de expedição) + o que já foi montado dentro do pai + expedido + perdido = quantidade total.
+todo Item: o que está em produção (a iniciar, nos Setores, aguardando coleta ou montagem, no
+local de expedição ou em conserto) + o que já foi montado dentro do pai + expedido + perdido = quantidade total.
 
 ## Stack
 
@@ -27,7 +28,7 @@ local de expedição) + o que já foi montado dentro do pai + expedido + perdido
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql` e `alter-fase-4.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B ou da Fase 4 até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql` e `alter-fase-5a.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4 ou da Fase 5A até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -106,7 +107,7 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 ## Roadmap
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
-roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, 5A a 5C dentro da Fase 5, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
 A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D**, o **import
 do BOM** e a **data de entrega do Pedido** rodaram antes da 3B, e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6 não está
 decidida.
@@ -175,9 +176,16 @@ Concluídas até aqui:
   inativo já gravado, como a spec da fase registra na emenda de 2026-10-20 do `PUT /estrutura/{id}/materiais`).
   Mesclada na `main` pelo PR #34, em 2026-10-20.
 
-A seguir vêm as Fases 5 e 6 — Relatório Dimensional, expedição,
-perda e fechamento, com o retrabalho como ação separada e opcional; e os KPIs de tempo por setor
-e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
+**Em execução: Fase 5A** — aferição, expedição e fechamento (desenho aprovado em 2026-10-20, na spec
+`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`). A Qualidade, que no
+Rastru é a pessoa da expedição, afere a Peça no local de expedição (uma unidade decide o lote; reprovada, mede-se
+uma a uma), manda a não conforme para conserto ou pede à Gestão que a libere, e expede em remessas, com lote; o
+Rastru avisa e deixa expedir, e Peça, Agrupamento e Pedido concluem sozinhos. O backend está implementado na
+branch `claude/brainstorm-fase-5-4otppt`; faltam o front, a conferência no navegador e a review de branch.
+
+A seguir vêm as Fases 5B e 5C — perda e reposição, com o retrabalho como ação separada e opcional; e as pontas do
+Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A Fase 3C (notificação push) fica depois
+da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).
