@@ -360,7 +360,7 @@ ao contrário, fica estocada no Corte, e o operador a pega ali mesmo. **A execu�
 
 ## 4. Expedição e Aferição
 
-*Perfil: Qualidade (e Administrador) registra; a Gestão responde às liberações (subseção abaixo); qualquer
+*Perfil: Qualidade (e Administrador) registra; a Gestão responde às liberações (subseção «Liberação da não conforme (Gestão)»); qualquer
 perfil autenticado lê. Fase 5A, spec
 `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`, seção 6; regras 10, 11,
 13, 16 e 35 a 37 de `01-dominio-e-regras-de-negocio.md`; contrato em `05-api-endpoints.md`, seção "Aferição,
@@ -404,7 +404,7 @@ Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo
      unidade está no conserto o Pedido deixa de estar "Aguardando expedição" (passo 8).
    - **Pedir liberação.** O painel pede a **Quantidade** (abre com todas as que aguardam decisão) e a
      **Justificativa**, obrigatória: se o cliente reclamar, o porquê é o que se procura. As unidades passam a
-     **aguardando liberação** e **não saem em remessa** enquanto esperam a Gestão (subseção abaixo). Só há um
+     **aguardando liberação** e **não saem em remessa** enquanto esperam a Gestão (subseção «Liberação da não conforme (Gestão)»). Só há um
      pedido em aberto por Peça: enquanto ele existe, o cartão o mostra ("Liberação pedida: {q}, por {nome} em
      {data} — {justificativa}") e **Pedir liberação** some.
    - **Expedir assim mesmo**, sem liberação: o Rastru avisa e deixa (passo 5).
@@ -456,7 +456,7 @@ Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo
 
 *Perfil: Gestão (e Administrador) responde; qualquer perfil lê. Regra 36 de `01`; D7, C5, C6 e C18 da spec.*
 
-A Qualidade pede (passo 4 acima) e a Gestão decide: expedir não conforme sem liberação é possível, mas é a
+A Qualidade pede (fluxo 4, passo 4) e a Gestão decide: expedir não conforme sem liberação é possível, mas é a
 exceção, e a decisão fica gravada com o nome de quem a deu.
 
 1. O item **Liberações** do menu abre a lista dos pedidos em aberto, do mais antigo ao mais novo: a Peça, o
@@ -466,10 +466,10 @@ exceção, e a decisão fica gravada com o nome de quem a deu.
 2. **Responder** abre o painel **Liberar para expedir**, com a **Quantidade liberada** (abre com a pedida) e a
    **Observação (opcional)**. **Liberar {q}** libera até a quantidade pedida — pode ser menos ("libero 2 das 3") —,
    e **Recusar tudo** é liberar zero. O que foi liberado passa a "liberadas pela Gestão" e sai em remessa sem
-   aviso; o resto volta a "aguardando decisão" e a Qualidade volta a decidir (passo 4 acima).
+   aviso; o resto volta a "aguardando decisão" e a Qualidade volta a decidir (fluxo 4, passo 4).
 3. Se outra pessoa respondeu antes, ou a Qualidade estornou o pedido, o servidor recusa: a frase sobe para a tela
    e a lista recarrega, e o pedido respondido sai dela.
-4. A Gestão corrige a **própria resposta** por estorno, no histórico da Peça em `/expedicao` (passo 9 acima),
+4. A Gestão corrige a **própria resposta** por estorno, no histórico da Peça em `/expedicao` (fluxo 4, passo 9),
    enquanto a quantidade não tiver andado: o pedido volta a "em aberto". Se a Peça já tem outro pedido em
    aberto, o servidor recusa.
 5. Avisar a Gestão quando há pedido pendente é a notificação push da Fase 3C; até lá, ela abre a tela.
@@ -489,7 +489,7 @@ exceção, e a decisão fica gravada com o nome de quem a deu.
 
 > **Nota (2026-10-22).** A Fase 5A trocou a "reprovação no Relatório Dimensional" pela **aferição não
 > conforme** (fluxo 4): ela **não** abre Retrabalho, e a unidade não conforme tem como destinos o conserto, a
-> liberação da Gestão e a expedição com aviso. O passo 3 abaixo falava da `RelatorioDimensionalAvaliacao`,
+> liberação da Gestão e a expedição com aviso. O passo 3 do fluxo 5 falava da `RelatorioDimensionalAvaliacao`,
 > que **deixou de existir** (regra 12 de `01-dominio-e-regras-de-negocio.md`); como o Retrabalho se liga à
 > reclamação do cliente é redesenhado na Fase 5B, e este fluxo é revisto lá.
 

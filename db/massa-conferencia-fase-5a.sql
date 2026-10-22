@@ -35,9 +35,11 @@
 -- Falta de qualquer um para o script com erro.
 --
 -- Idempotente: Setor existente e reaproveitado; se um Pedido ja existe, nada e criado de novo para ele (e nada
--- que a conferencia tenha feito nele e tocado). Para refazer do zero, rode o zerar-conf-5a.sql do ledger da fase
--- (ele apaga os dois Pedidos e tudo o que pende deles) e depois este arquivo, ou regenere o banco de dev, que e
--- descartavel.
+-- que a conferencia tenha feito nele e tocado). Para refazer do zero, rode o zerar-conf-5a.sql e depois este
+-- arquivo. O zerar NAO esta neste repositorio: mora no ledger da fase (o repositorio privado `rastru-tcc`, em
+-- `.superpowers/sdd/2026-10-20-fase-5a/conferencia/`) e apaga os dois Pedidos e tudo o que pende deles. Quem so tem o
+-- repositorio do codigo regenera o banco de dev, que e descartavel: DROP DATABASE, specs/02-modelo-de-dados.sql,
+-- db/seed.sql e db/seed-demo.sql, e depois este arquivo.
 --
 -- Carga (a codepage 65001 e o que preserva a acentuacao; ver o seed-demo.sql):
 --   MSYS_NO_PATHCONV=1 docker compose cp db/massa-conferencia-fase-5a.sql sqlserver:/tmp/massa-conferencia-fase-5a.sql

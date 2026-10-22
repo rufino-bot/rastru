@@ -654,10 +654,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   Administrador; `responder`: a Gestão e o Administrador; `podeEstornar(autorId)`, que repete a regra do estorno: o
   autor, ou PCP e Administrador) e é o único lugar que lê `permissoes.ts` para ela, no molde do
   `usePermissoesDaSeparacao`; tela e painel da expedição não chamam `usePodeEscrever` direto. **A regra de cor**
-  (seção 6.5 da spec): "Conforme" é `positivo`; "Não conforme" e o aviso de "não conformes sem liberação" são
+  (seção 6.5 da spec): "Conforme" é `positivo`; "Não conforme" e o aviso "{q} não conforme sem liberação" são
   `negativo`, porque são aprovado e reprovado, que é o que essas cores significam; **todo o resto é neutro** —
-  "Exige relatório", "Sem relatório", "Aferição pendente", "A medir", "Liberada", "Em conserto", "Aguardando
-  liberação", os avisos de "sem aferição" e "sem medição" e as linhas da contagem. "Atrasado" (`atraso`) e
+  "Exige relatório", "Sem relatório", "Aferição pendente", "A medir", as linhas da contagem (as de dentro são
+  "· liberadas pela Gestão", "· em conserto ({Setor})", "· aguardando liberação" e "· aguardando decisão") e os
+  avisos "{q} sem aferição" e "{q} sem medição". "Atrasado" (`atraso`) e
   "Pausado" (`atencao`) como já são, e a pílula "Aguardando expedição" do Pedido continua `neutro`. **A prévia do
   aviso do "Expedir"** (`tiradaDaRemessa`) é **cópia** de `CalculoDaExpedicao.Tirar` e `CalculoDaExpedicao.Avisos`
   do backend (C10 e D8 da spec): a remessa tira, nesta ordem, da liberada, da conforme, do local de expedição e por
@@ -929,8 +930,8 @@ A suíte do backend tem **1.736 testes** (medido em 2026-10-22, em `4a0fca4`, **
 (Api) + 1.036 (Application) + 286 (Infrastructure) = 1.736, todos passando, e 0 em Domain; a métrica é a de testes
 executados, em que cada caso de `[Theory]` conta como um). Desde a medição anterior (2026-10-20, em `4cca2f4`, com
 `--list-tests`, que só descobre por reflexão e não executa: 391 + 842 + 242 = 1.475, e a execução do mesmo dia bateu
-com ela) entraram **261** testes, em 28 commits que são da Fase 5A, menos três de documentação da Fase 4: 23 em Api, 194 em
-Application e 44 em Infrastructure. A do
+com ela) entraram **261** testes (23 em Api, 194 em Application e 44 em Infrastructure), num intervalo de 28 commits, 3 deles de
+documentação/merge da Fase 4; a origem dos testes não foi separada por commit. A do
 frontend tem **1.878 testes em 105 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run`, em
 `web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz typecheck). O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
