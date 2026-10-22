@@ -84,7 +84,7 @@ describe('AppShell', () => {
     renderizarShell()
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
-    for (const d of ['/', '/fila', '/tarefas', '/separacao', '/pedidos', '/componentes', '/materiais', '/setores']) {
+    for (const d of ['/', '/fila', '/tarefas', '/separacao', '/expedicao', '/liberacoes', '/pedidos', '/componentes', '/materiais', '/setores']) {
       expect(destinos, `link para ${d}`).toContain(d)
     }
   })
@@ -128,6 +128,27 @@ describe('AppShell', () => {
       // Logo depois de Tarefas: as telas do chão de fábrica ficam juntas.
       const rotulos = within(barra).getAllByRole('link').map((l) => l.textContent)
       expect(rotulos.indexOf('Separação'), perfil).toBe(rotulos.findIndex((r) => r?.startsWith('Tarefas')) + 1)
+      cleanup()
+    }
+  })
+
+  it('o menu tem Expedição e Liberações para todo perfil, depois de Separação', () => {
+    // A leitura das duas telas é livre; quem não registra nem responde vê a lista sem o botão (gating na ação).
+    for (const perfil of ['Operador', 'Movimentador', 'Separador', 'PCP', 'Qualidade', 'Gestao', 'Administrador']) {
+      vi.mocked(useAuth).mockReturnValue({
+        estado: { status: 'autenticado', usuario: { id: 3, nomeUsuario: 'u', nomeCompleto: 'U', perfil } },
+        login: async () => {},
+        logout,
+      })
+      renderizarShell()
+
+      const barra = screen.getByRole('navigation', { name: 'Principal' })
+      expect(within(barra).getByRole('link', { name: 'Expedição' }).getAttribute('href'), perfil).toBe('/expedicao')
+      expect(within(barra).getByRole('link', { name: 'Liberações' }).getAttribute('href'), perfil).toBe('/liberacoes')
+      const rotulos = within(barra).getAllByRole('link').map((l) => l.textContent)
+      const separacao = rotulos.indexOf('Separação')
+      expect(rotulos.indexOf('Expedição'), perfil).toBe(separacao + 1)
+      expect(rotulos.indexOf('Liberações'), perfil).toBe(separacao + 2)
       cleanup()
     }
   })

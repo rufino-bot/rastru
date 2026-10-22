@@ -34,6 +34,10 @@ interface ItemDeNavegacao {
  * cabeçalho pede não foi remedida): o usuário a conferiu no navegador e a aprovou na conferência de
  * 2026-10-19. Antes do nono link (Qualidade, Fase 5), meça.
  *
+ * **Expedição e Liberações chegaram na Fase 5A** (spec da Fase 5A §6.6), e o menu passou de sete links a nove. A
+ * largura que o cabeçalho pede **não foi medida** com os nove: a medição que este comentário pedia antes do nono
+ * link fica para a conferência no navegador da fase (1024px, com o contador "Tarefas N").
+ *
  * A marca é `Link`, não `NavLink`: a Home não é item do menu, então não ganha `aria-current` nem o
  * estilo de item ativo. Por isso nenhum item precisa mais do `end` que impedia `/` de casar com toda
  * rota.
@@ -44,6 +48,8 @@ const ITENS: ItemDeNavegacao[] = [
   { para: '/fila', rotulo: 'Fila' },
   { para: '/tarefas', rotulo: 'Tarefas' },
   { para: '/separacao', rotulo: 'Separação' },
+  { para: '/expedicao', rotulo: 'Expedição' },
+  { para: '/liberacoes', rotulo: 'Liberações' },
   { para: '/pedidos', rotulo: 'Pedidos' },
   { para: '/componentes', rotulo: 'Componentes' },
   { para: '/materiais', rotulo: 'Materiais' },

@@ -13,6 +13,7 @@ import { FilaPage } from './pages/FilaPage'
 import { FilaDoSetorPage } from './pages/FilaDoSetorPage'
 import { TarefasPage } from './pages/TarefasPage'
 import { SeparacaoPage } from './pages/SeparacaoPage'
+import { ExpedicaoPage } from './pages/ExpedicaoPage'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppShell } from './components/AppShell'
 
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/fila/:setorId" element={<FilaDoSetorPage />} />
         <Route path="/tarefas" element={<TarefasPage />} />
         <Route path="/separacao" element={<SeparacaoPage />} />
+        <Route path="/expedicao" element={<ExpedicaoPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

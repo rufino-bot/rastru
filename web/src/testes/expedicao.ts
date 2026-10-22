@@ -1,5 +1,6 @@
 import type {
-  AfericaoDto, PecaNaExpedicaoDto, PosicoesDaPecaDto, RegistroDaExpedicaoDto,
+  AfericaoDto, LinhaDaRemessaDto, PecaNaExpedicaoDto, PedidoNaExpedicaoDto, PosicoesDaPecaDto, RegistroDaExpedicaoDto,
+  RemessaDto,
 } from '../api/expedicao'
 
 /**
@@ -35,6 +36,30 @@ export function registro(parcial: Partial<RegistroDaExpedicaoDto> = {}): Registr
     tipo: 'Afericao', id: 1, dataHora: '2026-10-20T09:00:00-03:00', usuarioId: 12, usuarioNome: 'Qualidade do turno',
     resultado: null, conformes: null, naoConformes: null, quantidade: null, setorNome: null, texto: null,
     estornada: false, estornavel: true,
+    ...parcial,
+  }
+}
+
+export function linhaDaRemessa(parcial: Partial<LinhaDaRemessaDto> = {}): LinhaDaRemessaDto {
+  return {
+    pecaId: 30, pecaDescricao: 'Quadro', codigoDoComponente: 'QD-01', pedidoId: 1, pedidoNumero: 'PED-1',
+    pedidoConcluido: false, origem: 'Conforme', quantidade: 4,
+    ...parcial,
+  }
+}
+
+export function remessa(parcial: Partial<RemessaDto> = {}): RemessaDto {
+  return {
+    id: 3, dataHora: '2026-10-20T15:00:00-03:00', usuarioId: 12, usuarioNome: 'Qualidade do turno',
+    estornada: false, estornavel: true, linhas: [linhaDaRemessa()],
+    ...parcial,
+  }
+}
+
+export function pedidoNaExpedicao(parcial: Partial<PedidoNaExpedicaoDto> = {}): PedidoNaExpedicaoDto {
+  return {
+    id: 1, numero: 'PED-1', cliente: 'Metalúrgica Alfa', dataEntrega: '2026-10-12', atrasado: false, pausa: null,
+    pecas: [pecaNaExpedicao()],
     ...parcial,
   }
 }
