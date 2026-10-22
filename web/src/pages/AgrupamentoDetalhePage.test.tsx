@@ -872,6 +872,7 @@ describe('AgrupamentoDetalhePage', () => {
       descricao: 'Chassi reforçado',
       quantidade: 2,
       quantidadePorPai: null,
+      requerRelatorioDimensional: false,
     })
   })
 
@@ -1040,6 +1041,7 @@ describe('AgrupamentoDetalhePage', () => {
       descricao: null,
       quantidade: 2,
       quantidadePorPai: null,
+      requerRelatorioDimensional: false,
     })
   })
 
@@ -1260,6 +1262,97 @@ describe('AgrupamentoDetalhePage', () => {
     expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toEqual({
       descricao: 'Sub-item', quantidade: 3, quantidadePorPai: 5,
     })
+  })
+
+  // Fase 5A: a marca do relatório dimensional é da Peça (regra 10). O Item não a tem: o servidor recusa qualquer
+  // valor num Item com 400 `RelatorioSoNaPeca`, então a tela nem oferece a caixa nem manda o campo.
+  it('editar uma Peça oferece Requer relatório dimensional e manda o valor', async () => {
+    const fetchMock = montarFetch({ estruturaInicial: [PECA] })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    const caixa = within(painel).getByLabelText('Requer relatório dimensional')
+    expect(caixa).toHaveProperty('checked', false)
+    fireEvent.click(caixa)
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar edição' }))
+
+    await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
+    const chamadaPut = fetchMock.mock.calls.find(
+      (c) => String(c[0]) === '/api/estrutura/100' && (c[1] as RequestInit | undefined)?.method === 'PUT',
+    )
+    expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toEqual({
+      descricao: 'Chassi', quantidade: 1, quantidadePorPai: null, requerRelatorioDimensional: true,
+    })
+  })
+
+  it('a caixa do relatório abre marcada na Peça que já a tem, e repetir o valor manda o mesmo', async () => {
+    const fetchMock = montarFetch({ estruturaInicial: [{ ...PECA, requerRelatorioDimensional: true }] })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    expect(within(painel).getByLabelText('Requer relatório dimensional')).toHaveProperty('checked', true)
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar edição' }))
+
+    await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
+    const chamadaPut = fetchMock.mock.calls.find(
+      (c) => String(c[0]) === '/api/estrutura/100' && (c[1] as RequestInit | undefined)?.method === 'PUT',
+    )
+    expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).toMatchObject({ requerRelatorioDimensional: true })
+  })
+
+  it('editar um Item não oferece a caixa nem manda o campo', async () => {
+    const fetchMock = montarFetch({ estruturaInicial: [PECA_COM_FILHO] })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizarDetalhe()
+    await screen.findByText('Sub-item')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-150')).getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    expect(within(painel).queryByLabelText('Requer relatório dimensional')).toBeNull()
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar edição' }))
+
+    await waitFor(() => expect(screen.queryByTestId('painel-de-escrita')).toBeNull())
+    const chamadaPut = fetchMock.mock.calls.find(
+      (c) => String(c[0]) === '/api/estrutura/150' && (c[1] as RequestInit | undefined)?.method === 'PUT',
+    )
+    expect(JSON.parse((chamadaPut![1] as RequestInit).body as string)).not.toHaveProperty('requerRelatorioDimensional')
+  })
+
+  it('409 ComAfericao aparece no painel do nó, que continua aberto', async () => {
+    const frase = 'Esta Peça já tem aferição válida: a marca do relatório dimensional não pode mudar.'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaEditar: { status: 409, corpo: { erro: 'ComAfericao', mensagem: frase } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByLabelText('Requer relatório dimensional'))
+    fireEvent.click(within(painel).getByRole('button', { name: 'Salvar edição' }))
+
+    const banner = await screen.findByText(frase)
+    expect(banner.closest('form')).toBe(screen.getByTestId('painel-de-escrita'))
+  })
+
+  it('a caixa do relatório é a da Peça aberta: trocar de nó e voltar não herda o valor mexido', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.click(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Requer relatório dimensional'))
+    fireEvent.click(within(screen.getByTestId('painel-de-escrita')).getByRole('button', { name: 'Cancelar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    expect(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Requer relatório dimensional')).toHaveProperty('checked', false)
   })
 
   it('editar a Peça não pede razão', async () => {

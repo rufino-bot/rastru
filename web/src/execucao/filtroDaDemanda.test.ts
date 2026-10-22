@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila, facetasDasTarefas, filtrarTarefas, filtrarKits,
+  CHAVES_DA_DEMANDA, facetasDaFila, filtrarFila, facetasDasTarefas, filtrarTarefas, filtrarKits, filtrarConsertos,
 } from './filtroDaDemanda'
 import type {
-  DestinoDto, FilhoDoKitDto, KitDto, LinhaAguardandoColeta, LinhaDaFila, TarefasDoSetorDto, TarefasDto,
+  DestinoDto, FilhoDoKitDto, KitDto, LinhaAguardandoColeta, LinhaDaFila, LinhaDeConserto, TarefaDeConserto,
+  TarefasDoSetorDto, TarefasDto,
 } from '../api/execucao'
 import type { MaterialResumoDto } from '../api/cadastros'
 import type { Faceta } from '../components/FiltroDeDemanda'
@@ -269,5 +270,31 @@ describe('tarefas', () => {
 
   it('sem selecao devolve todos os grupos', () => {
     expect(filtrarTarefas(GRUPOS, {})).toEqual(GRUPOS)
+  })
+})
+
+describe('o conserto também filtra por Material e Pedido', () => {
+  const emConserto = (n: ReturnType<typeof no>): LinhaDeConserto => ({ no: n, posicao: 'EmConserto', quantidade: 2, estornaveis: [] })
+  const tarefaDeConserto = (n: ReturnType<typeof no>): TarefaDeConserto => ({
+    no: n, quantidade: 2,
+    origem: { posicao: 'ConsertoPronto', setorId: 3, setorNome: 'Dobra', ordem: null },
+    destino: { posicao: 'NaExpedicao', setorId: null, setorNome: null, ordem: null },
+  })
+
+  it('a fila filtra a seção de conserto e conta as linhas dela nas opções', () => {
+    const f = fila({ conserto: [emConserto(P1_CH3), emConserto(P2_CH3)] })
+
+    expect(filtrarFila(f, { pedido: ['2'] }).conserto.map((l) => l.no.id)).toEqual([21])
+    expect(filtrarFila(f, {}).conserto).toHaveLength(2)
+    expect(contagens(faceta(facetasDaFila(f, {}), 'material'))).toEqual({ 3: 2 })
+  })
+
+  it('as tarefas filtram o conserto e contam as tarefas dele nas opções', () => {
+    const consertos = [tarefaDeConserto(P1_CH6), tarefaDeConserto(P2_CH3)]
+    const tarefas: TarefasDto = { grupos: [], kitsMontaveis: [], kitsIncompletos: [], consertos }
+
+    expect(filtrarConsertos(consertos, { material: ['6'] }).map((t) => t.no.id)).toEqual([13])
+    expect(filtrarConsertos(consertos, {})).toEqual(consertos)
+    expect(contagens(faceta(facetasDasTarefas(tarefas, {}), 'pedido'))).toEqual({ 1: 1, 2: 1 })
   })
 })

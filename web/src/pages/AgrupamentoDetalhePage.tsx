@@ -153,6 +153,8 @@ export function AgrupamentoDetalhePage() {
   const [descricaoPainel, setDescricaoPainel] = useState('')
   const [quantidadePainel, setQuantidadePainel] = useState('')
   const [razaoPainel, setRazaoPainel] = useState('')
+  // A marca do relatório dimensional da Peça que o painel de edição está editando (Fase 5A). Só a Peça a tem.
+  const [relatorioPainel, setRelatorioPainel] = useState(false)
   const [receitaDoPai, setReceitaDoPai] = useState<FilhoPadraoDto[] | null>(null)
   const [enviandoPainel, setEnviandoPainel] = useState(false)
   const [erroPainel, setErroPainel] = useState<string | null>(null)
@@ -356,6 +358,7 @@ export function AgrupamentoDetalhePage() {
     setDescricaoPainel(no.descricao)
     setQuantidadePainel(String(no.quantidade))
     setRazaoPainel(no.quantidadePorPai === null ? '' : String(no.quantidadePorPai))
+    setRelatorioPainel(no.requerRelatorioDimensional)
     setErroPainel(null)
   }
 
@@ -405,6 +408,7 @@ export function AgrupamentoDetalhePage() {
     setDescricaoPainel('')
     setQuantidadePainel('')
     setRazaoPainel('')
+    setRelatorioPainel(false)
     setErroPainel(null)
   }
 
@@ -476,6 +480,9 @@ export function AgrupamentoDetalhePage() {
       descricao: descricaoPainel.trim() === '' ? null : descricaoPainel,
       quantidade: Number(quantidadePainel),
       quantidadePorPai: no.nivelHierarquico === 'Item' ? Number(razaoPainel) : null,
+      // Só na Peça: num Item o servidor recusa qualquer valor (400 `RelatorioSoNaPeca`). Repetir o valor atual não
+      // é mudar, e mudá-lo numa Peça com aferição válida é o 409 `ComAfericao`, que o painel mostra.
+      ...(no.nivelHierarquico === 'Peca' ? { requerRelatorioDimensional: relatorioPainel } : {}),
     }
   }
 
@@ -719,6 +726,18 @@ export function AgrupamentoDetalhePage() {
               </Campo>
             )}
           </div>
+
+          {painel.tipo === 'editar' && painel.no.nivelHierarquico === 'Peca' && (
+            <label className="flex items-center gap-2 text-sm text-tinta-fraca">
+              <input
+                type="checkbox"
+                checked={relatorioPainel}
+                onChange={(e) => setRelatorioPainel(e.target.checked)}
+                className="size-4 accent-acao"
+              />
+              Requer relatório dimensional
+            </label>
+          )}
 
           <BannerDeErro mensagem={erroPainel} />
 

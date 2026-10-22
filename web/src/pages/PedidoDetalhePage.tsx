@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
-  obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito,
+  obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito, formatarData,
   type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
   type NovoPedido, type ResultadoExclusao,
 } from '../api/cadastros'
@@ -212,6 +212,8 @@ export function PedidoDetalhePage() {
             <Pilula>{rotuloDoStatus(pedido.status)}</Pilula>
             {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
             {pedido.atrasado && <Pilula tom="atraso">Atrasado</Pilula>}
+            {/* O dia é o do offset de Brasília que o servidor já aplicou: cortar a string evita passar por `Date`. */}
+            {pedido.dataConclusao && <Pilula>{`Concluído em ${formatarData(pedido.dataConclusao.slice(0, 10))}`}</Pilula>}
             <DatasDoPedido dataEntrega={pedido.dataEntrega} dataAbertura={pedido.dataAbertura} />
           </p>
           <ControleDePausa pedido={pedido} aoMudar={() => carregar(pedidoId)} />

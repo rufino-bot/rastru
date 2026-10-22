@@ -7,7 +7,7 @@ import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson } from '../testes/api'
 import { INTERVALO_DA_EXECUCAO_MS } from '../hooks/useCargaPeriodica'
 import { SUPORTE, PARAFUSO, CHASSI, DESTINO_MONTAGEM, destino, no } from '../testes/execucao'
-import type { FilhoDoKitDto, KitDto, TarefasDoSetorDto, TarefasDto } from '../api/execucao'
+import type { FilhoDoKitDto, KitDto, TarefaDeConserto, TarefasDoSetorDto, TarefasDto } from '../api/execucao'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
@@ -1097,5 +1097,159 @@ describe('TarefasPage — Kits', () => {
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByRole('button', { name: /Entregar/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /^(Marcar|Desmarcar) todos$/ })).toBeNull()
+  })
+})
+
+describe('TarefasPage — conserto (Fase 5A)', () => {
+  beforeEach(() => {
+    perfil = 'Movimentador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const NA_EXPEDICAO = { posicao: 'NaExpedicao' as const, setorId: null, setorNome: null, ordem: null }
+  // A ida leva a Peça ao Setor do conserto; a volta, do Setor ao local de expedição.
+  const IDA: TarefaDeConserto = {
+    no: SUPORTE, quantidade: 3,
+    origem: { posicao: 'AguardandoConserto', setorId: 3, setorNome: 'Dobra', ordem: null },
+    destino: { posicao: 'EmConserto', setorId: 3, setorNome: 'Dobra', ordem: null },
+  }
+  const VOLTA: TarefaDeConserto = {
+    no: PARAFUSO, quantidade: 2,
+    origem: { posicao: 'ConsertoPronto', setorId: 4, setorNome: 'Solda', ordem: null },
+    destino: NA_EXPEDICAO,
+  }
+  const comConserto = (consertos: TarefaDeConserto[], grupos: TarefasDoSetorDto[] = []): TarefasDto =>
+    ({ grupos, kitsMontaveis: [], kitsIncompletos: [], consertos })
+
+  it('seção Conserto lista a ida e a volta com os rótulos exatos', async () => {
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA, VOLTA])]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Conserto' })
+    expect(screen.getByRole('heading', { level: 2, name: 'Conserto' })).toBeTruthy()
+    const linhaDaIda = within(lista).getByText('Levar ao conserto em Dobra').closest('li')!
+    expect(within(linhaDaIda).getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(within(linhaDaIda).getByText('3 para levar')).toBeTruthy()
+    const linhaDaVolta = within(lista).getByText('Levar ao local de expedição').closest('li')!
+    expect(within(linhaDaVolta).getByText('Parafuso')).toBeTruthy()
+    expect(within(linhaDaVolta).getByText('2 para levar')).toBeTruthy()
+    // Só conserto: não é a tela vazia.
+    expect(screen.queryByText('Nenhum item pronto para levar agora')).toBeNull()
+  })
+
+  it('a seção Conserto vem antes dos Kits montáveis e dos grupos por Setor', async () => {
+    vi.stubGlobal('fetch', montarFetch([{ ...comConserto([IDA], TAREFAS), kitsMontaveis: [KIT_QUADRO] }]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'Conserto' })
+
+    const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    expect(titulos.slice(0, 3)).toEqual(['Conserto', 'Kits montáveis', 'Em Corte'])
+  })
+
+  it('entregar um conserto manda a origem AguardandoConserto com o Setor e sem ordem', async () => {
+    const { fetchMock, getsDasTarefas } = montarFetch([comConserto([IDA, VOLTA]), comConserto([VOLTA])])
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte ao conserto em Dobra'))
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '3')
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '1,5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 1 item' }))
+
+    await waitFor(() => expect(getsDasTarefas()).toBe(2))
+    expect(corpoDaEntrega(fetchMock)).toEqual({
+      itens: [{ estruturaItemId: 7, origem: { posicao: 'AguardandoConserto', setorId: 3, ordem: null }, quantidade: 1.5 }],
+    })
+  })
+
+  it('a volta do conserto manda a origem ConsertoPronto com o Setor', async () => {
+    const { fetchMock } = montarFetch([comConserto([VOLTA]), comConserto([])])
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar Parafuso ao local de expedição'))
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 1 item' }))
+
+    await screen.findByText('Nenhum item pronto para levar agora')
+    expect(corpoDaEntrega(fetchMock)).toEqual({
+      itens: [{ estruturaItemId: 8, origem: { posicao: 'ConsertoPronto', setorId: 4, ordem: null }, quantidade: 2 }],
+    })
+  })
+
+  it('o conserto entra no lote de entrega junto dos Itens prontos', async () => {
+    const { fetchMock } = montarFetch([comConserto([IDA], TAREFAS), tarefas([])])
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte'))
+    fireEvent.click(screen.getByLabelText('Levar SUP-01 — Suporte ao conserto em Dobra'))
+    expect(screen.getByRole('button', { name: 'Entregar 2 itens' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Entregar 2 itens' }))
+
+    await screen.findByText('Nenhum item pronto para levar agora')
+    expect(corpoDaEntrega(fetchMock)).toEqual({
+      itens: [
+        { estruturaItemId: 7, origem: { posicao: 'AguardandoColeta', setorId: 1, ordem: 1 }, quantidade: 4 },
+        { estruturaItemId: 7, origem: { posicao: 'AguardandoConserto', setorId: 3, ordem: null }, quantidade: 3 },
+      ],
+    })
+  })
+
+  it('quantidade do conserto acima do que há trava a entrega e diz o limite', async () => {
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA])]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByLabelText('Levar SUP-01 — Suporte ao conserto em Dobra'))
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '5' } })
+
+    expect(screen.getByText('No máximo 3.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toHaveProperty('disabled', true)
+  })
+
+  it('Marcar todos marca também o conserto', async () => {
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA, VOLTA], TAREFAS)]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Marcar todos' }))
+
+    expect(screen.getByRole('button', { name: 'Entregar 5 itens' })).toBeTruthy()
+    expect(screen.getByLabelText('Levar Parafuso ao local de expedição')).toHaveProperty('checked', true)
+  })
+
+  it('conserto marcado que sai da lista deixa a seleção, com o aviso', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA, VOLTA]), comConserto([VOLTA])]).fetchMock)
+
+    renderizar()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    fireEvent.click(screen.getByLabelText('Levar SUP-01 — Suporte ao conserto em Dobra'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+
+    expect(screen.getByText(/não está mais pronto/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^Entregar/ })).toBeNull()
+  })
+
+  it('o filtro por Pedido esconde o conserto de outro Pedido', async () => {
+    const OUTRO = no({ id: 21, descricao: 'Tampa', codigoDoComponente: 'TP-01', pedidoId: 2, pedidoNumero: 'PED-2026-02', pedidoCliente: 'Beta Máquinas' })
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA, { ...VOLTA, no: OUTRO }])]).fetchMock)
+
+    renderizar('/?pedido=2')
+
+    expect(await screen.findByLabelText('Levar TP-01 — Tampa ao local de expedição')).toBeTruthy()
+    expect(screen.queryByLabelText('Levar SUP-01 — Suporte ao conserto em Dobra')).toBeNull()
+  })
+
+  it('sem permissão de entregar, o conserto aparece sem caixa', async () => {
+    perfil = 'Operador'
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA, VOLTA])]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByText('Levar ao conserto em Dobra')).toBeTruthy()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Entregar|Marcar todos/ })).toBeNull()
   })
 })

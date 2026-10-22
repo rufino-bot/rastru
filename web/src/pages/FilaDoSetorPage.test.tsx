@@ -1970,3 +1970,171 @@ describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', (
     expect(screen.getByRole('button', { name: 'Iniciar SUP-01 — Suporte' })).toBeTruthy()
   })
 })
+
+describe('FilaDoSetorPage — conserto (Fase 5A)', () => {
+  beforeEach(() => {
+    perfil = 'Operador'
+    _resetParaTeste()
+    inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
+  })
+
+  const TERMINOS_DE_CONSERTO = '/api/estrutura/7/terminos-de-conserto'
+  const emConserto = (quantidade: number, estornaveis: Estornavel[] = []) =>
+    ({ no: SUPORTE, posicao: 'EmConserto' as const, quantidade, estornaveis })
+  const pronto = (quantidade: number) =>
+    ({ no: PARAFUSO, posicao: 'ConsertoPronto' as const, quantidade, estornaveis: [] as Estornavel[] })
+  const secao = (nome: string) => within(screen.getByRole('region', { name: nome }))
+  const MARCAR_CONSERTO = 'Marcar SUP-01 — Suporte, em conserto, para terminar'
+
+  it('seção Conserto mostra o que está em conserto com Terminar conserto', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ conserto: [emConserto(3)] })]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Conserto' })
+    expect(screen.getByRole('heading', { level: 2, name: 'Conserto' })).toBeTruthy()
+    expect(within(lista).getByText('SUP-01 — Suporte')).toBeTruthy()
+    expect(within(lista).getByText('PED-2026-01 › AG-01 › Chassi')).toBeTruthy()
+    expect(within(lista).getByText('3 em conserto')).toBeTruthy()
+    expect(within(lista).getByRole('button', { name: 'Terminar conserto SUP-01 — Suporte' })).toBeTruthy()
+  })
+
+  it('a fila só com conserto não é a fila vazia', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ conserto: [pronto(1)] })]).fetchMock)
+
+    renderizar()
+
+    expect(await screen.findByRole('list', { name: 'Conserto' })).toBeTruthy()
+    expect(screen.queryByText('Nada neste Setor agora')).toBeNull()
+  })
+
+  it('a seção Conserto vem por último, depois da sobra', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ ...FILA_CHEIA, conserto: [emConserto(3)] })]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'Conserto' })
+
+    const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    expect(titulos.at(-2)).toBe('Sobra')
+    expect(titulos.at(-1)).toBe('Conserto')
+  })
+
+  it('Terminar conserto manda POST /estrutura/{id}/terminos-de-conserto com o Setor e a quantidade', async () => {
+    const { fetchMock, getsDaFila } = montarFetch([fila({ conserto: [emConserto(3)] }), fila({ conserto: [] })], {
+      [TERMINOS_DE_CONSERTO]: () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Terminar conserto SUP-01 — Suporte' }))
+    expect(screen.getByLabelText('Quantidade')).toHaveProperty('value', '3')
+    fireEvent.change(screen.getByLabelText('Quantidade'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar conserto' }))
+
+    expect(await screen.findByText('Nada neste Setor agora')).toBeTruthy()
+    expect(corpoDe(fetchMock, TERMINOS_DE_CONSERTO)).toEqual({ setorId: 1, quantidade: 2 })
+    expect(getsDaFila()).toBe(2)
+  })
+
+  it('o pronto do conserto aparece como "{q} pronto, aguardando levar à expedição", sem ação', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ conserto: [pronto(2.5)] })]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Conserto' })
+    expect(within(lista).getByText('2,5 pronto, aguardando levar à expedição')).toBeTruthy()
+    expect(within(lista).queryAllByRole('button')).toHaveLength(0)
+    expect(within(lista).queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('sem permissão de apontamento não há Terminar conserto nem caixa', async () => {
+    perfil = 'Movimentador'
+    vi.stubGlobal('fetch', montarFetch([fila({ conserto: [emConserto(3), pronto(1)] })]).fetchMock)
+
+    renderizar()
+
+    const lista = await screen.findByRole('list', { name: 'Conserto' })
+    expect(within(lista).getByText('3 em conserto')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Terminar conserto/ })).toBeNull()
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
+  })
+
+  it('estornar a ida ao conserto usa a rota da movimentação', async () => {
+    const ida: Estornavel = {
+      tipo: 'Entrega', id: 91, quantidade: 3, usuarioId: 12, usuarioNome: 'Movimentador', dataHora: '2026-10-20T10:14:00-03:00',
+    }
+    const { fetchMock } = montarFetch([fila({ conserto: [emConserto(3, [ida])] })], {
+      '/api/movimentacoes/91/estorno': () => respostaJson({}, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('button', { name: 'Estornar SUP-01 — Suporte' }))
+    expect(screen.getByText(/Estornar a entrega de 3/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Estornar' }))
+
+    await waitFor(() => expect(foiChamado(fetchMock, '/api/movimentacoes/91/estorno')).toBe(true))
+  })
+
+  it('a linha em conserto entra no lote Terminar com conserto true e sem ordem, junto de uma de Em trabalho', async () => {
+    const { fetchMock } = montarFetch([fila({
+      emTrabalho: [{ material: null, no: PECA_B, ordem: 3, quantidade: 2.5, estornaveis: [] }],
+      conserto: [emConserto(3), pronto(1)],
+    })], { '/api/terminos': () => respostaJson([], 201) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('checkbox', { name: MARCAR_CONSERTO }))
+    // O campo da linha em conserto é o da quantidade, com o saldo dela como máximo.
+    const linhaDoConserto = screen.getByRole('checkbox', { name: MARCAR_CONSERTO }).closest('li')!
+    expect(within(linhaDoConserto).getByLabelText('Quantidade')).toHaveProperty('value', '3')
+    expect(within(linhaDoConserto).getByText('Disponível: 3')).toBeTruthy()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 3, para terminar' }))
+
+    // O botão individual de terminar some com o lote aberto, o do conserto também.
+    expect(screen.queryByRole('button', { name: 'Terminar conserto SUP-01 — Suporte' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Terminar 2 itens' }))
+
+    await waitFor(() => expect(corpoDe(fetchMock, '/api/terminos')).toEqual({
+      setorId: 1,
+      itens: [
+        { estruturaItemId: 9, ordem: 3, quantidade: 2.5 },
+        { estruturaItemId: 7, ordem: null, quantidade: 3, conserto: true },
+      ],
+    }))
+  })
+
+  it('o conserto marcado trava as seções de iniciar, como o em trabalho', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ ...FILA_CHEIA, conserto: [emConserto(3)] })]).fetchMock)
+
+    renderizar()
+    fireEvent.click(await screen.findByRole('checkbox', { name: MARCAR_CONSERTO }))
+
+    expect(screen.getByRole('checkbox', { name: 'Marcar SUP-01 — Suporte, passo 1, para iniciar' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 1, para terminar' })).toHaveProperty('disabled', false)
+  })
+
+  it('Marcar todos de Em trabalho não marca as linhas da seção Conserto', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({
+      emTrabalho: [{ material: null, no: PECA_B, ordem: 1, quantidade: 2.5, estornaveis: [] }],
+      conserto: [emConserto(3)],
+    })]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('list', { name: 'Conserto' })
+    fireEvent.click(secao('Em trabalho').getByRole('button', { name: 'Marcar todos' }))
+
+    expect(screen.getByRole('checkbox', { name: 'Marcar BA-01 — Base, passo 1, para terminar' })).toHaveProperty('checked', true)
+    expect(screen.getByRole('checkbox', { name: MARCAR_CONSERTO })).toHaveProperty('checked', false)
+    expect(screen.getByRole('button', { name: 'Terminar 1 item' })).toBeTruthy()
+  })
+
+  it('o filtro esconde a linha em conserto de outro Pedido', async () => {
+    vi.stubGlobal('fetch', montarFetch([fila({ conserto: [emConserto(3)] })]).fetchMock)
+
+    renderizar('/fila/1?pedido=99')
+
+    expect(await screen.findByText('Nada nesta fila com esses filtros')).toBeTruthy()
+    expect(screen.queryByText('3 em conserto')).toBeNull()
+  })
+})

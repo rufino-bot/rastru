@@ -1,8 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
-  obterFila, iniciar, terminar, entregar, estornar, ehConflito, iniciarEmLote, terminarEmLote,
-  type Estornavel, type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeSobra, type NoResumoDto, type ResumoDeMaterial,
+  obterFila, iniciar, terminar, terminarConserto, entregar, estornar, ehConflito, iniciarEmLote, terminarEmLote,
+  type Estornavel, type FilaDoSetorDto, type GrupoAguardandoMontagem, type LinhaDeConserto, type LinhaDeSobra,
+  type NoResumoDto, type ResumoDeMaterial,
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
@@ -13,7 +14,7 @@ import {
 import { lembrarSetor } from '../execucao/setorLembrado'
 import { conjuntosPresentes, quantidadeDoConjunto } from '../execucao/conjuntos'
 import {
-  alternar, chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar, erroDaLinha, itensDeInicio, itensDeTermino,
+  alternar, chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar, chaveDeTerminarConserto, erroDaLinha, itensDeInicio, itensDeTermino,
   linhasDoLote, marcarTodos, reconciliar, SAIU_DO_LOTE, TITULO_DA_SECAO, todosMarcados,
   type LinhaDoLote, type Lote, type SecaoDoLote,
 } from '../execucao/loteDaFila'
@@ -74,6 +75,8 @@ export function FilaDoSetorPage() {
 const chaveDeLevar = (paiId: number, filhoId: number) => `levar:${paiId}:${filhoId}`
 const chaveDeEstornar = (secao: string, noId: number, ordem: number | null) => `estornar:${secao}:${noId}:${ordem ?? ''}`
 const chaveDeLevarKit = (paiId: number) => `levar-kit:${paiId}`
+/** A mesma Peça pode estar `EmConserto` e `ConsertoPronto` no Setor: a posição entra na chave do estorno. */
+const secaoDeEstornoDoConserto = (l: LinhaDeConserto) => (l.posicao === 'EmConserto' ? 'conserto' : 'conserto-pronto')
 
 /** Toda ação que a fila de agora ainda oferece — a que sumiu não pode continuar aberta. */
 function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
@@ -81,6 +84,7 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   // A pausa tira o Iniciar da linha (e do pai): a chave dele não existe mais, e o formulário aberto fecha.
   for (const l of fila.aIniciar) if (l.no.pausa === null) chaves.add(chaveDeIniciar(l.no.id, l.ordem))
   for (const l of fila.emTrabalho) chaves.add(chaveDeTerminar(l.no.id, l.ordem))
+  for (const l of fila.conserto) if (l.posicao === 'EmConserto') chaves.add(chaveDeTerminarConserto(l.no.id))
   for (const g of fila.aguardandoMontagem) {
     if (g.iniciaAqui && g.daParaMontar > 0 && g.pai.pausa === null) chaves.add(chaveDeIniciarPai(g.pai.id))
     if (!g.iniciaAqui && g.primeiroPassoDoPai !== null) {
@@ -99,6 +103,7 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   for (const l of fila.emTrabalho) comLista('em-trabalho', l.no.id, l.ordem, l.estornaveis)
   for (const l of fila.aguardandoColeta) comLista('coleta', l.no.id, l.ordem, l.estornaveis)
   for (const s of fila.sobra) comLista('sobra', s.no.id, s.ordem, s.estornaveis)
+  for (const l of fila.conserto) comLista(secaoDeEstornoDoConserto(l), l.no.id, null, l.estornaveis)
   return chaves
 }
 
@@ -112,7 +117,10 @@ function rotuloDoLote(secao: SecaoDoLote, marcados: number): string {
 function estaVazia(fila: FilaDoSetorDto): boolean {
   return fila.aIniciar.length === 0 && fila.emTrabalho.length === 0
     && fila.aguardandoColeta.length === 0 && fila.aguardandoMontagem.length === 0 && fila.sobra.length === 0
+    && fila.conserto.length === 0
 }
+
+const ROTULO_DE_TERMINAR_CONSERTO = 'Terminar conserto'
 
 const SAIU_DA_FILA = 'O item que você estava registrando não está mais nesta fila: outra pessoa o moveu.'
 
@@ -147,6 +155,9 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   // visíveis só dizem o que o "Marcar todos" alcança e quantos marcados estão ocultos.
   const linhasDaFila = useMemo(() => (fila ? linhasDoLote(fila) : []), [fila])
   const linhasVisiveis = useMemo(() => (filtrada ? linhasDoLote(filtrada) : []), [filtrada])
+  // O "Marcar todos" é de uma seção da tela: a de "Em trabalho" não marca as linhas da seção "Conserto",
+  // embora todas terminem no mesmo lote.
+  const linhasVisiveisSemConserto = useMemo(() => linhasVisiveis.filter((l) => !l.conserto), [linhasVisiveis])
 
   // A atualização tirou da fila uma linha marcada: ela sai da seleção, com aviso. A linha que só
   // ficou bloqueada continua marcada (desvio D8), e o texto digitado nunca é reescrito.
@@ -300,10 +311,10 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
           completa={fila}
           aoLimparFiltros={limpar}
           lote={{
-            lote, linhas: linhasDaFila, visiveis: linhasVisiveis,
+            lote, linhas: linhasDaFila, visiveis: linhasVisiveis, visiveisParaMarcarTodos: linhasVisiveisSemConserto,
             aoAlternar: (linha, marcado) => aoMudarSelecao(alternar(lote, linha, marcado)),
             aoDigitar: (chave, texto) => setLote((atual) => (atual && { ...atual, quantidades: { ...atual.quantidades, [chave]: texto } })),
-            aoMarcarTodos: (secao) => aoMudarSelecao(marcarTodos(lote, secao, linhasVisiveis)),
+            aoMarcarTodos: (secao) => aoMudarSelecao(marcarTodos(lote, secao, linhasVisiveisSemConserto)),
           }}
           acoes={{
             aberta, erroDaAcao, abrir, fechar, registrar, setorId,
@@ -341,6 +352,8 @@ interface LoteDaTela {
   lote: Lote | null
   linhas: LinhaDoLote[]
   visiveis: LinhaDoLote[]
+  /** As visíveis que o "Marcar todos" de uma seção da tela alcança: sem as do conserto. */
+  visiveisParaMarcarTodos: LinhaDoLote[]
   aoAlternar: (linha: LinhaDoLote, marcado: boolean) => void
   aoDigitar: (chave: string, texto: string) => void
   aoMarcarTodos: (secao: SecaoDoLote) => void
@@ -439,13 +452,13 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
   /** "Marcar todos" da seção, sobre as linhas visíveis e não bloqueadas dela (desvio D10). */
   function marcarTodosDa(secao: SecaoDoLote): { acao?: ReactNode; dica?: string } {
     if (!apontar) return {}
-    const livres = doLote.visiveis.filter((l) => l.secao === secao && l.bloqueio === null)
+    const livres = doLote.visiveisParaMarcarTodos.filter((l) => l.secao === secao && l.bloqueio === null)
     if (livres.length === 0) return {}
     const travada = lote !== null && lote.secao !== secao
     return {
       acao: (
         <Botao variante="secundario" disabled={travada} onClick={() => doLote.aoMarcarTodos(secao)}>
-          {todosMarcados(lote, secao, doLote.visiveis) ? 'Desmarcar todos' : 'Marcar todos'}
+          {todosMarcados(lote, secao, doLote.visiveisParaMarcarTodos) ? 'Desmarcar todos' : 'Marcar todos'}
         </Botao>
       ),
       dica: travada ? `Conclua ou limpe a seleção de ${TITULO_DA_SECAO[lote.secao]}.` : undefined,
@@ -702,6 +715,45 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
           ))}
         </Secao>
       )}
+      {completa.conserto.length > 0 && (
+        <Secao titulo="Conserto">
+          {fila.conserto.length === 0 && <SemLinhaNoFiltro />}
+          {fila.conserto.map((l) => {
+            const emConserto = l.posicao === 'EmConserto'
+            const chaveTerminar = chaveDeTerminarConserto(l.no.id)
+            const chaveEstornar = chaveDeEstornar(secaoDeEstornoDoConserto(l), l.no.id, null)
+            const { caixa, campo } = emConserto
+              ? controlesDoLote(chaveTerminar, `Marcar ${rotuloDoNo(l.no)}, em conserto, para terminar`)
+              : {}
+            const terminarAqui = emConserto && apontar ? botaoDeApontar(chaveTerminar, ROTULO_DE_TERMINAR_CONSERTO, l.no) : undefined
+            const estornarAqui = botaoDeEstorno(chaveEstornar, l.estornaveis, l.no)
+            return (
+              <ItemComAcao
+                key={`${l.no.id}-${l.posicao}`}
+                acao={caixa || terminarAqui || estornarAqui ? <>{caixa}{terminarAqui}{estornarAqui}</> : undefined}
+                painel={juntar(campo, (
+                  (emConserto ? painel(chaveTerminar, (
+                    <FormularioDeQuantidade
+                      rotulo={ROTULO_DE_TERMINAR_CONSERTO}
+                      maximo={l.quantidade}
+                      aoConfirmar={(q) => registrar(() => terminarConserto(l.no.id, { setorId, quantidade: q }))}
+                      aoCancelar={fechar}
+                    />
+                  )) : undefined)
+                  ?? listaDeEstorno(chaveEstornar, l.estornaveis)
+                ))}
+              >
+                <CabecalhoDoNo no={l.no} />
+                <Detalhe>
+                  {emConserto
+                    ? `${formatarQuantidade(l.quantidade)} em conserto`
+                    : `${formatarQuantidade(l.quantidade)} pronto, aguardando levar à expedição`}
+                </Detalhe>
+              </ItemComAcao>
+            )
+          })}
+        </Secao>
+      )}
     </>
   )
 }
@@ -728,7 +780,7 @@ function Secao({ titulo, acao, dica, children }: { titulo: string; acao?: ReactN
  */
 function CampoDoLote({ linha, texto, aoMudar }: { linha: LinhaDoLote; texto: string; aoMudar: (texto: string) => void }) {
   const erro = erroDaLinha(linha, texto)
-  const disponivel = `${linha.ordem === null ? 'Dá para iniciar' : 'Disponível'}: ${formatarQuantidade(linha.maximo)}`
+  const disponivel = `${linha.secao === 'aguardandoMontagem' ? 'Dá para iniciar' : 'Disponível'}: ${formatarQuantidade(linha.maximo)}`
   return (
     <div className="border-t border-borda pt-3">
       <Campo rotulo="Quantidade" dica={erro ?? disponivel}>

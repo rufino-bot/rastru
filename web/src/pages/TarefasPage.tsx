@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   listarTarefas, entregar, ehConflito,
-  type ItemDaEntrega, type ItemDeTarefa, type KitDto, type TarefasDoSetorDto,
+  type ItemDaEntrega, type ItemDeTarefa, type KitDto, type TarefaDeConserto, type TarefasDoSetorDto,
 } from '../api/execucao'
 import { mensagemDeErro } from '../api/erros'
 import { INTERVALO_DA_EXECUCAO_MS, useCargaPeriodica } from '../hooks/useCargaPeriodica'
@@ -9,7 +9,10 @@ import { caminhoDoNo, descreverDestino, formatarQuantidade, rotuloDoNo } from '.
 import { lerQuantidade, quantidadeParaCampo } from '../execucao/quantidade'
 import { lerConjuntos, quantidadeDoConjunto } from '../execucao/conjuntos'
 import { CartaoDeKitIncompleto, CartaoDeKitMontavel } from '../execucao/CartaoDeKit'
-import { CHAVES_DA_DEMANDA, facetasDasTarefas, filtrarKits, filtrarTarefas } from '../execucao/filtroDaDemanda'
+import {
+  CHAVES_DA_DEMANDA, facetasDasTarefas, filtrarConsertos, filtrarKits, filtrarTarefas,
+} from '../execucao/filtroDaDemanda'
+import { itemDeEntregaDoConserto } from '../execucao/loteDaFila'
 import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { Pagina } from '../components/Pagina'
@@ -32,6 +35,18 @@ interface Escolha {
 
 const chaveDoItem = (setorId: number, item: ItemDeTarefa) => `${item.no.id}:${setorId}:${item.ordem}`
 
+/**
+ * A chave de uma ida ou volta do conserto: o nó e a posição de onde sai, com o Setor. O mesmo nó pode ter a ida num
+ * Setor e a volta noutro (ou no mesmo), e as duas são tarefas distintas.
+ */
+const chaveDoConserto = (t: TarefaDeConserto) => `conserto:${t.no.id}:${t.origem.posicao}:${t.origem.setorId}`
+
+/** O que a tarefa de conserto diz: a ida leva a Peça ao Setor, a volta leva do Setor ao local de expedição. */
+const ehIdaAoConserto = (t: TarefaDeConserto) => t.origem.posicao === 'AguardandoConserto'
+const complementoDoConserto = (t: TarefaDeConserto) =>
+  (ehIdaAoConserto(t) ? `ao conserto em ${t.destino.setorNome}` : 'ao local de expedição')
+const textoDoConserto = (t: TarefaDeConserto) => `Levar ${complementoDoConserto(t)}`
+
 const SAIU_DA_LISTA = 'Um item que você tinha marcado não está mais pronto: outra pessoa o moveu. Confira a seleção.'
 
 const SEM_ROTEIRO_NO_PAI = 'Peça ao PCP o Roteiro do pai antes de levar.'
@@ -52,6 +67,11 @@ function erroDaEscolha(item: ItemDeTarefa, escolha: Escolha): string | null {
   const leitura = lerQuantidade(escolha.quantidade, item.quantidade)
   if (leitura.erro) return leitura.erro
   return null
+}
+
+/** O mesmo para a tarefa de conserto, que só tem a quantidade a conferir. */
+function erroDaEscolhaDeConserto(tarefa: TarefaDeConserto, escolha: Escolha): string | null {
+  return lerQuantidade(escolha.quantidade, tarefa.quantidade).erro
 }
 
 /** "Entregar 2 Kits e 3 itens": Kits e itens contados separados (spec da Fase 3B, seção 5.1). */
@@ -92,11 +112,15 @@ export function TarefasPage() {
   const grupos = dados?.grupos ?? null
   const montaveis = useMemo(() => dados?.kitsMontaveis ?? [], [dados])
   const incompletos = useMemo(() => dados?.kitsIncompletos ?? [], [dados])
+  const consertos = useMemo(() => dados?.consertos ?? [], [dados])
   const { entregar: podeEntregar } = usePermissoesDaExecucao()
   const { selecao, mudarSelecao, limpar } = useSelecaoNaUrl(CHAVES_DA_DEMANDA)
   const idDosKits = useId()
+  const idDoConserto = useId()
 
   const [escolhas, setEscolhas] = useState<Record<string, Escolha>>({})
+  // As idas e voltas do conserto marcadas, por `chaveDoConserto`: entram na mesma entrega (Q4 do plano de front).
+  const [escolhasDeConserto, setEscolhasDeConserto] = useState<Record<string, Escolha>>({})
   // O texto do campo Conjuntos de cada Kit marcado, por `pai.id`.
   const [conjuntos, setConjuntos] = useState<Record<number, string>>({})
   const [erroDaEntrega, setErroDaEntrega] = useState<string | null>(null)
@@ -112,13 +136,17 @@ export function TarefasPage() {
     const itensQueFicam = Object.entries(escolhas).filter(([chave]) => existentes.has(chave))
     const kitsExistentes = new Set(dados.kitsMontaveis.map((k) => k.pai.id))
     const kitsQueFicam = Object.entries(conjuntos).filter(([paiId]) => kitsExistentes.has(Number(paiId)))
+    const consertosExistentes = new Set(dados.consertos.map(chaveDoConserto))
+    const consertosQueFicam = Object.entries(escolhasDeConserto).filter(([chave]) => consertosExistentes.has(chave))
     const saiuItem = itensQueFicam.length !== Object.keys(escolhas).length
     const saiuKit = kitsQueFicam.length !== Object.keys(conjuntos).length
-    if (!saiuItem && !saiuKit) return
+    const saiuConserto = consertosQueFicam.length !== Object.keys(escolhasDeConserto).length
+    if (!saiuItem && !saiuKit && !saiuConserto) return
     if (saiuItem) setEscolhas(Object.fromEntries(itensQueFicam))
     if (saiuKit) setConjuntos(Object.fromEntries(kitsQueFicam))
+    if (saiuConserto) setEscolhasDeConserto(Object.fromEntries(consertosQueFicam))
     setAviso(SAIU_DA_LISTA)
-  }, [dados, escolhas, conjuntos])
+  }, [dados, escolhas, conjuntos, escolhasDeConserto])
 
   function alternar(chave: string, item: ItemDeTarefa, marcado: boolean) {
     setAviso(null)
@@ -130,6 +158,23 @@ export function TarefasPage() {
       }
       return { ...atuais, [chave]: { quantidade: quantidadeParaCampo(item.quantidade) } }
     })
+  }
+
+  function alternarConserto(tarefa: TarefaDeConserto, marcado: boolean) {
+    setAviso(null)
+    setErroDaEntrega(null)
+    const chave = chaveDoConserto(tarefa)
+    setEscolhasDeConserto((atuais) => {
+      if (!marcado) {
+        const { [chave]: _removida, ...resto } = atuais
+        return resto
+      }
+      return { ...atuais, [chave]: { quantidade: quantidadeParaCampo(tarefa.quantidade) } }
+    })
+  }
+
+  function mudarConserto(tarefa: TarefaDeConserto, quantidade: string) {
+    setEscolhasDeConserto((atuais) => ({ ...atuais, [chaveDoConserto(tarefa)]: { quantidade } }))
   }
 
   /** Marcar o Kit põe no campo o N máximo; desmarcar tira o texto. */
@@ -170,6 +215,19 @@ export function TarefasPage() {
       }
       return novas
     })
+    setEscolhasDeConserto((atuais) => {
+      if (todosMarcados) {
+        const resto = { ...atuais }
+        for (const t of consertosVisiveis) delete resto[chaveDoConserto(t)]
+        return resto
+      }
+      const novas = { ...atuais }
+      for (const t of consertosVisiveis) {
+        const chave = chaveDoConserto(t)
+        if (novas[chave] === undefined) novas[chave] = { quantidade: quantidadeParaCampo(t.quantidade) }
+      }
+      return novas
+    })
     setConjuntos((atuais) => {
       if (todosMarcados) {
         const resto = { ...atuais }
@@ -189,6 +247,7 @@ export function TarefasPage() {
     setAviso(null)
     setErroDaEntrega(null)
     setEscolhas({})
+    setEscolhasDeConserto({})
     setConjuntos({})
   }
 
@@ -203,26 +262,34 @@ export function TarefasPage() {
   const kitsMarcados = montaveis
     .filter((k) => conjuntos[k.pai.id] !== undefined)
     .map((k) => ({ kit: k, n: lerConjuntos(conjuntos[k.pai.id], k.conjuntos).valor }))
+  const consertosMarcados = consertos
+    .filter((t) => escolhasDeConserto[chaveDoConserto(t)] !== undefined)
+    .map((t) => ({ tarefa: t, escolha: escolhasDeConserto[chaveDoConserto(t)] }))
   const visiveis = useMemo(() => (grupos ? filtrarTarefas(grupos, selecao) : []), [grupos, selecao])
+  const consertosVisiveis = useMemo(() => filtrarConsertos(consertos, selecao), [consertos, selecao])
   const montaveisVisiveis = useMemo(() => filtrarKits(montaveis, selecao), [montaveis, selecao])
   const incompletosVisiveis = useMemo(() => filtrarKits(incompletos, selecao), [incompletos, selecao])
   const facetas = useMemo(() => (dados ? facetasDasTarefas(dados, selecao) : []), [dados, selecao])
   const chavesVisiveis = new Set(visiveis.flatMap((g) => g.itens.map((i) => chaveDoItem(g.setorId, i))))
   const kitsVisiveis = new Set(montaveisVisiveis.map((k) => k.pai.id))
+  const consertosVisiveisPorChave = new Set(consertosVisiveis.map(chaveDoConserto))
   const ocultos = marcados.filter(({ grupo, item }) => !chavesVisiveis.has(chaveDoItem(grupo.setorId, item))).length
     + kitsMarcados.filter(({ kit }) => !kitsVisiveis.has(kit.pai.id)).length
+    + consertosMarcados.filter(({ tarefa }) => !consertosVisiveisPorChave.has(chaveDoConserto(tarefa))).length
   // O que "Marcar todos" alcança: os visíveis depois do filtro, menos o pai sem Roteiro (que não se
   // marca), e os Kits montáveis visíveis.
   const marcaveis = visiveis.flatMap((g) => g.itens
     .filter((i) => !i.destino.paiSemRoteiro)
     .map((i) => ({ chave: chaveDoItem(g.setorId, i), item: i })))
-  const haMarcavel = marcaveis.length + montaveisVisiveis.length > 0
+  const haMarcavel = marcaveis.length + montaveisVisiveis.length + consertosVisiveis.length > 0
   const todosMarcados = haMarcavel
     && marcaveis.every(({ chave }) => escolhas[chave] !== undefined)
     && montaveisVisiveis.every((k) => conjuntos[k.pai.id] !== undefined)
+    && consertosVisiveis.every((t) => escolhasDeConserto[chaveDoConserto(t)] !== undefined)
   const algumInvalido = marcados.some(({ item, escolha }) => erroDaEscolha(item, escolha) !== null)
     || kitsMarcados.some(({ n }) => n === null)
-  const totalMarcado = marcados.length + kitsMarcados.length
+    || consertosMarcados.some(({ tarefa, escolha }) => erroDaEscolhaDeConserto(tarefa, escolha) !== null)
+  const totalMarcado = marcados.length + kitsMarcados.length + consertosMarcados.length
 
   async function enviar() {
     if (totalMarcado === 0 || algumInvalido || enviandoRef.current) return
@@ -238,13 +305,17 @@ export function TarefasPage() {
       origem: { posicao: 'AguardandoColeta', setorId: f.origem!.id, ordem: f.ordem! },
       quantidade: quantidadeDoConjunto(n!, f.quantidadePorPai),
     })))
+    // O conserto leva a origem da própria tarefa (a posição e o Setor), sem `ordem`.
+    const doConserto: ItemDaEntrega[] = consertosMarcados.map(({ tarefa, escolha }) =>
+      itemDeEntregaDoConserto(tarefa, lerQuantidade(escolha.quantidade, tarefa.quantidade).valor!))
     enviandoRef.current = true
     setEnviando(true)
     setErroDaEntrega(null)
     setAviso(null)
     try {
-      await entregar([...soltos, ...doKit])
+      await entregar([...soltos, ...doKit, ...doConserto])
       setEscolhas({})
+      setEscolhasDeConserto({})
       setConjuntos({})
       await recarregar()
     } catch (e) {
@@ -256,10 +327,10 @@ export function TarefasPage() {
     }
   }
 
-  // "Tarefa" é item solto ou Kit montável; o incompleto é informativo e não tira a tela do vazio.
-  const haTarefa = grupos !== null && (grupos.length > 0 || montaveis.length > 0)
+  // "Tarefa" é item solto, Kit montável ou ida/volta do conserto; o incompleto é informativo e não tira a tela do vazio.
+  const haTarefa = grupos !== null && (grupos.length > 0 || montaveis.length > 0 || consertos.length > 0)
   const vazia = grupos !== null && !haTarefa
-  const vaziaPeloFiltro = haTarefa && visiveis.length === 0 && montaveisVisiveis.length === 0
+  const vaziaPeloFiltro = haTarefa && visiveis.length === 0 && montaveisVisiveis.length === 0 && consertosVisiveis.length === 0
 
   return (
     <Pagina titulo="Tarefas">
@@ -291,6 +362,44 @@ export function TarefasPage() {
           descricao="Quando um Setor terminar algo que precisa ir a outro lugar, aparece aqui."
         />
       )}
+      {consertosVisiveis.length > 0 && (
+        <section aria-labelledby={idDoConserto} className="flex flex-col gap-3">
+          <h2 id={idDoConserto} className="text-lg font-medium text-tinta">Conserto</h2>
+          <ListaDeCadastro rotulo="Conserto">
+            {consertosVisiveis.map((tarefa) => {
+              const escolha = escolhasDeConserto[chaveDoConserto(tarefa)]
+              return (
+                <ItemComAcao
+                  key={chaveDoConserto(tarefa)}
+                  acao={podeEntregar && (
+                    <label className="flex items-center gap-2 text-sm text-tinta">
+                      <input
+                        type="checkbox"
+                        checked={escolha !== undefined}
+                        onChange={(e) => alternarConserto(tarefa, e.target.checked)}
+                        aria-label={`Levar ${rotuloDoNo(tarefa.no)} ${complementoDoConserto(tarefa)}`}
+                        className="size-5 accent-acao"
+                      />
+                      Levar
+                    </label>
+                  )}
+                  painel={escolha && (
+                    <EscolhaDoConserto tarefa={tarefa} escolha={escolha} aoMudar={(q) => mudarConserto(tarefa, q)} />
+                  )}
+                >
+                  <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
+                    {rotuloDoNo(tarefa.no)}
+                    {tarefa.no.pausa && <Pilula tom="atencao">Pausado</Pilula>}
+                  </span>
+                  <span className="text-xs text-tinta-fraca">{caminhoDoNo(tarefa.no)}</span>
+                  <span className="text-sm text-tinta">{textoDoConserto(tarefa)}</span>
+                  <span className="text-sm text-tinta">{`${formatarQuantidade(tarefa.quantidade)} para levar`}</span>
+                </ItemComAcao>
+              )
+            })}
+          </ListaDeCadastro>
+        </section>
+      )}
       {montaveisVisiveis.length > 0 && (
         <section aria-labelledby={idDosKits} className="flex flex-col gap-3">
           <h2 id={idDosKits} className="text-lg font-medium text-tinta">Kits montáveis</h2>
@@ -320,7 +429,7 @@ export function TarefasPage() {
       ))}
       {podeEntregar && totalMarcado > 0 && (
         <BarraDoLote
-          rotulo={rotuloDoEntregar(kitsMarcados.length, marcados.length)}
+          rotulo={rotuloDoEntregar(kitsMarcados.length, marcados.length + consertosMarcados.length)}
           rotuloCarregando="Entregando…"
           ocultos={ocultos}
           invalido={algumInvalido}
@@ -423,6 +532,33 @@ function EscolhaDoItem({ item, escolha, aoMudar }: {
             autoComplete="off"
             value={escolha.quantidade}
             onChange={(e) => aoMudar({ quantidade: e.target.value })}
+            aria-describedby={idDaDica}
+            aria-invalid={erro !== null}
+            className={CLASSES_DE_CONTROLE}
+          />
+        )}
+      </Campo>
+    </div>
+  )
+}
+
+function EscolhaDoConserto({ tarefa, escolha, aoMudar }: {
+  tarefa: TarefaDeConserto
+  escolha: Escolha
+  aoMudar: (quantidade: string) => void
+}) {
+  const erro = erroDaEscolhaDeConserto(tarefa, escolha)
+  return (
+    <div className="flex flex-col gap-3 border-t border-borda pt-3">
+      <Campo rotulo="Quantidade" dica={erro ?? `Disponível: ${formatarQuantidade(tarefa.quantidade)}`}>
+        {(id, idDaDica) => (
+          <input
+            id={id}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            value={escolha.quantidade}
+            onChange={(e) => aoMudar(e.target.value)}
             aria-describedby={idDaDica}
             aria-invalid={erro !== null}
             className={CLASSES_DE_CONTROLE}
