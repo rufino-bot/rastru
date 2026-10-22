@@ -17,9 +17,14 @@ Cada fluxo abaixo deve virar um caso de uso na camada `Application` do backend
    - Pode criar itens 100% customizados (sem `ComponenteId`), específicos deste Pedido.
    - Pode **importar a estrutura inteira de uma Peça** a partir do BOM exportado do CAD, conferindo-a
      antes de confirmar (subseção "Importar a estrutura de um BOM").
-   - Para cada Peça (nó de topo do `EstruturaItem`), marca se ela `RequerRelatorioDimensional`.
+   - Para cada Peça (nó de topo do `EstruturaItem`), marca se ela `RequerRelatorioDimensional`. O PCP
+     **edita a marca depois**, no painel de edição da Peça (a caixa "Requer relatório dimensional", que só
+     existe na Peça), enquanto ela não tem aferição válida; com uma, o servidor recusa (regra 10 em `01`).
 4. Pedido fica com `Status = Aberto` até o primeiro apontamento de setor
-   (`Status = EmProducao`).
+   (`Status = EmProducao`). Os outros dois status vêm do fim do caminho da Peça (fluxo 4):
+   `AguardandoExpedicao` quando tudo o que falta expedir já está no local de expedição, e `Concluido` com
+   a última remessa. Um Pedido `Concluido` não aceita edição de estrutura (C15 da spec da Fase 5A; regra 13 em `01` para o fechamento); para mudá-lo,
+   a Qualidade estorna a última remessa.
 5. Quando outro Pedido precisa passar na frente, **PCP ou Gestão pausam** o Pedido, com um motivo
    opcional, e o **retomam** depois (regra 31). A pausa não muda o status; ela só recusa o início
    de nós dele. A **lista** de Pedidos mostra da pausa só a pílula "Pausado", ao lado do status; quem
@@ -152,12 +157,18 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 > cartões de Kit (passo 8) e a marca "Utiliza Kit" do Setor (passo 11). O caso do nó que ganha
 > filho depois de iniciado deixou de existir: acrescentar filho a nó já iniciado passou a ser
 > recusado (regra 24).
+>
+> **Emendado em 2026-10-22** pela spec da Fase 5A
+> (`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`): o **conserto**
+> da unidade não conforme entra na fila (passo 2) e nas Tarefas (passo 4), e o passo 12 conta o caminho
+> inteiro. Quem manda para conserto é a Qualidade (fluxo 4).
 
 1. **PCP** confere que todo nó tem Roteiro; nó sem Roteiro aparece como pendência na árvore, e o PCP
    o edita (regra 28).
 2. **Operador** abre a fila do seu Setor e vê, nesta ordem, o que está em trabalho, o que está a
-   iniciar ali, o que está aguardando montagem, o que está aguardando coleta e a sobra. O card de
-   nó de Agrupamento Kit traz a pílula **Kit**, em azul cheio, em qualquer seção; é a única tela
+   iniciar ali, o que está aguardando montagem, o que está aguardando coleta e a sobra, e, **depois da
+   sobra**, a seção **Conserto** (passo 12), que só existe quando há unidade em conserto naquele Setor. O
+   card de nó de Agrupamento Kit traz a pílula **Kit**, em azul cheio, em qualquer seção; é a única tela
    que a mostra.
 3. Ao pegar o material para trabalhar num nó cujo primeiro passo é ali, **inicia** uma quantidade
    (regra 28). Ao terminar, **termina** a quantidade feita: ela passa a aguardar coleta. O lote é
@@ -167,7 +178,8 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 4. **Movimentador** abre Tarefas, vê os Itens prontos com o destino de cada um e **entrega**: no
    próximo passo; na montagem do pai, no **primeiro passo do Roteiro do pai**, que o sistema calcula
    — o Movimentador não escolhe o Setor —; ou, se for Peça no fim do Roteiro, no local de expedição
-   (regra 29).
+   (regra 29). O conserto (passo 12) também é entrega: **Levar ao conserto em {Setor}** e **Levar ao
+   local de expedição**, na seção **Conserto** de Tarefas.
 
    O filho de Agrupamento Kit no último passo, cujo pai começa num Setor com **Utiliza Kit**, não
    vai sozinho e não aparece entre os Itens prontos: os filhos vão juntos, em conjuntos completos
@@ -225,8 +237,10 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    de uma vez. Só quem aponta (Operador e Administrador) vê os controles do lote.
    - **Onde há caixa de marcar.** Em "A iniciar aqui" (a ação do lote é Iniciar), em "Em trabalho"
      (Terminar) e, em "Aguardando montagem", só no cartão do pai cuja montagem começa neste Setor
-     (Iniciar o pai, que consome os filhos como o botão individual). "Aguardando coleta" e "Sobra" não
-     têm lote. Uma linha que não pode agir agora — Pedido pausado, ou "dá para iniciar 0" no pai —
+     (Iniciar o pai, que consome os filhos como o botão individual). A linha **"em conserto"** da seção
+     Conserto também tem caixa: ela termina no mesmo lote de **Terminar** de "Em trabalho" (item de
+     conserto, sem passo), mas o "Marcar todos" de "Em trabalho" **não** a marca — é o de uma seção da
+     tela. "Aguardando coleta" e "Sobra" não têm lote, nem a linha de conserto já pronta. Uma linha que não pode agir agora — Pedido pausado, ou "dá para iniciar 0" no pai —
      tem a caixa desabilitada, e o motivo é o que a linha já mostra.
    - **Uma seção por vez.** Com o primeiro item marcado, as caixas das outras seções ficam
      desabilitadas, e a seção travada que tem alguma linha visível que poderia ser marcada mostra no
@@ -260,8 +274,8 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 10. **Movimentador marca todos em Tarefas.** Além de marcar item a item, o botão **Marcar todos** no
     topo da lista marca todos os itens visíveis depois do filtro, em todos os grupos, e pula o que não
     se pode marcar (o pai sem Roteiro). Marca também os Kits montáveis visíveis, cada um com o número
-    máximo de conjuntos; os Kits incompletos não se marcam. Com todos marcados vira "Desmarcar
-    todos", que desmarca só esses: o marcado oculto pelo filtro continua marcado. Marcar não reescreve
+    máximo de conjuntos, e as idas e voltas do conserto visíveis; os Kits incompletos não se marcam.
+    Com todos marcados vira "Desmarcar todos", que desmarca só esses: o marcado oculto pelo filtro continua marcado. Marcar não reescreve
     a quantidade nem os conjuntos de quem já estava marcado. O resto do "Levar" não muda: ele já é
     uma entrega em lote, numa requisição, tudo ou nada.
 11. **Administrador marca o Setor que monta Kit.** No painel de criar ou editar Setor, a caixa
@@ -271,6 +285,20 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
     Tarefas recalcula na carga seguinte (D4 da spec da Fase 3B); o mesmo vale para trocar o Tipo de
     um Agrupamento. Trocar com Kit já em produção pode travar aquele Kit: ver a limitação conhecida
     da regra 25.
+12. **O conserto anda pelo chão como o resto** (Fase 5A, regra 35 em `01`; D6, C3, C4 da spec). A Qualidade
+    manda unidades não conformes para um Setor (fluxo 4, passo 4), e daí em diante:
+    - O **Movimentador** vê em Tarefas a seção **Conserto**, no alto, acima de "Kits montáveis", com uma linha
+      "Levar ao conserto em {Setor}" por unidade esperando, com caixa e quantidade como as outras, e
+      **Entregar** no lote de sempre (os itens do conserto vão na mesma entrega dos itens e dos Kits marcados).
+    - O **Operador** do Setor vê na Fila a seção **Conserto**, depois de "Sobra", com a Peça e o Pedido e
+      "{q} em conserto", e o botão **Terminar conserto** (individual, ou no lote de Terminar: ver o passo 9). O
+      conserto não tem passo do Roteiro, e o botão leva esse nome, não o da atividade do Setor. Terminado, a
+      linha passa a "{q} pronto, aguardando levar à expedição", sem botão de terminar.
+    - O **Movimentador** vê então em Tarefas "Levar ao local de expedição". Entregue, a unidade volta ao local
+      de expedição como "a medir" e a Qualidade a mede de novo (fluxo 4, passo 3).
+    - O **estorno** continua na própria fila, nas duas linhas do conserto, enquanto a quantidade não tiver
+      andado. O **filtro** de Material e Pedido vale para a seção Conserto e para as tarefas dele, e a contagem
+      do menu "Tarefas N" inclui o conserto. O conserto **não mexe no Roteiro** do nó.
 
 ## 3. Separação de Material
 
@@ -330,19 +358,121 @@ ao contrário, fica estocada no Corte, e o operador a pega ali mesmo. **A execu�
    **materiais completos, não quantidades** (D15). **O início não é bloqueado nem pede confirmação**
    (D12): a falta de material é informação, não bloqueio.
 
-## 4. Expedição e Relatório Dimensional
+## 4. Expedição e Aferição
 
-*Perfil: Qualidade*
+*Perfil: Qualidade (e Administrador) registra; a Gestão responde às liberações (subseção abaixo); qualquer
+perfil autenticado lê. Fase 5A, spec
+`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`, seção 6; regras 10, 11,
+13, 16 e 35 a 37 de `01-dominio-e-regras-de-negocio.md`; contrato em `05-api-endpoints.md`, seção "Aferição,
+expedição e fechamento". Telas: `/expedicao` e `/liberacoes`.*
 
-1. A expedição pode ser **parcial**: o cliente aceita uma quantidade vital agora
-   (uma remessa = uma linha em Expedicao) e o restante depois.
-2. Se a Peça foi marcada com RequerRelatorioDimensional, a Qualidade registra, para cada
-   remessa avaliada pelo cliente, uma RelatorioDimensionalAvaliacao com a quantidade
-   avaliada/aprovada/reprovada (acumulando no relatório único da Peça). Sem essa marca,
-   não há relatório.
-3. Uma Peça conclui quando toda a sua quantidade virou expedido ou perdido. O Agrupamento
-   conclui quando todas as suas Peças concluem; se for o último Agrupamento em aberto do
-   Pedido → Pedido.DataConclusao é preenchida.
+No Rastru a **Qualidade é a pessoa da expedição**: quem mede, decide se passou e expede é a mesma pessoa (D1).
+As cotas vêm do cliente com o pedido e ficam fora do sistema, que guarda só o resultado, quem e quando (D2). A
+Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo 4); dali em diante o fluxo é este.
+
+1. **A tela.** O item **Expedição** do menu abre os Pedidos não encerrados com Peça no local de expedição ou em
+   conserto, na ordem do prazo de entrega. Cada Pedido tem um cabeçalho (número, cliente, "entrega dd/mm/aaaa"
+   e as pílulas **Atrasado** e **Pausado** de sempre) e, abaixo, um cartão por Peça: código e descrição (a do
+   Componente, quando a Peça foi copiada do catálogo e não tem descrição própria), o Agrupamento, a pílula
+   neutra **Exige relatório** ou **Sem relatório**, a situação da aferição (**Aferição pendente**, neutra;
+   **Conforme**, verde; **Não conforme**, vermelha), **"N aqui"** e **"de Q · E expedidas"**. "N aqui" é o que
+   está no local de expedição, em qualquer posição dele; o que está em conserto não entra na conta. A lista
+   chega inteira, e os filtros **Pedido** e **Aferição** agem no cliente, com a seleção na URL. Os três
+   estados: carregando; vazio ("Nada no local de expedição.", ou "Nenhuma Peça com esses filtros." com
+   "Limpar filtros"); erro ("Não foi possível carregar a expedição."). A tela não se atualiza sozinha:
+   recarrega depois de cada escrita.
+2. **Aferir.** A Peça que **exige** relatório e ainda não tem aferição válida mostra **Aferir**. O painel pede o
+   resultado, **Conforme** ou **Não conforme**, sem nenhum marcado (aferir é decisão, e um toque distraído não a
+   registra), com a dica "Uma unidade medida decide o lote.". **Conforme** vale para a Peça toda, inclusive as
+   remessas futuras: ninguém mede mais. **Não conforme** obriga a medir todas, as de agora e as que chegarem
+   (passo 3). A Peça que não exige relatório não tem **Aferir**.
+3. **Contar.** Depois de uma aferição não conforme, as unidades que estão no local de expedição e ainda não foram
+   medidas são **"A medir"**, e a Peça mostra **Contar**. O painel **Contar as unidades** diz "{a} a medir." e
+   pede **Conformes** e **Não conformes**: campo vazio vale zero ("medi 6, todas conformes" não pede digitar 0 na
+   outra), a vírgula decimal vale, a soma não pode ser zero nem passar do que há a medir, e as duas parcelas
+   vão juntas, tudo ou nada. A contagem diz quantas, e não quais: é lote agregado, sem serial. Com ela, o
+   cartão passa a mostrar a contagem — **Conformes**, **Não conformes** e, dentro destas, **"· liberadas pela
+   Gestão"**, **"· em conserto ({Setor})"** (uma linha por Setor), **"· aguardando liberação"** e **"· aguardando
+   decisão"**, mais **A medir** —, e as linhas de dentro só aparecem quando têm unidade. Texto neutro: a cor do
+   estado já está na pílula.
+4. **O destino da não conforme.** As unidades **aguardando decisão** têm três saídas (a quarta, "matar a peça",
+   é da Fase 5B):
+   - **Mandar para conserto.** O painel pede o **Setor** — qualquer Setor ativo, inclusive a Expedição, e nenhum
+     vem escolhido — e a **Quantidade**, que abre com todas as que aguardam decisão. A unidade vai ao Setor:
+     o Movimentador a leva, o operador a corrige e o Movimentador a traz de volta (fluxo 2, passo 12), e ela
+     volta ao local de expedição como **a medir**, para ser contada de novo. É o mesmo Pedido, e enquanto a
+     unidade está no conserto o Pedido deixa de estar "Aguardando expedição" (passo 8).
+   - **Pedir liberação.** O painel pede a **Quantidade** (abre com todas as que aguardam decisão) e a
+     **Justificativa**, obrigatória: se o cliente reclamar, o porquê é o que se procura. As unidades passam a
+     **aguardando liberação** e **não saem em remessa** enquanto esperam a Gestão (subseção abaixo). Só há um
+     pedido em aberto por Peça: enquanto ele existe, o cartão o mostra ("Liberação pedida: {q}, por {nome} em
+     {data} — {justificativa}") e **Pedir liberação** some.
+   - **Expedir assim mesmo**, sem liberação: o Rastru avisa e deixa (passo 5).
+5. **Expedir.** **Expedir** aparece quando há **expedível**: o que está no local de expedição, menos o que aguarda
+   a Gestão. O painel **Expedir remessa** pede só a **Quantidade**, que abre com o expedível: a Qualidade pensa
+   em "mandar 9", e o servidor escolhe de onde tira, nesta ordem — liberada, conforme, a que está no local de
+   expedição, e por último a não conforme (regra 16, C10). Antes de confirmar, o painel mostra o **aviso** do que
+   vai sair sem aferição ("{q} sem aferição"), sem medição ("{q} sem medição") ou não conforme sem liberação
+   ("1 não conforme sem liberação", "2 não conformes sem liberação": no singular, quando é uma), seguido de
+   **"Dá para expedir assim mesmo; fica registrado."**. O aviso **não trava** (regra 37): só o de não conforme
+   sem liberação é vermelho, e os outros dois são texto neutro. O botão diz "Expedir {q}". O duplo toque no
+   celular não grava duas remessas. Se outra pessoa expediu antes e a quantidade ficou acima do expedível, o
+   servidor recusa, a frase aparece dentro do painel e a lista recarrega.
+6. **Expedir em lote** (C9). Com perfil que registra, a Peça com expedível ganha a caixa **Marcar**; **Marcar
+   todos** marca as visíveis depois do filtro. A Peça marcada mostra o campo **Quantidade** (já com o expedível)
+   e o aviso daquela Peça, e a barra fixa do rodapé traz **Expedir** e **Limpar seleção**, como na Separação. O
+   lote vai numa remessa só, **tudo ou nada**: se uma Peça é recusada, nada é gravado, a lista recarrega, a
+   seleção fica e a frase do servidor, com o nome da Peça, aparece na barra. A Peça marcada que sai da lista
+   (outra pessoa a expediu) sai da seleção, com aviso. A marcada que o filtro esconde vai no lote.
+7. **Remessas recentes.** No fim da tela, a seção **Remessas recentes** traz as dos últimos 30 dias, a mais
+   nova primeiro: data e hora, quem expediu, e uma linha por Peça com a quantidade (vazio: "Nenhuma remessa nos
+   últimos 30 dias."). É **daqui** que se estorna uma remessa, e não do histórico da Peça: a remessa desfaz mais
+   de uma Peça. **Estornar remessa** abre o painel que lista todas as Peças que ela desfaz e, para cada Pedido
+   que ela concluiu, "Reabre o Pedido {número}."; **Estornar** a desfaz **inteira**. Quem estorna: o autor, o
+   PCP ou o Administrador (a remessa já estornada fica marcada e não se estorna de novo).
+8. **O fechamento e o status do Pedido** (regra 13). A Peça conclui quando toda a quantidade foi expedida e sai
+   da lista; o Agrupamento conclui com a última Peça, e o Pedido com o último Agrupamento que tem Peça. O
+   cabeçalho do Pedido mostra **"Concluído em dd/mm/aaaa"**, só o dia. Antes disso, o status é **Aguardando
+   expedição** quando todo o não expedido de cada Peça está no local de expedição (a pílula é neutra), e volta a
+   **Em produção** se uma unidade sai dele — para o conserto, por exemplo — ou se se acrescenta Peça ao Pedido.
+   Estornar a remessa que concluiu o Pedido o reabre, e é a única escrita da expedição que um Pedido
+   `Concluido` aceita.
+9. **Histórico e estorno.** Cada cartão tem o **Histórico**, recolhido, que só busca ao abrir e passa a dizer
+   "Histórico (N)": aferições, contagens, consertos, pedidos e respostas de liberação e remessas, do mais
+   recente ao mais antigo, com autor e data; o estornado fica marcado. **Estornar** aparece onde o servidor diz
+   que o registro é estornável e a sessão pode estornar aquele autor — o autor, o PCP ou o Administrador (C7) —,
+   com confirmação ("O estorno fica no histórico."), e cada registro se estorna **inteiro**: a contagem não
+   tem meio estorno. As regras do que impede estão em `01`: a aferição não conforme enquanto houver contagem; o
+   pedido de liberação enquanto tiver resposta válida; a resposta quando a Peça já tem outro pedido em aberto;
+   qualquer um deles depois de a quantidade ter andado. Se o servidor recusa, a frase aparece no histórico e o
+   cartão recarrega. A remessa aparece no histórico com "Estorna-se em Remessas recentes.", sem botão.
+10. **Quem vê o quê.** Qualidade e Administrador registram (aferir, contar, conserto, pedir liberação, expedir).
+    Os demais perfis leem a tela inteira e **não veem botão de registro**. O estorno segue a autoria: a Gestão,
+    que não registra nada aqui, ainda assim vê **Estornar** no registro **dela** — a resposta de liberação, no
+    histórico da Peça — e no de mais ninguém; o PCP e o Administrador veem o botão em todos. O esconder do botão
+    é conveniência: o 403 do servidor é a fronteira.
+
+### Liberação da não conforme (Gestão)
+
+*Perfil: Gestão (e Administrador) responde; qualquer perfil lê. Regra 36 de `01`; D7, C5, C6 e C18 da spec.*
+
+A Qualidade pede (passo 4 acima) e a Gestão decide: expedir não conforme sem liberação é possível, mas é a
+exceção, e a decisão fica gravada com o nome de quem a deu.
+
+1. O item **Liberações** do menu abre a lista dos pedidos em aberto, do mais antigo ao mais novo: a Peça, o
+   Pedido (número e cliente, "entrega dd/mm/aaaa" e **Atrasado**), "Quantidade pedida: N", a justificativa e quem
+   pediu e quando. Vazio: "Nenhuma liberação pendente."; erro: "Não foi possível carregar as liberações.". A
+   Qualidade e os demais perfis abrem a tela e leem a fila, sem o botão **Responder**.
+2. **Responder** abre o painel **Liberar para expedir**, com a **Quantidade liberada** (abre com a pedida) e a
+   **Observação (opcional)**. **Liberar {q}** libera até a quantidade pedida — pode ser menos ("libero 2 das 3") —,
+   e **Recusar tudo** é liberar zero. O que foi liberado passa a "liberadas pela Gestão" e sai em remessa sem
+   aviso; o resto volta a "aguardando decisão" e a Qualidade volta a decidir (passo 4 acima).
+3. Se outra pessoa respondeu antes, ou a Qualidade estornou o pedido, o servidor recusa: a frase sobe para a tela
+   e a lista recarrega, e o pedido respondido sai dela.
+4. A Gestão corrige a **própria resposta** por estorno, no histórico da Peça em `/expedicao` (passo 9 acima),
+   enquanto a quantidade não tiver andado: o pedido volta a "em aberto". Se a Peça já tem outro pedido em
+   aberto, o servidor recusa.
+5. Avisar a Gestão quando há pedido pendente é a notificação push da Fase 3C; até lá, ela abre a tela.
 
 ## 5. Retrabalho (Reprovação ou Perda)
 
@@ -356,6 +486,12 @@ ao contrário, fica estocada no Corte, e o operador a pega ali mesmo. **A execu�
 > **Nota (2026-09-24).** Nesse caso, o Retrabalho é **aberto** por quem registra a perda — Qualidade
 > ou PCP, como a seção "6. Perda de peças" já admite — e **cadastrado** pelo PCP (regra 27). O
 > "*Perfil: Qualidade*" no alto desta seção descreve a abertura a partir de uma reprovação.
+
+> **Nota (2026-10-22).** A Fase 5A trocou a "reprovação no Relatório Dimensional" pela **aferição não
+> conforme** (fluxo 4): ela **não** abre Retrabalho, e a unidade não conforme tem como destinos o conserto, a
+> liberação da Gestão e a expedição com aviso. O passo 3 abaixo falava da `RelatorioDimensionalAvaliacao`,
+> que **deixou de existir** (regra 12 de `01-dominio-e-regras-de-negocio.md`); como o Retrabalho se liga à
+> reclamação do cliente é redesenhado na Fase 5B, e este fluxo é revisto lá.
 
 1. Se uma Peça (ou parte de sua quantidade) é reprovada no Relatório Dimensional, o
    registro fica salvo normalmente — **não** abre retrabalho automaticamente.
