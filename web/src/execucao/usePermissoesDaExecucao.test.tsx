@@ -56,6 +56,12 @@ describe('usePermissoesDaExecucao', () => {
   it('perfil fora da chave `estorno` não estorna nem o que seria "dele"', () => {
     // Gestão só lê (spec §4.8): mesmo com o Id da sessão igual ao autor, o botão não aparece.
     expect(como('Gestao', 12).podeEstornar(12)).toBe(false)
-    expect(como('Qualidade', 12).podeEstornar(12)).toBe(false)
+    expect(como('Separador', 12).podeEstornar(12)).toBe(false)
+  })
+
+  it('a Qualidade estorna o próprio conserto, e só o próprio', () => {
+    // Fase 5A: o conserto se estorna pela rota genérica da movimentação, e a Qualidade o registra.
+    expect(como('Qualidade', 12).podeEstornar(12)).toBe(true)
+    expect(como('Qualidade', 12).podeEstornar(13)).toBe(false)
   })
 })

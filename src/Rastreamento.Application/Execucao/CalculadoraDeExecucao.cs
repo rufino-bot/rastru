@@ -40,6 +40,12 @@ public sealed record Montabilidade(
 public sealed record ColetaPendente(int EstruturaItemId, int SetorId, int Ordem, decimal Tarefa);
 
 /// <summary>
+/// Uma tarefa do Movimentador no conserto (D4 da spec da Fase 5A): `Local` e `AguardandoConserto` (levar ao Setor) ou
+/// `ConsertoPronto` (trazer ao local de expedicao), sempre com Setor e sem passo.
+/// </summary>
+public sealed record ConsertoPendente(int EstruturaItemId, Local Local, decimal Quantidade);
+
+/// <summary>
 /// Um filho direto num Kit (spec da Fase 3B, secao 4.4). `Pronto`: o que aguarda coleta no ultimo passo dele.
 /// `UltimoPasso` nulo: filho sem Roteiro, que nunca aguarda coleta. `JaNoDestino`: o ultimo passo e no Setor
 /// onde o pai comeca (D2 da spec da Fase 3B).
@@ -344,5 +350,27 @@ public sealed class CalculadoraDeExecucao
     }
 
     return lista.OrderBy(c => c.SetorId).ThenBy(c => c.EstruturaItemId).ThenBy(c => c.Ordem).ToList();
+  }
+
+  /// <summary>
+  /// Toda posicao do conserto que espera o Movimentador (`AguardandoConserto` e `ConsertoPronto`) com saldo positivo,
+  /// por Setor, no e posicao. `EmConserto` fica de fora: quem a move e o Operador, pela Fila.
+  /// </summary>
+  public IReadOnlyList<ConsertoPendente> ConsertosPendentes()
+  {
+    var lista = new List<ConsertoPendente>();
+    foreach (var (id, locais) in _liquido)
+    {
+      if (!_nos.ContainsKey(id)) continue;
+      foreach (var local in locais.Keys)
+      {
+        if (local.Posicao is not (Posicoes.AguardandoConserto or Posicoes.ConsertoPronto)) continue;
+        var quantidade = Saldo(id, local);
+        if (quantidade > 0m) lista.Add(new ConsertoPendente(id, local, quantidade));
+      }
+    }
+
+    return lista.OrderBy(c => c.Local.SetorId).ThenBy(c => c.EstruturaItemId)
+        .ThenBy(c => Livro.OrdemDaPosicao(c.Local.Posicao)).ToList();
   }
 }

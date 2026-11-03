@@ -20,7 +20,7 @@ vi.mock('../auth/AuthContext', () => ({
 const LIVRE: PedidoDto = {
   id: 1, numero: 'PED-2026-01', cliente: 'Alfa', tipo: 'Normal', status: 'EmProducao',
   dataAbertura: '2026-09-20T09:00:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
-  criadoPorUsuarioId: 1, pausa: null,
+  criadoPorUsuarioId: 1, pausa: null, dataConclusao: null,
 }
 const PAUSADO: PedidoDto = {
   ...LIVRE,

@@ -1,4 +1,5 @@
 using Rastreamento.Application.Common;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -18,6 +19,7 @@ public sealed class EntregaUseCase
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly LeitorDeEstado _leitor;
   private readonly ProjetorDoLivro _projetor;
+  private readonly FechamentoDoPedido _fechamento;
 
   public EntregaUseCase(IExecucaoRepository execucao, IEstruturaRepository estruturas, IReceitaPadraoRepository catalogo)
   {
@@ -25,6 +27,7 @@ public sealed class EntregaUseCase
     _catalogo = catalogo;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
+    _fechamento = new FechamentoDoPedido(execucao);
   }
 
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> Entregar(EntregaDto dto, int usuarioId, CancellationToken ct)
@@ -41,8 +44,8 @@ public sealed class EntregaUseCase
         return Falhas.QuantidadeInvalida<IReadOnlyList<MovimentacaoDto>>(item.Quantidade);
       if (OrigemValida(item.Origem) is not Local origem)
         return Falhas.Validacao<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.OrigemInvalida,
-            "A origem de uma entrega é o que aguarda coleta (com Setor e passo) ou o que aguarda montagem "
-            + "(com Setor, sem passo).");
+            "A origem de uma entrega é o que aguarda coleta (com Setor e passo) ou o que aguarda montagem, "
+            + "aguarda conserto ou está pronto do conserto (com Setor, sem passo).");
       origens.Add(origem);
     }
 
@@ -51,6 +54,11 @@ public sealed class EntregaUseCase
       var ids = itens.Select(i => i.EstruturaItemId).Distinct().ToList();
       var travados = await _execucao.TravarNosAsync(ids, ct);
       if (travados.Count != ids.Count) return Falhas.NaoEncontrado<IReadOnlyList<MovimentacaoDto>>();
+      // So a Peca chega ao local de expedicao, entao so ela pode mudar o fechamento: o Pedido dela e travado
+      // depois dos nos (spec da Fase 3, secao 8.1) e antes da primeira leitura dele (decisao P4 do plano de
+      // backend da Fase 5A). Entrega so de Item nao trava Pedido nenhum.
+      var pecas = travados.Where(n => n.EstruturaPaiId is null).Select(n => n.Id).ToList();
+      var pedidosTravados = pecas.Count > 0 ? await _execucao.TravarPedidosDosNosAsync(pecas, ct) : [];
       foreach (var id in ids)
         if (Falhas.EstaFechado(await _execucao.ObterPedidoDoNoAsync(id, ct)))
           return Falhas.PedidoFechado<IReadOnlyList<MovimentacaoDto>>();
@@ -101,6 +109,8 @@ public sealed class EntregaUseCase
 
       foreach (var movimento in movimentos) _execucao.Adicionar(movimento);
       await _execucao.SalvarAlteracoesAsync(ct);
+      if (movimentos.Any(Posicoes.TocaOFimDoCaminho))
+        await _fechamento.RecalcularAsync(pedidosTravados, DateTime.UtcNow, ct);
       return Result<IReadOnlyList<MovimentacaoDto>>.Ok(await _projetor.ProjetarMovimentacoesAsync(movimentos, ct));
     }, ct);
   }
@@ -109,13 +119,22 @@ public sealed class EntregaUseCase
   {
     { Posicao: Posicoes.AguardandoColeta, SetorId: int s, Ordem: int k } => Local.AguardandoColeta(s, k),
     { Posicao: Posicoes.AguardandoMontagem, SetorId: int s, Ordem: null } => Local.AguardandoMontagem(s),
+    { Posicao: Posicoes.AguardandoConserto, SetorId: int s, Ordem: null } => Local.AguardandoConserto(s),
+    { Posicao: Posicoes.ConsertoPronto, SetorId: int s, Ordem: null } => Local.ConsertoPronto(s),
     _ => null,
   };
 
-  private static string Onde(Local origem, Func<int, string> nomeDoSetor) =>
-      origem.Posicao == Posicoes.AguardandoColeta
-          ? $"aguardando coleta no Setor {nomeDoSetor(origem.SetorId!.Value)} (passo {origem.Ordem})"
-          : $"aguardando montagem no Setor {nomeDoSetor(origem.SetorId!.Value)}";
+  private static string Onde(Local origem, Func<int, string> nomeDoSetor)
+  {
+    var setor = nomeDoSetor(origem.SetorId!.Value);
+    return origem.Posicao switch
+    {
+      Posicoes.AguardandoColeta => $"aguardando coleta no Setor {setor} (passo {origem.Ordem})",
+      Posicoes.AguardandoConserto => $"aguardando conserto no Setor {setor}",
+      Posicoes.ConsertoPronto => $"pronto do conserto no Setor {setor}",
+      _ => $"aguardando montagem no Setor {setor}",
+    };
+  }
 
   /// <summary>A tabela da spec secao 4.3, linha a linha.</summary>
   private static (Local? Destino, Recusa? Recusa) Destino(
@@ -123,6 +142,18 @@ public sealed class EntregaUseCase
   {
     var id = item.EstruturaItemId;
     var nome = estado.Nome(id);
+
+    // O conserto vai e volta sem escolha (D4 da spec da Fase 5A): ao `EmConserto` do mesmo Setor, e ao local de
+    // expedicao. O destino mandado e recusado alto, como nas outras origens.
+    if (origem.Posicao is Posicoes.AguardandoConserto or Posicoes.ConsertoPronto)
+    {
+      var ida = origem.Posicao == Posicoes.AguardandoConserto;
+      if (item.DestinoSetorId is not null)
+        return (null, Indevido(ida
+            ? $"{nome} vai para o conserto em {nomeDoSetor(origem.SetorId!.Value)}; esse destino não se escolhe."
+            : $"{nome} volta do conserto para o local de expedição; esse destino não se escolhe."));
+      return (ida ? Local.EmConserto(origem.SetorId!.Value) : Local.NaExpedicao, null);
+    }
 
     if (origem.Posicao == Posicoes.AguardandoColeta)
     {

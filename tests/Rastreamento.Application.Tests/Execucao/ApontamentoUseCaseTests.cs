@@ -361,6 +361,121 @@ public class ApontamentoUseCaseTests
         CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
   }
 
+  // ------------------------------------------------------------------ terminar conserto (Fase 5A, secao 5.3)
+
+  /// <summary>Peca 1 de 6 com 2 em `EmConserto` na Dobra (o Movimentador ja as entregou) e 4 em `NaExpedicao`.</summary>
+  private static CenarioDeExecucao EmConserto()
+  {
+    var c = new CenarioDeExecucao();
+    c.PecaNoConserto(1, 6m, Dobra, 2m);
+    c.Mover(1, TiposDeMovimentacao.Entrega, Local.AguardandoConserto(Dobra), Local.EmConserto(Dobra), 2m, Movimentador);
+    return c;
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_move_de_EmConserto_para_ConsertoPronto()
+  {
+    var c = EmConserto();
+
+    var r = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 1.5m), Operador, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal(TiposDeMovimentacao.Termino, r.Valor!.Tipo);
+    Assert.Equal(1.5m, r.Valor.Quantidade);
+    Assert.Equal(new LocalDto(Posicoes.EmConserto, Dobra, "Dobra", null), r.Valor.Origem);
+    Assert.Equal(new LocalDto(Posicoes.ConsertoPronto, Dobra, "Dobra", null), r.Valor.Destino);
+    Assert.Equal("Operador do Corte", r.Valor.UsuarioNome);
+    var calc = c.Calcular();
+    Assert.Equal(0.5m, calc.Saldo(1, Local.EmConserto(Dobra)));
+    Assert.Equal(1.5m, calc.Saldo(1, Local.ConsertoPronto(Dobra)));
+    // O conserto nao muda o status (as unidades em conserto nao contam como "no local de expedicao").
+    Assert.Equal("EmProducao", c.Execucao.StatusDoPedido[PedidoId]);
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_trava_o_no_depois_o_Pedido_e_so_entao_grava()
+  {
+    var c = EmConserto();
+
+    Assert.True((await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 1m), Operador, Ct)).Sucesso);
+
+    // Decisao P4 do plano de backend da Fase 5A: o Pedido da Peca e travado depois do no e antes da primeira leitura.
+    Assert.Equal(new[] { "nos:1", "pedidos:1", "save" }, c.Execucao.Eventos.TakeLast(3));
+    Assert.Equal(2, Assert.Single(c.Execucao.PedidoLidoAposEventos));   // lido depois de "nos:1" e "pedidos:1"
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_recalcula_o_fechamento_do_Pedido()
+  {
+    var c = EmConserto();
+    c.Execucao.StatusDoPedido[PedidoId] = "AguardandoExpedicao";   // defasado de proposito: so o recalculo o corrige
+
+    Assert.True((await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 1m), Operador, Ct)).Sucesso);
+
+    Assert.Equal("EmProducao", c.Execucao.StatusDoPedido[PedidoId]);
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_acima_do_saldo_e_recusado()
+  {
+    var c = EmConserto();
+    var movimentos = c.Execucao.Movimentacoes.Count;
+
+    var r = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 2.5m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.SaldoInsuficiente, TipoDeErro.Conflito);
+    Assert.Equal("Só há 2 de Chapa dobrada 3 mm em conserto no Setor Dobra.", r.Detalhe);
+    Assert.Equal(movimentos, c.Execucao.Movimentacoes.Count);
+    Assert.Equal(1, c.Execucao.Desfeitas);
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_de_quem_ainda_nao_foi_entregue_ao_Setor_e_recusado()
+  {
+    var c = new CenarioDeExecucao();
+    c.PecaNoConserto(1, 6m, Dobra, 2m);   // 2 aguardando o Movimentador: ainda nao estao EmConserto
+
+    var r = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.SaldoInsuficiente, TipoDeErro.Conflito);
+    Assert.Equal("Só há 0 de Chapa dobrada 3 mm em conserto no Setor Dobra.", r.Detalhe);
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_em_Pedido_pausado_passa()
+  {
+    var c = EmConserto();
+    await c.Pausa().Pausar(PedidoId, new NovaPausaDto(null), Pcp, Ct);   // a pausa recusa so o inicio (regra 31)
+
+    var r = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 2m), Operador, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_em_Pedido_concluido_da_PedidoFechado()
+  {
+    var c = EmConserto();
+    c.Execucao.StatusDoPedido[PedidoId] = "Concluido";
+
+    var r = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 1m), Operador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
+  }
+
+  [Fact]
+  public async Task Terminar_conserto_de_no_ou_Setor_inexistente_da_404_e_quantidade_invalida_da_400()
+  {
+    var c = EmConserto();
+
+    Assert.Equal(TipoDeErro.NaoEncontrado,
+        (await c.Apontamento().TerminarConserto(99, new TerminoDeConsertoDto(Dobra, 1m), Operador, Ct)).TipoDoErro);
+    Assert.Equal(TipoDeErro.NaoEncontrado,
+        (await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(999, 1m), Operador, Ct)).TipoDoErro);
+    var invalida = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 0m), Operador, Ct);
+    AfirmarFalha(invalida, CodigosDaExecucao.QuantidadeInvalida, TipoDeErro.Validacao);
+  }
+
   private static void AfirmarFalha<T>(Result<T> r, string codigo, TipoDeErro tipo)
   {
     Assert.False(r.Sucesso);

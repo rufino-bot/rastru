@@ -211,6 +211,43 @@ describe('estrutura', () => {
     },
   )
 
+  // Fase 5A: a estrutura de um Pedido concluído não se edita (C15), e a marca do relatório não muda numa Peça
+  // com aferição válida (C14). Os dois 409 chegam como conflito, com a frase do servidor, em vez de "formato inesperado".
+  it.each(['PedidoFechado', 'ComAfericao'])(
+    'editarNo devolve o conflito %s com a frase do servidor',
+    async (codigo) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ erro: codigo, mensagem: 'frase do servidor' }), { status: 409 }),
+      ))
+
+      const resultado = await editarNo(7, { descricao: null, quantidade: 1, quantidadePorPai: null, requerRelatorioDimensional: false })
+
+      expect(resultado).toEqual({ erro: codigo, mensagem: 'frase do servidor' })
+    },
+  )
+
+  it('criarPeca e acrescentarFilho também devolvem o conflito PedidoFechado', async () => {
+    const codigo = 'PedidoFechado'
+    const corpo = () => new Response(JSON.stringify({ erro: codigo, mensagem: 'frase do servidor' }), { status: 409 })
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(corpo())))
+
+    const daPeca = await criarPeca(21, { componenteId: 1, quantidade: 1, requerRelatorioDimensional: false })
+    const doFilho = await acrescentarFilho(7, { componenteId: null, descricao: 'x', quantidade: 1, quantidadePorPai: 1 })
+
+    expect(daPeca).toEqual({ erro: codigo, mensagem: 'frase do servidor' })
+    expect(doFilho).toEqual({ erro: codigo, mensagem: 'frase do servidor' })
+  })
+
+  it('editarNo manda a marca do relatório dimensional quando a Peça a muda', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 7 }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await editarNo(7, { descricao: null, quantidade: 8, quantidadePorPai: null, requerRelatorioDimensional: true })
+
+    expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string))
+      .toEqual({ descricao: null, quantidade: 8, quantidadePorPai: null, requerRelatorioDimensional: true })
+  })
+
   it('excluirNo devolve ConflitoDeConcorrencia como desfecho', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ erro: 'ConflitoDeConcorrencia' }), { status: 409 }),

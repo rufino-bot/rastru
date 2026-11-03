@@ -75,7 +75,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Pcp_cadastra_pedido_aberto_de_fabricacao_com_autor()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -85,10 +85,27 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   }
 
   [Fact]
+  public async Task Pedido_traz_dataConclusao_nula_enquanto_aberto()
+  {
+    var cliente = ClienteComo("PCP");
+    var criado = await cliente.PostAsJsonAsync(
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2099-12-31" });
+    Assert.Equal(HttpStatusCode.Created, criado.StatusCode);
+    var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetInt32();
+
+    var lido = JsonDocument.Parse(await cliente.GetStringAsync($"/api/pedidos/{id}")).RootElement;
+
+    // A propriedade vem, e nula: a tela distingue "nao concluido" de um campo que sumiu do contrato
+    // (decisao P8 do plano de backend da Fase 5A).
+    Assert.Equal("Aberto", lido.GetProperty("status").GetString());
+    Assert.Equal(JsonValueKind.Null, lido.GetProperty("dataConclusao").ValueKind);
+  }
+
+  [Fact]
   public async Task Administrador_tambem_cadastra_pedido()
   {
     var resposta = await ClienteComo("Administrador")
-        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
   }
@@ -121,7 +138,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     var cliente = ClienteComo("Qualidade");
 
     var escrita = await cliente.PostAsJsonAsync(
-        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
+        "/api/pedidos", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2099-12-31" });
     var leitura = await cliente.GetAsync("/api/pedidos");
 
     Assert.Equal(HttpStatusCode.Forbidden, escrita.StatusCode);
@@ -296,9 +313,9 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2099-12-31" });
 
-    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente Y", dataEntrega = "2026-10-22" });
+    var resposta = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente Y", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -318,12 +335,12 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     // botao de reativacao para sumir.
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2099-12-31" });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
     var resposta = await cliente.PostAsJsonAsync(
-        "/api/pedidos", new { numero = $" {numero}", cliente = "Cliente Y", dataEntrega = "2026-10-22" });
+        "/api/pedidos", new { numero = $" {numero}", cliente = "Cliente Y", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -337,7 +354,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2099-12-31" });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync())
         .RootElement.GetProperty("id").GetInt32();
 
@@ -362,13 +379,13 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   {
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
-    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    var criado = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2099-12-31" });
     var corpoCriado = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement;
     var id = corpoCriado.GetProperty("id").GetInt32();
     var autor = corpoCriado.GetProperty("criadoPorUsuarioId").GetInt32();
 
     var resposta = await cliente.PutAsJsonAsync(
-        $"/api/pedidos/{id}", new { numero, cliente = "Cliente Z", dataEntrega = "2026-10-22" });
+        $"/api/pedidos/{id}", new { numero, cliente = "Cliente Z", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
     var corpo = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
@@ -380,7 +397,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Editar_pedido_inexistente_responde_404()
   {
     var resposta = await ClienteComo("PCP")
-        .PutAsJsonAsync("/api/pedidos/999999", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2026-10-22" });
+        .PutAsJsonAsync("/api/pedidos/999999", new { numero = NumeroUnico(), cliente = "Cliente X", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
   }
@@ -389,7 +406,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
   public async Task Cliente_em_branco_responde_400()
   {
     var resposta = await ClienteComo("PCP")
-        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "  ", dataEntrega = "2026-10-22" });
+        .PostAsJsonAsync("/api/pedidos", new { numero = NumeroUnico(), cliente = "  ", dataEntrega = "2099-12-31" });
 
     Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
   }
@@ -407,7 +424,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     {
       ["numero"] = NumeroUnico(),
       ["cliente"] = "Cliente X",
-      ["dataEntrega"] = "2026-10-22",
+      ["dataEntrega"] = "2099-12-31",
     };
     valores[campo] = new string('x', tamanho);
 
@@ -456,7 +473,7 @@ public class PedidosEndpointsTests : IClassFixture<WebApplicationFactory<Program
     var cliente = ClienteComo("PCP");
     var numero = NumeroUnico();
     var criado = await cliente.PostAsJsonAsync(
-        "/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+        "/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2099-12-31" });
     var id = JsonDocument.Parse(await criado.Content.ReadAsStringAsync()).RootElement.GetProperty("id").GetInt32();
 
     var resposta = await cliente.PutAsJsonAsync(

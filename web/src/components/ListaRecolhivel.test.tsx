@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { ListaRecolhivel } from './ListaRecolhivel'
 
@@ -74,6 +74,29 @@ describe('ListaRecolhivel', () => {
 
     rerender(<ListaRecolhivel contagem={2} temAcao><p>dentro</p></ListaRecolhivel>)
     expect(detalhes().open).toBe(true)
+  })
+
+  it('aceita outro rótulo, e sem contagem mostra só o rótulo', () => {
+    const { rerender } = render(<ListaRecolhivel rotulo="Histórico" temAcao={false}><p>dentro</p></ListaRecolhivel>)
+
+    expect(screen.getByText('Histórico').tagName).toBe('SUMMARY')
+
+    rerender(<ListaRecolhivel rotulo="Histórico" contagem={4} temAcao={false}><p>dentro</p></ListaRecolhivel>)
+
+    expect(screen.getByText('Histórico (4)').tagName).toBe('SUMMARY')
+  })
+
+  it('avisa quando abre, e não quando fecha', async () => {
+    const aoAbrir = vi.fn()
+    render(<ListaRecolhivel rotulo="Histórico" temAcao={false} aoAbrir={aoAbrir}><p>dentro</p></ListaRecolhivel>)
+    expect(aoAbrir).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByText('Histórico'))
+    await waitFor(() => expect(aoAbrir).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByText('Histórico'))
+    await waitFor(() => expect(screen.getByText('Histórico').closest('details')!.open).toBe(false))
+    expect(aoAbrir).toHaveBeenCalledTimes(1)
   })
 
   it('o anel de foco do resumo é só por token', () => {

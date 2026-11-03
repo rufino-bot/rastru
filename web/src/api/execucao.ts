@@ -14,15 +14,39 @@ import type { MaterialResumoDto, PausaResumoDto } from './cadastros'
  * (spec §8.3) — então uma união por função não compraria nada.
  */
 
+/**
+ * As posições do livro. As oito últimas são da Fase 5A: as três do conserto (com Setor, sem passo), as cinco do
+ * fim do caminho que não têm Setor, e `NaExpedicao`, a primeira delas, que é o local de expedição ainda sem medição.
+ */
 export type Posicao =
   | 'AIniciar'
   | 'NoSetor'
   | 'AguardandoColeta'
   | 'AguardandoMontagem'
+  | 'AguardandoConserto'
+  | 'EmConserto'
+  | 'ConsertoPronto'
   | 'NaExpedicao'
+  | 'Conforme'
+  | 'NaoConforme'
+  | 'AguardandoLiberacao'
+  | 'Liberada'
   | 'Montado'
+  | 'Expedido'
 
-export type TipoDeMovimentacao = 'Inicio' | 'Termino' | 'Entrega' | 'Montagem' | 'Estorno'
+/** Os seis últimos são da Fase 5A: a contagem (`Medicao`), o conserto, a liberação e a remessa (`Expedicao`). */
+export type TipoDeMovimentacao =
+  | 'Inicio'
+  | 'Termino'
+  | 'Entrega'
+  | 'Montagem'
+  | 'Estorno'
+  | 'Medicao'
+  | 'Conserto'
+  | 'PedidoDeLiberacao'
+  | 'Liberacao'
+  | 'Recusa'
+  | 'Expedicao'
 
 /** `setorId`, `setorNome` e `ordem` são `null` quando a posição não os tem (spec §3.1). */
 export interface LocalDto {
@@ -48,6 +72,10 @@ export interface MovimentacaoDto {
   usuarioId: number
   usuarioNome: string
   estornada: boolean
+  /** A contagem, a liberação ou a remessa a que a linha pertence (Fase 5A); `null` nas que não pertencem a nenhuma. */
+  contagemId: number | null
+  liberacaoId: number | null
+  remessaId: number | null
 }
 
 export interface MontagemDto {
@@ -114,7 +142,8 @@ export interface DestinoDto {
  * Término maior que a tarefa aparece na linha da tarefa.
  */
 export interface Estornavel {
-  tipo: 'Inicio' | 'Termino' | 'Montagem'
+  /** `Entrega` só nas linhas do conserto (Fase 5A): a ida ao Setor, que põe a Peça em `EmConserto`. */
+  tipo: 'Inicio' | 'Termino' | 'Entrega' | 'Montagem'
   id: number
   quantidade: number
   usuarioId: number
@@ -185,6 +214,14 @@ export interface LinhaDeSobra {
   estornaveis: Estornavel[]
 }
 
+/** Uma Peça em conserto neste Setor. `EmConserto` o Operador termina; `ConsertoPronto` espera o Movimentador. */
+export interface LinhaDeConserto {
+  no: NoResumoDto
+  posicao: 'EmConserto' | 'ConsertoPronto'
+  quantidade: number
+  estornaveis: Estornavel[]
+}
+
 export interface FilaDoSetorDto {
   setorId: number
   setorNome: string
@@ -196,6 +233,8 @@ export interface FilaDoSetorDto {
   aguardandoColeta: LinhaAguardandoColeta[]
   aguardandoMontagem: GrupoAguardandoMontagem[]
   sobra: LinhaDeSobra[]
+  /** Desde a Fase 5A: as Peças em conserto neste Setor, por último. */
+  conserto: LinhaDeConserto[]
 }
 
 export interface ItemDeTarefa {
@@ -232,11 +271,27 @@ export interface KitDto {
   filhos: FilhoDoKitDto[]
 }
 
-/** `GET /tarefas`: os "Item pronto" por Setor de origem, sem os filhos de Kit, e os Kits (spec da Fase 3B, D7). */
+/**
+ * Uma ida ou uma volta do conserto para o Movimentador. Ida: `origem` é `AguardandoConserto` no Setor, `destino` é
+ * `EmConserto` no mesmo Setor. Volta: `origem` é `ConsertoPronto` no Setor, `destino` é o local de expedição. A
+ * `origem` é a posição que a entrega consome: serve como está em `POST /entregas`.
+ */
+export interface TarefaDeConserto {
+  no: NoResumoDto
+  origem: LocalDto
+  destino: LocalDto
+  quantidade: number
+}
+
+/**
+ * `GET /tarefas`: os "Item pronto" por Setor de origem, sem os filhos de Kit, e os Kits (spec da Fase 3B, D7); e,
+ * no fim, o conserto (D4 da spec da Fase 5A).
+ */
 export interface TarefasDto {
   grupos: TarefasDoSetorDto[]
   kitsMontaveis: KitDto[]
   kitsIncompletos: KitDto[]
+  consertos: TarefaDeConserto[]
 }
 
 export interface SaldoDto extends LocalDto {
@@ -270,9 +325,9 @@ export interface LivroDoNoDto {
 }
 
 export interface OrigemDaEntrega {
-  posicao: 'AguardandoColeta' | 'AguardandoMontagem'
+  posicao: 'AguardandoColeta' | 'AguardandoMontagem' | 'AguardandoConserto' | 'ConsertoPronto'
   setorId: number
-  /** Passo de `AguardandoColeta`; `null` em `AguardandoMontagem`. */
+  /** Passo de `AguardandoColeta`; `null` nas outras três. */
   ordem: number | null
 }
 
@@ -400,10 +455,15 @@ export interface ItemDeInicioEmLote {
   quantidade: number
 }
 
+/**
+ * `conserto` verdadeiro termina o conserto (`EmConserto` para `ConsertoPronto`) e vai SEM `ordem`; falso (ou
+ * ausente) termina o passo `ordem` do Roteiro, e a `ordem` é obrigatória.
+ */
 export interface ItemDeTerminoEmLote {
   estruturaItemId: number
-  ordem: number
+  ordem: number | null
   quantidade: number
+  conserto?: boolean
 }
 
 /**
@@ -417,6 +477,14 @@ export function iniciarEmLote(setorId: number, itens: ItemDeInicioEmLote[]): Pro
 /** O lote de "Em trabalho": tudo ou nada, na ordem dos itens. */
 export function terminarEmLote(setorId: number, itens: ItemDeTerminoEmLote[]): Promise<MovimentacaoDto[]> {
   return enviar('/terminos', 'POST', { setorId, itens }, 'terminar os itens')
+}
+
+/**
+ * Terminar o conserto de uma Peça no Setor: `EmConserto` para `ConsertoPronto`, sem Roteiro e sem passo (o
+ * Operador). Rota própria porque o término de passo carrega `ordem`, que o conserto não tem.
+ */
+export function terminarConserto(noId: number, corpo: { setorId: number; quantidade: number }): Promise<MovimentacaoDto> {
+  return enviar(`/estrutura/${noId}/terminos-de-conserto`, 'POST', corpo, 'terminar o conserto')
 }
 
 /** Lista inteira numa requisição: tudo ou nada (spec §4.3). A resposta vem na ordem da lista. */

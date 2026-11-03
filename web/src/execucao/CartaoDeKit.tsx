@@ -1,3 +1,4 @@
+import { CaixaDeLote } from '../components/CaixaDeLote'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { ListaRecolhivel } from '../components/ListaRecolhivel'
@@ -31,16 +32,11 @@ export function CartaoDeKitMontavel({ kit, podeEntregar, conjuntos, aoAlternar, 
   return (
     <ItemComAcao
       acao={podeEntregar ? (
-        <label className="flex items-center gap-2 text-sm text-tinta">
-          <input
-            type="checkbox"
-            checked={conjuntos !== undefined}
-            onChange={(e) => aoAlternar(e.target.checked)}
-            aria-label={`Levar o Kit ${rotuloDoNo(kit.pai)}`}
-            className="size-5 accent-acao"
-          />
-          Levar
-        </label>
+        <CaixaDeLote
+          nome={`Levar o Kit ${rotuloDoNo(kit.pai)}`}
+          marcada={conjuntos !== undefined}
+          aoMudar={aoAlternar}
+        />
       ) : undefined}
       painel={conjuntos !== undefined ? (
         <div className="flex flex-col gap-3 border-t border-borda pt-3">

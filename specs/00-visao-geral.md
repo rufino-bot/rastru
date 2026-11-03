@@ -8,8 +8,14 @@ cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
 - Cadastro de Pedidos, Agrupamentos e da estrutura recursiva de Peças/Itens
 - Rastreamento da passagem de cada componente pelos Setores de produção
 - Separação e entrega de Materiais de estoque para fabricação
-- Relatório Dimensional opcional por Peça (quando o cliente exige), com aprovação/reprovação por quantidade
-- Abertura de Pedidos de Retrabalho vinculados ao Pedido original, quando houver reprovação ou perda
+- Relatório Dimensional opcional por Peça (quando o cliente exige), feito pela fábrica no local de
+  expedição: uma **aferição** de uma unidade decide o lote e, se reprova, cada unidade é medida uma a uma, com
+  o resultado por quantidade — e as não conformes seguem para conserto ou para a liberação da Gestão (regras
+  10, 11, 35 e 36 de `01-dominio-e-regras-de-negocio.md`)
+- Expedição por remessas (parciais, de uma ou mais Peças) e o fechamento automático de Peça, Agrupamento e
+  Pedido quando tudo foi expedido (regras 13 e 16)
+- Abertura de Pedidos de Retrabalho vinculados ao Pedido original, como ação separada e opcional, quando houver
+  perda ou reclamação do cliente (a reprovação da aferição, sozinha, não abre Retrabalho; regra 12)
 - KPIs de tempo (tempo por setor, tempo total de fila x produção por pedido)
 
 ## Fora de escopo (por ora)
@@ -18,7 +24,12 @@ cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
 - Controle do processo de pintura terceirizada (controlado por etiqueta no ERP das
   empresas de pintura, fora do nosso sistema)
 - Rastreamento por unidade física individual (serial) — o rastreamento é por lote agregado
-- O Relatório Dimensional é opcional (exigido pelo cliente em Peças específicas), não amostragem sobre 100%.
+- As cotas e as medidas do Relatório Dimensional: vêm do cliente com o pedido e ficam fora do Rastru, que
+  guarda só o resultado, quem e quando (D2 da spec da Fase 5A).
+- O Relatório Dimensional é opcional (exigido pelo cliente em Peças específicas). Quando exigido, é **amostra
+  de uma unidade** por Peça, e só vira medição de **100%** das unidades depois de uma aferição não conforme
+  (regras 10 e 11). Até 2026-10-20 esta linha dizia "não amostragem sobre 100%", descrevendo a avaliação por
+  remessa do cliente.
 
 ## Usuários / Perfis
 
@@ -26,7 +37,7 @@ Confirmado com o negócio: o MVP já precisa de perfis distintos, com telas rest
 perfil (não é "todo usuário vê tudo").
 
 - **Operador** de setor (registra o trabalho no seu setor, inclusive que terminou — ver regra 22 de
-  `01-dominio-e-regras-de-negocio.md`)
+  `01-dominio-e-regras-de-negocio.md` — e o conserto que a Qualidade manda para o Setor dele, regra 35)
 - **Separador** (separa o material que fica no almoxarifado e o leva, ou busca, para o Setor que
   precisa dele, e registra o que levou; ver as regras 4, 5 e 34 de
   `01-dominio-e-regras-de-negocio.md`). É o perfil que se chamava **Almoxarifado**, renomeado na
@@ -38,8 +49,11 @@ perfil (não é "todo usuário vê tudo").
 - **PCP** / Planejamento (cadastra Pedidos, Agrupamentos, estrutura — inclusive a do Pedido de
   Retrabalho que repõe perda, que Qualidade ou PCP abre; ver regra 27 de
   `01-dominio-e-regras-de-negocio.md`)
-- **Qualidade** (preenche relatório dimensional, aprova/reprova, abre retrabalho)
-- **Gestão** (consulta KPIs)
+- **Qualidade** (é a pessoa da expedição, desde a Fase 5A: **afere** o relatório dimensional, conta as
+  unidades não conformes, manda para conserto, pede liberação à Gestão e **expede**; regras 10, 11, 16, 35 e
+  36 de `01-dominio-e-regras-de-negocio.md`. Abre retrabalho, na Fase 5B)
+- **Gestão** (consulta KPIs; **libera**, ou recusa, a expedição de unidade não conforme, a pedido da
+  Qualidade — regra 36)
 - **Administrador** (cadastros de catálogo, usuários e perfis)
 
 > Autenticação: login próprio (usuário/senha) com JWT — ver `03-arquitetura-tecnica.md`.

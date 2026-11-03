@@ -1,5 +1,5 @@
 import type {
-  FilaDoSetorDto, GrupoAguardandoMontagem, KitDto, NoResumoDto, TarefasDoSetorDto, TarefasDto,
+  FilaDoSetorDto, GrupoAguardandoMontagem, KitDto, NoResumoDto, TarefaDeConserto, TarefasDoSetorDto, TarefasDto,
 } from '../api/execucao'
 import { casaComFiltro, type Faceta, type Selecao } from '../components/FiltroDeDemanda'
 
@@ -78,6 +78,7 @@ function unidadesDaFila(fila: FilaDoSetorDto): Unidade[] {
     ...fila.aguardandoMontagem.map(nosDoCartao),
     ...fila.aguardandoColeta.map((l) => [l.no]),
     ...fila.sobra.map((s) => [s.no]),
+    ...fila.conserto.map((l) => [l.no]),
   ]
 }
 
@@ -94,6 +95,7 @@ export function filtrarFila(fila: FilaDoSetorDto, selecao: Selecao): FilaDoSetor
     aguardandoMontagem: fila.aguardandoMontagem.filter((g) => casa(nosDoCartao(g), selecao)),
     aguardandoColeta: fila.aguardandoColeta.filter((l) => casa([l.no], selecao)),
     sobra: fila.sobra.filter((s) => casa([s.no], selecao)),
+    conserto: fila.conserto.filter((l) => casa([l.no], selecao)),
   }
 }
 
@@ -111,7 +113,13 @@ export function facetasDasTarefas(tarefas: TarefasDto, selecao: Selecao): Faceta
     ...tarefas.grupos.flatMap((g) => g.itens.map((i) => [i.no])),
     ...tarefas.kitsMontaveis.map(nosDoKit),
     ...tarefas.kitsIncompletos.map(nosDoKit),
+    ...tarefas.consertos.map((t) => [t.no]),
   ], selecao)
+}
+
+/** As idas e voltas do conserto que sobram sob a seleção, na ordem em que vieram. */
+export function filtrarConsertos(consertos: TarefaDeConserto[], selecao: Selecao): TarefaDeConserto[] {
+  return consertos.filter((t) => casa([t.no], selecao))
 }
 
 /** Os Kits que sobram sob a seleção, na ordem em que vieram. */

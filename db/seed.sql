@@ -58,3 +58,25 @@ SELECT 'separador',
        N'Separador de Materiais',
        (SELECT Id FROM dbo.Perfil WHERE Nome = 'Separador'),
        1;
+
+-- O 'qualidade' (Fase 5A) afere, conta, manda para conserto, pede liberacao e expede: no Rastru o perfil
+-- Qualidade e a pessoa da expedicao (D1 da spec da Fase 5A). Mesmo padrao do 'separador': hash BCrypt
+-- real (custo 11), gerado com o BCryptPasswordHasher de producao, com senha e hash proprios —
+-- 'Qualidade@123'.
+IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'qualidade')
+INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
+SELECT 'qualidade',
+       '$2a$11$M49ee1JGq.83ZsOnjeTJUOTditPqAK2cWd2AZ2XlazlAV7bijDooK',
+       N'Qualidade e Expedição',
+       (SELECT Id FROM dbo.Perfil WHERE Nome = 'Qualidade'),
+       1;
+
+-- O 'gestao' (Fase 5A) responde aos pedidos de liberacao da Qualidade (D7). Mesmo padrao, senha e hash
+-- proprios — 'Gestao@123'.
+IF NOT EXISTS (SELECT 1 FROM dbo.Usuario WHERE NomeUsuario = 'gestao')
+INSERT INTO dbo.Usuario (NomeUsuario, SenhaHash, NomeCompleto, PerfilId, Ativo)
+SELECT 'gestao',
+       '$2a$11$uzJx2sA0I00h0HJvUfYiWOHhfIvOqmdY/sqXwMGlYxEnPkgWU9.Jq',
+       N'Gestão',
+       (SELECT Id FROM dbo.Perfil WHERE Nome = 'Gestao'),
+       1;

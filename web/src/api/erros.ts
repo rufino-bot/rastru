@@ -47,7 +47,9 @@ export class ErroDeApi extends Error {
 /**
  * Os códigos de erro da execução (spec da Fase 3 §8.2, mais `OrigemInvalida`, desvio D3 do plano 2). Os dois do
  * Kit, `ConjuntoIncompleto` e `AlemDoQueOPaiPrecisa`, são da entrega, desde a Fase 3B. Os oito últimos são da
- * separação de material (Fase 4): `ErroDeApi` e `mensagemDeErro` são os mesmos, então a tradução mora aqui.
+ * separação de material (Fase 4): `ErroDeApi` e `mensagemDeErro` são os mesmos, então a tradução mora aqui. Os quatorze
+ * últimos são da aferição, da contagem, do conserto, da liberação e da expedição (Fase 5A, `CodigosDaExpedicao`; decisão Q3
+ * do plano de front): `ComAfericao` e `RelatorioSoNaPeca` vêm da edição da Peça, e o front os trata aqui também.
  */
 export type CodigoDeErroDaExecucao =
   | 'QuantidadeInvalida'
@@ -85,6 +87,20 @@ export type CodigoDeErroDaExecucao =
   | 'MaterialInvalido'
   | 'SetorDeEstoqueInvalido'
   | 'NoComSeparacao'
+  | 'NaoEhPeca'
+  | 'SemRelatorioDimensional'
+  | 'ResultadoInvalido'
+  | 'AfericaoJaRegistrada'
+  | 'SemAfericaoNaoConforme'
+  | 'ContagemVazia'
+  | 'SetorInvalido'
+  | 'JustificativaObrigatoria'
+  | 'TextoLongoDemais'
+  | 'LiberacaoEmAberto'
+  | 'LiberacaoNaoPendente'
+  | 'QuantidadeAcimaDaPedida'
+  | 'ComAfericao'
+  | 'RelatorioSoNaPeca'
 
 /**
  * A tradução de cada código (spec §8.3: "cada código tem tradução em `mensagemDeErro`"). Só entra
@@ -128,6 +144,22 @@ export const TRADUCAO_DOS_CODIGOS: Readonly<Record<CodigoDeErroDaExecucao, strin
   MaterialInvalido: 'Um dos materiais não existe ou está inativo.',
   SetorDeEstoqueInvalido: 'O Setor escolhido em "Fica em" não existe ou está inativo.',
   NoComSeparacao: 'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
+  NaoEhPeca: 'Só a Peça chega ao local de expedição; este item faz parte de uma Peça.',
+  SemRelatorioDimensional: 'Esta Peça não exige relatório dimensional: não há o que aferir.',
+  ResultadoInvalido: 'O resultado da aferição é Conforme ou Não conforme.',
+  AfericaoJaRegistrada: 'Esta Peça já tem aferição. Para registrar outra, estorne essa primeiro.',
+  SemAfericaoNaoConforme: 'Só se mede unidade a unidade depois de uma aferição não conforme.',
+  ContagemVazia: 'Conte pelo menos uma unidade, conforme ou não conforme.',
+  SetorInvalido: 'O conserto vai a um Setor ativo: escolha outro.',
+  JustificativaObrigatoria: 'Diga por que a Gestão deveria liberar estas unidades.',
+  TextoLongoDemais: 'O texto tem no máximo 500 caracteres.',
+  LiberacaoEmAberto:
+    'Esta Peça já tem um pedido de liberação em aberto. Espere a resposta da Gestão, ou estorne esse pedido e peça de novo.',
+  LiberacaoNaoPendente: 'Este pedido de liberação não está mais em aberto: já foi respondido ou estornado.',
+  QuantidadeAcimaDaPedida: 'Libere de zero até a quantidade que a Qualidade pediu.',
+  ComAfericao:
+    'Esta Peça já tem aferição válida: estorne a aferição antes de mudar a exigência do relatório dimensional.',
+  RelatorioSoNaPeca: 'A marca de relatório dimensional é da Peça: um Item não a tem.',
 }
 
 function traducaoDoCodigo(codigo: string | undefined): string | undefined {

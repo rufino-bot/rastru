@@ -242,6 +242,20 @@ public class CadastroDeAgrupamentoUseCaseTests
   }
 
   [Fact]
+  public async Task Obter_traz_a_data_de_conclusao()
+  {
+    // Decisao P8 do plano de backend da Fase 5A.
+    var em = new DateTime(2026, 10, 20, 15, 0, 0, DateTimeKind.Utc);
+    var repo = new FakeAgrupamentoRepo(
+        new Agrupamento { Id = 5, PedidoId = 1, Codigo = "AG-01", Tipo = "Kit", DataConclusao = em });
+    var useCase = new CadastroDeAgrupamentoUseCase(repo, new FakePedidoRepo(PedidoAberto()), new FakeImportacaoRepo());
+
+    var resultado = await useCase.Obter(5, CancellationToken.None);
+
+    Assert.Equal(em, resultado.Valor!.DataConclusao);
+  }
+
+  [Fact]
   public async Task ListarPorPedido_traz_o_numero_do_Pedido_em_todos()
   {
     var repo = new FakeAgrupamentoRepo(

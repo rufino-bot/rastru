@@ -32,7 +32,7 @@ internal sealed class ProjetorDoLivro
         m.Id, m.EstruturaItemId, m.Tipo, m.Quantidade,
         LocalDto.De(Local.DaOrigem(m), setores), LocalDto.De(Local.DoDestino(m), setores),
         m.MontagemId, m.EstornoDeId, m.DataHora, m.UsuarioId, usuarios.GetValueOrDefault(m.UsuarioId, string.Empty),
-        estornadas.Contains(m.Id))).ToList();
+        estornadas.Contains(m.Id), m.ContagemId, m.LiberacaoId, m.RemessaId)).ToList();
   }
 
   public async Task<IReadOnlyList<MontagemDto>> ProjetarMontagensAsync(IReadOnlyList<Montagem> montagens, CancellationToken ct)

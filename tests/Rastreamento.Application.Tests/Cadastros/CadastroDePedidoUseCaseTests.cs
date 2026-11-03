@@ -413,6 +413,19 @@ public class CadastroDePedidoUseCaseTests
   }
 
   [Fact]
+  public async Task Obter_traz_a_data_de_conclusao_e_nulo_sem_ela()
+  {
+    // Decisao P8 do plano de backend da Fase 5A: a tela mostra "Concluido em".
+    var em = new DateTime(2026, 10, 20, 15, 0, 0, DateTimeKind.Utc);
+    var useCase = NovoUseCase(new FakePedidoRepo(
+        new Pedido { Id = 1, Numero = "PED-001", Cliente = "A", Status = "EmProducao" },
+        new Pedido { Id = 2, Numero = "PED-002", Cliente = "B", Status = "Concluido", DataConclusao = em }));
+
+    Assert.Null((await useCase.Obter(1, CancellationToken.None)).Valor!.DataConclusao);
+    Assert.Equal(em, (await useCase.Obter(2, CancellationToken.None)).Valor!.DataConclusao);
+  }
+
+  [Fact]
   public async Task Obter_pedido_inexistente_e_nao_encontrado()
   {
     var useCase = NovoUseCase(new FakePedidoRepo());

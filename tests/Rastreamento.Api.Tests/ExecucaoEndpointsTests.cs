@@ -51,7 +51,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
   [InlineData("Operador", "PUT", "/api/estrutura/999999/roteiro")]
   [InlineData("Movimentador", "PUT", "/api/estrutura/999999/roteiro")]
   [InlineData("Gestao", "POST", "/api/movimentacoes/999999/estorno")]
-  [InlineData("Qualidade", "POST", "/api/montagens/999999/estorno")]
+  [InlineData("Gestao", "POST", "/api/montagens/999999/estorno")]
   [InlineData("Separador", "POST", "/api/movimentacoes/999999/estorno")]
   [InlineData("Operador", "POST", "/api/pedidos/999999/pausas")]
   [InlineData("Movimentador", "POST", "/api/pedidos/999999/retomada")]
@@ -126,7 +126,7 @@ public partial class ExecucaoEndpointsTests : IClassFixture<WebApplicationFactor
       setorId = await IdDoCorpo(respostaSetor);
 
       var numeroDoPedido = $"ped-proibido-{Guid.NewGuid():N}"[..25];
-      var respostaPedido = await pcp.PostAsJsonAsync("/api/pedidos", new { numero = numeroDoPedido, cliente = "Cliente de teste", dataEntrega = "2026-10-22" });
+      var respostaPedido = await pcp.PostAsJsonAsync("/api/pedidos", new { numero = numeroDoPedido, cliente = "Cliente de teste", dataEntrega = "2099-12-31" });
       Assert.Equal(HttpStatusCode.Created, respostaPedido.StatusCode);
       pedidoId = await IdDoCorpo(respostaPedido);
 

@@ -1,4 +1,6 @@
-import type { FilaDoSetorDto, ItemDeInicioEmLote, ItemDeTerminoEmLote } from '../api/execucao'
+import type {
+  FilaDoSetorDto, ItemDaEntrega, ItemDeInicioEmLote, ItemDeTerminoEmLote, OrigemDaEntrega, TarefaDeConserto,
+} from '../api/execucao'
 import { lerQuantidade, quantidadeParaCampo } from './quantidade'
 
 /**
@@ -22,6 +24,8 @@ export const TITULO_DA_SECAO: Record<SecaoDoLote, string> = {
 export const chaveDeIniciar = (noId: number, ordem: number) => `iniciar:${noId}:${ordem}`
 export const chaveDeTerminar = (noId: number, ordem: number) => `terminar:${noId}:${ordem}`
 export const chaveDeIniciarPai = (paiId: number) => `iniciar-pai:${paiId}`
+/** O conserto não tem passo: a chave é só o nó (o Setor é o da fila). */
+export const chaveDeTerminarConserto = (noId: number) => `terminar-conserto:${noId}`
 
 export const BLOQUEIO_PEDIDO_PAUSADO = 'O Pedido está pausado: nada dele começa até alguém retomá-lo.'
 export const BLOQUEIO_SEM_FILHOS = 'Não há filhos suficientes aqui para iniciar.'
@@ -39,6 +43,11 @@ export interface LinhaDoLote {
   ordem: number | null
   maximo: number
   bloqueio: string | null
+  /**
+   * Só nas linhas de conserto (Q4 do plano de front da Fase 5A): elas terminam junto das de "Em trabalho", na
+   * mesma seção do lote, mas o término vai com `conserto: true` e sem `ordem`.
+   */
+  conserto?: true
 }
 
 /** `quantidades` guarda o TEXTO do campo de cada linha marcada, por chave. */
@@ -49,7 +58,9 @@ export interface Lote {
 
 /**
  * Toda linha da fila que o lote alcança, na ordem das seções da tela e, dentro de cada uma, na da
- * resposta. O cartão de um pai que NÃO inicia aqui não entra: a ação dele é o "Levar" do filho.
+ * resposta. O cartão de um pai que NÃO inicia aqui não entra: a ação dele é o "Levar" do filho. A Peça
+ * em conserto entra na seção de "Em trabalho" (o Terminar), só a que está `EmConserto`: a `ConsertoPronto`
+ * espera o Movimentador e não tem ação aqui.
  */
 export function linhasDoLote(fila: FilaDoSetorDto): LinhaDoLote[] {
   const linhas: LinhaDoLote[] = []
@@ -73,6 +84,13 @@ export function linhasDoLote(fila: FilaDoSetorDto): LinhaDoLote[] {
     linhas.push({
       chave: chaveDeIniciarPai(g.pai.id), secao: 'aguardandoMontagem', noId: g.pai.id, ordem: null,
       maximo: g.daParaMontar, bloqueio,
+    })
+  }
+  for (const l of fila.conserto) {
+    if (l.posicao !== 'EmConserto') continue
+    linhas.push({
+      chave: chaveDeTerminarConserto(l.no.id), secao: 'emTrabalho', noId: l.no.id, ordem: null,
+      maximo: l.quantidade, bloqueio: null, conserto: true,
     })
   }
   return linhas
@@ -170,7 +188,20 @@ export function itensDeInicio(lote: Lote, linhas: LinhaDoLote[]): ItemDeInicioEm
 }
 
 export function itensDeTermino(lote: Lote, linhas: LinhaDoLote[]): ItemDeTerminoEmLote[] {
-  return marcadas(lote, linhas).map(({ linha, quantidade }) => ({
-    estruturaItemId: linha.noId, ordem: linha.ordem ?? 0, quantidade,
-  }))
+  return marcadas(lote, linhas).map(({ linha, quantidade }) => (linha.conserto
+    ? { estruturaItemId: linha.noId, ordem: null, quantidade, conserto: true }
+    : { estruturaItemId: linha.noId, ordem: linha.ordem ?? 0, quantidade }))
+}
+
+/**
+ * O item de entrega de uma tarefa de conserto (a ida ao Setor ou a volta ao local de expedição). A origem é a da
+ * tarefa como o servidor a mandou — a posição e o Setor —, e nunca leva `ordem`: o conserto não tem passo.
+ */
+export function itemDeEntregaDoConserto(tarefa: TarefaDeConserto, quantidade: number): ItemDaEntrega {
+  const origem: OrigemDaEntrega = {
+    posicao: tarefa.origem.posicao as OrigemDaEntrega['posicao'],
+    setorId: tarefa.origem.setorId!,
+    ordem: null,
+  }
+  return { estruturaItemId: tarefa.no.id, origem, quantidade }
 }

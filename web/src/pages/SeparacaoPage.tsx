@@ -16,6 +16,7 @@ import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { Botao } from '../components/Botao'
+import { CaixaDeLote } from '../components/CaixaDeLote'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { EstadoVazio } from '../components/EstadoVazio'
@@ -187,16 +188,11 @@ export function SeparacaoPage() {
                 item={item}
                 acao={podeSeparar && (
                   <>
-                    <label className="flex items-center gap-2 text-sm text-tinta">
-                      <input
-                        type="checkbox"
-                        checked={marcado}
-                        onChange={(e) => mudarLote(alternar(lote, item.no.id, e.target.checked))}
-                        aria-label={`Marcar ${nomeDoCartao(item)}`}
-                        className="size-5 accent-acao"
-                      />
-                      Marcar
-                    </label>
+                    <CaixaDeLote
+                      nome={`Marcar ${nomeDoCartao(item)}`}
+                      marcada={marcado}
+                      aoMudar={(m) => mudarLote(alternar(lote, item.no.id, m))}
+                    />
                     {aberto !== item.no.id && (
                       <Botao
                         ref={(el) => {

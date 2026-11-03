@@ -3,6 +3,7 @@ using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Execucao;
+using Rastreamento.Application.Tests.Expedicao;
 using Rastreamento.Domain.Entities;
 using Xunit;
 
@@ -26,7 +27,7 @@ public class GravacaoDeArvoreNaTransacaoTests
     catalogo.Componentes.Add(new Componente
     { Id = 1, Codigo = "C1", Descricao = "Peca Um", Tipo = "Montagem", Ativo = true, ArquivoSolidoId = 701 });
     var execucao = new FakeExecucaoRepo(estruturas);
-    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo(), execucao);
+    var useCase = new MontagemDeEstruturaUseCase(estruturas, agrupamentos, catalogo, new FakePedidoRepo(), execucao, new FakeExpedicaoRepo(execucao, estruturas));
     return (useCase, estruturas, execucao);
   }
 

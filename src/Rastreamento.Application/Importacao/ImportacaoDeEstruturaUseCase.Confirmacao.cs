@@ -1,6 +1,7 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -51,9 +52,13 @@ public sealed partial class ImportacaoDeEstruturaUseCase
 
     var gravacao = PlanoDeGravacao.De(r, catalogo, avaliacao.Plano);
 
+    // O Pedido do Agrupamento, para a transacao travar e conferir (C15 da spec da Fase 5A). O Agrupamento do
+    // rascunho existe (FK); nulo so se sumiu entre as leituras, e a confirmacao segue o caminho de sempre.
+    var pedidoId = (await _agrupamentos.ObterPorIdAsync(r.AgrupamentoId, ct))?.PedidoId;
+
     // Os registros cuja impressao nao bateu, preenchidos pela tentativa que devolveu a falha.
     var mudaram = new HashSet<int>();
-    var resultado = await _execucao.ExecutarAsync(() => GravarAsync(r, esperada, gravacao, mudaram, ct), ct);
+    var resultado = await _execucao.ExecutarAsync(() => GravarAsync(r, esperada, gravacao, pedidoId, mudaram, ct), ct);
 
     if (resultado.Erro == ErroDeReceitaDoCatalogoMudou)
       await ZerarEscolhasAsync(id, esperada, mudaram, ct);
@@ -67,7 +72,8 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   /// dentro, e o rascunho nao e escrito (so apagado, por comando).
   /// </summary>
   private async Task<Result<EstruturaItemDto>> GravarAsync(
-      ImportacaoDeEstrutura r, byte[] esperada, PlanoDeGravacao gravacao, ISet<int> mudaram, CancellationToken ct)
+      ImportacaoDeEstrutura r, byte[] esperada, PlanoDeGravacao gravacao, int? pedidoId, ISet<int> mudaram,
+      CancellationToken ct)
   {
     mudaram.Clear();
 
@@ -80,6 +86,13 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       return Result<EstruturaItemDto>.Falha(ErroDeImportacaoNaoEncontrada, TipoDeErro.NaoEncontrado);
     if (!noBanco.AsSpan().SequenceEqual(esperada))
       return Result<EstruturaItemDto>.Falha(ErroDeImportacaoDesatualizada, TipoDeErro.Conflito);
+
+    // 2b. O Pedido, travado e lido dentro da transacao (nao ha no a travar: a Peca ainda nao existe). Pedido
+    // `Concluido` recusa estrutura nova (C15), e a Peca confirmada em Pedido rodando faz o fechamento ser
+    // recalculado no passo 7. Fica antes de qualquer escrita do catalogo: a recusa desfaz a transacao.
+    var pedido = pedidoId is int idDoPedido ? await _execucao.TravarPedidoAsync(idDoPedido, ct) : null;
+    if (pedido?.Status == "Concluido")
+      return Falhas.PedidoFechado<EstruturaItemDto>();
 
     // 3. A receita de catalogo de cada pai com escolha, contra a impressao vista na escolha. Diferente,
     // a falha desfaz a transacao; a escolha e zerada depois, numa escrita propria (`Confirmar`).
@@ -145,6 +158,8 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     // 7. A Peca, pelo plano da avaliacao com os Ids traduzidos: a mesma copia que a "Nova Peca" faria.
     var paraGravar = ParaGravar(gravacao.Plano, Real, ehRaiz: true, r.RequerRelatorioDimensional);
     var raizId = await _estruturas.GravarArvoreAsync(r.AgrupamentoId, null, paraGravar, ct);
+    if (pedido is not null && pedido.Status != "Aberto")
+      await new FechamentoDoPedido(_execucao).RecalcularAsync([pedido.Id], DateTime.UtcNow, ct);
 
     // 8. O rascunho. Antes, os pendentes que viraram solido de um Componente deixam de ser pendentes, por
     // chave do registro: o `ExcluirAsync` apaga todo arquivo que o rascunho ainda tem como pendente, e

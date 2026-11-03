@@ -106,7 +106,7 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
   {
     var numero = $"ped-{Guid.NewGuid():N}"[..25];
     _numerosCriados.Add(numero);
-    var pedido = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2026-10-22" });
+    var pedido = await cliente.PostAsJsonAsync("/api/pedidos", new { numero, cliente = "Cliente X", dataEntrega = "2099-12-31" });
     return (await Json(pedido)).GetProperty("id").GetInt32();
   }
 
@@ -316,6 +316,30 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
   }
 
   // ---------------------------------------------------------------- testes
+
+  [Fact]
+  public async Task Confirmar_import_em_Pedido_Concluido_da_409_PedidoFechado()
+  {
+    var cliente = ClienteComo("PCP");
+    var (rascunho, agrupamentoId, pedidoId, codigoDaRaiz, _, _) = await RascunhoPronto(cliente);
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Pedido SET Status = 'Concluido' WHERE Id = {pedidoId}");
+    }
+
+    var confirmada = await Confirmar(cliente, rascunho);
+
+    // C15 da spec da Fase 5A: Pedido concluido nao recebe estrutura.
+    Assert.Equal(HttpStatusCode.Conflict, confirmada.StatusCode);
+    Assert.Equal("PedidoFechado", (await Json(confirmada)).GetProperty("erro").GetString());
+    // A transacao desfez tudo: nenhuma Peca, nenhum Componente novo, e o rascunho continua la.
+    using var verificacao = _factory.Services.CreateScope();
+    var banco = verificacao.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.False(await banco.Estruturas.AnyAsync(e => e.AgrupamentoId == agrupamentoId));
+    Assert.False(await banco.Componentes.AnyAsync(c => c.Codigo == codigoDaRaiz));
+    Assert.True(await banco.ImportacoesDeEstrutura.AnyAsync(i => i.AgrupamentoId == agrupamentoId));
+  }
 
   [Fact]
   public async Task Peca_confirmada_e_identica_a_criada_pelo_Nova_Peca_a_partir_do_mesmo_catalogo()

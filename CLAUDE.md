@@ -62,8 +62,15 @@ e mesclada em 2026-10-09 (rufino-bot/rastru#32). A **Fase 3B** veio em seguida, 
 2026-10-14 (rufino-bot/rastru#33; spec
 `docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). A **Fase 4** veio em seguida,
 concluída e mesclada em 2026-10-20 (rufino-bot/rastru#34; spec
-`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`); a próxima da sequência é a
-Fase 5.
+`docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`). A **Fase 5** foi partida em
+três em 2026-10-20: **5A** (aferição, expedição e fechamento), **5B** (perda e reposição) e **5C** (as pontas do
+Kit que a 3B deixou), cada uma com spec, plano e PR próprios e **nesta ordem** — a partição não é exceção à
+sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A está implementada e revisada, falta o merge** (spec
+`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`; os planos de backend e de
+front estão implementados na branch `claude/brainstorm-fase-5-4otppt`, a conferência no navegador foi feita pelo
+usuário em 2026-11-03 e a review de branch também, já consertada; ainda não há PR aberto); a 5B
+e a 5C ainda não têm spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
+real**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -285,28 +292,35 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   aceita `linhas` (um `<li>` cada, com a `mensagem` virando o título da lista) para o erro que traz
   várias causas de uma vez, como o arquivo do BOM com uma linha ruim por problema; erro de uma causa só
   continua sendo a `mensagem`.
-- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em quatro
+- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em cinco
   controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
   `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2), o alternador de expandir/recolher da
-  `ArvoreDeEstrutura`, da Fase 2, e o **seletor de linha** da `ArvoreDaImportacao`, do import da
-  estrutura. ("Controles", não "lugares": `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx`
+  `ArvoreDeEstrutura`, da Fase 2, o **seletor de linha** da `ArvoreDaImportacao`, do import da
+  estrutura, e o **botão de grupo do menu** (`BotaoDoGrupo`, no `AppShell`), da conferência da Fase 5A.
+  ("Controles", não "lugares": `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx`
   devolve **4** — a declaração da constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do
-  rodapé da gaveta; remedido em 2026-10-03, sem mudança. Os `<button>` da `ArvoreDeEstrutura` e da
+  rodapé da gaveta; remedido em 2026-10-03, sem mudança, e de novo em 2026-11-03, sem mudança — o botão de
+  grupo **não** usa a constante: ele monta as classes com `classesDoLink`, que já traz o `CONTROLE_BASE` e o
+  anel de foco `marca`, para ganhar o destaque do link ativo. Os `<button>` da `ArvoreDeEstrutura` e da
   `ArvoreDaImportacao` **não** compartilham a constante, mas o comentário do primeiro a cita **pelo
   nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma linha a mais — que é referência, não uso.
   O `grep -c` sobre `AppShell.tsx` é ancorado no arquivo da constante justamente por isso: a regra de
   citação quer que o nome apareça em mais lugares com o tempo, e uma contagem sobre a árvore inteira
-  envelheceria a cada citação nova. **Medição de 2026-10-03:**
-  `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **11 linhas em 4 arquivos**
+  envelheceria a cada citação nova. **Medição de 2026-11-03** (a anterior, de 2026-10-03, dava 11 linhas):
+  `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **13 linhas em 4 arquivos**
   (`AppShell`, `ArvoreDeEstrutura`, `ArvoreDaImportacao` e `Botao`), e a linha **não** é a unidade de uso:
-  **5 são o elemento cru** — 3 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
-  o `<button>` da própria primitiva `Botao`, e 5 são comentário que cita a tag. Somando, são **cinco**
-  `<button>` crus, e "quatro" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
-  são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da Task 7 da Fase
+  **6 são o elemento cru** — 4 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
+  o `<button>` da própria primitiva `Botao`, e 6 são comentário que cita a tag. Somando, são **seis**
+  `<button>` crus, e "cinco" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
+  são o mesmo controle em dois breakpoints, e o `BotaoDoGrupo` é um elemento só, usado na barra e na gaveta.)
+  Decisão do usuário (2026-08-29, na review da Task 7 da Fase
   2): aceitar a exceção e escrevê-la, não extrair uma primitiva. Essa decisão cobre os três primeiros
   controles. O **quarto**, o seletor de linha da `ArvoreDaImportacao`, foi enquadrado pela implementação,
   ao fazer a tela de conferência, e **aceito pelo usuário em 2026-10-07**, depois da verificação no
-  navegador do import da estrutura: também fica sem primitiva.
+  navegador do import da estrutura: também fica sem primitiva. O **quinto**, o botão que abre e fecha um
+  grupo do menu, entrou na conferência da Fase 5A, quando o menu de nove links virou quatro entradas, e foi
+  **decidido pelo usuário em 2026-11-03**: `<button>` cru, sem primitiva, e **sem extrair o
+  `AlternadorDeDisclosure`** nesta rodada.
 
   O motivo é técnico, e são **motivos diferentes** — a review da Task 7 errou ao tratá-los como o mesmo.
   Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um controle de ícone —
@@ -319,16 +333,20 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   o texto é difícil), e a `Botao` traz borda e padding de botão com rótulo, que fariam a árvore inteira
   virar uma pilha de botões. O controle tem nome acessível (o código e a descrição do nó) e
   `aria-current` no selecionado, e o anel de foco mora no `::after`, para contornar a linha inteira e não
-  só o texto do botão.
+  só o texto do botão. No botão de grupo do menu: o mesmo contraste do `AppShell` — o anel de foco `marca`
+  sobre o chrome escuro — e o destaque do grupo da rota atual, que é o do link ativo (fundo, tinta e peso, as
+  `classesDoLink`). Ele é um *disclosure* de navegação (`aria-expanded` e `aria-controls`, com a lista de
+  `NavLink` e `aria-current` no ativo), e **não** o padrão ARIA `menu`.
 
   **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
   rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. O seletor de linha da
   `ArvoreDaImportacao` só se sustenta como **navegação**: escolhe qual nó o painel
   mostra e não grava nada, e a ação da linha (a quantidade por pai) é um `Campo`, não um botão. Quem
   escrever o próximo caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes —
-  saída que o implementer propôs e que o usuário adiou, não descartou.
+  saída que o implementer propôs e que o usuário adiou, não descartou — e que ele adiou de novo, para o botão
+  de grupo, em 2026-11-03.
 
-  Por que escrever em vez de deixar como está: uma regra com quatro violações conhecidas e nenhuma
+  Por que escrever em vez de deixar como está: uma regra com cinco violações conhecidas e nenhuma
   exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva
   que ninguém quer, e quem só observa o código conclui que a regra não vale.
 - **`data-testid` só quando o alvo não tem papel ARIA nem texto estável para achá-lo.** Não é
@@ -412,16 +430,24 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   cartão saiu da lista (não falta mais nada); no `MateriaisDoNo`, é o "Editar materiais" do próprio bloco. Na
   `AgrupamentoDetalhePage`, o do "Nova Peça" devolve ao "Nova Peça" e o do "Importar BOM", ao "Importar
   BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
-  cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Hoje o hook tem
-  **dez** chamadas em **nove** arquivos — oito telas e o `MateriaisDoNo`, que não é tela: é um componente do
-  `PainelDoNo` da `AgrupamentoDetalhePage` — (medido em 2026-10-02 com
+  cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Na `LiberacoesPage` a
+  origem é o "Responder" do cartão, e o nome da Peça no cartão quando ele não volta; no `CartaoDaPeca` da expedição,
+  o botão que abriu o painel (Aferir, Contar, Mandar para conserto, Pedir liberação, Expedir), e o nome da Peça
+  quando a escrita o tira (a aferição registrada tira o "Aferir"); nas `RemessasRecentes`, o "Estornar remessa" da
+  remessa, e o título da seção quando ele não volta. Quando a escrita tira o **cartão** da lista (a última Peça
+  expedida, a liberação respondida), o cartão e o hook dele se vão, e quem devolve o foco é a tela, ao título dela.
+  Hoje o hook tem **treze** chamadas em **doze** arquivos — nove telas (`ExpedicaoPage` não chama: o hook mora nos
+  componentes dela) e três componentes que não são tela: o `MateriaisDoNo`, do `PainelDoNo` da
+  `AgrupamentoDetalhePage`, e o `CartaoDaPeca` e as `RemessasRecentes`, da `ExpedicaoPage` — (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
   2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, de novo em 2026-10-09: oito, porque a
-  `PedidoDetalhePage` tem uma, e de novo em 2026-10-17: dez, porque a `SeparacaoPage` e o `MateriaisDoNo` têm uma
+  `PedidoDetalhePage` tem uma, de novo em 2026-10-17: dez, porque a `SeparacaoPage` e o `MateriaisDoNo` têm uma
+  cada, e de novo em 2026-10-22: treze, porque a `LiberacoesPage`, o `CartaoDaPeca` e as `RemessasRecentes` têm uma
   cada; a métrica é **linhas**, e a `AgrupamentoDetalhePage` é a única com duas): `SetoresPage`, `MateriaisPage`,
   `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage`,
-  `PedidoDetalhePage`, `SeparacaoPage` e, fora das telas, o `MateriaisDoNo`. O usuário decidiu
+  `PedidoDetalhePage`, `SeparacaoPage`, `LiberacoesPage` e, fora das telas, o `MateriaisDoNo`, o `CartaoDaPeca` e as
+  `RemessasRecentes`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -432,25 +458,31 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **oito** telas consumidoras (seis escrevem o
-  `<PainelDeEscrita` à mão e duas só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
-  `PainelDoArquivoDoBom`, e a `SeparacaoPage`, pelo `PainelDeSeparacao`), com **dez**
-  linhas de uso no código e **onze** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **dez** telas consumidoras (sete escrevem o
+  `<PainelDeEscrita` à mão e três só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
+  `PainelDoArquivoDoBom`, a `SeparacaoPage`, pelo `PainelDeSeparacao`, e a `ExpedicaoPage`, pelos painéis do
+  `CartaoDaPeca` e das `RemessasRecentes`), com **dezessete**
+  linhas de uso no código e **dezoito** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
   "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
-  oito, porque a `PedidoDetalhePage` ganhou o "Editar pedido", e de novo em 2026-10-17: dez, porque entraram o
-  "Editar materiais" do `MateriaisDoNo` e o "Separar material" do `PainelDeSeparacao`; a métrica é **linhas**, não
-  usos). As dez linhas são
-  sete nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage` (novo e editar material, no mesmo
+  oito, porque a `PedidoDetalhePage` ganhou o "Editar pedido", de novo em 2026-10-17: dez, porque entraram o
+  "Editar materiais" do `MateriaisDoNo` e o "Separar material" do `PainelDeSeparacao`, e de novo em 2026-10-22:
+  dezessete, porque entraram o "Responder" da `LiberacoesPage` e os seis da expedição — os cinco do `CartaoDaPeca`
+  (`PainelDeAfericao`, `PainelDeContagem`, `PainelDeConserto`, `PainelDePedidoDeLiberacao` e `PainelDeRemessa`, uma
+  linha em cada) e o das `RemessasRecentes`; a métrica é **linhas**, não
+  usos). As dezessete linhas são
+  oito nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage` (novo e editar material, no mesmo
   uso, desde a Fase 4), `ComponentesPage`,
-  `PedidosPage`, `PedidoDetalhePage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova Peça" e o do
-  nó, editar e acrescentar sub-Item) — mais três em componentes: a do `PainelDoArquivoDoBom`, a do
-  `MateriaisDoNo` (o "Editar materiais", dentro do `PainelDoNo` da `AgrupamentoDetalhePage`) e a do
-  `PainelDeSeparacao`. Os onze painéis são os sete das linhas das telas (uma linha, um painel) mais os dois
+  `PedidosPage`, `PedidoDetalhePage`, `LiberacoesPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova
+  Peça" e o do nó, editar e acrescentar sub-Item) — mais nove em componentes: a do `PainelDoArquivoDoBom`, a do
+  `MateriaisDoNo` (o "Editar materiais", dentro do `PainelDoNo` da `AgrupamentoDetalhePage`), a do
+  `PainelDeSeparacao` e as seis da expedição, que moram em `web/src/expedicao/`. Os dezoito painéis são os oito das
+  linhas das telas (uma linha, um painel) mais os dois
   usos do `PainelDoArquivoDoBom` (o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
   `ConferenciaDeImportacaoPage`; `grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
-  duas linhas em 2026-10-07 e em 2026-10-17), mais o "Editar materiais" e o "Separar material". Na
+  duas linhas em 2026-10-07, em 2026-10-17 e em 2026-10-22), mais o "Editar materiais", o "Separar material" e os seis
+  da expedição. Na
   `AgrupamentoDetalhePage` os três painéis de escrita da tela (Nova Peça, Importar BOM e o do nó) nunca coexistem:
   abrir um fecha os outros; o "Editar materiais" mora no `PainelDoNo` e fica fora dessa regra.
 
@@ -531,16 +563,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `SeletorComBusca`; **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **ordenar uma
   lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **restringir uma lista de demanda
   por Material, Pedido, Status…** é `FiltroDeDemanda`, seja a lista filtrada **no cliente** (a fila
-  do Setor, as Tarefas e a lista de separação, que chegam inteiras: as opções e a contagem saem da própria resposta, e
+  do Setor, as Tarefas, a lista de separação e a da expedição, que chegam inteiras: as opções e a contagem saem da própria resposta, e
   `casaComFiltro`, exportada pelo módulo do componente, é a única implementação da regra — OU dentro
   da faceta, E entre facetas, faceta vazia não restringe; nenhuma página a reescreve) ou **no
   servidor** (a `PedidosPage`, cujos filtros vão como parâmetros de `GET /pedidos` por
   `useBuscaPaginada`). O componente é controlado: recebe `facetas` e `selecao` e devolve a seleção
-  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **quatro** telas consumidoras, cada uma
+  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **cinco** telas consumidoras, cada uma
   com um uso (medido em 2026-09-29 com
-  `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`, com três, e remedido em
-  2026-10-17 com o mesmo comando: quatro linhas, uma por tela, porque a `SeparacaoPage` entrou):
-  `FilaDoSetorPage`, `TarefasPage`, `PedidosPage` e `SeparacaoPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
+  `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`, com três, remedido em
+  2026-10-17 com o mesmo comando: quatro linhas, uma por tela, porque a `SeparacaoPage` entrou, e de novo em
+  2026-10-22: cinco, porque a `ExpedicaoPage` entrou, com as facetas Pedido e Aferição):
+  `FilaDoSetorPage`, `TarefasPage`, `PedidosPage`, `SeparacaoPage` e `ExpedicaoPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
   estado** (`positivo`, `negativo`, `atencao`, `atraso`): filtro ativo não é estado de negócio, então a
   pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
   morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
@@ -591,20 +624,35 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   passagem de falso para verdadeiro, para quem a fechou de propósito não ser contrariado a cada recarga.
   Origem: D7 e as emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da Fase 3B
   (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). Hoje a `SecaoRecolhivel` tem
-  **um** uso, na `TarefasPage`, e a `ListaRecolhivel` tem **três**, em duas telas (os dois cartões de Kit,
-  em `CartaoDeKit`, e o cartão de "Aguardando montagem" da `FilaDoSetorPage`); medido em 2026-10-14 com
-  `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas),
-  e o `<details>` cru só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
-  grep -v "\.test\."` devolve duas linhas de elemento e duas de comentário que citam a tag).
+  **um** uso, na `TarefasPage`, e a `ListaRecolhivel` tem **quatro**, em três arquivos (os dois cartões de Kit,
+  em `CartaoDeKit`, o cartão de "Aguardando montagem" da `FilaDoSetorPage` e o "Histórico" do cartão da Peça da
+  expedição, em `HistoricoDaExpedicao`, que passa o `rotulo` e busca ao abrir); medido em 2026-10-14 com
+  `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas) e
+  remedido em 2026-10-22 com o mesmo comando (5 linhas, porque o `HistoricoDaExpedicao` entrou), e o `<details>` cru
+  só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
+  grep -v "\.test\."` devolve duas linhas de elemento e três de comentário que citam a tag, uma delas no
+  `HistoricoDaExpedicao`).
 
   **A `BarraDoLote`** (`web/src/execucao/`, com teste próprio) é a barra fixa do lote e **serve a Fila
-  do Setor, as Tarefas e a Separação**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, a
-  Separação para Separar (desde a conferência da Fase 4), e o texto do botão vem de quem a usa (`rotulo` e
+  do Setor, as Tarefas, a Separação e a Expedição**: a Fila para Iniciar e Terminar, as Tarefas para Entregar, a
+  Separação para Separar (desde a conferência da Fase 4), a Expedição para Expedir, e o texto do botão vem de quem a usa (`rotulo` e
   `rotuloCarregando`). Só existe enquanto há seleção — quem a usa decide isso — e só usa tinta e
   superfície, porque marcar linhas não é estado de negócio. Tela nova de ação em lote usa a barra, não
-  escreve outra. Três usos, um por tela (`grep -rn "<BarraDoLote" web/src --include=*.tsx | grep -v
+  escreve outra. Quatro usos, um por tela (`grep -rn "<BarraDoLote" web/src --include=*.tsx | grep -v
   "\.test\."`, medido em 2026-10-14 com dois e remedido em 2026-10-19 com o mesmo comando: três linhas, porque
-  a `SeparacaoPage` entrou; a métrica é **linhas**).
+  a `SeparacaoPage` entrou, e de novo em 2026-10-22: quatro, porque a `ExpedicaoPage` entrou; a métrica é
+  **linhas**).
+
+  **A `CaixaDeLote`** (`web/src/components/`, com teste próprio) é a caixa que põe uma linha no lote, e serve a
+  Fila, as Tarefas, a Separação e o cartão da Peça da expedição. Ela é o `<label>` que envolve a caixa de 20 px, com
+  **pelo menos 44 × 44 px** (`min-h-11 min-w-11`) de área de toque, e o `nome` vira o `aria-label`. **Não** escreve o
+  texto "Marcar" nem o "Levar" ao lado: os dois saíram na conferência da Fase 5A (pedido do usuário, 2026-11-03; o
+  "Levar" das Tarefas ficou até a decisão posterior do mesmo dia, "Sim, tire"), e o "Marcar todos" é outro
+  controle e fica. A primitiva não tem prop de texto: o nome acessível é o único rótulo. Tela nova
+  de lote usa a caixa, não escreve `<input type="checkbox">` com `<label>` à mão. Seis linhas de uso em cinco
+  arquivos (`grep -rn "<CaixaDeLote" web/src --include=*.tsx | grep -v "\.test\."`, medido em 2026-11-03 e remedido no
+  mesmo dia, depois de tirar o "Levar", com o mesmo comando: as mesmas seis linhas em cinco arquivos; a
+  `TarefasPage` tem duas, o item e o conserto, e o `CartaoDeKit`, da Tarefas, uma; a métrica é **linhas**).
 - **A separação de material** (Fase 4, spec
   `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`) mora em `web/src/separacao/`: o
   `PainelDeSeparacao` ("Separar material"), o `MateriaisDoNo` e o `HistoricoDeSeparacoes` (as seções "Materiais" e
@@ -617,6 +665,32 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`text-tinta`, `text-tinta-fraca`) ou `Pilula` neutra, porque material faltando não é estado de negócio; só
   "Atrasado" (`atraso`) e "Pausado" (`atencao`) usam tom, como já usam em `LinhaDePedido`. A lista (`SeparacaoPage`,
   em `/separacao`) chega inteira e se filtra no cliente.
+- **A expedição** (Fase 5A, spec
+  `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`, seção 6) mora em
+  `web/src/expedicao/`, no molde da separação: o `CartaoDaPeca` e os cinco painéis dele (`PainelDeAfericao`,
+  `PainelDeContagem`, `PainelDeConserto`, `PainelDePedidoDeLiberacao` e `PainelDeRemessa`, com o
+  `useEscritaDoPainel`, em `escritaDoPainel`, que guarda o que eles repetem ao gravar), o `HistoricoDaExpedicao` (recolhido, busca ao abrir), as `RemessasRecentes`, o
+  `filtroDaExpedicao`, o `loteDaExpedicao` (a lógica pura do lote da tela), a `tiradaDaRemessa` e o
+  `usePermissoesDaExpedicao`. As telas são a `ExpedicaoPage` (`/expedicao`, Peças agrupadas por Pedido, na ordem do
+  prazo; chega inteira e se filtra no cliente) e a `LiberacoesPage` (`/liberacoes`, a Gestão responde). O hook diz o
+  que a sessão pode fazer (`registrar`: aferir, contar, conserto, pedir liberação e expedir, a Qualidade e o
+  Administrador; `responder`: a Gestão e o Administrador; `podeEstornar(autorId)`, que repete a regra do estorno: o
+  autor, ou PCP e Administrador) e é o único lugar que lê `permissoes.ts` para ela, no molde do
+  `usePermissoesDaSeparacao`; tela e painel da expedição não chamam `usePodeEscrever` direto. **A regra de cor**
+  (seção 6.5 da spec): "Conforme" é `positivo`; "Não conforme" e o aviso "{q} não conforme sem liberação" são
+  `negativo`, porque são aprovado e reprovado, que é o que essas cores significam; **todo o resto é neutro** —
+  "Exige relatório", "Aferição pendente", "A medir", as linhas da contagem (as de dentro são
+  "· liberadas pela Gestão", "· em conserto ({Setor})", "· aguardando liberação" e "· aguardando decisão") e os
+  avisos "{q} sem aferição" e "{q} sem medição". A Peça sem relatório **não leva pílula** no cartão (pedido do
+  usuário na conferência da Fase 5A, 2026-11-03); a opção "Sem relatório" do filtro de Aferição continua.
+  "Atrasado" (`atraso`) e
+  "Pausado" (`atencao`) como já são, e a pílula "Aguardando expedição" do Pedido continua `neutro`. **A prévia do
+  aviso do "Expedir"** (`tiradaDaRemessa`) é **cópia** de `CalculoDaExpedicao.Tirar` e `CalculoDaExpedicao.Avisos`
+  do backend (C10 e D8 da spec): a remessa tira, nesta ordem, da liberada, da conforme, do local de expedição e por
+  último da não conforme, e a unidade aguardando liberação não sai; quem grava a remessa e devolve os avisos no
+  `201` é o servidor, e a tela só os mostra **antes** de confirmar. Mudou lá, muda aqui, e os testes dos dois lados
+  fixam a mesma tabela. O aviso não trava (regra 37 de `specs/01`). O "Expedir {q}" trava com `enviando`, e o `ref` do
+  `useEscritaDoPainel` segura o segundo `submit` contra o duplo toque, e o lote é uma remessa só, tudo ou nada (C9).
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -635,9 +709,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
 - Um `EstruturaItem` (lote) é **divisível por quantidades livres**: pode ter quantidades em
   Setores diferentes ao mesmo tempo. Não há identidade de sub-lote (sem serial). O
   invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
-  produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição) + montado
-  dentro do pai + expedido (`Expedicao`) + perdido (`Perda`) = quantidade total do nó (validado na
-  aplicação; regra 9).
+  produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição — as cinco
+  posições dele —, em conserto) + montado dentro do pai + expedido (a posição `Expedido` do livro, que as
+  linhas `Expedicao` de uma remessa alimentam) + perdido (`Perda`, da Fase 5B) = quantidade total do nó
+  (validado na aplicação; regra 9).
 - O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
   permitem (`QuantidadePorPai`), sem passar do que ainda falta iniciar do nó. Como o pai só entra em
@@ -662,6 +737,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   um estorno, no máximo um por linha (`UX_MaterialSeparacao_EstornoDe`). Por isso nó com qualquer linha
   de separação, ainda que estornada, não se exclui (409 `NoComSeparacao`). Separar nunca condiciona o
   início do nó. (Regra 34 de `specs/01`, Fase 4.)
+- **Cada registro composto do fim do caminho se estorna inteiro, e o Rastru avisa em vez de travar.** A
+  contagem (uma linha `Medicao` por resultado diferente de zero, até duas), a remessa (uma linha `Expedicao` por posição de origem), o pedido de
+  liberação e a resposta se estornam **por inteiro**, pela rota do registro, e a rota genérica
+  `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar metade
+  inventaria uma contagem ou uma remessa que ninguém fez. E nenhuma situação da aferição trava a remessa — ela
+  avisa (D8, regras 36 e 37 de `specs/01`, C17 da spec da Fase 5A).
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
 - Reprovação no Relatório Dimensional **não** gera Retrabalho automaticamente — é uma
@@ -869,17 +950,20 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte tem **1.475 testes descobertos** (medido em 2026-10-20, em `4cca2f4`, com `dotnet test` de cada
-projeto e `--list-tests`, que só descobre os testes por reflexão — não os executa, e não precisa do banco no
-ar; a métrica é a de linhas da listagem, em que cada caso de `[Theory]` conta como um: 391 em `Api.Tests`,
-842 em `Application.Tests`, 242 em `Infrastructure.Tests`, 0 em `Domain.Tests`). **A suíte inteira foi
-executada** em 2026-10-20, em `4cca2f4`, com `dotnet test Rastreamento.slnx -m:1`: 391 (Api) + 842
-(Application) + 242 (Infrastructure) = 1.475, todos passando, e 0 em Domain — a execução bate com a
-descoberta. O "passa 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
+A suíte do backend tem **1.736 testes** (medido em 2026-10-22, em `4a0fca4`, **executando** a suíte inteira com
+`dotnet build Rastreamento.slnx -warnaserror` — 0 warnings, 0 erros — e `dotnet test Rastreamento.slnx -m:1`: 414
+(Api) + 1.036 (Application) + 286 (Infrastructure) = 1.736, todos passando, e 0 em Domain; a métrica é a de testes
+executados, em que cada caso de `[Theory]` conta como um). Desde a medição anterior (2026-10-20, em `4cca2f4`, com
+`--list-tests`, que só descobre por reflexão e não executa: 391 + 842 + 242 = 1.475, e a execução do mesmo dia bateu
+com ela) entraram **261** testes (23 em Api, 194 em Application e 44 em Infrastructure), num intervalo de 28 commits, 3 deles de
+documentação/merge da Fase 4; a origem dos testes não foi separada por commit. A do
+frontend tem **1.878 testes em 105 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run`, em
+`web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz typecheck). O "passa
+785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
 não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
 exigiria rodar a suíte de verdade (não só descobrir os testes) com o banco fora do ar e ver o que
-falha por erro de conexão em vez de mensagem útil, e a execução de 2026-10-20 não separou
+falha por erro de conexão em vez de mensagem útil, e a execução de 2026-10-22 não separou
 os testes por dependência de banco. O que se sabe
 por leitura de código, sem precisar rodar nada: `Application.Tests` usa fakes e não precisa de
 banco (nenhum teste seu); `Infrastructure.Tests` e `Api.Tests` precisam **em parte**, sem a fração
@@ -998,23 +1082,27 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
 ```
 
 **Usuários de perfil sem escrita de cadastro: `operador`/`Operador@123` (perfil `Operador`),
-`movimentador`/`Movimentador@123` (perfil `Movimentador`) e `separador`/`Separador@123` (perfil
-`Separador`), no `db/seed.sql` — os dois primeiros desde 2026-10-13, o `separador` desde a Fase 4
-(2026-10-16).**
+`movimentador`/`Movimentador@123` (perfil `Movimentador`), `separador`/`Separador@123` (perfil
+`Separador`), `qualidade`/`Qualidade@123` (perfil `Qualidade`) e `gestao`/`Gestao@123` (perfil `Gestao`), no
+`db/seed.sql` — os dois primeiros desde 2026-10-13, o `separador` desde a Fase 4 (2026-10-16), o `qualidade` e o
+`gestao` desde a Fase 5A (2026-10-20).**
 Existem para ver a tela como o chão de fábrica a vê e para verificar à mão o gating por perfil (ver a
 seção Interface, "Gating de perfil vai na AÇÃO"): `admin` e `pcp` **escrevem no cadastro**, e sem um
 usuário que não escreve nele não dá para provar que a AÇÃO some para quem não pode. O `operador`, o
 `movimentador` e o `separador` escrevem só na execução e na separação de material: um no apontamento,
-outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). Até essa data o
+outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). O `qualidade` e o
+`gestao` escrevem só no fim do caminho da Peça (Fase 5A): a Qualidade, que é a pessoa da expedição, afere, conta,
+manda para conserto, pede liberação e expede; a Gestão responde aos pedidos de liberação. Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
 outro nome quebraria esse padrão. **Decisão do usuário (2026-10-13): os dois entram no seed, cada um
 com senha e hash próprios**, gerados com o mesmo `BCryptPasswordHasher` de produção. Isso respeita o
 padrão do `pcp` e acaba com a recriação à mão a cada banco novo. O `separador` da Fase 4 seguiu o mesmo
-padrão, com senha e hash próprios, também gerado com o `BCryptPasswordHasher` de produção. O teste
+padrão, com senha e hash próprios, também gerado com o `BCryptPasswordHasher` de produção, e o `qualidade` e o
+`gestao` da Fase 5A também. O teste
 `Usuario_seedado_valida_a_propria_senha_no_proprio_perfil` confere, para `pcp`, `operador`,
-`movimentador` e `separador`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
+`movimentador`, `separador`, `qualidade` e `gestao`, a senha, o perfil e que o hash não é o do `admin`. Num banco que já existia, rodar o
 `db/seed.sql` de novo os acrescenta: ele é idempotente.
 
 Ainda na Fase 1A, decisão de domínio: `Agrupamento.Quantidade` saiu do schema — um Agrupamento é
@@ -1162,6 +1250,23 @@ passam a coexistir e o `alter` os une). Não precisa regenerar o banco.
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-4.sql sqlserver:/tmp/alter-fase-4.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-4.sql
+```
+
+**Fase 5A — `db/alter-fase-5a.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em cinco blocos: o **aborto** (`THROW 50002`) se `dbo.Expedicao`,
+`dbo.RelatorioDimensionalAvaliacao` ou a forma antiga de `dbo.RelatorioDimensional` (a sem a coluna `Tipo`) tiver
+alguma linha, em vez de descartar dado em silêncio; o `DROP` das três, só vazias; o `CREATE` das quatro tabelas
+novas (`dbo.Remessa`, `dbo.ContagemDimensional`, `dbo.LiberacaoDimensional` e a `dbo.RelatorioDimensional`
+reescrita como registro de aferições) com os índices; as colunas `ContagemId`, `LiberacaoId` e `RemessaId` de
+`dbo.Movimentacao`, com FK e índice filtrado; e as sete constraints do livro recriadas com as posições e os tipos
+novos (`DROP` se existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Não precisa
+regenerar o banco. O `qualidade` e o `gestao` não entram por ele: **depois dele, reaplique o `db/seed.sql`**, que é
+idempotente.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5a.sql sqlserver:/tmp/alter-fase-5a.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5a.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

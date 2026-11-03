@@ -578,6 +578,30 @@ describe('PedidoDetalhePage', () => {
     expect(abertura.className.split(/\s+/)).toContain('whitespace-nowrap')
   })
 
+  it('Pedido concluído mostra "Concluído em {data}"', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      // A da remessa que concluiu: o servidor manda o instante com o offset de Brasília, e a tela mostra o dia.
+      '/api/pedidos/7': () => respostaJson({ ...PEDIDO, status: 'Concluido', dataConclusao: '2026-10-20T23:45:00-03:00' }),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+
+    renderizarDetalhe()
+
+    expect(await screen.findByText('Concluído em 20/10/2026')).toBeTruthy()
+  })
+
+  it('Pedido que não concluiu não mostra "Concluído em"', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson({ ...PEDIDO, dataConclusao: null }),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([]),
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText(/entrega em 22\/10\/2026/)
+
+    expect(screen.queryByText(/Concluído em/)).toBeNull()
+  })
+
   describe('editar o pedido', () => {
     it('quem nao escreve pedidos nao ve o Editar pedido', async () => {
       perfil = 'Operador'

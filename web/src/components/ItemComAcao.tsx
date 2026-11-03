@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react'
 
 interface Props {
-  /** Botões da linha, à direita no desktop e embaixo do conteúdo no celular. */
+  /**
+   * Botões da linha, sempre encostados à direita: ao lado do conteúdo quando cabem e, quando quebram para a linha
+   * de baixo (no celular), embaixo dele e ainda à direita.
+   */
   acao?: ReactNode
   /** O que abre DENTRO da linha, embaixo dela — o formulário de quantidade de uma ação. */
   painel?: ReactNode
@@ -21,7 +24,7 @@ export function ItemComAcao({ acao, painel, children }: Props) {
     <li className="flex flex-col gap-3 rounded-lg border border-borda bg-superficie px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">{children}</div>
-        {acao && <div className="flex flex-wrap gap-2">{acao}</div>}
+        {acao && <div className="ml-auto flex flex-wrap justify-end gap-2">{acao}</div>}
       </div>
       {painel}
     </li>

@@ -74,6 +74,32 @@ describe('mensagemDeErro', () => {
       .toBe('Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.')
   })
 
+  it.each([
+    [400, 'NaoEhPeca', 'Só a Peça chega ao local de expedição; este item faz parte de uma Peça.'],
+    [409, 'SemRelatorioDimensional', 'Esta Peça não exige relatório dimensional: não há o que aferir.'],
+    [400, 'ResultadoInvalido', 'O resultado da aferição é Conforme ou Não conforme.'],
+    [409, 'AfericaoJaRegistrada', 'Esta Peça já tem aferição. Para registrar outra, estorne essa primeiro.'],
+    [409, 'SemAfericaoNaoConforme', 'Só se mede unidade a unidade depois de uma aferição não conforme.'],
+    [400, 'ContagemVazia', 'Conte pelo menos uma unidade, conforme ou não conforme.'],
+    [400, 'SetorInvalido', 'O conserto vai a um Setor ativo: escolha outro.'],
+    [400, 'JustificativaObrigatoria', 'Diga por que a Gestão deveria liberar estas unidades.'],
+    [400, 'TextoLongoDemais', 'O texto tem no máximo 500 caracteres.'],
+    [409, 'LiberacaoEmAberto',
+      'Esta Peça já tem um pedido de liberação em aberto. Espere a resposta da Gestão, ou estorne esse pedido e peça de novo.'],
+    [409, 'LiberacaoNaoPendente', 'Este pedido de liberação não está mais em aberto: já foi respondido ou estornado.'],
+    [400, 'QuantidadeAcimaDaPedida', 'Libere de zero até a quantidade que a Qualidade pediu.'],
+    [409, 'ComAfericao',
+      'Esta Peça já tem aferição válida: estorne a aferição antes de mudar a exigência do relatório dimensional.'],
+    [400, 'RelatorioSoNaPeca', 'A marca de relatório dimensional é da Peça: um Item não a tem.'],
+  ])('traduz o código da expedição %s %s quando o servidor não mandou frase', (status, codigo, frase) => {
+    expect(mensagemDeErro(new ErroDeApi(status, 'x', undefined, codigo), PADRAO)).toBe(frase)
+  })
+
+  it('a frase do servidor ganha da tradução de um código da expedição', () => {
+    expect(mensagemDeErro(new ErroDeApi(409, 'x', 'D já tem uma aferição Conforme.', 'AfericaoJaRegistrada'), PADRAO))
+      .toBe('D já tem uma aferição Conforme.')
+  })
+
   it('a frase do servidor ganha da tradução de um código da separação', () => {
     expect(mensagemDeErro(new ErroDeApi(409, 'x', 'PAR-M8 já foi estornada.', 'JaEstornada'), PADRAO))
       .toBe('PAR-M8 já foi estornada.')

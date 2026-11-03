@@ -7,6 +7,7 @@ describe('podeEscrever', () => {
       'setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos', 'estrutura',
       'apontamento', 'entrega', 'roteiro', 'estorno', 'pausa',
       'separacao', 'estornoDeSeparacao', 'materiaisDoNo',
+      'expedicao', 'liberacao', 'estornoDaExpedicao',
     ] as const) {
       expect(podeEscrever('Administrador', r), r).toBe(true)
     }
@@ -53,9 +54,37 @@ describe('podeEscrever', () => {
       expect(podeEscrever(p, 'estorno'), p).toBe(true)
     }
     for (const p of ['Separador', 'Qualidade', 'Gestao']) {
-      for (const r of ['apontamento', 'entrega', 'roteiro', 'estorno'] as const) {
+      for (const r of ['apontamento', 'entrega', 'roteiro'] as const) {
         expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
       }
+    }
+    for (const p of ['Separador', 'Gestao']) {
+      expect(podeEscrever(p, 'estorno'), p).toBe(false)
+    }
+  })
+
+  it('Fase 5A: a Qualidade expede e estorna o conserto, a Gestão responde à liberação, e ninguém mais faz nenhum dos dois', () => {
+    // Espelha `ExpedicaoController` (Qualidade), `LiberacaoController` (Gestão) e a entrada nova de `estorno`
+    // (`EstornoController`: o conserto se estorna pela rota genérica da movimentação).
+    expect(podeEscrever('Qualidade', 'expedicao')).toBe(true)
+    expect(podeEscrever('Gestao', 'expedicao')).toBe(false)
+    expect(podeEscrever('Gestao', 'liberacao')).toBe(true)
+    expect(podeEscrever('Qualidade', 'liberacao')).toBe(false)
+    expect(podeEscrever('Qualidade', 'estorno')).toBe(true)
+    for (const p of ['Operador', 'Movimentador', 'Separador', 'PCP']) {
+      for (const r of ['expedicao', 'liberacao'] as const) {
+        expect(podeEscrever(p, r), `${p} / ${r}`).toBe(false)
+      }
+    }
+  })
+
+  it('Fase 5A: estornar o registro da expedição é de quem pode ser autor dele, mais o PCP', () => {
+    // Espelha `EstornoDaExpedicaoController`. O botão ainda compara o autor.
+    for (const p of ['Qualidade', 'Gestao', 'PCP', 'Administrador']) {
+      expect(podeEscrever(p, 'estornoDaExpedicao'), p).toBe(true)
+    }
+    for (const p of ['Operador', 'Movimentador', 'Separador']) {
+      expect(podeEscrever(p, 'estornoDaExpedicao'), p).toBe(false)
     }
   })
 

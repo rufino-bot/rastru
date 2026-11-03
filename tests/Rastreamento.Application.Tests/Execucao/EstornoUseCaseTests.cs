@@ -263,6 +263,64 @@ public class EstornoUseCaseTests
     Assert.Equal(2, Assert.Single(r.Valor!).EstruturaItemId);
   }
 
+  /// <summary>
+  /// Uma linha de registro composto (C17 da spec da Fase 5A) gravada direto no livro de uma Peca: a contagem, a
+  /// liberacao e a remessa se estornam inteiras, pela rota delas, e a generica recusa antes de abrir transacao.
+  /// </summary>
+  private static (CenarioDeExecucao C, Movimentacao Linha) LinhaDeRegistroComposto(
+      string tipo, string de, string para, int? contagemId = null, int? liberacaoId = null, int? remessaId = null)
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 4m, null, Corte);
+    c.Execucao.StatusDoPedido[PedidoId] = "EmProducao";
+    var linha = c.Execucao.Semear(new Movimentacao
+    {
+      EstruturaItemId = 1, Tipo = tipo, Quantidade = 2m, OrigemPosicao = de, DestinoPosicao = para,
+      ContagemId = contagemId, LiberacaoId = liberacaoId, RemessaId = remessaId,
+      DataHora = DateTime.UtcNow, UsuarioId = Qualidade,
+    });
+    return (c, linha);
+  }
+
+  [Fact]
+  public async Task Linha_de_contagem_nao_se_estorna_pela_rota_generica()
+  {
+    var (c, linha) = LinhaDeRegistroComposto(
+        TiposDeMovimentacao.Medicao, Posicoes.NaExpedicao, Posicoes.Conforme, contagemId: 77);
+
+    var r = await c.Estorno().EstornarMovimentacao(linha.Id, Qualidade, false, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.EstornoImpossivel, TipoDeErro.Conflito);
+    Assert.Equal("Esta linha faz parte da contagem 77: estorne a contagem inteira.", r.Detalhe);
+    Assert.Equal(0, c.Execucao.Transacoes);
+  }
+
+  [Fact]
+  public async Task Linha_de_liberacao_nao_se_estorna_pela_rota_generica()
+  {
+    var (c, linha) = LinhaDeRegistroComposto(
+        TiposDeMovimentacao.PedidoDeLiberacao, Posicoes.NaoConforme, Posicoes.AguardandoLiberacao, liberacaoId: 78);
+
+    var r = await c.Estorno().EstornarMovimentacao(linha.Id, Qualidade, false, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.EstornoImpossivel, TipoDeErro.Conflito);
+    Assert.Equal("Esta linha faz parte da liberação 78: estorne a liberação inteira.", r.Detalhe);
+    Assert.Equal(0, c.Execucao.Transacoes);
+  }
+
+  [Fact]
+  public async Task Linha_de_remessa_nao_se_estorna_pela_rota_generica()
+  {
+    var (c, linha) = LinhaDeRegistroComposto(
+        TiposDeMovimentacao.Expedicao, Posicoes.Conforme, Posicoes.Expedido, remessaId: 79);
+
+    var r = await c.Estorno().EstornarMovimentacao(linha.Id, Qualidade, false, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.EstornoImpossivel, TipoDeErro.Conflito);
+    Assert.Equal("Esta linha faz parte da remessa 79: estorne a remessa inteira.", r.Detalhe);
+    Assert.Equal(0, c.Execucao.Transacoes);
+  }
+
   private static void AfirmarFalha<T>(Result<T> r, string codigo, TipoDeErro tipo)
   {
     Assert.False(r.Sucesso);

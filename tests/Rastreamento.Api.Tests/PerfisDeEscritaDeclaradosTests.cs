@@ -177,13 +177,15 @@ public class PerfisDeEscritaDeclaradosTests
     // `[Authorize(Roles)]` de um arquivo com UMA entrada de `permissoes.ts` (desvio D1 do plano 2).
     ["POST estrutura/{id:int}/inicios"] = ["Operador", "Administrador"],
     ["POST estrutura/{id:int}/terminos"] = ["Operador", "Administrador"],
+    ["POST estrutura/{id:int}/terminos-de-conserto"] = ["Operador", "Administrador"],
     ["POST inicios"] = ["Operador", "Administrador"],
     ["POST terminos"] = ["Operador", "Administrador"],
     ["POST entregas"] = ["Movimentador", "Administrador"],
     // Estorno: o `[Authorize]` deixa passar quem pode ser autor, mais o PCP; autor x PCP quem decide e o
     // caso de uso (403 `Proibido`). O de montagem declara o Movimentador tambem (desvio D2 do plano 2).
-    ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
-    ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "PCP", "Administrador"],
+    // A Qualidade entra na Fase 5A: o conserto que ela manda se estorna por aqui.
+    ["POST movimentacoes/{id:int}/estorno"] = ["Operador", "Movimentador", "Qualidade", "PCP", "Administrador"],
+    ["POST montagens/{id:int}/estorno"] = ["Operador", "Movimentador", "Qualidade", "PCP", "Administrador"],
     ["PUT estrutura/{id:int}/roteiro"] = ["PCP", "Administrador"],
     // Separacao de material (Fase 4): um controller por conjunto de perfis (decisao P6 do plano de backend).
     ["PUT estrutura/{id:int}/materiais"] = ["PCP", "Administrador"],
@@ -196,6 +198,21 @@ public class PerfisDeEscritaDeclaradosTests
     // Pausa de Pedido (Fase 3D): PCP e Gestao — prioridade e decisao de planejamento.
     ["POST pedidos/{id:int}/pausas"] = ["PCP", "Gestao", "Administrador"],
     ["POST pedidos/{id:int}/retomada"] = ["PCP", "Gestao", "Administrador"],
+    // Expedicao (Fase 5A): aferir, contar e mandar para conserto sao da Qualidade, a pessoa da expedicao (D1 e
+    // secao 5.2 da spec da Fase 5A). Um controller por conjunto de perfis (decisao P7 do plano de backend).
+    ["POST estrutura/{id:int}/afericoes"] = ["Qualidade", "Administrador"],
+    ["POST estrutura/{id:int}/contagens"] = ["Qualidade", "Administrador"],
+    ["POST estrutura/{id:int}/consertos"] = ["Qualidade", "Administrador"],
+    // Liberacao (D7 da spec da Fase 5A): a Qualidade pede, a Gestao responde.
+    ["POST estrutura/{id:int}/pedidos-de-liberacao"] = ["Qualidade", "Administrador"],
+    ["POST liberacoes/{id:int}/resposta"] = ["Gestao", "Administrador"],
+    // Remessa (C8 e C9 da spec da Fase 5A): expedir e da Qualidade; o estorno de um registro composto deixa passar
+    // quem pode ser autor (Qualidade, Gestao) e o PCP, e autor x PCP quem decide e o caso de uso (403 `Proibido`).
+    ["POST remessas"] = ["Qualidade", "Administrador"],
+    ["POST remessas/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    ["POST afericoes/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    ["POST contagens/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    ["POST liberacoes/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
   };
 
   /// <summary>

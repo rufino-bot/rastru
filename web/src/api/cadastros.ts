@@ -176,6 +176,8 @@ export interface PedidoDto {
   criadoPorUsuarioId: number
   /** `null` quando o Pedido não está pausado. */
   pausa: PausaResumoDto | null
+  /** A da remessa que concluiu o Pedido, ISO 8601 com offset -03:00; `null` enquanto ele não conclui (Fase 5A). */
+  dataConclusao: string | null
 }
 
 export interface NovoPedido {
@@ -306,6 +308,8 @@ export interface AgrupamentoDto {
   /** ISO 8601 com offset -03:00, como `PedidoDto.dataAbertura`. */
   criadoEm: string
   criadoPorUsuarioId: number
+  /** A da remessa que concluiu o Agrupamento, ISO 8601 com offset -03:00; `null` enquanto ele não conclui (Fase 5A). */
+  dataConclusao: string | null
 }
 
 export interface NovoAgrupamento {

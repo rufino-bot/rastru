@@ -478,7 +478,7 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     Assert.Equal(c.PedidoId, pedido.GetProperty("id").GetInt32());
     Assert.Equal("Cliente F3", pedido.GetProperty("cliente").GetString());
     // O DateOnly sai como "yyyy-MM-dd", como no PedidoDto.
-    Assert.Equal("2026-10-22", pedido.GetProperty("dataEntrega").GetString());
+    Assert.Equal("2099-12-31", pedido.GetProperty("dataEntrega").GetString());
     // O valor de `atrasado` depende do relogio real (o cenario fixa o prazo): a conta e provada com relogio fixo na
     // Application; aqui so o formato do campo.
     Assert.True(pedido.GetProperty("atrasado").ValueKind is JsonValueKind.True or JsonValueKind.False);

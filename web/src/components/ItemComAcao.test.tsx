@@ -28,4 +28,16 @@ describe('ItemComAcao', () => {
     expect(screen.getByRole('listitem').textContent).toBe('Suporte')
     expect(screen.queryByRole('button')).toBeNull()
   })
+
+  it('os botões de ação ficam encostados à direita, ao lado do conteúdo e embaixo dele', () => {
+    // jsdom não calcula layout; o teste prende a DECLARAÇÃO. `ml-auto` empurra a ação para a direita tanto quando ela
+    // cabe ao lado do conteúdo quanto quando o `flex-wrap` a leva para a linha de baixo, onde `justify-between`
+    // sozinho a deixava à esquerda.
+    render(<ul><ItemComAcao acao={<button type="button">Iniciar</button>}><span>Suporte</span></ItemComAcao></ul>)
+
+    const acao = screen.getByRole('button', { name: 'Iniciar' }).parentElement!
+    expect(acao.className.split(/\s+/)).toContain('ml-auto')
+    // Com mais de um botão que quebram entre linhas, cada linha também encosta à direita.
+    expect(acao.className.split(/\s+/)).toContain('justify-end')
+  })
 })

@@ -1,7 +1,10 @@
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Expedicao;
 using Rastreamento.Application.Tests.Cadastros;
+using Rastreamento.Application.Tests.Common;
 using Rastreamento.Application.Tests.Estrutura;
+using Rastreamento.Application.Tests.Expedicao;
 using Rastreamento.Application.Tests.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -17,7 +20,7 @@ namespace Rastreamento.Application.Tests.Execucao;
 internal sealed class CenarioDeExecucao
 {
   public const int Corte = 1, Dobra = 2, Solda = 3, Pintura = 4, Inativo = 9;
-  public const int Operador = 10, Movimentador = 11, Pcp = 12;
+  public const int Operador = 10, Movimentador = 11, Pcp = 12, Qualidade = 13, Gestao = 14;
   public const int PedidoId = 1, AgrupamentoId = 1;
   public const int PedidoId2 = 2, AgrupamentoId2 = 2;
 
@@ -33,10 +36,17 @@ internal sealed class CenarioDeExecucao
   /// <summary>A separacao de material sobre o MESMO planejado da arvore (`Estruturas.Materiais`).</summary>
   public FakeSeparacaoRepo Separacao { get; }
 
+  /// <summary>
+  /// Os registros do fim do caminho da Peca (afericao, contagem, liberacao, remessa). Participa da transacao do
+  /// `Execucao`, como o `DbContext` compartilhado do codigo real.
+  /// </summary>
+  public FakeExpedicaoRepo Expedicao { get; }
+
   public CenarioDeExecucao()
   {
     Separacao = new FakeSeparacaoRepo(Estruturas);
     Execucao = new FakeExecucaoRepo(Estruturas);
+    Expedicao = new FakeExpedicaoRepo(Execucao, Estruturas);
     var setores = new[]
     {
       new Setor { Id = Corte, Nome = "Corte", Ativo = true },
@@ -56,6 +66,8 @@ internal sealed class CenarioDeExecucao
     Execucao.Usuarios[Operador] = "Operador do Corte";
     Execucao.Usuarios[Movimentador] = "Movimentador";
     Execucao.Usuarios[Pcp] = "PCP";
+    Execucao.Usuarios[Qualidade] = "Qualidade";
+    Execucao.Usuarios[Gestao] = "Gestão";
   }
 
   /// <summary>Um no com Roteiro de um passo por Setor, `Ordem` 1, 2, 3... Sem Setor: sem Roteiro.</summary>
@@ -116,6 +128,33 @@ internal sealed class CenarioDeExecucao
     foreach (var s in Catalogo.Setores.Where(s => s.Id == Solda)) s.UtilizaKit = true;
   }
 
+  /// <summary>
+  /// Uma Peca de `quantidade` COPIADA DO CATALOGO (sem descricao propria: o nome nas frases e o do Componente,
+  /// regra 19), com Roteiro no Corte, que chegou inteira ao local de expedicao, em Pedido `EmProducao`, e da qual
+  /// `aguardando` unidades foram medidas nao conformes e mandadas para o conserto no `setorDoConserto`: ficam em
+  /// `AguardandoConserto`, e o resto em `NaExpedicao`. Arranjo direto no livro, sem caso de uso.
+  /// </summary>
+  public int PecaNoConserto(int id, decimal quantidade, int setorDoConserto, decimal aguardando)
+  {
+    No(id, null, quantidade, null, Corte);
+    var peca = Estruturas.Itens.Single(i => i.Id == id);
+    peca.Descricao = null;
+    peca.ComponenteId = 70;
+    peca.RequerRelatorioDimensional = true;
+    if (Catalogo.Componentes.All(x => x.Id != 70))
+      Catalogo.Componentes.Add(new Componente
+      {
+        Id = 70, Codigo = "CHP-220", Descricao = "Chapa dobrada 3 mm", Tipo = "Fabricado", Ativo = true,
+      });
+    Execucao.StatusDoPedido[PedidoId] = "EmProducao";
+    Mover(id, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), quantidade);
+    Mover(id, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), quantidade);
+    Mover(id, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.NaExpedicao, quantidade, Movimentador);
+    Mover(id, TiposDeMovimentacao.Medicao, Local.NaExpedicao, Local.NaoConforme, aguardando, Qualidade);
+    Mover(id, TiposDeMovimentacao.Conserto, Local.NaoConforme, Local.AguardandoConserto(setorDoConserto), aguardando, Qualidade);
+    return id;
+  }
+
   /// <summary>Arranjo direto no livro, sem caso de uso.</summary>
   public Movimentacao Mover(int item, string tipo, Local de, Local para, decimal quantidade, int usuario = Operador) =>
       Execucao.Semear(new Movimentacao
@@ -134,6 +173,19 @@ internal sealed class CenarioDeExecucao
 
   public PausaDePedidoUseCase Pausa() => new(Execucao);
 
+  public AfericaoUseCase Afericao() => new(Execucao, Expedicao, Estruturas, Setores, Catalogo);
+
+  public LiberacaoUseCase Liberacao() => new(Execucao, Expedicao, Estruturas, Catalogo);
+
+  public RemessaUseCase Remessa() => new(Execucao, Expedicao, Estruturas, Catalogo);
+
+  public EstornoDaExpedicaoUseCase EstornoDaExpedicao() => new(Execucao, Expedicao, Estruturas, Catalogo);
+
+  /// <summary>As leituras da expedicao; `agora` fixa o "hoje" de Brasilia (padrao: 2026-10-20 ao meio-dia UTC).</summary>
+  public ConsultaDaExpedicaoUseCase ConsultaDaExpedicao(DateTimeOffset? agora = null) =>
+      new(Execucao, Expedicao, Estruturas, Catalogo,
+          new RelogioFixo(agora ?? new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)));
+
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);
 
   public MontagemDeEstruturaUseCase Estrutura() =>
@@ -143,7 +195,7 @@ internal sealed class CenarioDeExecucao
             Id = PedidoId, Numero = "PED-01", Cliente = "Cliente", Tipo = "Normal",
             Status = Execucao.StatusDoPedido[PedidoId], DataAbertura = DateTime.UtcNow, CriadoPorUsuarioId = Pcp,
           }),
-          Execucao);
+          Execucao, Expedicao);
 
   public ConsultaDeExecucaoUseCase Consulta() =>
       new(Execucao, Estruturas, Setores,

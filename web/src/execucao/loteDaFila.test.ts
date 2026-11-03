@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import type { GrupoAguardandoMontagem, LinhaDaFila } from '../api/execucao'
+import type { GrupoAguardandoMontagem, LinhaDaFila, LinhaDeConserto, TarefaDeConserto } from '../api/execucao'
 import { fila, no, CHASSI, SUPORTE, PARAFUSO } from '../testes/execucao'
 import {
   BLOQUEIO_PEDIDO_PAUSADO, BLOQUEIO_SEM_FILHOS, TITULO_DA_SECAO,
-  alternar, chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar, erroDaLinha, itensDeInicio, itensDeTermino,
+  alternar, chaveDeIniciar, chaveDeIniciarPai, chaveDeTerminar, chaveDeTerminarConserto, erroDaLinha,
+  itemDeEntregaDoConserto, itensDeInicio, itensDeTermino,
   linhasDoLote, marcarTodos, reconciliar, todosMarcados, type LinhaDoLote, type Lote,
 } from './loteDaFila'
 
@@ -241,5 +242,68 @@ describe('loteDaFila', () => {
 
     const termino: Lote = { secao: 'emTrabalho', quantidades: { 'terminar:7:1': '3' } }
     expect(itensDeTermino(termino, linhas)).toEqual([{ estruturaItemId: 7, ordem: 1, quantidade: 3 }])
+  })
+
+  describe('conserto (Q4 do plano de front da Fase 5A)', () => {
+    const conserto = (n: ReturnType<typeof no>, posicao: LinhaDeConserto['posicao'], quantidade: number): LinhaDeConserto => ({
+      no: n, posicao, quantidade, estornaveis: [],
+    })
+
+    it('a chave de terminar o conserto nao tem passo', () => {
+      expect(chaveDeTerminarConserto(7)).toBe('terminar-conserto:7')
+    })
+
+    it('so a linha em conserto entra no lote, na secao do Terminar, sem ordem e depois das outras', () => {
+      const linhas = linhasDoLote(fila({
+        emTrabalho: [linha(SUPORTE, 1, 4)],
+        conserto: [conserto(PARAFUSO, 'EmConserto', 3), conserto(CHASSI, 'ConsertoPronto', 2)],
+      }))
+
+      expect(linhas).toEqual([
+        { chave: 'terminar:7:1', secao: 'emTrabalho', noId: 7, ordem: 1, maximo: 4, bloqueio: null },
+        { chave: 'terminar-conserto:8', secao: 'emTrabalho', noId: 8, ordem: null, maximo: 3, bloqueio: null, conserto: true },
+      ])
+    })
+
+    it('o conserto marcado junto de uma de em trabalho vai no termino com conserto true e sem ordem', () => {
+      const linhas = linhasDoLote(fila({
+        emTrabalho: [linha(SUPORTE, 1, 4)],
+        conserto: [conserto(PARAFUSO, 'EmConserto', 3)],
+      }))
+      let lote = alternar(null, linhaDe(linhas, 'terminar-conserto:8'), true)
+      lote = alternar(lote, linhaDe(linhas, 'terminar:7:1'), true)
+
+      expect(lote).toEqual({ secao: 'emTrabalho', quantidades: { 'terminar-conserto:8': '3', 'terminar:7:1': '4' } })
+      expect(itensDeTermino(lote!, linhas)).toEqual([
+        { estruturaItemId: 7, ordem: 1, quantidade: 4 },
+        { estruturaItemId: 8, ordem: null, quantidade: 3, conserto: true },
+      ])
+    })
+
+    it('reconciliar tira o conserto que saiu da resposta', () => {
+      const lote: Lote = { secao: 'emTrabalho', quantidades: { 'terminar-conserto:8': '3' } }
+
+      expect(reconciliar(lote, linhasDoLote(fila()))).toEqual({ lote: null, saiu: true })
+    })
+
+    it('a entrega do conserto leva a origem da tarefa, com o Setor e sem ordem', () => {
+      const ida: TarefaDeConserto = {
+        no: SUPORTE, quantidade: 3,
+        origem: { posicao: 'AguardandoConserto', setorId: 3, setorNome: 'Dobra', ordem: null },
+        destino: { posicao: 'EmConserto', setorId: 3, setorNome: 'Dobra', ordem: null },
+      }
+      const volta: TarefaDeConserto = {
+        no: SUPORTE, quantidade: 2,
+        origem: { posicao: 'ConsertoPronto', setorId: 3, setorNome: 'Dobra', ordem: null },
+        destino: { posicao: 'NaExpedicao', setorId: null, setorNome: null, ordem: null },
+      }
+
+      expect(itemDeEntregaDoConserto(ida, 1.5)).toEqual({
+        estruturaItemId: 7, origem: { posicao: 'AguardandoConserto', setorId: 3, ordem: null }, quantidade: 1.5,
+      })
+      expect(itemDeEntregaDoConserto(volta, 2)).toEqual({
+        estruturaItemId: 7, origem: { posicao: 'ConsertoPronto', setorId: 3, ordem: null }, quantidade: 2,
+      })
+    })
   })
 })

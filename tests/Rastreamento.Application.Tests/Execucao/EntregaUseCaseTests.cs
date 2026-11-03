@@ -277,6 +277,143 @@ public class EntregaUseCaseTests
         CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
   }
 
+  // ------------------------------------------------------------------ conserto (Fase 5A, secao 5.3)
+
+  private static OrigemDaEntregaDto DoConserto(string posicao, int? ordem = null) => new(posicao, Dobra, ordem);
+
+  /// <summary>Peca 1 de 6, com 2 aguardando o Movimentador para o conserto na Dobra e 4 em `NaExpedicao`.</summary>
+  private static CenarioDeExecucao NoConserto()
+  {
+    var c = new CenarioDeExecucao();
+    c.PecaNoConserto(1, 6m, Dobra, 2m);
+    return c;
+  }
+
+  /// <summary>As 2 unidades ja entregues ao Setor e terminadas: `ConsertoPronto`, esperando a volta.</summary>
+  private static CenarioDeExecucao ConsertoPronto()
+  {
+    var c = NoConserto();
+    c.Mover(1, TiposDeMovimentacao.Entrega, Local.AguardandoConserto(Dobra), Local.EmConserto(Dobra), 2m, Movimentador);
+    c.Mover(1, TiposDeMovimentacao.Termino, Local.EmConserto(Dobra), Local.ConsertoPronto(Dobra), 2m);
+    return c;
+  }
+
+  [Fact]
+  public async Task Entrega_leva_do_AguardandoConserto_ao_EmConserto_no_mesmo_Setor()
+  {
+    var c = NoConserto();
+
+    var r = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(1, DoConserto(Posicoes.AguardandoConserto), null, 2m)), Movimentador, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    var mov = Assert.Single(r.Valor!);
+    Assert.Equal(TiposDeMovimentacao.Entrega, mov.Tipo);
+    Assert.Equal(new LocalDto(Posicoes.AguardandoConserto, Dobra, "Dobra", null), mov.Origem);
+    Assert.Equal(new LocalDto(Posicoes.EmConserto, Dobra, "Dobra", null), mov.Destino);
+    Assert.Equal(Movimentador, mov.UsuarioId);
+    var calc = c.Calcular();
+    Assert.Equal(0m, calc.Saldo(1, Local.AguardandoConserto(Dobra)));
+    Assert.Equal(2m, calc.Saldo(1, Local.EmConserto(Dobra)));
+    Assert.Equal("EmProducao", c.Execucao.StatusDoPedido[PedidoId]);
+    // So a Peca pode mudar o fechamento: o Pedido dela e travado, depois do no e antes de ler o Pedido.
+    Assert.Equal(new[] { 1 }, Assert.Single(c.Execucao.TravasDePedido));
+  }
+
+  [Fact]
+  public async Task Entrega_traz_do_ConsertoPronto_ao_NaExpedicao()
+  {
+    var c = ConsertoPronto();
+
+    var r = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(1, DoConserto(Posicoes.ConsertoPronto), null, 2m)), Movimentador, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    var mov = Assert.Single(r.Valor!);
+    Assert.Equal(new LocalDto(Posicoes.ConsertoPronto, Dobra, "Dobra", null), mov.Origem);
+    Assert.Equal(new LocalDto(Posicoes.NaExpedicao, null, null, null), mov.Destino);
+    var calc = c.Calcular();
+    Assert.Equal(0m, calc.Saldo(1, Local.ConsertoPronto(Dobra)));
+    Assert.Equal(6m, calc.Saldo(1, Local.NaExpedicao));   // a unidade voltou: as 4 de antes e as 2 do conserto
+    // A volta toca o fim do caminho: o fechamento e recalculado, e com as 6 la o Pedido aguarda a expedicao (C11).
+    Assert.Equal("AguardandoExpedicao", c.Execucao.StatusDoPedido[PedidoId]);
+  }
+
+  [Theory]
+  [InlineData(Posicoes.AguardandoConserto)]
+  [InlineData(Posicoes.ConsertoPronto)]
+  public async Task Entrega_de_conserto_com_destino_mandado_e_recusada(string posicao)
+  {
+    var c = ConsertoPronto();
+    c.Mover(1, TiposDeMovimentacao.Conserto, Local.NaoConforme, Local.AguardandoConserto(Dobra), 0.5m, Qualidade);
+
+    // Ate o Setor certo e recusado: o destino do conserto nao se escolhe.
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(1, DoConserto(posicao), Dobra, 0.5m)), Movimentador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.DestinoIndevido, TipoDeErro.Validacao);
+    Assert.Contains("Chapa dobrada 3 mm", r.Detalhe);
+  }
+
+  [Theory]
+  [InlineData(Posicoes.AguardandoConserto)]
+  [InlineData(Posicoes.ConsertoPronto)]
+  public async Task Entrega_de_conserto_com_ordem_e_recusada(string posicao)
+  {
+    var c = ConsertoPronto();
+
+    var r = await c.Entrega().Entregar(Lista(new ItemDaEntregaDto(1, DoConserto(posicao, 1), null, 1m)), Movimentador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.OrigemInvalida, TipoDeErro.Validacao);
+    Assert.Equal(0, c.Execucao.Transacoes);   // recusado antes de abrir transacao
+  }
+
+  [Fact]
+  public async Task Entrega_de_conserto_acima_do_saldo_nomeia_a_Peca_e_o_Setor()
+  {
+    var c = NoConserto();
+
+    var r = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(1, DoConserto(Posicoes.AguardandoConserto), null, 3m)), Movimentador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.SaldoInsuficiente, TipoDeErro.Conflito);
+    Assert.Equal("Só há 2 de Chapa dobrada 3 mm aguardando conserto no Setor Dobra.", r.Detalhe);
+    Assert.Equal(0, c.Execucao.Commits);
+  }
+
+  [Fact]
+  public async Task Entrega_de_conserto_em_Pedido_concluido_da_PedidoFechado()
+  {
+    var c = NoConserto();
+    c.Execucao.StatusDoPedido[PedidoId] = "Concluido";
+
+    var r = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(1, DoConserto(Posicoes.AguardandoConserto), null, 1m)), Movimentador, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.PedidoFechado, TipoDeErro.Conflito);
+  }
+
+  /// <summary>
+  /// Review Focus 3 do plano de backend da Fase 5A: so MANDAR para Setor inativo e recusado (e na rota do
+  /// conserto). Depois de mandado, a entrega, o termino e a volta continuam, com o Setor inativado no meio.
+  /// </summary>
+  [Fact]
+  public async Task Review_Focus_conserto_em_Setor_inativado_continua()
+  {
+    var c = NoConserto();
+    c.Catalogo.Setores.Single(x => x.Id == Dobra).Ativo = false;
+
+    var ida = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(1, DoConserto(Posicoes.AguardandoConserto), null, 2m)), Movimentador, Ct);
+    var termino = await c.Apontamento().TerminarConserto(1, new TerminoDeConsertoDto(Dobra, 2m), Operador, Ct);
+    var volta = await c.Entrega().Entregar(
+        Lista(new ItemDaEntregaDto(1, DoConserto(Posicoes.ConsertoPronto), null, 2m)), Movimentador, Ct);
+
+    Assert.True(ida.Sucesso, ida.Detalhe);
+    Assert.True(termino.Sucesso, termino.Detalhe);
+    Assert.True(volta.Sucesso, volta.Detalhe);
+    Assert.Equal(6m, c.Calcular().Saldo(1, Local.NaExpedicao));
+  }
+
   private static void AfirmarFalha<T>(Result<T> r, string codigo, TipoDeErro tipo)
   {
     Assert.False(r.Sucesso);

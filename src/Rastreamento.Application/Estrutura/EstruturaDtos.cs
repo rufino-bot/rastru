@@ -32,6 +32,8 @@ public sealed record NovoFilhoDto(int? ComponenteId, string? Descricao, decimal 
 /// `Descricao` vazia/so espaco grava `null` (volta a herdar do Componente, regra 19 — exceto num
 /// no ad-hoc, que nao tem Componente para herdar dela e recusa a edicao). `Quantidade` NAO
 /// cascateia para os filhos ao editar (decisao de dominio — ver `MontagemDeEstruturaUseCase.EditarNo`).
-/// `QuantidadePorPai` obrigatoria no Item e proibida na Peca (regra 26).
+/// `QuantidadePorPai` obrigatoria no Item e proibida na Peca (regra 26). `RequerRelatorioDimensional` so se
+/// informa numa Peca (C14 da spec da Fase 5A): nulo mantem a marca como esta.
 /// </summary>
-public sealed record EdicaoDeNoDto(string? Descricao, decimal Quantidade, decimal? QuantidadePorPai = null);
+public sealed record EdicaoDeNoDto(
+    string? Descricao, decimal Quantidade, decimal? QuantidadePorPai = null, bool? RequerRelatorioDimensional = null);
