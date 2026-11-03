@@ -753,6 +753,16 @@ Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento
 - **Fica de fora, para a 5B e a 5C:** "matar a peça", perda, `Descarte`, Pedido de Retrabalho e o vínculo dele
   com a reclamação do cliente; as pontas do Kit. Fora de qualquer fase: cotas e medidas, número de nota fiscal e
   transportadora (ERP). A notificação à Gestão quando há liberação pendente é a Fase 3C, que executa depois.
+- **Ajustes da conferência (2026-11-03):** o usuário conferiu a fase no navegador e pediu quatro ajustes de
+  interface, feitos numa task só (a Task 9 do plano de front), sem mudar a API: (1) o **menu em grupos** — com os
+  nove links o cabeçalho não coube e o contador do "Tarefas" quebrou de linha; ficam **Produção** (Fila, Tarefas,
+  Separação), **Expedição** (Expedição, Liberações), **Pedidos** e **Cadastros** (Componentes, Materiais,
+  Setores), como *disclosure* de navegação, com o botão do grupo sendo a quinta exceção de chrome do `CLAUDE.md`;
+  (2) a **caixa de lote sem o texto "Marcar"**, na Fila do Setor, na Separação e no cartão da Peça, com área de
+  toque de 44 × 44 px (as Tarefas mantêm o "Levar", que é o verbo da ação); (3) o cartão da Peça **sem a pílula
+  "Sem relatório"** (a opção do filtro de Aferição fica); (4) os **botões de ação sempre à direita** em todas as
+  listas que usam o `ItemComAcao`. As emendas estão na spec da fase, seções 6.1, 6.5 e 6.6. O usuário confere os
+  quatro de novo no navegador antes da review de branch.
 - **Estado da fase (2026-10-21): em execução.** O plano de backend está implementado na branch
   `claude/brainstorm-fase-5-4otppt` — schema, regras puras, fechamento, aferição, conserto no chão de fábrica,
   liberação, remessa, estornos compostos e leituras — e estes documentos. Faltam o **plano de front**, a

@@ -298,7 +298,7 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
       de expedição como "a medir" e a Qualidade a mede de novo (fluxo 4, passo 3).
     - O **estorno** continua na própria fila, nas duas linhas do conserto, enquanto a quantidade não tiver
       andado. O **filtro** de Material e Pedido vale para a seção Conserto e para as tarefas dele, e a contagem
-      do menu "Tarefas N" inclui o conserto. O conserto **não mexe no Roteiro** do nó.
+      do menu "Tarefas N" (no botão **Produção**, com o grupo fechado, e na opção **Tarefas**) inclui o conserto. O conserto **não mexe no Roteiro** do nó.
 
 ## 3. Separação de Material
 
@@ -370,11 +370,12 @@ No Rastru a **Qualidade é a pessoa da expedição**: quem mede, decide se passo
 As cotas vêm do cliente com o pedido e ficam fora do sistema, que guarda só o resultado, quem e quando (D2). A
 Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo 4); dali em diante o fluxo é este.
 
-1. **A tela.** O item **Expedição** do menu abre os Pedidos não encerrados com Peça no local de expedição ou em
+1. **A tela.** A opção **Expedição** do grupo **Expedição** do menu abre os Pedidos não encerrados com Peça no local de expedição ou em
    conserto, na ordem do prazo de entrega. Cada Pedido tem um cabeçalho (número, cliente, "entrega dd/mm/aaaa"
    e as pílulas **Atrasado** e **Pausado** de sempre) e, abaixo, um cartão por Peça: código e descrição (a do
    Componente, quando a Peça foi copiada do catálogo e não tem descrição própria), o Agrupamento, a pílula
-   neutra **Exige relatório** ou **Sem relatório**, a situação da aferição (**Aferição pendente**, neutra;
+   neutra **Exige relatório**, só quando a Peça exige (a que não exige não leva pílula nenhuma, desde a
+   conferência da Fase 5A, 2026-11-03; a opção **Sem relatório** do filtro **Aferição** continua), a situação da aferição (**Aferição pendente**, neutra;
    **Conforme**, verde; **Não conforme**, vermelha), **"N aqui"** e **"de Q · E expedidas"**. "N aqui" é o que
    está no local de expedição, em qualquer posição dele; o que está em conserto não entra na conta. A lista
    chega inteira, e os filtros **Pedido** e **Aferição** agem no cliente, com a seleção na URL. Os três
@@ -418,7 +419,7 @@ Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo
    sem liberação é vermelho, e os outros dois são texto neutro. O botão diz "Expedir {q}". O duplo toque no
    celular não grava duas remessas. Se outra pessoa expediu antes e a quantidade ficou acima do expedível, o
    servidor recusa, a frase aparece dentro do painel e a lista recarrega.
-6. **Expedir em lote** (C9). Com perfil que registra, a Peça com expedível ganha a caixa **Marcar**; **Marcar
+6. **Expedir em lote** (C9). Com perfil que registra, a Peça com expedível ganha a caixa de lote (sem texto visível ao lado; o nome acessível é "Marcar {Peça}"); **Marcar
    todos** marca as visíveis depois do filtro. A Peça marcada mostra o campo **Quantidade** (já com o expedível)
    e o aviso daquela Peça, e a barra fixa do rodapé traz **Expedir** e **Limpar seleção**, como na Separação. O
    lote vai numa remessa só, **tudo ou nada**: se uma Peça é recusada, nada é gravado, a lista recarrega, a
@@ -459,7 +460,7 @@ Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo
 A Qualidade pede (fluxo 4, passo 4) e a Gestão decide: expedir não conforme sem liberação é possível, mas é a
 exceção, e a decisão fica gravada com o nome de quem a deu.
 
-1. O item **Liberações** do menu abre a lista dos pedidos em aberto, do mais antigo ao mais novo: a Peça, o
+1. A opção **Liberações** do grupo **Expedição** do menu abre a lista dos pedidos em aberto, do mais antigo ao mais novo: a Peça, o
    Pedido (número e cliente, "entrega dd/mm/aaaa" e **Atrasado**), "Quantidade pedida: N", a justificativa e quem
    pediu e quando. Vazio: "Nenhuma liberação pendente."; erro: "Não foi possível carregar as liberações.". A
    Qualidade e os demais perfis abrem a tela e leem a fila, sem o botão **Responder**.

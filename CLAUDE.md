@@ -291,28 +291,35 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   aceita `linhas` (um `<li>` cada, com a `mensagem` virando o título da lista) para o erro que traz
   várias causas de uma vez, como o arquivo do BOM com uma linha ruim por problema; erro de uma causa só
   continua sendo a `mensagem`.
-- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em quatro
+- **Exceção deliberada: botão de chrome.** O código já contraria a proibição acima em cinco
   controles: os botões "Sair" e do hambúrguer do `AppShell` (que compartilham a constante
   `BOTAO_DO_CHROME`, dois deles anteriores à Fase 2), o alternador de expandir/recolher da
-  `ArvoreDeEstrutura`, da Fase 2, e o **seletor de linha** da `ArvoreDaImportacao`, do import da
-  estrutura. ("Controles", não "lugares": `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx`
+  `ArvoreDeEstrutura`, da Fase 2, o **seletor de linha** da `ArvoreDaImportacao`, do import da
+  estrutura, e o **botão de grupo do menu** (`BotaoDoGrupo`, no `AppShell`), da conferência da Fase 5A.
+  ("Controles", não "lugares": `grep -c "BOTAO_DO_CHROME" web/src/components/AppShell.tsx`
   devolve **4** — a declaração da constante e três usos dela: "Sair" do cabeçalho, hambúrguer, "Sair" do
-  rodapé da gaveta; remedido em 2026-10-03, sem mudança. Os `<button>` da `ArvoreDeEstrutura` e da
+  rodapé da gaveta; remedido em 2026-10-03, sem mudança, e de novo em 2026-11-03, sem mudança — o botão de
+  grupo **não** usa a constante: ele monta as classes com `classesDoLink`, que já traz o `CONTROLE_BASE` e o
+  anel de foco `marca`, para ganhar o destaque do link ativo. Os `<button>` da `ArvoreDeEstrutura` e da
   `ArvoreDaImportacao` **não** compartilham a constante, mas o comentário do primeiro a cita **pelo
   nome**, então um `grep -rn` sobre `web/src/` inteiro acha uma linha a mais — que é referência, não uso.
   O `grep -c` sobre `AppShell.tsx` é ancorado no arquivo da constante justamente por isso: a regra de
   citação quer que o nome apareça em mais lugares com o tempo, e uma contagem sobre a árvore inteira
-  envelheceria a cada citação nova. **Medição de 2026-10-03:**
-  `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **11 linhas em 4 arquivos**
+  envelheceria a cada citação nova. **Medição de 2026-11-03** (a anterior, de 2026-10-03, dava 11 linhas):
+  `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **13 linhas em 4 arquivos**
   (`AppShell`, `ArvoreDeEstrutura`, `ArvoreDaImportacao` e `Botao`), e a linha **não** é a unidade de uso:
-  **5 são o elemento cru** — 3 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
-  o `<button>` da própria primitiva `Botao`, e 5 são comentário que cita a tag. Somando, são **cinco**
-  `<button>` crus, e "quatro" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
-  são o mesmo controle em dois breakpoints.) Decisão do usuário (2026-08-29, na review da Task 7 da Fase
+  **6 são o elemento cru** — 4 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
+  o `<button>` da própria primitiva `Botao`, e 6 são comentário que cita a tag. Somando, são **seis**
+  `<button>` crus, e "cinco" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
+  são o mesmo controle em dois breakpoints, e o `BotaoDoGrupo` é um elemento só, usado na barra e na gaveta.)
+  Decisão do usuário (2026-08-29, na review da Task 7 da Fase
   2): aceitar a exceção e escrevê-la, não extrair uma primitiva. Essa decisão cobre os três primeiros
   controles. O **quarto**, o seletor de linha da `ArvoreDaImportacao`, foi enquadrado pela implementação,
   ao fazer a tela de conferência, e **aceito pelo usuário em 2026-10-07**, depois da verificação no
-  navegador do import da estrutura: também fica sem primitiva.
+  navegador do import da estrutura: também fica sem primitiva. O **quinto**, o botão que abre e fecha um
+  grupo do menu, entrou na conferência da Fase 5A, quando o menu de nove links virou quatro entradas, e foi
+  **decidido pelo usuário em 2026-11-03**: `<button>` cru, sem primitiva, e **sem extrair o
+  `AlternadorDeDisclosure`** nesta rodada.
 
   O motivo é técnico, e são **motivos diferentes** — a review da Task 7 errou ao tratá-los como o mesmo.
   Na `ArvoreDeEstrutura`: a primitiva `Botao` carrega peso de CTA que não serve a um controle de ícone —
@@ -325,16 +332,20 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   o texto é difícil), e a `Botao` traz borda e padding de botão com rótulo, que fariam a árvore inteira
   virar uma pilha de botões. O controle tem nome acessível (o código e a descrição do nó) e
   `aria-current` no selecionado, e o anel de foco mora no `::after`, para contornar a linha inteira e não
-  só o texto do botão.
+  só o texto do botão. No botão de grupo do menu: o mesmo contraste do `AppShell` — o anel de foco `marca`
+  sobre o chrome escuro — e o destaque do grupo da rota atual, que é o do link ativo (fundo, tinta e peso, as
+  `classesDoLink`). Ele é um *disclosure* de navegação (`aria-expanded` e `aria-controls`, com a lista de
+  `NavLink` e `aria-current` no ativo), e **não** o padrão ARIA `menu`.
 
   **Limite da exceção**: vale só para controle de **chrome** — disclosure, navegação, ícone sem
   rótulo — nunca para ação de formulário nem para nada que a `Botao` já sirva. O seletor de linha da
   `ArvoreDaImportacao` só se sustenta como **navegação**: escolhe qual nó o painel
   mostra e não grava nada, e a ação da linha (a quantidade por pai) é um `Campo`, não um botão. Quem
   escrever o próximo caso deve considerar extrair um `AlternadorDeDisclosure` para os usos existentes —
-  saída que o implementer propôs e que o usuário adiou, não descartou.
+  saída que o implementer propôs e que o usuário adiou, não descartou — e que ele adiou de novo, para o botão
+  de grupo, em 2026-11-03.
 
-  Por que escrever em vez de deixar como está: uma regra com quatro violações conhecidas e nenhuma
+  Por que escrever em vez de deixar como está: uma regra com cinco violações conhecidas e nenhuma
   exceção escrita produz deriva nos dois sentidos — quem a obedece cego acaba criando uma primitiva
   que ninguém quer, e quem só observa o código conclui que a regra não vale.
 - **`data-testid` só quando o alvo não tem papel ARIA nem texto estável para achá-lo.** Não é
@@ -630,6 +641,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   "\.test\."`, medido em 2026-10-14 com dois e remedido em 2026-10-19 com o mesmo comando: três linhas, porque
   a `SeparacaoPage` entrou, e de novo em 2026-10-22: quatro, porque a `ExpedicaoPage` entrou; a métrica é
   **linhas**).
+
+  **A `CaixaDeLote`** (`web/src/components/`, com teste próprio) é a caixa que põe uma linha no lote, e serve a
+  Fila, as Tarefas, a Separação e o cartão da Peça da expedição. Ela é o `<label>` que envolve a caixa de 20 px, com
+  **pelo menos 44 × 44 px** (`min-h-11 min-w-11`) de área de toque, e o `nome` vira o `aria-label`. **Não** escreve o
+  texto "Marcar" ao lado: ele saiu na conferência da Fase 5A (pedido do usuário, 2026-11-03), e o "Marcar todos" é
+  outro controle e fica. O `rotulo` é opcional, e as Tarefas o usam para o "Levar", que é o verbo da ação. Tela nova
+  de lote usa a caixa, não escreve `<input type="checkbox">` com `<label>` à mão. Seis linhas de uso em cinco
+  arquivos (`grep -rn "<CaixaDeLote" web/src --include=*.tsx | grep -v "\.test\."`, medido em 2026-11-03; a
+  `TarefasPage` tem duas, o item e o conserto, e o `CartaoDeKit`, da Tarefas, uma; a métrica é **linhas**).
 - **A separação de material** (Fase 4, spec
   `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`) mora em `web/src/separacao/`: o
   `PainelDeSeparacao` ("Separar material"), o `MateriaisDoNo` e o `HistoricoDeSeparacoes` (as seções "Materiais" e
@@ -656,9 +676,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `usePermissoesDaSeparacao`; tela e painel da expedição não chamam `usePodeEscrever` direto. **A regra de cor**
   (seção 6.5 da spec): "Conforme" é `positivo`; "Não conforme" e o aviso "{q} não conforme sem liberação" são
   `negativo`, porque são aprovado e reprovado, que é o que essas cores significam; **todo o resto é neutro** —
-  "Exige relatório", "Sem relatório", "Aferição pendente", "A medir", as linhas da contagem (as de dentro são
+  "Exige relatório", "Aferição pendente", "A medir", as linhas da contagem (as de dentro são
   "· liberadas pela Gestão", "· em conserto ({Setor})", "· aguardando liberação" e "· aguardando decisão") e os
-  avisos "{q} sem aferição" e "{q} sem medição". "Atrasado" (`atraso`) e
+  avisos "{q} sem aferição" e "{q} sem medição". A Peça sem relatório **não leva pílula** no cartão (pedido do
+  usuário na conferência da Fase 5A, 2026-11-03); a opção "Sem relatório" do filtro de Aferição continua.
+  "Atrasado" (`atraso`) e
   "Pausado" (`atencao`) como já são, e a pílula "Aguardando expedição" do Pedido continua `neutro`. **A prévia do
   aviso do "Expedir"** (`tiradaDaRemessa`) é **cópia** de `CalculoDaExpedicao.Tirar` e `CalculoDaExpedicao.Avisos`
   do backend (C10 e D8 da spec): a remessa tira, nesta ordem, da liberada, da conforme, do local de expedição e por

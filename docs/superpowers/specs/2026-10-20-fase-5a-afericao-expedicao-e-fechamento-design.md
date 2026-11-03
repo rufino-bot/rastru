@@ -398,10 +398,12 @@ Base: o esboço aprovado (D10).
   (Pedido e situação da aferição, no mínimo), filtragem no cliente por `casaComFiltro`.
 - Peças **agrupadas por Pedido**, na ordem da data de entrega; o cabeçalho do grupo mostra código, data de
   entrega e as pílulas "Atrasado" e "Pausado" de sempre.
-- **Cartão da Peça**: código e descrição, "N aqui de Q · E expedidas", pílula "Exige relatório" ou "Sem
-  relatório", a situação da aferição, e, depois de uma não conforme, a **contagem**: conformes, não
-  conformes e, dentro destas, liberadas, em conserto (com o Setor), aguardando liberação e aguardando
-  decisão; mais "a medir" quando houver.
+- **Cartão da Peça**: código e descrição, "N aqui de Q · E expedidas", pílula "Exige relatório" (só quando a
+  Peça exige: a que não exige **não** leva pílula nenhuma), a situação da aferição, e, depois de uma não
+  conforme, a **contagem**: conformes, não conformes e, dentro destas, liberadas, em conserto (com o Setor),
+  aguardando liberação e aguardando decisão; mais "a medir" quando houver. *Emenda de 2026-11-03 (a conferência
+  da Fase 5A, pedido do usuário):* o cartão não mostra a pílula "Sem relatório". A **opção** "Sem relatório"
+  da faceta Aferição do filtro **fica**: o pedido é sobre o cartão.
 - **Painéis** (`PainelDeEscrita`, um aberto por vez, com `useDevolverFoco`): **Aferir** (Conforme | Não
   conforme), **Contar** (conformes e não conformes, que somam até o "a medir"), **Mandar para conserto**
   (quantidade e Setor), **Pedir liberação** (quantidade e justificativa), **Expedir** (quantidade; abre com
@@ -412,7 +414,10 @@ Base: o esboço aprovado (D10).
 - **Remessas recentes** (C20), seção no fim da tela: cada remessa com data, quem expediu, e as Peças e
   quantidades; o "Estornar remessa" abre um painel que lista o que ela desfaz e os Pedidos que reabrem.
 - **Lote** (C9): seleção de Peças e `BarraDoLote` "Expedir", com a quantidade de cada uma; o aviso do D8
-  vale por Peça.
+  vale por Peça. *Emenda de 2026-11-03 (a conferência da Fase 5A):* a caixa de lote do cartão não traz o texto
+  "Marcar" ao lado (o nome acessível continua no `aria-label`); a área clicável é uma `CaixaDeLote`, com pelo
+  menos 44 × 44 px. O "Marcar todos" fica. O mesmo vale para a Fila do Setor e a Separação; nas Tarefas a caixa
+  usa a mesma primitiva e **mantém** o "Levar" visível, que é o verbo da ação e nunca foi "Marcar".
 - Os três estados (carregando, vazio — distinguindo "nada no local de expedição" de "nada casa com o
   filtro" — e erro).
 
@@ -443,13 +448,26 @@ dimensional"; a edição dele (C14) entra onde a Peça é editada hoje.
 
 - **Conforme** usa `positivo`; **Não conforme** e o aviso de expedir não conforme sem liberação usam
   `negativo`: são aprovado e reprovado, que é o que essas cores significam.
-- "Exige relatório", "Sem relatório", "Aferição pendente", "A medir", "Liberada", "Em conserto" e "Aguardando
-  liberação" são **neutros**: não são aprovação nem reprovação.
+- "Exige relatório", "Aferição pendente", "A medir", "Liberada", "Em conserto" e "Aguardando
+  liberação" são **neutros** (a pílula "Sem relatório" saiu do cartão, ver a emenda de 2026-11-03 da seção 6.1): não são aprovação nem reprovação.
 - "Atrasado" (`atraso`) e "Pausado" (`atencao`) como já são.
 
 ### 6.6 Menu
 
 Entra "Expedição" (e "Liberações", se for tela própria). O menu já não tem "Início" desde a Fase 4.
+
+*Emenda de 2026-11-03 (a conferência da Fase 5A, pedido do usuário):* com os nove links, o cabeçalho não coube
+(em 1024px o contador do "Tarefas" quebrou para a linha de baixo do rótulo), e o menu passou a **quatro
+entradas, em grupos**: **Produção** (Fila, Tarefas, Separação), **Expedição** (Expedição, Liberações),
+**Pedidos** (link direto) e **Cadastros** (Componentes, Materiais, Setores). O padrão é o de *disclosure* de
+navegação: um `<button>` com `aria-expanded` e `aria-controls` que mostra e esconde uma lista de links, e **não**
+o padrão ARIA `menu`, que pede setas e muda o que o leitor de tela anuncia. Na barra (de `lg` para cima) o
+grupo abre para baixo, por cima do conteúdo, um por vez, e fecha ao navegar, ao clicar fora e com `Esc` (que
+devolve o foco ao botão do grupo); na gaveta (abaixo de `lg`) os grupos abrem dentro dela, mais de um ao mesmo
+tempo, e o da rota atual vem aberto. O botão do grupo da rota atual leva o destaque do link ativo. O contador
+das Tarefas continua na opção "Tarefas" e aparece também no botão "Produção" com o grupo fechado. O botão do
+grupo é `<button>` cru, a quinta exceção de chrome do `CLAUDE.md` (decisão do usuário, 2026-11-03). A largura
+do cabeçalho com as quatro entradas **não foi medida** com instrumento: o usuário a confere no navegador.
 
 ## 7. Testes
 
@@ -462,7 +480,9 @@ Entra "Expedição" (e "Liberações", se for tela própria). O menu já não te
   estorno de remessa; o status `AguardandoExpedicao` indo e voltando com o conserto; os perfis da 5.2; a
   recusa de lote nomeando a Peça copiada do catálogo; e o `db/alter-fase-5a.sql` abortando com dado.
 - **Front**: os três estados da tela; o aviso do Expedir por situação; cada painel; o lote; o gating por
-  perfil; a cor (pílula conforme/não conforme com tom, o resto neutro).
+  perfil; a cor (pílula conforme/não conforme com tom, o resto neutro); desde a emenda de 2026-11-03, o menu em
+  grupos (abrir e fechar, `Esc`, clique fora, grupo da rota atual, contador), a caixa de lote sem o texto
+  visível e com a área de toque, o cartão sem a pílula "Sem relatório" e os botões de ação à direita.
 - **Massa**: os cenários e a massa da conferência incluem **Peça copiada do catálogo, sem descrição
   própria** (a lição da Fase 4), Peça sem relatório, e Pedido com mais de um Agrupamento.
 - **Conferência no navegador, pelo usuário**, com o fluxo inteiro: aferir conforme e expedir em duas
