@@ -398,6 +398,97 @@ cujo produto não é código").
 - [ ] **Step 2:** O usuário confere e decide; os achados viram `conferencia/achados.md`, com a palavra dele em cada um.
 - [ ] **Step 3:** Só então: review de branch inteira (modelo mais capaz) e o fix wave, nesta ordem.
 
+### Task 9: Ajustes da conferência (A1–A4), numa rodada só
+
+**Origem:** a conferência da Task 8, validada pelo usuário em 2026-11-03, com quatro ajustes de interface. As palavras
+dele e a leitura de cada um estão no ledger (`conferencia/achados.md`); o que vale para esta task está escrito aqui.
+Os quatro vão numa task só, com o gate inteiro, no molde da Task 8 do plano de front da Fase 4, e o usuário confere de
+novo no navegador antes da review de branch.
+
+**Modelo:** sonnet. Só front e prosa, sem contrato de API; o item mais pesado (A1) é um padrão de navegação conhecido
+(disclosure), descrito abaixo com as decisões tomadas.
+
+**Files (o esperado; o implementer ajusta e diz no relatório):**
+- Front: `web/src/components/AppShell.tsx` e o teste dele; `web/src/components/ItemComAcao.tsx` e o teste dele;
+  `web/src/expedicao/CartaoDaPeca.tsx`, `web/src/pages/FilaDoSetorPage.tsx`, `web/src/pages/SeparacaoPage.tsx`,
+  `web/src/pages/TarefasPage.tsx` (só se precisar, ver A2) e os testes de cada um
+- Prosa: spec da Fase 5A (seções 6.5 e 6.6, e o que mais citar o que muda), `specs/04-fluxos-de-usuario.md` (os
+  passos que dizem "o item X do menu" e a pílula "Sem relatório"), `CLAUDE.md` (a exceção do botão de chrome, a cor da
+  expedição e as contagens que o diff mudar), `specs/06-roadmap-mvp.md` (os ajustes da conferência da fase, como a
+  Fase 4 registrou os dela)
+
+#### A1 — Menu agrupado em sanfonas
+
+Com nove links, o cabeçalho não cabe: na conferência, o contador do "Tarefas" quebrou para a linha de baixo do rótulo.
+O menu passa a quatro entradas, nesta ordem:
+
+| Entrada | Tipo | Opções, nesta ordem |
+|---|---|---|
+| **Produção** | grupo | Fila · Tarefas · Separação |
+| **Expedição** | grupo | Expedição · Liberações |
+| **Pedidos** | link direto | — |
+| **Cadastros** | grupo | Componentes · Materiais · Setores |
+
+- **Padrão:** *disclosure* de navegação — um `<button>` com `aria-expanded` e `aria-controls` que mostra e esconde uma
+  lista de links. **Não** é o padrão ARIA `menu`/`menuitem` (que pede setas e muda o que o leitor de tela anuncia); os
+  links continuam `NavLink` com `aria-current` no ativo.
+- **Barra (de `lg` para cima):** clicar no grupo abre as opções **para baixo**, numa caixa sob o botão, por cima do
+  conteúdo. Um grupo aberto por vez. Fecha ao navegar (o efeito sobre `location.key` que já fecha a gaveta), ao
+  clicar fora e com `Esc`; o `Esc` devolve o foco ao botão do grupo. O botão do grupo que contém a rota atual tem o
+  mesmo destaque do link ativo (fundo, tinta e peso de `classesDoLink`).
+- **Gaveta (abaixo de `lg`):** as mesmas quatro entradas; cada grupo abre as opções para baixo **dentro da gaveta**,
+  empurrando o que vem depois. O grupo da rota atual vem aberto quando a gaveta abre.
+- **Contador das Tarefas:** continua na opção "Tarefas" e aparece também no botão "Produção" **quando o grupo está
+  fechado**. Rótulo e número ficam na mesma linha, sem quebra, nos dois lugares, e o nome acessível mantém o espaço
+  entre eles (ver `RotuloDoItem`).
+- **O botão do grupo é exceção de chrome** (decisão do usuário, 2026-11-03): `<button>` cru, com o `CONTROLE_BASE` e o
+  anel de foco `marca` dos links do menu, pelo mesmo motivo do "Sair" e do hambúrguer (contraste do foco sobre o
+  chrome escuro). **Não** extrair o `AlternadorDeDisclosure` nesta task. No `CLAUDE.md`, a seção «Exceção deliberada:
+  botão de chrome» passa a registrar o quinto controle, com a decisão e a data, e as contagens dela (o `grep -c` do
+  `BOTAO_DO_CHROME`, o `grep -rn "<button"`) são remedidas com os mesmos comandos e escritas com a data nova e a
+  métrica, dizendo quais linhas são elemento, primitiva ou comentário.
+- **O comentário do `ITENS`** narra a história da largura do cabeçalho; ele ganha o parágrafo do agrupamento (origem: a
+  conferência da 5A, que viu o contador quebrar com nove links) e diz, com honestidade, se a largura foi medida ou não.
+
+#### A2 — Caixa de lote sem o rótulo "Marcar"
+
+O texto visível "Marcar" ao lado da caixa de lote sai das três telas que o têm: o cartão da Peça
+(`CartaoDaPeca`), a Fila do Setor (o `controlesDoLote`) e a Separação. O "Marcar todos" / "Desmarcar todos" fica.
+
+- **O nome acessível não muda:** cada caixa já tem o seu (`aria-label` "Marcar {nome}", "Marcar … para iniciar" e
+  afins), e continua com ele.
+- **Área de toque:** sem o texto, a área clicável não pode encolher para a caixa de 16 px. Cada caixa fica dentro de
+  uma área de toque de pelo menos 44 × 44 px, invisível, que marca e desmarca. As **quatro** telas de lote (as três e
+  as Tarefas, que já não têm o rótulo) terminam com o mesmo padrão; se o das Tarefas já tiver a área, as outras o
+  seguem, e se não tiver, as Tarefas entram nesta task.
+- Teste que achava a caixa pelo texto visível passa a achá-la pelo nome acessível; teste que morre se o texto
+  "Marcar" voltar ao lado da caixa, em cada tela.
+
+#### A3 — Cartão da Peça sem a pílula "Sem relatório"
+
+O `CartaoDaPeca` mostra a pílula **"Exige relatório"** só quando a Peça exige; sem a marca, **nenhuma** pílula. A
+opção **"Sem relatório"** da faceta **Aferição** do filtro (`filtroDaExpedicao`) **fica**: o pedido é sobre o cartão.
+Emendas datadas na spec da 5A (a lista de rótulos neutros da seção 6.5 e a descrição do cartão), no `04` e na regra de
+cor da expedição no `CLAUDE.md`.
+
+#### A4 — Botões de ação sempre à direita
+
+A posição vem do `ItemComAcao`: um `flex-wrap` com `justify-between`, que deixa os botões à direita quando cabem ao lado
+do conteúdo e **à esquerda** quando quebram para a linha de baixo. Decisão do usuário: **à direita nos dois casos** —
+ao lado do conteúdo quando cabem, e encostados à direita quando quebram. Não vira uma linha de rodapé fixa. A mudança é
+**na primitiva**, então todas as listas que a usam mudam juntas (13 arquivos em 2026-11-03,
+`grep -rln "<ItemComAcao" web/src --include=*.tsx | grep -v "\.test\."`). O comentário da prop `acao` deixa de dizer
+"embaixo do conteúdo no celular" sem dizer o lado.
+
+- [ ] **Step 1:** A1, com testes (abrir e fechar por clique, `Esc` com o foco de volta, clique fora, um aberto por vez
+  na barra, grupo ativo, grupo da rota atual aberto na gaveta, contador no grupo fechado e só na opção com o grupo
+  aberto).
+- [ ] **Step 2:** A2, A3 e A4, com testes.
+- [ ] **Step 3:** Prosa: spec da 5A, `04`, `06`, `CLAUDE.md`.
+- [ ] **Step 4:** `npx vitest run --maxWorkers=2` e `npm run build`.
+- [ ] **Step 5:** Commit — `feat(fase-5a): ajustes da conferencia (menu em grupos, lote sem rotulo, pilula e botoes)`,
+  ou um commit por ajuste.
+
 ## Self-review (feito ao escrever este plano)
 
 - **Cobertura da spec, seção 6:** 6.1 → Tasks 2, 3, 4; 6.2 → 5; 6.3 → 6; 6.4 → 6; 6.5 → Global Constraints e os testes
@@ -405,5 +496,5 @@ cujo produto não é código").
   7. Seção 9 → 7 (`04`, `CLAUDE.md`).
 - **Tipos conferidos com o plano 1:** os nomes do "Contrato JSON novo", `TerminoDeConsertoDto` (`setorId`, `quantidade`),
   as origens novas da entrega, `conserto` na Fila e `consertos` nas Tarefas.
-- **Ajustes da conferência:** não há task para eles de antemão; se vierem, entram como Task 9 no molde da Task 8 do
+- **Ajustes da conferência:** não havia task para eles de antemão; vieram (A1–A4, 2026-11-03) e entraram como Task 9, no molde da Task 8 do
   plano de front da Fase 4.
