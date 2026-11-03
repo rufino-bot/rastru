@@ -765,12 +765,12 @@ Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento
   listas que usam o `ItemComAcao`. As emendas estão na spec da fase, seções 6.1, 6.5 e 6.6. O usuário conferiu os
   quatro de novo no navegador e os **aprovou** (2026-11-03), e só então a review de branch foi despachada.
 - **Estado da fase (2026-11-03): implementada e revisada, falta o merge.** Os planos de backend (Tasks 1 a 12) e
-  de front (Tasks 1 a 9) estão implementados na branch `claude/brainstorm-fase-5-4otppt`, cada task com a sua
-  review: schema, regras puras, fechamento, aferição, conserto no chão de fábrica, liberação, remessa, estornos
-  compostos e leituras, a tela de Expedição e a das Liberações, e estes documentos. A conferência no navegador,
-  que é do usuário, foi feita em 2026-11-03, com os ajustes A1 a A4 aprovados. A **review de branch** inteira
-  foi feita no mesmo dia, e o fix wave dela está em curso (o aborto do `db/alter-fase-5a.sql` e o estado da fase
-  nestes documentos eram os dois pontos importantes). Falta o merge: ainda não há PR aberto.
+  de front (Tasks 1 a 7 e 9; a 8 é a conferência do usuário, e não é código) estão implementados na branch
+  `claude/brainstorm-fase-5-4otppt`, cada task de código com a sua review: schema, regras puras, fechamento,
+  aferição, conserto no chão de fábrica, liberação, remessa, estornos compostos e leituras, a tela de Expedição e a
+  das Liberações, e estes documentos. A conferência no navegador, que é do usuário, foi feita em 2026-11-03, com os
+  ajustes A1 a A4 aprovados. A **review de branch** inteira foi feita no mesmo dia e consertada. Falta o merge:
+  ainda não há PR aberto.
 - Critério de pronto: a Qualidade tem uma tela com o que está no local de expedição, por Pedido e por prazo, e nela
   afere, conta as não conformes, manda para conserto, pede liberação e expede; a Gestão vê as liberações pendentes e
   libera ou recusa; o conserto anda pelo chão como as outras entregas; cada remessa registra quantas unidades de

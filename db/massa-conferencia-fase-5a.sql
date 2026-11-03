@@ -8,7 +8,8 @@
 --     com DOIS Agrupamentos e quatro Pecas, todas ja no local de expedicao (posicao NaExpedicao):
 --
 --       AVULSO-01 (Avulso)
---         Placa de identificacao   CH-2200, 10, SEM relatorio          -> "Sem relatorio"
+--         Placa de identificacao   CH-2200, 10, SEM relatorio          -> sem pilula no cartao; so a opcao
+--                                                                         "Sem relatorio" do filtro de Afericao
 --         Chapa de fechamento      CH-2110,  6, exige relatorio        -> "Afericao pendente" (o fluxo conforme)
 --         CH-2150 (do catalogo)    CH-2150,  8, exige relatorio        -> descricao PROPRIA nula: o rotulo vem do
 --                                                                         Componente (o fluxo nao conforme)

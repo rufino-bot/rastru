@@ -182,7 +182,7 @@ Rastru é a pessoa da expedição, afere a Peça no local de expedição (uma un
 uma a uma), manda a não conforme para conserto ou pede à Gestão que a libere, e expede em remessas, com lote; o
 Rastru avisa e deixa expedir, e Peça, Agrupamento e Pedido concluem sozinhos. O backend e o front estão
 implementados na branch `claude/brainstorm-fase-5-4otppt`, com a conferência do usuário no navegador e a review
-de branch feitas em 2026-11-03; falta o merge (ainda não há PR aberto).
+de branch (já consertada) feitas em 2026-11-03; falta o merge (ainda não há PR aberto).
 
 A seguir vêm as Fases 5B e 5C — perda e reposição, com o retrabalho como ação separada e opcional; e as pontas do
 Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A Fase 3C (notificação push) fica depois

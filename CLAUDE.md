@@ -68,7 +68,7 @@ Kit que a 3B deixou), cada uma com spec, plano e PR próprios e **nesta ordem** 
 sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A está implementada e revisada, falta o merge** (spec
 `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`; os planos de backend e de
 front estão implementados na branch `claude/brainstorm-fase-5-4otppt`, a conferência no navegador foi feita pelo
-usuário em 2026-11-03 e a review de branch também, e o fix wave dela está em curso; ainda não há PR aberto); a 5B
+usuário em 2026-11-03 e a review de branch também, já consertada; ainda não há PR aberto); a 5B
 e a 5C ainda não têm spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
 real**.
 
