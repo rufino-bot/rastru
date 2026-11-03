@@ -41,15 +41,16 @@ type EntradaDoMenu =
  *
  * **Expedição e Liberações chegaram na Fase 5A** (spec da Fase 5A §6.6), e o menu passou de sete links a nove. A
  * largura que o cabeçalho pede **não foi medida** com os nove: a medição que este comentário pedia antes do nono
- * link fica para a conferência no navegador da fase (1024px, com o contador "Tarefas N").
+ * link fica para a conferência no navegador da fase (com o contador "Tarefas N").
  *
- * **Os nove não couberam, e o menu virou quatro entradas** (conferência da Fase 5A, 2026-11-03): o usuário viu, em
- * 1024px, o contador do "Tarefas" quebrar para a linha de baixo do rótulo. A saída é a que este comentário previa
- * lá em cima e a Fase 3 trocou pela troca barra → gaveta: agrupar. Produção (Fila, Tarefas, Separação), Expedição
- * (Expedição, Liberações) e Cadastros (Componentes, Materiais, Setores) são grupos que abrem e fecham; Pedidos fica
- * como link direto. A barra passa a ter quatro entradas, e não nove. A largura que o cabeçalho pede com as quatro
- * **não foi medida** com instrumento — fica para o usuário conferir no navegador, em 1024px, com o contador
- * "Tarefas N" (que aparece no botão "Produção" com o grupo fechado).
+ * **Os nove não couberam, e o menu virou quatro entradas** (conferência da Fase 5A, 2026-11-03): na captura da
+ * conferência, o contador do "Tarefas" caiu para a linha de baixo do rótulo (a largura da janela não ficou
+ * registrada). A saída é a que este comentário previa lá em cima e a Fase 3 trocou pela troca barra → gaveta:
+ * agrupar. Produção (Fila, Tarefas, Separação), Expedição (Expedição, Liberações) e Cadastros (Componentes,
+ * Materiais, Setores) são grupos que abrem e fecham; Pedidos fica como link direto. A barra passa a ter quatro
+ * entradas, e não nove. A largura que o cabeçalho pede com as quatro **não foi medida** com instrumento — fica
+ * para o usuário conferir no navegador, em 1024px (a largura em que a barra já ficou apertada na Fase 4), com o
+ * contador "Tarefas N" (que aparece no botão "Produção" com o grupo fechado).
  *
  * A marca é `Link`, não `NavLink`: a Home não é item do menu, então não ganha `aria-current` nem o
  * estilo de item ativo. Por isso nenhum item precisa mais do `end` que impedia `/` de casar com toda

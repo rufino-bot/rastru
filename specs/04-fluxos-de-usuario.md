@@ -186,7 +186,7 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    (regras 23 e 25). No topo da tela, **Kits montáveis** traz um cartão por pai, com o caminho,
    "Destino: {Setor} (início de {pai})", "Dá para levar N conjunto(s)" e cada filho com a origem
    ("de {Setor}, passo k", ou "já está em {Setor}" quando o filho terminou no próprio Setor do pai)
-   e a quantidade. A caixa **Levar** abre o campo **Conjuntos**, um inteiro de 1 a N que já vem com
+   e a quantidade. A caixa de levar o Kit (sem texto ao lado; o nome acessível é "Levar o Kit …") abre o campo **Conjuntos**, um inteiro de 1 a N que já vem com
    N, e a quantidade de cada filho acompanha o número digitado: o Movimentador escolhe quantos
    conjuntos leva, não quanto de cada filho. No fim da tela, **Kits incompletos**, recolhida e com
    a contagem no título, mostra o Kit que o pai ainda precisa receber mas que não fecha um conjunto, com o que cada filho

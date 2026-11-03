@@ -416,8 +416,10 @@ Base: o esboço aprovado (D10).
 - **Lote** (C9): seleção de Peças e `BarraDoLote` "Expedir", com a quantidade de cada uma; o aviso do D8
   vale por Peça. *Emenda de 2026-11-03 (a conferência da Fase 5A):* a caixa de lote do cartão não traz o texto
   "Marcar" ao lado (o nome acessível continua no `aria-label`); a área clicável é uma `CaixaDeLote`, com pelo
-  menos 44 × 44 px. O "Marcar todos" fica. O mesmo vale para a Fila do Setor e a Separação; nas Tarefas a caixa
-  usa a mesma primitiva e **mantém** o "Levar" visível, que é o verbo da ação e nunca foi "Marcar".
+  menos 44 × 44 px. O "Marcar todos" fica. O mesmo vale para a Fila do Setor e a Separação. *Segunda emenda do
+  mesmo dia:* nas Tarefas a caixa usa a mesma primitiva e **mantinha** o "Levar" visível (o verbo da ação, que nunca
+  foi "Marcar"); o usuário decidiu tirá-lo também (2026-11-03, "Sim, tire"), pela mesma repetição, e o nome
+  acessível ("Levar {nó}") ficou no `aria-label`. Nenhuma caixa de lote escreve texto ao lado.
 - Os três estados (carregando, vazio — distinguindo "nada no local de expedição" de "nada casa com o
   filtro" — e erro).
 
@@ -457,7 +459,7 @@ dimensional"; a edição dele (C14) entra onde a Peça é editada hoje.
 Entra "Expedição" (e "Liberações", se for tela própria). O menu já não tem "Início" desde a Fase 4.
 
 *Emenda de 2026-11-03 (a conferência da Fase 5A, pedido do usuário):* com os nove links, o cabeçalho não coube
-(em 1024px o contador do "Tarefas" quebrou para a linha de baixo do rótulo), e o menu passou a **quatro
+(na captura da conferência, o contador do "Tarefas" caiu para a linha de baixo do rótulo; a largura da janela não ficou registrada), e o menu passou a **quatro
 entradas, em grupos**: **Produção** (Fila, Tarefas, Separação), **Expedição** (Expedição, Liberações),
 **Pedidos** (link direto) e **Cadastros** (Componentes, Materiais, Setores). O padrão é o de *disclosure* de
 navegação: um `<button>` com `aria-expanded` e `aria-controls` que mostra e esconde uma lista de links, e **não**

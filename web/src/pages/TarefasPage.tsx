@@ -375,7 +375,6 @@ export function TarefasPage() {
                   acao={podeEntregar && (
                     <CaixaDeLote
                       nome={`Levar ${rotuloDoNo(tarefa.no)} ${complementoDoConserto(tarefa)}`}
-                      rotulo="Levar"
                       marcada={escolha !== undefined}
                       aoMudar={(m) => alternarConserto(tarefa, m)}
                     />
@@ -482,7 +481,6 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
               acao={podeEntregar && (
                 <CaixaDeLote
                   nome={`Levar ${rotuloDoNo(item.no)}`}
-                  rotulo="Levar"
                   marcada={escolha !== undefined}
                   desabilitada={travaOMarcar}
                   aoMudar={(m) => aoAlternar(chave, item, m)}

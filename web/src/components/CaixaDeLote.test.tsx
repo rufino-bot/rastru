@@ -46,16 +46,10 @@ describe('CaixaDeLote', () => {
     expect(classes).toContain('min-w-11')
   })
 
-  it('sem rótulo, não há texto visível ao lado da caixa', () => {
-    const { container } = render(<CaixaDeLote nome="Marcar Suporte" marcada={false} aoMudar={vi.fn()} />)
+  it('não há texto visível ao lado da caixa, e o nome acessível fica só no aria-label', () => {
+    const { container } = render(<CaixaDeLote nome="Levar Suporte" marcada={false} aoMudar={vi.fn()} />)
 
     expect(container.textContent).toBe('')
-  })
-
-  it('com rótulo, mostra o texto ao lado e o nome acessível continua o da tela', () => {
-    render(<CaixaDeLote nome="Levar Suporte" rotulo="Levar" marcada={false} aoMudar={vi.fn()} />)
-
-    expect(screen.getByText('Levar')).toBeTruthy()
     expect(screen.getByRole('checkbox', { name: 'Levar Suporte' })).toBeTruthy()
   })
 

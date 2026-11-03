@@ -34,7 +34,6 @@ export function CartaoDeKitMontavel({ kit, podeEntregar, conjuntos, aoAlternar, 
       acao={podeEntregar ? (
         <CaixaDeLote
           nome={`Levar o Kit ${rotuloDoNo(kit.pai)}`}
-          rotulo="Levar"
           marcada={conjuntos !== undefined}
           aoMudar={aoAlternar}
         />

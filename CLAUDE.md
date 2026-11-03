@@ -645,10 +645,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   **A `CaixaDeLote`** (`web/src/components/`, com teste próprio) é a caixa que põe uma linha no lote, e serve a
   Fila, as Tarefas, a Separação e o cartão da Peça da expedição. Ela é o `<label>` que envolve a caixa de 20 px, com
   **pelo menos 44 × 44 px** (`min-h-11 min-w-11`) de área de toque, e o `nome` vira o `aria-label`. **Não** escreve o
-  texto "Marcar" ao lado: ele saiu na conferência da Fase 5A (pedido do usuário, 2026-11-03), e o "Marcar todos" é
-  outro controle e fica. O `rotulo` é opcional, e as Tarefas o usam para o "Levar", que é o verbo da ação. Tela nova
+  texto "Marcar" nem o "Levar" ao lado: os dois saíram na conferência da Fase 5A (pedido do usuário, 2026-11-03; o
+  "Levar" das Tarefas ficou até a decisão posterior do mesmo dia, "Sim, tire"), e o "Marcar todos" é outro
+  controle e fica. A primitiva não tem prop de texto: o nome acessível é o único rótulo. Tela nova
   de lote usa a caixa, não escreve `<input type="checkbox">` com `<label>` à mão. Seis linhas de uso em cinco
-  arquivos (`grep -rn "<CaixaDeLote" web/src --include=*.tsx | grep -v "\.test\."`, medido em 2026-11-03; a
+  arquivos (`grep -rn "<CaixaDeLote" web/src --include=*.tsx | grep -v "\.test\."`, medido em 2026-11-03 e remedido no
+  mesmo dia, depois de tirar o "Levar", com o mesmo comando: as mesmas seis linhas em cinco arquivos; a
   `TarefasPage` tem duas, o item e o conserto, e o `CartaoDeKit`, da Tarefas, uma; a métrica é **linhas**).
 - **A separação de material** (Fase 4, spec
   `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md`) mora em `web/src/separacao/`: o

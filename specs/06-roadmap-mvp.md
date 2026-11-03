@@ -758,8 +758,9 @@ Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento
   nove links o cabeçalho não coube e o contador do "Tarefas" quebrou de linha; ficam **Produção** (Fila, Tarefas,
   Separação), **Expedição** (Expedição, Liberações), **Pedidos** e **Cadastros** (Componentes, Materiais,
   Setores), como *disclosure* de navegação, com o botão do grupo sendo a quinta exceção de chrome do `CLAUDE.md`;
-  (2) a **caixa de lote sem o texto "Marcar"**, na Fila do Setor, na Separação e no cartão da Peça, com área de
-  toque de 44 × 44 px (as Tarefas mantêm o "Levar", que é o verbo da ação); (3) o cartão da Peça **sem a pílula
+  (2) a **caixa de lote sem texto ao lado**, com área de toque de 44 × 44 px: sem o "Marcar" na Fila do Setor, na
+  Separação e no cartão da Peça, e, por decisão posterior do mesmo dia, sem o "Levar" nas Tarefas (o verbo da ação, que
+  o usuário também mandou tirar, 2026-11-03); (3) o cartão da Peça **sem a pílula
   "Sem relatório"** (a opção do filtro de Aferição fica); (4) os **botões de ação sempre à direita** em todas as
   listas que usam o `ItemComAcao`. As emendas estão na spec da fase, seções 6.1, 6.5 e 6.6. O usuário confere os
   quatro de novo no navegador antes da review de branch.

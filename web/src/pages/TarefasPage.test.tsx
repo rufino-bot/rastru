@@ -136,9 +136,9 @@ describe('TarefasPage', () => {
       .getByText('Destino: Local de expedição')).toBeTruthy()
   })
 
-  it('a caixa de cada item tem área de toque de pelo menos 44 px, e o "Levar" visível fica', async () => {
-    // As Tarefas nunca perderam o texto "Levar" (a conferência da Fase 5A tirou o "Marcar" das outras telas de
-    // lote); a área de toque é a do <label>, a mesma `CaixaDeLote` das outras.
+  it('a caixa de cada item não traz o texto "Levar" ao lado e tem área de toque de pelo menos 44 px', async () => {
+    // O texto visível "Levar" saiu (conferência da Fase 5A, 2026-11-03, como o "Marcar" das outras telas de lote); o
+    // nome acessível ficou no `aria-label`. A área de toque é a do <label>, a mesma `CaixaDeLote` das outras.
     vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
 
     renderizar()
@@ -147,9 +147,10 @@ describe('TarefasPage', () => {
     expect(caixas.length).toBeGreaterThan(0)
     for (const c of caixas) {
       const area = c.closest('label')!
-      expect(area.textContent, c.getAttribute('aria-label') ?? '').toBe('Levar')
+      expect(area.textContent, c.getAttribute('aria-label') ?? '').toBe('')
       expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
     }
+    expect(screen.queryByText('Levar')).toBeNull()
   })
 
   it('item de Pedido pausado mostra a pilula "Pausado" e continua marcavel (a pausa recusa so o Iniciar)', async () => {
