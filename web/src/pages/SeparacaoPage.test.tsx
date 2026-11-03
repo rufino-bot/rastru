@@ -336,6 +336,25 @@ describe('SeparacaoPage', () => {
       }
     })
 
+    it('a caixa do cartão não traz o texto "Marcar" ao lado e tem área de toque de pelo menos 44 px', async () => {
+      // O texto visível "Marcar" saiu (conferência da Fase 5A, 2026-11-03); o nome acessível ficou no `aria-label`. O
+      // "Marcar todos" é outro controle e fica.
+      vi.stubGlobal('fetch', montarFetch([[QUADRO, QUADRO_DO_PED_3, TAMPA]]).fetchMock)
+
+      renderizar()
+      await lista()
+
+      const caixas = screen.getAllByRole('checkbox', { name: /^Marcar/ })
+      expect(caixas.length).toBeGreaterThan(0)
+      for (const c of caixas) {
+        const area = c.closest('label')!
+        expect(area.textContent, c.getAttribute('aria-label') ?? '').toBe('')
+        expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+      }
+      expect(screen.queryByText('Marcar')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Marcar todos' })).toBeTruthy()
+    })
+
     it('marcar o cartão mostra um campo por material pendente, preenchido com a pendência, com o aviso neutro', async () => {
       vi.stubGlobal('fetch', montarFetch([[QUADRO, QUADRO_DO_PED_3, TAMPA]]).fetchMock)
 

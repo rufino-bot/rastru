@@ -41,6 +41,12 @@ beforeEach(() => {
   })
 })
 
+/** Abre um grupo da barra pelo botão dele (as opções só existem no DOM com o grupo aberto). */
+function abrirGrupoDaBarra(nome: string) {
+  const barra = screen.getByRole('navigation', { name: 'Principal' })
+  fireEvent.click(within(barra).getByRole('button', { name: new RegExp(`^${nome}`) }))
+}
+
 function renderizarShell(rotaInicial = '/') {
   return render(
     <MemoryRouter initialEntries={[rotaInicial]}>
@@ -81,7 +87,13 @@ describe('AppShell', () => {
   })
 
   it('leva a todas as áreas do sistema', () => {
+    // Na gaveta os grupos abrem juntos; é o jeito de ter todas as opções na tela ao mesmo tempo.
     renderizarShell()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    const menu = screen.getByRole('navigation', { name: 'Menu' })
+    for (const grupo of ['Produção', 'Expedição', 'Cadastros']) {
+      fireEvent.click(within(menu).getByRole('button', { name: new RegExp(`^${grupo}`) }))
+    }
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
     for (const d of ['/', '/fila', '/tarefas', '/separacao', '/expedicao', '/liberacoes', '/pedidos', '/componentes', '/materiais', '/setores']) {
@@ -112,7 +124,7 @@ describe('AppShell', () => {
     expect(screen.getByRole('button', { name: 'Abrir menu' })).toBeTruthy()
   })
 
-  it('o menu tem Separação para todo perfil', () => {
+  it('o grupo Produção tem Separação para todo perfil, logo depois de Tarefas', () => {
     // A leitura da lista de separação é livre; quem não separa vê a lista sem o botão (gating na ação).
     for (const perfil of ['Operador', 'Movimentador', 'Separador', 'PCP', 'Qualidade', 'Gestao', 'Administrador']) {
       vi.mocked(useAuth).mockReturnValue({
@@ -121,6 +133,7 @@ describe('AppShell', () => {
         logout,
       })
       renderizarShell()
+      abrirGrupoDaBarra('Produção')
 
       const barra = screen.getByRole('navigation', { name: 'Principal' })
       const separacao = within(barra).getByRole('link', { name: 'Separação' })
@@ -132,7 +145,7 @@ describe('AppShell', () => {
     }
   })
 
-  it('o menu tem Expedição e Liberações para todo perfil, depois de Separação', () => {
+  it('o grupo Expedição tem Expedição e Liberações para todo perfil, nesta ordem', () => {
     // A leitura das duas telas é livre; quem não registra nem responde vê a lista sem o botão (gating na ação).
     for (const perfil of ['Operador', 'Movimentador', 'Separador', 'PCP', 'Qualidade', 'Gestao', 'Administrador']) {
       vi.mocked(useAuth).mockReturnValue({
@@ -141,14 +154,13 @@ describe('AppShell', () => {
         logout,
       })
       renderizarShell()
+      abrirGrupoDaBarra('Expedição')
 
       const barra = screen.getByRole('navigation', { name: 'Principal' })
       expect(within(barra).getByRole('link', { name: 'Expedição' }).getAttribute('href'), perfil).toBe('/expedicao')
       expect(within(barra).getByRole('link', { name: 'Liberações' }).getAttribute('href'), perfil).toBe('/liberacoes')
       const rotulos = within(barra).getAllByRole('link').map((l) => l.textContent)
-      const separacao = rotulos.indexOf('Separação')
-      expect(rotulos.indexOf('Expedição'), perfil).toBe(separacao + 1)
-      expect(rotulos.indexOf('Liberações'), perfil).toBe(separacao + 2)
+      expect(rotulos.indexOf('Liberações'), perfil).toBe(rotulos.indexOf('Expedição') + 1)
       cleanup()
     }
   })
@@ -157,6 +169,7 @@ describe('AppShell', () => {
     // Decisão do usuário em 2026-08-06: gating vai na AÇÃO, não no link. O PCP não escreve em
     // Setores nem Materiais, mas LÊ os dois — e a Fase 4 depende disso para o Separador.
     renderizarShell()
+    abrirGrupoDaBarra('Cadastros')
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
     expect(destinos).toContain('/setores')
@@ -165,6 +178,7 @@ describe('AppShell', () => {
 
   it('marca o item da tela atual', () => {
     renderizarShell('/setores')
+    abrirGrupoDaBarra('Cadastros')
 
     const atual = screen.getAllByRole('link').find((l) => l.getAttribute('aria-current') === 'page')
     expect(atual?.getAttribute('href')).toBe('/setores')
@@ -176,6 +190,7 @@ describe('AppShell', () => {
     // verde. Asserção token a token, não `toContain` de string — a lição da Task 5, onde
     // `toContain('bg-acao')` casava com `hover:bg-acao-fundo`.
     renderizarShell('/setores')
+    abrirGrupoDaBarra('Cadastros')
 
     const links = screen.getAllByRole('link')
     const atual = links.find((l) => l.getAttribute('aria-current') === 'page')!
@@ -228,6 +243,7 @@ describe('AppShell', () => {
     renderizarShell()
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Menu' })).getByRole('button', { name: 'Cadastros' }))
     const linkDaGaveta = screen.getAllByRole('link').filter((l) => l.getAttribute('href') === '/setores')
     fireEvent.click(linkDaGaveta[linkDaGaveta.length - 1])
 
@@ -339,12 +355,14 @@ describe('AppShell', () => {
     vi.mocked(contarTarefas).mockResolvedValue(3)
 
     renderizarShell()
+    abrirGrupoDaBarra('Produção')
 
     expect(await screen.findByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
   })
 
   it('sem tarefa, o item Tarefas não mostra "0"', async () => {
     renderizarShell()
+    abrirGrupoDaBarra('Produção')
 
     await waitFor(() => expect(contarTarefas).toHaveBeenCalled())
     expect(screen.getByRole('link', { name: 'Tarefas' })).toBeTruthy()
@@ -354,6 +372,7 @@ describe('AppShell', () => {
     vi.mocked(contarTarefas).mockRejectedValue(new TypeError('Failed to fetch'))
 
     renderizarShell()
+    abrirGrupoDaBarra('Produção')
 
     await waitFor(() => expect(contarTarefas).toHaveBeenCalled())
     expect(screen.queryByRole('alert')).toBeNull()
@@ -365,6 +384,7 @@ describe('AppShell', () => {
     vi.mocked(contarTarefas).mockResolvedValueOnce(1).mockResolvedValueOnce(4)
 
     renderizarShell()
+    abrirGrupoDaBarra('Produção')
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(screen.getByRole('link', { name: 'Tarefas 1' })).toBeTruthy()
 
@@ -380,6 +400,7 @@ describe('AppShell', () => {
     vi.mocked(contarTarefas).mockResolvedValueOnce(1).mockResolvedValueOnce(0)
 
     renderizarShell()
+    abrirGrupoDaBarra('Produção')
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(screen.getByRole('link', { name: 'Tarefas 1' })).toBeTruthy()
 
@@ -409,6 +430,7 @@ describe('AppShell', () => {
     vi.mocked(contarTarefas).mockResolvedValueOnce(3).mockRejectedValueOnce(new TypeError('Failed to fetch'))
 
     renderizarShell()
+    abrirGrupoDaBarra('Produção')
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(screen.getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
 
@@ -435,5 +457,219 @@ describe('AppShell', () => {
     const botaoDoMenu = screen.getByRole('button', { name: 'Abrir menu' }).className.split(/\s+/)
     expect(botaoDoMenu).toContain('lg:hidden')
     expect(semVarianteMd(botaoDoMenu)).toBe(true)
+  })
+})
+
+describe('AppShell — menu em grupos', () => {
+  const barra = () => screen.getByRole('navigation', { name: 'Principal' })
+  const gaveta = () => screen.getByRole('navigation', { name: 'Menu' })
+  const botaoDoGrupo = (nav: HTMLElement, nome: string | RegExp) => within(nav).getByRole('button', { name: nome })
+  const nomesDosLinks = (nav: HTMLElement) => within(nav).queryAllByRole('link').map((l) => l.textContent)
+
+  it('a barra tem quatro entradas, nesta ordem: Produção, Expedição, Pedidos e Cadastros', () => {
+    renderizarShell()
+
+    const entradas = [...barra().querySelectorAll('button, a')].map((e) => e.textContent)
+    expect(entradas).toEqual(['Produção▾', 'Expedição▾', 'Pedidos', 'Cadastros▾'])
+    // Pedidos é link direto; os outros três são grupos.
+    expect(within(barra()).getByRole('link', { name: 'Pedidos' }).getAttribute('href')).toBe('/pedidos')
+  })
+
+  it('o grupo nasce fechado: aria-expanded falso e nenhuma opção na tela', () => {
+    renderizarShell()
+
+    for (const nome of ['Produção', 'Expedição', 'Cadastros']) {
+      expect(botaoDoGrupo(barra(), nome).getAttribute('aria-expanded'), nome).toBe('false')
+    }
+    expect(nomesDosLinks(barra())).toEqual(['Pedidos'])
+  })
+
+  it('abre e fecha o grupo por clique, e as opções vêm na ordem', () => {
+    renderizarShell()
+
+    const producao = botaoDoGrupo(barra(), 'Produção')
+    fireEvent.click(producao)
+
+    expect(producao.getAttribute('aria-expanded')).toBe('true')
+    const lista = document.getElementById(producao.getAttribute('aria-controls')!)!
+    expect(within(lista).getAllByRole('link').map((l) => l.textContent)).toEqual(['Fila', 'Tarefas', 'Separação'])
+
+    fireEvent.click(producao)
+    expect(producao.getAttribute('aria-expanded')).toBe('false')
+    expect(within(barra()).queryByRole('link', { name: 'Fila' })).toBeNull()
+  })
+
+  it('Expedição e Cadastros trazem as opções certas, na ordem', () => {
+    renderizarShell()
+
+    fireEvent.click(botaoDoGrupo(barra(), 'Expedição'))
+    expect(nomesDosLinks(barra())).toEqual(['Expedição', 'Liberações', 'Pedidos'])
+    expect(within(barra()).getByRole('link', { name: 'Liberações' }).getAttribute('href')).toBe('/liberacoes')
+
+    fireEvent.click(botaoDoGrupo(barra(), 'Cadastros'))
+    expect(nomesDosLinks(barra())).toEqual(['Pedidos', 'Componentes', 'Materiais', 'Setores'])
+  })
+
+  it('na barra, um grupo aberto por vez', () => {
+    renderizarShell()
+
+    fireEvent.click(botaoDoGrupo(barra(), 'Produção'))
+    fireEvent.click(botaoDoGrupo(barra(), 'Cadastros'))
+
+    expect(botaoDoGrupo(barra(), 'Produção').getAttribute('aria-expanded')).toBe('false')
+    expect(botaoDoGrupo(barra(), 'Cadastros').getAttribute('aria-expanded')).toBe('true')
+    expect(within(barra()).queryByRole('link', { name: 'Fila' })).toBeNull()
+  })
+
+  it('Esc fecha o grupo e devolve o foco ao botão dele', () => {
+    renderizarShell()
+
+    const producao = botaoDoGrupo(barra(), 'Produção')
+    fireEvent.click(producao)
+    const fila = within(barra()).getByRole('link', { name: 'Fila' })
+    fila.focus()
+    expect(document.activeElement).toBe(fila)
+
+    fireEvent.keyDown(fila, { key: 'Escape' })
+
+    expect(producao.getAttribute('aria-expanded')).toBe('false')
+    expect(document.activeElement).toBe(producao)
+  })
+
+  it('clicar fora da barra fecha o grupo', () => {
+    renderizarShell()
+
+    const producao = botaoDoGrupo(barra(), 'Produção')
+    fireEvent.click(producao)
+    fireEvent.pointerDown(screen.getByText('conteúdo da home'))
+
+    expect(producao.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('clicar no próprio botão do grupo aberto o fecha, sem fechar e reabrir', () => {
+    renderizarShell()
+
+    const producao = botaoDoGrupo(barra(), 'Produção')
+    fireEvent.click(producao)
+
+    // O clique real é pointerdown e depois click: o "fora" não pode contar o botão como fora.
+    fireEvent.pointerDown(producao)
+    fireEvent.click(producao)
+
+    expect(producao.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('fecha o grupo ao navegar por uma das opções', () => {
+    renderizarShell()
+
+    fireEvent.click(botaoDoGrupo(barra(), 'Cadastros'))
+    fireEvent.click(within(barra()).getByRole('link', { name: 'Setores' }))
+
+    expect(screen.getByText('conteúdo de setores')).toBeTruthy()
+    expect(botaoDoGrupo(barra(), 'Cadastros').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('o botão do grupo da rota atual tem o destaque do link ativo; os outros, não', () => {
+    renderizarShell('/setores')
+
+    const atual = botaoDoGrupo(barra(), 'Cadastros').className.split(/\s+/)
+    expect(atual).toContain('bg-chrome-ativo')
+    expect(atual).toContain('text-superficie')
+    expect(atual).toContain('font-semibold')
+
+    const outro = botaoDoGrupo(barra(), 'Produção').className.split(/\s+/)
+    expect(outro).not.toContain('bg-chrome-ativo')
+    expect(outro).not.toContain('font-semibold')
+    expect(outro).toContain('text-chrome-tinta-fraca')
+  })
+
+  it('o botão do grupo tem o anel de foco "marca", como os links do menu', () => {
+    renderizarShell()
+
+    expect(botaoDoGrupo(barra(), 'Produção').className.split(/\s+/)).toContain('focus-visible:outline-marca')
+  })
+
+  it('na gaveta, o grupo da rota atual vem aberto e os outros fechados', () => {
+    renderizarShell('/setores')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    expect(botaoDoGrupo(gaveta(), 'Cadastros').getAttribute('aria-expanded')).toBe('true')
+    expect(botaoDoGrupo(gaveta(), 'Produção').getAttribute('aria-expanded')).toBe('false')
+    expect(botaoDoGrupo(gaveta(), 'Expedição').getAttribute('aria-expanded')).toBe('false')
+    expect(nomesDosLinks(gaveta())).toEqual(['Pedidos', 'Componentes', 'Materiais', 'Setores'])
+  })
+
+  it('na gaveta, sem rota de grupo (Home), todos os grupos vêm fechados', () => {
+    renderizarShell('/')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    expect(nomesDosLinks(gaveta())).toEqual(['Pedidos'])
+  })
+
+  it('na gaveta, mais de um grupo pode ficar aberto ao mesmo tempo', () => {
+    renderizarShell('/setores')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    fireEvent.click(botaoDoGrupo(gaveta(), 'Produção'))
+
+    expect(botaoDoGrupo(gaveta(), 'Produção').getAttribute('aria-expanded')).toBe('true')
+    expect(botaoDoGrupo(gaveta(), 'Cadastros').getAttribute('aria-expanded')).toBe('true')
+    expect(nomesDosLinks(gaveta())).toContain('Fila')
+    expect(nomesDosLinks(gaveta())).toContain('Setores')
+  })
+
+  it('reabrir a gaveta depois de navegar abre o grupo da rota nova', () => {
+    renderizarShell('/pedidos')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+    fireEvent.click(screen.getByText('link do conteúdo'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    expect(botaoDoGrupo(gaveta(), 'Cadastros').getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('o contador aparece no botão Produção com o grupo fechado, e só na opção Tarefas com ele aberto', async () => {
+    vi.mocked(contarTarefas).mockResolvedValue(3)
+    renderizarShell()
+
+    const fechado = await within(barra()).findByRole('button', { name: 'Produção 3' })
+    expect(fechado.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(fechado)
+
+    const aberto = botaoDoGrupo(barra(), 'Produção')
+    expect(aberto.getAttribute('aria-expanded')).toBe('true')
+    expect(within(aberto).queryByText('3')).toBeNull()
+    expect(within(barra()).getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+  })
+
+  it('sem tarefa, o botão Produção não mostra "0"', async () => {
+    renderizarShell()
+
+    await waitFor(() => expect(contarTarefas).toHaveBeenCalled())
+    expect(botaoDoGrupo(barra(), 'Produção').textContent).not.toContain('0')
+  })
+
+  it('na gaveta o contador segue a mesma regra do grupo fechado e aberto', async () => {
+    vi.mocked(contarTarefas).mockResolvedValue(3)
+    renderizarShell('/')
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
+
+    const fechado = await within(gaveta()).findByRole('button', { name: 'Produção 3' })
+    fireEvent.click(fechado)
+
+    expect(botaoDoGrupo(gaveta(), 'Produção').getAttribute('aria-expanded')).toBe('true')
+    expect(within(gaveta()).getByRole('link', { name: 'Tarefas 3' })).toBeTruthy()
+    expect(within(botaoDoGrupo(gaveta(), 'Produção')).queryByText('3')).toBeNull()
+  })
+
+  it('rótulo e contador ficam na mesma linha: o botão do grupo e o link não quebram', async () => {
+    vi.mocked(contarTarefas).mockResolvedValue(3)
+    renderizarShell()
+
+    const botao = await within(barra()).findByRole('button', { name: 'Produção 3' })
+    expect(botao.className.split(/\s+/)).toContain('whitespace-nowrap')
+    fireEvent.click(botao)
+    expect(within(barra()).getByRole('link', { name: 'Tarefas 3' }).className.split(/\s+/)).toContain('whitespace-nowrap')
   })
 })

@@ -25,6 +25,7 @@ import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
 import { FormularioDeQuantidade } from '../execucao/FormularioDeQuantidade'
 import { ListaDeEstornaveis } from '../execucao/ListaDeEstornaveis'
 import type { EstadoDaEscolhaDeSetor } from './FilaPage'
+import { CaixaDeLote } from '../components/CaixaDeLote'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { EstadoCarregando } from '../components/EstadoCarregando'
@@ -431,17 +432,12 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
     const travada = lote !== null && lote.secao !== linha.secao
     return {
       caixa: (
-        <label className="flex items-center gap-2 text-sm text-tinta">
-          <input
-            type="checkbox"
-            checked={marcado}
-            disabled={!marcado && (linha.bloqueio !== null || travada)}
-            onChange={(e) => doLote.aoAlternar(linha, e.target.checked)}
-            aria-label={nome}
-            className="size-5 accent-acao"
-          />
-          Marcar
-        </label>
+        <CaixaDeLote
+          nome={nome}
+          marcada={marcado}
+          desabilitada={!marcado && (linha.bloqueio !== null || travada)}
+          aoMudar={(m) => doLote.aoAlternar(linha, m)}
+        />
       ),
       campo: marcado && (
         <CampoDoLote linha={linha} texto={lote.quantidades[chave]} aoMudar={(t) => doLote.aoDigitar(chave, t)} />

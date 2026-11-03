@@ -136,6 +136,22 @@ describe('TarefasPage', () => {
       .getByText('Destino: Local de expedição')).toBeTruthy()
   })
 
+  it('a caixa de cada item tem área de toque de pelo menos 44 px, e o "Levar" visível fica', async () => {
+    // As Tarefas nunca perderam o texto "Levar" (a conferência da Fase 5A tirou o "Marcar" das outras telas de
+    // lote); a área de toque é a do <label>, a mesma `CaixaDeLote` das outras.
+    vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
+
+    renderizar()
+
+    const caixas = await screen.findAllByRole('checkbox', { name: /^Levar/ })
+    expect(caixas.length).toBeGreaterThan(0)
+    for (const c of caixas) {
+      const area = c.closest('label')!
+      expect(area.textContent, c.getAttribute('aria-label') ?? '').toBe('Levar')
+      expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    }
+  })
+
   it('item de Pedido pausado mostra a pilula "Pausado" e continua marcavel (a pausa recusa so o Iniciar)', async () => {
     const pausa = { desde: '2026-09-28T10:14:00-03:00', porUsuarioNome: 'PCP', motivo: 'PED-9 urgente' }
     vi.stubGlobal('fetch', montarFetch([tarefas([
@@ -1147,6 +1163,15 @@ describe('TarefasPage — conserto (Fase 5A)', () => {
 
     const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
     expect(titulos.slice(0, 3)).toEqual(['Conserto', 'Kits montáveis', 'Em Corte'])
+  })
+
+  it('a caixa do conserto também tem a área de toque de 44 px', async () => {
+    vi.stubGlobal('fetch', montarFetch([comConserto([IDA])]).fetchMock)
+
+    renderizar()
+
+    const area = (await screen.findByLabelText('Levar SUP-01 — Suporte ao conserto em Dobra')).closest('label')!
+    expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
   })
 
   it('entregar um conserto manda a origem AguardandoConserto com o Setor e sem ordem', async () => {

@@ -15,6 +15,7 @@ import {
 import { itemDeEntregaDoConserto } from '../execucao/loteDaFila'
 import { useSelecaoNaUrl } from '../hooks/useSelecaoNaUrl'
 import { usePermissoesDaExecucao } from '../execucao/usePermissoesDaExecucao'
+import { CaixaDeLote } from '../components/CaixaDeLote'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
 import { EstadoCarregando } from '../components/EstadoCarregando'
@@ -372,16 +373,12 @@ export function TarefasPage() {
                 <ItemComAcao
                   key={chaveDoConserto(tarefa)}
                   acao={podeEntregar && (
-                    <label className="flex items-center gap-2 text-sm text-tinta">
-                      <input
-                        type="checkbox"
-                        checked={escolha !== undefined}
-                        onChange={(e) => alternarConserto(tarefa, e.target.checked)}
-                        aria-label={`Levar ${rotuloDoNo(tarefa.no)} ${complementoDoConserto(tarefa)}`}
-                        className="size-5 accent-acao"
-                      />
-                      Levar
-                    </label>
+                    <CaixaDeLote
+                      nome={`Levar ${rotuloDoNo(tarefa.no)} ${complementoDoConserto(tarefa)}`}
+                      rotulo="Levar"
+                      marcada={escolha !== undefined}
+                      aoMudar={(m) => alternarConserto(tarefa, m)}
+                    />
                   )}
                   painel={escolha && (
                     <EscolhaDoConserto tarefa={tarefa} escolha={escolha} aoMudar={(q) => mudarConserto(tarefa, q)} />
@@ -483,17 +480,13 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
             <ItemComAcao
               key={chave}
               acao={podeEntregar && (
-                <label className="flex items-center gap-2 text-sm text-tinta">
-                  <input
-                    type="checkbox"
-                    checked={escolha !== undefined}
-                    disabled={travaOMarcar}
-                    onChange={(e) => aoAlternar(chave, item, e.target.checked)}
-                    aria-label={`Levar ${rotuloDoNo(item.no)}`}
-                    className="size-5 accent-acao"
-                  />
-                  Levar
-                </label>
+                <CaixaDeLote
+                  nome={`Levar ${rotuloDoNo(item.no)}`}
+                  rotulo="Levar"
+                  marcada={escolha !== undefined}
+                  desabilitada={travaOMarcar}
+                  aoMudar={(m) => aoAlternar(chave, item, m)}
+                />
               )}
               painel={escolha && <EscolhaDoItem item={item} escolha={escolha} aoMudar={(p) => aoMudar(chave, p)} />}
             >

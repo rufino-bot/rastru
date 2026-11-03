@@ -91,12 +91,15 @@ describe('CartaoDaPeca', () => {
     expect(within(cartao()).queryByRole('list', { name: 'Contagem das unidades' })).toBeNull()
   })
 
-  it('a Peça sem relatório mostra só a pílula "Sem relatório"', () => {
+  it('a Peça sem relatório não mostra pílula nenhuma ao lado do nome', () => {
+    // A opção "Sem relatório" da faceta Aferição do filtro continua; só o cartão não carrega a marca da ausência.
     renderizar(pecaNaExpedicao({ requerRelatorioDimensional: false, situacao: 'SemRelatorio' }))
 
-    expect(within(cartao()).getByText('Sem relatório')).toBeTruthy()
+    expect(within(cartao()).queryByText('Sem relatório')).toBeNull()
     expect(within(cartao()).queryByText('Exige relatório')).toBeNull()
     expect(within(cartao()).queryByText('Aferição pendente')).toBeNull()
+    // O nome é o único filho da linha do título: nenhuma Pilula ao lado dele.
+    expect(within(cartao()).getByText('QD-01 — Quadro').parentElement!.children).toHaveLength(1)
   })
 
   it('"aqui" é o local de expedição inteiro, sem o conserto', () => {
@@ -154,10 +157,6 @@ describe('CartaoDaPeca', () => {
 
     renderizar(pecaNaExpedicao())
     expect(tom('Aferição pendente')).not.toMatch(/positivo|negativo|atencao|atraso/)
-    cleanup()
-
-    renderizar(pecaNaExpedicao({ requerRelatorioDimensional: false, situacao: 'SemRelatorio' }))
-    expect(tom('Sem relatório')).not.toMatch(/positivo|negativo|atencao|atraso/)
   })
 
   it('a liberação em aberto aparece no cartão, em texto neutro', () => {
@@ -337,6 +336,17 @@ describe('CartaoDaPeca', () => {
       fireEvent.click(within(cartao()).getByRole('checkbox', { name: 'Marcar QD-01 — Quadro (PED-1)' }))
 
       expect(aoMarcar).toHaveBeenCalledWith(true)
+    })
+
+    it('a caixa não traz o texto "Marcar" ao lado e tem área de toque de pelo menos 44 px', () => {
+      // O texto visível saiu (conferência da Fase 5A, 2026-11-03); o nome acessível ficou no `aria-label`.
+      renderizar(NAO_CONFORME, { lote: lote() })
+
+      const caixa = within(cartao()).getByRole('checkbox', { name: 'Marcar QD-01 — Quadro (PED-1)' })
+      const area = caixa.closest('label')!
+      expect(area.textContent).toBe('')
+      expect(within(cartao()).queryByText('Marcar')).toBeNull()
+      expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
     })
 
     it('a Peça sem nada a expedir não tem caixa', () => {

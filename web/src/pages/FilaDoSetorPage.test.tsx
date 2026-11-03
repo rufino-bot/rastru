@@ -1618,6 +1618,23 @@ describe('FilaDoSetorPage — lote (desvios D7 a D12 do plano 2 dos filtros)', (
     expect(screen.getByText('EX-01 — Eixo')).toBeTruthy()
   })
 
+  it('a caixa do lote não traz o texto "Marcar" ao lado e tem área de toque de pelo menos 44 px', async () => {
+    // O texto visível "Marcar" saiu (conferência da Fase 5A, 2026-11-03); o nome acessível ficou no `aria-label`. Sem o
+    // texto, a área clicável é a do <label>, declarada em `min-h-11 min-w-11`. "Marcar todos" é outro controle e fica.
+    vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)
+
+    renderizar()
+    await screen.findByRole('checkbox', { name: MARCAR_SUPORTE })
+
+    for (const caixa of screen.getAllByRole('checkbox')) {
+      const area = caixa.closest('label')!
+      expect(area.textContent, caixa.getAttribute('aria-label') ?? '').toBe('')
+      expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    }
+    expect(screen.queryByText('Marcar')).toBeNull()
+    expect(screen.getAllByRole('button', { name: /Marcar todos/ }).length).toBeGreaterThan(0)
+  })
+
   it('quem nao aponta nao ve checkbox nem Marcar todos', async () => {
     perfil = 'Movimentador'
     vi.stubGlobal('fetch', montarFetch([FILA_CHEIA]).fetchMock)

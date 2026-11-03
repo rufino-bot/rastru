@@ -97,6 +97,13 @@ describe('CartaoDeKitMontavel', () => {
     expect((screen.getByRole('checkbox', { name: 'Levar o Kit CH-01 — Chassi' }) as HTMLInputElement).checked).toBe(false)
   })
 
+  it('a caixa do Kit tem área de toque de pelo menos 44 px', () => {
+    montavel()
+
+    const area = screen.getByRole('checkbox', { name: 'Levar o Kit CH-01 — Chassi' }).closest('label')!
+    expect(area.className.split(/\s+/)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+  })
+
   it('marcar chama aoAlternar(true); desmarcar, aoAlternar(false)', () => {
     const { aoAlternar } = montavel()
 

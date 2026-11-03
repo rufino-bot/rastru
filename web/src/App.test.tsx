@@ -33,7 +33,9 @@ describe('App', () => {
     render(<MemoryRouter initialEntries={['/expedicao']}><App /></MemoryRouter>)
     expect(await screen.findByRole('heading', { level: 1, name: 'Expedição' })).toBeTruthy()
 
+    // O link está no grupo Expedição do menu, que nasce fechado.
     const barra = screen.getByRole('navigation', { name: 'Principal' })
+    fireEvent.click(within(barra).getByRole('button', { name: 'Expedição' }))
     fireEvent.click(within(barra).getByRole('link', { name: 'Liberações' }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Liberações' })).toBeTruthy()

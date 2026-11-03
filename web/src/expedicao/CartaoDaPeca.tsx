@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from 'react'
 import type { PecaNaExpedicaoDto, PosicoesDaPecaDto } from '../api/expedicao'
 import { formatarDataHora, type SetorDto } from '../api/cadastros'
 import { Botao } from '../components/Botao'
+import { CaixaDeLote } from '../components/CaixaDeLote'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Pilula, type TomDePilula } from '../components/Pilula'
 import { formatarQuantidade, rotuloDoNo } from '../execucao/formatacao'
@@ -60,8 +61,9 @@ const noLocal = (p: PosicoesDaPecaDto) => somar(p.naExpedicao, p.conforme, p.nao
 const medidas = (p: PosicoesDaPecaDto) => somar(p.conforme, p.naoConforme, p.aguardandoLiberacao, p.liberada, p.emConserto)
 
 /**
- * Cor (seção 6.5 da spec da Fase 5A): "Conforme" é aprovação e "Não conforme" é reprovação; "Aferição pendente",
- * "Exige relatório" e "Sem relatório" não são nenhuma das duas, e ficam neutras.
+ * Cor (seção 6.5 da spec da Fase 5A): "Conforme" é aprovação e "Não conforme" é reprovação; "Aferição pendente" e
+ * "Exige relatório" não são nenhuma das duas, e ficam neutras. A Peça sem relatório não ganha pílula (conferência da Fase
+ * 5A, 2026-11-03): a opção "Sem relatório" do filtro de Aferição continua, mas o cartão não marca a ausência.
  */
 const TOM_DA_SITUACAO = { SemRelatorio: 'neutro', Pendente: 'neutro', Conforme: 'positivo', NaoConforme: 'negativo' } as const satisfies Record<PecaNaExpedicaoDto['situacao'], TomDePilula>
 
@@ -174,17 +176,12 @@ export function CartaoDaPeca({ peca, pedidoNumero, setores, aoRegistrar, lote, r
   const acao: ReactNode = (caixa || botoesVisiveis.length > 0) ? (
     <>
       {caixa && (
-        <label className="flex items-center gap-2 text-sm text-tinta">
-          <input
-            type="checkbox"
-            checked={lote.marcado}
-            onChange={(e) => lote.aoMarcar(e.target.checked)}
-            disabled={lote.desabilitado}
-            aria-label={`Marcar ${nome}`}
-            className="size-5 accent-acao"
-          />
-          Marcar
-        </label>
+        <CaixaDeLote
+          nome={`Marcar ${nome}`}
+          marcada={lote.marcado}
+          aoMudar={lote.aoMarcar}
+          desabilitada={lote.desabilitado}
+        />
       )}
       {botoesVisiveis.map((a) => (
         <Botao
@@ -239,7 +236,7 @@ export function CartaoDaPeca({ peca, pedidoNumero, setores, aoRegistrar, lote, r
     >
       <span className="flex flex-wrap items-center gap-2 font-medium text-tinta">
         <span ref={titulo} tabIndex={-1}>{rotuloDoNo(peca)}</span>
-        <Pilula>{peca.requerRelatorioDimensional ? 'Exige relatório' : 'Sem relatório'}</Pilula>
+        {peca.requerRelatorioDimensional && <Pilula>Exige relatório</Pilula>}
         {peca.situacao !== 'SemRelatorio' && (
           <Pilula tom={TOM_DA_SITUACAO[peca.situacao]}>{ROTULOS_DA_AFERICAO[peca.situacao]}</Pilula>
         )}
