@@ -175,18 +175,17 @@ Concluídas até aqui:
   consertados antes do merge, e o resto ficou como dívida (entre elas, a receita padrão ainda recusa material
   inativo já gravado, como a spec da fase registra na emenda de 2026-10-20 do `PUT /estrutura/{id}/materiais`).
   Mesclada na `main` pelo PR #34, em 2026-10-20.
+- **Fase 5A:** aferição, expedição e fechamento (spec
+  `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`). A Qualidade, que no
+  Rastru é a pessoa da expedição, afere a Peça no local de expedição (uma unidade decide o lote; reprovada, mede-se
+  uma a uma), manda a não conforme para conserto ou pede à Gestão que a libere, e expede em remessas, com lote; o
+  Rastru avisa e deixa expedir, e Peça, Agrupamento e Pedido concluem sozinhos. A conferência do usuário no
+  navegador e a review de branch foram feitas em 2026-11-03; a conferência trouxe o menu em grupos (Produção,
+  Expedição, Pedidos, Cadastros). Mesclada na `main` pelo PR #35, em 2026-11-03.
 
-**Em execução: Fase 5A** — aferição, expedição e fechamento (desenho aprovado em 2026-10-20, na spec
-`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`). A Qualidade, que no
-Rastru é a pessoa da expedição, afere a Peça no local de expedição (uma unidade decide o lote; reprovada, mede-se
-uma a uma), manda a não conforme para conserto ou pede à Gestão que a libere, e expede em remessas, com lote; o
-Rastru avisa e deixa expedir, e Peça, Agrupamento e Pedido concluem sozinhos. O backend e o front estão
-implementados na branch `claude/brainstorm-fase-5-4otppt`, com a conferência do usuário no navegador e a review
-de branch (já consertada) feitas em 2026-11-03; falta o merge (ainda não há PR aberto).
-
-A seguir vêm as Fases 5B e 5C — perda e reposição, com o retrabalho como ação separada e opcional; e as pontas do
-Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A Fase 3C (notificação push) fica depois
-da Fase 5, como o roadmap declara.
+**Próxima: Fase 5B** — perda e reposição, com o retrabalho como ação separada e opcional, ainda sem spec. Depois
+dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A
+Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).
