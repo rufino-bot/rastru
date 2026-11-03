@@ -2,8 +2,8 @@ namespace Rastreamento.Domain.Entities;
 
 /// <summary>
 /// A medicao de uma Peca depois de uma afericao nao conforme (D4 da spec da Fase 5A, secao 3.3): "medi 6,
-/// 4 conformes e 2 nao". SO INCLUSAO. As duas linhas `Medicao` do livro apontam esta contagem
-/// (`Movimentacao.ContagemId`), e estorna-se a contagem inteira (C17).
+/// 4 conformes e 2 nao". SO INCLUSAO. As linhas `Medicao` do livro (uma por resultado diferente de zero, ate duas) apontam
+/// esta contagem (`Movimentacao.ContagemId`), e estorna-se a contagem inteira (C17).
 /// </summary>
 public class ContagemDimensional
 {

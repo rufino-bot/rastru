@@ -81,7 +81,7 @@ public sealed class EstornoUseCase
 
   /// <summary>
   /// A linha de um registro composto se estorna com ele inteiro, pela rota dele (C17 da spec da Fase 5A): a
-  /// contagem (as duas linhas `Medicao`), a liberacao (o pedido ou a resposta) e a remessa (C8). Nula quando a
+  /// contagem (as linhas `Medicao`, uma por resultado diferente de zero, ate duas), a liberacao (o pedido ou a resposta) e a remessa (C8). Nula quando a
   /// linha nao pertence a nenhum.
   /// </summary>
   private static string? RecusaDeRegistroComposto(Movimentacao original) => original switch

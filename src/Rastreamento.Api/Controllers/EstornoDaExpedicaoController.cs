@@ -45,7 +45,7 @@ public class EstornoDaExpedicaoController : ExecucaoControllerBase
     return Traduzir(await _estorno.EstornarAfericao(id, usuarioId, EhPcpOuAdministrador(), ct), criado: true);
   }
 
-  /// <summary>Estorna a contagem inteira (C17): as duas linhas `Medicao`, de volta a `NaExpedicao`.</summary>
+  /// <summary>Estorna a contagem inteira (C17): as linhas `Medicao` (uma por resultado diferente de zero, até duas), de volta a `NaExpedicao`.</summary>
   [HttpPost("contagens/{id:int}/estorno")]
   [Authorize(Roles = PerfisDeEscrita)]
   public async Task<IActionResult> EstornarContagem(int id, CancellationToken ct)

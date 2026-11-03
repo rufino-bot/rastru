@@ -476,9 +476,9 @@ CREATE TABLE dbo.Remessa (
     CONSTRAINT FK_Remessa_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id)
 );
 
--- Medicao de uma Peca depois de uma afericao nao conforme (D4): "medi 6, 4 conformes e 2 nao". As duas
--- linhas Tipo = 'Medicao' do livro apontam esta contagem (Movimentacao.ContagemId); estorna-se a
--- contagem inteira (C17).
+-- Medicao de uma Peca depois de uma afericao nao conforme (D4): "medi 6, 4 conformes e 2 nao". As linhas
+-- Tipo = 'Medicao' do livro (uma por resultado diferente de zero, ate duas) apontam esta contagem
+-- (Movimentacao.ContagemId); estorna-se a contagem inteira (C17).
 CREATE TABLE dbo.ContagemDimensional (
     Id               INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId  INT                 NOT NULL, -- a Peca medida (NivelHierarquico = 'Peca')

@@ -48,9 +48,9 @@ type EntradaDoMenu =
  * registrada). A saída é a que este comentário previa lá em cima e a Fase 3 trocou pela troca barra → gaveta:
  * agrupar. Produção (Fila, Tarefas, Separação), Expedição (Expedição, Liberações) e Cadastros (Componentes,
  * Materiais, Setores) são grupos que abrem e fecham; Pedidos fica como link direto. A barra passa a ter quatro
- * entradas, e não nove. A largura que o cabeçalho pede com as quatro **não foi medida** com instrumento — fica
- * para o usuário conferir no navegador, em 1024px (a largura em que a barra já ficou apertada na Fase 4), com o
- * contador "Tarefas N" (que aparece no botão "Produção" com o grupo fechado).
+ * entradas, e não nove. A largura que o cabeçalho pede com as quatro **não foi medida** com instrumento: o
+ * usuário conferiu o menu no navegador e o aprovou (2026-11-03), com o contador "Tarefas N" (que aparece no botão
+ * "Produção" com o grupo fechado).
  *
  * A marca é `Link`, não `NavLink`: a Home não é item do menu, então não ganha `aria-current` nem o
  * estilo de item ativo. Por isso nenhum item precisa mais do `end` que impedia `/` de casar com toda

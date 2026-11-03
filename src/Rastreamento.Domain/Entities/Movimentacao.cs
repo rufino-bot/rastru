@@ -23,8 +23,9 @@ public class Movimentacao
   public int? MontagemId { get; set; }
 
   /// <summary>
-  /// So na `Medicao` (e no estorno dela): a contagem a que a linha pertence. Uma contagem sao duas linhas
-  /// `Medicao`, e estorna-se a contagem inteira (C17 da spec da Fase 5A).
+  /// So na `Medicao` (e no estorno dela): a contagem a que a linha pertence. Uma contagem sao as linhas
+  /// `Medicao` (uma por resultado diferente de zero, ate duas), e estorna-se a contagem inteira (C17 da spec da
+  /// Fase 5A).
   /// </summary>
   public int? ContagemId { get; set; }
 

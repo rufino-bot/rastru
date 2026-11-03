@@ -154,7 +154,7 @@ function LinhaDoNo({
               exercitava (MEDIDO ao ler `ArvoreDeEstrutura.test.tsx` e o brief desta task). Tom
               NEUTRO de propósito: verde/vermelho são reservados a aprovado/reprovado (a tela de
               Qualidade da Fase 5 vai dividir a linha com essa marca), e este rótulo é dado de
-              cadastro, não resultado de avaliação. Exibição apenas — editar continua fora (D4). */}
+              cadastro, não resultado de avaliação. Aqui é só exibição: a marca se edita no painel do nó (C14). */}
           {no.requerRelatorioDimensional && <Pilula tom="neutro">Requer relatório dimensional</Pilula>}
           {/* Pendência do PCP (spec §6.3, regra 28): sem Roteiro o nó não pode ser iniciado. Tom
               neutro, como toda marca de execução que não é aprovação nem perda (spec §6.4). */}

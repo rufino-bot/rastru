@@ -22,8 +22,8 @@ public sealed record AfericaoDto(
     int Id, string Resultado, DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada, bool Estornavel);
 
 /// <summary>
-/// Uma contagem da Peca: as duas linhas `Medicao` do livro que apontam para ela, numa linha so (C17 da spec da
-/// Fase 5A). `Estornada` e `Estornavel` como em <see cref="AfericaoDto"/>.
+/// Uma contagem da Peca: as linhas `Medicao` do livro que apontam para ela (uma por resultado diferente de zero, ate
+/// duas), numa linha so (C17 da spec da Fase 5A). `Estornada` e `Estornavel` como em <see cref="AfericaoDto"/>.
 /// </summary>
 public sealed record ContagemDto(
     int Id, decimal Conformes, decimal NaoConformes, DateTime DataHora, int UsuarioId, string UsuarioNome,

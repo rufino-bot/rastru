@@ -33,9 +33,11 @@ BEGIN
     IF @Linhas > 0
         THROW 50002, 'dbo.RelatorioDimensional tem linhas na forma antiga: migre-as a mao antes de rodar este script.', 1;
 END
-GO
 
-/* 2. As tabelas antigas saem (a avaliacao primeiro: ela aponta o cabecalho) ------------------------------ */
+/* 2. As tabelas antigas saem (a avaliacao primeiro: ela aponta o cabecalho) ------------------------------
+   No MESMO lote do aborto, de proposito: o THROW encerra so o lote em que esta, e com os DROP num lote
+   a parte (depois de um GO) o script, rodado sem sqlcmd -b ou pelo SSMS, apagaria a tabela com linhas que
+   o aborto existe para proteger. Assim o aborto vale com ou sem -b, como no da Fase 4. */
 IF OBJECT_ID('dbo.RelatorioDimensionalAvaliacao', 'U') IS NOT NULL
     DROP TABLE dbo.RelatorioDimensionalAvaliacao;
 IF OBJECT_ID('dbo.RelatorioDimensional', 'U') IS NOT NULL AND COL_LENGTH('dbo.RelatorioDimensional', 'Tipo') IS NULL

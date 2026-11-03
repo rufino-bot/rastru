@@ -33,7 +33,7 @@ export interface AfericaoDto {
   estornavel: boolean
 }
 
-/** Uma contagem: as duas linhas `Medicao` do livro que apontam para ela, numa só (C17). */
+/** Uma contagem: as linhas `Medicao` do livro que apontam para ela (uma por resultado diferente de zero, até duas), numa só (C17). */
 export interface ContagemDto {
   id: number
   conformes: number

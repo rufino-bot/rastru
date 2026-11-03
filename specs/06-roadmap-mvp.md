@@ -700,7 +700,7 @@ Spec: `docs/superpowers/specs/2026-10-16-fase-4-separacao-de-materiais-design.md
   de branch inteira foi feita**: os dois problemas que ela apontou como bloqueantes e parte dos menores foram
   consertados antes do merge, e o resto ficou como dívida (entre elas, a receita padrão ainda recusa material
   inativo já gravado, como a spec da fase registra na emenda de 2026-10-20 do `PUT /estrutura/{id}/materiais`).
-  A próxima da sequência é a Fase 5 (partida em 5A, 5B e 5C em 2026-10-20; a 5A está em execução); a 3C fica
+  A próxima da sequência é a Fase 5 (partida em 5A, 5B e 5C em 2026-10-20; a 5A está implementada e revisada, falta o merge); a 3C fica
   depois dela.
 - Critério de pronto: dá para saber quais materiais já foram separados/entregues para cada item em
   fabricação; o Separador tem uma lista do que falta levar para cada nó, só do material do almoxarifado,
@@ -762,13 +762,15 @@ Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento
   Separação e no cartão da Peça, e, por decisão posterior do mesmo dia, sem o "Levar" nas Tarefas (o verbo da ação, que
   o usuário também mandou tirar, 2026-11-03); (3) o cartão da Peça **sem a pílula
   "Sem relatório"** (a opção do filtro de Aferição fica); (4) os **botões de ação sempre à direita** em todas as
-  listas que usam o `ItemComAcao`. As emendas estão na spec da fase, seções 6.1, 6.5 e 6.6. O usuário confere os
-  quatro de novo no navegador antes da review de branch.
-- **Estado da fase (2026-10-21): em execução.** O plano de backend está implementado na branch
-  `claude/brainstorm-fase-5-4otppt` — schema, regras puras, fechamento, aferição, conserto no chão de fábrica,
-  liberação, remessa, estornos compostos e leituras — e estes documentos. Faltam o **plano de front**, a
-  **conferência no navegador, que é do usuário**, e a review de branch, que só é despachada depois dela (regra do
-  usuário de 2026-10-07, no `CLAUDE.md`).
+  listas que usam o `ItemComAcao`. As emendas estão na spec da fase, seções 6.1, 6.5 e 6.6. O usuário conferiu os
+  quatro de novo no navegador e os **aprovou** (2026-11-03), e só então a review de branch foi despachada.
+- **Estado da fase (2026-11-03): implementada e revisada, falta o merge.** Os planos de backend (Tasks 1 a 12) e
+  de front (Tasks 1 a 9) estão implementados na branch `claude/brainstorm-fase-5-4otppt`, cada task com a sua
+  review: schema, regras puras, fechamento, aferição, conserto no chão de fábrica, liberação, remessa, estornos
+  compostos e leituras, a tela de Expedição e a das Liberações, e estes documentos. A conferência no navegador,
+  que é do usuário, foi feita em 2026-11-03, com os ajustes A1 a A4 aprovados. A **review de branch** inteira
+  foi feita no mesmo dia, e o fix wave dela está em curso (o aborto do `db/alter-fase-5a.sql` e o estado da fase
+  nestes documentos eram os dois pontos importantes). Falta o merge: ainda não há PR aberto.
 - Critério de pronto: a Qualidade tem uma tela com o que está no local de expedição, por Pedido e por prazo, e nela
   afere, conta as não conformes, manda para conserto, pede liberação e expede; a Gestão vê as liberações pendentes e
   libera ou recusa; o conserto anda pelo chão como as outras entregas; cada remessa registra quantas unidades de

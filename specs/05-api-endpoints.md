@@ -167,7 +167,7 @@ mesmo status HTTP para coisas diferentes.
   `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31). Cada item traz
   também `dataEntrega` (`"aaaa-mm-dd"`, sem hora nem fuso) e `atrasado` (regra 33, calculado no
   servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`. Desde a Fase 5A cada
-  item traz também `dataConclusao` (UTC, como `dataAbertura`): a data da escrita que concluiu o Pedido, nula
+  item traz também `dataConclusao` (horário de Brasília, com o offset -03:00, como `dataAbertura`): a data da escrita que concluiu o Pedido, nula
   enquanto ele não conclui e limpa quando o estorno de uma remessa o reabre (regra 13; decisão P8 do plano de
   backend da Fase 5A). Os status `AguardandoExpedicao` e `Concluido`, que o filtro já oferecia, passam a ser
   gravados pela expedição.
