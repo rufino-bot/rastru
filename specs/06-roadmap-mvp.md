@@ -780,7 +780,18 @@ Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento
 
 ### Fase 5B — Perda e reposição
 
-Spec ainda por escrever. Executa depois da 5A, que foi mesclada em 2026-11-03: é a próxima da sequência.
+Executa depois da 5A, que foi mesclada em 2026-11-03: é a próxima da sequência. **Partida em duas em 2026-11-04**
+(decisão do usuário), cada uma com spec, plano e PR, nesta ordem:
+
+- **5B-1 — Perda e descarte**: a perda, o descarte da sobra e do que saiu do projeto, o "Descartar tudo" do Pedido e
+  do Agrupamento, o "matar" da não conforme e o fechamento com o perdido. Fecha o item obrigatório antes do primeiro
+  uso real. Spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md` (aprovada em 2026-11-04);
+  planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `docs/superpowers/plans/2026-11-04-fase-5b1-front.md`.
+- **5B-2 — Reposição**: o Pedido de Retrabalho, o nó pronto, a reposição da perda que impede montar e o vínculo com a
+  reclamação do cliente e com a peça morta. Sem spec.
+
+A lista abaixo é o escopo da 5B inteira, como foi escrito antes da partição; a seção 1 da spec da 5B-1 diz o que fica
+em cada parte. A Task 9 do plano de backend reescreve esta seção quando a 5B-1 for mesclada.
 
 - Registro de `Perda`, de Peça e — desde 2026-09-15 — também de Item; a perda ganha o motivo `Descarte` (regra 17
   de `01`).

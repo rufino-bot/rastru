@@ -68,7 +68,10 @@ Kit que a 3B deixou), cada uma com spec, plano e PR próprios e **nesta ordem** 
 sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi concluída e mesclada em 2026-11-03
 (rufino-bot/rastru#35; spec
 `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`); a próxima da sequência é a
-**5B**, e a 5B e a 5C ainda não têm spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
+**5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
+descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
+planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`, a executar) e **5B-2**
+(reposição: Pedido de Retrabalho e nó pronto; sem spec). A 5C ainda não tem spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
 real**.
 
 ## Como este projeto executa plano — o gate de review não é opcional
