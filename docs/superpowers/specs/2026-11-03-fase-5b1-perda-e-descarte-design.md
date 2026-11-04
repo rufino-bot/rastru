@@ -4,7 +4,7 @@ Data: 2026-11-03. Branch: `claude/happy-wright-14yv9r`, a partir da `main` em `b
 usuário em chat, numa sessão de nuvem de 2026-11-03, com um esboço das telas (página privada, fora do repositório:
 https://claude.ai/artifact/8L2ur2ErzMMHufFznVMiFn). As decisões do usuário são D1–D13 (seção 2); as chamadas
 do desenho, que o usuário confere ao ler, são C1–C27. O builder check (um revisor lendo a spec como quem vai planejar)
-levantou oito perguntas: duas viraram D12 e D13, respondidas pelo usuário em 2026-11-04, e seis viraram C22 a C27.
+levantou oito perguntas: duas viraram D12 e D13, respondidas pelo usuário em 2026-11-04, e seis viraram C22 a C27. O documento escrito foi **aprovado pelo usuário em 2026-11-04**.
 
 **Ponto de partida.** A seção «Fase 5B — Perda e reposição» de `specs/06-roadmap-mvp.md` junta dois assuntos.
 O usuário aprovou dividi-la em duas specs, cada uma com plano e PR próprios, **nesta ordem** (D1):
