@@ -58,16 +58,23 @@ public class BaixaUseCaseTests
   }
 
   [Fact]
-  public async Task Descartar_o_Pedido_trava_todos_os_nos_das_Pecas_em_ordem_e_depois_o_Pedido_antes_de_gravar()
+  public async Task Descartar_o_Pedido_trava_a_uniao_das_arvores_em_ordem_de_Id_e_depois_o_Pedido_antes_de_gravar()
   {
-    var (c, baixa) = Cenario();
-    // Uma segunda Peca no mesmo Agrupamento, com Id menor que parte da primeira arvore nao importa: a ordem e a de Id.
-    c.No(5, null, 3m, null, Solda);
+    // Duas Pecas cujas arvores se entrelacam por Id: a primeira tem os nos 1, 3 e 4; a segunda, 2 e 5. Uma
+    // concatenacao arvore a arvore daria 1,3,4,2,5; a ordem pedida e a da uniao, crescente de Id.
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda);
+    c.No(3, 1, 20m, 2m, Corte);
+    c.No(4, 1, 10m, 1m, Dobra);
+    c.No(2, null, 3m, null, Solda);
+    c.No(5, 2, 3m, 1m, Corte);
+    var baixa = new BaixaUseCase(c.Execucao, new FakeBaixaRepo(c.Execucao, c.Estruturas), c.Estruturas, c.Catalogo);
 
     var r = await baixa.DescartarPedido(PedidoId, new DescarteDto(null), Qualidade, Ct);
 
     Assert.True(r.Sucesso, r.Detalhe);
-    Assert.Equal(new[] { "nos:1,2,3,4,5", "pedidos:1,5", "save" }, c.Execucao.Eventos.Take(3));
+    Assert.Equal(new[] { "nos:1,2,3,4,5", "pedidos:1,2", "save" }, c.Execucao.Eventos.Take(3));
+    // O Pedido e lido depois da trava dele (a ordem que evita o deadlock em `PK_Pedido`).
     Assert.True(c.Execucao.PedidoLidoAposEventos[0] >= 2);
   }
 

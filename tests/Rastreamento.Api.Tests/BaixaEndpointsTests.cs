@@ -551,11 +551,12 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   /// Uma Peca nova no Agrupamento do cenario, copiada do catalogo (sem descricao propria), no Corte, com
   /// `quantidade` unidades levadas ate o local de expedicao; `expedir` as remete todas.
   /// </summary>
-  private static async Task<int> PecaNaExpedicaoAsync(CenarioDaFase3NaApi c, decimal quantidade, bool expedir = false)
+  private static async Task<int> PecaNaExpedicaoAsync(
+      CenarioDaFase3NaApi c, decimal quantidade, bool expedir = false, int? componenteId = null)
   {
     var pcp = c.Como(c.Pcp);
     var criada = await pcp.PostAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}/estrutura",
-        new { componenteId = c.ComponenteId, quantidade, requerRelatorioDimensional = true });
+        new { componenteId = componenteId ?? c.ComponenteId, quantidade, requerRelatorioDimensional = true });
     await Garantir(criada);
     var peca = (await CorpoAsync(criada)).GetProperty("id").GetInt32();
     await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{peca}/roteiro", new { passos = new[] { c.Corte } }));
@@ -567,9 +568,9 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   /// <summary>Uma Peca com `unidades` aguardando liberacao: nao conforme, contada e pedida a liberacao.</summary>
-  private static async Task PecaAguardandoLiberacaoAsync(CenarioDaFase3NaApi c, decimal unidades)
+  private static async Task PecaAguardandoLiberacaoAsync(CenarioDaFase3NaApi c, decimal unidades, int? componenteId = null)
   {
-    var peca = await PecaNaExpedicaoAsync(c, 6m);
+    var peca = await PecaNaExpedicaoAsync(c, 6m, componenteId: componenteId);
     var qualidade = c.Como(c.Qualidade);
     await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
     await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 6m - unidades, naoConformes = unidades }));
@@ -615,6 +616,47 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     {
       await outro.DisposeAsync();
       throw;
+    }
+  }
+
+  /// <summary>
+  /// Um segundo Componente do catalogo, de outra descricao, para a Peca que precisa de nome proprio na frase. Declare-o
+  /// ANTES do cenario: ele sai por ultimo, depois dos nos que o apontam.
+  /// </summary>
+  private sealed class OutroComponente(WebApplicationFactory<Program> factory) : IAsyncDisposable
+  {
+    public int Id { get; private set; }
+    private int _arquivoId;
+
+    /// <summary>Com solido proprio (regra 18), do `admin` do seed: o autor sobrevive ao cenario, que apaga os usuarios dele antes.</summary>
+    public async Task CriarAsync(string descricao)
+    {
+      using var escopo = factory.Services.CreateScope();
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var arquivo = new Rastreamento.Domain.Entities.ArquivoDeComponente
+      {
+        NomeOriginal = "cubo.stl", Conteudo = StlDeTesteDaApi.CuboBinario(), CriadoPorUsuarioId = 1,
+      };
+      db.ArquivosDeComponente.Add(arquivo);
+      await db.SaveChangesAsync();
+      _arquivoId = arquivo.Id;
+      var componente = new Rastreamento.Domain.Entities.Componente
+      {
+        Codigo = $"f3b-{Guid.NewGuid():N}"[..16], Descricao = descricao, Tipo = "Fabricado", Ativo = true,
+        ArquivoSolidoId = arquivo.Id,
+      };
+      db.Componentes.Add(componente);
+      await db.SaveChangesAsync();
+      Id = componente.Id;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+      if (Id == 0) return;
+      using var escopo = factory.Services.CreateScope();
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Componente WHERE Id = {Id}");
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.ArquivoDeComponente WHERE Id = {_arquivoId}");
     }
   }
 
@@ -705,9 +747,11 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Descartar_tudo_com_aguardando_liberacao_e_LiberacaoEmAberto_nomeando_a_Peca()
   {
+    await using var outroComponente = new OutroComponente(_factory);
     await using var c = await CriarAsync(_factory);
+    await outroComponente.CriarAsync("Suporte do descarte");
     await PecaAguardandoLiberacaoAsync(c, 2m);
-    await PecaAguardandoLiberacaoAsync(c, 1m);
+    await PecaAguardandoLiberacaoAsync(c, 1m, outroComponente.Id);
 
     foreach (var rota in new[]
     {
@@ -717,9 +761,9 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     {
       var (status, erro, mensagem) = await RecusaAsync(await c.Como(c.Qualidade).PostAsJsonAsync(rota, new { }));
       Assert.Equal((HttpStatusCode.Conflict, "LiberacaoEmAberto"), (status, erro));
-      // Todas as Pecas presas na mesma recusa (C15), nomeadas pelo Componente (regra 19).
+      // Todas as Pecas presas na mesma recusa (C15), cada uma pelo nome do seu Componente (regra 19).
       Assert.Equal(
-          "Há unidades aguardando liberação em Chassi da Fase 3, Chassi da Fase 3: "
+          "Há unidades aguardando liberação em Chassi da Fase 3, Suporte do descarte: "
           + "estorne os pedidos de liberação antes de descartar tudo.", mensagem);
     }
     Assert.Equal(0, await PerdasDoPedidoAsync(c));
@@ -740,6 +784,31 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
       Assert.Equal("O Agrupamento não tem nada em produção para descartar.", mensagem);
     }
     Assert.Equal(1, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_de_Pedido_sem_nenhuma_Peca_e_NadaEmProducao()
+  {
+    await using var c = await CriarAsync(_factory);
+    var vazio = await c.Como(c.Pcp).PostAsJsonAsync("/api/pedidos",
+        new { numero = $"f3v-{Guid.NewGuid():N}"[..14], cliente = "Cliente F3", dataEntrega = "2099-12-31" });
+    await Garantir(vazio);
+    var pedidoVazio = (await CorpoAsync(vazio)).GetProperty("id").GetInt32();
+    try
+    {
+      foreach (var rota in new[] { $"/api/pedidos/{pedidoVazio}/descarte", $"/api/pedidos/{pedidoVazio}/descarte/previa" })
+      {
+        var (status, erro, mensagem) = await RecusaAsync(await c.Como(c.Qualidade).PostAsJsonAsync(rota, new { }));
+        Assert.Equal((HttpStatusCode.Conflict, "NadaEmProducao"), (status, erro));
+        Assert.Equal("O Pedido não tem nada em produção para descartar.", mensagem);
+      }
+    }
+    finally
+    {
+      using var escopo = _factory.Services.CreateScope();
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {pedidoVazio}");
+    }
   }
 
   [Fact]
