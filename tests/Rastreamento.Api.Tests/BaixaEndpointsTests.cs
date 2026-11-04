@@ -13,7 +13,7 @@ namespace Rastreamento.Api.Tests;
 /// <summary>
 /// A baixa de um no (secoes 4.1 a 4.6 e 5.1 a 5.4 da spec da Fase 5B-1) no cenario da Fase 3: Peca A (10, copiada do
 /// catalogo, sem descricao propria, "Chassi da Fase 3"; Solda -> Pintura), B (20, razao 2, "Suporte"; Corte) e C (10,
-/// razao 1, "Calço"; Dobra). Toda frase que nomeia um no usa A ou um no copiado do catalogo. Toda asserção escopada
+/// razao 1, "Calço"; Dobra). Toda frase que nomeia um no usa A ou um no copiado do catalogo. Toda assercao escopada
 /// nos nos e no Pedido do cenario.
 /// </summary>
 public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
@@ -251,7 +251,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     var resposta = await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", corpo);
 
     Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
-    // As 2 de A saem de "a iniciar", e por C6 as 2 de C que elas pediam saem junto (decisao P10 do plano de backend).
+    // As 2 de A saem de "a iniciar", e por C6 as 2 de C que elas pediam saem junto (decisao P10 do plano de backend da Fase 5B-1).
     Assert.Equal([(c.B, "NoSetor", 4m), (c.A, "AIniciar", 2m), (c.C, "AIniciar", 2m)], Linhas(await CorpoAsync(resposta)));
     Assert.Equal(1, await PerdasDoPedidoAsync(c));
     Assert.Equal(2m, await SaldoAsync(c, c.A, "Perdido"));
