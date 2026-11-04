@@ -27,18 +27,21 @@ internal sealed class FechamentoDoPedido(IExecucaoRepository execucao)
         .ToDictionary(g => g.Key, g => CalculoDaExpedicao.Posicoes(
             g.Select(s => (new Local(s.Posicao, s.SetorId, s.Ordem), s.Quantidade))));
 
+    var comInicio = await execucao.ListarPedidosComInicioAsync(status.Keys.ToList(), ct);
+
     foreach (var (pedidoId, statusAtual) in status)
     {
       var doPedido = pecas.Where(p => p.PedidoId == pedidoId)
           .Select(p => NoFechamento(p, saldos.GetValueOrDefault(p.PecaId)))
           .ToList();
-      var fechamento = CalculoDoFechamento.Calcular(pedidoId, statusAtual, doPedido);
-      // `Aberto`, `Cancelado` e o Pedido sem Peca (C16) voltam iguais e sem Agrupamento: nada a gravar.
+      var fechamento = CalculoDoFechamento.Calcular(pedidoId, statusAtual, comInicio.Contains(pedidoId), doPedido);
+      // `Cancelado` e o Pedido sem Peca (C16) voltam iguais e sem Agrupamento: nada a gravar.
       if (fechamento.Status == statusAtual && fechamento.Agrupamentos.Count == 0) continue;
       await execucao.GravarFechamentoAsync(fechamento, agora, ct);
     }
   }
 
   private static PecaNoFechamento NoFechamento(PecaDoPedido p, PosicoesDaPeca? posicoes) =>
-      new(p.PecaId, p.AgrupamentoId, p.Quantidade, posicoes?.Expedido ?? 0m, posicoes?.NoLocalDeExpedicao ?? 0m);
+      new(p.PecaId, p.AgrupamentoId, p.Quantidade, posicoes?.Expedido ?? 0m, posicoes?.NoLocalDeExpedicao ?? 0m,
+          posicoes?.Perdido ?? 0m);
 }

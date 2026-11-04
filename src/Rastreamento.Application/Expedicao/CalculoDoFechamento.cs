@@ -3,11 +3,12 @@ using Rastreamento.Domain.Abstractions;
 namespace Rastreamento.Application.Expedicao;
 
 /// <summary>
-/// Uma Peca do Pedido no que o fechamento precisa: a quantidade do no, o expedido e o que esta no local de
-/// expedicao (<see cref="PosicoesDaPeca.NoLocalDeExpedicao"/>, as cinco posicoes; o conserto nao conta).
+/// Uma Peca do Pedido no que o fechamento precisa: a quantidade do no, o expedido, o perdido (a baixa, Fase
+/// 5B-1) e o que esta no local de expedicao (<see cref="PosicoesDaPeca.NoLocalDeExpedicao"/>, as cinco
+/// posicoes; o conserto nao conta).
 /// </summary>
 public sealed record PecaNoFechamento(
-    int PecaId, int AgrupamentoId, decimal Quantidade, decimal Expedido, decimal NoLocalDeExpedicao);
+    int PecaId, int AgrupamentoId, decimal Quantidade, decimal Expedido, decimal NoLocalDeExpedicao, decimal Perdido);
 
 /// <summary>
 /// O status do Pedido e o fechamento pela regra 13 (C11, C12, C13 e C16 da spec da Fase 5A), puro: quem le
@@ -24,19 +25,25 @@ public static class CalculoDoFechamento
   private const string Cancelado = "Cancelado";
 
   /// <summary>
-  /// A Peca conclui com tudo expedido; o Agrupamento, com todas as Pecas dele; o Pedido, com todos os
+  /// A Peca conclui com tudo expedido ou perdido; o Agrupamento, com todas as Pecas dele; o Pedido, com todos os
   /// Agrupamentos que tem Peca (C16: so os que aparecem em <paramref name="pecas"/>). Sem concluir,
-  /// `AguardandoExpedicao` quando todo o nao expedido de cada Peca esta no local de expedicao (C11), senao
-  /// `EmProducao`.
+  /// `AguardandoExpedicao` quando todo o que nao saiu (nem expedido nem perdido) de cada Peca esta no local de
+  /// expedicao (C11), senao `EmProducao`.
   /// <para>
-  /// Nao mudam: o Pedido `Aberto` (o status so sai de `Aberto` pelo primeiro inicio, e nunca volta a ele),
-  /// o `Cancelado` (fica fora do fechamento) e o Pedido sem Peca nenhuma (C16: nao conclui). Nesses casos o
-  /// status volta igual e `Agrupamentos` vem vazio, para o repositorio nao tocar em nenhum.
+  /// O Pedido `Aberto` tambem conclui (C11 da spec da Fase 5B-1: o descarte de um Pedido que nunca iniciou). Sem
+  /// concluir, `Aberto` continua `Aberto` quando nenhum no dele teve inicio liquido (<paramref name="teveInicio"/>),
+  /// e o `Concluido` reaberto volta a `Aberto` nesse caso, ou a `EmProducao`/`AguardandoExpedicao` quando houve
+  /// inicio (C23 da spec da Fase 5B-1; decisao P7 do plano de backend da Fase 5B-1).
+  /// </para>
+  /// <para>
+  /// Nao mudam: o `Cancelado` (fica fora do fechamento) e o Pedido sem Peca nenhuma (C16: nao conclui). Nesses
+  /// casos o status volta igual e `Agrupamentos` vem vazio, para o repositorio nao tocar em nenhum.
   /// </para>
   /// </summary>
-  public static FechamentoCalculado Calcular(int pedidoId, string statusAtual, IReadOnlyList<PecaNoFechamento> pecas)
+  public static FechamentoCalculado Calcular(
+      int pedidoId, string statusAtual, bool teveInicio, IReadOnlyList<PecaNoFechamento> pecas)
   {
-    if (statusAtual is Aberto or Cancelado || pecas.Count == 0)
+    if (statusAtual == Cancelado || pecas.Count == 0)
       return new FechamentoCalculado(pedidoId, statusAtual, statusAtual == Concluido, []);
 
     var agrupamentos = pecas
@@ -46,14 +53,15 @@ public static class CalculoDoFechamento
         .ToList();
 
     var status = agrupamentos.All(a => a.Concluido) ? Concluido
-        : pecas.All(TodoONaoExpedidoNoLocalDeExpedicao) ? AguardandoExpedicao
+        : !teveInicio && statusAtual is Aberto or Concluido ? Aberto
+        : pecas.All(TodoONaoSaidoNoLocalDeExpedicao) ? AguardandoExpedicao
         : EmProducao;
 
     return new FechamentoCalculado(pedidoId, status, status == Concluido, agrupamentos);
   }
 
-  private static bool PecaConcluida(PecaNoFechamento p) => p.Expedido >= p.Quantidade;
+  private static bool PecaConcluida(PecaNoFechamento p) => p.Expedido + p.Perdido >= p.Quantidade;
 
-  private static bool TodoONaoExpedidoNoLocalDeExpedicao(PecaNoFechamento p) =>
-      p.NoLocalDeExpedicao >= p.Quantidade - p.Expedido;
+  private static bool TodoONaoSaidoNoLocalDeExpedicao(PecaNoFechamento p) =>
+      p.NoLocalDeExpedicao >= p.Quantidade - p.Expedido - p.Perdido;
 }

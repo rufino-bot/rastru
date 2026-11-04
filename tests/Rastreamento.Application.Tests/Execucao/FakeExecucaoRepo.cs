@@ -362,6 +362,18 @@ public class FakeExecucaoRepo : IExecucaoRepository
           .GroupBy(m => m.EstruturaItemId)
           .ToDictionary(g => g.Key, g => g.Sum(m => m.Tipo == TiposDeMovimentacao.Perda ? m.Quantidade : -m.Quantidade)));
 
+  public Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    var estornados = Movimentacoes.Where(m => m.EstornoDeId != null).Select(m => m.EstornoDeId!.Value).ToHashSet();
+    var achados = Movimentacoes
+        .Where(m => m.Tipo == TiposDeMovimentacao.Inicio && !estornados.Contains(m.Id))
+        .Select(m => _estruturas.Itens.FirstOrDefault(i => i.Id == m.EstruturaItemId))
+        .Where(i => i is not null && Agrupamentos.TryGetValue(i.AgrupamentoId, out var ag) && pedidoIds.Contains(ag.PedidoId))
+        .Select(i => Agrupamentos[i!.AgrupamentoId].PedidoId)
+        .ToHashSet();
+    return Task.FromResult<IReadOnlySet<int>>(achados);
+  }
+
   public Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
       Task.FromResult<IReadOnlySet<int>>(SaidosDoProjeto.Where(ids.Contains).ToHashSet());
 

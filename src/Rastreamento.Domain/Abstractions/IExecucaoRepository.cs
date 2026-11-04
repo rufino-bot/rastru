@@ -143,6 +143,12 @@ public interface IExecucaoRepository
   /// </summary>
   Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
 
+  /// <summary>
+  /// Dos Pedidos pedidos, os que tem algum no com uma linha `Inicio` sem estorno apontando para ela (regra 14:
+  /// o inicio liquido de estorno; decisao P7 do plano de backend da Fase 5B-1). Pedido sem inicio nao aparece.
+  /// </summary>
+  Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
   Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct);
 
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct);

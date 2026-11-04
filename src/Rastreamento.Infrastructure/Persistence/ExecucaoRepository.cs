@@ -443,6 +443,21 @@ public class ExecucaoRepository : IExecucaoRepository
     return achados.ToHashSet();
   }
 
+  public async Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    if (pedidoIds.Count == 0) return new HashSet<int>();
+    var lista = pedidoIds.ToList();
+    // Inicio liquido de estorno: a linha `Inicio` que nenhuma linha aponta como estornada (a mesma definicao de
+    // `ListarRegistrosEstornaveisDoSetorAsync`).
+    var achados = await (from m in _db.Movimentacoes.AsNoTracking()
+                         join e in _db.Estruturas.AsNoTracking() on m.EstruturaItemId equals e.Id
+                         join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                         where m.Tipo == TiposDeMovimentacao.Inicio && lista.Contains(a.PedidoId)
+                               && !_db.Movimentacoes.Any(x => x.EstornoDeId == m.Id)
+                         select a.PedidoId).Distinct().ToListAsync(ct);
+    return achados.ToHashSet();
+  }
+
   public async Task<IReadOnlyList<(int EstruturaItemId, int Ordem)>> ListarPassosAlcancadosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct)
   {
