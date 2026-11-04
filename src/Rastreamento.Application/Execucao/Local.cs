@@ -18,6 +18,7 @@ public readonly record struct Local(string Posicao, int? SetorId, int? Ordem)
   public static Local AguardandoLiberacao => new(Posicoes.AguardandoLiberacao, null, null);
   public static Local Liberada => new(Posicoes.Liberada, null, null);
   public static Local Expedido => new(Posicoes.Expedido, null, null);
+  public static Local Perdido => new(Posicoes.Perdido, null, null);
   public static Local NoSetor(int setorId, int ordem) => new(Posicoes.NoSetor, setorId, ordem);
   public static Local AguardandoColeta(int setorId, int ordem) => new(Posicoes.AguardandoColeta, setorId, ordem);
   public static Local AguardandoMontagem(int setorId) => new(Posicoes.AguardandoMontagem, setorId, null);

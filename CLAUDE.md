@@ -1271,6 +1271,20 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5a.sql
 ```
 
+**Fase 5B-1 — `db/alter-fase-5b1.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em cinco blocos: o **aborto** (`THROW 50003`) se a `dbo.Perda` ainda na forma
+antiga (a que tem a coluna `MotivoPerda`) tiver alguma linha, em vez de descartar dado em silêncio; o `DROP` dela, só
+vazia, no mesmo lote do aborto; o `CREATE` da `dbo.Perda` nova, o registro da baixa, com `CK_Perda_Motivo` e
+`CK_Perda_Escopo`; a coluna `Movimentacao.PerdaId` com a FK `FK_Movimentacao_Perda` e o índice filtrado
+`IX_Movimentacao_Perda`; e as seis constraints do livro recriadas com a posição `Perdido` e o tipo `Perda` (`DROP` se
+existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5b1.sql sqlserver:/tmp/alter-fase-5b1.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5b1.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

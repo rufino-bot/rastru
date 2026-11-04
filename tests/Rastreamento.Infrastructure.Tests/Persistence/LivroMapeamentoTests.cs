@@ -186,7 +186,7 @@ public class LivroMapeamentoTests : TesteComBanco
     await AfirmarRecusaAsync(new Movimentacao
     {
       EstruturaItemId = c.PecaId, Tipo = TiposDeMovimentacao.Estorno, Quantidade = 1m, EstornoDeId = original,
-      OrigemPosicao = Posicoes.NoSetor, OrigemSetorId = c.SetorId, OrigemOrdem = 1, DestinoPosicao = "Perdido",
+      OrigemPosicao = Posicoes.NoSetor, OrigemSetorId = c.SetorId, OrigemOrdem = 1, DestinoPosicao = "Perdida",
       DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
     }, "CK_Movimentacao_DestinoPosicao", "CK_Movimentacao_DestinoCoerente");
   });
