@@ -71,8 +71,7 @@ sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi conc
 **5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
 descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
 planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
-de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-04:** o **backend está implementado** na branch
-`claude/compassionate-lamport-cig0qs` (a regra 38 de `specs/01`, as rotas de `specs/05`, o
+de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-04:** o **backend está implementado** na branch (a regra 38 de `specs/01`, as rotas de `specs/05`, o
 `db/alter-fase-5b1.sql`); **falta o front** (o módulo `web/src/baixas/`, que a seção «Interface» ainda **não**
 descreve, porque não existe), a conferência do usuário no navegador e a review de branch, e **nada foi mesclado**. A 5C
 ainda não tem spec, e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O
@@ -964,14 +963,17 @@ reconferir.
 A suíte do backend tem **1.878 testes** (medido em 2026-11-04, em `816e621`, **executando** a suíte inteira com
 `dotnet build Rastreamento.slnx -warnaserror` — 0 warnings, 0 erros — e `dotnet test Rastreamento.slnx -m:1`: 481
 (Api) + 1.083 (Application) + 314 (Infrastructure) = 1.878, todos passando, e 0 em Domain, que não tem teste algum; a
-métrica é a de testes executados, em que cada caso de `[Theory]` conta como um). Desde a medição anterior
-(2026-10-22, em `4a0fca4`: 414 + 1.036 + 286 = 1.736) entraram **142** testes (67 em Api, 47 em Application e 28 em
-Infrastructure), num intervalo que é o backend da Fase 5B-1; a origem dos testes não foi separada por commit. A do
+métrica é a de testes executados, em que cada caso de `[Theory]` conta como um). Contra a base da 5B-1 (`010198d`, medida
+executando no mesmo dia: 414 + 1.036 + 286 = 1.736), entraram **142** testes (67 em Api, 47 em Application e 28 em
+Infrastructure), que são o delta da 5B-1. A medição anterior do parágrafo (2026-10-22, em `4a0fca4`) não serve de
+base para isso: o intervalo até `816e621` inclui o fim da 5A. A do
 frontend tem **1.912 testes em 106 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run
 --maxWorkers=2`, em `web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz
-typecheck, e passou). A primeira execução do frontend nessa medição deu **1 teste vermelho de 1.912**, o `lembra o
-Setor cuja fila carregou` da `FilaDoSetorPage`, e o mesmo arquivo isolado passou 3 vezes em 3 e a suíte inteira, de
-novo, deu 1.912 de 1.912: o frontend desta fase só ganhou a entrada `baixa` de `permissoes.ts` e a linha do teste que a espelha, então é uma flutuação sob carga, **não investigada**. O "passa
+typecheck, e passou). Contra a medição de 2026-10-22 (1.878 em 105 arquivos) são +34 testes e +1 arquivo, que vêm da
+conferência da 5A e não da 5B-1; contra a base da 5B-1 (1.911 em 106) é +1 teste, a linha da entrada `baixa` em
+`permissoes.ts` espelhada pelo teste de espelhamento. Na primeira execução do frontend desta medição **1 de 1.912**
+ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
+segunda execução da suíte passou 1.912 de 1.912; causa não investigada. O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
 não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso

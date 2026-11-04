@@ -1273,7 +1273,7 @@ da Execução.
 - **`escopo`** é o que a baixa alcançou: `No` (o nó em que se clicou; as linhas podem ser dele, de descendentes e, por
   `incluirTopo`, da Peça do topo), `Agrupamento` ou `Pedido` (o "Descartar tudo").
 - **`estornavel`** é verdadeiro quando a baixa ainda não foi estornada e o leitor é o autor, o PCP ou o Administrador
-  (C8); a recusa por Pedido `Cancelado` fica com a escrita. `estornada` é calculado: existe `Estorno` apontando as
+  (C8), e é falso também quando o Pedido está `Cancelado`; a recusa 409 `PedidoFechado` continua na escrita. `estornada` é calculado: existe `Estorno` apontando as
   linhas.
 - **`viramSobra`** lista só a sobra que **a própria baixa cria** (o filho que continua fisicamente onde está depois da
   cascata C6), não a que já existia. **`travaNoTopo`** é calculado com a fórmula da seção 4.6 da spec em **todos os
@@ -1281,7 +1281,7 @@ da Execução.
   própria baixa trava), e é nulo quando não trava; `quantidade` é o que a perda trava na Peça do topo e `aIniciar` o que
   ela ainda tem a iniciar — a baixa leva `min` dos dois. A prévia devolve `travaNoTopo` na baixa de parte de um Item
   e na de tudo por perda (D14), e `null` com `Descarte` (o filho sai do projeto, C22).
-- A mesma baixa de nó na prévia e na escrita faz a **mesma conta** (decisão P4 do plano de backend da Fase 5B-1): a prévia
+- A mesma baixa de nó na prévia e na escrita faz a **mesma conta** (C14 da spec da Fase 5B-1): a prévia
   não é uma cópia da conta no cliente, ao contrário da `tiradaDaRemessa`.
 
 ### Contrato de erro das Baixas

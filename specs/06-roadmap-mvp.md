@@ -791,7 +791,7 @@ spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
 - **5B-2 — Reposição**: o Pedido de Retrabalho, o nó pronto, a reposição da perda que impede montar e o vínculo com a
   reclamação do cliente e com a peça morta. Sem spec.
 
-**Estado da 5B-1 (2026-11-04):** o **backend está implementado** na branch (`claude/compassionate-lamport-cig0qs`). Entrou: a posição
+**Estado da 5B-1 (2026-11-04):** o **backend está implementado** na branch. Entrou: a posição
 `Perdido` e o tipo `Perda` no livro, `dbo.Perda` reescrita como registro da baixa e a migração
 `db/alter-fase-5b1.sql`; a calculadora com o perdido de "a iniciar" e o "saiu do projeto" (regra 38; `FaltaMontar`
 desconta o perdido do pai e o filho descartado por inteiro sai da montagem); a conta pura da baixa (a cascata C6, a

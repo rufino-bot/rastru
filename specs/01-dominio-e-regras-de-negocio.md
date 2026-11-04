@@ -714,8 +714,8 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       saldo em produção do nó **e de todos os descendentes**, em todas as posições; o expedido e o montado dentro de
       um pai nunca saem. **Tudo de um Agrupamento ou de um Pedido** (D7, D8, o "Descartar tudo"): o "tudo" de cada
       Peça que ainda tem algo em produção, **numa baixa só**, sempre com motivo `Descarte`. Sem nada em produção a
-      tirar, 409 `NadaEmProducao`. O Pedido cancelado pelo cliente é descartado até concluir e termina `Concluido`,
-      não `Cancelado` (D7; o status `Cancelado` continua sem ação que leve a ele, C20).
+      tirar, 409 `NadaEmProducao`. O Pedido que o cliente cancelou, e que no sistema continua rodando, é descartado até concluir e termina
+      `Concluido`, não `Cancelado` (D7; o status `Cancelado` continua sem ação que leve a ele, C20).
     - **De onde se dá baixa** (C4): `AIniciar`, `NoSetor`, `AguardandoColeta`, `AguardandoMontagem`,
       `AguardandoConserto`, `EmConserto`, `ConsertoPronto`, `NaExpedicao`, `Conforme`, `NaoConforme` e `Liberada`.
       **Nunca** de `AguardandoLiberacao` (a unidade está presa a um pedido de liberação em aberto), `Montado`,
