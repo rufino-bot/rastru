@@ -67,12 +67,17 @@ três em 2026-10-20: **5A** (aferição, expedição e fechamento), **5B** (perd
 Kit que a 3B deixou), cada uma com spec, plano e PR próprios e **nesta ordem** — a partição não é exceção à
 sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi concluída e mesclada em 2026-11-03
 (rufino-bot/rastru#35; spec
-`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`); a próxima da sequência é a
+`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`); a seguinte é a
 **5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
 descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
-planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`, a executar) e **5B-2**
-(reposição: Pedido de Retrabalho e nó pronto; sem spec). A 5C ainda não tem spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
-real**.
+planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
+de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-04:** o **backend está implementado** na branch
+`claude/compassionate-lamport-cig0qs` (a regra 38 de `specs/01`, as rotas de `specs/05`, o
+`db/alter-fase-5b1.sql`); **falta o front** (o módulo `web/src/baixas/`, que a seção «Interface» ainda **não**
+descreve, porque não existe), a conferência do usuário no navegador e a review de branch, e **nada foi mesclado**. A 5C
+ainda não tem spec, e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O
+"Descartar Peça ou Item em Pedido rodando" é da **5B-1**, marcado **obrigatório antes do primeiro uso real**: o backend
+o entrega (a baixa `tudo` de `Descarte` e o "Descartar tudo"), e só o front e o merge o cumprem.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -713,7 +718,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
   produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição — as cinco
   posições dele —, em conserto) + montado dentro do pai + expedido (a posição `Expedido` do livro, que as
-  linhas `Expedicao` de uma remessa alimentam) + perdido (`Perda`, da Fase 5B) = quantidade total do nó
+  linhas `Expedicao` de uma remessa alimentam) + perdido (a posição `Perdido`, que as linhas `Perda` de uma baixa
+  alimentam, desde a Fase 5B-1) = quantidade total do nó; a baixa não reduz a quantidade cadastrada do nó, o perdido
+  é um termo da soma
   (validado na aplicação; regra 9).
 - O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
@@ -741,9 +748,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   início do nó. (Regra 34 de `specs/01`, Fase 4.)
 - **Cada registro composto do fim do caminho se estorna inteiro, e o Rastru avisa em vez de travar.** A
   contagem (uma linha `Medicao` por resultado diferente de zero, até duas), a remessa (uma linha `Expedicao` por posição de origem), o pedido de
-  liberação e a resposta se estornam **por inteiro**, pela rota do registro, e a rota genérica
-  `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar metade
-  inventaria uma contagem ou uma remessa que ninguém fez. E nenhuma situação da aferição trava a remessa — ela
+  liberação, a resposta e, desde a Fase 5B-1, a **baixa** (uma linha `Perda` por nó e por posição de origem, apontando a
+  `dbo.Perda`, e os filhos que saíram junto pela cascata C6) se estornam **por inteiro**, pela rota do registro, e a
+  rota genérica `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar
+  metade inventaria uma contagem, uma remessa ou uma baixa que ninguém fez. A baixa só se estorna uma vez
+  (`JaEstornado`), sem prazo, porque `Perdido` é terminal. E nenhuma situação da aferição trava a remessa — ela
   avisa (D8, regras 36 e 37 de `specs/01`, C17 da spec da Fase 5A).
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
@@ -952,15 +961,17 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte do backend tem **1.736 testes** (medido em 2026-10-22, em `4a0fca4`, **executando** a suíte inteira com
-`dotnet build Rastreamento.slnx -warnaserror` — 0 warnings, 0 erros — e `dotnet test Rastreamento.slnx -m:1`: 414
-(Api) + 1.036 (Application) + 286 (Infrastructure) = 1.736, todos passando, e 0 em Domain; a métrica é a de testes
-executados, em que cada caso de `[Theory]` conta como um). Desde a medição anterior (2026-10-20, em `4cca2f4`, com
-`--list-tests`, que só descobre por reflexão e não executa: 391 + 842 + 242 = 1.475, e a execução do mesmo dia bateu
-com ela) entraram **261** testes (23 em Api, 194 em Application e 44 em Infrastructure), num intervalo de 28 commits, 3 deles de
-documentação/merge da Fase 4; a origem dos testes não foi separada por commit. A do
-frontend tem **1.878 testes em 105 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run`, em
-`web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz typecheck). O "passa
+A suíte do backend tem **1.878 testes** (medido em 2026-11-04, em `816e621`, **executando** a suíte inteira com
+`dotnet build Rastreamento.slnx -warnaserror` — 0 warnings, 0 erros — e `dotnet test Rastreamento.slnx -m:1`: 481
+(Api) + 1.083 (Application) + 314 (Infrastructure) = 1.878, todos passando, e 0 em Domain, que não tem teste algum; a
+métrica é a de testes executados, em que cada caso de `[Theory]` conta como um). Desde a medição anterior
+(2026-10-22, em `4a0fca4`: 414 + 1.036 + 286 = 1.736) entraram **142** testes (67 em Api, 47 em Application e 28 em
+Infrastructure), num intervalo que é o backend da Fase 5B-1; a origem dos testes não foi separada por commit. A do
+frontend tem **1.912 testes em 106 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run
+--maxWorkers=2`, em `web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz
+typecheck, e passou). A primeira execução do frontend nessa medição deu **1 teste vermelho de 1.912**, o `lembra o
+Setor cuja fila carregou` da `FilaDoSetorPage`, e o mesmo arquivo isolado passou 3 vezes em 3 e a suíte inteira, de
+novo, deu 1.912 de 1.912: o frontend desta fase só ganhou a entrada `baixa` de `permissoes.ts` e a linha do teste que a espelha, então é uma flutuação sob carga, **não investigada**. O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
 não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
@@ -1094,7 +1105,8 @@ usuário que não escreve nele não dá para provar que a AÇÃO some para quem 
 `movimentador` e o `separador` escrevem só na execução e na separação de material: um no apontamento,
 outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). O `qualidade` e o
 `gestao` escrevem só no fim do caminho da Peça (Fase 5A): a Qualidade, que é a pessoa da expedição, afere, conta,
-manda para conserto, pede liberação e expede; a Gestão responde aos pedidos de liberação. Até essa data o
+manda para conserto, pede liberação, expede e **dá baixa** (Fase 5B-1, regra 38); a Gestão responde aos pedidos de
+liberação. Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
@@ -1276,8 +1288,9 @@ anterior até o `02-modelo-de-dados.sql` em cinco blocos: o **aborto** (`THROW 5
 antiga (a que tem a coluna `MotivoPerda`) tiver alguma linha, em vez de descartar dado em silêncio; o `DROP` dela, só
 vazia, no mesmo lote do aborto; o `CREATE` da `dbo.Perda` nova, o registro da baixa, com `CK_Perda_Motivo` e
 `CK_Perda_Escopo`; a coluna `Movimentacao.PerdaId` com a FK `FK_Movimentacao_Perda` e o índice filtrado
-`IX_Movimentacao_Perda`; e as seis constraints do livro recriadas com a posição `Perdido` e o tipo `Perda` (`DROP` se
-existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Não precisa regenerar o banco.
+`IX_Movimentacao_Perda`; e as **sete** constraints do livro recriadas — `CK_Movimentacao_Tipo`, `OrigemPosicao`, `DestinoPosicao`,
+`OrigemCoerente`, `DestinoCoerente`, `Transicao` e `RegistroCoerente` — com a posição `Perdido` e o tipo `Perda` (`DROP`
+se existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Não precisa regenerar o banco.
 
 ```bash
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5b1.sql sqlserver:/tmp/alter-fase-5b1.sql

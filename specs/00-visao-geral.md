@@ -16,6 +16,8 @@ cadastro do Pedido até a entrega para o setor de Expedição, incluindo:
   Pedido quando tudo foi expedido (regras 13 e 16)
 - Abertura de Pedidos de Retrabalho vinculados ao Pedido original, como ação separada e opcional, quando houver
   perda ou reclamação do cliente (a reprovação da aferição, sozinha, não abre Retrabalho; regra 12)
+- Baixa de quantidade por perda ou descarte (do que sumiu, morreu num processo, sobrou ou saiu do projeto do
+  cliente), de um nó ou do Pedido inteiro, que o fechamento conta junto do expedido (regras 13 e 38)
 - KPIs de tempo (tempo por setor, tempo total de fila x produção por pedido)
 
 ## Fora de escopo (por ora)
@@ -48,10 +50,11 @@ perfil (não é "todo usuário vê tudo").
   `01-dominio-e-regras-de-negocio.md`; perfil decidido em 2026-09-15)
 - **PCP** / Planejamento (cadastra Pedidos, Agrupamentos, estrutura — inclusive a do Pedido de
   Retrabalho que repõe perda, que Qualidade ou PCP abre; ver regra 27 de
-  `01-dominio-e-regras-de-negocio.md`)
+  `01-dominio-e-regras-de-negocio.md`; **dá baixa** em perda e descarte, regra 38)
 - **Qualidade** (é a pessoa da expedição, desde a Fase 5A: **afere** o relatório dimensional, conta as
   unidades não conformes, manda para conserto, pede liberação à Gestão e **expede**; regras 10, 11, 16, 35 e
-  36 de `01-dominio-e-regras-de-negocio.md`. Abre retrabalho, na Fase 5B)
+  36 de `01-dominio-e-regras-de-negocio.md`. **Dá baixa** — perda e descarte, o "matar" da não conforme —, junto do
+  PCP e do Administrador, desde a Fase 5B-1, regra 38. Abre retrabalho, na Fase 5B-2)
 - **Gestão** (consulta KPIs; **libera**, ou recusa, a expedição de unidade não conforme, a pedido da
   Qualidade — regra 36)
 - **Administrador** (cadastros de catálogo, usuários e perfis)

@@ -28,7 +28,7 @@ local de expedição ou em conserto) + o que já foi montado dentro do pai + exp
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql` e `alter-fase-5a.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4 ou da Fase 5A até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql`, `alter-fase-5a.sql` e `alter-fase-5b1.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4, da Fase 5A ou da Fase 5B-1 até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -183,7 +183,11 @@ Concluídas até aqui:
   navegador e a review de branch foram feitas em 2026-11-03; a conferência trouxe o menu em grupos (Produção,
   Expedição, Pedidos, Cadastros). Mesclada na `main` pelo PR #35, em 2026-11-03.
 
-**Próxima: Fase 5B** — perda e reposição, com o retrabalho como ação separada e opcional, ainda sem spec. Depois
+**Em andamento: Fase 5B**, partida em duas em 2026-11-04. A **5B-1 — perda e descarte** (spec
+`docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`) tem o backend implementado na branch: a baixa
+por perda ou descarte, de um nó ou do Pedido inteiro, com prévia e estorno, e o fechamento que conta o perdido; falta o
+front, a conferência do usuário no navegador e a review de branch, e ela ainda não foi mesclada. A **5B-2 —
+reposição** (o Pedido de Retrabalho como ação separada e opcional e o nó pronto) ainda não tem spec. Depois
 dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A
 Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 

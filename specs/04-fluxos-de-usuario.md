@@ -396,8 +396,9 @@ Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo
    Gestão"**, **"· em conserto ({Setor})"** (uma linha por Setor), **"· aguardando liberação"** e **"· aguardando
    decisão"**, mais **A medir** —, e as linhas de dentro só aparecem quando têm unidade. Texto neutro: a cor do
    estado já está na pílula.
-4. **O destino da não conforme.** As unidades **aguardando decisão** têm três saídas (a quarta, "matar a peça",
-   é da Fase 5B):
+4. **O destino da não conforme.** As unidades **aguardando decisão** têm três saídas, e uma quarta, **"matar a peça"**, da Fase 5B-1
+   (o "Matar" do cartão, que é a baixa do fluxo 6 — a API existe, e a tela é do front da 5B-1; refazer é
+   Retrabalho, na 5B-2):
    - **Mandar para conserto.** O painel pede o **Setor** — qualquer Setor ativo, inclusive a Expedição, e nenhum
      vem escolhido — e a **Quantidade**, que abre com todas as que aguardam decisão. A unidade vai ao Setor:
      o Movimentador a leva, o operador a corrige e o Movimentador a traz de volta (fluxo 2, passo 12), e ela
@@ -479,20 +480,24 @@ exceção, e a decisão fica gravada com o nome de quem a deu.
 
 *Perfil: Qualidade*
 
+> **Fase 5B-1 (2026-11-04).** Este fluxo **só aponta para a 5B-2**: o Pedido de Retrabalho ainda não existe em código
+> nenhum, e a 5B-1 entregou só a baixa (fluxo 6), que **não** abre Retrabalho sozinha. Os passos abaixo são o desenho
+> anterior e serão revistos na spec da 5B-2, junto do nó **pronto** (regra 27) e do vínculo com a reclamação do cliente.
+
 > **Nota (2026-09-15).** Quando o Retrabalho repõe uma perda que impediu montar, o Pedido novo não
 > segue o fluxo 1-4 "normalmente" em tudo: o que já existe da unidade perdida é marcado **pronto**,
 > não percorre Roteiro e nasce aguardando coleta (regra 27 de `01-dominio-e-regras-de-negocio.md`).
-> Revisto na spec da Fase 5.
+> Revisto na spec da 5B-2.
 
 > **Nota (2026-09-24).** Nesse caso, o Retrabalho é **aberto** por quem registra a perda — Qualidade
-> ou PCP, como a seção "6. Perda de peças" já admite — e **cadastrado** pelo PCP (regra 27). O
+> ou PCP, como o fluxo 6 admite — e **cadastrado** pelo PCP (regra 27). O
 > "*Perfil: Qualidade*" no alto desta seção descreve a abertura a partir de uma reprovação.
 
 > **Nota (2026-10-22).** A Fase 5A trocou a "reprovação no Relatório Dimensional" pela **aferição não
 > conforme** (fluxo 4): ela **não** abre Retrabalho, e a unidade não conforme tem como destinos o conserto, a
 > liberação da Gestão e a expedição com aviso. O passo 3 do fluxo 5 falava da `RelatorioDimensionalAvaliacao`,
 > que **deixou de existir** (regra 12 de `01-dominio-e-regras-de-negocio.md`); como o Retrabalho se liga à
-> reclamação do cliente é redesenhado na Fase 5B, e este fluxo é revisto lá.
+> reclamação do cliente é redesenhado na Fase 5B-2, e este fluxo é revisto lá.
 
 1. Se uma Peça (ou parte de sua quantidade) é reprovada no Relatório Dimensional, o
    registro fica salvo normalmente — **não** abre retrabalho automaticamente.
@@ -502,25 +507,42 @@ exceção, e a decisão fica gravada com o nome de quem a deu.
    quantidade reprovada (ou perdida).
 3. Se a abertura partiu de uma reprovação específica, a `RelatorioDimensionalAvaliacao`
    correspondente é vinculada (`PedidoRetrabalhoId`). Se partiu de uma perda, é a
-   `Perda` correspondente que é vinculada (`Perda.PedidoRetrabalhoId`).
+   `Perda` correspondente que é vinculada (`Perda.PedidoRetrabalhoId`, coluna que a 5B-1 criou e **não usa**).
 4. O novo Pedido de Retrabalho segue o mesmo fluxo 1-4 normalmente (cadastro de
    Agrupamento/estrutura, apontamento de setor, separação de material, novo dimensional).
 
-## 6. Perda de peças
+## 6. Perda e descarte (dar baixa)
 
-*Perfil: Qualidade / PCP*
+*Perfil: Qualidade / PCP (e Administrador)*
 
-> **Nota (2026-09-15).** A perda passou a valer para **qualquer** `EstruturaItem`, não só Peça, e
-> ganhou o motivo `Descarte` (regra 17 de `01-dominio-e-regras-de-negocio.md`); quando a perda de
-> uma parte impede montar o pai, a perda sobe até a Peça do topo (regra 27). O passo a passo desta
-> seção é revisto na spec da Fase 5.
+> **Revisto na Fase 5B-1** (spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`; regras 17,
+> 27, 30 e 38 de `01-dominio-e-regras-de-negocio.md`). A tela existe quando o front da 5B-1 existir: o passo a passo
+> abaixo é o que a API entrega e o que a tela mostra. A reposição por Retrabalho é do fluxo 5, na 5B-2.
 
-1. Quando uma quantidade se perde em produção (some no armazém = PerdaArmazem, ou morre
-   após um processo = MortaEmProcesso), registra-se uma Perda (Peça, quantidade, motivo,
-   opcionalmente o Setor onde estava, responsável, observação).
-2. A quantidade perdida sai da produção (bucket terminal), contando para a conclusão da Peça.
-3. Para repor, a Qualidade/PCP pode (opcional) abrir um Pedido de Retrabalho para aquela
-   quantidade, com MotivoRetrabalho='Perda', vinculado via Perda.PedidoRetrabalhoId.
+1. **Dar baixa num nó** (Peça ou Item), pelo painel do nó: um botão só, **"Dar baixa"**, com o motivo dentro
+   (**Sumiu no armazém**, **Morreu num processo** ou **Descarte**). Quem dá baixa escolhe **"Tudo o que está em
+   produção"** (o nó e toda a árvore abaixo dele, em todas as posições) ou **"Uma parte"**, informando a quantidade
+   de cada posição de onde tira — o sistema não escolhe. A posição `AguardandoLiberacao` aparece sem campo: o pedido
+   de liberação se estorna antes.
+2. **A prévia vem do servidor** ("O que acontece"): as linhas por nó e posição, o que **vira sobra** porque a baixa a
+   cria e, quando a perda de um Item impede montar, a oferta *"Isso impede montar N {Peça}. Dar baixa também delas"*,
+   marcada por padrão (a regra 27 numa baixa só). Confirmar grava uma baixa, que se estorna **inteira** — com as
+   unidades da Peça do topo e os filhos que saíram junto.
+3. **Quando o pai perde unidades "a iniciar"**, os filhos a iniciar além do que ele ainda precisa saem na mesma baixa,
+   descendo a árvore; o filho que já existe fisicamente fica onde está e vira sobra (regra 38).
+4. **"Matar" a não conforme**, no cartão da Peça da expedição (fluxo 4): baixa da Peça com origem `NaoConforme` e motivo
+   `MortaEmProcesso`. Sai do expedível e conta para o fechamento. Refazer é um Pedido de Retrabalho à parte (5B-2).
+5. **Descartar a sobra**, na seção "Sobra" da Fila do Setor: o **"Descartar"** da linha, só para Qualidade, PCP e
+   Administrador (o Operador vê a linha e não a descarta), com a quantidade até a sobra da linha; é a baixa com motivo
+   `Descarte`. A seção também lista a sobra de Pedido `Concluido`.
+6. **"Descartar tudo"** no Pedido e no Agrupamento (o cliente cancelou ou tirou a Peça do projeto): uma ação só, com a
+   prévia do servidor e a observação, que leva tudo o que está em produção das Peças dele, com motivo `Descarte`. O
+   Pedido conclui sozinho quando todas as Peças concluem, **mesmo `Aberto`**. Com unidade aguardando liberação, é
+   recusado, nomeando as Peças. Se foi engano, estorna-se a baixa, e o Pedido reabre.
+7. **Editar a quantidade com o Pedido rodando só aumenta**: diminuir é pelo "Dar baixa" (a tela do nó diz isso no
+   campo); com o Pedido `Aberto` a edição segue livre.
+8. O **histórico** do nó ("Baixas") lista as baixas que o alcançaram, com o "Estornar" onde cabe; a `PedidoDetalhePage`
+   lista todas as do Pedido.
 
 ## 7. Consulta de KPIs (gestão)
 

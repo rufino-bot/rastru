@@ -303,7 +303,10 @@ perfil autenticado.)*
   **Peça** (Fase 5A, C14; regra 10): nulo ou ausente **mantém** a marca, e repetir o valor atual não é mudar. Num
   Item é 400 `RelatorioSoNaPeca`, e mudar a marca de uma Peça com aferição válida é 409 `ComAfericao` (estorne
   a aferição antes). Desde a Fase 3, a quantidade não desce
-  abaixo do que já saiu de "a iniciar" nem, num nó com filhos, abaixo do total montado; editar a
+  abaixo do que já saiu de "a iniciar" nem, num nó com filhos, abaixo do total montado. **Desde a Fase 5B-1
+  (D12), com o Pedido fora de `Aberto` (`EmProducao` ou `AguardandoExpedicao`) a quantidade só aumenta:**
+  diminuir é 409 `DiminuirPelaBaixa`, cuja `mensagem` manda para o "Dar baixa" (seção "Baixas"); com o Pedido
+  `Aberto` a edição segue livre nos dois sentidos, e num `Concluido` a rota segue recusando (`PedidoFechado`). Editar a
   razão é livre, porque a baixa já gravada não muda. Não cascateia a quantidade para os filhos — decisão de
   domínio, não lacuna (a cópia da receita é pré-preenchimento, não automação). `Descricao`
   vazia/só espaço grava `null`, que volta a herdar a do Componente — exceto num nó ad-hoc, que não
@@ -404,6 +407,7 @@ foram implementadas sob `estrutura/{id}`.
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
   | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
   | `PedidoFechado` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}` (e `POST /importacoes/{id}/confirmacao`) | o Pedido está `Concluido` (Fase 5A, C15): a estrutura de um Pedido concluído não se edita, e quem precisa mudá-lo estorna a última remessa; leva `mensagem` |
+  | `DiminuirPelaBaixa` | `PUT /estrutura/{id}` | a quantidade nova é **menor** que a atual com o Pedido `EmProducao` ou `AguardandoExpedicao` (Fase 5B-1, D12); aumentar é livre; a `mensagem` manda usar o "Dar baixa" |
   | `ComAfericao` | `PUT /estrutura/{id}` | mudar `requerRelatorioDimensional` de uma Peça que tem aferição válida (Fase 5A, C14); leva `mensagem` |
   | `ConflitoDeConcorrencia` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}`, `DELETE /estrutura/{id}` (e `PUT /estrutura/{id}/roteiro`, na seção "Execução / Rastreamento") | deadlock repetido até o esgotamento das 3 tentativas, ou lock timeout, na escrita; nada foi gravado, e tentar de novo é seguro. Leva `mensagem`; o `PUT` e o `DELETE` já podiam emitir desde a Fase 3, e os dois `POST` desde 2026-10-01 |
 
@@ -1213,18 +1217,104 @@ nunca 500 nem saldo negativo; e a Gestão responder a um pedido no instante em q
 um 409 — `LiberacaoNaoPendente` na resposta que chega depois do estorno, `EstornoImpossivel` no estorno que chega
 depois da resposta —, nunca uma resposta com linha válida num pedido estornado.
 
-## Perdas
+## Baixas (perda e descarte)
 
-*(Rotas em nível de Peça, `estruturaItemId`; nomes definitivos podem ser afinados na
-fase de implementação da API.)*
+Fase 5B-1 (spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, seção 5; regra 38 de
+`01-dominio-e-regras-de-negocio.md`). Substitui as rotas em nível de Peça que este rascunho trazia
+(`POST /pecas/{id}/perdas` e `GET /pecas/{id}/perdas`): **saíram**, porque a perda vale para qualquer nó, Peça ou
+Item, e é um **registro por baixa** (`dbo.Perda`), não uma linha por nó. Todas as escritas correm na transação da
+execução, travando os nós e depois os Pedidos (seção 8.1 da spec da Fase 3); o corpo de erro é o `{ erro, mensagem }`
+da Execução.
 
-> **Nota (2026-09-15).** O `motivoPerda` ganha `'Descarte'`, e a perda passa a valer para Item, não
-> só Peça — o prefixo `/pecas/` deixa de descrever o recurso (regras 17 e 27 de
-> `01-dominio-e-regras-de-negocio.md`). Contrato redesenhado na spec da Fase 5.
+- `POST /estrutura/{id}/baixas` *(Qualidade, PCP, Administrador)* — dá baixa no nó `{id}`. Body: `{ motivo,
+  observacao?, tudo, origens?: [{ posicao, setorId?, ordem?, quantidade }], incluirTopo? }`. `motivo` é
+  `PerdaArmazem`, `MortaEmProcesso` ou `Descarte` (C3); a `observacao` é aparada e vai até 500 caracteres.
+  `tudo: true` exige `origens` ausente ou vazia e leva todo o saldo em produção do nó e dos descendentes (D11);
+  `tudo: false` exige `origens` com pelo menos uma posição, sem repetir posição (400 `ItemRepetido`) e no máximo
+  `TamanhoMaximoDoLote` (C18); a posição com Setor e passo leva `setorId` e `ordem`. `incluirTopo` (D13 e D14) leva
+  junto as unidades da Peça do topo que a perda trava, calculadas e recalculadas **dentro da transação** (o cliente
+  não manda a quantidade); só vale na baixa de **parte** de um Item, ou de **tudo** de um Item por `PerdaArmazem` ou
+  `MortaEmProcesso` — com `Descarte` e na Peça é 400 `OrigemInvalida`. `201` com a `BaixaDto`.
+- `POST /estrutura/{id}/baixas/previa` *(mesmos perfis)* — o mesmo corpo; responde `200` com o que a baixa gravaria,
+  **sem gravar e sem travar**, e com as mesmas recusas (C14).
+- `POST /agrupamentos/{id}/descarte` e `POST /pedidos/{id}/descarte` *(Qualidade, PCP, Administrador)* — o "Descartar
+  tudo" (D7, D8). Body: `{ observacao? }`; o motivo é sempre `Descarte`. Uma baixa só, com o "tudo" de cada Peça que
+  ainda tem algo em produção; trava a união das árvores de todas as Peças do escopo. `201` com a `BaixaDto`.
+- `POST /agrupamentos/{id}/descarte/previa` e `POST /pedidos/{id}/descarte/previa` — a prévia, `200`.
+- `POST /baixas/{id}/estorno` *(Qualidade, PCP, Administrador; e só o autor, se não for PCP nem Administrador, decidido
+  pelo caso de uso com `403 Proibido`)* — estorna a baixa **inteira**: `200` com os movimentos de estorno
+  (`MovimentacaoDto[]`), inclusive os filhos que saíram junto (C6) e a Peça do topo.
+- `GET /estrutura/{id}/baixas` *(qualquer perfil autenticado)* — as baixas com linha no nó ou num descendente, da mais
+  recente para a mais antiga. `GET /pedidos/{id}/baixas` — todas as do Pedido, na mesma forma (C27). Sem `Roles`:
+  leitura é de todos.
+- `POST /movimentacoes/{id}/estorno` **recusa** a linha de baixa com 409 `EstornoImpossivel` (C7), como a de contagem,
+  liberação e remessa.
+- Desde a 5B-1, a posição **`Perdido`** aparece em todo `SaldoDto` e em todo `LocalDto` das rotas da Execução, e o tipo de
+  movimento `Perda` nas linhas do livro.
 
-- `POST /pecas/{estruturaItemId}/perdas` — registra uma Perda.
-  Body: `{ quantidade, motivoPerda: 'PerdaArmazem' | 'MortaEmProcesso', setorId?, observacao?, responsavel }`
-- `GET /pecas/{estruturaItemId}/perdas`
+### Contrato JSON da baixa
+
+```jsonc
+// 201 das escritas: BaixaDto
+{ "id": 7, "motivo": "Descarte", "observacao": null,
+  "escopo": { "tipo": "No" | "Agrupamento" | "Pedido", "id": 812 },
+  "tudo": false, "dataHora": "2026-11-04T14:20:00-03:00", "usuarioId": 2, "usuarioNome": "Planejamento e Controle",
+  "estornada": false, "estornavel": true,
+  "linhas": [ { "estruturaItemId": 812, "descricao": "Suporte lateral", "codigo": "SUP-114",
+                "origemPosicao": "AIniciar", "origemSetorId": null, "origemSetorNome": null, "origemOrdem": null,
+                "quantidade": 3 } ] }
+
+// 200 das prévias: PreviaDaBaixaDto
+{ "linhas": [ /* LinhaDaBaixaDto, como acima */ ],
+  "viramSobra": [ { "estruturaItemId": 830, "descricao": "Chapa dobrada", "quantidade": 2 } ],
+  "travaNoTopo": { "pecaId": 812, "descricao": "Suporte lateral", "quantidade": 1, "aIniciar": 3 } | null }
+```
+
+- **`escopo`** é o que a baixa alcançou: `No` (o nó em que se clicou; as linhas podem ser dele, de descendentes e, por
+  `incluirTopo`, da Peça do topo), `Agrupamento` ou `Pedido` (o "Descartar tudo").
+- **`estornavel`** é verdadeiro quando a baixa ainda não foi estornada e o leitor é o autor, o PCP ou o Administrador
+  (C8); a recusa por Pedido `Cancelado` fica com a escrita. `estornada` é calculado: existe `Estorno` apontando as
+  linhas.
+- **`viramSobra`** lista só a sobra que **a própria baixa cria** (o filho que continua fisicamente onde está depois da
+  cascata C6), não a que já existia. **`travaNoTopo`** é calculado com a fórmula da seção 4.6 da spec em **todos os
+  níveis da cadeia** (o fornecimento de um pai intermediário é o que ele tem em produção menos as unidades que a
+  própria baixa trava), e é nulo quando não trava; `quantidade` é o que a perda trava na Peça do topo e `aIniciar` o que
+  ela ainda tem a iniciar — a baixa leva `min` dos dois. A prévia devolve `travaNoTopo` na baixa de parte de um Item
+  e na de tudo por perda (D14), e `null` com `Descarte` (o filho sai do projeto, C22).
+- A mesma baixa de nó na prévia e na escrita faz a **mesma conta** (decisão P4 do plano de backend da Fase 5B-1): a prévia
+  não é uma cópia da conta no cliente, ao contrário da `tiradaDaRemessa`.
+
+### Contrato de erro das Baixas
+
+Formato `{ erro, mensagem }` do "Contrato de erro da Execução". As frases que nomeiam um nó usam o nome da regra 19.
+O `404` e o `403` do `[Authorize(Roles)]` vão **sem corpo**; o `403` `Proibido` com corpo é o do caso de uso, no estorno.
+A validação do corpo vem antes da transação; dentro dela a ordem é nó inexistente (404) → Pedido `Cancelado` → Pedido
+`Concluido` (só a sobra viva de Item, só `Descarte`) → a conta (`OrigemInvalida`, `ItemRepetido`, `QuantidadeInvalida`,
+`SaldoInsuficiente`, `LiberacaoEmAberto`, `NadaEmProducao`).
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `MotivoInvalido` | `motivo` fora dos três |
+| 400 | `OrigemInvalida` | posição que não admite baixa (`AguardandoLiberacao`, `Montado`, `Expedido`, `Perdido`), Setor ou passo incoerente com a posição, `origens` com `tudo`, `origens` vazia sem `tudo`, ou `incluirTopo` onde não vale. Código da Execução, reusado |
+| 400 | `ItemRepetido` | a mesma origem duas vezes; código da Execução, reusado |
+| 400 | `TextoLongoDemais` | observação acima de 500 caracteres; código da Expedição, reusado |
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna (`DECIMAL(18,4)`); código da Execução, reusado |
+| 400 | `LoteGrandeDemais` | mais de `TamanhoMaximoDoLote` origens informadas; código da Execução, reusado. O descarte total não tem teto de linhas |
+| 403 | `Proibido` | estorno de baixa alheia por quem não é PCP nem Administrador; código da Execução, reusado |
+| 404 | — | nó, Agrupamento, Pedido ou baixa inexistente |
+| 409 | `SaldoInsuficiente` | acima do saldo da posição; a `mensagem` nomeia a posição |
+| 409 | `NadaEmProducao` | o "tudo" (do nó, do Agrupamento ou do Pedido) não acharia nada a tirar |
+| 409 | `LiberacaoEmAberto` | "tudo" com unidade aguardando liberação (C15); a `mensagem` nomeia as Peças. Código da Expedição, reusado |
+| 409 | `PedidoFechado` | Pedido `Cancelado`; ou, num `Concluido`, baixa de uma Peça ou com motivo que não é `Descarte` (C12 e C24); estorno em Pedido `Cancelado`. Código da Execução, reusado |
+| 409 | `JaEstornado` | estorno de baixa já estornada (relido depois da trava); código da Execução, reusado |
+| 409 | `EstornoImpossivel` | a linha `Perda` por `POST /movimentacoes/{id}/estorno` |
+| 409 | `DiminuirPelaBaixa` | `PUT /estrutura/{id}` diminuindo a quantidade com o Pedido rodando (seção "Estrutura") |
+| 409 | `ConflitoDeConcorrencia` | deadlock repetido até o esgotamento das 3 tentativas; nada foi gravado. Código da Execução, reusado |
+
+Casos de **concorrência**, com teste: duas baixas simultâneas da mesma posição que somadas passam do saldo dão um 201 e
+um 409 `SaldoInsuficiente`, nunca 500 nem saldo negativo; a baixa e o início do pai sobre o mesmo "a iniciar" se
+serializam, e quem chega depois vê o saldo novo; dois estornos simultâneos da mesma baixa dão um 200 e um 409
+`JaEstornado`. A pausa do Pedido **não** recusa a baixa (regra 31).
 
 ## KPIs
 
