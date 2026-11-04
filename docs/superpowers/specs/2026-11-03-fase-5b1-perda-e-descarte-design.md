@@ -2,8 +2,9 @@
 
 Data: 2026-11-03. Branch: `claude/happy-wright-14yv9r`, a partir da `main` em `bb8626e`. Desenho conversado com o
 usuário em chat, numa sessão de nuvem de 2026-11-03, com um esboço das telas (página privada, fora do repositório:
-https://claude.ai/artifact/8L2ur2ErzMMHufFznVMiFn). As decisões do usuário são D1–D11 (seção 2); as chamadas
-do desenho, que o usuário confere ao ler, são C1–C21.
+https://claude.ai/artifact/8L2ur2ErzMMHufFznVMiFn). As decisões do usuário são D1–D13 (seção 2); as chamadas
+do desenho, que o usuário confere ao ler, são C1–C27. O builder check (um revisor lendo a spec como quem vai planejar)
+levantou oito perguntas: duas viraram D12 e D13, respondidas pelo usuário em 2026-11-04, e seis viraram C22 a C27.
 
 **Ponto de partida.** A seção «Fase 5B — Perda e reposição» de `specs/06-roadmap-mvp.md` junta dois assuntos.
 O usuário aprovou dividi-la em duas specs, cada uma com plano e PR próprios, **nesta ordem** (D1):
@@ -73,6 +74,8 @@ A 5C (as pontas do Kit) continua depois da 5B, e a 3C (push) depois da Fase 5.
 | D9 | Um botão só, "Dar baixa", com o motivo dentro; não dois botões ("Registrar perda" e "Descartar"). |
 | D10 | O registro da baixa segue o molde da remessa da 5A: uma `Perda` por baixa, as quantidades em linhas do livro que a apontam, estorno inteiro (abordagem A da seção 9). |
 | D11 | Descarte total leva tudo do nó **e da árvore abaixo dele**, em todas as posições, sem escolha; o expedido e o já montado dentro de um pai ficam onde estão. |
+| D12 | Com o Pedido rodando (fora de `Aberto`), editar a quantidade de um nó **só aumenta**; diminuir é pela baixa. Com o Pedido `Aberto`, a edição continua livre, para corrigir erro de cadastro (seção 4.10). |
+| D13 | A perda de um Item que impede montar é **uma baixa só**: o painel oferece dar baixa, junto, das unidades da Peça do topo que a perda trava, e as duas se estornam juntas (seção 4.6). |
 
 ### 2.2 Do desenho (o usuário confere)
 
@@ -99,6 +102,12 @@ A 5C (as pontas do Kit) continua depois da 5B, e a 3C (push) depois da Fase 5.
 | C19 | A observação é opcional, aparada, até 500 caracteres (400 `TextoLongoDemais`), como a da resposta à liberação. |
 | C20 | O status `Cancelado` continua sem ação que leve a ele. Registrado aqui para não ser lido como esquecimento. |
 | C21 | A 5B-1 entrega da D5 da 3B (a perda nos tetos) **só** a perda do próprio pai em `FaltaMontar` (C5). O resto da D5 (o conjunto que perde parte dentro da Solda) e a espera desalinhada continuam na 5C. |
+| C22 | "Saiu do projeto" é marcado, não deduzido: o filho deixa de contar para a montagem do pai só quando tem uma baixa **`tudo`** de motivo `Descarte` não estornada **no próprio nó** (coluna `Perda.Tudo`; seção 4.5). Uma baixa de parte, mesmo que zere o filho, não o tira da conta. |
+| C23 | O estorno que desfaz a conclusão de um Pedido que **nunca teve início** (líquido de estorno, regra 14) o devolve a `Aberto`. Num Pedido `Aberto`, o Agrupamento cujas Peças concluíram todas por baixa ganha `DataConclusao` (seção 4.8). |
+| C24 | Num Pedido `Concluido`, todo saldo de **Item** ainda em produção é sobra viva, em qualquer posição: a baixa dele é aceita (de parte, `tudo` ou o "Descartar tudo"), só com motivo `Descarte`. Baixa de Peça num Pedido concluído não existe, porque a Peça não tem nada em produção (seção 4.8). |
+| C25 | A seção "Sobra" da Fila do Setor passa a incluir a sobra de Pedido `Concluido`; as outras seções da Fila e as Tarefas continuam excluindo o Pedido concluído (seção 6). |
+| C26 | A lista do Separador e o resumo de material da Fila deixam de mostrar o nó que **não tem nada em produção**. Na baixa de parte, o planejado do material **não** se reescala: é a mesma limitação da dívida m5 da Fase 4 (editar a quantidade não reescala), registrada como risco. |
+| C27 | A baixa do Pedido e a do Agrupamento aparecem numa seção "Baixas" da `PedidoDetalhePage` (todas as baixas do Pedido, por `GET /pedidos/{id}/baixas`), com o "Estornar". O `HistoricoDeBaixas` do nó continua mostrando toda baixa que tem linha nele ou num descendente, inclusive a do Pedido. |
 
 ## 3. Modelo de dados
 
@@ -132,7 +141,8 @@ linhas que exigem os outros nulos. Coluna nova `PerdaId INT NULL` com FK `FK_Mov
 | `Observacao` | `NVARCHAR(500) NULL` | livre, opcional (C19) |
 | `PedidoId` | `INT NOT NULL`, FK | o Pedido de que é a baixa (toda baixa é de um Pedido só) |
 | `AgrupamentoId` | `INT NULL`, FK | preenchido no "Descartar tudo" do Agrupamento |
-| `EstruturaItemId` | `INT NULL`, FK | preenchido na baixa de um nó (o nó em que se clicou; as linhas podem ser dele e de descendentes) |
+| `EstruturaItemId` | `INT NULL`, FK | preenchido na baixa de um nó (o nó em que se clicou; as linhas podem ser dele, de descendentes e, por D13, da Peça do topo) |
+| `Tudo` | `BIT NOT NULL` | a baixa levou tudo (D11): o "tudo" de um nó, ou o "Descartar tudo". É o que marca "saiu do projeto" (C22) |
 | `DataHora` | `DATETIME2 NOT NULL` | a da escrita |
 | `UsuarioId` | `INT NOT NULL`, FK | o autor, da claim `sub` |
 | `PedidoRetrabalhoId` | `INT NULL`, FK | **não usada na 5B-1**; fica para a 5B-2 |
@@ -221,8 +231,9 @@ precisa olhar só os filhos que ainda têm o que fornecer — ver a seção 4.5)
 
 Um filho **descartado** por inteiro não pode mais limitar a montagem do pai: sem nada em produção, ele zeraria o "dá
 para montar" para sempre. A montabilidade (`CalcularMontabilidade`), o conjunto completo do Kit (`ConjuntoCompleto`),
-o teto de entrada e o cartão de "Dá para montar N" **ignoram** o filho que não tem saldo em produção e tem perdido de
-motivo `Descarte` maior que zero. "Saiu do projeto" é isso: a peça não é mais parte do pai daqui em diante. As
+o teto de entrada, o cartão de "Dá para montar N" **e o consumo dos filhos no início do pai**
+(`ApontamentoUseCase.IniciarNoAsync`, que hoje baixa todo filho travado) **ignoram** o filho que tem uma baixa `Tudo`
+de motivo `Descarte`, não estornada, com escopo no próprio nó ou num ancestral dele que não seja o pai (C22). "Saiu do projeto" é isso: a peça não é mais parte do pai daqui em diante. As
 unidades do pai já montadas continuam com ele dentro.
 
 O filho perdido por inteiro por `PerdaArmazem` ou `MortaEmProcesso` **não** é ignorado: o pai continua sem poder
@@ -230,11 +241,23 @@ montar o que não tem, e o caminho é a regra 27 (seção 4.6), que dá baixa da
 
 ### 4.6 Perda que impede montar (regra 27), na 5B-1
 
-A 5B-1 traz a **baixa**; a reposição é da 5B-2. Quem registra a perda de um Item que impede montar uma unidade do
-pai dá baixa, também, daquela unidade da **Peça do topo**, pela baixa de uma parte da Peça (de onde ela estiver; se
-a unidade ainda não foi montada, de "a iniciar"). Por C6, os filhos a iniciar daquela unidade saem junto, descendo a
-árvore; os que existem fisicamente ficam, e viram sobra — e é deles que a 5B-2 tira o que marca **pronto** no
-Retrabalho. A Peça original conclui normalmente (regra 13).
+A 5B-1 traz a **baixa**; a reposição é da 5B-2. A perda de um Item que impede montar é **uma baixa só** (D13):
+
+- **Quando trava.** Depois da perda, sobe-se pela cadeia do Item até a Peça do topo: em cada pai, as unidades que
+  ainda faltam montar e que os filhos em produção já não cobrem são `FaltaMontar(pai) − ⌊EmProducao(filho) ÷
+  QuantidadePorPai(filho)⌋`, quando positivo, e isso se propaga para cima pela razão de cada nível até virar unidades
+  da Peça do topo. A prévia (C14) devolve esse número (`travaNoTopo`) quando ele é maior que zero.
+- **O que o painel oferece.** Com `travaNoTopo > 0`, o `PainelDeBaixa` do Item mostra *"Isso impede montar N {Peça do
+  topo}. Dar baixa também delas"*, marcado por padrão. Marcado, a mesma baixa leva também N unidades da Peça do topo,
+  de "a iniciar" (ainda não montadas, porque são as que travaram), com o mesmo motivo. Por C6, os filhos a iniciar
+  daquelas unidades saem junto, descendo a árvore; os que existem fisicamente ficam, e viram sobra — e é deles que a
+  5B-2 tira o que marca **pronto** no Retrabalho.
+- **No corpo.** `POST /estrutura/{id}/baixas` aceita `incluirTopo: bool` (só na baixa de parte de um Item). A
+  quantidade da Peça do topo é a da prévia, recalculada dentro da transação, não enviada pelo cliente.
+- **Se a Peça do topo não tem N a iniciar** (já começou mais do que dá para montar), a baixa leva o que houver a
+  iniciar, e a prévia diz isso; o resto é caso de baixa da Peça onde ela estiver, à mão.
+
+A Peça original conclui normalmente (regra 13), e a baixa inteira se estorna junto (C7).
 
 ### 4.7 "Matar" a não conforme (D6, C16)
 
@@ -246,8 +269,14 @@ Baixa da Peça, origem `NaoConforme`, motivo `MortaEmProcesso`. Sai do expedíve
 - A Peça conclui com **expedido + perdido = quantidade**.
 - O status `AguardandoExpedicao` passa a ser: todo o não expedido **e não perdido** de cada Peça está no local de
   expedição.
-- Pedido `Aberto` cujas Peças concluíram todas (C11) vai a `Concluido`. Os demais casos de C16 da 5A não mudam
+- Pedido `Aberto` cujas Peças concluíram todas (C11) vai a `Concluido`; o Agrupamento dele cujas Peças concluíram
+  todas ganha `DataConclusao` mesmo com o Pedido ainda `Aberto` (C23). Os demais casos de C16 da 5A não mudam
   (Pedido sem Peça não conclui; Agrupamento sem Peça não segura).
+- O estorno que reabre um Pedido que **nunca teve início** (nenhuma linha `Inicio` líquida de estorno nos nós dele,
+  regra 14) o devolve a `Aberto`, e não a `EmProducao` (C23). O `CalculoDoFechamento` passa a receber essa informação
+  em vez de sair cedo para `Aberto`.
+- Num Pedido `Concluido`, a baixa de Item é aceita só com motivo `Descarte`, em qualquer posição em produção (C24);
+  perda de Item num Pedido concluído é 409 `PedidoFechado`.
 - A baixa e o estorno dela recalculam o fechamento, do zero, na mesma transação (C10).
 
 ### 4.9 Estorno (C7, C8, C9)
@@ -260,6 +289,15 @@ C6. Não há prazo: `Perdido` é terminal.
 > Risco aceito: estornar uma baixa de pai depois de a sobra dos filhos ter sido descartada (por outra baixa) deixa
 > o pai precisando de filhos que já foram descartados; quem quer desfazer tudo estorna as duas.
 
+### 4.10 Editar a quantidade do nó (D12)
+
+Com o Pedido fora de `Aberto` (`EmProducao` ou `AguardandoExpedicao`), `PUT /estrutura/{id}` com quantidade **menor**
+que a atual é recusado com 409 `DiminuirPelaBaixa`, cuja mensagem manda para o "Dar baixa"; aumentar continua livre e
+recalcula o fechamento, como hoje (C15 da 5A). Com o Pedido `Aberto`, a edição continua livre nos dois sentidos, com a
+guarda de sempre (`QuantidadeAbaixoDoMovimentado`). Isso troca a frase da regra 13 que hoje permite "baixar a
+quantidade de uma Peça até o que já foi expedido". No painel de edição do nó, com o Pedido rodando, o campo de
+quantidade diz que diminuir é pelo "Dar baixa".
+
 ## 5. Backend
 
 ### 5.1 Rotas
@@ -267,7 +305,8 @@ C6. Não há prazo: `Perdido` é terminal.
 Todas na transação da execução (`ExecutarAsync`), travando os nós e depois os Pedidos (seção 8.1 da spec da Fase 3).
 
 - `POST /estrutura/{id}/baixas` *(Qualidade, PCP, Administrador)* — `{ motivo, observacao?, tudo: bool, origens?:
-  [{ posicao, setorId?, ordem?, quantidade }] }`. `tudo: true` exige `origens` ausente ou vazia; `tudo: false` exige
+  [{ posicao, setorId?, ordem?, quantidade }], incluirTopo?: bool }` (`incluirTopo`, D13, só na baixa de parte de um
+  Item; noutro caso, 400 `OrigemInvalida`). `tudo: true` exige `origens` ausente ou vazia; `tudo: false` exige
   `origens` com pelo menos uma, sem posição repetida (400 `ItemRepetido`) e no máximo `TamanhoMaximoDoLote` (C18).
   `201` com a baixa projetada (seção 5.2).
 - `POST /estrutura/{id}/baixas/previa` — o mesmo corpo; responde `200` com o que a baixa gravaria (as linhas por nó
@@ -279,6 +318,7 @@ Todas na transação da execução (`ExecutarAsync`), travando os nós e depois 
   `200` com os movimentos de estorno.
 - `GET /estrutura/{id}/baixas` *(qualquer perfil autenticado)* — as baixas com linha no nó ou num descendente, da
   mais recente para a mais antiga, com `estornada` e `estornavel` (C8), as linhas e o nome do autor.
+- `GET /pedidos/{id}/baixas` *(qualquer perfil autenticado)* — todas as baixas do Pedido, na mesma forma (C27).
 - `POST /movimentacoes/{id}/estorno` recusa linha `Perda` com 409 `EstornoImpossivel` (C7).
 
 ### 5.2 Projeção da baixa
@@ -286,7 +326,7 @@ Todas na transação da execução (`ExecutarAsync`), travando os nós e depois 
 `{ id, motivo, observacao, escopo: { tipo: 'No' | 'Agrupamento' | 'Pedido', id }, dataHora, usuarioId,
 usuarioNome, estornada, estornavel, linhas: [{ estruturaItemId, descricao, codigo, origemPosicao, origemSetorId,
 origemSetorNome, origemOrdem, quantidade }] }`. A prévia devolve `{ linhas, viramSobra: [{ estruturaItemId,
-descricao, quantidade }] }`.
+descricao, quantidade }], travaNoTopo: { pecaId, descricao, quantidade, aIniciar } | null }` (D13).
 
 ### 5.3 Perfis
 
@@ -306,9 +346,10 @@ aplicação.
 | `SaldoInsuficiente` | 409 | acima do saldo da origem; a mensagem nomeia a posição |
 | `NadaEmProducao` | 409 | o "tudo" não acharia nada a tirar |
 | `LiberacaoEmAberto` | 409 | descarte total com unidade aguardando liberação (C15); nomeia as Peças |
-| `PedidoFechado` | 409 | Pedido `Cancelado`; ou Pedido `Concluido` com origem que não é sobra viva (C12) |
+| `PedidoFechado` | 409 | Pedido `Cancelado`; ou, num Pedido `Concluido`, baixa de Peça ou motivo que não é `Descarte` (C12, C24) |
 | `JaEstornado` | 409 | estorno de baixa já estornada |
 | `EstornoImpossivel` | 409 | linha `Perda` pela rota genérica |
+| `DiminuirPelaBaixa` | 409 | `PUT /estrutura/{id}` diminuindo a quantidade com o Pedido rodando (D12) |
 
 ## 6. Front
 
@@ -327,7 +368,12 @@ usam `PainelDeEscrita` e `useEscritaDoPainel`; a tela não chama `usePodeEscreve
   `Pagina`, ao lado do botão que já existe, abrindo o `PainelDeDescarteTotal` com a prévia do servidor, a observação
   e o botão `perigo`. Só aparece com algo em produção.
 - **Fila do Setor**, seção "Sobra": "Descartar" na linha, só para Qualidade, PCP e Administrador (D5), com a
-  quantidade até a sobra da linha (C17).
+  quantidade até a sobra da linha (C17). A seção passa a incluir a sobra de Pedido `Concluido` (C25).
+- **Pedido** (`PedidoDetalhePage`): seção "Baixas", com todas as baixas do Pedido e o "Estornar" (C27).
+- **Painel do Item** (D13): com `travaNoTopo` na prévia, a caixa "Isso impede montar N {Peça}. Dar baixa também delas",
+  marcada por padrão (uma `CaixaDeLote` não serve: é uma caixa com texto, um `Campo` de caixa).
+- **Editar nó** (D12): com o Pedido rodando, a dica do campo de quantidade diz que diminuir é pelo "Dar baixa".
+- **Separação** (C26): a `SeparacaoPage` e o resumo de material da Fila deixam de listar o nó sem nada em produção.
 - **Onde está** (`ResumoDePosicoes`, `rotuloDoSaldo`): `Perdido` aparece como "N perdidos". A Fila e as Tarefas não
   listam `Perdido`.
 - **Cor**: a baixa é ação de **perigo** só no "Descartar tudo" (o `Botao` `perigo`, como o "Excluir"); o resto é
@@ -338,7 +384,8 @@ usam `PainelDeEscrita` e `useEscritaDoPainel`; a tela não chama `usePodeEscreve
 - Domínio: a conta de C6 descendo três níveis; `FaltaMontar` com perdido de "a iniciar" e com perdido depois de
   iniciado (não muda); o filho descartado por inteiro sai da montabilidade e do conjunto completo; o fechamento com
   expedido + perdido; `Aberto` que conclui (C11).
-- Api: cada código da seção 5.4; o estorno inteiro (inclusive os filhos de C6); a rota genérica recusando a linha;
+- Api: cada código da seção 5.4; o `PUT` que diminui com o Pedido rodando (D12); a baixa com `incluirTopo` em dois
+  níveis, e o estorno dela; o estorno que devolve a `Aberto` (C23); o estorno inteiro (inclusive os filhos de C6); a rota genérica recusando a linha;
   o "Descartar tudo" com várias Peças em várias posições; a prévia batendo com a gravação; baixa de sobra em Pedido
   concluído (C12).
 - Front: os três estados de cada painel; o gating por perfil (o Operador não vê "Dar baixa" nem o "Descartar" da
@@ -352,6 +399,8 @@ usam `PainelDeEscrita` e `useEscritaDoPainel`; a tela não chama `usePodeEscreve
 - O estorno da baixa de um pai depois do descarte da sobra dos filhos (seção 4.9).
 - O filho descartado por inteiro deixa de limitar a montagem (seção 4.5); se o descarte foi engano, o estorno o traz
   de volta à conta.
+- Na baixa de parte, o planejado do material do nó não se reescala (C26), como na edição de quantidade (dívida m5 da
+  Fase 4): a pendência do Separador pode ficar maior que o necessário.
 
 ## 9. Abordagens consideradas
 
@@ -370,7 +419,10 @@ usam `PainelDeEscrita` e `useEscritaDoPainel`; a tela não chama `usePodeEscreve
   a 4.9) e do estorno dela.
 - `specs/02`: `dbo.Perda` e `dbo.Movimentacao` (seção 3).
 - `specs/04`: fluxos 5 e 6 revistos (o 5 só aponta para a 5B-2).
-- `specs/05`: as rotas da seção 5.1; a rota antiga `POST /pecas/{id}/perdas` sai.
+- `specs/05`: as rotas da seção 5.1; a rota antiga `POST /pecas/{id}/perdas` sai; o `PUT /estrutura/{id}` ganha
+  `DiminuirPelaBaixa` (D12) na tabela "Contrato de erro da Estrutura".
+- `specs/01`, regra 13: a frase "baixar a quantidade de uma Peça até o que já foi expedido a conclui" sai (D12), e a
+  regra ganha C11, C23 e C24.
 - `specs/06`: a 5B partida em 5B-1 e 5B-2; da 5C sai a perda do próprio pai nos tetos (C21).
 - `CLAUDE.md`: a ordem (5B-1, 5B-2), o comando do `db/alter-fase-5b1.sql`, o invariante da regra 9 com o perdido,
   o módulo `web/src/baixas/` na seção Interface, e as contagens que mudarem (remedidas, com a métrica dita).
