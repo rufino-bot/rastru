@@ -15,7 +15,7 @@ import type { MaterialResumoDto, PausaResumoDto } from './cadastros'
  */
 
 /**
- * As posições do livro. As oito últimas são da Fase 5A: as três do conserto (com Setor, sem passo), as cinco do
+ * As posições do livro. `Perdido`, a última, é da Fase 5B-1 (a baixa). As oito anteriores a ela são da Fase 5A: as três do conserto (com Setor, sem passo), as cinco do
  * fim do caminho que não têm Setor, e `NaExpedicao`, a primeira delas, que é o local de expedição ainda sem medição.
  */
 export type Posicao =
@@ -33,6 +33,7 @@ export type Posicao =
   | 'Liberada'
   | 'Montado'
   | 'Expedido'
+  | 'Perdido'
 
 /** Os seis últimos são da Fase 5A: a contagem (`Medicao`), o conserto, a liberação e a remessa (`Expedicao`). */
 export type TipoDeMovimentacao =

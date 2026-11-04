@@ -83,6 +83,7 @@ export function rotuloDoSaldo(s: SaldoDto): string {
     case 'Liberada': return `${quantidadeConcordada(s.quantidade, 'liberada', 'liberadas')} pela Gestão`
     case 'Montado': return `${q} montados no pai`
     case 'Expedido': return quantidadeConcordada(s.quantidade, 'expedido', 'expedidos')
+    case 'Perdido': return quantidadeConcordada(s.quantidade, 'perdido', 'perdidos')
   }
 }
 
@@ -103,6 +104,7 @@ export function rotuloDoLocal(l: LocalDto): string {
     case 'Liberada': return 'local de expedição (liberada pela Gestão)'
     case 'Montado': return 'montado no pai'
     case 'Expedido': return 'expedido'
+    case 'Perdido': return 'perdido'
   }
 }
 

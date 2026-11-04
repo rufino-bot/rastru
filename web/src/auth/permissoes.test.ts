@@ -7,7 +7,7 @@ describe('podeEscrever', () => {
       'setores', 'materiais', 'componentes', 'pedidos', 'agrupamentos', 'estrutura',
       'apontamento', 'entrega', 'roteiro', 'estorno', 'pausa',
       'separacao', 'estornoDeSeparacao', 'materiaisDoNo',
-      'expedicao', 'liberacao', 'estornoDaExpedicao',
+      'expedicao', 'liberacao', 'estornoDaExpedicao', 'baixa',
     ] as const) {
       expect(podeEscrever('Administrador', r), r).toBe(true)
     }
@@ -85,6 +85,16 @@ describe('podeEscrever', () => {
     }
     for (const p of ['Operador', 'Movimentador', 'Separador']) {
       expect(podeEscrever(p, 'estornoDaExpedicao'), p).toBe(false)
+    }
+  })
+
+  it('Fase 5B-1: dar baixa é da Qualidade e do PCP, e de mais ninguém do chão', () => {
+    // Espelha `BaixaController`: a baixa e o descarte são decisão de quem responde pela peça (D5).
+    for (const p of ['Qualidade', 'PCP', 'Administrador']) {
+      expect(podeEscrever(p, 'baixa'), p).toBe(true)
+    }
+    for (const p of ['Operador', 'Movimentador', 'Separador', 'Gestao']) {
+      expect(podeEscrever(p, 'baixa'), p).toBe(false)
     }
   })
 

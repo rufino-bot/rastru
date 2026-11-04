@@ -97,6 +97,8 @@ describe('rotuloDoSaldo', () => {
       '1,5 pronto, aguardando a montagem do pai em Solda'],
     [{ ...base, posicao: 'NaExpedicao' as const, quantidade: 10 }, '10 no local de expedição'],
     [{ ...base, posicao: 'Montado' as const, quantidade: 8 }, '8 montados no pai'],
+    [{ ...base, posicao: 'Perdido' as const, quantidade: 1 }, '1 perdido'],
+    [{ ...base, posicao: 'Perdido' as const, quantidade: 4 }, '4 perdidos'],
   ])('%o vira "%s"', (saldo, texto) => {
     expect(rotuloDoSaldo(saldo)).toBe(texto)
   })
@@ -142,6 +144,7 @@ describe('rotuloDoLocal', () => {
     [{ posicao: 'AguardandoMontagem' as const, setorId: 4, setorNome: 'Solda', ordem: null }, 'aguardando a montagem do pai em Solda'],
     [{ ...vazio, posicao: 'NaExpedicao' as const }, 'local de expedição'],
     [{ ...vazio, posicao: 'Montado' as const }, 'montado no pai'],
+    [{ ...vazio, posicao: 'Perdido' as const }, 'perdido'],
     [{ posicao: 'AguardandoConserto' as const, setorId: 2, setorNome: 'Dobra', ordem: null },
       'aguardando levar ao conserto em Dobra'],
     [{ posicao: 'EmConserto' as const, setorId: 2, setorNome: 'Dobra', ordem: null }, 'conserto em Dobra'],
