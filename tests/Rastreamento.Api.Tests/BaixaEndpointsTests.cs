@@ -258,6 +258,41 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
+  public async Task IncluirTopo_de_um_neto_sobe_a_cadeia_ate_a_Peca_e_desce_pelo_outro_ramo()
+  {
+    // Tres niveis: um neto N copiado do catalogo (20, razao 1) sob B. A cadeia de N e [B, A]; C so se alcanca pela
+    // arvore da Peca do topo, nao pela de B (secao 4.6 da spec da Fase 5B-1).
+    await using var c = await CriarAsync(_factory);
+    var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.B}/filhos",
+        new { componenteId = (int?)c.ComponenteId, descricao = (string?)null, quantidade = 20m, quantidadePorPai = 1m });
+    await Garantir(criado);
+    var neto = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    var corpo = new
+    {
+      motivo = "PerdaArmazem", tudo = false, origens = new[] { Origem("AIniciar", null, null, 4m) }, incluirTopo = true,
+    };
+    var qualidade = c.Como(c.Qualidade);
+
+    // Sem 4 de N, B so monta 16 das 20, e A (razao 2 de B) so monta 8 das 10: trava 2 de A, pela razao de cada nivel.
+    var previa = await CorpoAsync(await qualidade.PostAsJsonAsync($"/api/estrutura/{neto}/baixas/previa", corpo));
+    var trava = previa.GetProperty("travaNoTopo");
+    Assert.Equal((c.A, "Chassi da Fase 3", 2m, 10m),
+        (trava.GetProperty("pecaId").GetInt32(), trava.GetProperty("descricao").GetString(),
+         trava.GetProperty("quantidade").GetDecimal(), trava.GetProperty("aIniciar").GetDecimal()));
+
+    var resposta = await qualidade.PostAsJsonAsync($"/api/estrutura/{neto}/baixas", corpo);
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    // As 2 de A saem de "a iniciar" e a cascata C6 desce da Peca pelos dois ramos: B deixa de precisar de 4, C de 2. N
+    // ja perdeu as 4 que B deixa de pedir, entao nao perde mais nada.
+    Assert.Equal(
+        [(neto, "AIniciar", 4m), (c.A, "AIniciar", 2m), (c.B, "AIniciar", 4m), (c.C, "AIniciar", 2m)],
+        Linhas(await CorpoAsync(resposta)));
+    Assert.Equal(1, await PerdasDoPedidoAsync(c));
+    Assert.Equal(2m, await SaldoAsync(c, c.C, "Perdido"));
+  }
+
+  [Fact]
   public async Task Tudo_de_Item_por_perda_com_IncluirTopo_grava_a_Peca_do_topo_na_mesma_Perda()
   {
     await using var c = await CriarAsync(_factory);

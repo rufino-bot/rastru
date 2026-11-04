@@ -141,7 +141,7 @@ public sealed class BaixaUseCase
         var componente = no?.ComponenteId is int c ? componentes.GetValueOrDefault(c) : null;
         // A descricao pela regra 19 (a do no, senao a do Componente), como `EstadoDeExecucao.Nome`.
         return new LinhaDaBaixaDto(
-            l.EstruturaItemId, no?.Descricao ?? componente?.Descricao ?? $"no {l.EstruturaItemId}", componente?.Codigo,
+            l.EstruturaItemId, no?.Descricao ?? componente?.Descricao ?? string.Empty, componente?.Codigo,
             l.OrigemPosicao, l.OrigemSetorId, l.OrigemSetorId is int s ? setores.GetValueOrDefault(s) : null,
             l.OrigemOrdem, l.Quantidade);
       }).ToList();

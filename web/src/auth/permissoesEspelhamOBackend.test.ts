@@ -51,6 +51,7 @@ const CONTROLLERS_POR_RECURSO: Record<Recurso, readonly string[]> = {
   expedicao: ['ExpedicaoController.cs'],
   liberacao: ['LiberacaoController.cs'],
   estornoDaExpedicao: ['EstornoDaExpedicaoController.cs'],
+  baixa: ['BaixaController.cs'],
 }
 
 /**
