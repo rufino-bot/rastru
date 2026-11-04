@@ -37,4 +37,38 @@ public class BaixaController : ExecucaoControllerBase
     if (UsuarioDaSessao() is null) return Unauthorized();
     return Traduzir(await _baixa.PreverBaixa(id, dto, ct));
   }
+
+  /// <summary>O "Descartar tudo" do Agrupamento: uma baixa de tudo por `Descarte` de cada Peca dele com algo em producao.</summary>
+  [HttpPost("agrupamentos/{id:int}/descarte")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> DescartarAgrupamento(int id, [FromBody] DescarteDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _baixa.DescartarAgrupamento(id, dto, usuarioId, ct), criado: true);
+  }
+
+  [HttpPost("agrupamentos/{id:int}/descarte/previa")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> PreverDescarteDoAgrupamento(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is null) return Unauthorized();
+    return Traduzir(await _baixa.PreverDescarteDoAgrupamento(id, ct));
+  }
+
+  /// <summary>O "Descartar tudo" do Pedido: como o do Agrupamento, sobre todos os Agrupamentos do Pedido.</summary>
+  [HttpPost("pedidos/{id:int}/descarte")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> DescartarPedido(int id, [FromBody] DescarteDto dto, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _baixa.DescartarPedido(id, dto, usuarioId, ct), criado: true);
+  }
+
+  [HttpPost("pedidos/{id:int}/descarte/previa")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> PreverDescarteDoPedido(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is null) return Unauthorized();
+    return Traduzir(await _baixa.PreverDescarteDoPedido(id, ct));
+  }
 }

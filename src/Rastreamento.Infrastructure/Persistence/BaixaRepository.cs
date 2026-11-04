@@ -84,4 +84,15 @@ public class BaixaRepository : IBaixaRepository
         .Where(p => ids.Contains(p.Id))
         .ToDictionaryAsync(p => p.Id, p => p.Status, ct);
   }
+
+  public async Task<IReadOnlyList<int>> ListarPecasDoEscopoAsync(int pedidoId, int? agrupamentoId, CancellationToken ct) =>
+      await (from e in _db.Estruturas.AsNoTracking()
+             join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+             where e.EstruturaPaiId == null && a.PedidoId == pedidoId && (agrupamentoId == null || a.Id == agrupamentoId)
+             orderby e.Id
+             select e.Id)
+          .ToListAsync(ct);
+
+  public Task<int?> ObterPedidoDoAgrupamentoAsync(int agrupamentoId, CancellationToken ct) =>
+      _db.Agrupamentos.AsNoTracking().Where(a => a.Id == agrupamentoId).Select(a => (int?)a.PedidoId).SingleOrDefaultAsync(ct);
 }

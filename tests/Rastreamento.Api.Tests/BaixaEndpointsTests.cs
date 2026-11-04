@@ -544,4 +544,259 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal(iniciado, await SaldoAsync(c, c.C, "Montado"));
     Assert.Equal(10m - iniciado, await SaldoAsync(c, c.C, "AguardandoMontagem"));
   }
+
+  // O "Descartar tudo" do Agrupamento e do Pedido (P6 do plano de backend da Fase 5B-1).
+
+  /// <summary>
+  /// Uma Peca nova no Agrupamento do cenario, copiada do catalogo (sem descricao propria), no Corte, com
+  /// `quantidade` unidades levadas ate o local de expedicao; `expedir` as remete todas.
+  /// </summary>
+  private static async Task<int> PecaNaExpedicaoAsync(CenarioDaFase3NaApi c, decimal quantidade, bool expedir = false)
+  {
+    var pcp = c.Como(c.Pcp);
+    var criada = await pcp.PostAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}/estrutura",
+        new { componenteId = c.ComponenteId, quantidade, requerRelatorioDimensional = true });
+    await Garantir(criada);
+    var peca = (await CorpoAsync(criada)).GetProperty("id").GetInt32();
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{peca}/roteiro", new { passos = new[] { c.Corte } }));
+    await LevarParaAMontagemAsync(c, peca, c.Corte, quantidade);
+    if (expedir)
+      await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync("/api/remessas",
+          new { itens = new[] { new { estruturaItemId = peca, quantidade } } }));
+    return peca;
+  }
+
+  /// <summary>Uma Peca com `unidades` aguardando liberacao: nao conforme, contada e pedida a liberacao.</summary>
+  private static async Task PecaAguardandoLiberacaoAsync(CenarioDaFase3NaApi c, decimal unidades)
+  {
+    var peca = await PecaNaExpedicaoAsync(c, 6m);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 6m - unidades, naoConformes = unidades }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao",
+        new { quantidade = unidades, justificativa = "A peça serve assim." }));
+  }
+
+  /// <summary>Um segundo Agrupamento no Pedido do cenario, com uma Peca a iniciar; sai no `DisposeAsync`.</summary>
+  private sealed class OutroAgrupamento(WebApplicationFactory<Program> factory, int id, int peca) : IAsyncDisposable
+  {
+    public int Id { get; } = id;
+    public int Peca { get; } = peca;
+
+    public async ValueTask DisposeAsync()
+    {
+      using var escopo = factory.Services.CreateScope();
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var ag = Id;
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.EstruturaRoteiro WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag}");
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Agrupamento WHERE Id = {ag}");
+    }
+  }
+
+  private async Task<OutroAgrupamento> OutroAgrupamentoAsync(CenarioDaFase3NaApi c)
+  {
+    var pcp = c.Como(c.Pcp);
+    var criado = await pcp.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/agrupamentos", new { codigo = "AG-02", tipo = "Avulso" });
+    await Garantir(criado);
+    var id = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    var outro = new OutroAgrupamento(_factory, id, 0);
+    try
+    {
+      var peca = await pcp.PostAsJsonAsync($"/api/agrupamentos/{id}/estrutura",
+          new { componenteId = c.ComponenteId, quantidade = 7m, requerRelatorioDimensional = false });
+      await Garantir(peca);
+      return new OutroAgrupamento(_factory, id, (await CorpoAsync(peca)).GetProperty("id").GetInt32());
+    }
+    catch
+    {
+      await outro.DisposeAsync();
+      throw;
+    }
+  }
+
+  private async Task<(string? Status, bool Concluido)> StatusDoPedidoAsync(CenarioDaFase3NaApi c)
+  {
+    var pedido = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/pedidos/{c.PedidoId}"));
+    return (pedido.GetProperty("status").GetString(), pedido.GetProperty("dataConclusao").ValueKind == JsonValueKind.String);
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_do_Pedido_leva_todas_as_Pecas_numa_Perda_e_conclui_o_Pedido()
+  {
+    await using var c = await CriarAsync(_factory);
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+    var expedida = await PecaNaExpedicaoAsync(c, 5m, expedir: true);
+    var naExpedicao = await PecaNaExpedicaoAsync(c, 6m);
+
+    var resposta = await c.Como(c.Pcp).PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { observacao = "  Cliente cancelou  " });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var baixa = await CorpoAsync(resposta);
+    Assert.Equal("Descarte", baixa.GetProperty("motivo").GetString());
+    Assert.Equal("Cliente cancelou", baixa.GetProperty("observacao").GetString());
+    Assert.Equal("Pedido", baixa.GetProperty("escopo").GetProperty("tipo").GetString());
+    Assert.Equal(c.PedidoId, baixa.GetProperty("escopo").GetProperty("id").GetInt32());
+    Assert.True(baixa.GetProperty("tudo").GetBoolean());
+    // A Peca toda expedida nao gera linha; as outras saem de todas as posicoes em que tinham algo.
+    Assert.Equal(
+        [(c.A, "AIniciar", 10m), (c.B, "AIniciar", 16m), (c.B, "NoSetor", 4m), (c.C, "AIniciar", 10m),
+            (naExpedicao, "NaExpedicao", 6m)],
+        Linhas(baixa).OrderBy(l => l.No).ThenBy(l => l.Origem, StringComparer.Ordinal).ToList());
+    Assert.DoesNotContain(Linhas(baixa), l => l.No == expedida);
+    Assert.Equal(1, await PerdasDoPedidoAsync(c));
+    Assert.Equal(6m, await SaldoAsync(c, naExpedicao, "Perdido"));
+    Assert.Equal(5m, await SaldoAsync(c, expedida, "Expedido"));
+
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var perda = await db.Perdas.AsNoTracking().SingleAsync(p => p.PedidoId == c.PedidoId);
+      Assert.True(perda.Tudo);
+      Assert.Equal("Descarte", perda.Motivo);
+      Assert.Null(perda.AgrupamentoId);
+      Assert.Null(perda.EstruturaItemId);
+    }
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_do_Agrupamento_conclui_o_Agrupamento_e_nao_mexe_no_outro()
+  {
+    await using var c = await CriarAsync(_factory);
+    await using var outro = await OutroAgrupamentoAsync(c);
+
+    var resposta = await c.Como(c.Qualidade).PostAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}/descarte", new { });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    var baixa = await CorpoAsync(resposta);
+    Assert.Equal("Agrupamento", baixa.GetProperty("escopo").GetProperty("tipo").GetString());
+    Assert.Equal(c.AgrupamentoId, baixa.GetProperty("escopo").GetProperty("id").GetInt32());
+    Assert.Equal([c.A, c.B, c.C], Linhas(baixa).Select(l => l.No).Distinct().ToList());
+
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var perda = await db.Perdas.AsNoTracking().SingleAsync(p => p.PedidoId == c.PedidoId);
+    Assert.Equal(c.AgrupamentoId, perda.AgrupamentoId);
+    Assert.Null(perda.EstruturaItemId);
+    Assert.NotNull((await db.Agrupamentos.AsNoTracking().SingleAsync(a => a.Id == c.AgrupamentoId)).DataConclusao);
+    Assert.Null((await db.Agrupamentos.AsNoTracking().SingleAsync(a => a.Id == outro.Id)).DataConclusao);
+    // O outro Agrupamento segue com as 7 a iniciar, e o Pedido segue aberto.
+    var intactos = await db.Movimentacoes.AsNoTracking().CountAsync(m => m.EstruturaItemId == outro.Peca);
+    Assert.Equal(0, intactos);
+    Assert.False((await StatusDoPedidoAsync(c)).Concluido);
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_de_Pedido_Aberto_conclui_o_Pedido()
+  {
+    await using var c = await CriarAsync(_factory);
+    Assert.Equal(("Aberto", false), await StatusDoPedidoAsync(c));
+
+    var resposta = await c.Como(c.Pcp).PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { });
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_com_aguardando_liberacao_e_LiberacaoEmAberto_nomeando_a_Peca()
+  {
+    await using var c = await CriarAsync(_factory);
+    await PecaAguardandoLiberacaoAsync(c, 2m);
+    await PecaAguardandoLiberacaoAsync(c, 1m);
+
+    foreach (var rota in new[]
+    {
+      $"/api/pedidos/{c.PedidoId}/descarte", $"/api/pedidos/{c.PedidoId}/descarte/previa",
+      $"/api/agrupamentos/{c.AgrupamentoId}/descarte", $"/api/agrupamentos/{c.AgrupamentoId}/descarte/previa",
+    })
+    {
+      var (status, erro, mensagem) = await RecusaAsync(await c.Como(c.Qualidade).PostAsJsonAsync(rota, new { }));
+      Assert.Equal((HttpStatusCode.Conflict, "LiberacaoEmAberto"), (status, erro));
+      // Todas as Pecas presas na mesma recusa (C15), nomeadas pelo Componente (regra 19).
+      Assert.Equal(
+          "Há unidades aguardando liberação em Chassi da Fase 3, Chassi da Fase 3: "
+          + "estorne os pedidos de liberação antes de descartar tudo.", mensagem);
+    }
+    Assert.Equal(0, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_sem_nada_em_producao_e_NadaEmProducao()
+  {
+    await using var c = await CriarAsync(_factory);
+    await using var outro = await OutroAgrupamentoAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}/descarte", new { }));
+
+    foreach (var rota in new[] { $"/api/agrupamentos/{c.AgrupamentoId}/descarte", $"/api/agrupamentos/{c.AgrupamentoId}/descarte/previa" })
+    {
+      var (status, erro, mensagem) = await RecusaAsync(await qualidade.PostAsJsonAsync(rota, new { }));
+      Assert.Equal((HttpStatusCode.Conflict, "NadaEmProducao"), (status, erro));
+      Assert.Equal("O Agrupamento não tem nada em produção para descartar.", mensagem);
+    }
+    Assert.Equal(1, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Previa_do_descarte_do_Pedido_bate_com_o_gravado()
+  {
+    await using var c = await CriarAsync(_factory);
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+    await PecaNaExpedicaoAsync(c, 6m);
+    var qualidade = c.Como(c.Qualidade);
+
+    var previa = await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte/previa", new { });
+
+    Assert.Equal(HttpStatusCode.OK, previa.StatusCode);
+    Assert.Equal(0, await PerdasDoPedidoAsync(c));
+    var daPrevia = await CorpoAsync(previa);
+    Assert.Empty(daPrevia.GetProperty("viramSobra").EnumerateArray());
+    Assert.Equal(JsonValueKind.Null, daPrevia.GetProperty("travaNoTopo").ValueKind);
+
+    var gravada = await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { });
+    Assert.Equal(HttpStatusCode.Created, gravada.StatusCode);
+    Assert.Equal(LinhasInteiras(daPrevia), LinhasInteiras(await CorpoAsync(gravada)));
+  }
+
+  [Fact]
+  public async Task Pedido_pausado_aceita_baixa_e_descarte()
+  {
+    await using var c = await CriarAsync(_factory);
+    await Garantir(await c.Como(c.Gestao).PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/pausas", new { motivo = "outro pedido urgente" }));
+    var qualidade = c.Como(c.Qualidade);
+
+    var parte = await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", Parte("PerdaArmazem", Origem("AIniciar", null, null, 2m)));
+    var tudo = await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { });
+
+    Assert.Equal(HttpStatusCode.Created, parte.StatusCode);
+    Assert.Equal(HttpStatusCode.Created, tudo.StatusCode);
+    Assert.Equal(2, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Descarte_com_observacao_acima_de_500_e_agrupamento_ou_pedido_inexistente_recusam()
+  {
+    await using var c = await CriarAsync(_factory);
+    var qualidade = c.Como(c.Qualidade);
+
+    var longa = await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { observacao = new string('x', 501) });
+    var (status, erro, _) = await RecusaAsync(longa);
+    Assert.Equal((HttpStatusCode.BadRequest, "TextoLongoDemais"), (status, erro));
+
+    foreach (var rota in new[]
+    {
+      "/api/agrupamentos/999999999/descarte", "/api/agrupamentos/999999999/descarte/previa",
+      "/api/pedidos/999999999/descarte", "/api/pedidos/999999999/descarte/previa",
+    })
+      Assert.Equal(HttpStatusCode.NotFound, (await qualidade.PostAsJsonAsync(rota, new { })).StatusCode);
+
+    Assert.Equal(HttpStatusCode.Forbidden,
+        (await c.Como(c.Operador).PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { })).StatusCode);
+    Assert.Equal(0, await PerdasDoPedidoAsync(c));
+  }
 }

@@ -66,6 +66,15 @@ public class FakeBaixaRepo : IBaixaRepository, FakeExecucaoRepo.IParticipanteDaT
       Task.FromResult<IReadOnlyDictionary<int, string>>(_execucao.StatusDoPedido
           .Where(kv => pedidoIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
 
+  public Task<IReadOnlyList<int>> ListarPecasDoEscopoAsync(int pedidoId, int? agrupamentoId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<int>>(_estruturas.Itens
+          .Where(i => i.EstruturaPaiId is null && _execucao.Agrupamentos.TryGetValue(i.AgrupamentoId, out var ag)
+              && ag.PedidoId == pedidoId && (agrupamentoId is null || i.AgrupamentoId == agrupamentoId))
+          .Select(i => i.Id).Order().ToList());
+
+  public Task<int?> ObterPedidoDoAgrupamentoAsync(int agrupamentoId, CancellationToken ct) =>
+      Task.FromResult(_execucao.Agrupamentos.TryGetValue(agrupamentoId, out var ag) ? (int?)ag.PedidoId : null);
+
   void FakeExecucaoRepo.IParticipanteDaTransacao.AoSalvar()
   {
     foreach (var perda in _pendentes)

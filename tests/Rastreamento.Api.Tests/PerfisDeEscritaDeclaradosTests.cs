@@ -217,6 +217,11 @@ public class PerfisDeEscritaDeclaradosTests
     // todas as escritas da baixa (decisao P1 do plano de backend da Fase 5B-1); a previa e escrita so no verbo.
     ["POST estrutura/{id:int}/baixas"] = ["Qualidade", "PCP", "Administrador"],
     ["POST estrutura/{id:int}/baixas/previa"] = ["Qualidade", "PCP", "Administrador"],
+    // O "Descartar tudo" do Agrupamento e do Pedido (P6 do plano de backend da Fase 5B-1), com as previas.
+    ["POST agrupamentos/{id:int}/descarte"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST agrupamentos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST pedidos/{id:int}/descarte"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST pedidos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
   };
 
   /// <summary>

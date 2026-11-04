@@ -2,6 +2,9 @@ using Rastreamento.Application.Execucao;
 
 namespace Rastreamento.Application.Baixa;
 
+/// <summary>O corpo do "Descartar tudo" do Agrupamento e do Pedido (secao 5.1 da spec da Fase 5B-1): so a observacao.</summary>
+public sealed record DescarteDto(string? Observacao);
+
 /// <summary>Uma posicao de onde a baixa de parte tira, e quanto (D4 da spec da Fase 5B-1).</summary>
 public sealed record OrigemDaBaixa(Local Local, decimal Quantidade);
 

@@ -28,4 +28,13 @@ public interface IBaixaRepository
 
   /// <summary>O status de AGORA de cada Pedido pedido, por Id. Pedido inexistente nao volta.</summary>
   Task<IReadOnlyDictionary<int, string>> ListarStatusDosPedidosAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
+  /// <summary>
+  /// As Pecas (nos sem pai) do escopo do "Descartar tudo", em ordem de Id: as do Agrupamento, ou, sem ele, as de todos
+  /// os Agrupamentos do Pedido.
+  /// </summary>
+  Task<IReadOnlyList<int>> ListarPecasDoEscopoAsync(int pedidoId, int? agrupamentoId, CancellationToken ct);
+
+  /// <summary>O Pedido do Agrupamento, ou nulo se o Agrupamento nao existe.</summary>
+  Task<int?> ObterPedidoDoAgrupamentoAsync(int agrupamentoId, CancellationToken ct);
 }

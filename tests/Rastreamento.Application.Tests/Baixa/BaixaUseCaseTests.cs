@@ -56,4 +56,30 @@ public class BaixaUseCaseTests
     Assert.Empty(c.Execucao.Eventos);
     Assert.Equal(0, c.Execucao.Transacoes);
   }
+
+  [Fact]
+  public async Task Descartar_o_Pedido_trava_todos_os_nos_das_Pecas_em_ordem_e_depois_o_Pedido_antes_de_gravar()
+  {
+    var (c, baixa) = Cenario();
+    // Uma segunda Peca no mesmo Agrupamento, com Id menor que parte da primeira arvore nao importa: a ordem e a de Id.
+    c.No(5, null, 3m, null, Solda);
+
+    var r = await baixa.DescartarPedido(PedidoId, new DescarteDto(null), Qualidade, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal(new[] { "nos:1,2,3,4,5", "pedidos:1,5", "save" }, c.Execucao.Eventos.Take(3));
+    Assert.True(c.Execucao.PedidoLidoAposEventos[0] >= 2);
+  }
+
+  [Fact]
+  public async Task Previa_do_descarte_nao_trava_nem_grava()
+  {
+    var (c, baixa) = Cenario();
+
+    var r = await baixa.PreverDescarteDoPedido(PedidoId, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Empty(c.Execucao.Eventos);
+    Assert.Equal(0, c.Execucao.Transacoes);
+  }
 }
