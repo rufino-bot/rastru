@@ -131,6 +131,18 @@ public interface IExecucaoRepository
   /// </summary>
   Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct);
 
+  /// <summary>
+  /// O liquido das linhas `Perda` com origem `AIniciar`, menos os estornos delas (destino `AIniciar` com `PerdaId`),
+  /// por no (C5 da spec da Fase 5B-1; decisao P2 do plano de backend). No sem perda nao aparece.
+  /// </summary>
+  Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Dos nos pedidos, os que saíram do projeto (C22; decisao P3 do plano de backend): tem uma baixa `Tudo` de motivo
+  /// `Descarte`, nao estornada, com escopo no proprio no.
+  /// </summary>
+  Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
   Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct);
 
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct);

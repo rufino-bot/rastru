@@ -79,13 +79,21 @@ public sealed class CalculadoraDeExecucao
   private readonly IReadOnlyDictionary<int, decimal> _totaisMontados;
   private readonly Dictionary<int, HashSet<int>> _alcancados = new();
   private readonly IReadOnlySet<int> _setoresComKit;
+  private readonly IReadOnlyDictionary<int, decimal> _perdidosDeAIniciar;
+  private readonly IReadOnlySet<int> _saidosDoProjeto;
+
+  /// <summary>As posicoes que nao sao producao: o que ja foi montado, expedido ou perdido (derivadas de `Posicoes.Todas`).</summary>
+  private static readonly IReadOnlySet<string> ForaDaProducao =
+      new HashSet<string> { Posicoes.Montado, Posicoes.Expedido, Posicoes.Perdido };
 
   public CalculadoraDeExecucao(
       IEnumerable<NoDoCalculo> nos,
       IEnumerable<SaldoLiquido> saldos,
       IReadOnlyDictionary<int, decimal> totaisMontados,
       IEnumerable<(int EstruturaItemId, int Ordem)> passosAlcancados,
-      IReadOnlySet<int>? setoresComKit = null)
+      IReadOnlySet<int>? setoresComKit = null,
+      IReadOnlyDictionary<int, decimal>? perdidosDeAIniciar = null,
+      IReadOnlySet<int>? saidosDoProjeto = null)
   {
     _nos = nos.ToDictionary(n => n.Id);
     _filhos = _nos.Values.Where(n => n.PaiId is not null).OrderBy(n => n.Id).ToLookup(n => n.PaiId!.Value);
@@ -108,6 +116,8 @@ public sealed class CalculadoraDeExecucao
     }
 
     _setoresComKit = setoresComKit ?? new HashSet<int>();
+    _perdidosDeAIniciar = perdidosDeAIniciar ?? new Dictionary<int, decimal>();
+    _saidosDoProjeto = saidosDoProjeto ?? new HashSet<int>();
   }
 
   public IEnumerable<NoDoCalculo> Nos => _nos.Values.OrderBy(n => n.Id);
@@ -115,6 +125,16 @@ public sealed class CalculadoraDeExecucao
   public NoDoCalculo No(int id) => _nos[id];
 
   public IReadOnlyList<NoDoCalculo> Filhos(int paiId) => _filhos[paiId].ToList();
+
+  /// <summary>
+  /// Os filhos que ainda contam para a montagem do pai: todos, menos os que saíram do projeto (C22 da spec da Fase
+  /// 5B-1, decisao P2 do plano de backend). `Filhos` continua inteira, para a arvore da tela.
+  /// </summary>
+  public IReadOnlyList<NoDoCalculo> FilhosQueContam(int paiId) =>
+      _filhos[paiId].Where(f => !_saidosDoProjeto.Contains(f.Id)).ToList();
+
+  /// <summary>O filho descartado por inteiro (baixa `Tudo` de motivo `Descarte`, nao estornada, no proprio no).</summary>
+  public bool SaiuDoProjeto(int id) => _saidosDoProjeto.Contains(id);
 
   public bool TemFilhos(int id) => _filhos[id].Any();
 
@@ -140,7 +160,22 @@ public sealed class CalculadoraDeExecucao
 
   public decimal TotalMontado(int id) => _totaisMontados.GetValueOrDefault(id);
 
-  public decimal FaltaMontar(int paiId) => _nos[paiId].Quantidade - TotalMontado(paiId);
+  /// <summary>O liquido da baixa que saiu de "a iniciar" do no (C5 da spec da Fase 5B-1), ja sem os estornos.</summary>
+  public decimal PerdidoDeAIniciar(int id) => _perdidosDeAIniciar.GetValueOrDefault(id);
+
+  /// <summary>
+  /// A soma dos saldos em producao: todas as posicoes menos `Montado`, `Expedido` e `Perdido`. A perda depois do
+  /// inicio nao entra em `FaltaMontar`, mas sai daqui.
+  /// </summary>
+  public decimal EmProducao(int id) =>
+      Saldos(id).Where(s => !ForaDaProducao.Contains(s.Local.Posicao)).Sum(s => s.Quantidade);
+
+  /// <summary>
+  /// O que o pai ainda tem de montar: quantidade, menos o montado, menos o que se perdeu em "a iniciar" (C5 da spec
+  /// da Fase 5B-1; decisao P2 do plano de backend). A perda depois do inicio nao desconta: aquelas unidades ja
+  /// consumiram os filhos.
+  /// </summary>
+  public decimal FaltaMontar(int paiId) => _nos[paiId].Quantidade - TotalMontado(paiId) - PerdidoDeAIniciar(paiId);
 
   public decimal AguardandoMontagem(int filhoId, int setorId) => Saldo(filhoId, Local.AguardandoMontagem(setorId));
 
@@ -231,7 +266,7 @@ public sealed class CalculadoraDeExecucao
   public Montabilidade CalcularMontabilidade(int paiId, int setorId)
   {
     var falta = Math.Max(0m, FaltaMontar(paiId));
-    var filhos = Filhos(paiId);
+    var filhos = FilhosQueContam(paiId);
     if (filhos.Count == 0) return new Montabilidade(paiId, setorId, falta, 0m, Array.Empty<FilhoNaMontagem>());
 
     var n = falta;
@@ -281,7 +316,7 @@ public sealed class CalculadoraDeExecucao
   public decimal ConjuntosAEspera(int paiId, IReadOnlyDictionary<int, decimal>? saindo = null)
   {
     var maior = 0m;
-    foreach (var filho in Filhos(paiId))
+    foreach (var filho in FilhosQueContam(paiId))
     {
       var razao = Razao(filho);
       if (razao <= 0m) continue;
@@ -314,7 +349,7 @@ public sealed class CalculadoraDeExecucao
       var teto = TetoDeEntrada(pai.Id);
       if (teto <= 0m) continue;
       var destino = PrimeiroPasso(pai.Id)!.Value.SetorId;
-      var filhos = Filhos(pai.Id).Select(c =>
+      var filhos = FilhosQueContam(pai.Id).Select(c =>
       {
         var ultimo = UltimoPasso(c.Id);
         var pronto = ultimo is PassoDoCalculo u ? Math.Max(0m, Saldo(c.Id, Local.AguardandoColeta(u.SetorId, u.Ordem))) : 0m;

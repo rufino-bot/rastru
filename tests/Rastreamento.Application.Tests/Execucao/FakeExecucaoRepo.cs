@@ -55,6 +55,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>SetorIds com `UtilizaKit`. Arranjo do teste.</summary>
   public HashSet<int> SetoresComKit { get; } = new();
 
+  /// <summary>Os nos que saíram do projeto (baixa `Tudo` de `Descarte`): o fake nao guarda `Perda`, entao o teste os diz.</summary>
+  public HashSet<int> SaidosDoProjeto { get; } = new();
+
   public Dictionary<int, string> StatusDoPedido { get; } = new();
 
   /// <summary>
@@ -350,6 +353,17 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
   public Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct) =>
       Task.FromResult<IReadOnlySet<int>>(SetoresComKit.ToHashSet());
+
+  public Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<int, decimal>>(Movimentacoes
+          .Where(m => ids.Contains(m.EstruturaItemId) && m.PerdaId != null
+                      && ((m.Tipo == TiposDeMovimentacao.Perda && m.OrigemPosicao == Posicoes.AIniciar)
+                          || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar)))
+          .GroupBy(m => m.EstruturaItemId)
+          .ToDictionary(g => g.Key, g => g.Sum(m => m.Tipo == TiposDeMovimentacao.Perda ? m.Quantidade : -m.Quantidade)));
+
+  public Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlySet<int>>(SaidosDoProjeto.Where(ids.Contains).ToHashSet());
 
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));

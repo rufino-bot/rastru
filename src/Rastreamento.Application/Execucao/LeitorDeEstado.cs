@@ -12,7 +12,7 @@ internal sealed record EstadoDeExecucao(
 
 /// <summary>
 /// Le, para os nos pedidos, tudo o que a calculadora precisa — Roteiro, saldos, totais montados, passos
-/// alcancados, o tipo do Agrupamento de cada no e os Setores com `UtilizaKit` — em sete consultas, nunca uma
+/// alcancados, o tipo do Agrupamento de cada no e os Setores com `UtilizaKit`, o perdido de "a iniciar" e os nos que saíram do projeto — em nove consultas, nunca uma
 /// por no. A descricao segue a regra 19 (a do no, senao a do
 /// Componente). Quem chama decide o conjunto: para o destino de um Item, o pai tem de estar nele.
 /// </summary>
@@ -40,6 +40,8 @@ internal sealed class LeitorDeEstado
     var alcancados = await _execucao.ListarPassosAlcancadosAsync(ids, ct);
     var deKit = await _execucao.ListarNosDeKitAsync(ids, ct);
     var setoresComKit = await _execucao.ListarSetoresComKitAsync(ct);
+    var perdidos = await _execucao.ListarPerdidosDeAIniciarAsync(ids, ct);
+    var saidos = await _execucao.ListarSaidosDoProjetoAsync(ids, ct);
     var componenteIds = distintos.Where(n => n.ComponenteId is not null).Select(n => n.ComponenteId!.Value).Distinct().ToList();
     var componentes = (await _catalogo.ObterComponentesPorIdAsync(componenteIds, ct)).ToDictionary(c => c.Id);
 
@@ -48,7 +50,7 @@ internal sealed class LeitorDeEstado
             n.Id, n.EstruturaPaiId, n.Quantidade, n.QuantidadePorPai,
             roteiros[n.Id].OrderBy(r => r.Ordem).Select(r => new PassoDoCalculo(r.SetorId, r.Ordem)).ToList(),
             deKit.Contains(n.Id))),
-        saldos, totais, alcancados, setoresComKit);
+        saldos, totais, alcancados, setoresComKit, perdidos, saidos);
 
     var descricoes = distintos.ToDictionary(
         n => n.Id,

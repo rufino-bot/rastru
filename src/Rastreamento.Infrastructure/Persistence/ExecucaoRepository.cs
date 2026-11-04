@@ -410,6 +410,39 @@ public class ExecucaoRepository : IExecucaoRepository
   public async Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct) =>
       (await _db.Setores.AsNoTracking().Where(s => s.UtilizaKit).Select(s => s.Id).ToListAsync(ct)).ToHashSet();
 
+  public async Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new Dictionary<int, decimal>();
+    var lista = ids.ToList();
+    // Uma consulta: a baixa soma, o estorno dela (de volta a `AIniciar`, com `PerdaId`) subtrai.
+    var linhas = await _db.Movimentacoes.AsNoTracking()
+        .Where(m => lista.Contains(m.EstruturaItemId) && m.PerdaId != null
+                    && ((m.Tipo == TiposDeMovimentacao.Perda && m.OrigemPosicao == Posicoes.AIniciar)
+                        || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar)))
+        .Select(m => new { m.EstruturaItemId, Sinal = m.Tipo == TiposDeMovimentacao.Perda ? 1m : -1m, m.Quantidade })
+        .ToListAsync(ct);
+    return linhas.GroupBy(l => l.EstruturaItemId)
+        .Select(g => (Id: g.Key, Total: g.Sum(l => l.Sinal * l.Quantidade)))
+        .Where(x => x.Total != 0m)
+        .ToDictionary(x => x.Id, x => x.Total);
+  }
+
+  public async Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return new HashSet<int>();
+    var lista = ids.ToList();
+    // "Estornada" e calculado, como na remessa: a baixa se estorna inteira, entao existe uma
+    // linha `Estorno` com o `PerdaId` dela.
+    var achados = await (from p in _db.Perdas.AsNoTracking()
+                         where p.Tudo && p.Motivo == MotivosDePerda.Descarte
+                               && p.EstruturaItemId != null && lista.Contains(p.EstruturaItemId!.Value)
+                               && !_db.Movimentacoes.Any(e => e.Tipo == TiposDeMovimentacao.Estorno
+                                                              && e.PerdaId == p.Id)
+                         select p.EstruturaItemId!.Value).Distinct().ToListAsync(ct);
+    return achados.ToHashSet();
+  }
+
   public async Task<IReadOnlyList<(int EstruturaItemId, int Ordem)>> ListarPassosAlcancadosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct)
   {
