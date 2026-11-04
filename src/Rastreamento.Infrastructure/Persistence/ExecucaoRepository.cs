@@ -194,12 +194,12 @@ public class ExecucaoRepository : IExecucaoRepository
     return ids;
   }
 
-  public async Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct)
+  public async Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default)
   {
     var linhas = await (from e in _db.Estruturas.AsNoTracking()
                         join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
                         join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
-                        where p.Status != StatusConcluido && p.Status != StatusCancelado
+                        where (incluirConcluidos || p.Status != StatusConcluido) && p.Status != StatusCancelado
                         orderby e.Id
                         select new
                         {

@@ -74,7 +74,7 @@ public sealed class ConsultaDaExpedicaoUseCase
 
   private async Task<Result<ExpedicaoDto>> ListaAsync(QuemLe quem, CancellationToken ct)
   {
-    var raizes = (await _execucao.ListarNosEmProducaoAsync(ct)).Where(x => x.No.EstruturaPaiId is null).ToList();
+    var raizes = (await _execucao.ListarNosEmProducaoAsync(ct: ct)).Where(x => x.No.EstruturaPaiId is null).ToList();
     if (raizes.Count == 0) return Result<ExpedicaoDto>.Ok(new ExpedicaoDto([]));
 
     var estado = await _leitor.CarregarAsync(raizes.Select(x => x.No).ToList(), ct);
@@ -252,7 +252,7 @@ public sealed class ConsultaDaExpedicaoUseCase
     if (pendentes.Count == 0) return Result<IReadOnlyList<LiberacaoPendenteDto>>.Ok([]);
 
     var pendentesIds = pendentes.Select(p => p.EstruturaItemId).ToHashSet();
-    var contexto = (await _execucao.ListarNosEmProducaoAsync(ct)).Where(x => pendentesIds.Contains(x.No.Id)).ToDictionary(x => x.No.Id);
+    var contexto = (await _execucao.ListarNosEmProducaoAsync(ct: ct)).Where(x => pendentesIds.Contains(x.No.Id)).ToDictionary(x => x.No.Id);
     var estado = await _leitor.CarregarAsync(contexto.Values.Select(x => x.No).ToList(), ct);
     var autores = await _execucao.ListarNomesDeUsuariosAsync(pendentes.Select(p => p.UsuarioId).Distinct().ToList(), ct);
     var hoje = PrazoDeEntrega.HojeEmBrasilia(_relogio);

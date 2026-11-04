@@ -979,7 +979,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Estorno_do_descarte_de_Pedido_cujo_unico_inicio_foi_estornado_volta_a_Aberto()
   {
-    // Carregado de uma review: `ListarPedidosComInicioAsync` so conta o inicio liquido de estorno (C23).
+    // C23 da spec da Fase 5B-1: `ListarPedidosComInicioAsync` so conta o inicio liquido de estorno.
     await using var c = await CriarAsync(_factory);
     await IniciarAsync(c, c.B, c.Corte, 4m);
     var inicio = (await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/estrutura/{c.B}/movimentacoes")))
@@ -1077,7 +1077,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Estorno_do_descarte_de_um_filho_volta_a_limitar_a_montagem_do_pai()
   {
-    // Carregado de uma review (ramo "estornada" de `ListarSaidosDoProjetoAsync`): C descartado por inteiro deixa de
+    // Ramo "estornada" de `ListarSaidosDoProjetoAsync`: C descartado por inteiro deixa de
     // limitar a montagem de A; estornado o descarte, A volta a precisar de C. B esta toda na montagem da Solda.
     await using var c = await CriarAsync(_factory);
     await using var controle = await CriarAsync(_factory);
@@ -1106,7 +1106,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Estorno_da_baixa_de_AIniciar_do_pai_devolve_o_que_falta_montar()
   {
-    // Carregado de uma review (ramo "estorno" de `ListarPerdidosDeAIniciarAsync`): a baixa de 3 de A em "a iniciar"
+    // Ramo "estorno" de `ListarPerdidosDeAIniciarAsync`: a baixa de 3 de A em "a iniciar"
     // baixa o que falta montar de 10 para 7, e o estorno o devolve a 10.
     await using var c = await CriarAsync(_factory);
     await LevarParaAMontagemAsync(c, c.B, c.Corte, 20m);
@@ -1182,5 +1182,201 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal((false, false), await LerAsync(c.Operador));
     await Garantir(await EstornarAsync(c, c.Pcp, baixaId));
     Assert.Equal((true, false), await LerAsync(c.Pcp));
+  }
+
+  // Pedido concluido, sobra na Fila e editar a quantidade (C12, C24, C25 e D12 da spec da Fase 5B-1).
+
+  /// <summary>
+  /// Leva o Pedido do cenario a `Concluido` pelo caminho real: B inicia 4 no Corte e A leva uma baixa de tudo o que
+  /// falta (10 "a iniciar", por Descarte). A cascata C6 tira o que B ainda tinha "a iniciar"; as 4 de B em
+  /// producao ficam como sobra viva, com A toda perdida.
+  /// </summary>
+  private async Task ConcluirDeixandoSobraDeBAsync(CenarioDaFase3NaApi c, bool terminarAsQuatro = false)
+  {
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+    if (terminarAsQuatro)
+      await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/terminos",
+          new { setorId = c.Corte, ordem = 1, quantidade = 4m }));
+    await Garantir(await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/baixas",
+        Parte("Descarte", Origem("AIniciar", null, null, 10m))));
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Pedido_concluido_aceita_descarte_de_sobra_de_Item_em_qualquer_posicao()
+  {
+    await using var c = await CriarAsync(_factory);
+    await ConcluirDeixandoSobraDeBAsync(c);
+    Assert.Equal(4m, await SaldoAsync(c, c.B, "NoSetor"));
+    var qualidade = c.Como(c.Qualidade);
+
+    // De parte, de uma posicao em producao que nao e "a iniciar"; a previa aceita o mesmo.
+    var parte = Parte("Descarte", Origem("NoSetor", c.Corte, 1, 1m));
+    Assert.Equal(HttpStatusCode.OK, (await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas/previa", parte)).StatusCode);
+    var umaParte = await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", parte);
+    Assert.Equal(HttpStatusCode.Created, umaParte.StatusCode);
+    Assert.Equal(3m, await SaldoAsync(c, c.B, "NoSetor"));
+
+    // De tudo: o resto da sobra.
+    var tudo = await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", new { motivo = "Descarte", tudo = true });
+    Assert.Equal(HttpStatusCode.Created, tudo.StatusCode);
+    Assert.Equal([(c.B, "NoSetor", 3m)], Linhas(await CorpoAsync(tudo)));
+    Assert.Equal(20m, await SaldoAsync(c, c.B, "Perdido"));
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Pedido_concluido_recusa_perda_de_Item_com_PedidoFechado()
+  {
+    await using var c = await CriarAsync(_factory);
+    await ConcluirDeixandoSobraDeBAsync(c);
+    var antes = await PerdasDoPedidoAsync(c);
+
+    foreach (var motivo in new[] { "PerdaArmazem", "MortaEmProcesso" })
+    foreach (var rota in new[] { $"/api/estrutura/{c.B}/baixas", $"/api/estrutura/{c.B}/baixas/previa" })
+    {
+      var resposta = await c.Como(c.Qualidade).PostAsJsonAsync(rota, Parte(motivo, Origem("NoSetor", c.Corte, 1, 1m)));
+      var (status, erro, mensagem) = await RecusaAsync(resposta);
+      Assert.Equal((HttpStatusCode.Conflict, "PedidoFechado"), (status, erro));
+      Assert.Contains("só se descarta a sobra de um Item", mensagem);
+    }
+    Assert.Equal(antes, await PerdasDoPedidoAsync(c));
+    Assert.Equal(4m, await SaldoAsync(c, c.B, "NoSetor"));
+  }
+
+  [Fact]
+  public async Task Pedido_concluido_recusa_baixa_de_Peca()
+  {
+    await using var c = await CriarAsync(_factory);
+    await ConcluirDeixandoSobraDeBAsync(c);
+    var antes = await PerdasDoPedidoAsync(c);
+
+    foreach (var rota in new[] { $"/api/estrutura/{c.A}/baixas", $"/api/estrutura/{c.A}/baixas/previa" })
+    {
+      var resposta = await c.Como(c.Qualidade).PostAsJsonAsync(rota, new { motivo = "Descarte", tudo = true });
+      var (status, erro, mensagem) = await RecusaAsync(resposta);
+      Assert.Equal((HttpStatusCode.Conflict, "PedidoFechado"), (status, erro));
+      Assert.Contains("uma Peça dele não tem nada em produção", mensagem);
+    }
+    Assert.Equal(antes, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Descartar_tudo_de_Pedido_concluido_leva_so_a_sobra_dos_Itens()
+  {
+    await using var c = await CriarAsync(_factory);
+    await ConcluirDeixandoSobraDeBAsync(c);
+    var qualidade = c.Como(c.Qualidade);
+
+    var previa = await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte/previa", new { });
+    var resposta = await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { });
+
+    Assert.Equal(HttpStatusCode.OK, previa.StatusCode);
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    Assert.Equal([(c.B, "NoSetor", 4m)], Linhas(await CorpoAsync(resposta)));
+    Assert.Equal(20m, await SaldoAsync(c, c.B, "Perdido"));
+    // Sem mais nada em producao, o segundo descarte e recusado como de costume.
+    var (_, erro, _) = await RecusaAsync(await qualidade.PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { }));
+    Assert.Equal("NadaEmProducao", erro);
+  }
+
+  [Fact]
+  public async Task Fila_mostra_a_sobra_de_Pedido_concluido_so_na_secao_Sobra()
+  {
+    await using var c = await CriarAsync(_factory);
+    await ConcluirDeixandoSobraDeBAsync(c, terminarAsQuatro: true);
+
+    var fila = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Corte}/fila"));
+
+    static bool DoNo(JsonElement l, int no, string campo = "no") => l.GetProperty(campo).GetProperty("id").GetInt32() == no;
+    var sobra = fila.GetProperty("sobra").EnumerateArray().Where(l => DoNo(l, c.B)).ToList();
+    Assert.Equal(4m, Assert.Single(sobra).GetProperty("quantidade").GetDecimal());
+    Assert.Equal("UltimoPasso", sobra[0].GetProperty("origem").GetString());
+    foreach (var secao in new[] { "aIniciar", "emTrabalho", "aguardandoColeta", "conserto" })
+      Assert.DoesNotContain(fila.GetProperty(secao).EnumerateArray(), l => DoNo(l, c.B));
+    Assert.DoesNotContain(fila.GetProperty("aguardandoMontagem").EnumerateArray(), l => DoNo(l, c.A, "pai"));
+  }
+
+  [Fact]
+  public async Task Tarefas_nao_mostram_Pedido_concluido()
+  {
+    await using var c = await CriarAsync(_factory);
+    await ConcluirDeixandoSobraDeBAsync(c, terminarAsQuatro: true);
+
+    var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
+
+    Assert.DoesNotContain(tarefas.GetProperty("grupos").EnumerateArray()
+        .SelectMany(g => g.GetProperty("tarefas").EnumerateArray()),
+        t => t.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+  }
+
+  [Fact]
+  public async Task Resumo_de_material_da_Fila_nao_mostra_no_descartado_por_inteiro()
+  {
+    // A (planejada com material) tem todo o B na montagem da Solda e uma segunda Peca em aberto, que segura o Pedido.
+    // Descartada A por inteiro (10 "a iniciar"), o cartao de montagem continua (B aguarda), mas sem o resumo (C26).
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await c.CriarMaterialAsync("PAR");
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.A}/materiais",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 10m } } }));
+    await PecaNaExpedicaoAsync(c, 5m);
+    await LevarParaAMontagemAsync(c, c.B, c.Corte, 20m);
+
+    static JsonElement CartaoDeA(JsonElement fila, int a) =>
+        fila.GetProperty("aguardandoMontagem").EnumerateArray().Single(m => m.GetProperty("pai").GetProperty("id").GetInt32() == a);
+    var antes = CartaoDeA(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila")), c.A);
+    Assert.NotEqual(JsonValueKind.Null, antes.GetProperty("material").ValueKind);
+
+    await Garantir(await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/baixas",
+        Parte("Descarte", Origem("AIniciar", null, null, 10m))));
+
+    var depois = CartaoDeA(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila")), c.A);
+    Assert.Equal(JsonValueKind.Null, depois.GetProperty("material").ValueKind);
+  }
+
+  [Fact]
+  public async Task Editar_quantidade_para_menos_com_Pedido_rodando_e_DiminuirPelaBaixa()
+  {
+    await using var c = await CriarAsync(_factory);
+    var filho = await FilhoDoCatalogoAsync(c);
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+    Assert.Equal(("EmProducao", false), await StatusDoPedidoAsync(c));
+
+    var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{filho}",
+        new { descricao = (string?)null, quantidade = 5m, quantidadePorPai = 1m });
+
+    var (status, erro, mensagem) = await RecusaAsync(resposta);
+    Assert.Equal((HttpStatusCode.Conflict, "DiminuirPelaBaixa"), (status, erro));
+    Assert.Equal("Com o Pedido em produção, a quantidade de Chassi da Fase 3 só aumenta: para diminuir, use \"Dar baixa\".", mensagem);
+    var arvore = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/agrupamentos/{c.AgrupamentoId}/estrutura"));
+    Assert.Contains("\"quantidade\":10", arvore.GetRawText());
+  }
+
+  [Fact]
+  public async Task Editar_quantidade_para_mais_com_Pedido_rodando_passa()
+  {
+    await using var c = await CriarAsync(_factory);
+    var filho = await FilhoDoCatalogoAsync(c);
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+
+    var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{filho}",
+        new { descricao = (string?)null, quantidade = 12m, quantidadePorPai = 1m });
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Equal(12m, (await CorpoAsync(resposta)).GetProperty("quantidade").GetDecimal());
+  }
+
+  [Fact]
+  public async Task Editar_quantidade_para_menos_com_Pedido_Aberto_passa()
+  {
+    await using var c = await CriarAsync(_factory);
+    var filho = await FilhoDoCatalogoAsync(c);
+    Assert.Equal(("Aberto", false), await StatusDoPedidoAsync(c));
+
+    var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{filho}",
+        new { descricao = (string?)null, quantidade = 5m, quantidadePorPai = 1m });
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Equal(5m, (await CorpoAsync(resposta)).GetProperty("quantidade").GetDecimal());
   }
 }

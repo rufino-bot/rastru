@@ -277,6 +277,13 @@ public partial class ExecucaoEndpointsTests
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
     await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 15m }));
+    // Com o Pedido rodando, diminuir e `DiminuirPelaBaixa` (D12 da spec da Fase 5B-1) e a guarda do movimentado nao
+    // chega a rodar; ela vale onde o D12 nao alcanca, o Pedido `Cancelado`, que nenhuma rota produz (vai direto no banco).
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Pedido SET Status = 'Cancelado' WHERE Id = {c.PedidoId}");
+    }
 
     var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.B}",
         new { descricao = "Suporte", quantidade = 10m, quantidadePorPai = 2m });

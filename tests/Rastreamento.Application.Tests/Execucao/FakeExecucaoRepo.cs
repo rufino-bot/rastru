@@ -220,14 +220,14 @@ public class FakeExecucaoRepo : IExecucaoRepository
     return Task.FromResult<IReadOnlyList<int>>(ids);
   }
 
-  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct)
+  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default)
   {
     var lista = new List<ContextoDoNo>();
     foreach (var item in _estruturas.Itens.OrderBy(i => i.Id))
     {
       if (!Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag)) continue;
       var status = StatusDoPedido[ag.PedidoId];
-      if (status is "Concluido" or "Cancelado") continue;
+      if (status == "Cancelado" || (status == "Concluido" && !incluirConcluidos)) continue;
       var materiais = _estruturas.Materiais.Where(m => m.EstruturaItemId == item.Id)
           .Select(m => new MaterialDoNo(m.MaterialId, CatalogoDeMateriais[m.MaterialId].Codigo, CatalogoDeMateriais[m.MaterialId].Descricao))
           .OrderBy(m => m.Codigo, StringComparer.Ordinal).ToList();

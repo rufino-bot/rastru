@@ -413,7 +413,7 @@ public class ExecucaoRepositoryTests : TesteComBanco
       await repo.SalvarAlteracoesAsync(CancellationToken.None);
       var nomeDeQuemPausou = (await db.Usuarios.AsNoTracking().SingleAsync(u => u.Id == c.Arvore.AutorId)).NomeCompleto;
 
-      var contexto = (await repo.ListarNosEmProducaoAsync(CancellationToken.None))
+      var contexto = (await repo.ListarNosEmProducaoAsync(ct: CancellationToken.None))
           .Where(x => c.Nos.Contains(x.No.Id) || x.No.Id == noDoOutro).ToList();
 
       var pausados = contexto.Where(x => c.Nos.Contains(x.No.Id)).ToList();
@@ -437,7 +437,7 @@ public class ExecucaoRepositoryTests : TesteComBanco
     await using var db = NovoContexto();
     var repo = new ExecucaoRepository(db);
 
-    var contexto = (await repo.ListarNosEmProducaoAsync(CancellationToken.None))
+    var contexto = (await repo.ListarNosEmProducaoAsync(ct: CancellationToken.None))
         .Where(x => c.Nos.Contains(x.No.Id)).ToList();
 
     Assert.Equal(3, contexto.Count);
@@ -455,7 +455,7 @@ public class ExecucaoRepositoryTests : TesteComBanco
     await c.Arvore.MaterialNoNoAsync(escrita, c.ItemA, primeiro);
 
     await using var db = NovoContexto();
-    var contexto = (await new ExecucaoRepository(db).ListarNosEmProducaoAsync(CancellationToken.None))
+    var contexto = (await new ExecucaoRepository(db).ListarNosEmProducaoAsync(ct: CancellationToken.None))
         .Where(x => c.Nos.Contains(x.No.Id)).ToList();
 
     Assert.Equal(3, contexto.Count);
@@ -483,7 +483,7 @@ public class ExecucaoRepositoryTests : TesteComBanco
     var repo = new ExecucaoRepository(db);
 
     contador.Zerar();
-    await repo.ListarNosEmProducaoAsync(CancellationToken.None);
+    await repo.ListarNosEmProducaoAsync(ct: CancellationToken.None);
     var comTres = contador.Comandos;
 
     var novos = new List<int>();
@@ -494,7 +494,7 @@ public class ExecucaoRepositoryTests : TesteComBanco
       novos.Add(item);
     }
     contador.Zerar();
-    var contexto = await repo.ListarNosEmProducaoAsync(CancellationToken.None);
+    var contexto = await repo.ListarNosEmProducaoAsync(ct: CancellationToken.None);
     var comSeis = contador.Comandos;
 
     Assert.All(novos.Concat(c.Nos), id =>
@@ -603,10 +603,10 @@ public class ExecucaoRepositoryTests : TesteComBanco
     await using var db = NovoContexto();
     var repo = new ExecucaoRepository(db);
 
-    var antes = (await repo.ListarNosEmProducaoAsync(CancellationToken.None)).Where(x => c.Nos.Contains(x.No.Id)).ToList();
+    var antes = (await repo.ListarNosEmProducaoAsync(ct: CancellationToken.None)).Where(x => c.Nos.Contains(x.No.Id)).ToList();
     await db.Pedidos.Where(p => p.Id == c.Arvore.PedidoId)
         .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Cancelado"));
-    var depois = (await repo.ListarNosEmProducaoAsync(CancellationToken.None)).Where(x => c.Nos.Contains(x.No.Id)).ToList();
+    var depois = (await repo.ListarNosEmProducaoAsync(ct: CancellationToken.None)).Where(x => c.Nos.Contains(x.No.Id)).ToList();
 
     Assert.Equal(3, antes.Count);
     Assert.All(antes, x => Assert.Equal("AG-01", x.AgrupamentoCodigo));

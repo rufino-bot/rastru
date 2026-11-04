@@ -94,8 +94,12 @@ public interface IExecucaoRepository
   /// <summary>O proprio no e todos os descendentes; vazio se o no nao existe.</summary>
   Task<IReadOnlyList<int>> ListarIdsDaSubarvoreAsync(int id, CancellationToken ct);
 
-  /// <summary>Todo no de Pedido que nao esta `Concluido` nem `Cancelado` — o escopo de fila e tarefas.</summary>
-  Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct);
+  /// <summary>
+  /// Todo no de Pedido que nao esta `Concluido` nem `Cancelado` — o escopo de fila e tarefas. Com `incluirConcluidos`,
+  /// os nos de Pedido `Concluido` tambem vem, para a sobra viva deles aparecer na Fila (C25 da spec da Fase 5B-1,
+  /// decisao P8 do plano de backend da Fase 5B-1); `Cancelado` nunca vem.
+  /// </summary>
+  Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default);
 
   Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct);
 

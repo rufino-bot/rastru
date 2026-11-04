@@ -49,7 +49,7 @@ public sealed class ConsultaDeExecucaoUseCase
     var setor = await _setores.ObterPorIdAsync(setorId, ct);
     if (setor is null) return Falhas.NaoEncontrado<FilaDoSetorDto>();
 
-    var (estado, resumos) = await CarregarEmProducaoAsync(ct);
+    var (estado, resumos, concluidos) = await CarregarEmProducaoAsync(incluirConcluidos: true, ct);
     var nomes = await NomesDosSetoresAsync(ct);
     var calc = estado.Calc;
     var estornaveis = await EstornaveisAsync(setorId, calc, quem, ct);
@@ -62,14 +62,27 @@ public sealed class ConsultaDeExecucaoUseCase
 
     foreach (var no in calc.Nos)
     {
+      // C25 da spec da Fase 5B-1: o no de Pedido `Concluido` so aparece na secao "Sobra".
+      var concluido = concluidos.Contains(no.Id);
       // No com filhos inicia pelo card de montagem, consumindo os filhos (spec da Fase 3D, secao 6.1).
-      if (!calc.TemFilhos(no.Id) && calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
+      if (!concluido && !calc.TemFilhos(no.Id) && calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
           && calc.Saldo(no.Id, Local.AIniciar) is var aIniciarAqui && aIniciarAqui > 0m)
         aIniciar.Add(new LinhaDaFilaDto(resumos[no.Id], primeiro.Ordem, aIniciarAqui, []));
 
       foreach (var (local, quantidade) in calc.Saldos(no.Id))
       {
         if (local.SetorId != setorId || quantidade <= 0m) continue;
+        if (concluido)
+        {
+          // Num Pedido concluido nada mais e tarefa nem montagem: o que aguarda coleta ou montagem e sobra inteira
+          // (C24 e C25 da spec da Fase 5B-1).
+          if (local.Posicao == PosicaoConst.AguardandoColeta)
+            sobra.Add(new LinhaDeSobraDto(resumos[no.Id], UltimoPasso, local.Ordem!.Value, quantidade, false,
+                estornaveis.DoLocal(no.Id, local, quantidade)));
+          else if (local.Posicao == PosicaoConst.AguardandoMontagem)
+            sobra.Add(new LinhaDeSobraDto(resumos[no.Id], EmMontagem, null, quantidade, false, []));
+          continue;
+        }
         if (local.Posicao == PosicaoConst.NoSetor)
           emTrabalho.Add(new LinhaDaFilaDto(resumos[no.Id], local.Ordem!.Value, quantidade,
               estornaveis.EmTrabalho(no.Id, local, quantidade)));
@@ -101,7 +114,7 @@ public sealed class ConsultaDeExecucaoUseCase
     }
 
     var montagem = calc.Nos
-        .Where(n => n.PaiId is not null && calc.AguardandoMontagem(n.Id, setorId) > 0m)
+        .Where(n => n.PaiId is not null && !concluidos.Contains(n.Id) && calc.AguardandoMontagem(n.Id, setorId) > 0m)
         .Select(n => n.PaiId!.Value)
         .Distinct()
         .Order()
@@ -120,8 +133,10 @@ public sealed class ConsultaDeExecucaoUseCase
 
     // O resumo de material so vai onde o no COMECA neste Setor: a linha de `aIniciar` (so folha) e o
     // cartao do pai que `IniciaAqui` (decisao P4 do plano de backend da Fase 4).
+    // C26 da spec da Fase 5B-1: o no perdido ou descartado por inteiro nao leva resumo.
     var resumosDeMaterial = await ResumosDeMaterialAsync(
-        aIniciar.Select(l => l.No.Id).Concat(montagem.Where(m => m.IniciaAqui).Select(m => m.Pai.Id)).ToList(), ct);
+        aIniciar.Select(l => l.No.Id).Concat(montagem.Where(m => m.IniciaAqui).Select(m => m.Pai.Id))
+            .Where(id => calc.Saldo(id, Local.Perdido) < calc.No(id).Quantidade).ToList(), ct);
     aIniciar = aIniciar.Select(l => l with { Material = resumosDeMaterial.GetValueOrDefault(l.No.Id) }).ToList();
     montagem = montagem
         .Select(m => m.IniciaAqui ? m with { Material = resumosDeMaterial.GetValueOrDefault(m.Pai.Id) } : m)
@@ -211,7 +226,7 @@ public sealed class ConsultaDeExecucaoUseCase
 
   private async Task<Result<TarefasDto>> TarefasAsync(CancellationToken ct)
   {
-    var (estado, resumos) = await CarregarEmProducaoAsync(ct);
+    var (estado, resumos, _) = await CarregarEmProducaoAsync(incluirConcluidos: false, ct);
     var nomes = await NomesDosSetoresAsync(ct);
     var calc = estado.Calc;
 
@@ -258,7 +273,7 @@ public sealed class ConsultaDeExecucaoUseCase
   public Task<Result<ContagemDeTarefasDto>> ContagemDeTarefas(CancellationToken ct) =>
       _execucao.ConsultarAsync(async () =>
       {
-        var (estado, _) = await CarregarEmProducaoAsync(ct);
+        var (estado, _, _) = await CarregarEmProducaoAsync(incluirConcluidos: false, ct);
         return Result<ContagemDeTarefasDto>.Ok(new ContagemDeTarefasDto(
             estado.Calc.ColetasPendentes().Count + estado.Calc.KitsDaColeta().Count(k => k.Montavel)
             + estado.Calc.ConsertosPendentes().Count));
@@ -305,17 +320,17 @@ public sealed class ConsultaDeExecucaoUseCase
   /// repetir as duas linhas de carga entre elas. `ContagemDeTarefas` descarta os resumos, que ela nao
   /// precisa.
   /// </summary>
-  private async Task<(EstadoDeExecucao Estado, IReadOnlyDictionary<int, NoResumoDto> Resumos)> CarregarEmProducaoAsync(
-      CancellationToken ct)
+  private async Task<(EstadoDeExecucao Estado, IReadOnlyDictionary<int, NoResumoDto> Resumos, IReadOnlySet<int> DePedidoConcluido)>
+      CarregarEmProducaoAsync(bool incluirConcluidos, CancellationToken ct)
   {
-    var contexto = await _execucao.ListarNosEmProducaoAsync(ct);
+    var contexto = await _execucao.ListarNosEmProducaoAsync(incluirConcluidos, ct);
     var estado = await _leitor.CarregarAsync(contexto.Select(x => x.No).ToList(), ct);
     IReadOnlyDictionary<int, NoResumoDto> resumos = contexto.ToDictionary(x => x.No.Id, x => new NoResumoDto(
         x.No.Id, estado.Nome(x.No.Id), estado.Codigos.GetValueOrDefault(x.No.Id), x.PedidoId, x.PedidoNumero,
         x.PedidoCliente, x.AgrupamentoId, x.AgrupamentoCodigo, x.AgrupamentoTipo, x.No.EstruturaPaiId,
         x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null, PausaResumoDto.De(x.Pausa),
         x.Materiais.Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao)).ToList()));
-    return (estado, resumos);
+    return (estado, resumos, contexto.Where(x => x.PedidoStatus == "Concluido").Select(x => x.No.Id).ToHashSet());
   }
 
   /// <summary>O catalogo de Setores inteiro, inativos inclusive: o que ja esta num Setor inativado continua aparecendo.</summary>

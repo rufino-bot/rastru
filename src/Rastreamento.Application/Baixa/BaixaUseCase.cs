@@ -175,6 +175,7 @@ public sealed partial class BaixaUseCase
 
   // O valor de `CK_Pedido_Status` que a baixa recusa (o `Concluido` aceita a sobra viva, C12).
   private const string StatusCancelado = "Cancelado";
+  private const string StatusConcluido = "Concluido";
 
   private static EscopoDaBaixaDto Escopo(Perda p) => p switch
   {
@@ -246,6 +247,19 @@ public sealed partial class BaixaUseCase
     if (pedido.Status == StatusCancelado)
       return Falhas.Conflito<Planejada>(CodigosDaExecucao.PedidoFechado,
           $"O Pedido {pedido.Numero} foi cancelado: não se dá baixa nele.");
+
+    // C12 e C24 da spec da Fase 5B-1: num Pedido `Concluido` so a sobra viva de Item se descarta. Aqui, no caminho
+    // da escrita e da previa, para as duas recusarem igual.
+    if (pedido.Status == StatusConcluido)
+    {
+      var noDaBaixa = nos.Single(n => n.Id == noId);
+      if (noDaBaixa.NivelHierarquico == "Peca")
+        return Falhas.Conflito<Planejada>(CodigosDaExecucao.PedidoFechado,
+            $"O Pedido {pedido.Numero} está concluído: uma Peça dele não tem nada em produção, só a sobra dos Itens se descarta.");
+      if (entrada.Motivo != MotivosDePerda.Descarte)
+        return Falhas.Conflito<Planejada>(CodigosDaExecucao.PedidoFechado,
+            $"O Pedido {pedido.Numero} está concluído: nele só se descarta a sobra de um Item.");
+    }
 
     var estado = await _leitor.CarregarAsync(nos, ct);
     var setores = await NomesDosSetoresAsync(entrada.Origens.Select(o => o.Local.SetorId).OfType<int>(), ct);
