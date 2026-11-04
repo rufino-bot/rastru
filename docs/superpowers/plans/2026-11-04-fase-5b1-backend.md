@@ -137,7 +137,7 @@ Cada implementer reporta o **delta** da própria task.
   "observacao": "texto?",                 // aparada; <= 500
   "tudo": false,
   "origens": [ { "posicao": "NoSetor", "setorId": 3, "ordem": 2, "quantidade": 1 } ],  // vazia/ausente com tudo
-  "incluirTopo": false }                  // só baixa de parte de Item (D13)
+  "incluirTopo": false }                  // só baixa de Item: de parte, ou tudo por perda (D13, D14)
 
 // POST /api/agrupamentos/{id}/descarte[/previa]  e  POST /api/pedidos/{id}/descarte[/previa]
 { "observacao": "texto?" }
@@ -266,7 +266,7 @@ Erros (corpo `{ erro, mensagem }`, como os da execução): `MotivoInvalido`, `Or
     Quantidade, decimal AIniciar);`
   - `public static Result<PlanoDaBaixa> CalculoDaBaixa.Planejar(CalculadoraDeExecucao calc, PedidoDeBaixa pedido,
     Func<int, string> nome)` — as recusas desta conta: `OrigemInvalida` (posição fora de `Posicoes.DeOndeSeDaBaixa`;
-    `incluirTopo` em Peça ou com `Tudo`), `ItemRepetido`, `SaldoInsuficiente` (nomeando a posição por
+    `incluirTopo` em Peça, ou com `Tudo` de motivo `Descarte` — D14), `ItemRepetido`, `SaldoInsuficiente` (nomeando a posição por
     `rotulo` como o de `rotuloDoSaldo`), `NadaEmProducao` (o `Tudo` sem nada). Motivo e texto são validados pelo caso
     de uso (Task 5), não aqui.
   - `CodigosDaBaixa`: `MotivoInvalido`, `OrigemInvalida`, `NadaEmProducao`, `DiminuirPelaBaixa`; reusa os de

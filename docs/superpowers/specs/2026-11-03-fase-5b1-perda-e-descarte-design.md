@@ -2,9 +2,9 @@
 
 Data: 2026-11-03. Branch: `claude/happy-wright-14yv9r`, a partir da `main` em `bb8626e`. Desenho conversado com o
 usuário em chat, numa sessão de nuvem de 2026-11-03, com um esboço das telas (página privada, fora do repositório:
-https://claude.ai/artifact/8L2ur2ErzMMHufFznVMiFn). As decisões do usuário são D1–D13 (seção 2); as chamadas
+https://claude.ai/artifact/8L2ur2ErzMMHufFznVMiFn). As decisões do usuário são D1–D14 (seção 2); as chamadas
 do desenho, que o usuário confere ao ler, são C1–C27. O builder check (um revisor lendo a spec como quem vai planejar)
-levantou oito perguntas: duas viraram D12 e D13, respondidas pelo usuário em 2026-11-04, e seis viraram C22 a C27. O documento escrito foi **aprovado pelo usuário em 2026-11-04**.
+levantou oito perguntas: duas viraram D12 e D13, respondidas pelo usuário em 2026-11-04, e seis viraram C22 a C27. O documento escrito foi **aprovado pelo usuário em 2026-11-04**. D14 entrou na execução, no mesmo dia, depois da review da conta da baixa.
 
 **Ponto de partida.** A seção «Fase 5B — Perda e reposição» de `specs/06-roadmap-mvp.md` junta dois assuntos.
 O usuário aprovou dividi-la em duas specs, cada uma com plano e PR próprios, **nesta ordem** (D1):
@@ -76,6 +76,7 @@ A 5C (as pontas do Kit) continua depois da 5B, e a 3C (push) depois da Fase 5.
 | D11 | Descarte total leva tudo do nó **e da árvore abaixo dele**, em todas as posições, sem escolha; o expedido e o já montado dentro de um pai ficam onde estão. |
 | D12 | Com o Pedido rodando (fora de `Aberto`), editar a quantidade de um nó **só aumenta**; diminuir é pela baixa. Com o Pedido `Aberto`, a edição continua livre, para corrigir erro de cadastro (seção 4.10). |
 | D13 | A perda de um Item que impede montar é **uma baixa só**: o painel oferece dar baixa, junto, das unidades da Peça do topo que a perda trava, e as duas se estornam juntas (seção 4.6). |
+| D14 | A baixa de **tudo** de um Item por perda (`PerdaArmazem` ou `MortaEmProcesso`) que trava a montagem da Peça do topo também avisa e oferece, como a de parte (D13): a prévia devolve `travaNoTopo` e o painel mostra a caixa, marcada por padrão. Com `Descarte` não há trava, porque o filho sai do projeto (C22). Decisão do usuário de 2026-11-04, na execução. |
 
 ### 2.2 Do desenho (o usuário confere)
 
@@ -252,7 +253,7 @@ A 5B-1 traz a **baixa**; a reposição é da 5B-2. A perda de um Item que impede
   de "a iniciar" (ainda não montadas, porque são as que travaram), com o mesmo motivo. Por C6, os filhos a iniciar
   daquelas unidades saem junto, descendo a árvore; os que existem fisicamente ficam, e viram sobra — e é deles que a
   5B-2 tira o que marca **pronto** no Retrabalho.
-- **No corpo.** `POST /estrutura/{id}/baixas` aceita `incluirTopo: bool` (só na baixa de parte de um Item). A
+- **No corpo.** `POST /estrutura/{id}/baixas` aceita `incluirTopo: bool` (só na baixa de um Item: de parte, ou de tudo com motivo `PerdaArmazem` ou `MortaEmProcesso`, D14). A
   quantidade da Peça do topo é a da prévia, recalculada dentro da transação, não enviada pelo cliente.
 - **Se a Peça do topo não tem N a iniciar** (já começou mais do que dá para montar), a baixa leva o que houver a
   iniciar, e a prévia diz isso; o resto é caso de baixa da Peça onde ela estiver, à mão.
@@ -305,8 +306,8 @@ quantidade diz que diminuir é pelo "Dar baixa".
 Todas na transação da execução (`ExecutarAsync`), travando os nós e depois os Pedidos (seção 8.1 da spec da Fase 3).
 
 - `POST /estrutura/{id}/baixas` *(Qualidade, PCP, Administrador)* — `{ motivo, observacao?, tudo: bool, origens?:
-  [{ posicao, setorId?, ordem?, quantidade }], incluirTopo?: bool }` (`incluirTopo`, D13, só na baixa de parte de um
-  Item; noutro caso, 400 `OrigemInvalida`). `tudo: true` exige `origens` ausente ou vazia; `tudo: false` exige
+  [{ posicao, setorId?, ordem?, quantidade }], incluirTopo?: bool }` (`incluirTopo`, D13 e D14, só na baixa de um Item,
+  de parte ou de tudo por perda; noutro caso, 400 `OrigemInvalida`). `tudo: true` exige `origens` ausente ou vazia; `tudo: false` exige
   `origens` com pelo menos uma, sem posição repetida (400 `ItemRepetido`) e no máximo `TamanhoMaximoDoLote` (C18).
   `201` com a baixa projetada (seção 5.2).
 - `POST /estrutura/{id}/baixas/previa` — o mesmo corpo; responde `200` com o que a baixa gravaria (as linhas por nó
@@ -370,7 +371,7 @@ usam `PainelDeEscrita` e `useEscritaDoPainel`; a tela não chama `usePodeEscreve
 - **Fila do Setor**, seção "Sobra": "Descartar" na linha, só para Qualidade, PCP e Administrador (D5), com a
   quantidade até a sobra da linha (C17). A seção passa a incluir a sobra de Pedido `Concluido` (C25).
 - **Pedido** (`PedidoDetalhePage`): seção "Baixas", com todas as baixas do Pedido e o "Estornar" (C27).
-- **Painel do Item** (D13): com `travaNoTopo` na prévia, a caixa "Isso impede montar N {Peça}. Dar baixa também delas",
+- **Painel do Item** (D13, D14): com `travaNoTopo` na prévia, em "Uma parte" ou em "Tudo" com motivo de perda, a caixa "Isso impede montar N {Peça}. Dar baixa também delas",
   marcada por padrão (uma `CaixaDeLote` não serve: é uma caixa com texto, um `Campo` de caixa).
 - **Editar nó** (D12): com o Pedido rodando, a dica do campo de quantidade diz que diminuir é pelo "Dar baixa".
 - **Separação** (C26): a `SeparacaoPage` e o resumo de material da Fila deixam de listar o nó perdido ou descartado por inteiro.
