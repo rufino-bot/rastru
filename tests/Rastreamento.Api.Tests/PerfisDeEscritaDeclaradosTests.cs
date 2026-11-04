@@ -222,6 +222,8 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST agrupamentos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
     ["POST pedidos/{id:int}/descarte"] = ["Qualidade", "PCP", "Administrador"],
     ["POST pedidos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
+    // O estorno inteiro da baixa: o autor, ou PCP e Administrador, e decidido pelo caso de uso (403 `Proibido`).
+    ["POST baixas/{id:int}/estorno"] = ["Qualidade", "PCP", "Administrador"],
   };
 
   /// <summary>

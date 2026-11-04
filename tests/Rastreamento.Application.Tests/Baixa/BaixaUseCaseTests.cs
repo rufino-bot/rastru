@@ -79,6 +79,24 @@ public class BaixaUseCaseTests
   }
 
   [Fact]
+  public async Task Estorno_trava_os_nos_da_baixa_em_ordem_e_depois_o_Pedido_antes_de_gravar()
+  {
+    // A baixa da Peca (1) alcanca 1, 2, 3 e 4 pela cascata. O estorno
+    // trava so os nos que tem linha, em ordem crescente de Id, e depois o Pedido.
+    var (c, baixa) = Cenario();
+    var dada = await baixa.DarBaixa(
+        1, new NovaBaixaDto(MotivosDePerda.PerdaArmazem, null, false, [new OrigemDto(Posicoes.AIniciar, null, null, 1m)], false),
+        Qualidade, Ct);
+    Assert.True(dada.Sucesso, dada.Detalhe);
+    c.Execucao.Eventos.Clear();
+
+    var r = await baixa.Estornar(dada.Valor!.Id, Qualidade, false, Ct);
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal(new[] { "nos:1,2,3,4", "pedidos:1,2,3,4", "save" }, c.Execucao.Eventos.Take(3));
+  }
+
+  [Fact]
   public async Task Previa_do_descarte_nao_trava_nem_grava()
   {
     var (c, baixa) = Cenario();

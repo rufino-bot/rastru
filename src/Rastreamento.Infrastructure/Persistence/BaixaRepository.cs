@@ -95,4 +95,22 @@ public class BaixaRepository : IBaixaRepository
 
   public Task<int?> ObterPedidoDoAgrupamentoAsync(int agrupamentoId, CancellationToken ct) =>
       _db.Agrupamentos.AsNoTracking().Where(a => a.Id == agrupamentoId).Select(a => (int?)a.PedidoId).SingleOrDefaultAsync(ct);
+
+  public async Task<IReadOnlyList<Perda>> ListarPerdasDosNosAsync(IReadOnlyCollection<int> noIds, CancellationToken ct)
+  {
+    if (noIds.Count == 0) return [];
+    var ids = noIds.ToList();
+    // Estornos tambem apontam a baixa, mas so a linha `Perda` diz que a baixa alcancou o no.
+    return await _db.Perdas.AsNoTracking()
+        .Where(p => _db.Movimentacoes.Any(m => m.PerdaId == p.Id && m.Tipo == TiposDeMovimentacao.Perda
+                                               && ids.Contains(m.EstruturaItemId)))
+        .OrderByDescending(p => p.DataHora).ThenByDescending(p => p.Id)
+        .ToListAsync(ct);
+  }
+
+  public async Task<IReadOnlyList<Perda>> ListarPerdasDoPedidoAsync(int pedidoId, CancellationToken ct) =>
+      await _db.Perdas.AsNoTracking()
+          .Where(p => p.PedidoId == pedidoId)
+          .OrderByDescending(p => p.DataHora).ThenByDescending(p => p.Id)
+          .ToListAsync(ct);
 }

@@ -37,4 +37,13 @@ public interface IBaixaRepository
 
   /// <summary>O Pedido do Agrupamento, ou nulo se o Agrupamento nao existe.</summary>
   Task<int?> ObterPedidoDoAgrupamentoAsync(int agrupamentoId, CancellationToken ct);
+
+  /// <summary>
+  /// As baixas com ao menos uma linha `Perda` num dos nos pedidos, mais recente primeiro (`DataHora`, e o `Id`
+  /// desempatando). Quem passa a subarvore de um no recebe tambem as baixas que alcancaram os descendentes dele (C27).
+  /// </summary>
+  Task<IReadOnlyList<Perda>> ListarPerdasDosNosAsync(IReadOnlyCollection<int> noIds, CancellationToken ct);
+
+  /// <summary>Todas as baixas do Pedido, mais recente primeiro (`DataHora`, e o `Id` desempatando).</summary>
+  Task<IReadOnlyList<Perda>> ListarPerdasDoPedidoAsync(int pedidoId, CancellationToken ct);
 }

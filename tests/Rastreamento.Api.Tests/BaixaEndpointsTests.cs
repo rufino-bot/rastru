@@ -868,4 +868,319 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         (await c.Como(c.Operador).PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { })).StatusCode);
     Assert.Equal(0, await PerdasDoPedidoAsync(c));
   }
+
+  // O estorno inteiro da baixa e as leituras (secoes 4.9 e 5.1 a 5.4 da spec da Fase 5B-1).
+
+  private static async Task<int> DarBaixaDeParteAsync(
+      CenarioDaFase3NaApi c, UsuarioDeTeste quem, int no, string motivo, decimal aIniciar)
+  {
+    var resposta = await c.Como(quem).PostAsJsonAsync($"/api/estrutura/{no}/baixas",
+        Parte(motivo, Origem("AIniciar", null, null, aIniciar)));
+    await Garantir(resposta);
+    return (await CorpoAsync(resposta)).GetProperty("id").GetInt32();
+  }
+
+  private static async Task<int> DescartarOPedidoAsync(CenarioDaFase3NaApi c, UsuarioDeTeste quem)
+  {
+    var resposta = await c.Como(quem).PostAsJsonAsync($"/api/pedidos/{c.PedidoId}/descarte", new { });
+    await Garantir(resposta);
+    return (await CorpoAsync(resposta)).GetProperty("id").GetInt32();
+  }
+
+  private static Task<HttpResponseMessage> EstornarAsync(CenarioDaFase3NaApi c, UsuarioDeTeste quem, int baixaId) =>
+      c.Como(quem).PostAsync($"/api/baixas/{baixaId}/estorno", null);
+
+  private static async Task<List<int>> IdsDasBaixasAsync(HttpResponseMessage resposta)
+  {
+    await Garantir(resposta);
+    return (await CorpoAsync(resposta)).EnumerateArray().Select(b => b.GetProperty("id").GetInt32()).ToList();
+  }
+
+  [Fact]
+  public async Task Estorno_devolve_cada_linha_a_origem_e_marca_estornada()
+  {
+    // Review Focus 5: tres niveis (A, B, N sob B) e o lote dividido. A baixa de 3 de A tira 6 de B e 6 de N pela
+    // cascata, e C 3; o estorno devolve os quatro a "a iniciar".
+    await using var c = await CriarAsync(_factory);
+    var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.B}/filhos",
+        new { componenteId = (int?)c.ComponenteId, descricao = (string?)null, quantidade = 20m, quantidadePorPai = 1m });
+    await Garantir(criado);
+    var neto = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.A, "Descarte", 3m);
+    Assert.Equal(6m, await SaldoAsync(c, neto, "Perdido"));
+
+    var resposta = await EstornarAsync(c, c.Qualidade, baixaId);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var estornos = (await CorpoAsync(resposta)).EnumerateArray().ToList();
+    Assert.Equal(4, estornos.Count);
+    Assert.All(estornos, e =>
+    {
+      Assert.Equal("Estorno", e.GetProperty("tipo").GetString());
+      Assert.Equal("Perdido", e.GetProperty("origem").GetProperty("posicao").GetString());
+      Assert.Equal("AIniciar", e.GetProperty("destino").GetProperty("posicao").GetString());
+      Assert.Equal(c.Qualidade.Id, e.GetProperty("usuarioId").GetInt32());
+    });
+    Assert.Equal(
+        [(c.A, 3m), (c.B, 6m), (c.C, 3m), (neto, 6m)],
+        estornos.Select(e => (e.GetProperty("estruturaItemId").GetInt32(), e.GetProperty("quantidade").GetDecimal()))
+            .OrderBy(x => x.Item1).ToList());
+    Assert.Equal(10m, await SaldoAsync(c, c.A, "AIniciar"));
+    Assert.Equal(20m, await SaldoAsync(c, c.B, "AIniciar"));
+    Assert.Equal(10m, await SaldoAsync(c, c.C, "AIniciar"));
+    Assert.Equal(20m, await SaldoAsync(c, neto, "AIniciar"));
+    foreach (var no in new[] { c.A, c.B, c.C, neto }) Assert.Equal(0m, await SaldoAsync(c, no, "Perdido"));
+
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var originais = await db.Movimentacoes.AsNoTracking()
+        .Where(m => m.PerdaId == baixaId && m.Tipo == "Perda").Select(m => m.Id).ToListAsync();
+    var apontados = await db.Movimentacoes.AsNoTracking()
+        .Where(m => m.PerdaId == baixaId && m.Tipo == "Estorno").Select(m => m.EstornoDeId!.Value).ToListAsync();
+    Assert.Equal(originais.Order(), apontados.Order());
+
+    var lida = (await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/estrutura/{c.A}/baixas"))).EnumerateArray().Single();
+    Assert.True(lida.GetProperty("estornada").GetBoolean());
+    Assert.False(lida.GetProperty("estornavel").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Estorno_de_baixa_que_concluiu_reabre_o_Pedido()
+  {
+    await using var c = await CriarAsync(_factory);
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+    var baixaId = (await CorpoAsync(await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.A}/baixas",
+        new { motivo = "Descarte", tudo = true }))).GetProperty("id").GetInt32();
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+
+    var resposta = await EstornarAsync(c, c.Qualidade, baixaId);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    // O Pedido teve inicio (o de B): reaberto, volta a producao e perde a data de conclusao (C12).
+    Assert.Equal(("EmProducao", false), await StatusDoPedidoAsync(c));
+    Assert.Equal(4m, await SaldoAsync(c, c.B, "NoSetor"));
+    Assert.Equal(16m, await SaldoAsync(c, c.B, "AIniciar"));
+  }
+
+  [Fact]
+  public async Task Estorno_do_descarte_de_Pedido_que_nunca_comecou_volta_a_Aberto()
+  {
+    await using var c = await CriarAsync(_factory);
+    Assert.Equal(("Aberto", false), await StatusDoPedidoAsync(c));
+    var baixaId = await DescartarOPedidoAsync(c, c.Pcp);
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+
+    var resposta = await EstornarAsync(c, c.Pcp, baixaId);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Equal(("Aberto", false), await StatusDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Estorno_do_descarte_de_Pedido_cujo_unico_inicio_foi_estornado_volta_a_Aberto()
+  {
+    // Carregado de uma review: `ListarPedidosComInicioAsync` so conta o inicio liquido de estorno (C23).
+    await using var c = await CriarAsync(_factory);
+    await IniciarAsync(c, c.B, c.Corte, 4m);
+    var inicio = (await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/estrutura/{c.B}/movimentacoes")))
+        .GetProperty("movimentacoes").EnumerateArray().Single(m => m.GetProperty("tipo").GetString() == "Inicio");
+    await Garantir(await c.Como(c.Operador).PostAsync($"/api/movimentacoes/{inicio.GetProperty("id").GetInt32()}/estorno", null));
+    var baixaId = await DescartarOPedidoAsync(c, c.Pcp);
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+
+    await Garantir(await EstornarAsync(c, c.Pcp, baixaId));
+
+    Assert.Equal(("Aberto", false), await StatusDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Estorno_de_outro_autor_por_Qualidade_e_403()
+  {
+    await using var c = await CriarAsync(_factory);
+    var baixaId = await DarBaixaDeParteAsync(c, c.Pcp, c.C, "Descarte", 1m);
+
+    var resposta = await EstornarAsync(c, c.Qualidade, baixaId);
+
+    var (status, erro, _) = await RecusaAsync(resposta);
+    Assert.Equal((HttpStatusCode.Forbidden, "Proibido"), (status, erro));
+    Assert.Equal(HttpStatusCode.Forbidden, (await EstornarAsync(c, c.Operador, baixaId)).StatusCode);
+    Assert.Equal(1m, await SaldoAsync(c, c.C, "Perdido"));
+  }
+
+  [Fact]
+  public async Task Estorno_por_PCP_de_baixa_alheia_passa()
+  {
+    await using var c = await CriarAsync(_factory);
+    var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.C, "Descarte", 1m);
+
+    var resposta = await EstornarAsync(c, c.Pcp, baixaId);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Equal(0m, await SaldoAsync(c, c.C, "Perdido"));
+    // O estorno e do PCP que o fez, nao do autor da baixa.
+    Assert.Equal(c.Pcp.Id, (await CorpoAsync(resposta)).EnumerateArray().Single().GetProperty("usuarioId").GetInt32());
+  }
+
+  [Fact]
+  public async Task Estorno_de_baixa_inexistente_e_404_e_segundo_estorno_e_JaEstornado()
+  {
+    await using var c = await CriarAsync(_factory);
+    Assert.Equal(HttpStatusCode.NotFound, (await EstornarAsync(c, c.Qualidade, 999999999)).StatusCode);
+    var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.C, "Descarte", 1m);
+    await Garantir(await EstornarAsync(c, c.Qualidade, baixaId));
+
+    var (status, erro, _) = await RecusaAsync(await EstornarAsync(c, c.Qualidade, baixaId));
+
+    Assert.Equal((HttpStatusCode.Conflict, "JaEstornado"), (status, erro));
+    Assert.Equal(0m, await SaldoAsync(c, c.C, "Perdido"));
+  }
+
+  [Fact]
+  public async Task Estorno_em_Pedido_Cancelado_e_PedidoFechado()
+  {
+    await using var c = await CriarAsync(_factory);
+    var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.C, "Descarte", 1m);
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Pedido SET Status = 'Cancelado' WHERE Id = {c.PedidoId}");
+    }
+
+    var (status, erro, _) = await RecusaAsync(await EstornarAsync(c, c.Qualidade, baixaId));
+
+    Assert.Equal((HttpStatusCode.Conflict, "PedidoFechado"), (status, erro));
+    Assert.Equal(1m, await SaldoAsync(c, c.C, "Perdido"));
+  }
+
+  [Fact]
+  public async Task Dois_estornos_simultaneos_um_passa_outro_e_JaEstornado()
+  {
+    // Review Focus 3.
+    await using var c = await CriarAsync(_factory);
+    var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.A, "Descarte", 3m);
+
+    var respostas = await Task.WhenAll(EstornarAsync(c, c.Qualidade, baixaId), EstornarAsync(c, c.Pcp, baixaId));
+
+    Assert.Single(respostas, r => r.StatusCode == HttpStatusCode.OK);
+    var recusada = Assert.Single(respostas, r => r.StatusCode != HttpStatusCode.OK);
+    var (status, erro, _) = await RecusaAsync(recusada);
+    Assert.Equal((HttpStatusCode.Conflict, "JaEstornado"), (status, erro));
+    Assert.Equal(0m, await SaldoAsync(c, c.A, "Perdido"));
+    Assert.Equal(10m, await SaldoAsync(c, c.A, "AIniciar"));
+    Assert.Equal(20m, await SaldoAsync(c, c.B, "AIniciar"));
+    Assert.Equal(10m, await SaldoAsync(c, c.C, "AIniciar"));
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.Equal(3, await db.Movimentacoes.AsNoTracking().CountAsync(m => m.PerdaId == baixaId && m.Tipo == "Estorno"));
+  }
+
+  [Fact]
+  public async Task Estorno_do_descarte_de_um_filho_volta_a_limitar_a_montagem_do_pai()
+  {
+    // Carregado de uma review (ramo "estornada" de `ListarSaidosDoProjetoAsync`): C descartado por inteiro deixa de
+    // limitar a montagem de A; estornado o descarte, A volta a precisar de C. B esta toda na montagem da Solda.
+    await using var c = await CriarAsync(_factory);
+    await using var controle = await CriarAsync(_factory);
+    foreach (var cenario in new[] { c, controle })
+    {
+      await LevarParaAMontagemAsync(cenario, cenario.B, cenario.Corte, 20m);
+      var descartado = await cenario.Como(cenario.Qualidade).PostAsJsonAsync($"/api/estrutura/{cenario.C}/baixas",
+          new { motivo = "Descarte", tudo = true });
+      Assert.Equal(HttpStatusCode.Created, descartado.StatusCode);
+    }
+    var daBaixa = (await CorpoAsync(await c.Como(c.Pcp).GetAsync($"/api/estrutura/{c.C}/baixas"))).EnumerateArray().Single()
+        .GetProperty("id").GetInt32();
+    await Garantir(await EstornarAsync(c, c.Qualidade, daBaixa));
+
+    // O controle (descarte mantido): A inicia so com B. O estornado: C volta a ser pedido e nao ha C na Solda.
+    var seguiu = await controle.Como(controle.Operador).PostAsJsonAsync(
+        $"/api/estrutura/{controle.A}/inicios", new { setorId = controle.Solda, quantidade = 10m });
+    var travou = await c.Como(c.Operador).PostAsJsonAsync(
+        $"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 10m });
+
+    Assert.Equal(HttpStatusCode.Created, seguiu.StatusCode);
+    Assert.Equal(HttpStatusCode.Conflict, travou.StatusCode);
+    Assert.Equal(0m, await SaldoAsync(c, c.A, "NoSetor"));
+  }
+
+  [Fact]
+  public async Task Estorno_da_baixa_de_AIniciar_do_pai_devolve_o_que_falta_montar()
+  {
+    // Carregado de uma review (ramo "estorno" de `ListarPerdidosDeAIniciarAsync`): a baixa de 3 de A em "a iniciar"
+    // baixa o que falta montar de 10 para 7, e o estorno o devolve a 10.
+    await using var c = await CriarAsync(_factory);
+    await LevarParaAMontagemAsync(c, c.B, c.Corte, 20m);
+
+    async Task<decimal> FaltaMontarAsync()
+    {
+      var fila = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/setores/{c.Solda}/fila"));
+      return fila.GetProperty("aguardandoMontagem").EnumerateArray()
+          .Single(m => m.GetProperty("pai").GetProperty("id").GetInt32() == c.A).GetProperty("faltaMontar").GetDecimal();
+    }
+
+    Assert.Equal(10m, await FaltaMontarAsync());
+    var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.A, "Descarte", 3m);
+    Assert.Equal(7m, await FaltaMontarAsync());
+
+    await Garantir(await EstornarAsync(c, c.Qualidade, baixaId));
+
+    Assert.Equal(10m, await FaltaMontarAsync());
+  }
+
+  [Fact]
+  public async Task Leitura_do_no_traz_baixas_dele_e_dos_descendentes_e_a_do_Pedido()
+  {
+    await using var c = await CriarAsync(_factory);
+    var deB = await DarBaixaDeParteAsync(c, c.Qualidade, c.B, "PerdaArmazem", 2m);
+    var deC = await DarBaixaDeParteAsync(c, c.Pcp, c.C, "MortaEmProcesso", 1m);
+    var doPedido = await DescartarOPedidoAsync(c, c.Pcp);
+    var leitor = c.Como(c.Operador);
+
+    // B: a propria e a do Pedido (que tirou o resto dele). C nao desce de B.
+    Assert.Equal([doPedido, deB], await IdsDasBaixasAsync(await leitor.GetAsync($"/api/estrutura/{c.B}/baixas")));
+    Assert.Equal([doPedido, deC], await IdsDasBaixasAsync(await leitor.GetAsync($"/api/estrutura/{c.C}/baixas")));
+    // A: tem linha em B e em C pelos descendentes, e as do descarte.
+    Assert.Equal([doPedido, deC, deB], await IdsDasBaixasAsync(await leitor.GetAsync($"/api/estrutura/{c.A}/baixas")));
+    Assert.Equal(HttpStatusCode.NotFound, (await leitor.GetAsync("/api/estrutura/999999999/baixas")).StatusCode);
+  }
+
+  [Fact]
+  public async Task Leitura_do_Pedido_traz_todas_mais_recente_primeiro()
+  {
+    await using var c = await CriarAsync(_factory);
+    var primeira = await DarBaixaDeParteAsync(c, c.Qualidade, c.B, "PerdaArmazem", 2m);
+    var segunda = await DarBaixaDeParteAsync(c, c.Pcp, c.C, "MortaEmProcesso", 1m);
+    var terceira = await DescartarOPedidoAsync(c, c.Pcp);
+
+    var resposta = await c.Como(c.Operador).GetAsync($"/api/pedidos/{c.PedidoId}/baixas");
+
+    Assert.Equal([terceira, segunda, primeira], await IdsDasBaixasAsync(resposta));
+    var corpo = (await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/pedidos/{c.PedidoId}/baixas"))).EnumerateArray().ToList();
+    var daSegunda = corpo[1];
+    Assert.Equal("MortaEmProcesso", daSegunda.GetProperty("motivo").GetString());
+    Assert.Equal("No", daSegunda.GetProperty("escopo").GetProperty("tipo").GetString());
+    Assert.Equal(c.C, daSegunda.GetProperty("escopo").GetProperty("id").GetInt32());
+    Assert.Equal(c.Pcp.Id, daSegunda.GetProperty("usuarioId").GetInt32());
+    Assert.Equal([(c.C, "AIniciar", 1m)], Linhas(daSegunda));
+    Assert.Equal(HttpStatusCode.NotFound, (await c.Como(c.Operador).GetAsync("/api/pedidos/999999999/baixas")).StatusCode);
+  }
+
+  [Fact]
+  public async Task Estornavel_falso_para_estornada_e_para_quem_nao_e_autor_nem_PCP()
+  {
+    await using var c = await CriarAsync(_factory);
+    var baixaId = await DarBaixaDeParteAsync(c, c.Pcp, c.C, "Descarte", 1m);
+
+    async Task<(bool Estornada, bool Estornavel)> LerAsync(UsuarioDeTeste quem)
+    {
+      var b = (await CorpoAsync(await c.Como(quem).GetAsync($"/api/pedidos/{c.PedidoId}/baixas"))).EnumerateArray().Single();
+      return (b.GetProperty("estornada").GetBoolean(), b.GetProperty("estornavel").GetBoolean());
+    }
+
+    Assert.Equal((false, true), await LerAsync(c.Pcp));
+    Assert.Equal((false, false), await LerAsync(c.Qualidade));
+    Assert.Equal((false, false), await LerAsync(c.Operador));
+    await Garantir(await EstornarAsync(c, c.Pcp, baixaId));
+    Assert.Equal((true, false), await LerAsync(c.Pcp));
+  }
 }

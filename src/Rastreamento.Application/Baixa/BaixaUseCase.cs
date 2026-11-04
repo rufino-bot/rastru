@@ -24,6 +24,7 @@ public sealed partial class BaixaUseCase
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly LeitorDeEstado _leitor;
   private readonly FechamentoDoPedido _fechamento;
+  private readonly ProjetorDoLivro _projetor;
 
   public BaixaUseCase(
       IExecucaoRepository execucao, IBaixaRepository baixas, IEstruturaRepository estruturas,
@@ -34,6 +35,7 @@ public sealed partial class BaixaUseCase
     _catalogo = catalogo;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _fechamento = new FechamentoDoPedido(execucao);
+    _projetor = new ProjetorDoLivro(execucao, catalogo);
   }
 
   /// <summary>O corpo validado: motivo conhecido, observacao aparada (nula quando vazia) e as origens como `Local`.</summary>

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Rastreamento.Application.Baixa;
+using Rastreamento.Application.Execucao;
 
 namespace Rastreamento.Api.Controllers;
 
@@ -17,8 +18,13 @@ public class BaixaController : ExecucaoControllerBase
   private const string PerfisDeEscrita = "Qualidade,PCP,Administrador";
 
   private readonly BaixaUseCase _baixa;
+  private readonly ConsultaDeBaixasUseCase _consulta;
 
-  public BaixaController(BaixaUseCase baixa) => _baixa = baixa;
+  public BaixaController(BaixaUseCase baixa, ConsultaDeBaixasUseCase consulta)
+  {
+    _baixa = baixa;
+    _consulta = consulta;
+  }
 
   /// <summary>Da baixa de parte do no ou de tudo dele (D3, D4, D11), na mesma `Perda`, com a Peca do topo se pedida (D13, D14).</summary>
   [HttpPost("estrutura/{id:int}/baixas")]
@@ -70,5 +76,30 @@ public class BaixaController : ExecucaoControllerBase
   {
     if (UsuarioDaSessao() is null) return Unauthorized();
     return Traduzir(await _baixa.PreverDescarteDoPedido(id, ct));
+  }
+
+  /// <summary>Estorna a baixa inteira (C7), inclusive a que concluiu o Pedido, que reabre (C12). O autor, ou PCP e Administrador.</summary>
+  [HttpPost("baixas/{id:int}/estorno")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  public async Task<IActionResult> EstornarBaixa(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _baixa.Estornar(id, usuarioId, EhPcpOuAdministrador(), ct));
+  }
+
+  /// <summary>As baixas que alcancaram o no ou um descendente dele, mais recente primeiro (C27). Qualquer autenticado.</summary>
+  [HttpGet("estrutura/{id:int}/baixas")]
+  public async Task<IActionResult> BaixasDoNo(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _consulta.DoNo(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
+  }
+
+  /// <summary>Todas as baixas do Pedido, mais recente primeiro. Qualquer autenticado.</summary>
+  [HttpGet("pedidos/{id:int}/baixas")]
+  public async Task<IActionResult> BaixasDoPedido(int id, CancellationToken ct)
+  {
+    if (UsuarioDaSessao() is not int usuarioId) return Unauthorized();
+    return Traduzir(await _consulta.DoPedido(id, new QuemLe(usuarioId, EhPcpOuAdministrador()), ct));
   }
 }
