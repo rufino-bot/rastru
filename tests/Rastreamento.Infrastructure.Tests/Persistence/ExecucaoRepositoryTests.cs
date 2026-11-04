@@ -614,6 +614,30 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Nos_em_producao_com_incluirConcluidos_trazem_o_Pedido_concluido_e_seguem_sem_o_cancelado() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+    async Task<int> ContarAsync(bool incluirConcluidos) =>
+        (await repo.ListarNosEmProducaoAsync(incluirConcluidos, CancellationToken.None)).Count(x => c.Nos.Contains(x.No.Id));
+
+    await db.Pedidos.Where(p => p.Id == c.Arvore.PedidoId)
+        .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Concluido"));
+    var concluidoPadrao = await ContarAsync(false);
+    var concluidoIncluindo = await ContarAsync(true);
+    var contexto = (await repo.ListarNosEmProducaoAsync(true, CancellationToken.None)).Where(x => c.Nos.Contains(x.No.Id)).ToList();
+
+    await db.Pedidos.Where(p => p.Id == c.Arvore.PedidoId)
+        .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, "Cancelado"));
+    var canceladoIncluindo = await ContarAsync(true);
+
+    Assert.Equal(0, concluidoPadrao);
+    Assert.Equal(3, concluidoIncluindo);
+    Assert.All(contexto, x => Assert.Equal("Concluido", x.PedidoStatus));
+    Assert.Equal(0, canceladoIncluindo);
+  });
+
+  [Fact]
   public Task Subarvore_traz_o_no_e_os_descendentes() => NoCenarioAsync(async c =>
   {
     await using var db = NovoContexto();

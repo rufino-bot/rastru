@@ -80,6 +80,7 @@ public sealed class ConsultaDeExecucaoUseCase
             sobra.Add(new LinhaDeSobraDto(resumos[no.Id], UltimoPasso, local.Ordem!.Value, quantidade, false,
                 estornaveis.DoLocal(no.Id, local, quantidade)));
           else if (local.Posicao == PosicaoConst.AguardandoMontagem)
+            // `false` de proposito: a quantidade e a deste Setor, nao o excesso do no, entao nao ha o que somar entre Setores.
             sobra.Add(new LinhaDeSobraDto(resumos[no.Id], EmMontagem, null, quantidade, false, []));
           continue;
         }

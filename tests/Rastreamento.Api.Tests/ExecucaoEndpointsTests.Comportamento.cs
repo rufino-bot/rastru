@@ -276,14 +276,13 @@ public partial class ExecucaoEndpointsTests
   public async Task Reduzir_a_quantidade_abaixo_do_que_andou_devolve_409_com_mensagem()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
-    await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 15m }));
-    // Com o Pedido rodando, diminuir e `DiminuirPelaBaixa` (D12 da spec da Fase 5B-1) e a guarda do movimentado nao
-    // chega a rodar; ela vale onde o D12 nao alcanca, o Pedido `Cancelado`, que nenhuma rota produz (vai direto no banco).
-    using (var escopo = _factory.Services.CreateScope())
+    // Uma baixa de parte de "a iniciar" conta como saida (`SaidoDeAIniciar`) e deixa o Pedido `Aberto`, onde a edicao
+    // para menos ainda e livre (D12 da spec da Fase 5B-1): a guarda do movimentado e a que recusa abaixo do que saiu.
+    await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", new
     {
-      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
-      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Pedido SET Status = 'Cancelado' WHERE Id = {c.PedidoId}");
-    }
+      motivo = "PerdaArmazem", observacao = (string?)null, tudo = false, incluirTopo = false,
+      origens = new[] { new { posicao = "AIniciar", setorId = (int?)null, ordem = (int?)null, quantidade = 15m } },
+    }));
 
     var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.B}",
         new { descricao = "Suporte", quantidade = 10m, quantidadePorPai = 2m });
