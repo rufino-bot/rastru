@@ -94,6 +94,56 @@ public class PerdaMapeamentoTests : TesteComBanco
     Assert.Equal([2m, 3m], linhas.Select(m => m.Quantidade));
   });
 
+  /// <summary>
+  /// Uma linha `Perda` da posicao dada, com o Setor e o passo que a posicao pede (`CK_Movimentacao_OrigemCoerente`),
+  /// para so a transicao decidir.
+  /// </summary>
+  private static Movimentacao LinhaPerdaCoerente(Cenario c, string origem, int perdaId, string destino = Posicoes.Perdido)
+  {
+    var linha = LinhaPerda(c, Posicoes.AIniciar, perdaId);
+    (linha.OrigemPosicao, linha.OrigemSetorId, linha.OrigemOrdem) = Coerente(c, origem);
+    (linha.DestinoPosicao, linha.DestinoSetorId, linha.DestinoOrdem) = Coerente(c, destino);
+    return linha;
+  }
+
+  private static (string Posicao, int? SetorId, int? Ordem) Coerente(Cenario c, string posicao) => posicao switch
+  {
+    Posicoes.NoSetor or Posicoes.AguardandoColeta => (posicao, c.SetorId, 1),
+    Posicoes.AguardandoMontagem or Posicoes.AguardandoConserto or Posicoes.EmConserto or Posicoes.ConsertoPronto =>
+        (posicao, c.SetorId, null),
+    _ => (posicao, null, null),
+  };
+
+  public static IEnumerable<object[]> TodasAsPosicoes => Posicoes.Todas.Select(p => new object[] { p });
+
+  /// <summary>
+  /// A linha do banco para `Perda` em `CK_Movimentacao_Transicao` e a constante `Posicoes.DeOndeSeDaBaixa` dizem a
+  /// mesma coisa (secao 4.2 da spec da Fase 5B-1): de toda posicao da constante a baixa sai, e de nenhuma outra
+  /// (`AguardandoLiberacao`, `Montado`, `Expedido`, `Perdido`). Mudou um lado sem o outro, este teste falha.
+  /// </summary>
+  [Theory]
+  [MemberData(nameof(TodasAsPosicoes))]
+  public Task Linha_Perda_so_sai_das_posicoes_de_onde_se_da_baixa(string origem) => NoCenarioAsync(async c =>
+  {
+    var perdaId = await GravarAsync(NovaPerda(c));
+    var linha = LinhaPerdaCoerente(c, origem, perdaId);
+
+    if (Posicoes.DeOndeSeDaBaixa.Contains(origem))
+      Assert.True(await GravarAsync(linha) > 0);
+    else
+      await AfirmarRecusaAsync(linha, "CK_Movimentacao_Transicao");
+  });
+
+  [Theory]
+  [InlineData(Posicoes.NoSetor)]
+  [InlineData(Posicoes.Expedido)]
+  [InlineData(Posicoes.AIniciar)]
+  public Task Linha_Perda_so_vai_para_Perdido(string destino) => NoCenarioAsync(async c =>
+  {
+    var perdaId = await GravarAsync(NovaPerda(c));
+    await AfirmarRecusaAsync(LinhaPerdaCoerente(c, Posicoes.NaExpedicao, perdaId, destino), "CK_Movimentacao_Transicao");
+  });
+
   [Fact]
   public Task Linha_Perda_sem_PerdaId_e_recusada_pelo_banco() => NoCenarioAsync(c =>
       AfirmarRecusaAsync(LinhaPerda(c, Posicoes.AIniciar, null), "CK_Movimentacao_RegistroCoerente"));

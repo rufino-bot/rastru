@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Baixa;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Expedicao;
@@ -63,6 +64,8 @@ public class RegistroDeDependenciasTests : IClassFixture<WebApplicationFactory<P
   [InlineData(typeof(AfericaoUseCase))]
   [InlineData(typeof(RemessaUseCase))]
   [InlineData(typeof(EstornoDaExpedicaoUseCase))]
+  [InlineData(typeof(IBaixaRepository))]
+  [InlineData(typeof(BaixaUseCase))]
   public void Servico_e_registrado_como_Scoped(Type servico)
   {
     using var escopo = _factory.Services.CreateScope();

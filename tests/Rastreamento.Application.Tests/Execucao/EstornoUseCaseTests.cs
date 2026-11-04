@@ -268,7 +268,8 @@ public class EstornoUseCaseTests
   /// liberacao e a remessa se estornam inteiras, pela rota delas, e a generica recusa antes de abrir transacao.
   /// </summary>
   private static (CenarioDeExecucao C, Movimentacao Linha) LinhaDeRegistroComposto(
-      string tipo, string de, string para, int? contagemId = null, int? liberacaoId = null, int? remessaId = null)
+      string tipo, string de, string para, int? contagemId = null, int? liberacaoId = null, int? remessaId = null,
+      int? perdaId = null)
   {
     var c = new CenarioDeExecucao();
     c.No(1, null, 4m, null, Corte);
@@ -276,7 +277,7 @@ public class EstornoUseCaseTests
     var linha = c.Execucao.Semear(new Movimentacao
     {
       EstruturaItemId = 1, Tipo = tipo, Quantidade = 2m, OrigemPosicao = de, DestinoPosicao = para,
-      ContagemId = contagemId, LiberacaoId = liberacaoId, RemessaId = remessaId,
+      ContagemId = contagemId, LiberacaoId = liberacaoId, RemessaId = remessaId, PerdaId = perdaId,
       DataHora = DateTime.UtcNow, UsuarioId = Qualidade,
     });
     return (c, linha);
@@ -318,6 +319,20 @@ public class EstornoUseCaseTests
 
     AfirmarFalha(r, CodigosDaExecucao.EstornoImpossivel, TipoDeErro.Conflito);
     Assert.Equal("Esta linha faz parte da remessa 79: estorne a remessa inteira.", r.Detalhe);
+    Assert.Equal(0, c.Execucao.Transacoes);
+  }
+
+  [Fact]
+  public async Task Linha_de_baixa_nao_se_estorna_pela_rota_generica()
+  {
+    // C7 da spec da Fase 5B-1: a baixa se estorna inteira, pela rota dela.
+    var (c, linha) = LinhaDeRegistroComposto(
+        TiposDeMovimentacao.Perda, Posicoes.AIniciar, Posicoes.Perdido, perdaId: 80);
+
+    var r = await c.Estorno().EstornarMovimentacao(linha.Id, Qualidade, false, Ct);
+
+    AfirmarFalha(r, CodigosDaExecucao.EstornoImpossivel, TipoDeErro.Conflito);
+    Assert.Equal("Esta linha faz parte da baixa 80: estorne a baixa inteira.", r.Detalhe);
     Assert.Equal(0, c.Execucao.Transacoes);
   }
 
