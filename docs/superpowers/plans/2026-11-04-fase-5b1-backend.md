@@ -108,8 +108,9 @@ Cada implementer reporta o **delta** da própria task.
 - **P8 — A Fila do Setor lê a sobra de Pedido concluído** (C25) por `ListarNosEmProducaoAsync(bool
   incluirConcluidos = false)`; a `ConsultaDeExecucaoUseCase` pede `true` e põe os nós de Pedido `Concluido` **só** na
   seção "Sobra". As Tarefas continuam com o padrão.
-- **P9 — A lista do Separador e o resumo de material da Fila** filtram o nó cujo saldo em produção é zero (C26), pela
-  calculadora (soma de `Saldos` nas posições em produção).
+- **P9 — A lista do Separador e o resumo de material da Fila** filtram o nó perdido ou descartado por inteiro (C26):
+  o saldo dele em `Perdido`, pela calculadora, é igual à quantidade do nó. O nó todo montado ou expedido, e o perdido
+  só em parte, continuam na lista.
 - **P10 — `incluirTopo` grava a Peça do topo de `AIniciar`**, com `min(travaNoTopo, AIniciar(topo))`. O
   `travaNoTopo` é calculado subindo a cadeia (seção 4.6 da spec) **depois** de aplicar a baixa do Item ao estado.
 
@@ -457,7 +458,7 @@ IncluirTopo (só Parte de Item): aplica as linhas ao saldo e sobe CadeiaAteOTopo
 - [ ] **Step 1: Testes:** `Pedido_concluido_aceita_descarte_de_sobra_de_Item_em_qualquer_posicao` (C24);
   `Pedido_concluido_recusa_perda_de_Item_com_PedidoFechado`; `Pedido_concluido_recusa_baixa_de_Peca`;
   `Fila_mostra_a_sobra_de_Pedido_concluido_so_na_secao_Sobra` (C25); `Tarefas_nao_mostram_Pedido_concluido`;
-  `Separador_nao_lista_no_sem_nada_em_producao` (C26); `Editar_quantidade_para_menos_com_Pedido_rodando_e_DiminuirPelaBaixa`
+  `Separador_nao_lista_no_descartado_por_inteiro` e `Separador_continua_listando_no_todo_montado_e_no_perdido_em_parte` (C26); `Editar_quantidade_para_menos_com_Pedido_rodando_e_DiminuirPelaBaixa`
   (D12; nó do catálogo sem descrição, frase com o nome do Componente); `Editar_quantidade_para_mais_com_Pedido_rodando_passa`;
   `Editar_quantidade_para_menos_com_Pedido_Aberto_passa`.
 - [ ] **Step 2: Rodar e ver falhar.**

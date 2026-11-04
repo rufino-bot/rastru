@@ -106,7 +106,7 @@ A 5C (as pontas do Kit) continua depois da 5B, e a 3C (push) depois da Fase 5.
 | C23 | O estorno que desfaz a conclusão de um Pedido que **nunca teve início** (líquido de estorno, regra 14) o devolve a `Aberto`. Num Pedido `Aberto`, o Agrupamento cujas Peças concluíram todas por baixa ganha `DataConclusao` (seção 4.8). |
 | C24 | Num Pedido `Concluido`, todo saldo de **Item** ainda em produção é sobra viva, em qualquer posição: a baixa dele é aceita (de parte, `tudo` ou o "Descartar tudo"), só com motivo `Descarte`. Baixa de Peça num Pedido concluído não existe, porque a Peça não tem nada em produção (seção 4.8). |
 | C25 | A seção "Sobra" da Fila do Setor passa a incluir a sobra de Pedido `Concluido`; as outras seções da Fila e as Tarefas continuam excluindo o Pedido concluído (seção 6). |
-| C26 | A lista do Separador e o resumo de material da Fila deixam de mostrar o nó que **não tem nada em produção**. Na baixa de parte, o planejado do material **não** se reescala: é a mesma limitação da dívida m5 da Fase 4 (editar a quantidade não reescala), registrada como risco. |
+| C26 | A lista do Separador e o resumo de material da Fila deixam de mostrar o nó **perdido ou descartado por inteiro**, isto é, com perdido igual à quantidade dele (decisão do usuário, 2026-11-04). O nó todo montado ou expedido, e o perdido só em parte, continuam como na Fase 4. Na baixa de parte, o planejado do material **não** se reescala: é a mesma limitação da dívida m5 da Fase 4 (editar a quantidade não reescala), registrada como risco. |
 | C27 | A baixa do Pedido e a do Agrupamento aparecem numa seção "Baixas" da `PedidoDetalhePage` (todas as baixas do Pedido, por `GET /pedidos/{id}/baixas`), com o "Estornar". O `HistoricoDeBaixas` do nó continua mostrando toda baixa que tem linha nele ou num descendente, inclusive a do Pedido. |
 
 ## 3. Modelo de dados
@@ -373,7 +373,7 @@ usam `PainelDeEscrita` e `useEscritaDoPainel`; a tela não chama `usePodeEscreve
 - **Painel do Item** (D13): com `travaNoTopo` na prévia, a caixa "Isso impede montar N {Peça}. Dar baixa também delas",
   marcada por padrão (uma `CaixaDeLote` não serve: é uma caixa com texto, um `Campo` de caixa).
 - **Editar nó** (D12): com o Pedido rodando, a dica do campo de quantidade diz que diminuir é pelo "Dar baixa".
-- **Separação** (C26): a `SeparacaoPage` e o resumo de material da Fila deixam de listar o nó sem nada em produção.
+- **Separação** (C26): a `SeparacaoPage` e o resumo de material da Fila deixam de listar o nó perdido ou descartado por inteiro.
 - **Onde está** (`ResumoDePosicoes`, `rotuloDoSaldo`): `Perdido` aparece como "N perdidos". A Fila e as Tarefas não
   listam `Perdido`.
 - **Cor**: a baixa é ação de **perigo** só no "Descartar tudo" (o `Botao` `perigo`, como o "Excluir"); o resto é
