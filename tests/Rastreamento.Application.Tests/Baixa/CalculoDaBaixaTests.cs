@@ -34,8 +34,10 @@ public class CalculoDaBaixaTests
       new(item, local.Posicao, local.SetorId, local.Ordem, quantidade);
 
   private static CalculadoraDeExecucao Calcular(
-      IEnumerable<NoDoCalculo> nos, IEnumerable<SaldoLiquido> saldos, IReadOnlyDictionary<int, decimal>? montados = null) =>
-      new(nos, saldos, montados ?? new Dictionary<int, decimal>(), Array.Empty<(int, int)>());
+      IEnumerable<NoDoCalculo> nos, IEnumerable<SaldoLiquido> saldos, IReadOnlyDictionary<int, decimal>? montados = null,
+      IReadOnlyDictionary<int, decimal>? perdidosDeAIniciar = null) =>
+      new(nos, saldos, montados ?? new Dictionary<int, decimal>(), Array.Empty<(int, int)>(),
+          perdidosDeAIniciar: perdidosDeAIniciar);
 
   private static OrigemDaBaixa De(Local local, decimal quantidade) => new(local, quantidade);
 
@@ -445,11 +447,104 @@ public class CalculoDaBaixaTests
     Assert.Equal(CodigosDaBaixa.OrigemInvalida, r.Erro);
   }
 
-  [Fact]
-  public void IncluirTopo_com_Tudo_e_OrigemInvalida()
-  {
-    var pedido = new PedidoDeBaixa(3, MotivosDePerda.Descarte, true, [], true, [2, 1]);
+  // A Peca 1 (4, nada iniciado), o Item 2 (10, razao 2; 2 ja iniciados, no Setor, e 8 a iniciar) e o Item 3 (30,
+  // razao 3; 6 montados no Item 2 e 24 no Setor).
+  private static CalculadoraDeExecucao CadeiaComItem2Iniciado() => Calcular(
+      [No(1, null, 4m, null, Solda), No(2, 1, 10m, 2m, Pintura), No(3, 2, 30m, 3m, Corte)],
+      [
+        Em(2, Local.AIniciar, -2m), Em(2, Local.NoSetor(Pintura, 1), 2m),
+        Em(3, Local.AIniciar, -30m), Em(3, Local.Montado, 6m), Em(3, Local.NoSetor(Corte, 1), 24m),
+      ],
+      new Dictionary<int, decimal> { [2] = 2m });
 
-    Assert.Equal(CodigosDaBaixa.OrigemInvalida, Recusar(CadeiaDeTresNiveis(), pedido).Erro);
+  private static PedidoDeBaixa TudoDoItem(string motivo, bool incluirTopo) =>
+      new(3, motivo, true, Array.Empty<OrigemDaBaixa>(), incluirTopo, [2, 1]);
+
+  [Fact]
+  public void Tudo_por_perda_de_item_que_trava_calcula_a_trava_no_topo()
+  {
+    // D14: sem o Item 3, os 8 do Item 2 por montar ficam travados; os 2 ja iniciados montam 1 Peca, e 3 travam.
+    var plano = Planejar(CadeiaComItem2Iniciado(), TudoDoItem(MotivosDePerda.MortaEmProcesso, incluirTopo: false));
+
+    Assert.Equal([new LinhaPlanejada(3, Local.NoSetor(Corte, 1), 24m)], plano.Linhas);
+    Assert.Empty(plano.ViramSobra);
+    Assert.Equal(new TravaNoTopo(1, 3m, 4m), plano.Trava);
+  }
+
+  [Fact]
+  public void Tudo_por_perda_com_IncluirTopo_leva_a_Peca_de_a_iniciar()
+  {
+    // A Peca perde 3 a iniciar; a que fica precisa de 2 do Item 2, os 2 ja iniciados: os 8 a iniciar dele saem.
+    var plano = Planejar(CadeiaComItem2Iniciado(), TudoDoItem(MotivosDePerda.PerdaArmazem, incluirTopo: true));
+
+    Assert.Equal(
+        [
+          new LinhaPlanejada(3, Local.NoSetor(Corte, 1), 24m),
+          new LinhaPlanejada(1, Local.AIniciar, 3m),
+          new LinhaPlanejada(2, Local.AIniciar, 8m),
+        ],
+        plano.Linhas);
+    Assert.Empty(plano.ViramSobra);
+    Assert.Equal(new TravaNoTopo(1, 3m, 4m), plano.Trava);
+  }
+
+  [Fact]
+  public void Tudo_por_descarte_nao_tem_trava_e_IncluirTopo_e_OrigemInvalida()
+  {
+    // C22: o Item descartado por inteiro sai do projeto e deixa de travar o pai.
+    var plano = Planejar(CadeiaComItem2Iniciado(), TudoDoItem(MotivosDePerda.Descarte, incluirTopo: false));
+    Assert.Equal([new LinhaPlanejada(3, Local.NoSetor(Corte, 1), 24m)], plano.Linhas);
+    Assert.Null(plano.Trava);
+
+    var r = Recusar(CadeiaComItem2Iniciado(), TudoDoItem(MotivosDePerda.Descarte, incluirTopo: true));
+    Assert.Equal(CodigosDaBaixa.OrigemInvalida, r.Erro);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+  }
+
+  [Fact]
+  public void Tudo_por_perda_de_Peca_com_IncluirTopo_e_OrigemInvalida()
+  {
+    var pedido = new PedidoDeBaixa(10, MotivosDePerda.PerdaArmazem, true, Array.Empty<OrigemDaBaixa>(), true, []);
+
+    Assert.Equal(CodigosDaBaixa.OrigemInvalida, Recusar(PecaComFilhoMontado(), pedido).Erro);
+  }
+
+  [Fact]
+  public void Razao_com_casas_arredonda_para_baixo_em_quatro_casas_o_que_sai_e_o_que_vira_sobra()
+  {
+    // Razao 0,3333 e meia Peca perdida: as 2,5 que ficam pedem 0,83325 de cada filho, cinco casas que o livro nao
+    // guarda. O filho 20 (1 a iniciar) perde 0,16675 -> 0,1667; o filho 30 (1 no Setor) devia 0,9999 e passa a dever
+    // 0,83325: a sobra vai de 0,0001 a 0,16675, e o que a baixa faz virar sobra e 0,16665 -> 0,1666.
+    var calc = Calcular(
+        [No(10, null, 3m, null, Solda), No(20, 10, 1m, 0.3333m, Corte), No(30, 10, 1m, 0.3333m, Corte)],
+        [Em(30, Local.AIniciar, -1m), Em(30, Local.NoSetor(Corte, 1), 1m)]);
+
+    var plano = Planejar(calc, Parte(10, [], De(Local.AIniciar, 0.5m)));
+
+    Assert.Equal(
+        [new LinhaPlanejada(10, Local.AIniciar, 0.5m), new LinhaPlanejada(20, Local.AIniciar, 0.1667m)],
+        plano.Linhas);
+    Assert.Equal([(30, 0.1666m)], plano.ViramSobra);
+  }
+
+  [Fact]
+  public void Perda_ja_gravada_do_pai_nao_conta_de_novo_na_segunda_baixa()
+  {
+    // A Peca 10 (10) ja perdeu 3 a iniciar numa baixa gravada, que levou 6 a iniciar do filho 20 (razao 2): falta
+    // montar 7, e o filho tem 14. Perder mais 2 a iniciar deixa 5 por montar, que pedem 10: saem 4 a iniciar do filho.
+    var calc = Calcular(
+        [No(10, null, 10m, null, Solda), No(20, 10, 20m, 2m, Corte)],
+        [
+          Em(10, Local.AIniciar, -3m), Em(10, Local.Perdido, 3m),
+          Em(20, Local.AIniciar, -6m), Em(20, Local.Perdido, 6m),
+        ],
+        perdidosDeAIniciar: new Dictionary<int, decimal> { [10] = 3m, [20] = 6m });
+    Assert.Equal(7m, calc.FaltaMontar(10));
+
+    var plano = Planejar(calc, Parte(10, [], De(Local.AIniciar, 2m)));
+
+    Assert.Equal(
+        [new LinhaPlanejada(10, Local.AIniciar, 2m), new LinhaPlanejada(20, Local.AIniciar, 4m)],
+        plano.Linhas);
   }
 }

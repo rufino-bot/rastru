@@ -13,7 +13,8 @@ namespace Rastreamento.Application.Baixa;
 /// A calculadora tem de enxergar a arvore inteira do no ate as folhas e a cadeia ate a Peca do topo; com
 /// `IncluirTopo`, a arvore inteira da Peca, porque a cascata desce dela.
 ///
-/// Motivo e observacao sao do caso de uso, nao daqui: esta conta nao olha o motivo.
+/// Motivo e observacao sao validados pelo caso de uso, nao daqui. O motivo so pesa na baixa de tudo: por perda, a de um
+/// Item calcula a trava no topo e aceita `IncluirTopo`; por descarte, nao (D14 da spec da Fase 5B-1).
 /// </summary>
 public static class CalculoDaBaixa
 {
@@ -24,18 +25,40 @@ public static class CalculoDaBaixa
     if (pedido.CadeiaAteOTopo.Count > 0 && pedido.CadeiaAteOTopo[0] != no.PaiId)
       throw new ArgumentException("A cadeia ate o topo comeca no pai do no.", nameof(pedido));
 
-    if (pedido.IncluirTopo && (pedido.Tudo || no.EhPeca || pedido.CadeiaAteOTopo.Count == 0))
+    if (pedido.IncluirTopo && (no.EhPeca || pedido.CadeiaAteOTopo.Count == 0 || (pedido.Tudo && !EhPerda(pedido.Motivo))))
       return Falhas.Validacao<PlanoDaBaixa>(CodigosDaBaixa.OrigemInvalida,
-          "Só a baixa de uma parte de um Item leva junto a Peça do topo.");
+          "Só a baixa de um Item, de uma parte ou de tudo por perda, leva junto a Peça do topo.");
 
-    return pedido.Tudo ? PlanejarTudo(calc, pedido, nome) : PlanejarParte(calc, pedido, nome, nomeDoSetor);
+    var rascunho = new Rascunho(calc);
+    var falha = pedido.Tudo ? PlanejarTudo(calc, pedido, nome, rascunho) : PlanejarParte(calc, pedido, nome, nomeDoSetor, rascunho);
+    if (falha is not null) return falha;
+
+    // A trava no topo (D13): na baixa de parte de um Item, qualquer que seja o motivo; na de tudo, so por perda (D14),
+    // porque o Item descartado por inteiro sai do projeto e deixa de travar o pai (C22).
+    var calculaTrava = pedido.CadeiaAteOTopo.Count > 0 && (!pedido.Tudo || EhPerda(pedido.Motivo));
+    var trava = calculaTrava ? rascunho.CalcularTrava(pedido.NoId, pedido.CadeiaAteOTopo) : null;
+    if (pedido.IncluirTopo && trava is not null)
+    {
+      var doTopo = Math.Min(trava.Quantidade, trava.AIniciar);
+      if (doTopo > 0m)
+      {
+        rascunho.Tirar(trava.PecaId, Local.AIniciar, doTopo);
+        rascunho.Cascata(trava.PecaId);
+      }
+    }
+
+    return Result<PlanoDaBaixa>.Ok(new PlanoDaBaixa(rascunho.Linhas, rascunho.ViramSobra(), trava));
   }
 
+  private static bool EhPerda(string motivo) => motivo is MotivosDePerda.PerdaArmazem or MotivosDePerda.MortaEmProcesso;
+
   /// <summary>
-  /// O descarte total (D11): o no e cada descendente, em ordem de Id, uma linha por posicao de onde se da baixa com
-  /// saldo positivo. A cascata nao e necessaria, porque tudo da arvore sai, e nada vira sobra.
+  /// A baixa de tudo (D11): o no e cada descendente, em ordem de Id, uma linha por posicao de onde se da baixa com
+  /// saldo positivo. A cascata abaixo do no nao e necessaria, porque tudo da arvore sai. Devolve a falha, ou nulo com as
+  /// linhas no rascunho.
   /// </summary>
-  private static Result<PlanoDaBaixa> PlanejarTudo(CalculadoraDeExecucao calc, PedidoDeBaixa pedido, Func<int, string> nome)
+  private static Result<PlanoDaBaixa>? PlanejarTudo(
+      CalculadoraDeExecucao calc, PedidoDeBaixa pedido, Func<int, string> nome, Rascunho rascunho)
   {
     if (pedido.Origens.Count > 0)
       return Falhas.Validacao<PlanoDaBaixa>(CodigosDaBaixa.OrigemInvalida,
@@ -62,16 +85,18 @@ public static class CalculoDaBaixa
       return Falhas.Conflito<PlanoDaBaixa>(CodigosDaBaixa.NadaEmProducao,
           $"{nome(pedido.NoId)} não tem nada em produção para dar baixa.");
 
-    return Result<PlanoDaBaixa>.Ok(new PlanoDaBaixa(linhas, [], null));
+    foreach (var linha in linhas) rascunho.Tirar(linha.NoId, linha.Origem, linha.Quantidade);
+    return null;
   }
 
   /// <summary>
-  /// A baixa de parte (D3, D4): as origens pedidas, depois a cascata C6 a partir do no, a trava no topo quando o no e
-  /// Item, e, com `IncluirTopo`, a Peca do topo de "a iniciar" com a cascata de novo a partir dela (decisao P10 do plano
-  /// de backend da Fase 5B-1).
+  /// A baixa de parte (D3, D4): as origens pedidas, depois a cascata C6 a partir do no. A trava no topo e, com
+  /// `IncluirTopo`, a Peca do topo de "a iniciar" com a cascata de novo a partir dela (decisao P10 do plano de backend da
+  /// Fase 5B-1) vem depois, em `Planejar`. Devolve a falha, ou nulo com as linhas no rascunho.
   /// </summary>
-  private static Result<PlanoDaBaixa> PlanejarParte(
-      CalculadoraDeExecucao calc, PedidoDeBaixa pedido, Func<int, string> nome, Func<int, string> nomeDoSetor)
+  private static Result<PlanoDaBaixa>? PlanejarParte(
+      CalculadoraDeExecucao calc, PedidoDeBaixa pedido, Func<int, string> nome, Func<int, string> nomeDoSetor,
+      Rascunho rascunho)
   {
     if (pedido.Origens.Count == 0)
       return Falhas.Validacao<PlanoDaBaixa>(CodigosDaBaixa.OrigemInvalida, "Diga de onde sai a baixa.");
@@ -98,22 +123,9 @@ public static class CalculoDaBaixa
             + $"{RotuloDoLocal.Onde(origem.Local, nomeDoSetor)}.");
     }
 
-    var rascunho = new Rascunho(calc);
     foreach (var origem in pedido.Origens) rascunho.Tirar(pedido.NoId, origem.Local, origem.Quantidade);
     rascunho.Cascata(pedido.NoId);
-
-    var trava = pedido.CadeiaAteOTopo.Count > 0 ? rascunho.TravaNoTopo(pedido.NoId, pedido.CadeiaAteOTopo) : null;
-    if (pedido.IncluirTopo && trava is not null)
-    {
-      var doTopo = Math.Min(trava.Quantidade, trava.AIniciar);
-      if (doTopo > 0m)
-      {
-        rascunho.Tirar(trava.PecaId, Local.AIniciar, doTopo);
-        rascunho.Cascata(trava.PecaId);
-      }
-    }
-
-    return Result<PlanoDaBaixa>.Ok(new PlanoDaBaixa(rascunho.Linhas, rascunho.ViramSobra(), trava));
+    return null;
   }
 
   /// <summary>
@@ -152,6 +164,12 @@ public static class CalculoDaBaixa
   private static decimal Razao(NoDoCalculo no) => no.QuantidadePorPai ?? 0m;
 
   /// <summary>
+  /// O livro guarda quatro casas: a razao com casas, vezes o que falta montar com casas, pode dar uma quinta. O que sai
+  /// e o que vira sobra arredondam para baixo, para nunca tirar alem do excesso.
+  /// </summary>
+  private static decimal QuatroCasasParaBaixo(decimal quantidade) => decimal.Floor(quantidade * 10_000m) / 10_000m;
+
+  /// <summary>
   /// As linhas sendo planejadas, sobre o estado de antes: uma linha por (no, posicao), somando o que entra de novo na
   /// mesma, na ordem em que nasceram. "Depois" e o estado de antes menos o que ja esta planejado.
   /// </summary>
@@ -174,19 +192,19 @@ public static class CalculoDaBaixa
     private decimal Tirado(int noId) => _linhas.Where(l => l.NoId == noId).Sum(l => l.Quantidade);
 
     /// <summary>O "a iniciar" planejado do no: e o que, somado ao ja gravado, sai do que ele falta montar.</summary>
-    private decimal PerdidoDeAIniciar(int noId) =>
+    private decimal PlanejadoDeAIniciar(int noId) =>
         _linhas.Where(l => l.NoId == noId && l.Origem == Local.AIniciar).Sum(l => l.Quantidade);
 
     private decimal EmProducaoDepois(int noId) => _calc.EmProducao(noId) - Tirado(noId);
 
-    private decimal AIniciarDepois(int noId) => _calc.Saldo(noId, Local.AIniciar) - PerdidoDeAIniciar(noId);
+    private decimal AIniciarDepois(int noId) => _calc.Saldo(noId, Local.AIniciar) - PlanejadoDeAIniciar(noId);
 
     /// <summary>
     /// O que o pai ainda pede do filho depois da baixa: o que falta montar do pai (que ja desconta a perda gravada),
     /// menos o "a iniciar" planejado dele, vezes a razao.
     /// </summary>
     private decimal DeveDepois(int paiId, NoDoCalculo filho) =>
-        Math.Max(0m, _calc.FaltaMontar(paiId) - PerdidoDeAIniciar(paiId)) * Razao(filho);
+        Math.Max(0m, _calc.FaltaMontar(paiId) - PlanejadoDeAIniciar(paiId)) * Razao(filho);
 
     private decimal DeveAntes(int paiId, NoDoCalculo filho) => Math.Max(0m, _calc.FaltaMontar(paiId)) * Razao(filho);
 
@@ -206,8 +224,7 @@ public static class CalculoDaBaixa
           {
             var excesso = Math.Min(
                 AIniciarDepois(filho.Id), Math.Max(0m, EmProducaoDepois(filho.Id) - DeveDepois(paiId, filho)));
-            // O livro guarda quatro casas: a razao com casas pode dar uma quinta, e o que sai arredonda para baixo.
-            excesso = decimal.Floor(excesso * 10_000m) / 10_000m;
+            excesso = QuatroCasasParaBaixo(excesso);
             if (excesso <= 0m) continue;
             Tirar(filho.Id, Local.AIniciar, excesso);
             proximo.Add(filho.Id);
@@ -224,7 +241,7 @@ public static class CalculoDaBaixa
     /// absorve a trava, em vez de ela passar inteira (so dividir a trava pela razao, `ceil(trava / razao)`, da o mesmo
     /// apenas quando o nivel nao tem nada alem do que o de cima precisa). Nulo quando nada trava.
     /// </summary>
-    public TravaNoTopo? TravaNoTopo(int noId, IReadOnlyList<int> cadeia)
+    public TravaNoTopo? CalcularTrava(int noId, IReadOnlyList<int> cadeia)
     {
       var filho = _calc.No(noId);
       var producaoDoFilho = EmProducaoDepois(noId);
@@ -258,7 +275,8 @@ public static class CalculoDaBaixa
           var fabricadoDepois = EmProducaoDepois(filho.Id) - AIniciarDepois(filho.Id);
           var antes = Math.Max(0m, fabricadoAntes - DeveAntes(paiId, filho));
           var depois = Math.Max(0m, fabricadoDepois - DeveDepois(paiId, filho));
-          if (depois > antes) lista.Add((filho.Id, depois - antes));
+          var viraSobra = QuatroCasasParaBaixo(depois - antes);
+          if (viraSobra > 0m) lista.Add((filho.Id, viraSobra));
         }
       return lista.OrderBy(s => s.NoId).ToList();
     }

@@ -6,8 +6,9 @@ namespace Rastreamento.Application.Baixa;
 public sealed record OrigemDaBaixa(Local Local, decimal Quantidade);
 
 /// <summary>
-/// O que a conta da baixa recebe. `Origens` so na baixa de parte; vazia com `Tudo`. `IncluirTopo` so na baixa de parte
-/// de um Item (D13). `CadeiaAteOTopo`: os ancestrais do no, do pai ate a Peca, vazia quando o no e Peca.
+/// O que a conta da baixa recebe. `Origens` so na baixa de parte; vazia com `Tudo`. `IncluirTopo` so na baixa de um
+/// Item: de parte (D13), ou de tudo com motivo `PerdaArmazem` ou `MortaEmProcesso` (D14); de tudo por `Descarte`, nao.
+/// `CadeiaAteOTopo`: os ancestrais do no, do pai ate a Peca, vazia quando o no e Peca.
 /// </summary>
 public sealed record PedidoDeBaixa(
     int NoId, string Motivo, bool Tudo, IReadOnlyList<OrigemDaBaixa> Origens, bool IncluirTopo,
@@ -24,7 +25,7 @@ public sealed record TravaNoTopo(int PecaId, decimal Quantidade, decimal AInicia
 
 /// <summary>
 /// O que a baixa faz: as linhas, na ordem em que se gravam; os nos cujo fabricado passa a sobrar por causa dela (C6);
-/// e a trava no topo, quando a baixa e de parte de um Item e trava alguma unidade da Peca.
+/// e a trava no topo, quando a baixa e de um Item (de parte, ou de tudo por perda) e trava alguma unidade da Peca.
 /// </summary>
 public sealed record PlanoDaBaixa(
     IReadOnlyList<LinhaPlanejada> Linhas, IReadOnlyList<(int NoId, decimal Quantidade)> ViramSobra, TravaNoTopo? Trava);
