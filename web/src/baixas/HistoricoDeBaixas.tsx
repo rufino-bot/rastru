@@ -21,8 +21,9 @@ const ESCALA = 10_000
 /**
  * O resumo das linhas de uma baixa: por nó, o total e de onde saiu ("4: 3 a iniciar, 1 em Usinagem (passo 2)").
  * Com mais de um nó (a cascata de C6 e o "Descartar tudo"), cada grupo nomeia o nó: "4 de Eixo: …; e 6 de Chapa".
+ * Num nó só que não é o `noId` da tela (a baixa de um filho, listada no painel do pai), ele também é nomeado.
  */
-function resumoDasLinhas(b: BaixaDto): string {
+function resumoDasLinhas(b: BaixaDto, noId?: number): string {
   const porNo = new Map<number, { descricao: string; unidades: number; origens: string[] }>()
   for (const l of b.linhas) {
     const g = porNo.get(l.estruturaItemId) ?? { descricao: l.descricao, unidades: 0, origens: [] }
@@ -36,7 +37,8 @@ function resumoDasLinhas(b: BaixaDto): string {
     porNo.set(l.estruturaItemId, g)
   }
   const grupos = [...porNo.values()].map((g) => ({ ...g, total: formatarQuantidade(g.unidades / ESCALA) }))
-  if (grupos.length === 1) return `${grupos[0].total}: ${grupos[0].origens.join(', ')}`
+  const umSoEDesteNo = grupos.length === 1 && (noId === undefined || b.linhas[0].estruturaItemId === noId)
+  if (umSoEDesteNo) return `${grupos[0].total}: ${grupos[0].origens.join(', ')}`
   const frases = grupos.map((g) => `${g.total} de ${g.descricao}: ${g.origens.join(', ')}`)
   return frases.length < 2 ? frases.join('') : `${frases.slice(0, -1).join('; ')}; e ${frases[frases.length - 1]}`
 }
@@ -57,6 +59,10 @@ interface Props {
   aoEstornar: () => void
   /** O nome de quem a tela já conhece (o número do Pedido, o código do Agrupamento); sem ele, o Id. */
   nomeDoEscopo?: (escopo: BaixaDto['escopo']) => string | null
+  /** O nó cujo painel mostra a seção: a baixa de outro nó (um descendente) é lida com o nome dele. */
+  noId?: number
+  /** O nível do título: `h3` dentro do painel do nó, `h2` onde as seções da tela são `h2`. */
+  nivel?: 'h2' | 'h3'
 }
 
 /**
@@ -67,7 +73,7 @@ interface Props {
  * Um 409 (`JaEstornado`) é tela velha: a frase do servidor fica na seção e a lista recarrega. Quando a escrita tira o
  * "Estornar", o foco vai ao título da seção.
  */
-export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo }: Props) {
+export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
   const { podeEstornar } = usePermissoesDaBaixa()
   const idDoTitulo = useId()
   const [baixas, setBaixas] = useState<BaixaDto[] | null>(null)
@@ -81,6 +87,7 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo }
   const carregarRef = useRef(carregar)
   carregarRef.current = carregar
   const titulo = useRef<HTMLSpanElement>(null)
+  const Titulo = nivel
   const botoes = useRef(new Map<number, HTMLButtonElement>())
   const ultimaAberta = useRef<number | null>(null)
 
@@ -138,14 +145,14 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo }
   }
 
   function descricaoDa(b: BaixaDto): string {
-    return `${ROTULO_DO_MOTIVO[b.motivo]}, ${resumoDasLinhas(b)}, em ${formatarDataHora(b.dataHora)}`
+    return `${ROTULO_DO_MOTIVO[b.motivo]}, ${resumoDasLinhas(b, noId)}, em ${formatarDataHora(b.dataHora)}`
   }
 
   return (
     <section aria-labelledby={idDoTitulo} className="flex flex-col gap-3">
-      <h3 id={idDoTitulo} className="font-medium text-tinta">
+      <Titulo id={idDoTitulo} className={nivel === 'h2' ? 'text-lg font-medium text-tinta' : 'font-medium text-tinta'}>
         <span ref={titulo} tabIndex={-1}>Baixas</span>
-      </h3>
+      </Titulo>
       <BannerDeErro mensagem={erroDeCarga} />
       <BannerDeErro mensagem={erroDoEstorno} />
       {baixas === null && erroDeCarga === null && <EstadoCarregando />}
@@ -177,7 +184,7 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo }
                   {b.estornada && <Pilula>Estornada</Pilula>}
                 </span>
                 {escopo && <span className="text-sm text-tinta">{escopo}</span>}
-                <span className="text-sm text-tinta">{resumoDasLinhas(b)}</span>
+                <span className="text-sm text-tinta">{resumoDasLinhas(b, noId)}</span>
                 {b.observacao && <span className="text-xs text-tinta-fraca">{b.observacao}</span>}
                 <span className="text-xs text-tinta-fraca">{`${b.usuarioNome} · ${formatarDataHora(b.dataHora)}`}</span>
               </ItemComAcao>

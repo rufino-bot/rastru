@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, waitFor, act } from '@testing-library/react'
 import type { EstadoSessao } from '../auth/estadoDaSessao'
 import type { NoDaEstrutura } from '../api/estrutura'
 import type { Posicao, SaldoDto } from '../api/execucao'
@@ -12,13 +12,24 @@ vi.mock('../auth/AuthContext', () => ({
 }))
 // As seções de baixo têm teste próprio e buscam na rede: aqui interessa só o cabeçalho e o painel da baixa.
 vi.mock('./EditorDeRoteiroDoNo', () => ({ EditorDeRoteiroDoNo: () => null }))
-vi.mock('./HistoricoDoNo', () => ({ HistoricoDoNo: () => null }))
+const montagens = { livro: 0, baixas: [] as number[], aoEstornar: undefined as undefined | (() => void) }
+vi.mock('./HistoricoDoNo', () => ({
+  HistoricoDoNo: () => { montagens.livro += 1; return null },
+}))
+vi.mock('../baixas/HistoricoDeBaixas', () => ({
+  HistoricoDeBaixas: (p: { versao: number; aoEstornar: () => void }) => {
+    montagens.baixas.push(p.versao)
+    montagens.aoEstornar = p.aoEstornar
+    return null
+  },
+}))
 vi.mock('../separacao/MateriaisDoNo', () => ({ MateriaisDoNo: () => null }))
 vi.mock('../separacao/HistoricoDeSeparacoes', () => ({ HistoricoDeSeparacoes: () => null }))
 // O painel da baixa tem teste próprio.
 vi.mock('../baixas/PainelDeBaixa', () => ({
-  PainelDeBaixa: (p: { no: { id: number; ehPeca: boolean }; aoFechar: () => void }) => (
+  PainelDeBaixa: (p: { no: { id: number; ehPeca: boolean }; aoFechar: () => void; aoConcluir: () => void }) => (
     <form aria-label="Dar baixa">
+      <button type="button" onClick={p.aoConcluir}>Concluir</button>
       <span>{`nó ${p.no.id} ${p.no.ehPeca ? 'peça' : 'item'}`}</span>
       <button type="button" onClick={p.aoFechar}>Cancelar</button>
     </form>
@@ -47,6 +58,33 @@ function noDaEstrutura(nivel: 'Peca' | 'Item' = 'Item'): NoDaEstrutura {
 function renderizar(saldos: SaldoDto[], nivel: 'Peca' | 'Item' = 'Item') {
   return render(<PainelDoNo no={noDaEstrutura(nivel)} aoFechar={() => {}} aoMudar={() => {}} saldos={saldos} />)
 }
+
+describe('PainelDoNo — seção Baixas', () => {
+  it('a baixa dada sobe a versão da seção Baixas e remonta o livro do nó', () => {
+    como('Qualidade')
+    montagens.baixas = []; montagens.livro = 0
+    renderizar([saldo('AIniciar', 4)])
+    const livroAntes = montagens.livro
+    expect(montagens.baixas.at(-1)).toBe(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dar baixa' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Concluir' }))
+
+    expect(montagens.baixas.at(-1)).toBe(1)
+    expect(montagens.livro).toBeGreaterThan(livroAntes)
+  })
+
+  it('o estorno de uma baixa remonta o livro do nó, que ganhou o estorno', () => {
+    como('Qualidade')
+    montagens.livro = 0
+    renderizar([saldo('AIniciar', 4)])
+    const antes = montagens.livro
+
+    act(() => montagens.aoEstornar?.())
+
+    expect(montagens.livro).toBeGreaterThan(antes)
+  })
+})
 
 describe('PainelDoNo — Dar baixa', () => {
   it.each(['Qualidade', 'PCP', 'Administrador'])('%s com algo em produção vê o "Dar baixa"', (perfil) => {

@@ -83,10 +83,11 @@ describe('PedidoDetalhePage', () => {
 
     renderizarDetalhe()
 
-    // A seção "Baixas" também carrega, e mostra o dela: todos os indicadores são o mesmo.
-    const indicadores = screen.getAllByRole('status')
-    expect(indicadores.length).toBeGreaterThan(0)
-    for (const i of indicadores) expect(i.textContent).toBe('Carregando…')
+    // A seção "Baixas" também carrega e tem o indicador dela: o da página é o que está fora dessa seção.
+    const secao = screen.getByRole('region', { name: 'Baixas' })
+    const daPagina = screen.getAllByRole('status').filter((i) => !secao.contains(i))
+    expect(daPagina).toHaveLength(1)
+    expect(daPagina[0].textContent).toBe('Carregando…')
   })
 
   it('mostra o cabeçalho do pedido e os agrupamentos dele', async () => {
@@ -716,6 +717,13 @@ describe('PedidoDetalhePage', () => {
       fireEvent.click(screen.getByRole('button', { name: /Estornar a baixa/ }))
       fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Estornar' }))
       expect(await screen.findByText('Estornada')).toBeTruthy()
+    })
+
+    it('o título da seção é h2, como as outras da página', async () => {
+      vi.stubGlobal('fetch', apiComPut(() => respostaJson(PEDIDO)))
+      renderizarDetalhe()
+      await screen.findByText('Nenhuma baixa.')
+      expect(screen.getByRole('heading', { level: 2, name: 'Baixas' })).toBeTruthy()
     })
 
     it('sem baixas diz "Nenhuma baixa."', async () => {

@@ -90,6 +90,13 @@ describe('HistoricoDeBaixas', () => {
     expect(await screen.findByText('Descartar tudo do Pedido (Id 9)')).toBeTruthy()
   })
 
+  it('no painel de um nó, a baixa de outro nó (um filho) nomeia o filho; a do próprio nó não', async () => {
+    const doFilho = baixa({ id: 2, linhas: [{ ...baixa().linhas[0], estruturaItemId: 8, descricao: 'Parafuso' }] })
+    render(<HistoricoDeBaixas carregar={async () => [doFilho, baixa()]} versao={0} aoEstornar={() => {}} noId={7} />)
+    expect(await screen.findByText('3 de Parafuso: 3 a iniciar')).toBeTruthy()
+    expect(screen.getByText('4: 3 a iniciar, 1 em Usinagem (passo 2)')).toBeTruthy()
+  })
+
   it('não diz escopo para a baixa de um nó', async () => {
     montar(async () => [baixa()])
     await screen.findByText('Morreu num processo')

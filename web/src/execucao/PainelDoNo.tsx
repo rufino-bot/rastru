@@ -54,6 +54,8 @@ export function PainelDoNo({ no, aoFechar, aoMudar, saldos, nomeDoEscopo }: Prop
   const [versaoDasSeparacoes, setVersaoDasSeparacoes] = useState(0)
   // Uma baixa dada pelo painel recarrega a seção "Baixas"; o estorno de dentro dela não mexe nessa versão.
   const [versaoDasBaixas, setVersaoDasBaixas] = useState(0)
+  // O livro do nó lista as movimentações, e a baixa e o estorno dela gravam `Perda` e `Estorno` nele: remonta junto.
+  const [versaoDoLivro, setVersaoDoLivro] = useState(0)
   const carregarBaixas = useCallback(() => listarBaixasDoNo(no.id), [no.id])
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const { darBaixa } = usePermissoesDaBaixa()
@@ -100,17 +102,18 @@ export function PainelDoNo({ no, aoFechar, aoMudar, saldos, nomeDoEscopo }: Prop
         <PainelDeBaixa
           no={{ id: no.id, descricao: no.descricao, ehPeca: no.nivelHierarquico === 'Peca' }}
           saldos={saldos}
-          aoConcluir={() => { setVersaoDasBaixas((v) => v + 1); aoMudar() }}
+          aoConcluir={() => { setVersaoDasBaixas((v) => v + 1); setVersaoDoLivro((v) => v + 1); aoMudar() }}
           aoFechar={() => setBaixaAberta(false)}
         />
       )}
       <EditorDeRoteiroDoNo noId={no.id} podeEditar={editarRoteiro} aoSalvar={aoMudar} />
-      <HistoricoDoNo noId={no.id} podeEstornar={podeEstornar} aoEstornar={aoMudar} />
+      <HistoricoDoNo key={`livro-${versaoDoLivro}`} noId={no.id} podeEstornar={podeEstornar} aoEstornar={aoMudar} />
       <HistoricoDeBaixas
         carregar={carregarBaixas}
         versao={versaoDasBaixas}
-        aoEstornar={aoMudar}
+        aoEstornar={() => { setVersaoDoLivro((v) => v + 1); aoMudar() }}
         nomeDoEscopo={nomeDoEscopo}
+        noId={no.id}
       />
       <MateriaisDoNo
         key={`materiais-${versaoDosMateriais}`}

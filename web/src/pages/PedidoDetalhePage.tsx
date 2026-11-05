@@ -296,6 +296,8 @@ export function PedidoDetalhePage() {
       )}
 
       <HistoricoDeBaixas
+        key={pedidoId}
+        nivel="h2"
         carregar={carregarBaixas}
         versao={0}
         aoEstornar={() => carregar(pedidoId)}
