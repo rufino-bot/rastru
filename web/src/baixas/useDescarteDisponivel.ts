@@ -15,7 +15,7 @@ function haAlgoMesmoRecusado(erro: unknown): boolean {
 }
 
 /**
- * Decide se o "Descartar tudo" aparece (Review Focus 4 da Fase 5B-1): só com algo em produção no escopo, e quem diz
+ * Decide se o "Descartar tudo" aparece só com algo em produção no escopo, e quem diz
  * isso é a prévia do servidor — `NadaEmProducao` (409) ou `linhas` vazias escondem o botão. Outra recusa de negócio
  * (409 com código, como `LiberacaoEmAberto`, C15) mantém o botão: há algo em produção, e o painel mostra a frase do
  * servidor. Falha de rede ou 500 esconde o botão, sem quebrar a página.

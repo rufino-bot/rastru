@@ -543,7 +543,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Duas_baixas_simultaneas_da_mesma_posicao_uma_passa_outra_e_SaldoInsuficiente()
   {
-    // Review Focus 1: 3 de B no Corte, duas baixas de 2 ao mesmo tempo.
+    // 3 de B no Corte, duas baixas de 2 ao mesmo tempo: uma passa e a outra e recusada.
     await using var c = await CriarAsync(_factory);
     await IniciarAsync(c, c.B, c.Corte, 3m);
     var corpo = Parte("MortaEmProcesso", Origem("NoSetor", c.Corte, 1, 2m));
@@ -564,7 +564,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Baixa_e_inicio_do_pai_simultaneos_nao_consomem_o_mesmo_a_iniciar()
   {
-    // Review Focus 2: A tem 10 a iniciar e os filhos para montar as 10 na Solda. A baixa tira 6 de "a iniciar" e o
+    // A tem 10 a iniciar e os filhos para montar as 10 na Solda. A baixa tira 6 de "a iniciar" e o
     // inicio consome 6 dali: as duas juntas passariam das 10.
     await using var c = await CriarAsync(_factory);
     await LevarParaAMontagemAsync(c, c.B, c.Corte, 20m);
@@ -945,7 +945,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Estorno_devolve_cada_linha_a_origem_e_marca_estornada()
   {
-    // Review Focus 5: tres niveis (A, B, N sob B) e o lote dividido. A baixa de 3 de A tira 6 de B e 6 de N pela
+    // Tres niveis (A, B, N sob B) e o lote dividido. A baixa de 3 de A tira 6 de B e 6 de N pela
     // cascata, e C 3; o estorno devolve os quatro a "a iniciar".
     await using var c = await CriarAsync(_factory);
     var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.B}/filhos",
@@ -1101,7 +1101,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Dois_estornos_simultaneos_um_passa_outro_e_JaEstornado()
   {
-    // Review Focus 3.
+    // Duas pessoas estornam a mesma baixa ao mesmo tempo: o indice unico do estorno fecha a corrida.
     await using var c = await CriarAsync(_factory);
     var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.A, "Descarte", 3m);
 
@@ -1237,12 +1237,14 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   /// falta (10 "a iniciar", por Descarte). A cascata C6 tira o que B ainda tinha "a iniciar"; as 4 de B em
   /// producao ficam como sobra viva, com A toda perdida.
   /// </summary>
-  private async Task ConcluirDeixandoSobraDeBAsync(CenarioDaFase3NaApi c, bool terminarAsQuatro = false)
+  private async Task ConcluirDeixandoSobraDeBAsync(
+      CenarioDaFase3NaApi c, bool terminarAsQuatro = false, Func<Task>? antesDaBaixa = null)
   {
     await IniciarAsync(c, c.B, c.Corte, 4m);
     if (terminarAsQuatro)
       await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/terminos",
           new { setorId = c.Corte, ordem = 1, quantidade = 4m }));
+    if (antesDaBaixa is not null) await antesDaBaixa();
     await Garantir(await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/baixas",
         Parte("Descarte", Origem("AIniciar", null, null, 10m))));
     Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
@@ -1344,16 +1346,50 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
+  public async Task Fila_nao_mostra_em_trabalho_nem_em_conserto_o_no_de_Pedido_concluido()
+  {
+    await using var c = await CriarAsync(_factory);
+
+    static bool EmTrabalhoDe(JsonElement fila, int no) =>
+        fila.GetProperty("emTrabalho").EnumerateArray().Any(l => l.GetProperty("no").GetProperty("id").GetInt32() == no);
+    async Task<JsonElement> FilaDoCorteAsync() => await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Corte}/fila"));
+
+    // Controle positivo: com o Pedido rodando, as 4 de B no Corte (nao terminadas) estao em "Em trabalho". Sem ele o
+    // `DoesNotContain` de depois passaria com a guarda de C25 desligada, que e o que este teste existe para pegar.
+    var antes = false;
+    await ConcluirDeixandoSobraDeBAsync(c, antesDaBaixa: async () => antes = EmTrabalhoDe(await FilaDoCorteAsync(), c.B));
+    Assert.True(antes);
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+
+    var fila = await FilaDoCorteAsync();
+
+    Assert.False(EmTrabalhoDe(fila, c.B));
+    Assert.DoesNotContain(fila.GetProperty("conserto").EnumerateArray(), l => l.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    // O saldo existe (nada se perdeu): so a Fila deixa de oferece-lo como trabalho em andamento (C25).
+    Assert.Equal(4m, await SaldoAsync(c, c.B, "NoSetor"));
+  }
+
+  [Fact]
   public async Task Tarefas_nao_mostram_Pedido_concluido()
   {
     await using var c = await CriarAsync(_factory);
-    await ConcluirDeixandoSobraDeBAsync(c, terminarAsQuatro: true);
+
+    static bool TemTarefaDe(JsonElement tarefas, int no) =>
+        tarefas.GetProperty("grupos").EnumerateArray()
+            .SelectMany(g => g.GetProperty("itens").EnumerateArray())
+            .Any(t => t.GetProperty("no").GetProperty("id").GetInt32() == no);
+
+    // Controle positivo: com o Pedido rodando, as 4 de B aguardando coleta sao tarefa do Movimentador. Sem isso o
+    // `DoesNotContain` de depois passaria vazio, mesmo com a regra desligada.
+    var antes = false;
+    await ConcluirDeixandoSobraDeBAsync(c, terminarAsQuatro: true, antesDaBaixa: async () =>
+        antes = TemTarefaDe(await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas")), c.B));
+    Assert.True(antes);
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
 
     var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
 
-    Assert.DoesNotContain(tarefas.GetProperty("grupos").EnumerateArray()
-        .SelectMany(g => g.GetProperty("tarefas").EnumerateArray()),
-        t => t.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    Assert.False(TemTarefaDe(tarefas, c.B));
   }
 
   [Fact]
@@ -1394,8 +1430,20 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     var (status, erro, mensagem) = await RecusaAsync(resposta);
     Assert.Equal((HttpStatusCode.Conflict, "DiminuirPelaBaixa"), (status, erro));
     Assert.Equal("Com o Pedido em produção, a quantidade de Chassi da Fase 3 só aumenta: para diminuir, use \"Dar baixa\".", mensagem);
+    // A e C tambem tem 10: o que prova que o filho ficou em 10 e ler o no dele, pelo Id.
     var arvore = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/agrupamentos/{c.AgrupamentoId}/estrutura"));
-    Assert.Contains("\"quantidade\":10", arvore.GetRawText());
+    static JsonElement? Achar(JsonElement nos, int id)
+    {
+      foreach (var no in nos.EnumerateArray())
+      {
+        if (no.GetProperty("id").GetInt32() == id) return no;
+        if (Achar(no.GetProperty("filhos"), id) is JsonElement dentro) return dentro;
+      }
+      return null;
+    }
+    var doFilho = Achar(arvore, filho);
+    Assert.NotNull(doFilho);
+    Assert.Equal(10m, doFilho.Value.GetProperty("quantidade").GetDecimal());
   }
 
   [Fact]
