@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito, formatarData,
@@ -17,6 +17,8 @@ import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
+import { listarBaixasDoPedido } from '../api/baixas'
+import { HistoricoDeBaixas } from '../baixas/HistoricoDeBaixas'
 import { ControleDePausa } from '../pedidos/ControleDePausa'
 import { DatasDoPedido } from '../pedidos/DatasDoPedido'
 import { rotuloDoStatus } from '../pedidos/statusDoPedido'
@@ -44,6 +46,8 @@ export function PedidoDetalhePage() {
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
+
+  const carregarBaixas = useCallback(() => listarBaixasDoPedido(pedidoId), [pedidoId])
 
   const podeEscrever = usePodeEscrever('agrupamentos')
   // A edição do Pedido é do recurso `pedidos` (PCP e Administrador), não do `agrupamentos` da lista abaixo.
@@ -290,6 +294,15 @@ export function PedidoDetalhePage() {
           ))}
         </ListaDeCadastro>
       )}
+
+      <HistoricoDeBaixas
+        carregar={carregarBaixas}
+        versao={0}
+        aoEstornar={() => carregar(pedidoId)}
+        nomeDoEscopo={(e) =>
+          e.tipo === 'Pedido' ? (pedido?.numero ?? null)
+            : e.tipo === 'Agrupamento' ? (agrupamentos.find((a) => a.id === e.id)?.codigo ?? null) : null}
+      />
 
       {pendenteExclusao && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-tinta/50 p-4">

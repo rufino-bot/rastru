@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NoDaEstrutura } from '../api/estrutura'
 import type { SaldoDto } from '../api/execucao'
 import { Botao } from '../components/Botao'
 import { EditorDeRoteiroDoNo } from './EditorDeRoteiroDoNo'
 import { HistoricoDoNo } from './HistoricoDoNo'
 import { usePermissoesDaExecucao } from './usePermissoesDaExecucao'
+import { listarBaixasDoNo, type BaixaDto } from '../api/baixas'
+import { HistoricoDeBaixas } from '../baixas/HistoricoDeBaixas'
 import { PainelDeBaixa } from '../baixas/PainelDeBaixa'
 import { saldosParaBaixa } from '../baixas/posicoesDaBaixa'
 import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
@@ -20,6 +22,11 @@ interface Props {
   aoMudar: () => void
   /** Onde está cada unidade do nó (`GET /agrupamentos/{id}/posicoes`); vazio enquanto a tela ainda não as tem. */
   saldos: SaldoDto[]
+  /**
+   * O nome do Pedido ou do Agrupamento que a tela conhece, para a frase do descarte na seção "Baixas"; sem ele a
+   * seção diz o Id.
+   */
+  nomeDoEscopo?: (escopo: BaixaDto['escopo']) => string | null
 }
 
 /**
@@ -35,7 +42,7 @@ interface Props {
  * No topo da tela, como o painel de acrescentar/editar da `AgrupamentoDetalhePage` — o mesmo lugar e
  * a mesma exclusividade mútua, para a tela ter um só painel aberto por vez.
  */
-export function PainelDoNo({ no, aoFechar, aoMudar, saldos }: Props) {
+export function PainelDoNo({ no, aoFechar, aoMudar, saldos, nomeDoEscopo }: Props) {
   const { editarRoteiro, podeEstornar } = usePermissoesDaExecucao()
   const { editarMateriais, podeEstornarSeparacao } = usePermissoesDaSeparacao()
   // Os materiais e as separações dependem uns dos outros: um estorno muda o separado, e um `PUT` do
@@ -45,6 +52,9 @@ export function PainelDoNo({ no, aoFechar, aoMudar, saldos }: Props) {
   // posições, então nenhum chama `aoMudar`.
   const [versaoDosMateriais, setVersaoDosMateriais] = useState(0)
   const [versaoDasSeparacoes, setVersaoDasSeparacoes] = useState(0)
+  // Uma baixa dada pelo painel recarrega a seção "Baixas"; o estorno de dentro dela não mexe nessa versão.
+  const [versaoDasBaixas, setVersaoDasBaixas] = useState(0)
+  const carregarBaixas = useCallback(() => listarBaixasDoNo(no.id), [no.id])
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const { darBaixa } = usePermissoesDaBaixa()
   const [baixaAberta, setBaixaAberta] = useState(false)
@@ -90,12 +100,18 @@ export function PainelDoNo({ no, aoFechar, aoMudar, saldos }: Props) {
         <PainelDeBaixa
           no={{ id: no.id, descricao: no.descricao, ehPeca: no.nivelHierarquico === 'Peca' }}
           saldos={saldos}
-          aoConcluir={aoMudar}
+          aoConcluir={() => { setVersaoDasBaixas((v) => v + 1); aoMudar() }}
           aoFechar={() => setBaixaAberta(false)}
         />
       )}
       <EditorDeRoteiroDoNo noId={no.id} podeEditar={editarRoteiro} aoSalvar={aoMudar} />
       <HistoricoDoNo noId={no.id} podeEstornar={podeEstornar} aoEstornar={aoMudar} />
+      <HistoricoDeBaixas
+        carregar={carregarBaixas}
+        versao={versaoDasBaixas}
+        aoEstornar={aoMudar}
+        nomeDoEscopo={nomeDoEscopo}
+      />
       <MateriaisDoNo
         key={`materiais-${versaoDosMateriais}`}
         noId={no.id}

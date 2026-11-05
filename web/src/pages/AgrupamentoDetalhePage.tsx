@@ -761,6 +761,9 @@ export function AgrupamentoDetalhePage() {
           aoFechar={() => setNoEmDetalhe(null)}
           aoMudar={() => carregar(agrupamentoId)}
           saldos={posicoes.get(noEmDetalhe.id)?.saldos ?? []}
+          nomeDoEscopo={(e) =>
+            e.tipo === 'Agrupamento' && e.id === agrupamento?.id ? agrupamento.codigo
+              : e.tipo === 'Pedido' && e.id === agrupamento?.pedidoId ? agrupamento.pedidoNumero : null}
         />
       )}
 

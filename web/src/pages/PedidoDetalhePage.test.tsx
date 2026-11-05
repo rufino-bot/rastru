@@ -59,6 +59,7 @@ function apiComPut(put: () => Response | Promise<Response>) {
     const caminho = String(url).split('?')[0]
     if (caminho === '/api/pedidos/7') return Promise.resolve(init?.method === 'PUT' ? put() : respostaJson(PEDIDO))
     if (caminho === '/api/pedidos/7/agrupamentos') return Promise.resolve(respostaJson([AGRUPAMENTO]))
+    if (caminho === '/api/pedidos/7/baixas') return Promise.resolve(respostaJson([]))
     return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
   })
 }
@@ -82,7 +83,10 @@ describe('PedidoDetalhePage', () => {
 
     renderizarDetalhe()
 
-    expect(screen.getByRole('status').textContent).toBe('Carregando…')
+    // A seção "Baixas" também carrega, e mostra o dela: todos os indicadores são o mesmo.
+    const indicadores = screen.getAllByRole('status')
+    expect(indicadores.length).toBeGreaterThan(0)
+    for (const i of indicadores) expect(i.textContent).toBe('Carregando…')
   })
 
   it('mostra o cabeçalho do pedido e os agrupamentos dele', async () => {
@@ -372,6 +376,7 @@ describe('PedidoDetalhePage', () => {
     vi.stubGlobal('fetch', fetchPorRota({
       '/api/pedidos/7': () => respostaJson(PEDIDO),
       '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      '/api/pedidos/7/baixas': () => respostaJson([]),
       '/api/agrupamentos/21': () => respostaJson({ erro: 'AgrupamentoNaoVazio' }, 409),
     }))
 
@@ -682,6 +687,41 @@ describe('PedidoDetalhePage', () => {
       expect(screen.queryByRole('form', { name: 'Editar pedido' })).toBeNull()
       expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Editar pedido' }))
+    })
+  })
+
+  describe('seção Baixas', () => {
+    const BAIXA = {
+      id: 3, motivo: 'Descarte', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+      dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: true,
+      linhas: [
+        { estruturaItemId: 9, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 5 },
+      ],
+    }
+
+    it('lista as baixas do Pedido, com o número dele na frase do descarte, e estorna', async () => {
+      let estornada = false
+      const fetchMock = fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([{ ...BAIXA, estornada, estornavel: !estornada }]),
+        '/api/baixas/3/estorno': () => { estornada = true; return respostaJson([]) },
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      renderizarDetalhe()
+      expect(await screen.findByText('Descartar tudo do Pedido PED-001')).toBeTruthy()
+      expect(screen.getByText('5: 5 a iniciar')).toBeTruthy()
+
+      fireEvent.click(screen.getByRole('button', { name: /Estornar a baixa/ }))
+      fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Estornar' }))
+      expect(await screen.findByText('Estornada')).toBeTruthy()
+    })
+
+    it('sem baixas diz "Nenhuma baixa."', async () => {
+      vi.stubGlobal('fetch', apiComPut(() => respostaJson(PEDIDO)))
+      renderizarDetalhe()
+      expect(await screen.findByText('Nenhuma baixa.')).toBeTruthy()
     })
   })
 })
