@@ -53,6 +53,14 @@ export function PainelDoNo({ no, aoFechar, aoMudar, saldos }: Props) {
   // O botão some com o painel aberto, e o foco do painel sai do DOM com ele: volta ao botão, ou ao título quando a
   // baixa tirou tudo o que havia em produção e o botão não voltou com a recarga.
   useDevolverFoco(baixaAberta, () => botaoDaBaixa.current ?? tituloRef.current)
+  // O foco volta ao botão no fechamento, com os saldos de antes; a recarga que vem depois pode zerá-los (o "Tudo") e
+  // o botão sai do DOM com o foco nele. Quando isso acontece, o foco vai ao título do nó, e não ao `<body>`.
+  const podiaDarBaixa = useRef(podeDarBaixa)
+  useEffect(() => {
+    const sumiu = podiaDarBaixa.current && !podeDarBaixa
+    podiaDarBaixa.current = podeDarBaixa
+    if (sumiu && (document.activeElement === null || document.activeElement === document.body)) tituloRef.current?.focus()
+  }, [podeDarBaixa])
 
   // I3 da review de branch da Fase 3: o painel nasce no topo da tela (comentário acima), mas nada
   // levava o celular até lá nem avisava o leitor de tela — num toque em "Detalhes" do fim de uma

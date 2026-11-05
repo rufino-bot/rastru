@@ -104,4 +104,20 @@ describe('PainelDoNo — Dar baixa', () => {
 
     expect(screen.getByText('nó 7 peça')).toBeTruthy()
   })
+
+  it('a recarga que zera os saldos depois de fechar leva o foco ao título, não ao <body>', async () => {
+    como('Qualidade')
+    const { rerender } = renderizar([saldo('AIniciar', 4)])
+    fireEvent.click(screen.getByRole('button', { name: 'Dar baixa' }))
+    screen.getByRole('button', { name: 'Cancelar' }).focus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    const botao = await screen.findByRole('button', { name: 'Dar baixa' })
+    await waitFor(() => expect(document.activeElement).toBe(botao))
+
+    // A recarga chega: tudo foi baixado e o botão sai do DOM com o foco nele.
+    rerender(<PainelDoNo no={noDaEstrutura()} aoFechar={() => {}} aoMudar={() => {}} saldos={[saldo('Perdido', 4)]} />)
+
+    expect(screen.queryByRole('button', { name: 'Dar baixa' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Detalhes de Suporte' }))
+  })
 })

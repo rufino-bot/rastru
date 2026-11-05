@@ -121,7 +121,7 @@ export function PainelDeBaixa({
     corpo = { motivo, observacao: null, tudo: false, origens: lidas, incluirTopo: topoPermitido && incluirTopo }
   }
 
-  const { previa, erro: erroDaPrevia, carregando } = usePreviaDaBaixa(no.id, corpo)
+  const { previa, erro: erroDaPrevia, carregando } = usePreviaDaBaixa(no.id, corpo, saldos)
   const trava = topoPermitido ? previa?.travaNoTopo ?? null : null
   const previaPassou = corpo !== null && !carregando && erroDaPrevia === null && previa !== null
   const podeEnviar = previaPassou && !enviando

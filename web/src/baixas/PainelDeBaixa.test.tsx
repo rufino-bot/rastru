@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react'
 import { PainelDeBaixa } from './PainelDeBaixa'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { fetchPorRota, respostaJson } from '../testes/api'
@@ -109,18 +109,41 @@ describe('PainelDeBaixa', () => {
   })
 
   it('quantidade acima do saldo mostra o erro no campo e não consulta nem deixa enviar', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchMock = fetchPorRota({ [PREVIA]: () => respostaJson(previa()) })
+      vi.stubGlobal('fetch', fetchMock)
+      renderizar()
+      escolher('Sumiu no armazém')
+      escolher('Uma parte')
+
+      digitar('4 a iniciar', '5')
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+
+      expect(screen.getByText('No máximo 4.')).toBeTruthy()
+      expect(chamadas(fetchMock, PREVIA)).toEqual([])
+      expect(enviar().disabled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('o saldo que muda por baixo (recarga depois de um 409) refaz a prévia e trava o enviar até ela voltar', async () => {
     const fetchMock = fetchPorRota({ [PREVIA]: () => respostaJson(previa()) })
     vi.stubGlobal('fetch', fetchMock)
-    renderizar()
+    const props = { no: ITEM, aoFechar: vi.fn(), aoConcluir: vi.fn() }
+    const { rerender } = render(<PainelDeBaixa {...props} saldos={SALDOS} />)
     escolher('Sumiu no armazém')
     escolher('Uma parte')
+    digitar('4 a iniciar', '3')
+    await esperarPrevia()
+    await waitFor(() => expect(enviar('Dar baixa em 3').disabled).toBe(false))
 
-    digitar('4 a iniciar', '5')
+    rerender(<PainelDeBaixa {...props} saldos={[saldo('AIniciar', 4), saldo('NoSetor', 5, 1, 1)]} />)
 
-    expect(screen.getByText('No máximo 4.')).toBeTruthy()
-    await new Promise((r) => setTimeout(r, 450))
-    expect(chamadas(fetchMock, PREVIA)).toEqual([])
-    expect(enviar().disabled).toBe(true)
+    expect(enviar('Dar baixa em 3').disabled).toBe(true)
+    await waitFor(() => expect(chamadas(fetchMock, PREVIA)).toHaveLength(2), { timeout: 2000 })
+    await waitFor(() => expect(enviar('Dar baixa em 3').disabled).toBe(false))
   })
 
   it('o enviar diz a soma, manda o corpo do contrato, fecha e avisa quem abriu', async () => {

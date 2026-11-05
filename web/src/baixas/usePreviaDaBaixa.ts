@@ -30,11 +30,14 @@ interface Resposta {
  * `pedido` `null` (campos incompletos) não consulta e apaga a prévia. Enquanto o pedido de agora não respondeu, a
  * `previa` ainda é a da última resposta, para o painel não piscar a cada tecla; quem a usa para decidir (o enviar)
  * olha `carregando`. A comparação do pedido é por valor, porque o painel monta um objeto novo a cada render.
+ *
+ * `contexto` é o estado de que a conta depende e que não está no pedido (os saldos do nó): quando ele muda, a prévia
+ * é pedida de novo, porque a anterior foi calculada sobre um estado que já não é o do servidor.
  */
-export function usePreviaDaBaixa(noId: number, pedido: NovaBaixa | null): PreviaConsultada {
+export function usePreviaDaBaixa(noId: number, pedido: NovaBaixa | null, contexto?: unknown): PreviaConsultada {
   const [resposta, setResposta] = useState<Resposta | null>(null)
   const sequencia = useRef(0)
-  const chave = pedido === null ? null : JSON.stringify([noId, pedido])
+  const chave = pedido === null ? null : JSON.stringify([noId, pedido, contexto ?? null])
   // O efeito lê o pedido pela chave: ela é o valor, e o objeto muda de identidade a cada render.
   const pedidoRef = useRef(pedido)
   useEffect(() => { pedidoRef.current = pedido })
@@ -42,7 +45,11 @@ export function usePreviaDaBaixa(noId: number, pedido: NovaBaixa | null): Previa
   useEffect(() => {
     sequencia.current += 1
     const minha = sequencia.current
-    if (chave === null) return
+    if (chave === null) {
+      // Pedido incompleto: o que veio antes não vale mais, nem se a pessoa voltar ao mesmo valor.
+      setResposta(null)
+      return
+    }
 
     const controle = new AbortController()
     const cronometro = setTimeout(() => {

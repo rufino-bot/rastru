@@ -119,4 +119,36 @@ describe('usePreviaDaBaixa', () => {
 
     expect(result.current).toEqual({ previa: null, erro: null, carregando: false })
   })
+
+  it('voltar ao mesmo valor depois de um pedido incompleto não reaproveita a resposta velha', async () => {
+    preverMock.mockResolvedValue(previa(1))
+    const { result, rerender } = renderHook(
+      ({ p }: { p: NovaBaixa | null }) => usePreviaDaBaixa(7, p), { initialProps: { p: UMA as NovaBaixa | null } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(result.current.previa).not.toBeNull()
+
+    rerender({ p: null })
+    rerender({ p: UMA })
+
+    expect(result.current.previa).toBeNull()
+    expect(result.current.carregando).toBe(true)
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(preverMock).toHaveBeenCalledTimes(2)
+    expect(result.current.carregando).toBe(false)
+  })
+
+  it('mudar o contexto (os saldos) consulta de novo com o mesmo pedido', async () => {
+    preverMock.mockResolvedValue(previa(1))
+    const { result, rerender } = renderHook(
+      ({ c }) => usePreviaDaBaixa(7, UMA, c), { initialProps: { c: [{ q: 4 }] } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(result.current.carregando).toBe(false)
+
+    rerender({ c: [{ q: 1 }] })
+
+    expect(result.current.carregando).toBe(true)
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+    expect(preverMock).toHaveBeenCalledTimes(2)
+    expect(result.current.carregando).toBe(false)
+  })
 })
