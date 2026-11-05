@@ -151,6 +151,10 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   // O toque no mesmo quadro, antes do React redesenhar o botão desabilitado — mesmo padrão de
   // `FormularioDeQuantidade` e do histórico do nó.
   const estornandoRef = useRef(false)
+  // A linha de sobra do último painel de descarte aberto, para o foco voltar ao título se a recarga a tirar da lista
+  // (descartar a sobra inteira, que é o padrão do campo): o hook da linha sai com ela.
+  const ultimaSobra = useRef<string | null>(null)
+  const tituloDaPagina = useRef<HTMLSpanElement>(null)
 
   // Lembra só o Setor cuja fila CARREGOU: um Id digitado na barra que dá 404 não vira lembrança.
   useEffect(() => { if (fila?.setorId === setorId) lembrarSetor(setorId) }, [fila, setorId])
@@ -187,7 +191,16 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
     setAberta(null)
   }, [fila, aberta, erroDaAcao])
 
+  useEffect(() => {
+    if (fila === null || aberta !== null || ultimaSobra.current === null) return
+    if (fila.sobra.some((s) => chaveDeDescartar(s) === ultimaSobra.current)) return
+    ultimaSobra.current = null
+    const focado = document.activeElement
+    if (focado === null || focado === document.body) tituloDaPagina.current?.focus()
+  }, [fila, aberta])
+
   function abrir(chave: string) {
+    ultimaSobra.current = chave.startsWith('descartar:') ? chave : null
     setAberta(chave)
     setErroDaAcao(null)
     setAviso(null)
@@ -303,9 +316,10 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   }
 
   const titulo = fila ? `Fila — ${fila.setorNome}` : 'Fila do Setor'
+  const tituloFocavel = <span ref={tituloDaPagina} tabIndex={-1}>{titulo}</span>
 
   return (
-    <Pagina titulo={titulo} acao={<TrocarDeSetor />}>
+    <Pagina titulo={tituloFocavel} acao={<TrocarDeSetor />}>
       {/* Com a fila já na tela, este banner é de uma ATUALIZAÇÃO que falhou: a lista abaixo é a da
           última carga boa (a decisão "falha de atualização mantém os dados" de `useCargaPeriodica`). */}
       <BannerDeErro mensagem={erro} />
@@ -912,6 +926,8 @@ function ItemDaSobra({ sobra, setorId, descartar, aberto, aoAbrir, aoFechar, aoC
   // O botão some com o painel aberto e o foco sai do DOM com o painel: volta ao botão.
   useDevolverFoco(aberto, () => botao.current)
 
+  // Na sobra de montagem a origem é o `AguardandoMontagem` do Setor desta fila; se as unidades estão em outro Setor, a
+  // prévia do servidor recusa.
   const origem: OrigemFixa = sobra.origem === 'UltimoPasso'
     ? { posicao: 'AguardandoColeta', setorId, ordem: sobra.ordem }
     : { posicao: 'AguardandoMontagem', setorId, ordem: null }

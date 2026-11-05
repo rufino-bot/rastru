@@ -145,7 +145,7 @@ export function AgrupamentoDetalhePage() {
   const [erro, setErro] = useState<string | null>(null)
 
   const [agrupamento, setAgrupamento] = useState<AgrupamentoDto | null>(null)
-  // O status do Pedido, só para a dica do campo de quantidade na edição (D12 da spec da Fase 5B-1). `null` até saber:
+  // O status do Pedido, só para a dica (o servidor só recusa a diminuição com ele em produção ou aguardando expedição) do campo de quantidade na edição (D12 da spec da Fase 5B-1). `null` até saber:
   // sem ele a tela não afirma nada e o servidor continua sendo quem recusa.
   const [statusDoPedido, setStatusDoPedido] = useState<string | null>(null)
 
@@ -767,7 +767,7 @@ export function AgrupamentoDetalhePage() {
             )}
             <Campo
               rotulo="Quantidade"
-              dica={painel.tipo === 'editar' && statusDoPedido !== null && statusDoPedido !== 'Aberto'
+              dica={painel.tipo === 'editar' && (statusDoPedido === 'EmProducao' || statusDoPedido === 'AguardandoExpedicao')
                 ? 'Para diminuir, use "Dar baixa".'
                 : undefined}
             >

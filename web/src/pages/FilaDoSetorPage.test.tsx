@@ -374,6 +374,27 @@ describe('FilaDoSetorPage — leitura', () => {
     }])
   })
 
+  it('descartar a sobra inteira tira a linha e o foco vai ao título da tela', async () => {
+    const semSobra = fila({ ...FILA_CHEIA, sobra: [FILA_CHEIA.sobra[1]] })
+    let descartou = false
+    const fetchMock = fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(descartou ? semSobra : FILA_CHEIA),
+      '/api/estrutura/7/baixas/previa': () => respostaJson({ linhas: [], viramSobra: [], travaNoTopo: null }),
+      '/api/estrutura/7/baixas': () => { descartou = true; return respostaJson({ id: 7 }, 201) },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar SUP-01 — Suporte' }))
+    const form = screen.getByRole('form', { name: /^Descartar sobra/ })
+    const enviar = await within(form).findByRole('button', { name: 'Descartar 5' }, { timeout: 2000 })
+    await waitFor(() => expect((enviar as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(enviar)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Descartar SUP-01 — Suporte' })).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }).firstElementChild))
+  })
+
   it('o Cancelar do descarte da sobra fecha o painel e devolve o foco ao botão', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
     renderizar()

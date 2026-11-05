@@ -444,7 +444,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   remessa, e o título da seção quando ele não volta. Nas baixas (Fase 5B-1): o "Dar baixa" do `PainelDoNo`, e o título
   do nó quando a baixa zera o que havia em produção; o "Descartar tudo" da `AgrupamentoDetalhePage` e da
   `PedidoDetalhePage`, e o título da tela quando o botão não volta; o "Descartar" da linha de sobra da
-  `FilaDoSetorPage`, que não tem reserva: a linha que a recarga tira leva o hook com ela; e a seção "Baixas"
+  `FilaDoSetorPage`, e, como o campo já vem na sobra inteira, a recarga costuma tirar a linha e o hook dela com ela: aí
+  quem devolve o foco é a tela, ao título (o `<h1>` tem um `span` focável), pela linha do último painel de descarte aberto; e a seção "Baixas"
   (`HistoricoDeBaixas`), que devolve ao "Estornar" da baixa, ou ao título dela. Quando a escrita tira o **cartão** da lista (a última Peça
   expedida, a liberação respondida), o cartão e o hook dele se vão, e quem devolve o foco é a tela, ao título dela.
   Hoje o hook tem **dezoito** chamadas em **quinze** arquivos — dez telas (`ExpedicaoPage` não chama: o hook mora nos
@@ -736,7 +737,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   não há trava (C22), e o painel não pede. O "Descartar tudo" só aparece com algo em produção no escopo
   (`useDescarteDisponivel`, pela prévia do servidor) e trava o segundo toque pelo `ref` do `useEscritaDoPainel`. A dica
   de D12 mora fora do módulo: o campo de quantidade da edição de nó da `AgrupamentoDetalhePage` diz "Para diminuir, use
-  "Dar baixa"." quando o Pedido não está `Aberto`, e a recusa `DiminuirPelaBaixa` do servidor aparece no painel.
+  "Dar baixa"." quando o Pedido está `EmProducao` ou `AguardandoExpedicao`, os dois status em que o servidor recusa, e a recusa `DiminuirPelaBaixa` do servidor aparece no painel.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -1012,8 +1013,8 @@ frontend tem **1.912 testes em 106 arquivos** (medido na mesma data e no mesmo c
 typecheck, e passou). Contra a medição de 2026-10-22 (1.878 em 105 arquivos) são +34 testes e +1 arquivo, que vêm da
 conferência da 5A e não da 5B-1; contra a base da 5B-1 (1.911 em 106) é +1 teste, a linha da entrada `baixa` em
 `permissoes.ts` espelhada pelo teste de espelhamento. **Remedido em 2026-11-05**, na branch com o front da 5B-1 (HEAD
-`7e76b4f`), com o mesmo comando: **2.048 testes em 116 arquivos**, todos passando, e o `npm run build` passou; contra a
-base da 5B-1 (1.911 em 106) são +137 testes e +10 arquivos, que são o front dela. Na primeira execução do frontend desta medição **1 de 1.912**
+`7e76b4f`), com o mesmo comando: **2.050 testes em 116 arquivos**, todos passando, e o `npm run build` passou; contra a
+base da 5B-1 (1.911 em 106) são +139 testes e +10 arquivos, que são o front dela. Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
 segunda execução da suíte passou 1.912 de 1.912; causa não investigada. O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),

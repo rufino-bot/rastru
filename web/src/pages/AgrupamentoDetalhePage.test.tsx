@@ -1379,6 +1379,18 @@ describe('AgrupamentoDetalhePage', () => {
     expect(within(painel).getByLabelText('Quantidade').getAttribute('aria-describedby')).toBeTruthy()
   })
 
+  it('com o Pedido Concluído ou Cancelado a dica não aparece (o servidor não a diria)', async () => {
+    for (const status of ['Concluido', 'Cancelado']) {
+      vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], statusDoPedido: status }))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('PED-2026-01'))
+      fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+      expect(screen.queryByText(/Para diminuir/)).toBeNull()
+      cleanup()
+    }
+  })
+
   it('com o Pedido Aberto, ou sem saber o status, o campo da quantidade não traz a dica', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], statusDoPedido: 'Aberto' }))
     renderizarDetalhe()
