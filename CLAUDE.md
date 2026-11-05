@@ -1032,6 +1032,13 @@ projeto); o front ganhou 1 (o "Descartar tudo" do Agrupamento acompanhando o est
 medição de `7e76b4f` (2.050 em 116), os +20 testes e +1 arquivo do front vêm dos ajustes da conferência (F1 a F3) e
 deste fix wave, não da 5B-1 em si.
 
+**Remedido de novo em 2026-11-05, na rodada 2 do fix wave** (HEAD `11ee76e`; o único código novo é o teste de
+`a40644f`): `dotnet build Rastreamento.slnx -warnaserror` com 0 warnings e 0 erros, e `dotnet test Rastreamento.slnx
+-m:1` com **1.887 testes**, todos passando (486 em Api, 1.086 em Application e 315 em Infrastructure; 0 em Domain; a
+métrica é a de testes executados). O +1 em Api é o teste das Tarefas e da contagem com o Roteiro de dois passos. O front
+não ganhou teste: a rodada só tocou um JSDoc, e o arquivo da `AgrupamentoDetalhePage` (110 de 110) e o `npm run build`
+passaram; a suíte inteira do front segue com os 2.070 em 117 arquivos da medição anterior, sem ter sido reexecutada.
+
 Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
 segunda execução da suíte passou 1.912 de 1.912; causa não investigada. O "passa
