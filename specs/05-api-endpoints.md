@@ -781,7 +781,9 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
 - `GET /estrutura/{id}/movimentacoes` — o livro do nó, com autor e estorno. Desde a Fase 5A mostra os tipos
   novos (`Medicao`, `Conserto`, `PedidoDeLiberacao`, `Liberacao`, `Recusa` e `Expedicao`) e as posições novas,
   e todo `MovimentacaoDto` ganha, no fim, `contagemId`, `liberacaoId` e `remessaId` (nulos quando a linha não
-  pertence a nenhum registro do fim do caminho).
+  pertence a nenhum registro do fim do caminho). Desde a Fase 5B-1 mostra também o tipo `Perda` e a posição
+  `Perdido`, e todo `MovimentacaoDto` ganha, no fim, `perdaId` e `motivoDaBaixa` (`PerdaArmazem`,
+  `MortaEmProcesso` ou `Descarte`), preenchidos na linha `Perda` e no `Estorno` dela e nulos nas demais.
 - `GET /estrutura/{id}/roteiro` — o Roteiro do nó, com os passos já alcançados marcados.
 
 O formato exato de cada corpo e de cada resposta está na seção "Contrato JSON" do plano 2 da Fase 3

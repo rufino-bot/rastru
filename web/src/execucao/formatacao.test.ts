@@ -171,6 +171,12 @@ describe('rotuloDoTipo', () => {
   })
 })
 
+describe('rotuloDoTipo da baixa', () => {
+  it('chama o tipo Perda de Baixa', () => {
+    expect(rotuloDoTipo('Perda')).toBe('Baixa')
+  })
+})
+
 describe('rotuloDaAcao', () => {
   it('compõe o verbo com a atividade do Setor', () => {
     expect(rotuloDaAcao('Iniciar', 'montagem')).toBe('Iniciar montagem')

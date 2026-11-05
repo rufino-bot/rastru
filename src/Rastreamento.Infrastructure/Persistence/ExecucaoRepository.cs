@@ -524,6 +524,15 @@ public class ExecucaoRepository : IExecucaoRepository
               .SetProperty(g => g.EstornadaEm, (DateTime?)em)
               .SetProperty(g => g.EstornadaPorUsuarioId, (int?)usuarioId), ct);
 
+  public async Task<IReadOnlyDictionary<int, string>> ListarMotivosDasPerdasAsync(
+      IReadOnlyCollection<int> perdaIds, CancellationToken ct)
+  {
+    var lista = perdaIds.ToList();
+    return await _db.Perdas.AsNoTracking()
+        .Where(p => lista.Contains(p.Id))
+        .ToDictionaryAsync(p => p.Id, p => p.Motivo, ct);
+  }
+
   public async Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct)
   {

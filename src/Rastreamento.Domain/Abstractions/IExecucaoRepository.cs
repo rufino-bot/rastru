@@ -177,6 +177,9 @@ public interface IExecucaoRepository
 
   Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
 
+  /// <summary>O motivo de cada baixa (`dbo.Perda`) pedida, por Id. Baixa inexistente nao volta.</summary>
+  Task<IReadOnlyDictionary<int, string>> ListarMotivosDasPerdasAsync(IReadOnlyCollection<int> perdaIds, CancellationToken ct);
+
   /// <summary>
   /// Dos nos pedidos: os `Inicio` (sem Montagem — o inicio de um pai se estorna pela montagem) e os
   /// `Termino` com destino neste Setor que ainda nao foram estornados, e as montagens feitas neste

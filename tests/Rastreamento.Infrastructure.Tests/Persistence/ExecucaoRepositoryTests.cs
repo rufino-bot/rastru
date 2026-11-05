@@ -638,6 +638,28 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Motivos_das_perdas_devolvem_o_da_baixa_gravada_e_omitem_o_id_inexistente() => NoCenarioAsync(async c =>
+  {
+    int perdaId;
+    await using (var escrita = NovoContexto())
+    {
+      var perda = new Perda
+      {
+        Motivo = MotivosDePerda.MortaEmProcesso, PedidoId = c.Arvore.PedidoId, EstruturaItemId = c.ItemA,
+        DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+      };
+      escrita.Perdas.Add(perda);
+      await escrita.SaveChangesAsync();
+      perdaId = perda.Id;
+    }
+
+    await using var db = NovoContexto();
+    var motivos = await new ExecucaoRepository(db).ListarMotivosDasPerdasAsync([perdaId, int.MaxValue], CancellationToken.None);
+
+    Assert.Equal(new[] { (perdaId, MotivosDePerda.MortaEmProcesso) }, motivos.Select(kv => (kv.Key, kv.Value)).ToArray());
+  });
+
+  [Fact]
   public Task Subarvore_traz_o_no_e_os_descendentes() => NoCenarioAsync(async c =>
   {
     await using var db = NovoContexto();

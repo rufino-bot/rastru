@@ -78,6 +78,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>MaterialId -> (Codigo, Descricao). Lido junto de `Materiais` do <see cref="FakeEstruturaRepo"/>.</summary>
   public Dictionary<int, (string Codigo, string Descricao)> CatalogoDeMateriais { get; } = new();
   public Dictionary<int, string> Usuarios { get; } = new();
+  public Dictionary<int, string> MotivosDasPerdas { get; } = new();
 
   /// <summary>Os Ids de cada `TravarNosAsync`, como chegaram — prova de QUEM o caso de uso trava.</summary>
   public List<IReadOnlyList<int>> Travas { get; } = new();
@@ -416,6 +417,11 @@ public class FakeExecucaoRepo : IExecucaoRepository
     }
     return Task.CompletedTask;
   }
+
+  public Task<IReadOnlyDictionary<int, string>> ListarMotivosDasPerdasAsync(
+      IReadOnlyCollection<int> perdaIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<int, string>>(
+          MotivosDasPerdas.Where(kv => perdaIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
 
   public Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct) =>

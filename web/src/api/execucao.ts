@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
 import { avisarQueOLivroMudou } from './sinalDoLivro'
+import type { MotivoDaBaixa } from './baixas'
 import type { MaterialResumoDto, PausaResumoDto } from './cadastros'
 
 /**
@@ -35,7 +36,10 @@ export type Posicao =
   | 'Expedido'
   | 'Perdido'
 
-/** Os seis últimos são da Fase 5A: a contagem (`Medicao`), o conserto, a liberação e a remessa (`Expedicao`). */
+/**
+ * Os seis seguintes ao `Estorno` são da Fase 5A: a contagem (`Medicao`), o conserto, a liberação e a remessa
+ * (`Expedicao`). O último, `Perda`, é da Fase 5B-1: a baixa.
+ */
 export type TipoDeMovimentacao =
   | 'Inicio'
   | 'Termino'
@@ -48,6 +52,7 @@ export type TipoDeMovimentacao =
   | 'Liberacao'
   | 'Recusa'
   | 'Expedicao'
+  | 'Perda'
 
 /** `setorId`, `setorNome` e `ordem` são `null` quando a posição não os tem (spec §3.1). */
 export interface LocalDto {
@@ -77,6 +82,10 @@ export interface MovimentacaoDto {
   contagemId: number | null
   liberacaoId: number | null
   remessaId: number | null
+  /** A baixa (Fase 5B-1) a que a linha pertence: a linha `Perda` e o `Estorno` dela; `null` nas demais. */
+  perdaId: number | null
+  /** O motivo dessa baixa, o mesmo do painel; `null` quando `perdaId` é `null`. */
+  motivoDaBaixa: MotivoDaBaixa | null
 }
 
 export interface MontagemDto {

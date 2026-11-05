@@ -46,6 +46,7 @@ export function movimentacao(parcial: Partial<MovimentacaoDto> = {}): Movimentac
     montagemId: null, estornoDeId: null, dataHora: '2026-09-25T10:14:00-03:00',
     usuarioId: 12, usuarioNome: 'Operador do Corte', estornada: false,
     contagemId: null, liberacaoId: null, remessaId: null,
+    perdaId: null, motivoDaBaixa: null,
     ...parcial,
   }
 }

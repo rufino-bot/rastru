@@ -16,12 +16,14 @@ public sealed record LocalDto(string Posicao, int? SetorId, string? SetorNome, i
 
 /// <summary>
 /// `ContagemId`, `LiberacaoId` e `RemessaId`: o registro do fim do caminho a que a linha pertence (decisao P1 do
-/// plano de backend da Fase 5A), nulos nas linhas que nao pertencem a nenhum.
+/// plano de backend da Fase 5A), nulos nas linhas que nao pertencem a nenhum. `PerdaId` e `MotivoDaBaixa`, a baixa
+/// (Fase 5B-1) a que a linha pertence, vem na linha `Perda` e no `Estorno` dela, e nulos nas demais.
 /// </summary>
 public sealed record MovimentacaoDto(
     int Id, int EstruturaItemId, string Tipo, decimal Quantidade, LocalDto Origem, LocalDto Destino,
     int? MontagemId, int? EstornoDeId, DateTime DataHora, int UsuarioId, string UsuarioNome, bool Estornada,
-    int? ContagemId = null, int? LiberacaoId = null, int? RemessaId = null);
+    int? ContagemId = null, int? LiberacaoId = null, int? RemessaId = null,
+    int? PerdaId = null, string? MotivoDaBaixa = null);
 
 public sealed record MontagemDto(
     int Id, int EstruturaItemId, int SetorId, string SetorNome, decimal Quantidade, DateTime DataHora,

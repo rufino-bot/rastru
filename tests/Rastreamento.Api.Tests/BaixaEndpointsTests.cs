@@ -494,6 +494,52 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal(1m, await SaldoAsync(c, c.C, "Perdido"));
   }
 
+  /// <summary>As linhas do livro do no, por `GET /estrutura/{id}/movimentacoes`.</summary>
+  private static async Task<List<JsonElement>> LivroDoNoAsync(CenarioDaFase3NaApi c, int no) =>
+      (await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/estrutura/{no}/movimentacoes")))
+          .GetProperty("movimentacoes").EnumerateArray().ToList();
+
+  private static int? InteiroOuNulo(JsonElement linha, string campo) =>
+      linha.GetProperty(campo).ValueKind == JsonValueKind.Null ? null : linha.GetProperty(campo).GetInt32();
+
+  [Fact]
+  public async Task Livro_do_no_traz_perdaId_e_motivoDaBaixa_na_linha_Perda_e_nulos_nas_demais()
+  {
+    await using var c = await CriarAsync(_factory);
+    await IniciarAsync(c, c.B, c.Corte, 5m);
+    var gravada = await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas",
+        Parte("PerdaArmazem", Origem("NoSetor", c.Corte, 1, 2m)));
+    await Garantir(gravada);
+    var baixaId = (await CorpoAsync(gravada)).GetProperty("id").GetInt32();
+
+    var livro = await LivroDoNoAsync(c, c.B);
+
+    var perda = Assert.Single(livro, l => l.GetProperty("tipo").GetString() == "Perda");
+    Assert.Equal(baixaId, InteiroOuNulo(perda, "perdaId"));
+    Assert.Equal("PerdaArmazem", perda.GetProperty("motivoDaBaixa").GetString());
+    var inicio = Assert.Single(livro, l => l.GetProperty("tipo").GetString() == "Inicio");
+    Assert.Null(InteiroOuNulo(inicio, "perdaId"));
+    Assert.Equal(JsonValueKind.Null, inicio.GetProperty("motivoDaBaixa").ValueKind);
+  }
+
+  [Fact]
+  public async Task Livro_do_no_traz_perdaId_e_motivoDaBaixa_tambem_no_Estorno_da_baixa()
+  {
+    await using var c = await CriarAsync(_factory);
+    await IniciarAsync(c, c.B, c.Corte, 5m);
+    var gravada = await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas",
+        Parte("MortaEmProcesso", Origem("NoSetor", c.Corte, 1, 2m)));
+    await Garantir(gravada);
+    var baixaId = (await CorpoAsync(gravada)).GetProperty("id").GetInt32();
+    await Garantir(await EstornarAsync(c, c.Qualidade, baixaId));
+
+    var livro = await LivroDoNoAsync(c, c.B);
+
+    var estorno = Assert.Single(livro, l => l.GetProperty("tipo").GetString() == "Estorno");
+    Assert.Equal(baixaId, InteiroOuNulo(estorno, "perdaId"));
+    Assert.Equal("MortaEmProcesso", estorno.GetProperty("motivoDaBaixa").GetString());
+  }
+
   [Fact]
   public async Task Duas_baixas_simultaneas_da_mesma_posicao_uma_passa_outra_e_SaldoInsuficiente()
   {
