@@ -3,7 +3,7 @@
 #
 # POR QUE ISTO EXISTE
 # -------------------
-# `.superpowers/` e um repositorio git PROPRIO e privado (`rufino-bot/rastru-ledger`) desde
+# `.superpowers/` e um repositorio git PROPRIO e privado (`rufino-bot/rastru-tcc`) desde
 # 2026-08-25: e o unico registro das decisoes, medicoes e dividas do projeto. Os scripts da skill
 # `subagent-driven-development` nao sabem disso. O `sdd-workspace` da skill faz, na linha 21:
 #
