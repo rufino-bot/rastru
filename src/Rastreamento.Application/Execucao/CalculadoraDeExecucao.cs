@@ -138,6 +138,14 @@ public sealed class CalculadoraDeExecucao
 
   public bool TemFilhos(int id) => _filhos[id].Any();
 
+  /// <summary>
+  /// O no que a Fila oferece a iniciar sozinho, como uma folha: sem filhos, ou (Avulso) com filhos dos quais nenhum
+  /// conta mais para a montagem, porque todos sairam do projeto (C22 da spec da Fase 5B-1). O pai de Kit nessa
+  /// situacao fica de fora; a ponta dele e da Fase 5C.
+  /// </summary>
+  public bool IniciaComoFolha(int id) =>
+      FilhosQueContam(id).Count == 0 && (!TemFilhos(id) || !_nos[id].DeKit);
+
   private IReadOnlyDictionary<Local, decimal> LiquidoDo(int id) =>
       _liquido.TryGetValue(id, out var doNo) ? doNo : SemMovimento;
 
@@ -267,7 +275,9 @@ public sealed class CalculadoraDeExecucao
   {
     var falta = Math.Max(0m, FaltaMontar(paiId));
     var filhos = FilhosQueContam(paiId);
-    if (filhos.Count == 0) return new Montabilidade(paiId, setorId, falta, 0m, Array.Empty<FilhoNaMontagem>());
+    // Sem filho que conte (todos descartados por inteiro), o pai Avulso monta o que falta: nada limita (C22).
+    if (filhos.Count == 0)
+      return new Montabilidade(paiId, setorId, falta, IniciaComoFolha(paiId) ? falta : 0m, Array.Empty<FilhoNaMontagem>());
 
     var n = falta;
     foreach (var c in filhos)

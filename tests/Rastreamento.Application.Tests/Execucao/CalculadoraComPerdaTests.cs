@@ -74,6 +74,41 @@ public class CalculadoraComPerdaTests
   }
 
   [Fact]
+  public void Avulso_cujos_filhos_sairam_todos_inicia_como_folha_e_monta_o_que_falta()
+  {
+    var calc = Calcular(
+        [No(1, null, 10m, null, false, Solda), No(2, 1, 10m, 1m, false, Corte), No(3, 1, 10m, 1m, false, Corte)],
+        saidos: new HashSet<int> { 2, 3 });
+
+    Assert.True(calc.TemFilhos(1));
+    Assert.Empty(calc.FilhosQueContam(1));
+    Assert.True(calc.IniciaComoFolha(1));
+    Assert.Equal(10m, calc.CalcularMontabilidade(1, Solda).DaParaMontar);
+  }
+
+  [Fact]
+  public void Avulso_com_um_filho_que_conta_ainda_nao_inicia_como_folha()
+  {
+    var calc = Calcular(
+        [No(1, null, 10m, null, false, Solda), No(2, 1, 10m, 1m, false, Corte), No(3, 1, 10m, 1m, false, Corte)],
+        saidos: new HashSet<int> { 2 });
+
+    Assert.False(calc.IniciaComoFolha(1));
+    Assert.True(calc.IniciaComoFolha(2));   // o filho e folha de verdade: sem filhos
+  }
+
+  [Fact]
+  public void Kit_cujos_filhos_sairam_todos_fica_de_fora_da_folha_ate_a_5C()
+  {
+    var calc = Calcular(
+        [No(1, null, 10m, null, true, Solda), No(2, 1, 10m, 1m, true, Corte)],
+        saidos: new HashSet<int> { 2 });
+
+    Assert.False(calc.IniciaComoFolha(1));
+    Assert.Equal(0m, calc.CalcularMontabilidade(1, Solda).DaParaMontar);
+  }
+
+  [Fact]
   public void Filho_que_saiu_do_projeto_nao_conta_nos_conjuntos_a_espera()
   {
     var calc = Calcular(

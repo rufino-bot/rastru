@@ -856,6 +856,11 @@ Spec ainda por escrever. Executa depois da 5B.
   usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
   da produção é o mesmo assunto de alterar projeto ou descontinuar, o do item «Descartar Peça ou
   Item em Pedido rodando» da 5B-1, que a baixa entregou.
+- **O pai de Kit cujos filhos saíram todos do projeto** (achado da review de branch da 5B-1, 2026-11-05): o pai
+  Avulso nessa situação passou a aparecer "a iniciar" na Fila e a iniciar por ela, como uma folha (C22); o pai **Kit**
+  não, e continua fora da Fila e da coleta — não aparece como "a iniciar" nem como Kit montável, porque
+  `KitsDaColeta` só lista o Kit com algum filho pronto na coleta. Decisão do usuário, 2026-11-05: o Kit fica
+  para a 5C.
 - Critério de pronto: um Kit que perde parte de um conjunto, ou que ganha a espera desalinhada, continua
   podendo ser montado, e a estrutura errada descoberta no meio da produção tem tratamento definido.
 

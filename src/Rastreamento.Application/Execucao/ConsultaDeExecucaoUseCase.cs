@@ -64,8 +64,9 @@ public sealed class ConsultaDeExecucaoUseCase
     {
       // C25 da spec da Fase 5B-1: o no de Pedido `Concluido` so aparece na secao "Sobra".
       var concluido = concluidos.Contains(no.Id);
-      // No com filhos inicia pelo card de montagem, consumindo os filhos (spec da Fase 3D, secao 6.1).
-      if (!concluido && !calc.TemFilhos(no.Id) && calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
+      // No com filhos inicia pelo card de montagem, consumindo os filhos (spec da Fase 3D, secao 6.1). O Avulso cujos
+      // filhos sairam todos do projeto nao tem o que consumir e entra aqui como folha (C22 da spec da Fase 5B-1).
+      if (!concluido && calc.IniciaComoFolha(no.Id) && calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
           && calc.Saldo(no.Id, Local.AIniciar) is var aIniciarAqui && aIniciarAqui > 0m)
         aIniciar.Add(new LinhaDaFilaDto(resumos[no.Id], primeiro.Ordem, aIniciarAqui, []));
 

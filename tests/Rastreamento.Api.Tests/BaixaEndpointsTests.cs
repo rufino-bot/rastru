@@ -1393,6 +1393,40 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
+  public async Task Pai_cujos_filhos_foram_todos_descartados_aparece_a_iniciar_na_Fila_e_inicia_por_ela()
+  {
+    // A (10, Solda -> Pintura) tem dois filhos, B e C. Descartados os dois por inteiro, nenhum conta mais para a
+    // montagem (C22): A passa a ser tratado como folha e tem de ser oferecido a iniciar na Solda, que e o primeiro
+    // passo dele. Sem isso a API aceita o inicio e a tela nao o oferece.
+    await using var c = await CriarAsync(_factory);
+    static bool ADeAIniciar(JsonElement fila, int no, out decimal quantidade)
+    {
+      var linha = fila.GetProperty("aIniciar").EnumerateArray()
+          .Where(l => l.GetProperty("no").GetProperty("id").GetInt32() == no).ToList();
+      quantidade = linha.Count == 0 ? 0m : linha[0].GetProperty("quantidade").GetDecimal();
+      return linha.Count > 0;
+    }
+    async Task<JsonElement> FilaDaSoldaAsync() => await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila"));
+
+    // Controle: enquanto os filhos contam, A inicia pelo cartao de montagem e nao esta a iniciar como folha.
+    Assert.False(ADeAIniciar(await FilaDaSoldaAsync(), c.A, out _));
+
+    foreach (var filho in new[] { c.B, c.C })
+      await Garantir(await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{filho}/baixas", new { motivo = "Descarte", tudo = true }));
+
+    var fila = await FilaDaSoldaAsync();
+    Assert.True(ADeAIniciar(fila, c.A, out var quantidade));
+    Assert.Equal(10m, quantidade);
+
+    var inicio = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 4m });
+    Assert.Equal(HttpStatusCode.Created, inicio.StatusCode);
+    Assert.Equal(6m, await SaldoAsync(c, c.A, "AIniciar"));
+    Assert.Equal(4m, await SaldoAsync(c, c.A, "NoSetor"));
+    Assert.True(ADeAIniciar(await FilaDaSoldaAsync(), c.A, out var restante));
+    Assert.Equal(6m, restante);
+  }
+
+  [Fact]
   public async Task Resumo_de_material_da_Fila_nao_mostra_no_descartado_por_inteiro()
   {
     // A (planejada com material) tem todo o B na montagem da Solda e uma segunda Peca em aberto, que segura o Pedido.
