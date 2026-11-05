@@ -1019,7 +1019,19 @@ typecheck, e passou). Contra a medição de 2026-10-22 (1.878 em 105 arquivos) s
 conferência da 5A e não da 5B-1; contra a base da 5B-1 (1.911 em 106) é +1 teste, a linha da entrada `baixa` em
 `permissoes.ts` espelhada pelo teste de espelhamento. **Remedido em 2026-11-05**, na branch com o front da 5B-1 (HEAD
 `7e76b4f`), com o mesmo comando: **2.050 testes em 116 arquivos**, todos passando, e o `npm run build` passou; contra a
-base da 5B-1 (1.911 em 106) são +139 testes e +10 arquivos, que são o front dela. Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
+base da 5B-1 (1.911 em 106) são +139 testes e +10 arquivos, que são o front dela.
+
+**Remedido em 2026-11-05, depois do fix wave da review de branch** (HEAD `e011e84`, **executando** as quatro coisas
+que o ciclo pede): `dotnet build Rastreamento.slnx -warnaserror` com 0 warnings e 0 erros; `dotnet test
+Rastreamento.slnx -m:1` com **1.886 testes**, todos passando (485 em Api, 1.086 em Application e 315 em
+Infrastructure; 0 em Domain); em `web/`, `npm test -- --run --maxWorkers=2` com **2.070 testes em 117 arquivos**,
+todos passando, e `npm run build` passou. A métrica é a de testes executados. O backend ganhou 2 em Api (a Fila de
+Pedido concluído e o pai Avulso cujos filhos saíram todos) e 3 em Application (a calculadora com o filho que saiu do
+projeto); o front ganhou 1 (o "Descartar tudo" do Agrupamento acompanhando o estorno do painel do nó). Contra a
+medição de `7e76b4f` (2.050 em 116), os +20 testes e +1 arquivo do front vêm dos ajustes da conferência (F1 a F3) e
+deste fix wave, não da 5B-1 em si.
+
+Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
 segunda execução da suíte passou 1.912 de 1.912; causa não investigada. O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
