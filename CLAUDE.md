@@ -278,7 +278,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `web/src/App.tsx`. Não escreva container próprio, e nunca `min-h-screen` numa tela — quem faz isso
   é o shell. As duas exceções são `LoginPage` e `TelaCarregando`, ambas por renderizarem **fora**
   do shell (a segunda substitui o `AppShell` inteiro enquanto a sessão ainda carrega, em
-  `ProtectedRoute`) — não numa terceira tela nova.
+  `ProtectedRoute`) — não numa terceira tela nova. A `Pagina` também escreve o título da aba, a partir
+  do texto renderizado do `<h1>` ("{título} · Rastru", e só "Rastru" sem texto), e a tela nunca escreve
+  `document.title`; as duas exceções acima, por não usarem `Pagina`, ficam com o "Rastru" do `index.html`.
 
   **Cadastro não fica no topo da tela** (desde a Fase 1F, spec
   `docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`). Um bloco de campos
