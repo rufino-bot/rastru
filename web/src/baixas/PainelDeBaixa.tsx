@@ -208,7 +208,7 @@ export function PainelDeBaixa({
 
       {corpo !== null && (
         <div className="flex flex-col gap-3" aria-busy={carregando}>
-          {previa !== null && <PreviaDaBaixa previa={previa} />}
+          {previa !== null && <PreviaDaBaixa previa={previa} noId={no.id} />}
           {previa === null && carregando && <EstadoCarregando />}
           <BannerDeErro
             mensagem={erroDaPrevia === null ? null : mensagemDeErro(erroDaPrevia, 'Não foi possível calcular o que a baixa faz.')}
