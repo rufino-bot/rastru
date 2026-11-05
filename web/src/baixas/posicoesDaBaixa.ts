@@ -3,7 +3,7 @@ import type { Posicao, SaldoDto } from '../api/execucao'
 /**
  * De onde se dá baixa (C4 da spec da Fase 5B-1): toda posição em produção menos `AguardandoLiberacao`, que está
  * presa a um pedido de liberação em aberto. `Montado`, `Expedido` e `Perdido` são terminais e nunca saem por baixa.
- * Espelha `CalculoDaBaixa` do backend: mudou lá, muda aqui.
+ * Espelha `Posicoes.DeOndeSeDaBaixa` (Domain), de onde `CalculoDaBaixa` aceita uma origem: mudou lá, muda aqui.
  */
 export const POSICOES_DE_ORIGEM: ReadonlySet<Posicao> = new Set<Posicao>([
   'AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'AguardandoConserto', 'EmConserto',

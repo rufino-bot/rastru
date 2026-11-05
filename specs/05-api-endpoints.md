@@ -1235,8 +1235,8 @@ da Execução.
   `tudo: false` exige `origens` com pelo menos uma posição, sem repetir posição (400 `ItemRepetido`) e no máximo
   `TamanhoMaximoDoLote` (C18); a posição com Setor e passo leva `setorId` e `ordem`. `incluirTopo` (D13 e D14) leva
   junto as unidades da Peça do topo que a perda trava, calculadas e recalculadas **dentro da transação** (o cliente
-  não manda a quantidade); só vale na baixa de **parte** de um Item, ou de **tudo** de um Item por `PerdaArmazem` ou
-  `MortaEmProcesso` — com `Descarte` e na Peça é 400 `OrigemInvalida`. `201` com a `BaixaDto`.
+  não manda a quantidade); só vale na baixa de **parte** de um Item, com qualquer motivo, ou de **tudo** de um Item por
+  `PerdaArmazem` ou `MortaEmProcesso` — na baixa de **tudo** por `Descarte` e na Peça é 400 `OrigemInvalida`. `201` com a `BaixaDto`.
 - `POST /estrutura/{id}/baixas/previa` *(mesmos perfis)* — o mesmo corpo; responde `200` com o que a baixa gravaria,
   **sem gravar e sem travar**, e com as mesmas recusas (C14).
 - `POST /agrupamentos/{id}/descarte` e `POST /pedidos/{id}/descarte` *(Qualidade, PCP, Administrador)* — o "Descartar
@@ -1281,8 +1281,8 @@ da Execução.
   cascata C6), não a que já existia. **`travaNoTopo`** é calculado com a fórmula da seção 4.6 da spec em **todos os
   níveis da cadeia** (o fornecimento de um pai intermediário é o que ele tem em produção menos as unidades que a
   própria baixa trava), e é nulo quando não trava; `quantidade` é o que a perda trava na Peça do topo e `aIniciar` o que
-  ela ainda tem a iniciar — a baixa leva `min` dos dois. A prévia devolve `travaNoTopo` na baixa de parte de um Item
-  e na de tudo por perda (D14), e `null` com `Descarte` (o filho sai do projeto, C22).
+  ela ainda tem a iniciar — a baixa leva `min` dos dois. A prévia devolve `travaNoTopo` na baixa de parte de um Item,
+  com qualquer motivo, e na de tudo por perda (D14), e `null` na de tudo por `Descarte` (o filho sai do projeto, C22).
 - A mesma baixa de nó na prévia e na escrita faz a **mesma conta** (C14 da spec da Fase 5B-1): a prévia
   não é uma cópia da conta no cliente, ao contrário da `tiradaDaRemessa`.
 

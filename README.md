@@ -184,9 +184,10 @@ Concluídas até aqui:
   Expedição, Pedidos, Cadastros). Mesclada na `main` pelo PR #35, em 2026-11-03.
 
 **Em andamento: Fase 5B**, partida em duas em 2026-11-04. A **5B-1 — perda e descarte** (spec
-`docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`) tem o backend implementado na branch: a baixa
-por perda ou descarte, de um nó ou do Pedido inteiro, com prévia e estorno, e o fechamento que conta o perdido; falta o
-front, a conferência do usuário no navegador e a review de branch, e ela ainda não foi mesclada. A **5B-2 —
+`docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`) tem o backend e o front implementados na branch: a baixa
+por perda ou descarte, de um nó ou do Pedido inteiro, com prévia e estorno, e o fechamento que conta o perdido. A
+conferência do usuário no navegador foi validada e a review de branch foi feita e consertada em 2026-11-05; falta o
+merge, e ela ainda não foi mesclada. A **5B-2 —
 reposição** (o Pedido de Retrabalho como ação separada e opcional e o nó pronto) ainda não tem spec. Depois
 dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A
 Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.

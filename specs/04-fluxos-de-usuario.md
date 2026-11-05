@@ -397,7 +397,7 @@ Peça chega ao local de expedição pela entrega do Movimentador (fluxo 2, passo
    decisão"**, mais **A medir** —, e as linhas de dentro só aparecem quando têm unidade. Texto neutro: a cor do
    estado já está na pílula.
 4. **O destino da não conforme.** As unidades **aguardando decisão** têm três saídas, e uma quarta, **"matar a peça"**, da Fase 5B-1
-   (o "Matar" do cartão, que é a baixa do fluxo 6 — a API existe, e a tela é do front da 5B-1; refazer é
+   (o "Matar" do cartão, que é a baixa do fluxo 6 — a tela existe desde o front da 5B-1; refazer é
    Retrabalho, na 5B-2):
    - **Mandar para conserto.** O painel pede o **Setor** — qualquer Setor ativo, inclusive a Expedição, e nenhum
      vem escolhido — e a **Quantidade**, que abre com todas as que aguardam decisão. A unidade vai ao Setor:
@@ -516,8 +516,8 @@ exceção, e a decisão fica gravada com o nome de quem a deu.
 *Perfil: Qualidade / PCP (e Administrador)*
 
 > **Revisto na Fase 5B-1** (spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`; regras 17,
-> 27, 30 e 38 de `01-dominio-e-regras-de-negocio.md`). A tela existe quando o front da 5B-1 existir: o passo a passo
-> abaixo é o que a API entrega e o que a tela mostra. A reposição por Retrabalho é do fluxo 5, na 5B-2.
+> 27, 30 e 38 de `01-dominio-e-regras-de-negocio.md`). A tela existe, no front da 5B-1 (validada pelo usuário no
+> navegador em 2026-11-05): o passo a passo abaixo é o que a API entrega e o que a tela mostra. A reposição por Retrabalho é do fluxo 5, na 5B-2.
 
 1. **Dar baixa num nó** (Peça ou Item), pelo painel do nó: um botão só, **"Dar baixa"**, com o motivo dentro
    (**Sumiu no armazém**, **Morreu num processo** ou **Descarte**). Quem dá baixa escolhe **"Tudo o que está em

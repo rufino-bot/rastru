@@ -71,13 +71,15 @@ sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi conc
 **5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
 descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
 planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
-de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-05:** o **backend está implementado** na branch (a regra 38 de `specs/01`, as rotas de `specs/05`, o
-`db/alter-fase-5b1.sql`) e o **front também** (o módulo `web/src/baixas/`, descrito na seção «Interface»: o "Dar baixa" do
-nó, o "Matar" do cartão da expedição, o "Descartar" da sobra da Fila, o "Descartar tudo" do Pedido e do Agrupamento e a
-seção "Baixas"); **faltam** a conferência do usuário no navegador, a review de branch e o merge, e **nada foi mesclado**. A 5C
-ainda não tem spec, e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O
-"Descartar Peça ou Item em Pedido rodando" é da **5B-1**, marcado **obrigatório antes do primeiro uso real**: o backend
-o entrega (a baixa `tudo` de `Descarte` e o "Descartar tudo"), e só o merge o cumpre.
+de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-05:** o **backend está implementado** na branch (a
+regra 38 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b1.sql`) e o **front também** (o módulo
+`web/src/baixas/`, descrito na seção «Interface»: o "Dar baixa" do nó, o "Matar" do cartão da expedição, o "Descartar"
+da sobra da Fila, o "Descartar tudo" do Pedido e do Agrupamento e a seção "Baixas"); a **conferência do usuário no
+navegador** e os ajustes dela (F1 a F3) foram validados em 2026-11-05, a **review de branch** inteira foi feita no mesmo
+dia e os achados aceitos foram consertados na branch; **falta o merge, e nada foi mesclado**. A 5C ainda não tem spec, e
+da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item em
+Pedido rodando" é da **5B-1**, marcado **obrigatório antes do primeiro uso real**: o backend o entrega (a baixa `tudo`
+de `Descarte` e o "Descartar tudo"), e só o merge o cumpre.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -718,7 +720,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   produção" ou "Uma parte" com a quantidade por posição de origem), o `PainelDeDescarteTotal` (o "Descartar tudo" do
   Pedido e do Agrupamento), o `HistoricoDeBaixas` (a seção "Baixas" do nó e do Pedido, com o estorno da baixa inteira),
   o `usePreviaDaBaixa` e a `PreviaDaBaixa`, o `useDescarteDisponivel`, a lógica pura `posicoesDaBaixa` (de onde uma baixa
-  pode tirar, cópia de `CalculoDaBaixa` do backend) e o `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de
+  pode tirar, cópia de `Posicoes.DeOndeSeDaBaixa`, do Domain, que o `CalculoDaBaixa` consulta) e o `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de
   marcar com o texto visível, diferente da `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
   `PainelDeBaixa` aceita `motivoFixo`, `origemFixa`, `maximo`, `titulo` e `aviso`, que são o que as duas baixas "de
   atalho" decidem por conta própria: o "Matar" do cartão da expedição (`PainelDeMatar`, em `web/src/expedicao/`, motivo
@@ -733,10 +735,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   expedição). **A prévia vem do servidor** (C14): `usePreviaDaBaixa` consulta `…/baixas/previa` com o pedido de agora
   (debounce de 300 ms, vence a última consulta enviada) e o enviar só destrava quando ela voltou sem recusa, ao
   contrário da `tiradaDaRemessa`, que é cópia no cliente — a conta da baixa percorre a árvore, e uma cópia dela no front
-  não se justifica. **A caixa do topo (D13, D14):** na baixa de um Item por perda (`PerdaArmazem` ou `MortaEmProcesso`,
-  de parte ou de tudo) que trava a montagem da Peça do topo, a prévia traz `travaNoTopo` e o painel mostra o
-  `CampoDeCaixa` "Isso impede montar {q} {Peça}. Dar baixa também delas", **marcado por padrão**; com `Descarte` de tudo
-  não há trava (C22), e o painel não pede. O "Descartar tudo" só aparece com algo em produção no escopo
+  não se justifica. **A caixa do topo (D13, D14):** na baixa de **parte** de um Item, com qualquer motivo, ou de **tudo**
+  por perda (`PerdaArmazem` ou `MortaEmProcesso`), que trava a montagem da Peça do topo, a prévia traz `travaNoTopo` e o
+  painel mostra o `CampoDeCaixa` "Isso impede montar {q} {Peça}. Dar baixa também delas", **marcado por padrão** (decisão
+  do usuário, 2026-11-05: a parte com `Descarte` também o oferece); só a baixa de **tudo** por `Descarte` não tem trava
+  (C22), e o painel não pede. O "Descartar tudo" só aparece com algo em produção no escopo
   (`useDescarteDisponivel`, pela prévia do servidor) e trava o segundo toque pelo `ref` do `useEscritaDoPainel`. A dica
   de D12 mora fora do módulo: o campo de quantidade da edição de nó da `AgrupamentoDetalhePage` diz "Para diminuir, use
   "Dar baixa"." quando o Pedido está `EmProducao` ou `AguardandoExpedicao`, os dois status em que o servidor recusa, e a recusa `DiminuirPelaBaixa` do servidor aparece no painel.

@@ -234,7 +234,9 @@ Um filho **descartado** por inteiro não pode mais limitar a montagem do pai: se
 para montar" para sempre. A montabilidade (`CalcularMontabilidade`), o conjunto completo do Kit (`ConjuntoCompleto`),
 o teto de entrada, o cartão de "Dá para montar N" **e o consumo dos filhos no início do pai**
 (`ApontamentoUseCase.IniciarNoAsync`, que hoje baixa todo filho travado) **ignoram** o filho que tem uma baixa `Tudo`
-de motivo `Descarte`, não estornada, com escopo no próprio nó ou num ancestral dele que não seja o pai (C22). "Saiu do projeto" é isso: a peça não é mais parte do pai daqui em diante. As
+de motivo `Descarte`, não estornada, com escopo no próprio nó (C22). **Emenda de 2026-11-05:** a frase tinha também "ou num ancestral dele que não seja o
+pai", e o código nunca teve esse mecanismo: o descarte de um ancestral leva o pai junto, e então não há montagem a
+calcular (R5 da execução; regra 38 de `specs/01`). "Saiu do projeto" é isso: a peça não é mais parte do pai daqui em diante. As
 unidades do pai já montadas continuam com ele dentro.
 
 O filho perdido por inteiro por `PerdaArmazem` ou `MortaEmProcesso` **não** é ignorado: o pai continua sem poder

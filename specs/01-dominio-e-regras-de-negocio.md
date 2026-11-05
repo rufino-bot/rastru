@@ -747,8 +747,9 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       trava; a razão de cada nível leva o número até unidades da Peça do topo. Com `incluirTopo`, a mesma baixa leva
       também essas unidades da Peça do topo, de `AIniciar` — `min(trava, a iniciar do topo)`, recalculado dentro da
       transação —, com o mesmo motivo, e o C6 corre a partir delas. `incluirTopo` vale na baixa **de parte de um
-      Item** e na de **tudo** de um Item por `PerdaArmazem` ou `MortaEmProcesso`; **nunca** com `Descarte` (o filho sai
-      do projeto e deixa de travar o pai, C22) **nem** numa Peça: nesses casos é 400 `OrigemInvalida`.
+      Item**, com qualquer motivo, e na de **tudo** de um Item por `PerdaArmazem` ou `MortaEmProcesso`; **só a baixa de
+      tudo por `Descarte`** não tem trava e o recusa (o filho sai do projeto e deixa de travar o pai, C22), assim como a
+      baixa numa Peça: nesses dois casos é 400 `OrigemInvalida`.
     - **"Matar" a não conforme** (D6, C16): baixa da Peça com origem `NaoConforme` e motivo `MortaEmProcesso`. Sai do
       expedível e conta para o fechamento (regra 13). Refazer é um Pedido de Retrabalho à parte (5B-2).
     - **Prévia do servidor** (C14): uma rota calcula o que a baixa gravaria — as linhas por nó e posição, `viramSobra`

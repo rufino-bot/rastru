@@ -791,7 +791,7 @@ spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
 - **5B-2 — Reposição**: o Pedido de Retrabalho, o nó pronto, a reposição da perda que impede montar e o vínculo com a
   reclamação do cliente e com a peça morta. Sem spec.
 
-**Estado da 5B-1 (2026-11-04):** o **backend está implementado** na branch. Entrou: a posição
+**Estado da 5B-1 (2026-11-05):** o **backend e o front estão implementados** na branch. No backend entrou: a posição
 `Perdido` e o tipo `Perda` no livro, `dbo.Perda` reescrita como registro da baixa e a migração
 `db/alter-fase-5b1.sql`; a calculadora com o perdido de "a iniciar" e o "saiu do projeto" (regra 38; `FaltaMontar`
 desconta o perdido do pai e o filho descartado por inteiro sai da montagem); a conta pura da baixa (a cascata C6, a
@@ -799,9 +799,10 @@ baixa de tudo e a trava no topo, D13 e D14); o fechamento contando o perdido, co
 estorno que o devolve a `Aberto` (C11 e C23); a baixa de um nó, a prévia, o "Descartar tudo" do Agrupamento e do
 Pedido, o estorno inteiro e as duas leituras, no `BaixaController`; o `PUT /estrutura/{id}` que só aumenta com o Pedido
 rodando (`DiminuirPelaBaixa`, D12); a sobra de Pedido `Concluido` na Fila (C25) e o nó perdido por inteiro fora da
-lista do Separador e do resumo de material (C26). **Falta o front** (o módulo de baixas, o "Dar baixa", o "Matar", o
-"Descartar" da sobra, o "Descartar tudo" e as seções "Baixas"), a conferência do usuário no navegador e a review de
-branch; **não está mesclada**. Limitação registrada (U2, regra 30): a seção "Sobra" de um Pedido `Concluido` mostra só a
+lista do Separador e do resumo de material (C26). **O front** (o módulo `web/src/baixas/`: o "Dar baixa", o "Matar", o
+"Descartar" da sobra, o "Descartar tudo" e as seções "Baixas") foi feito em seguida; a conferência do usuário no
+navegador e os ajustes F1 a F3 dela foram validados em 2026-11-05, e a review de branch inteira foi feita no mesmo dia e
+consertada na branch. **Falta o merge; não está mesclada**. Limitação registrada (U2, regra 30): a seção "Sobra" de um Pedido `Concluido` mostra só a
 sobra de coleta e de montagem; o saldo vivo de um Item concluído num Setor, em conserto ou a iniciar se descarta pelo
 "Dar baixa" do painel do nó ou pelo "Descartar tudo".
 
