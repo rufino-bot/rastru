@@ -216,6 +216,11 @@ function montarFetch({
   })
 }
 
+/** Um POST que grava, e não o da prévia do "Descartar tudo", que o PCP dispara ao abrir a página. */
+function ehPostDeEscrita(c: unknown[]): boolean {
+  return (c[1] as RequestInit | undefined)?.method === 'POST' && !String(c[0]).endsWith('/descarte/previa')
+}
+
 function renderizarDetalhe() {
   return render(
     <MemoryRouter initialEntries={['/agrupamentos/21']}>
@@ -335,7 +340,7 @@ describe('AgrupamentoDetalhePage', () => {
     // Prova o recarregamento: 'Chassi' só aparece depois do POST, na segunda chamada de GET.
     expect(await screen.findByText('Chassi')).toBeTruthy()
 
-    const chamadaPost = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'POST')
+    const chamadaPost = fetchMock.mock.calls.find(ehPostDeEscrita)
     expect(chamadaPost).toBeTruthy()
     expect(JSON.parse((chamadaPost![1] as RequestInit).body as string)).toEqual({
       componenteId: 10,
@@ -2016,7 +2021,7 @@ describe('AgrupamentoDetalhePage', () => {
       const enviar = screen.getByRole('button', { name: 'Importar' }) as HTMLButtonElement
       expect(enviar.disabled).toBe(true)
       fireEvent.submit(screen.getByRole('form', { name: 'Importar BOM' }))
-      expect(fetchMock.mock.calls.some((c) => (c[1] as RequestInit | undefined)?.method === 'POST')).toBe(false)
+      expect(fetchMock.mock.calls.some(ehPostDeEscrita)).toBe(false)
     })
 
     it('arquivo de exatamente 5 MiB é aceito', async () => {
@@ -2042,7 +2047,7 @@ describe('AgrupamentoDetalhePage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
 
       expect(await screen.findByText('Tela de conferência')).toBeTruthy()
-      const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'POST')!
+      const post = fetchMock.mock.calls.find(ehPostDeEscrita)!
       expect(post[0]).toBe('/api/agrupamentos/21/importacoes')
       expect(((post[1] as RequestInit).body as FormData).get('arquivo')).toBe(arquivo)
     })
@@ -2099,7 +2104,7 @@ describe('AgrupamentoDetalhePage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Importar' }))
 
       expect(await screen.findByText('Tela de conferência')).toBeTruthy()
-      const posts = fetchMock.mock.calls.filter((c) => c[1]?.method === 'POST')
+      const posts = fetchMock.mock.calls.filter(ehPostDeEscrita)
       expect(posts).toHaveLength(2)
       expect(((posts[1][1] as RequestInit).body as FormData).get('arquivo')).toBe(novo)
     })
@@ -2190,6 +2195,102 @@ describe('AgrupamentoDetalhePage', () => {
 
       expect(screen.queryByRole('heading', { name: 'Importações em conferência' })).toBeNull()
       expect(fetchMock.mock.calls.some((c) => String(c[0]).endsWith('/importacoes'))).toBe(false)
+    })
+  })
+  describe('Descartar tudo', () => {
+    const PREVIA = '/api/agrupamentos/21/descarte/previa'
+    const DESCARTE = '/api/agrupamentos/21/descarte'
+    const COM_ALGO = {
+      linhas: [{
+        estruturaItemId: 100, descricao: 'Chassi', codigo: 'CH-100', origemPosicao: 'AIniciar', origemSetorId: null,
+        origemSetorNome: null, origemOrdem: null, quantidade: 3,
+      }],
+      viramSobra: [], travaNoTopo: null,
+    }
+
+    /** O mock de sempre, com a prévia e o descarte que o teste manda (a prévia vem de uma função, para mudar). */
+    function montar(previa: () => Response, descarte: () => Response = () => respostaJson({ id: 1 }, 201)) {
+      const base = montarFetch({ estruturaInicial: [PECA] })
+      const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
+        const caminho = String(url).split('?')[0]
+        if (caminho === PREVIA) return Promise.resolve(previa())
+        if (caminho === DESCARTE) return Promise.resolve(descarte())
+        return base(url, init)
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    const chamadasA = (fetchMock: ReturnType<typeof vi.fn>, rota: string) =>
+      fetchMock.mock.calls.filter((c) => String(c[0]).split('?')[0] === rota).length
+    const NADA = () => respostaJson({ erro: 'NadaEmProducao', mensagem: 'O Agrupamento não tem nada em produção para descartar.' }, 409)
+
+    it('com algo em produção, o PCP vê o botão ao lado dos que já existem', async () => {
+      montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      expect(await screen.findByRole('button', { name: 'Descartar tudo' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Nova Peça' })).toBeTruthy()
+    })
+
+    it('sem nada em produção (409 NadaEmProducao) o botão não aparece', async () => {
+      const fetchMock = montar(NADA)
+      renderizarDetalhe()
+
+      await screen.findByText('Chassi')
+      await waitFor(() => expect(chamadasA(fetchMock, PREVIA)).toBe(1))
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+    })
+
+    it('quem não dá baixa não vê o botão e a prévia nem é pedida', async () => {
+      perfil = 'Operador'
+      const fetchMock = montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      await screen.findByText('Chassi')
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+      expect(chamadasA(fetchMock, PREVIA)).toBe(0)
+    })
+
+    it('abre o painel com a prévia e a frase do Agrupamento, e fecha os outros painéis', async () => {
+      montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      fireEvent.click(await screen.findByRole('button', { name: 'Nova Peça' }))
+      expect(screen.getByRole('form', { name: 'Nova Peça' })).toBeTruthy()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+
+      expect(screen.queryByRole('form', { name: 'Nova Peça' })).toBeNull()
+      const painel = await screen.findByRole('form', { name: 'Descartar tudo' })
+      expect(await within(painel).findByText('1 nó com algo em produção, 3 unidades em 1 posição')).toBeTruthy()
+      expect(within(painel).getByText('Depois disto, o Agrupamento fica concluído.')).toBeTruthy()
+      // Abrir "Nova Peça" de volta fecha o descarte.
+      fireEvent.click(screen.getByRole('button', { name: 'Nova Peça' }))
+      expect(screen.queryByRole('form', { name: 'Descartar tudo' })).toBeNull()
+    })
+
+    it('descarta, recarrega a estrutura e leva o foco ao título', async () => {
+      let descartado = false
+      const fetchMock = montar(
+        () => (descartado ? NADA() : respostaJson(COM_ALGO)),
+        () => { descartado = true; return respostaJson({ id: 1 }, 201) },
+      )
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+      const painel = await screen.findByRole('form', { name: 'Descartar tudo' })
+      const enviar = within(painel).getByRole('button', { name: 'Descartar tudo' }) as HTMLButtonElement
+      await waitFor(() => expect(enviar.disabled).toBe(false))
+      fireEvent.click(enviar)
+
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Descartar tudo' })).toBeNull())
+      expect(chamadasA(fetchMock, DESCARTE)).toBe(1)
+      await waitFor(() => expect(chamadasA(fetchMock, '/api/agrupamentos/21/estrutura')).toBe(2))
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull())
+      expect(chamadasA(fetchMock, PREVIA)).toBe(3)
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }).firstElementChild))
     })
   })
 })

@@ -22,6 +22,10 @@ import { ArvoreDeEstrutura } from '../components/ArvoreDeEstrutura'
 import { Confirmacao } from '../components/Confirmacao'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { PainelDoNo } from '../execucao/PainelDoNo'
+import { descartarAgrupamento, preverDescarteDoAgrupamento } from '../api/baixas'
+import { PainelDeDescarteTotal } from '../baixas/PainelDeDescarteTotal'
+import { useDescarteDisponivel } from '../baixas/useDescarteDisponivel'
+import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
 import { ImportacoesEmConferencia } from '../importacao/ImportacoesEmConferencia'
 import { PainelDoArquivoDoBom } from '../importacao/PainelDoArquivoDoBom'
 
@@ -187,6 +191,19 @@ export function AgrupamentoDetalhePage() {
   const botaoImportarBom = useRef<HTMLButtonElement>(null)
   useDevolverFoco(painelDeImportacaoAberto, () => botaoImportarBom.current)
 
+  // O "Descartar tudo" (D8): só com permissão de baixa e algo em produção, e quem diz isso é a prévia do servidor.
+  // A versão sobe quando a página grava o descarte, e a prévia é pedida de novo. Depois do descarte o botão some (não
+  // há mais nada em produção): o foco vai ao título, e só depois que a prévia nova respondeu.
+  const { darBaixa } = usePermissoesDaBaixa()
+  const [versaoDoSaldo, setVersaoDoSaldo] = useState(0)
+  const [descarteAberto, setDescarteAberto] = useState(false)
+  const descarte = useDescarteDisponivel(
+    (sinal) => preverDescarteDoAgrupamento(agrupamentoId, sinal), darBaixa && idValido, versaoDoSaldo,
+  )
+  const botaoDescartar = useRef<HTMLButtonElement>(null)
+  const tituloDaPagina = useRef<HTMLSpanElement>(null)
+  useDevolverFoco(descarteAberto, () => botaoDescartar.current ?? tituloDaPagina.current, !descarte.carregando)
+
   // Recebe o id como argumento (não fecha sobre `agrupamentoId` de fora): mesmo motivo do
   // comentário equivalente em `PedidoDetalhePage.tsx` — o exhaustive-deps cobra 'carregar' como
   // dependência faltando se o corpo não usar o parâmetro.
@@ -260,6 +277,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   function abrirNovaPeca() {
+    setDescarteAberto(false)
     // Exclusividade (decisão 4 da spec da 1F): o painel de Peça é o único `<form>` da tela, então
     // o painel do nó, o detalhe e a confirmação de exclusão saem.
     fecharPainel()
@@ -325,6 +343,7 @@ export function AgrupamentoDetalhePage() {
   // "Cancelar" com o mesmo nome acessível, o tipo de colisão que `getByRole` rejeita. Pelo mesmo
   // motivo fecham o painel de Peça (`fecharPainelDePeca`), que também tem um "Cancelar".
   function abrirAcrescentarFilho(paiId: number) {
+    setDescarteAberto(false)
     fecharPainelDePeca()
     fecharPainelDeImportacao()
     setNoParaExcluir(null)
@@ -339,6 +358,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   function abrirEditar(no: NoDaEstrutura) {
+    setDescarteAberto(false)
     fecharPainelDePeca()
     fecharPainelDeImportacao()
     setNoParaExcluir(null)
@@ -365,6 +385,7 @@ export function AgrupamentoDetalhePage() {
   // Mesmo motivo do `setNoParaExcluir(null)` que abre `abrirEditar`, na direção oposta: pedir a
   // exclusão de um nó fecha o painel de acrescentar/editar que porventura esteja aberto.
   function pedirExclusao(no: NoDaEstrutura) {
+    setDescarteAberto(false)
     fecharPainel()
     fecharPainelDePeca()
     fecharPainelDeImportacao()
@@ -373,6 +394,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   function abrirDetalhe(no: NoDaEstrutura) {
+    setDescarteAberto(false)
     fecharPainel()
     fecharPainelDePeca()
     fecharPainelDeImportacao()
@@ -383,12 +405,27 @@ export function AgrupamentoDetalhePage() {
   // Abrir o painel de importação fecha os outros dois e a confirmação de exclusão, como as demais
   // aberturas: nunca há dois `<form>` de painel no documento.
   function abrirImportarBom() {
+    setDescarteAberto(false)
     fecharPainel()
     fecharPainelDePeca()
     setNoParaExcluir(null)
     setNoEmDetalhe(null)
     fecharPainelDeImportacao()
     setPainelDeImportacaoAberto(true)
+  }
+
+  function abrirDescarte() {
+    fecharPainel()
+    fecharPainelDePeca()
+    fecharPainelDeImportacao()
+    setNoParaExcluir(null)
+    setNoEmDetalhe(null)
+    setDescarteAberto(true)
+  }
+
+  function aoDescartar() {
+    setVersaoDoSaldo((v) => v + 1)
+    carregar(agrupamentoId)
   }
 
   function fecharPainelDeImportacao() {
@@ -558,7 +595,7 @@ export function AgrupamentoDetalhePage() {
 
   return (
     <Pagina
-      titulo={titulo}
+      titulo={<span ref={tituloDaPagina} tabIndex={-1}>{titulo}</span>}
       // `acao` é o slot de `Pagina` ao lado do `<h1>`, e aqui ele divide o espaço entre a ação
       // principal ("Nova Peça", só com permissão de escrita e com o painel dela fechado) e o Id da
       // rota, discreto — "referência técnica" (decisão do usuário, Task 8b): o cabeçalho mostra
@@ -569,6 +606,9 @@ export function AgrupamentoDetalhePage() {
           {podeEscrever && !painelDePecaAberto && <Botao ref={botaoNovaPeca} onClick={abrirNovaPeca}>Nova Peça</Botao>}
           {podeEscrever && !painelDeImportacaoAberto && (
             <Botao ref={botaoImportarBom} variante="secundario" onClick={abrirImportarBom}>Importar BOM</Botao>
+          )}
+          {darBaixa && descarte.disponivel && !descarteAberto && (
+            <Botao ref={botaoDescartar} variante="perigo" onClick={abrirDescarte}>Descartar tudo</Botao>
           )}
           <span className="font-mono text-xs text-tinta-fraca">{`Id ${agrupamentoId}`}</span>
         </div>
@@ -625,6 +665,17 @@ export function AgrupamentoDetalhePage() {
             Criar Peça
           </Botao>
         </PainelDeEscrita>
+      )}
+
+      {darBaixa && descarteAberto && (
+        <PainelDeDescarteTotal
+          titulo="Descartar tudo"
+          escopo="Agrupamento"
+          prever={() => preverDescarteDoAgrupamento(agrupamentoId)}
+          descartar={(observacao) => descartarAgrupamento(agrupamentoId, observacao)}
+          aoConcluir={aoDescartar}
+          aoFechar={() => setDescarteAberto(false)}
+        />
       )}
 
       {podeEscrever && painelDeImportacaoAberto && (

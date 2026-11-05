@@ -429,7 +429,10 @@ describe('PedidoDetalhePage', () => {
     // esta asserção, trocar o POST de criarAgrupamento por GET, ou deixar de enviar o `form` no
     // corpo, sobrevive ao teste. `init` é o segundo argumento passado ao fetch global, montado
     // por fetchComToken (client.ts:43-47): `{ ...init, headers: Headers, credentials: 'include' }`.
-    const chamadaPost = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === 'POST')
+    // O POST do agrupamento, e não o da prévia do descarte que o PCP também dispara ao abrir a página.
+    const chamadaPost = fetchMock.mock.calls.find(
+      (c) => (c[1] as RequestInit | undefined)?.method === 'POST' && String(c[0]).endsWith('/agrupamentos'),
+    )
     expect(chamadaPost).toBeTruthy()
     expect(JSON.parse((chamadaPost![1] as RequestInit).body as string)).toEqual({ codigo: 'AGR-01', tipo: 'Kit' })
   })
@@ -730,6 +733,153 @@ describe('PedidoDetalhePage', () => {
       vi.stubGlobal('fetch', apiComPut(() => respostaJson(PEDIDO)))
       renderizarDetalhe()
       expect(await screen.findByText('Nenhuma baixa.')).toBeTruthy()
+    })
+  })
+  describe('Descartar tudo', () => {
+    const PREVIA = '/api/pedidos/7/descarte/previa'
+    const LINHA = {
+      estruturaItemId: 9, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null,
+      origemSetorNome: null, origemOrdem: null, quantidade: 5,
+    }
+    const COM_ALGO = { linhas: [LINHA], viramSobra: [], travaNoTopo: null }
+
+    /** O Pedido, os Agrupamentos e as baixas de sempre, mais a prévia e o descarte que o teste manda. */
+    function montar(previa: () => Response, descarte: () => Response = () => respostaJson({ id: 1 }, 201)) {
+      const fetchMock = fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([]),
+        [PREVIA]: previa,
+        '/api/pedidos/7/descarte': descarte,
+      })
+      vi.stubGlobal('fetch', fetchMock)
+      return fetchMock
+    }
+    const chamadasA = (fetchMock: ReturnType<typeof vi.fn>, rota: string) =>
+      fetchMock.mock.calls.filter((c) => String(c[0]).split('?')[0] === rota).length
+
+    it('com algo em produção, o PCP vê o botão ao lado do "Editar pedido"', async () => {
+      montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      expect(await screen.findByRole('button', { name: 'Descartar tudo' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Editar pedido' })).toBeTruthy()
+    })
+
+    it('sem nada em produção (409 NadaEmProducao) o botão não aparece', async () => {
+      const fetchMock = montar(() => respostaJson({ erro: 'NadaEmProducao', mensagem: 'O Pedido não tem nada em produção para descartar.' }, 409))
+      renderizarDetalhe()
+
+      await screen.findByRole('button', { name: 'Editar pedido' })
+      await waitFor(() => expect(chamadasA(fetchMock, PREVIA)).toBe(1))
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+    })
+
+    it('com a prévia vazia o botão não aparece', async () => {
+      const fetchMock = montar(() => respostaJson({ linhas: [], viramSobra: [], travaNoTopo: null }))
+      renderizarDetalhe()
+
+      await screen.findByRole('button', { name: 'Editar pedido' })
+      await waitFor(() => expect(chamadasA(fetchMock, PREVIA)).toBe(1))
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+    })
+
+    it('uma falha da prévia esconde o botão e não derruba a página', async () => {
+      montar(() => respostaJson({ erro: 'x' }, 500))
+      renderizarDetalhe()
+
+      expect(await screen.findByText('PED-001')).toBeTruthy()
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('quem não dá baixa não vê o botão e a prévia nem é pedida', async () => {
+      perfil = 'Operador'
+      const fetchMock = montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      await screen.findByText('PED-001')
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+      expect(chamadasA(fetchMock, PREVIA)).toBe(0)
+    })
+
+    it('pede a prévia uma vez por carga, e não a cada render', async () => {
+      const fetchMock = montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+      await screen.findByRole('button', { name: 'Descartar tudo' })
+
+      expect(chamadasA(fetchMock, PREVIA)).toBe(1)
+    })
+
+    it('abre o painel com a prévia e sem o botão do cabeçalho', async () => {
+      montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+
+      const painel = await screen.findByRole('form', { name: 'Descartar tudo' })
+      expect(await within(painel).findByText('1 nó com algo em produção, 5 unidades em 1 posição')).toBeTruthy()
+      expect(within(painel).getByText('Depois disto, o Pedido fica concluído.')).toBeTruthy()
+      // Só o enviar do painel: o botão do cabeçalho some enquanto o painel está aberto.
+      expect(screen.getAllByRole('button', { name: 'Descartar tudo' })).toHaveLength(1)
+    })
+
+    it('abrir o descarte fecha a edição do pedido, e o contrário', async () => {
+      montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Editar pedido' }))
+      expect(screen.getByRole('form', { name: 'Editar pedido' })).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+      expect(screen.queryByRole('form', { name: 'Editar pedido' })).toBeNull()
+      expect(await screen.findByRole('form', { name: 'Descartar tudo' })).toBeTruthy()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Editar pedido' }))
+      expect(screen.queryByRole('form', { name: 'Descartar tudo' })).toBeNull()
+      expect(screen.getByRole('form', { name: 'Editar pedido' })).toBeTruthy()
+    })
+
+    it('descarta, recarrega a página e leva o foco ao título', async () => {
+      let descartado = false
+      const fetchMock = montar(
+        () => (descartado
+          ? respostaJson({ erro: 'NadaEmProducao', mensagem: 'sem nada' }, 409)
+          : respostaJson(COM_ALGO)),
+        () => { descartado = true; return respostaJson({ id: 1 }, 201) },
+      )
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+      const painel = await screen.findByRole('form', { name: 'Descartar tudo' })
+      const enviar = within(painel).getByRole('button', { name: 'Descartar tudo' }) as HTMLButtonElement
+      await waitFor(() => expect(enviar.disabled).toBe(false))
+      fireEvent.click(enviar)
+
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Descartar tudo' })).toBeNull())
+      expect(chamadasA(fetchMock, '/api/pedidos/7/descarte')).toBe(1)
+      // O Pedido, a lista de baixas e a prévia foram pedidos de novo, e o botão sumiu: não há mais nada a descartar.
+      await waitFor(() => expect(chamadasA(fetchMock, '/api/pedidos/7/baixas')).toBe(2))
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull())
+      expect(chamadasA(fetchMock, '/api/pedidos/7')).toBeGreaterThanOrEqual(2)
+      expect(chamadasA(fetchMock, PREVIA)).toBe(3)
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }).firstElementChild))
+    })
+
+    it('o Cancelar devolve o foco ao botão do cabeçalho', async () => {
+      montar(() => respostaJson(COM_ALGO))
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }))
+
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Descartar tudo' })))
     })
   })
 })
