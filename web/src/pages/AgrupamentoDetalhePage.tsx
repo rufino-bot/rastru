@@ -4,7 +4,7 @@ import {
   obterEstrutura, criarPeca, acrescentarFilho, editarNo, excluirNo, ehConflitoDeEstrutura,
   type NoDaEstrutura, type NovoFilho, type EdicaoDeNo, type ResultadoDeEstrutura,
 } from '../api/estrutura'
-import { obterAgrupamento, type ComponenteDto, type AgrupamentoDto } from '../api/cadastros'
+import { obterAgrupamento, obterPedido, type ComponenteDto, type AgrupamentoDto } from '../api/cadastros'
 import { obterPosicoes, type PosicoesDoNoDto } from '../api/execucao'
 import { listarFilhosPadrao, type FilhoPadraoDto } from '../api/receitaPadrao'
 import { mensagemDeErro } from '../api/erros'
@@ -74,6 +74,8 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   // não os emite, mas o `Record` é exaustivo sobre o tipo inteiro.
   PedidoFechado: 'Não foi possível excluir: o pedido está concluído ou cancelado.',
   ComAfericao: 'Não foi possível excluir: conflito na estrutura.',
+  // Fase 5B-1: `DiminuirPelaBaixa` é só do editar (a quantidade só aumenta com o Pedido rodando); entra pelo mesmo motivo.
+  DiminuirPelaBaixa: 'Não foi possível excluir: conflito na estrutura.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 
@@ -143,6 +145,9 @@ export function AgrupamentoDetalhePage() {
   const [erro, setErro] = useState<string | null>(null)
 
   const [agrupamento, setAgrupamento] = useState<AgrupamentoDto | null>(null)
+  // O status do Pedido, só para a dica do campo de quantidade na edição (D12 da spec da Fase 5B-1). `null` até saber:
+  // sem ele a tela não afirma nada e o servidor continua sendo quem recusa.
+  const [statusDoPedido, setStatusDoPedido] = useState<string | null>(null)
 
   const [componente, setComponente] = useState<ComponenteDto | null>(null)
   const [quantidade, setQuantidade] = useState('')
@@ -252,6 +257,17 @@ export function AgrupamentoDetalhePage() {
       .catch(() => {})
     return () => { cancelado = true }
   }, [agrupamentoId, idValido])
+
+  // O status do Pedido do Agrupamento, com a mesma falha silenciosa e o mesmo cancelamento da busca acima.
+  const pedidoId = agrupamento?.pedidoId ?? null
+  useEffect(() => {
+    if (pedidoId === null) return
+    let cancelado = false
+    obterPedido(pedidoId)
+      .then((p) => { if (!cancelado) setStatusDoPedido(p.status) })
+      .catch(() => {})
+    return () => { cancelado = true }
+  }, [pedidoId])
 
   // A razão do filho vem PRÉ-PREENCHIDA quando a receita do Componente do pai lista aquele filho
   // (spec da Fase 3 §3.4) — é a mesma `QuantidadePadrao` que a cópia da receita usaria. A receita é
@@ -749,14 +765,20 @@ export function AgrupamentoDetalhePage() {
                 )}
               </Campo>
             )}
-            <Campo rotulo="Quantidade">
-              {(idDoCampo) => (
+            <Campo
+              rotulo="Quantidade"
+              dica={painel.tipo === 'editar' && statusDoPedido !== null && statusDoPedido !== 'Aberto'
+                ? 'Para diminuir, use "Dar baixa".'
+                : undefined}
+            >
+              {(idDoCampo, idDaDica) => (
                 <input
                   id={idDoCampo}
                   type="number"
                   step="any"
                   value={quantidadePainel}
                   onChange={(e) => setQuantidadePainel(e.target.value)}
+                  aria-describedby={idDaDica}
                   className={CLASSES_DE_CONTROLE}
                 />
               )}

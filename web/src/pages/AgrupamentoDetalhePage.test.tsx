@@ -127,6 +127,7 @@ function montarFetch({
   separacoes = [],
   respostaEstornoDeSeparacao = null,
   aoLerMateriais = () => {},
+  statusDoPedido = null,
 }: {
   estruturaInicial: NoDaEstrutura[]
   estruturaAposCriar?: NoDaEstrutura[] | null
@@ -151,11 +152,16 @@ function montarFetch({
   respostaEstornoDeSeparacao?: { status: number; corpo: unknown } | null
   /** Chamado a cada `GET /estrutura/:id/materiais`, para o teste contar as recargas. */
   aoLerMateriais?: () => void
+  /** O status que `GET /pedidos/4` devolve; `null` = a rota não responde (a tela não sabe o status). */
+  statusDoPedido?: string | null
 }) {
   let getsDeEstrutura = 0
   return vi.fn((url: string | URL, init?: RequestInit) => {
     const caminho = String(url).split('?')[0]
     const metodo = init?.method ?? 'GET'
+    if (caminho === '/api/pedidos/4' && statusDoPedido !== null) {
+      return Promise.resolve(respostaJson({ id: 4, numero: 'PED-2026-01', status: statusDoPedido }))
+    }
     if (caminho === '/api/componentes') return Promise.resolve(respostaJson(COMPONENTES_BUSCA))
     if (caminho === '/api/agrupamentos/21/importacoes') {
       if (metodo === 'POST') {
@@ -1358,6 +1364,52 @@ describe('AgrupamentoDetalhePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
 
     expect(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Requer relatório dimensional')).toHaveProperty('checked', false)
+  })
+
+  it('com o Pedido fora de Aberto a dica da quantidade diz para diminuir pela baixa (D12)', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], statusDoPedido: 'EmProducao' }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('PED-2026-01'))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+
+    const painel = screen.getByTestId('painel-de-escrita')
+    expect(within(painel).getByText('Para diminuir, use "Dar baixa".')).toBeTruthy()
+    expect(within(painel).getByLabelText('Quantidade').getAttribute('aria-describedby')).toBeTruthy()
+  })
+
+  it('com o Pedido Aberto, ou sem saber o status, o campo da quantidade não traz a dica', async () => {
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA], statusDoPedido: 'Aberto' }))
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('PED-2026-01'))
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    expect(screen.queryByText(/Para diminuir/)).toBeNull()
+    cleanup()
+
+    vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    expect(screen.queryByText(/Para diminuir/)).toBeNull()
+  })
+
+  it('diminuir com o Pedido rodando mostra no painel a frase do servidor (DiminuirPelaBaixa)', async () => {
+    const frase = 'Com o Pedido em produção, a quantidade de Chassi só aumenta: para diminuir, use "Dar baixa".'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      statusDoPedido: 'EmProducao',
+      respostaEditar: { status: 409, corpo: { erro: 'DiminuirPelaBaixa', mensagem: frase } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Quantidade'), { target: { value: '0.5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    expect(await within(screen.getByTestId('painel-de-escrita')).findByText(frase)).toBeTruthy()
   })
 
   it('editar a Peça não pede razão', async () => {

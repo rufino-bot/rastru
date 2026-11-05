@@ -9,6 +9,11 @@ export interface DescarteDisponivel {
   carregando: boolean
 }
 
+/** Uma recusa de negócio do servidor (409 com código) que não é `NadaEmProducao`: há algo em produção a descartar. */
+function haAlgoMesmoRecusado(erro: unknown): boolean {
+  return erro instanceof ErroDeApi && erro.status === 409 && erro.codigo !== undefined && erro.codigo !== 'NadaEmProducao'
+}
+
 /**
  * Decide se o "Descartar tudo" aparece (Review Focus 4 da Fase 5B-1): só com algo em produção no escopo, e quem diz
  * isso é a prévia do servidor — `NadaEmProducao` (409) ou `linhas` vazias escondem o botão. Outra recusa de negócio
@@ -19,10 +24,6 @@ export interface DescarteDisponivel {
  * Vence a última consulta enviada, não a última a responder, e a anterior é abortada. `habilitado` falso (quem não
  * pode dar baixa) não consulta nada.
  */
-function haAlgoMesmoRecusado(erro: unknown): boolean {
-  return erro instanceof ErroDeApi && erro.status === 409 && erro.codigo !== undefined && erro.codigo !== 'NadaEmProducao'
-}
-
 export function useDescarteDisponivel(
   prever: (sinal: AbortSignal) => Promise<PreviaDaBaixaDto>,
   habilitado: boolean,

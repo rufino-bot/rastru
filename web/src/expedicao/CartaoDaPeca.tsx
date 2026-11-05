@@ -6,6 +6,7 @@ import { CaixaDeLote } from '../components/CaixaDeLote'
 import { ItemComAcao } from '../components/ItemComAcao'
 import { Pilula, type TomDePilula } from '../components/Pilula'
 import { formatarQuantidade, rotuloDoNo } from '../execucao/formatacao'
+import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
 import { CampoDeQuantidade } from './escritaDoPainel'
 import { ROTULOS_DA_AFERICAO } from './filtroDaExpedicao'
@@ -14,6 +15,7 @@ import { campoDaPeca, podeEntrarNoLote } from './loteDaExpedicao'
 import { PainelDeAfericao } from './PainelDeAfericao'
 import { PainelDeConserto } from './PainelDeConserto'
 import { PainelDeContagem } from './PainelDeContagem'
+import { PainelDeMatar } from './PainelDeMatar'
 import { PainelDePedidoDeLiberacao } from './PainelDePedidoDeLiberacao'
 import { AvisosDaRemessa, PainelDeRemessa } from './PainelDeRemessa'
 import { usePermissoesDaExpedicao } from './usePermissoesDaExpedicao'
@@ -48,7 +50,7 @@ interface Props {
   aoAbrirPainel?: () => void
 }
 
-type Painel = 'afericao' | 'contagem' | 'conserto' | 'liberacao' | 'remessa'
+type Painel = 'afericao' | 'contagem' | 'conserto' | 'liberacao' | 'matar' | 'remessa'
 
 // Somas em décimos de milésimo inteiros, como em `tiradaDaRemessa`: 0,1 + 0,2 tem de dar 0,3.
 const ESCALA = 10_000
@@ -116,6 +118,8 @@ function ContagemDaPeca({ peca }: { peca: PecaNaExpedicaoDto }) {
  * - **Contar**: aferição não conforme e algo a medir;
  * - **Mandar para conserto**: alguma não conforme aguardando decisão;
  * - **Pedir liberação**: idem, e nenhum pedido em aberto (C18);
+ * - **Matar** (Fase 5B-1): alguma não conforme aguardando decisão. É da baixa, e não do registro da expedição:
+ *   `usePermissoesDaBaixa().darBaixa` (a Qualidade, o PCP e o Administrador), de modo que o PCP o vê sozinho;
  * - **Expedir**: algo expedível.
  *
  * Um painel aberto por vez no cartão, e as ações somem enquanto ele está aberto, como o botão que abre um
@@ -125,6 +129,7 @@ function ContagemDaPeca({ peca }: { peca: PecaNaExpedicaoDto }) {
  */
 export function CartaoDaPeca({ peca, pedidoNumero, setores, aoRegistrar, lote, recarregando = false, aoAbrirPainel }: Props) {
   const { registrar, podeEstornar } = usePermissoesDaExpedicao()
+  const { darBaixa } = usePermissoesDaBaixa()
   const [aberto, setAberto] = useState<Painel | null>(null)
   // A versão do histórico: cada escrita do cartão a muda, e o histórico já aberto recarrega.
   const [versao, setVersao] = useState(0)
@@ -168,9 +173,11 @@ export function CartaoDaPeca({ peca, pedidoNumero, setores, aoRegistrar, lote, r
     { painel: 'contagem', rotulo: 'Contar', mostra: naoConforme && p.naExpedicao > 0 },
     { painel: 'conserto', rotulo: 'Mandar para conserto', mostra: p.naoConforme > 0 },
     { painel: 'liberacao', rotulo: 'Pedir liberação', mostra: p.naoConforme > 0 && peca.liberacaoPendente === null },
+    { painel: 'matar', rotulo: 'Matar', mostra: darBaixa && p.naoConforme > 0 },
     { painel: 'remessa', rotulo: 'Expedir', mostra: peca.expedivel > 0 },
   ]
-  const botoesVisiveis = registrar && aberto === null ? acoes.filter((a) => a.mostra) : []
+  // `mostra` já traz a permissão do "Matar"; as outras quatro dependem de `registrar`.
+  const botoesVisiveis = aberto === null ? acoes.filter((a) => a.mostra && (registrar || a.painel === 'matar')) : []
   const caixa = registrar && lote !== undefined && podeEntrarNoLote(peca)
 
   const acao: ReactNode = (caixa || botoesVisiveis.length > 0) ? (
@@ -229,6 +236,7 @@ export function CartaoDaPeca({ peca, pedidoNumero, setores, aoRegistrar, lote, r
           {registrar && aberto === 'liberacao' && (
             <PainelDePedidoDeLiberacao {...props} aoFechar={fechar('liberacao')} />
           )}
+          {darBaixa && aberto === 'matar' && <PainelDeMatar {...props} aoFechar={fechar('matar')} />}
           {registrar && aberto === 'remessa' && <PainelDeRemessa {...props} aoFechar={fechar('remessa')} />}
           <HistoricoDaExpedicao pecaId={peca.id} podeEstornar={podeEstornar} aoEstornar={aoRegistrar} versao={versao} />
         </>

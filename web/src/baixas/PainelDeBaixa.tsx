@@ -33,6 +33,8 @@ interface Props {
   maximo?: number
   /** O nome da ação, que é o do formulário; "Dar baixa" sem ele. */
   titulo?: string
+  /** Frase que a tela quer ao alto do painel (o que o "Matar" faz com as unidades). */
+  aviso?: string
 }
 
 type Forma = 'tudo' | 'parte'
@@ -78,7 +80,7 @@ function verboDoEnviar(motivoFixo: MotivoDaBaixa | undefined): string {
  * Nenhuma escolha vem marcada: motivo e forma são deliberados, não um primeiro item distraído.
  */
 export function PainelDeBaixa({
-  no, saldos, aoConcluir, aoFechar, motivoFixo, origemFixa, maximo, titulo = 'Dar baixa',
+  no, saldos, aoConcluir, aoFechar, motivoFixo, origemFixa, maximo, titulo = 'Dar baixa', aviso,
 }: Props) {
   const [motivoEscolhido, setMotivoEscolhido] = useState<MotivoDaBaixa | null>(null)
   const [formaEscolhida, setFormaEscolhida] = useState<Forma | null>(null)
@@ -142,6 +144,7 @@ export function PainelDeBaixa({
 
   return (
     <PainelDeEscrita titulo={titulo} subtitulo={no.descricao} aoEnviar={enviar} aoFechar={aoFechar} enviando={enviando}>
+      {aviso !== undefined && <p className="text-sm text-tinta-fraca">{aviso}</p>}
       {motivoFixo === undefined && (
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium text-tinta">Motivo</legend>
