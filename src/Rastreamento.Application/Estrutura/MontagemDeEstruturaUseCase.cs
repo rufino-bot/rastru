@@ -1,3 +1,4 @@
+using Rastreamento.Application.Baixa;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Expedicao;
@@ -36,6 +37,8 @@ public sealed class MontagemDeEstruturaUseCase
 
   private const string StatusAberto = "Aberto";
   private const string StatusConcluido = "Concluido";
+  private const string StatusEmProducao = "EmProducao";
+  private const string StatusAguardandoExpedicao = "AguardandoExpedicao";
 
   /// <summary>
   /// Piso e sinal na MESMA mensagem: `QuantidadeMinimaDaColuna` (0,0001) ja e maior que zero, entao
@@ -372,6 +375,11 @@ public sealed class MontagemDeEstruturaUseCase
         return Result<EstruturaItemDto>.Falha(ErroDeDescricaoObrigatoria, TipoDeErro.Validacao);
 
       var estado = await _leitor.CarregarAsync([no], ct);
+      // D12 da spec da Fase 5B-1: com o Pedido rodando a quantidade so aumenta; diminuir e pela baixa. `Aberto` segue
+      // livre (a guarda do movimentado, abaixo). `Concluido` ja saiu acima; `Cancelado` segue como era.
+      if (statusDoPedido is StatusEmProducao or StatusAguardandoExpedicao && edicao.Quantidade < no.Quantidade)
+        return Result<EstruturaItemDto>.Falha(CodigosDaBaixa.DiminuirPelaBaixa, TipoDeErro.Conflito,
+            $"Com o Pedido em produção, a quantidade de {estado.Nome(id)} só aumenta: para diminuir, use \"Dar baixa\".");
       var saido = estado.Calc.SaidoDeAIniciar(id);
       var montado = estado.Calc.TotalMontado(id);
       var piso = Math.Max(saido, montado);

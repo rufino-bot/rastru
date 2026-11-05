@@ -38,6 +38,9 @@ import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { Confirmacao } from '../components/Confirmacao'
 import { Pilula } from '../components/Pilula'
+import { PainelDeBaixa, type OrigemFixa } from '../baixas/PainelDeBaixa'
+import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
+import { useDevolverFoco } from '../hooks/useDevolverFoco'
 
 const ESCOLHER: EstadoDaEscolhaDeSetor = { escolher: true }
 
@@ -76,6 +79,8 @@ export function FilaDoSetorPage() {
 const chaveDeLevar = (paiId: number, filhoId: number) => `levar:${paiId}:${filhoId}`
 const chaveDeEstornar = (secao: string, noId: number, ordem: number | null) => `estornar:${secao}:${noId}:${ordem ?? ''}`
 const chaveDeLevarKit = (paiId: number) => `levar-kit:${paiId}`
+/** O descarte da sobra: a linha é o nó e a origem (o mesmo nó pode ter uma sobra de cada). */
+const chaveDeDescartar = (s: LinhaDeSobra) => `descartar:${s.no.id}:${s.origem}:${s.ordem ?? ''}`
 /** A mesma Peça pode estar `EmConserto` e `ConsertoPronto` no Setor: a posição entra na chave do estorno. */
 const secaoDeEstornoDoConserto = (l: LinhaDeConserto) => (l.posicao === 'EmConserto' ? 'conserto' : 'conserto-pronto')
 
@@ -104,6 +109,8 @@ function chavesDaFila(fila: FilaDoSetorDto): Set<string> {
   for (const l of fila.emTrabalho) comLista('em-trabalho', l.no.id, l.ordem, l.estornaveis)
   for (const l of fila.aguardandoColeta) comLista('coleta', l.no.id, l.ordem, l.estornaveis)
   for (const s of fila.sobra) comLista('sobra', s.no.id, s.ordem, s.estornaveis)
+  // O painel do descarte pertence à linha de sobra: enquanto ela existe, a chave vale.
+  for (const s of fila.sobra) chaves.add(chaveDeDescartar(s))
   for (const l of fila.conserto) comLista(secaoDeEstornoDoConserto(l), l.no.id, null, l.estornaveis)
   return chaves
 }
@@ -144,6 +151,10 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   // O toque no mesmo quadro, antes do React redesenhar o botão desabilitado — mesmo padrão de
   // `FormularioDeQuantidade` e do histórico do nó.
   const estornandoRef = useRef(false)
+  // A linha de sobra do último painel de descarte aberto, para o foco voltar ao título se a recarga a tirar da lista
+  // (descartar a sobra inteira, que é o padrão do campo): o hook da linha sai com ela.
+  const ultimaSobra = useRef<string | null>(null)
+  const tituloDaPagina = useRef<HTMLSpanElement>(null)
 
   // Lembra só o Setor cuja fila CARREGOU: um Id digitado na barra que dá 404 não vira lembrança.
   useEffect(() => { if (fila?.setorId === setorId) lembrarSetor(setorId) }, [fila, setorId])
@@ -180,7 +191,16 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
     setAberta(null)
   }, [fila, aberta, erroDaAcao])
 
+  useEffect(() => {
+    if (fila === null || aberta !== null || ultimaSobra.current === null) return
+    if (fila.sobra.some((s) => chaveDeDescartar(s) === ultimaSobra.current)) return
+    ultimaSobra.current = null
+    const focado = document.activeElement
+    if (focado === null || focado === document.body) tituloDaPagina.current?.focus()
+  }, [fila, aberta])
+
   function abrir(chave: string) {
+    ultimaSobra.current = chave.startsWith('descartar:') ? chave : null
     setAberta(chave)
     setErroDaAcao(null)
     setAviso(null)
@@ -296,9 +316,10 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
   }
 
   const titulo = fila ? `Fila — ${fila.setorNome}` : 'Fila do Setor'
+  const tituloFocavel = <span ref={tituloDaPagina} tabIndex={-1}>{titulo}</span>
 
   return (
-    <Pagina titulo={titulo} acao={<TrocarDeSetor />}>
+    <Pagina titulo={tituloFocavel} acao={<TrocarDeSetor />}>
       {/* Com a fila já na tela, este banner é de uma ATUALIZAÇÃO que falhou: a lista abaixo é a da
           última carga boa (a decisão "falha de atualização mantém os dados" de `useCargaPeriodica`). */}
       <BannerDeErro mensagem={erro} />
@@ -318,7 +339,7 @@ function FilaDoSetor({ setorId }: { setorId: number }) {
             aoMarcarTodos: (secao) => aoMudarSelecao(marcarTodos(lote, secao, linhasVisiveisSemConserto)),
           }}
           acoes={{
-            aberta, erroDaAcao, abrir, fechar, registrar, setorId,
+            aberta, erroDaAcao, abrir, fechar, registrar, recarregar, setorId,
             pedirEstorno, escolherEstorno: setAConfirmar, estornando,
           }}
         />
@@ -366,6 +387,8 @@ interface AcoesDaFila {
   abrir: (chave: string) => void
   fechar: () => void
   registrar: (fazer: () => Promise<unknown>) => Promise<void>
+  /** Recarrega a fila: quem gravou por fora de `registrar` (o painel de baixa tem a escrita e o 409 dele). */
+  recarregar: () => unknown
   setorId: number
   pedirEstorno: (chave: string, estornaveis: Estornavel[]) => void
   escolherEstorno: (e: Estornavel) => void
@@ -384,7 +407,8 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
   lote: LoteDaTela
 }) {
   const { apontar, entregar: podeEntregar, podeEstornar } = usePermissoesDaExecucao()
-  const { aberta, erroDaAcao, abrir, fechar, registrar, setorId, pedirEstorno, escolherEstorno, estornando } = acoes
+  const { darBaixa } = usePermissoesDaBaixa()
+  const { aberta, erroDaAcao, abrir, fechar, registrar, recarregar, setorId, pedirEstorno, escolherEstorno, estornando } = acoes
   const rotuloDeIniciar = rotuloDaAcao('Iniciar', fila.setorAtividade)
   const rotuloDeTerminar = rotuloDaAcao('Terminar', fila.setorAtividade)
   const { lote } = doLote
@@ -700,14 +724,18 @@ function SecoesDaFila({ fila, completa, aoLimparFiltros, acoes, lote: doLote }: 
         <Secao titulo="Sobra">
           {fila.sobra.length === 0 && <SemLinhaNoFiltro />}
           {fila.sobra.map((s) => (
-            <ItemComAcao
+            <ItemDaSobra
               key={`${s.no.id}-${s.origem}-${s.ordem ?? ''}`}
-              acao={botaoDeEstorno(chaveDeEstornar('sobra', s.no.id, s.ordem), s.estornaveis, s.no)}
-              painel={listaDeEstorno(chaveDeEstornar('sobra', s.no.id, s.ordem), s.estornaveis)}
-            >
-              <CabecalhoDoNo no={s.no} />
-              <DetalheDaSobra sobra={s} />
-            </ItemComAcao>
+              sobra={s}
+              setorId={setorId}
+              descartar={darBaixa}
+              aberto={aberta === chaveDeDescartar(s)}
+              aoAbrir={() => abrir(chaveDeDescartar(s))}
+              aoFechar={fechar}
+              aoConcluir={recarregar}
+              estorno={botaoDeEstorno(chaveDeEstornar('sobra', s.no.id, s.ordem), s.estornaveis, s.no)}
+              listaDeEstorno={listaDeEstorno(chaveDeEstornar('sobra', s.no.id, s.ordem), s.estornaveis)}
+            />
           ))}
         </Secao>
       )}
@@ -877,10 +905,66 @@ function GrupoDeMontagem({ grupo, temAcaoNosFilhos, acaoDoFilho }: {
 }
 
 /**
- * A sobra (spec da Fase 3, §7.5, regra 30) é informada aqui, e o descarte dela não: ele é registrado
- * na Fase 5, pelo ator da perda. O único botão da linha é o "Estornar" do registro que a produziu, e
- * ele vem do `ItemComAcao` que envolve este componente, quando há registro estornável. Quando o
- * filho aguarda montagem em mais de um Setor, o texto diz que não dá para saber em qual está a
+ * A linha de sobra (spec da Fase 3, §7.5, regra 30) e o descarte dela (Fase 5B-1, C17): quem dá baixa
+ * (`usePermissoesDaBaixa`, e não o Operador nem o Movimentador, D5) ganha o "Descartar", que abre o `PainelDeBaixa`
+ * com o motivo `Descarte` fixo e a origem da própria linha: a sobra do último passo está em `AguardandoColeta` do
+ * passo dela, a de montagem em `AguardandoMontagem` deste Setor. A quantidade vai até a sobra da linha.
+ * O "Estornar" do registro que produziu a sobra continua, vindo do `ItemComAcao` que envolve a linha.
+ */
+function ItemDaSobra({ sobra, setorId, descartar, aberto, aoAbrir, aoFechar, aoConcluir, estorno, listaDeEstorno }: {
+  sobra: LinhaDeSobra
+  setorId: number
+  descartar: boolean
+  aberto: boolean
+  aoAbrir: () => void
+  aoFechar: () => void
+  aoConcluir: () => unknown
+  estorno: ReactNode
+  listaDeEstorno: ReactNode
+}) {
+  const botao = useRef<HTMLButtonElement>(null)
+  // O botão some com o painel aberto e o foco sai do DOM com o painel: volta ao botão.
+  useDevolverFoco(aberto, () => botao.current)
+
+  // Na sobra de montagem a origem é o `AguardandoMontagem` do Setor desta fila; se as unidades estão em outro Setor, a
+  // prévia do servidor recusa.
+  const origem: OrigemFixa = sobra.origem === 'UltimoPasso'
+    ? { posicao: 'AguardandoColeta', setorId, ordem: sobra.ordem }
+    : { posicao: 'AguardandoMontagem', setorId, ordem: null }
+  const nome = rotuloDoNo(sobra.no)
+  const mostraBotao = descartar && !aberto
+
+  return (
+    <ItemComAcao
+      acao={mostraBotao || estorno ? (
+        <>
+          {mostraBotao && (
+            <Botao ref={botao} variante="secundario" aria-label={`Descartar ${nome}`} onClick={aoAbrir}>Descartar</Botao>
+          )}
+          {estorno}
+        </>
+      ) : undefined}
+      painel={descartar && aberto ? (
+        <PainelDeBaixa
+          titulo={`Descartar sobra de ${nome}`}
+          no={{ id: sobra.no.id, descricao: nome, ehPeca: sobra.no.paiId === null }}
+          saldos={[{ ...origem, setorNome: null, ordem: origem.ordem ?? null, setorId, quantidade: sobra.quantidade }]}
+          motivoFixo="Descarte"
+          origemFixa={origem}
+          maximo={sobra.quantidade}
+          aoConcluir={aoConcluir}
+          aoFechar={aoFechar}
+        />
+      ) : listaDeEstorno}
+    >
+      <CabecalhoDoNo no={sobra.no} />
+      <DetalheDaSobra sobra={sobra} />
+    </ItemComAcao>
+  )
+}
+
+/**
+ * O texto da sobra. Quando o filho aguarda montagem em mais de um Setor, ele diz que não dá para saber em qual está a
  * unidade a mais, em vez de escolher um por conta própria.
  */
 function DetalheDaSobra({ sobra }: { sobra: LinhaDeSobra }) {

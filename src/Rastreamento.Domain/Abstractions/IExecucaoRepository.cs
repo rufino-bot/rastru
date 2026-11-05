@@ -94,8 +94,12 @@ public interface IExecucaoRepository
   /// <summary>O proprio no e todos os descendentes; vazio se o no nao existe.</summary>
   Task<IReadOnlyList<int>> ListarIdsDaSubarvoreAsync(int id, CancellationToken ct);
 
-  /// <summary>Todo no de Pedido que nao esta `Concluido` nem `Cancelado` — o escopo de fila e tarefas.</summary>
-  Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct);
+  /// <summary>
+  /// Todo no de Pedido que nao esta `Concluido` nem `Cancelado` — o escopo de fila e tarefas. Com `incluirConcluidos`,
+  /// os nos de Pedido `Concluido` tambem vem, para a sobra viva deles aparecer na Fila (C25 da spec da Fase 5B-1,
+  /// decisao P8 do plano de backend da Fase 5B-1); `Cancelado` nunca vem.
+  /// </summary>
+  Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default);
 
   Task<PedidoDoNo?> ObterPedidoDoNoAsync(int estruturaItemId, CancellationToken ct);
 
@@ -131,6 +135,24 @@ public interface IExecucaoRepository
   /// </summary>
   Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct);
 
+  /// <summary>
+  /// O liquido das linhas `Perda` com origem `AIniciar`, menos os estornos delas (destino `AIniciar` com `PerdaId`),
+  /// por no (C5 da spec da Fase 5B-1; decisao P2 do plano de backend). No sem perda nao aparece.
+  /// </summary>
+  Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Dos nos pedidos, os que sairam do projeto (C22; decisao P3 do plano de backend): tem uma baixa `Tudo` de motivo
+  /// `Descarte`, nao estornada, com escopo no proprio no.
+  /// </summary>
+  Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Dos Pedidos pedidos, os que tem algum no com uma linha `Inicio` sem estorno apontando para ela (regra 14:
+  /// o inicio liquido de estorno; decisao P7 do plano de backend da Fase 5B-1). Pedido sem inicio nao aparece.
+  /// </summary>
+  Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
   Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct);
 
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct);
@@ -154,6 +176,9 @@ public interface IExecucaoRepository
   Task MarcarMontagemEstornadaAsync(int montagemId, int usuarioId, DateTime em, CancellationToken ct);
 
   Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>O motivo de cada baixa (`dbo.Perda`) pedida, por Id. Baixa inexistente nao volta.</summary>
+  Task<IReadOnlyDictionary<int, string>> ListarMotivosDasPerdasAsync(IReadOnlyCollection<int> perdaIds, CancellationToken ct);
 
   /// <summary>
   /// Dos nos pedidos: os `Inicio` (sem Montagem — o inicio de um pai se estorna pela montagem) e os

@@ -69,7 +69,7 @@ public sealed class ConsultaDeSeparacaoUseCase
 
   private async Task<Result<IReadOnlyList<PendenciaDeSeparacaoDto>>> PendenciasAsync(CancellationToken ct)
   {
-    var contexto = await _execucao.ListarNosEmProducaoAsync(ct);
+    var contexto = await _execucao.ListarNosEmProducaoAsync(ct: ct);
     var comAlmoxarifado = await _separacao.ListarNosComMaterialDoAlmoxarifadoAsync(
         contexto.Select(x => x.No.Id).ToList(), ct);
     var candidatos = contexto.Where(x => comAlmoxarifado.Contains(x.No.Id)).ToList();
@@ -84,8 +84,12 @@ public sealed class ConsultaDeSeparacaoUseCase
     var materiais = (await _separacao.ListarMateriaisAsync(materiaisIds, ct)).ToDictionary(m => m.Id);
     var doAlmoxarifado = materiais.Values.Where(m => m.SetorDeEstoqueId is null).Select(m => m.Id).ToHashSet();
 
+    // C26 da spec da Fase 5B-1: o no perdido ou descartado por inteiro (perdido igual a quantidade dele) sai da lista;
+    // o todo montado ou expedido, e o perdido so em parte, continuam.
+    var perdidosPorInteiro = candidatos.Select(x => x.No.Id)
+        .Where(id => estado.Calc.Saldo(id, Local.Perdido) >= estado.Calc.No(id).Quantidade).ToHashSet();
     var pendentesPorNo = CalculoDaSeparacao.Resumir(planejado, linhas, doAlmoxarifado)
-        .Where(r => r.Pendencia > 0m)
+        .Where(r => r.Pendencia > 0m && !perdidosPorInteiro.Contains(r.EstruturaItemId))
         .ToLookup(r => r.EstruturaItemId);
 
     var primeirosPassos = candidatos

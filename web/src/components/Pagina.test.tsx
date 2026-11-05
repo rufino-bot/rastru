@@ -1,10 +1,74 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { render, screen, cleanup, within } from '@testing-library/react'
 import { Link, MemoryRouter } from 'react-router-dom'
 import { Pagina } from './Pagina'
 
+beforeEach(() => {
+  document.title = ''
+})
 afterEach(cleanup)
+
+describe('Pagina — título da aba', () => {
+  it('escreve "{título} · Rastru" na aba', () => {
+    render(<Pagina titulo="Pedidos"><p>c</p></Pagina>)
+
+    expect(document.title).toBe('Pedidos · Rastru')
+  })
+
+  it('lê o texto do h1 quando o título é um elemento', () => {
+    render(<Pagina titulo={<span tabIndex={-1}>PED-001</span>}><p>c</p></Pagina>)
+
+    expect(document.title).toBe('PED-001 · Rastru')
+  })
+
+  it('lê o texto do h1 quando o título tem link dentro', () => {
+    render(
+      <MemoryRouter>
+        <Pagina titulo={<><Link to="/pedidos/4">Pedido P-1</Link> — AG-01</>}>c</Pagina>
+      </MemoryRouter>,
+    )
+
+    expect(document.title).toBe('Pedido P-1 — AG-01 · Rastru')
+  })
+
+  it('acompanha o título quando ele muda depois da carga', () => {
+    const { rerender } = render(<Pagina titulo="Pedido"><p>c</p></Pagina>)
+    expect(document.title).toBe('Pedido · Rastru')
+
+    rerender(<Pagina titulo="PED-001"><p>c</p></Pagina>)
+
+    expect(document.title).toBe('PED-001 · Rastru')
+  })
+
+  it('ao desmontar, devolve "Rastru"', () => {
+    const { unmount } = render(<Pagina titulo="Pedidos"><p>c</p></Pagina>)
+
+    unmount()
+
+    expect(document.title).toBe('Rastru')
+  })
+
+  it('na troca de uma Pagina por outra, o título é o da nova', () => {
+    const { rerender } = render(<Pagina key="a" titulo="Pedidos"><p>c</p></Pagina>)
+
+    rerender(<Pagina key="b" titulo="Setores"><p>c</p></Pagina>)
+
+    expect(document.title).toBe('Setores · Rastru')
+  })
+
+  it('título só de espaço fica "Rastru"', () => {
+    render(<Pagina titulo="   "><p>c</p></Pagina>)
+
+    expect(document.title).toBe('Rastru')
+  })
+
+  it('colapsa espaços internos', () => {
+    render(<Pagina titulo={'Pedido   \n P-1'}><p>c</p></Pagina>)
+
+    expect(document.title).toBe('Pedido P-1 · Rastru')
+  })
+})
 
 describe('Pagina', () => {
   it('mostra o título como o h1 da tela', () => {

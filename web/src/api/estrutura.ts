@@ -99,6 +99,7 @@ export type CodigoDeConflitoDeEstrutura =
   | 'NoComSeparacao'
   | 'PedidoFechado'
   | 'ComAfericao'
+  | 'DiminuirPelaBaixa'
 
 /**
  * Corpo do 409 dos endpoints de escrita da árvore: `{ "erro": "<código>", "mensagem": "<frase>" }`.
@@ -121,7 +122,7 @@ export interface ConflitoDeEstrutura {
 const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
   'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado', 'NoComSeparacao',
-  'PedidoFechado', 'ComAfericao',
+  'PedidoFechado', 'ComAfericao', 'DiminuirPelaBaixa',
 ]
 
 export function ehConflitoDeEstrutura(r: unknown): r is ConflitoDeEstrutura {

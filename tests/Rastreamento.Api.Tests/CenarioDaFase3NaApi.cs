@@ -203,6 +203,8 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
           $"DELETE FROM dbo.Movimentacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      // A baixa (Fase 5B-1) e apontada pelo livro por FK: sai logo depois dele.
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {PedidoId}");
       // O livro aponta os agrupadores do fim do caminho por FK, entao eles saem DEPOIS dele: a remessa pelos
       // usuarios do cenario (quem aponta a remessa e o livro, nao o no), a contagem, a liberacao e a afericao
       // pelo no. A resposta de liberacao e o estorno de afericao apontam a propria tabela: saem primeiro.

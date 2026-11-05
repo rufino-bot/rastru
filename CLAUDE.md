@@ -67,9 +67,19 @@ três em 2026-10-20: **5A** (aferição, expedição e fechamento), **5B** (perd
 Kit que a 3B deixou), cada uma com spec, plano e PR próprios e **nesta ordem** — a partição não é exceção à
 sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi concluída e mesclada em 2026-11-03
 (rufino-bot/rastru#35; spec
-`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`); a próxima da sequência é a
-**5B**, e a 5B e a 5C ainda não têm spec. O "Descartar Peça ou Item em Pedido rodando" é da **5B**, marcado **obrigatório antes do primeiro uso
-real**.
+`docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento-design.md`); a seguinte é a
+**5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
+descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
+planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
+de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-05:** o **backend está implementado** na branch (a
+regra 38 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b1.sql`) e o **front também** (o módulo
+`web/src/baixas/`, descrito na seção «Interface»: o "Dar baixa" do nó, o "Matar" do cartão da expedição, o "Descartar"
+da sobra da Fila, o "Descartar tudo" do Pedido e do Agrupamento e a seção "Baixas"); a **conferência do usuário no
+navegador** e os ajustes dela (F1 a F3) foram validados em 2026-11-05, a **review de branch** inteira foi feita no mesmo
+dia e os achados aceitos foram consertados na branch; **falta o merge, e nada foi mesclado**. A 5C ainda não tem spec, e
+da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item em
+Pedido rodando" é da **5B-1**, marcado **obrigatório antes do primeiro uso real**: o backend o entrega (a baixa `tudo`
+de `Descarte` e o "Descartar tudo"), e só o merge o cumpre.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -270,7 +280,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `web/src/App.tsx`. Não escreva container próprio, e nunca `min-h-screen` numa tela — quem faz isso
   é o shell. As duas exceções são `LoginPage` e `TelaCarregando`, ambas por renderizarem **fora**
   do shell (a segunda substitui o `AppShell` inteiro enquanto a sessão ainda carrega, em
-  `ProtectedRoute`) — não numa terceira tela nova.
+  `ProtectedRoute`) — não numa terceira tela nova. A `Pagina` também escreve o título da aba, a partir
+  do texto renderizado do `<h1>` ("{título} · Rastru", e só "Rastru" sem texto), e a tela nunca escreve
+  `document.title`; as duas exceções acima, por não usarem `Pagina`, ficam com o "Rastru" do `index.html`.
 
   **Cadastro não fica no topo da tela** (desde a Fase 1F, spec
   `docs/superpowers/specs/2026-09-06-fase-1f-cadastro-sob-demanda-design.md`). Um bloco de campos
@@ -431,22 +443,30 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
   cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Na `LiberacoesPage` a
   origem é o "Responder" do cartão, e o nome da Peça no cartão quando ele não volta; no `CartaoDaPeca` da expedição,
-  o botão que abriu o painel (Aferir, Contar, Mandar para conserto, Pedir liberação, Expedir), e o nome da Peça
+  o botão que abriu o painel (Aferir, Contar, Mandar para conserto, Pedir liberação, Matar, Expedir), e o nome da Peça
   quando a escrita o tira (a aferição registrada tira o "Aferir"); nas `RemessasRecentes`, o "Estornar remessa" da
-  remessa, e o título da seção quando ele não volta. Quando a escrita tira o **cartão** da lista (a última Peça
+  remessa, e o título da seção quando ele não volta. Nas baixas (Fase 5B-1): o "Dar baixa" do `PainelDoNo`, e o título
+  do nó quando a baixa zera o que havia em produção; o "Descartar tudo" da `AgrupamentoDetalhePage` e da
+  `PedidoDetalhePage`, e o título da tela quando o botão não volta; o "Descartar" da linha de sobra da
+  `FilaDoSetorPage`, e, como o campo já vem na sobra inteira, a recarga costuma tirar a linha e o hook dela com ela: aí
+  quem devolve o foco é a tela, ao título (o `<h1>` tem um `span` focável), pela linha do último painel de descarte aberto; e a seção "Baixas"
+  (`HistoricoDeBaixas`), que devolve ao "Estornar" da baixa, ou ao título dela. Quando a escrita tira o **cartão** da lista (a última Peça
   expedida, a liberação respondida), o cartão e o hook dele se vão, e quem devolve o foco é a tela, ao título dela.
-  Hoje o hook tem **treze** chamadas em **doze** arquivos — nove telas (`ExpedicaoPage` não chama: o hook mora nos
-  componentes dela) e três componentes que não são tela: o `MateriaisDoNo`, do `PainelDoNo` da
-  `AgrupamentoDetalhePage`, e o `CartaoDaPeca` e as `RemessasRecentes`, da `ExpedicaoPage` — (medido em 2026-10-02 com
+  Hoje o hook tem **dezoito** chamadas em **quinze** arquivos — dez telas (`ExpedicaoPage` não chama: o hook mora nos
+  componentes dela) e cinco componentes que não são tela: o `MateriaisDoNo`, o `PainelDoNo` e o `HistoricoDeBaixas`,
+  do `PainelDoNo` da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, e o `CartaoDaPeca` e as `RemessasRecentes`, da
+  `ExpedicaoPage` — (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
   2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, de novo em 2026-10-09: oito, porque a
   `PedidoDetalhePage` tem uma, de novo em 2026-10-17: dez, porque a `SeparacaoPage` e o `MateriaisDoNo` têm uma
   cada, e de novo em 2026-10-22: treze, porque a `LiberacoesPage`, o `CartaoDaPeca` e as `RemessasRecentes` têm uma
-  cada; a métrica é **linhas**, e a `AgrupamentoDetalhePage` é a única com duas): `SetoresPage`, `MateriaisPage`,
-  `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage`,
-  `PedidoDetalhePage`, `SeparacaoPage`, `LiberacoesPage` e, fora das telas, o `MateriaisDoNo`, o `CartaoDaPeca` e as
-  `RemessasRecentes`. O usuário decidiu
+  cada, e de novo em 2026-11-05: dezoito, porque o "Descartar tudo" deu uma chamada à `AgrupamentoDetalhePage`, que passou
+  a três, e à `PedidoDetalhePage`, que passou a duas, e entraram o `PainelDoNo`, o `HistoricoDeBaixas` e a
+  `FilaDoSetorPage` com uma cada; a métrica é **linhas**, e as duas telas com mais de uma são essas):
+  `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`,
+  `ConferenciaDeImportacaoPage`, `PedidoDetalhePage`, `SeparacaoPage`, `LiberacoesPage`, `FilaDoSetorPage` e, fora das
+  telas, o `MateriaisDoNo`, o `CartaoDaPeca`, as `RemessasRecentes`, o `PainelDoNo` e o `HistoricoDeBaixas`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -457,11 +477,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **dez** telas consumidoras (sete escrevem o
-  `<PainelDeEscrita` à mão e três só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
-  `PainelDoArquivoDoBom`, a `SeparacaoPage`, pelo `PainelDeSeparacao`, e a `ExpedicaoPage`, pelos painéis do
-  `CartaoDaPeca` e das `RemessasRecentes`), com **dezessete**
-  linhas de uso no código e **dezoito** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **onze** telas consumidoras (sete escrevem o
+  `<PainelDeEscrita` à mão e quatro só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
+  `PainelDoArquivoDoBom`, a `SeparacaoPage`, pelo `PainelDeSeparacao`, a `ExpedicaoPage`, pelos painéis do
+  `CartaoDaPeca` e das `RemessasRecentes`, e a `FilaDoSetorPage`, pelo `PainelDeBaixa` da sobra), com **dezenove**
+  linhas de uso no código e **vinte e três** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
   "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
@@ -469,19 +489,24 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   "Editar materiais" do `MateriaisDoNo` e o "Separar material" do `PainelDeSeparacao`, e de novo em 2026-10-22:
   dezessete, porque entraram o "Responder" da `LiberacoesPage` e os seis da expedição — os cinco do `CartaoDaPeca`
   (`PainelDeAfericao`, `PainelDeContagem`, `PainelDeConserto`, `PainelDePedidoDeLiberacao` e `PainelDeRemessa`, uma
-  linha em cada) e o das `RemessasRecentes`; a métrica é **linhas**, não
-  usos). As dezessete linhas são
+  linha em cada) e o das `RemessasRecentes`, e de novo em 2026-11-05: dezenove, porque entraram o `PainelDeBaixa` e o
+  `PainelDeDescarteTotal`, uma linha em cada; a métrica é **linhas**, não
+  usos). As dezenove linhas são
   oito nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage` (novo e editar material, no mesmo
   uso, desde a Fase 4), `ComponentesPage`,
   `PedidosPage`, `PedidoDetalhePage`, `LiberacoesPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova
-  Peça" e o do nó, editar e acrescentar sub-Item) — mais nove em componentes: a do `PainelDoArquivoDoBom`, a do
+  Peça" e o do nó, editar e acrescentar sub-Item) — mais onze em componentes: a do `PainelDoArquivoDoBom`, a do
   `MateriaisDoNo` (o "Editar materiais", dentro do `PainelDoNo` da `AgrupamentoDetalhePage`), a do
-  `PainelDeSeparacao` e as seis da expedição, que moram em `web/src/expedicao/`. Os dezoito painéis são os oito das
+  `PainelDeSeparacao`, as seis da expedição, que moram em `web/src/expedicao/`, e as duas de `web/src/baixas/`. Os vinte e
+  três painéis são os oito das
   linhas das telas (uma linha, um painel) mais os dois
   usos do `PainelDoArquivoDoBom` (o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
   `ConferenciaDeImportacaoPage`; `grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
-  duas linhas em 2026-10-07, em 2026-10-17 e em 2026-10-22), mais o "Editar materiais", o "Separar material" e os seis
-  da expedição. Na
+  duas linhas em 2026-10-07, em 2026-10-17 e em 2026-10-22), mais o "Editar materiais", o "Separar material", os seis
+  da expedição, os três usos do `PainelDeBaixa` (o "Dar baixa" do `PainelDoNo`, o "Matar" do `CartaoDaPeca`, que é o
+  `PainelDeMatar` fino sobre ele, e o "Descartar" da sobra da `FilaDoSetorPage`; `grep -rn "<PainelDeBaixa" web/src
+  --include=*.tsx | grep -v "\.test\."`, três linhas em 2026-11-05) e os dois do `PainelDeDescarteTotal` (o "Descartar
+  tudo" da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, duas linhas no mesmo comando). Na
   `AgrupamentoDetalhePage` os três painéis de escrita da tela (Nova Peça, Importar BOM e o do nó) nunca coexistem:
   abrir um fecha os outros; o "Editar materiais" mora no `PainelDoNo` e fica fora dessa regra.
 
@@ -690,6 +715,35 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `201` é o servidor, e a tela só os mostra **antes** de confirmar. Mudou lá, muda aqui, e os testes dos dois lados
   fixam a mesma tabela. O aviso não trava (regra 37 de `specs/01`). O "Expedir {q}" trava com `enviando`, e o `ref` do
   `useEscritaDoPainel` segura o segundo `submit` contra o duplo toque, e o lote é uma remessa só, tudo ou nada (C9).
+- **A baixa** (Fase 5B-1, spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, seção 6) mora
+  em `web/src/baixas/`, no molde da expedição e da separação: o `PainelDeBaixa` ("Dar baixa": motivo, "Tudo o que está em
+  produção" ou "Uma parte" com a quantidade por posição de origem), o `PainelDeDescarteTotal` (o "Descartar tudo" do
+  Pedido e do Agrupamento), o `HistoricoDeBaixas` (a seção "Baixas" do nó e do Pedido, com o estorno da baixa inteira),
+  o `usePreviaDaBaixa` e a `PreviaDaBaixa`, o `useDescarteDisponivel`, a lógica pura `posicoesDaBaixa` (de onde uma baixa
+  pode tirar, cópia de `Posicoes.DeOndeSeDaBaixa`, do Domain, que o `CalculoDaBaixa` consulta) e o
+  `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de marcar com o texto visível, diferente da
+  `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
+  `PainelDeBaixa` aceita `motivoFixo`, `origemFixa`, `maximo`, `titulo` e `aviso`, que são o que as duas baixas "de
+  atalho" decidem por conta própria: o "Matar" do cartão da expedição (`PainelDeMatar`, em `web/src/expedicao/`, motivo
+  `MortaEmProcesso`, origem `NaoConforme`, teto as não conformes aguardando decisão, visível com `naoConforme > 0`) e o
+  "Descartar" da linha de sobra da Fila (motivo `Descarte`, origem `AguardandoColeta` do passo da linha ou
+  `AguardandoMontagem` do Setor, teto a sobra da linha). O `usePermissoesDaBaixa` diz o que a sessão pode fazer
+  (`darBaixa`: Qualidade, PCP e Administrador; `podeEstornar(autorId)`: o autor, ou PCP e Administrador) e é o **único
+  lugar que lê `permissoes.ts` para a baixa**; o Operador e o Movimentador não veem "Dar baixa", "Matar", "Descartar
+  tudo" nem o "Descartar" da sobra (D5), e o "Matar" é da baixa, não do `registrar` da expedição: o PCP o vê sozinho no
+  cartão. **A regra de cor:** só o "Descartar tudo" é `perigo`; o resto é botão comum, e a pílula de posição "N perdidos" da árvore e a "Estornada" do
+  histórico são `Pilula` **neutra** (perda e estorno não são aprovado nem reprovado; o `negativo` fica para a não conformidade da
+  expedição). **A prévia vem do servidor** (C14): `usePreviaDaBaixa` consulta `…/baixas/previa` com o pedido de agora
+  (debounce de 300 ms, vence a última consulta enviada) e o enviar só destrava quando ela voltou sem recusa, ao
+  contrário da `tiradaDaRemessa`, que é cópia no cliente — a conta da baixa percorre a árvore, e uma cópia dela no front
+  não se justifica. **A caixa do topo (D13, D14):** na baixa de **parte** de um Item, com qualquer motivo, ou de **tudo**
+  por perda (`PerdaArmazem` ou `MortaEmProcesso`), que trava a montagem da Peça do topo, a prévia traz `travaNoTopo` e o
+  painel mostra o `CampoDeCaixa` "Isso impede montar {q} {Peça}. Dar baixa também delas", **marcado por padrão** (decisão
+  do usuário, 2026-11-05: a parte com `Descarte` também o oferece); só a baixa de **tudo** por `Descarte` não tem trava
+  (C22), e o painel não pede. O "Descartar tudo" só aparece com algo em produção no escopo
+  (`useDescarteDisponivel`, pela prévia do servidor) e trava o segundo toque pelo `ref` do `useEscritaDoPainel`. A dica
+  de D12 mora fora do módulo: o campo de quantidade da edição de nó da `AgrupamentoDetalhePage` diz "Para diminuir, use
+  "Dar baixa"." quando o Pedido está `EmProducao` ou `AguardandoExpedicao`, os dois status em que o servidor recusa, e a recusa `DiminuirPelaBaixa` do servidor aparece no painel.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -710,7 +764,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   invariante a preservar é **conservação de quantidade**, para **todo** `EstruturaItem`: em
   produção (a iniciar, nos Setores, aguardando coleta ou montagem, no local de expedição — as cinco
   posições dele —, em conserto) + montado dentro do pai + expedido (a posição `Expedido` do livro, que as
-  linhas `Expedicao` de uma remessa alimentam) + perdido (`Perda`, da Fase 5B) = quantidade total do nó
+  linhas `Expedicao` de uma remessa alimentam) + perdido (a posição `Perdido`, que as linhas `Perda` de uma baixa
+  alimentam, desde a Fase 5B-1) = quantidade total do nó; a baixa não reduz a quantidade cadastrada do nó, o perdido
+  é um termo da soma
   (validado na aplicação; regra 9).
 - O **início de todo nó com filhos consome os filhos** presentes no Setor — é a montagem, e desde a
   Fase 3D "montar" não é mais uma ação própria. Ele só aceita o que os filhos diretos presentes
@@ -738,9 +794,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   início do nó. (Regra 34 de `specs/01`, Fase 4.)
 - **Cada registro composto do fim do caminho se estorna inteiro, e o Rastru avisa em vez de travar.** A
   contagem (uma linha `Medicao` por resultado diferente de zero, até duas), a remessa (uma linha `Expedicao` por posição de origem), o pedido de
-  liberação e a resposta se estornam **por inteiro**, pela rota do registro, e a rota genérica
-  `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar metade
-  inventaria uma contagem ou uma remessa que ninguém fez. E nenhuma situação da aferição trava a remessa — ela
+  liberação, a resposta e, desde a Fase 5B-1, a **baixa** (uma linha `Perda` por nó e por posição de origem, apontando a
+  `dbo.Perda`, e os filhos que saíram junto pela cascata C6) se estornam **por inteiro**, pela rota do registro, e a
+  rota genérica `POST /movimentacoes/{id}/estorno` recusa a linha de qualquer um deles (`EstornoImpossivel`): estornar
+  metade inventaria uma contagem, uma remessa ou uma baixa que ninguém fez. A baixa só se estorna uma vez
+  (`JaEstornado`), sem prazo, porque `Perdido` é terminal. E nenhuma situação da aferição trava a remessa — ela
   avisa (D8, regras 36 e 37 de `specs/01`, C17 da spec da Fase 5A).
 - `EstruturaItem` é recursivo: nó sem pai = **Peça**, nó com pai = **Item**. Não crie
   tabelas separadas para Peça e Item.
@@ -949,15 +1007,41 @@ derrubado, regenerado e populado à vontade. A restrição antiga que vivia nest
 derrubar o SQL Server" — **não vale mais**, e não é motivo válido para deixar uma contagem sem
 reconferir.
 
-A suíte do backend tem **1.736 testes** (medido em 2026-10-22, em `4a0fca4`, **executando** a suíte inteira com
-`dotnet build Rastreamento.slnx -warnaserror` — 0 warnings, 0 erros — e `dotnet test Rastreamento.slnx -m:1`: 414
-(Api) + 1.036 (Application) + 286 (Infrastructure) = 1.736, todos passando, e 0 em Domain; a métrica é a de testes
-executados, em que cada caso de `[Theory]` conta como um). Desde a medição anterior (2026-10-20, em `4cca2f4`, com
-`--list-tests`, que só descobre por reflexão e não executa: 391 + 842 + 242 = 1.475, e a execução do mesmo dia bateu
-com ela) entraram **261** testes (23 em Api, 194 em Application e 44 em Infrastructure), num intervalo de 28 commits, 3 deles de
-documentação/merge da Fase 4; a origem dos testes não foi separada por commit. A do
-frontend tem **1.878 testes em 105 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run`, em
-`web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz typecheck). O "passa
+A suíte do backend tem **1.878 testes** (medido em 2026-11-04, em `816e621`, **executando** a suíte inteira com
+`dotnet build Rastreamento.slnx -warnaserror` — 0 warnings, 0 erros — e `dotnet test Rastreamento.slnx -m:1`: 481
+(Api) + 1.083 (Application) + 314 (Infrastructure) = 1.878, todos passando, e 0 em Domain, que não tem teste algum; a
+métrica é a de testes executados, em que cada caso de `[Theory]` conta como um). Contra a base da 5B-1 (`010198d`, medida
+executando no mesmo dia: 414 + 1.036 + 286 = 1.736), entraram **142** testes (67 em Api, 47 em Application e 28 em
+Infrastructure), que são o delta da 5B-1. A medição anterior do parágrafo (2026-10-22, em `4a0fca4`) não serve de
+base para isso: o intervalo até `816e621` inclui o fim da 5A. A do
+frontend tem **1.912 testes em 106 arquivos** (medido na mesma data e no mesmo commit com `npm test -- --run
+--maxWorkers=2`, em `web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz
+typecheck, e passou). Contra a medição de 2026-10-22 (1.878 em 105 arquivos) são +34 testes e +1 arquivo, que vêm da
+conferência da 5A e não da 5B-1; contra a base da 5B-1 (1.911 em 106) é +1 teste, a linha da entrada `baixa` em
+`permissoes.ts` espelhada pelo teste de espelhamento. **Remedido em 2026-11-05**, na branch com o front da 5B-1 (HEAD
+`7e76b4f`), com o mesmo comando: **2.050 testes em 116 arquivos**, todos passando, e o `npm run build` passou; contra a
+base da 5B-1 (1.911 em 106) são +139 testes e +10 arquivos, que são o front dela.
+
+**Remedido em 2026-11-05, depois do fix wave da review de branch** (HEAD `e011e84`, **executando** as quatro coisas
+que o ciclo pede): `dotnet build Rastreamento.slnx -warnaserror` com 0 warnings e 0 erros; `dotnet test
+Rastreamento.slnx -m:1` com **1.886 testes**, todos passando (485 em Api, 1.086 em Application e 315 em
+Infrastructure; 0 em Domain); em `web/`, `npm test -- --run --maxWorkers=2` com **2.070 testes em 117 arquivos**,
+todos passando, e `npm run build` passou. A métrica é a de testes executados. O backend ganhou 2 em Api (a Fila de
+Pedido concluído e o pai Avulso cujos filhos saíram todos) e 3 em Application (a calculadora com o filho que saiu do
+projeto); o front ganhou 1 (o "Descartar tudo" do Agrupamento acompanhando o estorno do painel do nó). Contra a
+medição de `7e76b4f` (2.050 em 116), os +20 testes e +1 arquivo do front vêm dos ajustes da conferência (F1 a F3) e
+deste fix wave, não da 5B-1 em si.
+
+**Remedido de novo em 2026-11-05, na rodada 2 do fix wave** (HEAD `11ee76e`; o único código novo é o teste de
+`a40644f`): `dotnet build Rastreamento.slnx -warnaserror` com 0 warnings e 0 erros, e `dotnet test Rastreamento.slnx
+-m:1` com **1.887 testes**, todos passando (486 em Api, 1.086 em Application e 315 em Infrastructure; 0 em Domain; a
+métrica é a de testes executados). O +1 em Api é o teste das Tarefas e da contagem com o Roteiro de dois passos. O front
+não ganhou teste: a rodada só tocou um JSDoc, e o arquivo da `AgrupamentoDetalhePage` (110 de 110) e o `npm run build`
+passaram; a suíte inteira do front segue com os 2.070 em 117 arquivos da medição anterior, sem ter sido reexecutada.
+
+Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
+ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
+segunda execução da suíte passou 1.912 de 1.912; causa não investigada. O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
 não do estado atual. Quantos
 exatamente **precisam** do SQL Server (em vez de fake) **não foi remedido nesta passada** — isso
@@ -1091,7 +1175,8 @@ usuário que não escreve nele não dá para provar que a AÇÃO some para quem 
 `movimentador` e o `separador` escrevem só na execução e na separação de material: um no apontamento,
 outro na entrega e o terceiro ao registrar o que levou para o nó (regra 34 de `specs/01`). O `qualidade` e o
 `gestao` escrevem só no fim do caminho da Peça (Fase 5A): a Qualidade, que é a pessoa da expedição, afere, conta,
-manda para conserto, pede liberação e expede; a Gestão responde aos pedidos de liberação. Até essa data o
+manda para conserto, pede liberação, expede e **dá baixa** (Fase 5B-1, regra 38); a Gestão responde aos pedidos de
+liberação. Até essa data o
 `operador` vivia só no banco de uma máquina, criado à mão em 2026-08-25 reusando o hash do `admin`, e
 ficou fora do seed por decisão da Fase 1C: o seed dá ao `pcp` senha e hash distintos dos do `admin`,
 de propósito, "para não virar mina para quem tentar logar depois", e versionar o hash do `admin` sob
@@ -1266,6 +1351,21 @@ idempotente.
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5a.sql sqlserver:/tmp/alter-fase-5a.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5a.sql
+```
+
+**Fase 5B-1 — `db/alter-fase-5b1.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em cinco blocos: o **aborto** (`THROW 50003`) se a `dbo.Perda` ainda na forma
+antiga (a que tem a coluna `MotivoPerda`) tiver alguma linha, em vez de descartar dado em silêncio; o `DROP` dela, só
+vazia, no mesmo lote do aborto; o `CREATE` da `dbo.Perda` nova, o registro da baixa, com `CK_Perda_Motivo` e
+`CK_Perda_Escopo`; a coluna `Movimentacao.PerdaId` com a FK `FK_Movimentacao_Perda` e o índice filtrado
+`IX_Movimentacao_Perda`; e as **sete** constraints do livro recriadas — `CK_Movimentacao_Tipo`, `OrigemPosicao`, `DestinoPosicao`,
+`OrigemCoerente`, `DestinoCoerente`, `Transicao` e `RegistroCoerente` — com a posição `Perdido` e o tipo `Perda` (`DROP`
+se existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5b1.sql sqlserver:/tmp/alter-fase-5b1.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5b1.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

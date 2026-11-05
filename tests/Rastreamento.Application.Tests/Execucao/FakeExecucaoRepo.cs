@@ -55,6 +55,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>SetorIds com `UtilizaKit`. Arranjo do teste.</summary>
   public HashSet<int> SetoresComKit { get; } = new();
 
+  /// <summary>Os nos que saíram do projeto (baixa `Tudo` de `Descarte`): o fake nao guarda `Perda`, entao o teste os diz.</summary>
+  public HashSet<int> SaidosDoProjeto { get; } = new();
+
   public Dictionary<int, string> StatusDoPedido { get; } = new();
 
   /// <summary>
@@ -75,6 +78,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>MaterialId -> (Codigo, Descricao). Lido junto de `Materiais` do <see cref="FakeEstruturaRepo"/>.</summary>
   public Dictionary<int, (string Codigo, string Descricao)> CatalogoDeMateriais { get; } = new();
   public Dictionary<int, string> Usuarios { get; } = new();
+  public Dictionary<int, string> MotivosDasPerdas { get; } = new();
 
   /// <summary>Os Ids de cada `TravarNosAsync`, como chegaram — prova de QUEM o caso de uso trava.</summary>
   public List<IReadOnlyList<int>> Travas { get; } = new();
@@ -217,14 +221,14 @@ public class FakeExecucaoRepo : IExecucaoRepository
     return Task.FromResult<IReadOnlyList<int>>(ids);
   }
 
-  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(CancellationToken ct)
+  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default)
   {
     var lista = new List<ContextoDoNo>();
     foreach (var item in _estruturas.Itens.OrderBy(i => i.Id))
     {
       if (!Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag)) continue;
       var status = StatusDoPedido[ag.PedidoId];
-      if (status is "Concluido" or "Cancelado") continue;
+      if (status == "Cancelado" || (status == "Concluido" && !incluirConcluidos)) continue;
       var materiais = _estruturas.Materiais.Where(m => m.EstruturaItemId == item.Id)
           .Select(m => new MaterialDoNo(m.MaterialId, CatalogoDeMateriais[m.MaterialId].Codigo, CatalogoDeMateriais[m.MaterialId].Descricao))
           .OrderBy(m => m.Codigo, StringComparer.Ordinal).ToList();
@@ -351,6 +355,29 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct) =>
       Task.FromResult<IReadOnlySet<int>>(SetoresComKit.ToHashSet());
 
+  public Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<int, decimal>>(Movimentacoes
+          .Where(m => ids.Contains(m.EstruturaItemId) && m.PerdaId != null
+                      && ((m.Tipo == TiposDeMovimentacao.Perda && m.OrigemPosicao == Posicoes.AIniciar)
+                          || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar)))
+          .GroupBy(m => m.EstruturaItemId)
+          .ToDictionary(g => g.Key, g => g.Sum(m => m.Tipo == TiposDeMovimentacao.Perda ? m.Quantidade : -m.Quantidade)));
+
+  public Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    var estornados = Movimentacoes.Where(m => m.EstornoDeId != null).Select(m => m.EstornoDeId!.Value).ToHashSet();
+    var achados = Movimentacoes
+        .Where(m => m.Tipo == TiposDeMovimentacao.Inicio && !estornados.Contains(m.Id))
+        .Select(m => _estruturas.Itens.FirstOrDefault(i => i.Id == m.EstruturaItemId))
+        .Where(i => i is not null && Agrupamentos.TryGetValue(i.AgrupamentoId, out var ag) && pedidoIds.Contains(ag.PedidoId))
+        .Select(i => Agrupamentos[i!.AgrupamentoId].PedidoId)
+        .ToHashSet();
+    return Task.FromResult<IReadOnlySet<int>>(achados);
+  }
+
+  public Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct) =>
+      Task.FromResult<IReadOnlySet<int>>(SaidosDoProjeto.Where(ids.Contains).ToHashSet());
+
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));
 
@@ -390,6 +417,11 @@ public class FakeExecucaoRepo : IExecucaoRepository
     }
     return Task.CompletedTask;
   }
+
+  public Task<IReadOnlyDictionary<int, string>> ListarMotivosDasPerdasAsync(
+      IReadOnlyCollection<int> perdaIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<int, string>>(
+          MotivosDasPerdas.Where(kv => perdaIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
 
   public Task<IReadOnlyDictionary<int, string>> ListarNomesDeUsuariosAsync(
       IReadOnlyCollection<int> ids, CancellationToken ct) =>

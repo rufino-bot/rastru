@@ -35,6 +35,9 @@ public class Movimentacao
   /// <summary>So na `Expedicao` (e no estorno dela): a remessa. Estorna-se a remessa inteira (C8).</summary>
   public int? RemessaId { get; set; }
 
+  /// <summary>So na `Perda` (e no estorno dela): a baixa. Estorna-se a baixa inteira (C7 da spec da Fase 5B-1).</summary>
+  public int? PerdaId { get; set; }
+
   /// <summary>So no Estorno: o movimento que ele desfaz (`UX_Movimentacao_EstornoDe`: uma vez so).</summary>
   public int? EstornoDeId { get; set; }
 

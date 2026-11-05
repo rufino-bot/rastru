@@ -213,6 +213,17 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST afericoes/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
     ["POST contagens/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
     ["POST liberacoes/{id:int}/estorno"] = ["Qualidade", "Gestao", "PCP", "Administrador"],
+    // Baixa (D5 da spec da Fase 5B-1): a Qualidade e o PCP dao baixa. Um controller so, `BaixaController`, para
+    // todas as escritas da baixa (decisao P1 do plano de backend da Fase 5B-1); a previa e escrita so no verbo.
+    ["POST estrutura/{id:int}/baixas"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST estrutura/{id:int}/baixas/previa"] = ["Qualidade", "PCP", "Administrador"],
+    // O "Descartar tudo" do Agrupamento e do Pedido (P6 do plano de backend da Fase 5B-1), com as previas.
+    ["POST agrupamentos/{id:int}/descarte"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST agrupamentos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST pedidos/{id:int}/descarte"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST pedidos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
+    // O estorno inteiro da baixa: o autor, ou PCP e Administrador, e decidido pelo caso de uso (403 `Proibido`).
+    ["POST baixas/{id:int}/estorno"] = ["Qualidade", "PCP", "Administrador"],
   };
 
   /// <summary>

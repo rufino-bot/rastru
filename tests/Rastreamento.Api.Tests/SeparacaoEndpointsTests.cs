@@ -522,6 +522,68 @@ public class SeparacaoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
   }
 
   [Fact]
+  public async Task Separador_nao_lista_no_descartado_por_inteiro()
+  {
+    // C26 da spec da Fase 5B-1: perdido igual a quantidade do no tira o no da lista.
+    await using var c = await CriarAsync(_factory);
+    await PlanejarParafusoAsync(c);
+    var separador = c.Como(c.Separador);
+    Assert.Contains((await CorpoAsync(await separador.GetAsync("/api/separacoes/pendencias"))).EnumerateArray(),
+        p => p.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+
+    await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas",
+        new { motivo = "Descarte", tudo = true }));
+
+    Assert.DoesNotContain((await CorpoAsync(await separador.GetAsync("/api/separacoes/pendencias"))).EnumerateArray(),
+        p => p.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+  }
+
+  [Fact]
+  public async Task Separador_continua_listando_no_todo_montado_e_no_perdido_em_parte()
+  {
+    // O outro lado de C26: o no todo montado, e o perdido so em parte, seguem na lista.
+    await using var montado = await CriarAsync(_factory);
+    await using var emParte = await CriarAsync(_factory);
+    await PlanejarParafusoAsync(montado);
+    await PlanejarParafusoAsync(emParte);
+
+    async Task LevarParaAMontagemAsync(int no, int setor, decimal quantidade)
+    {
+      await Garantir(await montado.Como(montado.Operador).PostAsJsonAsync($"/api/estrutura/{no}/inicios", new { setorId = setor, quantidade }));
+      await Garantir(await montado.Como(montado.Operador).PostAsJsonAsync($"/api/estrutura/{no}/terminos",
+          new { setorId = setor, ordem = 1, quantidade }));
+      await Garantir(await montado.Como(montado.Movimentador).PostAsJsonAsync("/api/entregas", new
+      {
+        itens = new[]
+        {
+          new
+          {
+            estruturaItemId = no, origem = new { posicao = "AguardandoColeta", setorId = setor, ordem = (int?)1 },
+            destinoSetorId = (int?)null, quantidade,
+          },
+        },
+      }));
+    }
+    await LevarParaAMontagemAsync(montado.B, montado.Corte, 20m);
+    await LevarParaAMontagemAsync(montado.C, montado.Dobra, 10m);
+    await Garantir(await montado.Como(montado.Operador).PostAsJsonAsync($"/api/estrutura/{montado.A}/inicios",
+        new { setorId = montado.Solda, quantidade = 10m }));
+    Assert.Equal(10m, (await CorpoAsync(await montado.Como(montado.Gestao).GetAsync(
+        $"/api/agrupamentos/{montado.AgrupamentoId}/posicoes"))).EnumerateArray()
+        .Single(p => p.GetProperty("estruturaItemId").GetInt32() == montado.A).GetProperty("totalMontado").GetDecimal());
+
+    await Garantir(await emParte.Como(emParte.Qualidade).PostAsJsonAsync($"/api/estrutura/{emParte.B}/baixas", new
+    {
+      motivo = "PerdaArmazem", observacao = (string?)null, tudo = false, incluirTopo = false,
+      origens = new[] { new { posicao = "AIniciar", setorId = (int?)null, ordem = (int?)null, quantidade = 5m } },
+    }));
+
+    foreach (var cenario in new[] { montado, emParte })
+      Assert.Contains((await CorpoAsync(await cenario.Como(cenario.Separador).GetAsync("/api/separacoes/pendencias"))).EnumerateArray(),
+          p => p.GetProperty("no").GetProperty("id").GetInt32() == cenario.B);
+  }
+
+  [Fact]
   public async Task Fila_do_Setor_traz_o_resumo_de_material_so_na_linha_que_comeca_ali()
   {
     await using var c = await CriarAsync(_factory);

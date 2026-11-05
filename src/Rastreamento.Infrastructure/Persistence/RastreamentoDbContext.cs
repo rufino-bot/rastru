@@ -29,6 +29,7 @@ public class RastreamentoDbContext : DbContext
   public DbSet<ContagemDimensional> Contagens => Set<ContagemDimensional>();
   public DbSet<LiberacaoDimensional> Liberacoes => Set<LiberacaoDimensional>();
   public DbSet<Remessa> Remessas => Set<Remessa>();
+  public DbSet<Perda> Perdas => Set<Perda>();
   public DbSet<PedidoPausa> PedidoPausas => Set<PedidoPausa>();
   public DbSet<ImportacaoDeEstrutura> ImportacoesDeEstrutura => Set<ImportacaoDeEstrutura>();
   public DbSet<ImportacaoDeEstruturaComponente> ImportacoesDeEstruturaComponentes => Set<ImportacaoDeEstruturaComponente>();

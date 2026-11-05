@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito, formatarData,
@@ -17,6 +17,11 @@ import { ListaDeCadastro, ItemDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { EstadoVazio } from '../components/EstadoVazio'
 import { EstadoCarregando } from '../components/EstadoCarregando'
+import { listarBaixasDoPedido, descartarPedido, preverDescarteDoPedido } from '../api/baixas'
+import { HistoricoDeBaixas } from '../baixas/HistoricoDeBaixas'
+import { PainelDeDescarteTotal } from '../baixas/PainelDeDescarteTotal'
+import { useDescarteDisponivel } from '../baixas/useDescarteDisponivel'
+import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
 import { ControleDePausa } from '../pedidos/ControleDePausa'
 import { DatasDoPedido } from '../pedidos/DatasDoPedido'
 import { rotuloDoStatus } from '../pedidos/statusDoPedido'
@@ -36,6 +41,7 @@ const MOTIVO_DA_RECUSA: Record<Exclude<ResultadoExclusao, 'ok'>, string> = {
 export function PedidoDetalhePage() {
   const { id } = useParams<{ id: string }>()
   const pedidoId = Number(id)
+  const idValido = !Number.isNaN(pedidoId)
 
   const [pedido, setPedido] = useState<PedidoDto | null>(null)
   const [agrupamentos, setAgrupamentos] = useState<AgrupamentoDto[]>([])
@@ -44,6 +50,8 @@ export function PedidoDetalhePage() {
   const [carregando, setCarregando] = useState(true)
   const [enviando, setEnviando] = useState(false)
   const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
+
+  const carregarBaixas = useCallback(() => listarBaixasDoPedido(pedidoId), [pedidoId])
 
   const podeEscrever = usePodeEscrever('agrupamentos')
   // A edição do Pedido é do recurso `pedidos` (PCP e Administrador), não do `agrupamentos` da lista abaixo.
@@ -57,8 +65,31 @@ export function PedidoDetalhePage() {
   const botaoEditar = useRef<HTMLButtonElement>(null)
   useDevolverFoco(edicaoAberta, () => botaoEditar.current)
 
+  // O "Descartar tudo" (D7): só com permissão de baixa e algo em produção, e quem diz isso é a prévia do servidor.
+  // A versão sobe quando a página grava ou estorna, e a prévia e a lista de baixas são pedidas de novo.
+  const { darBaixa } = usePermissoesDaBaixa()
+  const [versaoDoSaldo, setVersaoDoSaldo] = useState(0)
+  const [descarteAberto, setDescarteAberto] = useState(false)
+  const descarte = useDescarteDisponivel((sinal) => preverDescarteDoPedido(pedidoId, sinal), darBaixa && idValido, pedidoId, versaoDoSaldo)
+  const botaoDescartar = useRef<HTMLButtonElement>(null)
+  const tituloDaPagina = useRef<HTMLSpanElement>(null)
+  // Depois do descarte o botão some (não há mais nada em produção): o foco vai ao título, e só depois que a prévia
+  // nova respondeu, para não ser dado a um botão que está de saída.
+  useDevolverFoco(descarteAberto, () => botaoDescartar.current ?? tituloDaPagina.current, !descarte.carregando)
+
+  function abrirDescarte() {
+    fecharEdicao()
+    setDescarteAberto(true)
+  }
+
+  function aoMudarOSaldo() {
+    setVersaoDoSaldo((v) => v + 1)
+    carregar(pedidoId)
+  }
+
   function abrirEdicao() {
     if (!pedido) return
+    setDescarteAberto(false)
     setFormDoPedido({ numero: pedido.numero, cliente: pedido.cliente, dataEntrega: pedido.dataEntrega })
     setErroDeEdicao(null)
     setEdicaoAberta(true)
@@ -154,11 +185,29 @@ export function PedidoDetalhePage() {
   // exclusão atrás do "Carregando…". O estado de carregamento fica ESCOPADO à lista.
   return (
     <Pagina
-      titulo={pedido ? pedido.numero : 'Pedido'}
-      acao={podeEditarPedido && pedido && !edicaoAberta && (
-        <Botao ref={botaoEditar} variante="secundario" onClick={abrirEdicao}>Editar pedido</Botao>
+      titulo={<span ref={tituloDaPagina} tabIndex={-1}>{pedido ? pedido.numero : 'Pedido'}</span>}
+      acao={(
+        <div className="flex flex-wrap items-center gap-2">
+          {podeEditarPedido && pedido && !edicaoAberta && (
+            <Botao ref={botaoEditar} variante="secundario" onClick={abrirEdicao}>Editar pedido</Botao>
+          )}
+          {pedido && descarte.disponivel && !descarteAberto && (
+            <Botao ref={botaoDescartar} variante="perigo" onClick={abrirDescarte}>Descartar tudo</Botao>
+          )}
+        </div>
       )}
     >
+      {darBaixa && descarteAberto && (
+        <PainelDeDescarteTotal
+          titulo="Descartar tudo"
+          escopo="Pedido"
+          prever={() => preverDescarteDoPedido(pedidoId)}
+          descartar={(observacao) => descartarPedido(pedidoId, observacao)}
+          aoConcluir={aoMudarOSaldo}
+          aoFechar={() => setDescarteAberto(false)}
+        />
+      )}
+
       {podeEditarPedido && edicaoAberta && (
         <PainelDeEscrita titulo="Editar pedido" aoEnviar={salvarPedido} aoFechar={fecharEdicao} enviando={salvandoPedido}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -290,6 +339,17 @@ export function PedidoDetalhePage() {
           ))}
         </ListaDeCadastro>
       )}
+
+      <HistoricoDeBaixas
+        key={pedidoId}
+        nivel="h2"
+        carregar={carregarBaixas}
+        versao={versaoDoSaldo}
+        aoEstornar={aoMudarOSaldo}
+        nomeDoEscopo={(e) =>
+          e.tipo === 'Pedido' ? (pedido?.numero ?? null)
+            : e.tipo === 'Agrupamento' ? (agrupamentos.find((a) => a.id === e.id)?.codigo ?? null) : null}
+      />
 
       {pendenteExclusao && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-tinta/50 p-4">

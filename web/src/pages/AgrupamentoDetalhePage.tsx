@@ -4,7 +4,7 @@ import {
   obterEstrutura, criarPeca, acrescentarFilho, editarNo, excluirNo, ehConflitoDeEstrutura,
   type NoDaEstrutura, type NovoFilho, type EdicaoDeNo, type ResultadoDeEstrutura,
 } from '../api/estrutura'
-import { obterAgrupamento, type ComponenteDto, type AgrupamentoDto } from '../api/cadastros'
+import { obterAgrupamento, obterPedido, type ComponenteDto, type AgrupamentoDto } from '../api/cadastros'
 import { obterPosicoes, type PosicoesDoNoDto } from '../api/execucao'
 import { listarFilhosPadrao, type FilhoPadraoDto } from '../api/receitaPadrao'
 import { mensagemDeErro } from '../api/erros'
@@ -22,6 +22,10 @@ import { ArvoreDeEstrutura } from '../components/ArvoreDeEstrutura'
 import { Confirmacao } from '../components/Confirmacao'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { PainelDoNo } from '../execucao/PainelDoNo'
+import { descartarAgrupamento, preverDescarteDoAgrupamento } from '../api/baixas'
+import { PainelDeDescarteTotal } from '../baixas/PainelDeDescarteTotal'
+import { useDescarteDisponivel } from '../baixas/useDescarteDisponivel'
+import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
 import { ImportacoesEmConferencia } from '../importacao/ImportacoesEmConferencia'
 import { PainelDoArquivoDoBom } from '../importacao/PainelDoArquivoDoBom'
 
@@ -70,6 +74,8 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   // não os emite, mas o `Record` é exaustivo sobre o tipo inteiro.
   PedidoFechado: 'Não foi possível excluir: o pedido está concluído ou cancelado.',
   ComAfericao: 'Não foi possível excluir: conflito na estrutura.',
+  // Fase 5B-1: `DiminuirPelaBaixa` é só do editar (a quantidade só aumenta com o Pedido rodando); entra pelo mesmo motivo.
+  DiminuirPelaBaixa: 'Não foi possível excluir: conflito na estrutura.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 
@@ -107,9 +113,10 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
  * `componenteId: null`, `descricao` obrigatória) — os dois que `NovoFilho` já modela.
  *
  * `editar` manda SÓ `descricao`/`quantidade` (D4, por asserção de corpo — não um terceiro campo
- * "vazando" no PUT). O `EdicaoDeNo.mensagem` de conflito nunca vem do backend aqui (`editarNo`
- * nunca emite 409), mas o branch de `ehConflitoDeEstrutura` continua tratado — o TIPO de retorno é
- * a união, então o `tsc` cobra os dois ramos independente do que o backend faz hoje.
+ * "vazando" no PUT). O `EdicaoDeNo.mensagem` de conflito vem do backend quando `editarNo` responde 409
+ * (`QuantidadeAbaixoDoMovimentado`, `ConflitoDeConcorrencia`, `PedidoFechado`, `ComAfericao` e, desde a
+ * Fase 5B-1, `DiminuirPelaBaixa`): o painel mostra a frase do servidor, e o TIPO de retorno é a união,
+ * então o `tsc` cobra os dois ramos.
  *
  * ## Exclusão
  *
@@ -139,6 +146,9 @@ export function AgrupamentoDetalhePage() {
   const [erro, setErro] = useState<string | null>(null)
 
   const [agrupamento, setAgrupamento] = useState<AgrupamentoDto | null>(null)
+  // O status do Pedido, só para a dica (o servidor só recusa a diminuição com ele em produção ou aguardando expedição) do campo de quantidade na edição (D12 da spec da Fase 5B-1). `null` até saber:
+  // sem ele a tela não afirma nada e o servidor continua sendo quem recusa.
+  const [statusDoPedido, setStatusDoPedido] = useState<string | null>(null)
 
   const [componente, setComponente] = useState<ComponenteDto | null>(null)
   const [quantidade, setQuantidade] = useState('')
@@ -186,6 +196,19 @@ export function AgrupamentoDetalhePage() {
   useDevolverFoco(painelDePecaAberto, () => botaoNovaPeca.current)
   const botaoImportarBom = useRef<HTMLButtonElement>(null)
   useDevolverFoco(painelDeImportacaoAberto, () => botaoImportarBom.current)
+
+  // O "Descartar tudo" (D8): só com permissão de baixa e algo em produção, e quem diz isso é a prévia do servidor.
+  // A versão sobe quando a página grava o descarte, e a prévia é pedida de novo. Depois do descarte o botão some (não
+  // há mais nada em produção): o foco vai ao título, e só depois que a prévia nova respondeu.
+  const { darBaixa } = usePermissoesDaBaixa()
+  const [versaoDoSaldo, setVersaoDoSaldo] = useState(0)
+  const [descarteAberto, setDescarteAberto] = useState(false)
+  const descarte = useDescarteDisponivel(
+    (sinal) => preverDescarteDoAgrupamento(agrupamentoId, sinal), darBaixa && idValido, agrupamentoId, versaoDoSaldo,
+  )
+  const botaoDescartar = useRef<HTMLButtonElement>(null)
+  const tituloDaPagina = useRef<HTMLSpanElement>(null)
+  useDevolverFoco(descarteAberto, () => botaoDescartar.current ?? tituloDaPagina.current, !descarte.carregando)
 
   // Recebe o id como argumento (não fecha sobre `agrupamentoId` de fora): mesmo motivo do
   // comentário equivalente em `PedidoDetalhePage.tsx` — o exhaustive-deps cobra 'carregar' como
@@ -236,6 +259,17 @@ export function AgrupamentoDetalhePage() {
     return () => { cancelado = true }
   }, [agrupamentoId, idValido])
 
+  // O status do Pedido do Agrupamento, com a mesma falha silenciosa e o mesmo cancelamento da busca acima.
+  const pedidoId = agrupamento?.pedidoId ?? null
+  useEffect(() => {
+    if (pedidoId === null) return
+    let cancelado = false
+    obterPedido(pedidoId)
+      .then((p) => { if (!cancelado) setStatusDoPedido(p.status) })
+      .catch(() => {})
+    return () => { cancelado = true }
+  }, [pedidoId])
+
   // A razão do filho vem PRÉ-PREENCHIDA quando a receita do Componente do pai lista aquele filho
   // (spec da Fase 3 §3.4) — é a mesma `QuantidadePadrao` que a cópia da receita usaria. A receita é
   // buscada quando o painel abre sobre um pai de catálogo; um pai ad-hoc não tem receita. Falha
@@ -260,6 +294,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   function abrirNovaPeca() {
+    setDescarteAberto(false)
     // Exclusividade (decisão 4 da spec da 1F): o painel de Peça é o único `<form>` da tela, então
     // o painel do nó, o detalhe e a confirmação de exclusão saem.
     fecharPainel()
@@ -325,6 +360,7 @@ export function AgrupamentoDetalhePage() {
   // "Cancelar" com o mesmo nome acessível, o tipo de colisão que `getByRole` rejeita. Pelo mesmo
   // motivo fecham o painel de Peça (`fecharPainelDePeca`), que também tem um "Cancelar".
   function abrirAcrescentarFilho(paiId: number) {
+    setDescarteAberto(false)
     fecharPainelDePeca()
     fecharPainelDeImportacao()
     setNoParaExcluir(null)
@@ -339,6 +375,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   function abrirEditar(no: NoDaEstrutura) {
+    setDescarteAberto(false)
     fecharPainelDePeca()
     fecharPainelDeImportacao()
     setNoParaExcluir(null)
@@ -365,6 +402,7 @@ export function AgrupamentoDetalhePage() {
   // Mesmo motivo do `setNoParaExcluir(null)` que abre `abrirEditar`, na direção oposta: pedir a
   // exclusão de um nó fecha o painel de acrescentar/editar que porventura esteja aberto.
   function pedirExclusao(no: NoDaEstrutura) {
+    setDescarteAberto(false)
     fecharPainel()
     fecharPainelDePeca()
     fecharPainelDeImportacao()
@@ -373,6 +411,7 @@ export function AgrupamentoDetalhePage() {
   }
 
   function abrirDetalhe(no: NoDaEstrutura) {
+    setDescarteAberto(false)
     fecharPainel()
     fecharPainelDePeca()
     fecharPainelDeImportacao()
@@ -383,12 +422,31 @@ export function AgrupamentoDetalhePage() {
   // Abrir o painel de importação fecha os outros dois e a confirmação de exclusão, como as demais
   // aberturas: nunca há dois `<form>` de painel no documento.
   function abrirImportarBom() {
+    setDescarteAberto(false)
     fecharPainel()
     fecharPainelDePeca()
     setNoParaExcluir(null)
     setNoEmDetalhe(null)
     fecharPainelDeImportacao()
     setPainelDeImportacaoAberto(true)
+  }
+
+  function abrirDescarte() {
+    fecharPainel()
+    fecharPainelDePeca()
+    fecharPainelDeImportacao()
+    setNoParaExcluir(null)
+    setNoEmDetalhe(null)
+    setDescarteAberto(true)
+  }
+
+  /**
+   * O saldo mudou (o descarte, ou uma baixa ou um estorno do painel do nó): recarrega e refaz a prévia do descarte.
+   * O salvar do Roteiro também chega aqui, sem mexer em saldo, e só custa uma prévia a mais.
+   */
+  function aoMudarOSaldo() {
+    setVersaoDoSaldo((v) => v + 1)
+    carregar(agrupamentoId)
   }
 
   function fecharPainelDeImportacao() {
@@ -558,7 +616,7 @@ export function AgrupamentoDetalhePage() {
 
   return (
     <Pagina
-      titulo={titulo}
+      titulo={<span ref={tituloDaPagina} tabIndex={-1}>{titulo}</span>}
       // `acao` é o slot de `Pagina` ao lado do `<h1>`, e aqui ele divide o espaço entre a ação
       // principal ("Nova Peça", só com permissão de escrita e com o painel dela fechado) e o Id da
       // rota, discreto — "referência técnica" (decisão do usuário, Task 8b): o cabeçalho mostra
@@ -569,6 +627,9 @@ export function AgrupamentoDetalhePage() {
           {podeEscrever && !painelDePecaAberto && <Botao ref={botaoNovaPeca} onClick={abrirNovaPeca}>Nova Peça</Botao>}
           {podeEscrever && !painelDeImportacaoAberto && (
             <Botao ref={botaoImportarBom} variante="secundario" onClick={abrirImportarBom}>Importar BOM</Botao>
+          )}
+          {darBaixa && descarte.disponivel && !descarteAberto && (
+            <Botao ref={botaoDescartar} variante="perigo" onClick={abrirDescarte}>Descartar tudo</Botao>
           )}
           <span className="font-mono text-xs text-tinta-fraca">{`Id ${agrupamentoId}`}</span>
         </div>
@@ -625,6 +686,17 @@ export function AgrupamentoDetalhePage() {
             Criar Peça
           </Botao>
         </PainelDeEscrita>
+      )}
+
+      {darBaixa && descarteAberto && (
+        <PainelDeDescarteTotal
+          titulo="Descartar tudo"
+          escopo="Agrupamento"
+          prever={() => preverDescarteDoAgrupamento(agrupamentoId)}
+          descartar={(observacao) => descartarAgrupamento(agrupamentoId, observacao)}
+          aoConcluir={aoMudarOSaldo}
+          aoFechar={() => setDescarteAberto(false)}
+        />
       )}
 
       {podeEscrever && painelDeImportacaoAberto && (
@@ -698,14 +770,20 @@ export function AgrupamentoDetalhePage() {
                 )}
               </Campo>
             )}
-            <Campo rotulo="Quantidade">
-              {(idDoCampo) => (
+            <Campo
+              rotulo="Quantidade"
+              dica={painel.tipo === 'editar' && (statusDoPedido === 'EmProducao' || statusDoPedido === 'AguardandoExpedicao')
+                ? 'Para diminuir, use "Dar baixa".'
+                : undefined}
+            >
+              {(idDoCampo, idDaDica) => (
                 <input
                   id={idDoCampo}
                   type="number"
                   step="any"
                   value={quantidadePainel}
                   onChange={(e) => setQuantidadePainel(e.target.value)}
+                  aria-describedby={idDaDica}
                   className={CLASSES_DE_CONTROLE}
                 />
               )}
@@ -759,7 +837,11 @@ export function AgrupamentoDetalhePage() {
           key={noEmDetalhe.id}
           no={noEmDetalhe}
           aoFechar={() => setNoEmDetalhe(null)}
-          aoMudar={() => carregar(agrupamentoId)}
+          aoMudar={aoMudarOSaldo}
+          saldos={posicoes.get(noEmDetalhe.id)?.saldos ?? []}
+          nomeDoEscopo={(e) =>
+            e.tipo === 'Agrupamento' && e.id === agrupamento?.id ? agrupamento.codigo
+              : e.tipo === 'Pedido' && e.id === agrupamento?.pedidoId ? agrupamento.pedidoNumero : null}
         />
       )}
 

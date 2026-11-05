@@ -16,6 +16,7 @@ export type Recurso =
   | 'expedicao'
   | 'liberacao'
   | 'estornoDaExpedicao'
+  | 'baixa'
 
 /**
  * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-10-21.
@@ -82,6 +83,10 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   // um deles, mais o PCP. Não é `expedicao` nem `liberacao`: os perfis divergem. O botão ainda compara o autor, e quem
   // decide é o 403 `Proibido` do backend.
   estornoDaExpedicao: ['Qualidade', 'Gestao', 'PCP', 'Administrador'],
+  // Fase 5B-1 — dar baixa num nó, descartar tudo, as prévias e o estorno da baixa (`BaixaController`): só a Qualidade e
+  // o PCP dão baixa (D5 da spec da Fase 5B-1). O estorno ainda compara o autor, e quem decide é o 403 `Proibido` do
+  // backend.
+  baixa: ['Qualidade', 'PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

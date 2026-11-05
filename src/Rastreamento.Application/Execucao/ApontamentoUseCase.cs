@@ -280,11 +280,16 @@ public sealed class ApontamentoUseCase
 
     var destino = Local.NoSetor(setor.Id, primeiro.Ordem);
     int? montagemId = null;
+    // O filho descartado por inteiro nao e travado como insuficiente nem baixado: o pai monta sem ele (C22 da spec
+    // da Fase 5B-1; decisao P2 do plano de backend). A Montagem existe mesmo sem baixa de filho: o pai tem filhos,
+    // e o que ele inicia tem de entrar no total montado.
+    var queContam = estado.Calc.FilhosQueContam(noId).Select(f => f.Id).ToHashSet();
+    var consumidos = travados.Where(f => queContam.Contains(f.Id)).ToList();
     if (travados.Count > 0)
     {
       var baixas = new List<(int FilhoId, decimal Quantidade)>();
       var insuficientes = new List<string>();
-      foreach (var filho in travados)
+      foreach (var filho in consumidos)
       {
         var necessario = quantidade * (filho.QuantidadePorPai ?? 0m);
         if (!Quantidades.CabeNaColuna(necessario))

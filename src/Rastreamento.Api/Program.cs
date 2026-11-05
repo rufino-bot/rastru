@@ -10,6 +10,7 @@ using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
 using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Auth;
+using Rastreamento.Application.Baixa;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
@@ -152,6 +153,10 @@ builder.Services.AddScoped<IExecucaoRepository, ExecucaoRepository>();
 // mesmo da execucao, e quem persiste e o `SalvarAlteracoesAsync` do `IExecucaoRepository`.
 builder.Services.AddScoped<IExpedicaoRepository, ExpedicaoRepository>();
 
+// Baixa (Fase 5B-1): o registro `dbo.Perda` e a arvore que a conta le. Sem `Salvar` proprio, pelo mesmo motivo da
+// expedicao.
+builder.Services.AddScoped<IBaixaRepository, BaixaRepository>();
+
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 builder.Services.AddScoped<ApontamentoUseCase>();
 builder.Services.AddScoped<EntregaUseCase>();
@@ -167,6 +172,8 @@ builder.Services.AddScoped<LiberacaoUseCase>();
 builder.Services.AddScoped<RemessaUseCase>();
 builder.Services.AddScoped<ConsultaDaExpedicaoUseCase>();
 builder.Services.AddScoped<EstornoDaExpedicaoUseCase>();
+builder.Services.AddScoped<BaixaUseCase>();
+builder.Services.AddScoped<ConsultaDeBaixasUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

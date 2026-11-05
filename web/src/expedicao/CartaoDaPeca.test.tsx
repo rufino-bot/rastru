@@ -61,7 +61,7 @@ const cartao = () => screen.getByRole('list', { name: 'Peças' }).firstElementCh
 const botao = (nome: string) => within(cartao())
   .queryAllByRole('button', { name: new RegExp(`^${nome}`) })
   .find((b) => b.closest('form') === null) ?? null
-const ACOES = ['Aferir', 'Contar', 'Mandar para conserto', 'Pedir liberação', 'Expedir']
+const ACOES = ['Aferir', 'Contar', 'Mandar para conserto', 'Pedir liberação', 'Matar', 'Expedir']
 const acoesVisiveis = () => ACOES.filter((a) => botao(a) !== null)
 
 /** O valor de uma linha da contagem, achada pelo rótulo dela. */
@@ -206,12 +206,61 @@ describe('CartaoDaPeca', () => {
 
   it('Mandar para conserto e Pedir liberação só aparecem com não conforme aguardando decisão', () => {
     const { rerender } = renderizar(NAO_CONFORME)
-    expect(acoesVisiveis()).toEqual(['Contar', 'Mandar para conserto', 'Pedir liberação', 'Expedir'])
+    expect(acoesVisiveis()).toEqual(['Contar', 'Mandar para conserto', 'Pedir liberação', 'Matar', 'Expedir'])
 
     // As não conformes todas aguardando a Gestão ou em conserto: nada aguarda decisão.
     rerender({ ...NAO_CONFORME, posicoes: { ...NAO_CONFORME.posicoes, naoConforme: 0 } })
     expect(botao('Mandar para conserto')).toBeNull()
     expect(botao('Pedir liberação')).toBeNull()
+    expect(botao('Matar')).toBeNull()
+  })
+
+  it('o "Matar" é da baixa, não do registro: o PCP o vê e não vê o resto; o Operador, o Movimentador e a Gestão, nada', () => {
+    como('PCP')
+    renderizar(NAO_CONFORME)
+    expect(acoesVisiveis()).toEqual(['Matar'])
+    cleanup()
+
+    for (const perfil of ['Operador', 'Movimentador', 'Gestao']) {
+      como(perfil)
+      renderizar(NAO_CONFORME)
+      expect(botao('Matar')).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('o painel do "Matar" explica que vira perda, e o enviar manda o motivo e a origem fixos', async () => {
+    const fetchMock = fetchPorRota({
+      '/api/estrutura/30/baixas/previa': () => respostaJson({ linhas: [], viramSobra: [], travaNoTopo: null }),
+      '/api/estrutura/30/baixas': () => respostaJson({ id: 91 }, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { aoRegistrar } = renderizar(pecaNaExpedicao({
+      situacao: 'NaoConforme', afericao: afericao(), posicoes: posicoes({ conforme: 3, naoConforme: 2 }), expedivel: 3,
+    }))
+
+    fireEvent.click(botao('Matar')!)
+
+    const form = within(cartao()).getByRole('form', { name: 'Matar não conformes de QD-01 — Quadro' })
+    expect(within(form).getByText(
+      'Vira perda (morreu num processo) e sai do expedível. Refazer é um Pedido de Retrabalho, aberto à parte.',
+    )).toBeTruthy()
+    expect(within(form).queryByRole('radio')).toBeNull()
+    // O teto é o das não conformes aguardando decisão, e o campo já vem nele.
+    expect((within(form).getByRole('textbox', { name: 'Quantidade' }) as HTMLInputElement).value).toBe('2')
+    fireEvent.change(within(form).getByRole('textbox', { name: 'Quantidade' }), { target: { value: '1' } })
+    const enviar = await within(form).findByRole('button', { name: 'Matar 1' }, { timeout: 2000 })
+    await waitFor(() => expect((enviar as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(enviar)
+
+    await waitFor(() => expect(aoRegistrar).toHaveBeenCalledTimes(1))
+    const corpo = fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/estrutura/30/baixas')
+      .map((c) => JSON.parse((c[1] as RequestInit).body as string))
+    expect(corpo).toEqual([{
+      motivo: 'MortaEmProcesso', observacao: null, tudo: false, incluirTopo: false,
+      origens: [{ posicao: 'NaoConforme', setorId: null, ordem: null, quantidade: 1 }],
+    }])
+    expect(within(cartao()).queryByRole('form')).toBeNull()
   })
 
   it('com uma liberação em aberto não oferece outro pedido (C18), mas oferece o conserto', () => {
@@ -242,7 +291,7 @@ describe('CartaoDaPeca', () => {
   })
 
   it('sem permissão de registrar não há nenhum botão de escrita', () => {
-    for (const perfil of ['Gestao', 'PCP', 'Operador']) {
+    for (const perfil of ['Gestao', 'Operador', 'Movimentador']) {
       como(perfil)
       renderizar(NAO_CONFORME, {
         lote: { marcado: false, texto: null, desabilitado: false, aoMarcar: vi.fn(), aoDigitar: vi.fn() },

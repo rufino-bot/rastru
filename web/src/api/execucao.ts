@@ -1,6 +1,7 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
 import { avisarQueOLivroMudou } from './sinalDoLivro'
+import type { MotivoDaBaixa } from './baixas'
 import type { MaterialResumoDto, PausaResumoDto } from './cadastros'
 
 /**
@@ -15,7 +16,7 @@ import type { MaterialResumoDto, PausaResumoDto } from './cadastros'
  */
 
 /**
- * As posições do livro. As oito últimas são da Fase 5A: as três do conserto (com Setor, sem passo), as cinco do
+ * As posições do livro. `Perdido`, a última, é da Fase 5B-1 (a baixa). As oito anteriores a ela são da Fase 5A: as três do conserto (com Setor, sem passo), as cinco do
  * fim do caminho que não têm Setor, e `NaExpedicao`, a primeira delas, que é o local de expedição ainda sem medição.
  */
 export type Posicao =
@@ -33,8 +34,12 @@ export type Posicao =
   | 'Liberada'
   | 'Montado'
   | 'Expedido'
+  | 'Perdido'
 
-/** Os seis últimos são da Fase 5A: a contagem (`Medicao`), o conserto, a liberação e a remessa (`Expedicao`). */
+/**
+ * Os seis seguintes ao `Estorno` são da Fase 5A: a contagem (`Medicao`), o conserto, a liberação e a remessa
+ * (`Expedicao`). O último, `Perda`, é da Fase 5B-1: a baixa.
+ */
 export type TipoDeMovimentacao =
   | 'Inicio'
   | 'Termino'
@@ -47,6 +52,7 @@ export type TipoDeMovimentacao =
   | 'Liberacao'
   | 'Recusa'
   | 'Expedicao'
+  | 'Perda'
 
 /** `setorId`, `setorNome` e `ordem` são `null` quando a posição não os tem (spec §3.1). */
 export interface LocalDto {
@@ -76,6 +82,10 @@ export interface MovimentacaoDto {
   contagemId: number | null
   liberacaoId: number | null
   remessaId: number | null
+  /** A baixa (Fase 5B-1) a que a linha pertence: a linha `Perda` e o `Estorno` dela; `null` nas demais. */
+  perdaId: number | null
+  /** O motivo dessa baixa, o mesmo do painel; `null` quando `perdaId` é `null`. */
+  motivoDaBaixa: MotivoDaBaixa | null
 }
 
 export interface MontagemDto {
@@ -371,13 +381,26 @@ export async function ler<T>(caminho: string, oQue: string): Promise<T> {
  * a escrita já foi gravada, e um corpo ilegível não pode esconder isso do contador.
  */
 async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown, oQue: string): Promise<T> {
+  return enviarComOpcoes(caminho, metodo, corpo, oQue, { avisa: true })
+}
+
+/**
+ * A mesma escrita de `enviar`, para quem precisa de duas coisas a mais: não avisar o contador (a prévia de uma
+ * baixa lê e não grava) e cancelar a requisição por um `AbortSignal`. A regra do aviso continua escrita num lugar
+ * só: com `avisa`, é a de `enviar`.
+ */
+export async function enviarComOpcoes<T>(
+  caminho: string, metodo: 'POST' | 'PUT', corpo: unknown, oQue: string,
+  { avisa, sinal }: { avisa: boolean; sinal?: AbortSignal },
+): Promise<T> {
   const init: RequestInit = { method: metodo }
   if (corpo !== undefined) {
     init.headers = { 'Content-Type': 'application/json' }
     init.body = JSON.stringify(corpo)
   }
+  if (sinal) init.signal = sinal
   const resp = await apiFetch(caminho, init)
-  if (resp.ok || resp.status === 409) avisarQueOLivroMudou()
+  if (avisa && (resp.ok || resp.status === 409)) avisarQueOLivroMudou()
   if (!resp.ok) return falhar(resp, oQue)
   return (await resp.json()) as T
 }

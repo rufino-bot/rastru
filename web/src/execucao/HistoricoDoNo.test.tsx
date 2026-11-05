@@ -300,6 +300,57 @@ describe('HistoricoDoNo', () => {
     expect(screen.getByRole('dialog').textContent).not.toMatch(/nº|10271|6180/)
   })
 
+  describe('a linha de uma baixa', () => {
+    const DESTINO_PERDIDO = { posicao: 'Perdido', setorId: null, setorNome: null, ordem: null } as const
+    const linhaDeBaixa = (parcial: Partial<ReturnType<typeof movimentacao>> = {}) => movimentacao({
+      id: 50, tipo: 'Perda', quantidade: 14, perdaId: 1, motivoDaBaixa: 'PerdaArmazem', destino: DESTINO_PERDIDO,
+      dataHora: '2026-09-25T12:00:00-03:00', ...parcial,
+    })
+
+    it('diz "Baixa de {q} · {motivo}", sem "Estornar", com a frase da baixa inteira — e o Início segue com o dele', async () => {
+      vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [INICIO, linhaDeBaixa()], montagens: [] }]).fetchMock)
+
+      renderizar()
+
+      expect(await screen.findByText('Baixa de 14 · Sumiu no armazém')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Estornar: Baixa/ })).toBeNull()
+      expect(screen.getByRole('button', { name: /Estornar: Início/ })).toBeTruthy()
+      expect(screen.getByText('Parte de uma baixa: estorna-se a baixa inteira, na seção Baixas.')).toBeTruthy()
+    })
+
+    it('estornada, a frase da baixa inteira não aparece', async () => {
+      vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [linhaDeBaixa({ estornada: true })], montagens: [] }]).fetchMock)
+
+      renderizar()
+
+      await screen.findByText('Baixa de 14 · Sumiu no armazém')
+      expect(screen.queryByText(/Parte de uma baixa/)).toBeNull()
+    })
+
+    it.each([
+      ['MortaEmProcesso', 'Morreu num processo'],
+      ['Descarte', 'Descarte'],
+    ] as const)('o rótulo do motivo %s vem do mapa do painel', async (motivo, rotulo) => {
+      vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [linhaDeBaixa({ motivoDaBaixa: motivo })], montagens: [] }]).fetchMock)
+
+      renderizar()
+
+      expect(await screen.findByText(`Baixa de 14 · ${rotulo}`)).toBeTruthy()
+    })
+
+    it('o Estorno da baixa diz o que desfaz, com o motivo', async () => {
+      const estorno = movimentacao({
+        id: 51, tipo: 'Estorno', estornoDeId: 50, perdaId: 1, motivoDaBaixa: 'PerdaArmazem', quantidade: 14,
+        origem: DESTINO_PERDIDO, dataHora: '2026-09-25T12:30:00-03:00',
+      })
+      vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [linhaDeBaixa({ estornada: true }), estorno], montagens: [] }]).fetchMock)
+
+      renderizar()
+
+      expect(await screen.findByText(/^Desfaz: Baixa de 14 · Sumiu no armazém, em /)).toBeTruthy()
+    })
+  })
+
   it('livro vazio diz que não há registro', async () => {
     vi.stubGlobal('fetch', montarFetch([{ movimentacoes: [], montagens: [] }]).fetchMock)
 

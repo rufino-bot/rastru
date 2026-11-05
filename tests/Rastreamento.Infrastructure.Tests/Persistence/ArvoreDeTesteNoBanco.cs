@@ -168,6 +168,9 @@ internal sealed class ArvoreDeTesteNoBanco
         $"DELETE FROM dbo.Movimentacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+    // A baixa aponta o Pedido, o Agrupamento e o no por FK, e o livro aponta a baixa: sai depois do livro e
+    // antes deles. Toda baixa do teste e do Pedido da arvore.
+    await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {PedidoId}");
     // O livro aponta os agrupadores por FK, entao eles saem DEPOIS dele; o estorno de afericao e a resposta de
     // liberacao apontam a propria tabela, entao saem antes da linha que desfazem ou respondem.
     foreach (var remessaId in remessas.Distinct())

@@ -291,10 +291,119 @@ describe('FilaDoSetorPage — leitura', () => {
     expect(within(sobra).getByText('5 a mais no passo 2: o pai já tem o que precisa.')).toBeTruthy()
     expect(within(sobra).getByText('1 a mais aguardando montagem do que o pai precisa.')).toBeTruthy()
     expect(within(sobra).getByText(/não dá para saber em qual está a unidade a mais/)).toBeTruthy()
-    // O descarte é da Fase 5, então a sobra não tem ação de descarte. Estas linhas vêm sem `estornaveis`,
-    // por isso também sem "Estornar"; com registro estornável ela ganha o botão (ver o teste
-    // 'a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna').
-    expect(within(sobra).queryByRole('button')).toBeNull()
+    // Estas linhas vêm sem `estornaveis`, por isso sem "Estornar"; com registro estornável ela ganha o botão (ver o
+    // teste 'a linha em trabalho oferece Terminar e Estornar juntos, e a sobra também estorna'). O descarte tem
+    // testes próprios, adiante.
+    expect(within(sobra).queryByRole('button', { name: /^Estornar/ })).toBeNull()
+  })
+
+  it('a sobra ganha "Descartar" só para quem dá baixa: o Operador, o Movimentador e o Separador não o veem (D5)', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
+
+    for (const quem of ['Qualidade', 'PCP', 'Administrador']) {
+      perfil = quem
+      renderizar()
+      const sobra = await screen.findByRole('list', { name: 'Sobra' })
+      expect(within(sobra).getByRole('button', { name: 'Descartar SUP-01 — Suporte' })).toBeTruthy()
+      expect(within(sobra).getByRole('button', { name: 'Descartar Parafuso' })).toBeTruthy()
+      cleanup()
+    }
+    for (const quem of ['Operador', 'Movimentador', 'Separador']) {
+      perfil = quem
+      renderizar()
+      const sobra = await screen.findByRole('list', { name: 'Sobra' })
+      expect(within(sobra).queryByRole('button')).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('o descarte da sobra do último passo tira do aguardando coleta daquele passo, limitado à sobra', async () => {
+    const fetchMock = fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(FILA_CHEIA),
+      '/api/estrutura/7/baixas/previa': () => respostaJson({ linhas: [], viramSobra: [], travaNoTopo: null }),
+      '/api/estrutura/7/baixas': () => respostaJson({ id: 7 }, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar SUP-01 — Suporte' }))
+
+    const form = screen.getByRole('form', { name: 'Descartar sobra de SUP-01 — Suporte' })
+    expect(within(form).queryByRole('radio')).toBeNull()
+    const quantidade = within(form).getByRole('textbox', { name: 'Quantidade' }) as HTMLInputElement
+    expect(quantidade.value).toBe('5')
+    fireEvent.change(quantidade, { target: { value: '6' } })
+    expect(within(form).getByText('No máximo 5.')).toBeTruthy()
+    fireEvent.change(quantidade, { target: { value: '2' } })
+    const enviar = await within(form).findByRole('button', { name: 'Descartar 2' }, { timeout: 2000 })
+    await waitFor(() => expect((enviar as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(enviar)
+
+    await waitFor(() => expect(screen.queryByRole('form', { name: /^Descartar sobra/ })).toBeNull())
+    const corpos = fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/estrutura/7/baixas')
+      .map((c) => JSON.parse((c[1] as RequestInit).body as string))
+    expect(corpos).toEqual([{
+      motivo: 'Descarte', observacao: null, tudo: false, incluirTopo: false,
+      origens: [{ posicao: 'AguardandoColeta', setorId: 1, ordem: 2, quantidade: 2 }],
+    }])
+    // Recarregou a fila.
+    expect(fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/setores/1/fila').length).toBeGreaterThan(1)
+  })
+
+  it('o descarte da sobra de montagem tira do aguardando montagem deste Setor', async () => {
+    const fetchMock = fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(FILA_CHEIA),
+      '/api/estrutura/8/baixas/previa': () => respostaJson({ linhas: [], viramSobra: [], travaNoTopo: null }),
+      '/api/estrutura/8/baixas': () => respostaJson({ id: 8 }, 201),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar Parafuso' }))
+    const form = screen.getByRole('form', { name: 'Descartar sobra de Parafuso' })
+    const enviar = await within(form).findByRole('button', { name: 'Descartar 1' }, { timeout: 2000 })
+    await waitFor(() => expect((enviar as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(enviar)
+
+    await waitFor(() => expect(fetchMock.mock.calls.some((c) => String(c[0]) === '/api/estrutura/8/baixas')).toBe(true))
+    const corpos = fetchMock.mock.calls.filter((c) => String(c[0]) === '/api/estrutura/8/baixas')
+      .map((c) => JSON.parse((c[1] as RequestInit).body as string))
+    expect(corpos).toEqual([{
+      motivo: 'Descarte', observacao: null, tudo: false, incluirTopo: false,
+      origens: [{ posicao: 'AguardandoMontagem', setorId: 1, ordem: null, quantidade: 1 }],
+    }])
+  })
+
+  it('descartar a sobra inteira tira a linha e o foco vai ao título da tela', async () => {
+    const semSobra = fila({ ...FILA_CHEIA, sobra: [FILA_CHEIA.sobra[1]] })
+    let descartou = false
+    const fetchMock = fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(descartou ? semSobra : FILA_CHEIA),
+      '/api/estrutura/7/baixas/previa': () => respostaJson({ linhas: [], viramSobra: [], travaNoTopo: null }),
+      '/api/estrutura/7/baixas': () => { descartou = true; return respostaJson({ id: 7 }, 201) },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar SUP-01 — Suporte' }))
+    const form = screen.getByRole('form', { name: /^Descartar sobra/ })
+    const enviar = await within(form).findByRole('button', { name: 'Descartar 5' }, { timeout: 2000 })
+    await waitFor(() => expect((enviar as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(enviar)
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Descartar SUP-01 — Suporte' })).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }).firstElementChild))
+  })
+
+  it('o Cancelar do descarte da sobra fecha o painel e devolve o foco ao botão', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
+    renderizar()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar SUP-01 — Suporte' }))
+    fireEvent.click(within(screen.getByRole('form', { name: /^Descartar sobra/ })).getByRole('button', { name: 'Cancelar' }))
+
+    expect(screen.queryByRole('form', { name: /^Descartar sobra/ })).toBeNull()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Descartar SUP-01 — Suporte' })))
   })
 
   it('as seções vêm na ordem de quem opera: em trabalho, a iniciar, aguardando montagem, aguardando coleta e sobra', async () => {

@@ -29,11 +29,11 @@
 | **Usuário / Perfil** | Login próprio (usuário/senha + JWT). Cada Usuário tem um Perfil (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador) que restringe telas/ações — ver `00-visao-geral.md`. O Separador é o antigo Almoxarifado, renomeado na Fase 4 (D5 da spec da Fase 4). |
 | **Movimentador** | Perfil de quem leva ao próximo destino a quantidade que aguarda coleta e registra a entrada nele (regra 22); em Agrupamento Kit, os filhos vão ao Setor com `UtilizaKit` em conjuntos completos (regra 25). O que ele tem a levar é a lista de tarefas da regra 23. Decidido em 2026-09-15; passa a existir no sistema na Fase 3. |
 | **Remessa (expedição)** | Saída de quantidades de uma ou mais Peças para o cliente, registrada de uma vez por quem expede (a Qualidade): `dbo.Remessa` guarda **quando** e **quem**, e as quantidades são as linhas `Expedicao` do livro de movimentações que a apontam (`Movimentacao.RemessaId`), uma por posição de origem. Pode ser **parcial**: o cliente aceita uma parte vital antes e o restante depois. Uma remessa leva Peças de um ou mais Pedidos, e se estorna inteira (regra 16). Decidida em 2026-10-20 (C8 e C9 da spec da Fase 5A). |
-| **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção: some no armazém, morre após um processo que deu errado, ou é **descarte** de sobra que nunca foi usada (regras 25 e 30). Vai para um bucket terminal; a reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda') — descarte não é reposto. O motivo `Descarte` entra no schema no início da Fase 5, na **5B** (regra 17). |
+| **Perda** | Baixa de quantidade de um `EstruturaItem` (Peça ou Item) que sai da produção e vai para a posição terminal `Perdido` do livro: some no armazém (`PerdaArmazem`), morre após um processo que deu errado (`MortaEmProcesso`) ou é **descarte** (`Descarte`) — a sobra que nunca foi usada (regras 25 e 30) ou o que saiu do projeto do cliente. `dbo.Perda` é o **registro da baixa**: uma linha por baixa, com o motivo, a observação, o escopo e o autor, e as quantidades são as linhas `Perda` do livro que a apontam (`Movimentacao.PerdaId`), como na remessa. A reposição, quando há, é um Pedido de Retrabalho separado (MotivoRetrabalho='Perda', Fase 5B-2); descarte não é reposto. Regra 38 (Fase 5B-1; D1 a D14 e C1 a C27 da spec da Fase 5B-1). |
 | **Montado** | Destino terminal da quantidade de um Item que virou parte do pai: ao iniciar N do pai, baixa-se `N × QuantidadePorPai` de cada filho direto para "montado" (regra 24). É um dos quatro termos da conservação de quantidade (regra 9). O registro de montagem existe para todo nó com filhos, de Kit ou Avulso, e nasce do Iniciar do pai (regra 24). O destino entra no schema na Fase 3. Não confundir com o **total montado** do pai, que conta quantas unidades do pai já foram montadas e limita a saída dele do Setor, para todo nó com filhos (regra 24; sem exceção desde a Fase 3B, que recusa acrescentar filho a nó já iniciado). |
 | **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
 | **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição. Desde a Fase 5A a quantidade ali se reparte em cinco posições do livro — `NaExpedicao` (o significado depende da aferição da Peça, regra 37), `Conforme`, `NaoConforme`, `AguardandoLiberacao` e `Liberada` —, e o que sai numa remessa vai a `Expedido` (regras 9 e 16). |
-| **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 17 e 30). Não é perda até o `Descarte` ser registrado. |
+| **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado − perdido de "a iniciar" do pai) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 38 e 30). Não é perda até o `Descarte` ser registrado. |
 
 ## Regras de negócio
 
@@ -68,7 +68,8 @@
    *onde*. Invariante: **conservação de quantidade**, para **todo** `EstruturaItem` (Peça ou
    Item) — em produção (a iniciar, nos Setores, aguardando coleta, aguardando montagem ou no
    local de expedição — regras 22, 28 e 29) + montado dentro do pai (regra 24) + expedido
-   (`Expedicao`) + perdido (`Perda`) = quantidade total do nó.
+   (`Expedicao`) + perdido (a posição `Perdido`, que as linhas `Perda` de uma baixa alimentam; regra 38) =
+   quantidade total do nó.
    "Montado" só existe para Item, e expedição só para Peça. (A divisão física entre pinturas
    terceirizadas no fim do processo segue controlada fora do sistema.)
 
@@ -84,8 +85,11 @@
    **Fechada na Fase 5A** (spec da Fase 5A, seção 3.1): o "no local de expedição" é a soma das cinco
    posições `NaExpedicao`, `Conforme`, `NaoConforme`, `AguardandoLiberacao` e `Liberada`; a unidade em
    **conserto** (`AguardandoConserto`, `EmConserto`, `ConsertoPronto`) conta como em produção; e o "expedido"
-   é a posição terminal `Expedido` do livro, que as linhas `Expedicao` de uma remessa alimentam. O "perdido"
-   (`Perda`) é da Fase 5B.
+   é a posição terminal `Expedido` do livro, que as linhas `Expedicao` de uma remessa alimentam.
+
+   **Fechada na Fase 5B-1** (spec da Fase 5B-1, seção 3.1): o "perdido" é a posição terminal `Perdido` do livro,
+   alimentada pelas linhas do tipo `Perda` de uma baixa (regra 38). Qualquer nó entra nela, Peça ou Item, e a
+   quantidade cadastrada do nó **não muda** com a baixa: o perdido é um termo da soma, não uma redução do total.
 10. O Relatório Dimensional é **opcional**: só quando o cliente exige, em Peças específicas
     (ex.: primeira manufatura, primeiro trabalho após reprovação no cliente). Isso é sabido
     no cadastro do Pedido e marcado **por Peça** em `EstruturaItem.RequerRelatorioDimensional`.
@@ -121,16 +125,17 @@
     Agrupamento pode ter Peças com resultados diferentes ao mesmo tempo. *Reescrita em 2026-10-20 (D4, C17):*
     antes, aprovação e reprovação por quantidade eram o resultado da avaliação por remessa.
 12. A reprovação da aferição **não** abre Retrabalho. A unidade não conforme tem três destinos: **consertar**
-    (regra 35), **expedir assim mesmo, com a liberação da Gestão** (regra 36) ou, na Fase 5B, **"matar a
-    peça"** (vira perda e é refeita do começo). O Pedido do tipo `Retrabalho` continua sendo uma ação
+    (regra 35), **expedir assim mesmo, com a liberação da Gestão** (regra 36) ou **"matar a peça"** (baixa de
+    `MortaEmProcesso` da quantidade não conforme, regra 38, desde a Fase 5B-1; refeita do começo num Retrabalho, na
+    5B-2). O Pedido do tipo `Retrabalho` continua sendo uma ação
     **separada e opcional**, aberta **para aquela quantidade** e vinculada ao Pedido original
     (`PedidoOrigemId`), com um `MotivoRetrabalho` categorizado: `ReprovacaoDimensional`, `ErroInterno`,
     `SolicitacaoCliente` ou `Perda`. **Nota (2026-10-20, Fase 5A):** o vínculo que a regra dava ao
     Retrabalho — a avaliação que o originou (`RelatorioDimensionalAvaliacao.PedidoRetrabalhoId`) — **deixou
     de existir**, porque a avaliação por remessa deixou de existir (regra 10). Como o Retrabalho se liga à
-    reclamação do **cliente** (`SolicitacaoCliente`, depois de ele receber) é redesenhado na Fase 5B.
+    reclamação do **cliente** (`SolicitacaoCliente`, depois de ele receber) é redesenhado na Fase 5B-2.
 13. Uma Peça está **concluída** quando nada dela está mais em produção — toda a quantidade
-    virou expedido (a posição `Expedido` do livro) **ou** perdido (`Perda`, da Fase 5B). Um Agrupamento
+    virou expedido (a posição `Expedido` do livro) **ou** perdido (a posição `Perdido`, por uma baixa; regra 38). Um Agrupamento
     conclui quando todas as suas Peças concluem (`Agrupamento.DataConclusao`), e um Pedido conclui quando o
     **último** Agrupamento conclui (`Pedido.DataConclusao`). Não depende mais de "avaliado",
     já que o Relatório Dimensional é opcional.
@@ -139,13 +144,19 @@
     mesma transação de todo movimento que toca o fim do caminho — a remessa, o estorno dela, a entrega que
     chega ao local de expedição, o conserto, a contagem... — e de criar, editar (a quantidade da Peça) ou
     importar uma Peça num Pedido rodando; acrescentar filho não o recalcula, porque não muda a quantidade de
-    nenhuma Peça nem o que ela expediu. Como só o expedido conta (o perdido é da 5B), a Peça conclui com **toda** a quantidade em
-    `Expedido`. A data de conclusão do Agrupamento e do Pedido é a da escrita que os concluiu.
+    nenhuma Peça nem o que ela expediu. Desde a Fase 5B-1 a Peça conclui com **expedido + perdido = quantidade** (C10 da
+    spec da Fase 5B-1); a baixa e o estorno dela recalculam o fechamento na mesma transação. A data de conclusão do Agrupamento e do Pedido é a da escrita que os concluiu.
     - **Status do Pedido** (C11): `AguardandoExpedicao` quando toda a quantidade ainda **não expedida** das
       Peças do Pedido está no local de expedição (qualquer das cinco posições); `EmProducao` quando alguma
       ainda está noutro lugar, **inclusive em conserto** — mandar para conserto tira a unidade do local de
-      expedição e devolve o Pedido a `EmProducao`. `Aberto` só vale antes do primeiro início, e o status
-      não volta a ele; `Cancelado` fica fora de tudo isto.
+      expedição e devolve o Pedido a `EmProducao`. Desde a 5B-1 o "ainda não expedido" desconta o **perdido**: a
+      Peça com tudo expedido ou perdido não segura o status. `Aberto` vale antes do primeiro início, e o status
+      só volta a ele num caso (C23, abaixo); `Cancelado` fica fora de tudo isto.
+    - **Pedido `Aberto` também conclui** (C11 da spec da 5B-1): quando todas as Peças dele concluem por baixa —
+      o "Descartar tudo" de um Pedido que nunca começou. O Agrupamento cujas Peças concluíram todas ganha
+      `DataConclusao` mesmo com o Pedido ainda `Aberto` (C23). **O estorno que reabre** um Pedido que **nunca teve
+      início** (nenhuma linha `Inicio` líquida de estorno nos nós dele, regra 14) o devolve a `Aberto`, e não a
+      `EmProducao` (C23).
     - **Agrupamento sem Peças não conclui e não segura o Pedido** (C16): o fechamento olha só os
       Agrupamentos que têm Peças, e um Pedido sem Peça nenhuma não conclui.
     - **Estornar a remessa reabre** o que ela concluiu (C13): Peça, Agrupamento e Pedido voltam a abertos,
@@ -157,9 +168,14 @@
     - **Pedido `Concluido` recusa edição de estrutura** (C15): criar Peça, acrescentar filho, editar nó e
       confirmar o import voltam 409 `PedidoFechado`. Em Pedido rodando (`EmProducao` ou
       `AguardandoExpedicao`) a edição continua livre, como era (decisão de 2026-08-29), e **recalcula** status
-      e fechamento: acrescentar Peça a um Pedido aguardando expedição o devolve a `EmProducao`; baixar a
-      quantidade de uma Peça até o que já foi expedido a conclui (a quantidade não desce abaixo do que já saiu
-      de "a iniciar", como sempre). Quem precisa mudar um Pedido concluído estorna a última remessa.
+      e fechamento: acrescentar Peça a um Pedido aguardando expedição o devolve a `EmProducao`. **A quantidade
+      de um nó só aumenta** nessa edição (D12 da spec da 5B-1): diminuir é pela baixa (regra 38), e o `PUT` que
+      diminui é 409 `DiminuirPelaBaixa`; com o Pedido `Aberto` a edição segue livre nos dois sentidos, com a guarda
+      de sempre (a quantidade não desce abaixo do que já saiu de "a iniciar"). Quem precisa mudar um Pedido
+      concluído estorna a última remessa — ou a baixa que o concluiu, que também o reabre (regra 38).
+    - **Pedido `Concluido` e a baixa** (C12 e C24): a estrutura continua recusada, mas a **sobra viva de Item** —
+      todo saldo de Item ainda em produção num Pedido concluído — se descarta pela baixa (regra 38), só com motivo
+      `Descarte`; é a única escrita de estrutura que o Pedido concluído aceita, e não o reabre.
 14. O início real de produção de um Pedido é derivado (não armazenado) como a menor data entre
     as primeiras entradas (regra 28) dos nós daquele Pedido, no livro de movimentações — usado
     para separar tempo em fila de tempo de produção. A primeira entrada é o início do trabalho,
@@ -194,18 +210,17 @@
       409 `PedidoFechado`. `Expedido` é terminal, então a quantidade expedida nunca "andou" depois, e nada mais
       o impede. Quem estorna: o autor, o PCP ou o Administrador (C7).
 17. Uma **perda** registra baixa de quantidade em produção (`PerdaArmazem`, `MortaEmProcesso` ou
-    `Descarte`), levando a quantidade ao bucket terminal "perdido". Pode ser registrada em
+    `Descarte`), levando a quantidade à posição terminal `Perdido`. Pode ser registrada em
     **qualquer** `EstruturaItem`, Peça ou Item. Para repor, abre-se um Pedido de Retrabalho
-    separado (`MotivoRetrabalho='Perda'`) — **nunca** reabre a Peça original. Como na reprovação,
+    separado (`MotivoRetrabalho='Perda'`, Fase 5B-2) — **nunca** reabre a Peça original. Como na reprovação,
     registrar a perda **não** abre retrabalho automaticamente. `Descarte` é a sobra que nunca foi
-    usada (regras 25 e 30) e não se repõe. Quando a perda de uma parte impede montar o pai, vale a
-    regra 27.
+    usada (regras 25 e 30) e o que saiu do projeto do cliente, e não se repõe. Quando a perda de uma parte impede
+    montar o pai, vale a regra 27. **Como a perda é registrada** — a rota, as três formas, quem pode, de onde
+    sai, o estorno — é a regra 38.
 
-    **Alterada pela decisão de 2026-09-15:** entraram o motivo `Descarte` e a perda de Item. No
-    schema, o `Descarte` só entra no início da Fase 5 (a **5B**, desde que a Fase 5 foi dividida em 5A, 5B e
-    5C em 2026-10-20) — até lá, a `CK_Perda_Motivo` de
-    `02-modelo-de-dados.sql` aceita só `PerdaArmazem` e `MortaEmProcesso`. A perda de Item não
-    depende de mudança de schema: `dbo.Perda` já referencia qualquer `EstruturaItem`.
+    **Alterada pela decisão de 2026-09-15:** entraram o motivo `Descarte` e a perda de Item. **Fechada na Fase
+    5B-1** (2026-11-04): `dbo.Perda` deixou de ser uma linha por nó com `Responsavel` digitado e virou o registro
+    da baixa (uma por baixa, com o autor da sessão), e `CK_Perda_Motivo` aceita os três motivos.
 
 18. **Toda Peça que um Pedido precisa tem um sólido 3D** — é obrigação do negócio, anterior a
     este sistema: a peça não entra em produção sem o arquivo de CAD. O sistema guarda a
@@ -416,7 +431,7 @@ entra no início de cada fase.*
     (D5 da spec da Fase 3B). Sem perda, e sem nenhum caminho por fora da entrada em conjunto
     completo e do início (o bullet «Limitação conhecida» desta regra dá exemplos deles), isso é o
     número de conjuntos que entraram e ainda não foram montados por inteiro; o arredondamento para cima
-    mantém contado o conjunto que perdeu parte. (Como a perda do próprio nó entra nesta conta é decisão da Fase 5.) O motivo é
+    mantém contado o conjunto que perdeu parte. (A perda do próprio pai entra na conta do que falta montar, regra 38; o conjunto que perde parte dentro da Solda, e a espera desalinhada, continuam para a Fase 5C.) O motivo é
     físico: peça solta ou a mais na Solda ocupa espaço, e, se houver perda antes de o resto chegar,
     aquele espaço fica sem destino. Não há exceção para completar conjunto que perdeu parte dentro
     da Solda — isso é perda (regra 27). A **sobra** — tudo o que passa do que o nó precisa, feche
@@ -454,22 +469,27 @@ entra no início de cada fase.*
     (sobra de refugo). A Fase 2 havia decidido não guardar a razão; ver a errata na §2.1 da spec da
     Fase 2 (`docs/superpowers/specs/2026-08-29-fase-2-estrutura-recursiva-design.md`).
 27. **Perda que impede montar.** Quando a perda de uma parte impede montar uma unidade do pai, a
-    perda **sobe até a Peça do topo**: registra-se a perda daquela unidade da Peça no Pedido
-    original, que conclui normalmente (regra 13), e as partes daquela unidade que existem e ainda
-    não foram montadas saem junto como perda. A reposição é um Pedido de Retrabalho (regra 17),
-    **aberto** por quem registra a perda (Qualidade ou PCP) e **cadastrado** pelo PCP para a Peça
-    faltante, em que o que já existe é marcado **pronto** — só dentro
-    da árvore daquela unidade; o resto continua no Pedido original.
+    perda **sobe até a Peça do topo**: dá-se baixa também da unidade da Peça no Pedido
+    original, que conclui normalmente (regra 13), e as partes daquela unidade que ainda não foram
+    iniciadas saem junto (regra 38). **Na Fase 5B-1** isso é **uma baixa só**, com a opção `incluirTopo`: a
+    prévia do servidor diz quantas unidades da Peça do topo a perda trava e a tela oferece, marcado por padrão,
+    dar baixa delas junto; a baixa inteira se estorna junto (D13 e D14 da spec da 5B-1). A reposição é um Pedido
+    de Retrabalho (regra 17), **aberto** por quem registra a perda (Qualidade ou PCP) e **cadastrado** pelo PCP
+    para a Peça faltante, em que o que já existe é marcado **pronto** — só dentro da árvore daquela unidade; o
+    resto continua no Pedido original. **O Retrabalho e o nó pronto são da Fase 5B-2.**
     - Nó **pronto** não percorre Roteiro: folha pronta já foi fabricada; nó com filhos pronto já
       foi montado (total montado = quantidade, e os filhos nem precisam existir no Retrabalho).
     - Nó pronto nasce **aguardando coleta** e é levado normalmente (regra 22).
     - As partes saem do original como perda, sem vínculo por nó com o Retrabalho: o Retrabalho já
       nasce ligado ao original (`PedidoOrigemId`, `MotivoRetrabalho = 'Perda'`), e confrontar os
       dois mostra o destino do saldo — perdido ou descartado de fato, ou reposto e expedido depois.
+    - As partes **fisicamente existentes** daquela unidade (num Setor, aguardando coleta ou montagem) **não saem
+      sozinhas**: ficam onde estão e viram sobra pelo cálculo de sempre (regra 30) — é delas que a 5B-2 tira o que
+      marca **pronto**.
 
 *As regras 28 a 30 foram decididas em 2026-09-24, no brainstorm da Fase 3 (spec
 `docs/superpowers/specs/2026-09-24-fase-3-rastreamento-de-setor-design.md`), e são implementadas na
-Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
+Fase 3 — menos o registro do `Descarte` da regra 30, que entrou na Fase 5B-1 (regra 38).*
 
 28. **Todo nó nasce a iniciar, e a primeira entrada é do operador.** A quantidade inteira de um nó
     nasce **a iniciar**, que conta como em produção (regra 9). A fabricação começa quando o operador
@@ -493,9 +513,16 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que é da Fase 5.*
 30. **A sobra é identificada, não é tarefa, e só sai por descarte.** O que um Item tem, no fim do
     Roteiro ou entregue para a montagem, além do que o pai ainda precisa, é **sobra**: sai da lista
     de tarefas do Movimentador e aparece à parte, no Setor onde está. Só deixa de estar em produção
-    por uma perda de motivo `Descarte` (regra 17), registrada pelo mesmo ator da perda — Qualidade ou
-    PCP — a qualquer momento depois de virar sobra. A regra 13 não muda: o Pedido conclui com sobra
-    viva, que continua listada até ser descartada.
+    por uma perda de motivo `Descarte` (regras 17 e 38), registrada pelo mesmo ator da perda — Qualidade,
+    PCP ou Administrador — a qualquer momento depois de virar sobra, **da própria linha da sobra** na Fila do
+    Setor (C17 da spec da 5B-1: a tela limita a quantidade à sobra da linha, o servidor não). A regra 13 não
+    muda: o Pedido conclui com sobra viva, que continua listada até ser descartada — e, desde a 5B-1, a seção
+    "Sobra" da Fila também lista a de um Pedido `Concluido` (C25).
+    **Limitação conhecida (U2, decisão do usuário de 2026-11-04):** nessa seção de um Pedido concluído entra só a
+    sobra **de coleta e de montagem**, como a regra 30 sempre a definiu. O saldo vivo de um Item concluído num
+    Setor, em conserto ou a iniciar não é sobra pelo cálculo e não aparece lá; descarta-se pelo "Dar baixa" do
+    painel do nó, ou pelo "Descartar tudo" (regra 38, C24). Não muda a C25; fica registrado para não ser lido
+    como esquecimento.
 
 *A regra 31 foi decidida em 2026-09-28, na spec da Fase 3D
 (`docs/superpowers/specs/2026-09-28-fase-3d-ajustes-pos-verificacao-design.md`, seção 2.5).*
@@ -671,35 +698,93 @@ e as R4 a R6 da implementação, registradas nas emendas de 2026-10-21 da spec).
     trazem a posição de origem da quantidade, então "2 não conformes expedidas sem liberação" se lê sem
     estado extra. **Risco aceito:** a unidade expedida antes da aferição fica sem resultado para sempre.
 
+*A regra 38 foi decidida em 2026-11-03 e 2026-11-04, na spec da Fase 5B-1
+(`docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`; as decisões do usuário são D1 a D14 e as
+chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
+
+38. **A baixa: perda e descarte, e o livro de baixas é só de inclusão.** Uma **baixa** tira quantidade de
+    produção e a leva à posição terminal `Perdido`, com **um** motivo para a baixa inteira — `PerdaArmazem` ("sumiu
+    no armazém"), `MortaEmProcesso` ("morreu num processo") ou `Descarte` (a quantidade não vai ser usada: a sobra
+    da regra 30 ou o que saiu do projeto do cliente; não se repõe). Grava **uma** `dbo.Perda` (o registro: motivo,
+    observação opcional de até 500 caracteres, escopo, `Tudo`, autor da sessão e hora) e **uma linha `Perda` do
+    livro por nó e por posição de origem**, apontando-a. Como o livro, a baixa **não se edita**: corrige-se por
+    estorno, e a quantidade cadastrada do nó não muda (regra 9).
+    - **Três formas**, todas pela mesma rota. **Parte de um nó** (D3, D4): quem dá baixa informa, por posição (com
+      Setor e passo, quando a posição tem), quanto tira — o sistema não escolhe. **Tudo de um nó** (D11): leva todo o
+      saldo em produção do nó **e de todos os descendentes**, em todas as posições; o expedido e o montado dentro de
+      um pai nunca saem. **Tudo de um Agrupamento ou de um Pedido** (D7, D8, o "Descartar tudo"): o "tudo" de cada
+      Peça que ainda tem algo em produção, **numa baixa só**, sempre com motivo `Descarte`. Sem nada em produção a
+      tirar, 409 `NadaEmProducao`. O Pedido que o cliente cancelou, e que no sistema continua rodando, é descartado até concluir e termina
+      `Concluido`, não `Cancelado` (D7; o status `Cancelado` continua sem ação que leve a ele, C20).
+    - **De onde se dá baixa** (C4): `AIniciar`, `NoSetor`, `AguardandoColeta`, `AguardandoMontagem`,
+      `AguardandoConserto`, `EmConserto`, `ConsertoPronto`, `NaExpedicao`, `Conforme`, `NaoConforme` e `Liberada`.
+      **Nunca** de `AguardandoLiberacao` (a unidade está presa a um pedido de liberação em aberto), `Montado`,
+      `Expedido` nem `Perdido`: na baixa de parte é 400 `OrigemInvalida`; o "tudo" com unidade aguardando
+      liberação é 409 `LiberacaoEmAberto`, nomeando as Peças (C15), e o pedido de liberação se estorna antes.
+    - **Quem** (D5): a Qualidade, o PCP e o Administrador. O Operador vê a linha de sobra e não a descarta. A
+      pausa do Pedido não recusa a baixa (regra 31, C13). Pedido `Cancelado` recusa (409 `PedidoFechado`); Pedido
+      `Concluido` só aceita o descarte da sobra viva de Item (regra 13, C12 e C24).
+    - **O que falta montar desconta o perdido do pai** (C5, C21): `FaltaMontar(pai) = Quantidade − TotalMontado −
+      perdido de "a iniciar" do pai`, que para nó com filhos é o saldo de `AIniciar` dele. Tudo o que depende disso
+      segue: as tarefas (regra 23), a sobra (regra 30), a montabilidade do Setor (regra 24) e o teto de entrada do Kit
+      (regra 25). Unidades do pai perdidas **depois** de iniciadas não mudam o que ele precisa dos filhos: o filho
+      delas já foi montado.
+    - **Os filhos de um pai que perde "a iniciar" (C6).** Na mesma baixa, descendo a árvore, saem de `AIniciar` os
+      filhos **a iniciar** além do que o pai agora precisa: `min(AIniciar(filho), max(0, EmProducao(filho) −
+      FaltaMontar(pai) × QuantidadePorPai(filho)))`. O filho que já existe fisicamente além disso **não sai
+      sozinho**: fica onde está e vira sobra pela regra 30. A prévia lista em `viramSobra` só a sobra que **a própria
+      baixa cria**, e não a que já existia.
+    - **"Saiu do projeto" é marcado, não deduzido** (C22). O nó tem uma baixa **`tudo`** de motivo `Descarte`, não
+      estornada, **no próprio nó**: ele deixa de contar para a montagem do pai (montabilidade, conjunto completo, teto
+      de entrada, "Dá para montar N" e o consumo dos filhos no início do pai). É o que destrava o filho acrescentado
+      por engano. Uma baixa de parte, mesmo que zere o filho, não o tira da conta, e o filho perdido por inteiro por
+      `PerdaArmazem` ou `MortaEmProcesso` **continua** limitando o pai — o caminho é a regra 27. Descartar por inteiro
+      um ancestral leva o pai junto, e então não há montagem a calcular. As unidades do pai já montadas continuam com
+      o filho dentro. **Ressalva (2026-11-05):** o pai **Avulso** cujos filhos saíram todos do projeto passa a ser
+      tratado como folha, aparece "a iniciar" na Fila e inicia por ela; o pai **Kit** nessa situação continua fora da
+      Fila e da coleta, e fica para a Fase 5C (`06-roadmap-mvp.md`).
+    - **Perda que impede montar** (regra 27; D13 e D14). A prévia (`travaNoTopo`) sobe a cadeia do Item até a Peça do
+      topo e, em cada nível, calcula quantas unidades ainda faltam montar e os filhos em produção já não cobrem, com
+      o fornecimento de cada pai intermediário sendo o que ele tem em produção menos as unidades que a própria baixa
+      trava; a razão de cada nível leva o número até unidades da Peça do topo. Com `incluirTopo`, a mesma baixa leva
+      também essas unidades da Peça do topo, de `AIniciar` — `min(trava, a iniciar do topo)`, recalculado dentro da
+      transação —, com o mesmo motivo, e o C6 corre a partir delas. `incluirTopo` vale na baixa **de parte de um
+      Item**, com qualquer motivo, e na de **tudo** de um Item por `PerdaArmazem` ou `MortaEmProcesso`; **só a baixa de
+      tudo por `Descarte`** não tem trava e o recusa (o filho sai do projeto e deixa de travar o pai, C22), assim como a
+      baixa numa Peça: nesses dois casos é 400 `OrigemInvalida`.
+    - **"Matar" a não conforme** (D6, C16): baixa da Peça com origem `NaoConforme` e motivo `MortaEmProcesso`. Sai do
+      expedível e conta para o fechamento (regra 13). Refazer é um Pedido de Retrabalho à parte (5B-2).
+    - **Prévia do servidor** (C14): uma rota calcula o que a baixa gravaria — as linhas por nó e posição, `viramSobra`
+      e `travaNoTopo` — **sem gravar e sem travar**, com as mesmas recusas; a conta é a mesma da escrita.
+    - **Estorno** (C7 a C10): a baixa se estorna **inteira**, pela rota dela, com um `Estorno` por linha de `Perdido`
+      de volta à origem, todos apontando a baixa, numa transação, **inclusive os filhos que saíram junto por C6** e a
+      Peça do topo de `incluirTopo`. Quem estorna: o autor, o PCP ou o Administrador. Não tem prazo (`Perdido` é
+      terminal); recusado só se já estornada (409 `JaEstornado`), e em Pedido `Cancelado` (409 `PedidoFechado`);
+      num `Concluido` é aceito e reabre o que a baixa concluiu. `POST /movimentacoes/{id}/estorno` recusa a linha
+      `Perda` (409 `EstornoImpossivel`), como a da remessa. A baixa e o estorno recalculam o fechamento na mesma
+      transação (regra 13).
+    - **Concorrência.** A baixa trava, em ordem crescente de `Id`, **a árvore inteira da Peça do topo do nó**, e só
+      depois o Pedido; o "Descartar tudo" de Agrupamento ou Pedido trava a **união** das árvores de todas as Peças dele.
+      Duas baixas simultâneas da mesma posição que somadas passam do saldo dão um 201 e um 409 `SaldoInsuficiente`,
+      nunca saldo negativo; a baixa e o início do pai sobre o mesmo "a iniciar" se serializam.
+    - **Riscos aceitos.** Estornar a baixa de um pai depois de a sobra dos filhos ter sido descartada por outra
+      baixa deixa o pai precisando de filhos já descartados (quem quer desfazer tudo estorna as duas); se o descarte
+      de um filho foi engano, o estorno o traz de volta à conta; na baixa de parte, o planejado do material do nó
+      **não se reescala** (C26, a mesma dívida da edição de quantidade). A lista do Separador e o resumo de material
+      da Fila deixam de mostrar o nó **perdido ou descartado por inteiro** (perdido igual à quantidade dele).
+
 ## Pontos ainda em aberto
 
 - **Busca de peça por foto** (comparar a foto do operador contra as silhuetas do sólido).
   Não é decisão de domínio ainda: depende de um spike medir a taxa de acerto. Ver
   `06-roadmap-mvp.md`.
-- **Descontinuar uma Peça trava o fechamento do Pedido.** O comportamento padrão quando um cliente
-  altera o projeto de um Pedido em execução é o descartado **parar de ser produzido**, não ser
-  apagado. Mas pela regra 13 uma Peça só conclui quando **toda** a quantidade virou expedido ou
-  perdido — e a quantidade que nunca entrou em produção não é nem uma coisa nem outra. A Peça nunca
-  conclui, o Agrupamento nunca conclui, e o Pedido nunca fecha. Descontinuar precisa de um **bucket
-  terminal** próprio ou de uma exceção explícita na regra 13. Levantado na Fase 2 e deliberadamente
-  não decidido lá: tem efeito na Fase 5 (fechamento), não só na 3.
-  *Nota (2026-09-24):* desde a regra 28, a quantidade que nunca entrou num Setor está **a
-  iniciar**, que conta como em produção. O buraco continua o mesmo: ela nunca vira expedido nem
-  perdido.
-  *Nota (2026-09-24, revisão da Fase 3):* a Fase 2 havia empurrado o descarte em Pedido rodando
-  para a Fase 3, e a Fase 3 não o resolveu; com a montagem de todo nó, um filho acrescentado por
-  engano a um Pedido rodando, que não se apaga, trava a montagem do pai até ser fabricado. A fase
-  continua a decidir.
-  *Nota (2026-09-25):* o usuário decidiu a **fase**: o descarte em Pedido rodando é da **Fase 5**,
-  junto da perda e do `Descarte` da sobra (regra 30) — a quantidade descartada precisa de um destino
-  no livro, e `Perdido` só nasce lá. Tem de existir antes do primeiro uso real. **Como** o descarte
-  fecha a regra 13 (bucket próprio ou `Perda` com motivo `Descarte`) continua a decidir, na spec da
-  Fase 5.
-
-> **Nota (2026-10-21, Fase 5A):** o fechamento que a regra 13 pedia nasceu na 5A **contando só o expedido**, e
-> o ponto «Descontinuar uma Peça trava o fechamento do Pedido» segue em aberto: a Peça descontinuada continua sem concluir até a **Fase 5B**, que traz o
-> `Perdido` e o descarte da Peça ou do Item em Pedido rodando (**obrigatório antes do primeiro uso real**, como
-> o roadmap marca).
+> **Fechado em 2026-11-04** (spec da Fase 5B-1): o ponto «Descontinuar uma Peça trava o fechamento do Pedido», que
+> esteve aqui desde a Fase 2, saiu da lista. Quem descontinua dá baixa de `Descarte` do que saiu do projeto — de tudo,
+> inclusive o que já está fabricado ou num Setor (D2) —, e o **bucket terminal** que faltava é a posição `Perdido`
+> (regra 38): o fechamento conta o perdido junto do expedido (regra 13), então a Peça descontinuada conclui, o
+> Agrupamento conclui e o Pedido fecha. O filho acrescentado por engano a um Pedido rodando, que travava a montagem
+> do pai, sai pela baixa `tudo` de `Descarte` (C22; a ressalva do pai Kit está na regra 38). O "Descartar tudo" do
+> Pedido e do Agrupamento faz isso numa ação só.
 
 > **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
 > produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro

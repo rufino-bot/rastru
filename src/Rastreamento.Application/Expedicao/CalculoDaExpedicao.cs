@@ -13,11 +13,11 @@ public enum SituacaoDaAfericao { SemRelatorio, Pendente, Conforme, NaoConforme }
 /// <summary>
 /// A quantidade de uma Peca no fim do caminho, por posicao (secao 3.1 da spec da Fase 5A). `EmConserto` e a
 /// soma das tres posicoes do conserto (`AguardandoConserto`, `EmConserto`, `ConsertoPronto`), de qualquer
-/// Setor.
+/// Setor. `Perdido` e a posicao terminal da baixa (Fase 5B-1), ao lado de `Expedido`.
 /// </summary>
 public sealed record PosicoesDaPeca(
     decimal NaExpedicao, decimal Conforme, decimal NaoConforme, decimal AguardandoLiberacao, decimal Liberada,
-    decimal EmConserto, decimal Expedido)
+    decimal EmConserto, decimal Expedido, decimal Perdido = 0m)
 {
   /// <summary>O "no local de expedicao" da regra 9: as cinco posicoes de <see cref="PosicoesDoLivro.NoLocalDeExpedicao"/>.</summary>
   public decimal NoLocalDeExpedicao => NaExpedicao + Conforme + NaoConforme + AguardandoLiberacao + Liberada;
@@ -98,7 +98,7 @@ public static class CalculoDaExpedicao
   public static PosicoesDaPeca Posicoes(IEnumerable<(Local Local, decimal Quantidade)> saldosDaPeca)
   {
     decimal naExpedicao = 0, conforme = 0, naoConforme = 0, aguardandoLiberacao = 0, liberada = 0,
-        emConserto = 0, expedido = 0;
+        emConserto = 0, expedido = 0, perdido = 0;
     foreach (var (local, quantidade) in saldosDaPeca)
     {
       switch (local.Posicao)
@@ -112,9 +112,10 @@ public static class CalculoDaExpedicao
         case PosicoesDoLivro.EmConserto:
         case PosicoesDoLivro.ConsertoPronto: emConserto += quantidade; break;
         case PosicoesDoLivro.Expedido: expedido += quantidade; break;
+        case PosicoesDoLivro.Perdido: perdido += quantidade; break;
       }
     }
-    return new PosicoesDaPeca(naExpedicao, conforme, naoConforme, aguardandoLiberacao, liberada, emConserto, expedido);
+    return new PosicoesDaPeca(naExpedicao, conforme, naoConforme, aguardandoLiberacao, liberada, emConserto, expedido, perdido);
   }
 
   /// <summary>

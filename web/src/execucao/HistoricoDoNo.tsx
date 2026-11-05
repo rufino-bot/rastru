@@ -4,6 +4,7 @@ import {
   type LivroDoNoDto, type MontagemDto, type MovimentacaoDto,
 } from '../api/execucao'
 import { formatarDataHora } from '../api/cadastros'
+import { ROTULO_DO_MOTIVO } from '../api/baixas'
 import { mensagemDeErro } from '../api/erros'
 import { Botao } from '../components/Botao'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -43,7 +44,8 @@ function doMaisRecente(livro: LivroDoNoDto): Estornavel[] {
  * quem lê.
  */
 function tituloDaMovimentacao(m: MovimentacaoDto): string {
-  return `${rotuloDoTipo(m.tipo)} de ${formatarQuantidade(m.quantidade)}`
+  const base = `${rotuloDoTipo(m.tipo)} de ${formatarQuantidade(m.quantidade)}`
+  return m.tipo === 'Perda' && m.motivoDaBaixa ? `${base} · ${ROTULO_DO_MOTIVO[m.motivoDaBaixa]}` : base
 }
 
 /** O título mais o instante: o suficiente para distinguir um registro do outro no diálogo e no botão. */
@@ -76,7 +78,8 @@ interface Props {
  * O que NÃO tem "Estornar", e por quê (spec §4.5):
  * - um `Estorno` — estorno não se estorna; o registro errado se corrige registrando de novo;
  * - o que já foi estornado (`JaEstornado`);
- * - a baixa de um filho numa montagem: estorna-se a montagem inteira, na linha do PAI.
+ * - a baixa de um filho numa montagem: estorna-se a montagem inteira, na linha do PAI;
+ * - a linha de uma baixa: estorna-se a baixa inteira, na seção Baixas.
  */
 export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
   const [livro, setLivro] = useState<LivroDoNoDto | null>(null)
@@ -164,7 +167,7 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
               )
             }
             const m = r.registro
-            const estornavel = !m.estornada && m.tipo !== 'Estorno' && m.montagemId === null
+            const estornavel = !m.estornada && m.tipo !== 'Estorno' && m.montagemId === null && m.perdaId === null
             return (
               <ItemComAcao
                 // Prefixo nas duas chaves: movimentação e montagem têm Ids de sequências distintas,
@@ -189,6 +192,9 @@ export function HistoricoDoNo({ noId, podeEstornar, aoEstornar }: Props) {
                 <span className="text-xs text-tinta-fraca">{`${m.usuarioNome} · ${formatarDataHora(m.dataHora)}`}</span>
                 {m.estornoDeId !== null && (
                   <span className="text-xs text-tinta-fraca">{linhaDoEstorno(livro, m.estornoDeId)}</span>
+                )}
+                {m.tipo === 'Perda' && !m.estornada && (
+                  <span className="text-xs text-tinta-fraca">Parte de uma baixa: estorna-se a baixa inteira, na seção Baixas.</span>
                 )}
                 {m.montagemId !== null && m.tipo === 'Montagem' && !m.estornada && (
                   <span className="text-xs text-tinta-fraca">Parte de uma montagem do pai: estorna-se a montagem inteira, no pai.</span>

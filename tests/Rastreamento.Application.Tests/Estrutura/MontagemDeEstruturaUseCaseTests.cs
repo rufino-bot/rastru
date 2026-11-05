@@ -195,8 +195,10 @@ public class MontagemDeEstruturaUseCaseTests
   }
 
   [Fact]
-  public async Task Baixar_a_quantidade_da_Peca_ate_o_expedido_conclui()
+  public async Task Baixar_a_quantidade_da_Peca_ate_o_expedido_com_Pedido_rodando_e_DiminuirPelaBaixa()
   {
+    // D12 da spec da Fase 5B-1: diminuir a quantidade com o Pedido rodando e pela baixa, nao pela edicao; ate o
+    // expedido a Peca nao conclui mais por aqui.
     var c = Cenario();
     c.Mover(1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 3m);
     c.Mover(1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), NaExpedicao, 3m);
@@ -205,10 +207,10 @@ public class MontagemDeEstruturaUseCaseTests
 
     var r = await c.Estrutura().EditarNo(1, new EdicaoDeNoDto("No 1", 3m), Ct);
 
-    Assert.True(r.Sucesso);
-    Assert.Equal("Concluido", c.Execucao.StatusDoPedido[PedidoId]);
-    Assert.NotNull(c.Execucao.DataConclusaoDoPedido.GetValueOrDefault(PedidoId));
-    Assert.NotNull(c.Execucao.DataConclusaoDoAgrupamento.GetValueOrDefault(AgrupamentoId));
+    Assert.False(r.Sucesso);
+    Assert.Equal("DiminuirPelaBaixa", r.Erro);
+    Assert.Equal("EmProducao", c.Execucao.StatusDoPedido[PedidoId]);
+    Assert.Null(c.Execucao.DataConclusaoDoPedido.GetValueOrDefault(PedidoId));
   }
 
   [Fact]

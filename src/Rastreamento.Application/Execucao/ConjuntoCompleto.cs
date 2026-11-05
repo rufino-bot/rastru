@@ -31,7 +31,7 @@ internal static class ConjuntoCompleto
       var somas = grupo.GroupBy(i => i.EstruturaItemId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantidade));
 
       decimal? conjuntos = null;
-      foreach (var filho in calc.Filhos(paiId))
+      foreach (var filho in calc.FilhosQueContam(paiId))
       {
         var nome = estado.Nome(filho.Id);
         if (!somas.TryGetValue(filho.Id, out var soma))

@@ -11,7 +11,8 @@ namespace Rastreamento.Application.Execucao;
 /// comportar o que volta. Uma vez so por registro (`UX_Movimentacao_EstornoDe` garante no banco).
 /// Estorno nao se estorna; a baixa de filho de uma montagem so sai com a montagem inteira — e
 /// estornar a montagem desfaz tambem o Inicio do pai que ela gravou (Fase 3D). A linha de contagem, de
-/// liberacao ou de remessa tambem so sai com o registro inteiro, pela rota dele (C17 da spec da Fase 5A).
+/// liberacao ou de remessa tambem so sai com o registro inteiro, pela rota dele (C17 da spec da Fase 5A), e a de
+/// baixa tambem (C7 da spec da Fase 5B-1).
 /// </summary>
 public sealed class EstornoUseCase
 {
@@ -81,14 +82,15 @@ public sealed class EstornoUseCase
 
   /// <summary>
   /// A linha de um registro composto se estorna com ele inteiro, pela rota dele (C17 da spec da Fase 5A): a
-  /// contagem (as linhas `Medicao`, uma por resultado diferente de zero, ate duas), a liberacao (o pedido ou a resposta) e a remessa (C8). Nula quando a
-  /// linha nao pertence a nenhum.
+  /// contagem (as linhas `Medicao`, uma por resultado diferente de zero, ate duas), a liberacao (o pedido ou a resposta) e a remessa (C8). A baixa
+  /// tambem (C7 da spec da Fase 5B-1). Nula quando a linha nao pertence a nenhum.
   /// </summary>
   private static string? RecusaDeRegistroComposto(Movimentacao original) => original switch
   {
     { ContagemId: int id } => $"Esta linha faz parte da contagem {id}: estorne a contagem inteira.",
     { LiberacaoId: int id } => $"Esta linha faz parte da liberação {id}: estorne a liberação inteira.",
     { RemessaId: int id } => $"Esta linha faz parte da remessa {id}: estorne a remessa inteira.",
+    { PerdaId: int id } => $"Esta linha faz parte da baixa {id}: estorne a baixa inteira.",
     _ => null,
   };
 

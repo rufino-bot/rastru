@@ -27,12 +27,17 @@ internal sealed class ProjetorDoLivro
     var setores = await NomesDosSetoresAsync(setorIds, ct);
     var usuarios = await _execucao.ListarNomesDeUsuariosAsync(movimentos.Select(m => m.UsuarioId).Distinct().ToList(), ct);
     var estornadas = await _execucao.ListarEstornadasAsync(movimentos.Select(m => m.Id).ToList(), ct);
+    var perdaIds = movimentos.Select(m => m.PerdaId).OfType<int>().Distinct().ToList();
+    var motivos = perdaIds.Count == 0
+        ? new Dictionary<int, string>()
+        : await _execucao.ListarMotivosDasPerdasAsync(perdaIds, ct);
 
     return movimentos.Select(m => new MovimentacaoDto(
         m.Id, m.EstruturaItemId, m.Tipo, m.Quantidade,
         LocalDto.De(Local.DaOrigem(m), setores), LocalDto.De(Local.DoDestino(m), setores),
         m.MontagemId, m.EstornoDeId, m.DataHora, m.UsuarioId, usuarios.GetValueOrDefault(m.UsuarioId, string.Empty),
-        estornadas.Contains(m.Id), m.ContagemId, m.LiberacaoId, m.RemessaId)).ToList();
+        estornadas.Contains(m.Id), m.ContagemId, m.LiberacaoId, m.RemessaId,
+        m.PerdaId, m.PerdaId is int p ? motivos.GetValueOrDefault(p) : null)).ToList();
   }
 
   public async Task<IReadOnlyList<MontagemDto>> ProjetarMontagensAsync(IReadOnlyList<Montagem> montagens, CancellationToken ct)

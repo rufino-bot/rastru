@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Rastreamento.Domain.Entities;
 using Rastreamento.Infrastructure.Persistence;
 using static Rastreamento.Api.Tests.CenarioDaFase3NaApi;
 
@@ -182,6 +183,52 @@ public partial class ExecucaoEndpointsTests
     Assert.Equal(3, (await CorpoAsync(estorno)).GetArrayLength());   // duas baixas e o Inicio do pai
   }
 
+  /// <summary>
+  /// C22 da spec da Fase 5B-1: o filho descartado por inteiro sai da conta da montagem. A baixa e o livro sao
+  /// gravados direto pelo `DbContext` do cenario (a rota da baixa e de outra etapa): B (20, a iniciar) vai todo
+  /// para `Perdido` com uma `Perda` `Tudo` de `Descarte`, e o pai monta so com C.
+  /// </summary>
+  [Fact]
+  public async Task Iniciar_pai_com_filho_descartado_por_inteiro_monta_sem_ele()
+  {
+    await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      var perda = new Perda
+      {
+        Motivo = MotivosDePerda.Descarte, PedidoId = c.PedidoId, EstruturaItemId = c.B, Tudo = true,
+        DataHora = DateTime.UtcNow, UsuarioId = c.Pcp.Id,
+      };
+      db.Perdas.Add(perda);
+      await db.SaveChangesAsync();
+      db.Movimentacoes.Add(new Movimentacao
+      {
+        EstruturaItemId = c.B, Tipo = TiposDeMovimentacao.Perda, Quantidade = 20m,
+        OrigemPosicao = Posicoes.AIniciar, DestinoPosicao = Posicoes.Perdido,
+        PerdaId = perda.Id, DataHora = DateTime.UtcNow, UsuarioId = c.Pcp.Id,
+      });
+      await db.SaveChangesAsync();
+    }
+    await LevarParaAMontagemAsync(c, c.C, c.Dobra, 3m);
+
+    var inicio = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 3m });
+
+    Assert.Equal(HttpStatusCode.Created, inicio.StatusCode);
+    var montagemId = (await CorpoAsync(inicio)).GetProperty("montagemId").GetInt32();
+    var livroDeC = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/estrutura/{c.C}/movimentacoes"));
+    var baixaDeC = Assert.Single(livroDeC.GetProperty("movimentacoes").EnumerateArray(),
+        m => m.GetProperty("tipo").GetString() == "Montagem");
+    Assert.Equal(3m, baixaDeC.GetProperty("quantidade").GetDecimal());
+    var livroDeB = await CorpoAsync(await c.Como(c.Operador).GetAsync($"/api/estrutura/{c.B}/movimentacoes"));
+    Assert.DoesNotContain(livroDeB.GetProperty("movimentacoes").EnumerateArray(),
+        m => m.GetProperty("tipo").GetString() == "Montagem");
+    using var verificacao = _factory.Services.CreateScope();
+    var banco = verificacao.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.DoesNotContain(banco.Movimentacoes.AsNoTracking().Where(m => m.MontagemId == montagemId),
+        m => m.EstruturaItemId == c.B);
+  }
+
   [Fact]
   public async Task A_rota_de_montar_nao_existe_mais()
   {
@@ -229,7 +276,13 @@ public partial class ExecucaoEndpointsTests
   public async Task Reduzir_a_quantidade_abaixo_do_que_andou_devolve_409_com_mensagem()
   {
     await using var c = await CenarioDaFase3NaApi.CriarAsync(_factory);
-    await Garantir(await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.B}/inicios", new { setorId = c.Corte, quantidade = 15m }));
+    // Uma baixa de parte de "a iniciar" conta como saida (`SaidoDeAIniciar`) e deixa o Pedido `Aberto`, onde a edicao
+    // para menos ainda e livre (D12 da spec da Fase 5B-1): a guarda do movimentado e a que recusa abaixo do que saiu.
+    await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", new
+    {
+      motivo = "PerdaArmazem", observacao = (string?)null, tudo = false, incluirTopo = false,
+      origens = new[] { new { posicao = "AIniciar", setorId = (int?)null, ordem = (int?)null, quantidade = 15m } },
+    }));
 
     var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.B}",
         new { descricao = "Suporte", quantidade = 10m, quantidadePorPai = 2m });

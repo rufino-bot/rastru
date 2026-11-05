@@ -26,11 +26,14 @@ public static class Posicoes
   public const string Liberada = "Liberada";
   public const string Expedido = "Expedido";
 
+  // A baixa (spec da Fase 5B-1, secao 3.1): terminal, a unidade saiu por uma perda ou um descarte.
+  public const string Perdido = "Perdido";
+
   /// <summary>A ordem em que as telas listam as posicoes de um no.</summary>
   public static readonly IReadOnlyList<string> Todas =
   [
     AIniciar, NoSetor, AguardandoColeta, AguardandoMontagem, AguardandoConserto, EmConserto, ConsertoPronto,
-    NaExpedicao, Conforme, NaoConforme, AguardandoLiberacao, Liberada, Montado, Expedido,
+    NaExpedicao, Conforme, NaoConforme, AguardandoLiberacao, Liberada, Montado, Expedido, Perdido,
   ];
 
   /// <summary>
@@ -51,12 +54,22 @@ public static class Posicoes
   public static readonly IReadOnlySet<string> DoFimDoCaminho =
       new HashSet<string>(NoLocalDeExpedicao.Concat(DoConserto)) { Expedido };
 
+  /// <summary>
+  /// As onze posicoes de onde se da baixa (secao 4.2 da spec da Fase 5B-1): a producao e o local de expedicao,
+  /// menos o que aguarda a Gestao (`AguardandoLiberacao`). Nunca `Montado`, `Expedido` nem `Perdido`.
+  /// </summary>
+  public static readonly IReadOnlySet<string> DeOndeSeDaBaixa = new HashSet<string>
+  {
+    AIniciar, NoSetor, AguardandoColeta, AguardandoMontagem, AguardandoConserto, EmConserto, ConsertoPronto,
+    NaExpedicao, Conforme, NaoConforme, Liberada,
+  };
+
   /// <summary>A linha toca o fim do caminho quando sai de uma posicao dele ou chega a uma.</summary>
   public static bool TocaOFimDoCaminho(Movimentacao m) =>
       DoFimDoCaminho.Contains(m.OrigemPosicao) || DoFimDoCaminho.Contains(m.DestinoPosicao);
 }
 
-/// <summary>Os tipos de `CK_Movimentacao_Tipo`. O `Pronto` e da Fase 5B.</summary>
+/// <summary>Os tipos de `CK_Movimentacao_Tipo`. O `Pronto` e da Fase 5B-2.</summary>
 public static class TiposDeMovimentacao
 {
   public const string Inicio = "Inicio";
@@ -71,5 +84,8 @@ public static class TiposDeMovimentacao
   public const string Liberacao = "Liberacao";
   public const string Recusa = "Recusa";
   public const string Expedicao = "Expedicao";
+
+  // Fase 5B-1 (secao 3.1 da spec): a baixa tira a quantidade de uma posicao e a poe em `Perdido`.
+  public const string Perda = "Perda";
   public const string Estorno = "Estorno";
 }

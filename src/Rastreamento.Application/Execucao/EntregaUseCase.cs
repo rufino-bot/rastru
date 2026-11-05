@@ -92,7 +92,7 @@ public sealed class EntregaUseCase
         if (item.Quantidade > disponivel)
           return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.SaldoInsuficiente,
               $"Só há {Quantidades.Formatar(Math.Max(0m, disponivel))} de {estado.Nome(item.EstruturaItemId)} "
-              + $"{Onde(origem, NomeDoSetor)}.");
+              + $"{RotuloDoLocal.Onde(origem, NomeDoSetor)}.");
 
         var (destino, recusa) = Destino(estado, item, origem, NomeDoSetor);
         if (recusa is not null)
@@ -123,18 +123,6 @@ public sealed class EntregaUseCase
     { Posicao: Posicoes.ConsertoPronto, SetorId: int s, Ordem: null } => Local.ConsertoPronto(s),
     _ => null,
   };
-
-  private static string Onde(Local origem, Func<int, string> nomeDoSetor)
-  {
-    var setor = nomeDoSetor(origem.SetorId!.Value);
-    return origem.Posicao switch
-    {
-      Posicoes.AguardandoColeta => $"aguardando coleta no Setor {setor} (passo {origem.Ordem})",
-      Posicoes.AguardandoConserto => $"aguardando conserto no Setor {setor}",
-      Posicoes.ConsertoPronto => $"pronto do conserto no Setor {setor}",
-      _ => $"aguardando montagem no Setor {setor}",
-    };
-  }
 
   /// <summary>A tabela da spec secao 4.3, linha a linha.</summary>
   private static (Local? Destino, Recusa? Recusa) Destino(

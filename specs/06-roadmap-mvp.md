@@ -780,41 +780,69 @@ Spec: `docs/superpowers/specs/2026-10-20-fase-5a-afericao-expedicao-e-fechamento
 
 ### Fase 5B — Perda e reposição
 
-Spec ainda por escrever. Executa depois da 5A, que foi mesclada em 2026-11-03: é a próxima da sequência.
+Executa depois da 5A, que foi mesclada em 2026-11-03. **Partida em duas em 2026-11-04** (decisão do usuário, D1 da
+spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
 
-- Registro de `Perda`, de Peça e — desde 2026-09-15 — também de Item; a perda ganha o motivo `Descarte` (regra 17
-  de `01`).
-- O nó **pronto** do Retrabalho (regra 27) nasce aguardando coleta pelo tipo de movimento `Pronto`; `Perdido`
-  entra como posição do livro de movimentações; o `Descarte` da sobra é registrado pelo ator da perda (regra 30).
-  (`Expedido` já entrou na 5A.)
-- **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): parar de
-  produzir o que saiu do projeto do cliente, pelo mesmo ator e pelo mesmo destino do `Descarte` da
-  sobra. Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do `01`, e
-  o filho acrescentado por engano que trava a montagem do pai (spec da Fase 3, seção 11).
-  **Obrigatório antes do primeiro uso real.**
-- Perda que impede montar (regra 27): a perda sobe até a Peça do topo, as partes não montadas daquela
-  unidade saem junto, e, no Pedido de Retrabalho que o PCP cadastra para repor, o que já existe é
-  marcado **pronto**. A decidir na spec desta fase: as perguntas que a seção 9 da spec
-  `2026-09-15-kit-montagem-e-movimentacao-design.md` deixa para a Fase 5.
-- **"Matar a peça"** reprovada: a terceira saída da não conforme (ao lado do conserto e da liberação da 5A), que
-  vira perda e é refeita do começo.
-- O fechamento passa a contar o **perdido** junto do expedido (regra 13): a Peça conclui com tudo expedido **ou**
-  perdido.
-- Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir
-  de uma perda **ou de uma reclamação do cliente** (regras 17 e 27 de `01`), com `MotivoRetrabalho` obrigatório
-  (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`). O vínculo que o Retrabalho tinha com a
+- **5B-1 — Perda e descarte**: a baixa — perda (`PerdaArmazem`, `MortaEmProcesso`) e descarte —, a sobra descartada da
+  Fila, o "Descartar tudo" do Pedido e do Agrupamento, o "matar" da não conforme e o fechamento com o perdido. Fecha o
+  item obrigatório antes do primeiro uso real. Spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`
+  (aprovada em 2026-11-04); planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e
+  `docs/superpowers/plans/2026-11-04-fase-5b1-front.md`.
+- **5B-2 — Reposição**: o Pedido de Retrabalho, o nó pronto, a reposição da perda que impede montar e o vínculo com a
+  reclamação do cliente e com a peça morta. Sem spec.
+
+**Estado da 5B-1 (2026-11-05):** o **backend e o front estão implementados** na branch. No backend entrou: a posição
+`Perdido` e o tipo `Perda` no livro, `dbo.Perda` reescrita como registro da baixa e a migração
+`db/alter-fase-5b1.sql`; a calculadora com o perdido de "a iniciar" e o "saiu do projeto" (regra 38; `FaltaMontar`
+desconta o perdido do pai e o filho descartado por inteiro sai da montagem); a conta pura da baixa (a cascata C6, a
+baixa de tudo e a trava no topo, D13 e D14); o fechamento contando o perdido, com o Pedido `Aberto` que conclui e o
+estorno que o devolve a `Aberto` (C11 e C23); a baixa de um nó, a prévia, o "Descartar tudo" do Agrupamento e do
+Pedido, o estorno inteiro e as duas leituras, no `BaixaController`; o `PUT /estrutura/{id}` que só aumenta com o Pedido
+rodando (`DiminuirPelaBaixa`, D12); a sobra de Pedido `Concluido` na Fila (C25) e o nó perdido por inteiro fora da
+lista do Separador e do resumo de material (C26). **O front** (o módulo `web/src/baixas/`: o "Dar baixa", o "Matar", o
+"Descartar" da sobra, o "Descartar tudo" e as seções "Baixas") foi feito em seguida; a conferência do usuário no
+navegador e os ajustes F1 a F3 dela foram validados em 2026-11-05, e a review de branch inteira foi feita no mesmo dia e
+consertada na branch. **Falta o merge; não está mesclada**. Limitação registrada (U2, regra 30): a seção "Sobra" de um Pedido `Concluido` mostra só a
+sobra de coleta e de montagem; o saldo vivo de um Item concluído num Setor, em conserto ou a iniciar se descarta pelo
+"Dar baixa" do painel do nó ou pelo "Descartar tudo".
+
+O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
+
+- Registro de `Perda`, de Peça e de Item, com o motivo `Descarte` (regras 17 e 38): **5B-1**.
+- `Perdido` como posição do livro e o `Descarte` da sobra, pelo ator da perda (regra 30): **5B-1**. O tipo de
+  movimento `Pronto`, que faz o nó **pronto** do Retrabalho (regra 27) nascer aguardando coleta: **5B-2**.
+- **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): **5B-1**, pela baixa `tudo` de
+  `Descarte` e pelo "Descartar tudo". Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do
+  `01` (agora com nota de fechamento), e o filho acrescentado por engano que trava a montagem do pai (spec da Fase 3,
+  seção 11). **Obrigatório antes do primeiro uso real**, e só cumprido quando o front e o merge da 5B-1 existirem.
+- Perda que impede montar (regra 27): a **baixa** que sobe até a Peça do topo é da **5B-1** (`incluirTopo`, uma baixa
+  só); o **Pedido de Retrabalho** que o PCP cadastra para repor, com o que já existe marcado **pronto**, é da
+  **5B-2**. A decidir na spec da 5B-2: as perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md`
+  deixa para a Fase 5.
+- **"Matar a peça"** reprovada: a quarta saída da não conforme, ao lado do conserto e da liberação da 5A, é a baixa com
+  origem `NaoConforme` e motivo `MortaEmProcesso`: **5B-1**; refazê-la do começo é Retrabalho: **5B-2**.
+- O fechamento conta o **perdido** junto do expedido (regra 13): a Peça conclui com tudo expedido **ou** perdido:
+  **5B-1**.
+- Fluxo de abertura de Pedido de Retrabalho como ação **separada e opcional** a partir de uma perda **ou de uma
+  reclamação do cliente** (regras 17 e 27 de `01`), com `MotivoRetrabalho` obrigatório
+  (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`): **5B-2**. O vínculo que o Retrabalho tinha com a
   avaliação por remessa (`RelatorioDimensionalAvaliacao`) deixou de existir na 5A, e o desenho do vínculo com a
-  reclamação do cliente — depois de ele receber a Peça, motivo `SolicitacaoCliente` — é **desta** fase.
-- Critério de pronto: fluxo ponta a ponta funcionando — cadastro → produção →
-  expedição/perda → aferição → (se aplicável, e só quando o usuário decidir) retrabalho; e uma Peça ou um Item que
-  saiu do projeto do cliente deixa de ser produzido sem travar o fechamento do Pedido.
+  reclamação do cliente — depois de ele receber a Peça, motivo `SolicitacaoCliente` — e com a peça morta é da 5B-2.
+  `Perda.PedidoRetrabalhoId` existe no schema desde a 5B-1 e **não é usada** até lá.
+- Critério de pronto da **5B-1**: a Qualidade ou o PCP dão baixa em qualquer nó, de tudo o que está em produção ou de
+  uma parte, escolhendo as posições; o "Descartar tudo" do Pedido e do Agrupamento leva tudo numa escrita só; a
+  Qualidade "mata" a não conforme no cartão da Peça; a sobra da Fila se descarta da própria linha; cada baixa se
+  estorna inteira; e uma Peça ou um Item que saiu do projeto do cliente deixa de ser produzido **sem travar o
+  fechamento do Pedido**. O critério da **5B-2**: fluxo ponta a ponta funcionando — cadastro → produção →
+  expedição/perda → aferição → (se aplicável, e só quando o usuário decidir) retrabalho.
 
 ### Fase 5C — As pontas do Kit que a 3B deixou
 
 Spec ainda por escrever. Executa depois da 5B.
 
-- **A perda nos tetos do Kit** (D5 da spec da Fase 3B): como a perda do próprio nó entra nos dois
-  tetos, o que o nó ainda precisa receber (regras 23 e 25) e o que ainda falta montar (regra 24). A
+- **A perda nos tetos do Kit** (D5 da spec da Fase 3B): a 5B-1 entregou **só a perda do próprio pai** em
+  `FaltaMontar` (C21 da spec da 5B-1; regra 38), e é isto que a 5C **não** refaz. Fica o resto da D5: o conjunto que
+  perde parte dentro da Solda e os tetos que dependem dele, o que o nó ainda precisa receber (regras 23 e 25). A
   3B conta os conjuntos à espera pelo filho mais adiantado, e um conjunto que perde parte dentro da
   Solda continua contado. A **espera desalinhada** (a limitação conhecida da regra 25 de `01`; nota
   da D4 da mesma spec) é o mesmo mecanismo, e é tratada aqui junto: com ela, o teto do Kit pode
@@ -828,7 +856,12 @@ Spec ainda por escrever. Executa depois da 5B.
   já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
   usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
   da produção é o mesmo assunto de alterar projeto ou descontinuar, o do item «Descartar Peça ou
-  Item em Pedido rodando» da 5B.
+  Item em Pedido rodando» da 5B-1, que a baixa entregou.
+- **O pai de Kit cujos filhos saíram todos do projeto** (achado da review de branch da 5B-1, 2026-11-05): o pai
+  Avulso nessa situação passou a aparecer "a iniciar" na Fila e a iniciar por ela, como uma folha (C22); o pai **Kit**
+  não, e continua fora da Fila e da coleta — não aparece como "a iniciar" nem como Kit montável, porque
+  `KitsDaColeta` só lista o Kit com algum filho pronto na coleta. Decisão do usuário, 2026-11-05: o Kit fica
+  para a 5C.
 - Critério de pronto: um Kit que perde parte de um conjunto, ou que ganha a espera desalinhada, continua
   podendo ser montado, e a estrutura errada descoberta no meio da produção tem tratamento definido.
 
