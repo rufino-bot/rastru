@@ -183,14 +183,16 @@ Concluídas até aqui:
   navegador e a review de branch foram feitas em 2026-11-03; a conferência trouxe o menu em grupos (Produção,
   Expedição, Pedidos, Cadastros). Mesclada na `main` pelo PR #35, em 2026-11-03.
 
-**Em andamento: Fase 5B**, partida em duas em 2026-11-04. A **5B-1 — perda e descarte** (spec
-`docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`) tem o backend e o front implementados na branch: a baixa
-por perda ou descarte, de um nó ou do Pedido inteiro, com prévia e estorno, e o fechamento que conta o perdido. A
-conferência do usuário no navegador foi validada e a review de branch foi feita e consertada em 2026-11-05; falta o
-merge, e ela ainda não foi mesclada. A **5B-2 —
-reposição** (o Pedido de Retrabalho como ação separada e opcional e o nó pronto) ainda não tem spec. Depois
-dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por pedido. A
-Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
+- **Fase 5B-1:** perda e descarte (spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`). A
+  baixa tira quantidade de produção para a posição `Perdido`, com motivo (perda no armazém, morte em processo ou
+  descarte), de um nó, da não conforme na expedição, da sobra na Fila ou do Pedido e do Agrupamento inteiros, com
+  prévia calculada pelo servidor e estorno da baixa inteira; o fechamento passa a contar o perdido. A conferência do
+  usuário no navegador e a review de branch foram feitas em 2026-11-05. Mesclada na `main` pelo PR #36, em
+  2026-11-05.
+
+**Próxima: Fase 5B-2** — reposição (o Pedido de Retrabalho como ação separada e opcional e o nó pronto), ainda sem
+spec. Depois dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por
+pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).

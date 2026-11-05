@@ -71,15 +71,13 @@ sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi conc
 **5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
 descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
 planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
-de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-05:** o **backend está implementado** na branch (a
-regra 38 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b1.sql`) e o **front também** (o módulo
-`web/src/baixas/`, descrito na seção «Interface»: o "Dar baixa" do nó, o "Matar" do cartão da expedição, o "Descartar"
-da sobra da Fila, o "Descartar tudo" do Pedido e do Agrupamento e a seção "Baixas"); a **conferência do usuário no
-navegador** e os ajustes dela (F1 a F3) foram validados em 2026-11-05, a **review de branch** inteira foi feita no mesmo
-dia e os achados aceitos foram consertados na branch; **falta o merge, e nada foi mesclado**. A 5C ainda não tem spec, e
-da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item em
-Pedido rodando" é da **5B-1**, marcado **obrigatório antes do primeiro uso real**: o backend o entrega (a baixa `tudo`
-de `Descarte` e o "Descartar tudo"), e só o merge o cumpre.
+de Retrabalho e nó pronto; sem spec). A **5B-1** foi concluída e mesclada em 2026-11-05 (rufino-bot/rastru#36): a
+regra 38 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b1.sql` e o módulo `web/src/baixas/`, descrito na
+seção «Interface» (o "Dar baixa" do nó, o "Matar" do cartão da expedição, o "Descartar" da sobra da Fila, o "Descartar
+tudo" do Pedido e do Agrupamento e a seção "Baixas"); a seguinte é a **5B-2**, ainda sem spec. A 5C ainda não tem spec,
+e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item
+em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
+`tudo` de `Descarte` e o "Descartar tudo").
 
 ## Como este projeto executa plano — o gate de review não é opcional
 

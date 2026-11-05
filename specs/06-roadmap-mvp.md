@@ -791,7 +791,7 @@ spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
 - **5B-2 — Reposição**: o Pedido de Retrabalho, o nó pronto, a reposição da perda que impede montar e o vínculo com a
   reclamação do cliente e com a peça morta. Sem spec.
 
-**Estado da 5B-1 (2026-11-05):** o **backend e o front estão implementados** na branch. No backend entrou: a posição
+**Estado da 5B-1 (2026-11-05):** o **backend e o front foram implementados** na branch. No backend entrou: a posição
 `Perdido` e o tipo `Perda` no livro, `dbo.Perda` reescrita como registro da baixa e a migração
 `db/alter-fase-5b1.sql`; a calculadora com o perdido de "a iniciar" e o "saiu do projeto" (regra 38; `FaltaMontar`
 desconta o perdido do pai e o filho descartado por inteiro sai da montagem); a conta pura da baixa (a cascata C6, a
@@ -802,7 +802,8 @@ rodando (`DiminuirPelaBaixa`, D12); a sobra de Pedido `Concluido` na Fila (C25) 
 lista do Separador e do resumo de material (C26). **O front** (o módulo `web/src/baixas/`: o "Dar baixa", o "Matar", o
 "Descartar" da sobra, o "Descartar tudo" e as seções "Baixas") foi feito em seguida; a conferência do usuário no
 navegador e os ajustes F1 a F3 dela foram validados em 2026-11-05, e a review de branch inteira foi feita no mesmo dia e
-consertada na branch. **Falta o merge; não está mesclada**. Limitação registrada (U2, regra 30): a seção "Sobra" de um Pedido `Concluido` mostra só a
+consertada na branch. **Concluída e mesclada na `main`** em 2026-11-05, pelo PR rufino-bot/rastru#36 (merge
+`07252f1`, cujo segundo pai é `5c1dbad`, o último commit da branch). A próxima da sequência é a **5B-2**. Limitação registrada (U2, regra 30): a seção "Sobra" de um Pedido `Concluido` mostra só a
 sobra de coleta e de montagem; o saldo vivo de um Item concluído num Setor, em conserto ou a iniciar se descarta pelo
 "Dar baixa" do painel do nó ou pelo "Descartar tudo".
 
@@ -814,7 +815,7 @@ O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
 - **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): **5B-1**, pela baixa `tudo` de
   `Descarte` e pelo "Descartar tudo". Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do
   `01` (agora com nota de fechamento), e o filho acrescentado por engano que trava a montagem do pai (spec da Fase 3,
-  seção 11). **Obrigatório antes do primeiro uso real**, e só cumprido quando o front e o merge da 5B-1 existirem.
+  seção 11). **Obrigatório antes do primeiro uso real**, e cumprido pelo merge da 5B-1 (2026-11-05).
 - Perda que impede montar (regra 27): a **baixa** que sobe até a Peça do topo é da **5B-1** (`incluirTopo`, uma baixa
   só); o **Pedido de Retrabalho** que o PCP cadastra para repor, com o que já existe marcado **pronto**, é da
   **5B-2**. A decidir na spec da 5B-2: as perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md`
