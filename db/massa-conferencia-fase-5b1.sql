@@ -48,9 +48,9 @@
 -- script com erro.
 --
 -- Idempotente: Setor existente e reaproveitado; se um Pedido ja existe, nada e criado de novo para ele (e nada
--- que a conferencia tenha feito nele e tocado). Para refazer do zero, rode o zerar-conf-5b1.sql (so no ledger, NAO
--- versionado: apaga os dois Pedidos e tudo o que pende deles) e depois este arquivo. Quem so tem o repositorio do
--- codigo regenera o banco de dev, que e descartavel: DROP DATABASE, specs/02-modelo-de-dados.sql, db/seed.sql e
+-- que a conferencia tenha feito nele e tocado). Para refazer do zero, rode o zerar-conf-5b1.sql e depois este
+-- arquivo. O zerar NAO esta neste repositorio (ele apaga os dois Pedidos e tudo o que pende deles, e nao e
+-- versionado). Quem so tem o repositorio do codigo regenera o banco de dev, que e descartavel: DROP DATABASE, specs/02-modelo-de-dados.sql, db/seed.sql e
 -- db/seed-demo.sql, e depois este arquivo.
 --
 -- Carga (a codepage 65001 e o que preserva a acentuacao; ver o seed-demo.sql):

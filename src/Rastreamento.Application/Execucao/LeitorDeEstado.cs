@@ -12,8 +12,8 @@ internal sealed record EstadoDeExecucao(
 
 /// <summary>
 /// Le, para os nos pedidos, tudo o que a calculadora precisa — Roteiro, saldos, totais montados, passos
-/// alcancados, o tipo do Agrupamento de cada no e os Setores com `UtilizaKit`, o perdido de "a iniciar" e os nos que saíram do projeto — em nove consultas, nunca uma
-/// por no. A descricao segue a regra 19 (a do no, senao a do
+/// alcancados, o tipo do Agrupamento de cada no e os Setores com `UtilizaKit`, o perdido de "a iniciar" e os nos que
+/// sairam do projeto — em nove consultas, nunca uma por no. A descricao segue a regra 19 (a do no, senao a do
 /// Componente). Quem chama decide o conjunto: para o destino de um Item, o pai tem de estar nele.
 /// </summary>
 internal sealed class LeitorDeEstado

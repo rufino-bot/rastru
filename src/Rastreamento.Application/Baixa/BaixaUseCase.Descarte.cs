@@ -102,14 +102,9 @@ public sealed partial class BaixaUseCase
     var linhas = new List<LinhaPlanejada>();
     var sobras = new List<(int NoId, decimal Quantidade)>();
     var presas = new List<string>();
-    // C12 e C24 da spec da Fase 5B-1: num Pedido `Concluido` a Peca nao tem nada em producao, e o `Tudo` dela
-    // levaria a sobra dos Itens junto; o descarte planeja o `Tudo` dos Itens do topo (filhos diretos de uma Peca),
-    // que ja leva os descendentes.
-    IReadOnlyList<int> unidades = pedido.Status == StatusConcluido
-        ? nos.Where(n => n.NivelHierarquico == "Item" && estado.Calc.No(n.EstruturaPaiId!.Value).EhPeca)
-            .Select(n => n.Id).Order().ToList()
-        : pecas;
-    foreach (var peca in unidades)
+    // Num Pedido `Concluido` (C12 e C24 da spec da Fase 5B-1) a Peca nao tem nada em producao, e o `Tudo` dela leva so
+    // a sobra dos Itens que ficou: e a mesma conta do `Tudo` de cada Item do topo, entao nao ha caminho especial.
+    foreach (var peca in pecas)
     {
       var plano = CalculoDaBaixa.Planejar(
           estado.Calc, new PedidoDeBaixa(peca, MotivosDePerda.Descarte, true, [], false, []), estado.Nome, id => $"Setor {id}");

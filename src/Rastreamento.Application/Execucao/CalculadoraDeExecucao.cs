@@ -82,7 +82,7 @@ public sealed class CalculadoraDeExecucao
   private readonly IReadOnlyDictionary<int, decimal> _perdidosDeAIniciar;
   private readonly IReadOnlySet<int> _saidosDoProjeto;
 
-  /// <summary>As posicoes que nao sao producao: o que ja foi montado, expedido ou perdido (derivadas de `Posicoes.Todas`).</summary>
+  /// <summary>As posicoes que nao sao producao: o que ja foi montado, expedido ou perdido (lista literal, nao derivada de `Posicoes.Todas`: posicao terminal nova tem de entrar aqui).</summary>
   private static readonly IReadOnlySet<string> ForaDaProducao =
       new HashSet<string> { Posicoes.Montado, Posicoes.Expedido, Posicoes.Perdido };
 
@@ -127,7 +127,7 @@ public sealed class CalculadoraDeExecucao
   public IReadOnlyList<NoDoCalculo> Filhos(int paiId) => _filhos[paiId].ToList();
 
   /// <summary>
-  /// Os filhos que ainda contam para a montagem do pai: todos, menos os que saíram do projeto (C22 da spec da Fase
+  /// Os filhos que ainda contam para a montagem do pai: todos, menos os que sairam do projeto (C22 da spec da Fase
   /// 5B-1, decisao P2 do plano de backend). `Filhos` continua inteira, para a arvore da tela.
   /// </summary>
   public IReadOnlyList<NoDoCalculo> FilhosQueContam(int paiId) =>

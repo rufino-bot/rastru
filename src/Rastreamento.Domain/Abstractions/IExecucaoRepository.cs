@@ -142,7 +142,7 @@ public interface IExecucaoRepository
   Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
 
   /// <summary>
-  /// Dos nos pedidos, os que saíram do projeto (C22; decisao P3 do plano de backend): tem uma baixa `Tudo` de motivo
+  /// Dos nos pedidos, os que sairam do projeto (C22; decisao P3 do plano de backend): tem uma baixa `Tudo` de motivo
   /// `Descarte`, nao estornada, com escopo no proprio no.
   /// </summary>
   Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
