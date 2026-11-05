@@ -1101,7 +1101,8 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   [Fact]
   public async Task Dois_estornos_simultaneos_um_passa_outro_e_JaEstornado()
   {
-    // Duas pessoas estornam a mesma baixa ao mesmo tempo: o indice unico do estorno fecha a corrida.
+    // Duas pessoas estornam a mesma baixa ao mesmo tempo: a trava dos nos e a releitura do estorno depois dela fecham a corrida
+    // (o indice unico do estorno e so a segunda rede).
     await using var c = await CriarAsync(_factory);
     var baixaId = await DarBaixaDeParteAsync(c, c.Qualidade, c.A, "Descarte", 3m);
 
@@ -1346,7 +1347,7 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
-  public async Task Fila_nao_mostra_em_trabalho_nem_em_conserto_o_no_de_Pedido_concluido()
+  public async Task Fila_nao_mostra_em_trabalho_o_no_de_Pedido_concluido()
   {
     await using var c = await CriarAsync(_factory);
 
@@ -1354,8 +1355,9 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
         fila.GetProperty("emTrabalho").EnumerateArray().Any(l => l.GetProperty("no").GetProperty("id").GetInt32() == no);
     async Task<JsonElement> FilaDoCorteAsync() => await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Corte}/fila"));
 
-    // Controle positivo: com o Pedido rodando, as 4 de B no Corte (nao terminadas) estao em "Em trabalho". Sem ele o
-    // `DoesNotContain` de depois passaria com a guarda de C25 desligada, que e o que este teste existe para pegar.
+    // Controle positivo: garante que o cenario gera a linha de B em "Em trabalho" enquanto o Pedido roda (as 4 de B no
+    // Corte, nao terminadas); a guarda de C25 desligada e pega pelo `Assert.False` de depois. "Conserto" nao entra:
+    // o conserto e da Peca no local de expedicao, e um Pedido concluido nao tem unidade nele.
     var antes = false;
     await ConcluirDeixandoSobraDeBAsync(c, antesDaBaixa: async () => antes = EmTrabalhoDe(await FilaDoCorteAsync(), c.B));
     Assert.True(antes);
@@ -1364,7 +1366,6 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     var fila = await FilaDoCorteAsync();
 
     Assert.False(EmTrabalhoDe(fila, c.B));
-    Assert.DoesNotContain(fila.GetProperty("conserto").EnumerateArray(), l => l.GetProperty("no").GetProperty("id").GetInt32() == c.B);
     // O saldo existe (nada se perdeu): so a Fila deixa de oferece-lo como trabalho em andamento (C25).
     Assert.Equal(4m, await SaldoAsync(c, c.B, "NoSetor"));
   }
@@ -1379,8 +1380,9 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
             .SelectMany(g => g.GetProperty("itens").EnumerateArray())
             .Any(t => t.GetProperty("no").GetProperty("id").GetInt32() == no);
 
-    // Controle positivo: com o Pedido rodando, as 4 de B aguardando coleta sao tarefa do Movimentador. Sem isso o
-    // `DoesNotContain` de depois passaria vazio, mesmo com a regra desligada.
+    // Controle positivo: garante que o cenario gera a tarefa de B (as 4 aguardando coleta, do Movimentador) enquanto o
+    // Pedido roda. Este teste prova o `FaltaMontar` com o perdido de "a iniciar"; a guarda `incluirConcluidos` das
+    // Tarefas e provada pelo teste com o Roteiro de dois passos.
     var antes = false;
     await ConcluirDeixandoSobraDeBAsync(c, terminarAsQuatro: true, antesDaBaixa: async () =>
         antes = TemTarefaDe(await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas")), c.B));
@@ -1390,6 +1392,39 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
 
     Assert.False(TemTarefaDe(tarefas, c.B));
+  }
+
+  [Fact]
+  public async Task Tarefas_e_contagem_nao_oferecem_o_no_de_Pedido_concluido_com_proximo_passo()
+  {
+    // Com B em [Corte, Dobra] e o termino no primeiro passo, `Tarefa` devolve o saldo inteiro (ainda ha passo), sem
+    // passar por `FaltaMontar` nem por `Precisa`: so a guarda `incluirConcluidos: false` tira a tarefa de um Pedido
+    // concluido. A contagem do menu passa pela mesma guarda.
+    await using var c = await CriarAsync(_factory);
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.B}/roteiro", new { passos = new[] { c.Corte, c.Dobra } }));
+
+    static bool TemTarefaDe(JsonElement tarefas, int no) =>
+        tarefas.GetProperty("grupos").EnumerateArray()
+            .SelectMany(g => g.GetProperty("itens").EnumerateArray())
+            .Any(t => t.GetProperty("no").GetProperty("id").GetInt32() == no);
+    async Task<int> ContagemAsync() =>
+        (await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas/contagem"))).GetProperty("total").GetInt32();
+
+    // Controle positivo: garante que o cenario gera a tarefa de B (e a conta no menu) enquanto o Pedido roda.
+    var antes = false;
+    var contagemAntes = 0;
+    await ConcluirDeixandoSobraDeBAsync(c, terminarAsQuatro: true, antesDaBaixa: async () =>
+    {
+      antes = TemTarefaDe(await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas")), c.B);
+      contagemAntes = await ContagemAsync();
+    });
+    Assert.True(antes);
+    Assert.Equal(("Concluido", true), await StatusDoPedidoAsync(c));
+
+    var tarefas = await CorpoAsync(await c.Como(c.Movimentador).GetAsync("/api/tarefas"));
+
+    Assert.False(TemTarefaDe(tarefas, c.B));
+    Assert.Equal(contagemAntes - 1, await ContagemAsync());
   }
 
   [Fact]
