@@ -372,13 +372,26 @@ export async function ler<T>(caminho: string, oQue: string): Promise<T> {
  * a escrita já foi gravada, e um corpo ilegível não pode esconder isso do contador.
  */
 async function enviar<T>(caminho: string, metodo: 'POST' | 'PUT', corpo: unknown, oQue: string): Promise<T> {
+  return enviarComOpcoes(caminho, metodo, corpo, oQue, { avisa: true })
+}
+
+/**
+ * A mesma escrita de `enviar`, para quem precisa de duas coisas a mais: não avisar o contador (a prévia de uma
+ * baixa lê e não grava) e cancelar a requisição por um `AbortSignal`. A regra do aviso continua escrita num lugar
+ * só: com `avisa`, é a de `enviar`.
+ */
+export async function enviarComOpcoes<T>(
+  caminho: string, metodo: 'POST' | 'PUT', corpo: unknown, oQue: string,
+  { avisa, sinal }: { avisa: boolean; sinal?: AbortSignal },
+): Promise<T> {
   const init: RequestInit = { method: metodo }
   if (corpo !== undefined) {
     init.headers = { 'Content-Type': 'application/json' }
     init.body = JSON.stringify(corpo)
   }
+  if (sinal) init.signal = sinal
   const resp = await apiFetch(caminho, init)
-  if (resp.ok || resp.status === 409) avisarQueOLivroMudou()
+  if (avisa && (resp.ok || resp.status === 409)) avisarQueOLivroMudou()
   if (!resp.ok) return falhar(resp, oQue)
   return (await resp.json()) as T
 }

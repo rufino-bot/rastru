@@ -112,6 +112,20 @@ describe('baixas', () => {
     sair()
   })
 
+  it('a baixa também avisa o contador de Tarefas no 409, a prévia não', async () => {
+    const avisos = vi.fn()
+    const sair = aoMudarOLivro(avisos)
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(
+      () => Promise.resolve(respostaJson({ erro: 'SaldoInsuficiente', mensagem: 'Só há 1.' }, 409))))
+
+    await preverBaixa(42, NOVA).catch(() => undefined)
+    expect(avisos).not.toHaveBeenCalled()
+
+    await darBaixa(42, NOVA).catch(() => undefined)
+    expect(avisos).toHaveBeenCalledTimes(1)
+    sair()
+  })
+
   it('409 da prévia vira ErroDeApi com o código e a frase do servidor', async () => {
     const frase = 'Só há 1 de D em produção.'
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({ erro: 'SaldoInsuficiente', mensagem: frase }, 409)))

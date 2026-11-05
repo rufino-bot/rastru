@@ -1,6 +1,4 @@
-import { apiFetch } from './client'
-import { falhar, ler, type MovimentacaoDto, type Posicao } from './execucao'
-import { avisarQueOLivroMudou } from './sinalDoLivro'
+import { enviarComOpcoes, ler, type MovimentacaoDto, type Posicao } from './execucao'
 
 /**
  * Cliente da baixa: perda e descarte (Fase 5B-1). Os tipos espelham o contrato JSON de `BaixaDtos.cs` — é o
@@ -55,7 +53,10 @@ export interface BaixaDto {
   observacao: string | null
   escopo: { tipo: 'No' | 'Agrupamento' | 'Pedido'; id: number }
   tudo: boolean
-  /** ISO 8601 com offset -03:00 — mostrar com `formatarDataHora`, nunca com `Date`. */
+  /**
+   * ISO 8601 com offset -03:00 — mostrar com `formatarDataHora`, nunca com `Date`. É o conversor global de
+   * `DateTime` do servidor (`HorarioDeBrasiliaJsonConverter`) que escreve assim, como em todo `dataHora` da API.
+   */
   dataHora: string
   usuarioId: number
   usuarioNome: string
@@ -86,19 +87,10 @@ export interface PreviaDaBaixaDto {
   travaNoTopo: TravaNoTopoDto | null
 }
 
-async function escrever<T>(
+function escrever<T>(
   caminho: string, corpo: unknown, oQue: string, avisa: boolean, sinal?: AbortSignal,
 ): Promise<T> {
-  const init: RequestInit = { method: 'POST' }
-  if (corpo !== undefined) {
-    init.headers = { 'Content-Type': 'application/json' }
-    init.body = JSON.stringify(corpo)
-  }
-  if (sinal) init.signal = sinal
-  const resp = await apiFetch(caminho, init)
-  if (avisa && (resp.ok || resp.status === 409)) avisarQueOLivroMudou()
-  if (!resp.ok) return falhar(resp, oQue)
-  return (await resp.json()) as T
+  return enviarComOpcoes(caminho, 'POST', corpo, oQue, { avisa, sinal })
 }
 
 export function darBaixa(noId: number, b: NovaBaixa): Promise<BaixaDto> {
