@@ -786,6 +786,17 @@ describe('PedidoDetalhePage', () => {
       expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
     })
 
+    it('com LiberacaoEmAberto o botão aparece e o painel mostra a frase do servidor', async () => {
+      montar(() => respostaJson({ erro: 'LiberacaoEmAberto', mensagem: 'Estorne o pedido de liberação de CH-1.' }, 409))
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+
+      const painel = await screen.findByRole('form', { name: 'Descartar tudo' })
+      expect(await within(painel).findByText('Estorne o pedido de liberação de CH-1.')).toBeTruthy()
+      expect((within(painel).getByRole('button', { name: 'Descartar tudo' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
     it('uma falha da prévia esconde o botão e não derruba a página', async () => {
       montar(() => respostaJson({ erro: 'x' }, 500))
       renderizarDetalhe()

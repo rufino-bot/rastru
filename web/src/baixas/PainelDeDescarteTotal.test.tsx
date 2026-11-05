@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, waitFor, within, act } from '@testing-library/react'
 import { PainelDeDescarteTotal } from './PainelDeDescarteTotal'
 import { ErroDeApi } from '../api/erros'
 import type { BaixaDto, LinhaDaBaixaDto, PreviaDaBaixaDto } from '../api/baixas'
@@ -75,8 +75,12 @@ describe('PainelDeDescarteTotal', () => {
     await waitFor(() => expect(enviar().disabled).toBe(false))
     const form = screen.getByRole('form', { name: 'Descartar tudo' })
 
-    fireEvent.submit(form)
-    fireEvent.submit(form)
+    // Os dois submits no mesmo `act`: o React ainda não redesenhou com `enviando`, então o `podeEnviar` da tela está
+    // velho nos dois e só o `ref` do `useEscritaDoPainel` segura o segundo.
+    act(() => {
+      fireEvent.submit(form)
+      fireEvent.submit(form)
+    })
 
     expect(descartar).toHaveBeenCalledTimes(1)
     terminar(BAIXA)

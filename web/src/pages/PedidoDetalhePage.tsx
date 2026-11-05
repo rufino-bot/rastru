@@ -41,6 +41,7 @@ const MOTIVO_DA_RECUSA: Record<Exclude<ResultadoExclusao, 'ok'>, string> = {
 export function PedidoDetalhePage() {
   const { id } = useParams<{ id: string }>()
   const pedidoId = Number(id)
+  const idValido = !Number.isNaN(pedidoId)
 
   const [pedido, setPedido] = useState<PedidoDto | null>(null)
   const [agrupamentos, setAgrupamentos] = useState<AgrupamentoDto[]>([])
@@ -69,7 +70,7 @@ export function PedidoDetalhePage() {
   const { darBaixa } = usePermissoesDaBaixa()
   const [versaoDoSaldo, setVersaoDoSaldo] = useState(0)
   const [descarteAberto, setDescarteAberto] = useState(false)
-  const descarte = useDescarteDisponivel((sinal) => preverDescarteDoPedido(pedidoId, sinal), darBaixa, versaoDoSaldo)
+  const descarte = useDescarteDisponivel((sinal) => preverDescarteDoPedido(pedidoId, sinal), darBaixa && idValido, pedidoId, versaoDoSaldo)
   const botaoDescartar = useRef<HTMLButtonElement>(null)
   const tituloDaPagina = useRef<HTMLSpanElement>(null)
   // Depois do descarte o botão some (não há mais nada em produção): o foco vai ao título, e só depois que a prévia

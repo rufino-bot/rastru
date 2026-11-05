@@ -198,7 +198,7 @@ export function AgrupamentoDetalhePage() {
   const [versaoDoSaldo, setVersaoDoSaldo] = useState(0)
   const [descarteAberto, setDescarteAberto] = useState(false)
   const descarte = useDescarteDisponivel(
-    (sinal) => preverDescarteDoAgrupamento(agrupamentoId, sinal), darBaixa && idValido, versaoDoSaldo,
+    (sinal) => preverDescarteDoAgrupamento(agrupamentoId, sinal), darBaixa && idValido, agrupamentoId, versaoDoSaldo,
   )
   const botaoDescartar = useRef<HTMLButtonElement>(null)
   const tituloDaPagina = useRef<HTMLSpanElement>(null)

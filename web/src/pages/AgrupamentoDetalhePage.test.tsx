@@ -2242,6 +2242,16 @@ describe('AgrupamentoDetalhePage', () => {
       expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
     })
 
+    it('com LiberacaoEmAberto o botão aparece e o painel mostra a frase do servidor', async () => {
+      montar(() => respostaJson({ erro: 'LiberacaoEmAberto', mensagem: 'Estorne o pedido de liberação de CH-1.' }, 409))
+      renderizarDetalhe()
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Descartar tudo' }))
+
+      const painel = await screen.findByRole('form', { name: 'Descartar tudo' })
+      expect(await within(painel).findByText('Estorne o pedido de liberação de CH-1.')).toBeTruthy()
+    })
+
     it('quem não dá baixa não vê o botão e a prévia nem é pedida', async () => {
       perfil = 'Operador'
       const fetchMock = montar(() => respostaJson(COM_ALGO))
