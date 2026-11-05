@@ -113,9 +113,10 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
  * `componenteId: null`, `descricao` obrigatória) — os dois que `NovoFilho` já modela.
  *
  * `editar` manda SÓ `descricao`/`quantidade` (D4, por asserção de corpo — não um terceiro campo
- * "vazando" no PUT). O `EdicaoDeNo.mensagem` de conflito nunca vem do backend aqui (`editarNo`
- * nunca emite 409), mas o branch de `ehConflitoDeEstrutura` continua tratado — o TIPO de retorno é
- * a união, então o `tsc` cobra os dois ramos independente do que o backend faz hoje.
+ * "vazando" no PUT). O `EdicaoDeNo.mensagem` de conflito vem do backend quando `editarNo` responde 409
+ * (`QuantidadeAbaixoDoMovimentado`, `ConflitoDeConcorrencia`, `PedidoFechado`, `ComAfericao` e, desde a
+ * Fase 5B-1, `DiminuirPelaBaixa`): o painel mostra a frase do servidor, e o TIPO de retorno é a união,
+ * então o `tsc` cobra os dois ramos.
  *
  * ## Exclusão
  *
@@ -439,7 +440,8 @@ export function AgrupamentoDetalhePage() {
     setDescarteAberto(true)
   }
 
-  function aoDescartar() {
+  /** O saldo mudou (o descarte, ou uma baixa ou um estorno do painel do nó): recarrega e refaz a prévia do descarte. */
+  function aoMudarOSaldo() {
     setVersaoDoSaldo((v) => v + 1)
     carregar(agrupamentoId)
   }
@@ -689,7 +691,7 @@ export function AgrupamentoDetalhePage() {
           escopo="Agrupamento"
           prever={() => preverDescarteDoAgrupamento(agrupamentoId)}
           descartar={(observacao) => descartarAgrupamento(agrupamentoId, observacao)}
-          aoConcluir={aoDescartar}
+          aoConcluir={aoMudarOSaldo}
           aoFechar={() => setDescarteAberto(false)}
         />
       )}
@@ -832,7 +834,7 @@ export function AgrupamentoDetalhePage() {
           key={noEmDetalhe.id}
           no={noEmDetalhe}
           aoFechar={() => setNoEmDetalhe(null)}
-          aoMudar={() => carregar(agrupamentoId)}
+          aoMudar={aoMudarOSaldo}
           saldos={posicoes.get(noEmDetalhe.id)?.saldos ?? []}
           nomeDoEscopo={(e) =>
             e.tipo === 'Agrupamento' && e.id === agrupamento?.id ? agrupamento.codigo

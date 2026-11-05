@@ -2273,8 +2273,12 @@ describe('AgrupamentoDetalhePage', () => {
     }
 
     /** O mock de sempre, com a prévia e o descarte que o teste manda (a prévia vem de uma função, para mudar). */
-    function montar(previa: () => Response, descarte: () => Response = () => respostaJson({ id: 1 }, 201)) {
-      const base = montarFetch({ estruturaInicial: [PECA] })
+    function montar(
+      previa: () => Response,
+      descarte: () => Response = () => respostaJson({ id: 1 }, 201),
+      livro?: Parameters<typeof montarFetch>[0]['livro'],
+    ) {
+      const base = montarFetch({ estruturaInicial: [PECA], livro })
       const fetchMock = vi.fn((url: string | URL, init?: RequestInit) => {
         const caminho = String(url).split('?')[0]
         if (caminho === PREVIA) return Promise.resolve(previa())
@@ -2343,6 +2347,31 @@ describe('AgrupamentoDetalhePage', () => {
       // Abrir "Nova Peça" de volta fecha o descarte.
       fireEvent.click(screen.getByRole('button', { name: 'Nova Peça' }))
       expect(screen.queryByRole('form', { name: 'Descartar tudo' })).toBeNull()
+    })
+
+    it('estornar pelo painel do nó refaz a prévia: o botão acompanha o saldo que o estorno devolveu', async () => {
+      let estornado = false
+      const fetchMock = montar(
+        () => (estornado ? respostaJson(COM_ALGO) : NADA()),
+        undefined,
+        { movimentacoes: [movimentacao({ id: 41, estruturaItemId: 100, usuarioId: 1 })], montagens: [] },
+      )
+      const base = fetchMock.getMockImplementation()!
+      fetchMock.mockImplementation((url: string | URL, init?: RequestInit) => {
+        if ((init as RequestInit | undefined)?.method === 'POST' && String(url).endsWith('/estorno')) estornado = true
+        return base(url, init)
+      })
+      renderizarDetalhe()
+      await screen.findByText('Chassi')
+      await waitFor(() => expect(chamadasA(fetchMock, PREVIA)).toBe(1))
+      expect(screen.queryByRole('button', { name: 'Descartar tudo' })).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Detalhes' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Estornar: Início de 4, em 25/09/2026 10:14' }))
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Estornar' }))
+
+      expect(await screen.findByRole('button', { name: 'Descartar tudo' })).toBeTruthy()
+      expect(chamadasA(fetchMock, PREVIA)).toBe(2)
     })
 
     it('descarta, recarrega a estrutura e leva o foco ao título', async () => {
