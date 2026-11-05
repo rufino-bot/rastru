@@ -71,12 +71,13 @@ sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi conc
 **5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
 descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
 planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
-de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-04:** o **backend está implementado** na branch (a regra 38 de `specs/01`, as rotas de `specs/05`, o
-`db/alter-fase-5b1.sql`); **falta o front** (o módulo `web/src/baixas/`, que a seção «Interface» ainda **não**
-descreve, porque não existe), a conferência do usuário no navegador e a review de branch, e **nada foi mesclado**. A 5C
+de Retrabalho e nó pronto; sem spec). **Estado da 5B-1 em 2026-11-05:** o **backend está implementado** na branch (a regra 38 de `specs/01`, as rotas de `specs/05`, o
+`db/alter-fase-5b1.sql`) e o **front também** (o módulo `web/src/baixas/`, descrito na seção «Interface»: o "Dar baixa" do
+nó, o "Matar" do cartão da expedição, o "Descartar" da sobra da Fila, o "Descartar tudo" do Pedido e do Agrupamento e a
+seção "Baixas"); **faltam** a conferência do usuário no navegador, a review de branch e o merge, e **nada foi mesclado**. A 5C
 ainda não tem spec, e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O
 "Descartar Peça ou Item em Pedido rodando" é da **5B-1**, marcado **obrigatório antes do primeiro uso real**: o backend
-o entrega (a baixa `tudo` de `Descarte` e o "Descartar tudo"), e só o front e o merge o cumprem.
+o entrega (a baixa `tudo` de `Descarte` e o "Descartar tudo"), e só o merge o cumpre.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -438,22 +439,29 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   BOM"; o painel do nó **não** devolve foco. Na `ConferenciaDeImportacaoPage` a origem **não** está no
   cabeçalho: é o "Reimportar" da faixa da Peça, que some enquanto o painel está aberto. Na `LiberacoesPage` a
   origem é o "Responder" do cartão, e o nome da Peça no cartão quando ele não volta; no `CartaoDaPeca` da expedição,
-  o botão que abriu o painel (Aferir, Contar, Mandar para conserto, Pedir liberação, Expedir), e o nome da Peça
+  o botão que abriu o painel (Aferir, Contar, Mandar para conserto, Pedir liberação, Matar, Expedir), e o nome da Peça
   quando a escrita o tira (a aferição registrada tira o "Aferir"); nas `RemessasRecentes`, o "Estornar remessa" da
-  remessa, e o título da seção quando ele não volta. Quando a escrita tira o **cartão** da lista (a última Peça
+  remessa, e o título da seção quando ele não volta. Nas baixas (Fase 5B-1): o "Dar baixa" do `PainelDoNo`, e o título
+  do nó quando a baixa zera o que havia em produção; o "Descartar tudo" da `AgrupamentoDetalhePage` e da
+  `PedidoDetalhePage`, e o título da tela quando o botão não volta; o "Descartar" da linha de sobra da
+  `FilaDoSetorPage`, que não tem reserva: a linha que a recarga tira leva o hook com ela; e a seção "Baixas"
+  (`HistoricoDeBaixas`), que devolve ao "Estornar" da baixa, ou ao título dela. Quando a escrita tira o **cartão** da lista (a última Peça
   expedida, a liberação respondida), o cartão e o hook dele se vão, e quem devolve o foco é a tela, ao título dela.
-  Hoje o hook tem **treze** chamadas em **doze** arquivos — nove telas (`ExpedicaoPage` não chama: o hook mora nos
-  componentes dela) e três componentes que não são tela: o `MateriaisDoNo`, do `PainelDoNo` da
-  `AgrupamentoDetalhePage`, e o `CartaoDaPeca` e as `RemessasRecentes`, da `ExpedicaoPage` — (medido em 2026-10-02 com
+  Hoje o hook tem **dezoito** chamadas em **quinze** arquivos — dez telas (`ExpedicaoPage` não chama: o hook mora nos
+  componentes dela) e cinco componentes que não são tela: o `MateriaisDoNo`, o `PainelDoNo` e o `HistoricoDeBaixas`,
+  do `PainelDoNo` da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, e o `CartaoDaPeca` e as `RemessasRecentes`, da
+  `ExpedicaoPage` — (medido em 2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
   2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, de novo em 2026-10-09: oito, porque a
   `PedidoDetalhePage` tem uma, de novo em 2026-10-17: dez, porque a `SeparacaoPage` e o `MateriaisDoNo` têm uma
   cada, e de novo em 2026-10-22: treze, porque a `LiberacoesPage`, o `CartaoDaPeca` e as `RemessasRecentes` têm uma
-  cada; a métrica é **linhas**, e a `AgrupamentoDetalhePage` é a única com duas): `SetoresPage`, `MateriaisPage`,
-  `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`, `ConferenciaDeImportacaoPage`,
-  `PedidoDetalhePage`, `SeparacaoPage`, `LiberacoesPage` e, fora das telas, o `MateriaisDoNo`, o `CartaoDaPeca` e as
-  `RemessasRecentes`. O usuário decidiu
+  cada, e de novo em 2026-11-05: dezoito, porque o "Descartar tudo" deu uma chamada à `AgrupamentoDetalhePage`, que passou
+  a três, e à `PedidoDetalhePage`, que passou a duas, e entraram o `PainelDoNo`, o `HistoricoDeBaixas` e a
+  `FilaDoSetorPage` com uma cada; a métrica é **linhas**, e as duas telas com mais de uma são essas):
+  `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`,
+  `ConferenciaDeImportacaoPage`, `PedidoDetalhePage`, `SeparacaoPage`, `LiberacoesPage`, `FilaDoSetorPage` e, fora das
+  telas, o `MateriaisDoNo`, o `CartaoDaPeca`, as `RemessasRecentes`, o `PainelDoNo` e o `HistoricoDeBaixas`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -464,11 +472,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   continua utilizável, e a saída é `Cancelar` ou salvar. Registrado para não
   ser re-decidido como omissão. O erro de **escrita** mora dentro do painel; o de carga e o de ação
   de item da lista (Inativar/Reativar), fora dele. O botão do cabeçalho fica sob o mesmo
-  `usePodeEscrever(recurso)` que o painel. Hoje tem **dez** telas consumidoras (sete escrevem o
-  `<PainelDeEscrita` à mão e três só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
-  `PainelDoArquivoDoBom`, a `SeparacaoPage`, pelo `PainelDeSeparacao`, e a `ExpedicaoPage`, pelos painéis do
-  `CartaoDaPeca` e das `RemessasRecentes`), com **dezessete**
-  linhas de uso no código e **dezoito** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `usePodeEscrever(recurso)` que o painel. Hoje tem **onze** telas consumidoras (sete escrevem o
+  `<PainelDeEscrita` à mão e quatro só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
+  `PainelDoArquivoDoBom`, a `SeparacaoPage`, pelo `PainelDeSeparacao`, a `ExpedicaoPage`, pelos painéis do
+  `CartaoDaPeca` e das `RemessasRecentes`, e a `FilaDoSetorPage`, pelo `PainelDeBaixa` da sobra), com **dezenove**
+  linhas de uso no código e **vinte e três** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
   "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
@@ -476,19 +484,24 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   "Editar materiais" do `MateriaisDoNo` e o "Separar material" do `PainelDeSeparacao`, e de novo em 2026-10-22:
   dezessete, porque entraram o "Responder" da `LiberacoesPage` e os seis da expedição — os cinco do `CartaoDaPeca`
   (`PainelDeAfericao`, `PainelDeContagem`, `PainelDeConserto`, `PainelDePedidoDeLiberacao` e `PainelDeRemessa`, uma
-  linha em cada) e o das `RemessasRecentes`; a métrica é **linhas**, não
-  usos). As dezessete linhas são
+  linha em cada) e o das `RemessasRecentes`, e de novo em 2026-11-05: dezenove, porque entraram o `PainelDeBaixa` e o
+  `PainelDeDescarteTotal`, uma linha em cada; a métrica é **linhas**, não
+  usos). As dezenove linhas são
   oito nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage` (novo e editar material, no mesmo
   uso, desde a Fase 4), `ComponentesPage`,
   `PedidosPage`, `PedidoDetalhePage`, `LiberacoesPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova
-  Peça" e o do nó, editar e acrescentar sub-Item) — mais nove em componentes: a do `PainelDoArquivoDoBom`, a do
+  Peça" e o do nó, editar e acrescentar sub-Item) — mais onze em componentes: a do `PainelDoArquivoDoBom`, a do
   `MateriaisDoNo` (o "Editar materiais", dentro do `PainelDoNo` da `AgrupamentoDetalhePage`), a do
-  `PainelDeSeparacao` e as seis da expedição, que moram em `web/src/expedicao/`. Os dezoito painéis são os oito das
+  `PainelDeSeparacao`, as seis da expedição, que moram em `web/src/expedicao/`, e as duas de `web/src/baixas/`. Os vinte e
+  três painéis são os oito das
   linhas das telas (uma linha, um painel) mais os dois
   usos do `PainelDoArquivoDoBom` (o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
   `ConferenciaDeImportacaoPage`; `grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
-  duas linhas em 2026-10-07, em 2026-10-17 e em 2026-10-22), mais o "Editar materiais", o "Separar material" e os seis
-  da expedição. Na
+  duas linhas em 2026-10-07, em 2026-10-17 e em 2026-10-22), mais o "Editar materiais", o "Separar material", os seis
+  da expedição, os três usos do `PainelDeBaixa` (o "Dar baixa" do `PainelDoNo`, o "Matar" do `CartaoDaPeca`, que é o
+  `PainelDeMatar` fino sobre ele, e o "Descartar" da sobra da `FilaDoSetorPage`; `grep -rn "<PainelDeBaixa" web/src
+  --include=*.tsx | grep -v "\.test\."`, três linhas em 2026-11-05) e os dois do `PainelDeDescarteTotal` (o "Descartar
+  tudo" da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, duas linhas no mesmo comando). Na
   `AgrupamentoDetalhePage` os três painéis de escrita da tela (Nova Peça, Importar BOM e o do nó) nunca coexistem:
   abrir um fecha os outros; o "Editar materiais" mora no `PainelDoNo` e fica fora dessa regra.
 
@@ -697,6 +710,33 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `201` é o servidor, e a tela só os mostra **antes** de confirmar. Mudou lá, muda aqui, e os testes dos dois lados
   fixam a mesma tabela. O aviso não trava (regra 37 de `specs/01`). O "Expedir {q}" trava com `enviando`, e o `ref` do
   `useEscritaDoPainel` segura o segundo `submit` contra o duplo toque, e o lote é uma remessa só, tudo ou nada (C9).
+- **A baixa** (Fase 5B-1, spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, seção 6) mora
+  em `web/src/baixas/`, no molde da expedição e da separação: o `PainelDeBaixa` ("Dar baixa": motivo, "Tudo o que está em
+  produção" ou "Uma parte" com a quantidade por posição de origem), o `PainelDeDescarteTotal` (o "Descartar tudo" do
+  Pedido e do Agrupamento), o `HistoricoDeBaixas` (a seção "Baixas" do nó e do Pedido, com o estorno da baixa inteira),
+  o `usePreviaDaBaixa` e a `PreviaDaBaixa`, o `useDescarteDisponivel`, a lógica pura `posicoesDaBaixa` (de onde uma baixa
+  pode tirar, cópia de `CalculoDaBaixa` do backend) e o `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de
+  marcar com o texto visível, diferente da `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
+  `PainelDeBaixa` aceita `motivoFixo`, `origemFixa`, `maximo`, `titulo` e `aviso`, que são o que as duas baixas "de
+  atalho" decidem por conta própria: o "Matar" do cartão da expedição (`PainelDeMatar`, em `web/src/expedicao/`, motivo
+  `MortaEmProcesso`, origem `NaoConforme`, teto as não conformes aguardando decisão, visível com `naoConforme > 0`) e o
+  "Descartar" da linha de sobra da Fila (motivo `Descarte`, origem `AguardandoColeta` do passo da linha ou
+  `AguardandoMontagem` do Setor, teto a sobra da linha). O `usePermissoesDaBaixa` diz o que a sessão pode fazer
+  (`darBaixa`: Qualidade, PCP e Administrador; `podeEstornar(autorId)`: o autor, ou PCP e Administrador) e é o **único
+  lugar que lê `permissoes.ts` para a baixa**; o Operador e o Movimentador não veem "Dar baixa", "Matar", "Descartar
+  tudo" nem o "Descartar" da sobra (D5), e o "Matar" é da baixa, não do `registrar` da expedição: o PCP o vê sozinho no
+  cartão. **A regra de cor:** só o "Descartar tudo" é `perigo`; o resto é botão comum, e a pílula de posição "N perdidos" da árvore e a "Estornada" do
+  histórico são `Pilula` **neutra** (perda e estorno não são aprovado nem reprovado; o `negativo` fica para a não conformidade da
+  expedição). **A prévia vem do servidor** (C14): `usePreviaDaBaixa` consulta `…/baixas/previa` com o pedido de agora
+  (debounce de 300 ms, vence a última consulta enviada) e o enviar só destrava quando ela voltou sem recusa, ao
+  contrário da `tiradaDaRemessa`, que é cópia no cliente — a conta da baixa percorre a árvore, e uma cópia dela no front
+  não se justifica. **A caixa do topo (D13, D14):** na baixa de um Item por perda (`PerdaArmazem` ou `MortaEmProcesso`,
+  de parte ou de tudo) que trava a montagem da Peça do topo, a prévia traz `travaNoTopo` e o painel mostra o
+  `CampoDeCaixa` "Isso impede montar {q} {Peça}. Dar baixa também delas", **marcado por padrão**; com `Descarte` de tudo
+  não há trava (C22), e o painel não pede. O "Descartar tudo" só aparece com algo em produção no escopo
+  (`useDescarteDisponivel`, pela prévia do servidor) e trava o segundo toque pelo `ref` do `useEscritaDoPainel`. A dica
+  de D12 mora fora do módulo: o campo de quantidade da edição de nó da `AgrupamentoDetalhePage` diz "Para diminuir, use
+  "Dar baixa"." quando o Pedido não está `Aberto`, e a recusa `DiminuirPelaBaixa` do servidor aparece no painel.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -971,7 +1011,9 @@ frontend tem **1.912 testes em 106 arquivos** (medido na mesma data e no mesmo c
 --maxWorkers=2`, em `web/`, que executa a suíte do Vitest; o `npm run build` fecha o ciclo, porque o Vitest não faz
 typecheck, e passou). Contra a medição de 2026-10-22 (1.878 em 105 arquivos) são +34 testes e +1 arquivo, que vêm da
 conferência da 5A e não da 5B-1; contra a base da 5B-1 (1.911 em 106) é +1 teste, a linha da entrada `baixa` em
-`permissoes.ts` espelhada pelo teste de espelhamento. Na primeira execução do frontend desta medição **1 de 1.912**
+`permissoes.ts` espelhada pelo teste de espelhamento. **Remedido em 2026-11-05**, na branch com o front da 5B-1 (HEAD
+`7e76b4f`), com o mesmo comando: **2.048 testes em 116 arquivos**, todos passando, e o `npm run build` passou; contra a
+base da 5B-1 (1.911 em 106) são +137 testes e +10 arquivos, que são o front dela. Na primeira execução do frontend desta medição **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
 segunda execução da suíte passou 1.912 de 1.912; causa não investigada. O "passa
 785 de 785" da seção de nuvem acima é de 2026-09-26 (em `44b1d54`: 267, 403, 115 e 0),
