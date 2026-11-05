@@ -740,7 +740,9 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       por engano. Uma baixa de parte, mesmo que zere o filho, não o tira da conta, e o filho perdido por inteiro por
       `PerdaArmazem` ou `MortaEmProcesso` **continua** limitando o pai — o caminho é a regra 27. Descartar por inteiro
       um ancestral leva o pai junto, e então não há montagem a calcular. As unidades do pai já montadas continuam com
-      o filho dentro.
+      o filho dentro. **Ressalva (2026-11-05):** o pai **Avulso** cujos filhos saíram todos do projeto passa a ser
+      tratado como folha, aparece "a iniciar" na Fila e inicia por ela; o pai **Kit** nessa situação continua fora da
+      Fila e da coleta, e fica para a Fase 5C (`06-roadmap-mvp.md`).
     - **Perda que impede montar** (regra 27; D13 e D14). A prévia (`travaNoTopo`) sobe a cadeia do Item até a Peça do
       topo e, em cada nível, calcula quantas unidades ainda faltam montar e os filhos em produção já não cobrem, com
       o fornecimento de cada pai intermediário sendo o que ele tem em produção menos as unidades que a própria baixa
@@ -781,7 +783,8 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
 > inclusive o que já está fabricado ou num Setor (D2) —, e o **bucket terminal** que faltava é a posição `Perdido`
 > (regra 38): o fechamento conta o perdido junto do expedido (regra 13), então a Peça descontinuada conclui, o
 > Agrupamento conclui e o Pedido fecha. O filho acrescentado por engano a um Pedido rodando, que travava a montagem
-> do pai, sai pela baixa `tudo` de `Descarte` (C22). O "Descartar tudo" do Pedido e do Agrupamento faz isso numa ação só.
+> do pai, sai pela baixa `tudo` de `Descarte` (C22; a ressalva do pai Kit está na regra 38). O "Descartar tudo" do
+> Pedido e do Agrupamento faz isso numa ação só.
 
 > **Decidido em 2026-09-24** (spec da Fase 3), e por isso fora desta lista: como sai de "em
 > produção" o filho de um nó que não passa pela trava de montagem — montar passou a ser registro

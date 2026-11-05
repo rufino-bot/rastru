@@ -440,7 +440,10 @@ export function AgrupamentoDetalhePage() {
     setDescarteAberto(true)
   }
 
-  /** O saldo mudou (o descarte, ou uma baixa ou um estorno do painel do nó): recarrega e refaz a prévia do descarte. */
+  /**
+   * O saldo mudou (o descarte, ou uma baixa ou um estorno do painel do nó): recarrega e refaz a prévia do descarte.
+   * O salvar do Roteiro também chega aqui, sem mexer em saldo, e só custa uma prévia a mais.
+   */
   function aoMudarOSaldo() {
     setVersaoDoSaldo((v) => v + 1)
     carregar(agrupamentoId)

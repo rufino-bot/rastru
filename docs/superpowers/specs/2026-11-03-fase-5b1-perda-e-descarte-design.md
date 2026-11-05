@@ -226,7 +226,9 @@ o saldo de `AIniciar` dele, porque o único jeito de sair de "a iniciar" é o in
 `FaltaMontar` segue: `Precisa` (as tarefas do Movimentador, regra 23), a sobra (regra 30), a montabilidade do Setor
 (regra 24) e o teto de entrada do Kit (regra 25). É o que destrava o filho acrescentado por engano: descartado o
 filho inteiro, o pai deixa de exigi-lo (a razão continua, mas o filho não tem mais nada a dar e a montabilidade
-precisa olhar só os filhos que ainda têm o que fornecer — ver a seção 4.5).
+precisa olhar só os filhos que ainda têm o que fornecer — ver a seção 4.5). **Ressalva (2026-11-05):** o pai
+Avulso cujos filhos saíram todos do projeto passa a iniciar como folha pela Fila; o pai Kit nessa situação continua
+fora da Fila e da coleta, e fica para a Fase 5C (`06-roadmap-mvp.md`, seção «Fase 5C»).
 
 ### 4.5 O filho descartado por inteiro sai da conta da montagem
 
@@ -236,8 +238,8 @@ o teto de entrada, o cartão de "Dá para montar N" **e o consumo dos filhos no 
 (`ApontamentoUseCase.IniciarNoAsync`, que hoje baixa todo filho travado) **ignoram** o filho que tem uma baixa `Tudo`
 de motivo `Descarte`, não estornada, com escopo no próprio nó (C22). **Emenda de 2026-11-05:** a frase tinha também "ou num ancestral dele que não seja o
 pai", e o código nunca teve esse mecanismo: o descarte de um ancestral leva o pai junto, e então não há montagem a
-calcular (R5 da execução; regra 38 de `specs/01`). "Saiu do projeto" é isso: a peça não é mais parte do pai daqui em diante. As
-unidades do pai já montadas continuam com ele dentro.
+calcular (regra 38 de `specs/01`). "Saiu do projeto" é isso: a peça não é mais parte do pai daqui em diante. As
+unidades do pai já montadas continuam com ele dentro. A ressalva do pai Kit está no fim da seção 4.4.
 
 O filho perdido por inteiro por `PerdaArmazem` ou `MortaEmProcesso` **não** é ignorado: o pai continua sem poder
 montar o que não tem, e o caminho é a regra 27 (seção 4.6), que dá baixa da unidade da Peça do topo.

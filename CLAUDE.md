@@ -720,8 +720,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   produção" ou "Uma parte" com a quantidade por posição de origem), o `PainelDeDescarteTotal` (o "Descartar tudo" do
   Pedido e do Agrupamento), o `HistoricoDeBaixas` (a seção "Baixas" do nó e do Pedido, com o estorno da baixa inteira),
   o `usePreviaDaBaixa` e a `PreviaDaBaixa`, o `useDescarteDisponivel`, a lógica pura `posicoesDaBaixa` (de onde uma baixa
-  pode tirar, cópia de `Posicoes.DeOndeSeDaBaixa`, do Domain, que o `CalculoDaBaixa` consulta) e o `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de
-  marcar com o texto visível, diferente da `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
+  pode tirar, cópia de `Posicoes.DeOndeSeDaBaixa`, do Domain, que o `CalculoDaBaixa` consulta) e o
+  `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de marcar com o texto visível, diferente da
+  `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
   `PainelDeBaixa` aceita `motivoFixo`, `origemFixa`, `maximo`, `titulo` e `aviso`, que são o que as duas baixas "de
   atalho" decidem por conta própria: o "Matar" do cartão da expedição (`PainelDeMatar`, em `web/src/expedicao/`, motivo
   `MortaEmProcesso`, origem `NaoConforme`, teto as não conformes aguardando decisão, visível com `naoConforme > 0`) e o
