@@ -359,15 +359,32 @@ public class FakeExecucaoRepo : IExecucaoRepository
       Task.FromResult<IReadOnlyDictionary<int, decimal>>(Movimentacoes
           .Where(m => ids.Contains(m.EstruturaItemId) && m.PerdaId != null
                       && ((m.Tipo == TiposDeMovimentacao.Perda && m.OrigemPosicao == Posicoes.AIniciar)
-                          || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar)))
+                          || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar
+                              && Movimentacoes.Any(o => o.Id == m.EstornoDeId && o.Tipo == TiposDeMovimentacao.Perda))))
           .GroupBy(m => m.EstruturaItemId)
           .ToDictionary(g => g.Key, g => g.Sum(m => m.Tipo == TiposDeMovimentacao.Perda ? m.Quantidade : -m.Quantidade)));
+
+  public Task<IReadOnlyList<(int EstruturaItemId, string DestinoPosicao, decimal Quantidade)>> ListarProntosAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    var estornado = Movimentacoes.Where(m => m.Tipo == TiposDeMovimentacao.Estorno && m.EstornoDeId is not null)
+        .GroupBy(m => m.EstornoDeId!.Value).ToDictionary(g => g.Key, g => g.Sum(m => m.Quantidade));
+    return Task.FromResult<IReadOnlyList<(int EstruturaItemId, string DestinoPosicao, decimal Quantidade)>>(Movimentacoes
+        .Where(m => ids.Contains(m.EstruturaItemId) && m.Tipo == TiposDeMovimentacao.Pronto)
+        .GroupBy(m => (m.EstruturaItemId, m.DestinoPosicao))
+        .Select(g => (g.Key.EstruturaItemId, g.Key.DestinoPosicao,
+            Quantidade: g.Sum(m => m.Quantidade - estornado.GetValueOrDefault(m.Id))))
+        .Where(x => x.Quantidade != 0m)
+        .OrderBy(x => x.EstruturaItemId).ThenBy(x => Livro.OrdemDaPosicao(x.DestinoPosicao))
+        .ToList());
+  }
 
   public Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
   {
     var estornados = Movimentacoes.Where(m => m.EstornoDeId != null).Select(m => m.EstornoDeId!.Value).ToHashSet();
     var achados = Movimentacoes
-        .Where(m => m.Tipo == TiposDeMovimentacao.Inicio && !estornados.Contains(m.Id))
+        .Where(m => (m.Tipo == TiposDeMovimentacao.Inicio || m.Tipo == TiposDeMovimentacao.Devolucao)
+                    && !estornados.Contains(m.Id))
         .Select(m => _estruturas.Itens.FirstOrDefault(i => i.Id == m.EstruturaItemId))
         .Where(i => i is not null && Agrupamentos.TryGetValue(i.AgrupamentoId, out var ag) && pedidoIds.Contains(ag.PedidoId))
         .Select(i => Agrupamentos[i!.AgrupamentoId].PedidoId)

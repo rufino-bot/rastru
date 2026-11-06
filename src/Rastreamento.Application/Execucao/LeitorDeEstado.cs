@@ -12,9 +12,10 @@ internal sealed record EstadoDeExecucao(
 
 /// <summary>
 /// Le, para os nos pedidos, tudo o que a calculadora precisa — Roteiro, saldos, totais montados, passos
-/// alcancados, o tipo do Agrupamento de cada no e os Setores com `UtilizaKit`, o perdido de "a iniciar" e os nos que
-/// sairam do projeto — em nove consultas, nunca uma por no. A descricao segue a regra 19 (a do no, senao a do
-/// Componente). Quem chama decide o conjunto: para o destino de um Item, o pai tem de estar nele.
+/// alcancados, o tipo do Agrupamento de cada no e os Setores com `UtilizaKit`, o perdido de "a iniciar", os nos que
+/// sairam do projeto e o pronto de cada no (decisao P3 do plano de backend da Fase 5B-2) — em dez consultas, nunca uma
+/// por no. A descricao segue a regra 19 (a do no, senao a do Componente). Quem chama decide o conjunto: para o destino
+/// de um Item, o pai tem de estar nele.
 /// </summary>
 internal sealed class LeitorDeEstado
 {
@@ -42,6 +43,11 @@ internal sealed class LeitorDeEstado
     var setoresComKit = await _execucao.ListarSetoresComKitAsync(ct);
     var perdidos = await _execucao.ListarPerdidosDeAIniciarAsync(ids, ct);
     var saidos = await _execucao.ListarSaidosDoProjetoAsync(ids, ct);
+    var linhasDePronto = await _execucao.ListarProntosAsync(ids, ct);
+    var prontos = linhasDePronto.GroupBy(p => p.EstruturaItemId).ToDictionary(g => g.Key, g => g.Sum(p => p.Quantidade));
+    var comProntoEmMontagem = linhasDePronto
+        .Where(p => p.DestinoPosicao == Posicoes.AguardandoMontagem && p.Quantidade > 0m)
+        .Select(p => p.EstruturaItemId).ToHashSet();
     var componenteIds = distintos.Where(n => n.ComponenteId is not null).Select(n => n.ComponenteId!.Value).Distinct().ToList();
     var componentes = (await _catalogo.ObterComponentesPorIdAsync(componenteIds, ct)).ToDictionary(c => c.Id);
 
@@ -50,7 +56,7 @@ internal sealed class LeitorDeEstado
             n.Id, n.EstruturaPaiId, n.Quantidade, n.QuantidadePorPai,
             roteiros[n.Id].OrderBy(r => r.Ordem).Select(r => new PassoDoCalculo(r.SetorId, r.Ordem)).ToList(),
             deKit.Contains(n.Id))),
-        saldos, totais, alcancados, setoresComKit, perdidos, saidos);
+        saldos, totais, alcancados, setoresComKit, perdidos, saidos, prontos, comProntoEmMontagem);
 
     var descricoes = distintos.ToDictionary(
         n => n.Id,

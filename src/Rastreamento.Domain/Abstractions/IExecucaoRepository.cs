@@ -136,8 +136,9 @@ public interface IExecucaoRepository
   Task<IReadOnlySet<int>> ListarSetoresComKitAsync(CancellationToken ct);
 
   /// <summary>
-  /// O liquido das linhas `Perda` com origem `AIniciar`, menos os estornos delas (destino `AIniciar` com `PerdaId`),
-  /// por no (C5 da spec da Fase 5B-1; decisao P2 do plano de backend). No sem perda nao aparece.
+  /// O liquido das linhas `Perda` com origem `AIniciar`, menos os estornos delas (destino `AIniciar` com `PerdaId`,
+  /// desfazendo uma linha `Perda`), por no (C5 da spec da Fase 5B-1; decisao P2 do plano de backend). O estorno de um
+  /// `Pronto` tambem volta a `AIniciar` com o `PerdaId` da baixa `Reaproveitado`, e nao entra. No sem perda nao aparece.
   /// </summary>
   Task<IReadOnlyDictionary<int, decimal>> ListarPerdidosDeAIniciarAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
 
@@ -148,8 +149,17 @@ public interface IExecucaoRepository
   Task<IReadOnlySet<int>> ListarSaidosDoProjetoAsync(IReadOnlyCollection<int> ids, CancellationToken ct);
 
   /// <summary>
-  /// Dos Pedidos pedidos, os que tem algum no com uma linha `Inicio` sem estorno apontando para ela (regra 14:
-  /// o inicio liquido de estorno; decisao P7 do plano de backend da Fase 5B-1). Pedido sem inicio nao aparece.
+  /// O pronto dos nos pedidos (decisao P3 do plano de backend da Fase 5B-2): a soma das linhas `Pronto` menos a dos
+  /// estornos que apontam para elas, por no e posicao de destino. Grupo que zera nao aparece.
+  /// </summary>
+  Task<IReadOnlyList<(int EstruturaItemId, string DestinoPosicao, decimal Quantidade)>> ListarProntosAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct);
+
+  /// <summary>
+  /// Dos Pedidos pedidos, os que tem algum no com uma linha `Inicio` ou `Devolucao` sem estorno apontando para ela
+  /// (regra 14: o inicio liquido de estorno; decisao P7 do plano de backend da Fase 5B-1). A `Devolucao` conta porque o
+  /// Retrabalho de consertar comeca por ela (C13 da spec da Fase 5B-2; decisao P9 do plano de backend); o `Pronto` nao
+  /// (C11). Pedido sem inicio nao aparece.
   /// </summary>
   Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
 

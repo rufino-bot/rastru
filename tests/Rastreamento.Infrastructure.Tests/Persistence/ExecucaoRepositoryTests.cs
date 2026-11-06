@@ -659,6 +659,102 @@ public class ExecucaoRepositoryTests : TesteComBanco
     Assert.Equal(new[] { (perdaId, MotivosDePerda.MortaEmProcesso) }, motivos.Select(kv => (kv.Key, kv.Value)).ToArray());
   });
 
+  /// <summary>Uma baixa `Reaproveitado` gravada no Pedido da arvore: o registro que o `Pronto` aponta.</summary>
+  private async Task<int> BaixaReaproveitadaAsync(Cenario c)
+  {
+    await using var db = NovoContexto();
+    var perda = new Perda
+    {
+      Motivo = MotivosDePerda.Reaproveitado, PedidoId = c.Arvore.PedidoId, EstruturaItemId = c.Peca,
+      PedidoRetrabalhoId = c.Arvore.PedidoId, DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+    };
+    db.Perdas.Add(perda);
+    await db.SaveChangesAsync();
+    return perda.Id;
+  }
+
+  private static Movimentacao ComPerda(Movimentacao m, int perdaId)
+  {
+    m.PerdaId = perdaId;
+    return m;
+  }
+
+  [Fact]
+  public Task Prontos_vem_liquidos_de_estorno_por_no_e_posicao() => NoCenarioAsync(async c =>
+  {
+    var perda = await BaixaReaproveitadaAsync(c);
+    var naSolda = Local.AguardandoMontagem(c.Solda);
+    var coleta = Local.AguardandoColeta(c.Corte, 1);
+    await GravarAsync(ComPerda(Mov(c, c.ItemA, TiposDeMovimentacao.Pronto, Local.AIniciar, coleta, 3m), perda));
+    await GravarAsync(ComPerda(Mov(c, c.ItemA, TiposDeMovimentacao.Pronto, Local.AIniciar, naSolda, 2m), perda));
+    await GravarAsync(ComPerda(Mov(c, c.ItemA, TiposDeMovimentacao.Pronto, Local.AIniciar, naSolda, 1m), perda));
+    var prontoDeB = await GravarAsync(ComPerda(Mov(c, c.ItemB, TiposDeMovimentacao.Pronto, Local.AIniciar, naSolda, 4m), perda));
+    await GravarAsync(ComPerda(Mov(c, c.ItemB, TiposDeMovimentacao.Estorno, naSolda, Local.AIniciar, 4m, estornoDeId: prontoDeB), perda));
+    // Um movimento de outro tipo para a mesma posicao nao e pronto.
+    await GravarAsync(Mov(c, c.Peca, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(c.Solda, 1), 1m));
+
+    await using var db = NovoContexto();
+    var prontos = await new ExecucaoRepository(db).ListarProntosAsync(c.Nos, CancellationToken.None);
+
+    Assert.Equal(
+        new[] { (c.ItemA, Posicoes.AguardandoColeta, 3m), (c.ItemA, Posicoes.AguardandoMontagem, 3m) },
+        prontos.OrderBy(p => p.EstruturaItemId).ThenBy(p => p.DestinoPosicao).ToArray());
+  });
+
+  [Fact]
+  public Task Estorno_de_pronto_nao_conta_como_perdido_de_a_iniciar() => NoCenarioAsync(async c =>
+  {
+    // O estorno do `Pronto` volta a "a iniciar" com o `PerdaId` da baixa `Reaproveitado`, como o estorno de uma
+    // linha `Perda`; so o segundo desfaz uma perda.
+    var perda = await BaixaReaproveitadaAsync(c);
+    var naSolda = Local.AguardandoMontagem(c.Solda);
+    var pronto = await GravarAsync(ComPerda(Mov(c, c.ItemB, TiposDeMovimentacao.Pronto, Local.AIniciar, naSolda, 2m), perda));
+    await GravarAsync(ComPerda(Mov(c, c.ItemB, TiposDeMovimentacao.Estorno, naSolda, Local.AIniciar, 2m, estornoDeId: pronto), perda));
+    var perdaDeA = await GravarAsync(ComPerda(Mov(c, c.ItemA, TiposDeMovimentacao.Perda, Local.AIniciar, Local.Perdido, 5m), perda));
+    await GravarAsync(ComPerda(Mov(c, c.ItemA, TiposDeMovimentacao.Estorno, Local.Perdido, Local.AIniciar, 2m, estornoDeId: perdaDeA), perda));
+
+    await using var db = NovoContexto();
+    var perdidos = await new ExecucaoRepository(db).ListarPerdidosDeAIniciarAsync(c.Nos, CancellationToken.None);
+
+    Assert.Equal(3m, perdidos[c.ItemA]);
+    Assert.False(perdidos.ContainsKey(c.ItemB));
+  });
+
+  [Fact]
+  public Task Devolucao_liquida_conta_como_inicio_do_Pedido_e_o_pronto_nao() => NoCenarioAsync(async c =>
+  {
+    var perda = await BaixaReaproveitadaAsync(c);
+    await GravarAsync(ComPerda(Mov(c, c.ItemA, TiposDeMovimentacao.Pronto, Local.AIniciar,
+        Local.AguardandoMontagem(c.Solda), 1m), perda));
+    await using (var escrita = NovoContexto())
+    {
+      escrita.Reclamacoes.Add(new Reclamacao
+      {
+        PedidoId = c.Arvore.PedidoId, EstruturaItemId = c.Peca, Quantidade = 1m, Descricao = "Veio torta",
+        DataHora = DateTime.UtcNow, UsuarioId = c.Arvore.AutorId,
+      });
+      await escrita.SaveChangesAsync();
+    }
+    await using var db = NovoContexto();
+    var repo = new ExecucaoRepository(db);
+    var reclamacao = await db.Reclamacoes.AsNoTracking().Where(r => r.PedidoId == c.Arvore.PedidoId).Select(r => r.Id).SingleAsync();
+    var noConserto = Local.AguardandoConserto(c.Corte);
+
+    var soComPronto = await repo.ListarPedidosComInicioAsync([c.Arvore.PedidoId], CancellationToken.None);
+    var devolucao = Mov(c, c.Peca, TiposDeMovimentacao.Devolucao, Local.AIniciar, noConserto, 1m);
+    devolucao.ReclamacaoId = reclamacao;
+    var devolucaoId = await GravarAsync(devolucao);
+    var comDevolucao = await repo.ListarPedidosComInicioAsync([c.Arvore.PedidoId], CancellationToken.None);
+    var estorno = Mov(c, c.Peca, TiposDeMovimentacao.Estorno, noConserto, Local.AIniciar, 1m, estornoDeId: devolucaoId);
+    estorno.ReclamacaoId = reclamacao;
+    await GravarAsync(estorno);
+    var estornada = await repo.ListarPedidosComInicioAsync([c.Arvore.PedidoId], CancellationToken.None);
+
+    Assert.Empty(soComPronto);
+    Assert.Equal(new[] { c.Arvore.PedidoId }, comDevolucao.ToArray());
+    Assert.Empty(estornada);
+  });
+
   [Fact]
   public Task Subarvore_traz_o_no_e_os_descendentes() => NoCenarioAsync(async c =>
   {

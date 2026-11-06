@@ -67,7 +67,9 @@ public sealed record KitDaColeta(int PaiId, int SetorDeDestinoId, decimal Teto, 
 /// Enxerga so os nos que recebe: o destino e a tarefa de um Item precisam do PAI na entrada. Ver o
 /// "Contrato de uso" do plano 2, Task 3.
 ///
-/// Recebe tambem quais Setores tem `UtilizaKit`, para a regra do Kit (spec da Fase 3B).
+/// Recebe tambem quais Setores tem `UtilizaKit`, para a regra do Kit (spec da Fase 3B), e o pronto de cada no (o
+/// liquido das linhas `Pronto` do Retrabalho, decisao P3 do plano de backend da Fase 5B-2). O Pedido de fabricacao
+/// nunca tem `Pronto`: sem essas entradas, nada muda para ele.
 /// </summary>
 public sealed class CalculadoraDeExecucao
 {
@@ -81,6 +83,8 @@ public sealed class CalculadoraDeExecucao
   private readonly IReadOnlySet<int> _setoresComKit;
   private readonly IReadOnlyDictionary<int, decimal> _perdidosDeAIniciar;
   private readonly IReadOnlySet<int> _saidosDoProjeto;
+  private readonly IReadOnlyDictionary<int, decimal> _prontos;
+  private readonly IReadOnlySet<int> _comProntoEmMontagem;
 
   /// <summary>As posicoes que nao sao producao: o que ja foi montado, expedido ou perdido (lista literal, nao derivada de `Posicoes.Todas`: posicao terminal nova tem de entrar aqui).</summary>
   private static readonly IReadOnlySet<string> ForaDaProducao =
@@ -93,7 +97,9 @@ public sealed class CalculadoraDeExecucao
       IEnumerable<(int EstruturaItemId, int Ordem)> passosAlcancados,
       IReadOnlySet<int>? setoresComKit = null,
       IReadOnlyDictionary<int, decimal>? perdidosDeAIniciar = null,
-      IReadOnlySet<int>? saidosDoProjeto = null)
+      IReadOnlySet<int>? saidosDoProjeto = null,
+      IReadOnlyDictionary<int, decimal>? prontos = null,
+      IReadOnlySet<int>? comProntoEmMontagem = null)
   {
     _nos = nos.ToDictionary(n => n.Id);
     _filhos = _nos.Values.Where(n => n.PaiId is not null).OrderBy(n => n.Id).ToLookup(n => n.PaiId!.Value);
@@ -118,6 +124,8 @@ public sealed class CalculadoraDeExecucao
     _setoresComKit = setoresComKit ?? new HashSet<int>();
     _perdidosDeAIniciar = perdidosDeAIniciar ?? new Dictionary<int, decimal>();
     _saidosDoProjeto = saidosDoProjeto ?? new HashSet<int>();
+    _prontos = prontos ?? new Dictionary<int, decimal>();
+    _comProntoEmMontagem = comProntoEmMontagem ?? new HashSet<int>();
   }
 
   public IEnumerable<NoDoCalculo> Nos => _nos.Values.OrderBy(n => n.Id);
@@ -166,7 +174,20 @@ public sealed class CalculadoraDeExecucao
           .ThenBy(x => x.Local.SetorId ?? 0)
           .ToList();
 
-  public decimal TotalMontado(int id) => _totaisMontados.GetValueOrDefault(id);
+  /// <summary>
+  /// O que o "Usar a sobra" pos pronto no no do Retrabalho: o liquido das linhas `Pronto`, menos os estornos delas
+  /// (decisao P3 do plano de backend da Fase 5B-2). As unidades ja estao numa posicao de verdade (a mesma da sobra no
+  /// original, secao 3.1 da spec da Fase 5B-2), entao os saldos ja as veem; isto so diz quantas vieram assim.
+  /// </summary>
+  public decimal Pronto(int id) => _prontos.GetValueOrDefault(id);
+
+  /// <summary>
+  /// As montagens que valem, mais o pronto quando o no tem filhos (C17 da spec da Fase 5B-2): o pai pronto ja chegou
+  /// montado, como se tivesse consumido os filhos. Assim o que saiu de "a iniciar" do pai continua igual ao total
+  /// montado dele, a identidade da Fase 3D. O pronto de uma folha nao e montagem e nao entra.
+  /// </summary>
+  public decimal TotalMontado(int id) =>
+      _totaisMontados.GetValueOrDefault(id) + (TemFilhos(id) ? Pronto(id) : 0m);
 
   /// <summary>O liquido da baixa que saiu de "a iniciar" do no (C5 da spec da Fase 5B-1), ja sem os estornos.</summary>
   public decimal PerdidoDeAIniciar(int id) => _perdidosDeAIniciar.GetValueOrDefault(id);
@@ -336,6 +357,39 @@ public sealed class CalculadoraDeExecucao
     return maior;
   }
 
+  /// <summary>
+  /// Os conjuntos em formacao do pai (D8 da spec da Fase 5B-2; decisao P4 do plano de backend): no pai que recebe em
+  /// conjunto e tem algum filho que chegou a montagem por um `Pronto`, os conjuntos a espera que ainda nao estao
+  /// completos, `ConjuntosAEspera - min por filho de floor(espera / razao)`. Sem `Pronto` em montagem, zero: o conjunto
+  /// que perdeu parte dentro da Solda no proprio Pedido continua sendo da Fase 5C.
+  /// </summary>
+  public decimal ConjuntosEmFormacao(int paiId)
+  {
+    if (!RecebeEmConjunto(paiId)) return 0m;
+    var filhos = FilhosQueContam(paiId);
+    if (!filhos.Any(f => _comProntoEmMontagem.Contains(f.Id))) return 0m;
+
+    var completos = decimal.MaxValue;
+    foreach (var filho in filhos)
+    {
+      var razao = Razao(filho);
+      completos = Math.Min(completos, razao <= 0m ? 0m : Math.Floor(Math.Max(0m, EmEsperaNoKit(filho.Id, 0m)) / razao));
+    }
+    return Math.Max(0m, ConjuntosAEspera(paiId) - completos);
+  }
+
+  /// <summary>
+  /// O que o filho pode entrar alem dos conjuntos completos, para completar os conjuntos em formacao (D8 da spec da
+  /// Fase 5B-2; decisao P4 do plano de backend): `max(0, ConjuntosAEspera x razao - espera do filho)`, so enquanto ha
+  /// conjunto em formacao. Os conjuntos em formacao ja estao na espera, entao o complemento nao ocupa o teto.
+  /// </summary>
+  public decimal ComplementoDoConjunto(int paiId, int filhoId)
+  {
+    if (ConjuntosEmFormacao(paiId) <= 0m) return 0m;
+    if (FilhosQueContam(paiId).FirstOrDefault(f => f.Id == filhoId) is not NoDoCalculo filho) return 0m;
+    return Math.Max(0m, ConjuntosAEspera(paiId) * Razao(filho) - EmEsperaNoKit(filhoId, 0m));
+  }
+
   /// <summary>Quantos conjuntos o pai ainda precisa receber (regra 25): quantidade, menos o montado, menos a espera.</summary>
   public decimal TetoDeEntrada(int paiId, IReadOnlyDictionary<int, decimal>? saindo = null) =>
       Math.Max(0m, FaltaMontar(paiId) - ConjuntosAEspera(paiId, saindo));
@@ -348,7 +402,9 @@ public sealed class CalculadoraDeExecucao
 
   /// <summary>
   /// Os Kits que as Tarefas mostram (regra 23; spec da Fase 3B, secao 4.4): todo pai que recebe em conjunto, com
-  /// teto maior que zero e algum filho pronto. `Conjuntos` = min(teto, min por filho de floor(pronto / razao)).
+  /// teto maior que zero e algum filho pronto. `Conjuntos` = min(teto, min por filho de floor(pronto / razao)). O que
+  /// completa um conjunto em formacao vai nas coletas (`ColetasPendentes`) e sai do pronto do cartao, para a mesma
+  /// unidade nao ser oferecida duas vezes (D8 da spec da Fase 5B-2).
   /// </summary>
   public IReadOnlyList<KitDaColeta> KitsDaColeta()
   {
@@ -362,7 +418,8 @@ public sealed class CalculadoraDeExecucao
       var filhos = FilhosQueContam(pai.Id).Select(c =>
       {
         var ultimo = UltimoPasso(c.Id);
-        var pronto = ultimo is PassoDoCalculo u ? Math.Max(0m, Saldo(c.Id, Local.AguardandoColeta(u.SetorId, u.Ordem))) : 0m;
+        var naColeta = ultimo is PassoDoCalculo u ? Math.Max(0m, Saldo(c.Id, Local.AguardandoColeta(u.SetorId, u.Ordem))) : 0m;
+        var pronto = Math.Max(0m, naColeta - ComplementoDoConjunto(pai.Id, c.Id));
         return new FilhoDoKit(c.Id, Razao(c), ultimo, pronto, ultimo?.SetorId == destino);
       }).ToList();
       if (filhos.All(f => f.Pronto <= 0m)) continue;
@@ -377,7 +434,8 @@ public sealed class CalculadoraDeExecucao
 
   /// <summary>
   /// Todo (no, passo) que aguarda coleta com tarefa positiva, por Setor, no e passo. Sem os filhos de Kit no
-  /// ultimo passo, que vao no cartao do Kit (`KitsDaColeta`).
+  /// ultimo passo, que vao no cartao do Kit (`KitsDaColeta`) — menos o complemento de um conjunto em formacao, que
+  /// entra aqui sozinho, ate o que o conjunto pede (D8 da spec da Fase 5B-2).
   /// </summary>
   public IReadOnlyList<ColetaPendente> ColetasPendentes()
   {
@@ -388,8 +446,9 @@ public sealed class CalculadoraDeExecucao
       foreach (var local in locais.Keys)
       {
         if (local.Posicao != Posicoes.AguardandoColeta) continue;
-        if (VaiNoKit(id, local.Ordem!.Value)) continue;
         var tarefa = Tarefa(id, local.SetorId!.Value, local.Ordem!.Value);
+        if (VaiNoKit(id, local.Ordem!.Value))
+          tarefa = Math.Min(tarefa, ComplementoDoConjunto(_nos[id].PaiId!.Value, id));
         if (tarefa > 0m) lista.Add(new ColetaPendente(id, local.SetorId.Value, local.Ordem.Value, tarefa));
       }
     }
