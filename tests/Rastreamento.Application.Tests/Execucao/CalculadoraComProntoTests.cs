@@ -25,9 +25,11 @@ public class CalculadoraComProntoTests
       IReadOnlyDictionary<int, decimal>? montados = null,
       IReadOnlyDictionary<int, decimal>? prontos = null,
       IReadOnlySet<int>? comProntoEmMontagem = null,
-      IReadOnlySet<int>? setoresComKit = null) =>
+      IReadOnlySet<int>? setoresComKit = null,
+      IReadOnlyDictionary<int, decimal>? perdidosDeAIniciar = null) =>
       new(nos, saldos ?? Array.Empty<SaldoLiquido>(), montados ?? new Dictionary<int, decimal>(),
-          Array.Empty<(int, int)>(), setoresComKit, prontos: prontos, comProntoEmMontagem: comProntoEmMontagem);
+          Array.Empty<(int, int)>(), setoresComKit, perdidosDeAIniciar,
+          prontos: prontos, comProntoEmMontagem: comProntoEmMontagem);
 
   /// <summary>
   /// Pai Kit de 1 que comeca na Solda (`UtilizaKit`); A (2) e B (3) de razao 1, que terminam no Corte e na Dobra.
@@ -135,6 +137,31 @@ public class CalculadoraComProntoTests
     Assert.Equal(1m, calc.ComplementoDoConjunto(1, 3));
     Assert.Equal(0m, calc.ComplementoDoConjunto(1, 2));
     Assert.Equal(1m, calc.TetoDeEntrada(1));
+  }
+
+  [Fact]
+  public void Conjunto_em_formacao_nao_passa_do_que_o_pai_ainda_precisa()
+  {
+    // Pai Kit de 2, que perdeu 1 de "a iniciar" depois do pronto: so precisa de 1 conjunto. A tem 2 prontos na Solda
+    // (dois conjuntos em formacao) e B tem 2 aguardando coleta. So um conjunto vale (regra 25): B completa com 1.
+    var calc = Calcular(
+        [No(1, null, 2m, null, true, Solda), No(2, 1, 2m, 1m, true, Corte), No(3, 1, 2m, 1m, true, Dobra)],
+        [Em(1, Local.AIniciar, -1m), Em(1, Local.Perdido, 1m),
+         Em(2, Local.AIniciar, -2m), Em(2, Local.AguardandoMontagem(Solda), 2m),
+         Em(3, Local.AIniciar, -2m), Em(3, Local.AguardandoColeta(Dobra, 1), 2m)],
+        prontos: new Dictionary<int, decimal> { [2] = 2m },
+        comProntoEmMontagem: new HashSet<int> { 2 },
+        setoresComKit: new HashSet<int> { Solda },
+        perdidosDeAIniciar: new Dictionary<int, decimal> { [1] = 1m });
+
+    Assert.Equal(1m, calc.FaltaMontar(1));
+    Assert.Equal(2m, calc.ConjuntosAEspera(1));
+    Assert.Equal(1m, calc.ConjuntosEmFormacao(1));
+    Assert.Equal(1m, calc.ComplementoDoConjunto(1, 3));
+    Assert.Equal(0m, calc.ComplementoDoConjunto(1, 2));
+    Assert.Equal(0m, calc.TetoDeEntrada(1));
+    Assert.Equal(new ColetaPendente(3, Dobra, 1, 1m), Assert.Single(calc.ColetasPendentes()));
+    Assert.Empty(calc.KitsDaColeta());
   }
 
   [Fact]

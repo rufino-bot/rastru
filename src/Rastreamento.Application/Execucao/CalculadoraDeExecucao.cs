@@ -358,16 +358,36 @@ public sealed class CalculadoraDeExecucao
   }
 
   /// <summary>
-  /// Os conjuntos em formacao do pai (D8 da spec da Fase 5B-2; decisao P4 do plano de backend): no pai que recebe em
-  /// conjunto e tem algum filho que chegou a montagem por um `Pronto`, os conjuntos a espera que ainda nao estao
-  /// completos, `ConjuntosAEspera - min por filho de floor(espera / razao)`. Sem `Pronto` em montagem, zero: o conjunto
-  /// que perdeu parte dentro da Solda no proprio Pedido continua sendo da Fase 5C.
+  /// Os conjuntos em formacao do pai que ainda valem (D8 da spec da Fase 5B-2; decisao P4 do plano de backend, limitada
+  /// pela regra 25): no pai que recebe em conjunto e tem algum filho que chegou a montagem por um `Pronto`, os conjuntos a
+  /// espera que ainda nao estao completos, `ConjuntosAEspera - completos`, limitados ao que o pai ainda precisa receber
+  /// alem dos completos, `max(0, FaltaMontar - completos)` (regra 25: nunca alem do que o no ainda precisa). O excesso
+  /// aparece quando o pai perde "a iniciar" depois do pronto. Sem `Pronto` em montagem, zero: o conjunto que perdeu
+  /// parte dentro da Solda no proprio Pedido continua sendo da Fase 5C.
   /// </summary>
-  public decimal ConjuntosEmFormacao(int paiId)
+  public decimal ConjuntosEmFormacao(int paiId) => Formacao(paiId).QueValem;
+
+  /// <summary>
+  /// O que o filho pode entrar alem dos conjuntos completos, para completar os conjuntos em formacao que valem (D8 da
+  /// spec da Fase 5B-2; decisao P4 do plano de backend, limitada pela regra 25):
+  /// `max(0, (completos + ConjuntosEmFormacao) x razao - espera do filho)`, so enquanto ha conjunto em formacao. Os
+  /// conjuntos em formacao ja estao na espera, entao o complemento nao ocupa o teto; e, como eles nao passam do
+  /// `FaltaMontar`, o que entra pelo complemento tambem nao passa do que o pai ainda precisa.
+  /// </summary>
+  public decimal ComplementoDoConjunto(int paiId, int filhoId)
   {
-    if (!RecebeEmConjunto(paiId)) return 0m;
+    var (completos, queValem) = Formacao(paiId);
+    if (queValem <= 0m) return 0m;
+    if (FilhosQueContam(paiId).FirstOrDefault(f => f.Id == filhoId) is not NoDoCalculo filho) return 0m;
+    return Math.Max(0m, (completos + queValem) * Razao(filho) - EmEsperaNoKit(filhoId, 0m));
+  }
+
+  /// <summary>Os conjuntos completos a espera e os em formacao que valem; (0, 0) sem conjunto em formacao.</summary>
+  private (decimal Completos, decimal QueValem) Formacao(int paiId)
+  {
+    if (!RecebeEmConjunto(paiId)) return (0m, 0m);
     var filhos = FilhosQueContam(paiId);
-    if (!filhos.Any(f => _comProntoEmMontagem.Contains(f.Id))) return 0m;
+    if (!filhos.Any(f => _comProntoEmMontagem.Contains(f.Id))) return (0m, 0m);
 
     var completos = decimal.MaxValue;
     foreach (var filho in filhos)
@@ -375,19 +395,9 @@ public sealed class CalculadoraDeExecucao
       var razao = Razao(filho);
       completos = Math.Min(completos, razao <= 0m ? 0m : Math.Floor(Math.Max(0m, EmEsperaNoKit(filho.Id, 0m)) / razao));
     }
-    return Math.Max(0m, ConjuntosAEspera(paiId) - completos);
-  }
-
-  /// <summary>
-  /// O que o filho pode entrar alem dos conjuntos completos, para completar os conjuntos em formacao (D8 da spec da
-  /// Fase 5B-2; decisao P4 do plano de backend): `max(0, ConjuntosAEspera x razao - espera do filho)`, so enquanto ha
-  /// conjunto em formacao. Os conjuntos em formacao ja estao na espera, entao o complemento nao ocupa o teto.
-  /// </summary>
-  public decimal ComplementoDoConjunto(int paiId, int filhoId)
-  {
-    if (ConjuntosEmFormacao(paiId) <= 0m) return 0m;
-    if (FilhosQueContam(paiId).FirstOrDefault(f => f.Id == filhoId) is not NoDoCalculo filho) return 0m;
-    return Math.Max(0m, ConjuntosAEspera(paiId) * Razao(filho) - EmEsperaNoKit(filhoId, 0m));
+    var emFormacao = Math.Max(0m, ConjuntosAEspera(paiId) - completos);
+    var aindaPrecisa = Math.Max(0m, FaltaMontar(paiId) - completos);
+    return (completos, Math.Min(emFormacao, aindaPrecisa));
   }
 
   /// <summary>Quantos conjuntos o pai ainda precisa receber (regra 25): quantidade, menos o montado, menos a espera.</summary>

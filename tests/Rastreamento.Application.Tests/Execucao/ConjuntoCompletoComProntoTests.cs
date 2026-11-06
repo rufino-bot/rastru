@@ -98,6 +98,47 @@ public class ConjuntoCompletoComProntoTests
     Assert.Equal(antes, c.Execucao.Movimentacoes.Count);
   }
 
+  /// <summary>
+  /// Pai de 2 que perdeu 1 de "a iniciar" depois do pronto (a baixa gravada direto no livro): so precisa de 1 conjunto.
+  /// A tem 2 prontos na Solda e B tem 2 aguardando coleta.
+  /// </summary>
+  private static CenarioDeExecucao PaiQuePerdeuDepoisDoPronto()
+  {
+    var c = Cenario(2m);
+    ProntoNaSolda(c, A, 2m);
+    c.Mover(1, TiposDeMovimentacao.Perda, Local.AIniciar, Local.Perdido, 1m).PerdaId = 901;
+    NaColeta(c, B, Dobra, 2m);
+    return c;
+  }
+
+  [Fact]
+  public async Task Complemento_nao_passa_do_que_o_pai_ainda_precisa()
+  {
+    var c = PaiQuePerdeuDepoisDoPronto();
+    var antes = c.Execucao.Movimentacoes.Count;
+
+    var r = await Entregar(c, DaColeta(B, Dobra, 2m));   // 1 completa o unico conjunto que vale; o outro 1 vai sem A
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(CodigosDaExecucao.ConjuntoIncompleto, r.Erro);
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Contains("Falta No 2 no conjunto de No 1", r.Detalhe);
+    Assert.Equal(antes, c.Execucao.Movimentacoes.Count);
+  }
+
+  [Fact]
+  public async Task Complemento_do_unico_conjunto_que_vale_passa()
+  {
+    var c = PaiQuePerdeuDepoisDoPronto();
+
+    var r = await Entregar(c, DaColeta(B, Dobra, 1m));
+
+    Assert.True(r.Sucesso, r.Detalhe);
+    Assert.Equal(1m, Assert.Single(r.Valor!).Quantidade);
+    Assert.Equal(1m, c.Calcular().AguardandoMontagem(B, Solda));
+    Assert.Equal(1m, c.Calcular().Saldo(B, Local.AguardandoColeta(Dobra, 1)));
+  }
+
   [Fact]
   public async Task Pronto_estornado_nao_forma_conjunto()
   {
