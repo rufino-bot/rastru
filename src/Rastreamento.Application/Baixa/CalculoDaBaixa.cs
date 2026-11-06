@@ -50,6 +50,30 @@ public static class CalculoDaBaixa
     return Result<PlanoDaBaixa>.Ok(new PlanoDaBaixa(rascunho.Linhas, rascunho.ViramSobra(), trava));
   }
 
+  /// <summary>
+  /// Os filhos que o pronto dispensa (C18 da spec da Fase 5B-2): a cascata C6 da Fase 5B-1 a partir de cada no que
+  /// acabou de ficar pronto, de cima para baixo, levando a `Perdido` o "a iniciar" de cada filho alem do que o pai ainda
+  /// pede, e descendo. `calcComPronto` ja ve os `Pronto` gravados: o pronto de um pai soma ao total montado dele (C17),
+  /// e e por isso que o `FaltaMontar` que a cascata le ja desconta. O no pronto nao perde nada; uma folha pronta nao tem
+  /// o que dispensar. As linhas saem numa baixa de `Descarte` a parte, no Retrabalho (decisao P2 do plano de backend da
+  /// Fase 5B-2).
+  /// </summary>
+  public static IReadOnlyList<LinhaPlanejada> PlanejarDispensaDoPronto(
+      CalculadoraDeExecucao calcComPronto, IReadOnlyList<int> nosComPronto)
+  {
+    var rascunho = new Rascunho(calcComPronto);
+    foreach (var id in nosComPronto.Distinct().OrderBy(id => Profundidade(calcComPronto, id)).ThenBy(id => id))
+      rascunho.Cascata(id);
+    return rascunho.Linhas.ToList();
+  }
+
+  private static int Profundidade(CalculadoraDeExecucao calc, int id)
+  {
+    var profundidade = 0;
+    for (var no = calc.No(id); no.PaiId is int paiId; no = calc.No(paiId)) profundidade++;
+    return profundidade;
+  }
+
   private static bool EhPerda(string motivo) => motivo is MotivosDePerda.PerdaArmazem or MotivosDePerda.MortaEmProcesso;
 
   /// <summary>
