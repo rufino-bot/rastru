@@ -209,6 +209,9 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       // A baixa (Fase 5B-1) e apontada pelo livro por FK: sai logo depois dele.
+      // O "nao repor" (Fase 5B-2) aponta a baixa e a reclamacao por FK: sai antes das duas.
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE d FROM dbo.DispensaDeReposicao d LEFT JOIN dbo.Perda p ON p.Id = d.PerdaId LEFT JOIN dbo.Reclamacao r ON r.Id = d.ReclamacaoId WHERE p.PedidoId = {PedidoId} OR r.PedidoId = {PedidoId}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {PedidoId}");
       // A reclamacao (Fase 5B-2) aponta o Pedido e o no por FK: sai antes da arvore e do Pedido.
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Reclamacao WHERE PedidoId = {PedidoId}");
@@ -265,6 +268,8 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
         $"DELETE m FROM dbo.Movimentacao m JOIN dbo.EstruturaItem e ON e.Id = m.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r} AND m.EstornoDeId IS NOT NULL");
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE m FROM dbo.Movimentacao m JOIN dbo.EstruturaItem e ON e.Id = m.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE d FROM dbo.DispensaDeReposicao d LEFT JOIN dbo.Perda p ON p.Id = d.PerdaId LEFT JOIN dbo.Reclamacao x ON x.Id = d.ReclamacaoId WHERE p.PedidoId = {r} OR x.PedidoId = {r}");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {r} AND PerdaDeOrigemId IS NOT NULL");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {r}");
     await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Reclamacao WHERE PedidoId = {r}");

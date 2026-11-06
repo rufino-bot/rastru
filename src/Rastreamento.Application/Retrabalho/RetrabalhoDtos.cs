@@ -25,6 +25,9 @@ public sealed record PedidoRetrabalhoResumoDto(int Id, string Numero);
 /// </summary>
 public sealed record DispensaDto(int Id, string Justificativa, DateTime DataHora, int UsuarioId, string UsuarioNome);
 
+/// <summary>O corpo de `POST /baixas/{id}/dispensa` e de `POST /reclamacoes/{id}/dispensa`: a justificativa de nao repor (C15).</summary>
+public sealed record NovaDispensaDto(string? Justificativa);
+
 /// <summary>O corpo de `POST /pedidos/{id}/reclamacoes`: `Descricao` e o que o cliente disse.</summary>
 public sealed record NovaReclamacaoDto(int EstruturaItemId, decimal Quantidade, string? Descricao);
 

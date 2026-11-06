@@ -40,6 +40,52 @@ public class ReposicaoRepository : IReposicaoRepository
   public Task<bool> PedidoExisteAsync(int pedidoId, CancellationToken ct) =>
       _db.Pedidos.AsNoTracking().AnyAsync(p => p.Id == pedidoId, ct);
 
+  public async Task<IReadOnlyDictionary<int, string>> ListarNumerosDePedidosAsync(
+      IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
+      pedidoIds.Count == 0
+          ? new Dictionary<int, string>()
+          : await _db.Pedidos.AsNoTracking().Where(p => pedidoIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Numero, ct);
+
+  public async Task<IReadOnlyList<Perda>> ListarPerdasSemRetrabalhoAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    if (pedidoIds.Count == 0) return [];
+    var repoem = new[] { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
+    return await _db.Perdas.AsNoTracking()
+        .Where(p => pedidoIds.Contains(p.PedidoId) && p.PedidoRetrabalhoId == null && repoem.Contains(p.Motivo))
+        .ToListAsync(ct);
+  }
+
+  public async Task<IReadOnlyList<Reclamacao>> ListarReclamacoesSemRetrabalhoAsync(
+      IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    if (pedidoIds.Count == 0) return [];
+    return await _db.Reclamacoes.AsNoTracking()
+        .Where(r => pedidoIds.Contains(r.PedidoId) && r.PedidoRetrabalhoId == null && r.EstornadaEm == null)
+        .ToListAsync(ct);
+  }
+
+  public void Adicionar(DispensaDeReposicao dispensa) => _db.DispensasDeReposicao.Add(dispensa);
+
+  public Task<DispensaDeReposicao?> ObterDispensaAsync(int id, CancellationToken ct) =>
+      _db.DispensasDeReposicao.AsNoTracking().SingleOrDefaultAsync(d => d.Id == id, ct);
+
+  public async Task<IReadOnlyList<DispensaDeReposicao>> ListarDispensasVigentesAsync(
+      IReadOnlyCollection<int> perdaIds, IReadOnlyCollection<int> reclamacaoIds, CancellationToken ct)
+  {
+    if (perdaIds.Count == 0 && reclamacaoIds.Count == 0) return [];
+    return await _db.DispensasDeReposicao.AsNoTracking()
+        .Where(d => d.EstornadaEm == null
+            && ((d.PerdaId != null && perdaIds.Contains(d.PerdaId.Value))
+                || (d.ReclamacaoId != null && reclamacaoIds.Contains(d.ReclamacaoId.Value))))
+        .ToListAsync(ct);
+  }
+
+  public async Task<bool> MarcarDispensaEstornadaAsync(int id, int usuarioId, DateTime em, CancellationToken ct) =>
+      await _db.DispensasDeReposicao.Where(d => d.Id == id && d.EstornadaEm == null)
+          .ExecuteUpdateAsync(s => s
+              .SetProperty(d => d.EstornadaEm, (DateTime?)em)
+              .SetProperty(d => d.EstornadaPorUsuarioId, (int?)usuarioId), ct) > 0;
+
   public async Task<bool> MarcarPerdaRepostaAsync(int perdaId, int pedidoRetrabalhoId, CancellationToken ct) =>
       await _db.Perdas.Where(p => p.Id == perdaId && p.PedidoRetrabalhoId == null)
           .ExecuteUpdateAsync(s => s.SetProperty(p => p.PedidoRetrabalhoId, (int?)pedidoRetrabalhoId), ct) > 0;

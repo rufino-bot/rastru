@@ -20,14 +20,16 @@ public sealed class ReclamacaoUseCase
   private readonly IReposicaoRepository _reposicao;
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly LeitorDeEstado _leitor;
+  private readonly ConsultaDeReposicao _consulta;
 
   public ReclamacaoUseCase(
       IExecucaoRepository execucao, IReposicaoRepository reposicao, IEstruturaRepository estruturas,
-      IReceitaPadraoRepository catalogo)
+      IReceitaPadraoRepository catalogo, ConsultaDeReposicao consulta)
   {
     _execucao = execucao;
     _reposicao = reposicao;
     _catalogo = catalogo;
+    _consulta = consulta;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
   }
 
@@ -97,7 +99,9 @@ public sealed class ReclamacaoUseCase
   /// <summary>
   /// Estorna a reclamacao. Recusas, nesta ordem: inexistente (404), de outro autor sem ser PCP ou Administrador (403
   /// `Proibido`, decidido aqui com <paramref name="podeEstornarDeOutros"/>) e ja estornada (409 `JaEstornado`, relida
-  /// DEPOIS da trava do Pedido). Devolve a reclamacao ja estornada.
+  /// DEPOIS da trava do Pedido) e ja resolvida, com Retrabalho ou com "nao repor" vigente (409 `ReposicaoResolvida`, secao
+  /// 3.3 da spec da Fase 5B-2; tambem relida depois da trava, que e a do Pedido que a abertura e o "nao repor" travam).
+  /// Devolve a reclamacao ja estornada.
   /// </summary>
   public async Task<Result<ReclamacaoDto>> Estornar(
       int id, int usuarioId, bool podeEstornarDeOutros, CancellationToken ct)
@@ -115,6 +119,11 @@ public sealed class ReclamacaoUseCase
       if (atual.EstornadaEm is not null)
         return Falhas.Conflito<ReclamacaoDto>(CodigosDaExecucao.JaEstornado, "Esta reclamação já foi estornada.");
 
+      if (atual.PedidoRetrabalhoId is not null
+          || (await _reposicao.ListarDispensasVigentesAsync([], [id], ct)).Count > 0)
+        return Falhas.Conflito<ReclamacaoDto>(CodigosDoRetrabalho.ReposicaoResolvida,
+            "Esta reclamação já tem Retrabalho ou foi dispensada de repor: desfaça o “não repor” antes de estornar.");
+
       if (!await _reposicao.MarcarReclamacaoEstornadaAsync(id, usuarioId, DateTime.UtcNow, ct))
         return Falhas.Conflito<ReclamacaoDto>(CodigosDaExecucao.JaEstornado, "Esta reclamação já foi estornada.");
       var estornada = (await _reposicao.ObterReclamacaoAsync(id, ct))!;
@@ -124,8 +133,8 @@ public sealed class ReclamacaoUseCase
   }
 
   /// <summary>
-  /// As reclamacoes como DTO, na ordem recebida, com consultas em lote. `PedidoRetrabalho` e `Dispensa` ficam nulos
-  /// ate o Retrabalho e a dispensa existirem; `ARepor` e a quantidade enquanto vigente.
+  /// As reclamacoes como DTO, na ordem recebida, com consultas em lote. `PedidoRetrabalho`, `Dispensa` e `ARepor` vem de
+  /// `ConsultaDeReposicao` (a quantidade enquanto vigente e sem Retrabalho nem dispensa).
   /// </summary>
   private async Task<IReadOnlyList<ReclamacaoDto>> ProjetarAsync(
       IReadOnlyList<Reclamacao> reclamacoes, QuemLe quem, CancellationToken ct)
@@ -136,6 +145,7 @@ public sealed class ReclamacaoUseCase
     var componenteIds = nos.Values.Where(n => n.ComponenteId is not null).Select(n => n.ComponenteId!.Value).Distinct().ToList();
     var componentes = (await _catalogo.ObterComponentesPorIdAsync(componenteIds, ct)).ToDictionary(c => c.Id);
     var usuarios = await _execucao.ListarNomesDeUsuariosAsync(reclamacoes.Select(r => r.UsuarioId).Distinct().ToList(), ct);
+    var reposicao = await _consulta.PorReclamacao(reclamacoes, ct);
 
     return reclamacoes.Select(r =>
     {
@@ -148,7 +158,7 @@ public sealed class ReclamacaoUseCase
           no?.Descricao ?? componente?.Descricao ?? string.Empty, componente?.Codigo, r.Quantidade, r.Descricao,
           r.DataHora, r.UsuarioId, usuarios.GetValueOrDefault(r.UsuarioId, string.Empty), estornada,
           !estornada && (quem.VeRegistrosDeTodos || r.UsuarioId == quem.UsuarioId),
-          PedidoRetrabalho: null, Dispensa: null, ARepor: estornada ? 0m : r.Quantidade);
+          reposicao[r.Id].PedidoRetrabalho, reposicao[r.Id].Dispensa, reposicao[r.Id].ARepor);
     }).ToList();
   }
 }

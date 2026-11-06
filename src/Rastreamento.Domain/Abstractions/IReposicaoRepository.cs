@@ -29,6 +29,36 @@ public interface IReposicaoRepository
 
   Task<bool> PedidoExisteAsync(int pedidoId, CancellationToken ct);
 
+  /// <summary>O numero de cada Pedido pedido, por Id. Pedido inexistente nao volta.</summary>
+  Task<IReadOnlyDictionary<int, string>> ListarNumerosDePedidosAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
+  /// <summary>
+  /// As baixas de perda (`PerdaArmazem` e `MortaEmProcesso`) dos Pedidos que ainda nao tem Retrabalho: o que pode estar
+  /// "a repor" (secao 4.1 da spec da Fase 5B-2). O estorno da baixa e a dispensa vigente se leem a parte. Uma consulta
+  /// para todos os Pedidos pedidos.
+  /// </summary>
+  Task<IReadOnlyList<Perda>> ListarPerdasSemRetrabalhoAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
+  /// <summary>As reclamacoes NAO estornadas dos Pedidos que ainda nao tem Retrabalho. Uma consulta para todos os Pedidos.</summary>
+  Task<IReadOnlyList<Reclamacao>> ListarReclamacoesSemRetrabalhoAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
+
+  void Adicionar(DispensaDeReposicao dispensa);
+
+  Task<DispensaDeReposicao?> ObterDispensaAsync(int id, CancellationToken ct);
+
+  /// <summary>
+  /// As dispensas VIGENTES (`EstornadaEm IS NULL`) das baixas e das reclamacoes pedidas, em uma consulta: no maximo uma
+  /// por alvo (indice unico filtrado).
+  /// </summary>
+  Task<IReadOnlyList<DispensaDeReposicao>> ListarDispensasVigentesAsync(
+      IReadOnlyCollection<int> perdaIds, IReadOnlyCollection<int> reclamacaoIds, CancellationToken ct);
+
+  /// <summary>
+  /// Marca a dispensa como desfeita, condicionado a `EstornadaEm IS NULL`: e a unica escrita que ela recebe depois de
+  /// nascer, e nunca sobrescreve um estorno anterior. Devolve se marcou.
+  /// </summary>
+  Task<bool> MarcarDispensaEstornadaAsync(int id, int usuarioId, DateTime em, CancellationToken ct);
+
   /// <summary>
   /// Grava o Retrabalho que repoe a baixa (C2 da spec da Fase 5B-2), condicionado a `PedidoRetrabalhoId IS NULL`: e
   /// a unica escrita que a `Perda` recebe depois de nascer, e nunca troca um vinculo ja gravado. Devolve se gravou.

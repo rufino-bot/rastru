@@ -1,5 +1,6 @@
 using Rastreamento.Application.Baixa;
 using Rastreamento.Application.Tests.Execucao;
+using Rastreamento.Application.Tests.Retrabalho;
 using Rastreamento.Domain.Entities;
 using Xunit;
 using static Rastreamento.Application.Tests.Execucao.CenarioDeExecucao;
@@ -26,7 +27,7 @@ public class BaixaUseCaseTests
     c.No(2, 1, 20m, 2m, Corte);
     c.No(3, 2, 20m, 1m, Dobra);
     c.No(4, 1, 10m, 1m, Dobra);
-    return (c, new BaixaUseCase(c.Execucao, new FakeBaixaRepo(c.Execucao, c.Estruturas), c.Estruturas, c.Catalogo));
+    return (c, new BaixaUseCase(c.Execucao, new FakeBaixaRepo(c.Execucao, c.Estruturas), c.Estruturas, c.Catalogo, FakeReposicaoRepo.ConsultaVazia(c.Execucao, c.Estruturas)));
   }
 
   private static NovaBaixaDto UmDoNetoAIniciar() =>
@@ -68,7 +69,7 @@ public class BaixaUseCaseTests
     c.No(4, 1, 10m, 1m, Dobra);
     c.No(2, null, 3m, null, Solda);
     c.No(5, 2, 3m, 1m, Corte);
-    var baixa = new BaixaUseCase(c.Execucao, new FakeBaixaRepo(c.Execucao, c.Estruturas), c.Estruturas, c.Catalogo);
+    var baixa = new BaixaUseCase(c.Execucao, new FakeBaixaRepo(c.Execucao, c.Estruturas), c.Estruturas, c.Catalogo, FakeReposicaoRepo.ConsultaVazia(c.Execucao, c.Estruturas));
 
     var r = await baixa.DescartarPedido(PedidoId, new DescarteDto(null), Qualidade, Ct);
 

@@ -57,8 +57,8 @@ public sealed partial class RetrabalhoUseCase
 
   /// <summary>
   /// O alvo relido DEPOIS das travas (decisao P5 do plano de backend da Fase 5B-2): e aqui que entram as recusas que
-  /// dependem do que outra escrita pode ter mudado. A baixa e a reclamacao: ja ter Retrabalho (409 `JaReposto`, D9) e
-  /// ter sido estornada (409 `SemPecaARepor`). A avulsa: o no ser do Pedido original (404) e ser Peca (400 `NaoEhPeca`).
+  /// dependem do que outra escrita pode ter mudado. A baixa e a reclamacao: ja ter Retrabalho (409 `JaReposto`, D9), ter
+  /// "nao repor" vigente (409 `ReposicaoDispensada`) e ter sido estornada (409 `SemPecaARepor`). A avulsa: o no ser do Pedido original (404) e ser Peca (400 `NaoEhPeca`).
   /// </summary>
   private async Task<Result<PedidoDto>?> ConferirAlvoAsync(
       int pedidoOrigemId, CorpoConferido corpo, Alvo alvo, IReadOnlyList<EstruturaItem> nos, CancellationToken ct)
@@ -69,6 +69,8 @@ public sealed partial class RetrabalhoUseCase
       {
         var perda = (await _baixas.ObterAsync(alvo.Perda!.Id, ct))!;
         if (perda.PedidoRetrabalhoId is int reposta) return await JaRepostoAsync("Esta baixa", reposta, ct);
+        if ((await _reposicao.ListarDispensasVigentesAsync([perda.Id], [], ct)).Count > 0)
+          return ReposicaoDispensada("Esta baixa");
         if ((await _execucao.ListarEstornadasAsync(alvo.LinhasDaPerda, ct)).Count > 0)
           return SemPecaARepor<PedidoDto>("Esta baixa foi estornada: não há Peça a repor.");
         return null;
@@ -77,6 +79,8 @@ public sealed partial class RetrabalhoUseCase
       {
         var reclamacao = (await _reposicao.ObterReclamacaoAsync(alvo.Reclamacao!.Id, ct))!;
         if (reclamacao.PedidoRetrabalhoId is int reposta) return await JaRepostoAsync("Esta reclamação", reposta, ct);
+        if ((await _reposicao.ListarDispensasVigentesAsync([], [reclamacao.Id], ct)).Count > 0)
+          return ReposicaoDispensada("Esta reclamação");
         if (reclamacao.EstornadaEm is not null)
           return SemPecaARepor<PedidoDto>("Esta reclamação foi estornada: não há Peça a repor.");
         return null;
@@ -103,6 +107,14 @@ public sealed partial class RetrabalhoUseCase
     return Falhas.Conflito<PedidoDto>(CodigosDoRetrabalho.JaReposto,
         $"{alvo} já tem o Retrabalho {numero}: um Retrabalho por baixa ou reclamação.");
   }
+
+  /// <summary>
+  /// O alvo com "nao repor" vigente nao abre Retrabalho (D3 e secao 3.4 da spec da Fase 5B-2): e preciso desfazer a
+  /// dispensa antes. Lido depois da trava do Pedido, a mesma que o "nao repor" toma.
+  /// </summary>
+  private static Result<PedidoDto> ReposicaoDispensada(string alvo) =>
+      Falhas.Conflito<PedidoDto>(CodigosDoRetrabalho.ReposicaoDispensada,
+          $"{alvo} está dispensada de repor: desfaça o “não repor” para abrir o Retrabalho.");
 
   private static Result<T> SemPecaARepor<T>(string mensagem) =>
       Falhas.Conflito<T>(CodigosDoRetrabalho.SemPecaARepor, mensagem);
@@ -192,6 +204,6 @@ public sealed partial class RetrabalhoUseCase
 
     // As duas escritas de status sao conjuntistas e nao passam pela entidade: o status que volta e o relido do banco.
     retrabalho.Status = (await _execucao.TravarPedidoAsync(retrabalho.Id, ct))!.Status;
-    return Result<PedidoDto>.Ok(_cadastro.ProjetarNovo(retrabalho));
+    return Result<PedidoDto>.Ok(_cadastro.ProjetarNovo(retrabalho, original.Numero));
   }
 }

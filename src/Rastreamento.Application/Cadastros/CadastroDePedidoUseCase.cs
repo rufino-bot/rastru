@@ -1,6 +1,7 @@
 using System.Globalization;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -58,12 +59,17 @@ public sealed class CadastroDePedidoUseCase
 
   private readonly IPedidoRepository _repositorio;
   private readonly TimeProvider _relogio;
+  private readonly ConsultaDeReposicao _reposicao;
 
-  /// <summary>O relogio e de onde sai o "hoje" da regra de atraso (`PrazoDeEntrega.HojeEmBrasilia`).</summary>
-  public CadastroDePedidoUseCase(IPedidoRepository repositorio, TimeProvider relogio)
+  /// <summary>
+  /// O relogio e de onde sai o "hoje" da regra de atraso (`PrazoDeEntrega.HojeEmBrasilia`); a consulta de reposicao e
+  /// de onde saem o "a repor" e o numero do Pedido de origem do Retrabalho (spec da Fase 5B-2), em lote.
+  /// </summary>
+  public CadastroDePedidoUseCase(IPedidoRepository repositorio, TimeProvider relogio, ConsultaDeReposicao reposicao)
   {
     _repositorio = repositorio;
     _relogio = relogio;
+    _reposicao = reposicao;
   }
 
   public async Task<Result<PedidoDto>> Cadastrar(
@@ -118,8 +124,7 @@ public sealed class CadastroDePedidoUseCase
     pedido.DataEntrega = dataEntrega;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
-    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
+    return Result<PedidoDto>.Ok((await ProjetarComPausas([pedido], ct)).Single());
   }
 
   /// <summary>
@@ -202,12 +207,24 @@ public sealed class CadastroDePedidoUseCase
           .Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao))
           .ToList();
 
+  /// <summary>
+  /// Os Pedidos como DTO, com as pausas, o "a repor" e a origem dos Retrabalhos em lote: uma consulta de cada para a
+  /// pagina inteira, nunca uma por Pedido.
+  /// </summary>
   private async Task<IReadOnlyList<PedidoDto>> ProjetarComPausas(
       IReadOnlyList<Pedido> pedidos, CancellationToken ct)
   {
-    var pausas = await _repositorio.ListarPausasAbertasAsync(pedidos.Select(p => p.Id).ToList(), ct);
+    if (pedidos.Count == 0) return [];
+    var ids = pedidos.Select(p => p.Id).ToList();
+    var pausas = await _repositorio.ListarPausasAbertasAsync(ids, ct);
+    var aRepor = await _reposicao.ARepor(ids, ct);
+    var origens = await _reposicao.NumerosDasOrigensAsync(pedidos, ct);
     var hoje = Hoje();
-    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id), hoje)).ToList();
+    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id), hoje) with
+    {
+      PedidoOrigem = p.PedidoOrigemId is int o && origens.TryGetValue(o, out var numero) ? new PedidoOrigemResumoDto(o, numero) : null,
+      ARepor = aRepor.GetValueOrDefault(p.Id),
+    }).ToList();
   }
 
   /// <summary>Lista separada por virgula: aparada, sem pedaco vazio e sem repetido (a ordem da primeira aparicao fica).</summary>
@@ -222,8 +239,7 @@ public sealed class CadastroDePedidoUseCase
     var pedido = await _repositorio.ObterPorIdAsync(id, ct);
     if (pedido is null)
       return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
-    var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
-    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
+    return Result<PedidoDto>.Ok((await ProjetarComPausas([pedido], ct)).Single());
   }
 
   /// <summary>
@@ -250,11 +266,18 @@ public sealed class CadastroDePedidoUseCase
   /// <summary>Uma vez por requisicao: todos os Pedidos de uma resposta comparam contra o mesmo dia.</summary>
   private DateOnly Hoje() => PrazoDeEntrega.HojeEmBrasilia(_relogio);
 
-  /// <summary>O Pedido como DTO; a abertura do Retrabalho projeta o Pedido novo por aqui (sem pausa: nasceu agora).</summary>
-  internal PedidoDto ProjetarNovo(Pedido p) => Projetar(p, null, Hoje());
+  /// <summary>
+  /// O Pedido como DTO; a abertura do Retrabalho projeta o Pedido novo por aqui (sem pausa e sem nada a repor: nasceu
+  /// agora), com o numero do original, que ela ja tem na mao.
+  /// </summary>
+  internal PedidoDto ProjetarNovo(Pedido p, string? numeroDaOrigem = null) =>
+      Projetar(p, null, Hoje()) with
+      {
+        PedidoOrigem = p.PedidoOrigemId is int o && numeroDaOrigem is not null ? new PedidoOrigemResumoDto(o, numeroDaOrigem) : null,
+      };
 
   private static PedidoDto Projetar(Pedido p, PausaAberta? pausa, DateOnly hoje) =>
       new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.DataEntrega,
           PrazoDeEntrega.EstaAtrasado(p.DataEntrega, p.Status, hoje),
-          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa), p.DataConclusao);
+          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa), p.DataConclusao, MotivoRetrabalho: p.MotivoRetrabalho);
 }

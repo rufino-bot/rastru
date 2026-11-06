@@ -1,3 +1,4 @@
+using Rastreamento.Application.Tests.Retrabalho;
 using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
@@ -18,7 +19,7 @@ public class CadastroDePedidoUseCaseTests
   /// <summary>"Hoje" de todos os testes desta classe: 2026-10-08 em Brasilia.</summary>
   private static readonly RelogioFixo Relogio = new(new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero));
 
-  private static CadastroDePedidoUseCase NovoUseCase(FakePedidoRepo repo) => new(repo, Relogio);
+  private static CadastroDePedidoUseCase NovoUseCase(FakePedidoRepo repo) => new(repo, Relogio, FakeReposicaoRepo.ConsultaVazia());
 
   [Fact]
   public async Task Cadastra_pedido_aberto_de_fabricacao()
@@ -520,7 +521,8 @@ public class CadastroDePedidoUseCaseTests
       Id = 1, Numero = "PED-001", Cliente = "Y", Tipo = "Fabricacao", Status = "Aberto",
       DataEntrega = new DateOnly(2010, 1, 1),
     });
-    var useCase = new CadastroDePedidoUseCase(repo, new RelogioFixo(new DateTimeOffset(2000, 1, 1, 12, 0, 0, TimeSpan.Zero)));
+    var useCase = new CadastroDePedidoUseCase(
+        repo, new RelogioFixo(new DateTimeOffset(2000, 1, 1, 12, 0, 0, TimeSpan.Zero)), FakeReposicaoRepo.ConsultaVazia());
 
     var resultado = await useCase.Obter(1, CancellationToken.None);
 
@@ -600,7 +602,7 @@ public class CadastroDePedidoUseCaseTests
     // o dia UTC (2026-10-08) e nao e para Brasilia, onde esse e o proprio dia de hoje.
     var repo = new FakePedidoRepo(PedidoComPrazoVencido(1, "Aberto"));
     var useCase = new CadastroDePedidoUseCase(
-        repo, new RelogioFixo(new DateTimeOffset(2026, 10, 8, 2, 59, 0, TimeSpan.Zero)));
+        repo, new RelogioFixo(new DateTimeOffset(2026, 10, 8, 2, 59, 0, TimeSpan.Zero)), FakeReposicaoRepo.ConsultaVazia());
 
     var resultado = await useCase.Listar(null, null, null, null, 1, 20, CancellationToken.None);
 

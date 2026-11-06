@@ -230,6 +230,10 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST reclamacoes/{id:int}/estorno"] = ["Qualidade", "PCP", "Administrador"],
     // Abrir o Pedido de Retrabalho (C6 da spec da Fase 5B-2): `RetrabalhoController`, um conjunto de perfis so.
     ["POST pedidos/{id:int}/retrabalhos"] = ["Qualidade", "PCP", "Administrador"],
+    // O "nao repor" e desfaze-lo (D3 e C6 da spec da Fase 5B-2): so o PCP e o Administrador, `DispensaController`.
+    ["POST baixas/{id:int}/dispensa"] = ["PCP", "Administrador"],
+    ["POST reclamacoes/{id:int}/dispensa"] = ["PCP", "Administrador"],
+    ["POST dispensas/{id:int}/estorno"] = ["PCP", "Administrador"],
   };
 
   /// <summary>

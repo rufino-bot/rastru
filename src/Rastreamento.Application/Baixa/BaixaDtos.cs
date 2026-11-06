@@ -1,4 +1,5 @@
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Retrabalho;
 
 namespace Rastreamento.Application.Baixa;
 
@@ -56,11 +57,13 @@ public sealed record LinhaDaBaixaDto(
 
 /// <summary>
 /// A baixa projetada (secao 5.2 da spec da Fase 5B-1). `Estornavel`: nao estornada, de Pedido que nao esta
-/// `Cancelado`, e de quem le, ou quem le ve as de todos (C8), como a remessa.
+/// `Cancelado`, e de quem le, ou quem le ve as de todos (C8), como a remessa. `PedidoRetrabalho` e `Dispensa` dizem o que
+/// aconteceu com a reposicao dela, e `ARepor` conta unidades de Peca (C1 da spec da Fase 5B-2).
 /// </summary>
 public sealed record BaixaDto(
     int Id, string Motivo, string? Observacao, EscopoDaBaixaDto Escopo, bool Tudo, DateTime DataHora, int UsuarioId,
-    string UsuarioNome, bool Estornada, bool Estornavel, IReadOnlyList<LinhaDaBaixaDto> Linhas);
+    string UsuarioNome, bool Estornada, bool Estornavel, IReadOnlyList<LinhaDaBaixaDto> Linhas,
+    PedidoRetrabalhoResumoDto? PedidoRetrabalho = null, DispensaDto? Dispensa = null, decimal ARepor = 0m);
 
 /// <summary>Um no cujo fabricado passa a sobrar por causa da baixa (C6).</summary>
 public sealed record SobraDaBaixaDto(int EstruturaItemId, string Descricao, decimal Quantidade);

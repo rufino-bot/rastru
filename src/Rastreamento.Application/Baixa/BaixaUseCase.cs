@@ -1,6 +1,7 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Expedicao;
+using Rastreamento.Application.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -25,14 +26,16 @@ public sealed partial class BaixaUseCase
   private readonly LeitorDeEstado _leitor;
   private readonly FechamentoDoPedido _fechamento;
   private readonly ProjetorDoLivro _projetor;
+  private readonly ConsultaDeReposicao _reposicao;
 
   public BaixaUseCase(
       IExecucaoRepository execucao, IBaixaRepository baixas, IEstruturaRepository estruturas,
-      IReceitaPadraoRepository catalogo)
+      IReceitaPadraoRepository catalogo, ConsultaDeReposicao reposicao)
   {
     _execucao = execucao;
     _baixas = baixas;
     _catalogo = catalogo;
+    _reposicao = reposicao;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _fechamento = new FechamentoDoPedido(execucao);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
@@ -134,7 +137,8 @@ public sealed partial class BaixaUseCase
   /// <summary>
   /// As baixas com as linhas `Perda` de cada uma, na ordem do livro (os estornos nao viram linha: so marcam
   /// `Estornada`), na ordem recebida. Consultas em lote, nunca uma por baixa nem por no. `Estornavel`, como na remessa:
-  /// nao estornada, de Pedido que nao esta `Cancelado` (secao 4.9) e de quem le, ou quem le ve as de todos (C8).
+  /// nao estornada, de Pedido que nao esta `Cancelado` (secao 4.9) e de quem le, ou quem le ve as de todos (C8). O
+  /// Retrabalho, o "nao repor" e o a repor de cada baixa vem de `ConsultaDeReposicao`, em lote (uma leitura para todas).
   /// </summary>
   internal async Task<IReadOnlyList<BaixaDto>> ProjetarAsync(IReadOnlyList<Perda> perdas, QuemLe quem, CancellationToken ct)
   {
@@ -150,6 +154,7 @@ public sealed partial class BaixaUseCase
     var setores = await NomesDosSetoresAsync(linhas.Select(l => l.OrigemSetorId).OfType<int>(), ct);
     var autores = await _execucao.ListarNomesDeUsuariosAsync(perdas.Select(p => p.UsuarioId).Distinct().ToList(), ct);
     var status = await _baixas.ListarStatusDosPedidosAsync(perdas.Select(p => p.PedidoId).Distinct().ToList(), ct);
+    var reposicao = await _reposicao.PorBaixa(perdas, todas, nos, ct);
 
     return perdas.Select(p =>
     {
@@ -169,7 +174,8 @@ public sealed partial class BaixaUseCase
           && status.GetValueOrDefault(p.PedidoId) != StatusCancelado;
       return new BaixaDto(
           p.Id, p.Motivo, p.Observacao, Escopo(p), p.Tudo, p.DataHora, p.UsuarioId,
-          autores.GetValueOrDefault(p.UsuarioId, string.Empty), estornada, estornavel, daBaixa);
+          autores.GetValueOrDefault(p.UsuarioId, string.Empty), estornada, estornavel, daBaixa,
+          reposicao[p.Id].PedidoRetrabalho, reposicao[p.Id].Dispensa, reposicao[p.Id].ARepor);
     }).ToList();
   }
 
