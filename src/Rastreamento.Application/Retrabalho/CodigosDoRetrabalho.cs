@@ -21,4 +21,5 @@ public static class CodigosDoRetrabalho
   public const string PosicaoDoProntoInexistente = "PosicaoDoProntoInexistente";
   public const string DestinoInvalido = "DestinoInvalido";
   public const string PortaInvalida = "PortaInvalida";
+  public const string DescricaoObrigatoria = "DescricaoObrigatoria";
 }

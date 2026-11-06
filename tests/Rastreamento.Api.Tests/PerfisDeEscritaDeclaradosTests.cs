@@ -224,6 +224,10 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST pedidos/{id:int}/descarte/previa"] = ["Qualidade", "PCP", "Administrador"],
     // O estorno inteiro da baixa: o autor, ou PCP e Administrador, e decidido pelo caso de uso (403 `Proibido`).
     ["POST baixas/{id:int}/estorno"] = ["Qualidade", "PCP", "Administrador"],
+    // Reclamacao do cliente (C6 da spec da Fase 5B-2): um controller so, `ReclamacaoController`. O estorno deixa passar
+    // quem pode ser autor e o PCP; autor x PCP quem decide e o caso de uso (403 `Proibido`).
+    ["POST pedidos/{id:int}/reclamacoes"] = ["Qualidade", "PCP", "Administrador"],
+    ["POST reclamacoes/{id:int}/estorno"] = ["Qualidade", "PCP", "Administrador"],
   };
 
   /// <summary>
