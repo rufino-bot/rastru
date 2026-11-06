@@ -38,6 +38,11 @@ public class EstruturaItem
   /// </summary>
   public decimal? QuantidadePorPai { get; set; }
 
+  /// <summary>
+  /// So no no copiado para um Pedido de Retrabalho (C14 da spec da Fase 5B-2): o no do original de que ele veio.
+  /// </summary>
+  public int? OrigemEstruturaItemId { get; set; }
+
   /// <summary>Vale para Peca; o cliente exige no cadastro do Pedido (regra 10).</summary>
   public bool RequerRelatorioDimensional { get; set; }
 }

@@ -385,12 +385,14 @@ CREATE TABLE dbo.EstruturaItem (
     NivelHierarquico            NVARCHAR(10)        NOT NULL,   -- Peca | Item (denormalizado p/ consulta rápida)
     Quantidade                  DECIMAL(18,4)       NOT NULL,   -- lote agregado (divisível por quantidades livres)
     QuantidadePorPai            DECIMAL(18,4)       NULL,       -- regra 26: quantos entram em UMA unidade do pai (só Item)
+    OrigemEstruturaItemId       INT                 NULL,       -- 5B-2 (C14): o nó do original de que este foi copiado (Retrabalho)
     RequerRelatorioDimensional  BIT                 NOT NULL
         CONSTRAINT DF_EstruturaItem_RequerRelatorio DEFAULT (0), -- vale p/ Peça (topo); cliente exige no cadastro
     CONSTRAINT PK_EstruturaItem PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_EstruturaItem_Agrupamento FOREIGN KEY (AgrupamentoId) REFERENCES dbo.Agrupamento (Id),
     CONSTRAINT FK_EstruturaItem_Componente FOREIGN KEY (ComponenteId) REFERENCES dbo.Componente (Id),
     CONSTRAINT FK_EstruturaItem_Pai FOREIGN KEY (EstruturaPaiId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_EstruturaItem_Origem FOREIGN KEY (OrigemEstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
     CONSTRAINT CK_EstruturaItem_NaoAutoReferencia CHECK (EstruturaPaiId <> Id),
     CONSTRAINT CK_EstruturaItem_NivelHierarquico CHECK (NivelHierarquico IN ('Peca', 'Item')),
     -- Peça = topo da árvore dentro do Agrupamento (sem pai); Item = tem pai
@@ -526,11 +528,13 @@ CREATE INDEX IX_LiberacaoDimensional_EstruturaItem ON dbo.LiberacaoDimensional (
 -- As quantidades sao as linhas Tipo = 'Perda' do livro que a apontam (Movimentacao.PerdaId), uma por no e por
 -- posicao de origem; estorna-se a baixa inteira. Regra 9, para todo no: a iniciar + nos Setores + aguardando
 -- coleta ou montagem + no local de expedicao + montado dentro do pai + expedido + perdido = total do no.
--- A reposicao (Pedido de Retrabalho com MotivoRetrabalho = 'Perda') e da Fase 5B-2; PedidoRetrabalhoId fica
--- para ela e nao e usado na 5B-1.
+-- A reposicao (Fase 5B-2, spec secao 3.2): PedidoRetrabalhoId e o Pedido de Retrabalho ligado a baixa -- na de
+-- PerdaArmazem/MortaEmProcesso, o que a repoe; na de Reaproveitado (que so nasce pelo "Usar a sobra"), o que
+-- recebeu a sobra; nunca na de Descarte. PerdaDeOrigemId liga a baixa da cascata do pronto (no Retrabalho, motivo
+-- Descarte) a baixa Reaproveitado do original (decisao P2 do plano de backend da Fase 5B-2).
 CREATE TABLE dbo.Perda (
     Id                 INT IDENTITY(1,1)  NOT NULL,
-    Motivo             NVARCHAR(20)        NOT NULL, -- PerdaArmazem | MortaEmProcesso | Descarte
+    Motivo             NVARCHAR(20)        NOT NULL, -- PerdaArmazem | MortaEmProcesso | Descarte | Reaproveitado
     Observacao         NVARCHAR(500)       NULL,     -- livre, opcional (C19)
     PedidoId           INT                 NOT NULL, -- toda baixa e de um Pedido so
     AgrupamentoId      INT                 NULL,     -- preenchido no "Descartar tudo" do Agrupamento
@@ -538,17 +542,77 @@ CREATE TABLE dbo.Perda (
     Tudo               BIT                 NOT NULL CONSTRAINT DF_Perda_Tudo DEFAULT (0), -- levou tudo (D11); marca "saiu do projeto" (C22)
     DataHora           DATETIME2           NOT NULL CONSTRAINT DF_Perda_DataHora DEFAULT (SYSUTCDATETIME()),
     UsuarioId          INT                 NOT NULL, -- o autor
-    PedidoRetrabalhoId INT                 NULL,     -- da 5B-2
+    PedidoRetrabalhoId INT                 NULL,     -- da 5B-2: reposta por (perda) ou foi para (Reaproveitado)
+    PerdaDeOrigemId    INT                 NULL,     -- da 5B-2: a baixa Reaproveitado a que esta (a da cascata) pertence
     CONSTRAINT PK_Perda PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_Perda_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
     CONSTRAINT FK_Perda_Agrupamento FOREIGN KEY (AgrupamentoId) REFERENCES dbo.Agrupamento (Id),
     CONSTRAINT FK_Perda_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
     CONSTRAINT FK_Perda_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT FK_Perda_PedidoRetrabalho FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
-    CONSTRAINT CK_Perda_Motivo CHECK (Motivo IN ('PerdaArmazem', 'MortaEmProcesso', 'Descarte')),
+    CONSTRAINT FK_Perda_PerdaDeOrigem FOREIGN KEY (PerdaDeOrigemId) REFERENCES dbo.Perda (Id),
+    CONSTRAINT CK_Perda_Motivo CHECK (Motivo IN ('PerdaArmazem', 'MortaEmProcesso', 'Descarte', 'Reaproveitado')),
+    CONSTRAINT CK_Perda_ReaproveitadoTemRetrabalho CHECK (Motivo <> 'Reaproveitado' OR PedidoRetrabalhoId IS NOT NULL),
+    CONSTRAINT CK_Perda_DescarteSemRetrabalho CHECK (Motivo <> 'Descarte' OR PedidoRetrabalhoId IS NULL),
     -- No maximo um escopo: os dois nulos sao o "Descartar tudo" do Pedido.
     CONSTRAINT CK_Perda_Escopo CHECK (AgrupamentoId IS NULL OR EstruturaItemId IS NULL)
 );
+GO
+
+-- A reclamacao do cliente (Fase 5B-2, spec secao 3.3): quantas unidades de uma Peca expedida voltaram. SO INCLUSAO
+-- como dbo.Montagem: a unica escrita depois de nascer e PedidoRetrabalhoId (quando o Retrabalho abre) e o estorno.
+-- A soma das reclamacoes nao estornadas de uma Peca nao passa do expedido dela (validado na aplicacao).
+CREATE TABLE dbo.Reclamacao (
+    Id                     INT IDENTITY(1,1)  NOT NULL,
+    PedidoId               INT                 NOT NULL, -- o Pedido que expediu a Peca
+    EstruturaItemId        INT                 NOT NULL, -- a Peca (no de topo) reclamada
+    Quantidade             DECIMAL(18,4)       NOT NULL,
+    Descricao              NVARCHAR(500)       NOT NULL, -- o que o cliente disse
+    PedidoRetrabalhoId     INT                 NULL,     -- o Retrabalho que a atende
+    DataHora               DATETIME2           NOT NULL CONSTRAINT DF_Reclamacao_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId              INT                 NOT NULL,
+    EstornadaEm            DATETIME2           NULL,     -- NULL = vale
+    EstornadaPorUsuarioId  INT                 NULL,
+    CONSTRAINT PK_Reclamacao PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_Reclamacao_Pedido FOREIGN KEY (PedidoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_Reclamacao_EstruturaItem FOREIGN KEY (EstruturaItemId) REFERENCES dbo.EstruturaItem (Id),
+    CONSTRAINT FK_Reclamacao_PedidoRetrabalho FOREIGN KEY (PedidoRetrabalhoId) REFERENCES dbo.Pedido (Id),
+    CONSTRAINT FK_Reclamacao_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT FK_Reclamacao_EstornadaPorUsuario FOREIGN KEY (EstornadaPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_Reclamacao_Quantidade CHECK (Quantidade > 0),
+    CONSTRAINT CK_Reclamacao_EstornoCompleto
+        CHECK ((EstornadaEm IS NULL AND EstornadaPorUsuarioId IS NULL)
+            OR (EstornadaEm IS NOT NULL AND EstornadaPorUsuarioId IS NOT NULL))
+);
+GO
+
+-- O "nao repor" (Fase 5B-2, spec secao 3.4): a justificativa de quem decidiu nao repor uma baixa por perda ou uma
+-- reclamacao. Exatamente um alvo; no maximo uma dispensa vigente (nao estornada) por alvo. SO INCLUSAO: desfazer
+-- marca EstornadaEm.
+CREATE TABLE dbo.DispensaDeReposicao (
+    Id                     INT IDENTITY(1,1)  NOT NULL,
+    PerdaId                INT                 NULL,
+    ReclamacaoId           INT                 NULL,
+    Justificativa          NVARCHAR(500)       NOT NULL,
+    DataHora               DATETIME2           NOT NULL CONSTRAINT DF_DispensaDeReposicao_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId              INT                 NOT NULL,
+    EstornadaEm            DATETIME2           NULL,
+    EstornadaPorUsuarioId  INT                 NULL,
+    CONSTRAINT PK_DispensaDeReposicao PRIMARY KEY CLUSTERED (Id),
+    CONSTRAINT FK_DispensaDeReposicao_Perda FOREIGN KEY (PerdaId) REFERENCES dbo.Perda (Id),
+    CONSTRAINT FK_DispensaDeReposicao_Reclamacao FOREIGN KEY (ReclamacaoId) REFERENCES dbo.Reclamacao (Id),
+    CONSTRAINT FK_DispensaDeReposicao_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT FK_DispensaDeReposicao_EstornadaPorUsuario FOREIGN KEY (EstornadaPorUsuarioId) REFERENCES dbo.Usuario (Id),
+    CONSTRAINT CK_DispensaDeReposicao_Alvo
+        CHECK ((PerdaId IS NOT NULL AND ReclamacaoId IS NULL) OR (PerdaId IS NULL AND ReclamacaoId IS NOT NULL)),
+    CONSTRAINT CK_DispensaDeReposicao_EstornoCompleto
+        CHECK ((EstornadaEm IS NULL AND EstornadaPorUsuarioId IS NULL)
+            OR (EstornadaEm IS NOT NULL AND EstornadaPorUsuarioId IS NOT NULL))
+);
+CREATE UNIQUE INDEX UX_DispensaDeReposicao_PerdaVigente
+    ON dbo.DispensaDeReposicao (PerdaId) WHERE PerdaId IS NOT NULL AND EstornadaEm IS NULL;
+CREATE UNIQUE INDEX UX_DispensaDeReposicao_ReclamacaoVigente
+    ON dbo.DispensaDeReposicao (ReclamacaoId) WHERE ReclamacaoId IS NOT NULL AND EstornadaEm IS NULL;
 GO
 
 -- Livro de movimentações: cada linha move Quantidade de um nó de uma posição para outra.
@@ -559,7 +623,7 @@ GO
 CREATE TABLE dbo.Movimentacao (
     Id               INT IDENTITY(1,1)  NOT NULL,
     EstruturaItemId  INT                 NOT NULL,
-    Tipo             NVARCHAR(20)        NOT NULL, -- Inicio | Termino | Entrega | Montagem | Medicao | Conserto | PedidoDeLiberacao | Liberacao | Recusa | Expedicao | Perda | Estorno
+    Tipo             NVARCHAR(20)        NOT NULL, -- Inicio | Termino | Entrega | Montagem | Medicao | Conserto | PedidoDeLiberacao | Liberacao | Recusa | Expedicao | Perda | Pronto | Devolucao | Estorno
     Quantidade       DECIMAL(18,4)       NOT NULL,
     OrigemPosicao    NVARCHAR(20)        NOT NULL,
     OrigemSetorId    INT                 NULL,
@@ -571,7 +635,8 @@ CREATE TABLE dbo.Movimentacao (
     ContagemId       INT                 NULL,     -- Medicao (e o estorno dela): a contagem da Peca
     LiberacaoId      INT                 NULL,     -- PedidoDeLiberacao, Liberacao, Recusa (e o estorno): o registro da liberacao
     RemessaId        INT                 NULL,     -- Expedicao (e o estorno dela): a remessa
-    PerdaId          INT                 NULL,     -- Perda (e o estorno dela): a baixa
+    PerdaId          INT                 NULL,     -- Perda e Pronto (e o estorno deles): a baixa
+    ReclamacaoId     INT                 NULL,     -- Devolucao (e o estorno dela): a reclamacao
     EstornoDeId      INT                 NULL,     -- só no Estorno: o movimento que ele desfaz
     DataHora         DATETIME2           NOT NULL CONSTRAINT DF_Movimentacao_DataHora DEFAULT (SYSUTCDATETIME()),
     UsuarioId        INT                 NOT NULL, -- autor
@@ -584,12 +649,13 @@ CREATE TABLE dbo.Movimentacao (
     CONSTRAINT FK_Movimentacao_Liberacao FOREIGN KEY (LiberacaoId) REFERENCES dbo.LiberacaoDimensional (Id),
     CONSTRAINT FK_Movimentacao_Remessa FOREIGN KEY (RemessaId) REFERENCES dbo.Remessa (Id),
     CONSTRAINT FK_Movimentacao_Perda FOREIGN KEY (PerdaId) REFERENCES dbo.Perda (Id),
+    CONSTRAINT FK_Movimentacao_Reclamacao FOREIGN KEY (ReclamacaoId) REFERENCES dbo.Reclamacao (Id),
     CONSTRAINT FK_Movimentacao_EstornoDe FOREIGN KEY (EstornoDeId) REFERENCES dbo.Movimentacao (Id),
     CONSTRAINT FK_Movimentacao_Usuario FOREIGN KEY (UsuarioId) REFERENCES dbo.Usuario (Id),
     CONSTRAINT CK_Movimentacao_QuantidadePositiva CHECK (Quantidade > 0),
     CONSTRAINT CK_Movimentacao_Tipo
         CHECK (Tipo IN ('Inicio', 'Termino', 'Entrega', 'Montagem', 'Medicao', 'Conserto',
-                        'PedidoDeLiberacao', 'Liberacao', 'Recusa', 'Expedicao', 'Perda', 'Estorno')),
+                        'PedidoDeLiberacao', 'Liberacao', 'Recusa', 'Expedicao', 'Perda', 'Pronto', 'Devolucao', 'Estorno')),
     CONSTRAINT CK_Movimentacao_OrigemPosicao
         CHECK (OrigemPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem', 'AguardandoConserto', 'EmConserto', 'ConsertoPronto',
                                'NaExpedicao', 'Conforme', 'NaoConforme', 'AguardandoLiberacao', 'Liberada', 'Montado', 'Expedido', 'Perdido')),
@@ -640,6 +706,10 @@ CREATE TABLE dbo.Movimentacao (
                                AND OrigemPosicao IN ('AIniciar', 'NoSetor', 'AguardandoColeta', 'AguardandoMontagem',
                                                      'AguardandoConserto', 'EmConserto', 'ConsertoPronto',
                                                      'NaExpedicao', 'Conforme', 'NaoConforme', 'Liberada'))
+            -- Fase 5B-2, secao 3.1 da spec: a reposicao entra no Retrabalho vindo de AIniciar
+            OR (Tipo = 'Pronto' AND OrigemPosicao = 'AIniciar'
+                                AND DestinoPosicao IN ('AguardandoColeta', 'AguardandoMontagem'))
+            OR (Tipo = 'Devolucao' AND OrigemPosicao = 'AIniciar' AND DestinoPosicao = 'AguardandoConserto')
             OR (Tipo = 'Estorno')),
     -- MontagemId: obrigatorio na baixa de filho; opcional no Inicio (so o inicio de um pai, que
     -- consumiu os filhos, aponta a Montagem — spec da Fase 3D, secao 3.3); livre no Estorno.
@@ -647,22 +717,25 @@ CREATE TABLE dbo.Movimentacao (
         CHECK ((Tipo = 'Montagem' AND MontagemId IS NOT NULL)
             OR (Tipo IN ('Inicio', 'Estorno'))
             OR (Tipo NOT IN ('Montagem', 'Inicio', 'Estorno') AND MontagemId IS NULL)),
-    -- Agrupador do registro composto (Fase 5A e 5B-1): Medicao exige a contagem; PedidoDeLiberacao, Liberacao
-    -- e Recusa exigem a liberacao; Expedicao exige a remessa; Perda exige a baixa. Cada coluna so aparece no seu tipo ou no
-    -- Estorno dele, e no maximo uma esta preenchida (o estorno repete a do original).
+    -- Agrupador do registro composto (Fase 5A, 5B-1 e 5B-2): Medicao exige a contagem; PedidoDeLiberacao, Liberacao
+    -- e Recusa exigem a liberacao; Expedicao exige a remessa; Perda e Pronto exigem a baixa; Devolucao exige a
+    -- reclamacao. Cada coluna so aparece no seu tipo ou no Estorno dele, e no maximo uma esta preenchida (o estorno
+    -- repete a do original).
     CONSTRAINT CK_Movimentacao_RegistroCoerente
-        CHECK ((Tipo = 'Medicao' AND ContagemId IS NOT NULL AND LiberacaoId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL)
+        CHECK ((Tipo = 'Medicao' AND ContagemId IS NOT NULL AND LiberacaoId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL AND ReclamacaoId IS NULL)
             OR (Tipo IN ('PedidoDeLiberacao', 'Liberacao', 'Recusa')
-                AND LiberacaoId IS NOT NULL AND ContagemId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL)
-            OR (Tipo = 'Expedicao' AND RemessaId IS NOT NULL AND ContagemId IS NULL AND LiberacaoId IS NULL AND PerdaId IS NULL)
-            OR (Tipo = 'Perda' AND PerdaId IS NOT NULL AND ContagemId IS NULL AND LiberacaoId IS NULL AND RemessaId IS NULL)
+                AND LiberacaoId IS NOT NULL AND ContagemId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL AND ReclamacaoId IS NULL)
+            OR (Tipo = 'Expedicao' AND RemessaId IS NOT NULL AND ContagemId IS NULL AND LiberacaoId IS NULL AND PerdaId IS NULL AND ReclamacaoId IS NULL)
+            OR (Tipo IN ('Perda', 'Pronto') AND PerdaId IS NOT NULL AND ContagemId IS NULL AND LiberacaoId IS NULL AND RemessaId IS NULL AND ReclamacaoId IS NULL)
+            OR (Tipo = 'Devolucao' AND ReclamacaoId IS NOT NULL AND ContagemId IS NULL AND LiberacaoId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL)
             OR (Tipo = 'Estorno'
                 AND (CASE WHEN ContagemId IS NULL THEN 0 ELSE 1 END
                    + CASE WHEN LiberacaoId IS NULL THEN 0 ELSE 1 END
                    + CASE WHEN RemessaId IS NULL THEN 0 ELSE 1 END
-                   + CASE WHEN PerdaId IS NULL THEN 0 ELSE 1 END) <= 1)
+                   + CASE WHEN PerdaId IS NULL THEN 0 ELSE 1 END
+                   + CASE WHEN ReclamacaoId IS NULL THEN 0 ELSE 1 END) <= 1)
             OR (Tipo IN ('Inicio', 'Termino', 'Entrega', 'Montagem', 'Conserto')
-                AND ContagemId IS NULL AND LiberacaoId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL)),
+                AND ContagemId IS NULL AND LiberacaoId IS NULL AND RemessaId IS NULL AND PerdaId IS NULL AND ReclamacaoId IS NULL)),
     CONSTRAINT CK_Movimentacao_EstornoApontaOriginal
         CHECK ((Tipo = 'Estorno' AND EstornoDeId IS NOT NULL)
             OR (Tipo <> 'Estorno' AND EstornoDeId IS NULL))
@@ -747,6 +820,7 @@ CREATE INDEX IX_Movimentacao_Contagem ON dbo.Movimentacao (ContagemId) WHERE Con
 CREATE INDEX IX_Movimentacao_Liberacao ON dbo.Movimentacao (LiberacaoId) WHERE LiberacaoId IS NOT NULL;
 CREATE INDEX IX_Movimentacao_Remessa ON dbo.Movimentacao (RemessaId) WHERE RemessaId IS NOT NULL;
 CREATE INDEX IX_Movimentacao_Perda ON dbo.Movimentacao (PerdaId) WHERE PerdaId IS NOT NULL;
+CREATE INDEX IX_Movimentacao_Reclamacao ON dbo.Movimentacao (ReclamacaoId) WHERE ReclamacaoId IS NOT NULL;
 CREATE INDEX IX_Montagem_EstruturaItem ON dbo.Montagem (EstruturaItemId);
 CREATE INDEX IX_Pedido_PedidoOrigem ON dbo.Pedido (PedidoOrigemId);
 -- No máximo uma pausa aberta por Pedido.

@@ -33,8 +33,18 @@ public class Perda
   /// <summary>O autor: o usuario logado.</summary>
   public int UsuarioId { get; set; }
 
-  /// <summary>Nao usada na 5B-1: a reposicao (Pedido de Retrabalho) e da 5B-2.</summary>
+  /// <summary>
+  /// O Pedido de Retrabalho (secao 3.2 da spec da Fase 5B-2): na baixa de `PerdaArmazem` ou `MortaEmProcesso`, o que a
+  /// repoe; na de `Reaproveitado`, o que recebeu a sobra. Nunca na de `Descarte` (`CK_Perda_DescarteSemRetrabalho`);
+  /// obrigatoria na `Reaproveitado` (`CK_Perda_ReaproveitadoTemRetrabalho`).
+  /// </summary>
   public int? PedidoRetrabalhoId { get; set; }
+
+  /// <summary>
+  /// So na baixa ligada da cascata do pronto (decisao P2 do plano de backend da Fase 5B-2): a baixa `Reaproveitado`
+  /// do original a que ela pertence. Uma `Perda` e de um Pedido so, por isso a cascata e uma baixa a parte.
+  /// </summary>
+  public int? PerdaDeOrigemId { get; set; }
 }
 
 /// <summary>Os motivos de `CK_Perda_Motivo`.</summary>
@@ -44,5 +54,12 @@ public static class MotivosDePerda
   public const string MortaEmProcesso = "MortaEmProcesso";
   public const string Descarte = "Descarte";
 
-  public static readonly IReadOnlyList<string> Todos = [PerdaArmazem, MortaEmProcesso, Descarte];
+  /// <summary>So nasce pelo "Usar a sobra" (C4 da spec da Fase 5B-2): o "Dar baixa" o recusa.</summary>
+  public const string Reaproveitado = "Reaproveitado";
+
+  /// <summary>Os quatro de `CK_Perda_Motivo`.</summary>
+  public static readonly IReadOnlyList<string> Todos = [PerdaArmazem, MortaEmProcesso, Descarte, Reaproveitado];
+
+  /// <summary>Os tres que o "Dar baixa" aceita (os da Fase 5B-1).</summary>
+  public static readonly IReadOnlyList<string> DaBaixa = [PerdaArmazem, MortaEmProcesso, Descarte];
 }

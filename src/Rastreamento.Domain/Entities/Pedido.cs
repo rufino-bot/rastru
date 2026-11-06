@@ -27,3 +27,14 @@ public class Pedido
   /// <summary>Autoria: responde "quem abriu este pedido". FK para dbo.Usuario.</summary>
   public int CriadoPorUsuarioId { get; set; }
 }
+
+/// <summary>Os motivos de `CK_Pedido_MotivoRetrabalho` (o `Perda` e o da reposicao, Fase 5B-2).</summary>
+public static class MotivosDeRetrabalho
+{
+  public const string ReprovacaoDimensional = "ReprovacaoDimensional";
+  public const string ErroInterno = "ErroInterno";
+  public const string SolicitacaoCliente = "SolicitacaoCliente";
+  public const string Perda = "Perda";
+
+  public static readonly IReadOnlyList<string> Todos = [ReprovacaoDimensional, ErroInterno, SolicitacaoCliente, Perda];
+}

@@ -202,9 +202,9 @@ public sealed partial class BaixaUseCase
   /// </summary>
   private static Result<Entrada> Validar(NovaBaixaDto dto)
   {
-    if (dto.Motivo is not { } motivo || !MotivosDePerda.Todos.Contains(motivo))
+    if (dto.Motivo is not { } motivo || !MotivosDePerda.DaBaixa.Contains(motivo))
       return Falhas.Validacao<Entrada>(CodigosDaBaixa.MotivoInvalido,
-          $"O motivo da baixa é um destes: {string.Join(", ", MotivosDePerda.Todos)}.");
+          $"O motivo da baixa é um destes: {string.Join(", ", MotivosDePerda.DaBaixa)}.");
 
     var textoValidado = ValidarObservacao(dto.Observacao);
     if (!textoValidado.Sucesso) return Falhas.Repassar<Entrada, string?>(textoValidado);

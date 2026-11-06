@@ -1366,6 +1366,24 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5b1.sql
 ```
 
+**Fase 5B-2 — `db/alter-fase-5b2.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql` em sete blocos: a coluna `Perda.PerdaDeOrigemId` (a baixa ligada da cascata do
+pronto, auto-FK); `CK_Perda_Motivo` com o quarto motivo, `Reaproveitado`, e as duas guardas novas,
+`CK_Perda_ReaproveitadoTemRetrabalho` e `CK_Perda_DescarteSemRetrabalho`; o `CREATE` de `dbo.Reclamacao` e de
+`dbo.DispensaDeReposicao` (com `UX_DispensaDeReposicao_PerdaVigente` e `UX_DispensaDeReposicao_ReclamacaoVigente`,
+únicos e filtrados pela dispensa vigente); a coluna `Movimentacao.ReclamacaoId` com a FK `FK_Movimentacao_Reclamacao` e
+o índice filtrado `IX_Movimentacao_Reclamacao`; a coluna `EstruturaItem.OrigemEstruturaItemId` com a FK
+`FK_EstruturaItem_Origem`; e as **três** constraints do livro que mudam recriadas — `CK_Movimentacao_Tipo`,
+`CK_Movimentacao_Transicao` e `CK_Movimentacao_RegistroCoerente` — com os tipos `Pronto` e `Devolucao` (`DROP` se
+existir e `ADD`, sempre, e é a recriação que torna o script rodável de novo). Tabelas e colunas só nascem se faltam;
+nenhuma tabela antiga muda de forma, então não há aborto nem `DROP TABLE`, e não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5b2.sql sqlserver:/tmp/alter-fase-5b2.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5b2.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
