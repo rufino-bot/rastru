@@ -14,7 +14,11 @@ public sealed class CadastroDePedidoUseCase
 {
   private const string ErroDeCampoObrigatorio = "Numero, cliente e data de entrega sao obrigatorios.";
 
-  private const string ErroDeNumeroDuplicado = "Ja existe um Pedido com este numero.";
+  /// <summary>
+  /// O erro de numero repetido, o mesmo no cadastro, na edicao e na abertura do Retrabalho (C7 da spec da Fase 5B-2):
+  /// e por ele que o controller reconhece o 409 de duplicidade e monta o corpo `ValorDuplicado`.
+  /// </summary>
+  public const string ErroDeNumeroDuplicado = "Ja existe um Pedido com este numero.";
 
   private const string ErroDePedidoNaoEncontrado = "Pedido nao encontrado.";
 
@@ -69,10 +73,7 @@ public sealed class CadastroDePedidoUseCase
     if (numero.Length == 0 || cliente.Length == 0 || novo.DataEntrega is not { } dataEntrega)
       return Result<PedidoDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
-    // Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Pedido_Numero
-    // vazando ate a API. O indice segue como rede de seguranca para a corrida entre as duas.
-    if (await _repositorio.ObterPorNumeroAsync(numero, ct) is not null)
-      return Result<PedidoDto>.Falha(ErroDeNumeroDuplicado, TipoDeErro.Conflito);
+    if (await RecusarNumeroEmUsoAsync(numero, null, ct) is { } emUso) return emUso;
 
     var pedido = new Pedido
     {
@@ -110,9 +111,7 @@ public sealed class CadastroDePedidoUseCase
       return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
     // So e conflito se o numero pertencer a OUTRO pedido: manter o proprio numero e no-op.
-    var homonimo = await _repositorio.ObterPorNumeroAsync(numero, ct);
-    if (homonimo is not null && homonimo.Id != id)
-      return Result<PedidoDto>.Falha(ErroDeNumeroDuplicado, TipoDeErro.Conflito);
+    if (await RecusarNumeroEmUsoAsync(numero, id, ct) is { } emUso) return emUso;
 
     pedido.Numero = numero;
     pedido.Cliente = cliente;
@@ -121,6 +120,20 @@ public sealed class CadastroDePedidoUseCase
 
     var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
     return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
+  }
+
+  /// <summary>
+  /// A guarda do numero unico: a falha de conflito se `numero` (ja aparado) e de outro Pedido que nao `exceto`, ou nulo.
+  /// Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Pedido_Numero vazando ate a API. O indice
+  /// segue como rede de seguranca para a corrida entre as duas. A abertura do Retrabalho a reusa (C7 da spec da Fase
+  /// 5B-2), dentro da transacao dela.
+  /// </summary>
+  public async Task<Result<PedidoDto>?> RecusarNumeroEmUsoAsync(string numero, int? exceto, CancellationToken ct)
+  {
+    var homonimo = await _repositorio.ObterPorNumeroAsync(numero, ct);
+    return homonimo is not null && homonimo.Id != exceto
+        ? Result<PedidoDto>.Falha(ErroDeNumeroDuplicado, TipoDeErro.Conflito)
+        : null;
   }
 
   /// <summary>
@@ -236,6 +249,9 @@ public sealed class CadastroDePedidoUseCase
 
   /// <summary>Uma vez por requisicao: todos os Pedidos de uma resposta comparam contra o mesmo dia.</summary>
   private DateOnly Hoje() => PrazoDeEntrega.HojeEmBrasilia(_relogio);
+
+  /// <summary>O Pedido como DTO; a abertura do Retrabalho projeta o Pedido novo por aqui (sem pausa: nasceu agora).</summary>
+  internal PedidoDto ProjetarNovo(Pedido p) => Projetar(p, null, Hoje());
 
   private static PedidoDto Projetar(Pedido p, PausaAberta? pausa, DateOnly hoje) =>
       new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.DataEntrega,

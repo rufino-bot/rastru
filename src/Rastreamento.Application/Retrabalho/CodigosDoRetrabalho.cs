@@ -22,4 +22,5 @@ public static class CodigosDoRetrabalho
   public const string DestinoInvalido = "DestinoInvalido";
   public const string PortaInvalida = "PortaInvalida";
   public const string DescricaoObrigatoria = "DescricaoObrigatoria";
+  public const string NumeroObrigatorio = "NumeroObrigatorio";
 }

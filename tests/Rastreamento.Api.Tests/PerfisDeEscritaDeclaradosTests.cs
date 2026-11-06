@@ -228,6 +228,8 @@ public class PerfisDeEscritaDeclaradosTests
     // quem pode ser autor e o PCP; autor x PCP quem decide e o caso de uso (403 `Proibido`).
     ["POST pedidos/{id:int}/reclamacoes"] = ["Qualidade", "PCP", "Administrador"],
     ["POST reclamacoes/{id:int}/estorno"] = ["Qualidade", "PCP", "Administrador"],
+    // Abrir o Pedido de Retrabalho (C6 da spec da Fase 5B-2): `RetrabalhoController`, um conjunto de perfis so.
+    ["POST pedidos/{id:int}/retrabalhos"] = ["Qualidade", "PCP", "Administrador"],
   };
 
   /// <summary>

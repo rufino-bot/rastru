@@ -68,6 +68,7 @@ public class EstruturaRepository : IEstruturaRepository
       NivelHierarquico = paiId is null ? "Peca" : "Item",
       Quantidade = no.Quantidade,
       QuantidadePorPai = no.QuantidadePorPai,
+      OrigemEstruturaItemId = no.OrigemEstruturaItemId,
       RequerRelatorioDimensional = no.RequerRelatorioDimensional,
     };
     _db.Estruturas.Add(item);

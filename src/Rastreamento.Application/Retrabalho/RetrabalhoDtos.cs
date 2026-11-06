@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Rastreamento.Application.Retrabalho;
 
 /// <summary>
@@ -35,3 +37,26 @@ public sealed record ReclamacaoDto(
     int Id, int PecaId, string Descricao, string? Codigo, decimal Quantidade, string Texto, DateTime DataHora,
     int UsuarioId, string UsuarioNome, bool Estornada, bool Estornavel, PedidoRetrabalhoResumoDto? PedidoRetrabalho,
     DispensaDto? Dispensa, decimal ARepor);
+
+/// <summary>
+/// O corpo de `POST /pedidos/{id}/retrabalhos` ({id} = o original; secao 4.2 da spec da Fase 5B-2). A porta e uma so:
+/// `PerdaId` (da baixa), `ReclamacaoId` (da reclamacao, com `Destino` e, no `Consertar`, `SetorId`) ou nenhuma das duas
+/// (avulsa, com `EstruturaItemId` de uma Peca do original e `Quantidade`). `DataEntrega` nula fica a do original (C7).
+/// </summary>
+public sealed record NovoRetrabalhoDto(
+    int? PerdaId, int? ReclamacaoId, int? EstruturaItemId, decimal? Quantidade, string? Destino, int? SetorId,
+    [MaxLength(30)] string? Numero, DateOnly? DataEntrega,
+    string? MotivoRetrabalho);
+
+/// <summary>De onde veio o Retrabalho: `Baixa` ou `Reclamacao` (com o Id do alvo), ou `Avulsa` (sem Id).</summary>
+public sealed record OrigemDoRetrabalhoDto(string Tipo, int? Id);
+
+/// <summary>Um Retrabalho na lista do Pedido de origem.</summary>
+public sealed record RetrabalhoResumoDto(
+    int Id, string Numero, string? MotivoRetrabalho, string Status, DateOnly DataEntrega, OrigemDoRetrabalhoDto Origem);
+
+/// <summary>
+/// `GET /pedidos/{id}/retrabalhos`: os Retrabalhos do Pedido, do mais antigo ao mais novo, e o numero que o proximo
+/// recebe por sugestao (decisao P7 do plano de backend da Fase 5B-2).
+/// </summary>
+public sealed record RetrabalhosDoPedidoDto(string NumeroSugerido, IReadOnlyList<RetrabalhoResumoDto> Retrabalhos);

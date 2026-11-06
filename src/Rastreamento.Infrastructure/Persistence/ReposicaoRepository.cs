@@ -39,4 +39,38 @@ public class ReposicaoRepository : IReposicaoRepository
 
   public Task<bool> PedidoExisteAsync(int pedidoId, CancellationToken ct) =>
       _db.Pedidos.AsNoTracking().AnyAsync(p => p.Id == pedidoId, ct);
+
+  public async Task<bool> MarcarPerdaRepostaAsync(int perdaId, int pedidoRetrabalhoId, CancellationToken ct) =>
+      await _db.Perdas.Where(p => p.Id == perdaId && p.PedidoRetrabalhoId == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(p => p.PedidoRetrabalhoId, (int?)pedidoRetrabalhoId), ct) > 0;
+
+  public async Task<bool> MarcarReclamacaoRepostaAsync(int reclamacaoId, int pedidoRetrabalhoId, CancellationToken ct) =>
+      await _db.Reclamacoes.Where(r => r.Id == reclamacaoId && r.PedidoRetrabalhoId == null && r.EstornadaEm == null)
+          .ExecuteUpdateAsync(s => s.SetProperty(r => r.PedidoRetrabalhoId, (int?)pedidoRetrabalhoId), ct) > 0;
+
+  public async Task<IReadOnlyList<RetrabalhoDoPedido>> ListarRetrabalhosAsync(int pedidoOrigemId, CancellationToken ct)
+  {
+    var retrabalhos = await _db.Pedidos.AsNoTracking()
+        .Where(p => p.PedidoOrigemId == pedidoOrigemId)
+        .OrderBy(p => p.DataAbertura).ThenBy(p => p.Id)
+        .ToListAsync(ct);
+    if (retrabalhos.Count == 0) return [];
+    var ids = retrabalhos.Select(p => p.Id).ToList();
+
+    // So as baixas de perda repoem: a `Reaproveitado` tambem aponta o Retrabalho, mas como destino da sobra.
+    var repostas = new[] { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
+    var perdas = await _db.Perdas.AsNoTracking()
+        .Where(p => p.PedidoRetrabalhoId != null && ids.Contains(p.PedidoRetrabalhoId.Value) && repostas.Contains(p.Motivo))
+        .Select(p => new { p.Id, Retrabalho = p.PedidoRetrabalhoId!.Value })
+        .ToListAsync(ct);
+    var reclamacoes = await _db.Reclamacoes.AsNoTracking()
+        .Where(r => r.PedidoRetrabalhoId != null && ids.Contains(r.PedidoRetrabalhoId.Value))
+        .Select(r => new { r.Id, Retrabalho = r.PedidoRetrabalhoId!.Value })
+        .ToListAsync(ct);
+
+    return retrabalhos.Select(p => new RetrabalhoDoPedido(
+        p,
+        perdas.FirstOrDefault(x => x.Retrabalho == p.Id)?.Id,
+        reclamacoes.FirstOrDefault(x => x.Retrabalho == p.Id)?.Id)).ToList();
+  }
 }

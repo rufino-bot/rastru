@@ -45,16 +45,20 @@ public abstract class CadastroControllerBase : ControllerBase
       LocalizadorDeDuplicado localizar, string? erro, CancellationToken ct)
   {
     var duplicado = await localizar(ct);
-    return duplicado is null
-        ? new { erro }
-        : new
-        {
-          erro = "ValorDuplicado",
-          campo = duplicado.Campo,
-          existeInativo = duplicado.ExisteInativo,
-          idExistente = duplicado.IdExistente,
-        };
+    return duplicado is null ? new { erro } : CorpoDeDuplicado(duplicado);
   }
+
+  /// <summary>
+  /// O corpo `ValorDuplicado` do 409. Estatico e publico porque a abertura do Retrabalho (`RetrabalhoController`, C7
+  /// da spec da Fase 5B-2) responde o numero repetido com o mesmo corpo do cadastro de Pedido.
+  /// </summary>
+  public static object CorpoDeDuplicado(ValorDuplicadoDto duplicado) => new
+  {
+    erro = "ValorDuplicado",
+    campo = duplicado.Campo,
+    existeInativo = duplicado.ExisteInativo,
+    idExistente = duplicado.IdExistente,
+  };
 
   /// <summary>
   /// Operacao sem valor de retorno (`PATCH /{id}/ativo`, `DELETE /agrupamentos/{id}`): 204 no

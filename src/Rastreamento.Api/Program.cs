@@ -178,6 +178,7 @@ builder.Services.AddScoped<EstornoDaExpedicaoUseCase>();
 builder.Services.AddScoped<BaixaUseCase>();
 builder.Services.AddScoped<ConsultaDeBaixasUseCase>();
 builder.Services.AddScoped<ReclamacaoUseCase>();
+builder.Services.AddScoped<RetrabalhoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

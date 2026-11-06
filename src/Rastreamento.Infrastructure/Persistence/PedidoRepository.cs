@@ -123,6 +123,9 @@ public class PedidoRepository : IPedidoRepository
       IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
       PausasAbertas.ListarAsync(_db, pedidoIds, ct);
 
+  public async Task<IReadOnlyList<string>> ListarNumerosQueComecamComAsync(string prefixo, CancellationToken ct) =>
+      await _db.Pedidos.AsNoTracking().Where(p => p.Numero.StartsWith(prefixo)).Select(p => p.Numero).ToListAsync(ct);
+
   public async Task AdicionarAsync(Pedido pedido, CancellationToken ct) =>
       await _db.Pedidos.AddAsync(pedido, ct);
 
