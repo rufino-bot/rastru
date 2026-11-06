@@ -15,7 +15,7 @@ e a aceitar o conjunto em formação do Kit (D8). Toda escrita corre na transaç
 **Tech Stack:** .NET 10 / ASP.NET Core / EF Core (SQL Server), xUnit.
 
 **Spec:** `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`, aprovada em 2026-11-06 (D1–D9 e A4 do
-usuário, C1–C20 do desenho). Branch: `claude/eloquent-mendel-7s7ocs`, sobre `d86e7dc`. O plano 2 (front,
+usuário, C1–C20 do desenho). Branch: `claude/stoic-faraday-cg985a`, sobre `d86e7dc` (os planos foram escritos na `claude/eloquent-mendel-7s7ocs`, que não chegou ao GitHub). O plano 2 (front,
 `docs/superpowers/plans/2026-11-06-fase-5b2-front.md`) consome a seção "Contrato JSON novo" daqui. **Antes da Task 1,
 a spec e os dois planos têm de estar publicados na branch do repositório do código** (a sessão que os escreveu só
 tinha leitura dele; cópia da spec no ledger, `sdd/2026-11-05-fase-5b2/spec-rascunho.md`).
