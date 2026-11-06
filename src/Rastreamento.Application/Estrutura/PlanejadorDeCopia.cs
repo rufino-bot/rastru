@@ -190,7 +190,7 @@ public static class PlanejadorDeCopia
   /// <paramref name="oQueE"/> entra na frase que o operador le, entao vem por extenso do chamador
   /// ("o componente 7", "o material 3 do componente 7") em vez de ser montado aqui.
   /// </summary>
-  private static void ConferirFaixaDaColuna(decimal quantidade, string oQueE)
+  internal static void ConferirFaixaDaColuna(decimal quantidade, string oQueE)
   {
     if (quantidade > QuantidadeMaximaDaColuna)
       throw new QuantidadeForaDaColunaException(

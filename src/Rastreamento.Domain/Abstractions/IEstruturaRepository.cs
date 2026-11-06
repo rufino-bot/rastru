@@ -63,4 +63,5 @@ public sealed record NoParaGravar(
     IReadOnlyList<(int MaterialId, decimal Quantidade)> Materiais,
     IReadOnlyList<(int SetorId, int Ordem)> Roteiro,
     IReadOnlyList<NoParaGravar> Filhos,
-    decimal? QuantidadePorPai = null);
+    decimal? QuantidadePorPai = null,
+    int? OrigemEstruturaItemId = null);
