@@ -4,7 +4,7 @@ Data: 2026-11-05. Branch: `claude/eloquent-mendel-7s7ocs`, a partir da `main` em
 usuário em chat, numa sessão de nuvem de 2026-11-05 e 2026-11-06. As decisões do usuário são D1–D9 (seção 2.1); as
 chamadas do desenho, que o usuário confere ao ler, são C1–C20 (seção 2.2). O builder check (um revisor lendo a spec como
 quem vai planejar) levantou seis perguntas: duas viraram D8 e D9, respondidas pelo usuário em 2026-11-06, e quatro
-viraram C17 a C20.
+viraram C17 a C20. O documento escrito foi **aprovado pelo usuário em 2026-11-06**.
 
 **Ponto de partida.** A 5B foi partida em duas em 2026-11-04 (D1 da spec da 5B-1). A 5B-1 (perda e descarte) foi
 mesclada em 2026-11-05 (PR #36). Esta é a **5B-2 — Reposição**: o Pedido de Retrabalho, o nó **pronto** (tipo de
