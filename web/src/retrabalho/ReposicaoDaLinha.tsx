@@ -25,6 +25,8 @@ interface Props {
   desfazer: (dispensaId: number) => Promise<void>
   /** O servidor mudou: quem usa a linha recarrega a lista e o que depende dela (o cabeçalho). */
   aoMudar: () => void
+  /** Abre o painel do Retrabalho desta linha; sem ele (um painel que não sabe abrir), o botão não aparece. */
+  aoAbrirRetrabalho?: () => void
   /** A lista ainda está recarregando depois de uma escrita: o foco só volta quando ela terminou. */
   pronto?: boolean
 }
@@ -34,12 +36,13 @@ interface Props {
  * ("Reposta por", "Foi para", "Não repor: justificativa") e as ações "Não repor" e "Desfazer", sob
  * `usePermissoesDaReposicao`. A linha só lê `aRepor`, `dispensa` e `pedidoRetrabalho` do servidor.
  *
- * O botão que abre o Retrabalho mora nesta mesma fila de ações, ao lado do "Não repor".
+ * O "Abrir retrabalho" mora nesta mesma fila de ações, ao lado do "Não repor", para quem abre (`abrir`) e só enquanto há
+ * o que repor e ninguém dispensou; o painel que ele abre é da tela, que o monta uma vez só.
  */
 export function ReposicaoDaLinha({
-  nome, aRepor, dispensa, pedidoRetrabalho, reaproveitada, naoRepor, desfazer, aoMudar, pronto = true,
+  nome, aRepor, dispensa, pedidoRetrabalho, reaproveitada, naoRepor, desfazer, aoMudar, aoAbrirRetrabalho, pronto = true,
 }: Props) {
-  const { naoRepor: podeNaoRepor } = usePermissoesDaReposicao()
+  const { naoRepor: podeNaoRepor, abrir: podeAbrir } = usePermissoesDaReposicao()
   const [aberto, setAberto] = useState(false)
   const [desfazendo, setDesfazendo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -86,6 +89,11 @@ export function ReposicaoDaLinha({
         <span className="text-xs text-tinta-fraca">{`${dispensa.usuarioNome} · ${formatarDataHora(dispensa.dataHora)}`}</span>
       )}
       <div className="flex flex-wrap items-center gap-2">
+        {aReporAgora && !dispensa && podeAbrir && aoAbrirRetrabalho && (
+          <Botao variante="secundario" aria-label={`Abrir retrabalho de ${nome}`} onClick={aoAbrirRetrabalho}>
+            Abrir retrabalho
+          </Botao>
+        )}
         {aReporAgora && podeNaoRepor && !aberto && (
           <Botao ref={botaoNaoRepor} variante="secundario" aria-label={`Não repor ${nome}`} onClick={() => setAberto(true)}>
             Não repor

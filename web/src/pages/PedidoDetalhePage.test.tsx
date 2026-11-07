@@ -32,6 +32,8 @@ const PEDIDO = {
   criadoPorUsuarioId: 1, pausa: null,
 }
 
+const SEM_RETRABALHOS = { numeroSugerido: 'PED-001-R1', retrabalhos: [] }
+
 const AGRUPAMENTO = {
   id: 21,
   pedidoId: 7,
@@ -84,7 +86,7 @@ describe('PedidoDetalhePage', () => {
     renderizarDetalhe()
 
     // A seção "Baixas" também carrega e tem o indicador dela: o da página é o que está fora dessa seção.
-    const secoes = ['Baixas', 'Reclamações'].map((nome) => screen.getByRole('region', { name: nome }))
+    const secoes = ['Baixas', 'Reclamações', 'Retrabalhos'].map((nome) => screen.getByRole('region', { name: nome }))
     const daPagina = screen.getAllByRole('status').filter((i) => !secoes.some((s) => s.contains(i)))
     expect(daPagina).toHaveLength(1)
     expect(daPagina[0].textContent).toBe('Carregando…')
@@ -379,6 +381,7 @@ describe('PedidoDetalhePage', () => {
       '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
       '/api/pedidos/7/baixas': () => respostaJson([]),
       '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+      '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
       '/api/agrupamentos/21': () => respostaJson({ erro: 'AgrupamentoNaoVazio' }, 409),
     }))
 
@@ -751,6 +754,7 @@ describe('PedidoDetalhePage', () => {
         '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
         '/api/pedidos/7/baixas': () => respostaJson([]),
         '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
         [PREVIA]: previa,
         '/api/pedidos/7/descarte': descarte,
       })
@@ -903,6 +907,7 @@ describe('PedidoDetalhePage', () => {
         '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
         '/api/pedidos/7/baixas': () => respostaJson([]),
         '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
         ...extra,
       }))
     }
@@ -930,7 +935,7 @@ describe('PedidoDetalhePage', () => {
       rotas({ '/api/pedidos/7/reclamacoes': () => respostaJson({}, 500) })
       renderizarDetalhe()
       expect(await screen.findByText(/Não foi possível carregar as reclamações|O servidor não respondeu/)).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
+      expect(within(screen.getByRole('region', { name: 'Reclamações' })).getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
     })
 
     it('"Registrar reclamação" abre o painel para quem pode e não existe para o Operador', async () => {
@@ -998,6 +1003,92 @@ describe('PedidoDetalhePage', () => {
       fireEvent.click(screen.getByRole('button', { name: /Desfazer/ }))
       expect(await screen.findByText('2 a repor')).toBeTruthy()
       expect(screen.queryByText(/Não repor: sem custo/)).toBeNull()
+    })
+
+    it('a seção Retrabalhos lista o número com link, o motivo e o status', async () => {
+      rotas({
+        '/api/pedidos/7/retrabalhos': () => respostaJson({
+          numeroSugerido: 'PED-001-R2',
+          retrabalhos: [{ id: 51, numero: 'PED-001-R1', motivoRetrabalho: 'Perda', status: 'Aberto', dataEntrega: '2026-12-01', origem: { tipo: 'Avulsa', id: null } }],
+        }),
+      })
+      renderizarDetalhe()
+      const secao = await screen.findByRole('region', { name: 'Retrabalhos' })
+      expect((await within(secao).findByRole('link', { name: 'PED-001-R1' })).getAttribute('href')).toBe('/pedidos/51')
+    })
+
+    it('a seção Retrabalhos mostra o vazio e o erro com "Tentar de novo"', async () => {
+      rotas()
+      renderizarDetalhe()
+      expect(await screen.findByText('Nenhum retrabalho aberto a partir deste pedido')).toBeTruthy()
+      cleanup()
+      rotas({ '/api/pedidos/7/retrabalhos': () => respostaJson({}, 500) })
+      renderizarDetalhe()
+      const secao = await screen.findByRole('region', { name: 'Retrabalhos' })
+      expect(await within(secao).findByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
+    })
+
+    it('"Abrir retrabalho" do cabeçalho abre o painel avulso para quem abre; o Operador não o vê', async () => {
+      rotas()
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Abrir retrabalho' }))
+      const form = screen.getByRole('form', { name: 'Abrir retrabalho' })
+      expect(within(form).getByLabelText('Peça')).toBeTruthy()
+      cleanup()
+      perfil = 'Operador'
+      rotas()
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Abrir retrabalho' })).toBeNull()
+    })
+
+    it('a Qualidade vê "Abrir retrabalho" na linha a repor, mas não o "Não repor"', async () => {
+      perfil = 'Qualidade'
+      rotas({
+        '/api/pedidos/7/baixas': () => respostaJson([{
+          id: 1, motivo: 'PerdaArmazem', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+          dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+          pedidoRetrabalho: null, aRepor: 2, dispensa: null,
+          linhas: [{ estruturaItemId: 5, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 2 }],
+        }]),
+      })
+      renderizarDetalhe()
+      expect(await screen.findByRole('button', { name: /Abrir retrabalho de a baixa/ })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Não repor/ })).toBeNull()
+    })
+
+    it('abrir pela linha da baixa leva ao detalhe do Retrabalho', async () => {
+      const baixa = {
+        id: 1, motivo: 'PerdaArmazem', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+        dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+        pedidoRetrabalho: null, aRepor: 2, dispensa: null,
+        linhas: [{ estruturaItemId: 5, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 2 }],
+      }
+      const outras = fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([baixa]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+      })
+      vi.stubGlobal('fetch', vi.fn((u: string | URL, i?: RequestInit) => {
+        if (String(u) === '/api/pedidos/7/retrabalhos') {
+          return Promise.resolve(i?.method === 'POST' ? respostaJson({ id: 88, numero: 'PED-001-R1' }, 201) : respostaJson({ numeroSugerido: 'PED-001-R1', retrabalhos: [] }))
+        }
+        return outras(u, i)
+      }))
+      render(
+        <MemoryRouter initialEntries={['/pedidos/7']}>
+          <Routes>
+            <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
+            <Route path="/pedidos/88" element={<p>Detalhe do retrabalho</p>} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      fireEvent.click(await screen.findByRole('button', { name: /Abrir retrabalho de a baixa/ }))
+      const form = screen.getByRole('form', { name: 'Abrir retrabalho' })
+      await waitFor(() => expect((within(form).getByLabelText('Número do pedido') as HTMLInputElement).value).toBe('PED-001-R1'))
+      fireEvent.submit(form)
+      expect(await screen.findByText('Detalhe do retrabalho')).toBeTruthy()
     })
   })
 })

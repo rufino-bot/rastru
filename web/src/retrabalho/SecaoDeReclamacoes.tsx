@@ -14,6 +14,7 @@ import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { formatarQuantidade } from '../execucao/formatacao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
+import type { PortaDoRetrabalho } from './PainelDeAbertura'
 import { ReposicaoDaLinha } from './ReposicaoDaLinha'
 import { usePermissoesDaReposicao } from './usePermissoesDaReposicao'
 
@@ -24,6 +25,8 @@ interface Props {
   versao: number
   /** Uma reclamação mudou (estornada, dispensada ou a dispensa desfeita): a tela recarrega o cabeçalho e o que depende. */
   aoMudar: () => void
+  /** Abre o Retrabalho de uma reclamação a repor. */
+  aoAbrirRetrabalho?: (porta: PortaDoRetrabalho) => void
 }
 
 /**
@@ -32,7 +35,7 @@ interface Props {
  * `usePermissoesDaReposicao().podeEstornarReclamacao`. Registrar mora no `acao` da página, não aqui. "Estornada" é
  * pílula neutra.
  */
-export function SecaoDeReclamacoes({ carregar, versao, aoMudar }: Props) {
+export function SecaoDeReclamacoes({ carregar, versao, aoMudar, aoAbrirRetrabalho }: Props) {
   const { podeEstornarReclamacao } = usePermissoesDaReposicao()
   const idDoTitulo = useId()
   const [lista, setLista] = useState<ReclamacaoDto[] | null>(null)
@@ -152,6 +155,7 @@ export function SecaoDeReclamacoes({ carregar, versao, aoMudar }: Props) {
                   naoRepor={(j) => naoReporReclamacao(r.id, j)}
                   desfazer={desfazerNaoRepor}
                   aoMudar={aoMudarUma}
+                  aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Reclamacao', reclamacao: r }))}
                   pronto={!recarregando}
                 />
               </ItemComAcao>

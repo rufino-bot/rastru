@@ -14,6 +14,7 @@ import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { formatarQuantidade, rotuloDoSaldo } from '../execucao/formatacao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
+import type { PortaDoRetrabalho } from '../retrabalho/PainelDeAbertura'
 import { ReposicaoDaLinha } from '../retrabalho/ReposicaoDaLinha'
 import { usePermissoesDaBaixa } from './usePermissoesDaBaixa'
 
@@ -68,6 +69,8 @@ interface Props {
   noId?: number
   /** O nível do título: `h3` dentro do painel do nó, `h2` onde as seções da tela são `h2`. */
   nivel?: 'h2' | 'h3'
+  /** Abre o Retrabalho de uma baixa a repor; só a tela do Pedido o passa, e sem ele a linha não oferece o botão. */
+  aoAbrirRetrabalho?: (porta: PortaDoRetrabalho) => void
 }
 
 /**
@@ -78,7 +81,7 @@ interface Props {
  * Um 409 (`JaEstornado`) é tela velha: a frase do servidor fica na seção e a lista recarrega. Quando a escrita tira o
  * "Estornar", o foco vai ao título da seção.
  */
-export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
+export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3', aoAbrirRetrabalho }: Props) {
   const { podeEstornar } = usePermissoesDaBaixa()
   const idDoTitulo = useId()
   const [baixas, setBaixas] = useState<BaixaDto[] | null>(null)
@@ -206,6 +209,7 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, 
                   naoRepor={(j) => naoReporBaixa(b.id, j)}
                   desfazer={desfazerNaoRepor}
                   aoMudar={aoMudarAReposicaoDe}
+                  aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Baixa', baixa: b }))}
                   pronto={!recarregando}
                 />
               </ItemComAcao>

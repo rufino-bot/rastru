@@ -55,6 +55,30 @@ describe('ReposicaoDaLinha', () => {
     expect(screen.queryByRole('button', { name: /Não repor/ })).toBeNull()
   })
 
+  it('a linha a repor oferece "Abrir retrabalho" a quem abre e chama o que a tela passou', () => {
+    const aoAbrirRetrabalho = vi.fn()
+    montar({ aRepor: 2, aoAbrirRetrabalho })
+    fireEvent.click(screen.getByRole('button', { name: /Abrir retrabalho/ }))
+    expect(aoAbrirRetrabalho).toHaveBeenCalledTimes(1)
+  })
+
+  it('a Qualidade abre o retrabalho, o Operador não, e a dispensada ou sem o que repor não oferece', () => {
+    perfil = 'Qualidade'
+    montar({ aRepor: 2, aoAbrirRetrabalho: vi.fn() })
+    expect(screen.getByRole('button', { name: /Abrir retrabalho/ })).toBeTruthy()
+    cleanup()
+    perfil = 'Operador'
+    montar({ aRepor: 2, aoAbrirRetrabalho: vi.fn() })
+    expect(screen.queryByRole('button', { name: /Abrir retrabalho/ })).toBeNull()
+    cleanup()
+    perfil = 'PCP'
+    montar({ aRepor: 2, dispensa: DISPENSA, aoAbrirRetrabalho: vi.fn() })
+    expect(screen.queryByRole('button', { name: /Abrir retrabalho/ })).toBeNull()
+    cleanup()
+    montar({ aRepor: 0, pedidoRetrabalho: { id: 5, numero: 'X' }, aoAbrirRetrabalho: vi.fn() })
+    expect(screen.queryByRole('button', { name: /Abrir retrabalho/ })).toBeNull()
+  })
+
   it('a reposta mostra "Reposta por" com link, sem pílula nem botão de não repor', () => {
     montar({ pedidoRetrabalho: { id: 51, numero: 'P-1-R1' } })
     expect(screen.getByText(/Reposta por/)).toBeTruthy()

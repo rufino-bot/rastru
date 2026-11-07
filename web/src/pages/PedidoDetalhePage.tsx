@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import {
   obterPedido, listarAgrupamentos, criarAgrupamento, excluirAgrupamento, editarPedido, ehConflito, formatarData,
   type PedidoDto, type AgrupamentoDto, type NovoAgrupamento,
@@ -22,7 +22,9 @@ import { HistoricoDeBaixas } from '../baixas/HistoricoDeBaixas'
 import { PainelDeDescarteTotal } from '../baixas/PainelDeDescarteTotal'
 import { useDescarteDisponivel } from '../baixas/useDescarteDisponivel'
 import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
-import { listarReclamacoes } from '../api/retrabalho'
+import { listarReclamacoes, listarRetrabalhos } from '../api/retrabalho'
+import { PainelDeAbertura, type PortaDoRetrabalho } from '../retrabalho/PainelDeAbertura'
+import { SecaoDeRetrabalhos } from '../retrabalho/SecaoDeRetrabalhos'
 import { PainelDeReclamacao } from '../retrabalho/PainelDeReclamacao'
 import { SecaoDeReclamacoes } from '../retrabalho/SecaoDeReclamacoes'
 import { usePermissoesDaReposicao } from '../retrabalho/usePermissoesDaReposicao'
@@ -56,14 +58,24 @@ export function PedidoDetalhePage() {
   const [enviando, setEnviando] = useState(false)
   const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
 
+  const tituloDaPagina = useRef<HTMLSpanElement>(null)
   const carregarBaixas = useCallback(() => listarBaixasDoPedido(pedidoId), [pedidoId])
   const carregarReclamacoes = useCallback(() => listarReclamacoes(pedidoId), [pedidoId])
+  const carregarRetrabalhos = useCallback(() => listarRetrabalhos(pedidoId), [pedidoId])
+  const navegar = useNavigate()
 
   // "Registrar reclamação": do cabeçalho, para quem registra (`usePermissoesDaReposicao`); o painel não coexiste com os outros.
-  const { reclamar } = usePermissoesDaReposicao()
+  const { reclamar, abrir: abrirRetrabalhoPermitido } = usePermissoesDaReposicao()
   const [reclamacaoAberta, setReclamacaoAberta] = useState(false)
   const botaoReclamar = useRef<HTMLButtonElement>(null)
   useDevolverFoco(reclamacaoAberta, () => botaoReclamar.current)
+
+  // "Abrir retrabalho": a porta é a linha de baixa ou de reclamação que o abriu, ou a avulsa do cabeçalho. Ao abrir, a
+  // tela vai ao detalhe do Retrabalho; ao fechar sem abrir, o foco volta ao botão do cabeçalho ou, se ele não está
+  // lá (a porta foi uma linha), ao título.
+  const [portaAberta, setPortaAberta] = useState<PortaDoRetrabalho | null>(null)
+  const botaoAbrirRetrabalho = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(portaAberta !== null, () => botaoAbrirRetrabalho.current ?? tituloDaPagina.current)
 
   const podeEscrever = usePodeEscrever('agrupamentos')
   // A edição do Pedido é do recurso `pedidos` (PCP e Administrador), não do `agrupamentos` da lista abaixo.
@@ -84,7 +96,6 @@ export function PedidoDetalhePage() {
   const [descarteAberto, setDescarteAberto] = useState(false)
   const descarte = useDescarteDisponivel((sinal) => preverDescarteDoPedido(pedidoId, sinal), darBaixa && idValido, pedidoId, versaoDoSaldo)
   const botaoDescartar = useRef<HTMLButtonElement>(null)
-  const tituloDaPagina = useRef<HTMLSpanElement>(null)
   // Depois do descarte o botão some (não há mais nada em produção): o foco vai ao título, e só depois que a prévia
   // nova respondeu, para não ser dado a um botão que está de saída.
   useDevolverFoco(descarteAberto, () => botaoDescartar.current ?? tituloDaPagina.current, !descarte.carregando)
@@ -92,13 +103,22 @@ export function PedidoDetalhePage() {
   function abrirReclamacao() {
     fecharEdicao()
     setDescarteAberto(false)
+    setPortaAberta(null)
     setReclamacaoAberta(true)
   }
 
   function abrirDescarte() {
     fecharEdicao()
     setReclamacaoAberta(false)
+    setPortaAberta(null)
     setDescarteAberto(true)
+  }
+
+  function abrirRetrabalho(porta: PortaDoRetrabalho) {
+    fecharEdicao()
+    setReclamacaoAberta(false)
+    setDescarteAberto(false)
+    setPortaAberta(porta)
   }
 
   function aoMudarOSaldo() {
@@ -110,6 +130,7 @@ export function PedidoDetalhePage() {
     if (!pedido) return
     setDescarteAberto(false)
     setReclamacaoAberta(false)
+    setPortaAberta(null)
     setFormDoPedido({ numero: pedido.numero, cliente: pedido.cliente, dataEntrega: pedido.dataEntrega })
     setErroDeEdicao(null)
     setEdicaoAberta(true)
@@ -214,6 +235,11 @@ export function PedidoDetalhePage() {
           {reclamar && pedido && !reclamacaoAberta && (
             <Botao ref={botaoReclamar} variante="secundario" onClick={abrirReclamacao}>Registrar reclamação</Botao>
           )}
+          {abrirRetrabalhoPermitido && pedido && portaAberta === null && (
+            <Botao ref={botaoAbrirRetrabalho} variante="secundario" onClick={() => abrirRetrabalho({ tipo: 'Avulsa' })}>
+              Abrir retrabalho
+            </Botao>
+          )}
           {pedido && descarte.disponivel && !descarteAberto && (
             <Botao ref={botaoDescartar} variante="perigo" onClick={abrirDescarte}>Descartar tudo</Botao>
           )}
@@ -226,6 +252,17 @@ export function PedidoDetalhePage() {
           agrupamentos={agrupamentos}
           aoConcluir={aoMudarOSaldo}
           aoFechar={() => setReclamacaoAberta(false)}
+        />
+      )}
+
+      {abrirRetrabalhoPermitido && pedido && portaAberta !== null && (
+        <PainelDeAbertura
+          key={`${portaAberta.tipo}-${portaAberta.tipo === 'Baixa' ? portaAberta.baixa.id : portaAberta.tipo === 'Reclamacao' ? portaAberta.reclamacao.id : 0}`}
+          pedido={pedido}
+          porta={portaAberta}
+          aoAbrir={(novo) => navegar(`/pedidos/${novo.id}`)}
+          aoMudar={aoMudarOSaldo}
+          aoFechar={() => setPortaAberta(null)}
         />
       )}
 
@@ -379,12 +416,18 @@ export function PedidoDetalhePage() {
         carregar={carregarBaixas}
         versao={versaoDoSaldo}
         aoEstornar={aoMudarOSaldo}
+        aoAbrirRetrabalho={abrirRetrabalhoPermitido ? abrirRetrabalho : undefined}
         nomeDoEscopo={(e) =>
           e.tipo === 'Pedido' ? (pedido?.numero ?? null)
             : e.tipo === 'Agrupamento' ? (agrupamentos.find((a) => a.id === e.id)?.codigo ?? null) : null}
       />
 
-      <SecaoDeReclamacoes key={`reclamacoes-${pedidoId}`} carregar={carregarReclamacoes} versao={versaoDoSaldo} aoMudar={aoMudarOSaldo} />
+      <SecaoDeReclamacoes
+        key={`reclamacoes-${pedidoId}`} carregar={carregarReclamacoes} versao={versaoDoSaldo} aoMudar={aoMudarOSaldo}
+        aoAbrirRetrabalho={abrirRetrabalhoPermitido ? abrirRetrabalho : undefined}
+      />
+
+      <SecaoDeRetrabalhos key={`retrabalhos-${pedidoId}`} carregar={carregarRetrabalhos} versao={versaoDoSaldo} />
 
       {pendenteExclusao && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-tinta/50 p-4">
