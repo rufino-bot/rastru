@@ -46,4 +46,11 @@ public interface IBaixaRepository
 
   /// <summary>Todas as baixas do Pedido, mais recente primeiro (`DataHora`, e o `Id` desempatando).</summary>
   Task<IReadOnlyList<Perda>> ListarPerdasDoPedidoAsync(int pedidoId, CancellationToken ct);
+
+  /// <summary>
+  /// As baixas ligadas a <paramref name="perdaDeOrigemId"/> (`PerdaDeOrigemId`): a cascata do pronto que o "Usar a
+  /// sobra" gravou no Retrabalho junto da baixa `Reaproveitado` (decisao P2 do plano de backend da Fase 5B-2), em
+  /// ordem de Id.
+  /// </summary>
+  Task<IReadOnlyList<Perda>> ListarPerdasLigadasAsync(int perdaDeOrigemId, CancellationToken ct);
 }

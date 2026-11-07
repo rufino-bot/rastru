@@ -12,18 +12,26 @@ public sealed partial class BaixaUseCase
 {
   /// <summary>
   /// Estorna a baixa inteira, os filhos que a cascata C6 levou junto inclusive. Recusas, nesta ordem: baixa
-  /// inexistente (404), de outro autor sem ser PCP ou Administrador (403 `Proibido`, decidido aqui com
+  /// inexistente (404), baixa ligada de um reaproveitamento (409 `EstornoImpossivel`, decisao P2 do plano de backend da
+  /// Fase 5B-2), de outro autor sem ser PCP ou Administrador (403 `Proibido`, decidido aqui com
   /// `podeEstornarDeOutros`), Pedido `Cancelado` (409 `PedidoFechado`; o `Concluido` e aceito e reabre o que a baixa
   /// concluiu, C12) e ja estornada (409 `JaEstornado`, relido DEPOIS da trava). `Perdido` e terminal: a quantidade
   /// nunca anda depois, entao nada mais impede o estorno (C9). Recalcula o fechamento na mesma transacao (C10); o
-  /// Pedido que nunca teve inicio volta a `Aberto` (C23).
+  /// Pedido que nunca teve inicio volta a `Aberto` (C23). A baixa `Reaproveitado` tem caminho proprio
+  /// (<see cref="EstornarReaproveitamentoAsync"/>), porque desfaz tambem o que ela gravou no Retrabalho.
   /// </summary>
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> Estornar(
       int perdaId, int usuarioId, bool podeEstornarDeOutros, CancellationToken ct)
   {
     var perda = await _baixas.ObterAsync(perdaId, ct);
     if (perda is null) return Falhas.NaoEncontrado<IReadOnlyList<MovimentacaoDto>>();
+    // Decisao P2 do plano de backend da Fase 5B-2: a baixa ligada da cascata do pronto se estorna com a
+    // `Reaproveitado` a que pertence, nunca sozinha (o pronto do pai continuaria sem os filhos a montar).
+    if (perda.PerdaDeOrigemId is int deOrigem)
+      return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.EstornoImpossivel,
+          $"Esta baixa saiu junto do reaproveitamento da sobra (baixa {deOrigem}): estorne aquela baixa, que desfaz esta também.");
     if (perda.UsuarioId != usuarioId && !podeEstornarDeOutros) return Falhas.Proibido<IReadOnlyList<MovimentacaoDto>>();
+    if (perda.Motivo == MotivosDePerda.Reaproveitado) return await EstornarReaproveitamentoAsync(perda, usuarioId, ct);
 
     return await _execucao.ExecutarAsync(async () =>
     {

@@ -234,6 +234,10 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST baixas/{id:int}/dispensa"] = ["PCP", "Administrador"],
     ["POST reclamacoes/{id:int}/dispensa"] = ["PCP", "Administrador"],
     ["POST dispensas/{id:int}/estorno"] = ["PCP", "Administrador"],
+    // "Usar a sobra" e a previa dele (C6 da spec da Fase 5B-2): so o PCP e o Administrador, `ReaproveitamentoController`.
+    // A previa e leitura, mas exige perfil: a tela so a mostra a quem pode usar a sobra.
+    ["GET pedidos/{id:int}/sobra-reaproveitavel"] = ["PCP", "Administrador"],
+    ["POST pedidos/{id:int}/sobra-reaproveitada"] = ["PCP", "Administrador"],
   };
 
   /// <summary>

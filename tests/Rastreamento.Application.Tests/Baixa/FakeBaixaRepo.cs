@@ -85,6 +85,9 @@ public class FakeBaixaRepo : IBaixaRepository, FakeExecucaoRepo.IParticipanteDaT
       Task.FromResult<IReadOnlyList<Perda>>(Perdas.Where(p => p.PedidoId == pedidoId)
           .OrderByDescending(p => p.DataHora).ThenByDescending(p => p.Id).ToList());
 
+  public Task<IReadOnlyList<Perda>> ListarPerdasLigadasAsync(int perdaDeOrigemId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Perda>>(Perdas.Where(p => p.PerdaDeOrigemId == perdaDeOrigemId).OrderBy(p => p.Id).ToList());
+
   void FakeExecucaoRepo.IParticipanteDaTransacao.AoSalvar()
   {
     foreach (var perda in _pendentes)

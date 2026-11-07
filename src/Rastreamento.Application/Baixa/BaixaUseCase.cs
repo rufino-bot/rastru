@@ -136,7 +136,8 @@ public sealed partial class BaixaUseCase
 
   /// <summary>
   /// As baixas com as linhas `Perda` de cada uma, na ordem do livro (os estornos nao viram linha: so marcam
-  /// `Estornada`), na ordem recebida. Consultas em lote, nunca uma por baixa nem por no. `Estornavel`, como na remessa:
+  /// `Estornada`), na ordem recebida. Os `Pronto` que apontam uma baixa `Reaproveitado` sao do Retrabalho, nao linhas
+  /// dela: o filtro por `Perda` os deixa de fora (secao 3.1 da spec da Fase 5B-2). Consultas em lote, nunca uma por baixa nem por no. `Estornavel`, como na remessa:
   /// nao estornada, de Pedido que nao esta `Cancelado` (secao 4.9) e de quem le, ou quem le ve as de todos (C8). O
   /// Retrabalho, o "nao repor" e o a repor de cada baixa vem de `ConsultaDeReposicao`, em lote (uma leitura para todas).
   /// </summary>
@@ -169,7 +170,9 @@ public sealed partial class BaixaUseCase
             l.OrigemOrdem, l.Quantidade);
       }).ToList();
       var estornada = estornadas.Contains(p.Id);
-      var estornavel = !estornada
+      // A baixa ligada da cascata do pronto so se estorna com a `Reaproveitado` dela (decisao P2 do plano de backend da
+      // Fase 5B-2): nao se oferece sozinha.
+      var estornavel = !estornada && p.PerdaDeOrigemId is null
           && (quem.VeRegistrosDeTodos || p.UsuarioId == quem.UsuarioId)
           && status.GetValueOrDefault(p.PedidoId) != StatusCancelado;
       return new BaixaDto(

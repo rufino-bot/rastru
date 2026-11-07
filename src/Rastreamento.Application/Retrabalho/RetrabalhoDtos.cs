@@ -63,3 +63,21 @@ public sealed record RetrabalhoResumoDto(
 /// recebe por sugestao (decisao P7 do plano de backend da Fase 5B-2).
 /// </summary>
 public sealed record RetrabalhosDoPedidoDto(string NumeroSugerido, IReadOnlyList<RetrabalhoResumoDto> Retrabalhos);
+
+/// <summary>
+/// Uma linha da previa do "Usar a sobra" (secao 4.4 da spec da Fase 5B-2): a sobra viva do no de origem numa posicao,
+/// oferecida ao no do Retrabalho que veio dele. `EstruturaItemId`, `Descricao` (regra 19) e `Codigo` sao do no do
+/// Retrabalho; `Precisa` e o que ele ainda pode receber de pronto antes desta posicao, e `Sugerido` o minimo dos dois.
+/// </summary>
+public sealed record SobraReaproveitavelDto(
+    int EstruturaItemId, string Descricao, string? Codigo, string Posicao, int? SetorId, string? SetorNome, int? Ordem,
+    decimal Sobra, decimal Precisa, decimal Sugerido);
+
+/// <summary>`GET /pedidos/{id}/sobra-reaproveitavel` ({id} = o Retrabalho), de cima para baixo.</summary>
+public sealed record PreviaDoReaproveitamentoDto(IReadOnlyList<SobraReaproveitavelDto> Itens);
+
+/// <summary>Uma linha do corpo do "Usar a sobra": tantas unidades da sobra naquela posicao viram pronto no no.</summary>
+public sealed record ItemDoReaproveitamentoDto(int EstruturaItemId, string? Posicao, int? SetorId, int? Ordem, decimal Quantidade);
+
+/// <summary>O corpo de `POST /pedidos/{id}/sobra-reaproveitada` ({id} = o Retrabalho).</summary>
+public sealed record NovoReaproveitamentoDto(IReadOnlyList<ItemDoReaproveitamentoDto>? Itens);

@@ -181,6 +181,7 @@ builder.Services.AddScoped<ConsultaDeReposicao>();
 builder.Services.AddScoped<ReclamacaoUseCase>();
 builder.Services.AddScoped<DispensaUseCase>();
 builder.Services.AddScoped<RetrabalhoUseCase>();
+builder.Services.AddScoped<ReaproveitamentoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 
