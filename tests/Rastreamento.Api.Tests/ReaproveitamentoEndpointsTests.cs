@@ -364,6 +364,45 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
     Assert.Equal("Aberto", await StatusAsync(retrabalhoId));
   }
 
+  private static Task<HttpResponseMessage> DescartarAsVinteDeBAsync(CenarioDaFase3NaApi c) =>
+      c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", new
+      {
+        motivo = "Descarte", observacao = (string?)null, tudo = false,
+        origens = new[] { new { posicao = "AguardandoColeta", setorId = (int?)c.Corte, ordem = (int?)1, quantidade = 20m } },
+        incluirTopo = false,
+      });
+
+  // As duas ordens da corrida, uma de cada vez: o teste concorrente abaixo, na bancada, cai sempre na mesma.
+
+  [Fact]
+  public async Task Descarte_da_sobra_antes_deixa_o_usar_a_sobra_em_409_AlemDaSobra()
+  {
+    await using var c = await CriarAsync(_factory);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, await SobraNasDuasPosicoesAsync(c));
+    var b = await CopiaDeAsync(retrabalhoId, c.B);
+    await Garantir(await DescartarAsVinteDeBAsync(c));
+
+    var (status, erro, mensagem) = await RecusaAsync(await UsarAsync(c, c.Pcp, retrabalhoId, Item(b, "AguardandoColeta", c.Corte, 1, 2m)));
+
+    Assert.Equal((HttpStatusCode.Conflict, "AlemDaSobra"), (status, erro));
+    Assert.Contains("Suporte", mensagem);
+    Assert.DoesNotContain(await LivroAsync(b), m => m.Tipo == "Pronto");
+  }
+
+  [Fact]
+  public async Task Usar_a_sobra_antes_deixa_o_descarte_alem_do_saldo_em_409_SaldoInsuficiente()
+  {
+    await using var c = await CriarAsync(_factory);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, await SobraNasDuasPosicoesAsync(c));
+    var b = await CopiaDeAsync(retrabalhoId, c.B);
+    await Garantir(await UsarAsync(c, c.Pcp, retrabalhoId, Item(b, "AguardandoColeta", c.Corte, 1, 2m)));
+
+    var (status, erro, _) = await RecusaAsync(await DescartarAsVinteDeBAsync(c));
+
+    Assert.Equal((HttpStatusCode.Conflict, "SaldoInsuficiente"), (status, erro));
+    Assert.Equal(18m, await LiquidoAsync(c.B, "AguardandoColeta"));
+  }
+
   [Fact]
   public async Task Usar_a_sobra_enquanto_se_descarta_a_mesma_sobra_um_passa_e_o_outro_e_409()
   {
@@ -375,14 +414,10 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
     // "Usar a sobra" vem antes, so ficam 18 e o descarte de 20 nao cabe (409 `SaldoInsuficiente`).
     var respostas = await Task.WhenAll(
         UsarAsync(c, c.Pcp, retrabalhoId, Item(b, "AguardandoColeta", c.Corte, 1, 2m)),
-        c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", new
-        {
-          motivo = "Descarte", observacao = (string?)null, tudo = false,
-          origens = new[] { new { posicao = "AguardandoColeta", setorId = (int?)c.Corte, ordem = (int?)1, quantidade = 20m } },
-          incluirTopo = false,
-        }));
+        DescartarAsVinteDeBAsync(c));
 
     var (usar, descartar) = (respostas[0], respostas[1]);
+    Assert.True(await LiquidoAsync(c.B, "AguardandoColeta") >= 0m);
     Assert.Single(respostas, r => r.StatusCode == HttpStatusCode.Created);
     var recusada = respostas.Single(r => r.StatusCode != HttpStatusCode.Created);
     var (status, erro, _) = await RecusaAsync(recusada);
