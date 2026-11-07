@@ -22,6 +22,11 @@ import { HistoricoDeBaixas } from '../baixas/HistoricoDeBaixas'
 import { PainelDeDescarteTotal } from '../baixas/PainelDeDescarteTotal'
 import { useDescarteDisponivel } from '../baixas/useDescarteDisponivel'
 import { usePermissoesDaBaixa } from '../baixas/usePermissoesDaBaixa'
+import { listarReclamacoes } from '../api/retrabalho'
+import { PainelDeReclamacao } from '../retrabalho/PainelDeReclamacao'
+import { SecaoDeReclamacoes } from '../retrabalho/SecaoDeReclamacoes'
+import { usePermissoesDaReposicao } from '../retrabalho/usePermissoesDaReposicao'
+import { formatarQuantidade } from '../execucao/formatacao'
 import { ControleDePausa } from '../pedidos/ControleDePausa'
 import { DatasDoPedido } from '../pedidos/DatasDoPedido'
 import { rotuloDoStatus } from '../pedidos/statusDoPedido'
@@ -52,6 +57,13 @@ export function PedidoDetalhePage() {
   const [pendenteExclusao, setPendenteExclusao] = useState<AgrupamentoDto | null>(null)
 
   const carregarBaixas = useCallback(() => listarBaixasDoPedido(pedidoId), [pedidoId])
+  const carregarReclamacoes = useCallback(() => listarReclamacoes(pedidoId), [pedidoId])
+
+  // "Registrar reclamação": do cabeçalho, para quem registra (`usePermissoesDaReposicao`); o painel não coexiste com os outros.
+  const { reclamar } = usePermissoesDaReposicao()
+  const [reclamacaoAberta, setReclamacaoAberta] = useState(false)
+  const botaoReclamar = useRef<HTMLButtonElement>(null)
+  useDevolverFoco(reclamacaoAberta, () => botaoReclamar.current)
 
   const podeEscrever = usePodeEscrever('agrupamentos')
   // A edição do Pedido é do recurso `pedidos` (PCP e Administrador), não do `agrupamentos` da lista abaixo.
@@ -77,8 +89,15 @@ export function PedidoDetalhePage() {
   // nova respondeu, para não ser dado a um botão que está de saída.
   useDevolverFoco(descarteAberto, () => botaoDescartar.current ?? tituloDaPagina.current, !descarte.carregando)
 
+  function abrirReclamacao() {
+    fecharEdicao()
+    setDescarteAberto(false)
+    setReclamacaoAberta(true)
+  }
+
   function abrirDescarte() {
     fecharEdicao()
+    setReclamacaoAberta(false)
     setDescarteAberto(true)
   }
 
@@ -90,6 +109,7 @@ export function PedidoDetalhePage() {
   function abrirEdicao() {
     if (!pedido) return
     setDescarteAberto(false)
+    setReclamacaoAberta(false)
     setFormDoPedido({ numero: pedido.numero, cliente: pedido.cliente, dataEntrega: pedido.dataEntrega })
     setErroDeEdicao(null)
     setEdicaoAberta(true)
@@ -191,12 +211,24 @@ export function PedidoDetalhePage() {
           {podeEditarPedido && pedido && !edicaoAberta && (
             <Botao ref={botaoEditar} variante="secundario" onClick={abrirEdicao}>Editar pedido</Botao>
           )}
+          {reclamar && pedido && !reclamacaoAberta && (
+            <Botao ref={botaoReclamar} variante="secundario" onClick={abrirReclamacao}>Registrar reclamação</Botao>
+          )}
           {pedido && descarte.disponivel && !descarteAberto && (
             <Botao ref={botaoDescartar} variante="perigo" onClick={abrirDescarte}>Descartar tudo</Botao>
           )}
         </div>
       )}
     >
+      {reclamar && reclamacaoAberta && (
+        <PainelDeReclamacao
+          pedidoId={pedidoId}
+          agrupamentos={agrupamentos}
+          aoConcluir={aoMudarOSaldo}
+          aoFechar={() => setReclamacaoAberta(false)}
+        />
+      )}
+
       {darBaixa && descarteAberto && (
         <PainelDeDescarteTotal
           titulo="Descartar tudo"
@@ -261,6 +293,7 @@ export function PedidoDetalhePage() {
             <Pilula>{rotuloDoStatus(pedido.status)}</Pilula>
             {pedido.pausa && <Pilula tom="atencao">Pausado</Pilula>}
             {pedido.atrasado && <Pilula tom="atraso">Atrasado</Pilula>}
+            {pedido.aRepor > 0 && <Pilula tom="atencao">{`${formatarQuantidade(pedido.aRepor)} a repor`}</Pilula>}
             {/* O dia é o do offset de Brasília que o servidor já aplicou: cortar a string evita passar por `Date`. */}
             {pedido.dataConclusao && <Pilula>{`Concluído em ${formatarData(pedido.dataConclusao.slice(0, 10))}`}</Pilula>}
             <DatasDoPedido dataEntrega={pedido.dataEntrega} dataAbertura={pedido.dataAbertura} />
@@ -350,6 +383,8 @@ export function PedidoDetalhePage() {
           e.tipo === 'Pedido' ? (pedido?.numero ?? null)
             : e.tipo === 'Agrupamento' ? (agrupamentos.find((a) => a.id === e.id)?.codigo ?? null) : null}
       />
+
+      <SecaoDeReclamacoes key={`reclamacoes-${pedidoId}`} carregar={carregarReclamacoes} versao={versaoDoSaldo} aoMudar={aoMudarOSaldo} />
 
       {pendenteExclusao && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-tinta/50 p-4">

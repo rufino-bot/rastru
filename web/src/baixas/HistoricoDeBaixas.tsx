@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { estornarBaixa, ROTULO_DO_MOTIVO, type BaixaDto } from '../api/baixas'
+import { desfazerNaoRepor, naoReporBaixa } from '../api/retrabalho'
 import { formatarDataHora } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { ehConflito } from '../api/execucao'
@@ -13,6 +14,7 @@ import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { formatarQuantidade, rotuloDoSaldo } from '../execucao/formatacao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
+import { ReposicaoDaLinha } from '../retrabalho/ReposicaoDaLinha'
 import { usePermissoesDaBaixa } from './usePermissoesDaBaixa'
 
 // Somas em décimos de milésimo inteiros, como a `RemessasRecentes`: 0,1 + 0,2 tem de dar 0,3.
@@ -57,6 +59,11 @@ interface Props {
   versao: number
   /** Uma baixa foi estornada (ou o servidor disse que já estava): a tela recarrega o que depende do saldo. */
   aoEstornar: () => void
+  /**
+   * Uma baixa foi dispensada ("Não repor") ou a dispensa foi desfeita: a lista já recarregou, e a tela recarrega o que
+   * depende dela (o "a repor" do cabeçalho). Sem ela, vale o `aoEstornar`.
+   */
+  aoMudarAReposicao?: () => void
   /** O nome de quem a tela já conhece (o número do Pedido, o código do Agrupamento); sem ele, o Id. */
   nomeDoEscopo?: (escopo: BaixaDto['escopo']) => string | null
   /** O nó cujo painel mostra a seção: a baixa de outro nó (um descendente) é lida com o nome dele. */
@@ -73,7 +80,7 @@ interface Props {
  * Um 409 (`JaEstornado`) é tela velha: a frase do servidor fica na seção e a lista recarrega. Quando a escrita tira o
  * "Estornar", o foco vai ao título da seção.
  */
-export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
+export function HistoricoDeBaixas({ carregar, versao, aoEstornar, aoMudarAReposicao, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
   const { podeEstornar } = usePermissoesDaBaixa()
   const idDoTitulo = useId()
   const [baixas, setBaixas] = useState<BaixaDto[] | null>(null)
@@ -144,6 +151,11 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, 
     }
   }
 
+  async function aoMudarAReposicaoDe() {
+    await recarregar()
+    ;(aoMudarAReposicao ?? aoEstornar)()
+  }
+
   function descricaoDa(b: BaixaDto): string {
     return `${ROTULO_DO_MOTIVO[b.motivo]}, ${resumoDasLinhas(b, noId)}, em ${formatarDataHora(b.dataHora)}`
   }
@@ -187,6 +199,17 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, 
                 <span className="text-sm text-tinta">{resumoDasLinhas(b, noId)}</span>
                 {b.observacao && <span className="text-xs text-tinta-fraca">{b.observacao}</span>}
                 <span className="text-xs text-tinta-fraca">{`${b.usuarioNome} · ${formatarDataHora(b.dataHora)}`}</span>
+                <ReposicaoDaLinha
+                  nome={`a baixa de ${ROTULO_DO_MOTIVO[b.motivo]}`}
+                  aRepor={b.aRepor}
+                  dispensa={b.dispensa}
+                  pedidoRetrabalho={b.pedidoRetrabalho}
+                  reaproveitada={b.motivo === 'Reaproveitado'}
+                  naoRepor={(j) => naoReporBaixa(b.id, j)}
+                  desfazer={desfazerNaoRepor}
+                  aoMudar={aoMudarAReposicaoDe}
+                  pronto={!recarregando}
+                />
               </ItemComAcao>
             )
           })}

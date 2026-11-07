@@ -132,4 +132,25 @@ describe('LinhaDePedido', () => {
     expect(classes).toContain('after:absolute')
     expect(classes).toContain('after:inset-0')
   })
+
+  it('mostra N a repor em atencao quando aRepor > 0', () => {
+    renderizar({ ...PEDIDO, aRepor: 3 })
+    expect(screen.getByText('3 a repor').className).toMatch(/atencao/)
+  })
+
+  it('nao mostra a pilula a repor com aRepor 0', () => {
+    renderizar(PEDIDO)
+    expect(screen.queryByText(/a repor/)).toBeNull()
+  })
+
+  it('marca o Pedido de Retrabalho com a pilula neutra Retrabalho', () => {
+    renderizar({ ...PEDIDO, pedidoOrigem: { id: 4, numero: 'PED-001' }, motivoRetrabalho: 'Perda' })
+    const marca = screen.getByText('Retrabalho')
+    expect(marca.className).not.toMatch(/negativo|positivo|atencao|atraso/)
+  })
+
+  it('nao marca Retrabalho no Pedido comum', () => {
+    renderizar(PEDIDO)
+    expect(screen.queryByText('Retrabalho')).toBeNull()
+  })
 })

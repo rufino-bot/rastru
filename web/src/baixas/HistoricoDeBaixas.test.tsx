@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { HistoricoDeBaixas } from './HistoricoDeBaixas'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { fetchPorRota, respostaJson } from '../testes/api'
@@ -166,5 +167,63 @@ describe('HistoricoDeBaixas', () => {
     await screen.findByText('Morreu num processo')
     rerender(<HistoricoDeBaixas carregar={carregar} versao={1} aoEstornar={() => {}} />)
     await waitFor(() => expect(carregar).toHaveBeenCalledTimes(2))
+  })
+
+  describe('reposição', () => {
+    const roteador = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>)
+
+    it('a baixa a repor tem "A repor" em atencao e "Não repor" para o PCP', async () => {
+      perfil = 'PCP'
+      roteador(<HistoricoDeBaixas carregar={async () => [baixa({ aRepor: 2 })]} versao={0} aoEstornar={() => {}} />)
+      expect((await screen.findByText('A repor')).className).toMatch(/atencao/)
+      expect(screen.getByRole('button', { name: /Não repor/ })).toBeTruthy()
+    })
+
+    it('a Qualidade vê "A repor" mas não "Não repor"', async () => {
+      roteador(<HistoricoDeBaixas carregar={async () => [baixa({ aRepor: 2 })]} versao={0} aoEstornar={() => {}} />)
+      await screen.findByText('A repor')
+      expect(screen.queryByRole('button', { name: /Não repor/ })).toBeNull()
+    })
+
+    it('a baixa reposta mostra "Reposta por" com link', async () => {
+      roteador(<HistoricoDeBaixas carregar={async () => [baixa({ pedidoRetrabalho: { id: 51, numero: 'P-1-R1' } })]} versao={0} aoEstornar={() => {}} />)
+      await screen.findByText(/Reposta por/)
+      expect(screen.getByRole('link', { name: 'P-1-R1' }).getAttribute('href')).toBe('/pedidos/51')
+    })
+
+    it('a baixa Reaproveitado mostra "Foi para"', async () => {
+      roteador(<HistoricoDeBaixas carregar={async () => [baixa({ motivo: 'Reaproveitado', pedidoRetrabalho: { id: 51, numero: 'P-1-R1' } })]} versao={0} aoEstornar={() => {}} />)
+      await screen.findByText(/Foi para/)
+      expect(screen.queryByText(/Reposta por/)).toBeNull()
+    })
+
+    it('a baixa dispensada mostra a justificativa e o "Desfazer"', async () => {
+      perfil = 'PCP'
+      roteador(<HistoricoDeBaixas carregar={async () => [baixa({ dispensa: { id: 9, justificativa: 'sem custo', dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 3, usuarioNome: 'Zé' } })]} versao={0} aoEstornar={() => {}} />)
+      expect(await screen.findByText('Não repor: sem custo')).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Desfazer/ })).toBeTruthy()
+    })
+
+    it('depois do "Não repor", a lista recarrega, a tela é avisada e a pílula some', async () => {
+      perfil = 'PCP'
+      let dispensada = false
+      const carregar = vi.fn(async () => [baixa({
+        aRepor: dispensada ? 0 : 2,
+        dispensa: dispensada ? { id: 9, justificativa: 'ok', dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 3, usuarioNome: 'Zé' } : null,
+      })])
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/baixas/1/dispensa': () => { dispensada = true; return respostaJson({ id: 9 }, 201) },
+      }))
+      const aoMudar = vi.fn()
+      roteador(<HistoricoDeBaixas carregar={carregar} versao={0} aoEstornar={() => {}} aoMudarAReposicao={aoMudar} />)
+      fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+      const form = screen.getByRole('form', { name: 'Não repor' })
+      fireEvent.change(within(form).getByLabelText('Justificativa'), { target: { value: 'ok' } })
+      fireEvent.submit(form)
+      await waitFor(() => expect(aoMudar).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(screen.queryByText('A repor')).toBeNull())
+      expect(screen.getByText('Não repor: ok')).toBeTruthy()
+      expect(carregar).toHaveBeenCalledTimes(2)
+    })
   })
 })

@@ -84,8 +84,8 @@ describe('PedidoDetalhePage', () => {
     renderizarDetalhe()
 
     // A seção "Baixas" também carrega e tem o indicador dela: o da página é o que está fora dessa seção.
-    const secao = screen.getByRole('region', { name: 'Baixas' })
-    const daPagina = screen.getAllByRole('status').filter((i) => !secao.contains(i))
+    const secoes = ['Baixas', 'Reclamações'].map((nome) => screen.getByRole('region', { name: nome }))
+    const daPagina = screen.getAllByRole('status').filter((i) => !secoes.some((s) => s.contains(i)))
     expect(daPagina).toHaveLength(1)
     expect(daPagina[0].textContent).toBe('Carregando…')
   })
@@ -378,6 +378,7 @@ describe('PedidoDetalhePage', () => {
       '/api/pedidos/7': () => respostaJson(PEDIDO),
       '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
       '/api/pedidos/7/baixas': () => respostaJson([]),
+      '/api/pedidos/7/reclamacoes': () => respostaJson([]),
       '/api/agrupamentos/21': () => respostaJson({ erro: 'AgrupamentoNaoVazio' }, 409),
     }))
 
@@ -749,6 +750,7 @@ describe('PedidoDetalhePage', () => {
         '/api/pedidos/7': () => respostaJson(PEDIDO),
         '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
         '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
         [PREVIA]: previa,
         '/api/pedidos/7/descarte': descarte,
       })
@@ -891,6 +893,83 @@ describe('PedidoDetalhePage', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }))
 
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Descartar tudo' })))
+    })
+  })
+
+  describe('reposição', () => {
+    function rotas(extra: Record<string, () => Response> = {}, pedido: object = PEDIDO) {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(pedido),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        ...extra,
+      }))
+    }
+
+    it('mostra a pílula "N a repor" em atencao no cabeçalho', async () => {
+      rotas({}, { ...PEDIDO, aRepor: 3 })
+      renderizarDetalhe()
+      expect((await screen.findByText('3 a repor')).className).toMatch(/atencao/)
+    })
+
+    it('não mostra a pílula com aRepor 0', async () => {
+      rotas()
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByText(/a repor/)).toBeNull()
+    })
+
+    it('a seção Reclamações mostra o vazio "Nenhuma reclamação"', async () => {
+      rotas()
+      renderizarDetalhe()
+      expect(await screen.findByText('Nenhuma reclamação')).toBeTruthy()
+    })
+
+    it('a seção Reclamações mostra o erro com "Tentar de novo"', async () => {
+      rotas({ '/api/pedidos/7/reclamacoes': () => respostaJson({}, 500) })
+      renderizarDetalhe()
+      expect(await screen.findByText(/Não foi possível carregar as reclamações|O servidor não respondeu/)).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
+    })
+
+    it('"Registrar reclamação" abre o painel para quem pode e não existe para o Operador', async () => {
+      rotas()
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Registrar reclamação' }))
+      expect(screen.getByRole('form', { name: 'Registrar reclamação' })).toBeTruthy()
+    })
+
+    it('o Operador não vê "Registrar reclamação"', async () => {
+      perfil = 'Operador'
+      rotas()
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Registrar reclamação' })).toBeNull()
+    })
+
+    it('depois de "Não repor" na reclamação, a seção e o cabeçalho recarregam e a pílula some', async () => {
+      let dispensada = false
+      const reclamacao = () => ({
+        id: 3, pecaId: 812, descricao: 'Eixo', codigo: 'EX-1', quantidade: 2, texto: 'torto',
+        dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+        pedidoRetrabalho: null, aRepor: dispensada ? 0 : 2,
+        dispensa: dispensada ? { id: 9, justificativa: 'ok', dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê' } : null,
+      })
+      rotas({
+        '/api/pedidos/7': () => respostaJson({ ...PEDIDO, aRepor: dispensada ? 0 : 2 }),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([reclamacao()]),
+        '/api/reclamacoes/3/dispensa': () => { dispensada = true; return respostaJson({ id: 9 }, 201) },
+      })
+      renderizarDetalhe()
+      expect(await screen.findByText('2 a repor')).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+      const form = screen.getByRole('form', { name: 'Não repor' })
+      fireEvent.change(within(form).getByLabelText('Justificativa'), { target: { value: 'ok' } })
+      fireEvent.submit(form)
+      await waitFor(() => expect(screen.queryByText('2 a repor')).toBeNull())
+      expect(await screen.findByText('Não repor: ok')).toBeTruthy()
+      expect(screen.queryByText('A repor')).toBeNull()
     })
   })
 })
