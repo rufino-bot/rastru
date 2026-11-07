@@ -74,6 +74,21 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
     return await PerderAAsync(c, perdidas);
   }
 
+  /// <summary>
+  /// E, filho de A copiado do catalogo, sem descricao propria (o nome e o do Componente, "Chassi da Fase 3"; regra 19),
+  /// 10 com razao 1 no Corte, faz as 10; A perde 1 "a iniciar": sobra 1 de E aguardando coleta. Devolve E e a baixa.
+  /// </summary>
+  private static async Task<(int E, int PerdaId)> SobraDoFilhoDoCatalogoAsync(CenarioDaFase3NaApi c)
+  {
+    var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/filhos",
+        new { componenteId = (int?)c.ComponenteId, descricao = (string?)null, quantidade = 10m, quantidadePorPai = 1m });
+    await Garantir(criado);
+    var e = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{e}/roteiro", new { passos = new[] { c.Corte } }));
+    await IniciarETerminarAsync(c, e, c.Corte, 10m);
+    return (e, await PerderAAsync(c, 1m));
+  }
+
   /// <summary>O no do Retrabalho que veio do no <paramref name="origem"/> do original (C14).</summary>
   private async Task<int> CopiaDeAsync(int retrabalhoId, int origem)
   {
@@ -378,15 +393,22 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
   public async Task Descarte_da_sobra_antes_deixa_o_usar_a_sobra_em_409_AlemDaSobra()
   {
     await using var c = await CriarAsync(_factory);
-    var retrabalhoId = await AbrirRetrabalhoAsync(c, await SobraNasDuasPosicoesAsync(c));
-    var b = await CopiaDeAsync(retrabalhoId, c.B);
-    await Garantir(await DescartarAsVinteDeBAsync(c));
+    var (e, perdaId) = await SobraDoFilhoDoCatalogoAsync(c);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, perdaId);
+    var ee = await CopiaDeAsync(retrabalhoId, e);
+    // O descarte leva as 10 de E aguardando coleta no original, a sobra inclusive.
+    await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{e}/baixas", new
+    {
+      motivo = "Descarte", observacao = (string?)null, tudo = false,
+      origens = new[] { new { posicao = "AguardandoColeta", setorId = (int?)c.Corte, ordem = (int?)1, quantidade = 10m } },
+      incluirTopo = false,
+    }));
 
-    var (status, erro, mensagem) = await RecusaAsync(await UsarAsync(c, c.Pcp, retrabalhoId, Item(b, "AguardandoColeta", c.Corte, 1, 2m)));
+    var (status, erro, mensagem) = await RecusaAsync(await UsarAsync(c, c.Pcp, retrabalhoId, Item(ee, "AguardandoColeta", c.Corte, 1, 1m)));
 
     Assert.Equal((HttpStatusCode.Conflict, "AlemDaSobra"), (status, erro));
-    Assert.Contains("Suporte", mensagem);
-    Assert.DoesNotContain(await LivroAsync(b), m => m.Tipo == "Pronto");
+    Assert.Equal("Só sobram 0 de Chassi da Fase 3 nessa posição no Pedido de origem.", mensagem);
+    Assert.DoesNotContain(await LivroAsync(ee), m => m.Tipo == "Pronto");
   }
 
   [Fact]
@@ -441,14 +463,8 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
   public async Task Roteiro_editado_antes_recusa_com_400_PosicaoDoProntoInexistente_e_no_sem_origem_nao_aparece()
   {
     await using var c = await CriarAsync(_factory);
-    // E: um filho de A copiado do catalogo, sem descricao propria ("Chassi da Fase 3"), no Corte.
-    var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/filhos",
-        new { componenteId = (int?)c.ComponenteId, descricao = (string?)null, quantidade = 10m, quantidadePorPai = 1m });
-    await Garantir(criado);
-    var e = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
-    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{e}/roteiro", new { passos = new[] { c.Corte } }));
-    await IniciarETerminarAsync(c, e, c.Corte, 10m);
-    var retrabalhoId = await AbrirRetrabalhoAsync(c, await PerderAAsync(c, 1m));
+    var (e, perdaId) = await SobraDoFilhoDoCatalogoAsync(c);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, perdaId);
     var (a, ee) = (await CopiaDeAsync(retrabalhoId, c.A), await CopiaDeAsync(retrabalhoId, e));
 
     // O PCP troca o Roteiro de E' para a Dobra e acrescenta a mao um filho sem origem a A'.
@@ -511,19 +527,20 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
   public async Task Estornar_com_pronto_que_andou_e_409_ProntoJaAndou()
   {
     await using var c = await CriarAsync(_factory);
-    var retrabalhoId = await AbrirRetrabalhoAsync(c, await SobraNasDuasPosicoesAsync(c));
-    var b = await CopiaDeAsync(retrabalhoId, c.B);
-    var usada = await UsarAsync(c, c.Pcp, retrabalhoId, Item(b, "AguardandoColeta", c.Corte, 1, 2m));
+    var (e, perdaId) = await SobraDoFilhoDoCatalogoAsync(c);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, perdaId);
+    var ee = await CopiaDeAsync(retrabalhoId, e);
+    var usada = await UsarAsync(c, c.Pcp, retrabalhoId, Item(ee, "AguardandoColeta", c.Corte, 1, 1m));
     await Garantir(usada);
     var baixaId = (await CorpoAsync(usada)).GetProperty("id").GetInt32();
-    // O Movimentador leva as 2 de B' prontas a montagem de A' na Solda.
-    await EntregarAsync(c, DaColeta(b, c.Corte, 1, 2m));
+    // O Movimentador leva a E' pronta a montagem de A' na Solda.
+    await EntregarAsync(c, DaColeta(ee, c.Corte, 1, 1m));
 
     var (status, erro, mensagem) = await RecusaAsync(await c.Como(c.Pcp).PostAsync($"/api/baixas/{baixaId}/estorno", null));
 
     Assert.Equal((HttpStatusCode.Conflict, "ProntoJaAndou"), (status, erro));
-    Assert.Contains("Suporte", mensagem);
-    Assert.DoesNotContain(await LivroAsync(c.B, b), m => m.Tipo == "Estorno");
+    Assert.Equal("Só há 0 de Chassi da Fase 3 onde o pronto pôs 1: a quantidade já andou no Retrabalho.", mensagem);
+    Assert.DoesNotContain(await LivroAsync(e, ee), m => m.Tipo == "Estorno");
   }
 
   [Fact]
