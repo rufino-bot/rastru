@@ -17,6 +17,10 @@ export type Recurso =
   | 'liberacao'
   | 'estornoDaExpedicao'
   | 'baixa'
+  | 'retrabalho'
+  | 'reaproveitamento'
+  | 'reclamacao'
+  | 'dispensa'
 
 /**
  * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-10-21.
@@ -87,6 +91,16 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   // o PCP dão baixa (D5 da spec da Fase 5B-1). O estorno ainda compara o autor, e quem decide é o 403 `Proibido` do
   // backend.
   baixa: ['Qualidade', 'PCP', 'Administrador'],
+  // Fase 5B-2 — reposição. Abrir o Pedido de Retrabalho (`RetrabalhoController`): a Qualidade, o PCP e o Administrador.
+  retrabalho: ['Qualidade', 'PCP', 'Administrador'],
+  // "Usar a sobra" e a prévia dele (`ReaproveitamentoController`): só o PCP e o Administrador. Não é `retrabalho`: a
+  // Qualidade abre o Retrabalho e não reaproveita.
+  reaproveitamento: ['PCP', 'Administrador'],
+  // Registrar e estornar a reclamação do cliente (`ReclamacaoController`). O estorno ainda compara o autor, e quem
+  // decide é o 403 `Proibido` do backend.
+  reclamacao: ['Qualidade', 'PCP', 'Administrador'],
+  // "Não repor" e desfazê-lo (`DispensaController`): só o PCP e o Administrador.
+  dispensa: ['PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

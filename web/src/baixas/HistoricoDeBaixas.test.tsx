@@ -22,6 +22,7 @@ function baixa(parcial: Partial<BaixaDto> = {}): BaixaDto {
   return {
     id: 1, motivo: 'MortaEmProcesso', observacao: null, escopo: { tipo: 'No', id: 7 }, tudo: false,
     dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 5, usuarioNome: 'Quê', estornada: false, estornavel: true,
+    pedidoRetrabalho: null, dispensa: null, aRepor: 0,
     linhas: [
       { estruturaItemId: 7, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 3 },
       { estruturaItemId: 7, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'NoSetor', origemSetorId: 1, origemSetorNome: 'Usinagem', origemOrdem: 2, quantidade: 1 },

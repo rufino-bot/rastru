@@ -94,6 +94,7 @@ describe('baixas', () => {
   it('os rótulos dos motivos são os da spec', () => {
     expect(ROTULO_DO_MOTIVO).toEqual({
       PerdaArmazem: 'Sumiu no armazém', MortaEmProcesso: 'Morreu num processo', Descarte: 'Descarte',
+      Reaproveitado: 'Reaproveitado',
     })
   })
 

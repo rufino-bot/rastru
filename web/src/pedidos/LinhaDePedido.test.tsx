@@ -11,6 +11,7 @@ const PEDIDO: PedidoDto = {
   id: 7, numero: 'PED-042', cliente: 'Metalúrgica Alfa', tipo: 'Fabricacao',
   status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
   criadoPorUsuarioId: 1, pausa: null, dataConclusao: null,
+  pedidoOrigem: null, motivoRetrabalho: null, aRepor: 0,
 }
 
 function renderizar(pedido: PedidoDto) {
