@@ -823,7 +823,8 @@ O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
 
 - Registro de `Perda`, de Peça e de Item, com o motivo `Descarte` (regras 17 e 38): **5B-1**.
 - `Perdido` como posição do livro e o `Descarte` da sobra, pelo ator da perda (regra 30): **5B-1**. O tipo de
-  movimento `Pronto`, que faz o nó **pronto** do Retrabalho (regra 27) nascer aguardando coleta: **5B-2**.
+  movimento `Pronto`, que faz o nó **pronto** do Retrabalho (regra 27) nascer na mesma posição física da sobra no
+  original, `AguardandoColeta(Setor, passo)` ou `AguardandoMontagem(Setor)` (seção 3.1 da spec da 5B-2): **5B-2**.
 - **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): **5B-1**, pela baixa `tudo` de
   `Descarte` e pelo "Descartar tudo". Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do
   `01` (agora com nota de fechamento), e o filho acrescentado por engano que trava a montagem do pai (spec da Fase 3,
