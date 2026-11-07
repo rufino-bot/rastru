@@ -561,4 +561,20 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
         .Single(p => p.GetProperty("id").GetInt32() == ligada.Id);
     Assert.False(naLista.GetProperty("estornavel").GetBoolean());
   }
+
+  [Fact]
+  public async Task Rota_generica_recusa_estornar_Pronto_com_EstornoImpossivel()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (e, perdaId) = await SobraDoFilhoDoCatalogoAsync(c);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, perdaId);
+    var ee = await CopiaDeAsync(retrabalhoId, e);
+    await Garantir(await UsarAsync(c, c.Pcp, retrabalhoId, Item(ee, "AguardandoColeta", c.Corte, 1, 1m)));
+    var pronto = Assert.Single(await LivroAsync(ee), m => m.Tipo == "Pronto");
+
+    var (status, erro, _) = await RecusaAsync(await c.Como(c.Pcp).PostAsync($"/api/movimentacoes/{pronto.Id}/estorno", null));
+
+    Assert.Equal((HttpStatusCode.Conflict, "EstornoImpossivel"), (status, erro));
+    Assert.DoesNotContain(await LivroAsync(ee), m => m.Tipo == "Estorno");
+  }
 }

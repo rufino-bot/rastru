@@ -1,5 +1,6 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Retrabalho;
 using Rastreamento.Domain.Entities;
 
 namespace Rastreamento.Application.Baixa;
@@ -10,6 +11,10 @@ namespace Rastreamento.Application.Baixa;
 /// </summary>
 public sealed partial class BaixaUseCase
 {
+  /// <summary>As baixas que tiram Peca do cliente e por isso se repoem (C1): `Descarte` e `Reaproveitado` nao.</summary>
+  private static readonly IReadOnlySet<string> MotivosDePerdaQueSeRepoem =
+      new HashSet<string> { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
+
   /// <summary>
   /// Estorna a baixa inteira, os filhos que a cascata C6 levou junto inclusive. Recusas, nesta ordem: baixa
   /// inexistente (404), baixa ligada de um reaproveitamento (409 `EstornoImpossivel`, decisao P2 do plano de backend da
@@ -17,7 +22,8 @@ public sealed partial class BaixaUseCase
   /// `podeEstornarDeOutros`), Pedido `Cancelado` (409 `PedidoFechado`; o `Concluido` e aceito e reabre o que a baixa
   /// concluiu, C12) e ja estornada (409 `JaEstornado`, relido DEPOIS da trava). `Perdido` e terminal: a quantidade
   /// nunca anda depois, entao nada mais impede o estorno (C9). Recalcula o fechamento na mesma transacao (C10); o
-  /// Pedido que nunca teve inicio volta a `Aberto` (C23). A baixa `Reaproveitado` tem caminho proprio
+  /// Pedido que nunca teve inicio volta a `Aberto` (C23). A baixa de perda com Retrabalho ou "nao repor" vigente recusa
+  /// (409 `ReposicaoResolvida`, C20 da spec da Fase 5B-2). A baixa `Reaproveitado` tem caminho proprio
   /// (<see cref="EstornarReaproveitamentoAsync"/>), porque desfaz tambem o que ela gravou no Retrabalho.
   /// </summary>
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> Estornar(
@@ -53,6 +59,17 @@ public sealed partial class BaixaUseCase
       // primeiro aqui (`UX_Movimentacao_EstornoDe` e a segunda rede).
       if ((await _execucao.ListarEstornadasAsync(originais.Select(l => l.Id).ToList(), ct)).Count > 0)
         return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.JaEstornado, "Esta baixa já foi estornada.");
+
+      // C20 da spec da Fase 5B-2: a baixa de perda cuja reposicao ja foi resolvida (Retrabalho aberto ou "nao repor"
+      // vigente) nao se estorna, senao o Retrabalho ficaria repondo uma perda que deixou de existir. Lido DEPOIS da
+      // trava: a abertura e o "nao repor" travam o mesmo Pedido. A `Reaproveitado` tem caminho proprio, acima.
+      if (MotivosDePerdaQueSeRepoem.Contains(perda.Motivo))
+      {
+        var atual = await _baixas.ObterAsync(perdaId, ct);
+        if (atual?.PedidoRetrabalhoId is not null || await _reposicao.TemDispensaVigenteDaBaixaAsync(perdaId, ct))
+          return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDoRetrabalho.ReposicaoResolvida,
+              "Esta baixa já tem a reposição resolvida (um Retrabalho ou um “não repor”): desfaça isso antes de estornar a baixa.");
+      }
 
       var agora = DateTime.UtcNow;
       var estornos = originais.Select(l =>

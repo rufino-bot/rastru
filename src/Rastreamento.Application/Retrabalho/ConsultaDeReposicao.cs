@@ -47,6 +47,12 @@ public sealed class ConsultaDeReposicao
   public static decimal UnidadesARepor(ReclamacaoParaContar r) =>
       !r.Estornada && !r.Reposta && !r.Dispensada ? r.Quantidade : 0m;
 
+  /// <summary>
+  /// Se o "nao repor" da baixa esta vigente. Chamada DEPOIS das travas, pelo estorno da baixa (C20 da spec da Fase 5B-2).
+  /// </summary>
+  public async Task<bool> TemDispensaVigenteDaBaixaAsync(int perdaId, CancellationToken ct) =>
+      (await _reposicao.ListarDispensasVigentesAsync([perdaId], [], ct)).Count > 0;
+
   /// <summary>A soma por Pedido; so os Pedidos que aparecem nas baixas e reclamacoes recebidas entram.</summary>
   public static IReadOnlyDictionary<int, decimal> ContarPorPedido(
       IEnumerable<BaixaParaContar> baixas, IEnumerable<ReclamacaoParaContar> reclamacoes)

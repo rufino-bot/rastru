@@ -494,4 +494,46 @@ public class RetrabalhoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
             r.GetProperty("origem").GetProperty("id").ValueKind == JsonValueKind.Null ? (int?)null : r.GetProperty("origem").GetProperty("id").GetInt32())));
     Assert.Equal(HttpStatusCode.NotFound, (await operador.GetAsync("/api/pedidos/2000000000/retrabalhos")).StatusCode);
   }
+
+  [Fact]
+  public async Task Rota_generica_estorna_a_Devolucao_que_nao_andou()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, _) = await PecaExpedidaAsync(c, 2m);
+    var reclamacaoId = await ReclamarAsync(c, peca, 1m);
+    var retrabalhoId = (await CorpoAsync(await AbrirAsync(c, c.Qualidade,
+        DaReclamacao(reclamacaoId, $"{await NumeroDoOriginalAsync(c)}-R1", "Consertar", c.Dobra)))).GetProperty("id").GetInt32();
+    int copia, devolucaoId;
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      copia = await (from e in db.Estruturas.AsNoTracking()
+                     join a in db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
+                     where a.PedidoId == retrabalhoId
+                     select e.Id).SingleAsync();
+      devolucaoId = (await db.Movimentacoes.AsNoTracking().SingleAsync(m => m.EstruturaItemId == copia && m.Tipo == "Devolucao")).Id;
+    }
+    Assert.Equal("EmProducao", await StatusDoPedidoAsync(retrabalhoId));
+
+    var resposta = await c.Como(c.Qualidade).PostAsync($"/api/movimentacoes/{devolucaoId}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    // A Peca volta a estar a iniciar (secao 4.7 da spec da Fase 5B-2). O status nao regride, como no estorno de um
+    // `Inicio`: o recalculo so devolve a `Aberto` o Pedido que estava `Aberto` ou `Concluido` (C23 da spec da Fase 5B-1).
+    using var escopo2 = _factory.Services.CreateScope();
+    var db2 = escopo2.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var linhas = await db2.Movimentacoes.AsNoTracking().Where(m => m.EstruturaItemId == copia).ToListAsync();
+    Assert.Equal(("AguardandoConserto", "AIniciar"),
+        (linhas.Single(m => m.Tipo == "Estorno").OrigemPosicao, linhas.Single(m => m.Tipo == "Estorno").DestinoPosicao));
+    Assert.Equal("EmProducao", await StatusDoPedidoAsync(retrabalhoId));
+    Assert.Equal(HttpStatusCode.Conflict,
+        (await c.Como(c.Qualidade).PostAsync($"/api/movimentacoes/{devolucaoId}/estorno", null)).StatusCode);
+  }
+
+  private async Task<string> StatusDoPedidoAsync(int pedidoId)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    return (await db.Pedidos.AsNoTracking().SingleAsync(p => p.Id == pedidoId)).Status;
+  }
 }

@@ -27,7 +27,7 @@ public sealed class ConsultaDaExpedicaoUseCase
 
   public ConsultaDaExpedicaoUseCase(
       IExecucaoRepository execucao, IExpedicaoRepository expedicao, IEstruturaRepository estruturas,
-      IReceitaPadraoRepository catalogo, TimeProvider relogio)
+      IReceitaPadraoRepository catalogo, IReposicaoRepository reposicao, TimeProvider relogio)
   {
     _execucao = execucao;
     _expedicao = expedicao;
@@ -35,7 +35,7 @@ public sealed class ConsultaDaExpedicaoUseCase
     _relogio = relogio;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     // So para `ProjetarAsync`: as remessas recentes saem do mesmo projetor que o `201` de `POST /remessas`.
-    _remessa = new RemessaUseCase(execucao, expedicao, estruturas, catalogo);
+    _remessa = new RemessaUseCase(execucao, expedicao, estruturas, catalogo, reposicao);
   }
 
   /// <summary>

@@ -1,5 +1,6 @@
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -17,6 +18,7 @@ public sealed class RemessaUseCase
 {
   private readonly IExecucaoRepository _execucao;
   private readonly IExpedicaoRepository _expedicao;
+  private readonly IReposicaoRepository _reposicao;
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly LeitorDeEstado _leitor;
   private readonly ProjetorDoLivro _projetor;
@@ -24,10 +26,11 @@ public sealed class RemessaUseCase
 
   public RemessaUseCase(
       IExecucaoRepository execucao, IExpedicaoRepository expedicao, IEstruturaRepository estruturas,
-      IReceitaPadraoRepository catalogo)
+      IReceitaPadraoRepository catalogo, IReposicaoRepository reposicao)
   {
     _execucao = execucao;
     _expedicao = expedicao;
+    _reposicao = reposicao;
     _catalogo = catalogo;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
     _projetor = new ProjetorDoLivro(execucao, catalogo);
@@ -113,7 +116,8 @@ public sealed class RemessaUseCase
   /// <summary>
   /// Estorna a remessa inteira (C8; secao 3.5): um `Estorno` por linha dela, de `Expedido` de volta a origem, todos
   /// apontando a remessa, numa transacao. Ordem: remessa (404), autor ou PCP/Administrador (403), Pedido
-  /// `Cancelado` (409; o `Concluido` e aceito e reabre, C13), ja estornada (409, relido depois da trava). Nada
+  /// `Cancelado` (409; o `Concluido` e aceito e reabre, C13), ja estornada (409, relido depois da trava) e expedido
+  /// que ficaria abaixo do reclamado (409 `AbaixoDoReclamado`, C20 da spec da Fase 5B-2). Nada
   /// mais o impede: `Expedido` e terminal, entao a quantidade expedida nunca andou depois.
   /// </summary>
   public async Task<Result<IReadOnlyList<MovimentacaoDto>>> Estornar(
@@ -129,7 +133,7 @@ public sealed class RemessaUseCase
       var originais = (await _expedicao.ListarLinhasDasRemessasAsync([remessaId], ct))
           .Where(l => l.Tipo == TiposDeMovimentacao.Expedicao).ToList();
       var pecaIds = originais.Select(l => l.EstruturaItemId).Distinct().Order().ToList();
-      await _execucao.TravarNosAsync(pecaIds, ct);
+      var travados = await _execucao.TravarNosAsync(pecaIds, ct);
       var pedidosTravados = pecaIds.Count > 0 ? await _execucao.TravarPedidosDosNosAsync(pecaIds, ct) : [];
 
       var cancelados = (await _expedicao.ListarPedidosDasPecasAsync(pecaIds, ct)).Values
@@ -142,6 +146,20 @@ public sealed class RemessaUseCase
       // o primeiro aqui (`UX_Movimentacao_EstornoDe` e a segunda rede).
       if ((await _execucao.ListarEstornadasAsync(originais.Select(l => l.Id).ToList(), ct)).Count > 0)
         return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDaExecucao.JaEstornado, "Esta remessa já foi estornada.");
+
+      // C20 da spec da Fase 5B-2: o expedido de uma Peca nao pode ficar abaixo do que o cliente ja reclamou dela. Lido
+      // DEPOIS da trava das Pecas, a mesma que o registro da reclamacao toma: um dos dois ve o outro.
+      foreach (var (pecaId, tirado) in originais.GroupBy(l => l.EstruturaItemId).Select(g => (g.Key, g.Sum(l => l.Quantidade))))
+      {
+        var expedido = CalculoDaExpedicao.Posicoes(
+            (await _execucao.ListarSaldosAsync([pecaId], ct)).Select(s => (new Local(s.Posicao, s.SetorId, s.Ordem), s.Quantidade)))
+            .Expedido;
+        var reclamado = await _reposicao.SomarReclamadoAsync(pecaId, ct);
+        if (expedido - tirado < reclamado)
+          return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDoRetrabalho.AbaixoDoReclamado,
+              $"O cliente já reclamou {Quantidades.Formatar(reclamado)} de {(await _leitor.CarregarAsync(travados, ct)).Nome(pecaId)}: "
+              + $"estornar esta remessa deixaria só {Quantidades.Formatar(expedido - tirado)} expedidas. Estorne antes a reclamação.");
+      }
 
       var agora = DateTime.UtcNow;
       var estornos = originais.Select(l =>

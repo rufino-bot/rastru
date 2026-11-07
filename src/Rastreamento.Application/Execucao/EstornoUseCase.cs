@@ -12,7 +12,8 @@ namespace Rastreamento.Application.Execucao;
 /// Estorno nao se estorna; a baixa de filho de uma montagem so sai com a montagem inteira — e
 /// estornar a montagem desfaz tambem o Inicio do pai que ela gravou (Fase 3D). A linha de contagem, de
 /// liberacao ou de remessa tambem so sai com o registro inteiro, pela rota dele (C17 da spec da Fase 5A), e a de
-/// baixa tambem (C7 da spec da Fase 5B-1).
+/// baixa tambem (C7 da spec da Fase 5B-1) e o `Pronto`, que sai so pelo estorno da baixa `Reaproveitado` (secao 4.7 da
+/// spec da Fase 5B-2). A `Devolucao` se estorna por esta rota enquanto a quantidade nao andou.
 /// </summary>
 public sealed class EstornoUseCase
 {
@@ -87,6 +88,8 @@ public sealed class EstornoUseCase
   /// </summary>
   private static string? RecusaDeRegistroComposto(Movimentacao original) => original switch
   {
+    { Tipo: TiposDeMovimentacao.Pronto } =>
+      "O pronto da sobra só se desfaz com a baixa de reaproveitamento a que pertence: estorne aquela baixa.",
     { ContagemId: int id } => $"Esta linha faz parte da contagem {id}: estorne a contagem inteira.",
     { LiberacaoId: int id } => $"Esta linha faz parte da liberação {id}: estorne a liberação inteira.",
     { RemessaId: int id } => $"Esta linha faz parte da remessa {id}: estorne a remessa inteira.",

@@ -5,6 +5,7 @@ using Rastreamento.Application.Tests.Cadastros;
 using Rastreamento.Application.Tests.Common;
 using Rastreamento.Application.Tests.Estrutura;
 using Rastreamento.Application.Tests.Expedicao;
+using Rastreamento.Application.Tests.Retrabalho;
 using Rastreamento.Application.Tests.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -177,13 +178,13 @@ internal sealed class CenarioDeExecucao
 
   public LiberacaoUseCase Liberacao() => new(Execucao, Expedicao, Estruturas, Catalogo);
 
-  public RemessaUseCase Remessa() => new(Execucao, Expedicao, Estruturas, Catalogo);
+  public RemessaUseCase Remessa() => new(Execucao, Expedicao, Estruturas, Catalogo, new FakeReposicaoRepo());
 
   public EstornoDaExpedicaoUseCase EstornoDaExpedicao() => new(Execucao, Expedicao, Estruturas, Catalogo);
 
   /// <summary>As leituras da expedicao; `agora` fixa o "hoje" de Brasilia (padrao: 2026-10-20 ao meio-dia UTC).</summary>
   public ConsultaDaExpedicaoUseCase ConsultaDaExpedicao(DateTimeOffset? agora = null) =>
-      new(Execucao, Expedicao, Estruturas, Catalogo,
+      new(Execucao, Expedicao, Estruturas, Catalogo, new FakeReposicaoRepo(),
           new RelogioFixo(agora ?? new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)));
 
   public RoteiroDoNoUseCase Roteiro() => new(Execucao, Estruturas, Catalogo);

@@ -360,4 +360,32 @@ public class DispensaEndpointsTests : IClassFixture<WebApplicationFactory<Progra
     Assert.Equal((retrabalhoId, numero + "-R1"), (
         baixa.GetProperty("pedidoRetrabalho").GetProperty("id").GetInt32(), baixa.GetProperty("pedidoRetrabalho").GetProperty("numero").GetString()));
   }
+
+  [Fact]
+  public async Task Estornar_baixa_reposta_e_409_ReposicaoResolvida()
+  {
+    await using var c = await CriarAsync(_factory);
+    var perdaId = await DarBaixaAsync(c, c.A, "PerdaArmazem", 1m, incluirTopo: false);
+    Assert.Equal(HttpStatusCode.Created, (await AbrirDaBaixaAsync(c, c.Pcp, perdaId, $"{await NumeroDoOriginalAsync(c)}-R1")).StatusCode);
+
+    var estorno = await c.Como(c.Pcp).PostAsync($"/api/baixas/{perdaId}/estorno", null);
+
+    Assert.Equal((HttpStatusCode.Conflict, "ReposicaoResolvida"), await RecusaAsync(estorno));
+    Assert.False((await BaixaNaListaAsync(c, perdaId)).GetProperty("estornada").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Estornar_baixa_dispensada_e_409_ReposicaoResolvida()
+  {
+    await using var c = await CriarAsync(_factory);
+    var perdaId = await DarBaixaAsync(c, c.A, "MortaEmProcesso", 1m, incluirTopo: false);
+    var dispensaId = (await CorpoAsync(await DispensarBaixaAsync(c, c.Pcp, perdaId))).GetProperty("id").GetInt32();
+
+    var recusada = await c.Como(c.Pcp).PostAsync($"/api/baixas/{perdaId}/estorno", null);
+
+    Assert.Equal((HttpStatusCode.Conflict, "ReposicaoResolvida"), await RecusaAsync(recusada));
+    // Desfeito o "nao repor", a baixa se estorna.
+    await Garantir(await c.Como(c.Pcp).PostAsync($"/api/dispensas/{dispensaId}/estorno", null));
+    Assert.Equal(HttpStatusCode.OK, (await c.Como(c.Pcp).PostAsync($"/api/baixas/{perdaId}/estorno", null)).StatusCode);
+  }
 }

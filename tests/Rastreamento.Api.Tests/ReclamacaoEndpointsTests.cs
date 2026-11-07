@@ -251,4 +251,27 @@ public class ReclamacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
     Assert.Equal("JaEstornado", (await CorpoAsync(segundo)).GetProperty("erro").GetString());
     Assert.Equal(HttpStatusCode.NotFound, (await c.Como(c.Qualidade).PostAsync("/api/reclamacoes/2000000000/estorno", null)).StatusCode);
   }
+
+  [Fact]
+  public async Task Estornar_remessa_abaixo_do_reclamado_e_409_AbaixoDoReclamado()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await UnicaPecaNaExpedicaoAsync(c, 2m);
+    var expedida = await c.Como(c.Qualidade).PostAsJsonAsync("/api/remessas",
+        new { itens = new[] { new { estruturaItemId = peca, quantidade = 2m } } });
+    await Garantir(expedida);
+    var remessaId = (await CorpoAsync(expedida)).GetProperty("remessa").GetProperty("id").GetInt32();
+    var reclamacaoId = (await CorpoAsync(await RegistrarAsync(c, c.Qualidade, Corpo(peca, 1m)))).GetProperty("id").GetInt32();
+
+    var recusada = await c.Como(c.Qualidade).PostAsync($"/api/remessas/{remessaId}/estorno", null);
+
+    Assert.Equal(HttpStatusCode.Conflict, recusada.StatusCode);
+    Assert.Equal("AbaixoDoReclamado", (await CorpoAsync(recusada)).GetProperty("erro").GetString());
+    // Nada foi gravado: a remessa segue valida e o expedido da Peca segue inteiro.
+    Assert.Equal("Concluido", (await CorpoAsync(await c.Como(c.Qualidade).GetAsync($"/api/pedidos/{c.PedidoId}"))).GetProperty("status").GetString());
+
+    // Estornada a reclamacao, o chao deixa de existir e a remessa se estorna.
+    await Garantir(await c.Como(c.Qualidade).PostAsync($"/api/reclamacoes/{reclamacaoId}/estorno", null));
+    Assert.Equal(HttpStatusCode.Created, (await c.Como(c.Qualidade).PostAsync($"/api/remessas/{remessaId}/estorno", null)).StatusCode);
+  }
 }
