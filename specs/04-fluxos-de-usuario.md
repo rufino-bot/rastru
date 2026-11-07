@@ -481,8 +481,8 @@ exceção, e a decisão fica gravada com o nome de quem a deu.
 *Perfil: Qualidade (abre e registra), PCP (cadastra, usa a sobra e decide não repor), Administrador (os dois)*
 
 > **Reescrito na Fase 5B-2** (spec `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`; regras 12, 14, 17, 25,
-> 27, 28 e 39 de `01-dominio-e-regras-de-negocio.md`). O backend entrega tudo isto; as telas são do plano de front da
-> fase. Substitui o fluxo anterior (reprovação → Retrabalho), cujas notas ficam resumidas aqui: a reprovação da aferição
+> 27, 28 e 39 de `01-dominio-e-regras-de-negocio.md`). O backend e o front entregam tudo isto (na branch da fase, em conferência
+> pelo usuário no navegador). Substitui o fluxo anterior (reprovação → Retrabalho), cujas notas ficam resumidas aqui: a reprovação da aferição
 > **não** abre Retrabalho (fluxo 4; a não conforme vai a conserto, a liberação ou ao «matar»); o Retrabalho que repõe
 > uma perda que impediu montar é **aberto** por quem registra a perda (Qualidade ou PCP) e **cadastrado** pelo PCP; e o
 > vínculo que a avaliação por remessa dava ao Retrabalho deixou de existir com a Fase 5A.

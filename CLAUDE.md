@@ -78,7 +78,9 @@ tudo" do Pedido e do Agrupamento e a seção "Baixas"); a seguinte é a **5B-2**
 (`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`, aprovada em 2026-11-06) e dois planos
 (`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-fase-5b2-front.md`) e está **em execução**, ainda não
 mesclada: o backend está implementado na branch (a regra 39 de `specs/01`, as rotas de `specs/05` e o
-`db/alter-fase-5b2.sql`) e o front, que é o módulo `web/src/retrabalho/`, vem pelo plano de front. A 5C ainda não tem spec,
+`db/alter-fase-5b2.sql`) e o front também, o módulo `web/src/retrabalho/` descrito na seção «Interface» (o "Abrir
+retrabalho", a seção "Reclamações", a seção "Retrabalhos", o "Não repor" e o "Usar a sobra"); falta a conferência do
+usuário no navegador e a review de branch inteira. A 5C ainda não tem spec,
 e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -454,10 +456,15 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   quem devolve o foco é a tela, ao título (o `<h1>` tem um `span` focável), pela linha do último painel de descarte aberto; e a seção "Baixas"
   (`HistoricoDeBaixas`), que devolve ao "Estornar" da baixa, ou ao título dela. Quando a escrita tira o **cartão** da lista (a última Peça
   expedida, a liberação respondida), o cartão e o hook dele se vão, e quem devolve o foco é a tela, ao título dela.
-  Hoje o hook tem **dezoito** chamadas em **quinze** arquivos — dez telas (`ExpedicaoPage` não chama: o hook mora nos
-  componentes dela) e cinco componentes que não são tela: o `MateriaisDoNo`, o `PainelDoNo` e o `HistoricoDeBaixas`,
-  do `PainelDoNo` da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, e o `CartaoDaPeca` e as `RemessasRecentes`, da
-  `ExpedicaoPage` — (medido em 2026-10-02 com
+  Na reposição (Fase 5B-2): o "Registrar reclamação", o "Abrir retrabalho" e o "Usar a sobra" do cabeçalho da
+  `PedidoDetalhePage` devolvem ao próprio botão (o "Abrir retrabalho" ao título da tela quando o botão não volta, e
+  o "Usar a sobra" também); o "Não repor" da linha (`ReposicaoDaLinha`) devolve ao "Desfazer" que aparece, ou ao estado
+  da linha; e a `SecaoDeReclamacoes`, ao "Estornar" da reclamação, ou ao título dela.
+  Hoje o hook tem **vinte e três** chamadas em **dezessete** arquivos — dez telas (`ExpedicaoPage` não chama: o hook
+  mora nos componentes dela) e sete componentes que não são tela: o `MateriaisDoNo`, o `PainelDoNo` e o
+  `HistoricoDeBaixas`, do `PainelDoNo` da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, o `CartaoDaPeca` e as
+  `RemessasRecentes`, da `ExpedicaoPage`, e a `ReposicaoDaLinha` e a `SecaoDeReclamacoes`, da reposição — (medido em
+  2026-10-02 com
   `grep -rn "useDevolverFoco(" web/src --include=*.tsx | grep -v "\.test\."`, com cinco chamadas, e
   remedido em 2026-10-03 com o mesmo comando: seis, porque a `AgrupamentoDetalhePage` tem duas, e de novo em
   2026-10-07: sete, porque a `ConferenciaDeImportacaoPage` tem uma, de novo em 2026-10-09: oito, porque a
@@ -465,10 +472,14 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   cada, e de novo em 2026-10-22: treze, porque a `LiberacoesPage`, o `CartaoDaPeca` e as `RemessasRecentes` têm uma
   cada, e de novo em 2026-11-05: dezoito, porque o "Descartar tudo" deu uma chamada à `AgrupamentoDetalhePage`, que passou
   a três, e à `PedidoDetalhePage`, que passou a duas, e entraram o `PainelDoNo`, o `HistoricoDeBaixas` e a
-  `FilaDoSetorPage` com uma cada; a métrica é **linhas**, e as duas telas com mais de uma são essas):
+  `FilaDoSetorPage` com uma cada, e de novo em 2026-11-07: vinte e três, porque a `PedidoDetalhePage` ganhou três
+  (reclamação, abrir retrabalho e usar a sobra, e passou a cinco) e entraram a `ReposicaoDaLinha` e a
+  `SecaoDeReclamacoes` com uma cada; a métrica é **linhas**, e as duas telas com mais de uma são a
+  `AgrupamentoDetalhePage` e a `PedidoDetalhePage`):
   `SetoresPage`, `MateriaisPage`, `ComponentesPage`, `PedidosPage`, `AgrupamentoDetalhePage`,
   `ConferenciaDeImportacaoPage`, `PedidoDetalhePage`, `SeparacaoPage`, `LiberacoesPage`, `FilaDoSetorPage` e, fora das
-  telas, o `MateriaisDoNo`, o `CartaoDaPeca`, as `RemessasRecentes`, o `PainelDoNo` e o `HistoricoDeBaixas`. O usuário decidiu
+  telas, o `MateriaisDoNo`, o `CartaoDaPeca`, as `RemessasRecentes`, o `PainelDoNo`, o `HistoricoDeBaixas`, a `ReposicaoDaLinha` e a
+  `SecaoDeReclamacoes`. O usuário decidiu
   em 2026-10-01, depois da revisão da branch da 1F, o `Cancelar` travado durante o salvar e o foco
   devolvido ao botão que abriu o painel (na edição de setor, o "Editar" daquele setor); a
   implementação estendeu o `Cancelar` travado ao "Reativar o existente", devolve o foco só quando ele
@@ -482,8 +493,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `usePodeEscrever(recurso)` que o painel. Hoje tem **onze** telas consumidoras (sete escrevem o
   `<PainelDeEscrita` à mão e quatro só o usam por dentro de um componente: a `ConferenciaDeImportacaoPage`, pelo
   `PainelDoArquivoDoBom`, a `SeparacaoPage`, pelo `PainelDeSeparacao`, a `ExpedicaoPage`, pelos painéis do
-  `CartaoDaPeca` e das `RemessasRecentes`, e a `FilaDoSetorPage`, pelo `PainelDeBaixa` da sobra), com **dezenove**
-  linhas de uso no código e **vinte e três** painéis que a tela pode abrir (medido em 2026-10-01 com
+  `CartaoDaPeca` e das `RemessasRecentes`, e a `FilaDoSetorPage`, pelo `PainelDeBaixa` da sobra), com **vinte e três**
+  linhas de uso no código e **vinte e sete** painéis que a tela pode abrir (medido em 2026-10-01 com
   `grep -rn "<PainelDeEscrita" web/src --include=*.tsx | grep -v "\.test\."`, com seis linhas, remedido em
   2026-10-03 com o mesmo comando: sete, e de novo em 2026-10-07: sete, mas com outra composição — a linha do
   "Importar BOM" saiu da `AgrupamentoDetalhePage` e entrou no `PainelDoArquivoDoBom`, e de novo em 2026-10-09:
@@ -492,15 +503,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   dezessete, porque entraram o "Responder" da `LiberacoesPage` e os seis da expedição — os cinco do `CartaoDaPeca`
   (`PainelDeAfericao`, `PainelDeContagem`, `PainelDeConserto`, `PainelDePedidoDeLiberacao` e `PainelDeRemessa`, uma
   linha em cada) e o das `RemessasRecentes`, e de novo em 2026-11-05: dezenove, porque entraram o `PainelDeBaixa` e o
-  `PainelDeDescarteTotal`, uma linha em cada; a métrica é **linhas**, não
-  usos). As dezenove linhas são
+  `PainelDeDescarteTotal`, uma linha em cada, e de novo em 2026-11-07: vinte e três, porque entraram os quatro da
+  reposição, uma linha em cada, em `web/src/retrabalho/`; a métrica é **linhas**, não usos). As vinte e três linhas são
   oito nas telas — `SetoresPage` (novo e editar setor, no mesmo uso), `MateriaisPage` (novo e editar material, no mesmo
   uso, desde a Fase 4), `ComponentesPage`,
   `PedidosPage`, `PedidoDetalhePage`, `LiberacoesPage` e, duas vezes, a `AgrupamentoDetalhePage` (o painel "Nova
-  Peça" e o do nó, editar e acrescentar sub-Item) — mais onze em componentes: a do `PainelDoArquivoDoBom`, a do
+  Peça" e o do nó, editar e acrescentar sub-Item) — mais quinze em componentes: a do `PainelDoArquivoDoBom`, a do
   `MateriaisDoNo` (o "Editar materiais", dentro do `PainelDoNo` da `AgrupamentoDetalhePage`), a do
-  `PainelDeSeparacao`, as seis da expedição, que moram em `web/src/expedicao/`, e as duas de `web/src/baixas/`. Os vinte e
-  três painéis são os oito das
+  `PainelDeSeparacao`, as seis da expedição, que moram em `web/src/expedicao/`, as duas de `web/src/baixas/` e as quatro de
+  `web/src/retrabalho/` (`PainelDeAbertura`, `PainelDeReclamacao`, `PainelDeReaproveitamento` e `PainelDeNaoRepor`). Os
+  vinte e sete painéis são os oito das
   linhas das telas (uma linha, um painel) mais os dois
   usos do `PainelDoArquivoDoBom` (o "Importar BOM" da `AgrupamentoDetalhePage` e o "Reimportar BOM" da
   `ConferenciaDeImportacaoPage`; `grep -rn "<PainelDoArquivoDoBom" web/src --include=*.tsx | grep -v "\.test\."`,
@@ -508,7 +520,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   da expedição, os três usos do `PainelDeBaixa` (o "Dar baixa" do `PainelDoNo`, o "Matar" do `CartaoDaPeca`, que é o
   `PainelDeMatar` fino sobre ele, e o "Descartar" da sobra da `FilaDoSetorPage`; `grep -rn "<PainelDeBaixa" web/src
   --include=*.tsx | grep -v "\.test\."`, três linhas em 2026-11-05) e os dois do `PainelDeDescarteTotal` (o "Descartar
-  tudo" da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, duas linhas no mesmo comando). Na
+  tudo" da `AgrupamentoDetalhePage` e da `PedidoDetalhePage`, duas linhas no mesmo comando) e os quatro da reposição (o
+  "Abrir retrabalho", o "Registrar reclamação" e o "Usar a sobra" da `PedidoDetalhePage` e o "Não repor" da
+  `ReposicaoDaLinha`, que serve às linhas da baixa e da reclamação; cada painel conta uma vez, pela linha em que é
+  montado). Na
   `AgrupamentoDetalhePage` os três painéis de escrita da tela (Nova Peça, Importar BOM e o do nó) nunca coexistem:
   abrir um fecha os outros; o "Editar materiais" mora no `PainelDoNo` e fica fora dessa regra.
 
@@ -560,7 +575,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   que hospeda o React.
 - **Cor de identidade nunca significa estado; cor de estado nunca decora.** Verde (`positivo`),
   vermelho (`negativo`), âmbar (`atencao`) e roxo (`atraso`) são reservados a aprovado/ativo,
-  reprovado/perda/erro, atenção (hoje, Pedido pausado) e Pedido atrasado (desde a data de entrega, D5 da
+  reprovado/perda/erro, atenção (Pedido pausado e, desde a Fase 5B-2, reposição pendente — "a repor") e Pedido atrasado (desde a data de entrega, D5 da
   spec `docs/superpowers/specs/2026-10-08-data-de-entrega-do-pedido-design.md`: a mesma linha pode estar
   reprovada **e** atrasada, e as duas em vermelho não se distinguiriam). É o que faz a tela
   de Qualidade da Fase 5 funcionar, quando "Aprovado" e "Abrir retrabalho" dividem a mesma linha.
@@ -570,6 +585,14 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   declarado em `web/src/tema/contraste.test.ts`), e as pílulas de estado são tingidas: a forma também separa
   categoria de estado. Azul nunca significa estado; a pílula "Utiliza Kit" da lista de Setores é
   atributo do Setor, não identidade de Kit, e fica neutra.
+
+  **O âmbar da reposição** (C16 e A4 da spec da Fase 5B-2,
+  `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`): "N a repor" (o cabeçalho do Pedido e a
+  `LinhaDePedido`) e "A repor" (a linha da baixa e a da reclamação) são `Pilula tom="atencao"`, porque peça por repor é
+  pendência que pede ação, como o Pedido pausado. O resto continua neutro: a pílula "N perdidos" da árvore, a marca
+  "Retrabalho" do Pedido que repõe (na lista e no cabeçalho), o status do Retrabalho na seção "Retrabalhos" e a
+  "Estornada" da reclamação. O par `atencao-texto`/`atencao-fundo` já estava declarado em
+  `web/src/tema/contraste.test.ts`: a reposição não trouxe par novo.
 - **Tela que busca dados tem os três estados**: carregando, vazio (com texto que distingue "não
   achei" de "não há nada") e erro (via `mensagemDeErro`), **cada um com teste que morre se o estado
   sumir**.
@@ -746,6 +769,31 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`useDescarteDisponivel`, pela prévia do servidor) e trava o segundo toque pelo `ref` do `useEscritaDoPainel`. A dica
   de D12 mora fora do módulo: o campo de quantidade da edição de nó da `AgrupamentoDetalhePage` diz "Para diminuir, use
   "Dar baixa"." quando o Pedido está `EmProducao` ou `AguardandoExpedicao`, os dois status em que o servidor recusa, e a recusa `DiminuirPelaBaixa` do servidor aparece no painel.
+- **A reposição** (Fase 5B-2, spec `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`) mora em
+  `web/src/retrabalho/`, no molde da baixa e da expedição, e o cliente HTTP dela é `web/src/api/retrabalho.ts` (abrir
+  o Retrabalho, as listas de Retrabalhos e de reclamações, o registro e o estorno da reclamação, o "não repor" e o
+  desfazer, a prévia e o "Usar a sobra"). O `usePermissoesDaReposicao` diz o que a sessão pode fazer — `abrir`
+  (chave `retrabalho`: Qualidade, PCP e Administrador), `reaproveitar` (`reaproveitamento`: PCP e Administrador, e vale
+  também para a prévia), `reclamar` (`reclamacao`: Qualidade, PCP e Administrador), `naoRepor` (`dispensa`: PCP e
+  Administrador) e `podeEstornarReclamacao(autorId)` (o autor, ou PCP e Administrador) — e é o **único lugar que lê
+  `permissoes.ts` para a reposição**; tela e painel dela não chamam `usePodeEscrever` direto. Os painéis, todos sobre o
+  `PainelDeEscrita` e o `useEscritaDoPainel`: o `PainelDeAbertura` ("Abrir retrabalho", pelas três portas — a linha de
+  uma baixa, a de uma reclamação ou o botão avulso do cabeçalho —, com o número sugerido pelo servidor, o prazo
+  preenchido com o do original, o destino e o Setor só na reclamação), o `PainelDeReclamacao` ("Registrar
+  reclamação"), o `PainelDeReaproveitamento` ("Usar a sobra") e o `PainelDeNaoRepor`. As seções e a linha: a
+  `ReposicaoDaLinha` (o que a reposição acrescenta a uma linha de baixa ou de reclamação: "A repor", o vínculo "Reposta
+  por {número}", "Foi para {número}" ou "Não repor: {justificativa}", e as ações "Abrir retrabalho", "Não repor" e
+  "Desfazer"), montada pelo `HistoricoDeBaixas` e pela `SecaoDeReclamacoes`; a `SecaoDeReclamacoes` e a
+  `SecaoDeRetrabalhos`, na `PedidoDetalhePage` do original. O Retrabalho aberto é um Pedido comum, com o cabeçalho
+  "Retrabalho de {número do original} — {motivo}" na mesma `PedidoDetalhePage`. **As regras:** a tela **nunca calcula**
+  o "a repor" nem o número sugerido, lê `aRepor` e `numeroSugerido` do servidor (a contagem é em unidades de Peça, C1);
+  a frase de recusa do servidor (número repetido, `JaReposto`, `AlemDaSobra`, `RetrabalhoForaDeAberto`…) fica dentro
+  do painel, que continua aberto com o digitado; o duplo toque vira uma requisição só, pelo `ref` do
+  `useEscritaDoPainel`; a escrita bem-sucedida recarrega o cabeçalho, a lista de baixas e a de reclamações, e o âmbar
+  some ou volta com elas; e a **prévia do "Usar a sobra" vem do servidor** (`sobra-reaproveitavel`), com o sugerido
+  de cada posição como valor inicial e "Nada da sobra serve a este retrabalho." quando vem vazia, caso em que o painel
+  não oferece o enviar. O "Usar a sobra" só aparece no Retrabalho `Aberto`. A regra de cor é a do bullet «Cor de
+  identidade nunca significa estado».
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -1046,10 +1094,15 @@ código): `dotnet build Rastreamento.slnx -warnaserror` com 0 warnings e 0 erros
 com **2.027 testes**, todos passando (554 em Api, 1.137 em Application e 336 em Infrastructure; 0 em Domain, que não
 tem teste algum; a métrica é a de testes executados, em que cada caso de `[Theory]` conta como um). Contra a medição de
 `11ee76e` (1.887) são **+140 testes** (+68 em Api, +51 em Application e +21 em Infrastructure), que são o backend da
-5B-2 até aqui. O front não foi remedido: a 5B-2 ainda não tem código de front, e a medição de 2.070 testes em 117
-arquivos segue a última. A suíte tem de rodar **uma vez por vez**: duas execuções de `dotnet test` ao mesmo tempo contra
+5B-2 até aqui. O front foi remedido logo abaixo, depois do código dele. A suíte tem de rodar **uma vez por vez**: duas execuções de `dotnet test` ao mesmo tempo contra
 o mesmo banco dão deadlock no `DisposeAsync` dos cenários (visto nesta medição, ao disparar duas por engano; a execução
 única passou).
+
+**Remedido em 2026-11-07, com o front da Fase 5B-2 na branch** (HEAD `094d58a`): em `web/`, `npm test -- --run
+--maxWorkers=2` com **2.185 testes em 126 arquivos**, todos passando, e `npm run build` passou. A métrica é a de testes
+executados. Contra a medição de 2026-11-05 (2.070 em 117) são **+115 testes e +9 arquivos**, que são o front da 5B-2 até
+aqui: o cliente `api/retrabalho`, o `usePermissoesDaReposicao`, os sete componentes de `web/src/retrabalho/` e os testes
+novos da `PedidoDetalhePage`, do `HistoricoDeBaixas` e da `LinhaDePedido`. A suíte do backend segue a medição acima.
 
 Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a

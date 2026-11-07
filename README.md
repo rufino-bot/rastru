@@ -193,8 +193,8 @@ Concluídas até aqui:
 **Em andamento: Fase 5B-2** — reposição: o Pedido de Retrabalho como ação separada e opcional, aberto de uma baixa por
 perda, de uma reclamação do cliente ou avulso; o nó pronto, que reaproveita a sobra do original; e o «não repor» do PCP.
 Tem spec (`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`) e dois planos
-(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-front.md`); o backend está implementado na branch e o front
-ainda não, e a fase não foi mesclada. Depois dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por
+(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-front.md`); o backend e o front estão implementados na
+branch (falta a conferência no navegador e a review), e a fase não foi mesclada. Depois dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por
 pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
