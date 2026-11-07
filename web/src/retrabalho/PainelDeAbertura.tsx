@@ -43,7 +43,7 @@ const DESTINOS = Object.keys(ROTULO_DO_DESTINO) as DestinoDaReclamacao[]
 
 /** O motivo que a porta sugere; a avulsa não sugere nenhum, e escolher é obrigatório. */
 function motivoSugerido(porta: PortaDoRetrabalho): MotivoDeRetrabalho | '' {
-  if (porta.tipo === 'Reclamacao') return 'SolicitacaoDoCliente'
+  if (porta.tipo === 'Reclamacao') return 'SolicitacaoCliente'
   if (porta.tipo === 'Baixa') {
     // A baixa da não conforme ("Matar") é a que a Qualidade reprovou.
     return porta.baixa.linhas.some((l) => l.origemPosicao === 'NaoConforme') ? 'ReprovacaoDimensional' : 'Perda'
@@ -54,7 +54,7 @@ function motivoSugerido(porta: PortaDoRetrabalho): MotivoDeRetrabalho | '' {
 /** Quanto a baixa ou a reclamação manda repor: o `aRepor` do servidor, que o servidor também usa ao abrir. */
 function descricaoDaReposicao(porta: PortaDoRetrabalho): string | null {
   if (porta.tipo === 'Baixa') {
-    const topo = porta.baixa.linhas[0]
+    const topo = porta.baixa.linhas.find((l) => l.ehPeca)
     return `Repor ${formatarQuantidade(porta.baixa.aRepor)}${topo ? ` de ${topo.descricao}` : ''}`
   }
   if (porta.tipo === 'Reclamacao') {

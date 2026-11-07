@@ -167,14 +167,15 @@ public sealed partial class BaixaUseCase
         return new LinhaDaBaixaDto(
             l.EstruturaItemId, no?.Descricao ?? componente?.Descricao ?? string.Empty, componente?.Codigo,
             l.OrigemPosicao, l.OrigemSetorId, l.OrigemSetorId is int s ? setores.GetValueOrDefault(s) : null,
-            l.OrigemOrdem, l.Quantidade);
+            l.OrigemOrdem, l.Quantidade, no is { EstruturaPaiId: null });
       }).ToList();
       var estornada = estornadas.Contains(p.Id);
       // A baixa ligada da cascata do pronto so se estorna com a `Reaproveitado` dela (decisao P2 do plano de backend da
       // Fase 5B-2): nao se oferece sozinha.
       var estornavel = !estornada && p.PerdaDeOrigemId is null
           && (quem.VeRegistrosDeTodos || p.UsuarioId == quem.UsuarioId)
-          && status.GetValueOrDefault(p.PedidoId) != StatusCancelado;
+          && status.GetValueOrDefault(p.PedidoId) != StatusCancelado
+          && !ReposicaoJaResolvida(p.Motivo, p.PedidoRetrabalhoId is not null, reposicao[p.Id].Dispensa is not null);
       return new BaixaDto(
           p.Id, p.Motivo, p.Observacao, Escopo(p), p.Tudo, p.DataHora, p.UsuarioId,
           autores.GetValueOrDefault(p.UsuarioId, string.Empty), estornada, estornavel, daBaixa,

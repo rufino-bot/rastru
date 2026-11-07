@@ -49,11 +49,12 @@ public sealed record EscopoDaBaixaDto(string Tipo, int Id);
 
 /// <summary>
 /// Uma linha da baixa: o no (descricao pela regra 19, a do no, senao a do Componente), de onde saiu e quanto. A mesma
-/// forma na previa e na baixa gravada.
+/// forma na previa e na baixa gravada. `EhPeca`: o no e a Peca do topo (sem pai), a que a reposicao nomeia; so a baixa
+/// gravada o preenche.
 /// </summary>
 public sealed record LinhaDaBaixaDto(
     int EstruturaItemId, string Descricao, string? Codigo, string OrigemPosicao, int? OrigemSetorId,
-    string? OrigemSetorNome, int? OrigemOrdem, decimal Quantidade);
+    string? OrigemSetorNome, int? OrigemOrdem, decimal Quantidade, bool EhPeca = false);
 
 /// <summary>
 /// A baixa projetada (secao 5.2 da spec da Fase 5B-1). `Estornavel`: nao estornada, de Pedido que nao esta

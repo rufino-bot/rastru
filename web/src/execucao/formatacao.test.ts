@@ -171,6 +171,12 @@ describe('rotuloDoTipo', () => {
   })
 })
 
+describe('rotuloDoTipo da reposicao', () => {
+  it('traduz Pronto e Devolucao, tipos do livro da 5B-2', () => {
+    expect((['Pronto', 'Devolucao'] as const).map(rotuloDoTipo)).toEqual(['Pronto', 'Devolução'])
+  })
+})
+
 describe('rotuloDoTipo da baixa', () => {
   it('chama o tipo Perda de Baixa', () => {
     expect(rotuloDoTipo('Perda')).toBe('Baixa')

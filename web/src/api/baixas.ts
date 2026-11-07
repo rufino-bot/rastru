@@ -47,6 +47,8 @@ export interface LinhaDaBaixaDto {
   origemSetorNome: string | null
   origemOrdem: number | null
   quantidade: number
+  /** O nó é a Peça do topo (sem pai): a que a reposição nomeia. Só a baixa gravada preenche; a prévia traz falso. */
+  ehPeca?: boolean
 }
 
 export interface BaixaDto {

@@ -12,7 +12,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 const PEDIDO = { id: 7, numero: 'P-1020', dataEntrega: '2026-12-01' } as PedidoDto
 
-const linha = (origemPosicao: string) => ({ estruturaItemId: 812, descricao: 'Eixo', origemPosicao, quantidade: 2 })
+const linha = (origemPosicao: string) => ({ estruturaItemId: 812, descricao: 'Eixo', origemPosicao, quantidade: 2, ehPeca: true })
 const baixa = (origemPosicao = 'AguardandoColeta') =>
   ({ id: 51, motivo: 'PerdaArmazem', aRepor: 2, linhas: [linha(origemPosicao)] }) as unknown as BaixaDto
 const reclamacao = { id: 3, descricao: 'Eixo', quantidade: 1.5, aRepor: 1.5 } as unknown as ReclamacaoDto
@@ -84,6 +84,17 @@ describe('PainelDeAbertura', () => {
     expect(within(motivo()).getByRole('option', { name: 'Reprovação dimensional' })).toBeTruthy()
   })
 
+  it('nomeia a Peça do topo, não o Item que vem primeiro nas linhas da baixa', async () => {
+    const comItem = {
+      ...baixa(),
+      linhas: [{ ...linha('AguardandoColeta'), estruturaItemId: 900, descricao: 'Parafuso', ehPeca: false }, linha('AIniciar')],
+    } as unknown as BaixaDto
+    montar({ tipo: 'Baixa', baixa: comItem })
+    await numero()
+    expect(screen.getByText('Repor 2 de Eixo')).toBeTruthy()
+    expect(screen.queryByText(/Parafuso/)).toBeNull()
+  })
+
   it('da baixa a quantidade é a dela, só de leitura, e não vai no corpo', async () => {
     const { fetchMock } = montar({ tipo: 'Baixa', baixa: baixa() })
     const n = await numero()
@@ -101,7 +112,7 @@ describe('PainelDeAbertura', () => {
   it('da reclamação o motivo vem "Solicitação do cliente"; "Consertar" pede o Setor e "Refazer" não', async () => {
     montar({ tipo: 'Reclamacao', reclamacao })
     await numero()
-    expect(motivo().value).toBe('SolicitacaoDoCliente')
+    expect(motivo().value).toBe('SolicitacaoCliente')
     expect(screen.getByText('Repor 1,5 de Eixo')).toBeTruthy()
     expect(screen.queryByLabelText('Setor')).toBeNull()
     fireEvent.click(screen.getByLabelText('Consertar'))
@@ -126,7 +137,7 @@ describe('PainelDeAbertura', () => {
     fireEvent.submit(form())
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(1))
     expect(JSON.parse(String(posts(fetchMock)[0][1]?.body))).toMatchObject({
-      reclamacaoId: 3, perdaId: null, destino: 'Consertar', setorId: 4, motivoRetrabalho: 'SolicitacaoDoCliente',
+      reclamacaoId: 3, perdaId: null, destino: 'Consertar', setorId: 4, motivoRetrabalho: 'SolicitacaoCliente',
     })
   })
 

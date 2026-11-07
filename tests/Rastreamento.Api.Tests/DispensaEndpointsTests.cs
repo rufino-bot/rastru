@@ -388,4 +388,35 @@ public class DispensaEndpointsTests : IClassFixture<WebApplicationFactory<Progra
     await Garantir(await c.Como(c.Pcp).PostAsync($"/api/dispensas/{dispensaId}/estorno", null));
     Assert.Equal(HttpStatusCode.OK, (await c.Como(c.Pcp).PostAsync($"/api/baixas/{perdaId}/estorno", null)).StatusCode);
   }
+
+  [Fact]
+  public async Task Baixa_reposta_ou_dispensada_nao_e_estornavel_e_volta_a_ser_ao_desfazer()
+  {
+    await using var c = await CriarAsync(_factory);
+    var reposta = await DarBaixaAsync(c, c.A, "PerdaArmazem", 1m, incluirTopo: false);
+    var dispensada = await DarBaixaAsync(c, c.A, "MortaEmProcesso", 1m, incluirTopo: false);
+    Assert.True((await BaixaNaListaAsync(c, reposta)).GetProperty("estornavel").GetBoolean());
+    Assert.True((await BaixaNaListaAsync(c, dispensada)).GetProperty("estornavel").GetBoolean());
+
+    Assert.Equal(HttpStatusCode.Created, (await AbrirDaBaixaAsync(c, c.Pcp, reposta, $"{await NumeroDoOriginalAsync(c)}-R1")).StatusCode);
+    var dispensaId = (await CorpoAsync(await DispensarBaixaAsync(c, c.Pcp, dispensada))).GetProperty("id").GetInt32();
+
+    Assert.False((await BaixaNaListaAsync(c, reposta)).GetProperty("estornavel").GetBoolean());
+    Assert.False((await BaixaNaListaAsync(c, dispensada)).GetProperty("estornavel").GetBoolean());
+    await Garantir(await c.Como(c.Pcp).PostAsync($"/api/dispensas/{dispensaId}/estorno", null));
+    Assert.True((await BaixaNaListaAsync(c, dispensada)).GetProperty("estornavel").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Linha_da_baixa_diz_qual_e_a_Peca_do_topo()
+  {
+    await using var c = await CriarAsync(_factory);
+    var perdaId = await DarBaixaAsync(c, c.B, "PerdaArmazem", 2m, incluirTopo: true);
+
+    var linhas = (await BaixaNaListaAsync(c, perdaId)).GetProperty("linhas").EnumerateArray().ToList();
+
+    Assert.True(linhas.Count > 1);
+    var pecas = linhas.Where(l => l.GetProperty("ehPeca").GetBoolean()).Select(l => l.GetProperty("estruturaItemId").GetInt32()).ToList();
+    Assert.Equal(new[] { c.A }, pecas);
+  }
 }

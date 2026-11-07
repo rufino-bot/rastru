@@ -53,6 +53,8 @@ export type TipoDeMovimentacao =
   | 'Recusa'
   | 'Expedicao'
   | 'Perda'
+  | 'Pronto'
+  | 'Devolucao'
 
 /** `setorId`, `setorNome` e `ordem` são `null` quando a posição não os tem (spec §3.1). */
 export interface LocalDto {

@@ -14,12 +14,12 @@ import { avisarQueOLivroMudou } from './sinalDoLivro'
  * Tarefas, no sucesso e no 409.
  */
 
-export type MotivoDeRetrabalho = 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoDoCliente' | 'Perda'
+export type MotivoDeRetrabalho = 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda'
 
 export const ROTULO_DO_MOTIVO_DE_RETRABALHO: Record<MotivoDeRetrabalho, string> = {
   ReprovacaoDimensional: 'Reprovação dimensional',
   ErroInterno: 'Erro interno',
-  SolicitacaoDoCliente: 'Solicitação do cliente',
+  SolicitacaoCliente: 'Solicitação do cliente',
   Perda: 'Perda',
 }
 

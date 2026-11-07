@@ -121,7 +121,7 @@ describe('retrabalho', () => {
   it('os rótulos são os da spec', () => {
     expect(ROTULO_DO_MOTIVO_DE_RETRABALHO).toEqual({
       ReprovacaoDimensional: 'Reprovação dimensional', ErroInterno: 'Erro interno',
-      SolicitacaoDoCliente: 'Solicitação do cliente', Perda: 'Perda',
+      SolicitacaoCliente: 'Solicitação do cliente', Perda: 'Perda',
     })
     expect(ROTULO_DO_DESTINO).toEqual({ Consertar: 'Consertar', Refazer: 'Refazer' })
     expect(ROTULO_DO_MOTIVO.Reaproveitado).toBe('Reaproveitado')

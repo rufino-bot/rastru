@@ -16,6 +16,13 @@ public sealed partial class BaixaUseCase
       new HashSet<string> { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
 
   /// <summary>
+  /// A reposicao da baixa ja foi resolvida (C20): a de perda (`PerdaArmazem` ou `MortaEmProcesso`) com Retrabalho aberto
+  /// ou "nao repor" vigente nao se estorna. Um so predicado para o estorno e para o `Estornavel` do DTO.
+  /// </summary>
+  internal static bool ReposicaoJaResolvida(string motivo, bool temRetrabalho, bool temDispensaVigente) =>
+      MotivosDePerdaQueSeRepoem.Contains(motivo) && (temRetrabalho || temDispensaVigente);
+
+  /// <summary>
   /// Estorna a baixa inteira, os filhos que a cascata C6 levou junto inclusive. Recusas, nesta ordem: baixa
   /// inexistente (404), baixa ligada de um reaproveitamento (409 `EstornoImpossivel`, decisao P2 do plano de backend da
   /// Fase 5B-2), de outro autor sem ser PCP ou Administrador (403 `Proibido`, decidido aqui com
@@ -66,7 +73,8 @@ public sealed partial class BaixaUseCase
       if (MotivosDePerdaQueSeRepoem.Contains(perda.Motivo))
       {
         var atual = await _baixas.ObterAsync(perdaId, ct);
-        if (atual?.PedidoRetrabalhoId is not null || await _reposicao.TemDispensaVigenteDaBaixaAsync(perdaId, ct))
+        var dispensada = await _reposicao.TemDispensaVigenteDaBaixaAsync(perdaId, ct);
+        if (ReposicaoJaResolvida(perda.Motivo, atual?.PedidoRetrabalhoId is not null, dispensada))
           return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDoRetrabalho.ReposicaoResolvida,
               "Esta baixa já tem a reposição resolvida (um Retrabalho ou um “não repor”): desfaça isso antes de estornar a baixa.");
       }
