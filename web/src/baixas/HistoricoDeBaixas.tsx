@@ -57,13 +57,11 @@ interface Props {
   carregar: () => Promise<BaixaDto[]>
   /** Muda quando a tela gravou uma baixa: a lista já carregada recarrega. A primeira leitura é a da montagem. */
   versao: number
-  /** Uma baixa foi estornada (ou o servidor disse que já estava): a tela recarrega o que depende do saldo. */
-  aoEstornar: () => void
   /**
-   * Uma baixa foi dispensada ("Não repor") ou a dispensa foi desfeita: a lista já recarregou, e a tela recarrega o que
-   * depende dela (o "a repor" do cabeçalho). Sem ela, vale o `aoEstornar`.
+   * A baixa mudou (estornada, ou o servidor disse que já estava; "Não repor" gravado ou desfeito): a tela recarrega o
+   * que depende dela, o saldo e o "a repor" do cabeçalho.
    */
-  aoMudarAReposicao?: () => void
+  aoEstornar: () => void
   /** O nome de quem a tela já conhece (o número do Pedido, o código do Agrupamento); sem ele, o Id. */
   nomeDoEscopo?: (escopo: BaixaDto['escopo']) => string | null
   /** O nó cujo painel mostra a seção: a baixa de outro nó (um descendente) é lida com o nome dele. */
@@ -80,7 +78,7 @@ interface Props {
  * Um 409 (`JaEstornado`) é tela velha: a frase do servidor fica na seção e a lista recarrega. Quando a escrita tira o
  * "Estornar", o foco vai ao título da seção.
  */
-export function HistoricoDeBaixas({ carregar, versao, aoEstornar, aoMudarAReposicao, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
+export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
   const { podeEstornar } = usePermissoesDaBaixa()
   const idDoTitulo = useId()
   const [baixas, setBaixas] = useState<BaixaDto[] | null>(null)
@@ -153,7 +151,7 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, aoMudarAReposi
 
   async function aoMudarAReposicaoDe() {
     await recarregar()
-    ;(aoMudarAReposicao ?? aoEstornar)()
+    aoEstornar()
   }
 
   function descricaoDa(b: BaixaDto): string {

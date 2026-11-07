@@ -971,5 +971,33 @@ describe('PedidoDetalhePage', () => {
       expect(await screen.findByText('Não repor: ok')).toBeTruthy()
       expect(screen.queryByText('A repor')).toBeNull()
     })
+
+    it('"Não repor" e "Desfazer" na baixa recarregam o cabeçalho: a pílula some e volta', async () => {
+      let dispensada = false
+      const baixaARepor = () => ({
+        id: 1, motivo: 'PerdaArmazem', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+        dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+        pedidoRetrabalho: null, aRepor: dispensada ? 0 : 2,
+        dispensa: dispensada ? { id: 9, justificativa: 'sem custo', dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê' } : null,
+        linhas: [{ estruturaItemId: 5, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 2 }],
+      })
+      rotas({
+        '/api/pedidos/7': () => respostaJson({ ...PEDIDO, aRepor: dispensada ? 0 : 2 }),
+        '/api/pedidos/7/baixas': () => respostaJson([baixaARepor()]),
+        '/api/baixas/1/dispensa': () => { dispensada = true; return respostaJson({ id: 9 }, 201) },
+        '/api/dispensas/9/estorno': () => { dispensada = false; return new Response(null, { status: 204 }) },
+      })
+      renderizarDetalhe()
+      expect(await screen.findByText('2 a repor')).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+      const form = screen.getByRole('form', { name: 'Não repor' })
+      fireEvent.change(within(form).getByLabelText('Justificativa'), { target: { value: 'sem custo' } })
+      fireEvent.submit(form)
+      expect(await screen.findByText('Não repor: sem custo')).toBeTruthy()
+      await waitFor(() => expect(screen.queryByText('2 a repor')).toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: /Desfazer/ }))
+      expect(await screen.findByText('2 a repor')).toBeTruthy()
+      expect(screen.queryByText(/Não repor: sem custo/)).toBeNull()
+    })
   })
 })

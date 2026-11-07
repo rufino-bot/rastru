@@ -215,7 +215,7 @@ describe('HistoricoDeBaixas', () => {
         '/api/baixas/1/dispensa': () => { dispensada = true; return respostaJson({ id: 9 }, 201) },
       }))
       const aoMudar = vi.fn()
-      roteador(<HistoricoDeBaixas carregar={carregar} versao={0} aoEstornar={() => {}} aoMudarAReposicao={aoMudar} />)
+      roteador(<HistoricoDeBaixas carregar={carregar} versao={0} aoEstornar={aoMudar} />)
       fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
       const form = screen.getByRole('form', { name: 'Não repor' })
       fireEvent.change(within(form).getByLabelText('Justificativa'), { target: { value: 'ok' } })
