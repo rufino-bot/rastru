@@ -467,3 +467,20 @@ que a §9 deixava para a Fase 3B e que a errata de 2026-09-24 não tinha respond
   como registrar perda, e uma regra escrita agora não teria código que a exercitasse. A conta da 3B
   já mantém contado como à espera o conjunto que perder parte dentro da Solda, porque conta pelo filho
   mais adiantado e arredonda para cima.
+
+## Errata — 2026-11-07, spec da Fase 5B-2
+
+Anexada sem reescrever o texto acima. Fonte: `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`. Responde a
+terceira pergunta da «Fase 5» da §9 e revê uma decisão da §3.6.
+
+- **§9, «Fase 5» — «se essas linhas preenchem `dbo.Perda.PedidoRetrabalhoId`» (C2):** o vínculo é **por baixa**, e não
+  por nó. Desde a 5B-1 a `dbo.Perda` é o registro da baixa, e não uma linha por nó, e a regra 27 do `01` recusava o
+  vínculo **por nó**, que continua recusado: as linhas do livro não ganham vínculo com o Retrabalho. Quem aponta o
+  Retrabalho é a baixa de `PerdaArmazem` ou `MortaEmProcesso` («reposta por») e, na baixa nova `Reaproveitado`, o
+  Retrabalho que recebeu a sobra. As outras perguntas da «Fase 5» (de qual Setor sai a parte que acompanha a perda e o
+  motivo da perda que sobe até a Peça do topo) foram respondidas pela spec da 5B-1.
+- **§3.6, o nó pronto «nasce aguardando coleta» (seção 3.1 da spec da 5B-2):** o `Pronto` vai para a **mesma posição
+  física** da sobra no Pedido original — `AguardandoColeta` (Setor e passo) ou `AguardandoMontagem` (Setor). A §3.6
+  descartou o pronto «nascer dentro do Setor de montagem» por ser movimento que ninguém fez e por ambiguidade de Setor;
+  as duas razões caem, porque a peça **está** lá, o Setor é o dela, e o Retrabalho copia os Roteiros. A sobra que já
+  estava entregue à montagem do pai não pode ser tratada como coleta sem inventar uma entrega.

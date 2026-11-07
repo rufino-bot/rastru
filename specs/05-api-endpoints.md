@@ -166,7 +166,10 @@ mesmo status HTTP para coisas diferentes.
   `GET /componentes`; `total` é contado com os mesmos filtros da página. Cada item traz `pausa`:
   `null`, ou `{ desde, porUsuarioNome, motivo }` quando há pausa aberta (regra 31). Cada item traz
   também `dataEntrega` (`"aaaa-mm-dd"`, sem hora nem fuso) e `atrasado` (regra 33, calculado no
-  servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`. Desde a Fase 5A cada
+  servidor); o mesmo vale para `GET /pedidos/{id}` e para as respostas de `POST` e `PUT`. Desde a Fase 5B-2 cada item
+  traz também `pedidoOrigem` (`{ id, numero }` do Pedido de que um Retrabalho nasceu, ou `null`), `motivoRetrabalho`
+  (só no Retrabalho) e `aRepor` (unidades de **Peça** que ainda faltam repor, regra 39, calculado no servidor e em
+  lote; zero no `POST /pedidos` e na abertura do Retrabalho, que acabam de nascer). Desde a Fase 5A cada
   item traz também `dataConclusao` (horário de Brasília, com o offset -03:00, como `dataAbertura`): a data da escrita que concluiu o Pedido, nula
   enquanto ele não conclui e limpa quando o estorno de uma remessa o reabre (regra 13; decisão P8 do plano de
   backend da Fase 5A). Os status `AguardandoExpedicao` e `Concluido`, que o filtro já oferecia, passam a ser
@@ -216,11 +219,11 @@ mesmo status HTTP para coisas diferentes.
 - `PUT /pedidos/{id}` *(PCP, Administrador)* — `{ numero, cliente, dataEntrega }`, substituição inteira,
   em qualquer status. Não existe `DELETE`:
   Pedido é documento e se corrige por edição
-- `POST /pedidos/{id}/retrabalhos` — cria um novo Pedido tipo Retrabalho vinculado.
-  Body: `{ motivoRetrabalho: 'ReprovacaoDimensional' | 'ErroInterno' | 'SolicitacaoCliente' | 'Perda', relatorioDimensionalAvaliacaoId?: number, perdaId?: number }`
-  *(Nota de 2026-10-21, Fase 5A: `relatorioDimensionalAvaliacaoId` deixou de ter a que apontar, porque
-  `RelatorioDimensionalAvaliacao` saiu do schema (regras 10 e 12 de `01`). Rota ainda não implementada: o
-  contrato é redesenhado na Fase 5B.)*
+- `POST /pedidos/{id}/retrabalhos` *(Qualidade, PCP, Administrador)* e `GET /pedidos/{id}/retrabalhos` *(qualquer perfil
+  autenticado)* — abrir o Pedido de Retrabalho de `{id}` e listar os que têm `{id}` como origem. **Implementadas na Fase
+  5B-2**; o contrato (corpo, portas, erros) está na seção «Reposição» abaixo. *(O corpo antigo desta rota, com
+  `relatorioDimensionalAvaliacaoId`, saiu: `RelatorioDimensionalAvaliacao` deixou de existir na Fase 5A, regras 10 e 12
+  de `01`.)*
 - `GET /pedidos/{id}/agrupamentos` *(qualquer perfil autenticado)*
 - `POST /pedidos/{id}/agrupamentos` *(PCP, Administrador)* — `{ codigo, tipo }`,
   `tipo ∈ Kit | Avulso`
@@ -1230,7 +1233,8 @@ da Execução.
 
 - `POST /estrutura/{id}/baixas` *(Qualidade, PCP, Administrador)* — dá baixa no nó `{id}`. Body: `{ motivo,
   observacao?, tudo, origens?: [{ posicao, setorId?, ordem?, quantidade }], incluirTopo? }`. `motivo` é
-  `PerdaArmazem`, `MortaEmProcesso` ou `Descarte` (C3); a `observacao` é aparada e vai até 500 caracteres.
+  `PerdaArmazem`, `MortaEmProcesso` ou `Descarte` (C3; o quarto motivo da tabela, `Reaproveitado`, é recusado aqui com
+  400 `MotivoInvalido`, porque só nasce pelo «Usar a sobra», seção «Reposição»); a `observacao` é aparada e vai até 500 caracteres.
   `tudo: true` exige `origens` ausente ou vazia e leva todo o saldo em produção do nó e dos descendentes (D11);
   `tudo: false` exige `origens` com pelo menos uma posição, sem repetir posição (400 `ItemRepetido`) e no máximo
   `TamanhoMaximoDoLote` (C18); a posição com Setor e passo leva `setorId` e `ordem`. `incluirTopo` (D13 e D14) leva
@@ -1245,12 +1249,17 @@ da Execução.
 - `POST /agrupamentos/{id}/descarte/previa` e `POST /pedidos/{id}/descarte/previa` — a prévia, `200`.
 - `POST /baixas/{id}/estorno` *(Qualidade, PCP, Administrador; e só o autor, se não for PCP nem Administrador, decidido
   pelo caso de uso com `403 Proibido`)* — estorna a baixa **inteira**: `200` com os movimentos de estorno
-  (`MovimentacaoDto[]`), inclusive os filhos que saíram junto (C6) e a Peça do topo.
+  (`MovimentacaoDto[]`), inclusive os filhos que saíram junto (C6) e a Peça do topo. **Desde a Fase 5B-2:** a baixa de
+  `PerdaArmazem` ou `MortaEmProcesso` que já tem Retrabalho ou «não repor» vigente é 409 `ReposicaoResolvida` (C20); a
+  baixa `Reaproveitado` se estorna por esta mesma rota, e o estorno desfaz também os `Pronto` do Retrabalho e a baixa
+  ligada da cascata (409 `ProntoJaAndou` se algum pronto já andou); e a baixa ligada, sozinha, é 409
+  `EstornoImpossivel`.
 - `GET /estrutura/{id}/baixas` *(qualquer perfil autenticado)* — as baixas com linha no nó ou num descendente, da mais
   recente para a mais antiga. `GET /pedidos/{id}/baixas` — todas as do Pedido, na mesma forma (C27). Sem `Roles`:
   leitura é de todos.
 - `POST /movimentacoes/{id}/estorno` **recusa** a linha de baixa com 409 `EstornoImpossivel` (C7), como a de contagem,
-  liberação e remessa.
+  liberação e remessa. Desde a 5B-2 recusa também a linha `Pronto` (409 `EstornoImpossivel`: ela sai com o estorno da
+  baixa `Reaproveitado`) e **aceita** a `Devolucao` do Retrabalho de consertar enquanto a quantidade não andou.
 - Desde a 5B-1, a posição **`Perdido`** aparece em todo `SaldoDto` e em todo `LocalDto` das rotas da Execução, e o tipo de
   movimento `Perda` nas linhas do livro.
 
@@ -1262,6 +1271,7 @@ da Execução.
   "escopo": { "tipo": "No" | "Agrupamento" | "Pedido", "id": 812 },
   "tudo": false, "dataHora": "2026-11-04T14:20:00-03:00", "usuarioId": 2, "usuarioNome": "Planejamento e Controle",
   "estornada": false, "estornavel": true,
+  "pedidoRetrabalho": { "id": 51, "numero": "P-1020-R1" } | null, "dispensa": DispensaDto | null, "aRepor": 0,   // 5B-2, ver «Reposição»
   "linhas": [ { "estruturaItemId": 812, "descricao": "Suporte lateral", "codigo": "SUP-114",
                 "origemPosicao": "AIniciar", "origemSetorId": null, "origemSetorNome": null, "origemOrdem": null,
                 "quantidade": 3 } ] }
@@ -1296,7 +1306,7 @@ A validação do corpo vem antes da transação; dentro dela a ordem é nó inex
 
 | Status | Código | Quando |
 |---|---|---|
-| 400 | `MotivoInvalido` | `motivo` fora dos três |
+| 400 | `MotivoInvalido` | `motivo` fora dos três (`Reaproveitado` inclusive, desde a 5B-2) |
 | 400 | `OrigemInvalida` | posição que não admite baixa (`AguardandoLiberacao`, `Montado`, `Expedido`, `Perdido`), Setor ou passo incoerente com a posição, `origens` com `tudo`, `origens` vazia sem `tudo`, ou `incluirTopo` onde não vale. Código da Execução, reusado |
 | 400 | `ItemRepetido` | a mesma origem duas vezes; código da Execução, reusado |
 | 400 | `TextoLongoDemais` | observação acima de 500 caracteres; código da Expedição, reusado |
@@ -1309,7 +1319,9 @@ A validação do corpo vem antes da transação; dentro dela a ordem é nó inex
 | 409 | `LiberacaoEmAberto` | "tudo" com unidade aguardando liberação (C15); a `mensagem` nomeia as Peças. Código da Expedição, reusado |
 | 409 | `PedidoFechado` | Pedido `Cancelado`; ou, num `Concluido`, baixa de uma Peça ou com motivo que não é `Descarte` (C12 e C24); estorno em Pedido `Cancelado`. Código da Execução, reusado |
 | 409 | `JaEstornado` | estorno de baixa já estornada (relido depois da trava); código da Execução, reusado |
-| 409 | `EstornoImpossivel` | a linha `Perda` por `POST /movimentacoes/{id}/estorno` |
+| 409 | `EstornoImpossivel` | a linha `Perda` por `POST /movimentacoes/{id}/estorno`; a baixa ligada da cascata do pronto, estornada sozinha (5B-2) |
+| 409 | `ReposicaoResolvida` | estorno da baixa de perda que já tem Retrabalho ou «não repor» vigente (5B-2, C20) |
+| 409 | `ProntoJaAndou` | estorno da baixa `Reaproveitado` cujo pronto já saiu do lugar em que foi posto (5B-2) |
 | 409 | `DiminuirPelaBaixa` | `PUT /estrutura/{id}` diminuindo a quantidade com o Pedido rodando (seção "Estrutura") |
 | 409 | `ConflitoDeConcorrencia` | deadlock repetido até o esgotamento das 3 tentativas; nada foi gravado. Código da Execução, reusado |
 
@@ -1317,6 +1329,124 @@ Casos de **concorrência**, com teste: duas baixas simultâneas da mesma posiç�
 um 409 `SaldoInsuficiente`, nunca 500 nem saldo negativo; a baixa e o início do pai sobre o mesmo "a iniciar" se
 serializam, e quem chega depois vê o saldo novo; dois estornos simultâneos da mesma baixa dão um 200 e um 409
 `JaEstornado`. A pausa do Pedido **não** recusa a baixa (regra 31).
+
+## Reposição (Retrabalho, reclamação e sobra)
+
+Fase 5B-2 (spec `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`, seção 5; regra 39 de
+`01-dominio-e-regras-de-negocio.md`). Quatro controllers, um por conjunto de perfis (decisão P1 do plano de backend da
+fase). Todas as escritas correm na transação da execução, travando os nós e depois os Pedidos (seção 8.1 da spec da Fase
+3); o corpo de erro é o `{ erro, mensagem }` da Execução, e o `404` e o `403` do `[Authorize(Roles)]` vão **sem corpo**.
+
+| Rota | O que faz | Quem |
+|---|---|---|
+| `POST /pedidos/{id}/retrabalhos` | abre o Retrabalho de `{id}` (o original); `201` com o `PedidoDto` do Retrabalho | Qualidade, PCP, Administrador |
+| `GET /pedidos/{id}/retrabalhos` | os Retrabalhos que têm `{id}` como origem e o número sugerido para o próximo | qualquer perfil autenticado |
+| `GET /pedidos/{id}/sobra-reaproveitavel` | a prévia do «Usar a sobra» (`{id}` = o **Retrabalho**), sem gravar | PCP, Administrador |
+| `POST /pedidos/{id}/sobra-reaproveitada` | usa a sobra (`{id}` = o Retrabalho); `201` com a `BaixaDto` da baixa `Reaproveitado`, que é do original | PCP, Administrador |
+| `POST /pedidos/{id}/reclamacoes` | registra a reclamação do cliente; `201` com a `ReclamacaoDto` | Qualidade, PCP, Administrador |
+| `GET /pedidos/{id}/reclamacoes` | as reclamações do Pedido, a mais recente primeiro | qualquer perfil autenticado |
+| `POST /reclamacoes/{id}/estorno` | estorna o registro; `200` com a `ReclamacaoDto` | Qualidade, PCP, Administrador; o autor, ou PCP e Administrador (`403 Proibido` do caso de uso) |
+| `POST /baixas/{id}/dispensa` e `POST /reclamacoes/{id}/dispensa` | «não repor»; `201` com a `DispensaDto` | PCP, Administrador |
+| `POST /dispensas/{id}/estorno` | desfaz o «não repor»; `204` | PCP, Administrador |
+
+O estorno da baixa `Reaproveitado` é o da baixa (`POST /baixas/{id}/estorno`, seção «Baixas»), e o do `Pronto` isolado
+não existe. A `Devolucao` do Retrabalho de consertar se estorna por `POST /movimentacoes/{id}/estorno`. As rotas de
+leitura de baixas (`GET /estrutura/{id}/baixas`, `GET /pedidos/{id}/baixas`) não listam o `Pronto` do Retrabalho como
+linha da baixa: ele é do Retrabalho, e a baixa `Reaproveitado` lista só as linhas `Perda` dela.
+
+### Contrato JSON da reposição
+
+```jsonc
+// POST /api/pedidos/{id}/retrabalhos   ({id} = o original)  -> 201 PedidoDto (o Retrabalho)
+// No máximo uma porta: `perdaId` (a baixa), `reclamacaoId` (com `destino`) ou nenhuma das duas (avulsa).
+{ "perdaId": 7 | null, "reclamacaoId": 3 | null,
+  "estruturaItemId": 812 | null, "quantidade": 2 | null,            // só na avulsa: uma Peça do original
+  "destino": "Consertar" | "Refazer" | null, "setorId": 4 | null,   // só na reclamação; `setorId` só no Consertar
+  "numero": "P-1020-R1", "dataEntrega": "2026-12-01" | null,         // nula: a do original (C7)
+  "motivoRetrabalho": "ReprovacaoDimensional" | "ErroInterno" | "SolicitacaoCliente" | "Perda" }
+
+// GET /api/pedidos/{id}/retrabalhos -> 200 (do mais antigo ao mais novo)
+{ "numeroSugerido": "P-1020-R2",
+  "retrabalhos": [ { "id": 51, "numero": "P-1020-R1", "motivoRetrabalho": "Perda", "status": "Aberto",
+                     "dataEntrega": "2026-12-01", "origem": { "tipo": "Baixa" | "Reclamacao" | "Avulsa", "id": 7 | null } } ] }
+
+// PedidoDto ganha (no fim): "pedidoOrigem": { "id": 40, "numero": "P-1020" } | null,
+//                           "motivoRetrabalho": "Perda" | null, "aRepor": 0     // unidades de Peça (C1)
+
+// BaixaDto ganha: "pedidoRetrabalho": { "id": 51, "numero": "P-1020-R1" } | null,
+//                 "dispensa": DispensaDto | null, "aRepor": 0
+// DispensaDto:    { "id": 2, "justificativa": "...", "dataHora": "...", "usuarioId": 3, "usuarioNome": "..." }
+
+// POST /api/pedidos/{id}/reclamacoes   { "estruturaItemId": 812, "quantidade": 1, "descricao": "..." } -> 201 ReclamacaoDto
+// ReclamacaoDto: { "id", "pecaId", "descricao" /* o nome da Peça, regra 19 */, "codigo", "quantidade",
+//                  "texto" /* o que o cliente disse */, "dataHora", "usuarioId", "usuarioNome", "estornada",
+//                  "estornavel", "pedidoRetrabalho": { "id", "numero" } | null, "dispensa": DispensaDto | null,
+//                  "aRepor": 0 }
+
+// POST /api/baixas/{id}/dispensa e POST /api/reclamacoes/{id}/dispensa   { "justificativa": "..." } -> 201 DispensaDto
+
+// GET /api/pedidos/{id}/sobra-reaproveitavel   ({id} = o Retrabalho) -> 200, de cima para baixo
+{ "itens": [ { "estruturaItemId": 77, "descricao": "...", "codigo": "...", "posicao": "AguardandoColeta",
+               "setorId": 3, "setorNome": "Dobra", "ordem": 2, "sobra": 2, "precisa": 4, "sugerido": 2 } ] }
+
+// POST /api/pedidos/{id}/sobra-reaproveitada   -> 201 BaixaDto (a baixa `Reaproveitado`, no original)
+{ "itens": [ { "estruturaItemId": 77, "posicao": "AguardandoColeta", "setorId": 3, "ordem": 2, "quantidade": 2 } ] }
+```
+
+- **`estruturaItemId` da prévia e do corpo do «Usar a sobra» é o nó do Retrabalho** (o que recebe o pronto); `sobra` é a
+  sobra viva do nó de origem naquela posição no original, `precisa` o que o nó do Retrabalho ainda pode receber de
+  pronto antes dessa posição e `sugerido` o menor dos dois. Os `itens` do corpo vão no máximo até
+  `TamanhoMaximoDoLote`.
+- **`aRepor`** conta **unidades de Peça** (C1) e é calculado no servidor: a tela não recalcula. Na baixa e na
+  reclamação é a quantidade a repor daquela linha (zero se estornada, reposta, dispensada, ou se a baixa é de
+  `Descarte` ou `Reaproveitado`); no Pedido é a soma.
+- **`estornavel`** da reclamação é verdadeiro quando ela não foi estornada e o leitor é o autor, o PCP ou o Administrador;
+  a recusa por já ter Retrabalho ou dispensa continua sendo o 409 `ReposicaoResolvida` na escrita. Na baixa, a ligada da
+  cascata do pronto vem com `estornavel: false`.
+
+### Contrato de erro da reposição
+
+Formato `{ erro, mensagem }` do «Contrato de erro da Execução». As frases que nomeiam um nó usam o nome da regra 19. A
+validação do corpo vem antes da transação; dentro dela, as recusas que dependem do estado são lidas **depois** das
+travas (decisões P5 e P6 do plano de backend). O número repetido na abertura responde o mesmo 409 do cadastro de
+Pedido (`ValorDuplicado`, com o campo e o Pedido que já o tem).
+
+| Status | Código | Quando |
+|---|---|---|
+| 400 | `PortaInvalida` | abertura com `perdaId` e `reclamacaoId` juntos; Peça, quantidade ou destino fora da porta que o corpo escolheu; ou nenhuma porta sem `estruturaItemId` |
+| 400 | `DestinoInvalido` | reclamação sem `destino` `Consertar` (com `setorId`) ou `Refazer` (sem) |
+| 400 | `MotivoInvalido` | `motivoRetrabalho` fora dos quatro; no «Dar baixa», o motivo `Reaproveitado`. Código da Baixa, reusado |
+| 400 | `NumeroObrigatorio` | número do Retrabalho em branco |
+| 400 | `DescricaoObrigatoria` | texto da reclamação em branco (aparado) |
+| 400 | `JustificativaObrigatoria` | justificativa do «não repor» em branco; código da Expedição, reusado |
+| 400 | `TextoLongoDemais` | texto acima de 500 caracteres (reclamação e justificativa); código da Expedição, reusado |
+| 400 | `QuantidadeInvalida` | quantidade ≤ 0 ou fora da coluna, na avulsa, na reclamação e nas linhas do «Usar a sobra»; código da Execução, reusado |
+| 400 | `NaoEhPeca` | reclamação ou avulsa sobre um Item; código da Expedição, reusado |
+| 400 | `SetorInvalido` | Setor do conserto inexistente ou inativo; código da Expedição, reusado |
+| 400 | `PosicaoDoProntoInexistente` | posição ausente ou desconhecida no corpo, ou que o Roteiro copiado do nó não tem |
+| 400 | `ItemRepetido` | a mesma posição do mesmo nó duas vezes no «Usar a sobra»; código da Execução, reusado |
+| 400 | `LoteVazio`, `LoteGrandeDemais` | `itens` vazio ou acima de `TamanhoMaximoDoLote`; códigos da Execução, reusados |
+| 403 | `Proibido` | estorno de reclamação alheia por quem não é PCP nem Administrador; código da Execução, reusado |
+| 404 | — | Pedido, baixa, reclamação ou dispensa inexistente; baixa ou reclamação que não é do Pedido `{id}`; `{id}` que não é um Retrabalho no «Usar a sobra»; nó que não é do Retrabalho |
+| 409 | `JaReposto` | a baixa ou a reclamação já tem Retrabalho (um por alvo, D9), na abertura ou no «não repor» |
+| 409 | `ReposicaoDispensada` | abrir Retrabalho, ou dispensar de novo, onde há «não repor» vigente |
+| 409 | `SemPecaARepor` | baixa de `Descarte` ou `Reaproveitado`, sem Peça levada ou estornada; reclamação estornada |
+| 409 | `ReposicaoResolvida` | estorno da reclamação, ou da baixa de perda, que já tem Retrabalho ou «não repor» vigente (C20) |
+| 409 | `AbaixoDoReclamado` | estorno de remessa que deixaria o expedido de uma Peça abaixo do que o cliente já reclamou dela (C20) |
+| 409 | `SaldoInsuficiente` | reclamação acima do expedido menos o já reclamado; pronto acima do «a iniciar» do nó. Código da Execução, reusado |
+| 409 | `AlemDaSobra` | pronto acima da sobra viva do nó de origem naquela posição (C19) |
+| 409 | `AlemDoQueOPaiPrecisa` | pronto acima do que o pai ainda pede depois do pronto dele; código da Execução, reusado |
+| 409 | `RetrabalhoForaDeAberto` | prévia ou «Usar a sobra» num Retrabalho que já começou (C11, C12) |
+| 409 | `PedidoFechado` | «Usar a sobra» com o original `Cancelado`, ou o estorno dela com um dos dois Pedidos `Cancelado`; código da Execução, reusado |
+| 409 | `JaEstornado` | estorno de reclamação, de dispensa ou de baixa já estornada; código da Execução, reusado |
+| 409 | `ProntoJaAndou` | estorno da baixa `Reaproveitado` cujo pronto já andou |
+| 409 | `EstornoImpossivel` | o `Pronto`, ou a baixa ligada da cascata, estornados sozinhos; código da Execução, reusado |
+| 409 | `ConflitoDeConcorrencia` | deadlock repetido até o esgotamento das 3 tentativas; nada foi gravado. Código da Execução, reusado |
+
+Casos de **concorrência**, com teste: duas aberturas simultâneas do mesmo alvo dão um 201 e um 409 (`JaReposto`); a
+abertura e o «não repor» do mesmo alvo, em paralelo, deixam só um dos dois (a abertura trava o Pedido original e relê o
+alvo depois, decisão P5); e o «Usar a sobra» e o descarte da mesma sobra dão um 201 e um 409, seja qual vier primeiro
+(decisão P6): `AlemDaSobra` se o descarte chega antes, `SaldoInsuficiente` se o descarte chega depois.
 
 ## KPIs
 

@@ -132,8 +132,10 @@
     (`PedidoOrigemId`), com um `MotivoRetrabalho` categorizado: `ReprovacaoDimensional`, `ErroInterno`,
     `SolicitacaoCliente` ou `Perda`. **Nota (2026-10-20, Fase 5A):** o vínculo que a regra dava ao
     Retrabalho — a avaliação que o originou (`RelatorioDimensionalAvaliacao.PedidoRetrabalhoId`) — **deixou
-    de existir**, porque a avaliação por remessa deixou de existir (regra 10). Como o Retrabalho se liga à
-    reclamação do **cliente** (`SolicitacaoCliente`, depois de ele receber) é redesenhado na Fase 5B-2.
+    de existir**, porque a avaliação por remessa deixou de existir (regra 10). **Fechado na Fase 5B-2:** o Retrabalho
+    se liga à reclamação do **cliente** (`SolicitacaoCliente`, depois de ele receber a Peça) por
+    `Reclamacao.PedidoRetrabalhoId`, e a abertura, a cópia e o que falta repor são a regra 39 (D4 e D5 da spec da
+    Fase 5B-2, `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`).
 13. Uma Peça está **concluída** quando nada dela está mais em produção — toda a quantidade
     virou expedido (a posição `Expedido` do livro) **ou** perdido (a posição `Perdido`, por uma baixa; regra 38). Um Agrupamento
     conclui quando todas as suas Peças concluem (`Agrupamento.DataConclusao`), e um Pedido conclui quando o
@@ -183,7 +185,12 @@
     Movimentador ao entregar, são **chegada** no Setor (a peça pode esperar antes de começar).
     Separar fila de execução dentro do Setor é decisão da Fase 6. **Alterada em 2026-09-24**
     (spec da Fase 3): antes, o início vinha de `EstruturaSetorHistorico.DataEntrada`, tabela que
-    o livro de movimentações substituiu.
+    o livro de movimentações substituiu. **Fase 5B-2 (C11 e C13 da spec):** a `Devolucao` — a peça devolvida
+    pelo cliente que entra em conserto no Retrabalho — **conta como início**, e o Retrabalho de consertar passa a
+    `EmProducao` na abertura, com o início real na data da devolução; o `Pronto` **não conta**, porque é a peça
+    que já existia e não fabricação nova, e não tira o Retrabalho de `Aberto` (regra 28). Estornada a `Devolucao`
+    pela rota genérica, o Retrabalho fica `EmProducao`, como com qualquer estorno de `Inicio`, e com a Peça a
+    iniciar (regra 39).
 15. Cada Usuário tem um Perfil (Operador, Separador, Movimentador, PCP, Qualidade, Gestão,
     Administrador) que restringe quais telas e ações ele acessa. O **Movimentador** entrou pela
     decisão de 2026-09-15 (regra 22) e passa a existir no sistema na Fase 3. O **Separador** é o
@@ -212,9 +219,14 @@
 17. Uma **perda** registra baixa de quantidade em produção (`PerdaArmazem`, `MortaEmProcesso` ou
     `Descarte`), levando a quantidade à posição terminal `Perdido`. Pode ser registrada em
     **qualquer** `EstruturaItem`, Peça ou Item. Para repor, abre-se um Pedido de Retrabalho
-    separado (`MotivoRetrabalho='Perda'`, Fase 5B-2) — **nunca** reabre a Peça original. Como na reprovação,
+    separado (`MotivoRetrabalho='Perda'`, Fase 5B-2, regra 39) — **nunca** reabre a Peça original. Como na reprovação,
     registrar a perda **não** abre retrabalho automaticamente. `Descarte` é a sobra que nunca foi
-    usada (regras 25 e 30) e o que saiu do projeto do cliente, e não se repõe. Quando a perda de uma parte impede
+    usada (regras 25 e 30) e o que saiu do projeto do cliente, e não se repõe. **O vínculo com o Retrabalho é por
+    baixa, não por nó** (C2 da spec da Fase 5B-2): `Perda.PedidoRetrabalhoId` é o Retrabalho que repõe a baixa de
+    `PerdaArmazem` ou `MortaEmProcesso` (ou o que recebeu a sobra, na baixa `Reaproveitado`) e nunca é preenchido na de
+    `Descarte`. Há um quarto motivo, **`Reaproveitado`** ("foi para o Retrabalho"): a sobra que sai do Pedido original
+    como pronto do Retrabalho (regra 27). Ele só nasce pelo "Usar a sobra", nunca pelo "Dar baixa" (400
+    `MotivoInvalido`), não se repõe e não acende o "a repor". Quando a perda de uma parte impede
     montar o pai, vale a regra 27. **Como a perda é registrada** — a rota, as três formas, quem pode, de onde
     sai, o estorno — é a regra 38.
 
@@ -414,7 +426,7 @@ entra no início de cada fase.*
       novo: a igualdade entre o que saiu de "a iniciar" e o total montado não valia para ele, e a
       saída dele podia passar do total montado. Se todo início do nó for estornado, ele volta a
       aceitar filho. A guarda é a resposta da 3B; o tratamento de estrutura alterada no meio da
-      produção fica para a Fase 5.
+      produção fica para a **Fase 5C** (D6 da spec da Fase 5B-2, que passou o assunto adiante).
     - A ordem de baixo para cima é consequência, não cálculo: um nó intermediário só existe no
       Setor depois de montado, então o pai dele só monta depois.
 25. **Conjunto completo.** Um Kit pode ir à Solda em parte do pai (os conjuntos de 7 de 10), mas
@@ -444,6 +456,23 @@ entra no início de cada fase.*
       próprio Roteiro, nem para o nó com filhos que volta a ela para seguir o próprio Roteiro: eles
       entram no Setor para ser trabalhados, não para a montagem do pai, e não contam como à espera. A Peça de Kit não tem pai e segue para o local de expedição como as
       outras.
+    - **O conjunto em formação do pronto (D8 da spec da Fase 5B-2; decisão P4 do plano de backend da fase).** No
+      **Retrabalho**, o que um `Pronto` pôs em `AguardandoMontagem` (regra 27) é um conjunto **em formação**: a sobra
+      de um filho que já estava na Solda do original, sem o irmão. Pela conta de sempre ela entraria nos conjuntos à
+      espera, o teto de entrada do pai cairia a zero e o irmão fabricado nunca entraria. A regra: para o pai que recebe
+      em conjunto e tem algum filho que chegou à montagem por um `Pronto`, os **conjuntos em formação que contam** são
+      `min(ConjuntosAEspera − completos, max(0, FaltaMontar − completos))`, em que `completos` é o menor, entre os
+      filhos diretos, de ⌊espera do filho ÷ `QuantidadePorPai`⌋ — o limite pelo que o pai ainda precisa é a letra desta
+      regra (nunca além do necessário), e o excesso aparece quando o pai perde "a iniciar" depois do pronto. A entrega
+      de um irmão aceita, **além dos conjuntos completos de sempre** (até o teto), o **complemento**
+      `max(0, (completos + conjuntos em formação que contam) × QuantidadePorPai − espera do filho)`. O complemento já
+      está contado na espera, então não ocupa o teto, e não passa do que o pai ainda precisa. Se há conjunto completo
+      ao lado do conjunto em formação, o complemento é o que falta para os dois: contar só os que estão em formação
+      daria zero. O complemento sai do "pronto" do cartão do Kit das Tarefas e aparece como coleta avulsa, para a
+      mesma unidade não ser oferecida duas vezes. Fora do Retrabalho nada muda: o Pedido de fabricação nunca tem
+      `Pronto`, e a regra só vale para o pai com `Pronto` em montagem. **O sinal "tem `Pronto` em montagem" vem do
+      livro e não se desliga depois da montagem**; a parte que se perde dentro da Solda continua sendo o caso da Fase
+      5C, como a espera desalinhada abaixo.
     - **Limitação conhecida (D4 e D5 da spec da Fase 3B).** A espera pode ficar **desalinhada**
       entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um filho de razão 4 e
       1 de um filho de razão 1. Contada pelo filho mais adiantado (⌈7 ÷ 4⌉ = 2), a espera leva o
@@ -476,13 +505,23 @@ entra no início de cada fase.*
     dar baixa delas junto; a baixa inteira se estorna junto (D13 e D14 da spec da 5B-1). A reposição é um Pedido
     de Retrabalho (regra 17), **aberto** por quem registra a perda (Qualidade ou PCP) e **cadastrado** pelo PCP
     para a Peça faltante, em que o que já existe é marcado **pronto** — só dentro da árvore daquela unidade; o
-    resto continua no Pedido original. **O Retrabalho e o nó pronto são da Fase 5B-2.**
+    resto continua no Pedido original. **O Retrabalho e o nó pronto são da Fase 5B-2 (regra 39).**
     - Nó **pronto** não percorre Roteiro: folha pronta já foi fabricada; nó com filhos pronto já
-      foi montado (total montado = quantidade, e os filhos nem precisam existir no Retrabalho).
-    - Nó pronto nasce **aguardando coleta** e é levado normalmente (regra 22).
-    - As partes saem do original como perda, sem vínculo por nó com o Retrabalho: o Retrabalho já
-      nasce ligado ao original (`PedidoOrigemId`, `MotivoRetrabalho = 'Perda'`), e confrontar os
-      dois mostra o destino do saldo — perdido ou descartado de fato, ou reposto e expedido depois.
+      foi montado (o `Pronto` soma ao total montado dele, C17 da spec da Fase 5B-2, e os filhos nem precisam
+      existir no Retrabalho). O `FaltaMontar`, as Tarefas, a sobra, o teto do Kit e a cascata da baixa seguem dele.
+    - **Pronto é quantidade, não marca** (D2), e entra por um tipo de movimento do livro, o `Pronto`, de `AIniciar`
+      para a **mesma posição física** da sobra no original — `AguardandoColeta` (Setor e passo) ou
+      `AguardandoMontagem` (Setor) —, e é levado normalmente (regra 22) quando está aguardando coleta. *Revisão da
+      letra desta regra (seção 3.1 da spec da Fase 5B-2):* ela dizia que o pronto "nasce aguardando coleta", e a
+      sobra da regra 30 também está **entregue à montagem do pai**; a peça está lá, e o Setor é o dela, então as duas
+      razões com que a spec do Kit descartou o pronto dentro do Setor de montagem (movimento que ninguém fez,
+      ambiguidade de Setor) deixam de valer. Como o Retrabalho copia os Roteiros, o Setor e o passo existem nele; se
+      o PCP editou o Roteiro e a posição já não existe, o "Usar a sobra" recusa aquele nó (400
+      `PosicaoDoProntoInexistente`).
+    - As partes saem do original como perda, **ligadas ao Retrabalho por baixa** (regra 17, C2), e não por nó: o
+      Retrabalho já nasce ligado ao original (`PedidoOrigemId`, `MotivoRetrabalho = 'Perda'`), e confrontar os
+      dois mostra o destino do saldo — perdido ou descartado de fato, ou reposto e expedido depois. As linhas do
+      livro (`Perda`, `Pronto`) **não** ganham vínculo com o Retrabalho: quem aponta é a baixa.
     - As partes **fisicamente existentes** daquela unidade (num Setor, aguardando coleta ou montagem) **não saem
       sozinhas**: ficam onde estão e viram sobra pelo cálculo de sempre (regra 30) — é delas que a 5B-2 tira o que
       marca **pronto**.
@@ -501,7 +540,10 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que entrou na Fase 5B-1 (
     primeira entrada **exige Roteiro**; nó sem Roteiro é pendência do PCP, que edita o Roteiro de
     qualquer nó (regra 7). Depois que o nó começa a andar,
     os passos já alcançados são histórico e não se editam. O Pedido passa a `EmProducao` na primeira
-    entrada de qualquer nó dele.
+    entrada de qualquer nó dele. **O `Pronto` do Retrabalho não é entrada do operador** (C11 da spec da Fase
+    5B-2): põe a quantidade numa posição que a fabricação já alcançou, mas é a peça que já existia, e por isso não
+    tira o Pedido de `Aberto` nem conta como início (regra 14). A `Devolucao` do Retrabalho de consertar é a
+    exceção declarada: conta como início.
 29. **O fim do Roteiro.** O que termina um passo que não é o último vai para o próximo passo, sem
     escolha. O que termina o **último** passo aguarda coleta com um destino que depende do nó:
     - **Item** — a montagem do pai, **no primeiro passo do Roteiro dele**, levada pelo Movimentador
@@ -705,7 +747,9 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
 38. **A baixa: perda e descarte, e o livro de baixas é só de inclusão.** Uma **baixa** tira quantidade de
     produção e a leva à posição terminal `Perdido`, com **um** motivo para a baixa inteira — `PerdaArmazem` ("sumiu
     no armazém"), `MortaEmProcesso` ("morreu num processo") ou `Descarte` (a quantidade não vai ser usada: a sobra
-    da regra 30 ou o que saiu do projeto do cliente; não se repõe). Grava **uma** `dbo.Perda` (o registro: motivo,
+    da regra 30 ou o que saiu do projeto do cliente; não se repõe) — e, desde a Fase 5B-2, **`Reaproveitado`**
+    ("foi para o Retrabalho", C4 da spec da 5B-2), que o "Dar baixa" recusa (400 `MotivoInvalido`) e só o "Usar a sobra"
+    grava (regra 39). Grava **uma** `dbo.Perda` (o registro: motivo,
     observação opcional de até 500 caracteres, escopo, `Tudo`, autor da sessão e hora) e **uma linha `Perda` do
     livro por nó e por posição de origem**, apontando-a. Como o livro, a baixa **não se edita**: corrige-se por
     estorno, e a quantidade cadastrada do nó não muda (regra 9).
@@ -753,7 +797,8 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       tudo por `Descarte`** não tem trava e o recusa (o filho sai do projeto e deixa de travar o pai, C22), assim como a
       baixa numa Peça: nesses dois casos é 400 `OrigemInvalida`.
     - **"Matar" a não conforme** (D6, C16): baixa da Peça com origem `NaoConforme` e motivo `MortaEmProcesso`. Sai do
-      expedível e conta para o fechamento (regra 13). Refazer é um Pedido de Retrabalho à parte (5B-2).
+      expedível e conta para o fechamento (regra 13). Refazer é um Pedido de Retrabalho à parte, aberto da própria
+      baixa (regra 39; C5 da spec da 5B-2 sugere o motivo `ReprovacaoDimensional`).
     - **Prévia do servidor** (C14): uma rota calcula o que a baixa gravaria — as linhas por nó e posição, `viramSobra`
       e `travaNoTopo` — **sem gravar e sem travar**, com as mesmas recusas; a conta é a mesma da escrita.
     - **Estorno** (C7 a C10): a baixa se estorna **inteira**, pela rota dela, com um `Estorno` por linha de `Perdido`
@@ -762,7 +807,11 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       terminal); recusado só se já estornada (409 `JaEstornado`), e em Pedido `Cancelado` (409 `PedidoFechado`);
       num `Concluido` é aceito e reabre o que a baixa concluiu. `POST /movimentacoes/{id}/estorno` recusa a linha
       `Perda` (409 `EstornoImpossivel`), como a da remessa. A baixa e o estorno recalculam o fechamento na mesma
-      transação (regra 13).
+      transação (regra 13). **Desde a Fase 5B-2 (C20 e decisão P2 do plano de backend):** a baixa de `PerdaArmazem`
+      ou `MortaEmProcesso` que já tem Retrabalho, ou "não repor" vigente, **não se estorna** (409
+      `ReposicaoResolvida`; desfaz-se a dispensa antes, e a abertura do Retrabalho não se estorna, regra 39); a baixa
+      `Reaproveitado` tem estorno próprio, que desfaz junto os `Pronto` do Retrabalho e a baixa ligada da cascata
+      (regra 39); e essa baixa ligada nunca se estorna sozinha (409 `EstornoImpossivel`).
     - **Concorrência.** A baixa trava, em ordem crescente de `Id`, **a árvore inteira da Peça do topo do nó**, e só
       depois o Pedido; o "Descartar tudo" de Agrupamento ou Pedido trava a **união** das árvores de todas as Peças dele.
       Duas baixas simultâneas da mesma posição que somadas passam do saldo dão um 201 e um 409 `SaldoInsuficiente`,
@@ -772,6 +821,87 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       de um filho foi engano, o estorno o traz de volta à conta; na baixa de parte, o planejado do material do nó
       **não se reescala** (C26, a mesma dívida da edição de quantidade). A lista do Separador e o resumo de material
       da Fila deixam de mostrar o nó **perdido ou descartado por inteiro** (perdido igual à quantidade dele).
+
+*A regra 39 foi decidida em 2026-11-05 e 2026-11-06, na spec da Fase 5B-2
+(`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`; as decisões do usuário são D1 a D9 e as chamadas do
+desenho, C1 a C20), e é implementada no backend da 5B-2.*
+
+39. **Reposição: o Retrabalho repõe o que o cliente deixou de receber, e o original nunca muda por isso.**
+    - **O que falta repor** (C1, C3, C16). O servidor calcula, na leitura (`aRepor`, em unidades de **Peça**, nunca
+      de Item): a soma das unidades da Peça do topo que saíram por uma baixa de `PerdaArmazem` ou `MortaEmProcesso`
+      **não estornada**, mais a soma das `Quantidade` das reclamações **não estornadas**, em ambos os casos só das que
+      ainda **não têm Retrabalho nem "não repor" vigente**. A perda de um Item que não trava a montagem não acende
+      nada; a que trava acende pela Peça do topo que a mesma baixa leva (`incluirTopo`, regra 38). `Descarte` e
+      `Reaproveitado` nunca acendem. A decisão vale para a baixa ou a reclamação **inteira**: ou ganha **um**
+      Retrabalho, ou ganha um "não repor"; quem quer repor menos abre o Retrabalho e diminui a quantidade nele, e o
+      Retrabalho "cobre" o alvo inteiro mesmo assim (C3, D9).
+    - **Abrir o Retrabalho** (`POST /pedidos/{id}/retrabalhos`, `{id}` = o original; a Qualidade, o PCP e o
+      Administrador). Três portas, uma por vez (400 `PortaInvalida`): a **baixa** (`perdaId`: copia a Peça do topo
+      que ela levou, nas unidades que levou; só baixa de `PerdaArmazem`/`MortaEmProcesso`, sem Peça levada é 409
+      `SemPecaARepor`), a **reclamação** (`reclamacaoId`, com `destino` `Consertar` e `setorId`, ou `Refazer`, 400
+      `DestinoInvalido`) e a **avulsa** (uma Peça do original e a quantidade, sem vínculo). O motivo é um dos quatro
+      da regra 12 (a tela sugere pela origem, C5) e o número é obrigatório (400 `NumeroObrigatorio`), único como o de
+      qualquer Pedido; o servidor sugere `<número do original>-R{k}`, o menor `k` livre. O cliente vem do original e a
+      data de entrega, por padrão, a do original (C7, regra 33). Numa transação cria o Pedido `Retrabalho` (`Aberto`,
+      com `PedidoOrigemId` e `MotivoRetrabalho`), **um** Agrupamento com o código e o Tipo (Kit/Avulso) do da Peça
+      original, a cópia e o vínculo (`Perda.PedidoRetrabalhoId` ou `Reclamacao.PedidoRetrabalhoId`). Baixa ou
+      reclamação que já tem Retrabalho é 409 `JaReposto` (um por alvo, D9); com "não repor" vigente, 409
+      `ReposicaoDispensada`; estornada, 409 `SemPecaARepor`. Duas aberturas simultâneas dão um 201 e um 409, porque a
+      abertura trava o Pedido original e relê o alvo depois (decisão P5 do plano de backend). **Não há estorno da
+      abertura**: aberto por engano, o Retrabalho se descarta (regra 38) e o vínculo fica. Retrabalho de Retrabalho vale e
+      não tem regra própria (C8).
+    - **A cópia da árvore** (D1). A Peça do Retrabalho tem a quantidade escolhida N; cada descendente tem
+      `N × o produto das QuantidadePorPai` do caminho até ele — a quantidade que N unidades pedem, não a do original —,
+      e os materiais planejados se reescalam pela mesma razão. Roteiros, `ComponenteId`, `Descricao`, `QuantidadePorPai`
+      e `RequerRelatorioDimensional` copiam-se. O nó que **saiu do projeto** (baixa `tudo` de `Descarte` não estornada,
+      regra 38) fica de fora, com a árvore abaixo dele. Todo nó copiado guarda `OrigemEstruturaItemId` (C14), que liga
+      a sobra do original ao nó do Retrabalho e sobrevive à edição, e nasce **a iniciar** (regra 28). O Retrabalho é
+      **editável** como qualquer Pedido `Aberto`, pelo PCP (C6).
+    - **Usar a sobra** (D2, C4, C11, C12, C17 a C19). `GET /pedidos/{id}/sobra-reaproveitavel` (a prévia, sem gravar) e
+      `POST /pedidos/{id}/sobra-reaproveitada`, com `{id}` = o **Retrabalho**; o PCP e o Administrador, e só com o
+      Retrabalho `Aberto` (409 `RetrabalhoForaDeAberto`). A prévia lista, para cada nó do Retrabalho com origem, a
+      **sobra viva** do nó de origem (regra 30) por posição e sugere, de cima para baixo, `min(sobra, o que o nó ainda
+      precisa)`. Confirmar grava, numa transação, **uma baixa `Reaproveitado` no original** (uma linha `Perda` por nó e
+      posição, apontando o Retrabalho) e, no Retrabalho, **um `Pronto` por linha** para a mesma posição física (regra
+      27), apontando a baixa. Recusas: além da sobra viva da posição, 409 `AlemDaSobra` (o servidor limita, C19);
+      além do "a iniciar" do nó, 409 `SaldoInsuficiente`; além do que o pai ainda pede depois do pronto dele, 409
+      `AlemDoQueOPaiPrecisa`; posição que o Roteiro copiado não tem, 400 `PosicaoDoProntoInexistente`. O `Pronto` de
+      nó com filhos conta como montado (regra 27) e **os filhos a iniciar que ele dispensa saem por baixa**, não por
+      exclusão: a cascata da regra 38 corre no Retrabalho, numa segunda baixa de `Descarte` ligada à
+      `Reaproveitado` por `Perda.PerdaDeOrigemId` (C18, decisão P2 do plano de backend). Pode-se usar a sobra mais de
+      uma vez enquanto o Retrabalho estiver `Aberto` (C12). O original `Concluido` aceita a baixa (a sobra é de Item,
+      como o `Descarte` da regra 13); o `Cancelado`, 409 `PedidoFechado`. **Estorno**: pela rota da baixa
+      `Reaproveitado`, inteiro, desfazendo os `Pronto` e a baixa ligada; recusado se algum pronto já andou (409
+      `ProntoJaAndou`). O `Pronto` isolado não se estorna pela rota genérica (409 `EstornoImpossivel`).
+    - **Não repor** (D3, C15). O PCP ou o Administrador, com **justificativa obrigatória** (aparada, 400
+      `JustificativaObrigatoria`; até 500 caracteres, 400 `TextoLongoDemais`), tiram a baixa ou a reclamação do "a
+      repor" (`POST /baixas/{id}/dispensa`, `POST /reclamacoes/{id}/dispensa`); desfazer é `POST /dispensas/{id}/estorno`
+      e deixa rastro (`dbo.DispensaDeReposicao` é só de inclusão; no máximo uma vigente por alvo). Recusado se o alvo
+      já tem Retrabalho (409 `JaReposto`), já tem dispensa vigente (409 `ReposicaoDispensada`) ou não tem Peça a repor
+      (409 `SemPecaARepor`: baixa de `Descarte` ou `Reaproveitado`, sem Peça levada, ou estornada).
+    - **A reclamação** (D4, D5, C13). A Qualidade, o PCP ou o Administrador registram o que o cliente disse sobre uma
+      **Peça já expedida** (`dbo.Reclamacao`: Peça, quantidade, texto obrigatório e aparado de até 500 caracteres). A
+      soma das não estornadas de uma Peça não passa do expedido dela (409 `SaldoInsuficiente`); só Peça (400
+      `NaoEhPeca`); vale em qualquer status do original, o `Concluido` inclusive (C9). **Não mexe no livro do
+      original e não o reabre.** O estorno do registro é do autor, do PCP ou do Administrador, e só enquanto ela não
+      tem Retrabalho nem "não repor" vigente (409 `ReposicaoResolvida`). O destino do Retrabalho é: **consertar** — o
+      Retrabalho tem só a Peça (sem filhos, com o Roteiro copiado e sem materiais) e a `Devolucao` põe a quantidade
+      inteira em `AguardandoConserto` no Setor escolhido (Setor ativo, 400 `SetorInvalido`), de onde segue o conserto da
+      regra 35 sem nada novo —, ou **refazer**, a cópia da árvore inteira, toda a iniciar; a peça devolvida é sucata e
+      fica só no registro. A `Devolucao` se estorna pela rota genérica enquanto a quantidade não andou; não há estorno
+      da abertura, e o Retrabalho de consertar continua `EmProducao`, com a Peça a iniciar.
+    - **Estornos que tirariam o chão de um alvo resolvido são recusados** (C20): a baixa de perda com Retrabalho ou
+      "não repor" vigente (409 `ReposicaoResolvida`, regra 38), a reclamação nas mesmas condições (acima) e a remessa
+      que deixaria o expedido de uma Peça abaixo do que o cliente já reclamou dela (409 `AbaixoDoReclamado`; estorna-se
+      antes a reclamação).
+    - **O Retrabalho anda e fecha como o Pedido de fabricação** (C10): Fila, Tarefas, Separação, aferição, remessa,
+      baixa, pausa e fechamento (regras 13, 16, 28 a 31 e 35 a 38). O `Pronto` conta como em produção. O original
+      nunca reabre e não muda (C9): ganha só o registro da reclamação, as marcas de vínculo e a baixa
+      `Reaproveitado`.
+    - **Riscos aceitos** (seção 8 da spec). A parte da unidade perdida que ainda estava em processo vira sobra só
+      quando termina, e o Retrabalho que já começou não a recebe como pronto (C12); a baixa de perda já reposta não se
+      estorna mais; a abertura não se desfaz; e o Retrabalho cobre o alvo inteiro mesmo que o PCP diminua a quantidade.
+      A estrutura alterada no meio da produção é da Fase 5C (D6).
 
 ## Pontos ainda em aberto
 

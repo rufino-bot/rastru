@@ -71,10 +71,14 @@ sequência, é a própria Fase 5, e a 3C continua depois dela. A **5A** foi conc
 **5B**, que o usuário partiu em duas em 2026-11-04, cada uma com spec, plano e PR, nesta ordem: **5B-1** (perda e
 descarte; spec `docs/superpowers/specs/2026-11-03-fase-5b1-perda-e-descarte-design.md`, aprovada em 2026-11-04, e
 planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e `…-fase-5b1-front.md`) e **5B-2** (reposição: Pedido
-de Retrabalho e nó pronto; sem spec). A **5B-1** foi concluída e mesclada em 2026-11-05 (rufino-bot/rastru#36): a
+de Retrabalho e nó pronto). A **5B-1** foi concluída e mesclada em 2026-11-05 (rufino-bot/rastru#36): a
 regra 38 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b1.sql` e o módulo `web/src/baixas/`, descrito na
 seção «Interface» (o "Dar baixa" do nó, o "Matar" do cartão da expedição, o "Descartar" da sobra da Fila, o "Descartar
-tudo" do Pedido e do Agrupamento e a seção "Baixas"); a seguinte é a **5B-2**, ainda sem spec. A 5C ainda não tem spec,
+tudo" do Pedido e do Agrupamento e a seção "Baixas"); a seguinte é a **5B-2**, que **tem spec**
+(`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`, aprovada em 2026-11-06) e dois planos
+(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-fase-5b2-front.md`) e está **em execução**, ainda não
+mesclada: o backend está implementado na branch (a regra 39 de `specs/01`, as rotas de `specs/05` e o
+`db/alter-fase-5b2.sql`) e o front, que é o módulo `web/src/retrabalho/`, vem pelo plano de front. A 5C ainda não tem spec,
 e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -1036,6 +1040,16 @@ deste fix wave, não da 5B-1 em si.
 métrica é a de testes executados). O +1 em Api é o teste das Tarefas e da contagem com o Roteiro de dois passos. O front
 não ganhou teste: a rodada só tocou um JSDoc, e o arquivo da `AgrupamentoDetalhePage` (110 de 110) e o `npm run build`
 passaram; a suíte inteira do front segue com os 2.070 em 117 arquivos da medição anterior, sem ter sido reexecutada.
+
+**Remedido em 2026-11-07, com o backend da Fase 5B-2 na branch** (HEAD `c06f613`, com este passe só de prosa por cima do
+código): `dotnet build Rastreamento.slnx -warnaserror` com 0 warnings e 0 erros, e `dotnet test Rastreamento.slnx -m:1`
+com **2.027 testes**, todos passando (554 em Api, 1.137 em Application e 336 em Infrastructure; 0 em Domain, que não
+tem teste algum; a métrica é a de testes executados, em que cada caso de `[Theory]` conta como um). Contra a medição de
+`11ee76e` (1.887) são **+140 testes** (+68 em Api, +51 em Application e +21 em Infrastructure), que são o backend da
+5B-2 até aqui. O front não foi remedido: a 5B-2 ainda não tem código de front, e a medição de 2.070 testes em 117
+arquivos segue a última. A suíte tem de rodar **uma vez por vez**: duas execuções de `dotnet test` ao mesmo tempo contra
+o mesmo banco dão deadlock no `DisposeAsync` dos cenários (visto nesta medição, ao disparar duas por engano; a execução
+única passou).
 
 Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
