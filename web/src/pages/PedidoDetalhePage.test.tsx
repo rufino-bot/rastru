@@ -900,6 +900,95 @@ describe('PedidoDetalhePage', () => {
     })
   })
 
+  describe('detalhe do Retrabalho', () => {
+    const RETRABALHO = {
+      ...PEDIDO, tipo: 'Retrabalho', numero: 'PED-001-R1', pedidoOrigem: { id: 40, numero: 'PED-001' }, motivoRetrabalho: 'Perda',
+    }
+    const SOBRA = {
+      itens: [{
+        estruturaItemId: 77, descricao: 'Eixo', codigo: 'EX-1', posicao: 'AguardandoColeta',
+        setorId: 3, setorNome: 'Usinagem', ordem: 2, sobra: 5, precisa: 3, sugerido: 3,
+      }],
+    }
+
+    function rotas(pedido: object, extra: Record<string, () => Response> = {}) {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(pedido),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
+        '/api/pedidos/7/sobra-reaproveitavel': () => respostaJson(SOBRA),
+        ...extra,
+      }))
+    }
+
+    it('o cabeçalho diz "Retrabalho de {número} — {motivo}" com link para o original', async () => {
+      rotas(RETRABALHO)
+      renderizarDetalhe()
+      const link = await screen.findByRole('link', { name: 'PED-001' })
+      expect(link.getAttribute('href')).toBe('/pedidos/40')
+      expect(link.parentElement!.textContent).toBe('Retrabalho de PED-001 — Perda')
+    })
+
+    it('o Pedido normal não tem essa linha', async () => {
+      rotas(PEDIDO)
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByText(/^Retrabalho de /)).toBeNull()
+    })
+
+    it('"Usar a sobra" aparece com o Retrabalho Aberto e abre o painel', async () => {
+      rotas(RETRABALHO)
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Usar a sobra' }))
+      expect(await screen.findByRole('form', { name: 'Usar a sobra' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('fora de Aberto não há "Usar a sobra"', async () => {
+      rotas({ ...RETRABALHO, status: 'EmProducao' })
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('o Pedido normal não tem "Usar a sobra"', async () => {
+      rotas(PEDIDO)
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('quem não reaproveita (Qualidade) não vê o botão', async () => {
+      perfil = 'Qualidade'
+      rotas(RETRABALHO)
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('depois de gravar, o cabeçalho e as baixas recarregam e o painel fecha', async () => {
+      let cabecalhos = 0
+      let baixas = 0
+      rotas(RETRABALHO, {
+        '/api/pedidos/7': () => { cabecalhos++; return respostaJson(RETRABALHO) },
+        '/api/pedidos/7/baixas': () => { baixas++; return respostaJson([]) },
+        '/api/pedidos/7/sobra-reaproveitada': () => respostaJson({ id: 1 }, 201),
+      })
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Usar a sobra' }))
+      const form = await screen.findByRole('form', { name: 'Usar a sobra' })
+      await within(form).findByRole('button', { name: 'Usar 3' })
+      const antesC = cabecalhos
+      const antesB = baixas
+      fireEvent.submit(form)
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Usar a sobra' })).toBeNull())
+      await waitFor(() => expect(cabecalhos).toBeGreaterThan(antesC))
+      await waitFor(() => expect(baixas).toBeGreaterThan(antesB))
+    })
+  })
+
   describe('reposição', () => {
     function rotas(extra: Record<string, () => Response> = {}, pedido: object = PEDIDO) {
       vi.stubGlobal('fetch', fetchPorRota({
