@@ -123,42 +123,47 @@ export function SecaoDeReclamacoes({ carregar, versao, aoMudar, aoAbrirRetrabalh
           {lista.map((r) => {
             const nome = `a reclamação de ${r.descricao}`
             return (
-              <ItemComAcao
+              <ReposicaoDaLinha
                 key={r.id}
-                acao={r.estornavel && podeEstornarReclamacao(r.usuarioId) && (
-                  <Botao
-                    ref={(el) => {
-                      if (el) botoes.current.set(r.id, el)
-                      else botoes.current.delete(r.id)
-                    }}
-                    variante="secundario"
-                    aria-label={`Estornar ${nome}`}
-                    onClick={() => { ultimaAberta.current = r.id; setAConfirmar(r) }}
-                    disabled={estornando}
-                  >
-                    Estornar
-                  </Botao>
-                )}
+                nome={nome}
+                aRepor={r.aRepor}
+                dispensa={r.dispensa}
+                pedidoRetrabalho={r.pedidoRetrabalho}
+                reaproveitada={false}
+                naoRepor={(j) => naoReporReclamacao(r.id, j)}
+                desfazer={desfazerNaoRepor}
+                aoMudar={aoMudarUma}
+                aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Reclamacao', reclamacao: r }))}
+                pronto={!recarregando}
               >
-                <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
-                  {`${formatarQuantidade(r.quantidade)} de ${r.descricao}${r.codigo ? ` (${r.codigo})` : ''}`}
-                  {r.estornada && <Pilula>Estornada</Pilula>}
-                </span>
-                <span className="text-sm text-tinta">{r.texto}</span>
-                <span className="text-xs text-tinta-fraca">{`${r.usuarioNome} · ${formatarDataHora(r.dataHora)}`}</span>
-                <ReposicaoDaLinha
-                  nome={nome}
-                  aRepor={r.aRepor}
-                  dispensa={r.dispensa}
-                  pedidoRetrabalho={r.pedidoRetrabalho}
-                  reaproveitada={false}
-                  naoRepor={(j) => naoReporReclamacao(r.id, j)}
-                  desfazer={desfazerNaoRepor}
-                  aoMudar={aoMudarUma}
-                  aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Reclamacao', reclamacao: r }))}
-                  pronto={!recarregando}
-                />
-              </ItemComAcao>
+                {({ reposicao, painel }) => (
+                  <ItemComAcao
+                    painel={painel}
+                    acao={r.estornavel && podeEstornarReclamacao(r.usuarioId) && (
+                      <Botao
+                        ref={(el) => {
+                          if (el) botoes.current.set(r.id, el)
+                          else botoes.current.delete(r.id)
+                        }}
+                        variante="secundario"
+                        aria-label={`Estornar ${nome}`}
+                        onClick={() => { ultimaAberta.current = r.id; setAConfirmar(r) }}
+                        disabled={estornando}
+                      >
+                        Estornar
+                      </Botao>
+                    )}
+                  >
+                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
+                      {`${formatarQuantidade(r.quantidade)} de ${r.descricao}${r.codigo ? ` (${r.codigo})` : ''}`}
+                      {r.estornada && <Pilula>Estornada</Pilula>}
+                    </span>
+                    <span className="text-sm text-tinta">{r.texto}</span>
+                    <span className="text-xs text-tinta-fraca">{`${r.usuarioNome} · ${formatarDataHora(r.dataHora)}`}</span>
+                    {reposicao}
+                  </ItemComAcao>
+                )}
+              </ReposicaoDaLinha>
             )
           })}
         </ListaDeCadastro>

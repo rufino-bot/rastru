@@ -91,4 +91,15 @@ describe('SecaoDeReclamacoes', () => {
     await screen.findByText('veio torto')
     expect(screen.queryByRole('button', { name: /Estornar/ })).toBeNull()
   })
+
+  it('o painel do "Não repor" abre na largura da linha, fora da coluna do texto', async () => {
+    montar(async () => [reclamacao()])
+    fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+    const form = screen.getByRole('form', { name: 'Não repor' })
+    const item = form.closest('li')!
+    const colunaDoTexto = screen.getByText('A repor').closest('div.min-w-0')!
+    expect(colunaDoTexto).toBeTruthy()
+    expect(colunaDoTexto.contains(form)).toBe(false)
+    expect(item.contains(form)).toBe(true)
+  })
 })

@@ -175,44 +175,49 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, 
           {baixas.map((b) => {
             const escopo = frasesDoEscopo(b, nomeDoEscopo)
             return (
-              <ItemComAcao
+              <ReposicaoDaLinha
                 key={b.id}
-                acao={b.estornavel && podeEstornar(b.usuarioId) && (
-                  <Botao
-                    ref={(el) => {
-                      if (el) botoes.current.set(b.id, el)
-                      else botoes.current.delete(b.id)
-                    }}
-                    variante="secundario"
-                    aria-label={`Estornar a baixa: ${descricaoDa(b)}`}
-                    onClick={() => { ultimaAberta.current = b.id; setAConfirmar(b) }}
-                    disabled={estornando}
-                  >
-                    Estornar
-                  </Botao>
-                )}
+                nome={`a baixa de ${ROTULO_DO_MOTIVO[b.motivo]}`}
+                aRepor={b.aRepor}
+                dispensa={b.dispensa}
+                pedidoRetrabalho={b.pedidoRetrabalho}
+                reaproveitada={b.motivo === 'Reaproveitado'}
+                naoRepor={(j) => naoReporBaixa(b.id, j)}
+                desfazer={desfazerNaoRepor}
+                aoMudar={aoMudarAReposicaoDe}
+                aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Baixa', baixa: b }))}
+                pronto={!recarregando}
               >
-                <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
-                  {ROTULO_DO_MOTIVO[b.motivo]}
-                  {b.estornada && <Pilula>Estornada</Pilula>}
-                </span>
-                {escopo && <span className="text-sm text-tinta">{escopo}</span>}
-                <span className="text-sm text-tinta">{resumoDasLinhas(b, noId)}</span>
-                {b.observacao && <span className="text-xs text-tinta-fraca">{b.observacao}</span>}
-                <span className="text-xs text-tinta-fraca">{`${b.usuarioNome} · ${formatarDataHora(b.dataHora)}`}</span>
-                <ReposicaoDaLinha
-                  nome={`a baixa de ${ROTULO_DO_MOTIVO[b.motivo]}`}
-                  aRepor={b.aRepor}
-                  dispensa={b.dispensa}
-                  pedidoRetrabalho={b.pedidoRetrabalho}
-                  reaproveitada={b.motivo === 'Reaproveitado'}
-                  naoRepor={(j) => naoReporBaixa(b.id, j)}
-                  desfazer={desfazerNaoRepor}
-                  aoMudar={aoMudarAReposicaoDe}
-                  aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Baixa', baixa: b }))}
-                  pronto={!recarregando}
-                />
-              </ItemComAcao>
+                {({ reposicao, painel }) => (
+                  <ItemComAcao
+                    painel={painel}
+                    acao={b.estornavel && podeEstornar(b.usuarioId) && (
+                      <Botao
+                        ref={(el) => {
+                          if (el) botoes.current.set(b.id, el)
+                          else botoes.current.delete(b.id)
+                        }}
+                        variante="secundario"
+                        aria-label={`Estornar a baixa: ${descricaoDa(b)}`}
+                        onClick={() => { ultimaAberta.current = b.id; setAConfirmar(b) }}
+                        disabled={estornando}
+                      >
+                        Estornar
+                      </Botao>
+                    )}
+                  >
+                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
+                      {ROTULO_DO_MOTIVO[b.motivo]}
+                      {b.estornada && <Pilula>Estornada</Pilula>}
+                    </span>
+                    {escopo && <span className="text-sm text-tinta">{escopo}</span>}
+                    <span className="text-sm text-tinta">{resumoDasLinhas(b, noId)}</span>
+                    {b.observacao && <span className="text-xs text-tinta-fraca">{b.observacao}</span>}
+                    <span className="text-xs text-tinta-fraca">{`${b.usuarioNome} · ${formatarDataHora(b.dataHora)}`}</span>
+                    {reposicao}
+                  </ItemComAcao>
+                )}
+              </ReposicaoDaLinha>
             )
           })}
         </ListaDeCadastro>

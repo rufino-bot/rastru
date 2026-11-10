@@ -225,5 +225,17 @@ describe('HistoricoDeBaixas', () => {
       expect(screen.getByText('Não repor: ok')).toBeTruthy()
       expect(carregar).toHaveBeenCalledTimes(2)
     })
+
+    it('o painel do "Não repor" abre na largura da linha, fora da coluna do texto', async () => {
+      perfil = 'PCP'
+      roteador(<HistoricoDeBaixas carregar={async () => [baixa({ aRepor: 2 })]} versao={0} aoEstornar={() => {}} />)
+      fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+      const form = screen.getByRole('form', { name: 'Não repor' })
+      const item = form.closest('li')!
+      const colunaDoTexto = screen.getByText('A repor').closest('div.min-w-0')!
+      expect(colunaDoTexto).toBeTruthy()
+      expect(colunaDoTexto.contains(form)).toBe(false)
+      expect(item.contains(form)).toBe(true)
+    })
   })
 })

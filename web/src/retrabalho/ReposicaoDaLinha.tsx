@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatarDataHora } from '../api/cadastros'
@@ -29,6 +30,12 @@ interface Props {
   aoAbrirRetrabalho?: () => void
   /** A lista ainda está recarregando depois de uma escrita: o foco só volta quando ela terminou. */
   pronto?: boolean
+  /**
+   * Quem monta a linha recebe as duas partes separadas — o que vai na coluna do texto (`reposicao`) e o painel do
+   * "Não repor" (`painel`), para pô-lo na região de painel do `ItemComAcao`, na largura da linha. Sem ela, as duas
+   * saem juntas, uma sobre a outra.
+   */
+  children?: (partes: { reposicao: ReactNode; painel: ReactNode }) => ReactNode
 }
 
 /**
@@ -37,10 +44,11 @@ interface Props {
  * `usePermissoesDaReposicao`. A linha só lê `aRepor`, `dispensa` e `pedidoRetrabalho` do servidor.
  *
  * O "Abrir retrabalho" mora nesta mesma fila de ações, ao lado do "Não repor", para quem abre (`abrir`) e só enquanto há
- * o que repor e ninguém dispensou; o painel que ele abre é da tela, que o monta uma vez só.
+ * o que repor e ninguém dispensou; o painel que ele abre é da tela, que o monta uma vez só. O painel do "Não repor"
+ * é desta linha, e sai separado do resto (`children`) para abrir embaixo dela, e não dentro da coluna do texto.
  */
 export function ReposicaoDaLinha({
-  nome, aRepor, dispensa, pedidoRetrabalho, reaproveitada, naoRepor, desfazer, aoMudar, aoAbrirRetrabalho, pronto = true,
+  nome, aRepor, dispensa, pedidoRetrabalho, reaproveitada, naoRepor, desfazer, aoMudar, aoAbrirRetrabalho, pronto = true, children,
 }: Props) {
   const { naoRepor: podeNaoRepor, abrir: podeAbrir } = usePermissoesDaReposicao()
   const [aberto, setAberto] = useState(false)
@@ -71,9 +79,12 @@ export function ReposicaoDaLinha({
   }
 
   const aReporAgora = aRepor > 0
-  if (!aReporAgora && !dispensa && !pedidoRetrabalho) return null
+  const painel = podeNaoRepor && aberto
+    ? <PainelDeNaoRepor subtitulo={nome} naoRepor={naoRepor} aoConcluir={aoMudar} aoFechar={() => setAberto(false)} />
+    : null
+  const nada = !aReporAgora && !dispensa && !pedidoRetrabalho
 
-  return (
+  const reposicao = nada ? null : (
     <div className="flex flex-col gap-2">
       <span ref={estado} tabIndex={-1} className="flex flex-wrap items-center gap-2 text-sm text-tinta">
         {aReporAgora && <Pilula tom="atencao">A repor</Pilula>}
@@ -109,9 +120,9 @@ export function ReposicaoDaLinha({
         )}
       </div>
       <BannerDeErro mensagem={erro} />
-      {podeNaoRepor && aberto && (
-        <PainelDeNaoRepor subtitulo={nome} naoRepor={naoRepor} aoConcluir={aoMudar} aoFechar={() => setAberto(false)} />
-      )}
     </div>
   )
+
+  if (children) return <>{children({ reposicao, painel: nada ? null : painel })}</>
+  return <>{reposicao}{nada ? null : painel}</>
 }
