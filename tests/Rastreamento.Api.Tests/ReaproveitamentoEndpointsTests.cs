@@ -591,8 +591,9 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
   }
 
   /// <summary>
-  /// Em cada no do Retrabalho, o que esta em producao (a iniciar, aguardando coleta e aguardando montagem) mais o
-  /// perdido fecha a quantidade do no (regra 9): nada nasce nem some.
+  /// Nos nos dados, o que esta em producao (a iniciar, aguardando coleta e aguardando montagem) mais o perdido fecha a
+  /// quantidade do no (regra 9), e a producao nao fica negativa. Isso prova que nao sobrou saldo nas outras posicoes
+  /// (no Setor, local de expedicao, conserto); nao prova que o livro conserva a soma, que e propriedade de cada linha.
   /// </summary>
   private async Task ConferirConservacaoAsync(int retrabalhoId, params int[] nos)
   {
@@ -650,7 +651,8 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
     Assert.Equal(1m, await LiquidoAsync(cc, "AguardandoColeta"));
     await ConferirConservacaoAsync(retrabalhoId, cc, dd);
 
-    // Estornar o primeiro uso com o segundo valendo: o pronto de D' ja nao esta onde foi posto.
+    // Estornar o primeiro uso com o segundo valendo: o pronto de D' ja nao esta todo nas posicoes em que os Pronto
+    // do primeiro uso o puseram.
     var (status, erro, _) = await RecusaAsync(await c.Como(c.Pcp).PostAsync($"/api/baixas/{primeiroId}/estorno", null));
     Assert.Equal((HttpStatusCode.Conflict, "ProntoJaAndou"), (status, erro));
     Assert.Equal(2m, await LiquidoAsync(dd, "Perdido"));

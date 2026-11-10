@@ -54,8 +54,10 @@ public static class CalculoDaBaixa
   /// Os filhos que o pronto dispensa (C18 da spec da Fase 5B-2, com a emenda de 2026-11-10): a cascata C6 da Fase 5B-1 a
   /// partir de cada no que acabou de ficar pronto, de cima para baixo, levando a `Perdido` o que cada filho tem em
   /// producao alem do que o pai ainda pede, e descendo. O excesso sai primeiro do "a iniciar" e, o que faltar, das
-  /// posicoes onde um pronto anterior pos a sobra (num Retrabalho `Aberto` nada andou, entao o que esta fora do "a
-  /// iniciar" e pronto), na ordem dos saldos da calculadora. Na baixa da Fase 5B-1 a cascata continua so no "a iniciar". `calcComPronto` ja ve os `Pronto` gravados: o pronto de um pai soma ao total montado dele (C17),
+  /// posicoes em que esta o pronto de um uso anterior, onde quer que esteja agora, inclusive onde uma entrega o levou:
+  /// num Retrabalho `Aberto` nada iniciou, entao o que esta fora do "a iniciar" e de `Perdido` veio de um `Pronto`.
+  /// A ordem e a dos saldos da calculadora. Na baixa da Fase 5B-1 a cascata continua so no "a iniciar".
+  /// `calcComPronto` ja ve os `Pronto` gravados: o pronto de um pai soma ao total montado dele (C17),
   /// e e por isso que o `FaltaMontar` que a cascata le ja desconta. O no pronto nao perde nada; uma folha pronta nao tem
   /// o que dispensar. As linhas saem numa baixa de `Descarte` a parte, no Retrabalho (decisao P2 do plano de backend da
   /// Fase 5B-2).

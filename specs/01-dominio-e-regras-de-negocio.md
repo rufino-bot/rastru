@@ -870,7 +870,7 @@ desenho, C1 a C20), e é implementada no backend da 5B-2.*
       exclusão: a cascata da regra 38 corre no Retrabalho, numa segunda baixa de `Descarte` ligada à
       `Reaproveitado` por `Perda.PerdaDeOrigemId` (C18, decisão P2 do plano de backend). Nesta cascata o excesso de
       cada filho — o que ele tem em produção além do que o pai ainda pede — sai primeiro do "a iniciar" e, o que
-      faltar, das posições onde um uso anterior da sobra pôs o pronto (emenda de 2026-11-10; na baixa da regra 38 a
+      faltar, das posições em que está o pronto de um uso anterior da sobra, onde quer que esteja agora (emenda de 2026-11-10; na baixa da regra 38 a
       cascata continua levando só o "a iniciar"). Pode-se usar a sobra mais de
       uma vez enquanto o Retrabalho estiver `Aberto` (C12). O original `Concluido` aceita a baixa (a sobra é de Item,
       como o `Descarte` da regra 13); o `Cancelado`, 409 `PedidoFechado`. **Estorno**: pela rota da baixa

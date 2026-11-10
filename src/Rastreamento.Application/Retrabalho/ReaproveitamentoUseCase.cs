@@ -12,8 +12,8 @@ namespace Rastreamento.Application.Retrabalho;
 /// origem, no Pedido original, vira pronto no Retrabalho `Aberto`, na mesma posicao fisica (secao 3.1). Uma transacao
 /// so: no original, uma baixa `Reaproveitado` apontando o Retrabalho, com uma linha `Perda` por no e posicao; no
 /// Retrabalho, um `Pronto` por linha, apontando aquela baixa; e, se o pronto de um pai dispensa filhos (o "a iniciar"
-/// e o pronto de um uso anterior alem do que o pai pede), a cascata C6 numa baixa de `Descarte` a parte, no Retrabalho, ligada a do original (decisao P2 do plano de backend da
-/// Fase 5B-2). A conta e `CalculoDoReaproveitamento` (a previa e a escrita usam a mesma) e `CalculoDaBaixa`
+/// e o pronto de um uso anterior alem do que o pai pede), a cascata C6 numa baixa de `Descarte` a parte, no
+/// Retrabalho, ligada a do original (decisao P2 do plano de backend da Fase 5B-2). A conta e `CalculoDoReaproveitamento` (a previa e a escrita usam a mesma) e `CalculoDaBaixa`
 /// (a cascata). O estorno e o da baixa `Reaproveitado`, em `BaixaUseCase`.
 ///
 /// A concorrencia (decisao P6 do plano de backend da Fase 5B-2): trava, em ordem crescente de Id, a uniao dos nos da
@@ -179,8 +179,8 @@ public sealed class ReaproveitamentoUseCase
   }
 
   /// <summary>
-  /// Os filhos que o pronto dispensa (C18: o "a iniciar" e o pronto de um uso anterior), sobre o estado do Retrabalho RELIDO depois dos `Pronto`: e so
-  /// entao que o pronto de um pai soma ao total montado dele (C17). Sem linha, nada se grava. Com linhas, uma baixa de
+  /// Os filhos que o pronto dispensa (C18: o "a iniciar" e o pronto de um uso anterior), sobre o estado do Retrabalho
+  /// RELIDO depois dos `Pronto`: e so entao que o pronto de um pai soma ao total montado dele (C17). Sem linha, nada se grava. Com linhas, uma baixa de
   /// `Descarte` no Retrabalho, sem "tudo" (o no nao sai do projeto, C22 da spec da Fase 5B-1), ligada a
   /// `Reaproveitado` por `PerdaDeOrigemId` (decisao P2 do plano de backend da Fase 5B-2).
   /// </summary>
