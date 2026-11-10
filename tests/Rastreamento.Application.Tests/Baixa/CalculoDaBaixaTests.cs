@@ -35,9 +35,9 @@ public class CalculoDaBaixaTests
 
   private static CalculadoraDeExecucao Calcular(
       IEnumerable<NoDoCalculo> nos, IEnumerable<SaldoLiquido> saldos, IReadOnlyDictionary<int, decimal>? montados = null,
-      IReadOnlyDictionary<int, decimal>? perdidosDeAIniciar = null) =>
+      IReadOnlyDictionary<int, decimal>? perdidosDeAIniciar = null, IReadOnlyDictionary<int, decimal>? prontos = null) =>
       new(nos, saldos, montados ?? new Dictionary<int, decimal>(), Array.Empty<(int, int)>(),
-          perdidosDeAIniciar: perdidosDeAIniciar);
+          perdidosDeAIniciar: perdidosDeAIniciar, prontos: prontos);
 
   private static OrigemDaBaixa De(Local local, decimal quantidade) => new(local, quantidade);
 
@@ -545,6 +545,61 @@ public class CalculoDaBaixaTests
 
     Assert.Equal(
         [new LinhaPlanejada(10, Local.AIniciar, 2m), new LinhaPlanejada(20, Local.AIniciar, 4m)],
+        plano.Linhas);
+  }
+
+  [Fact]
+  public void Dispensa_do_pronto_leva_tambem_o_pronto_do_filho_alem_do_que_o_pai_pede()
+  {
+    // O pai (1) ficou pronto e nao pede mais nada; o filho (2, razao 2) ja estava pronto, 2 aguardando coleta, de um uso
+    // anterior da sobra. Sem nada a iniciar, o excesso inteiro sai da posicao do pronto.
+    var calcComPronto = Calcular(
+        [No(1, null, 1m, null, Solda), No(2, 1, 2m, 2m, Corte)],
+        [
+          Em(1, Local.AIniciar, -1m), Em(1, Local.AguardandoColeta(Solda, 1), 1m),
+          Em(2, Local.AIniciar, -2m), Em(2, Local.AguardandoColeta(Corte, 1), 2m),
+        ],
+        prontos: new Dictionary<int, decimal> { [1] = 1m });
+
+    var linhas = CalculoDaBaixa.PlanejarDispensaDoPronto(calcComPronto, [1]);
+
+    Assert.Equal([new LinhaPlanejada(2, Local.AguardandoColeta(Corte, 1), 2m)], linhas);
+  }
+
+  [Fact]
+  public void Dispensa_do_pronto_tira_de_a_iniciar_antes_do_pronto_do_filho()
+  {
+    // O pai (2 unidades) ficou pronto em 1: falta 1, que pede 2 do filho (razao 2). O filho tem 4 em producao, 1 a
+    // iniciar e 3 prontos: o excesso de 2 tira o 1 a iniciar e so 1 do pronto, que preserva as 2 unidades fisicas que
+    // o pai ainda pede.
+    var calcComPronto = Calcular(
+        [No(1, null, 2m, null, Solda), No(2, 1, 4m, 2m, Corte)],
+        [
+          Em(1, Local.AIniciar, -1m), Em(1, Local.AguardandoColeta(Solda, 1), 1m),
+          Em(2, Local.AIniciar, -3m), Em(2, Local.AguardandoColeta(Corte, 1), 3m),
+        ],
+        prontos: new Dictionary<int, decimal> { [1] = 1m });
+
+    var linhas = CalculoDaBaixa.PlanejarDispensaDoPronto(calcComPronto, [1]);
+
+    Assert.Equal(
+        [new LinhaPlanejada(2, Local.AIniciar, 1m), new LinhaPlanejada(2, Local.AguardandoColeta(Corte, 1), 1m)],
+        linhas);
+  }
+
+  [Fact]
+  public void Baixa_de_parte_da_Fase_5B1_nao_leva_o_que_ja_foi_fabricado_do_filho()
+  {
+    // O mesmo filho com saldo fora de "a iniciar": a cascata da baixa nao o toca, so vira sobra
+    // (ver tambem Cascata_desce_tres_niveis, onde os 4 no Setor do Item 3 viram sobra).
+    var calc = Calcular(
+        [No(1, null, 2m, null, Solda), No(2, 1, 4m, 2m, Corte)],
+        [Em(2, Local.AIniciar, -3m), Em(2, Local.AguardandoColeta(Corte, 1), 3m)]);
+
+    var plano = Planejar(calc, Parte(1, [], De(Local.AIniciar, 1m)));
+
+    Assert.Equal(
+        [new LinhaPlanejada(1, Local.AIniciar, 1m), new LinhaPlanejada(2, Local.AIniciar, 1m)],
         plano.Linhas);
   }
 }

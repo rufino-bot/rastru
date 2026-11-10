@@ -577,4 +577,93 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
     Assert.Equal((HttpStatusCode.Conflict, "EstornoImpossivel"), (status, erro));
     Assert.DoesNotContain(await LivroAsync(ee), m => m.Tipo == "Estorno");
   }
+
+  /// <summary>Um filho D de C (20, razao 2, "Arruela"; Corte), acrescentado antes de qualquer inicio.</summary>
+  private static async Task<int> FilhoDeRazaoDoisAsync(CenarioDaFase3NaApi c)
+  {
+    var pcp = c.Como(c.Pcp);
+    var criado = await pcp.PostAsJsonAsync($"/api/estrutura/{c.C}/filhos",
+        new { componenteId = (int?)null, descricao = "Arruela", quantidade = 20m, quantidadePorPai = 2m });
+    await Garantir(criado);
+    var d = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{d}/roteiro", new { passos = new[] { c.Corte } }));
+    return d;
+  }
+
+  /// <summary>
+  /// Em cada no do Retrabalho, o que esta em producao (a iniciar, aguardando coleta e aguardando montagem) mais o
+  /// perdido fecha a quantidade do no (regra 9): nada nasce nem some.
+  /// </summary>
+  private async Task ConferirConservacaoAsync(int retrabalhoId, params int[] nos)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    foreach (var no in nos)
+    {
+      var quantidade = (await db.Estruturas.AsNoTracking().SingleAsync(e => e.Id == no)).Quantidade;
+      var emProducao = quantidade + await LiquidoAsync(no, "AIniciar") + await LiquidoAsync(no, "AguardandoColeta")
+                       + await LiquidoAsync(no, "AguardandoMontagem");
+      Assert.True(emProducao >= 0m, $"No {no} ficou com producao negativa.");
+      Assert.Equal(quantidade, emProducao + await LiquidoAsync(no, "Perdido"));
+    }
+  }
+
+  [Fact]
+  public async Task Segundo_uso_da_sobra_leva_a_Perdido_o_pronto_do_filho_que_o_pai_pronto_nao_pede()
+  {
+    await using var c = await CriarAsync(_factory);
+    var d = await FilhoDeRazaoDoisAsync(c);
+    // D faz as 20 e vai a montagem de C na Dobra; C inicia e termina 9 (consome 18 de D). A perde 1 e depois mais 1: o
+    // "a iniciar" de C sai com a primeira (D sobra 2, aguardando montagem), a segunda faz sobrar 1 de C, aguardando coleta.
+    await IniciarETerminarAsync(c, d, c.Corte, 20m);
+    await EntregarAsync(c, DaColeta(d, c.Corte, 1, 20m));
+    await IniciarETerminarAsync(c, c.C, c.Dobra, 9m);
+    var primeiraBaixa = await PerderAAsync(c, 1m);
+    await PerderAAsync(c, 1m);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, primeiraBaixa);
+    var (cc, dd) = (await CopiaDeAsync(retrabalhoId, c.C), await CopiaDeAsync(retrabalhoId, d));
+    // O livro de C diz 9 aguardando coleta; A precisa de 8, e a diferenca de 1 e a sobra.
+    Assert.Equal(2m, await LiquidoAsync(d, "AguardandoMontagem"));
+    Assert.Equal(9m, await LiquidoAsync(c.C, "AguardandoColeta"));
+
+    // Primeiro uso: as 2 D prontas, aguardando montagem na Dobra. C' ainda nao esta pronta, nada a dispensar.
+    var primeira = await UsarAsync(c, c.Pcp, retrabalhoId, Item(dd, "AguardandoMontagem", c.Dobra, null, 2m));
+    await Garantir(primeira);
+    var primeiroId = (await CorpoAsync(primeira)).GetProperty("id").GetInt32();
+    Assert.Empty(await PerdasAsync(retrabalhoId));
+    Assert.Equal(2m, await LiquidoAsync(dd, "AguardandoMontagem"));
+    // As 2 D' sao toda a quantidade do no: o liquido de "a iniciar" e -2, e nada resta a iniciar.
+    Assert.Equal(-2m, await LiquidoAsync(dd, "AIniciar"));
+
+    // Segundo uso: C' pronta (1 e toda a quantidade dela) nao pede mais D'. As 2 D' prontas do primeiro uso nao tem de
+    // onde sair de "a iniciar" e saem da posicao do pronto, numa baixa de `Descarte` ligada a este uso.
+    var segunda = await UsarAsync(c, c.Pcp, retrabalhoId, Item(cc, "AguardandoColeta", c.Dobra, 1, 1m));
+    await Garantir(segunda);
+    var segundoId = (await CorpoAsync(segunda)).GetProperty("id").GetInt32();
+    var ligada = Assert.Single(await PerdasAsync(retrabalhoId));
+    Assert.Equal(("Descarte", false, (int?)segundoId), (ligada.Motivo, ligada.Tudo, ligada.PerdaDeOrigemId));
+    var linhaDeD = Assert.Single(await LivroAsync(dd), m => m.Tipo == "Perda");
+    Assert.Equal(("AguardandoMontagem", c.Dobra, "Perdido", 2m, (int?)ligada.Id),
+        (linhaDeD.OrigemPosicao, linhaDeD.OrigemSetorId, linhaDeD.DestinoPosicao, linhaDeD.Quantidade, linhaDeD.PerdaId));
+    Assert.Equal(0m, await LiquidoAsync(dd, "AguardandoMontagem"));
+    Assert.Equal(2m, await LiquidoAsync(dd, "Perdido"));
+    Assert.Equal(1m, await LiquidoAsync(cc, "AguardandoColeta"));
+    await ConferirConservacaoAsync(retrabalhoId, cc, dd);
+
+    // Estornar o primeiro uso com o segundo valendo: o pronto de D' ja nao esta onde foi posto.
+    var (status, erro, _) = await RecusaAsync(await c.Como(c.Pcp).PostAsync($"/api/baixas/{primeiroId}/estorno", null));
+    Assert.Equal((HttpStatusCode.Conflict, "ProntoJaAndou"), (status, erro));
+    Assert.Equal(2m, await LiquidoAsync(dd, "Perdido"));
+
+    // Estornar o segundo devolve as D' a posicao do pronto; depois o primeiro se estorna.
+    await Garantir(await c.Como(c.Pcp).PostAsync($"/api/baixas/{segundoId}/estorno", null));
+    Assert.Equal(2m, await LiquidoAsync(dd, "AguardandoMontagem"));
+    Assert.Equal(0m, await LiquidoAsync(dd, "Perdido"));
+    Assert.Equal(0m, await LiquidoAsync(cc, "AguardandoColeta"));
+    await ConferirConservacaoAsync(retrabalhoId, cc, dd);
+    await Garantir(await c.Como(c.Pcp).PostAsync($"/api/baixas/{primeiroId}/estorno", null));
+    Assert.Equal(0m, await LiquidoAsync(dd, "AguardandoMontagem"));
+    Assert.Equal(0m, await LiquidoAsync(dd, "AIniciar"));
+    await ConferirConservacaoAsync(retrabalhoId, cc, dd);
+  }
 }

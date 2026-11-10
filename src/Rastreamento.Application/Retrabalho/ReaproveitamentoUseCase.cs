@@ -11,8 +11,8 @@ namespace Rastreamento.Application.Retrabalho;
 /// "Usar a sobra" (secao 4.4 da spec da Fase 5B-2; D2, C4, C11, C12, C18, C19): a sobra viva da arvore da Peca de
 /// origem, no Pedido original, vira pronto no Retrabalho `Aberto`, na mesma posicao fisica (secao 3.1). Uma transacao
 /// so: no original, uma baixa `Reaproveitado` apontando o Retrabalho, com uma linha `Perda` por no e posicao; no
-/// Retrabalho, um `Pronto` por linha, apontando aquela baixa; e, se o pronto de um pai dispensa filhos "a iniciar", a
-/// cascata C6 numa baixa de `Descarte` a parte, no Retrabalho, ligada a do original (decisao P2 do plano de backend da
+/// Retrabalho, um `Pronto` por linha, apontando aquela baixa; e, se o pronto de um pai dispensa filhos (o "a iniciar"
+/// e o pronto de um uso anterior alem do que o pai pede), a cascata C6 numa baixa de `Descarte` a parte, no Retrabalho, ligada a do original (decisao P2 do plano de backend da
 /// Fase 5B-2). A conta e `CalculoDoReaproveitamento` (a previa e a escrita usam a mesma) e `CalculoDaBaixa`
 /// (a cascata). O estorno e o da baixa `Reaproveitado`, em `BaixaUseCase`.
 ///
@@ -179,7 +179,7 @@ public sealed class ReaproveitamentoUseCase
   }
 
   /// <summary>
-  /// Os filhos "a iniciar" que o pronto dispensa (C18), sobre o estado do Retrabalho RELIDO depois dos `Pronto`: e so
+  /// Os filhos que o pronto dispensa (C18: o "a iniciar" e o pronto de um uso anterior), sobre o estado do Retrabalho RELIDO depois dos `Pronto`: e so
   /// entao que o pronto de um pai soma ao total montado dele (C17). Sem linha, nada se grava. Com linhas, uma baixa de
   /// `Descarte` no Retrabalho, sem "tudo" (o no nao sai do projeto, C22 da spec da Fase 5B-1), ligada a
   /// `Reaproveitado` por `PerdaDeOrigemId` (decisao P2 do plano de backend da Fase 5B-2).

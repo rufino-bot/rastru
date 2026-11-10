@@ -22,7 +22,8 @@ public sealed partial class BaixaUseCase
   /// nos do Retrabalho, em ordem crescente de Id, e depois os dois Pedidos. Recusas, depois das travas: um dos Pedidos
   /// `Cancelado` (409 `PedidoFechado`), ja estornada (409 `JaEstornado`) e o pronto que andou (409 `ProntoJaAndou`):
   /// o saldo do no do Retrabalho, na posicao em que os `Pronto` desta baixa puseram a sobra, ficou abaixo do que eles
-  /// puseram. A baixa ligada so leva "a iniciar" a `Perdido`, que e terminal: ela nunca anda. Recalcula o fechamento
+  /// puseram. A baixa ligada leva a `Perdido` (terminal, ela nunca anda) o "a iniciar" e o pronto de um uso anterior: o pronto do
+  /// primeiro uso, com o segundo valendo, ja nao esta onde foi posto, e e essa a recusa. Recalcula o fechamento
   /// dos dois Pedidos na mesma transacao.
   /// </summary>
   private async Task<Result<IReadOnlyList<MovimentacaoDto>>> EstornarReaproveitamentoAsync(

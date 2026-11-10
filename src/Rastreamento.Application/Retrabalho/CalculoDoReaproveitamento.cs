@@ -22,7 +22,8 @@ public sealed record ItemReaproveitado(int NoDoRetrabalhoId, Local Local, decima
 /// - um filho pede `(o que falta ao pai, menos o pronto planejado do pai) x QuantidadePorPai`, menos o que ele ja tem
 ///   fora de "a iniciar" (um pronto de um uso anterior). "O que falta ao pai" e o `FaltaMontar` dele, limitado ao que o
 ///   pai por sua vez pede: o pai cujo avo ficou pronto e dispensado pela cascata C6 nao pede mais nada dos filhos.
-/// E a mesma regra da cascata (C18), que tira, abaixo do pai pronto, o "a iniciar" alem do que ele pede. Sem pronto de
+/// E a mesma regra da cascata (C18), que tira, abaixo do pai pronto, o que o filho tem em producao alem do que ele pede:
+/// primeiro o "a iniciar" e, o que faltar, o pronto de um uso anterior. Sem pronto de
 /// cima, e o `(a iniciar do pai depois do pronto) x QuantidadePorPai` da spec: num pai do Retrabalho `Aberto`, o
 /// `FaltaMontar` e o "a iniciar" dele (C17 da spec da Fase 5B-2 poe o pronto no total montado).
 /// </summary>

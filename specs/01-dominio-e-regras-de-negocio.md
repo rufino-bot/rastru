@@ -866,9 +866,12 @@ desenho, C1 a C20), e é implementada no backend da 5B-2.*
       27), apontando a baixa. Recusas: além da sobra viva da posição, 409 `AlemDaSobra` (o servidor limita, C19);
       além do "a iniciar" do nó, 409 `SaldoInsuficiente`; além do que o pai ainda pede depois do pronto dele, 409
       `AlemDoQueOPaiPrecisa`; posição que o Roteiro copiado não tem, 400 `PosicaoDoProntoInexistente`. O `Pronto` de
-      nó com filhos conta como montado (regra 27) e **os filhos a iniciar que ele dispensa saem por baixa**, não por
+      nó com filhos conta como montado (regra 27) e **os filhos que ele dispensa saem por baixa**, não por
       exclusão: a cascata da regra 38 corre no Retrabalho, numa segunda baixa de `Descarte` ligada à
-      `Reaproveitado` por `Perda.PerdaDeOrigemId` (C18, decisão P2 do plano de backend). Pode-se usar a sobra mais de
+      `Reaproveitado` por `Perda.PerdaDeOrigemId` (C18, decisão P2 do plano de backend). Nesta cascata o excesso de
+      cada filho — o que ele tem em produção além do que o pai ainda pede — sai primeiro do "a iniciar" e, o que
+      faltar, das posições onde um uso anterior da sobra pôs o pronto (emenda de 2026-11-10; na baixa da regra 38 a
+      cascata continua levando só o "a iniciar"). Pode-se usar a sobra mais de
       uma vez enquanto o Retrabalho estiver `Aberto` (C12). O original `Concluido` aceita a baixa (a sobra é de Item,
       como o `Descarte` da regra 13); o `Cancelado`, 409 `PedidoFechado`. **Estorno**: pela rota da baixa
       `Reaproveitado`, inteiro, desfazendo os `Pronto` e a baixa ligada; recusado se algum pronto já andou (409

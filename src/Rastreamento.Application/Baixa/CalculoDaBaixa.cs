@@ -51,9 +51,11 @@ public static class CalculoDaBaixa
   }
 
   /// <summary>
-  /// Os filhos que o pronto dispensa (C18 da spec da Fase 5B-2): a cascata C6 da Fase 5B-1 a partir de cada no que
-  /// acabou de ficar pronto, de cima para baixo, levando a `Perdido` o "a iniciar" de cada filho alem do que o pai ainda
-  /// pede, e descendo. `calcComPronto` ja ve os `Pronto` gravados: o pronto de um pai soma ao total montado dele (C17),
+  /// Os filhos que o pronto dispensa (C18 da spec da Fase 5B-2, com a emenda de 2026-11-10): a cascata C6 da Fase 5B-1 a
+  /// partir de cada no que acabou de ficar pronto, de cima para baixo, levando a `Perdido` o que cada filho tem em
+  /// producao alem do que o pai ainda pede, e descendo. O excesso sai primeiro do "a iniciar" e, o que faltar, das
+  /// posicoes onde um pronto anterior pos a sobra (num Retrabalho `Aberto` nada andou, entao o que esta fora do "a
+  /// iniciar" e pronto), na ordem dos saldos da calculadora. Na baixa da Fase 5B-1 a cascata continua so no "a iniciar". `calcComPronto` ja ve os `Pronto` gravados: o pronto de um pai soma ao total montado dele (C17),
   /// e e por isso que o `FaltaMontar` que a cascata le ja desconta. O no pronto nao perde nada; uma folha pronta nao tem
   /// o que dispensar. As linhas saem numa baixa de `Descarte` a parte, no Retrabalho (decisao P2 do plano de backend da
   /// Fase 5B-2).
@@ -63,7 +65,7 @@ public static class CalculoDaBaixa
   {
     var rascunho = new Rascunho(calcComPronto);
     foreach (var id in nosComPronto.Distinct().OrderBy(id => Profundidade(calcComPronto, id)).ThenBy(id => id))
-      rascunho.Cascata(id);
+      rascunho.Cascata(id, levaOProntoJunto: true);
     return rascunho.Linhas.ToList();
   }
 
@@ -235,9 +237,11 @@ public static class CalculoDaBaixa
     /// <summary>
     /// C6 da spec da Fase 5B-1, por nivel: em cada filho, o "a iniciar" alem do que o pai agora pede sai junto, e o
     /// filho que perdeu entra no nivel seguinte. Roda sobre o "depois", entao rodar de novo a partir de outro no (a Peca
-    /// do topo) nao conta duas vezes o que ja saiu.
+    /// do topo) nao conta duas vezes o que ja saiu. Com `levaOProntoJunto` (a cascata do pronto, C18 da spec da Fase
+    /// 5B-2), o excesso do filho alem do "a iniciar" sai tambem das outras posicoes de onde se da baixa, na ordem dos
+    /// saldos: o pronto de um uso anterior que o pai pronto nao pede mais.
     /// </summary>
-    public void Cascata(int inicio)
+    public void Cascata(int inicio, bool levaOProntoJunto = false)
     {
       var nivel = new List<int> { inicio };
       while (nivel.Count > 0)
@@ -246,12 +250,28 @@ public static class CalculoDaBaixa
         foreach (var paiId in nivel)
           foreach (var filho in _calc.Filhos(paiId))
           {
-            var excesso = Math.Min(
-                AIniciarDepois(filho.Id), Math.Max(0m, EmProducaoDepois(filho.Id) - DeveDepois(paiId, filho)));
-            excesso = QuatroCasasParaBaixo(excesso);
-            if (excesso <= 0m) continue;
-            Tirar(filho.Id, Local.AIniciar, excesso);
-            proximo.Add(filho.Id);
+            var excessoTotal = Math.Max(0m, EmProducaoDepois(filho.Id) - DeveDepois(paiId, filho));
+            var deAIniciar = QuatroCasasParaBaixo(Math.Max(0m, Math.Min(AIniciarDepois(filho.Id), excessoTotal)));
+            var tirou = deAIniciar;
+            if (deAIniciar > 0m) Tirar(filho.Id, Local.AIniciar, deAIniciar);
+
+            if (levaOProntoJunto)
+            {
+              var resto = QuatroCasasParaBaixo(excessoTotal) - deAIniciar;
+              foreach (var (local, saldo) in _calc.Saldos(filho.Id))
+              {
+                if (resto <= 0m) break;
+                if (local == Local.AIniciar || !Posicoes.DeOndeSeDaBaixa.Contains(local.Posicao)) continue;
+                var disponivel = saldo - _linhas.Where(l => l.NoId == filho.Id && l.Origem == local).Sum(l => l.Quantidade);
+                var tira = Math.Min(resto, disponivel);
+                if (tira <= 0m) continue;
+                Tirar(filho.Id, local, tira);
+                resto -= tira;
+                tirou += tira;
+              }
+            }
+
+            if (tirou > 0m) proximo.Add(filho.Id);
           }
         nivel = proximo;
       }

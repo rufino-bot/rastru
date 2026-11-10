@@ -1252,7 +1252,8 @@ da Execução.
   (`MovimentacaoDto[]`), inclusive os filhos que saíram junto (C6) e a Peça do topo. **Desde a Fase 5B-2:** a baixa de
   `PerdaArmazem` ou `MortaEmProcesso` que já tem Retrabalho ou «não repor» vigente é 409 `ReposicaoResolvida` (C20); a
   baixa `Reaproveitado` se estorna por esta mesma rota, e o estorno desfaz também os `Pronto` do Retrabalho e a baixa
-  ligada da cascata (409 `ProntoJaAndou` se algum pronto já andou); e a baixa ligada, sozinha, é 409
+  ligada da cascata, que leva a `Perdido` o "a iniciar" dos filhos e também o pronto de um uso anterior da sobra que o pai
+  pronto não pede mais (409 `ProntoJaAndou` se algum pronto já andou, o do primeiro uso inclusive enquanto o segundo vale); e a baixa ligada, sozinha, é 409
   `EstornoImpossivel`.
 - `GET /estrutura/{id}/baixas` *(qualquer perfil autenticado)* — as baixas com linha no nó ou num descendente, da mais
   recente para a mais antiga. `GET /pedidos/{id}/baixas` — todas as do Pedido, na mesma forma (C27). Sem `Roles`:
