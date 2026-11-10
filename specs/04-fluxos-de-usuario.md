@@ -209,6 +209,11 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
 7. Se o Pedido de um nó está **pausado** (fluxo 1, passo 5), o operador o vê no fim de "A iniciar
    aqui", marcado como pausado e sem o botão de iniciar — e o card de montagem do pai pausado
    também fica sem Iniciar; terminar, entregar e estornar continuam valendo para o que já começou.
+   **A ordem das linhas é a do prazo de entrega** (decisão do usuário, 2026-11-10): em toda seção da fila do
+   Setor e nos itens de cada grupo de Tarefas, nos Kits montáveis e incompletos e no conserto, o nó do Pedido que
+   entrega antes vem primeiro, e o nó mais antigo desempata; o pai de uma montagem ou de um Kit vale pelo Pedido
+   dele. O Pedido pausado continua no fim de "A iniciar aqui", e dentro de cada grupo vale o prazo. Os grupos de
+   Tarefas continuam em ordem de Setor. O operador não escolhe essa ordem: não há seletor.
 8. **Operador e Movimentador filtram a demanda** na fila do Setor e em Tarefas (spec
    `docs/superpowers/specs/2026-09-29-filtros-e-lote-design.md`, seções 3 e 4): o botão **Filtrar**
    (com o número de filtros ativos) abre as facetas **Material** — o do nó, que o Corte usa para

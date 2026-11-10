@@ -660,7 +660,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   consumidoras, cada uma com um uso (medido em 2026-10-01 com
   `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
   `MateriaisPage`, `ComponentesPage` e `PedidosPage`. A Fila do Setor e as Tarefas **não** ordenam
-  por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica.
+  por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica, e essa ordem é
+  o **prazo de entrega** do Pedido do nó, o mais próximo primeiro, com o `Id` do nó desempatando (decisão do usuário,
+  2026-11-10); quem a aplica é o servidor, e o front não reordena item.
 - **Conteúdo que nasce recolhido usa `SecaoRecolhivel` ou `ListaRecolhivel`** (`web/src/components/`,
   com teste próprio), nunca um `<details>` escrito na tela. As duas são `<details>` nativo — abre no
   teclado e no leitor de tela sem código, e o `<summary>` é o nome do controle — e se separam pelo

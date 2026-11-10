@@ -733,8 +733,10 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   recebe apenas quando não há tarefa (desvio D4 do plano da Fase 3D). Em "a iniciar" o campo vem
   sempre vazio; "aguardando montagem" não o tem. Todo nó resumido (`no`, `pai`, `filhos`) ganha
   `pausa`: `null`, ou `{ desde, porUsuarioNome, motivo }` quando o Pedido dele está pausado (regra
-  31). Em "a iniciar", o que é de Pedido pausado vem **depois** do resto, para a tela agrupá-lo em
-  "Pausados"; dentro de cada grupo a ordem é a de antes. Todo nó resumido ganha também, para os
+  31). As linhas de **todas** as seções vêm pela `dataEntrega` do Pedido do nó (a mais próxima primeiro),
+  com o `Id` do nó desempatando (o pai, na montagem, pelo Pedido dele); a sobra desempata depois por nó e passo,
+  como antes. A data não vai nas linhas desta resposta: o servidor só ordena. Em "a iniciar", o que é de Pedido pausado vem
+  **depois** do resto, para a tela agrupá-lo em "Pausados"; dentro de cada grupo vale o prazo. Todo nó resumido ganha também, para os
   filtros da tela, `pedidoCliente` (o cliente do Pedido do nó, ao lado de `pedidoNumero`) e
   `materiais`: `{ id, codigo, descricao }[]`, os Materiais **do próprio nó** (`EstruturaMaterial`,
   não os do catálogo do Componente), por código; lista vazia — nunca nula — quando o nó não tem
@@ -757,7 +759,8 @@ qualquer perfil autenticado; cada rota de escrita declara os perfis, sempre com 
   nas Tarefas.
 - `GET /tarefas` — `{ grupos, kitsMontaveis, kitsIncompletos, consertos }` (Fase 3B, com `consertos` na Fase
   5A; antes era só a lista de grupos). `grupos`: os Itens prontos (cada nó com `pausa`, `pedidoCliente` e `materiais`, como na
-  fila), com destino calculado, agrupados pelo Setor de origem; o filho de Kit no último passo, cujo
+  fila), com destino calculado, agrupados pelo Setor de origem (os grupos em ordem de Setor, e os itens de cada
+  um, os Kits e os `consertos` pela `dataEntrega` do Pedido do nó, com o `Id` do nó desempatando); o filho de Kit no último passo, cujo
   pai começa num Setor com `UtilizaKit`, **não** aparece aqui: aparece no cartão do Kit enquanto o
   pai ainda precisa receber conjuntos (teto da regra 25 acima de zero); com o teto em zero, não
   aparece em lugar nenhum das Tarefas. Na
