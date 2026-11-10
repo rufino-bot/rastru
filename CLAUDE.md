@@ -666,18 +666,28 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   teclado e no leitor de tela sem código, e o `<summary>` é o nome do controle — e se separam pelo
   gatilho. **`SecaoRecolhivel`** é a seção **informativa de página**: título grande, moldura no padrão
   dos cartões e a contagem no título ("Kits incompletos (23)"), para a lista que pode crescer muito e
-  **não pede ação** — o que se faz não fica escondido. **`ListaRecolhivel`** é o disclosure **de dentro
+  **não pede ação** — o que se faz não fica escondido. **A exceção escrita:** os grupos "Em {Setor}" da
+  `TarefasPage` pedem ação (marcar e entregar) e nascem recolhidos assim mesmo, por pedido do usuário
+  (2026-11-10: ali o Movimentador procura a peça pelo Setor). Para isso a `SecaoRecolhivel` aceita a forma
+  **controlada**, `aberta` e `aoAlternar` (sem elas, cuida de si e nasce recolhida): a tela guarda o aberto de cada
+  grupo, e é ela que o abre — o "Marcar todos" abre os grupos que ganharam item marcado, para nada ficar marcado
+  fora da vista — e que o preserva nas recargas automáticas. O fechado não tira nada do lote: o item marcado num
+  grupo recolhido continua marcado e a `BarraDoLote` não o conta como "oculto pelo filtro", porque oculto é só o
+  que o filtro esconde. O filtro não abre grupo, só restringe o que há nele e a contagem do título. Conserto e
+  Kits montáveis continuam sempre abertos, como seções comuns. **`ListaRecolhivel`** é o disclosure **de dentro
   de um cartão**: sem moldura, texto pequeno, "Filhos (N)", para a lista de filhos que uma Peça pode ter
   às dezenas. Ela nasce recolhida, mas **abre quando algum item tem ação própria** (`temAcao`), continua
   recolhível, e, se a ação aparece depois com a lista fechada (a Fila recarrega sozinha), abre só na
   passagem de falso para verdadeiro, para quem a fechou de propósito não ser contrariado a cada recarga.
   Origem: D7 e as emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da Fase 3B
   (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). Hoje a `SecaoRecolhivel` tem
-  **um** uso, na `TarefasPage`, e a `ListaRecolhivel` tem **quatro**, em três arquivos (os dois cartões de Kit,
+  **dois** usos, ambos na `TarefasPage` (os "Kits incompletos" e o grupo "Em {Setor}", este controlado), e a
+  `ListaRecolhivel` tem **quatro**, em três arquivos (os dois cartões de Kit,
   em `CartaoDeKit`, o cartão de "Aguardando montagem" da `FilaDoSetorPage` e o "Histórico" do cartão da Peça da
   expedição, em `HistoricoDaExpedicao`, que passa o `rotulo` e busca ao abrir); medido em 2026-10-14 com
   `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas) e
-  remedido em 2026-10-22 com o mesmo comando (5 linhas, porque o `HistoricoDaExpedicao` entrou), e o `<details>` cru
+  remedido em 2026-10-22 com o mesmo comando (5 linhas, porque o `HistoricoDaExpedicao` entrou) e em
+  2026-11-10 (6 linhas, porque o grupo "Em {Setor}" entrou), e o `<details>` cru
   só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
   grep -v "\.test\."` devolve duas linhas de elemento e três de comentário que citam a tag, uma delas no
   `HistoricoDaExpedicao`).
