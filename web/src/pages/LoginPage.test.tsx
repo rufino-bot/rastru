@@ -52,6 +52,39 @@ describe('LoginPage', () => {
     expect(await screen.findByText('Usuário ou senha inválidos.')).toBeTruthy()
   })
 
+  async function enviarLoginCom(respostaDoLogin: () => Response | Promise<Response>) {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/auth/refresh': () => respostaJson({ erro: 'sem sessão' }, 401),
+      '/api/auth/login': respostaDoLogin,
+    }))
+    renderizarLogin()
+    fireEvent.change(await screen.findByLabelText('Usuário'), { target: { value: 'admin' } })
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'errada' } })
+    fireEvent.click(screen.getByText('Entrar'))
+  }
+
+  it('um 400 no login mostra a mesma frase genérica do 401', async () => {
+    await enviarLoginCom(() => respostaJson({ erro: 'x' }, 400))
+    expect(await screen.findByText('Usuário ou senha inválidos.')).toBeTruthy()
+  })
+
+  it('um 429 no login pede para esperar, sem dizer que a senha está errada', async () => {
+    await enviarLoginCom(() => respostaJson({ erro: 'x' }, 429))
+    expect(await screen.findByText('Muitas tentativas. Aguarde um minuto e tente de novo.')).toBeTruthy()
+    expect(screen.queryByText('Usuário ou senha inválidos.')).toBeNull()
+  })
+
+  it.each([500, 502, 503])('um %i no login diz que o servidor não respondeu', async (status) => {
+    await enviarLoginCom(() => respostaJson({ erro: 'x' }, status))
+    expect(await screen.findByText('Não foi possível falar com o servidor. Tente de novo em instantes.')).toBeTruthy()
+    expect(screen.queryByText('Usuário ou senha inválidos.')).toBeNull()
+  })
+
+  it('a falha de rede no login diz que o servidor não respondeu', async () => {
+    await enviarLoginCom(() => { throw new TypeError('Failed to fetch') })
+    expect(await screen.findByText('Não foi possível falar com o servidor. Tente de novo em instantes.')).toBeTruthy()
+  })
+
   it('avisa que a sessão expirou quando a volta ao login veio de sessão perdida', async () => {
     // O init-refresh responde 200 (sessão restaurada), e a primeira chamada autenticada devolve
     // 401 duas vezes seguidas -> `onSessionLost` -> estado anônimo com motivo 'sessao-expirada'.

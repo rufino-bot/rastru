@@ -1555,8 +1555,9 @@ isso — ou ao usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a docume
 de quais IPs os cabeçalhos são aceitos.
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
-`RefreshToken` expiradas; mensagem dedicada de 429 no front (hoje cai no erro genérico de auth — só
-dispara sob abuso). **`UseHttpsRedirection` saiu desta lista em 2026-09-12:** com a hospedagem
+`RefreshToken` expiradas. (A mensagem dedicada de 429 no front deixou de estar em aberto em 2026-11-10: o login
+mostra uma frase própria para o 429 e outra para falha de rede ou 5xx, e mantém a frase única do 401/4xx.)
+**`UseHttpsRedirection` saiu desta lista em 2026-09-12:** com a hospedagem
 decidida como VPS pública (`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), TLS deixou de
 ser melhoria deferida e passou a pré-requisito de funcionamento — está registrado com gatilho
 **"obrigatório antes do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo,

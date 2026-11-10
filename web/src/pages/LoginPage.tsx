@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
 import { BannerDeErro } from '../components/BannerDeErro'
+import { ErroDeLogin, ErroDeLoginMuitasTentativas, ErroDeLoginServidor } from '../api/client'
 
 export function LoginPage() {
   const { estado, login } = useAuth()
@@ -24,11 +25,17 @@ export function LoginPage() {
     setEnviando(true)
     try {
       await login(nomeUsuario, senha)
-    } catch {
-      // Mensagem ÚNICA e genérica: honra o não-oráculo do backend, que responde o mesmo 401 para
-      // usuário inexistente, conta trancada e senha errada. Variar a mensagem por caso aqui
-      // desfaria no front a defesa que o backend paga BCrypt para manter.
-      setErro('Usuário ou senha inválidos.')
+    } catch (e) {
+      // A frase do 401/4xx continua ÚNICA e genérica: honra o não-oráculo do backend, que responde
+      // o mesmo 401 para usuário inexistente, conta trancada e senha errada. Variar a mensagem por
+      // caso de conta desfaria no front a defesa que o backend paga BCrypt para manter. Só se
+      // distingue "o servidor disse não" de "pediu para esperar" e de "não respondeu", e essas duas
+      // não dizem nada sobre contas. A frase mora no tipo do erro, não aqui.
+      setErro(
+        e instanceof ErroDeLoginMuitasTentativas || e instanceof ErroDeLoginServidor
+          ? e.message
+          : new ErroDeLogin().message,
+      )
     } finally {
       setEnviando(false)
     }
