@@ -69,7 +69,7 @@ public static class Posicoes
       DoFimDoCaminho.Contains(m.OrigemPosicao) || DoFimDoCaminho.Contains(m.DestinoPosicao);
 }
 
-/// <summary>Os tipos de `CK_Movimentacao_Tipo`. O `Pronto` e da Fase 5B-2.</summary>
+/// <summary>Os tipos de `CK_Movimentacao_Tipo`.</summary>
 public static class TiposDeMovimentacao
 {
   public const string Inicio = "Inicio";
@@ -88,4 +88,9 @@ public static class TiposDeMovimentacao
   // Fase 5B-1 (secao 3.1 da spec): a baixa tira a quantidade de uma posicao e a poe em `Perdido`.
   public const string Perda = "Perda";
   public const string Estorno = "Estorno";
+
+  // Fase 5B-2 (secao 3.1 da spec): a reposicao entra no Retrabalho vindo de `AIniciar`, sem ninguem ter feito o
+  // trabalho nele. `Pronto` aponta a baixa `Reaproveitado` (PerdaId); `Devolucao` aponta a reclamacao (ReclamacaoId).
+  public const string Pronto = "Pronto";
+  public const string Devolucao = "Devolucao";
 }

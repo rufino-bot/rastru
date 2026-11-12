@@ -15,6 +15,7 @@ using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Expedicao;
+using Rastreamento.Application.Retrabalho;
 using Rastreamento.Application.Importacao;
 using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
@@ -156,6 +157,8 @@ builder.Services.AddScoped<IExpedicaoRepository, ExpedicaoRepository>();
 // Baixa (Fase 5B-1): o registro `dbo.Perda` e a arvore que a conta le. Sem `Salvar` proprio, pelo mesmo motivo da
 // expedicao.
 builder.Services.AddScoped<IBaixaRepository, BaixaRepository>();
+// Reposicao (Fase 5B-2): a reclamacao do cliente. Sem `Salvar` proprio, pelo mesmo motivo.
+builder.Services.AddScoped<IReposicaoRepository, ReposicaoRepository>();
 
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 builder.Services.AddScoped<ApontamentoUseCase>();
@@ -174,6 +177,11 @@ builder.Services.AddScoped<ConsultaDaExpedicaoUseCase>();
 builder.Services.AddScoped<EstornoDaExpedicaoUseCase>();
 builder.Services.AddScoped<BaixaUseCase>();
 builder.Services.AddScoped<ConsultaDeBaixasUseCase>();
+builder.Services.AddScoped<ConsultaDeReposicao>();
+builder.Services.AddScoped<ReclamacaoUseCase>();
+builder.Services.AddScoped<DispensaUseCase>();
+builder.Services.AddScoped<RetrabalhoUseCase>();
+builder.Services.AddScoped<ReaproveitamentoUseCase>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 

@@ -61,6 +61,12 @@ public interface IPedidoRepository
   /// <summary>A pausa aberta de cada Pedido pedido que tem uma; os demais nao aparecem.</summary>
   Task<IReadOnlyDictionary<int, PausaAberta>> ListarPausasAbertasAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct);
 
+  /// <summary>
+  /// Os numeros de Pedido que comecam por `prefixo` (comparacao do banco, o `StartsWith` do EF escapa os curingas do
+  /// `LIKE`): de onde sai o numero sugerido do Retrabalho (decisao P7 do plano de backend da Fase 5B-2).
+  /// </summary>
+  Task<IReadOnlyList<string>> ListarNumerosQueComecamComAsync(string prefixo, CancellationToken ct);
+
   Task AdicionarAsync(Pedido pedido, CancellationToken ct);
 
   Task SalvarAlteracoesAsync(CancellationToken ct);

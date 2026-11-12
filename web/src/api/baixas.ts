@@ -1,4 +1,5 @@
 import { enviarComOpcoes, ler, type MovimentacaoDto, type Posicao } from './execucao'
+import type { DispensaDto, PedidoRetrabalhoResumoDto } from './retrabalho'
 
 /**
  * Cliente da baixa: perda e descarte (Fase 5B-1). Os tipos espelham o contrato JSON de `BaixaDtos.cs` — é o
@@ -9,13 +10,14 @@ import { enviarComOpcoes, ler, type MovimentacaoDto, type Posicao } from './exec
  * Tarefas, no sucesso e no 409; as prévias não gravam nada e não avisam.
  */
 
-export type MotivoDaBaixa = 'PerdaArmazem' | 'MortaEmProcesso' | 'Descarte'
+export type MotivoDaBaixa = 'PerdaArmazem' | 'MortaEmProcesso' | 'Descarte' | 'Reaproveitado'
 
 /** Os motivos como a pessoa os lê, nos botões e no histórico. */
 export const ROTULO_DO_MOTIVO: Record<MotivoDaBaixa, string> = {
   PerdaArmazem: 'Sumiu no armazém',
   MortaEmProcesso: 'Morreu num processo',
   Descarte: 'Descarte',
+  Reaproveitado: 'Reaproveitado',
 }
 
 /** De onde a baixa de parte tira e quanto: o Setor e o passo só quando a posição os tem. */
@@ -45,6 +47,8 @@ export interface LinhaDaBaixaDto {
   origemSetorNome: string | null
   origemOrdem: number | null
   quantidade: number
+  /** O nó é a Peça do topo (sem pai): a que a reposição nomeia. Só a baixa gravada preenche; a prévia traz falso. */
+  ehPeca?: boolean
 }
 
 export interface BaixaDto {
@@ -64,6 +68,12 @@ export interface BaixaDto {
   /** Quem lê pode estorná-la agora. */
   estornavel: boolean
   linhas: LinhaDaBaixaDto[]
+  /** O Retrabalho que repõe esta baixa, ou que recebeu a sobra (`Reaproveitado`); `null` sem Retrabalho. */
+  pedidoRetrabalho: PedidoRetrabalhoResumoDto | null
+  /** O "não repor" vigente, ou `null`. */
+  dispensa: DispensaDto | null
+  /** Unidades de Peça ainda por repor (C1); a tela lê, não calcula. */
+  aRepor: number
 }
 
 export interface SobraDaBaixaDto {

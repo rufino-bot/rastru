@@ -1,4 +1,5 @@
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Retrabalho;
 
 namespace Rastreamento.Application.Baixa;
 
@@ -48,19 +49,22 @@ public sealed record EscopoDaBaixaDto(string Tipo, int Id);
 
 /// <summary>
 /// Uma linha da baixa: o no (descricao pela regra 19, a do no, senao a do Componente), de onde saiu e quanto. A mesma
-/// forma na previa e na baixa gravada.
+/// forma na previa e na baixa gravada. `EhPeca`: o no e a Peca do topo (sem pai), a que a reposicao nomeia; so a baixa
+/// gravada o preenche.
 /// </summary>
 public sealed record LinhaDaBaixaDto(
     int EstruturaItemId, string Descricao, string? Codigo, string OrigemPosicao, int? OrigemSetorId,
-    string? OrigemSetorNome, int? OrigemOrdem, decimal Quantidade);
+    string? OrigemSetorNome, int? OrigemOrdem, decimal Quantidade, bool EhPeca = false);
 
 /// <summary>
 /// A baixa projetada (secao 5.2 da spec da Fase 5B-1). `Estornavel`: nao estornada, de Pedido que nao esta
-/// `Cancelado`, e de quem le, ou quem le ve as de todos (C8), como a remessa.
+/// `Cancelado`, e de quem le, ou quem le ve as de todos (C8), como a remessa. `PedidoRetrabalho` e `Dispensa` dizem o que
+/// aconteceu com a reposicao dela, e `ARepor` conta unidades de Peca (C1 da spec da Fase 5B-2).
 /// </summary>
 public sealed record BaixaDto(
     int Id, string Motivo, string? Observacao, EscopoDaBaixaDto Escopo, bool Tudo, DateTime DataHora, int UsuarioId,
-    string UsuarioNome, bool Estornada, bool Estornavel, IReadOnlyList<LinhaDaBaixaDto> Linhas);
+    string UsuarioNome, bool Estornada, bool Estornavel, IReadOnlyList<LinhaDaBaixaDto> Linhas,
+    PedidoRetrabalhoResumoDto? PedidoRetrabalho = null, DispensaDto? Dispensa = null, decimal ARepor = 0m);
 
 /// <summary>Um no cujo fabricado passa a sobrar por causa da baixa (C6).</summary>
 public sealed record SobraDaBaixaDto(int EstruturaItemId, string Descricao, decimal Quantidade);

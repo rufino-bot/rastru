@@ -32,6 +32,8 @@ const PEDIDO = {
   criadoPorUsuarioId: 1, pausa: null,
 }
 
+const SEM_RETRABALHOS = { numeroSugerido: 'PED-001-R1', retrabalhos: [] }
+
 const AGRUPAMENTO = {
   id: 21,
   pedidoId: 7,
@@ -84,8 +86,8 @@ describe('PedidoDetalhePage', () => {
     renderizarDetalhe()
 
     // A seção "Baixas" também carrega e tem o indicador dela: o da página é o que está fora dessa seção.
-    const secao = screen.getByRole('region', { name: 'Baixas' })
-    const daPagina = screen.getAllByRole('status').filter((i) => !secao.contains(i))
+    const secoes = ['Baixas', 'Reclamações', 'Retrabalhos'].map((nome) => screen.getByRole('region', { name: nome }))
+    const daPagina = screen.getAllByRole('status').filter((i) => !secoes.some((s) => s.contains(i)))
     expect(daPagina).toHaveLength(1)
     expect(daPagina[0].textContent).toBe('Carregando…')
   })
@@ -378,6 +380,8 @@ describe('PedidoDetalhePage', () => {
       '/api/pedidos/7': () => respostaJson(PEDIDO),
       '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
       '/api/pedidos/7/baixas': () => respostaJson([]),
+      '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+      '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
       '/api/agrupamentos/21': () => respostaJson({ erro: 'AgrupamentoNaoVazio' }, 409),
     }))
 
@@ -749,6 +753,8 @@ describe('PedidoDetalhePage', () => {
         '/api/pedidos/7': () => respostaJson(PEDIDO),
         '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
         '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
         [PREVIA]: previa,
         '/api/pedidos/7/descarte': descarte,
       })
@@ -891,6 +897,287 @@ describe('PedidoDetalhePage', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Cancelar' }))
 
       await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Descartar tudo' })))
+    })
+  })
+
+  describe('detalhe do Retrabalho', () => {
+    const RETRABALHO = {
+      ...PEDIDO, tipo: 'Retrabalho', numero: 'PED-001-R1', pedidoOrigem: { id: 40, numero: 'PED-001' }, motivoRetrabalho: 'Perda',
+    }
+    const SOBRA = {
+      itens: [{
+        estruturaItemId: 77, descricao: 'Eixo', codigo: 'EX-1', posicao: 'AguardandoColeta',
+        setorId: 3, setorNome: 'Usinagem', ordem: 2, sobra: 5, precisa: 3, sugerido: 3,
+      }],
+    }
+
+    function rotas(pedido: object, extra: Record<string, () => Response> = {}) {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(pedido),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
+        '/api/pedidos/7/sobra-reaproveitavel': () => respostaJson(SOBRA),
+        ...extra,
+      }))
+    }
+
+    it('o cabeçalho diz "Retrabalho de {número} — {motivo}" com link para o original', async () => {
+      rotas(RETRABALHO)
+      renderizarDetalhe()
+      const link = await screen.findByRole('link', { name: 'PED-001' })
+      expect(link.getAttribute('href')).toBe('/pedidos/40')
+      expect(link.parentElement!.textContent).toBe('Retrabalho de PED-001 — Perda')
+    })
+
+    it('o Pedido normal não tem essa linha', async () => {
+      rotas(PEDIDO)
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByText(/^Retrabalho de /)).toBeNull()
+    })
+
+    it('"Usar a sobra" aparece com o Retrabalho Aberto e abre o painel', async () => {
+      rotas(RETRABALHO)
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Usar a sobra' }))
+      expect(await screen.findByRole('form', { name: 'Usar a sobra' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('fora de Aberto não há "Usar a sobra"', async () => {
+      rotas({ ...RETRABALHO, status: 'EmProducao' })
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('o Pedido normal não tem "Usar a sobra"', async () => {
+      rotas(PEDIDO)
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('quem não reaproveita (Qualidade) não vê o botão', async () => {
+      perfil = 'Qualidade'
+      rotas(RETRABALHO)
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Usar a sobra' })).toBeNull()
+    })
+
+    it('depois de gravar, o cabeçalho e as baixas recarregam e o painel fecha', async () => {
+      let cabecalhos = 0
+      let baixas = 0
+      rotas(RETRABALHO, {
+        '/api/pedidos/7': () => { cabecalhos++; return respostaJson(RETRABALHO) },
+        '/api/pedidos/7/baixas': () => { baixas++; return respostaJson([]) },
+        '/api/pedidos/7/sobra-reaproveitada': () => respostaJson({ id: 1 }, 201),
+      })
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Usar a sobra' }))
+      const form = await screen.findByRole('form', { name: 'Usar a sobra' })
+      await within(form).findByRole('button', { name: 'Usar 3' })
+      const antesC = cabecalhos
+      const antesB = baixas
+      fireEvent.submit(form)
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Usar a sobra' })).toBeNull())
+      await waitFor(() => expect(cabecalhos).toBeGreaterThan(antesC))
+      await waitFor(() => expect(baixas).toBeGreaterThan(antesB))
+    })
+  })
+
+  describe('reposição', () => {
+    function rotas(extra: Record<string, () => Response> = {}, pedido: object = PEDIDO) {
+      vi.stubGlobal('fetch', fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(pedido),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+        '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
+        ...extra,
+      }))
+    }
+
+    it('mostra a pílula "N a repor" em atencao no cabeçalho', async () => {
+      rotas({}, { ...PEDIDO, aRepor: 3 })
+      renderizarDetalhe()
+      expect((await screen.findByText('3 a repor')).className).toMatch(/atencao/)
+    })
+
+    it('não mostra a pílula com aRepor 0', async () => {
+      rotas()
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByText(/a repor/)).toBeNull()
+    })
+
+    it('a seção Reclamações mostra o vazio "Nenhuma reclamação"', async () => {
+      rotas()
+      renderizarDetalhe()
+      expect(await screen.findByText('Nenhuma reclamação')).toBeTruthy()
+    })
+
+    it('a seção Reclamações mostra o erro com "Tentar de novo"', async () => {
+      rotas({ '/api/pedidos/7/reclamacoes': () => respostaJson({}, 500) })
+      renderizarDetalhe()
+      expect(await screen.findByText(/Não foi possível carregar as reclamações|O servidor não respondeu/)).toBeTruthy()
+      expect(within(screen.getByRole('region', { name: 'Reclamações' })).getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
+    })
+
+    it('"Registrar reclamação" abre o painel para quem pode e não existe para o Operador', async () => {
+      rotas()
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Registrar reclamação' }))
+      expect(screen.getByRole('form', { name: 'Registrar reclamação' })).toBeTruthy()
+    })
+
+    it('o Operador não vê "Registrar reclamação"', async () => {
+      perfil = 'Operador'
+      rotas()
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Registrar reclamação' })).toBeNull()
+    })
+
+    it('depois de "Não repor" na reclamação, a seção e o cabeçalho recarregam e a pílula some', async () => {
+      let dispensada = false
+      const reclamacao = () => ({
+        id: 3, pecaId: 812, descricao: 'Eixo', codigo: 'EX-1', quantidade: 2, texto: 'torto',
+        dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+        pedidoRetrabalho: null, aRepor: dispensada ? 0 : 2,
+        dispensa: dispensada ? { id: 9, justificativa: 'ok', dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê' } : null,
+      })
+      rotas({
+        '/api/pedidos/7': () => respostaJson({ ...PEDIDO, aRepor: dispensada ? 0 : 2 }),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([reclamacao()]),
+        '/api/reclamacoes/3/dispensa': () => { dispensada = true; return respostaJson({ id: 9 }, 201) },
+      })
+      renderizarDetalhe()
+      expect(await screen.findByText('2 a repor')).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+      const form = screen.getByRole('form', { name: 'Não repor' })
+      fireEvent.change(within(form).getByLabelText('Justificativa'), { target: { value: 'ok' } })
+      fireEvent.submit(form)
+      await waitFor(() => expect(screen.queryByText('2 a repor')).toBeNull())
+      expect(await screen.findByText('Não repor: ok')).toBeTruthy()
+      expect(screen.queryByText('A repor')).toBeNull()
+    })
+
+    it('"Não repor" e "Desfazer" na baixa recarregam o cabeçalho: a pílula some e volta', async () => {
+      let dispensada = false
+      const baixaARepor = () => ({
+        id: 1, motivo: 'PerdaArmazem', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+        dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+        pedidoRetrabalho: null, aRepor: dispensada ? 0 : 2,
+        dispensa: dispensada ? { id: 9, justificativa: 'sem custo', dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê' } : null,
+        linhas: [{ estruturaItemId: 5, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 2 }],
+      })
+      rotas({
+        '/api/pedidos/7': () => respostaJson({ ...PEDIDO, aRepor: dispensada ? 0 : 2 }),
+        '/api/pedidos/7/baixas': () => respostaJson([baixaARepor()]),
+        '/api/baixas/1/dispensa': () => { dispensada = true; return respostaJson({ id: 9 }, 201) },
+        '/api/dispensas/9/estorno': () => { dispensada = false; return new Response(null, { status: 204 }) },
+      })
+      renderizarDetalhe()
+      expect(await screen.findByText('2 a repor')).toBeTruthy()
+      fireEvent.click(await screen.findByRole('button', { name: /Não repor/ }))
+      const form = screen.getByRole('form', { name: 'Não repor' })
+      fireEvent.change(within(form).getByLabelText('Justificativa'), { target: { value: 'sem custo' } })
+      fireEvent.submit(form)
+      expect(await screen.findByText('Não repor: sem custo')).toBeTruthy()
+      await waitFor(() => expect(screen.queryByText('2 a repor')).toBeNull())
+      fireEvent.click(screen.getByRole('button', { name: /Desfazer/ }))
+      expect(await screen.findByText('2 a repor')).toBeTruthy()
+      expect(screen.queryByText(/Não repor: sem custo/)).toBeNull()
+    })
+
+    it('a seção Retrabalhos lista o número com link, o motivo e o status', async () => {
+      rotas({
+        '/api/pedidos/7/retrabalhos': () => respostaJson({
+          numeroSugerido: 'PED-001-R2',
+          retrabalhos: [{ id: 51, numero: 'PED-001-R1', motivoRetrabalho: 'Perda', status: 'Aberto', dataEntrega: '2026-12-01', origem: { tipo: 'Avulsa', id: null } }],
+        }),
+      })
+      renderizarDetalhe()
+      const secao = await screen.findByRole('region', { name: 'Retrabalhos' })
+      expect((await within(secao).findByRole('link', { name: 'PED-001-R1' })).getAttribute('href')).toBe('/pedidos/51')
+    })
+
+    it('a seção Retrabalhos mostra o vazio e o erro com "Tentar de novo"', async () => {
+      rotas()
+      renderizarDetalhe()
+      expect(await screen.findByText('Nenhum retrabalho aberto a partir deste pedido')).toBeTruthy()
+      cleanup()
+      rotas({ '/api/pedidos/7/retrabalhos': () => respostaJson({}, 500) })
+      renderizarDetalhe()
+      const secao = await screen.findByRole('region', { name: 'Retrabalhos' })
+      expect(await within(secao).findByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
+    })
+
+    it('"Abrir retrabalho" do cabeçalho abre o painel avulso para quem abre; o Operador não o vê', async () => {
+      rotas()
+      renderizarDetalhe()
+      fireEvent.click(await screen.findByRole('button', { name: 'Abrir retrabalho' }))
+      const form = screen.getByRole('form', { name: 'Abrir retrabalho' })
+      expect(within(form).getByLabelText('Peça')).toBeTruthy()
+      cleanup()
+      perfil = 'Operador'
+      rotas()
+      renderizarDetalhe()
+      await screen.findByText('Fábrica Alfa')
+      expect(screen.queryByRole('button', { name: 'Abrir retrabalho' })).toBeNull()
+    })
+
+    it('a Qualidade vê "Abrir retrabalho" na linha a repor, mas não o "Não repor"', async () => {
+      perfil = 'Qualidade'
+      rotas({
+        '/api/pedidos/7/baixas': () => respostaJson([{
+          id: 1, motivo: 'PerdaArmazem', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+          dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+          pedidoRetrabalho: null, aRepor: 2, dispensa: null,
+          linhas: [{ estruturaItemId: 5, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 2 }],
+        }]),
+      })
+      renderizarDetalhe()
+      expect(await screen.findByRole('button', { name: /Abrir retrabalho de a baixa/ })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Não repor/ })).toBeNull()
+    })
+
+    it('abrir pela linha da baixa leva ao detalhe do Retrabalho', async () => {
+      const baixa = {
+        id: 1, motivo: 'PerdaArmazem', observacao: null, escopo: { tipo: 'Pedido', id: 7 }, tudo: true,
+        dataHora: '2026-11-04T10:00:00-03:00', usuarioId: 1, usuarioNome: 'Quê', estornada: false, estornavel: false,
+        pedidoRetrabalho: null, aRepor: 2, dispensa: null,
+        linhas: [{ estruturaItemId: 5, descricao: 'Eixo', codigo: 'EX-1', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 2 }],
+      }
+      const outras = fetchPorRota({
+        '/api/pedidos/7': () => respostaJson(PEDIDO),
+        '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+        '/api/pedidos/7/baixas': () => respostaJson([baixa]),
+        '/api/pedidos/7/reclamacoes': () => respostaJson([]),
+      })
+      vi.stubGlobal('fetch', vi.fn((u: string | URL, i?: RequestInit) => {
+        if (String(u) === '/api/pedidos/7/retrabalhos') {
+          return Promise.resolve(i?.method === 'POST' ? respostaJson({ id: 88, numero: 'PED-001-R1' }, 201) : respostaJson({ numeroSugerido: 'PED-001-R1', retrabalhos: [] }))
+        }
+        return outras(u, i)
+      }))
+      render(
+        <MemoryRouter initialEntries={['/pedidos/7']}>
+          <Routes>
+            <Route path="/pedidos/:id" element={<PedidoDetalhePage />} />
+            <Route path="/pedidos/88" element={<p>Detalhe do retrabalho</p>} />
+          </Routes>
+        </MemoryRouter>,
+      )
+      fireEvent.click(await screen.findByRole('button', { name: /Abrir retrabalho de a baixa/ }))
+      const form = screen.getByRole('form', { name: 'Abrir retrabalho' })
+      await waitFor(() => expect((within(form).getByLabelText('Número do pedido') as HTMLInputElement).value).toBe('PED-001-R1'))
+      fireEvent.submit(form)
+      expect(await screen.findByText('Detalhe do retrabalho')).toBeTruthy()
     })
   })
 })

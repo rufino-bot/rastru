@@ -113,4 +113,10 @@ public class BaixaRepository : IBaixaRepository
           .Where(p => p.PedidoId == pedidoId)
           .OrderByDescending(p => p.DataHora).ThenByDescending(p => p.Id)
           .ToListAsync(ct);
+
+  public async Task<IReadOnlyList<Perda>> ListarPerdasLigadasAsync(int perdaDeOrigemId, CancellationToken ct) =>
+      await _db.Perdas.AsNoTracking()
+          .Where(p => p.PerdaDeOrigemId == perdaDeOrigemId)
+          .OrderBy(p => p.Id)
+          .ToListAsync(ct);
 }

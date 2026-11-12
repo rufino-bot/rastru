@@ -134,6 +134,43 @@ describe('login', () => {
     await expect(client.login('admin', 'senha-errada')).rejects.toThrow(client.ErroDeLogin)
     expect(deps.token).toBeNull()
   })
+
+  it.each([400, 401, 403, 404])('uma resposta %i vira o ErroDeLogin da frase genérica', async (status) => {
+    client.inicializar(depsFake())
+    vi.stubGlobal('fetch', vi.fn(async () => resp(status, { erro: 'x' })))
+
+    const erro = await client.login('admin', 'x').catch((e: unknown) => e)
+
+    expect(erro).toBeInstanceOf(client.ErroDeLogin)
+    expect((erro as Error).message).toBe('Usuário ou senha inválidos.')
+  })
+
+  it('uma resposta 429 vira o ErroDeLoginMuitasTentativas', async () => {
+    client.inicializar(depsFake())
+    vi.stubGlobal('fetch', vi.fn(async () => resp(429)))
+
+    const erro = await client.login('admin', 'x').catch((e: unknown) => e)
+
+    expect(erro).toBeInstanceOf(client.ErroDeLoginMuitasTentativas)
+    expect((erro as Error).message).toBe('Muitas tentativas. Aguarde um minuto e tente de novo.')
+  })
+
+  it.each([500, 502, 503])('uma resposta %i vira o ErroDeLoginServidor', async (status) => {
+    client.inicializar(depsFake())
+    vi.stubGlobal('fetch', vi.fn(async () => resp(status)))
+
+    const erro = await client.login('admin', 'x').catch((e: unknown) => e)
+
+    expect(erro).toBeInstanceOf(client.ErroDeLoginServidor)
+    expect((erro as Error).message).toBe('Não foi possível falar com o servidor. Tente de novo em instantes.')
+  })
+
+  it('o fetch rejeitado (rede fora do ar) vira o ErroDeLoginServidor', async () => {
+    client.inicializar(depsFake())
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+
+    await expect(client.login('admin', 'x')).rejects.toThrow(client.ErroDeLoginServidor)
+  })
 })
 
 describe('logout', () => {

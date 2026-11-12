@@ -407,9 +407,13 @@ public sealed class MontagemDeEstruturaUseCase
   }
 
   /// <summary>
-  /// Apaga um no e a subarvore inteira dele. So com o Pedido `Aberto` — e, desde a Fase 3, essa guarda
-  /// tambem impede apagar no com movimento, porque o primeiro `Inicio` poe o Pedido em `EmProducao` e o
-  /// status nao volta (regra 28). Trava a SUBARVORE inteira antes de ler o status (spec secao 8.1 e
+  /// Apaga um no e a subarvore inteira dele. So com o Pedido `Aberto`, e so se a subarvore nao tem historico
+  /// nem copia. A guarda de status sozinha NAO impede apagar no com movimento: o primeiro `Inicio` poe o
+  /// Pedido em `EmProducao` (regra 28), mas o "Usar a sobra" grava `Pronto` num Retrabalho que fica `Aberto`
+  /// (C11), a baixa "a iniciar" tambem deixa linha num Pedido `Aberto`, e o Retrabalho avulso nasce de um
+  /// original ainda `Aberto`. Por isso a subarvore e recusada com 409 quando algum no tem registro no livro
+  /// (`NoComMovimentacao`) ou foi copiado para um Retrabalho (`NoComRetrabalho`): o livro e so de inclusao, e
+  /// apagar o no estouraria na FK como 500. Trava a SUBARVORE inteira antes de ler o status (spec secao 8.1 e
   /// desvio D5 do plano 2): travar so o no da rota deixaria um "iniciar" num descendente correr contra o
   /// apagar e voltar 500 pela `FK_Movimentacao_EstruturaItem`.
   /// </summary>
@@ -435,6 +439,14 @@ public sealed class MontagemDeEstruturaUseCase
       if (await _estruturas.TemSeparacaoAsync(ids, ct))
         return Result<bool>.Falha(CodigosDaSeparacao.NoComSeparacao, TipoDeErro.Conflito,
             "Este item tem separação de material registrada e não pode ser excluído: o histórico de separação não se apaga.");
+
+      if (await _estruturas.TemRegistroNoLivroAsync(ids, ct))
+        return Result<bool>.Falha(CodigosDaExecucao.NoComMovimentacao, TipoDeErro.Conflito,
+            "Este item, ou um item abaixo dele, já tem movimentação, baixa, reclamação ou aferição registrada e não pode ser excluído: o histórico não se apaga.");
+
+      if (await _estruturas.TemCopiaEmRetrabalhoAsync(ids, ct))
+        return Result<bool>.Falha(CodigosDaExecucao.NoComRetrabalho, TipoDeErro.Conflito,
+            "Este item, ou um item abaixo dele, foi copiado para um Retrabalho e não pode ser excluído: o Retrabalho guarda a origem.");
 
       await _estruturas.RemoverSubarvoreAsync(id, ct);
       return Result<bool>.Ok(true);

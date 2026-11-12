@@ -103,6 +103,11 @@ function rotuloDoEntregar(kits: number, itens: number): string {
  * valem para a resposta inteira: o item ou Kit marcado que o filtro esconde continua marcado e vai
  * na entrega, e a página avisa quantos estão ocultos.
  *
+ * Cada grupo por Setor é um agrupador recolhível, fechado na primeira abertura da tela (pedido do usuário,
+ * 2026-11-10: ali o Movimentador procura pela peça pelo Setor), com a contagem depois do filtro no título. Fechar
+ * o grupo não tira o item marcado do lote, e a barra não o conta como oculto: ele só está recolhido, não filtrado.
+ * O "Marcar todos" abre os grupos que ganharam item marcado.
+ *
  * O destino de montagem vem calculado — o primeiro passo do pai (spec da Fase 3D, §2.2) —, então o
  * Movimentador não escolhe Setor.
  */
@@ -120,6 +125,9 @@ export function TarefasPage() {
   const idDoConserto = useId()
 
   const [escolhas, setEscolhas] = useState<Record<string, Escolha>>({})
+  // Os grupos por Setor que o usuário abriu (ou que o "Marcar todos" abriu), por `setorId`. Nascem todos fechados e
+  // a recarga automática não mexe aqui: o aberto sobrevive a ela, e sair da tela o esquece.
+  const [gruposAbertos, setGruposAbertos] = useState<Record<number, boolean>>({})
   // As idas e voltas do conserto marcadas, por `chaveDoConserto`: entram na mesma entrega (Q4 do plano de front).
   const [escolhasDeConserto, setEscolhasDeConserto] = useState<Record<string, Escolha>>({})
   // O texto do campo Conjuntos de cada Kit marcado, por `pai.id`.
@@ -204,6 +212,13 @@ export function TarefasPage() {
   function alternarTodos() {
     setAviso(null)
     setErroDaEntrega(null)
+    if (!todosMarcados) {
+      // Nada fica marcado fora da vista: o grupo que ganha item marcado abre.
+      const ganhamMarca = marcaveis.filter(({ chave }) => escolhas[chave] === undefined).map(({ grupoId }) => grupoId)
+      if (ganhamMarca.length > 0) {
+        setGruposAbertos((atuais) => ({ ...atuais, ...Object.fromEntries(ganhamMarca.map((id) => [id, true])) }))
+      }
+    }
     setEscolhas((atuais) => {
       if (todosMarcados) {
         const resto = { ...atuais }
@@ -281,7 +296,7 @@ export function TarefasPage() {
   // marca), e os Kits montáveis visíveis.
   const marcaveis = visiveis.flatMap((g) => g.itens
     .filter((i) => !i.destino.paiSemRoteiro)
-    .map((i) => ({ chave: chaveDoItem(g.setorId, i), item: i })))
+    .map((i) => ({ chave: chaveDoItem(g.setorId, i), item: i, grupoId: g.setorId })))
   const haMarcavel = marcaveis.length + montaveisVisiveis.length + consertosVisiveis.length > 0
   const todosMarcados = haMarcavel
     && marcaveis.every(({ chave }) => escolhas[chave] !== undefined)
@@ -419,6 +434,10 @@ export function TarefasPage() {
           grupo={g}
           podeEntregar={podeEntregar}
           escolhas={escolhas}
+          aberto={gruposAbertos[g.setorId] === true}
+          aoAlternarAberto={(aberto) => setGruposAbertos((atuais) => (
+            atuais[g.setorId] === aberto ? atuais : { ...atuais, [g.setorId]: aberto }
+          ))}
           aoAlternar={alternar}
           aoMudar={mudar}
         />
@@ -452,17 +471,17 @@ export function TarefasPage() {
   )
 }
 
-function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: {
+function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aberto, aoAlternarAberto, aoAlternar, aoMudar }: {
   grupo: TarefasDoSetorDto
   podeEntregar: boolean
   escolhas: Record<string, Escolha>
+  aberto: boolean
+  aoAlternarAberto: (aberto: boolean) => void
   aoAlternar: (chave: string, item: ItemDeTarefa, marcado: boolean) => void
   aoMudar: (chave: string, parcial: Partial<Escolha>) => void
 }) {
-  const id = useId()
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-3">
-      <h2 id={id} className="text-lg font-medium text-tinta">{`Em ${grupo.setorNome}`}</h2>
+    <SecaoRecolhivel titulo={`Em ${grupo.setorNome}`} contagem={grupo.itens.length} aberta={aberto} aoAlternar={aoAlternarAberto}>
       <ListaDeCadastro rotulo={`Prontos em ${grupo.setorNome}`}>
         {grupo.itens.map((item) => {
           const chave = chaveDoItem(grupo.setorId, item)
@@ -502,7 +521,7 @@ function GrupoDeTarefas({ grupo, podeEntregar, escolhas, aoAlternar, aoMudar }: 
           )
         })}
       </ListaDeCadastro>
-    </section>
+    </SecaoRecolhivel>
   )
 }
 

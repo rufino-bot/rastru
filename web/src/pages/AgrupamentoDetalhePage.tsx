@@ -51,8 +51,8 @@ function localizarNo(lista: NoDaEstrutura[], id: number): NoDaEstrutura | null {
 }
 
 /** Desfechos não-`'ok'` de `excluirNo`. `ExcluirNo` não chama `PlanejadorDeCopia`, então os três
-    códigos dele nunca ocorrem aqui — mas `NaoEncontrado`, `PedidoNaoAberto` e `ConflitoDeConcorrencia`
-    ocorrem de verdade (este último tem teste próprio, "excluir em conflito de concorrência diz para
+    códigos dele nunca ocorrem aqui — mas `NaoEncontrado`, `PedidoNaoAberto`, `NoComSeparacao`, `NoComMovimentacao`,
+    `NoComRetrabalho` e `ConflitoDeConcorrencia` ocorrem de verdade (este último tem teste próprio, "excluir em conflito de concorrência diz para
     tentar de novo"). O `Record` é exaustivo sobre o tipo inteiro —
     se o backend um dia passar a emitir um dos três códigos de `PlanejadorDeCopia` aqui, o `tsc`
     cobra a frase em vez de a tela ficar muda no `catch`-all silencioso de um índice ausente. */
@@ -70,6 +70,11 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   // Fase 4: nó com linha de separação na subárvore, ainda que estornada (regra 34). `excluirNo` devolve só o
   // código e descarta a `mensagem` do servidor, então a frase mostrada é sempre esta.
   NoComSeparacao: 'Este item, ou um item abaixo dele, já tem separação de material registrada e não pode ser excluído.',
+  // Fase 5B-2: nó com registro no livro (movimento, baixa, reclamação, aferição) ou copiado para um Retrabalho. O
+  // Retrabalho `Aberto` que recebeu "Usar a sobra" tem `Pronto` nos nós e continua editável, então o botão
+  // "Excluir" aparece e o servidor recusa.
+  NoComMovimentacao: 'Este item, ou um item abaixo dele, já tem movimentação, baixa, reclamação ou aferição registrada e não pode ser excluído.',
+  NoComRetrabalho: 'Este item, ou um item abaixo dele, foi copiado para um Retrabalho e não pode ser excluído.',
   // Fase 5A: `PedidoFechado` é de criar, acrescentar e editar, e `ComAfericao` é só do editar; o `excluirNo`
   // não os emite, mas o `Record` é exaustivo sobre o tipo inteiro.
   PedidoFechado: 'Não foi possível excluir: o pedido está concluído ou cancelado.',

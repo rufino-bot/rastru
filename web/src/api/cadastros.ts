@@ -1,5 +1,6 @@
 import { apiFetch } from './client'
 import { ErroDeApi } from './erros'
+import type { MotivoDeRetrabalho } from './retrabalho'
 
 export interface SetorDto {
   id: number
@@ -178,6 +179,12 @@ export interface PedidoDto {
   pausa: PausaResumoDto | null
   /** A da remessa que concluiu o Pedido, ISO 8601 com offset -03:00; `null` enquanto ele não conclui (Fase 5A). */
   dataConclusao: string | null
+  /** O Pedido original, quando este é um Retrabalho; `null` nos demais (Fase 5B-2). */
+  pedidoOrigem: { id: number; numero: string } | null
+  /** Por que o Retrabalho foi aberto; `null` fora de Retrabalho. */
+  motivoRetrabalho: MotivoDeRetrabalho | null
+  /** Unidades de Peça deste Pedido ainda por repor (C1); a tela lê, não calcula. */
+  aRepor: number
 }
 
 export interface NovoPedido {

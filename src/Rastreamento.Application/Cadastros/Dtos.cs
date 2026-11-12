@@ -93,6 +93,8 @@ public sealed record NovoMaterialDto(
 /// `DateOnly` e nao passa por ele: sai como "aaaa-mm-dd". `Atrasado` e decidido aqui, no servidor
 /// (`PrazoDeEntrega`), e a tela so desenha a pilula. `DataConclusao` (UTC, pelo mesmo conversor) e a da
 /// remessa que concluiu o Pedido, nula enquanto ele nao conclui (decisao P8 do plano de backend da Fase 5A).
+/// `PedidoOrigem` e `MotivoRetrabalho` so o Retrabalho tem (spec da Fase 5B-2); `ARepor` conta unidades de Peca (C1) e e
+/// calculado no servidor, em lote, na leitura (secao 4.1).
 /// </remarks>
 public sealed record PedidoDto(
     int Id,
@@ -105,7 +107,13 @@ public sealed record PedidoDto(
     bool Atrasado,
     int CriadoPorUsuarioId,
     PausaResumoDto? Pausa,
-    DateTime? DataConclusao = null);
+    DateTime? DataConclusao = null,
+    PedidoOrigemResumoDto? PedidoOrigem = null,
+    string? MotivoRetrabalho = null,
+    decimal ARepor = 0m);
+
+/// <summary>O Pedido de que um Retrabalho nasceu: o Id e o numero (secao 4.2 da spec da Fase 5B-2).</summary>
+public sealed record PedidoOrigemResumoDto(int Id, string Numero);
 
 public sealed record ContagemDeStatusDto(string Status, int Quantidade);
 

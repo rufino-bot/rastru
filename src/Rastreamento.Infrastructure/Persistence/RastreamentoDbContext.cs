@@ -30,6 +30,8 @@ public class RastreamentoDbContext : DbContext
   public DbSet<LiberacaoDimensional> Liberacoes => Set<LiberacaoDimensional>();
   public DbSet<Remessa> Remessas => Set<Remessa>();
   public DbSet<Perda> Perdas => Set<Perda>();
+  public DbSet<Reclamacao> Reclamacoes => Set<Reclamacao>();
+  public DbSet<DispensaDeReposicao> DispensasDeReposicao => Set<DispensaDeReposicao>();
   public DbSet<PedidoPausa> PedidoPausas => Set<PedidoPausa>();
   public DbSet<ImportacaoDeEstrutura> ImportacoesDeEstrutura => Set<ImportacaoDeEstrutura>();
   public DbSet<ImportacaoDeEstruturaComponente> ImportacoesDeEstruturaComponentes => Set<ImportacaoDeEstruturaComponente>();

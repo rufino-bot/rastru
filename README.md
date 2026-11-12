@@ -28,7 +28,7 @@ local de expedição ou em conserto) + o que já foi montado dentro do pai + exp
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql`, `alter-fase-5a.sql` e `alter-fase-5b1.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4, da Fase 5A ou da Fase 5B-1 até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql`, `alter-fase-5a.sql`, `alter-fase-5b1.sql` e `alter-fase-5b2.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4, da Fase 5A, da Fase 5B-1 ou da Fase 5B-2 até o schema atual |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -190,8 +190,14 @@ Concluídas até aqui:
   usuário no navegador e a review de branch foram feitas em 2026-11-05. Mesclada na `main` pelo PR #36, em
   2026-11-05.
 
-**Próxima: Fase 5B-2** — reposição (o Pedido de Retrabalho como ação separada e opcional e o nó pronto), ainda sem
-spec. Depois dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por
+**Em andamento: Fase 5B-2** — reposição: o Pedido de Retrabalho como ação separada e opcional, aberto de uma baixa por
+perda, de uma reclamação do cliente ou avulso; o nó pronto, que reaproveita a sobra do original; e o «não repor» do PCP.
+Tem spec (`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`) e dois planos
+(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-front.md`); o backend e o front estão implementados na
+branch; a conferência no navegador (2026-11-10) e a review de branch (2026-11-12) foram feitas e o fix wave dela está na
+branch, e falta o PR e o merge. Vieram junto, por decisão do usuário, três ajustes da conferência que não são da 5B-2:
+os grupos «Em {Setor}» de Tarefas recolhidos, a Fila do Setor e as Tarefas pelo prazo de entrega e as frases do login.
+A fase não foi mesclada. Depois dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por
 pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`

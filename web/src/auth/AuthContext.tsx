@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function login(nomeUsuario: string, senha: string) {
-    const usuario = await client.login(nomeUsuario, senha) // lanca ErroDeLogin em 401
+    const usuario = await client.login(nomeUsuario, senha) // lanca ErroDeLogin (401/4xx), ErroDeLoginMuitasTentativas (429) ou ErroDeLoginServidor (rede/5xx)
     setEstado({ status: 'autenticado', usuario })
   }
 

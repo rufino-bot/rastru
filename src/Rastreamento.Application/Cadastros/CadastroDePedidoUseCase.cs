@@ -1,6 +1,7 @@
 using System.Globalization;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Execucao;
+using Rastreamento.Application.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 
@@ -14,7 +15,11 @@ public sealed class CadastroDePedidoUseCase
 {
   private const string ErroDeCampoObrigatorio = "Numero, cliente e data de entrega sao obrigatorios.";
 
-  private const string ErroDeNumeroDuplicado = "Ja existe um Pedido com este numero.";
+  /// <summary>
+  /// O erro de numero repetido, o mesmo no cadastro, na edicao e na abertura do Retrabalho (C7 da spec da Fase 5B-2):
+  /// e por ele que o controller reconhece o 409 de duplicidade e monta o corpo `ValorDuplicado`.
+  /// </summary>
+  public const string ErroDeNumeroDuplicado = "Ja existe um Pedido com este numero.";
 
   private const string ErroDePedidoNaoEncontrado = "Pedido nao encontrado.";
 
@@ -54,12 +59,17 @@ public sealed class CadastroDePedidoUseCase
 
   private readonly IPedidoRepository _repositorio;
   private readonly TimeProvider _relogio;
+  private readonly ConsultaDeReposicao _reposicao;
 
-  /// <summary>O relogio e de onde sai o "hoje" da regra de atraso (`PrazoDeEntrega.HojeEmBrasilia`).</summary>
-  public CadastroDePedidoUseCase(IPedidoRepository repositorio, TimeProvider relogio)
+  /// <summary>
+  /// O relogio e de onde sai o "hoje" da regra de atraso (`PrazoDeEntrega.HojeEmBrasilia`); a consulta de reposicao e
+  /// de onde saem o "a repor" e o numero do Pedido de origem do Retrabalho (spec da Fase 5B-2), em lote.
+  /// </summary>
+  public CadastroDePedidoUseCase(IPedidoRepository repositorio, TimeProvider relogio, ConsultaDeReposicao reposicao)
   {
     _repositorio = repositorio;
     _relogio = relogio;
+    _reposicao = reposicao;
   }
 
   public async Task<Result<PedidoDto>> Cadastrar(
@@ -69,10 +79,7 @@ public sealed class CadastroDePedidoUseCase
     if (numero.Length == 0 || cliente.Length == 0 || novo.DataEntrega is not { } dataEntrega)
       return Result<PedidoDto>.Falha(ErroDeCampoObrigatorio, TipoDeErro.Validacao);
 
-    // Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Pedido_Numero
-    // vazando ate a API. O indice segue como rede de seguranca para a corrida entre as duas.
-    if (await _repositorio.ObterPorNumeroAsync(numero, ct) is not null)
-      return Result<PedidoDto>.Falha(ErroDeNumeroDuplicado, TipoDeErro.Conflito);
+    if (await RecusarNumeroEmUsoAsync(numero, null, ct) is { } emUso) return emUso;
 
     var pedido = new Pedido
     {
@@ -110,17 +117,28 @@ public sealed class CadastroDePedidoUseCase
       return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
 
     // So e conflito se o numero pertencer a OUTRO pedido: manter o proprio numero e no-op.
-    var homonimo = await _repositorio.ObterPorNumeroAsync(numero, ct);
-    if (homonimo is not null && homonimo.Id != id)
-      return Result<PedidoDto>.Falha(ErroDeNumeroDuplicado, TipoDeErro.Conflito);
+    if (await RecusarNumeroEmUsoAsync(numero, id, ct) is { } emUso) return emUso;
 
     pedido.Numero = numero;
     pedido.Cliente = cliente;
     pedido.DataEntrega = dataEntrega;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
-    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
+    return Result<PedidoDto>.Ok((await ProjetarComPausas([pedido], ct)).Single());
+  }
+
+  /// <summary>
+  /// A guarda do numero unico: a falha de conflito se `numero` (ja aparado) e de outro Pedido que nao `exceto`, ou nulo.
+  /// Checagem ANTES do insert: erro de negocio claro em vez de excecao de UQ_Pedido_Numero vazando ate a API. O indice
+  /// segue como rede de seguranca para a corrida entre as duas. A abertura do Retrabalho a reusa (C7 da spec da Fase
+  /// 5B-2), dentro da transacao dela.
+  /// </summary>
+  public async Task<Result<PedidoDto>?> RecusarNumeroEmUsoAsync(string numero, int? exceto, CancellationToken ct)
+  {
+    var homonimo = await _repositorio.ObterPorNumeroAsync(numero, ct);
+    return homonimo is not null && homonimo.Id != exceto
+        ? Result<PedidoDto>.Falha(ErroDeNumeroDuplicado, TipoDeErro.Conflito)
+        : null;
   }
 
   /// <summary>
@@ -189,12 +207,24 @@ public sealed class CadastroDePedidoUseCase
           .Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao))
           .ToList();
 
+  /// <summary>
+  /// Os Pedidos como DTO, com as pausas, o "a repor" e a origem dos Retrabalhos em lote: uma consulta de cada para a
+  /// pagina inteira, nunca uma por Pedido.
+  /// </summary>
   private async Task<IReadOnlyList<PedidoDto>> ProjetarComPausas(
       IReadOnlyList<Pedido> pedidos, CancellationToken ct)
   {
-    var pausas = await _repositorio.ListarPausasAbertasAsync(pedidos.Select(p => p.Id).ToList(), ct);
+    if (pedidos.Count == 0) return [];
+    var ids = pedidos.Select(p => p.Id).ToList();
+    var pausas = await _repositorio.ListarPausasAbertasAsync(ids, ct);
+    var aRepor = await _reposicao.ARepor(ids, ct);
+    var origens = await _reposicao.NumerosDasOrigensAsync(pedidos, ct);
     var hoje = Hoje();
-    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id), hoje)).ToList();
+    return pedidos.Select(p => Projetar(p, pausas.GetValueOrDefault(p.Id), hoje) with
+    {
+      PedidoOrigem = p.PedidoOrigemId is int o && origens.TryGetValue(o, out var numero) ? new PedidoOrigemResumoDto(o, numero) : null,
+      ARepor = aRepor.GetValueOrDefault(p.Id),
+    }).ToList();
   }
 
   /// <summary>Lista separada por virgula: aparada, sem pedaco vazio e sem repetido (a ordem da primeira aparicao fica).</summary>
@@ -209,8 +239,7 @@ public sealed class CadastroDePedidoUseCase
     var pedido = await _repositorio.ObterPorIdAsync(id, ct);
     if (pedido is null)
       return Result<PedidoDto>.Falha(ErroDePedidoNaoEncontrado, TipoDeErro.NaoEncontrado);
-    var pausas = await _repositorio.ListarPausasAbertasAsync([id], ct);
-    return Result<PedidoDto>.Ok(Projetar(pedido, pausas.GetValueOrDefault(id), Hoje()));
+    return Result<PedidoDto>.Ok((await ProjetarComPausas([pedido], ct)).Single());
   }
 
   /// <summary>
@@ -237,8 +266,18 @@ public sealed class CadastroDePedidoUseCase
   /// <summary>Uma vez por requisicao: todos os Pedidos de uma resposta comparam contra o mesmo dia.</summary>
   private DateOnly Hoje() => PrazoDeEntrega.HojeEmBrasilia(_relogio);
 
+  /// <summary>
+  /// O Pedido como DTO; a abertura do Retrabalho projeta o Pedido novo por aqui (sem pausa e sem nada a repor: nasceu
+  /// agora), com o numero do original, que ela ja tem na mao.
+  /// </summary>
+  internal PedidoDto ProjetarNovo(Pedido p, string? numeroDaOrigem = null) =>
+      Projetar(p, null, Hoje()) with
+      {
+        PedidoOrigem = p.PedidoOrigemId is int o && numeroDaOrigem is not null ? new PedidoOrigemResumoDto(o, numeroDaOrigem) : null,
+      };
+
   private static PedidoDto Projetar(Pedido p, PausaAberta? pausa, DateOnly hoje) =>
       new(p.Id, p.Numero, p.Cliente, p.Tipo, p.Status, p.DataAbertura, p.DataEntrega,
           PrazoDeEntrega.EstaAtrasado(p.DataEntrega, p.Status, hoje),
-          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa), p.DataConclusao);
+          p.CriadoPorUsuarioId, PausaResumoDto.De(pausa), p.DataConclusao, MotivoRetrabalho: p.MotivoRetrabalho);
 }

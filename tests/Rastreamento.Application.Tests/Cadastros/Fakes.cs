@@ -126,6 +126,9 @@ public class FakePedidoRepo : IPedidoRepository
   public Task<Pedido?> ObterPorNumeroAsync(string numero, CancellationToken ct) =>
       Task.FromResult(_linhas.SingleOrDefault(p => p.Numero == numero));
 
+  public Task<IReadOnlyList<string>> ListarNumerosQueComecamComAsync(string prefixo, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<string>>(_linhas.Where(p => p.Numero.StartsWith(prefixo, StringComparison.Ordinal)).Select(p => p.Numero).ToList());
+
   /// <summary>O ultimo filtro recebido; nulo enquanto `ListarAsync` nao foi chamado.</summary>
   public FiltroDePedidos? UltimoFiltro { get; private set; }
 

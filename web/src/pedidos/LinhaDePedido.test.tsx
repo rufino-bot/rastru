@@ -11,6 +11,7 @@ const PEDIDO: PedidoDto = {
   id: 7, numero: 'PED-042', cliente: 'Metalúrgica Alfa', tipo: 'Fabricacao',
   status: 'Aberto', dataAbertura: '2026-08-01T09:30:00-03:00', dataEntrega: '2026-10-22', atrasado: false,
   criadoPorUsuarioId: 1, pausa: null, dataConclusao: null,
+  pedidoOrigem: null, motivoRetrabalho: null, aRepor: 0,
 }
 
 function renderizar(pedido: PedidoDto) {
@@ -130,5 +131,26 @@ describe('LinhaDePedido', () => {
     const classes = screen.getByRole('link').className.split(/\s+/)
     expect(classes).toContain('after:absolute')
     expect(classes).toContain('after:inset-0')
+  })
+
+  it('mostra N a repor em atencao quando aRepor > 0', () => {
+    renderizar({ ...PEDIDO, aRepor: 3 })
+    expect(screen.getByText('3 a repor').className).toMatch(/atencao/)
+  })
+
+  it('nao mostra a pilula a repor com aRepor 0', () => {
+    renderizar(PEDIDO)
+    expect(screen.queryByText(/a repor/)).toBeNull()
+  })
+
+  it('marca o Pedido de Retrabalho com a pilula neutra Retrabalho', () => {
+    renderizar({ ...PEDIDO, pedidoOrigem: { id: 4, numero: 'PED-001' }, motivoRetrabalho: 'Perda' })
+    const marca = screen.getByText('Retrabalho')
+    expect(marca.className).not.toMatch(/negativo|positivo|atencao|atraso/)
+  })
+
+  it('nao marca Retrabalho no Pedido comum', () => {
+    renderizar(PEDIDO)
+    expect(screen.queryByText('Retrabalho')).toBeNull()
   })
 })

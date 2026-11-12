@@ -195,6 +195,11 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
     {
       var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
       var ag = AgrupamentoId;
+      // Os Retrabalhos abertos deste Pedido (Fase 5B-2) apontam o original por FK — o Pedido, os nos copiados
+      // (`OrigemEstruturaItemId`), a reclamacao (a `Devolucao`) — e sao apontados pela baixa e pela reclamacao dele.
+      // O conteudo deles sai primeiro; a linha do Pedido de cada um, so depois das baixas e reclamacoes do original.
+      var retrabalhos = await db.Pedidos.AsNoTracking().Where(p => p.PedidoOrigemId == PedidoId).Select(p => p.Id).ToListAsync();
+      foreach (var r in retrabalhos) await ApagarConteudoDoRetrabalhoAsync(db, r);
       // `UsuarioDeTeste.DisposeAsync` so apaga o proprio usuario e os proprios RefreshToken — nunca o
       // livro. Por isso o livro dos nos deste cenario e apagado AQUI, antes da arvore, e os usuarios
       // sao descartados por ULTIMO, no `foreach (var usuario in _usuarios)` no fim deste metodo:
@@ -204,7 +209,12 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Movimentacao WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       // A baixa (Fase 5B-1) e apontada pelo livro por FK: sai logo depois dele.
+      // O "nao repor" (Fase 5B-2) aponta a baixa e a reclamacao por FK: sai antes das duas.
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE d FROM dbo.DispensaDeReposicao d LEFT JOIN dbo.Perda p ON p.Id = d.PerdaId LEFT JOIN dbo.Reclamacao r ON r.Id = d.ReclamacaoId WHERE p.PedidoId = {PedidoId} OR r.PedidoId = {PedidoId}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {PedidoId}");
+      // A reclamacao (Fase 5B-2) aponta o Pedido e o no por FK: sai antes da arvore e do Pedido.
+      await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Reclamacao WHERE PedidoId = {PedidoId}");
       // O livro aponta os agrupadores do fim do caminho por FK, entao eles saem DEPOIS dele: a remessa pelos
       // usuarios do cenario (quem aponta a remessa e o livro, nao o no), a contagem, a liberacao e a afericao
       // pelo no. A resposta de liberacao e o estorno de afericao apontam a propria tabela: saem primeiro.
@@ -234,6 +244,7 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Agrupamento WHERE Id = {ag}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.PedidoPausa WHERE PedidoId = {PedidoId}");
+      foreach (var r in retrabalhos) await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {r}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Pedido WHERE Id = {PedidoId}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Componente WHERE Id = {ComponenteId}");
       await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.ArquivoDeComponente WHERE Id = {_arquivoId}");
@@ -244,5 +255,48 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
         await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Setor WHERE Id = {setor}");
     }
     foreach (var usuario in _usuarios) await usuario.DisposeAsync();
+  }
+
+  /// <summary>
+  /// Tudo de um Retrabalho do cenario, menos a linha do Pedido: o livro (estornos primeiro), as baixas (a ligada da
+  /// cascata do pronto antes), as reclamacoes, os agrupadores do fim do caminho, a arvore e o Agrupamento. A remessa sai
+  /// com a do original, pelos usuarios do cenario.
+  /// </summary>
+  private static async Task ApagarConteudoDoRetrabalhoAsync(RastreamentoDbContext db, int r)
+  {
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE m FROM dbo.Movimentacao m JOIN dbo.EstruturaItem e ON e.Id = m.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r} AND m.EstornoDeId IS NOT NULL");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE m FROM dbo.Movimentacao m JOIN dbo.EstruturaItem e ON e.Id = m.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE d FROM dbo.DispensaDeReposicao d LEFT JOIN dbo.Perda p ON p.Id = d.PerdaId LEFT JOIN dbo.Reclamacao x ON x.Id = d.ReclamacaoId WHERE p.PedidoId = {r} OR x.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {r} AND PerdaDeOrigemId IS NOT NULL");
+    await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Perda WHERE PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Reclamacao WHERE PedidoId = {r}");
+    // As tabelas que apontam a si mesmas (a resposta de liberacao, os estornos) saem antes das linhas que apontam.
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.ContagemDimensional x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.LiberacaoDimensional x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r} AND x.Tipo = 'Resposta'");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.LiberacaoDimensional x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.RelatorioDimensional x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r} AND x.EstornoDeId IS NOT NULL");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.RelatorioDimensional x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.Montagem x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.MaterialSeparacao x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r} AND x.EstornoDeId IS NOT NULL");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.MaterialSeparacao x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.EstruturaMaterial x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE x FROM dbo.EstruturaRoteiro x JOIN dbo.EstruturaItem e ON e.Id = x.EstruturaItemId JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE e FROM dbo.EstruturaItem e JOIN dbo.Agrupamento a ON a.Id = e.AgrupamentoId WHERE a.PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.Agrupamento WHERE PedidoId = {r}");
+    await db.Database.ExecuteSqlInterpolatedAsync($"DELETE FROM dbo.PedidoPausa WHERE PedidoId = {r}");
   }
 }

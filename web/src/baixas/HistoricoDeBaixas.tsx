@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { estornarBaixa, ROTULO_DO_MOTIVO, type BaixaDto } from '../api/baixas'
+import { desfazerNaoRepor, naoReporBaixa } from '../api/retrabalho'
 import { formatarDataHora } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
 import { ehConflito } from '../api/execucao'
@@ -13,6 +14,8 @@ import { ListaDeCadastro } from '../components/ListaDeCadastro'
 import { Pilula } from '../components/Pilula'
 import { formatarQuantidade, rotuloDoSaldo } from '../execucao/formatacao'
 import { useDevolverFoco } from '../hooks/useDevolverFoco'
+import type { PortaDoRetrabalho } from '../retrabalho/PainelDeAbertura'
+import { ReposicaoDaLinha } from '../retrabalho/ReposicaoDaLinha'
 import { usePermissoesDaBaixa } from './usePermissoesDaBaixa'
 
 // Somas em décimos de milésimo inteiros, como a `RemessasRecentes`: 0,1 + 0,2 tem de dar 0,3.
@@ -55,7 +58,10 @@ interface Props {
   carregar: () => Promise<BaixaDto[]>
   /** Muda quando a tela gravou uma baixa: a lista já carregada recarrega. A primeira leitura é a da montagem. */
   versao: number
-  /** Uma baixa foi estornada (ou o servidor disse que já estava): a tela recarrega o que depende do saldo. */
+  /**
+   * A baixa mudou (estornada, ou o servidor disse que já estava; "Não repor" gravado ou desfeito): a tela recarrega o
+   * que depende dela, o saldo e o "a repor" do cabeçalho.
+   */
   aoEstornar: () => void
   /** O nome de quem a tela já conhece (o número do Pedido, o código do Agrupamento); sem ele, o Id. */
   nomeDoEscopo?: (escopo: BaixaDto['escopo']) => string | null
@@ -63,6 +69,8 @@ interface Props {
   noId?: number
   /** O nível do título: `h3` dentro do painel do nó, `h2` onde as seções da tela são `h2`. */
   nivel?: 'h2' | 'h3'
+  /** Abre o Retrabalho de uma baixa a repor; só a tela do Pedido o passa, e sem ele a linha não oferece o botão. */
+  aoAbrirRetrabalho?: (porta: PortaDoRetrabalho) => void
 }
 
 /**
@@ -73,7 +81,7 @@ interface Props {
  * Um 409 (`JaEstornado`) é tela velha: a frase do servidor fica na seção e a lista recarrega. Quando a escrita tira o
  * "Estornar", o foco vai ao título da seção.
  */
-export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3' }: Props) {
+export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, noId, nivel = 'h3', aoAbrirRetrabalho }: Props) {
   const { podeEstornar } = usePermissoesDaBaixa()
   const idDoTitulo = useId()
   const [baixas, setBaixas] = useState<BaixaDto[] | null>(null)
@@ -144,6 +152,11 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, 
     }
   }
 
+  async function aoMudarAReposicaoDe() {
+    await recarregar()
+    aoEstornar()
+  }
+
   function descricaoDa(b: BaixaDto): string {
     return `${ROTULO_DO_MOTIVO[b.motivo]}, ${resumoDasLinhas(b, noId)}, em ${formatarDataHora(b.dataHora)}`
   }
@@ -162,32 +175,49 @@ export function HistoricoDeBaixas({ carregar, versao, aoEstornar, nomeDoEscopo, 
           {baixas.map((b) => {
             const escopo = frasesDoEscopo(b, nomeDoEscopo)
             return (
-              <ItemComAcao
+              <ReposicaoDaLinha
                 key={b.id}
-                acao={b.estornavel && podeEstornar(b.usuarioId) && (
-                  <Botao
-                    ref={(el) => {
-                      if (el) botoes.current.set(b.id, el)
-                      else botoes.current.delete(b.id)
-                    }}
-                    variante="secundario"
-                    aria-label={`Estornar a baixa: ${descricaoDa(b)}`}
-                    onClick={() => { ultimaAberta.current = b.id; setAConfirmar(b) }}
-                    disabled={estornando}
-                  >
-                    Estornar
-                  </Botao>
-                )}
+                nome={`a baixa de ${ROTULO_DO_MOTIVO[b.motivo]}`}
+                aRepor={b.aRepor}
+                dispensa={b.dispensa}
+                pedidoRetrabalho={b.pedidoRetrabalho}
+                reaproveitada={b.motivo === 'Reaproveitado'}
+                naoRepor={(j) => naoReporBaixa(b.id, j)}
+                desfazer={desfazerNaoRepor}
+                aoMudar={aoMudarAReposicaoDe}
+                aoAbrirRetrabalho={aoAbrirRetrabalho && (() => aoAbrirRetrabalho({ tipo: 'Baixa', baixa: b }))}
+                pronto={!recarregando}
               >
-                <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
-                  {ROTULO_DO_MOTIVO[b.motivo]}
-                  {b.estornada && <Pilula>Estornada</Pilula>}
-                </span>
-                {escopo && <span className="text-sm text-tinta">{escopo}</span>}
-                <span className="text-sm text-tinta">{resumoDasLinhas(b, noId)}</span>
-                {b.observacao && <span className="text-xs text-tinta-fraca">{b.observacao}</span>}
-                <span className="text-xs text-tinta-fraca">{`${b.usuarioNome} · ${formatarDataHora(b.dataHora)}`}</span>
-              </ItemComAcao>
+                {({ reposicao, painel }) => (
+                  <ItemComAcao
+                    painel={painel}
+                    acao={b.estornavel && podeEstornar(b.usuarioId) && (
+                      <Botao
+                        ref={(el) => {
+                          if (el) botoes.current.set(b.id, el)
+                          else botoes.current.delete(b.id)
+                        }}
+                        variante="secundario"
+                        aria-label={`Estornar a baixa: ${descricaoDa(b)}`}
+                        onClick={() => { ultimaAberta.current = b.id; setAConfirmar(b) }}
+                        disabled={estornando}
+                      >
+                        Estornar
+                      </Botao>
+                    )}
+                  >
+                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-tinta">
+                      {ROTULO_DO_MOTIVO[b.motivo]}
+                      {b.estornada && <Pilula>Estornada</Pilula>}
+                    </span>
+                    {escopo && <span className="text-sm text-tinta">{escopo}</span>}
+                    <span className="text-sm text-tinta">{resumoDasLinhas(b, noId)}</span>
+                    {b.observacao && <span className="text-xs text-tinta-fraca">{b.observacao}</span>}
+                    <span className="text-xs text-tinta-fraca">{`${b.usuarioNome} · ${formatarDataHora(b.dataHora)}`}</span>
+                    {reposicao}
+                  </ItemComAcao>
+                )}
+              </ReposicaoDaLinha>
             )
           })}
         </ListaDeCadastro>

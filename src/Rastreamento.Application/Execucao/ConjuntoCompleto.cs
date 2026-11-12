@@ -8,6 +8,11 @@ namespace Rastreamento.Application.Execucao;
 /// recebe em conjunto (`RecebeEmConjunto`) sao agrupados pelo pai, e cada grupo tem de trazer TODOS os filhos
 /// diretos, com o mesmo numero inteiro de conjuntos, sem passar do teto. Valida com as mesmas funcoes que as
 /// Tarefas mostram (`TetoDeEntrada`), e roda depois de o destino de cada item estar calculado.
+///
+/// Com conjunto em formacao (D8 da spec da Fase 5B-2; decisao P4 do plano de backend), cada filho tira antes o que o
+/// completa (`ComplementoDoConjunto`): se nao sobra nada, o grupo passa; se sobra, a regra de sempre vale sobre o resto.
+/// O complemento ja e limitado ao que o pai ainda precisa receber (`ConjuntosEmFormacao` nao passa do `FaltaMontar`),
+/// entao o grupo que passa por ele tambem nao passa (regra 25), e a leitura (`ColetasPendentes`) oferece o mesmo teto.
 /// </summary>
 internal static class ConjuntoCompleto
 {
@@ -29,6 +34,14 @@ internal static class ConjuntoCompleto
       var paiId = grupo.Key;
       var pai = estado.Nome(paiId);
       var somas = grupo.GroupBy(i => i.EstruturaItemId).ToDictionary(g => g.Key, g => g.Sum(i => i.Quantidade));
+      if (calc.ConjuntosEmFormacao(paiId) > 0m)
+      {
+        somas = somas
+            .Select(kv => (kv.Key, Resto: kv.Value - Math.Min(kv.Value, calc.ComplementoDoConjunto(paiId, kv.Key))))
+            .Where(x => x.Resto > 0m)
+            .ToDictionary(x => x.Key, x => x.Resto);
+        if (somas.Count == 0) continue;
+      }
 
       decimal? conjuntos = null;
       foreach (var filho in calc.FilhosQueContam(paiId))

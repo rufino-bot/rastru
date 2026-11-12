@@ -49,7 +49,7 @@ public sealed class ConsultaDeExecucaoUseCase
     var setor = await _setores.ObterPorIdAsync(setorId, ct);
     if (setor is null) return Falhas.NaoEncontrado<FilaDoSetorDto>();
 
-    var (estado, resumos, concluidos) = await CarregarEmProducaoAsync(incluirConcluidos: true, ct);
+    var (estado, resumos, concluidos, prazos) = await CarregarEmProducaoAsync(incluirConcluidos: true, ct);
     var nomes = await NomesDosSetoresAsync(ct);
     var calc = estado.Calc;
     var estornaveis = await EstornaveisAsync(setorId, calc, quem, ct);
@@ -119,7 +119,7 @@ public sealed class ConsultaDeExecucaoUseCase
         .Where(n => n.PaiId is not null && !concluidos.Contains(n.Id) && calc.AguardandoMontagem(n.Id, setorId) > 0m)
         .Select(n => n.PaiId!.Value)
         .Distinct()
-        .Order()
+        .PeloPrazo(id => id, prazos)
         .Select(paiId =>
         {
           var m = calc.CalcularMontabilidade(paiId, setorId);
@@ -147,11 +147,14 @@ public sealed class ConsultaDeExecucaoUseCase
     return Result<FilaDoSetorDto>.Ok(new FilaDoSetorDto(
         setorId, setor.Nome, setor.Atividade,
         // O que e de Pedido pausado vai para o fim, e a tela o agrupa em "Pausados" (spec da Fase 3D,
-        // secao 2.5). OrderBy e estavel: dentro de cada grupo, a ordem de antes.
-        aIniciar.OrderBy(l => l.No.Pausa is null ? 0 : 1).ToList(),
-        emTrabalho, coleta, montagem,
-        sobra.OrderBy(s => s.No.Id).ThenBy(s => s.Ordem ?? int.MaxValue).ToList(),
-        conserto));
+        // secao 2.5). A ordem por prazo vem primeiro e o OrderBy da pausa e estavel: dentro de cada grupo, o prazo.
+        aIniciar.PeloPrazo(l => l.No.Id, prazos).OrderBy(l => l.No.Pausa is null ? 0 : 1).ToList(),
+        emTrabalho.PeloPrazo(l => l.No.Id, prazos).ToList(),
+        coleta.PeloPrazo(l => l.No.Id, prazos).ToList(),
+        montagem,
+        // A sobra mantem o criterio de antes, o no e o passo, como desempate depois do prazo.
+        sobra.PeloPrazo(s => s.No.Id, prazos).ThenBy(s => s.Ordem ?? int.MaxValue).ToList(),
+        conserto.PeloPrazo(l => l.No.Id, prazos).ToList()));
   }
 
   /// <summary>
@@ -228,20 +231,21 @@ public sealed class ConsultaDeExecucaoUseCase
 
   private async Task<Result<TarefasDto>> TarefasAsync(CancellationToken ct)
   {
-    var (estado, resumos, _) = await CarregarEmProducaoAsync(incluirConcluidos: false, ct);
+    var (estado, resumos, _, prazos) = await CarregarEmProducaoAsync(incluirConcluidos: false, ct);
     var nomes = await NomesDosSetoresAsync(ct);
     var calc = estado.Calc;
 
+    // Os grupos seguem pelo Setor; dentro de cada um, o item sai pelo prazo do Pedido (o `Id` do no desempata).
     var grupos = calc.ColetasPendentes()
         .GroupBy(p => p.SetorId)
         .OrderBy(g => g.Key)
         .Select(g => new TarefasDoSetorDto(g.Key, nomes.GetValueOrDefault(g.Key, string.Empty),
-            g.Select(p => new TarefaDto(resumos[p.EstruturaItemId], p.Ordem, p.Tarefa,
+            g.PeloPrazo(p => p.EstruturaItemId, prazos).Select(p => new TarefaDto(resumos[p.EstruturaItemId], p.Ordem, p.Tarefa,
                 Destino(calc.DestinoDaColeta(p.EstruturaItemId, p.Ordem), nomes))).ToList()))
         .ToList();
 
     SetorResumoDto Setor(int id) => new(id, nomes.GetValueOrDefault(id, string.Empty));
-    var kits = calc.KitsDaColeta().Select(k => new KitDto(
+    var kits = calc.KitsDaColeta().PeloPrazo(k => k.PaiId, prazos).Select(k => new KitDto(
         resumos[k.PaiId], Setor(k.SetorDeDestinoId), k.Conjuntos,
         k.Filhos.Select(f => new FilhoDoKitDto(
             resumos[f.FilhoId], f.QuantidadePorPai,
@@ -250,7 +254,8 @@ public sealed class ConsultaDeExecucaoUseCase
 
     return Result<TarefasDto>.Ok(new TarefasDto(
         grupos, kits.Where(k => k.Conjuntos >= 1m).ToList(), kits.Where(k => k.Conjuntos < 1m).ToList(),
-        calc.ConsertosPendentes().Select(c => TarefaDeConserto(c, resumos[c.EstruturaItemId], nomes)).ToList()));
+        calc.ConsertosPendentes().PeloPrazo(c => c.EstruturaItemId, prazos)
+            .Select(c => TarefaDeConserto(c, resumos[c.EstruturaItemId], nomes)).ToList()));
   }
 
   /// <summary>
@@ -275,7 +280,7 @@ public sealed class ConsultaDeExecucaoUseCase
   public Task<Result<ContagemDeTarefasDto>> ContagemDeTarefas(CancellationToken ct) =>
       _execucao.ConsultarAsync(async () =>
       {
-        var (estado, _, _) = await CarregarEmProducaoAsync(incluirConcluidos: false, ct);
+        var (estado, _, _, _) = await CarregarEmProducaoAsync(incluirConcluidos: false, ct);
         return Result<ContagemDeTarefasDto>.Ok(new ContagemDeTarefasDto(
             estado.Calc.ColetasPendentes().Count + estado.Calc.KitsDaColeta().Count(k => k.Montavel)
             + estado.Calc.ConsertosPendentes().Count));
@@ -322,7 +327,8 @@ public sealed class ConsultaDeExecucaoUseCase
   /// repetir as duas linhas de carga entre elas. `ContagemDeTarefas` descarta os resumos, que ela nao
   /// precisa.
   /// </summary>
-  private async Task<(EstadoDeExecucao Estado, IReadOnlyDictionary<int, NoResumoDto> Resumos, IReadOnlySet<int> DePedidoConcluido)>
+  private async Task<(EstadoDeExecucao Estado, IReadOnlyDictionary<int, NoResumoDto> Resumos, IReadOnlySet<int> DePedidoConcluido,
+      IReadOnlyDictionary<int, DateOnly> Prazos)>
       CarregarEmProducaoAsync(bool incluirConcluidos, CancellationToken ct)
   {
     var contexto = await _execucao.ListarNosEmProducaoAsync(incluirConcluidos, ct);
@@ -332,8 +338,10 @@ public sealed class ConsultaDeExecucaoUseCase
         x.PedidoCliente, x.AgrupamentoId, x.AgrupamentoCodigo, x.AgrupamentoTipo, x.No.EstruturaPaiId,
         x.No.EstruturaPaiId is int pai ? estado.Nome(pai) : null, PausaResumoDto.De(x.Pausa),
         x.Materiais.Select(m => new MaterialResumoDto(m.Id, m.Codigo, m.Descricao)).ToList()));
-    return (estado, resumos, contexto.Where(x => x.PedidoStatus == "Concluido").Select(x => x.No.Id).ToHashSet());
+    return (estado, resumos, contexto.Where(x => x.PedidoStatus == "Concluido").Select(x => x.No.Id).ToHashSet(),
+        contexto.ToDictionary(x => x.No.Id, x => x.PedidoDataEntrega));
   }
+
 
   /// <summary>O catalogo de Setores inteiro, inativos inclusive: o que ja esta num Setor inativado continua aparecendo.</summary>
   private async Task<IReadOnlyDictionary<int, string>> NomesDosSetoresAsync(CancellationToken ct) =>
@@ -351,4 +359,16 @@ public sealed class ConsultaDeExecucaoUseCase
             destino.Passo is PassoDoCalculo p ? nomes.GetValueOrDefault(p.SetorId) : null,
             null, destino.PaiId, destino.PaiSemRoteiro),
       };
+}
+
+/// <summary>
+/// A ordem da Fila e das Tarefas: a data de entrega do Pedido do no, a mais proxima primeiro, e o `Id` do no
+/// desempata. O `OrderBy` e estavel, entao varias linhas do mesmo no (uma por posicao ou passo) ficam na ordem
+/// em que a calculadora as deu.
+/// </summary>
+internal static class OrdemPorPrazo
+{
+  public static IOrderedEnumerable<T> PeloPrazo<T>(
+      this IEnumerable<T> linhas, Func<T, int> noId, IReadOnlyDictionary<int, DateOnly> prazos) =>
+      linhas.OrderBy(l => prazos.GetValueOrDefault(noId(l))).ThenBy(noId);
 }

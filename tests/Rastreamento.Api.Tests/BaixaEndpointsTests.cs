@@ -343,6 +343,26 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     { """{ "motivo": "Descarte", "incluirTopo": true, "origens": [ { "posicao": "AIniciar", "quantidade": 1 } ] }""", "OrigemInvalida" },
   };
 
+  /// <summary>
+  /// `Reaproveitado` e motivo de `CK_Perda_Motivo`, mas so nasce pelo "Usar a sobra" (C4 da spec da Fase 5B-2): o
+  /// "Dar baixa" valida contra `MotivosDePerda.DaBaixa` e o recusa, na baixa e na previa, sem gravar nada.
+  /// </summary>
+  [Fact]
+  public async Task Dar_baixa_com_motivo_Reaproveitado_e_400_MotivoInvalido()
+  {
+    await using var c = await CriarAsync(_factory);
+    var qualidade = c.Como(c.Qualidade);
+
+    foreach (var rota in new[] { $"/api/estrutura/{c.A}/baixas", $"/api/estrutura/{c.A}/baixas/previa" })
+    {
+      var resposta = await qualidade.PostAsJsonAsync(rota, new { motivo = "Reaproveitado", tudo = true });
+      var (status, erro, mensagem) = await RecusaAsync(resposta);
+      Assert.Equal((HttpStatusCode.BadRequest, "MotivoInvalido"), (status, erro));
+      Assert.DoesNotContain("Reaproveitado", mensagem);
+    }
+    Assert.Equal(0, await PerdasDoPedidoAsync(c));
+  }
+
   [Theory]
   [MemberData(nameof(CorposRecusadosNaEntrada))]
   public async Task Entrada_invalida_e_400_com_o_codigo_e_nada_grava(string json, string codigo)

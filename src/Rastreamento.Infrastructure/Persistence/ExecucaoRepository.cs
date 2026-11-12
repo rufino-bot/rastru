@@ -415,11 +415,13 @@ public class ExecucaoRepository : IExecucaoRepository
   {
     if (ids.Count == 0) return new Dictionary<int, decimal>();
     var lista = ids.ToList();
-    // Uma consulta: a baixa soma, o estorno dela (de volta a `AIniciar`, com `PerdaId`) subtrai.
+    // Uma consulta: a baixa soma, o estorno dela (de volta a `AIniciar`, com `PerdaId`) subtrai. O estorno de um
+    // `Pronto` tambem leva o `PerdaId`, mas desfaz um pronto, nao uma perda: so conta o que aponta uma linha `Perda`.
     var linhas = await _db.Movimentacoes.AsNoTracking()
         .Where(m => lista.Contains(m.EstruturaItemId) && m.PerdaId != null
                     && ((m.Tipo == TiposDeMovimentacao.Perda && m.OrigemPosicao == Posicoes.AIniciar)
-                        || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar)))
+                        || (m.Tipo == TiposDeMovimentacao.Estorno && m.DestinoPosicao == Posicoes.AIniciar
+                            && _db.Movimentacoes.Any(o => o.Id == m.EstornoDeId && o.Tipo == TiposDeMovimentacao.Perda))))
         .Select(m => new { m.EstruturaItemId, Sinal = m.Tipo == TiposDeMovimentacao.Perda ? 1m : -1m, m.Quantidade })
         .ToListAsync(ct);
     return linhas.GroupBy(l => l.EstruturaItemId)
@@ -443,16 +445,40 @@ public class ExecucaoRepository : IExecucaoRepository
     return achados.ToHashSet();
   }
 
+  public async Task<IReadOnlyList<(int EstruturaItemId, string DestinoPosicao, decimal Quantidade)>> ListarProntosAsync(
+      IReadOnlyCollection<int> ids, CancellationToken ct)
+  {
+    if (ids.Count == 0) return [];
+    var lista = ids.ToList();
+    // Uma consulta: cada `Pronto` menos o que os estornos dele devolveram a "a iniciar".
+    var linhas = await _db.Movimentacoes.AsNoTracking()
+        .Where(m => lista.Contains(m.EstruturaItemId) && m.Tipo == TiposDeMovimentacao.Pronto)
+        .Select(m => new
+        {
+          m.EstruturaItemId, m.DestinoPosicao,
+          Liquido = m.Quantidade - (_db.Movimentacoes
+              .Where(e => e.EstornoDeId == m.Id && e.Tipo == TiposDeMovimentacao.Estorno)
+              .Sum(e => (decimal?)e.Quantidade) ?? 0m),
+        })
+        .ToListAsync(ct);
+    return linhas.GroupBy(l => (l.EstruturaItemId, l.DestinoPosicao))
+        .Select(g => (g.Key.EstruturaItemId, g.Key.DestinoPosicao, Quantidade: g.Sum(l => l.Liquido)))
+        .Where(x => x.Quantidade != 0m)
+        .OrderBy(x => x.EstruturaItemId).ThenBy(x => Livro.OrdemDaPosicao(x.DestinoPosicao))
+        .ToList();
+  }
+
   public async Task<IReadOnlySet<int>> ListarPedidosComInicioAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
   {
     if (pedidoIds.Count == 0) return new HashSet<int>();
     var lista = pedidoIds.ToList();
-    // Inicio liquido de estorno: a linha `Inicio` que nenhuma linha aponta como estornada (a mesma definicao de
-    // `ListarRegistrosEstornaveisDoSetorAsync`).
+    // Inicio liquido de estorno: a linha `Inicio` (ou `Devolucao`, decisao P9 do plano de backend da Fase 5B-2) que
+    // nenhuma linha aponta como estornada (a mesma definicao de `ListarRegistrosEstornaveisDoSetorAsync`).
     var achados = await (from m in _db.Movimentacoes.AsNoTracking()
                          join e in _db.Estruturas.AsNoTracking() on m.EstruturaItemId equals e.Id
                          join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
-                         where m.Tipo == TiposDeMovimentacao.Inicio && lista.Contains(a.PedidoId)
+                         where (m.Tipo == TiposDeMovimentacao.Inicio || m.Tipo == TiposDeMovimentacao.Devolucao)
+                               && lista.Contains(a.PedidoId)
                                && !_db.Movimentacoes.Any(x => x.EstornoDeId == m.Id)
                          select a.PedidoId).Distinct().ToListAsync(ct);
     return achados.ToHashSet();

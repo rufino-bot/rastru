@@ -789,7 +789,25 @@ spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
   (aprovada em 2026-11-04); planos `docs/superpowers/plans/2026-11-04-fase-5b1-backend.md` e
   `docs/superpowers/plans/2026-11-04-fase-5b1-front.md`.
 - **5B-2 — Reposição**: o Pedido de Retrabalho, o nó pronto, a reposição da perda que impede montar e o vínculo com a
-  reclamação do cliente e com a peça morta. Sem spec.
+  reclamação do cliente e com a peça morta. Spec `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`
+  (aprovada em 2026-11-06); planos `docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e
+  `docs/superpowers/plans/2026-11-06-fase-5b2-front.md`.
+
+**Estado da 5B-2 (2026-11-12):** **em execução**, ainda não mesclada. A conferência do usuário no navegador foi feita
+em 2026-11-10 e a review de branch inteira, em 2026-11-12; o fix wave dela está na branch, e **falta o PR e o merge**. Os
+ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a cascata do pronto leva também o pronto do
+filho que o pai não pede mais) e o F2 (o painel do «Não repor» abre na largura da linha) são da 5B-2**; o F3 (os grupos
+«Em {Setor}» de Tarefas nascem recolhidos), o F4 (a Fila do Setor e as Tarefas saem pelo prazo de entrega do Pedido) e o
+F5 (o login separa «usuário ou senha inválidos» de «muitas tentativas» e de «sem resposta do servidor») não são, e vieram
+junto por decisão do usuário (2026-11-10). Até 2026-11-07, antes da conferência, a branch já tinha o que segue. O **backend foi implementado** na branch: o schema
+(`dbo.Reclamacao`, `dbo.DispensaDeReposicao`, `Perda.PerdaDeOrigemId`, `Movimentacao.ReclamacaoId`,
+`EstruturaItem.OrigemEstruturaItemId`, o motivo `Reaproveitado` e os tipos `Pronto` e `Devolucao` do livro) e a migração
+`db/alter-fase-5b2.sql`; o pronto na calculadora (conta como montado, C17) e o conjunto em formação do Kit (D8, regra 25);
+a cópia pura da Peça; o registro da reclamação; a abertura do Retrabalho pelas três portas e a lista com o número sugerido;
+o «não repor»; o «Usar a sobra» e o estorno dele; e os estornos que a reposição proíbe (C20), nos controllers
+`RetrabalhoController`, `ReaproveitamentoController`, `ReclamacaoController` e `DispensaController` (regra 39; rotas em
+`05-api-endpoints.md`). O **front também foi implementado** na branch, em `web/src/retrabalho/` (o âmbar «a repor», as seções «Reclamações» e
+«Retrabalhos», o «Abrir retrabalho», o «Não repor» e o «Usar a sobra»).
 
 **Estado da 5B-1 (2026-11-05):** o **backend e o front foram implementados** na branch. No backend entrou: a posição
 `Perdido` e o tipo `Perda` no livro, `dbo.Perda` reescrita como registro da baixa e a migração
@@ -811,15 +829,16 @@ O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
 
 - Registro de `Perda`, de Peça e de Item, com o motivo `Descarte` (regras 17 e 38): **5B-1**.
 - `Perdido` como posição do livro e o `Descarte` da sobra, pelo ator da perda (regra 30): **5B-1**. O tipo de
-  movimento `Pronto`, que faz o nó **pronto** do Retrabalho (regra 27) nascer aguardando coleta: **5B-2**.
+  movimento `Pronto`, que faz o nó **pronto** do Retrabalho (regra 27) nascer na mesma posição física da sobra no
+  original, `AguardandoColeta(Setor, passo)` ou `AguardandoMontagem(Setor)` (seção 3.1 da spec da 5B-2): **5B-2**.
 - **Descartar Peça ou Item em Pedido rodando** (decidido para esta fase em 2026-09-25): **5B-1**, pela baixa `tudo` de
   `Descarte` e pelo "Descartar tudo". Fecha o ponto em aberto "Descontinuar uma Peça trava o fechamento do Pedido", do
   `01` (agora com nota de fechamento), e o filho acrescentado por engano que trava a montagem do pai (spec da Fase 3,
   seção 11). **Obrigatório antes do primeiro uso real**, e cumprido pelo merge da 5B-1 (2026-11-05).
 - Perda que impede montar (regra 27): a **baixa** que sobe até a Peça do topo é da **5B-1** (`incluirTopo`, uma baixa
   só); o **Pedido de Retrabalho** que o PCP cadastra para repor, com o que já existe marcado **pronto**, é da
-  **5B-2**. A decidir na spec da 5B-2: as perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md`
-  deixa para a Fase 5.
+  **5B-2**. As perguntas que a seção 9 da spec `2026-09-15-kit-montagem-e-movimentacao-design.md` deixa para a Fase 5
+  foram respondidas pela spec da 5B-2 (C2 e seção 3.1), com a errata datada naquela spec.
 - **"Matar a peça"** reprovada: a quarta saída da não conforme, ao lado do conserto e da liberação da 5A, é a baixa com
   origem `NaoConforme` e motivo `MortaEmProcesso`: **5B-1**; refazê-la do começo é Retrabalho: **5B-2**.
 - O fechamento conta o **perdido** junto do expedido (regra 13): a Peça conclui com tudo expedido **ou** perdido:
@@ -829,7 +848,7 @@ O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
   (`ReprovacaoDimensional`/`ErroInterno`/`SolicitacaoCliente`/`Perda`): **5B-2**. O vínculo que o Retrabalho tinha com a
   avaliação por remessa (`RelatorioDimensionalAvaliacao`) deixou de existir na 5A, e o desenho do vínculo com a
   reclamação do cliente — depois de ele receber a Peça, motivo `SolicitacaoCliente` — e com a peça morta é da 5B-2.
-  `Perda.PedidoRetrabalhoId` existe no schema desde a 5B-1 e **não é usada** até lá.
+  `Perda.PedidoRetrabalhoId` existe no schema desde a 5B-1 e é usada a partir da 5B-2 (C2: o vínculo é por baixa).
 - Critério de pronto da **5B-1**: a Qualidade ou o PCP dão baixa em qualquer nó, de tudo o que está em produção ou de
   uma parte, escolhendo as posições; o "Descartar tudo" do Pedido e do Agrupamento leva tudo numa escrita só; a
   Qualidade "mata" a não conforme no cartão da Peça; a sobra da Fila se descarta da própria linha; cada baixa se
@@ -853,7 +872,10 @@ Spec ainda por escrever. Executa depois da 5B.
   editar a `QuantidadePorPai` de um filho cujo pai tem conjuntos à espera; e de acrescentar filho a
   um pai de Kit que ainda não iniciou, mas já tem conjuntos à espera (a guarda `PaiJaIniciado`
   recusa o pai que já saiu de "a iniciar", e esse não saiu).
-- **Estrutura alterada no meio da produção** (D1 da spec da Fase 3B): hoje acrescentar filho a nó
+  A 5B-2 tratou **só** o conjunto que um `Pronto` do Retrabalho começa (D8 da spec dela, regra 25 de `01`); o conjunto que
+  perde parte dentro da Solda no próprio Pedido e a espera desalinhada continuam aqui.
+- **Estrutura alterada no meio da produção** (D1 da spec da Fase 3B; D6 da spec da Fase 5B-2, que lhe deu esta casa
+  quando a regra 24 só dizia «fica para a Fase 5»): hoje acrescentar filho a nó
   já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
   usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
   da produção é o mesmo assunto de alterar projeto ou descontinuar, o do item «Descartar Peça ou

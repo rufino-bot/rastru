@@ -123,6 +123,8 @@ export function rotuloDoTipo(tipo: TipoDeMovimentacao): string {
     case 'Recusa': return 'Recusa'
     case 'Expedicao': return 'Expedição'
     case 'Perda': return 'Baixa'
+    case 'Pronto': return 'Pronto'
+    case 'Devolucao': return 'Devolução'
   }
 }
 

@@ -6,10 +6,29 @@ export interface DependenciasDoClient {
   onSessionLost: () => void
 }
 
+// O login separa três situações, cada uma com a frase num lugar só (a `message` do tipo). A do
+// `ErroDeLogin` é deliberadamente única: usuário inexistente, inativo, trancado e senha errada
+// respondem igual no backend (não-oráculo), e qualquer 4xx fora o 429 cai nela. As outras duas
+// não dizem nada sobre a conta: o rate limit é por IP, e a falha de rede ou do servidor é anterior
+// à checagem de credenciais.
 export class ErroDeLogin extends Error {
   constructor() {
     super('Usuário ou senha inválidos.')
     this.name = 'ErroDeLogin'
+  }
+}
+
+export class ErroDeLoginMuitasTentativas extends Error {
+  constructor() {
+    super('Muitas tentativas. Aguarde um minuto e tente de novo.')
+    this.name = 'ErroDeLoginMuitasTentativas'
+  }
+}
+
+export class ErroDeLoginServidor extends Error {
+  constructor() {
+    super('Não foi possível falar com o servidor. Tente de novo em instantes.')
+    this.name = 'ErroDeLoginServidor'
   }
 }
 
@@ -81,12 +100,19 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
 
 export async function login(nomeUsuario: string, senha: string): Promise<UsuarioDto> {
   const d = exigirDeps()
-  const resp = await fetch(rota('/auth/login'), {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nomeUsuario, senha }),
-  })
+  let resp: Response
+  try {
+    resp = await fetch(rota('/auth/login'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nomeUsuario, senha }),
+    })
+  } catch {
+    throw new ErroDeLoginServidor()
+  }
+  if (resp.status === 429) throw new ErroDeLoginMuitasTentativas()
+  if (resp.status >= 500) throw new ErroDeLoginServidor()
   if (!resp.ok) throw new ErroDeLogin()
   const corpo = (await resp.json()) as LoginResponse
   d.setToken(corpo.accessToken)

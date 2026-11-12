@@ -476,7 +476,7 @@ describe('TarefasPage — filtro de Material e Pedido', () => {
     expect(within(corte).getByText('SUP-01 — Suporte')).toBeTruthy()
     expect(within(corte).queryByText('TP-01 — Tampa')).toBeNull()
     expect(screen.queryByRole('list', { name: 'Prontos em Solda' })).toBeNull()
-    expect(screen.queryByRole('heading', { name: 'Em Solda' })).toBeNull()
+    expect(screen.queryByText(/^Em Solda/)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Remover filtro Pedido PED-2026-01' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Chapa SAE 1020 6,00 mm' }))
@@ -850,7 +850,7 @@ describe('TarefasPage — Kits', () => {
     expect(within(lista).getByText('Dá para levar 2 conjunto(s)')).toBeTruthy()
     expect(within(lista).getByText('Destino: Solda (início de Quadro)')).toBeTruthy()
     // "Kits montáveis" vem primeiro: é a tarefa principal de quem trabalha com Kit (spec da Fase 3B, seção 5.1).
-    const emCorte = screen.getByRole('heading', { name: 'Em Corte' })
+    const emCorte = screen.getByText('Em Corte (1)')
     expect(titulo.compareDocumentPosition(emCorte) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
@@ -998,7 +998,7 @@ describe('TarefasPage — Kits', () => {
     expect(secao.open).toBe(false)
     expect(within(secao).getByText('QD-01 — Quadro')).toBeTruthy()
     expect(within(secao).queryByRole('checkbox')).toBeNull()
-    const emPintura = screen.getByRole('heading', { name: 'Em Pintura' })
+    const emPintura = screen.getByText('Em Pintura (1)')
     expect(emPintura.compareDocumentPosition(resumo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     // O incompleto não é tarefa: não entra no Marcar todos nem no Entregar.
     fireEvent.click(screen.getByRole('button', { name: 'Marcar todos' }))
@@ -1163,7 +1163,9 @@ describe('TarefasPage — conserto (Fase 5A)', () => {
     await screen.findByRole('list', { name: 'Conserto' })
 
     const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(titulos.slice(0, 3)).toEqual(['Conserto', 'Kits montáveis', 'Em Corte'])
+    expect(titulos).toEqual(['Conserto', 'Kits montáveis'])
+    const kits = screen.getByRole('heading', { level: 2, name: 'Kits montáveis' })
+    expect(kits.compareDocumentPosition(screen.getByText('Em Corte (1)')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('a caixa do conserto também tem a área de toque de 44 px', async () => {
@@ -1277,5 +1279,113 @@ describe('TarefasPage — conserto (Fase 5A)', () => {
     expect(await screen.findByText('Levar ao conserto em Dobra')).toBeTruthy()
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByRole('button', { name: /Entregar|Marcar todos/ })).toBeNull()
+  })
+
+  describe('grupos por Setor recolhíveis', () => {
+    const doPedido = (pedidoId: number, id: number, codigo: string) => ({
+      no: no({ id, descricao: codigo, codigoDoComponente: codigo, pedidoId, pedidoNumero: `PED-${pedidoId}` }),
+      ordem: 1, quantidade: 4, destino: destino(),
+    })
+    const DOIS_PEDIDOS_DO_GRUPO: TarefasDoSetorDto[] = [
+      { setorId: 1, setorNome: 'Corte', itens: [doPedido(1, 20, 'SUP-02'), doPedido(2, 21, 'TP-01')] },
+      { setorId: 4, setorNome: 'Solda', itens: [doPedido(2, 22, 'TR-01')] },
+    ]
+    const tarefasComConserto = (): TarefasDto => ({ ...tarefas(TAREFAS), consertos: [IDA] })
+    const grupo = (nome: string) => screen.getByText(nome).closest('details')!
+    const SEM_ROTEIRO = { ...DESTINO_MONTAGEM, setorId: null, setorNome: null, paiSemRoteiro: true }
+
+    it('cada grupo "Em {Setor}" nasce fechado, com a contagem no nome do controle', async () => {
+      vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
+
+      renderizar()
+      await screen.findByText('Em Corte (1)')
+
+      for (const nome of ['Em Corte (1)', 'Em Solda (1)', 'Em Pintura (1)']) {
+        const resumo = screen.getByText(nome)
+        expect(resumo.tagName).toBe('SUMMARY')
+        expect(grupo(nome).open).toBe(false)
+      }
+    })
+
+    it('abrir um grupo o abre, e fechar o fecha', async () => {
+      vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByText('Em Corte (1)'))
+      await waitFor(() => expect(grupo('Em Corte (1)').open).toBe(true))
+      expect(grupo('Em Solda (1)').open).toBe(false)
+
+      fireEvent.click(screen.getByText('Em Corte (1)'))
+      await waitFor(() => expect(grupo('Em Corte (1)').open).toBe(false))
+    })
+
+    it('Marcar todos marca itens de grupos fechados e abre só os grupos que ganharam item marcado', async () => {
+      vi.stubGlobal('fetch', montarFetch([tarefas([
+        TAREFAS[0],
+        { setorId: 4, setorNome: 'Solda', itens: [{ no: PARAFUSO, ordem: 2, quantidade: 10, destino: SEM_ROTEIRO }] },
+        TAREFAS[2],
+      ])]).fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByRole('button', { name: 'Marcar todos' }))
+
+      expect((screen.getByLabelText('Levar SUP-01 — Suporte') as HTMLInputElement).checked).toBe(true)
+      await waitFor(() => expect(grupo('Em Corte (1)').open).toBe(true))
+      expect(grupo('Em Pintura (1)').open).toBe(true)
+      // Solda só tem o item que não se marca: nada foi marcado ali, o grupo continua fechado.
+      expect(grupo('Em Solda (1)').open).toBe(false)
+    })
+
+    it('com filtro, a contagem é a filtrada e os grupos continuam fechados', async () => {
+      vi.stubGlobal('fetch', montarFetch([tarefas(DOIS_PEDIDOS_DO_GRUPO)]).fetchMock)
+
+      renderizar('/?pedido=2')
+
+      expect(await screen.findByText('Em Corte (1)')).toBeTruthy()
+      expect(screen.getByText('Em Solda (1)')).toBeTruthy()
+      expect(grupo('Em Corte (1)').open).toBe(false)
+      expect(grupo('Em Solda (1)').open).toBe(false)
+    })
+
+    it('a recarga automática não fecha o grupo que o usuário abriu', async () => {
+      vi.useFakeTimers()
+      vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
+
+      renderizar()
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      fireEvent.click(screen.getByText('Em Corte (1)'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(grupo('Em Corte (1)').open).toBe(true)
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+
+      expect(grupo('Em Corte (1)').open).toBe(true)
+      expect(grupo('Em Solda (1)').open).toBe(false)
+    })
+
+    it('item marcado em grupo que o usuário fecha continua no lote e não conta como oculto', async () => {
+      vi.stubGlobal('fetch', montarFetch([tarefas(TAREFAS)]).fetchMock)
+
+      renderizar()
+      fireEvent.click(await screen.findByText('Em Corte (1)'))
+      await waitFor(() => expect(grupo('Em Corte (1)').open).toBe(true))
+      fireEvent.click(screen.getByLabelText('Levar SUP-01 — Suporte'))
+      fireEvent.click(screen.getByText('Em Corte (1)'))
+      await waitFor(() => expect(grupo('Em Corte (1)').open).toBe(false))
+
+      expect(screen.getByRole('button', { name: 'Entregar 1 item' })).toBeTruthy()
+      expect(screen.queryByText(/oculto/)).toBeNull()
+    })
+
+    it('Conserto e Kits montáveis continuam sempre abertos, como seções', async () => {
+      vi.stubGlobal('fetch', montarFetch([{ ...tarefasComConserto(), kitsMontaveis: [KIT_QUADRO] }]).fetchMock)
+
+      renderizar()
+
+      expect(await screen.findByRole('heading', { level: 2, name: 'Conserto' })).toBeTruthy()
+      expect(screen.getByRole('heading', { level: 2, name: 'Kits montáveis' })).toBeTruthy()
+      expect(screen.getByRole('list', { name: 'Conserto' }).closest('details')).toBeNull()
+      expect(screen.getByRole('list', { name: 'Kits montáveis' }).closest('details')).toBeNull()
+    })
   })
 })

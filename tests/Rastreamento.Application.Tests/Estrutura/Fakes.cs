@@ -28,6 +28,12 @@ public class FakeEstruturaRepo : IEstruturaRepository
   /// </summary>
   public HashSet<int> NosComSeparacao { get; } = [];
 
+  /// <summary>Nos com linha no livro (movimento, baixa, reclamacao, afericao…) — arranjo do teste.</summary>
+  public HashSet<int> NosComRegistroNoLivro { get; } = [];
+
+  /// <summary>Nos que sao origem de um no de Retrabalho — arranjo do teste.</summary>
+  public HashSet<int> NosCopiadosEmRetrabalho { get; } = [];
+
   /// <summary>
   /// Preenchido pelo construtor de <see cref="FakeExecucaoRepo"/>: quando presente e devolve `false`,
   /// `GravarArvoreAsync` recusa, como o repositorio real recusa fora de `EmTransacaoAsync`. Fake usado
@@ -127,6 +133,12 @@ public class FakeEstruturaRepo : IEstruturaRepository
 
   public Task<bool> TemSeparacaoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
       Task.FromResult(estruturaItemIds.Any(NosComSeparacao.Contains));
+
+  public Task<bool> TemRegistroNoLivroAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      Task.FromResult(estruturaItemIds.Any(NosComRegistroNoLivro.Contains));
+
+  public Task<bool> TemCopiaEmRetrabalhoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      Task.FromResult(estruturaItemIds.Any(NosCopiadosEmRetrabalho.Contains));
 
   public Task SalvarAlteracoesAsync(CancellationToken ct)
   {
