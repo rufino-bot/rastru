@@ -31,6 +31,12 @@ public class ReposicaoRepository : IReposicaoRepository
           .Where(r => r.EstruturaItemId == pecaId && r.EstornadaEm == null)
           .SumAsync(r => (decimal?)r.Quantidade, ct) ?? 0m;
 
+  public async Task<IReadOnlyList<Reclamacao>> ListarReclamacoesVivasDaPecaAsync(int pecaId, CancellationToken ct) =>
+      await _db.Reclamacoes.AsNoTracking()
+          .Where(r => r.EstruturaItemId == pecaId && r.EstornadaEm == null)
+          .OrderBy(r => r.Id)
+          .ToListAsync(ct);
+
   public async Task<bool> MarcarReclamacaoEstornadaAsync(int id, int usuarioId, DateTime em, CancellationToken ct) =>
       await _db.Reclamacoes.Where(r => r.Id == id && r.EstornadaEm == null)
           .ExecuteUpdateAsync(s => s

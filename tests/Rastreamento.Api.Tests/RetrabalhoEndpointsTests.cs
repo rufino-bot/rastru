@@ -290,6 +290,30 @@ public class RetrabalhoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
   }
 
   [Fact]
+  public async Task Estornar_a_remessa_de_reclamacao_com_Retrabalho_diz_que_ela_nao_se_estorna_mais()
+  {
+    await using var c = await CriarAsync(_factory);
+    var (peca, _) = await PecaExpedidaAsync(c, 2m);
+    var reclamacaoId = await ReclamarAsync(c, peca, 1m);
+    var numero = $"{await NumeroDoOriginalAsync(c)}-R1";
+    await Garantir(await AbrirAsync(c, c.Pcp, DaReclamacao(reclamacaoId, numero, "Refazer", null)));
+    int remessaId;
+    using (var escopo = _factory.Services.CreateScope())
+    {
+      var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+      remessaId = await db.Movimentacoes.AsNoTracking()
+          .Where(m => m.EstruturaItemId == peca && m.RemessaId != null).Select(m => m.RemessaId!.Value).FirstAsync();
+    }
+
+    var recusada = await c.Como(c.Qualidade).PostAsync($"/api/remessas/{remessaId}/estorno", null);
+
+    var (status, erro, mensagem) = await RecusaAsync(recusada);
+    Assert.Equal((HttpStatusCode.Conflict, "AbaixoDoReclamado"), (status, erro));
+    Assert.Contains($"A reclamação já tem o Retrabalho {numero}: a remessa não se estorna mais.", mensagem);
+    Assert.DoesNotContain("Estorne antes a reclamação", mensagem);
+  }
+
+  [Fact]
   public async Task Abrir_da_reclamacao_para_refazer()
   {
     await using var c = await CriarAsync(_factory);

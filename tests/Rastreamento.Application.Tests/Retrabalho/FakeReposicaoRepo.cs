@@ -30,6 +30,9 @@ public sealed class FakeReposicaoRepo : IReposicaoRepository
 
   public Task<decimal> SomarReclamadoAsync(int pecaId, CancellationToken ct) => Task.FromResult(0m);
 
+  public Task<IReadOnlyList<Reclamacao>> ListarReclamacoesVivasDaPecaAsync(int pecaId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Reclamacao>>([]);
+
   public Task<bool> MarcarReclamacaoEstornadaAsync(int id, int usuarioId, DateTime em, CancellationToken ct) =>
       Task.FromResult(false);
 

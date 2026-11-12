@@ -157,8 +157,7 @@ public sealed class RemessaUseCase
         var reclamado = await _reposicao.SomarReclamadoAsync(pecaId, ct);
         if (expedido - tirado < reclamado)
           return Falhas.Conflito<IReadOnlyList<MovimentacaoDto>>(CodigosDoRetrabalho.AbaixoDoReclamado,
-              $"O cliente já reclamou {Quantidades.Formatar(reclamado)} de {(await _leitor.CarregarAsync(travados, ct)).Nome(pecaId)}: "
-              + $"estornar esta remessa deixaria só {Quantidades.Formatar(expedido - tirado)} expedidas. Estorne antes a reclamação.");
+              await FraseDoAbaixoDoReclamadoAsync(pecaId, reclamado, expedido - tirado, travados, ct));
       }
 
       var agora = DateTime.UtcNow;
@@ -252,5 +251,26 @@ public sealed class RemessaUseCase
     linha.RemessaId = remessaId;
     linha.DataHora = agora;
     return linha;
+  }
+
+  /// <summary>
+  /// A frase do `AbaixoDoReclamado` (C20). Quando alguma reclamacao viva da Peca ja tem Retrabalho, "estornar antes a
+  /// reclamacao" e impossivel (409 `ReposicaoResolvida`): a frase diz que a remessa nao se estorna mais. Sem Retrabalho,
+  /// estornar a reclamacao e o caminho.
+  /// </summary>
+  private async Task<string> FraseDoAbaixoDoReclamadoAsync(
+      int pecaId, decimal reclamado, decimal ficariaExpedido, IReadOnlyList<EstruturaItem> travados, CancellationToken ct)
+  {
+    var nome = (await _leitor.CarregarAsync(travados, ct)).Nome(pecaId);
+    var comRetrabalho = (await _reposicao.ListarReclamacoesVivasDaPecaAsync(pecaId, ct))
+        .FirstOrDefault(r => r.PedidoRetrabalhoId is not null);
+    var abertura = $"O cliente já reclamou {Quantidades.Formatar(reclamado)} de {nome}: "
+        + $"estornar esta remessa deixaria só {Quantidades.Formatar(ficariaExpedido)} expedidas.";
+    if (comRetrabalho?.PedidoRetrabalhoId is not int retrabalhoId) return abertura + " Estorne antes a reclamação.";
+
+    var numero = (await _reposicao.ListarNumerosDePedidosAsync([retrabalhoId], ct)).GetValueOrDefault(retrabalhoId);
+    return abertura + (numero is null
+        ? " A reclamação já tem Retrabalho: a remessa não se estorna mais."
+        : $" A reclamação já tem o Retrabalho {numero}: a remessa não se estorna mais.");
   }
 }

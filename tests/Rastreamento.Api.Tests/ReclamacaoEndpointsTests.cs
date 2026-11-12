@@ -266,7 +266,10 @@ public class ReclamacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
     var recusada = await c.Como(c.Qualidade).PostAsync($"/api/remessas/{remessaId}/estorno", null);
 
     Assert.Equal(HttpStatusCode.Conflict, recusada.StatusCode);
-    Assert.Equal("AbaixoDoReclamado", (await CorpoAsync(recusada)).GetProperty("erro").GetString());
+    var corpoDaRecusa = await CorpoAsync(recusada);
+    Assert.Equal("AbaixoDoReclamado", corpoDaRecusa.GetProperty("erro").GetString());
+    // Sem Retrabalho, estornar a reclamacao e o caminho, e a frase o diz.
+    Assert.EndsWith("Estorne antes a reclamação.", corpoDaRecusa.GetProperty("mensagem").GetString());
     // Nada foi gravado: a remessa segue valida e o expedido da Peca segue inteiro.
     Assert.Equal("Concluido", (await CorpoAsync(await c.Como(c.Qualidade).GetAsync($"/api/pedidos/{c.PedidoId}"))).GetProperty("status").GetString());
 

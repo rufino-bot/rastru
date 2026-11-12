@@ -21,6 +21,9 @@ public interface IReposicaoRepository
   /// <summary>A soma das reclamacoes NAO estornadas da Peca.</summary>
   Task<decimal> SomarReclamadoAsync(int pecaId, CancellationToken ct);
 
+  /// <summary>As reclamacoes NAO estornadas da Peca (as que compoem <see cref="SomarReclamadoAsync"/>).</summary>
+  Task<IReadOnlyList<Reclamacao>> ListarReclamacoesVivasDaPecaAsync(int pecaId, CancellationToken ct);
+
   /// <summary>
   /// Marca a reclamacao como estornada, condicionado a `EstornadaEm IS NULL`: e a unica escrita que ela recebe
   /// depois de nascer, e nunca sobrescreve um estorno anterior. Devolve se marcou.
