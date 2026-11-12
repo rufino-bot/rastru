@@ -69,16 +69,17 @@ public class KitsDaColetaTests
   }
 
   [Fact]
-  public void Conjuntos_a_espera_contam_pelo_filho_mais_adiantado()
+  public void Conjuntos_a_espera_contam_so_os_completos()
   {
+    // C2 da spec da Fase 5C: conta o filho mais atrasado, nao o mais adiantado; o terceiro conjunto do 2 e sobra.
     var c = Cenario();
     EmEspera(c, 2, Corte, Solda, 12m);   // 3 conjuntos
     EmEspera(c, 3, Dobra, Solda, 2m);    // 2 conjuntos
 
     var calc = c.Calcular();
 
-    Assert.Equal(3m, calc.ConjuntosAEspera(1));
-    Assert.Equal(7m, calc.TetoDeEntrada(1));
+    Assert.Equal(2m, calc.ConjuntosAEspera(1));
+    Assert.Equal(8m, calc.TetoDeEntrada(1));
   }
 
   [Fact]

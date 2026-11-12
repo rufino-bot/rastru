@@ -192,6 +192,28 @@ public class CalculadoraKitComSobraTests
   }
 
   [Fact]
+  public void Conjunto_em_formacao_alem_do_que_o_pai_precisa_da_o_mesmo_teto_sobra_e_precisa()
+  {
+    // O estado de `Conjunto_em_formacao_nao_passa_do_que_o_pai_ainda_precisa`, de `CalculadoraComProntoTests`: pai
+    // Kit de 2 que perdeu 1 de "a iniciar" (falta 1); o filho 2 tem 2 prontos na Solda, o 3 tem 2 aguardando coleta.
+    // `ConjuntosAEspera` soma os em formacao sem o limite do que o pai precisa (2, e nao 1); o teto, a sobra e o
+    // `Precisa` tem de dar o mesmo nas duas formas, porque `contados` ja limita ao que falta montar: contados = 1.
+    var calc = Calcular(
+        [No(1, null, 2m, null, true, Solda), No(2, 1, 2m, 1m, true, Corte), No(3, 1, 2m, 1m, true, Dobra)],
+        [.. UmaPecaPerdida, .. Espera(2, Solda, 2m),
+         Em(3, Local.AIniciar, -2m), Em(3, Local.AguardandoColeta(Dobra, 1), 2m)],
+        PerdeuUma,
+        prontos: new Dictionary<int, decimal> { [2] = 2m },
+        comProntoEmMontagem: new HashSet<int> { 2 });
+
+    Assert.Equal(0m, calc.TetoDeEntrada(1));
+    Assert.Equal(1m, calc.ExcessoEmMontagem(2));   // 2 - 1 x 1: o segundo pronto passa do que o pai precisa
+    Assert.Equal(0m, calc.ExcessoEmMontagem(3));
+    Assert.Equal(0m, calc.Precisa(2));             // 1 x 1 - (2 - 1)
+    Assert.Equal(1m, calc.Precisa(3));             // 1 x 1 - 0: o complemento do conjunto que vale
+  }
+
+  [Fact]
   public void Retirada_calcula_a_sobra_do_depois()
   {
     // Tres conjuntos inteiros a espera. O plano tira uma unidade do filho 2 da Solda e uma Peca de "a iniciar": o que
