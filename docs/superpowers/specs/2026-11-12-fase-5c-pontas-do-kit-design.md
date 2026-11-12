@@ -88,7 +88,7 @@ definido, e o pai Kit cujos filhos saíram todos aparece na Fila.
 | C12 | **Kit com pai de quantidade fracionária** (Minor 9 da review de branch da 3B: nunca recebe a última fração) **fica fora**: não é caso da fábrica, e continua como dívida registrada. |
 | C13 | **A tabela "Contrato de erro da Execução" de `specs/05`** ganha os códigos que já faltavam (`ConjuntoIncompleto`, `AlemDoQueOPaiPrecisa`, `PaiJaIniciado`) e o novo (`PaiComConjuntoAEspera`). |
 | C14 | **Conferência do usuário no navegador**, curta, com uma massa própria (`CONF-5C`) que monte os exemplos da seção 1. Pela regra do usuário de 2026-10-07, a review de branch só é despachada depois dela. |
-| C15 | **A conta da baixa usa a mesma sobra** (achado do builder check). `CalculoDaBaixa` (a `Cascata` da C6 da 5B-1, o `ViramSobra` e o `CalcularTrava`) mede o que cobre o pai pelo `EmProducao` do filho, que conta o resto do conjunto quebrado como útil. Com D4, esse resto vai para o Retrabalho; então, no pai que recebe em conjunto, o que cobre o pai é o em produção **menos a sobra em montagem depois da baixa** (seção 3.5). Sem isso, a baixa com `incluirTopo` descarta também as peças a iniciar que substituiriam o resto, e a última unidade do original nunca se completa. A conta vale também para a cascata do pronto (`levaOProntoJunto`, 5B-2), que usa a mesma `Cascata`. |
+| C15 | **A conta da baixa usa a mesma sobra** (achado do builder check). `CalculoDaBaixa` (a `Cascata` da C6 da 5B-1 e o `ViramSobra`) mede o que cobre o pai pelo `EmProducao` do filho, que conta o resto do conjunto quebrado como útil. Com D4, esse resto vai para o Retrabalho; então, no pai que recebe em conjunto, o que cobre o pai é o em produção **menos a sobra em montagem depois da baixa** (seção 3.5). Sem isso, a baixa com `incluirTopo` descarta também as peças a iniciar que substituiriam o resto, e a última unidade do original nunca se completa. A conta vale também para a cascata do pronto (`levaOProntoJunto`, 5B-2), que usa a mesma `Cascata`. |
 | C16 | **A espera fora de Setor `UtilizaKit`** (filho entregue antes de o PCP mudar o primeiro passo do pai, ou antes de o Setor ganhar a marca) entra na sobra **depois** dos conjuntos contados: `max(0, espera fora de UtilizaKit − max(0, FaltaMontar − contados) × razão)`. Aplicar a regra de hoje só a ela ignoraria os conjuntos que já estão na Solda e subcontaria a sobra. A divisão da sobra entre Setores no "Usar a sobra" (`CalculoDoReaproveitamento.Disponivel`) segue: primeiro o que não fecha conjunto na Solda, depois o resto; o plano escreve a ordem. |
 
 ## 3. Regras de domínio
@@ -154,13 +154,17 @@ A guarda nova (C8) olha o pai que recebe em conjunto **no momento da edição**,
 
 A baixa planeja sobre o "depois" (o `Rascunho` de `CalculoDaBaixa`). Para o filho c de um pai P que recebe em conjunto, o
 que cobre P passa a ser `EmProducaoDepois(c) − sobraEmMontagemDepois(c)`, com a sobra de 3.2 calculada sobre a espera e
-o `FaltaMontar` **depois** das linhas já planejadas. Isso vale nos três lugares:
+o `FaltaMontar` **depois** das linhas já planejadas. Isso vale em dois lugares:
 
 - na **`Cascata`** (C6 da 5B-1): o excesso de c que sai de "a iniciar" é `max(0, (EmProducaoDepois − sobraEmMontagemDepois)
   − DeveDepois)`;
 - no **`ViramSobra`**: o que a baixa faz virar sobra inclui o resto do conjunto quebrado (a prévia passa a listá-lo, e é
   o que o painel mostra como "vira sobra");
-- no **`CalcularTrava`**: a produção do filho que cobre o pai desconta a sobra do Kit.
+
+*Emenda de 2026-11-12, no plano:* o **`CalcularTrava` não muda**. A trava mede, para o nó que perdeu, quantas unidades do
+pai ele já não cobre, e o ⌊produção ÷ razão⌋ dela já absorve o resto do próprio conjunto quebrado. Descontar a sobra
+inteira cobraria da perda uma unidade que um irmão em falta já travava: num pai de 2, com 9 A (razão 4) à espera e só 1 B, a perda de
+outra A acusaria 1 unidade travada que o B ausente já impedia.
 
 O exemplo do defeito, refeito. C de 10 Kit; A total 20 (razão 2) e B total 10; 3 conjuntos à espera; uma A perdida dentro
 da Solda com `incluirTopo`. Tirada a A, a espera é 5 A e 3 B, `completos = 2`, e a sobra
@@ -188,7 +192,7 @@ na review de branch da 5B-1, I2). Como não há filho que conte, `RecebeEmConjun
 - **A guarda nova** (C8): no caso de uso que acrescenta filho e no que edita a `QuantidadePorPai` (o plano acha os dois
   pelo código), com o código `PaiComConjuntoAEspera` em `CodigosDaExecucao` ou no lugar onde mora o `PaiJaIniciado`. A
   mensagem diz o que fazer: dar baixa ou descartar o que está à espera, ou esperar a montagem.
-- **`CalculoDaBaixa`** (C15): a `Cascata`, o `ViramSobra` e o `CalcularTrava` descontam a sobra em montagem do Kit,
+- **`CalculoDaBaixa`** (C15): a `Cascata` e o `ViramSobra` descontam a sobra em montagem do Kit,
   calculada sobre o "depois" do `Rascunho`. A calculadora precisa expor a sobra de um jeito que aceite o "depois" (o
   `saindo` do redirecionamento é o precedente); a forma é do plano.
 - **Nenhuma rota nova**, nenhum DTO novo. A Fila, as Tarefas e o "Usar a sobra" mudam de números, não de forma.
@@ -246,8 +250,8 @@ decide:
 - `specs/01`: regra **24** (a guarda `PaiJaIniciado` é definitiva, com o motivo de D1; o tratamento da estrutura alterada
   é o de D2 e D3); regra **25** (conjuntos à espera são os completos, com o termo do conjunto em formação; a «Limitação
   conhecida» sai e vira a tabela de 3.4 em prosa; a guarda `PaiComConjuntoAEspera`); regra **30** (a sobra do Kit inclui
-  o que não fecha conjunto); regra **38** (a ressalva do pai Kit cujos filhos saíram todos sai; a C6, o "vira sobra" e a trava descontam a sobra
-  do Kit, C15); regra **39** (a frase
+  o que não fecha conjunto); regra **38** (a ressalva do pai Kit cujos filhos saíram todos sai; a C6 e o "vira sobra" descontam a sobra do Kit,
+  C15); regra **39** (a frase
   que manda a estrutura alterada para a 5C).
 - `specs/05`: a tabela "Contrato de erro da Execução" (C13), e o 409 novo nas rotas de acrescentar filho e de editar o nó.
 - `specs/06`: a seção «Fase 5C» com o estado, e a nota de que a estrutura alterada foi decidida sem código.
