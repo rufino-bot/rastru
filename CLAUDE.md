@@ -76,15 +76,15 @@ regra 38 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b1.sql` e o m�
 seção «Interface» (o "Dar baixa" do nó, o "Matar" do cartão da expedição, o "Descartar" da sobra da Fila, o "Descartar
 tudo" do Pedido e do Agrupamento e a seção "Baixas"); a seguinte é a **5B-2**, que **tem spec**
 (`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`, aprovada em 2026-11-06) e dois planos
-(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-fase-5b2-front.md`) e está **em execução**, ainda não
-mesclada: o backend está implementado na branch (a regra 39 de `specs/01`, as rotas de `specs/05` e o
-`db/alter-fase-5b2.sql`) e o front também, o módulo `web/src/retrabalho/` descrito na seção «Interface» (o "Abrir
-retrabalho", a seção "Reclamações", a seção "Retrabalhos", o "Não repor" e o "Usar a sobra"). A conferência do usuário
-no navegador foi feita em 2026-11-10 e a review de branch inteira, em 2026-11-12; o fix wave dela está na branch. Os
-ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a cascata do pronto) e o F2 (o painel do "Não
+(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-fase-5b2-front.md`) e foi **concluída e mesclada em
+2026-11-12** (rufino-bot/rastru#37): a regra 39 de `specs/01`, as rotas de `specs/05`, o `db/alter-fase-5b2.sql` e o
+módulo `web/src/retrabalho/`, descrito na seção «Interface» (o "Abrir retrabalho", a seção "Reclamações", a seção
+"Retrabalhos", o "Não repor" e o "Usar a sobra"). A conferência do usuário no navegador foi feita em 2026-11-10 e a
+review de branch inteira, em 2026-11-12, consertada antes do merge. Os ajustes da conferência (F1 a F5) entraram no mesmo
+PR, mas **só o F1 (a cascata do pronto) e o F2 (o painel do "Não
 repor" na largura da linha) são da 5B-2**; o F3 (os grupos "Em {Setor}" de Tarefas recolhidos), o F4 (a Fila do Setor e as
 Tarefas pelo prazo de entrega do Pedido) e o F5 (as frases do login) **não são**, e vieram junto por decisão do usuário
-(2026-11-10). Falta o PR e o merge. A 5C ainda não tem spec,
+(2026-11-10). A seguinte é a **5C**, que ainda não tem spec,
 e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").

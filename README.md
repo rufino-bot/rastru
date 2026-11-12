@@ -190,15 +190,16 @@ Concluídas até aqui:
   usuário no navegador e a review de branch foram feitas em 2026-11-05. Mesclada na `main` pelo PR #36, em
   2026-11-05.
 
-**Em andamento: Fase 5B-2** — reposição: o Pedido de Retrabalho como ação separada e opcional, aberto de uma baixa por
-perda, de uma reclamação do cliente ou avulso; o nó pronto, que reaproveita a sobra do original; e o «não repor» do PCP.
-Tem spec (`docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`) e dois planos
-(`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-front.md`); o backend e o front estão implementados na
-branch; a conferência no navegador (2026-11-10) e a review de branch (2026-11-12) foram feitas e o fix wave dela está na
-branch, e falta o PR e o merge. Vieram junto, por decisão do usuário, três ajustes da conferência que não são da 5B-2:
-os grupos «Em {Setor}» de Tarefas recolhidos, a Fila do Setor e as Tarefas pelo prazo de entrega e as frases do login.
-A fase não foi mesclada. Depois dela vêm a Fase 5C — as pontas do Kit que a 3B deixou — e a Fase 6, os KPIs de tempo por setor e por
-pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
+- **Fase 5B-2:** reposição (spec `docs/superpowers/specs/2026-11-05-fase-5b2-reposicao-design.md`). O Pedido de
+  Retrabalho, como ação separada e opcional, aberto de uma baixa por perda, de uma reclamação do cliente ou avulso,
+  nasce como cópia da Peça original; o nó pronto reaproveita a sobra do original no Retrabalho; e o PCP pode decidir
+  não repor, com justificativa. A conferência do usuário no navegador foi feita em 2026-11-10 e a review de branch, em
+  2026-11-12. Vieram no mesmo PR, por decisão do usuário, três ajustes da conferência que não são da 5B-2: os grupos
+  «Em {Setor}» de Tarefas recolhidos, a Fila do Setor e as Tarefas pelo prazo de entrega e as frases do login.
+  Mesclada na `main` pelo PR #37, em 2026-11-12.
+
+**Próxima: Fase 5C** — as pontas do Kit que a 3B deixou, ainda sem spec. Depois dela vem a Fase 6, os KPIs de tempo
+por setor e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).

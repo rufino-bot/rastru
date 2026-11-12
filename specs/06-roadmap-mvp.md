@@ -793,9 +793,10 @@ spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
   (aprovada em 2026-11-06); planos `docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e
   `docs/superpowers/plans/2026-11-06-fase-5b2-front.md`.
 
-**Estado da 5B-2 (2026-11-12):** **em execução**, ainda não mesclada. A conferência do usuário no navegador foi feita
-em 2026-11-10 e a review de branch inteira, em 2026-11-12; o fix wave dela está na branch, e **falta o PR e o merge**. Os
-ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a cascata do pronto leva também o pronto do
+**Estado da 5B-2 (2026-11-12):** **concluída e mesclada na `main`** em 2026-11-12, pelo PR rufino-bot/rastru#37 (merge
+`cb9621f`, cujo segundo pai é `6d233c6`, o último commit da branch). A conferência do usuário no navegador foi feita
+em 2026-11-10 e a review de branch inteira, em 2026-11-12, consertada na branch antes do merge. A próxima da sequência
+é a **5C**. Os ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a cascata do pronto leva também o pronto do
 filho que o pai não pede mais) e o F2 (o painel do «Não repor» abre na largura da linha) são da 5B-2**; o F3 (os grupos
 «Em {Setor}» de Tarefas nascem recolhidos), o F4 (a Fila do Setor e as Tarefas saem pelo prazo de entrega do Pedido) e o
 F5 (o login separa «usuário ou senha inválidos» de «muitas tentativas» e de «sem resposta do servidor») não são, e vieram
