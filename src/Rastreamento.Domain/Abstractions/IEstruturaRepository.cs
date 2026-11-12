@@ -50,6 +50,21 @@ public interface IEstruturaRepository
   /// </summary>
   Task<bool> TemSeparacaoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
 
+  /// <summary>
+  /// Algum dos nos tem linha em `dbo.Movimentacao`, ou e o no de uma `dbo.Perda`, `dbo.Reclamacao`,
+  /// `dbo.Montagem`, `dbo.ContagemDimensional`, `dbo.LiberacaoDimensional` ou `dbo.RelatorioDimensional`?
+  /// Sao registros que o livro guarda e que nao se apagam, e a FK de cada um estouraria como 500 se o no fosse
+  /// removido. Qualquer linha conta, estornada ou nao. O Retrabalho `Aberto` que recebeu "Usar a sobra" tem
+  /// `Pronto` e a baixa ligada nos nos dele (C11), e a baixa "a iniciar" de um Pedido `Aberto` tambem deixa linha.
+  /// </summary>
+  Task<bool> TemRegistroNoLivroAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
+
+  /// <summary>
+  /// Algum dos nos e a origem (`OrigemEstruturaItemId`) de um no de outro Pedido — a Peca (ou o Item) foi copiada
+  /// para um Retrabalho? A FK `FK_EstruturaItem_Origem` barra o apagar, e o Retrabalho ja aberto nao perde o vinculo.
+  /// </summary>
+  Task<bool> TemCopiaEmRetrabalhoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
+
   Task SalvarAlteracoesAsync(CancellationToken ct);
 }
 

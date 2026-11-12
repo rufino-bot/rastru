@@ -324,7 +324,7 @@ perfil autenticado.)*
   **recalculam** o status e o fechamento do Pedido na mesma transação. Pedido `Cancelado` segue como era.) Esta guarda também
   impede apagar nó que já tem movimento no livro (Fase 3): o primeiro `Inicio` de qualquer nó põe o
   Pedido em `EmProducao`, e o status não volta, nem com o estorno (regra 28 e spec da Fase 3, seção
-  4.1). Desde a Fase 4 ela impede também apagar nó cuja subárvore tem **qualquer linha de separação de
+  4.1). *(Emenda de 2026-11-12, Fase 5B-2:* a guarda de status **sozinha** não basta — o Retrabalho `Aberto` que recebeu "Usar a sobra" tem `Pronto` nos nós e fica editável (C11), a baixa "a iniciar" de um Pedido `Aberto` também deixa linha, e o Retrabalho avulso nasce de um original ainda `Aberto`. A rota recusa, na transação e com a subárvore travada, o nó cuja subárvore tem **qualquer registro no livro** (linha de `Movimentacao`, `Perda`, `Reclamacao`, `Montagem`, contagem, liberação ou aferição, estornado ou não): 409 `NoComMovimentacao`; e o nó que é a **origem** de um nó de Retrabalho: 409 `NoComRetrabalho`. Nos dois, nada é apagado. Antes isso estourava na FK e voltava 500.) Desde a Fase 4 ela impede também apagar nó cuja subárvore tem **qualquer linha de separação de
   material**, ainda que já estornada: 409 `NoComSeparacao`, e nada é apagado (regra 34; decisão P2 do
   plano de backend da Fase 4). A separação pode existir num Pedido `Aberto`, porque se separa por
   antecipação, e o livro dela é só de inclusão
@@ -391,10 +391,10 @@ foram implementadas sob `estrutura/{id}`.
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — dez códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — treze códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
-  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `NoComSeparacao` e o
+  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `NoComSeparacao`, o `NoComMovimentacao`, o `NoComRetrabalho` e o
   `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`), como o
   `PedidoFechado` e o `ComAfericao` da Fase 5A;
   `PedidoNaoAberto` não — mesmo precedente do
@@ -407,6 +407,8 @@ foram implementadas sob `estrutura/{id}`.
   | `EstruturaGrandeDemais` | idem | a cópia recursiva geraria mais de 500 nós |
   | `PedidoNaoAberto` | `DELETE /estrutura/{id}` | o Pedido do Agrupamento não está `Aberto` |
   | `NoComSeparacao` | `DELETE /estrutura/{id}` | alguma linha do livro de separação aponta o nó ou um descendente dele, mesmo estornada; leva `mensagem` (Fase 4, decisão P2) |
+  | `NoComMovimentacao` | `DELETE /estrutura/{id}` | o nó ou um descendente dele tem linha em `Movimentacao`, `Perda`, `Reclamacao`, `Montagem`, contagem, liberação ou aferição, mesmo estornada; leva `mensagem` (Fase 5B-2) |
+  | `NoComRetrabalho` | `DELETE /estrutura/{id}` | o nó ou um descendente dele é a origem (`OrigemEstruturaItemId`) de um nó de Retrabalho; leva `mensagem` (Fase 5B-2) |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
   | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
   | `PedidoFechado` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}` (e `POST /importacoes/{id}/confirmacao`) | o Pedido está `Concluido` (Fase 5A, C15): a estrutura de um Pedido concluído não se edita, e quem precisa mudá-lo estorna a última remessa; leva `mensagem` |

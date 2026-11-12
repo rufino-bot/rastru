@@ -97,6 +97,8 @@ export type CodigoDeConflitoDeEstrutura =
   | 'ConflitoDeConcorrencia'
   | 'PaiJaIniciado'
   | 'NoComSeparacao'
+  | 'NoComMovimentacao'
+  | 'NoComRetrabalho'
   | 'PedidoFechado'
   | 'ComAfericao'
   | 'DiminuirPelaBaixa'
@@ -122,6 +124,7 @@ export interface ConflitoDeEstrutura {
 const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
   'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado', 'NoComSeparacao',
+  'NoComMovimentacao', 'NoComRetrabalho',
   'PedidoFechado', 'ComAfericao', 'DiminuirPelaBaixa',
 ]
 
@@ -211,7 +214,8 @@ export type ResultadoDeEstrutura =
  * (mesmo padrão de `excluirAgrupamento`): a tela não pode tratar "o nó já não existe" lançando uma
  * exceção que o catch dela nunca esperou.
  *
- * No 409, `ExcluirNo` emite `PedidoNaoAberto` ou `ConflitoDeConcorrencia` (não chama
+ * No 409, `ExcluirNo` emite `PedidoNaoAberto`, `NoComSeparacao`, `NoComMovimentacao`, `NoComRetrabalho` ou
+ * `ConflitoDeConcorrencia` (não chama
  * `PlanejadorDeCopia`, então os três códigos dele nunca ocorrem aqui), mas a tradução reaproveita
  * `ehConflitoDeEstrutura`/`ConflitoDeEstrutura` em vez de comparar o literal à mão — um único lugar
  * decide o que é um código de conflito válido.

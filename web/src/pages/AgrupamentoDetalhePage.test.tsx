@@ -1496,6 +1496,41 @@ describe('AgrupamentoDetalhePage', () => {
     expect(await screen.findByText('Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.')).toBeTruthy()
   })
 
+  it('excluir nó com movimentação, baixa ou aferição mostra a frase de NoComMovimentacao', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaExcluir: { status: 409, corpo: { erro: 'NoComMovimentacao', mensagem: 'frase do servidor' } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-100')).getByRole('button', { name: 'Excluir' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByText(
+      'Este item, ou um item abaixo dele, já tem movimentação, baixa, reclamação ou aferição registrada e não pode ser excluído.',
+    )).toBeTruthy()
+    expect(screen.queryByText('Não foi possível excluir o nó.')).toBeNull()
+    expect(screen.queryByText('Não foi possível excluir: conflito na estrutura.')).toBeNull()
+  })
+
+  it('excluir nó copiado para um Retrabalho mostra a frase de NoComRetrabalho', async () => {
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaExcluir: { status: 409, corpo: { erro: 'NoComRetrabalho', mensagem: 'frase do servidor' } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(within(screen.getByTestId('acoes-do-no-100')).getByRole('button', { name: 'Excluir' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Excluir' }))
+
+    expect(await screen.findByText(
+      'Este item, ou um item abaixo dele, foi copiado para um Retrabalho e não pode ser excluído.',
+    )).toBeTruthy()
+    expect(screen.queryByText('Não foi possível excluir: conflito na estrutura.')).toBeNull()
+  })
+
   it('excluir nó com separação mostra a frase de NoComSeparacao', async () => {
     vi.stubGlobal('fetch', montarFetch({
       estruturaInicial: [PECA],

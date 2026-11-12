@@ -387,6 +387,23 @@ public class RetrabalhoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
   }
 
   [Fact]
+  public async Task Excluir_no_do_original_que_tem_copia_em_Retrabalho_e_409_NoComRetrabalho_e_nada_e_apagado()
+  {
+    await using var c = await CriarAsync(_factory);
+    await Garantir(await AbrirAsync(c, c.Pcp, Avulso(c.A, 3m, $"{await NumeroDoOriginalAsync(c)}-R1")));
+
+    var resposta = await c.Como(c.Pcp).DeleteAsync($"/api/estrutura/{c.A}");
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var texto = JsonDocument.Parse(await resposta.Content.ReadAsStringAsync()).RootElement;
+    Assert.Equal("NoComRetrabalho", texto.GetProperty("erro").GetString());
+    Assert.False(string.IsNullOrWhiteSpace(texto.GetProperty("mensagem").GetString()));
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.Equal(3, await db.Estruturas.AsNoTracking().CountAsync(e => e.Id == c.A || e.Id == c.B || e.Id == c.C));
+  }
+
+  [Fact]
   public async Task Avulso_com_Item_e_400_NaoEhPeca()
   {
     await using var c = await CriarAsync(_factory);

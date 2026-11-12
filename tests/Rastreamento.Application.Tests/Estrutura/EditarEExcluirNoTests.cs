@@ -232,6 +232,41 @@ public class EditarEExcluirNoTests
     Assert.Single(estruturas.Itens);
   }
 
+  [Fact]
+  public async Task Excluir_no_com_registro_no_livro_num_descendente_e_409_NoComMovimentacao()
+  {
+    var pedido = NovoPedido();
+    var (useCase, estruturas, _, _, _) = Montar(NovoAgrupamento(pedidoId: pedido.Id), pedido);
+    estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
+    estruturas.Itens.Add(NovoNo(2, 1, 1, 40m, nivel: "Item", componenteId: 101));
+    estruturas.NosComRegistroNoLivro.Add(2);
+
+    var resultado = await useCase.ExcluirNo(1, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
+    Assert.Equal("NoComMovimentacao", resultado.Erro);
+    Assert.False(string.IsNullOrWhiteSpace(resultado.Detalhe));
+    Assert.Equal([1, 2], estruturas.Itens.Select(i => i.Id).Order());
+  }
+
+  [Fact]
+  public async Task Excluir_no_copiado_para_Retrabalho_e_409_NoComRetrabalho()
+  {
+    var pedido = NovoPedido();
+    var (useCase, estruturas, _, _, _) = Montar(NovoAgrupamento(pedidoId: pedido.Id), pedido);
+    estruturas.Itens.Add(NovoNo(1, 1, null, 10m, nivel: "Peca", componenteId: 100));
+    estruturas.NosCopiadosEmRetrabalho.Add(1);
+
+    var resultado = await useCase.ExcluirNo(1, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
+    Assert.Equal("NoComRetrabalho", resultado.Erro);
+    Assert.False(string.IsNullOrWhiteSpace(resultado.Detalhe));
+    Assert.Single(estruturas.Itens);
+  }
+
   // ---- Adicionais (+3), fora da contagem "+8" do brief — ver XML doc da classe e o relatorio ----
 
   [Fact]

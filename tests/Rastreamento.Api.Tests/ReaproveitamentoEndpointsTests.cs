@@ -158,6 +158,31 @@ public class ReaproveitamentoEndpointsTests : IClassFixture<WebApplicationFactor
   }
 
   [Fact]
+  public async Task Excluir_no_do_Retrabalho_que_recebeu_pronto_e_409_NoComMovimentacao_e_o_livro_fica()
+  {
+    await using var c = await CriarAsync(_factory);
+    var perdaId = await SobraNasDuasPosicoesAsync(c);
+    var retrabalhoId = await AbrirRetrabalhoAsync(c, perdaId);
+    var (b, cc) = (await CopiaDeAsync(retrabalhoId, c.B), await CopiaDeAsync(retrabalhoId, c.C));
+    await Garantir(await UsarAsync(c, c.Pcp, retrabalhoId,
+        Item(b, "AguardandoColeta", c.Corte, 1, 2m), Item(cc, "AguardandoMontagem", c.Solda, null, 1m)));
+    var antes = (await LivroAsync(b, cc)).Count;
+    Assert.Equal("Aberto", await StatusAsync(retrabalhoId));
+
+    var resposta = await c.Como(c.Pcp).DeleteAsync($"/api/estrutura/{b}");
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var (status, erro, mensagem) = await RecusaAsync(resposta);
+    Assert.Equal((HttpStatusCode.Conflict, "NoComMovimentacao"), (status, erro));
+    Assert.False(string.IsNullOrWhiteSpace(mensagem));
+    // Nada apagado: os nos e o livro continuam.
+    Assert.Equal(antes, (await LivroAsync(b, cc)).Count);
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.Equal(2, await db.Estruturas.AsNoTracking().CountAsync(e => e.Id == b || e.Id == cc));
+  }
+
+  [Fact]
   public async Task Previa_lista_a_sobra_por_posicao_e_sugere_o_que_o_no_precisa()
   {
     await using var c = await CriarAsync(_factory);

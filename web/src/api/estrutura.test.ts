@@ -109,6 +109,22 @@ describe('estrutura', () => {
     expect(await excluirNo(7)).toBe('NoComSeparacao')
   })
 
+  it('excluirNo devolve NoComMovimentacao no 409 de nó com movimentação, sem lançar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'NoComMovimentacao', mensagem: 'x' }), { status: 409 }),
+    ))
+
+    expect(await excluirNo(7)).toBe('NoComMovimentacao')
+  })
+
+  it('excluirNo devolve NoComRetrabalho no 409 de nó copiado para Retrabalho, sem lançar', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ erro: 'NoComRetrabalho', mensagem: 'x' }), { status: 409 }),
+    ))
+
+    expect(await excluirNo(7)).toBe('NoComRetrabalho')
+  })
+
   // Teste 5: o 404 e DESFECHO, nao excecao — mesmo padrao de excluirAgrupamento. Prova por mutacao:
   // trocar o `return 'NaoEncontrado'` por um `throw` mataria este teste (ele falharia porque a
   // promise rejeitaria em vez de resolver).

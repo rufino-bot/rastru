@@ -131,6 +131,19 @@ public class EstruturaRepository : IEstruturaRepository
   public Task<bool> TemSeparacaoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
       _db.Separacoes.AnyAsync(s => estruturaItemIds.Contains(s.EstruturaItemId), ct);
 
+  public async Task<bool> TemRegistroNoLivroAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      await _db.Movimentacoes.AnyAsync(m => estruturaItemIds.Contains(m.EstruturaItemId), ct)
+      || await _db.Perdas.AnyAsync(p => p.EstruturaItemId != null && estruturaItemIds.Contains(p.EstruturaItemId.Value), ct)
+      || await _db.Reclamacoes.AnyAsync(r => estruturaItemIds.Contains(r.EstruturaItemId), ct)
+      || await _db.Montagens.AnyAsync(m => estruturaItemIds.Contains(m.EstruturaItemId), ct)
+      || await _db.Contagens.AnyAsync(c => estruturaItemIds.Contains(c.EstruturaItemId), ct)
+      || await _db.Liberacoes.AnyAsync(l => estruturaItemIds.Contains(l.EstruturaItemId), ct)
+      || await _db.Afericoes.AnyAsync(a => estruturaItemIds.Contains(a.EstruturaItemId), ct);
+
+  public Task<bool> TemCopiaEmRetrabalhoAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      _db.Estruturas.AnyAsync(
+          e => e.OrigemEstruturaItemId != null && estruturaItemIds.Contains(e.OrigemEstruturaItemId.Value), ct);
+
   /// <summary>
   /// Desde a Fase 3 roda DENTRO da transacao SERIALIZABLE de `MontagemDeEstruturaUseCase.ExcluirNo`,
   /// que ja travou a subarvore inteira e leu o status do Pedido com a trava (spec da Fase 3, secao
