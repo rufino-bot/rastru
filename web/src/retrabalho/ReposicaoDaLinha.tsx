@@ -32,10 +32,11 @@ interface Props {
   pronto?: boolean
   /**
    * Quem monta a linha recebe as duas partes separadas — o que vai na coluna do texto (`reposicao`) e o painel do
-   * "Não repor" (`painel`), para pô-lo na região de painel do `ItemComAcao`, na largura da linha. Sem ela, as duas
-   * saem juntas, uma sobre a outra.
+   * "Não repor" (`painel`), para pô-lo na região de painel do `ItemComAcao`, na largura da linha. É obrigatória: sem
+   * ela as duas partes sairiam uma sobre a outra, dentro da coluna estreita do texto, que é o layout que a conferência
+   * da Fase 5B-2 rejeitou (A4).
    */
-  children?: (partes: { reposicao: ReactNode; painel: ReactNode }) => ReactNode
+  children: (partes: { reposicao: ReactNode; painel: ReactNode }) => ReactNode
 }
 
 /**
@@ -45,7 +46,7 @@ interface Props {
  *
  * O "Abrir retrabalho" mora nesta mesma fila de ações, ao lado do "Não repor", para quem abre (`abrir`) e só enquanto há
  * o que repor e ninguém dispensou; o painel que ele abre é da tela, que o monta uma vez só. O painel do "Não repor"
- * é desta linha, e sai separado do resto (`children`) para abrir embaixo dela, e não dentro da coluna do texto.
+ * é desta linha, e sai separado do resto (`children`, obrigatório) para abrir embaixo dela, e não dentro da coluna do texto.
  */
 export function ReposicaoDaLinha({
   nome, aRepor, dispensa, pedidoRetrabalho, reaproveitada, naoRepor, desfazer, aoMudar, aoAbrirRetrabalho, pronto = true, children,
@@ -123,6 +124,5 @@ export function ReposicaoDaLinha({
     </div>
   )
 
-  if (children) return <>{children({ reposicao, painel: nada ? null : painel })}</>
-  return <>{reposicao}{nada ? null : painel}</>
+  return <>{children({ reposicao, painel: nada ? null : painel })}</>
 }

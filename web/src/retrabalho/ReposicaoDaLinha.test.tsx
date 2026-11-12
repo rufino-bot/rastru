@@ -28,7 +28,9 @@ function montar(props: Partial<Parameters<typeof ReposicaoDaLinha>[0]> = {}) {
       <ReposicaoDaLinha
         nome="a baixa de Eixo" aRepor={0} dispensa={null} pedidoRetrabalho={null} reaproveitada={false}
         naoRepor={naoRepor} desfazer={desfazer} aoMudar={aoMudar} {...props}
-      />
+      >
+        {({ reposicao, painel }) => <div>{reposicao}{painel}</div>}
+      </ReposicaoDaLinha>
     </MemoryRouter>,
   )
   return { naoRepor, desfazer, aoMudar }
