@@ -67,6 +67,17 @@ public class CopiaDaPecaTests
   }
 
   [Fact]
+  public void Filho_com_quantidade_acima_de_pai_vezes_QuantidadePorPai_copia_pela_QuantidadePorPai()
+  {
+    // Pedido em producao: a quantidade do Item so aumenta (D12 da 5B-1), entao o Item com folga (50) passa de pai x
+    // QuantidadePorPai (10 x 4 = 40). A razao das quantidades daria 5 por Peca; a regra da secao 4.3 e 4.
+    var arvore = new[] { No(1, null, 10), No(2, 1, 50, 4), No(3, 2, 130, 2) };
+    var r = CopiaDaPeca.Planejar(arvore, 1, 1, Nenhum, false).Valor!;
+    Assert.Equal(4m, r.Filhos[0].Quantidade);
+    Assert.Equal(8m, r.Filhos[0].Filhos[0].Quantidade);
+  }
+
+  [Fact]
   public void Filho_sem_QuantidadePorPai_usa_a_razao_das_quantidades()
   {
     var arvore = new[] { No(1, null, 10), No(2, 1, 20) };

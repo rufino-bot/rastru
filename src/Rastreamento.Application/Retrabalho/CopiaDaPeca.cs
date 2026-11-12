@@ -36,7 +36,7 @@ public static class CopiaDaPeca
 
     try
     {
-      var raiz = Descer(peca, quantidade, soAPeca, ehPeca: true, porId, filhosDe, saidosDoProjeto, 1, ref nos);
+      var raiz = Descer(peca, quantidade, soAPeca, ehPeca: true, filhosDe, saidosDoProjeto, 1, ref nos);
       return Result<NoParaGravar>.Ok(raiz);
     }
     catch (QuantidadeForaDaColunaException e)
@@ -51,7 +51,7 @@ public static class CopiaDaPeca
 
   private static NoParaGravar Descer(
       NoDaCopia original, decimal quantidade, bool soAPeca, bool ehPeca,
-      Dictionary<int, NoDaCopia> porId, ILookup<int, NoDaCopia> filhosDe,
+      ILookup<int, NoDaCopia> filhosDe,
       IReadOnlySet<int> saidos, int profundidade, ref int nos)
   {
     quantidade = Math.Round(quantidade, CasasDaColuna, MidpointRounding.AwayFromZero);
@@ -81,7 +81,7 @@ public static class CopiaDaPeca
       {
         if (saidos.Contains(f.Id)) continue;
         var razao = f.QuantidadePorPai ?? (original.Quantidade == 0 ? 0m : f.Quantidade / original.Quantidade);
-        filhos.Add(Descer(f, quantidade * razao, false, false, porId, filhosDe, saidos, profundidade + 1, ref nos));
+        filhos.Add(Descer(f, quantidade * razao, false, false, filhosDe, saidos, profundidade + 1, ref nos));
       }
     }
 
