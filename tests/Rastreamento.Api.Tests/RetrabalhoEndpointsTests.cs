@@ -216,8 +216,8 @@ public class RetrabalhoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
   [Fact]
   public async Task Abrir_da_mesma_baixa_em_paralelo_da_um_201_e_um_409_JaReposto()
   {
-    // Review Focus 1: a trava do Pedido original e a releitura da baixa depois dela (decisao P5 do plano de backend da
-    // Fase 5B-2) serializam as duas aberturas; a segunda ve a primeira e nao abre um segundo Retrabalho.
+    // Decisao P5 do plano de backend da Fase 5B-2: a trava do Pedido original e a releitura da baixa depois dela
+    // serializam as duas aberturas; a segunda ve a primeira e nao abre um segundo Retrabalho.
     await using var c = await CriarAsync(_factory);
     var perdaId = await DarBaixaAsync(c, c.A, "PerdaArmazem", 2m, incluirTopo: false);
     var numero = await NumeroDoOriginalAsync(c);

@@ -221,7 +221,7 @@ Ação do PCP no Retrabalho `Aberto` (`POST /pedidos/{id}/sobra-reaproveitada`, 
   que está o pronto de um uso anterior da sobra, onde quer que esteja agora, inclusive onde uma entrega o levou, na
   ordem dos saldos da calculadora (a de `Posicoes`, depois passo e Setor);
   cada posição tirada é uma linha `Perda` própria da baixa de `Descarte`. Estornar o primeiro uso enquanto o segundo
-  vale é 409 `ProntoJaAndou` (o pronto do primeiro já não está nas posições em que os `Pronto` dele o puseram); estornar o segundo devolve esses
+  vale é 409 `ProntoJaAndou` (o pronto do primeiro já não está **todo** nas posições em que os `Pronto` dele o puseram); estornar o segundo devolve esses
   filhos à posição de onde a baixa ligada os tirou. Nada se exclui da estrutura.
 - **O que sai do original não passa da sobra viva** do nó de origem, por posição (C19).
 - **Estorno**: pela rota da baixa `Reaproveitado` (a de sempre, C7 da 5B-1), **inteiro**, desfazendo também os
