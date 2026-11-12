@@ -793,7 +793,13 @@ spec da 5B-1), cada uma com spec, plano e PR, nesta ordem:
   (aprovada em 2026-11-06); planos `docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e
   `docs/superpowers/plans/2026-11-06-fase-5b2-front.md`.
 
-**Estado da 5B-2 (2026-11-07):** **em execução**, ainda não mesclada. O **backend foi implementado** na branch: o schema
+**Estado da 5B-2 (2026-11-12):** **em execução**, ainda não mesclada. A conferência do usuário no navegador foi feita
+em 2026-11-10 e a review de branch inteira, em 2026-11-12; o fix wave dela está na branch, e **falta o PR e o merge**. Os
+ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a cascata do pronto leva também o pronto do
+filho que o pai não pede mais) e o F2 (o painel do «Não repor» abre na largura da linha) são da 5B-2**; o F3 (os grupos
+«Em {Setor}» de Tarefas nascem recolhidos), o F4 (a Fila do Setor e as Tarefas saem pelo prazo de entrega do Pedido) e o
+F5 (o login separa «usuário ou senha inválidos» de «muitas tentativas» e de «sem resposta do servidor») não são, e vieram
+junto por decisão do usuário (2026-11-10). O que a branch tinha em 2026-11-07, antes da conferência. O **backend foi implementado** na branch: o schema
 (`dbo.Reclamacao`, `dbo.DispensaDeReposicao`, `Perda.PerdaDeOrigemId`, `Movimentacao.ReclamacaoId`,
 `EstruturaItem.OrigemEstruturaItemId`, o motivo `Reaproveitado` e os tipos `Pronto` e `Devolucao` do livro) e a migração
 `db/alter-fase-5b2.sql`; o pronto na calculadora (conta como montado, C17) e o conjunto em formação do Kit (D8, regra 25);
@@ -801,8 +807,7 @@ a cópia pura da Peça; o registro da reclamação; a abertura do Retrabalho pel
 o «não repor»; o «Usar a sobra» e o estorno dele; e os estornos que a reposição proíbe (C20), nos controllers
 `RetrabalhoController`, `ReaproveitamentoController`, `ReclamacaoController` e `DispensaController` (regra 39; rotas em
 `05-api-endpoints.md`). O **front também foi implementado** na branch, em `web/src/retrabalho/` (o âmbar «a repor», as seções «Reclamações» e
-«Retrabalhos», o «Abrir retrabalho», o «Não repor» e o «Usar a sobra»). **Falta** a conferência do usuário no navegador e
-a review de branch inteira.
+«Retrabalhos», o «Abrir retrabalho», o «Não repor» e o «Usar a sobra»).
 
 **Estado da 5B-1 (2026-11-05):** o **backend e o front foram implementados** na branch. No backend entrou: a posição
 `Perdido` e o tipo `Perda` no livro, `dbo.Perda` reescrita como registro da baixa e a migração

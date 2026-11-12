@@ -79,8 +79,12 @@ tudo" do Pedido e do Agrupamento e a seção "Baixas"); a seguinte é a **5B-2**
 (`docs/superpowers/plans/2026-11-06-fase-5b2-backend.md` e `…-fase-5b2-front.md`) e está **em execução**, ainda não
 mesclada: o backend está implementado na branch (a regra 39 de `specs/01`, as rotas de `specs/05` e o
 `db/alter-fase-5b2.sql`) e o front também, o módulo `web/src/retrabalho/` descrito na seção «Interface» (o "Abrir
-retrabalho", a seção "Reclamações", a seção "Retrabalhos", o "Não repor" e o "Usar a sobra"); falta a conferência do
-usuário no navegador e a review de branch inteira. A 5C ainda não tem spec,
+retrabalho", a seção "Reclamações", a seção "Retrabalhos", o "Não repor" e o "Usar a sobra"). A conferência do usuário
+no navegador foi feita em 2026-11-10 e a review de branch inteira, em 2026-11-12; o fix wave dela está na branch. Os
+ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a cascata do pronto) e o F2 (o painel do "Não
+repor" na largura da linha) são da 5B-2**; o F3 (os grupos "Em {Setor}" de Tarefas recolhidos), o F4 (a Fila do Setor e as
+Tarefas pelo prazo de entrega do Pedido) e o F5 (as frases do login) **não são**, e vieram junto por decisão do usuário
+(2026-11-10). Falta o PR e o merge. A 5C ainda não tem spec,
 e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -1115,6 +1119,15 @@ o mesmo banco dão deadlock no `DisposeAsync` dos cenários (visto nesta mediç�
 executados. Contra a medição de 2026-11-05 (2.070 em 117) são **+115 testes e +9 arquivos**, que são o front da 5B-2 até
 aqui: o cliente `api/retrabalho`, o `usePermissoesDaReposicao`, os sete componentes de `web/src/retrabalho/` e os testes
 novos da `PedidoDetalhePage`, do `HistoricoDeBaixas` e da `LinhaDePedido`. A suíte do backend segue a medição acima.
+
+**Remedido em 2026-11-12, depois do fix wave da review de branch da 5B-2** (HEAD = o commit que antecede este parágrafo,
+com a branch já com os ajustes F1 a F5 da conferência), **executando** o ciclo inteiro: `dotnet build Rastreamento.slnx
+-warnaserror` com 0 warnings e 0 erros; `dotnet test Rastreamento.slnx -m:1` com **2.055 testes**, todos passando (561
+em Api, 1.158 em Application e 336 em Infrastructure; 0 em Domain); em `web/`, `npm test -- --run --maxWorkers=2` com
+**2.220 testes em 126 arquivos**, todos passando, e `npm run build` passou. A métrica é a de testes executados. O fix wave
+acrescentou 6 testes ao front e, no backend, os de Api (os dois 409 do excluir nó, o `NumeroLongoDemais` e a frase do
+`AbaixoDoReclamado` com Retrabalho), os de Application (os dois 409 do excluir nó, o QPP da cópia e os quatro do
+`NumeroDoRetrabalho`).
 
 Na primeira execução do frontend da medição de 2026-11-04 (1.912) **1 de 1.912**
 ficou vermelho, o `lembra o Setor cuja fila carregou` da `FilaDoSetorPage`; o arquivo isolado passou 3 de 3 e a
