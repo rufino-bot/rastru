@@ -5,7 +5,7 @@ usuário em chat, numa sessão de nuvem de 2026-11-12, parte por texto e parte p
 As decisões do usuário são D1–D5 (seção 2.1); as chamadas do desenho, que o usuário confere ao ler, são C1–C16 (seção
 2.2). O builder check (um revisor lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou
 uma premissa errada, a cascata da baixa, que virou C15, e uma ambiguidade, que virou C16. Nenhuma das duas pedia decisão
-nova do usuário: C15 é consequência de D4.
+nova do usuário: C15 é consequência de D4. O documento escrito foi **aprovado pelo usuário em 2026-11-12**.
 
 **Ponto de partida.** A Fase 5 foi partida em 5A, 5B e 5C em 2026-10-20. A 5B-2 (reposição) foi mesclada em 2026-11-12
 (rufino-bot/rastru#37). Esta é a **5C — as pontas do Kit que a 3B deixou** (`specs/06-roadmap-mvp.md`, seção «Fase 5C»):
