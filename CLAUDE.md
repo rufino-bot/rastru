@@ -1120,7 +1120,7 @@ executados. Contra a medição de 2026-11-05 (2.070 em 117) são **+115 testes e
 aqui: o cliente `api/retrabalho`, o `usePermissoesDaReposicao`, os sete componentes de `web/src/retrabalho/` e os testes
 novos da `PedidoDetalhePage`, do `HistoricoDeBaixas` e da `LinhaDePedido`. A suíte do backend segue a medição acima.
 
-**Remedido em 2026-11-12, depois do fix wave da review de branch da 5B-2** (HEAD = o commit que antecede este parágrafo,
+**Remedido em 2026-11-12, depois do fix wave da review de branch da 5B-2** (HEAD `9916e58`, o commit anterior ao que escreveu este parágrafo,
 com a branch já com os ajustes F1 a F5 da conferência), **executando** o ciclo inteiro: `dotnet build Rastreamento.slnx
 -warnaserror` com 0 warnings e 0 erros; `dotnet test Rastreamento.slnx -m:1` com **2.055 testes**, todos passando (561
 em Api, 1.158 em Application e 336 em Infrastructure; 0 em Domain); em `web/`, `npm test -- --run --maxWorkers=2` com

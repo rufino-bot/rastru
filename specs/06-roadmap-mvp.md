@@ -799,7 +799,7 @@ ajustes da conferência (F1 a F5) entraram na mesma branch, mas **só o F1 (a ca
 filho que o pai não pede mais) e o F2 (o painel do «Não repor» abre na largura da linha) são da 5B-2**; o F3 (os grupos
 «Em {Setor}» de Tarefas nascem recolhidos), o F4 (a Fila do Setor e as Tarefas saem pelo prazo de entrega do Pedido) e o
 F5 (o login separa «usuário ou senha inválidos» de «muitas tentativas» e de «sem resposta do servidor») não são, e vieram
-junto por decisão do usuário (2026-11-10). O que a branch tinha em 2026-11-07, antes da conferência. O **backend foi implementado** na branch: o schema
+junto por decisão do usuário (2026-11-10). Até 2026-11-07, antes da conferência, a branch já tinha o que segue. O **backend foi implementado** na branch: o schema
 (`dbo.Reclamacao`, `dbo.DispensaDeReposicao`, `Perda.PerdaDeOrigemId`, `Movimentacao.ReclamacaoId`,
 `EstruturaItem.OrigemEstruturaItemId`, o motivo `Reaproveitado` e os tipos `Pronto` e `Devolucao` do livro) e a migração
 `db/alter-fase-5b2.sql`; o pronto na calculadora (conta como montado, C17) e o conjunto em formação do Kit (D8, regra 25);
