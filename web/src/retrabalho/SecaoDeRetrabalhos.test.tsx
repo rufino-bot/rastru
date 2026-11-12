@@ -30,6 +30,11 @@ describe('SecaoDeRetrabalhos', () => {
     expect(within(secao).getByText(/01\/12\/2026/)).toBeTruthy()
   })
 
+  it('a lista diz a ordem em que o servidor devolve: do mais antigo ao mais novo', async () => {
+    montar(async () => LISTA)
+    expect(await screen.findByRole('list', { name: 'Retrabalhos, do mais antigo ao mais novo' })).toBeTruthy()
+  })
+
   it('carregando: mostra o estado de carregando', () => {
     montar(() => new Promise(() => {}))
     expect(screen.getByRole('status')).toBeTruthy()

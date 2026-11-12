@@ -61,7 +61,7 @@ export function SecaoDeRetrabalhos({ carregar, versao }: Props) {
         <EstadoVazio titulo="Nenhum retrabalho aberto a partir deste pedido" />
       )}
       {lista !== null && lista.length > 0 && (
-        <ListaDeCadastro rotulo="Retrabalhos, do mais recente ao mais antigo">
+        <ListaDeCadastro rotulo="Retrabalhos, do mais antigo ao mais novo">
           {lista.map((r) => (
             <ItemDeCadastro key={r.id}>
               <span className="flex flex-wrap items-center gap-2 text-sm text-tinta">
