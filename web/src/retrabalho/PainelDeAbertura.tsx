@@ -183,7 +183,7 @@ export function PainelDeAbertura({ pedido, porta, aoAbrir, aoFechar, aoMudar }: 
           {(id, idDaDica) => (
             <input
               id={id} aria-describedby={idDaDica} value={numero} onChange={(e) => setNumero(e.target.value)}
-              required disabled={enviando} className={`${CLASSES_DE_CONTROLE} font-mono`}
+              maxLength={30} required disabled={enviando} className={`${CLASSES_DE_CONTROLE} font-mono`}
             />
           )}
         </Campo>

@@ -128,7 +128,7 @@ public sealed partial class RetrabalhoUseCase
   /// `Quantidade` so na avulsa, que exige os dois; `Destino` e `SetorId` so na reclamacao (400 `PortaInvalida`). Na
   /// reclamacao, o destino e `Consertar` com Setor ou `Refazer` sem (400 `DestinoInvalido`). Depois, a quantidade da
   /// avulsa (400 `QuantidadeInvalida`), o motivo, um dos quatro de `CK_Pedido_MotivoRetrabalho` (400 `MotivoInvalido`;
-  /// a tela sugere, C5), e o numero (400 `NumeroObrigatorio`).
+  /// a tela sugere, C5), e o numero (400 `NumeroObrigatorio`, e `NumeroLongoDemais` acima de 30 caracteres).
   /// </summary>
   private static (CorpoConferido? Corpo, Result<PedidoDto>? Recusa) ConferirCorpo(NovoRetrabalhoDto dto)
   {
@@ -177,6 +177,9 @@ public sealed partial class RetrabalhoUseCase
     var numero = dto.Numero?.Trim() ?? string.Empty;
     if (numero.Length == 0)
       return (null, Falhas.Validacao<PedidoDto>(CodigosDoRetrabalho.NumeroObrigatorio, "Diga o número do Retrabalho."));
+    if (numero.Length > NumeroDoRetrabalho.Maximo)
+      return (null, Falhas.Validacao<PedidoDto>(CodigosDoRetrabalho.NumeroLongoDemais,
+          $"O número do Retrabalho passa de {NumeroDoRetrabalho.Maximo} caracteres."));
 
     return (new CorpoConferido(porta, dto.PerdaId, dto.ReclamacaoId, dto.EstruturaItemId, dto.Quantidade, dto.Destino,
         dto.SetorId, numero, dto.DataEntrega, dto.MotivoRetrabalho), null);

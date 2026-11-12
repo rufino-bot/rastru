@@ -45,10 +45,12 @@ public sealed record ReclamacaoDto(
 /// O corpo de `POST /pedidos/{id}/retrabalhos` ({id} = o original; secao 4.2 da spec da Fase 5B-2). A porta e uma so:
 /// `PerdaId` (da baixa), `ReclamacaoId` (da reclamacao, com `Destino` e, no `Consertar`, `SetorId`) ou nenhuma das duas
 /// (avulsa, com `EstruturaItemId` de uma Peca do original e `Quantidade`). `DataEntrega` nula fica a do original (C7).
+/// O `Numero` NAO leva `[MaxLength]`: o limite (30) e conferido no caso de uso, para a recusa sair com `erro` e `mensagem`
+/// (400 `NumeroLongoDemais`) e nao no `ProblemDetails` automatico.
 /// </summary>
 public sealed record NovoRetrabalhoDto(
     int? PerdaId, int? ReclamacaoId, int? EstruturaItemId, decimal? Quantidade, string? Destino, int? SetorId,
-    [MaxLength(30)] string? Numero, DateOnly? DataEntrega,
+    string? Numero, DateOnly? DataEntrega,
     string? MotivoRetrabalho);
 
 /// <summary>De onde veio o Retrabalho: `Baixa` ou `Reclamacao` (com o Id do alvo), ou `Avulsa` (sem Id).</summary>

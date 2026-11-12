@@ -9,7 +9,7 @@ public sealed partial class RetrabalhoUseCase
   /// <summary>
   /// Os Retrabalhos que tem o Pedido como origem, do mais antigo ao mais novo, com a origem de cada um (a baixa, a
   /// reclamacao ou nenhuma), e o numero sugerido (decisao P7 do plano de backend da Fase 5B-2): `{numero}-R{k}`, o menor
-  /// k a partir de 1 que nenhum Pedido usa. 404 se o Pedido nao existe.
+  /// k a partir de 1 que nenhum Pedido usa, com o numero do original cortado quando passaria de 30 (`NumeroDoRetrabalho`). 404 se o Pedido nao existe.
   /// </summary>
   public Task<Result<RetrabalhosDoPedidoDto>> Listar(int pedidoId, CancellationToken ct) =>
       _execucao.ConsultarAsync(async () =>
@@ -27,15 +27,6 @@ public sealed partial class RetrabalhoUseCase
         return Result<RetrabalhosDoPedidoDto>.Ok(new RetrabalhosDoPedidoDto(await NumeroSugeridoAsync(pedido.Numero, ct), retrabalhos));
       }, ct);
 
-  /// <summary>
-  /// Sem diferenciar caixa, como `UQ_Pedido_Numero` na collation do banco: um "P-1-r1" ja ocupa o "P-1-R1".
-  /// </summary>
-  private async Task<string> NumeroSugeridoAsync(string numero, CancellationToken ct)
-  {
-    var prefixo = $"{numero}-R";
-    var usados = (await _pedidos.ListarNumerosQueComecamComAsync(prefixo, ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    var k = 1;
-    while (usados.Contains($"{prefixo}{k}")) k++;
-    return $"{prefixo}{k}";
-  }
+  private async Task<string> NumeroSugeridoAsync(string numero, CancellationToken ct) =>
+      NumeroDoRetrabalho.Sugerir(numero, await _pedidos.ListarNumerosQueComecamComAsync(NumeroDoRetrabalho.PrefixoDaConsulta(numero), ct));
 }

@@ -457,6 +457,20 @@ public class RetrabalhoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
   }
 
   [Fact]
+  public async Task Numero_acima_de_trinta_caracteres_e_400_NumeroLongoDemais_no_contrato_de_erro()
+  {
+    await using var c = await CriarAsync(_factory);
+
+    var resposta = await AbrirAsync(c, c.Pcp, Avulso(c.A, 1m, new string('X', 31)));
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal("NumeroLongoDemais", corpo.GetProperty("erro").GetString());
+    Assert.False(string.IsNullOrWhiteSpace(corpo.GetProperty("mensagem").GetString()));
+    Assert.Equal(0, await RetrabalhosDoOriginalAsync(c));
+  }
+
+  [Fact]
   public async Task Motivo_fora_dos_quatro_e_400_MotivoInvalido()
   {
     await using var c = await CriarAsync(_factory);

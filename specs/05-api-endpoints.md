@@ -1372,7 +1372,7 @@ linha da baixa: ele é do Retrabalho, e a baixa `Reaproveitado` lista só as lin
   "motivoRetrabalho": "ReprovacaoDimensional" | "ErroInterno" | "SolicitacaoCliente" | "Perda" }
 
 // GET /api/pedidos/{id}/retrabalhos -> 200 (do mais antigo ao mais novo)
-{ "numeroSugerido": "P-1020-R2",
+{ "numeroSugerido": "P-1020-R2",       // nunca passa de 30 caracteres: o número do original é cortado para o sufixo caber
   "retrabalhos": [ { "id": 51, "numero": "P-1020-R1", "motivoRetrabalho": "Perda", "status": "Aberto",
                      "dataEntrega": "2026-12-01", "origem": { "tipo": "Baixa" | "Reclamacao" | "Avulsa", "id": 7 | null } } ] }
 
@@ -1423,6 +1423,7 @@ Pedido (`ValorDuplicado`, com o campo e o Pedido que já o tem).
 | 400 | `DestinoInvalido` | reclamação sem `destino` `Consertar` (com `setorId`) ou `Refazer` (sem) |
 | 400 | `MotivoInvalido` | `motivoRetrabalho` fora dos quatro; no «Dar baixa», o motivo `Reaproveitado`. Código da Baixa, reusado |
 | 400 | `NumeroObrigatorio` | número do Retrabalho em branco |
+| 400 | `NumeroLongoDemais` | número do Retrabalho acima de 30 caracteres (o da coluna `Pedido.Numero`); a recusa sai no `{ erro, mensagem }` como as demais, e não no `ProblemDetails` automático |
 | 400 | `DescricaoObrigatoria` | texto da reclamação em branco (aparado) |
 | 400 | `JustificativaObrigatoria` | justificativa do «não repor» em branco; código da Expedição, reusado |
 | 400 | `TextoLongoDemais` | texto acima de 500 caracteres (reclamação e justificativa); código da Expedição, reusado |

@@ -71,6 +71,11 @@ describe('PainelDeAbertura', () => {
     expect(data.value).toBe('2026-12-15')
   })
 
+  it('o campo do número não aceita mais de 30 caracteres, o que a coluna guarda', async () => {
+    montar({ tipo: 'Baixa', baixa: baixa() })
+    expect((await numero()).maxLength).toBe(30)
+  })
+
   it('a baixa por perda sugere o motivo "Perda"', async () => {
     montar({ tipo: 'Baixa', baixa: baixa() })
     await numero()

@@ -841,7 +841,7 @@ desenho, C1 a C20), e é implementada no backend da 5B-2.*
       `SemPecaARepor`), a **reclamação** (`reclamacaoId`, com `destino` `Consertar` e `setorId`, ou `Refazer`, 400
       `DestinoInvalido`) e a **avulsa** (uma Peça do original e a quantidade, sem vínculo). O motivo é um dos quatro
       da regra 12 (a tela sugere pela origem, C5) e o número é obrigatório (400 `NumeroObrigatorio`), único como o de
-      qualquer Pedido; o servidor sugere `<número do original>-R{k}`, o menor `k` livre. O cliente vem do original e a
+      qualquer Pedido; o servidor sugere `<número do original>-R{k}`, o menor `k` livre, e o número tem no máximo 30 caracteres (400 `NumeroLongoDemais`): quando a sugestão passaria disso, o número do **original** é cortado à direita para o sufixo `-R{k}` caber, e o sufixo nunca é cortado. O cliente vem do original e a
       data de entrega, por padrão, a do original (C7, regra 33). Numa transação cria o Pedido `Retrabalho` (`Aberto`,
       com `PedidoOrigemId` e `MotivoRetrabalho`), **um** Agrupamento com o código e o Tipo (Kit/Avulso) do da Peça
       original, a cópia e o vínculo (`Perda.PedidoRetrabalhoId` ou `Reclamacao.PedidoRetrabalhoId`). Baixa ou
