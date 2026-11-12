@@ -2,8 +2,10 @@
 
 Data: 2026-11-12. Branch: `claude/adoring-einstein-upfpm6`, a partir da `main` em `6926c9e`. Desenho conversado com o
 usuário em chat, numa sessão de nuvem de 2026-11-12, parte por texto e parte por três áudios dele, transcritos na sessão.
-As decisões do usuário são D1–D5 (seção 2.1); as chamadas do desenho, que o usuário confere ao ler, são C1–C14 (seção
-2.2).
+As decisões do usuário são D1–D5 (seção 2.1); as chamadas do desenho, que o usuário confere ao ler, são C1–C16 (seção
+2.2). O builder check (um revisor lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou
+uma premissa errada, a cascata da baixa, que virou C15, e uma ambiguidade, que virou C16. Nenhuma das duas pedia decisão
+nova do usuário: C15 é consequência de D4.
 
 **Ponto de partida.** A Fase 5 foi partida em 5A, 5B e 5C em 2026-10-20. A 5B-2 (reposição) foi mesclada em 2026-11-12
 (rufino-bot/rastru#37). Esta é a **5C — as pontas do Kit que a 3B deixou** (`specs/06-roadmap-mvp.md`, seção «Fase 5C»):
@@ -47,7 +49,8 @@ definido, e o pai Kit cujos filhos saíram todos aparece na Fila.
 
 **Pronto quando:**
 
-- No exemplo do defeito, o Kit continua aparecendo nas Tarefas até o nono conjunto entrar; a Fila da Solda mostra 1 A e
+- No exemplo do defeito, com parte de A e de B ainda a iniciar, a baixa não descarta nada a iniciar (C15), o Kit
+  continua aparecendo nas Tarefas até o nono conjunto entrar e as 9 unidades se montam; a Fila da Solda mostra 1 A e
   1 B como sobra, com "Descartar"; e o "Usar a sobra" de um Retrabalho aberto para aquela baixa oferece os dois.
 - O exemplo da regra 25 (pai de 2; 7 de A com razão 4; 1 de B com razão 1) aceita um conjunto a mais e monta as 2
   unidades; as 3 A que sobram aparecem como sobra.
@@ -64,7 +67,7 @@ definido, e o pai Kit cujos filhos saíram todos aparece na Fila.
 | D1 | **A árvore não muda depois que a produção começa.** O usuário, em 2026-11-12: "até o presente momento, não houve caso da árvore da peça ser alterada durante a produção". Revisão de projeto mexe na **forma** das peças (furo, dobra, corte), não em quais peças compõem o conjunto. A guarda `PaiJaIniciado` deixa de ser a resposta provisória da 3B e passa a definitiva; a "montagem tardia" (descartada na D1 da 3B) continua descartada. |
 | D2 | **Peça que dá para corrigir volta ao Setor que faz a correção** (corte, usinagem, laser, serra, dobra, solda), e a que não dá morre em processo e é refeita. Na fábrica, o caso costuma ser descoberto com a peça **ainda solta, antes da montagem**, e isso o Rastru já atende: o PCP acrescenta o passo no fim do Roteiro do nó (o trecho não alcançado se edita), e o que aguarda coleta no antigo último passo passa a ter esse passo como destino. A peça que não dá é a baixa `MortaEmProcesso` e a reposição. **Nada novo na 5C.** |
 | D3 | **Revisão que chega depois do pedido** pode não entrar na produção em andamento (vai para o próximo pedido, quando o cliente não exige a atualização do que já estava em produção), ou é cobrada do cliente por outro orçamento. O orçamento novo é um Pedido novo; o Rastru não precisa de nada para isso. Quando o problema só aparece no fim, com a peça montada ou na expedição, os caminhos são o conserto da expedição (regra 35) ou esse Pedido novo. |
-| D4 | **O conjunto que perde parte dentro da Solda vai para o Retrabalho, como o sistema já faz**: a baixa leva a unidade da Peça do topo (regra 27, `incluirTopo`), o resto do conjunto vira sobra no original, e o Retrabalho a marca pronta e fabrica só a peça que falta (D8 da 5B-2). O conjunto **não** se completa no Pedido original, e a frase da regra 25 ("não se completa com refugo novo") fica. |
+| D4 | **O conjunto que perde parte dentro da Solda vai para o Retrabalho, como o sistema já faz**: a baixa leva a unidade da Peça do topo (regra 27, `incluirTopo`), o resto do conjunto vira sobra no original, e o Retrabalho a marca pronta e fabrica só a peça que falta (D8 da 5B-2). O conjunto **não** se completa no Pedido original, e a frase da regra 25 ("não se completa com refugo novo") fica. *"Como o sistema já faz" vale para o caminho (baixa, sobra, Retrabalho), não para a conta: hoje o resto do conjunto não aparece como sobra, e a cascata da baixa ainda descarta as peças a iniciar que o substituiriam (C15).* |
 | D5 | **Caminho A** (seção 8): no pai que recebe em conjunto, os conjuntos à espera são os **completos**; o que está à espera e não fecha conjunto é **sobra**. Escolhido sobre o caminho B (barrar na origem cada caminho de desalinhamento e corrigir só a perda na conta). |
 
 ### 2.2 Do desenho (o usuário confere)
@@ -85,6 +88,8 @@ definido, e o pai Kit cujos filhos saíram todos aparece na Fila.
 | C12 | **Kit com pai de quantidade fracionária** (Minor 9 da review de branch da 3B: nunca recebe a última fração) **fica fora**: não é caso da fábrica, e continua como dívida registrada. |
 | C13 | **A tabela "Contrato de erro da Execução" de `specs/05`** ganha os códigos que já faltavam (`ConjuntoIncompleto`, `AlemDoQueOPaiPrecisa`, `PaiJaIniciado`) e o novo (`PaiComConjuntoAEspera`). |
 | C14 | **Conferência do usuário no navegador**, curta, com uma massa própria (`CONF-5C`) que monte os exemplos da seção 1. Pela regra do usuário de 2026-10-07, a review de branch só é despachada depois dela. |
+| C15 | **A conta da baixa usa a mesma sobra** (achado do builder check). `CalculoDaBaixa` (a `Cascata` da C6 da 5B-1, o `ViramSobra` e o `CalcularTrava`) mede o que cobre o pai pelo `EmProducao` do filho, que conta o resto do conjunto quebrado como útil. Com D4, esse resto vai para o Retrabalho; então, no pai que recebe em conjunto, o que cobre o pai é o em produção **menos a sobra em montagem depois da baixa** (seção 3.5). Sem isso, a baixa com `incluirTopo` descarta também as peças a iniciar que substituiriam o resto, e a última unidade do original nunca se completa. A conta vale também para a cascata do pronto (`levaOProntoJunto`, 5B-2), que usa a mesma `Cascata`. |
+| C16 | **A espera fora de Setor `UtilizaKit`** (filho entregue antes de o PCP mudar o primeiro passo do pai, ou antes de o Setor ganhar a marca) entra na sobra **depois** dos conjuntos contados: `max(0, espera fora de UtilizaKit − max(0, FaltaMontar − contados) × razão)`. Aplicar a regra de hoje só a ela ignoraria os conjuntos que já estão na Solda e subcontaria a sobra. A divisão da sobra entre Setores no "Usar a sobra" (`CalculoDoReaproveitamento.Disponivel`) segue: primeiro o que não fecha conjunto na Solda, depois o resto; o plano escreve a ordem. |
 
 ## 3. Regras de domínio
 
@@ -110,8 +115,8 @@ conjunto (11 A, 2 B), `completos = 2`, montam-se 2, e as 3 A que sobram são sob
 Para o filho c de um pai P que recebe em conjunto:
 
 - `contados(P) = min(ConjuntosAEspera(P), max(0, FaltaMontar(P)))`.
-- `sobraEmMontagem(c) = max(0, espera(c) − contados(P) × razão(c))`, mais a espera de c em Setor sem `UtilizaKit`
-  tratada pela regra de hoje.
+- `sobraEmMontagem(c) = max(0, espera(c) − contados(P) × razão(c)) + max(0, esperaForaDoKit(c) − max(0, FaltaMontar(P)
+  − contados(P)) × razão(c))`, em que `esperaForaDoKit` é o que c aguarda montagem em Setor sem `UtilizaKit` (C16).
 - `Precisa(c) = max(0, FaltaMontar(P) × razão(c) − (esperaTotal(c) − sobraEmMontagem(c)))`.
 
 No exemplo do defeito, logo depois da baixa: `contados = 2`, sobra 1 A e 1 B, e `Precisa(A) = 9×2 − (5 − 1) = 14`, que
@@ -145,7 +150,29 @@ B e sobra 0.
 A guarda nova (C8) olha o pai que recebe em conjunto **no momento da edição**, com algo aguardando montagem em Setor
 `UtilizaKit`, líquido de estorno. Ela não substitui o `PaiJaIniciado`, que continua valendo para todo pai.
 
-### 3.5 O pai Kit cujos filhos saíram todos (C9)
+### 3.5 A conta da baixa (C15)
+
+A baixa planeja sobre o "depois" (o `Rascunho` de `CalculoDaBaixa`). Para o filho c de um pai P que recebe em conjunto, o
+que cobre P passa a ser `EmProducaoDepois(c) − sobraEmMontagemDepois(c)`, com a sobra de 3.2 calculada sobre a espera e
+o `FaltaMontar` **depois** das linhas já planejadas. Isso vale nos três lugares:
+
+- na **`Cascata`** (C6 da 5B-1): o excesso de c que sai de "a iniciar" é `max(0, (EmProducaoDepois − sobraEmMontagemDepois)
+  − DeveDepois)`;
+- no **`ViramSobra`**: o que a baixa faz virar sobra inclui o resto do conjunto quebrado (a prévia passa a listá-lo, e é
+  o que o painel mostra como "vira sobra");
+- no **`CalcularTrava`**: a produção do filho que cobre o pai desconta a sobra do Kit.
+
+O exemplo do defeito, refeito. C de 10 Kit; A total 20 (razão 2) e B total 10; 3 conjuntos à espera; uma A perdida dentro
+da Solda com `incluirTopo`. Tirada a A, a espera é 5 A e 3 B, `completos = 2`, e a sobra
+já é 1 A e 1 B. A trava é `10 − ⌊(19 − 1) ÷ 2⌋ = 1`, e o painel oferece a caixa do topo, marcada (D13 da 5B-1). Com a
+unidade de C planejada, `FaltaMontar` depois é 9 e a sobra continua 1 A e 1 B. A cascata faz então `(19 − 1) − 18 = 0` para A e `(10 − 1) − 9 = 0` para B, e **não** descarta
+nada a iniciar. O original fica com 18 A e 9 B úteis para as 9 unidades, e o resto (1 A, 1 B) aparece no `ViramSobra` e
+vai para o Retrabalho. Hoje a mesma baixa descarta 1 A e 1 B a iniciar, e a nona unidade nunca se completa.
+
+No pai que não recebe em conjunto, a sobra em montagem do 3.2 é o `ExcessoEmMontagem` de hoje, que a baixa já trata
+pela comparação com `DeveDepois`; a conta da baixa do Avulso não muda.
+
+### 3.6 O pai Kit cujos filhos saíram todos (C9)
 
 Com `FilhosQueContam(P)` vazia, P inicia como folha, seja Kit ou Avulso: aparece em "a iniciar" na Fila do primeiro passo
 dele e a "Dá para montar" é o que falta montar. O `ApontamentoUseCase` já grava a `Montagem` sem baixa de filho (medido
@@ -161,6 +188,9 @@ na review de branch da 5B-1, I2). Como não há filho que conte, `RecebeEmConjun
 - **A guarda nova** (C8): no caso de uso que acrescenta filho e no que edita a `QuantidadePorPai` (o plano acha os dois
   pelo código), com o código `PaiComConjuntoAEspera` em `CodigosDaExecucao` ou no lugar onde mora o `PaiJaIniciado`. A
   mensagem diz o que fazer: dar baixa ou descartar o que está à espera, ou esperar a montagem.
+- **`CalculoDaBaixa`** (C15): a `Cascata`, o `ViramSobra` e o `CalcularTrava` descontam a sobra em montagem do Kit,
+  calculada sobre o "depois" do `Rascunho`. A calculadora precisa expor a sobra de um jeito que aceite o "depois" (o
+  `saindo` do redirecionamento é o precedente); a forma é do plano.
 - **Nenhuma rota nova**, nenhum DTO novo. A Fila, as Tarefas e o "Usar a sobra" mudam de números, não de forma.
 
 ## 5. Front
@@ -177,8 +207,11 @@ decide:
 
 - **Application** (calculadora, com fakes): os exemplos da seção 3, cada um afirmando `ConjuntosAEspera`, teto, sobra e
   `Precisa` antes e depois; o conjunto em formação da 5B-2 com os números de hoje (3.3); o Kit sem perda nem
-  desalinhamento, para provar C11; o pai Kit cujos filhos saíram todos (C9); a guarda nova nos dois casos de uso.
-- **Api** (ponta a ponta, banco real): o exemplo do defeito do começo ao fim (baixa com `incluirTopo` dentro da Solda;
+  desalinhamento, para provar C11; o pai Kit cujos filhos saíram todos (C9); a guarda nova nos dois casos de uso; a baixa do 3.5 (`CalculoDaBaixa`), com
+  A e B ainda em "a iniciar", afirmando que a cascata não descarta nada deles, que o `ViramSobra` lista 1 A e 1 B e que a
+  trava é 1; a baixa de um Avulso com a mesma árvore, sem mudança de resultado.
+- **Api** (ponta a ponta, banco real): o exemplo do defeito do começo ao fim, com parte de A e de B ainda a iniciar
+  (baixa com `incluirTopo` dentro da Solda; a prévia com a sobra e sem descarte a iniciar;
   Tarefas oferecendo o Kit até o nono conjunto; Fila com a sobra; "Usar a sobra" do Retrabalho oferecendo 1 A e 1 B; as 9
   unidades montadas); a espera desalinhada pela troca Avulso→Kit; o estorno de uma linha só de uma entrega de Kit; os dois
   409 novos; o pai Kit iniciando pela Fila.
@@ -213,7 +246,8 @@ decide:
 - `specs/01`: regra **24** (a guarda `PaiJaIniciado` é definitiva, com o motivo de D1; o tratamento da estrutura alterada
   é o de D2 e D3); regra **25** (conjuntos à espera são os completos, com o termo do conjunto em formação; a «Limitação
   conhecida» sai e vira a tabela de 3.4 em prosa; a guarda `PaiComConjuntoAEspera`); regra **30** (a sobra do Kit inclui
-  o que não fecha conjunto); regra **38** (a ressalva do pai Kit cujos filhos saíram todos sai); regra **39** (a frase
+  o que não fecha conjunto); regra **38** (a ressalva do pai Kit cujos filhos saíram todos sai; a C6, o "vira sobra" e a trava descontam a sobra
+  do Kit, C15); regra **39** (a frase
   que manda a estrutura alterada para a 5C).
 - `specs/05`: a tabela "Contrato de erro da Execução" (C13), e o 409 novo nas rotas de acrescentar filho e de editar o nó.
 - `specs/06`: a seção «Fase 5C» com o estado, e a nota de que a estrutura alterada foi decidida sem código.
