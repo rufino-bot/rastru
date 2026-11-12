@@ -49,7 +49,7 @@ public class ReposicaoRepository : IReposicaoRepository
   public async Task<IReadOnlyList<Perda>> ListarPerdasSemRetrabalhoAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
   {
     if (pedidoIds.Count == 0) return [];
-    var repoem = new[] { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
+    var repoem = MotivosDePerda.QueSeRepoem;
     return await _db.Perdas.AsNoTracking()
         .Where(p => pedidoIds.Contains(p.PedidoId) && p.PedidoRetrabalhoId == null && repoem.Contains(p.Motivo))
         .ToListAsync(ct);
@@ -104,7 +104,7 @@ public class ReposicaoRepository : IReposicaoRepository
     var ids = retrabalhos.Select(p => p.Id).ToList();
 
     // So as baixas de perda repoem: a `Reaproveitado` tambem aponta o Retrabalho, mas como destino da sobra.
-    var repostas = new[] { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
+    var repostas = MotivosDePerda.QueSeRepoem;
     var perdas = await _db.Perdas.AsNoTracking()
         .Where(p => p.PedidoRetrabalhoId != null && ids.Contains(p.PedidoRetrabalhoId.Value) && repostas.Contains(p.Motivo))
         .Select(p => new { p.Id, Retrabalho = p.PedidoRetrabalhoId!.Value })

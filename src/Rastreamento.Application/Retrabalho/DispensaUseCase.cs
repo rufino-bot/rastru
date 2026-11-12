@@ -18,10 +18,6 @@ namespace Rastreamento.Application.Retrabalho;
 /// </summary>
 public sealed class DispensaUseCase
 {
-  /// <summary>As baixas que tiram Peca do cliente e por isso se repoem (C1): `Descarte` e `Reaproveitado` nao.</summary>
-  private static readonly IReadOnlySet<string> MotivosQueSeRepoem =
-      new HashSet<string> { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
-
   private readonly IExecucaoRepository _execucao;
   private readonly IReposicaoRepository _reposicao;
   private readonly IBaixaRepository _baixas;
@@ -53,7 +49,7 @@ public sealed class DispensaUseCase
     {
       var perda = await _baixas.ObterAsync(perdaId, ct);
       if (perda is null) return Falhas.NaoEncontrado<LidaDaBaixa>();
-      if (!MotivosQueSeRepoem.Contains(perda.Motivo))
+      if (!MotivosDePerda.QueSeRepoem.Contains(perda.Motivo))
         return Falhas.Conflito<LidaDaBaixa>(CodigosDoRetrabalho.SemPecaARepor,
             "Só a baixa de perda se repõe: o descarte é o que saiu do projeto.");
       var nos = (await _baixas.ListarLinhasDasPerdasAsync([perdaId], ct))

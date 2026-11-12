@@ -22,9 +22,6 @@ public sealed record ReposicaoDaLinha(PedidoRetrabalhoResumoDto? PedidoRetrabalh
 /// </summary>
 public sealed class ConsultaDeReposicao
 {
-  private static readonly IReadOnlySet<string> MotivosQueSeRepoem =
-      new HashSet<string> { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
-
   private readonly IReposicaoRepository _reposicao;
   private readonly IBaixaRepository _baixas;
   private readonly IExecucaoRepository _execucao;
@@ -41,7 +38,7 @@ public sealed class ConsultaDeReposicao
   /// nao foi estornada, nao tem Retrabalho e nao tem dispensa vigente. `Descarte` e `Reaproveitado` nunca contam.
   /// </summary>
   public static decimal UnidadesARepor(BaixaParaContar b) =>
-      MotivosQueSeRepoem.Contains(b.Motivo) && !b.Estornada && !b.Reposta && !b.Dispensada ? b.UnidadesDePeca : 0m;
+      MotivosDePerda.QueSeRepoem.Contains(b.Motivo) && !b.Estornada && !b.Reposta && !b.Dispensada ? b.UnidadesDePeca : 0m;
 
   /// <summary>As unidades de uma reclamacao que ainda faltam repor: a quantidade dela, enquanto vigente e sem resolver.</summary>
   public static decimal UnidadesARepor(ReclamacaoParaContar r) =>

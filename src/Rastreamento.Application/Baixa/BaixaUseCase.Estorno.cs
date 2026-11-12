@@ -11,16 +11,12 @@ namespace Rastreamento.Application.Baixa;
 /// </summary>
 public sealed partial class BaixaUseCase
 {
-  /// <summary>As baixas que tiram Peca do cliente e por isso se repoem (C1): `Descarte` e `Reaproveitado` nao.</summary>
-  private static readonly IReadOnlySet<string> MotivosDePerdaQueSeRepoem =
-      new HashSet<string> { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
-
   /// <summary>
   /// A reposicao da baixa ja foi resolvida (C20): a de perda (`PerdaArmazem` ou `MortaEmProcesso`) com Retrabalho aberto
   /// ou "nao repor" vigente nao se estorna. Um so predicado para o estorno e para o `Estornavel` do DTO.
   /// </summary>
   internal static bool ReposicaoJaResolvida(string motivo, bool temRetrabalho, bool temDispensaVigente) =>
-      MotivosDePerdaQueSeRepoem.Contains(motivo) && (temRetrabalho || temDispensaVigente);
+      MotivosDePerda.QueSeRepoem.Contains(motivo) && (temRetrabalho || temDispensaVigente);
 
   /// <summary>
   /// Estorna a baixa inteira, os filhos que a cascata C6 levou junto inclusive. Recusas, nesta ordem: baixa
@@ -70,7 +66,7 @@ public sealed partial class BaixaUseCase
       // C20 da spec da Fase 5B-2: a baixa de perda cuja reposicao ja foi resolvida (Retrabalho aberto ou "nao repor"
       // vigente) nao se estorna, senao o Retrabalho ficaria repondo uma perda que deixou de existir. Lido DEPOIS da
       // trava: a abertura e o "nao repor" travam o mesmo Pedido. A `Reaproveitado` tem caminho proprio, acima.
-      if (MotivosDePerdaQueSeRepoem.Contains(perda.Motivo))
+      if (MotivosDePerda.QueSeRepoem.Contains(perda.Motivo))
       {
         var atual = await _baixas.ObterAsync(perdaId, ct);
         var dispensada = await _reposicao.TemDispensaVigenteDaBaixaAsync(perdaId, ct);

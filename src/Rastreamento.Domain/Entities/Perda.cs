@@ -62,4 +62,11 @@ public static class MotivosDePerda
 
   /// <summary>Os tres que o "Dar baixa" aceita (os da Fase 5B-1).</summary>
   public static readonly IReadOnlyList<string> DaBaixa = [PerdaArmazem, MortaEmProcesso, Descarte];
+
+  /// <summary>
+  /// As baixas que tiram Peca do cliente e por isso se repoem (C1 da spec da Fase 5B-2, regra 39): `Descarte` e
+  /// `Reaproveitado` nao. E a unica copia deste conjunto — a abertura do Retrabalho, o "nao repor", a contagem do
+  /// "a repor", o estorno da baixa e as duas consultas do repositorio de reposicao usam esta lista.
+  /// </summary>
+  public static readonly IReadOnlyList<string> QueSeRepoem = [PerdaArmazem, MortaEmProcesso];
 }

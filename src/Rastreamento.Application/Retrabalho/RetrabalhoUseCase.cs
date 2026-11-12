@@ -23,10 +23,6 @@ public sealed partial class RetrabalhoUseCase
   private const string StatusAberto = "Aberto";
   private const string TipoRetrabalho = "Retrabalho";
 
-  /// <summary>As baixas que tiram Peca do cliente e por isso se repoem (C1): `Descarte` e `Reaproveitado` nao.</summary>
-  private static readonly IReadOnlySet<string> MotivosQueSeRepoem =
-      new HashSet<string> { MotivosDePerda.PerdaArmazem, MotivosDePerda.MortaEmProcesso };
-
   private readonly IExecucaoRepository _execucao;
   private readonly IReposicaoRepository _reposicao;
   private readonly IBaixaRepository _baixas;

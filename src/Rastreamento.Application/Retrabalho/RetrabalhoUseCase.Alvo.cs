@@ -29,7 +29,7 @@ public sealed partial class RetrabalhoUseCase
       {
         var perda = await _baixas.ObterAsync(corpo.PerdaId!.Value, ct);
         if (perda is null || perda.PedidoId != pedidoOrigemId) return Falhas.NaoEncontrado<Alvo>();
-        if (!MotivosQueSeRepoem.Contains(perda.Motivo))
+        if (!MotivosDePerda.QueSeRepoem.Contains(perda.Motivo))
           return SemPecaARepor<Alvo>("Só a baixa de perda se repõe: o descarte é o que saiu do projeto.");
 
         var linhas = (await _baixas.ListarLinhasDasPerdasAsync([perda.Id], ct))
