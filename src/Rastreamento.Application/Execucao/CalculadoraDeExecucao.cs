@@ -59,6 +59,13 @@ public sealed record KitDaColeta(int PaiId, int SetorDeDestinoId, decimal Teto, 
 }
 
 /// <summary>
+/// O que um plano ainda nao gravado tira de cada (no, posicao), para a calculadora responder sobre o "depois" (C15 da
+/// spec da Fase 5C): o saldo depois e o saldo menos `Tirado(id, local)`, e o `FaltaMontar` depois de um pai e o
+/// `FaltaMontar` menos `Tirado(pai, Local.AIniciar)`.
+/// </summary>
+public sealed record Retirada(Func<int, Local, decimal> Tirado);
+
+/// <summary>
 /// A regra da fila e das tarefas (spec da Fase 3, secao 7), em funcoes puras. Recebe os nos, os saldos
 /// liquidos do livro, os totais montados e os passos ja alcancados; nao le nada. As escritas validam
 /// com as MESMAS funcoes que a leitura mostra — e isso que fecha, por construcao, a tela oferecer
@@ -147,12 +154,11 @@ public sealed class CalculadoraDeExecucao
   public bool TemFilhos(int id) => _filhos[id].Any();
 
   /// <summary>
-  /// O no que a Fila oferece a iniciar sozinho, como uma folha: sem filhos, ou (Avulso) com filhos dos quais nenhum
-  /// conta mais para a montagem, porque todos sairam do projeto (C22 da spec da Fase 5B-1). O pai de Kit nessa
-  /// situacao fica de fora; a ponta dele e da Fase 5C.
+  /// O no que a Fila oferece a iniciar sozinho, como uma folha: sem filhos, ou com filhos dos quais nenhum conta mais
+  /// para a montagem, porque todos sairam do projeto (C22 da spec da Fase 5B-1). Vale para Avulso e para Kit (C9 da
+  /// spec da Fase 5C): sem filho a receber, a regra 25 nao tem o que validar.
   /// </summary>
-  public bool IniciaComoFolha(int id) =>
-      FilhosQueContam(id).Count == 0 && (!TemFilhos(id) || !_nos[id].DeKit);
+  public bool IniciaComoFolha(int id) => FilhosQueContam(id).Count == 0;
 
   private IReadOnlyDictionary<Local, decimal> LiquidoDo(int id) =>
       _liquido.TryGetValue(id, out var doNo) ? doNo : SemMovimento;
@@ -225,14 +231,17 @@ public sealed class CalculadoraDeExecucao
   private static decimal Razao(NoDoCalculo no) => no.QuantidadePorPai ?? 0m;
 
   /// <summary>
-  /// O que o pai ainda precisa receber deste filho (spec secao 7.4):
-  /// max(0, (Quantidade(P) - totalMontado(P)) x QuantidadePorPai(c) - soma de AguardandoMontagem(c)).
+  /// O que o pai ainda precisa receber deste filho (spec da Fase 3, secao 7.4, com a C5 da spec da Fase 5C):
+  /// `max(0, FaltaMontar(P) x QuantidadePorPai(c) - (soma de AguardandoMontagem(c) - ExcessoEmMontagem(c)))`. A sobra em
+  /// montagem nao cobre o pai: sem desconta-la, o resto de um conjunto quebrado reduziria a tarefa da coleta. No pai
+  /// que nao recebe em conjunto, da o mesmo que sem o desconto.
   /// </summary>
   public decimal Precisa(int filhoId)
   {
     var filho = _nos[filhoId];
     if (filho.PaiId is not int paiId || !_nos.ContainsKey(paiId)) return 0m;
-    return Math.Max(0m, FaltaMontar(paiId) * Razao(filho) - AguardandoMontagemTotal(filhoId));
+    return Math.Max(0m,
+        FaltaMontar(paiId) * Razao(filho) - (AguardandoMontagemTotal(filhoId) - ExcessoEmMontagem(filhoId)));
   }
 
   public PassoDoCalculo? PrimeiroPasso(int id) => _nos[id].Roteiro.Count == 0 ? null : _nos[id].Roteiro[0];
@@ -279,24 +288,89 @@ public sealed class CalculadoraDeExecucao
   public decimal SobraDaColeta(int id, int setorId, int ordem) =>
       Math.Max(0m, Saldo(id, Local.AguardandoColeta(setorId, ordem)) - Tarefa(id, setorId, ordem));
 
-  /// <summary>O que aguarda montagem alem do que o pai precisa (spec secao 7.5), no nivel do no.</summary>
-  public decimal ExcessoEmMontagem(int filhoId)
+  /// <summary>
+  /// A sobra em montagem, no nivel do no (spec da Fase 3, secao 7.5; C4 e C16 da spec da Fase 5C). No filho de pai que
+  /// nao recebe em conjunto, o que aguarda montagem alem do que o pai precisa: `max(0, espera - FaltaMontar x razao)`.
+  /// No filho de pai que recebe em conjunto, com `contados = min(ConjuntosAEspera, max(0, FaltaMontar))`: o que espera
+  /// em Setor com `UtilizaKit` e nao esta num conjunto contado, `max(0, espera - contados x razao)`, mais o que espera
+  /// fora deles alem do que o pai ainda precisa depois dos contados,
+  /// `max(0, esperaForaDoKit - max(0, FaltaMontar - contados) x razao)`. `retirada` aplica um plano ainda nao gravado
+  /// as esperas e ao `FaltaMontar` do pai.
+  /// </summary>
+  public decimal ExcessoEmMontagem(int filhoId, Retirada? retirada = null)
+  {
+    var (noKit, resto) = SobraEmMontagem(filhoId, retirada);
+    return noKit + resto;
+  }
+
+  /// <summary>
+  /// A sobra em montagem repartida por Setor (C16 da spec da Fase 5C), so com os Setores em que ha sobra. No filho de
+  /// pai que recebe em conjunto: primeiro o que nao esta em conjunto contado, pelos Setores com `UtilizaKit` em ordem
+  /// de Id, ate o saldo de cada um; depois o termo de fora, pelos Setores sem `UtilizaKit`, na mesma ordem. Nos outros,
+  /// o `ExcessoEmMontagem` por todos os Setores em ordem de Id.
+  /// </summary>
+  public IReadOnlyList<(int SetorId, decimal Quantidade)> SobraEmMontagemPorSetor(int filhoId)
+  {
+    var (noKit, resto) = SobraEmMontagem(filhoId, null);
+    var setores = SetoresOndeAguardaMontagem(filhoId);
+    var emConjunto = _nos[filhoId].PaiId is int paiId && RecebeEmConjunto(paiId);
+    var lista = new List<(int SetorId, decimal Quantidade)>();
+
+    void Repartir(decimal sobra, IEnumerable<int> pelos)
+    {
+      foreach (var setorId in pelos)
+      {
+        if (sobra <= 0m) break;
+        var daqui = Math.Min(sobra, AguardandoMontagem(filhoId, setorId));
+        if (daqui <= 0m) continue;
+        lista.Add((setorId, daqui));
+        sobra -= daqui;
+      }
+    }
+
+    if (emConjunto)
+    {
+      Repartir(noKit, setores.Where(s => _setoresComKit.Contains(s)));
+      Repartir(resto, setores.Where(s => !_setoresComKit.Contains(s)));
+    }
+    else
+      Repartir(resto, setores);
+    return lista;
+  }
+
+  /// <summary>
+  /// Os dois termos da sobra em montagem: `NoKit`, o que espera em Setor com `UtilizaKit` fora de conjunto contado (so
+  /// no filho de pai que recebe em conjunto), e `Resto`, o que espera alem do que o pai precisa (nesse pai, so a espera
+  /// fora de Setor com `UtilizaKit`; nos outros, toda a espera).
+  /// </summary>
+  private (decimal NoKit, decimal Resto) SobraEmMontagem(int filhoId, Retirada? retirada)
   {
     var filho = _nos[filhoId];
-    if (filho.PaiId is not int paiId || !_nos.ContainsKey(paiId)) return 0m;
-    return Math.Max(0m, AguardandoMontagemTotal(filhoId) - FaltaMontar(paiId) * Razao(filho));
+    if (filho.PaiId is not int paiId || !_nos.ContainsKey(paiId)) return (0m, 0m);
+    var razao = Razao(filho);
+    var falta = FaltaMontar(paiId) - (retirada?.Tirado(paiId, Local.AIniciar) ?? 0m);
+    var noKit = EmEsperaNoKit(filhoId, 0m, retirada);
+    var fora = EmEsperaForaDoKit(filhoId, retirada);
+    if (!RecebeEmConjunto(paiId)) return (0m, Math.Max(0m, noKit + fora - falta * razao));
+
+    var (completos, emFormacao, _) = Formacao(paiId, null, retirada);
+    var contados = Math.Min(completos + emFormacao, Math.Max(0m, falta));
+    return (Math.Max(0m, noKit - contados * razao),
+        Math.Max(0m, fora - Math.Max(0m, falta - contados) * razao));
   }
 
   /// <summary>
   /// "Da para montar N; falta X de Y" no Setor (spec secao 7.6):
   /// N = min(falta montar, min por filho de floor(presente / razao)); o "falta" e o que cada filho
-  /// precisa para a unidade N+1, so enquanto N+1 cabe no que falta montar.
+  /// precisa para a unidade N+1, so enquanto N+1 cabe no que falta montar. No pai que recebe em conjunto, o "falta"
+  /// conta o presente menos a sobra que esta neste Setor (C6 da spec da Fase 5C), para a Fila nao convidar a completar
+  /// um conjunto quebrado; o `Presente` devolvido continua o saldo inteiro.
   /// </summary>
   public Montabilidade CalcularMontabilidade(int paiId, int setorId)
   {
     var falta = Math.Max(0m, FaltaMontar(paiId));
     var filhos = FilhosQueContam(paiId);
-    // Sem filho que conte (todos descartados por inteiro), o pai Avulso monta o que falta: nada limita (C22).
+    // Sem filho que conte (todos descartados por inteiro), o pai monta o que falta: nada limita (C22 da 5B-1, C9 da 5C).
     if (filhos.Count == 0)
       return new Montabilidade(paiId, setorId, falta, IniciaComoFolha(paiId) ? falta : 0m, Array.Empty<FilhoNaMontagem>());
 
@@ -310,12 +384,16 @@ public sealed class CalculadoraDeExecucao
 
     var proxima = n + 1m;
     var haProxima = proxima <= falta;
+    var emConjunto = RecebeEmConjunto(paiId);
     var lista = filhos.Select(c =>
     {
       var razao = Razao(c);
       var presente = AguardandoMontagem(c.Id, setorId);
+      var sobraAqui = emConjunto
+          ? SobraEmMontagemPorSetor(c.Id).Where(s => s.SetorId == setorId).Sum(s => s.Quantidade)
+          : 0m;
       decimal? necessario = haProxima ? proxima * razao : null;
-      decimal? faltaParaProxima = haProxima ? Math.Max(0m, proxima * razao - presente) : null;
+      decimal? faltaParaProxima = haProxima ? Math.Max(0m, proxima * razao - (presente - sobraAqui)) : null;
       return new FilhoNaMontagem(c.Id, razao, presente, necessario, faltaParaProxima);
     }).ToList();
 
@@ -332,40 +410,49 @@ public sealed class CalculadoraDeExecucao
       _nos.TryGetValue(paiId, out var pai) && pai.DeKit && TemFilhos(paiId)
       && PrimeiroPasso(paiId) is PassoDoCalculo primeiro && _setoresComKit.Contains(primeiro.SetorId);
 
-  /// <summary>O que o filho aguarda montagem em Setores com `UtilizaKit`, menos o que esta saindo de la.</summary>
-  private decimal EmEsperaNoKit(int filhoId, decimal saindo) =>
+  /// <summary>
+  /// O que o filho aguarda montagem em Setores com `UtilizaKit`, menos o que esta saindo de la (`saindo`, de um
+  /// redirecionamento) e o que um plano ainda nao gravado tira (`retirada`).
+  /// </summary>
+  private decimal EmEsperaNoKit(int filhoId, decimal saindo, Retirada? retirada = null) =>
+      EmEspera(filhoId, noKit: true, retirada) - saindo;
+
+  /// <summary>O mesmo, em Setores sem `UtilizaKit` (C16 da spec da Fase 5C).</summary>
+  private decimal EmEsperaForaDoKit(int filhoId, Retirada? retirada) => EmEspera(filhoId, noKit: false, retirada);
+
+  private decimal EmEspera(int filhoId, bool noKit, Retirada? retirada) =>
       LiquidoDo(filhoId)
-          .Where(kv => kv.Key.Posicao == Posicoes.AguardandoMontagem && _setoresComKit.Contains(kv.Key.SetorId!.Value))
-          .Sum(kv => kv.Value) - saindo;
+          .Where(kv => kv.Key.Posicao == Posicoes.AguardandoMontagem && _setoresComKit.Contains(kv.Key.SetorId!.Value) == noKit)
+          .Sum(kv => kv.Value - (retirada?.Tirado(filhoId, kv.Key) ?? 0m));
 
   /// <summary>
-  /// Os conjuntos que entraram e ainda nao foram montados (regra 25), contados pelo filho mais adiantado: o maior
-  /// `ceil(espera / razao)` entre os filhos diretos (D5 da spec da Fase 3B). Arredondar para cima e o que mantem
-  /// contado o conjunto que perdeu parte dentro da Solda. `saindo` (filho -> quantidade) e o que um
-  /// redirecionamento tira da espera de um Setor com `UtilizaKit`: ja estava contado, nao conta de novo.
+  /// Os conjuntos que entraram e ainda nao foram montados (regra 25; C2 da spec da Fase 5C): os completos, o menor
+  /// `floor(espera / razao)` entre os filhos que contam, mais os em formacao do pai com `Pronto` em montagem (D8 da
+  /// spec da Fase 5B-2), que sao zero em qualquer outro pai. O que espera e nao fecha conjunto nao ocupa vaga: e sobra
+  /// (`ExcessoEmMontagem`). `saindo` (filho -> quantidade) e o que um redirecionamento tira da espera de um Setor com
+  /// `UtilizaKit`: ja estava contado, nao conta de novo.
   /// </summary>
   public decimal ConjuntosAEspera(int paiId, IReadOnlyDictionary<int, decimal>? saindo = null)
   {
-    var maior = 0m;
-    foreach (var filho in FilhosQueContam(paiId))
-    {
-      var razao = Razao(filho);
-      if (razao <= 0m) continue;
-      var espera = EmEsperaNoKit(filho.Id, saindo?.GetValueOrDefault(filho.Id) ?? 0m);
-      if (espera > 0m) maior = Math.Max(maior, Math.Ceiling(espera / razao));
-    }
-    return maior;
+    var (completos, emFormacao, _) = Formacao(paiId, saindo, null);
+    return completos + emFormacao;
   }
+
+  /// <summary>
+  /// O pai recebe em conjunto e tem algum filho que conta aguardando montagem em Setor com `UtilizaKit` (C8 da spec
+  /// da Fase 5C: e o que barra mudar a estrutura dele).
+  /// </summary>
+  public bool TemConjuntoAEspera(int paiId) =>
+      RecebeEmConjunto(paiId) && FilhosQueContam(paiId).Any(f => EmEsperaNoKit(f.Id, 0m) > 0m);
 
   /// <summary>
   /// Os conjuntos em formacao do pai que ainda valem (D8 da spec da Fase 5B-2; decisao P4 do plano de backend, limitada
   /// pela regra 25): no pai que recebe em conjunto e tem algum filho que chegou a montagem por um `Pronto`, os conjuntos a
   /// espera que ainda nao estao completos, `ConjuntosAEspera - completos`, limitados ao que o pai ainda precisa receber
   /// alem dos completos, `max(0, FaltaMontar - completos)` (regra 25: nunca alem do que o no ainda precisa). O excesso
-  /// aparece quando o pai perde "a iniciar" depois do pronto. Sem `Pronto` em montagem, zero: o conjunto que perdeu
-  /// parte dentro da Solda no proprio Pedido continua sendo da Fase 5C.
+  /// aparece quando o pai perde "a iniciar" depois do pronto. Sem `Pronto` em montagem, zero.
   /// </summary>
-  public decimal ConjuntosEmFormacao(int paiId) => Formacao(paiId).QueValem;
+  public decimal ConjuntosEmFormacao(int paiId) => Formacao(paiId, null, null).QueValem;
 
   /// <summary>
   /// O que o filho pode entrar alem dos conjuntos completos, para completar os conjuntos em formacao que valem (D8 da
@@ -376,31 +463,45 @@ public sealed class CalculadoraDeExecucao
   /// </summary>
   public decimal ComplementoDoConjunto(int paiId, int filhoId)
   {
-    var (completos, queValem) = Formacao(paiId);
+    var (completos, _, queValem) = Formacao(paiId, null, null);
     if (queValem <= 0m) return 0m;
     if (FilhosQueContam(paiId).FirstOrDefault(f => f.Id == filhoId) is not NoDoCalculo filho) return 0m;
     return Math.Max(0m, (completos + queValem) * Razao(filho) - EmEsperaNoKit(filhoId, 0m));
   }
 
-  /// <summary>Os conjuntos completos a espera e os em formacao que valem; (0, 0) sem conjunto em formacao.</summary>
-  private (decimal Completos, decimal QueValem) Formacao(int paiId)
+  /// <summary>
+  /// Os termos dos conjuntos a espera de um pai. `Completos`: o menor `floor(espera / razao)` entre os filhos que
+  /// contam (zero sem nenhum), para todo pai. `EmFormacao`: so no pai que recebe em conjunto e tem algum filho que
+  /// chegou a montagem por um `Pronto` (D8 da spec da Fase 5B-2), os conjuntos do filho mais adiantado, o maior
+  /// `ceil(espera / razao)`, alem dos completos; este e o unico lugar em que a espera arredonda para cima. `QueValem`:
+  /// os em formacao limitados ao que o pai ainda precisa receber alem dos completos (regra 25).
+  /// </summary>
+  private (decimal Completos, decimal EmFormacao, decimal QueValem) Formacao(
+      int paiId, IReadOnlyDictionary<int, decimal>? saindo, Retirada? retirada)
   {
-    if (!RecebeEmConjunto(paiId)) return (0m, 0m);
     var filhos = FilhosQueContam(paiId);
-    if (!filhos.Any(f => _comProntoEmMontagem.Contains(f.Id))) return (0m, 0m);
+    if (filhos.Count == 0) return (0m, 0m, 0m);
 
     var completos = decimal.MaxValue;
+    var maisAdiantado = 0m;
     foreach (var filho in filhos)
     {
       var razao = Razao(filho);
-      completos = Math.Min(completos, razao <= 0m ? 0m : Math.Floor(Math.Max(0m, EmEsperaNoKit(filho.Id, 0m)) / razao));
+      var espera = Math.Max(0m, EmEsperaNoKit(filho.Id, saindo?.GetValueOrDefault(filho.Id) ?? 0m, retirada));
+      completos = Math.Min(completos, razao <= 0m ? 0m : Math.Floor(espera / razao));
+      if (razao > 0m) maisAdiantado = Math.Max(maisAdiantado, Math.Ceiling(espera / razao));
     }
-    var emFormacao = Math.Max(0m, ConjuntosAEspera(paiId) - completos);
-    var aindaPrecisa = Math.Max(0m, FaltaMontar(paiId) - completos);
-    return (completos, Math.Min(emFormacao, aindaPrecisa));
+    if (!RecebeEmConjunto(paiId) || !filhos.Any(f => _comProntoEmMontagem.Contains(f.Id))) return (completos, 0m, 0m);
+
+    var emFormacao = Math.Max(0m, maisAdiantado - completos);
+    var falta = FaltaMontar(paiId) - (retirada?.Tirado(paiId, Local.AIniciar) ?? 0m);
+    return (completos, emFormacao, Math.Min(emFormacao, Math.Max(0m, falta - completos)));
   }
 
-  /// <summary>Quantos conjuntos o pai ainda precisa receber (regra 25): quantidade, menos o montado, menos a espera.</summary>
+  /// <summary>
+  /// Quantos conjuntos o pai ainda precisa receber (regra 25; C3 da spec da Fase 5C): o que falta montar, menos os
+  /// conjuntos a espera.
+  /// </summary>
   public decimal TetoDeEntrada(int paiId, IReadOnlyDictionary<int, decimal>? saindo = null) =>
       Math.Max(0m, FaltaMontar(paiId) - ConjuntosAEspera(paiId, saindo));
 

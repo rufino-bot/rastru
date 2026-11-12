@@ -82,13 +82,17 @@ public class KitsDaColetaTests
   }
 
   [Fact]
-  public void Conjunto_que_perdeu_parte_continua_a_espera()
+  public void Conjunto_que_perdeu_parte_vira_sobra()
   {
+    // C2 da spec da Fase 5C: so o conjunto completo fica a espera; o que nao fecha conjunto e sobra.
     var c = Cenario();
-    EmEspera(c, 2, Corte, Solda, 7m);    // 1,75 conjunto: arredonda para cima, 2
-    EmEspera(c, 3, Dobra, Solda, 1m);    // 1 conjunto: o 2 e o mais adiantado so se arredondar para cima
+    EmEspera(c, 2, Corte, Solda, 7m);    // 1,75 conjunto: um completo, e 3 que nao fecham outro
+    EmEspera(c, 3, Dobra, Solda, 1m);    // 1 conjunto
 
-    Assert.Equal(2m, c.Calcular().ConjuntosAEspera(1));
+    var calc = c.Calcular();
+
+    Assert.Equal(1m, calc.ConjuntosAEspera(1));
+    Assert.Equal(3m, calc.ExcessoEmMontagem(2));
   }
 
   [Fact]

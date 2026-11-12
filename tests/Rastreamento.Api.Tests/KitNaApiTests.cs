@@ -133,4 +133,87 @@ public class KitNaApiTests : IClassFixture<WebApplicationFactory<Program>>
         .Single(g => g.GetProperty("pai").GetProperty("id").GetInt32() == c.A);
     Assert.True(grupo.GetProperty("conjuntoCompleto").GetBoolean());
   }
+
+  private static async Task<JsonElement> FilaAsync(CenarioDaFase3NaApi c, int setor) =>
+      await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{setor}/fila"));
+
+  /// <summary>As sobras "em montagem" dos nos deste cenario na Fila do Setor: (no, quantidade).</summary>
+  private static (int No, decimal Quantidade)[] SobrasEmMontagem(CenarioDaFase3NaApi c, JsonElement fila) =>
+      fila.GetProperty("sobra").EnumerateArray()
+          .Where(l => l.GetProperty("origem").GetString() == "Montagem")
+          .Select(l => (No: l.GetProperty("no").GetProperty("id").GetInt32(), Quantidade: l.GetProperty("quantidade").GetDecimal()))
+          .Where(l => l.No == c.A || l.No == c.B || l.No == c.C)
+          .ToArray();
+
+  private static async Task<JsonElement> EntregarAsync(CenarioDaFase3NaApi c, params object[] itens)
+  {
+    var resposta = await c.Como(c.Movimentador).PostAsJsonAsync("/api/entregas", new { itens });
+    await Garantir(resposta);
+    return await CorpoAsync(resposta);
+  }
+
+  [Fact]
+  public async Task Espera_desalinhada_pela_troca_de_Avulso_para_Kit_nao_trava_o_Kit()
+  {
+    // C7 da spec da Fase 5C. B passa a 22 para os 18 que ficam a iniciar fecharem os 9 conjuntos do teto: e o que
+    // separa o teto 9 (um conjunto completo a espera) do 8 (dois, contando pelo filho mais adiantado).
+    await using var c = await CriarAsync(_factory, kit: true);
+    var pcp = c.Como(c.Pcp);
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{c.B}",
+        new { descricao = "Suporte", quantidade = 22m, quantidadePorPai = 2m }));
+    await Garantir(await pcp.PutAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}", new { codigo = "AG-01", tipo = "Avulso" }));
+    await ProntoAsync(c, c.B, c.Corte, 4m);
+    await ProntoAsync(c, c.C, c.Dobra, 1m);
+    await EntregarAsync(c, DaColeta(c.B, c.Corte, 4m));   // o Avulso aceita cada filho sozinho
+    await EntregarAsync(c, DaColeta(c.C, c.Dobra, 1m));
+
+    await Garantir(await pcp.PutAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}", new { codigo = "AG-01", tipo = "Kit" }));
+    await ProntoAsync(c, c.B, c.Corte, 18m);
+    await ProntoAsync(c, c.C, c.Dobra, 9m);
+
+    var kit = KitDe(await TarefasAsync(c), "kitsMontaveis", c.A);
+    Assert.NotNull(kit);
+    Assert.Equal(9m, kit!.Value.GetProperty("conjuntos").GetDecimal());   // teto 10 - 1
+    Assert.Equal(new[] { (c.B, 2m) }, SobrasEmMontagem(c, await FilaAsync(c, c.Solda)));
+  }
+
+  [Fact]
+  public async Task Estorno_de_uma_linha_de_entrega_de_kit_deixa_o_irmao_como_sobra()
+  {
+    // C7 da spec da Fase 5C, e o risco aceito "Sobra transitoria no estorno" da secao 7.
+    await using var c = await CriarAsync(_factory, kit: true);
+    await ProntoAsync(c, c.B, c.Corte, 2m);
+    await ProntoAsync(c, c.C, c.Dobra, 1m);
+    var linhas = await EntregarAsync(c, DaColeta(c.B, c.Corte, 2m), DaColeta(c.C, c.Dobra, 1m));
+    int LinhaDe(int no) => linhas.EnumerateArray()
+        .Single(l => l.GetProperty("estruturaItemId").GetInt32() == no).GetProperty("id").GetInt32();
+    var movimentador = c.Como(c.Movimentador);
+
+    var inteiro = SobrasEmMontagem(c, await FilaAsync(c, c.Solda));
+    await Garantir(await movimentador.PostAsync($"/api/movimentacoes/{LinhaDe(c.B)}/estorno", null));
+    var semB = SobrasEmMontagem(c, await FilaAsync(c, c.Solda));
+    await Garantir(await movimentador.PostAsync($"/api/movimentacoes/{LinhaDe(c.C)}/estorno", null));
+    var semOsDois = SobrasEmMontagem(c, await FilaAsync(c, c.Solda));
+
+    Assert.Empty(inteiro);
+    Assert.Equal(new[] { (c.C, 1m) }, semB);
+    Assert.Empty(semOsDois);
+  }
+
+  [Fact]
+  public async Task Pai_kit_cujos_filhos_sairam_todos_aparece_a_iniciar_e_inicia_pela_Fila()
+  {
+    // C9 da spec da Fase 5C.
+    await using var c = await CriarAsync(_factory, kit: true);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", new { motivo = "Descarte", tudo = true }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{c.C}/baixas", new { motivo = "Descarte", tudo = true }));
+
+    var fila = await FilaAsync(c, c.Solda);
+    var inicio = await c.Como(c.Operador).PostAsJsonAsync($"/api/estrutura/{c.A}/inicios", new { setorId = c.Solda, quantidade = 1m });
+
+    var linha = fila.GetProperty("aIniciar").EnumerateArray().Single(l => l.GetProperty("no").GetProperty("id").GetInt32() == c.A);
+    Assert.Equal(10m, linha.GetProperty("quantidade").GetDecimal());
+    Assert.Equal(HttpStatusCode.Created, inicio.StatusCode);
+  }
 }
