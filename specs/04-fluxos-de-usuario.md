@@ -181,6 +181,15 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
    (regra 29). O conserto (passo 12) também é entrega: **Levar ao conserto em {Setor}** e **Levar ao
    local de expedição**, na seção **Conserto** de Tarefas.
 
+   **Os grupos "Em {Setor}" de Tarefas nascem recolhidos** (decisão do usuário, 2026-11-10: ali o Movimentador
+   procura a peça pelo Setor): o título de cada um traz a contagem **depois do filtro**, "Em Corte (3)", e o
+   Movimentador abre o que quer. A tela guarda quais estão abertos e os preserva nas recargas automáticas. O filtro
+   não abre grupo, só restringe o que há nele e a contagem. Recolher não tira nada do lote: o item marcado num grupo
+   fechado continua marcado e vai na entrega, e a barra do lote **não** o conta como "oculto pelo filtro" (oculto é
+   só o que o filtro esconde). O **Marcar todos** (passo 10) abre os grupos que ganharam item marcado, para nada
+   ficar marcado fora da vista. O **Conserto** e os **Kits montáveis** ficam sempre abertos; os **Kits incompletos**
+   são uma seção recolhível, também fechada ao abrir.
+
    O filho de Agrupamento Kit no último passo, cujo pai começa num Setor com **Utiliza Kit**, não
    vai sozinho e não aparece entre os Itens prontos: os filhos vão juntos, em conjuntos completos
    (regras 23 e 25). No topo da tela, **Kits montáveis** traz um cartão por pai, com o caminho,
@@ -280,7 +289,8 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
     topo da lista marca todos os itens visíveis depois do filtro, em todos os grupos, e pula o que não
     se pode marcar (o pai sem Roteiro). Marca também os Kits montáveis visíveis, cada um com o número
     máximo de conjuntos, e as idas e voltas do conserto visíveis; os Kits incompletos não se marcam.
-    Com todos marcados vira "Desmarcar todos", que desmarca só esses: o marcado oculto pelo filtro continua marcado. Marcar não reescreve
+    Com todos marcados vira "Desmarcar todos", que desmarca só esses: o marcado oculto pelo filtro continua marcado. Os grupos "Em {Setor}"
+    que ganharam item marcado se abrem (passo 4). Marcar não reescreve
     a quantidade nem os conjuntos de quem já estava marcado. O resto do "Levar" não muda: ele já é
     uma entrega em lote, numa requisição, tudo ou nada.
 11. **Administrador marca o Setor que monta Kit.** No painel de criar ou editar Setor, a caixa
