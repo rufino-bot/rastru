@@ -1424,6 +1424,42 @@ describe('AgrupamentoDetalhePage', () => {
     expect(await within(screen.getByTestId('painel-de-escrita')).findByText(frase)).toBeTruthy()
   })
 
+  it('mudar a razão de um Item com conjunto à espera mostra no painel a frase do servidor (PaiComConjuntoAEspera)', async () => {
+    const frase = 'Chassi tem conjunto à espera de montagem: a estrutura dele não muda enquanto houver conjunto na Solda.'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaEditar: { status: 409, corpo: { erro: 'PaiComConjuntoAEspera', mensagem: frase } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
+
+    expect(await within(screen.getByTestId('painel-de-escrita')).findByText(frase)).toBeTruthy()
+  })
+
+  it('acrescentar filho a pai com conjunto à espera mostra no painel a frase do servidor (PaiComConjuntoAEspera)', async () => {
+    const frase = 'Chassi tem conjunto à espera de montagem: a estrutura dele não muda enquanto houver conjunto na Solda.'
+    vi.stubGlobal('fetch', montarFetch({
+      estruturaInicial: [PECA],
+      respostaFilhos: { status: 409, corpo: { erro: 'PaiComConjuntoAEspera', mensagem: frase } },
+    }))
+
+    renderizarDetalhe()
+    await screen.findByText('Chassi')
+    fireEvent.click(screen.getByRole('button', { name: 'Acrescentar filho' }))
+    const painel = screen.getByTestId('painel-de-escrita')
+    fireEvent.click(within(painel).getByRole('combobox'))
+    const listbox = await within(painel).findByRole('listbox')
+    fireEvent.click(await within(listbox).findByText('CH-100'))
+    fireEvent.change(within(painel).getByLabelText('Quantidade'), { target: { value: '3' } })
+    fireEvent.change(within(painel).getByLabelText('Quantidade por pai'), { target: { value: '2' } })
+    fireEvent.click(within(painel).getByRole('button', { name: 'Acrescentar' }))
+
+    expect(await within(screen.getByTestId('painel-de-escrita')).findByText(frase)).toBeTruthy()
+  })
+
   it('editar a Peça não pede razão', async () => {
     vi.stubGlobal('fetch', montarFetch({ estruturaInicial: [PECA] }))
 
