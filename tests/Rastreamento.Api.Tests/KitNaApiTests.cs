@@ -71,6 +71,42 @@ public class KitNaApiTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Contains("só precisa receber 10 conjunto", corpo.GetProperty("mensagem").GetString());
   }
 
+  private static async Task EntregarUmConjuntoAsync(CenarioDaFase3NaApi c)
+  {
+    await ProntoAsync(c, c.B, c.Corte, 2m);
+    await ProntoAsync(c, c.C, c.Dobra, 1m);
+    await Garantir(await c.Como(c.Movimentador).PostAsJsonAsync("/api/entregas",
+        new { itens = new[] { DaColeta(c.B, c.Corte, 2m), DaColeta(c.C, c.Dobra, 1m) } }));
+  }
+
+  [Fact]
+  public async Task Acrescentar_filho_a_kit_com_conjunto_na_Solda_da_409()
+  {
+    await using var c = await CriarAsync(_factory, kit: true);
+    await EntregarUmConjuntoAsync(c);
+
+    var resposta = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/filhos",
+        new { componenteId = (int?)null, descricao = "Arruela", quantidade = 40m, quantidadePorPai = 2m });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal("PaiComConjuntoAEspera", corpo.GetProperty("erro").GetString());
+    Assert.False(string.IsNullOrWhiteSpace(corpo.GetProperty("mensagem").GetString()));
+  }
+
+  [Fact]
+  public async Task Editar_razao_de_filho_de_kit_com_conjunto_na_Solda_da_409()
+  {
+    await using var c = await CriarAsync(_factory, kit: true);
+    await EntregarUmConjuntoAsync(c);
+
+    var resposta = await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.B}",
+        new { descricao = "Suporte", quantidade = 20m, quantidadePorPai = 3m });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    Assert.Equal("PaiComConjuntoAEspera", (await CorpoAsync(resposta)).GetProperty("erro").GetString());
+  }
+
   [Fact]
   public async Task Kit_montavel_aparece_e_some_quando_levado()
   {

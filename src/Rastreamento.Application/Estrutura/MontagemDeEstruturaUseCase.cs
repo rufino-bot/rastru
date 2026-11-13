@@ -306,6 +306,9 @@ public sealed class MontagemDeEstruturaUseCase
       if (estado.Calc.SaidoDeAIniciar(paiId) > 0m)
         return Result<EstruturaItemDto>.Falha(CodigosDaExecucao.PaiJaIniciado, TipoDeErro.Conflito,
             $"{estado.Nome(paiId)} já entrou em produção: não se acrescenta filho a um nó já iniciado.");
+      // C8 da spec da Fase 5C: o conjunto a espera foi formado pela razao e pelos filhos de agora.
+      if (await ConjuntoAEsperaAsync(paiId, pai.AgrupamentoId, ct) is string nomeDoPai)
+        return FalhaDoConjuntoAEspera<EstruturaItemDto>(nomeDoPai);
 
       var novoId = await _estruturas.GravarArvoreAsync(pai.AgrupamentoId, paiId, paraGravar, ct);
 
@@ -317,6 +320,23 @@ public sealed class MontagemDeEstruturaUseCase
       return Result<EstruturaItemDto>.Ok(noCriado);
     }, ct);
   }
+
+  /// <summary>
+  /// O nome do pai quando ele tem conjunto a espera de montagem (`TemConjuntoAEspera`), ou `null`. A calculadora so
+  /// enxerga os nos que recebe, entao carrega o pai e os filhos diretos dele; chamar depois da trava do pai.
+  /// </summary>
+  private async Task<string?> ConjuntoAEsperaAsync(int paiId, int agrupamentoId, CancellationToken ct)
+  {
+    var nos = (await _estruturas.ListarDoAgrupamentoAsync(agrupamentoId, ct))
+        .Where(n => n.Id == paiId || n.EstruturaPaiId == paiId).ToList();
+    var estado = await _leitor.CarregarAsync(nos, ct);
+    return estado.Calc.TemConjuntoAEspera(paiId) ? estado.Nome(paiId) : null;
+  }
+
+  private static Result<T> FalhaDoConjuntoAEspera<T>(string nomeDoPai) =>
+      Result<T>.Falha(CodigosDaExecucao.PaiComConjuntoAEspera, TipoDeErro.Conflito,
+          $"{nomeDoPai} tem conjunto à espera de montagem: a estrutura dele não muda enquanto houver conjunto na Solda. "
+          + "Dê baixa ou descarte o que está à espera, ou monte antes.");
 
   /// <summary>
   /// Edita `Descricao`, `Quantidade` e, no Item, `QuantidadePorPai` (regra 26). NAO cascateia a
@@ -338,7 +358,13 @@ public sealed class MontagemDeEstruturaUseCase
 
     return await _execucao.ExecutarAsync(async () =>
     {
-      if ((await _execucao.TravarNosAsync([id], ct)).Count == 0)
+      // Quem muda a razao de um Item tambem trava o pai (C8 da spec da Fase 5C): o pai e lido antes da trava, mas o
+      // `EstruturaPaiId` nao muda, e `TravarNosAsync` ordena por Id (pai antes de filho).
+      var aTravar = new List<int> { id };
+      if (edicao.QuantidadePorPai is not null
+          && (await _execucao.ListarNosAsync([id], ct)).FirstOrDefault()?.EstruturaPaiId is int paiDoNo)
+        aTravar.Add(paiDoNo);
+      if ((await _execucao.TravarNosAsync(aTravar, ct)).All(n => n.Id != id))
         return Result<EstruturaItemDto>.Falha(ErroDeNoNaoEncontrado, TipoDeErro.NaoEncontrado);
       // O Pedido depois do no (spec da Fase 3, secao 8.1) e lido depois da trava: `Concluido` recusa (C15), e
       // o fechamento recalculado abaixo escreve nele.
@@ -369,6 +395,13 @@ public sealed class MontagemDeEstruturaUseCase
               $"{nome} já tem aferição válida: estorne a aferição antes de mudar a exigência do relatório dimensional.");
         }
       }
+
+      // C8 da spec da Fase 5C: mudar a razao de um filho muda o conjunto que o pai espera. So a razao: descricao e
+      // quantidade passam.
+      if (no.NivelHierarquico == "Item" && no.EstruturaPaiId is int paiId
+          && edicao.QuantidadePorPai != no.QuantidadePorPai
+          && await ConjuntoAEsperaAsync(paiId, no.AgrupamentoId, ct) is string nomeDoPai)
+        return FalhaDoConjuntoAEspera<EstruturaItemDto>(nomeDoPai);
 
       var descricao = string.IsNullOrWhiteSpace(edicao.Descricao) ? null : edicao.Descricao.Trim();
       if (no.ComponenteId is null && descricao is null)

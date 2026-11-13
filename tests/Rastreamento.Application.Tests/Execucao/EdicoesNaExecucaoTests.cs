@@ -76,6 +76,65 @@ public class EdicoesNaExecucaoTests
     Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
   }
 
+  private static CenarioDeExecucao KitComConjuntoAEspera(bool kit = true)
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda);
+    c.No(2, 1, 40m, 4m, Corte);
+    if (kit) c.Kit();
+    c.Mover(2, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 4m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 4m);
+    return c;
+  }
+
+  [Fact]
+  public async Task Acrescentar_filho_a_kit_com_conjunto_a_espera_da_PaiComConjuntoAEspera()
+  {
+    var c = KitComConjuntoAEspera();
+
+    var r = await c.Estrutura().AcrescentarFilho(1, new NovoFilhoDto(null, "Arruela", 20m, 2m), Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(CodigosDaExecucao.PaiComConjuntoAEspera, r.Erro);
+    Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Contains("No 1 tem conjunto à espera de montagem", r.Detalhe);
+    Assert.DoesNotContain(c.Estruturas.Itens, i => i.Descricao == "Arruela");
+  }
+
+  [Fact]
+  public async Task Acrescentar_filho_a_avulso_com_filho_a_espera_continua_livre()
+  {
+    var c = KitComConjuntoAEspera(kit: false);
+
+    var r = await c.Estrutura().AcrescentarFilho(1, new NovoFilhoDto(null, "Arruela", 20m, 2m), Ct);
+
+    Assert.True(r.Sucesso);
+  }
+
+  [Fact]
+  public async Task Editar_a_razao_de_filho_de_kit_com_conjunto_a_espera_da_PaiComConjuntoAEspera()
+  {
+    var c = KitComConjuntoAEspera();
+
+    var r = await c.Estrutura().EditarNo(2, new EdicaoDeNoDto("No 2", 40m, 5m), Ct);
+
+    Assert.False(r.Sucesso);
+    Assert.Equal(CodigosDaExecucao.PaiComConjuntoAEspera, r.Erro);
+    Assert.Equal(TipoDeErro.Conflito, r.TipoDoErro);
+    Assert.Equal(4m, c.Estruturas.Itens.Single(i => i.Id == 2).QuantidadePorPai);
+  }
+
+  [Fact]
+  public async Task Editar_so_a_quantidade_de_filho_de_kit_com_conjunto_a_espera_passa()
+  {
+    var c = KitComConjuntoAEspera();
+
+    var r = await c.Estrutura().EditarNo(2, new EdicaoDeNoDto("No 2", 48m, 4m), Ct);
+
+    Assert.True(r.Sucesso);
+    Assert.Equal(48m, c.Estruturas.Itens.Single(i => i.Id == 2).Quantidade);
+  }
+
   [Fact]
   public async Task Acrescentar_filho_a_no_ja_iniciado_da_PaiJaIniciado()
   {
