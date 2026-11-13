@@ -237,4 +237,18 @@ public class CalculadoraKitComSobraTests
     Assert.Equal(0m, calc.ExcessoEmMontagem(2));
     Assert.Equal(2m, calc.ExcessoEmMontagem(2, retirada));
   }
+
+  [Fact]
+  public void Retirada_de_Pecas_a_iniciar_faz_sobrar_os_conjuntos_que_o_Kit_nao_pede_mais()
+  {
+    // Tres conjuntos inteiros a espera e o plano tira 8 Pecas de "a iniciar": o pai so monta 2, entao so 2 conjuntos
+    // contam, e o terceiro (2 do filho 2 e 1 do filho 3) e sobra. Sem aplicar a retirada ao que falta montar, os tres
+    // contariam e nada sobraria.
+    var calc = Calcular(Base(), [.. Espera(2, Solda, 6m), .. Espera(3, Solda, 3m)]);
+    var retirada = new Retirada((id, local) => (id, local) == (1, Local.AIniciar) ? 8m : 0m);
+
+    Assert.Equal(0m, calc.ExcessoEmMontagem(2));
+    Assert.Equal(2m, calc.ExcessoEmMontagem(2, retirada));
+    Assert.Equal(1m, calc.ExcessoEmMontagem(3, retirada));
+  }
 }
