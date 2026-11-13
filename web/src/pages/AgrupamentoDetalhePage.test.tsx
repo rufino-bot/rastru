@@ -1434,6 +1434,7 @@ describe('AgrupamentoDetalhePage', () => {
     renderizarDetalhe()
     await screen.findByText('Chassi')
     fireEvent.click(screen.getByRole('button', { name: 'Editar' }))
+    fireEvent.change(within(screen.getByTestId('painel-de-escrita')).getByLabelText('Quantidade'), { target: { value: '5' } })
     fireEvent.click(screen.getByRole('button', { name: 'Salvar edição' }))
 
     expect(await within(screen.getByTestId('painel-de-escrita')).findByText(frase)).toBeTruthy()

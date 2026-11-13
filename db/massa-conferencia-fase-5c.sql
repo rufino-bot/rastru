@@ -11,22 +11,30 @@
 --   CONF-5C-PERDA, o exemplo do defeito (secao 1 da spec): a baixa de uma A dentro da Solda, com a unidade do topo junto.
 --
 --       MT-1010  Peca C, 10                    Roteiro: Solda(1)            10 a iniciar
---        +- PF-3010  Item A, 20  (2 por C)     Roteiro: Corte(1)            6 aguardando montagem na Solda | 14 a iniciar
---        +- PF-3020  Item B, 10  (1 por C)     Roteiro: Corte(1)            3 aguardando montagem na Solda | 7 a iniciar
+--        +- PF-3010  Item A, 20  (2 por C)     Roteiro: Corte(1)            6 aguardando montagem na Solda | 2 aguardando coleta (Corte) | 12 a iniciar
+--        +- PF-3020  Item B, 10  (1 por C)     Roteiro: Corte(1)            3 aguardando montagem na Solda | 1 aguardando coleta (Corte) | 6 a iniciar
 --
---       Tres conjuntos entraram completos na Solda. Na conferencia: "Dar baixa" de 1 A de "Aguardando montagem" na
---       Solda, MortaEmProcesso, com a caixa do topo marcada. Esperado: a previa lista 1 A e 1 B como "vira sobra" e nao
---       descarta nada a iniciar; a Fila da Solda mostra 1 A e 1 B como sobra "em montagem", com "Descartar"; as Tarefas
---       continuam oferecendo o Kit ate o nono conjunto; o "Usar a sobra" de um Retrabalho dessa baixa oferece os dois.
+--       Tres conjuntos entraram completos na Solda e um quarto (2 A e 1 B) terminou o Corte e espera coleta. ANTES da
+--       baixa o usuario ve: nas Tarefas, o Kit de CONF-5C-PERDA com o conjunto (2 A e 1 B) a levar para a Solda; na Fila
+--       da Solda, falta montar 10, da para montar 3, e PF-3010 6 aqui (falta 2 de 8), PF-3020 3 aqui (falta 1 de 4), sem
+--       sobra. Na conferencia: "Dar baixa" de 1 A de "Aguardando montagem" na Solda, MortaEmProcesso, com a caixa do
+--       topo marcada. DEPOIS: a previa lista 1 A e 1 B como "vira sobra" e nao descarta nada a iniciar; a Fila da Solda
+--       mostra 1 A e 1 B como sobra "em montagem", com "Descartar", e falta montar 9; as Tarefas continuam oferecendo o
+--       Kit (o conjunto da coleta, e os demais conforme terminarem) ate o nono conjunto; o "Usar a sobra" de um
+--       Retrabalho dessa baixa oferece os dois.
 --
 --   CONF-5C-DESALINHADO, a espera desalinhada da regra 25:
 --
 --       MT-1020  Peca K, 2                     Roteiro: Solda(1)            2 a iniciar
---        +- EX-2210  Item X, 8  (4 por K)      Roteiro: Corte(1)            7 aguardando montagem na Solda | 1 a iniciar
---        +- CH-2130  Item Y, 2  (1 por K)      Roteiro: Dobra(1)            1 aguardando montagem na Solda | 1 a iniciar
+--        +- EX-2210  Item X, 12 (4 por K)      Roteiro: Corte(1)            7 aguardando montagem na Solda | 4 aguardando coleta (Corte) | 1 a iniciar
+--        +- CH-2130  Item Y, 2  (1 por K)      Roteiro: Dobra(1)            1 aguardando montagem na Solda | 1 aguardando coleta (Dobra)
 --
---       Gravados como entregas avulsas, o que o app nao deixaria fazer. Esperado: 1 conjunto completo a espera, o teto
---       de entrada e 1 (entra mais um conjunto: 11 X e 2 Y) e as 3 X que nao fecham conjunto sao sobra "em montagem".
+--       (X tem 12 e nao 8 para sobrar 1 a iniciar alem do conjunto da coleta; o pai so precisa de 8.) A espera da Solda
+--       foi gravada como entregas avulsas, o que o app nao deixaria fazer. ANTES: nas Tarefas, o Kit de
+--       CONF-5C-DESALINHADO com 1 conjunto (4 X e 1 Y) a levar; na Fila da Solda, falta montar 2, da para montar 1,
+--       EX-2210 7 aqui (falta 4 de 8), CH-2130 1 aqui (falta 1 de 2) e 3 X como sobra "em montagem" (so 1 conjunto
+--       completo a espera; o teto de entrada e 1, e e o conjunto da coleta que o ocupa). DEPOIS de levar o conjunto: 11 X
+--       e 2 Y na Solda, da para montar 2, e as mesmas 3 X continuam sobra.
 --
 --   CONF-5C-SAIU, o pai Kit cujos filhos saíram todos do projeto:
 --
@@ -124,13 +132,13 @@ BEGIN
 
     INSERT INTO dbo.EstruturaRoteiro (EstruturaItemId, SetorId, Ordem) VALUES (@C1, @Solda, 1), (@A1, @Corte, 1), (@B1, @Corte, 1);
 
-    -- Tres conjuntos completos entraram na Solda (regra 25): 6 A e 3 B.
+    -- Tres conjuntos completos entraram na Solda (regra 25): 6 A e 3 B; um quarto (2 A e 1 B) espera coleta no Corte.
     INSERT INTO @M (No, Tipo, Qtd, OP, OS, OO, DP, DS, DOrd, Usr) VALUES
-        (@A1, N'Inicio',  6, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Corte, 1,    @Operador),
-        (@A1, N'Termino', 6, N'NoSetor',          @Corte, 1,    N'AguardandoColeta',   @Corte, 1,    @Operador),
+        (@A1, N'Inicio',  8, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Corte, 1,    @Operador),
+        (@A1, N'Termino', 8, N'NoSetor',          @Corte, 1,    N'AguardandoColeta',   @Corte, 1,    @Operador),
         (@A1, N'Entrega', 6, N'AguardandoColeta', @Corte, 1,    N'AguardandoMontagem', @Solda, NULL, @Movimentador),
-        (@B1, N'Inicio',  3, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Corte, 1,    @Operador),
-        (@B1, N'Termino', 3, N'NoSetor',          @Corte, 1,    N'AguardandoColeta',   @Corte, 1,    @Operador),
+        (@B1, N'Inicio',  4, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Corte, 1,    @Operador),
+        (@B1, N'Termino', 4, N'NoSetor',          @Corte, 1,    N'AguardandoColeta',   @Corte, 1,    @Operador),
         (@B1, N'Entrega', 3, N'AguardandoColeta', @Corte, 1,    N'AguardandoMontagem', @Solda, NULL, @Movimentador);
     INSERT INTO dbo.Movimentacao (EstruturaItemId, Tipo, Quantidade, OrigemPosicao, OrigemSetorId, OrigemOrdem,
                                   DestinoPosicao, DestinoSetorId, DestinoOrdem, UsuarioId)
@@ -162,7 +170,7 @@ BEGIN
     VALUES (@Agr2, @CompK, NULL, NULL, N'Peca', 2, NULL, 0);
     DECLARE @K2 INT = SCOPE_IDENTITY();
     INSERT INTO dbo.EstruturaItem (AgrupamentoId, ComponenteId, Descricao, EstruturaPaiId, NivelHierarquico, Quantidade, QuantidadePorPai, RequerRelatorioDimensional)
-    VALUES (@Agr2, @CompX, NULL, @K2, N'Item', 8, 4, 0);
+    VALUES (@Agr2, @CompX, NULL, @K2, N'Item', 12, 4, 0);
     DECLARE @X2 INT = SCOPE_IDENTITY();
     INSERT INTO dbo.EstruturaItem (AgrupamentoId, ComponenteId, Descricao, EstruturaPaiId, NivelHierarquico, Quantidade, QuantidadePorPai, RequerRelatorioDimensional)
     VALUES (@Agr2, @CompY, NULL, @K2, N'Item', 2, 1, 0);
@@ -176,7 +184,12 @@ BEGIN
         (@X2, N'Entrega', 7, N'AguardandoColeta', @Corte, 1,    N'AguardandoMontagem', @Solda, NULL, @Movimentador),
         (@Y2, N'Inicio',  1, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Dobra, 1,    @Operador),
         (@Y2, N'Termino', 1, N'NoSetor',          @Dobra, 1,    N'AguardandoColeta',   @Dobra, 1,    @Operador),
-        (@Y2, N'Entrega', 1, N'AguardandoColeta', @Dobra, 1,    N'AguardandoMontagem', @Solda, NULL, @Movimentador);
+        (@Y2, N'Entrega', 1, N'AguardandoColeta', @Dobra, 1,    N'AguardandoMontagem', @Solda, NULL, @Movimentador),
+        -- Um conjunto completo (4 X e 1 Y) terminou e espera coleta no ultimo passo de cada filho.
+        (@X2, N'Inicio',  4, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Corte, 1,    @Operador),
+        (@X2, N'Termino', 4, N'NoSetor',          @Corte, 1,    N'AguardandoColeta',   @Corte, 1,    @Operador),
+        (@Y2, N'Inicio',  1, N'AIniciar',         NULL,   NULL, N'NoSetor',            @Dobra, 1,    @Operador),
+        (@Y2, N'Termino', 1, N'NoSetor',          @Dobra, 1,    N'AguardandoColeta',   @Dobra, 1,    @Operador);
     INSERT INTO dbo.Movimentacao (EstruturaItemId, Tipo, Quantidade, OrigemPosicao, OrigemSetorId, OrigemOrdem,
                                   DestinoPosicao, DestinoSetorId, DestinoOrdem, UsuarioId)
     SELECT No, Tipo, Qtd, OP, OS, OO, DP, DS, DOrd, Usr FROM @M ORDER BY Seq;
