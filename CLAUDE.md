@@ -841,7 +841,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   já tem filhos quando entra em produção**, Kit ou Avulso. Desde a Fase 3B isso vale **sem
   exceção**: acrescentar filho a um nó que já saiu de "a iniciar" (líquido de estorno) é recusado com
   409 `PaiJaIniciado` (D1 da spec da Fase 3B; até ali era livre, pela seção 4.7 da spec da Fase 3), e
-  a guarda é definitiva (D1 da spec da Fase 5C: a árvore não muda depois que a produção começa, e a estrutura alterada no meio da produção é tratada pelos caminhos de D2 e D3, sem código novo). O que continua **só do
+  a guarda é definitiva (D1 da spec da Fase 5C: a árvore não muda depois que a produção começa, e a
+  estrutura alterada no meio da produção é tratada pelos caminhos de D2 e D3, sem código novo). O que
+  continua **só do
   Kit**: em Setor com `UtilizaKit`, os filhos que vão à montagem do pai só entram em **conjuntos
   completos**, e nunca além do que o nó ainda precisa receber (regra 25, Fase 3B).
   Terminar e mover são ações separadas, para Kit e Avulso. (Regras 22 a 27,

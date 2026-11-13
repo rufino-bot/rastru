@@ -393,7 +393,7 @@ foram implementadas sob `estrutura/{id}`.
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — treze códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — quatorze códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
   levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `PaiComConjuntoAEspera`, o `NoComSeparacao`, o `NoComMovimentacao`, o `NoComRetrabalho` e o

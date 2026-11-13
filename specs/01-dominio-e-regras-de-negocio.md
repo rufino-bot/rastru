@@ -450,8 +450,8 @@ entra no início de cada fase.*
     são zero fora do pai com `Pronto` em montagem. (Até a 3B eles eram contados pelo filho mais adiantado, o
     ⌈espera ÷ razão⌉ do maior; esse número só sobrevive dentro da conta dos conjuntos em formação.) O que está à
     espera e **não fecha conjunto** não é conjunto: é **sobra em montagem** (regra 30). O pai de 2 com 7 A
-    (razão 4) e 1 B (razão 1) tem 1 conjunto à espera e teto `2 − 1 = 1`; entra um conjunto (11 A e 2 B), os 2
-    conjuntos se montam e as 3 A que ficam são sobra. A perda do próprio pai entra na conta do que falta montar
+    (razão 4) e 1 B (razão 1) tem 1 conjunto à espera e teto `2 − 1 = 1`; entra mais um conjunto (4 A e 1 B) e
+    a espera passa a 11 A e 2 B, os 2 conjuntos se montam e as 3 A que ficam são sobra. A perda do próprio pai entra na conta do que falta montar
     (regra 38). O motivo é físico: peça solta ou a mais na Solda ocupa espaço, e, se houver perda antes de o resto
     chegar, aquele espaço fica sem destino. Não há exceção para completar conjunto que perdeu parte dentro da
     Solda: isso é perda (regra 27), e o conjunto **não** se completa no Pedido original com refugo novo. A
