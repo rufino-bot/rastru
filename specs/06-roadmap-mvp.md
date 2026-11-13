@@ -859,35 +859,29 @@ O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
 
 ### Fase 5C — As pontas do Kit que a 3B deixou
 
-Spec ainda por escrever. Executa depois da 5B.
+**Estado:** em execução. Spec: `docs/superpowers/specs/2026-11-12-fase-5c-pontas-do-kit-design.md`; plano:
+`docs/superpowers/plans/2026-11-12-fase-5c.md`. Uma spec, um plano e um PR (C1). Sem mudança de schema
+e sem `db/alter-fase-5c.sql` (C10).
 
-- **A perda nos tetos do Kit** (D5 da spec da Fase 3B): a 5B-1 entregou **só a perda do próprio pai** em
-  `FaltaMontar` (C21 da spec da 5B-1; regra 38), e é isto que a 5C **não** refaz. Fica o resto da D5: o conjunto que
-  perde parte dentro da Solda e os tetos que dependem dele, o que o nó ainda precisa receber (regras 23 e 25). A
-  3B conta os conjuntos à espera pelo filho mais adiantado, e um conjunto que perde parte dentro da
-  Solda continua contado. A **espera desalinhada** (a limitação conhecida da regra 25 de `01`; nota
-  da D4 da mesma spec) é o mesmo mecanismo, e é tratada aqui junto: com ela, o teto do Kit pode
-  ficar em zero, e o Kit, travado. Ela pode nascer, por exemplo, de trocar o Tipo do Agrupamento de
-  Avulso para Kit, ou marcar `UtilizaKit` num Setor, com Kit em produção; de estornar uma linha só
-  de uma entrega de Kit, porque o estorno é feito linha a linha e não confere o conjunto; de
-  editar a `QuantidadePorPai` de um filho cujo pai tem conjuntos à espera; e de acrescentar filho a
-  um pai de Kit que ainda não iniciou, mas já tem conjuntos à espera (a guarda `PaiJaIniciado`
-  recusa o pai que já saiu de "a iniciar", e esse não saiu).
-  A 5B-2 tratou **só** o conjunto que um `Pronto` do Retrabalho começa (D8 da spec dela, regra 25 de `01`); o conjunto que
-  perde parte dentro da Solda no próprio Pedido e a espera desalinhada continuam aqui.
-- **Estrutura alterada no meio da produção** (D1 da spec da Fase 3B; D6 da spec da Fase 5B-2, que lhe deu esta casa
-  quando a regra 24 só dizia «fica para a Fase 5»): hoje acrescentar filho a nó
-  já iniciado é recusado (`PaiJaIniciado`), e essa guarda é a resposta da 3B, não a definitiva. O
-  usuário tem uma ideia de como tratar o caso, a revisitar aqui: estrutura errada descoberta no meio
-  da produção é o mesmo assunto de alterar projeto ou descontinuar, o do item «Descartar Peça ou
-  Item em Pedido rodando» da 5B-1, que a baixa entregou.
-- **O pai de Kit cujos filhos saíram todos do projeto** (achado da review de branch da 5B-1, 2026-11-05): o pai
-  Avulso nessa situação passou a aparecer "a iniciar" na Fila e a iniciar por ela, como uma folha (C22); o pai **Kit**
-  não, e continua fora da Fila e da coleta — não aparece como "a iniciar" nem como Kit montável, porque
-  `KitsDaColeta` só lista o Kit com algum filho pronto na coleta. Decisão do usuário, 2026-11-05: o Kit fica
-  para a 5C.
-- Critério de pronto: um Kit que perde parte de um conjunto, ou que ganha a espera desalinhada, continua
-  podendo ser montado, e a estrutura errada descoberta no meio da produção tem tratamento definido.
+- **O Kit com perda e com espera desalinhada** (D5 da spec da Fase 3B; regras 25 e 30 de `01`): os conjuntos à espera
+  passam a ser os **completos** (o menor, entre os filhos que contam, de ⌊espera ÷ razão⌋, mais os conjuntos em
+  formação do Retrabalho), e o que está à espera e não fecha conjunto é **sobra em montagem**: aparece na Fila, com o
+  "Descartar", e o "Usar a sobra" a oferece. O que o pai ainda precisa de um filho e o "falta X de Y para a próxima"
+  descontam essa sobra. A conta da baixa (a cascata da 5B-1, a do pronto e o "vira sobra") desconta a mesma sobra
+  (C15). A perda do próprio pai em `FaltaMontar` já tinha vindo na 5B-1 (C21 da spec dela).
+- **Os caminhos de desalinhamento** (troca Avulso↔Kit, marca `UtilizaKit` com Kit em produção, estorno de uma linha
+  só de uma entrega de Kit) ficam abertos e dão sobra, em vez de travar o Kit. Os dois que mudam a estrutura, acrescentar
+  filho e mudar a `QuantidadePorPai` de pai com conjunto à espera, são barrados com 409 `PaiComConjuntoAEspera` (C8).
+- **O pai de Kit cujos filhos saíram todos do projeto** inicia como folha, como o Avulso (C9).
+- **Estrutura alterada no meio da produção: decidida, sem código** (D1 a D3 da spec). A guarda `PaiJaIniciado` é
+  **definitiva**: a árvore não muda depois que a produção começa, porque a revisão de projeto mexe na forma das peças e
+  não em quais peças compõem o conjunto. A peça que dá para corrigir volta ao Setor que faz a correção (o PCP acrescenta
+  o passo ao Roteiro), a que não dá é a baixa `MortaEmProcesso` e a reposição, e a revisão que chega depois do pedido
+  vai para um Pedido novo. O item que a 5B-2 e a 3B deixavam aqui fecha por decisão.
+- **Fora do escopo:** o Kit com pai de quantidade fracionária (C12), dívida registrada.
+- Critério de pronto: um Kit que perde parte de um conjunto, ou que ganha a espera desalinhada, continua podendo ser
+  montado, com o resto aparecendo como sobra, e a estrutura errada descoberta no meio da produção tem tratamento
+  definido (D1 a D3).
 
 ## Fase 6 — KPIs
 

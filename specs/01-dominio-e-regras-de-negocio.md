@@ -425,8 +425,15 @@ entra no início de cada fase.*
       ali era livre (spec da Fase 3, seção 4.7), e o nó saía de "a iniciar" sem consumir o filho
       novo: a igualdade entre o que saiu de "a iniciar" e o total montado não valia para ele, e a
       saída dele podia passar do total montado. Se todo início do nó for estornado, ele volta a
-      aceitar filho. A guarda é a resposta da 3B; o tratamento de estrutura alterada no meio da
-      produção fica para a **Fase 5C** (D6 da spec da Fase 5B-2, que passou o assunto adiante).
+      aceitar filho. **A guarda é definitiva** (D1 da spec da Fase 5C, decisão do usuário de 2026-11-12): a
+      árvore da Peça não muda depois que a produção começa, porque a revisão de projeto mexe na **forma** das peças
+      (furo, dobra, corte), não em quais peças compõem o conjunto; a "montagem tardia" continua descartada. A
+      estrutura alterada no meio da produção não tem código próprio, e o tratamento é o que já existe (D2 e D3 da
+      mesma spec): a peça que dá para corrigir volta ao Setor que faz a correção, com o passo acrescentado ao fim do
+      Roteiro do nó (o trecho não alcançado se edita); a que não dá morre em processo (`MortaEmProcesso`, regra 38) e
+      é refeita; e a revisão que chega depois do pedido vai para o próximo Pedido, que é um Pedido novo. Quando o
+      problema só aparece com a peça montada ou na expedição, os caminhos são o conserto da expedição (regra 35) ou
+      esse Pedido novo.
     - A ordem de baixo para cima é consequência, não cálculo: um nó intermediário só existe no
       Setor depois de montado, então o pai dele só monta depois.
 25. **Conjunto completo.** Um Kit pode ir à Solda em parte do pai (os conjuntos de 7 de 10), mas
@@ -435,18 +442,20 @@ entra no início de cada fase.*
     `N × QuantidadePorPai` de **todos** os filhos diretos, juntos, na mesma movimentação —, e com
     N **sem passar do que o nó ainda
     precisa receber**: a quantidade dele, menos o total já montado e menos os conjuntos que já
-    estão à espera de montagem em **qualquer** Setor com `UtilizaKit`. Esses conjuntos à espera são
-    os que **entraram e ainda não foram montados**, não o mínimo por filho: uma unidade que perdeu
-    parte dentro da Solda não se completa com refugo novo. Desde a Fase 3B eles são contados pelo
-    **filho mais adiantado**: o maior, entre os filhos diretos, de
-    ⌈quantidade aguardando montagem ÷ `QuantidadePorPai`⌉, somando só os Setores com `UtilizaKit`
-    (D5 da spec da Fase 3B). Sem perda, e sem nenhum caminho por fora da entrada em conjunto
-    completo e do início (o bullet «Limitação conhecida» desta regra dá exemplos deles), isso é o
-    número de conjuntos que entraram e ainda não foram montados por inteiro; o arredondamento para cima
-    mantém contado o conjunto que perdeu parte. (A perda do próprio pai entra na conta do que falta montar, regra 38; o conjunto que perde parte dentro da Solda, e a espera desalinhada, continuam para a Fase 5C.) O motivo é
-    físico: peça solta ou a mais na Solda ocupa espaço, e, se houver perda antes de o resto chegar,
-    aquele espaço fica sem destino. Não há exceção para completar conjunto que perdeu parte dentro
-    da Solda — isso é perda (regra 27). A **sobra** — tudo o que passa do que o nó precisa, feche
+    estão à espera de montagem em **qualquer** Setor com `UtilizaKit`. Desde a Fase 5C (D5 e C2 da spec
+    `docs/superpowers/specs/2026-11-12-fase-5c-pontas-do-kit-design.md`), esses conjuntos à espera são os
+    **completos**: o menor, entre os filhos diretos que contam, de ⌊quantidade aguardando montagem ÷
+    `QuantidadePorPai`⌋, somando só os Setores com `UtilizaKit` (e descontando o que um redirecionamento já tira
+    da espera), **mais** os conjuntos em formação do Retrabalho (bullet «O conjunto em formação do pronto»), que
+    são zero fora do pai com `Pronto` em montagem. (Até a 3B eles eram contados pelo filho mais adiantado, o
+    ⌈espera ÷ razão⌉ do maior; esse número só sobrevive dentro da conta dos conjuntos em formação.) O que está à
+    espera e **não fecha conjunto** não é conjunto: é **sobra em montagem** (regra 30). O pai de 2 com 7 A
+    (razão 4) e 1 B (razão 1) tem 1 conjunto à espera e teto `2 − 1 = 1`; entra um conjunto (11 A e 2 B), os 2
+    conjuntos se montam e as 3 A que ficam são sobra. A perda do próprio pai entra na conta do que falta montar
+    (regra 38). O motivo é físico: peça solta ou a mais na Solda ocupa espaço, e, se houver perda antes de o resto
+    chegar, aquele espaço fica sem destino. Não há exceção para completar conjunto que perdeu parte dentro da
+    Solda: isso é perda (regra 27), e o conjunto **não** se completa no Pedido original com refugo novo. A
+    **sobra** — tudo o que passa do que o nó precisa, feche
     conjunto ou não (ex.: refugo além do necessário) — nunca entra na Solda e, se não for usada, sai como perda de motivo `Descarte` (regra 17).
     - **Onde vale (D3 da spec da Fase 3B).** O nó é de Agrupamento Kit, tem filhos e o **primeiro
       passo** do Roteiro dele é num Setor com `UtilizaKit`; o conjunto completo vale para a entrega
@@ -471,23 +480,33 @@ entra no início de cada fase.*
       daria zero. O complemento sai do "pronto" do cartão do Kit das Tarefas e aparece como coleta avulsa, para a
       mesma unidade não ser oferecida duas vezes. Fora do Retrabalho nada muda: o Pedido de fabricação nunca tem
       `Pronto`, e a regra só vale para o pai com `Pronto` em montagem. **O sinal "tem `Pronto` em montagem" vem do
-      livro e não se desliga depois da montagem**; a parte que se perde dentro da Solda continua sendo o caso da Fase
-      5C, como a espera desalinhada abaixo.
-    - **Limitação conhecida (D4 e D5 da spec da Fase 3B).** A espera pode ficar **desalinhada**
-      entre os filhos — um pai de quantidade 2, com 7 aguardando montagem de um filho de razão 4 e
-      1 de um filho de razão 1. Contada pelo filho mais adiantado (⌈7 ÷ 4⌉ = 2), a espera leva o
-      teto a zero: o Kit some das Tarefas, a entrega para esse pai é recusada, e o teto continua
-      zero mesmo depois de iniciar o pai. A entrada em conjunto completo e o início, que tira de
-      cada filho `N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das razões; caminhos
-      por fora deles podem desalinhá-la. Alguns exemplos, sem pretender esgotar a lista: trocar o
-      Tipo do Agrupamento de Avulso para Kit, ou marcar `UtilizaKit` num Setor, quando já há Kit em
-      produção; estornar uma linha só de uma entrega de Kit, porque o estorno é feito linha a linha
-      e não confere o conjunto; editar a `QuantidadePorPai` de um filho cujo pai tem conjuntos à
-      espera; e acrescentar filho a um pai de Kit que ainda não iniciou, mas já tem conjuntos à
-      espera — a guarda `PaiJaIniciado` (D1 da spec da Fase 3B) recusa o pai que já saiu de "a
-      iniciar", e esse não saiu; o filho novo nasce sem nada à espera. É o mesmo mecanismo da perda
-      dentro da Solda (uma espera que deixou de ser feita de conjuntos inteiros), e vai com ela
-      para a Fase 5.
+      livro e não se desliga depois da montagem**; a parte que se perde dentro da Solda é tratada pela sobra em montagem
+      (bullet «Os caminhos de desalinhamento»): o que não fecha conjunto é sobra, e o conjunto em formação que
+      vale continua sendo contado.
+    - **Os caminhos de desalinhamento (C7 e C8 da spec da Fase 5C).** A entrada em conjunto completo e o início,
+      que tira de cada filho `N × QuantidadePorPai`, mantêm sozinhos a espera na proporção das razões; caminhos por
+      fora deles a desalinham, e agora **dão sobra em vez de travar o Kit**. A perda dentro da Solda com
+      `incluirTopo` leva a unidade da Peça do topo e o resto do conjunto vira sobra desde a baixa, sem travar no
+      fim; sem `incluirTopo`, o resto é sobra e um conjunto completo pode entrar no lugar. A troca do Tipo do
+      Agrupamento de Avulso para Kit, ou a marca `UtilizaKit` num Setor, com Kit já em produção, deixa livre o que
+      não fecha conjunto como sobra (D4 da spec da Fase 3B: segue livre). O estorno de uma linha só de uma entrega
+      de Kit, que é feito linha a linha e não confere o conjunto, faz o irmão que ficou na Solda ser sobra até ser
+      estornado também ou descartado. Esse resto de conjunto quebrado vai para o Retrabalho pelo caminho da
+      regra 27 (baixa, sobra, Retrabalho que o marca pronto e fabrica só a peça que falta). A sobra em
+      montagem sai da Fila e do "Usar a sobra" na mesma conta: por filho,
+      `max(0, espera em Setores UtilizaKit − min(conjuntos à espera, max(0, FaltaMontar)) × razão)`, mais a espera
+      fora de Setor `UtilizaKit` que passa do que os conjuntos contados deixam (C16). O que o pai ainda precisa
+      receber de um filho desconta a espera **menos a sobra** (C5), e o "falta X de Y para a próxima" da Fila
+      também (C6), para o conjunto quebrado não reduzir a tarefa da coleta nem convidar a completá-lo. O
+      "Usar a sobra" oferece a sobra em montagem por Setor, primeiro a da Solda, depois a de fora dela (C16).
+    - **A guarda `PaiComConjuntoAEspera` (C8).** Duas escritas mudam a estrutura de um Kit com conjunto à espera e
+      são recusadas com 409 `PaiComConjuntoAEspera`: acrescentar filho a um pai que recebe em conjunto e tem algo
+      aguardando montagem em Setor `UtilizaKit`, líquido de estorno, e editar a `QuantidadePorPai` de um filho
+      desse pai. Sem a guarda, o filho novo, com espera zero, faria toda a espera do pai virar sobra, e a razão
+      nova faria parte dela virar sobra de uma vez. Mudar só a descrição ou a quantidade passa. A guarda **não**
+      substitui a `PaiJaIniciado`, que continua valendo para todo pai.
+    - **O pai Kit cujos filhos saíram todos (C9).** Inicia como folha, como o Avulso (regra 38, C22 da 5B-1):
+      aparece "a iniciar" na Fila do primeiro passo e inicia por ela; a coleta o pula, porque não há filho a receber.
 26. **`EstruturaItem.QuantidadePorPai`** guarda quantos daquele nó entram em **uma** unidade do
     pai, **ao lado** da quantidade absoluta (`EstruturaItem.Quantidade`). É **obrigatória em todo
     Item e nula na Peça**. A cópia da receita a preenche com
@@ -554,7 +573,9 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que entrou na Fase 5B-1 (
       regra 16) sai de lá.
 30. **A sobra é identificada, não é tarefa, e só sai por descarte.** O que um Item tem, no fim do
     Roteiro ou entregue para a montagem, além do que o pai ainda precisa, é **sobra**: sai da lista
-    de tarefas do Movimentador e aparece à parte, no Setor onde está. Só deixa de estar em produção
+    de tarefas do Movimentador e aparece à parte, no Setor onde está. No pai que recebe em conjunto (Kit, regra 25),
+    a sobra inclui também o que está à espera de montagem e **não fecha conjunto**, mesmo que o pai ainda precisasse
+    de mais dele (Fase 5C): aparece na linha "em montagem" da Fila, com o "Descartar". Só deixa de estar em produção
     por uma perda de motivo `Descarte` (regras 17 e 38), registrada pelo mesmo ator da perda — Qualidade,
     PCP ou Administrador — a qualquer momento depois de virar sobra, **da própria linha da sobra** na Fila do
     Setor (C17 da spec da 5B-1: a tela limita a quantidade à sobra da linha, o servidor não). A regra 13 não
@@ -777,7 +798,11 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       filhos **a iniciar** além do que o pai agora precisa: `min(AIniciar(filho), max(0, EmProducao(filho) −
       FaltaMontar(pai) × QuantidadePorPai(filho)))`. O filho que já existe fisicamente além disso **não sai
       sozinho**: fica onde está e vira sobra pela regra 30. A prévia lista em `viramSobra` só a sobra que **a própria
-      baixa cria**, e não a que já existia.
+      baixa cria**, e não a que já existia. **No pai que recebe em conjunto (Kit)**, o que cobre o pai é o em
+      produção do filho **menos a sobra em montagem depois da baixa** (C15 da spec da Fase 5C): a cascata e o "vira
+      sobra" descontam essa sobra, então o resto do conjunto quebrado aparece em `viramSobra` e a baixa com
+      `incluirTopo` não descarta as peças a iniciar que o substituiriam. O mesmo vale para a cascata do pronto
+      (regra 39). A trava (`travaNoTopo`) não muda.
     - **"Saiu do projeto" é marcado, não deduzido** (C22). O nó tem uma baixa **`tudo`** de motivo `Descarte`, não
       estornada, **no próprio nó**: ele deixa de contar para a montagem do pai (montabilidade, conjunto completo, teto
       de entrada, "Dá para montar N" e o consumo dos filhos no início do pai). É o que destrava o filho acrescentado
@@ -785,8 +810,10 @@ chamadas do desenho, C1 a C27), e é implementada no backend da 5B-1.*
       `PerdaArmazem` ou `MortaEmProcesso` **continua** limitando o pai — o caminho é a regra 27. Descartar por inteiro
       um ancestral leva o pai junto, e então não há montagem a calcular. As unidades do pai já montadas continuam com
       o filho dentro. **Ressalva (2026-11-05):** o pai **Avulso** cujos filhos saíram todos do projeto passa a ser
-      tratado como folha, aparece "a iniciar" na Fila e inicia por ela; o pai **Kit** nessa situação continua fora da
-      Fila e da coleta, e fica para a Fase 5C (`06-roadmap-mvp.md`).
+      tratado como folha, aparece "a iniciar" na Fila e inicia por ela; o pai **Kit** nessa situação também, desde a Fase 5C
+      (C9): aparece "a iniciar" na Fila do primeiro passo e inicia por ela, e a coleta o pula, porque não há filho a
+      receber. Quando o filho de um Kit sai **por inteiro por `Descarte`**, as esperas dos irmãos dele não aparecem
+      como "vira sobra" (ele deixou o projeto); por perda, aparecem.
     - **Perda que impede montar** (regra 27; D13 e D14). A prévia (`travaNoTopo`) sobe a cadeia do Item até a Peça do
       topo e, em cada nível, calcula quantas unidades ainda faltam montar e os filhos em produção já não cobrem, com
       o fornecimento de cada pai intermediário sendo o que ele tem em produção menos as unidades que a própria baixa
@@ -904,7 +931,8 @@ desenho, C1 a C20), e é implementada no backend da 5B-2.*
     - **Riscos aceitos** (seção 8 da spec). A parte da unidade perdida que ainda estava em processo vira sobra só
       quando termina, e o Retrabalho que já começou não a recebe como pronto (C12); a baixa de perda já reposta não se
       estorna mais; a abertura não se desfaz; e o Retrabalho cobre o alvo inteiro mesmo que o PCP diminua a quantidade.
-      A estrutura alterada no meio da produção é da Fase 5C (D6).
+      A estrutura alterada no meio da produção não tem tratamento próprio: a guarda `PaiJaIniciado` é definitiva e o
+      caminho é o da regra 24 (D1 a D3 da spec da Fase 5C).
 
 ## Pontos ainda em aberto
 

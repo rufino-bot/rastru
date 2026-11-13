@@ -298,8 +298,8 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
     Solda. A lista de Setores mostra a pílula neutra "Utiliza Kit" nos marcados: é atributo do Setor,
     não a identidade de Kit da pílula azul da fila. A marca vale da troca em diante, e a tela de
     Tarefas recalcula na carga seguinte (D4 da spec da Fase 3B); o mesmo vale para trocar o Tipo de
-    um Agrupamento. Trocar com Kit já em produção pode travar aquele Kit: ver a limitação conhecida
-    da regra 25.
+    um Agrupamento. Trocar com Kit já em produção não trava o Kit: o que fica à espera e não
+    fecha conjunto vira sobra em montagem (regras 25 e 30, Fase 5C).
 12. **O conserto anda pelo chão como o resto** (Fase 5A, regra 35 em `01`; D6, C3, C4 da spec). A Qualidade
     manda unidades não conformes para um Setor (fluxo 4, passo 4), e daí em diante:
     - O **Movimentador** vê em Tarefas a seção **Conserto**, no alto, acima de "Kits montáveis", com uma linha
