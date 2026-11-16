@@ -1507,10 +1507,11 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
-  public async Task Resumo_de_material_da_Fila_nao_mostra_no_descartado_por_inteiro()
+  public async Task Pai_descartado_por_inteiro_sai_de_aguardando_montagem_e_a_espera_do_filho_vira_sobra()
   {
     // A (planejada com material) tem todo o B na montagem da Solda e uma segunda Peca em aberto, que segura o Pedido.
-    // Descartada A por inteiro (10 "a iniciar"), o cartao de montagem continua (B aguarda), mas sem o resumo (C26).
+    // Descartada A por inteiro (10 "a iniciar"), nao falta montar nada: o cartao sai de "Aguardando montagem", e com ele
+    // o resumo (C26), e a espera de B, que e sobra inteira, aparece na secao "Sobra", onde esta o "Descartar".
     await using var c = await CriarAsync(_factory);
     var parafuso = await c.CriarMaterialAsync("PAR");
     await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.A}/materiais",
@@ -1518,16 +1519,22 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     await PecaNaExpedicaoAsync(c, 5m);
     await LevarParaAMontagemAsync(c, c.B, c.Corte, 20m);
 
-    static JsonElement CartaoDeA(JsonElement fila, int a) =>
-        fila.GetProperty("aguardandoMontagem").EnumerateArray().Single(m => m.GetProperty("pai").GetProperty("id").GetInt32() == a);
-    var antes = CartaoDeA(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila")), c.A);
-    Assert.NotEqual(JsonValueKind.Null, antes.GetProperty("material").ValueKind);
+    static bool TemCartaoDe(JsonElement fila, int a) =>
+        fila.GetProperty("aguardandoMontagem").EnumerateArray().Any(m => m.GetProperty("pai").GetProperty("id").GetInt32() == a);
+    var antes = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila"));
+    Assert.True(TemCartaoDe(antes, c.A));
+    var cartao = antes.GetProperty("aguardandoMontagem").EnumerateArray()
+        .Single(m => m.GetProperty("pai").GetProperty("id").GetInt32() == c.A);
+    Assert.NotEqual(JsonValueKind.Null, cartao.GetProperty("material").ValueKind);
 
     await Garantir(await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/baixas",
         Parte("Descarte", Origem("AIniciar", null, null, 10m))));
 
-    var depois = CartaoDeA(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila")), c.A);
-    Assert.Equal(JsonValueKind.Null, depois.GetProperty("material").ValueKind);
+    var depois = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila"));
+    Assert.False(TemCartaoDe(depois, c.A));
+    var sobraDeB = depois.GetProperty("sobra").EnumerateArray().Single(l =>
+        l.GetProperty("origem").GetString() == "Montagem" && l.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    Assert.Equal((20m, false), (sobraDeB.GetProperty("quantidade").GetDecimal(), sobraDeB.GetProperty("emMaisDeUmSetor").GetBoolean()));
   }
 
   [Fact]

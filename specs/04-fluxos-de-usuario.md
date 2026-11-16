@@ -314,6 +314,18 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
     - O **estorno** continua na própria fila, nas duas linhas do conserto, enquanto a quantidade não tiver
       andado. O **filtro** de Material e Pedido vale para a seção Conserto e para as tarefas dele, e a contagem
       do menu "Tarefas N" (no botão **Produção**, com o grupo fechado, e na opção **Tarefas**) inclui o conserto. O conserto **não mexe no Roteiro** do nó.
+13. **"Aguardando montagem" só tem o pai que ainda falta iniciar, e a sobra em montagem mostra a parte do Setor**
+    (ajuste da conferência da Fase 5C; regras 25 e 30 de `01`, C16 da spec da 5C). Na Fila do Setor:
+    - O pai sem nada a iniciar (`FaltaMontar` zero) **não é cartão** de "Aguardando montagem": toda a espera dos
+      filhos dele é sobra, e aparece inteira na seção **Sobra**, onde está o "Descartar".
+    - A linha de sobra "em montagem" mostra a quantidade **daquele Setor**, pela mesma repartição do "Usar a
+      sobra" e do "falta" do cartão de montagem; o Setor sem sobra daquele filho não tem linha, e a soma das linhas
+      dos Setores é a sobra do filho. O teto do "Descartar" da linha é o que está naquele Setor.
+    - O aviso "Este item aguarda montagem em mais de um Setor; não dá para saber em qual está a unidade a mais."
+      só aparece quando a repartição é **convenção**: o pai que **não** recebe em conjunto, ainda com o que
+      montar, e o filho esperando em mais de um Setor (a sobra é posta pela ordem de Id do Setor). No pai que recebe
+      em conjunto a repartição é a da C16 e não há aviso; sem nada a iniciar, cada Setor mostra o próprio saldo.
+    - A seção "Sobra" de um Pedido `Concluido` não muda: mostra a quantidade daquele Setor, sem o aviso.
 
 ## 3. Separação de Material
 
