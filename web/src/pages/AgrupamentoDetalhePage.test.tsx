@@ -1424,7 +1424,7 @@ describe('AgrupamentoDetalhePage', () => {
     expect(await within(screen.getByTestId('painel-de-escrita')).findByText(frase)).toBeTruthy()
   })
 
-  it('mudar a razão de um Item com conjunto à espera mostra no painel a frase do servidor (PaiComConjuntoAEspera)', async () => {
+  it('a recusa PaiComConjuntoAEspera na edição do nó mostra no painel a frase do servidor', async () => {
     const frase = 'Chassi tem conjunto à espera de montagem: a estrutura dele não muda enquanto houver conjunto na Solda.'
     vi.stubGlobal('fetch', montarFetch({
       estruturaInicial: [PECA],

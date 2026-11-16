@@ -328,6 +328,23 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Empty((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.Sobra);
   }
 
+  [Fact]
+  public async Task Sobra_do_Avulso_com_o_que_montar_num_Setor_so_nao_avisa_que_e_convencao()
+  {
+    // Pai Avulso de 10, ainda sem nada montado; o filho de razao 4 precisa de 40 e espera 45, todos na Solda: 5 de
+    // sobra, e nao ha outro Setor entre os quais reparti-la.
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda);
+    c.No(3, 1, 45m, 4m, Corte);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 45m);
+
+    var fila = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
+
+    Assert.Equal(10m, Assert.Single(fila.AguardandoMontagem).FaltaMontar);
+    var sobra = Assert.Single(fila.Sobra);
+    Assert.Equal((3, "Montagem", 5m, false), (sobra.No.Id, sobra.Origem, sobra.Quantidade, sobra.EmMaisDeUmSetor));
+  }
+
   // O cenario so zera FaltaMontar (uma Montagem sem consumir os filhos); nao modela um cenario que conserva.
   [Fact]
   public async Task Pai_sem_nada_a_montar_com_o_filho_em_dois_Setores_mostra_em_cada_um_o_proprio_saldo_sem_aviso()
