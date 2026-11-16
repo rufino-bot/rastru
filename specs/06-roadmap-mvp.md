@@ -866,8 +866,8 @@ e sem `db/alter-fase-5c.sql` (C10).
 - **O Kit com perda e com espera desalinhada** (D5 da spec da Fase 3B; regras 25 e 30 de `01`): os conjuntos à espera
   passam a ser os **completos** (o menor, entre os filhos que contam, de ⌊espera ÷ razão⌋, mais os conjuntos em
   formação do Retrabalho), e o que está à espera e não fecha conjunto é **sobra em montagem**: aparece na Fila, com o
-  "Descartar", e o "Usar a sobra" a oferece. O que o pai ainda precisa de um filho e o "falta X de Y para a próxima"
-  descontam essa sobra. A conta da baixa (a cascata da 5B-1, a do pronto e o "vira sobra") desconta a mesma sobra
+  "Descartar", e o "Usar a sobra" a oferece. O que o pai ainda precisa de um filho e o "faltam N" (ou "falta 1") da
+  linha do filho na Fila descontam essa sobra. A conta da baixa (a cascata da 5B-1, a do pronto e o "vira sobra") desconta a mesma sobra
   (C15). A perda do próprio pai em `FaltaMontar` já tinha vindo na 5B-1 (C21 da spec dela).
 - **Os caminhos de desalinhamento** (troca Avulso↔Kit, marca `UtilizaKit` com Kit em produção, estorno de uma linha
   só de uma entrega de Kit) ficam abertos e dão sobra, em vez de travar o Kit. Os dois que mudam a estrutura, acrescentar
