@@ -115,7 +115,8 @@ public class CalculadoraComProntoTests
   {
     var calc = KitComAEmMontagem(comPronto: false);
 
-    Assert.Equal(1m, calc.ConjuntosAEspera(1));
+    // C2 da spec da Fase 5C: sem pronto e sem o irmao, o A sozinho nao fecha conjunto; e sobra.
+    Assert.Equal(0m, calc.ConjuntosAEspera(1));
     Assert.Equal(0m, calc.ConjuntosEmFormacao(1));
     Assert.Equal(0m, calc.ComplementoDoConjunto(1, 3));
   }

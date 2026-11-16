@@ -127,9 +127,9 @@ public sealed partial class BaixaUseCase
     var linhas = plano.Linhas.Select(l => new LinhaDaBaixaDto(
         l.NoId, estado.Nome(l.NoId), estado.Codigos.GetValueOrDefault(l.NoId), l.Origem.Posicao, l.Origem.SetorId,
         l.Origem.SetorId is int s ? setores.GetValueOrDefault(s) : null, l.Origem.Ordem, l.Quantidade)).ToList();
-    var sobra = plano.ViramSobra.Select(v => new SobraDaBaixaDto(v.NoId, estado.Nome(v.NoId), v.Quantidade)).ToList();
+    var sobra = plano.ViramSobra.Select(v => new SobraDaBaixaDto(v.NoId, estado.Nome(v.NoId), estado.Codigos.GetValueOrDefault(v.NoId), v.Quantidade)).ToList();
     var trava = plano.Trava is { } t
-        ? new TravaNoTopoDto(t.PecaId, estado.Nome(t.PecaId), t.Quantidade, t.AIniciar)
+        ? new TravaNoTopoDto(t.PecaId, estado.Nome(t.PecaId), estado.Codigos.GetValueOrDefault(t.PecaId), t.Quantidade, t.AIniciar)
         : null;
     return new PreviaDaBaixaDto(linhas, sobra, trava);
   }

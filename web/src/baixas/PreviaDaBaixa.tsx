@@ -56,7 +56,7 @@ export function PreviaDaBaixa({ previa, noId }: Props) {
           <p className="text-sm text-tinta-fraca">Ficam onde estão e viram sobra:</p>
           <ul aria-label="Viram sobra" className="flex flex-col gap-1 text-sm text-tinta">
             {previa.viramSobra.map((s) => (
-              <li key={s.estruturaItemId}>{`${formatarQuantidade(s.quantidade)} de ${s.descricao}`}</li>
+              <li key={s.estruturaItemId}>{`${formatarQuantidade(s.quantidade)} de ${rotuloDoNo({ codigoDoComponente: s.codigo, descricao: s.descricao })}`}</li>
             ))}
           </ul>
         </>

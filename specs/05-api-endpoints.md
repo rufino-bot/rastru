@@ -299,7 +299,7 @@ perfil autenticado.)*
   Com `componenteId`: copia a receita do Componente, com as mesmas guardas do `POST` acima;
   `descricao`, se informada, sobrepõe a herdada (regra 19). Sem `componenteId` (ad-hoc):
   `descricao` é obrigatória. Desde a Fase 3B (D1), o pai é travado e só aceita filho novo enquanto
-  nada dele saiu de "a iniciar" (líquido de estorno): se já saiu, 409 `PaiJaIniciado`
+  nada dele saiu de "a iniciar" (líquido de estorno): se já saiu, 409 `PaiJaIniciado`. Desde a Fase 5C (C8), o pai de Kit que recebe em conjunto e tem algo aguardando montagem em Setor `UtilizaKit` também recusa o filho novo, com 409 `PaiComConjuntoAEspera`
 - `PUT /estrutura/{id}` *(PCP, Administrador)* — edita `Descricao`, `Quantidade` e, num Item,
   `QuantidadePorPai` do nó `{id}`. Body: `{ descricao?, quantidade, quantidadePorPai?, requerRelatorioDimensional? }`
   (`quantidadePorPai` obrigatória no Item, proibida na Peça). `requerRelatorioDimensional` é a marca da
@@ -310,7 +310,9 @@ perfil autenticado.)*
   (D12), com o Pedido fora de `Aberto` (`EmProducao` ou `AguardandoExpedicao`) a quantidade só aumenta:**
   diminuir é 409 `DiminuirPelaBaixa`, cuja `mensagem` manda para o "Dar baixa" (seção "Baixas"); com o Pedido
   `Aberto` a edição segue livre nos dois sentidos, e num `Concluido` a rota segue recusando (`PedidoFechado`). Editar a
-  razão é livre, porque a baixa já gravada não muda. Não cascateia a quantidade para os filhos — decisão de
+  razão é livre, porque a baixa já gravada não muda, **exceto** no pai de Kit que recebe em conjunto com algo aguardando
+  montagem em Setor `UtilizaKit`: mudar a `quantidadePorPai` de um filho dele é 409 `PaiComConjuntoAEspera` (Fase 5C, C8;
+  mudar só a descrição ou a quantidade passa). Não cascateia a quantidade para os filhos — decisão de
   domínio, não lacuna (a cópia da receita é pré-preenchimento, não automação). `Descricao`
   vazia/só espaço grava `null`, que volta a herdar a do Componente — exceto num nó ad-hoc, que não
   tem de onde herdar e recusa a edição
@@ -391,10 +393,10 @@ foram implementadas sob `estrutura/{id}`.
   o recurso da rota antes do que o corpo referencia; a ordem não protege sigilo, porque Agrupamento
   e catálogo de Componentes são legíveis por qualquer perfil autenticado) ou nó inexistente
   (`POST /estrutura/{id}/filhos`, `PUT`, `DELETE`).
-- **409** — treze códigos, no mesmo formato do 409 de regra de negócio já usado em
+- **409** — quatorze códigos, no mesmo formato do 409 de regra de negócio já usado em
   `DELETE /agrupamentos/{id}`: corpo `{ "erro": "<código>" }`. Os três códigos do
   `PlanejadorDeCopia` — `CicloNaReceita`, `EstruturaProfundaDemais` e `EstruturaGrandeDemais` —
-  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `NoComSeparacao`, o `NoComMovimentacao`, o `NoComRetrabalho` e o
+  levam `mensagem` junto do `erro`, e o `QuantidadeAbaixoDoMovimentado`, o `PaiJaIniciado`, o `PaiComConjuntoAEspera`, o `NoComSeparacao`, o `NoComMovimentacao`, o `NoComRetrabalho` e o
   `ConflitoDeConcorrencia` também (a deste último é a frase de `CodigosDaExecucao.MensagemDeConflito`), como o
   `PedidoFechado` e o `ComAfericao` da Fase 5A;
   `PedidoNaoAberto` não — mesmo precedente do
@@ -411,6 +413,7 @@ foram implementadas sob `estrutura/{id}`.
   | `NoComRetrabalho` | `DELETE /estrutura/{id}` | o nó ou um descendente dele é a origem (`OrigemEstruturaItemId`) de um nó de Retrabalho; leva `mensagem` (Fase 5B-2) |
   | `QuantidadeAbaixoDoMovimentado` | `PUT /estrutura/{id}` | a quantidade nova é menor do que já saiu de "a iniciar" ou, num nó com filhos, do que o total montado (Fase 3); leva `mensagem` com os números |
   | `PaiJaIniciado` | `POST /estrutura/{id}/filhos` | o nó já saiu de "a iniciar" (líquido de estorno); acrescentar filho a ele deixaria unidades iniciadas sem consumir o filho novo (Fase 3B, D1); leva `mensagem` |
+  | `PaiComConjuntoAEspera` | `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}` | o pai de Kit que recebe em conjunto tem algo aguardando montagem em Setor `UtilizaKit` (líquido de estorno) e a escrita mudaria a estrutura dele: acrescentar filho, ou mudar a `quantidadePorPai` de um filho dele; mudar só a descrição ou a quantidade passa (Fase 5C, C8); leva `mensagem`: «{nome do pai} tem conjunto à espera de montagem: a estrutura dele não muda enquanto houver conjunto na Solda. Dê baixa ou descarte o que está à espera, ou monte antes.» |
   | `PedidoFechado` | `POST /agrupamentos/{id}/estrutura`, `POST /estrutura/{id}/filhos`, `PUT /estrutura/{id}` (e `POST /importacoes/{id}/confirmacao`) | o Pedido está `Concluido` (Fase 5A, C15): a estrutura de um Pedido concluído não se edita, e quem precisa mudá-lo estorna a última remessa; leva `mensagem` |
   | `DiminuirPelaBaixa` | `PUT /estrutura/{id}` | a quantidade nova é **menor** que a atual com o Pedido `EmProducao` ou `AguardandoExpedicao` (Fase 5B-1, D12); aumentar é livre; a `mensagem` manda usar o "Dar baixa" |
   | `ComAfericao` | `PUT /estrutura/{id}` | mudar `requerRelatorioDimensional` de uma Peça que tem aferição válida (Fase 5A, C14); leva `mensagem` |
@@ -836,6 +839,10 @@ Setor e números quando ajudam.
 | 409 | `PaiSemRoteiro` | entrega para a montagem de pai sem Roteiro |
 | 409 | `PassoJaAlcancado` | editar, remover ou inserir antes de passo que já é histórico |
 | 409 | `QuantidadeAbaixoDoMovimentado` | reduzir a `Quantidade` do nó (`PUT /estrutura/{id}`) abaixo do que já saiu de "a iniciar" ou, num nó com filhos, do total já montado — mesmo código da seção "Estrutura", listado aqui também porque a spec da Fase 3 (§8.2) o inclui no catálogo de erros da Execução |
+| 400 | `ConjuntoIncompleto` | entrega para a montagem de pai de Kit (regra 25, Fase 3B): a lista não traz todos os filhos diretos do pai, a quantidade de algum filho não fecha um número inteiro de conjuntos, ou os filhos não dão o mesmo número de conjuntos |
+| 409 | `AlemDoQueOPaiPrecisa` | os conjuntos passam do teto de entrada do pai de Kit: o que ele ainda precisa receber menos os conjuntos à espera, que desde a Fase 5C são os completos mais os em formação (regra 25) |
+| 409 | `PaiJaIniciado` | acrescentar filho (`POST /estrutura/{id}/filhos`) a nó que já saiu de "a iniciar", líquido de estorno (Fase 3B, D1; definitivo desde a Fase 5C, D1); mesmo código da seção "Estrutura", listado aqui também por ser contrato da Execução |
+| 409 | `PaiComConjuntoAEspera` | acrescentar filho, ou mudar a `quantidadePorPai` de um filho, de pai de Kit que recebe em conjunto e tem algo aguardando montagem em Setor `UtilizaKit` (Fase 5C, C8); mesmo código da seção "Estrutura"; leva `mensagem` |
 | 409 | `EstornoImpossivel` | a quantidade já andou; estorno de estorno; baixa de montagem, ou Início de pai que consumiu filhos, estornados sozinhos; estorno de montagem cujo pai já andou; linha de contagem, de liberação ou de remessa estornada sozinha por `POST /movimentacoes/{id}/estorno` (C17, Fase 5A) |
 | 409 | `JaEstornado` | o registro já foi estornado |
 | 409 | `PedidoFechado` | movimentar nó de Pedido `Concluido` ou `Cancelado`, ou pausá-lo. Desde a Fase 5A vale também para **estrutura** em Pedido `Concluido` (criar Peça, acrescentar filho, editar nó e confirmar o import; C15, seção "Estrutura"). **Não** recusa o estorno de uma remessa de Pedido `Concluido`, que o reabre (C13); o de Pedido `Cancelado`, sim |
@@ -1284,8 +1291,8 @@ da Execução.
 
 // 200 das prévias: PreviaDaBaixaDto
 { "linhas": [ /* LinhaDaBaixaDto, como acima */ ],
-  "viramSobra": [ { "estruturaItemId": 830, "descricao": "Chapa dobrada", "quantidade": 2 } ],
-  "travaNoTopo": { "pecaId": 812, "descricao": "Suporte lateral", "quantidade": 1, "aIniciar": 3 } | null }
+  "viramSobra": [ { "estruturaItemId": 830, "descricao": "Chapa dobrada", "codigo": "CH-210", "quantidade": 2 } ],
+  "travaNoTopo": { "pecaId": 812, "descricao": "Suporte lateral", "codigo": "SUP-114", "quantidade": 1, "aIniciar": 3 } | null }
 ```
 
 - **`escopo`** é o que a baixa alcançou: `No` (o nó em que se clicou; as linhas podem ser dele, de descendentes e, por
@@ -1299,6 +1306,8 @@ da Execução.
   própria baixa trava), e é nulo quando não trava; `quantidade` é o que a perda trava na Peça do topo e `aIniciar` o que
   ela ainda tem a iniciar — a baixa leva `min` dos dois. A prévia devolve `travaNoTopo` na baixa de parte de um Item,
   com qualquer motivo, e na de tudo por perda (D14), e `null` na de tudo por `Descarte` (o filho sai do projeto, C22).
+- **`codigo`**, em `viramSobra` e em `travaNoTopo`, é o código do Componente do nó, como o da linha, e é `null` no nó sem
+  Componente (um Item só com descrição); a tela rotula o nó com ele ("{código} — {descrição}").
 - A mesma baixa de nó na prévia e na escrita faz a **mesma conta** (C14 da spec da Fase 5B-1): a prévia
   não é uma cópia da conta no cliente, ao contrário da `tiradaDaRemessa`.
 

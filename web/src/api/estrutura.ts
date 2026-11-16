@@ -86,7 +86,8 @@ export interface EdicaoDeNo {
  * `lerNoOuConflito` trataria esse 409 como "formato inesperado" e a frase do servidor se perderia.
  * Desde a Fase 3B, `acrescentarFilho` também responde `PaiJaIniciado` (D1 da spec da Fase 3B). Desde a Fase 5A,
  * `criarPeca`, `acrescentarFilho` e `editarNo` respondem `PedidoFechado` (C15: a estrutura de um Pedido concluído
- * não se edita) e `editarNo` responde `ComAfericao` (C14), os dois com `mensagem`.
+ * não se edita) e `editarNo` responde `ComAfericao` (C14), os dois com `mensagem`. Desde a Fase 5C, `acrescentarFilho` e
+ * `editarNo` (a razão de um Item) respondem `PaiComConjuntoAEspera` (C8 da spec da 5C), também com `mensagem`.
  */
 export type CodigoDeConflitoDeEstrutura =
   | 'CicloNaReceita'
@@ -102,6 +103,7 @@ export type CodigoDeConflitoDeEstrutura =
   | 'PedidoFechado'
   | 'ComAfericao'
   | 'DiminuirPelaBaixa'
+  | 'PaiComConjuntoAEspera'
 
 /**
  * Corpo do 409 dos endpoints de escrita da árvore: `{ "erro": "<código>", "mensagem": "<frase>" }`.
@@ -125,7 +127,7 @@ const codigosDeConflito: readonly CodigoDeConflitoDeEstrutura[] = [
   'CicloNaReceita', 'EstruturaProfundaDemais', 'EstruturaGrandeDemais', 'PedidoNaoAberto',
   'QuantidadeAbaixoDoMovimentado', 'ConflitoDeConcorrencia', 'PaiJaIniciado', 'NoComSeparacao',
   'NoComMovimentacao', 'NoComRetrabalho',
-  'PedidoFechado', 'ComAfericao', 'DiminuirPelaBaixa',
+  'PedidoFechado', 'ComAfericao', 'DiminuirPelaBaixa', 'PaiComConjuntoAEspera',
 ]
 
 export function ehConflitoDeEstrutura(r: unknown): r is ConflitoDeEstrutura {

@@ -56,8 +56,10 @@ describe('PreviaDaBaixa', () => {
   })
 
   it('a sobra continua com o titulo e a lista de hoje', () => {
-    render(<PreviaDaBaixa previa={previa({ viramSobra: [{ estruturaItemId: 8, descricao: 'Parafuso', quantidade: 2 }] })} noId={7} />)
+    render(<PreviaDaBaixa previa={previa({ viramSobra: [{ estruturaItemId: 8, descricao: 'Parafuso', codigo: 'PF-3020', quantidade: 2 }] })} noId={7} />)
     expect(screen.getByText('Ficam onde estão e viram sobra:')).toBeTruthy()
-    expect(within(screen.getByRole('list', { name: 'Viram sobra' })).getAllByRole('listitem')).toHaveLength(1)
+    const sobra = within(screen.getByRole('list', { name: 'Viram sobra' }))
+    expect(sobra.getAllByRole('listitem')).toHaveLength(1)
+    expect(sobra.getByText('2 de PF-3020 — Parafuso')).toBeTruthy()
   })
 })

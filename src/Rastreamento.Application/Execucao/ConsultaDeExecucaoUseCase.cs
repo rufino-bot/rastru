@@ -64,8 +64,9 @@ public sealed class ConsultaDeExecucaoUseCase
     {
       // C25 da spec da Fase 5B-1: o no de Pedido `Concluido` so aparece na secao "Sobra".
       var concluido = concluidos.Contains(no.Id);
-      // No com filhos inicia pelo card de montagem, consumindo os filhos (spec da Fase 3D, secao 6.1). O Avulso cujos
-      // filhos sairam todos do projeto nao tem o que consumir e entra aqui como folha (C22 da spec da Fase 5B-1).
+      // No com filhos inicia pelo card de montagem, consumindo os filhos (spec da Fase 3D, secao 6.1). O pai cujos
+      // filhos sairam todos do projeto nao tem o que consumir e entra aqui como folha, seja Avulso (C22 da spec da
+      // Fase 5B-1) ou Kit (C9 da spec da Fase 5C).
       if (!concluido && calc.IniciaComoFolha(no.Id) && calc.PrimeiroPasso(no.Id) is PassoDoCalculo primeiro && primeiro.SetorId == setorId
           && calc.Saldo(no.Id, Local.AIniciar) is var aIniciarAqui && aIniciarAqui > 0m)
         aIniciar.Add(new LinhaDaFilaDto(resumos[no.Id], primeiro.Ordem, aIniciarAqui, []));
@@ -109,9 +110,13 @@ public sealed class ConsultaDeExecucaoUseCase
           // espera o Movimentador. `AguardandoConserto` ainda e do Movimentador e fica nas Tarefas.
           conserto.Add(new LinhaDeConsertoDto(resumos[no.Id], local.Posicao, quantidade,
               estornaveis.DoLocal(no.Id, local, quantidade)));
-        else if (local.Posicao == PosicaoConst.AguardandoMontagem && calc.ExcessoEmMontagem(no.Id) is var excesso && excesso > 0m)
-          sobra.Add(new LinhaDeSobraDto(resumos[no.Id], EmMontagem, null, excesso,
-              calc.SetoresOndeAguardaMontagem(no.Id).Count > 1, []));
+        else if (local.Posicao == PosicaoConst.AguardandoMontagem
+                 && calc.SobraEmMontagemPorSetor(no.Id).Where(s => s.SetorId == setorId).Sum(s => s.Quantidade) is var daqui
+                 && daqui > 0m)
+          // A parte DESTE Setor, pela reparticao de SobraEmMontagemPorSetor (C16 da spec da Fase 5C no pai que recebe em conjunto;
+          // ordem de Id do Setor nos outros), a mesma do "Usar a sobra" e, no pai que recebe em conjunto, do "falta" do cartao de montagem;
+          // as linhas dos Setores somam o `ExcessoEmMontagem` do no, e o teto do "Descartar" e o que esta aqui.
+          sobra.Add(new LinhaDeSobraDto(resumos[no.Id], EmMontagem, null, daqui, ReparticaoPorConvencao(calc, no), []));
       }
     }
 
@@ -119,6 +124,8 @@ public sealed class ConsultaDeExecucaoUseCase
         .Where(n => n.PaiId is not null && !concluidos.Contains(n.Id) && calc.AguardandoMontagem(n.Id, setorId) > 0m)
         .Select(n => n.PaiId!.Value)
         .Distinct()
+        // O pai sem nada a montar nao e cartao: toda a espera dos filhos e sobra, e ela mora na secao "Sobra".
+        .Where(paiId => calc.FaltaMontar(paiId) > 0m)
         .PeloPrazo(id => id, prazos)
         .Select(paiId =>
         {
@@ -156,6 +163,16 @@ public sealed class ConsultaDeExecucaoUseCase
         sobra.PeloPrazo(s => s.No.Id, prazos).ThenBy(s => s.Ordem ?? int.MaxValue).ToList(),
         conserto.PeloPrazo(l => l.No.Id, prazos).ToList()));
   }
+
+  /// <summary>
+  /// Se a parte da sobra em montagem deste Setor e uma CONVENCAO: o pai nao recebe em conjunto, ainda tem o que montar e
+  /// o filho espera em mais de um Setor, entao nao ha como saber em qual deles esta a unidade a mais e a conta a poe pela
+  /// ordem de Id. No pai que recebe em conjunto a reparticao e a da C16; sem nada a montar, tudo e sobra e cada Setor
+  /// mostra o proprio saldo.
+  /// </summary>
+  private static bool ReparticaoPorConvencao(CalculadoraDeExecucao calc, NoDoCalculo no) =>
+      no.PaiId is int paiId && !calc.RecebeEmConjunto(paiId) && calc.FaltaMontar(paiId) > 0m
+      && calc.SetoresOndeAguardaMontagem(no.Id).Count > 1;
 
   /// <summary>
   /// O resumo de material de cada no pedido (`CalculoDaSeparacao.ResumoDaFila`), numa leitura de planejado,

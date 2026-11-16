@@ -236,6 +236,136 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Equal(("Montagem", (int?)null, 5m, true), (sobra.Origem, sobra.Ordem, sobra.Quantidade, sobra.EmMaisDeUmSetor));
   }
 
+  // O cenario so zera FaltaMontar (uma Montagem sem consumir os filhos); nao modela um cenario que conserva.
+  [Fact]
+  public async Task Pai_sem_nada_a_montar_sai_de_aguardando_montagem_e_a_espera_dos_filhos_e_sobra_inteira()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Execucao.Montagens.Add(new Montagem
+    {
+      Id = 900, EstruturaItemId = 1, SetorId = Solda, Quantidade = 5m, DataHora = DateTime.UtcNow, UsuarioId = Operador,
+    });   // o pai ja foi montado por inteiro: FaltaMontar 0
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
+
+    var fila = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
+
+    Assert.Empty(fila.AguardandoMontagem);
+    var sobra = Assert.Single(fila.Sobra);
+    Assert.Equal((2, "Montagem", (int?)null, 3m, false),
+        (sobra.No.Id, sobra.Origem, sobra.Ordem, sobra.Quantidade, sobra.EmMaisDeUmSetor));
+  }
+
+  [Fact]
+  public async Task Pai_com_o_que_montar_continua_em_aguardando_montagem_e_sem_sobra()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
+
+    var fila = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
+
+    var grupo = Assert.Single(fila.AguardandoMontagem);
+    Assert.Equal((1, 5m), (grupo.Pai.Id, grupo.FaltaMontar));
+    Assert.Empty(fila.Sobra);
+  }
+
+  [Fact]
+  public async Task Sobra_do_filho_de_pai_Kit_em_dois_Setores_aparece_so_no_Setor_onde_a_conta_a_poe()
+  {
+    // Pai Kit de 10 (primeiro passo na Solda, com `UtilizaKit`); B e C de razao 1. Na Solda: 5 de B e 2 de C (dois
+    // conjuntos fecham, sobram 3 de B). Na Pintura, que nao tem a marca: 11 de B, dos quais 8 servem ao que o pai
+    // ainda precisa depois dos conjuntos contados, e 3 sao sobra (C16 da spec da Fase 5C).
+    var c = new CenarioDeExecucao();
+    c.Kit();
+    c.No(1, null, 10m, null, Solda);
+    c.No(2, 1, 20m, 1m, Corte);
+    c.No(3, 1, 20m, 1m, Corte);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 5m);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 2m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 11m);
+
+    var naSolda = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.Sobra;
+    var naPintura = (await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.Sobra;
+
+    var daSolda = Assert.Single(naSolda);
+    var daPintura = Assert.Single(naPintura);
+    Assert.Equal((2, 3m, false), (daSolda.No.Id, daSolda.Quantidade, daSolda.EmMaisDeUmSetor));
+    Assert.Equal((2, 3m, false), (daPintura.No.Id, daPintura.Quantidade, daPintura.EmMaisDeUmSetor));
+    Assert.Equal(c.Calcular().ExcessoEmMontagem(2), daSolda.Quantidade + daPintura.Quantidade);
+  }
+
+  [Fact]
+  public async Task Sobra_do_Avulso_em_dois_Setores_e_repartida_pela_ordem_de_Id_e_avisa_que_e_convencao()
+  {
+    // Pai de 10; o filho de razao 4 precisa de 40 e espera 46: 6 de sobra, 3 na Solda e 3 na Pintura (ordem de Id).
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda, Pintura);
+    c.No(3, 1, 45m, 4m, Corte);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 43m);
+
+    var naSolda = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.Sobra);
+    var naPintura = Assert.Single((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.Sobra);
+
+    Assert.Equal((3m, true), (naSolda.Quantidade, naSolda.EmMaisDeUmSetor));
+    Assert.Equal((3m, true), (naPintura.Quantidade, naPintura.EmMaisDeUmSetor));
+    Assert.Equal(c.Calcular().ExcessoEmMontagem(3), naSolda.Quantidade + naPintura.Quantidade);
+  }
+
+  [Fact]
+  public async Task Avulso_em_dois_Setores_cuja_sobra_cabe_num_so_nao_poe_linha_no_outro()
+  {
+    // O teste Excesso_em_montagem_aparece_na_sobra_e_diz_quando_o_filho_esta_em_mais_de_um_Setor, visto do outro lado: 5 de sobra, todos na Solda; a Pintura nao tem sobra a mostrar.
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda, Pintura);
+    c.No(3, 1, 45m, 4m, Corte);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 30m);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 15m);
+
+    Assert.Empty((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.Sobra);
+  }
+
+  [Fact]
+  public async Task Sobra_do_Avulso_com_o_que_montar_num_Setor_so_nao_avisa_que_e_convencao()
+  {
+    // Pai Avulso de 10, ainda sem nada montado; o filho de razao 4 precisa de 40 e espera 45, todos na Solda: 5 de
+    // sobra, e nao ha outro Setor entre os quais reparti-la.
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 10m, null, Solda);
+    c.No(3, 1, 45m, 4m, Corte);
+    c.Mover(3, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 45m);
+
+    var fila = (await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!;
+
+    Assert.Equal(10m, Assert.Single(fila.AguardandoMontagem).FaltaMontar);
+    var sobra = Assert.Single(fila.Sobra);
+    Assert.Equal((3, "Montagem", 5m, false), (sobra.No.Id, sobra.Origem, sobra.Quantidade, sobra.EmMaisDeUmSetor));
+  }
+
+  // O cenario so zera FaltaMontar (uma Montagem sem consumir os filhos); nao modela um cenario que conserva.
+  [Fact]
+  public async Task Pai_sem_nada_a_montar_com_o_filho_em_dois_Setores_mostra_em_cada_um_o_proprio_saldo_sem_aviso()
+  {
+    var c = new CenarioDeExecucao();
+    c.No(1, null, 5m, null, Solda, Pintura);
+    c.No(2, 1, 5m, 1m, Corte);
+    c.Execucao.Montagens.Add(new Montagem
+    {
+      Id = 900, EstruturaItemId = 1, SetorId = Solda, Quantidade = 5m, DataHora = DateTime.UtcNow, UsuarioId = Operador,
+    });
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Solda), 3m);
+    c.Mover(2, TiposDeMovimentacao.Entrega, Local.AguardandoColeta(Corte, 1), Local.AguardandoMontagem(Pintura), 2m);
+
+    var naSolda = Assert.Single((await c.Consulta().Fila(Solda, ComoOperador, Ct)).Valor!.Sobra);
+    var naPintura = Assert.Single((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.Sobra);
+
+    Assert.Equal((3m, false), (naSolda.Quantidade, naSolda.EmMaisDeUmSetor));
+    Assert.Equal((2m, false), (naPintura.Quantidade, naPintura.EmMaisDeUmSetor));
+  }
+
   [Fact]
   public async Task Resumo_do_no_traz_o_caminho_Pedido_Agrupamento_pai()
   {

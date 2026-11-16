@@ -9,7 +9,7 @@ import { CampoDeCaixa } from '../components/CampoDeCaixa'
 import { EstadoCarregando } from '../components/EstadoCarregando'
 import { PainelDeEscrita } from '../components/PainelDeEscrita'
 import { CampoDeQuantidade, useEscritaDoPainel } from '../expedicao/escritaDoPainel'
-import { formatarQuantidade, rotuloDoSaldo } from '../execucao/formatacao'
+import { formatarQuantidade, rotuloDoNo, rotuloDoSaldo } from '../execucao/formatacao'
 import { lerQuantidade, quantidadeParaCampo, type LeituraDeQuantidade } from '../execucao/quantidade'
 import { chaveDoSaldo, saldosParaBaixa } from './posicoesDaBaixa'
 import { PreviaDaBaixa } from './PreviaDaBaixa'
@@ -222,7 +222,7 @@ export function PainelDeBaixa({
                 ? `Só ${formatarQuantidade(trava.aIniciar)} ainda estão a iniciar; as outras ficam onde estão.`
                 : undefined}
             >
-              {`Isso impede montar ${formatarQuantidade(trava.quantidade)} ${trava.descricao}. Dar baixa também delas`}
+              {`Isso impede montar ${formatarQuantidade(trava.quantidade)} ${rotuloDoNo({ codigoDoComponente: trava.codigo, descricao: trava.descricao })}. Dar baixa também delas`}
             </CampoDeCaixa>
           )}
         </div>

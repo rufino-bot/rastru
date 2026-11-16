@@ -98,14 +98,15 @@ public class CalculadoraComPerdaTests
   }
 
   [Fact]
-  public void Kit_cujos_filhos_sairam_todos_fica_de_fora_da_folha_ate_a_5C()
+  public void Kit_cujos_filhos_sairam_todos_inicia_como_folha()
   {
+    // C9 da spec da Fase 5C: o pai de Kit sem filho que conte inicia como folha, como o Avulso.
     var calc = Calcular(
         [No(1, null, 10m, null, true, Solda), No(2, 1, 10m, 1m, true, Corte)],
         saidos: new HashSet<int> { 2 });
 
-    Assert.False(calc.IniciaComoFolha(1));
-    Assert.Equal(0m, calc.CalcularMontabilidade(1, Solda).DaParaMontar);
+    Assert.True(calc.IniciaComoFolha(1));
+    Assert.Equal(10m, calc.CalcularMontabilidade(1, Solda).DaParaMontar);
   }
 
   [Fact]

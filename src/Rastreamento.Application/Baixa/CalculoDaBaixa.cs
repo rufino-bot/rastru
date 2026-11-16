@@ -47,7 +47,10 @@ public static class CalculoDaBaixa
       }
     }
 
-    return Result<PlanoDaBaixa>.Ok(new PlanoDaBaixa(rascunho.Linhas, rascunho.ViramSobra(), trava));
+    // O Item descartado por inteiro sai do projeto (C22 da spec da Fase 5B-1) e deixa de contar para os conjuntos do
+    // pai: a espera dos irmaos nao vira sobra por causa dele.
+    int? saiDoProjeto = pedido.Tudo && !EhPerda(pedido.Motivo) ? pedido.NoId : null;
+    return Result<PlanoDaBaixa>.Ok(new PlanoDaBaixa(rascunho.Linhas, rascunho.ViramSobra(saiDoProjeto), trava));
   }
 
   /// <summary>
@@ -205,8 +208,13 @@ public static class CalculoDaBaixa
   {
     private readonly CalculadoraDeExecucao _calc;
     private readonly List<LinhaPlanejada> _linhas = new();
+    private readonly Retirada _retirada;
 
-    public Rascunho(CalculadoraDeExecucao calc) => _calc = calc;
+    public Rascunho(CalculadoraDeExecucao calc)
+    {
+      _calc = calc;
+      _retirada = new Retirada(Planejado);
+    }
 
     public IReadOnlyList<LinhaPlanejada> Linhas => _linhas;
 
@@ -219,9 +227,12 @@ public static class CalculoDaBaixa
 
     private decimal Tirado(int noId) => _linhas.Where(l => l.NoId == noId).Sum(l => l.Quantidade);
 
+    /// <summary>O que as linhas planejadas tiram do no numa posicao. E a `Retirada` que a calculadora recebe.</summary>
+    private decimal Planejado(int noId, Local origem) =>
+        _linhas.Where(l => l.NoId == noId && l.Origem == origem).Sum(l => l.Quantidade);
+
     /// <summary>O "a iniciar" planejado do no: e o que, somado ao ja gravado, sai do que ele falta montar.</summary>
-    private decimal PlanejadoDeAIniciar(int noId) =>
-        _linhas.Where(l => l.NoId == noId && l.Origem == Local.AIniciar).Sum(l => l.Quantidade);
+    private decimal PlanejadoDeAIniciar(int noId) => Planejado(noId, Local.AIniciar);
 
     private decimal EmProducaoDepois(int noId) => _calc.EmProducao(noId) - Tirado(noId);
 
@@ -237,11 +248,37 @@ public static class CalculoDaBaixa
     private decimal DeveAntes(int paiId, NoDoCalculo filho) => Math.Max(0m, _calc.FaltaMontar(paiId)) * Razao(filho);
 
     /// <summary>
+    /// O fabricado do filho (o em producao fora do "a iniciar") que nao cobre o pai (C15 e secao 3.5 da spec da Fase
+    /// 5C), sobre o "depois" das linhas planejadas ou, com `depois` falso, sobre o estado de antes: a sobra em montagem
+    /// da calculadora (`ExcessoEmMontagem`, que no pai que recebe em conjunto inclui o resto do conjunto quebrado), mais
+    /// o fabricado fora da espera que passa do que o pai ainda pede alem da espera que vale,
+    /// `exc + max(0, (fab - esp) - max(0, deve - (esp - exc)))`. No pai que nao recebe em conjunto, `exc` e
+    /// `max(0, esp - deve)` e a conta se reduz a `max(0, fab - deve)`, a da Fase 5B-1.
+    /// </summary>
+    private decimal SobraDoFabricado(int paiId, NoDoCalculo filho, bool depois = true)
+    {
+      var espera = _calc.AguardandoMontagemTotal(filho.Id);
+      var fabricado = _calc.EmProducao(filho.Id) - _calc.Saldo(filho.Id, Local.AIniciar);
+      if (depois)
+      {
+        espera -= _linhas.Where(l => l.NoId == filho.Id && l.Origem.Posicao == Posicoes.AguardandoMontagem).Sum(l => l.Quantidade);
+        fabricado = EmProducaoDepois(filho.Id) - AIniciarDepois(filho.Id);
+      }
+      var deve = depois ? DeveDepois(paiId, filho) : DeveAntes(paiId, filho);
+      var excesso = _calc.ExcessoEmMontagem(filho.Id, depois ? _retirada : null);
+      return excesso + Math.Max(0m, (fabricado - espera) - Math.Max(0m, deve - (espera - excesso)));
+    }
+
+    /// <summary>
     /// C6 da spec da Fase 5B-1, por nivel: em cada filho, o "a iniciar" alem do que o pai agora pede sai junto, e o
     /// filho que perdeu entra no nivel seguinte. Roda sobre o "depois", entao rodar de novo a partir de outro no (a Peca
-    /// do topo) nao conta duas vezes o que ja saiu. Com `levaOProntoJunto` (a cascata do pronto, C18 da spec da Fase
-    /// 5B-2), o excesso do filho alem do "a iniciar" sai tambem das outras posicoes de onde se da baixa, na ordem dos
-    /// saldos: o pronto de um uso anterior que o pai pronto nao pede mais.
+    /// do topo) nao conta duas vezes o que ja saiu. O que cobre o pai e o em producao do filho menos o fabricado que
+    /// sobra (`SobraDoFabricado`; C15 da spec da Fase 5C): o "a iniciar" que sai e
+    /// `max(0, min(AI, AI + fab - sobraDoFabricado - deve))`. No pai que recebe em conjunto, o resto de um conjunto
+    /// quebrado e sobra, e o "a iniciar" que o substitui fica; nos outros, da o `min(AI, em producao - deve)` da Fase
+    /// 5B-1. Com `levaOProntoJunto` (a cascata do pronto, C18 da spec da Fase 5B-2), sai tambem o fabricado que sobra,
+    /// das outras posicoes de onde se da baixa, na ordem dos saldos: o pronto de um uso anterior que o pai pronto nao
+    /// pede mais.
     /// </summary>
     public void Cascata(int inicio, bool levaOProntoJunto = false)
     {
@@ -252,14 +289,17 @@ public static class CalculoDaBaixa
         foreach (var paiId in nivel)
           foreach (var filho in _calc.Filhos(paiId))
           {
-            var excessoTotal = Math.Max(0m, EmProducaoDepois(filho.Id) - DeveDepois(paiId, filho));
-            var deAIniciar = QuatroCasasParaBaixo(Math.Max(0m, Math.Min(AIniciarDepois(filho.Id), excessoTotal)));
+            var aIniciar = AIniciarDepois(filho.Id);
+            var fabricado = EmProducaoDepois(filho.Id) - aIniciar;
+            var sobraDoFabricado = SobraDoFabricado(paiId, filho);
+            var deAIniciar = QuatroCasasParaBaixo(Math.Max(0m,
+                Math.Min(aIniciar, aIniciar + fabricado - sobraDoFabricado - DeveDepois(paiId, filho))));
             var tirou = deAIniciar;
             if (deAIniciar > 0m) Tirar(filho.Id, Local.AIniciar, deAIniciar);
 
             if (levaOProntoJunto)
             {
-              var resto = QuatroCasasParaBaixo(excessoTotal) - deAIniciar;
+              var resto = QuatroCasasParaBaixo(sobraDoFabricado);
               foreach (var (local, saldo) in _calc.Saldos(filho.Id))
               {
                 if (resto <= 0m) break;
@@ -307,21 +347,26 @@ public static class CalculoDaBaixa
     }
 
     /// <summary>
-    /// O fabricado que passa a sobrar por causa da baixa (C6): em cada filho de um no que perdeu "a iniciar", o que ele
-    /// tem fora do "a iniciar" alem do que o pai pede, depois menos antes. A sobra que ja existia nao entra.
+    /// O fabricado que passa a sobrar por causa da baixa (C6 da spec da Fase 5B-1; C15 da spec da Fase 5C): em cada
+    /// filho de um no que perdeu "a iniciar", e em cada filho de um pai que recebe em conjunto e teve a espera de algum
+    /// filho mexida (o resto do conjunto quebrado), o `SobraDoFabricado` de depois menos o de antes. A sobra que ja
+    /// existia nao entra. `saiDoProjeto` e o no que a baixa descarta por inteiro: ele deixa de contar para os conjuntos
+    /// do pai (C22 da spec da Fase 5B-1), entao a espera dele que sai nao quebra o conjunto dos irmaos.
     /// </summary>
-    public IReadOnlyList<(int NoId, decimal Quantidade)> ViramSobra()
+    public IReadOnlyList<(int NoId, decimal Quantidade)> ViramSobra(int? saiDoProjeto = null)
     {
       var lista = new List<(int NoId, decimal Quantidade)>();
-      var pais = _linhas.Where(l => l.Origem == Local.AIniciar).Select(l => l.NoId).Distinct();
-      foreach (var paiId in pais)
+      var perderamAIniciar = _linhas.Where(l => l.Origem == Local.AIniciar).Select(l => l.NoId);
+      var comConjuntoMexido = _linhas
+          .Where(l => l.Origem.Posicao == Posicoes.AguardandoMontagem && l.NoId != saiDoProjeto)
+          .Select(l => _calc.No(l.NoId).PaiId)
+          .OfType<int>()
+          .Where(_calc.RecebeEmConjunto);
+      foreach (var paiId in perderamAIniciar.Concat(comConjuntoMexido).Distinct().ToList())
         foreach (var filho in _calc.Filhos(paiId))
         {
-          var fabricadoAntes = _calc.EmProducao(filho.Id) - _calc.Saldo(filho.Id, Local.AIniciar);
-          var fabricadoDepois = EmProducaoDepois(filho.Id) - AIniciarDepois(filho.Id);
-          var antes = Math.Max(0m, fabricadoAntes - DeveAntes(paiId, filho));
-          var depois = Math.Max(0m, fabricadoDepois - DeveDepois(paiId, filho));
-          var viraSobra = QuatroCasasParaBaixo(depois - antes);
+          var viraSobra = QuatroCasasParaBaixo(
+              SobraDoFabricado(paiId, filho) - SobraDoFabricado(paiId, filho, depois: false));
           if (viraSobra > 0m) lista.Add((filho.Id, viraSobra));
         }
       return lista.OrderBy(s => s.NoId).ToList();

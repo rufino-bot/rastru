@@ -31,8 +31,11 @@ public static class CalculoDoReaproveitamento
 {
   /// <summary>
   /// A sobra viva do no de origem de cada no do Retrabalho que tem origem, por posicao (decisao P8 do plano de backend
-  /// da Fase 5B-2): aguardando coleta, `SobraDaColeta` de cada passo; aguardando montagem, o `ExcessoEmMontagem`
-  /// repartido pelos Setores em ordem de Id, ate o saldo de cada um. O no acrescentado a mao, sem origem, nao aparece.
+  /// da Fase 5B-2): aguardando coleta, `SobraDaColeta` de cada passo; aguardando montagem, a
+  /// `SobraEmMontagemPorSetor` (C16 da spec da Fase 5C): no filho de pai que recebe em conjunto, primeiro o que nao
+  /// fecha conjunto nos Setores com `UtilizaKit`, depois o que passa do que o pai precisa nos Setores sem a marca; nos
+  /// outros, o `ExcessoEmMontagem` por todos os Setores. Sempre em ordem de Id do Setor, ate o saldo de cada um. O no
+  /// acrescentado a mao, sem origem, nao aparece.
   /// Em ordem de profundidade (de cima para baixo), no e posicao.
   /// </summary>
   public static IReadOnlyList<SobraDisponivel> Disponivel(
@@ -50,15 +53,8 @@ public static class CalculoDoReaproveitamento
         if (sobra > 0m) lista.Add(new SobraDisponivel(noDoRetrabalho, noDeOrigem, local, sobra));
       }
 
-      var excesso = original.ExcessoEmMontagem(noDeOrigem);
-      foreach (var setorId in original.SetoresOndeAguardaMontagem(noDeOrigem))
-      {
-        if (excesso <= 0m) break;
-        var daqui = Math.Min(excesso, original.AguardandoMontagem(noDeOrigem, setorId));
-        if (daqui <= 0m) continue;
-        lista.Add(new SobraDisponivel(noDoRetrabalho, noDeOrigem, Local.AguardandoMontagem(setorId), daqui));
-        excesso -= daqui;
-      }
+      foreach (var (setorId, sobra) in original.SobraEmMontagemPorSetor(noDeOrigem))
+        lista.Add(new SobraDisponivel(noDoRetrabalho, noDeOrigem, Local.AguardandoMontagem(setorId), sobra));
     }
 
     return lista

@@ -217,6 +217,8 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     var sobra = Assert.Single(doPrevisto.GetProperty("viramSobra").EnumerateArray());
     Assert.Equal((c.B, "Suporte", 6m),
         (sobra.GetProperty("estruturaItemId").GetInt32(), sobra.GetProperty("descricao").GetString(), sobra.GetProperty("quantidade").GetDecimal()));
+    // "Suporte" e um Item so com descricao (sem Componente): o codigo vai nulo, como na linha da previa.
+    Assert.Equal(JsonValueKind.Null, sobra.GetProperty("codigo").ValueKind);
     Assert.Equal(JsonValueKind.Null, doPrevisto.GetProperty("travaNoTopo").ValueKind);
     var primeira = doPrevisto.GetProperty("linhas")[0];
     Assert.Equal("Chassi da Fase 3", primeira.GetProperty("descricao").GetString());
@@ -227,6 +229,27 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal(HttpStatusCode.Created, gravada.StatusCode);
     Assert.Equal(LinhasInteiras(doPrevisto), LinhasInteiras(await CorpoAsync(gravada)));
     Assert.Equal(1, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Previa_traz_o_codigo_do_Componente_na_sobra()
+  {
+    // Um neto N copiado do catalogo sob B, iniciado inteiro: a perda de 3 de A deixa de pedir 6 de B e 6 de N, e as 6
+    // de N, que ja sairam de "a iniciar", viram sobra com o codigo do Componente dele (C6).
+    await using var c = await CriarAsync(_factory);
+    var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.B}/filhos",
+        new { componenteId = (int?)c.ComponenteId, descricao = (string?)null, quantidade = 20m, quantidadePorPai = 1m });
+    await Garantir(criado);
+    var neto = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{neto}/roteiro", new { passos = new[] { c.Corte } }));
+    await IniciarAsync(c, neto, c.Corte, 20m);
+
+    var previa = await CorpoAsync(await c.Como(c.Qualidade)
+        .PostAsJsonAsync($"/api/estrutura/{c.A}/baixas/previa", Parte("Descarte", Origem("AIniciar", null, null, 3m))));
+
+    var sobra = previa.GetProperty("viramSobra").EnumerateArray().Single(s => s.GetProperty("estruturaItemId").GetInt32() == neto);
+    Assert.StartsWith("f3-", sobra.GetProperty("codigo").GetString());
+    Assert.Equal(6m, sobra.GetProperty("quantidade").GetDecimal());
   }
 
   [Fact]
@@ -246,6 +269,8 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal((c.A, "Chassi da Fase 3", 2m, 10m),
         (trava.GetProperty("pecaId").GetInt32(), trava.GetProperty("descricao").GetString(),
          trava.GetProperty("quantidade").GetDecimal(), trava.GetProperty("aIniciar").GetDecimal()));
+    // O codigo do Componente da Peca do topo, para a caixa "Isso impede montar" rotulá-la.
+    Assert.StartsWith("f3-", trava.GetProperty("codigo").GetString());
     Assert.Equal([(c.B, "NoSetor", 4m)], Linhas(previa));
 
     var resposta = await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", corpo);
@@ -1482,10 +1507,11 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
   }
 
   [Fact]
-  public async Task Resumo_de_material_da_Fila_nao_mostra_no_descartado_por_inteiro()
+  public async Task Pai_descartado_por_inteiro_sai_de_aguardando_montagem_e_a_espera_do_filho_vira_sobra()
   {
     // A (planejada com material) tem todo o B na montagem da Solda e uma segunda Peca em aberto, que segura o Pedido.
-    // Descartada A por inteiro (10 "a iniciar"), o cartao de montagem continua (B aguarda), mas sem o resumo (C26).
+    // Descartada A por inteiro (10 "a iniciar"), nao falta montar nada: o cartao sai de "Aguardando montagem", e com ele
+    // o resumo (C26), e a espera de B, que e sobra inteira, aparece na secao "Sobra", onde esta o "Descartar".
     await using var c = await CriarAsync(_factory);
     var parafuso = await c.CriarMaterialAsync("PAR");
     await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.A}/materiais",
@@ -1493,16 +1519,22 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     await PecaNaExpedicaoAsync(c, 5m);
     await LevarParaAMontagemAsync(c, c.B, c.Corte, 20m);
 
-    static JsonElement CartaoDeA(JsonElement fila, int a) =>
-        fila.GetProperty("aguardandoMontagem").EnumerateArray().Single(m => m.GetProperty("pai").GetProperty("id").GetInt32() == a);
-    var antes = CartaoDeA(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila")), c.A);
-    Assert.NotEqual(JsonValueKind.Null, antes.GetProperty("material").ValueKind);
+    static bool TemCartaoDe(JsonElement fila, int a) =>
+        fila.GetProperty("aguardandoMontagem").EnumerateArray().Any(m => m.GetProperty("pai").GetProperty("id").GetInt32() == a);
+    var antes = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila"));
+    Assert.True(TemCartaoDe(antes, c.A));
+    var cartao = antes.GetProperty("aguardandoMontagem").EnumerateArray()
+        .Single(m => m.GetProperty("pai").GetProperty("id").GetInt32() == c.A);
+    Assert.NotEqual(JsonValueKind.Null, cartao.GetProperty("material").ValueKind);
 
     await Garantir(await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.A}/baixas",
         Parte("Descarte", Origem("AIniciar", null, null, 10m))));
 
-    var depois = CartaoDeA(await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila")), c.A);
-    Assert.Equal(JsonValueKind.Null, depois.GetProperty("material").ValueKind);
+    var depois = await CorpoAsync(await c.Como(c.Gestao).GetAsync($"/api/setores/{c.Solda}/fila"));
+    Assert.False(TemCartaoDe(depois, c.A));
+    var sobraDeB = depois.GetProperty("sobra").EnumerateArray().Single(l =>
+        l.GetProperty("origem").GetString() == "Montagem" && l.GetProperty("no").GetProperty("id").GetInt32() == c.B);
+    Assert.Equal((20m, false), (sobraDeB.GetProperty("quantidade").GetDecimal(), sobraDeB.GetProperty("emMaisDeUmSetor").GetBoolean()));
   }
 
   [Fact]

@@ -81,6 +81,8 @@ const MOTIVO_DA_RECUSA_EXCLUSAO: Record<Exclude<ResultadoDeEstrutura, 'ok'>, str
   ComAfericao: 'Não foi possível excluir: conflito na estrutura.',
   // Fase 5B-1: `DiminuirPelaBaixa` é só do editar (a quantidade só aumenta com o Pedido rodando); entra pelo mesmo motivo.
   DiminuirPelaBaixa: 'Não foi possível excluir: conflito na estrutura.',
+  // Fase 5C: `PaiComConjuntoAEspera` é só do acrescentar e do editar a razão; entra pelo mesmo motivo.
+  PaiComConjuntoAEspera: 'Não foi possível excluir: conflito na estrutura.',
   ConflitoDeConcorrencia: 'Outra pessoa registrou neste item ao mesmo tempo; atualize e tente de novo.',
 }
 
