@@ -470,9 +470,10 @@ entra no início de cada fase.*
       de um filho que já estava na Solda do original, sem o irmão. Pela conta de sempre ela entraria nos conjuntos à
       espera, o teto de entrada do pai cairia a zero e o irmão fabricado nunca entraria. A regra: para o pai que recebe
       em conjunto e tem algum filho que chegou à montagem por um `Pronto`, os **conjuntos em formação que contam** são
-      `min(ConjuntosAEspera − completos, max(0, FaltaMontar − completos))`, em que `completos` é o menor, entre os
-      filhos diretos, de ⌊espera do filho ÷ `QuantidadePorPai`⌋ — o limite pelo que o pai ainda precisa é a letra desta
-      regra (nunca além do necessário), e o excesso aparece quando o pai perde "a iniciar" depois do pronto. A entrega
+      `min(maisAdiantado − completos, max(0, FaltaMontar − completos))`, em que `completos` é o menor, entre os
+      filhos diretos, de ⌊espera do filho ÷ `QuantidadePorPai`⌋, e `maisAdiantado` é o maior, entre os mesmos filhos,
+      de ⌈espera do filho ÷ `QuantidadePorPai`⌉ (os conjuntos do filho mais adiantado) — o limite pelo que o pai
+      ainda precisa é a letra desta regra (nunca além do necessário), e o excesso aparece quando o pai perde "a iniciar" depois do pronto. A entrega
       de um irmão aceita, **além dos conjuntos completos de sempre** (até o teto), o **complemento**
       `max(0, (completos + conjuntos em formação que contam) × QuantidadePorPai − espera do filho)`. O complemento já
       está contado na espera, então não ocupa o teto, e não passa do que o pai ainda precisa. Se há conjunto completo

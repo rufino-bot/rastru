@@ -447,10 +447,11 @@ public sealed class CalculadoraDeExecucao
 
   /// <summary>
   /// Os conjuntos em formacao do pai que ainda valem (D8 da spec da Fase 5B-2; decisao P4 do plano de backend, limitada
-  /// pela regra 25): no pai que recebe em conjunto e tem algum filho que chegou a montagem por um `Pronto`, os conjuntos a
-  /// espera que ainda nao estao completos, `ConjuntosAEspera - completos`, limitados ao que o pai ainda precisa receber
-  /// alem dos completos, `max(0, FaltaMontar - completos)` (regra 25: nunca alem do que o no ainda precisa). O excesso
-  /// aparece quando o pai perde "a iniciar" depois do pronto. Sem `Pronto` em montagem, zero.
+  /// pela regra 25): no pai que recebe em conjunto e tem algum filho que chegou a montagem por um `Pronto`, os conjuntos
+  /// do filho mais adiantado que ainda nao estao completos, `maisAdiantado - completos`, em que `maisAdiantado` e o maior
+  /// `ceil(espera / razao)` entre os filhos que contam (a conta e a de `Formacao`), limitados ao que o pai ainda
+  /// precisa receber alem dos completos, `max(0, FaltaMontar - completos)` (regra 25: nunca alem do que o no ainda
+  /// precisa). O excesso aparece quando o pai perde "a iniciar" depois do pronto. Sem `Pronto` em montagem, zero.
   /// </summary>
   public decimal ConjuntosEmFormacao(int paiId) => Formacao(paiId, null, null).QueValem;
 
