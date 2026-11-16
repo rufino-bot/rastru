@@ -236,6 +236,7 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Equal(("Montagem", (int?)null, 5m, true), (sobra.Origem, sobra.Ordem, sobra.Quantidade, sobra.EmMaisDeUmSetor));
   }
 
+  // O cenario so zera FaltaMontar (uma Montagem sem consumir os filhos); nao modela um cenario que conserva.
   [Fact]
   public async Task Pai_sem_nada_a_montar_sai_de_aguardando_montagem_e_a_espera_dos_filhos_e_sobra_inteira()
   {
@@ -317,7 +318,7 @@ public class ConsultaDeExecucaoUseCaseTests
   [Fact]
   public async Task Avulso_em_dois_Setores_cuja_sobra_cabe_num_so_nao_poe_linha_no_outro()
   {
-    // A existente, vista do outro lado: 5 de sobra, todos na Solda; a Pintura nao tem sobra a mostrar.
+    // O teste Excesso_em_montagem_aparece_na_sobra_e_diz_quando_o_filho_esta_em_mais_de_um_Setor, visto do outro lado: 5 de sobra, todos na Solda; a Pintura nao tem sobra a mostrar.
     var c = new CenarioDeExecucao();
     c.No(1, null, 10m, null, Solda, Pintura);
     c.No(3, 1, 45m, 4m, Corte);
@@ -327,6 +328,7 @@ public class ConsultaDeExecucaoUseCaseTests
     Assert.Empty((await c.Consulta().Fila(Pintura, ComoOperador, Ct)).Valor!.Sobra);
   }
 
+  // O cenario so zera FaltaMontar (uma Montagem sem consumir os filhos); nao modela um cenario que conserva.
   [Fact]
   public async Task Pai_sem_nada_a_montar_com_o_filho_em_dois_Setores_mostra_em_cada_um_o_proprio_saldo_sem_aviso()
   {

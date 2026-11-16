@@ -112,7 +112,8 @@ public sealed class ConsultaDeExecucaoUseCase
         else if (local.Posicao == PosicaoConst.AguardandoMontagem
                  && calc.SobraEmMontagemPorSetor(no.Id).Where(s => s.SetorId == setorId).Sum(s => s.Quantidade) is var daqui
                  && daqui > 0m)
-          // A parte DESTE Setor (C16 da spec da Fase 5C), a mesma conta do "Usar a sobra" e do "falta" do cartao de montagem;
+          // A parte DESTE Setor, pela reparticao de SobraEmMontagemPorSetor (C16 da spec da Fase 5C no pai que recebe em conjunto;
+          // ordem de Id do Setor nos outros), a mesma do "Usar a sobra" e, no pai que recebe em conjunto, do "falta" do cartao de montagem;
           // as linhas dos Setores somam o `ExcessoEmMontagem` do no, e o teto do "Descartar" e o que esta aqui.
           sobra.Add(new LinhaDeSobraDto(resumos[no.Id], EmMontagem, null, daqui, ReparticaoPorConvencao(calc, no), []));
       }

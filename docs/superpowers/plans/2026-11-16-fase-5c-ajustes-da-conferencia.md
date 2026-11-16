@@ -146,8 +146,8 @@ sobra da Fila ficou na conta total.
 1. **O pai com `FaltaMontar` ≤ 0 sai de "Aguardando montagem".** Com falta 0, toda a espera dos filhos é sobra, e ela
    aparece inteira na seção "Sobra", onde já mora o "Descartar".
 2. **A linha de sobra em montagem da Fila usa `SobraEmMontagemPorSetor(no)` filtrada para o Setor da fila**, em vez de
-   `ExcessoEmMontagem(no)`. Setor sem sobra para aquele filho não tem linha. Assim a Fila, o "Usar a sobra" e o "falta"
-   do cartão usam a mesma conta, a soma das linhas de sobra em montagem de um filho (somando os Setores) é o
+   `ExcessoEmMontagem(no)`. Setor sem sobra para aquele filho não tem linha. Assim a Fila e o "Usar a sobra" usam a
+   mesma conta (no pai que recebe em conjunto, o "falta" do cartão também; no Avulso o "falta" não subtrai a sobra), a soma das linhas de sobra em montagem de um filho (somando os Setores) é o
    `ExcessoEmMontagem` dele, e o teto do "Descartar" de cada linha é o que está naquele Setor.
 3. **`EmMaisDeUmSetor`** (o aviso "Este item aguarda montagem em mais de um Setor; não dá para saber em qual está a
    unidade a mais.") só é verdadeiro quando a repartição é uma **convenção**: pai que **não** recebe em conjunto

@@ -319,7 +319,7 @@ arquivo é **uma Peça**, e a montagem de topo é a raiz dela.
     - O pai sem nada a iniciar (`FaltaMontar` zero) **não é cartão** de "Aguardando montagem": toda a espera dos
       filhos dele é sobra, e aparece inteira na seção **Sobra**, onde está o "Descartar".
     - A linha de sobra "em montagem" mostra a quantidade **daquele Setor**, pela mesma repartição do "Usar a
-      sobra" e do "falta" do cartão de montagem; o Setor sem sobra daquele filho não tem linha, e a soma das linhas
+      sobra" (e, no pai que recebe em conjunto, do "falta" do cartão de montagem); o Setor sem sobra daquele filho não tem linha, e a soma das linhas
       dos Setores é a sobra do filho. O teto do "Descartar" da linha é o que está naquele Setor.
     - O aviso "Este item aguarda montagem em mais de um Setor; não dá para saber em qual está a unidade a mais."
       só aparece quando a repartição é **convenção**: o pai que **não** recebe em conjunto, ainda com o que

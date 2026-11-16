@@ -576,8 +576,8 @@ Fase 3 — menos o registro do `Descarte` da regra 30, que entrou na Fase 5B-1 (
     de tarefas do Movimentador e aparece à parte, no Setor onde está. No pai que recebe em conjunto (Kit, regra 25),
     a sobra inclui também o que está à espera de montagem e **não fecha conjunto**, mesmo que o pai ainda precisasse
     de mais dele (Fase 5C): aparece na linha "em montagem" da Fila, com o "Descartar". A linha mostra a parte da
-    sobra que está **naquele Setor** (a repartição da C16, a mesma do "Usar a sobra"), e o pai sem nada a iniciar não
-    é cartão de "Aguardando montagem": a espera dos filhos dele é sobra inteira. Só deixa de estar em produção
+    sobra que está **naquele Setor** (a repartição da C16 no pai que recebe em conjunto, a mesma do "Usar a sobra"). Em
+    qualquer pai, o que não tem nada a iniciar não é cartão de "Aguardando montagem": a espera dos filhos dele é sobra inteira. Só deixa de estar em produção
     por uma perda de motivo `Descarte` (regras 17 e 38), registrada pelo mesmo ator da perda — Qualidade,
     PCP ou Administrador — a qualquer momento depois de virar sobra, **da própria linha da sobra** na Fila do
     Setor (C17 da spec da 5B-1: a tela limita a quantidade à sobra da linha, o servidor não). A regra 13 não
