@@ -496,7 +496,7 @@ entra no início de cada fase.*
       montagem sai da Fila e do "Usar a sobra" na mesma conta: por filho,
       `max(0, espera em Setores UtilizaKit − min(conjuntos à espera, max(0, FaltaMontar)) × razão)`, mais a espera
       fora de Setor `UtilizaKit` que passa do que os conjuntos contados deixam (C16). O que o pai ainda precisa
-      receber de um filho desconta a espera **menos a sobra** (C5), e o "falta X de Y para a próxima" da Fila
+      receber de um filho desconta a espera **menos a sobra** (C5), e o "faltam N" (ou "falta 1") da linha do filho na Fila
       também (C6), para o conjunto quebrado não reduzir a tarefa da coleta nem convidar a completá-lo. O
       "Usar a sobra" oferece a sobra em montagem por Setor, primeiro a da Solda, depois a de fora dela (C16).
     - **A guarda `PaiComConjuntoAEspera` (C8).** Duas escritas mudam a estrutura de um Kit com conjunto à espera e

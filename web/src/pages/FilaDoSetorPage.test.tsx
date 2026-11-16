@@ -240,7 +240,7 @@ describe('FilaDoSetorPage — leitura', () => {
     }
   })
 
-  it('aguardando montagem diz quanto dá para iniciar e o que falta para a próxima', async () => {
+  it('aguardando montagem diz quanto dá para iniciar e só quanto falta de cada filho', async () => {
     vi.stubGlobal('fetch', fetchPorRota({ '/api/setores/1/fila': () => respostaJson(FILA_CHEIA) }))
 
     renderizar()
@@ -248,9 +248,28 @@ describe('FilaDoSetorPage — leitura', () => {
     const montagem = await screen.findByRole('list', { name: 'Aguardando montagem' })
     expect(within(montagem).getByText('Dá para iniciar 2; falta iniciar 10.')).toBeTruthy()
     const filhos = within(montagem).getByRole('list', { name: 'Filhos de Chassi' })
-    expect(within(filhos).getByText('SUP-01 — Suporte: 9 aqui, 4 por unidade — falta 3 de 12 para a próxima')).toBeTruthy()
+    // Sem o total ("de 12") e sem o "para a próxima".
+    expect(within(filhos).getByText('SUP-01 — Suporte: 9 aqui, 4 por unidade — faltam 3')).toBeTruthy()
+    expect(within(filhos).queryByText(/para a próxima/)).toBeNull()
+    expect(within(filhos).queryByText(/ de 12/)).toBeNull()
     // Filho que já basta para a próxima unidade não mostra "falta 0".
     expect(within(filhos).getByText('Parafuso: 5 aqui, 1 por unidade')).toBeTruthy()
+  })
+
+  it('a linha do filho com falta 1 diz "falta 1", no singular', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/setores/1/fila': () => respostaJson(fila({
+        aguardandoMontagem: [{
+          material: null,
+          pai: CHASSI, faltaMontar: 2, daParaMontar: 2, iniciaAqui: true, primeiroPassoDoPai: { id: 1, nome: 'Corte' }, conjuntoCompleto: false,
+          filhos: [{ no: SUPORTE, quantidadePorPai: 4, presente: 3, necessarioParaProxima: 4, faltaParaProxima: 1 }],
+        }],
+      })),
+    }))
+
+    renderizar()
+
+    expect(await screen.findByText('SUP-01 — Suporte: 3 aqui, 4 por unidade — falta 1')).toBeTruthy()
   })
 
   it('a lista de filhos nasce recolhida, com a contagem, quando nenhum filho tem ação', async () => {

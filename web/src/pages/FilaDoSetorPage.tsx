@@ -893,7 +893,7 @@ function GrupoDeMontagem({ grupo, temAcaoNosFilhos, acaoDoFilho }: {
               <span>
                 {`${rotuloDoNo(f.no)}: ${formatarQuantidade(f.presente)} aqui, ${formatarQuantidade(f.quantidadePorPai)} por unidade`}
                 {f.faltaParaProxima !== null && f.faltaParaProxima > 0 && f.necessarioParaProxima !== null
-                  && ` — falta ${formatarQuantidade(f.faltaParaProxima)} de ${formatarQuantidade(f.necessarioParaProxima)} para a próxima`}
+                  && ` — ${f.faltaParaProxima === 1 ? 'falta' : 'faltam'} ${formatarQuantidade(f.faltaParaProxima)}`}
               </span>
               {acaoDoFilho(f)}
             </li>
