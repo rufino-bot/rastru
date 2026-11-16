@@ -859,9 +859,16 @@ O que a 5B-1 entregou do escopo antigo da 5B inteira, e o que fica para a 5B-2:
 
 ### Fase 5C — As pontas do Kit que a 3B deixou
 
-**Estado:** em execução. Spec: `docs/superpowers/specs/2026-11-12-fase-5c-pontas-do-kit-design.md`; plano:
-`docs/superpowers/plans/2026-11-12-fase-5c.md`. Uma spec, um plano e um PR (C1). Sem mudança de schema
-e sem `db/alter-fase-5c.sql` (C10).
+**Estado (2026-11-16):** **concluída e mesclada na `main`** em 2026-11-16, pelo PR rufino-bot/rastru#38 (merge
+`fccafa8`, cujo segundo pai é `98f20da`, o último commit da branch). Spec:
+`docs/superpowers/specs/2026-11-12-fase-5c-pontas-do-kit-design.md`; plano: `docs/superpowers/plans/2026-11-12-fase-5c.md`.
+Uma spec, um plano e um PR (C1). Sem mudança de schema e sem `db/alter-fase-5c.sql` (C10). A conferência do usuário no
+navegador e a review de branch inteira foram feitas em 2026-11-16, e a review foi consertada na branch antes do merge.
+Os três ajustes da conferência (plano `docs/superpowers/plans/2026-11-16-fase-5c-ajustes-da-conferencia.md`) entraram
+no mesmo PR, mas **não são da 5C**, e vieram junto por decisão do usuário: o "faltam N" (ou "falta 1") da linha do filho
+no cartão de montagem da Fila, o código do componente na sobra e na caixa do topo da prévia da baixa, e o pai sem nada a
+iniciar fora de "Aguardando montagem", com a linha de sobra em montagem mostrando a parte de cada Setor. Com a 5C, **a
+Fase 5 está concluída**; a seguinte é a 3C ou a Fase 6, cuja ordem entre si não está decidida (seção «Fase 3C»).
 
 - **O Kit com perda e com espera desalinhada** (D5 da spec da Fase 3B; regras 25 e 30 de `01`): os conjuntos à espera
   passam a ser os **completos** (o menor, entre os filhos que contam, de ⌊espera ÷ razão⌋, mais os conjuntos em

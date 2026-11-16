@@ -198,8 +198,16 @@ Concluídas até aqui:
   «Em {Setor}» de Tarefas recolhidos, a Fila do Setor e as Tarefas pelo prazo de entrega e as frases do login.
   Mesclada na `main` pelo PR #37, em 2026-11-12.
 
-**Próxima: Fase 5C** — as pontas do Kit que a 3B deixou, ainda sem spec. Depois dela vem a Fase 6, os KPIs de tempo
-por setor e por pedido. A Fase 3C (notificação push) fica depois da Fase 5, como o roadmap declara.
+- **Fase 5C:** as pontas do Kit que a 3B deixou (spec `docs/superpowers/specs/2026-11-12-fase-5c-pontas-do-kit-design.md`).
+  O Kit conta só os conjuntos completos, e o que espera sem fechar conjunto vira sobra, com o «Descartar» na Fila e
+  oferecido pelo «Usar a sobra»; a baixa usa a mesma sobra; a estrutura de um Kit com conjunto à espera não muda; e a
+  estrutura alterada no meio da produção foi decidida sem código novo. A conferência do usuário no navegador e a review
+  de branch foram feitas em 2026-11-16. Vieram no mesmo PR, por decisão do usuário, três ajustes da conferência que não
+  são da 5C: o «faltam N» na linha do filho na Fila, o código do componente na prévia da baixa e o pai sem nada a iniciar
+  fora de «Aguardando montagem», com a sobra mostrada por Setor. Mesclada na `main` pelo PR #38, em 2026-11-16.
+
+**A Fase 5 está concluída.** A próxima é a Fase 3C (notificação push), que o roadmap põe depois da Fase 5, ou a Fase 6
+(os KPIs de tempo por setor e por pedido): a ordem entre as duas ainda não está decidida.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).

@@ -84,8 +84,15 @@ review de branch inteira, em 2026-11-12, consertada antes do merge. Os ajustes d
 PR, mas **só o F1 (a cascata do pronto) e o F2 (o painel do "Não
 repor" na largura da linha) são da 5B-2**; o F3 (os grupos "Em {Setor}" de Tarefas recolhidos), o F4 (a Fila do Setor e as
 Tarefas pelo prazo de entrega do Pedido) e o F5 (as frases do login) **não são**, e vieram junto por decisão do usuário
-(2026-11-10). A seguinte é a **5C**, que ainda não tem spec,
-e da D5 da 3B ela perde só a perda do próprio pai, que a 5B-1 entregou (C21 da spec da 5B-1). O "Descartar Peça ou Item
+(2026-11-10). A seguinte foi a **5C** (spec `docs/superpowers/specs/2026-11-12-fase-5c-pontas-do-kit-design.md`;
+planos `docs/superpowers/plans/2026-11-12-fase-5c.md` e `…-fase-5c-ajustes-da-conferencia.md`), **concluída e
+mesclada em 2026-11-16** (rufino-bot/rastru#38): o Kit conta só conjuntos completos e o resto é sobra, a baixa usa a
+mesma sobra, a recusa `PaiComConjuntoAEspera` e a guarda `PaiJaIniciado` definitiva (regras 24, 25, 30, 38 e 39 de
+`specs/01`), sem mudança de schema. A conferência do usuário no navegador e a review de branch inteira foram feitas em
+2026-11-16. Os três ajustes da conferência (F1 a F3: o "faltam N" da linha do filho na Fila, o código na prévia da baixa
+e o pai sem nada a iniciar fora de "Aguardando montagem", com a sobra em montagem por Setor) **não são da 5C** e vieram
+no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte é a **3C** ou a **Fase 6**: a
+posição de uma em relação à outra **não está decidida**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
 
