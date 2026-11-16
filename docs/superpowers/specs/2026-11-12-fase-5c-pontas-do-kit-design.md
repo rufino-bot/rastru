@@ -136,6 +136,19 @@ em formação que valem (eles estão em `contados`), então a peça pronta que e
 exemplo da 4.5 da spec da 5B-2 (pai de 1, A pronto na Solda, B razão 1) tem de continuar dando teto 0, complemento 1 de
 B e sobra 0.
 
+*Nota de 2026-11-16 (decisão da implementação).* O código soma o termo em formação **sem** o limite do que o pai ainda
+precisa: `ConjuntosAEspera` devolve `completos + (⌈⌉ − completos)`, com o `EmFormacao` de `Formacao`, e não a fórmula
+acima, que é `completos + ConjuntosEmFormacao`. A soma dá o próprio ⌈⌉ do mais adiantado, o número que esta seção diz
+que `ConjuntosAEspera` era. O valor do método público passa da fórmula quando os conjuntos em formação passam do que o
+pai ainda precisa além dos completos, `max(0, FaltaMontar − completos)`. É o caso do teste `Conjunto_em_formacao_nao_passa_do_que_o_pai_ainda_precisa`: pai de
+2 que perdeu 1 de "a iniciar" depois do pronto (falta montar 1), com 2 A prontos na Solda e B, de razão 1, sem nada
+aguardando montagem. Ali o método devolve 2, e a fórmula dá `0 + min(2, 1) = 1`. O teto, a sobra e o `Precisa` saem
+iguais nas duas formas, porque quem os calcula limita o valor ao que falta montar: o teto é
+`max(0, FaltaMontar − ConjuntosAEspera)`, que dá zero nas duas, e os `contados` da 3.2 são
+`min(ConjuntosAEspera, max(0, FaltaMontar))`, que dão 1 nas duas. O teste
+`Conjunto_em_formacao_alem_do_que_o_pai_precisa_da_o_mesmo_teto_sobra_e_precisa` fixa essa igualdade. A C2 e a 3.1 dão
+a mesma definição ("em formação que valem") e a nota vale para elas.
+
 ### 3.4 Os caminhos de desalinhamento (C7, C8)
 
 | Caminho | Antes | Depois |

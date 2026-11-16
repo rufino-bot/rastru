@@ -428,7 +428,12 @@ public sealed class CalculadoraDeExecucao
   /// <summary>
   /// Os conjuntos que entraram e ainda nao foram montados (regra 25; C2 da spec da Fase 5C): os completos, o menor
   /// `floor(espera / razao)` entre os filhos que contam, mais os em formacao do pai com `Pronto` em montagem (D8 da
-  /// spec da Fase 5B-2), que sao zero em qualquer outro pai. O que espera e nao fecha conjunto nao ocupa vaga: e sobra
+  /// spec da Fase 5B-2), que sao zero em qualquer outro pai. Os em formacao entram sem o limite do que o pai ainda
+  /// precisa: e o `EmFormacao` de `Formacao`, e nao o `ConjuntosEmFormacao`, entao o valor passa de
+  /// `completos + ConjuntosEmFormacao` quando os em formacao passam de `max(0, FaltaMontar - completos)` (secao 3.3
+  /// da spec da Fase 5C). O teto, a sobra e o `Precisa` saem iguais nas duas formas, porque limitam o valor ao que
+  /// falta montar: `TetoDeEntrada` pelo `max(0, ...)`, e `SobraEmMontagem`, que soma o mesmo termo sem limite e
+  /// alimenta o `Precisa`, pelo `min` com `max(0, FaltaMontar)`. O que espera e nao fecha conjunto nao ocupa vaga: e sobra
   /// (`ExcessoEmMontagem`). `saindo` (filho -> quantidade) e o que um redirecionamento tira da espera de um Setor com
   /// `UtilizaKit`: ja estava contado, nao conta de novo.
   /// </summary>

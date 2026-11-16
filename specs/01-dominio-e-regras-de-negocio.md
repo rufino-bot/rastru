@@ -439,7 +439,8 @@ entra no início de cada fase.*
 25. **Conjunto completo.** Um Kit pode ir à Solda em parte do pai (os conjuntos de 7 de 10), mas
     **nunca incompleto nem além do necessário**: a entrada de filhos de Agrupamento Kit num Setor
     com `UtilizaKit`, para a montagem do pai, só é aceita em conjuntos completos —
-    `N × QuantidadePorPai` de **todos** os filhos diretos, juntos, na mesma movimentação —, e com
+    `N × QuantidadePorPai` de **todos** os filhos diretos que contam (os que não saíram do projeto, regra 38),
+    juntos, na mesma movimentação —, e com
     N **sem passar do que o nó ainda
     precisa receber**: a quantidade dele, menos o total já montado e menos os conjuntos que já
     estão à espera de montagem em **qualquer** Setor com `UtilizaKit`. Desde a Fase 5C (D5 e C2 da spec
@@ -467,12 +468,16 @@ entra no início de cada fase.*
       outras.
     - **O conjunto em formação do pronto (D8 da spec da Fase 5B-2; decisão P4 do plano de backend da fase).** No
       **Retrabalho**, o que um `Pronto` pôs em `AguardandoMontagem` (regra 27) é um conjunto **em formação**: a sobra
-      de um filho que já estava na Solda do original, sem o irmão. Pela conta de sempre ela entraria nos conjuntos à
-      espera, o teto de entrada do pai cairia a zero e o irmão fabricado nunca entraria. A regra: para o pai que recebe
-      em conjunto e tem algum filho que chegou à montagem por um `Pronto`, os **conjuntos em formação que contam** são
-      `min(maisAdiantado − completos, max(0, FaltaMontar − completos))`, em que `completos` é o menor, entre os
-      filhos diretos, de ⌊espera do filho ÷ `QuantidadePorPai`⌋, e `maisAdiantado` é o maior, entre os mesmos filhos,
-      de ⌈espera do filho ÷ `QuantidadePorPai`⌉ (os conjuntos do filho mais adiantado) — o limite pelo que o pai
+      de um filho que já estava na Solda do original, sem o irmão. Sem esta regra o irmão fabricado nunca entraria,
+      pelas duas contas que os conjuntos à espera já tiveram: pela da Fase 3B, a do filho mais adiantado, a peça pronta sozinha entraria
+      nos conjuntos à espera e o teto de entrada do pai cairia a zero; pela dos completos, desde a 5C, ela seria sobra
+      em montagem (regra 30), e o teto continuaria aberto, mas o irmão não entraria sozinho, porque a entrega em
+      conjunto pede todos os filhos que contam juntos e a peça pronta não tem o que mandar pela coleta. A regra: para
+      o pai que recebe em conjunto e tem algum filho que chegou à montagem por um `Pronto`, os **conjuntos em formação
+      que contam** são `min(maisAdiantado − completos, max(0, FaltaMontar − completos))`, em que `completos` é o
+      menor, entre os filhos diretos que contam, de ⌊espera do filho ÷ `QuantidadePorPai`⌋, e `maisAdiantado` é o
+      maior, entre os mesmos filhos, de ⌈espera do filho ÷ `QuantidadePorPai`⌉ (os conjuntos do filho mais
+      adiantado) — o limite pelo que o pai
       ainda precisa é a letra desta regra (nunca além do necessário), e o excesso aparece quando o pai perde "a iniciar" depois do pronto. A entrega
       de um irmão aceita, **além dos conjuntos completos de sempre** (até o teto), o **complemento**
       `max(0, (completos + conjuntos em formação que contam) × QuantidadePorPai − espera do filho)`. O complemento já
