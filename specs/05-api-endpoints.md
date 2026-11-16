@@ -1291,8 +1291,8 @@ da Execução.
 
 // 200 das prévias: PreviaDaBaixaDto
 { "linhas": [ /* LinhaDaBaixaDto, como acima */ ],
-  "viramSobra": [ { "estruturaItemId": 830, "descricao": "Chapa dobrada", "quantidade": 2 } ],
-  "travaNoTopo": { "pecaId": 812, "descricao": "Suporte lateral", "quantidade": 1, "aIniciar": 3 } | null }
+  "viramSobra": [ { "estruturaItemId": 830, "descricao": "Chapa dobrada", "codigo": "CH-210", "quantidade": 2 } ],
+  "travaNoTopo": { "pecaId": 812, "descricao": "Suporte lateral", "codigo": "SUP-114", "quantidade": 1, "aIniciar": 3 } | null }
 ```
 
 - **`escopo`** é o que a baixa alcançou: `No` (o nó em que se clicou; as linhas podem ser dele, de descendentes e, por
@@ -1306,6 +1306,8 @@ da Execução.
   própria baixa trava), e é nulo quando não trava; `quantidade` é o que a perda trava na Peça do topo e `aIniciar` o que
   ela ainda tem a iniciar — a baixa leva `min` dos dois. A prévia devolve `travaNoTopo` na baixa de parte de um Item,
   com qualquer motivo, e na de tudo por perda (D14), e `null` na de tudo por `Descarte` (o filho sai do projeto, C22).
+- **`codigo`**, em `viramSobra` e em `travaNoTopo`, é o código do Componente do nó, como o da linha, e é `null` no nó sem
+  Componente (um Item só com descrição); a tela rotula o nó com ele ("{código} — {descrição}").
 - A mesma baixa de nó na prévia e na escrita faz a **mesma conta** (C14 da spec da Fase 5B-1): a prévia
   não é uma cópia da conta no cliente, ao contrário da `tiradaDaRemessa`.
 

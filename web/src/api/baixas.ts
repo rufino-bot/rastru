@@ -79,6 +79,7 @@ export interface BaixaDto {
 export interface SobraDaBaixaDto {
   estruturaItemId: number
   descricao: string
+  codigo: string | null
   quantidade: number
 }
 
@@ -86,6 +87,7 @@ export interface SobraDaBaixaDto {
 export interface TravaNoTopoDto {
   pecaId: number
   descricao: string
+  codigo: string | null
   quantidade: number
   aIniciar: number
 }

@@ -217,6 +217,8 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     var sobra = Assert.Single(doPrevisto.GetProperty("viramSobra").EnumerateArray());
     Assert.Equal((c.B, "Suporte", 6m),
         (sobra.GetProperty("estruturaItemId").GetInt32(), sobra.GetProperty("descricao").GetString(), sobra.GetProperty("quantidade").GetDecimal()));
+    // "Suporte" e um Item so com descricao (sem Componente): o codigo vai nulo, como na linha da previa.
+    Assert.Equal(JsonValueKind.Null, sobra.GetProperty("codigo").ValueKind);
     Assert.Equal(JsonValueKind.Null, doPrevisto.GetProperty("travaNoTopo").ValueKind);
     var primeira = doPrevisto.GetProperty("linhas")[0];
     Assert.Equal("Chassi da Fase 3", primeira.GetProperty("descricao").GetString());
@@ -227,6 +229,27 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal(HttpStatusCode.Created, gravada.StatusCode);
     Assert.Equal(LinhasInteiras(doPrevisto), LinhasInteiras(await CorpoAsync(gravada)));
     Assert.Equal(1, await PerdasDoPedidoAsync(c));
+  }
+
+  [Fact]
+  public async Task Previa_traz_o_codigo_do_Componente_na_sobra()
+  {
+    // Um neto N copiado do catalogo sob B, iniciado inteiro: a perda de 3 de A deixa de pedir 6 de B e 6 de N, e as 6
+    // de N, que ja sairam de "a iniciar", viram sobra com o codigo do Componente dele (C6).
+    await using var c = await CriarAsync(_factory);
+    var criado = await c.Como(c.Pcp).PostAsJsonAsync($"/api/estrutura/{c.B}/filhos",
+        new { componenteId = (int?)c.ComponenteId, descricao = (string?)null, quantidade = 20m, quantidadePorPai = 1m });
+    await Garantir(criado);
+    var neto = (await CorpoAsync(criado)).GetProperty("id").GetInt32();
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{neto}/roteiro", new { passos = new[] { c.Corte } }));
+    await IniciarAsync(c, neto, c.Corte, 20m);
+
+    var previa = await CorpoAsync(await c.Como(c.Qualidade)
+        .PostAsJsonAsync($"/api/estrutura/{c.A}/baixas/previa", Parte("Descarte", Origem("AIniciar", null, null, 3m))));
+
+    var sobra = previa.GetProperty("viramSobra").EnumerateArray().Single(s => s.GetProperty("estruturaItemId").GetInt32() == neto);
+    Assert.StartsWith("f3-", sobra.GetProperty("codigo").GetString());
+    Assert.Equal(6m, sobra.GetProperty("quantidade").GetDecimal());
   }
 
   [Fact]
@@ -246,6 +269,8 @@ public class BaixaEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
     Assert.Equal((c.A, "Chassi da Fase 3", 2m, 10m),
         (trava.GetProperty("pecaId").GetInt32(), trava.GetProperty("descricao").GetString(),
          trava.GetProperty("quantidade").GetDecimal(), trava.GetProperty("aIniciar").GetDecimal()));
+    // O codigo do Componente da Peca do topo, para a caixa "Isso impede montar" rotulá-la.
+    Assert.StartsWith("f3-", trava.GetProperty("codigo").GetString());
     Assert.Equal([(c.B, "NoSetor", 4m)], Linhas(previa));
 
     var resposta = await qualidade.PostAsJsonAsync($"/api/estrutura/{c.B}/baixas", corpo);

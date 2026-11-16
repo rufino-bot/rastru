@@ -67,10 +67,10 @@ public sealed record BaixaDto(
     PedidoRetrabalhoResumoDto? PedidoRetrabalho = null, DispensaDto? Dispensa = null, decimal ARepor = 0m);
 
 /// <summary>Um no cujo fabricado passa a sobrar por causa da baixa (C6).</summary>
-public sealed record SobraDaBaixaDto(int EstruturaItemId, string Descricao, decimal Quantidade);
+public sealed record SobraDaBaixaDto(int EstruturaItemId, string Descricao, string? Codigo, decimal Quantidade);
 
 /// <summary>As unidades da Peca do topo que a baixa trava, e quantas dela estao a iniciar (secao 4.6, D13 e D14).</summary>
-public sealed record TravaNoTopoDto(int PecaId, string Descricao, decimal Quantidade, decimal AIniciar);
+public sealed record TravaNoTopoDto(int PecaId, string Descricao, string? Codigo, decimal Quantidade, decimal AIniciar);
 
 /// <summary>O que a baixa gravaria, sem gravar (C14): as linhas, a sobra que nasce e a trava no topo.</summary>
 public sealed record PreviaDaBaixaDto(

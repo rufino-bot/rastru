@@ -26,12 +26,12 @@ function previa(parcial: Partial<PreviaDaBaixaDto> = {}): PreviaDaBaixaDto {
       { estruturaItemId: 7, descricao: 'Suporte', codigo: 'SUP-01', origemPosicao: 'AIniciar', origemSetorId: null, origemSetorNome: null, origemOrdem: null, quantidade: 3 },
       { estruturaItemId: 8, descricao: 'Parafuso', codigo: null, origemPosicao: 'NoSetor', origemSetorId: 1, origemSetorNome: 'Corte', origemOrdem: 1, quantidade: 6 },
     ],
-    viramSobra: [{ estruturaItemId: 8, descricao: 'Parafuso', quantidade: 2 }],
+    viramSobra: [{ estruturaItemId: 8, descricao: 'Parafuso', codigo: 'PF-3020', quantidade: 2 }],
     travaNoTopo: null,
     ...parcial,
   }
 }
-const TRAVA = { pecaId: 2, descricao: 'Chassi', quantidade: 2, aIniciar: 2 }
+const TRAVA = { pecaId: 2, descricao: 'Chassi', codigo: 'MT-1010', quantidade: 2, aIniciar: 2 }
 
 function chamadas(fetchMock: ReturnType<typeof vi.fn>, rota: string): unknown[] {
   return fetchMock.mock.calls
@@ -101,7 +101,7 @@ describe('PainelDeBaixa', () => {
     const bloco = await esperarPrevia()
     expect(within(bloco).getByText('3 de SUP-01 — Suporte, a iniciar')).toBeTruthy()
     expect(within(bloco).getByText('6 de Parafuso, Corte (passo 1)')).toBeTruthy()
-    expect(within(bloco).getByText('2 de Parafuso')).toBeTruthy()
+    expect(within(bloco).getByText('2 de PF-3020 — Parafuso')).toBeTruthy()
     expect(chamadas(fetchMock, PREVIA)).toEqual([{
       motivo: 'PerdaArmazem', observacao: null, tudo: false, incluirTopo: true,
       origens: [{ posicao: 'AIniciar', setorId: null, ordem: null, quantidade: 3 }],
@@ -205,7 +205,7 @@ describe('PainelDeBaixa', () => {
     digitar('4 a iniciar', '1')
     await esperarPrevia()
 
-    const caixa = await screen.findByRole('checkbox', { name: 'Isso impede montar 2 Chassi. Dar baixa também delas' })
+    const caixa = await screen.findByRole('checkbox', { name: 'Isso impede montar 2 MT-1010 — Chassi. Dar baixa também delas' })
     expect((caixa as HTMLInputElement).checked).toBe(true)
     await waitFor(() => expect(enviar('Dar baixa em 1').disabled).toBe(false))
     fireEvent.click(enviar('Dar baixa em 1'))
@@ -237,7 +237,7 @@ describe('PainelDeBaixa', () => {
     escolher('Morreu num processo')
     escolher('Tudo o que está em produção')
 
-    const caixa = await screen.findByRole('checkbox', { name: 'Isso impede montar 2 Chassi. Dar baixa também delas' })
+    const caixa = await screen.findByRole('checkbox', { name: 'Isso impede montar 2 MT-1010 — Chassi. Dar baixa também delas' })
 
     expect((caixa as HTMLInputElement).checked).toBe(true)
     expect((chamadas(fetchMock, PREVIA)[0] as { incluirTopo: boolean }).incluirTopo).toBe(true)
