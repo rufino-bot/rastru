@@ -619,6 +619,70 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
     }
   }
 
+  /// <summary>Faz um "Gerar miniatura" confirmar num contexto a parte assim que o INSERT dos
+  /// arquivos do envio e confirmado na transacao -- exatamente entre a leitura do Componente e o
+  /// UPDATE que liga o solido novo.</summary>
+  private sealed class GeraMiniaturaNoMeioDoEnvio(
+      int componenteId, int usuarioId, string nome, byte[] sha256DoSolidoAntigo) : SaveChangesInterceptor
+  {
+    public ResultadoDaMiniaturaAvulsa? Resultado { get; private set; }
+
+    public override async ValueTask<int> SavedChangesAsync(
+        SaveChangesCompletedEventData eventData, int result, CancellationToken ct = default)
+    {
+      if (Resultado is null)
+      {
+        await using var outro = NovoContexto();
+        Resultado = await new ArquivoDeComponenteRepository(outro).GravarMiniaturaAvulsaAsync(
+            componenteId, NovoArquivo(usuarioId, nome, MiniaturaDeTeste()),
+            sha256DoSolidoAntigo, ct);
+      }
+      return result;
+    }
+  }
+
+  [Fact]
+  public async Task Envio_sem_miniatura_com_miniatura_avulsa_confirmada_no_meio_deixa_a_FK_nula()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+    var antigo = NovoArquivo(usuarioId, "antigo.stl", ConteudoDeTeste());
+    var novo = NovoArquivo(usuarioId, "novo.stl", [0x7F, 0x7E, 0x7D]);
+    await using (var db = NovoContexto())
+      await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+          componenteId, antigo, null, CancellationToken.None);
+    var nome = $"avulsa-{Guid.NewGuid():N}.png";
+    var geradora = new GeraMiniaturaNoMeioDoEnvio(
+        componenteId, usuarioId, nome, SHA256.HashData(ConteudoDeTeste()));
+
+    try
+    {
+      var opcoes = new DbContextOptionsBuilder<RastreamentoDbContext>()
+          .UseSqlServer("Server=localhost,1433;Database=Rastreamento;User Id=sa;Password=Your_strong_Pass123;TrustServerCertificate=True")
+          .AddInterceptors(geradora).Options;
+      await using (var db = new RastreamentoDbContext(opcoes))
+        await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+            componenteId, novo, null, CancellationToken.None);
+
+      // A miniatura avulsa confirmou de fato antes do UPDATE do envio...
+      Assert.Equal(ResultadoDaMiniaturaAvulsa.Gravada, geradora.Resultado);
+      await using var leitura = NovoContexto();
+      var componente = await leitura.Componentes.AsNoTracking().SingleAsync(c => c.Id == componenteId);
+      Assert.Equal(novo.Id, componente.ArquivoSolidoId);
+      // ... e o envio, que veio sem miniatura, nao deixa a do solido antigo ao lado do novo (C6).
+      Assert.Null(componente.ArquivoMiniaturaId);
+    }
+    finally
+    {
+      var idsDaAvulsa = await IdsDeArquivoDoUsuarioComNomeAsync(nome);
+      await LimparAsync(componenteId, [antigo.Id, novo.Id, .. idsDaAvulsa]);
+    }
+  }
+
   [Fact]
   public async Task Miniatura_avulsa_substituindo_mantem_a_linha_da_anterior_na_tabela()
   {

@@ -23,7 +23,11 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
   /// A miniatura entra no MESMO par de <c>SaveChanges</c>: os dois arquivos sao inseridos no
   /// primeiro, e as duas FKs do Componente (<c>ArquivoSolidoId</c> e <c>ArquivoMiniaturaId</c>)
   /// saem no mesmo UPDATE do segundo. Ultimo-escritor-vence continua valendo para o PAR: o UPDATE
-  /// e um so, entao nao existe o estado "solido de um envio com a miniatura de outro".
+  /// e um so, entao nao existe o estado "solido de um envio com a miniatura de outro". Isso so
+  /// vale porque a coluna da miniatura e FORCADA no UPDATE: o Componente e lido rastreado, e se ele
+  /// estava sem miniatura e o envio vem sem, a atribuicao seria de null para null e o EF omitiria
+  /// a coluna -- um "Gerar miniatura" confirmado no meio deixaria a miniatura do solido antigo ao
+  /// lado do novo.
   /// </para>
   /// </summary>
   public async Task<int?> GravarEVincularComoSolidoAsync(
@@ -47,6 +51,8 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
     componente.ArquivoSolidoId = solido.Id;
     // Sem miniatura a FK vai a null (C6): a anterior era do solido que acabou de ser trocado.
     componente.ArquivoMiniaturaId = miniatura?.Id;
+    // Forca a coluna no UPDATE mesmo quando o valor nao mudou (null para null): ver o XML doc.
+    _db.Entry(componente).Property(c => c.ArquivoMiniaturaId).IsModified = true;
     await _db.SaveChangesAsync(ct);
 
     await transacao.CommitAsync(ct);
