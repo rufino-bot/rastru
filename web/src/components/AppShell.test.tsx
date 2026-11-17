@@ -96,7 +96,7 @@ describe('AppShell', () => {
     }
 
     const destinos = screen.getAllByRole('link').map((l) => l.getAttribute('href'))
-    for (const d of ['/', '/fila', '/tarefas', '/separacao', '/expedicao', '/liberacoes', '/pedidos', '/componentes', '/materiais', '/setores']) {
+    for (const d of ['/', '/panorama', '/fila', '/tarefas', '/separacao', '/expedicao', '/liberacoes', '/pedidos', '/componentes', '/materiais', '/setores']) {
       expect(destinos, `link para ${d}`).toContain(d)
     }
   })
@@ -466,12 +466,13 @@ describe('AppShell — menu em grupos', () => {
   const botaoDoGrupo = (nav: HTMLElement, nome: string | RegExp) => within(nav).getByRole('button', { name: nome })
   const nomesDosLinks = (nav: HTMLElement) => within(nav).queryAllByRole('link').map((l) => l.textContent)
 
-  it('a barra tem quatro entradas, nesta ordem: Produção, Expedição, Pedidos e Cadastros', () => {
+  it('a barra tem cinco entradas, nesta ordem: Panorama, Produção, Expedição, Pedidos e Cadastros', () => {
     renderizarShell()
 
     const entradas = [...barra().querySelectorAll('button, a')].map((e) => e.textContent)
-    expect(entradas).toEqual(['Produção▾', 'Expedição▾', 'Pedidos', 'Cadastros▾'])
-    // Pedidos é link direto; os outros três são grupos.
+    expect(entradas).toEqual(['Panorama', 'Produção▾', 'Expedição▾', 'Pedidos', 'Cadastros▾'])
+    // Panorama e Pedidos são links diretos; os outros três são grupos.
+    expect(within(barra()).getByRole('link', { name: 'Panorama' }).getAttribute('href')).toBe('/panorama')
     expect(within(barra()).getByRole('link', { name: 'Pedidos' }).getAttribute('href')).toBe('/pedidos')
   })
 
@@ -481,7 +482,7 @@ describe('AppShell — menu em grupos', () => {
     for (const nome of ['Produção', 'Expedição', 'Cadastros']) {
       expect(botaoDoGrupo(barra(), nome).getAttribute('aria-expanded'), nome).toBe('false')
     }
-    expect(nomesDosLinks(barra())).toEqual(['Pedidos'])
+    expect(nomesDosLinks(barra())).toEqual(['Panorama', 'Pedidos'])
   })
 
   it('abre e fecha o grupo por clique, e as opções vêm na ordem', () => {
@@ -503,11 +504,11 @@ describe('AppShell — menu em grupos', () => {
     renderizarShell()
 
     fireEvent.click(botaoDoGrupo(barra(), 'Expedição'))
-    expect(nomesDosLinks(barra())).toEqual(['Expedição', 'Liberações', 'Pedidos'])
+    expect(nomesDosLinks(barra())).toEqual(['Panorama', 'Expedição', 'Liberações', 'Pedidos'])
     expect(within(barra()).getByRole('link', { name: 'Liberações' }).getAttribute('href')).toBe('/liberacoes')
 
     fireEvent.click(botaoDoGrupo(barra(), 'Cadastros'))
-    expect(nomesDosLinks(barra())).toEqual(['Pedidos', 'Componentes', 'Materiais', 'Setores'])
+    expect(nomesDosLinks(barra())).toEqual(['Panorama', 'Pedidos', 'Componentes', 'Materiais', 'Setores'])
   })
 
   it('na barra, um grupo aberto por vez', () => {
@@ -596,14 +597,14 @@ describe('AppShell — menu em grupos', () => {
     expect(botaoDoGrupo(gaveta(), 'Cadastros').getAttribute('aria-expanded')).toBe('true')
     expect(botaoDoGrupo(gaveta(), 'Produção').getAttribute('aria-expanded')).toBe('false')
     expect(botaoDoGrupo(gaveta(), 'Expedição').getAttribute('aria-expanded')).toBe('false')
-    expect(nomesDosLinks(gaveta())).toEqual(['Pedidos', 'Componentes', 'Materiais', 'Setores'])
+    expect(nomesDosLinks(gaveta())).toEqual(['Panorama', 'Pedidos', 'Componentes', 'Materiais', 'Setores'])
   })
 
   it('na gaveta, sem rota de grupo (Home), todos os grupos vêm fechados', () => {
     renderizarShell('/')
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }))
 
-    expect(nomesDosLinks(gaveta())).toEqual(['Pedidos'])
+    expect(nomesDosLinks(gaveta())).toEqual(['Panorama', 'Pedidos'])
   })
 
   it('na gaveta, mais de um grupo pode ficar aberto ao mesmo tempo', () => {

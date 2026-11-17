@@ -653,7 +653,8 @@ PC; o teste no Android, com o teto de 5 s da C14, ficou pendente, e nenhum corte
 ## Panorama (decidido em 2026-11-17; executa depois da miniatura e antes da 3C)
 
 Spec: `docs/superpowers/specs/2026-11-17-panorama-design.md` (aprovada em 2026-11-17). Usa o `miniaturaVersao` da spec
-da miniatura.
+da miniatura. Plano: `docs/superpowers/plans/2026-11-17-panorama.md`. O fluxo de usuário está na seção 8 de
+`04-fluxos-de-usuario.md`.
 
 ## Fase 3C — Notificação push
 
