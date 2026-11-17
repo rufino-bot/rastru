@@ -142,6 +142,162 @@ public class PanoramaEndpointsTests : IClassFixture<WebApplicationFactory<Progra
     Assert.Equal(new[] { ("Passo", c.Corte, 1, 4m, 1m), ("Passo", c.Dobra, 2, 2m, 0m) }, segmentosDeD);
   }
 
+  // ------------------------------------------------------------ o "Embalado" (secoes 3.2, 3.3 e 5.2)
+
+  /// <summary>Uma Peca nova de `quantidade`, com `noLocal` unidades no local de expedicao e o resto a iniciar.</summary>
+  private static async Task<int> PecaNoLocalAsync(CenarioDaFase3NaApi c, decimal quantidade, decimal noLocal)
+  {
+    var peca = await PecaNovaAsync(c, quantidade, c.Corte);
+    await IniciarAsync(c, peca, c.Corte, noLocal);
+    await TerminarAsync(c, peca, c.Corte, 1, noLocal);
+    await EntregarAsync(c, peca, c.Corte, 1, noLocal);
+    return peca;
+  }
+
+  private static Task<HttpResponseMessage> Embalar(CenarioDaFase3NaApi c, UsuarioDeTeste quem, int no, object corpo) =>
+      c.Como(quem).PostAsJsonAsync($"/api/estrutura/{no}/embalagem", corpo);
+
+  private static async Task<JsonElement> EmbalagemNoGetAsync(CenarioDaFase3NaApi c, int peca) =>
+      (await CorpoAsync(await c.Como(c.Qualidade).GetAsync("/api/panorama"))).GetProperty("pecas").EnumerateArray()
+          .Single(p => p.GetProperty("estruturaItemId").GetInt32() == peca).GetProperty("embalagem");
+
+  [Fact]
+  public async Task Qualidade_marca_e_o_get_mostra_vale()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNoLocalAsync(c, 4m, 4m);
+
+    var marcou = await Embalar(c, c.Qualidade, peca, new { embalado = true });
+
+    Assert.Equal(HttpStatusCode.NoContent, marcou.StatusCode);
+    var vale = await EmbalagemNoGetAsync(c, peca);
+    Assert.Equal((true, true, 0m, "Marcar"), (
+        vale.GetProperty("vale").GetBoolean(), vale.GetProperty("podeMarcar").GetBoolean(),
+        vale.GetProperty("emProducao").GetDecimal(), vale.GetProperty("ultima").GetProperty("tipo").GetString()));
+    Assert.Equal("Usuario de Teste", vale.GetProperty("ultima").GetProperty("usuario").GetString());
+
+    var jaEmbalado = await Embalar(c, c.Qualidade, peca, new { embalado = true });
+    Assert.Equal(HttpStatusCode.Conflict, jaEmbalado.StatusCode);
+    var corpo = await CorpoAsync(jaEmbalado);
+    Assert.Equal(("JaEmbalado", "Esta Peça já está embalada."), (
+        corpo.GetProperty("erro").GetString(), corpo.GetProperty("mensagem").GetString()));
+
+    var desmarcou = await Embalar(c, c.Pcp, peca, new { embalado = false });
+    Assert.Equal(HttpStatusCode.NoContent, desmarcou.StatusCode);
+    Assert.False((await EmbalagemNoGetAsync(c, peca)).GetProperty("vale").GetBoolean());
+
+    var naoEmbalado = await Embalar(c, c.Qualidade, peca, new { embalado = false });
+    Assert.Equal(HttpStatusCode.Conflict, naoEmbalado.StatusCode);
+    Assert.Equal("NaoEmbalado", (await CorpoAsync(naoEmbalado)).GetProperty("erro").GetString());
+  }
+
+  [Fact]
+  public async Task Gestao_recebe_403_sem_corpo_no_post()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNoLocalAsync(c, 2m, 2m);
+
+    var resposta = await Embalar(c, c.Gestao, peca, new { embalado = true });
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+    Assert.Equal(string.Empty, await resposta.Content.ReadAsStringAsync());
+    Assert.False((await EmbalagemNoGetAsync(c, peca)).GetProperty("vale").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Operador_recebe_403_no_post()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNoLocalAsync(c, 2m, 2m);
+
+    var resposta = await Embalar(c, c.Operador, peca, new { embalado = true });
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Marcar_com_producao_em_andamento_e_409_ProducaoNaoTerminou()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNoLocalAsync(c, 5m, 3m);
+
+    var resposta = await Embalar(c, c.Qualidade, peca, new { embalado = true });
+
+    Assert.Equal(HttpStatusCode.Conflict, resposta.StatusCode);
+    var corpo = await CorpoAsync(resposta);
+    Assert.Equal(("ProducaoNaoTerminou", "Faltam 2 em produção."), (
+        corpo.GetProperty("erro").GetString(), corpo.GetProperty("mensagem").GetString()));
+    Assert.False((await EmbalagemNoGetAsync(c, peca)).GetProperty("vale").GetBoolean());
+  }
+
+  [Fact]
+  public async Task Recusas_de_corpo_de_no_e_de_item()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNoLocalAsync(c, 2m, 2m);
+
+    var semCampo = await Embalar(c, c.Qualidade, peca, new { });
+    Assert.Equal(HttpStatusCode.BadRequest, semCampo.StatusCode);
+    Assert.Equal("CorpoInvalido", (await CorpoAsync(semCampo)).GetProperty("erro").GetString());
+
+    var inexistente = await Embalar(c, c.Qualidade, 999999999, new { embalado = true });
+    Assert.Equal(HttpStatusCode.NotFound, inexistente.StatusCode);
+
+    var item = await Embalar(c, c.Qualidade, c.B, new { embalado = true });
+    Assert.Equal(HttpStatusCode.BadRequest, item.StatusCode);
+    var corpo = await CorpoAsync(item);
+    Assert.Equal("NaoEhPeca", corpo.GetProperty("erro").GetString());
+    Assert.EndsWith("é um Item: só a Peça é embalada.", corpo.GetProperty("mensagem").GetString());
+  }
+
+  [Fact]
+  public async Task Estorno_de_baixa_feita_num_setor_invalida_a_marca()
+  {
+    await using var c = await CriarAsync(_factory);
+    // 3 unidades: 1 expedida, 1 no local de expedicao e 1 que sera baixada no Setor.
+    var peca = await PecaNovaAsync(c, 3m, c.Corte);
+    await IniciarAsync(c, peca, c.Corte, 3m);
+    await TerminarAsync(c, peca, c.Corte, 1, 2m);
+    await EntregarAsync(c, peca, c.Corte, 1, 2m);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync("/api/remessas",
+        new { itens = new[] { new { estruturaItemId = peca, quantidade = 1m } } }));
+    var baixa = await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/baixas", new
+    {
+      motivo = "MortaEmProcesso", observacao = (string?)null, tudo = false, incluirTopo = false,
+      origens = new[] { new { posicao = "NoSetor", setorId = (int?)c.Corte, ordem = (int?)1, quantidade = 1m } },
+    });
+    await Garantir(baixa);
+    await Garantir(await Embalar(c, c.Qualidade, peca, new { embalado = true }));
+    Assert.True((await EmbalagemNoGetAsync(c, peca)).GetProperty("vale").GetBoolean());
+
+    var baixaId = (await CorpoAsync(baixa)).GetProperty("id").GetInt32();
+    await Garantir(await qualidade.PostAsync($"/api/baixas/{baixaId}/estorno", null));
+
+    var depois = await EmbalagemNoGetAsync(c, peca);
+    Assert.Equal((false, false, 1m), (
+        depois.GetProperty("vale").GetBoolean(), depois.GetProperty("podeMarcar").GetBoolean(),
+        depois.GetProperty("emProducao").GetDecimal()));
+  }
+
+  [Fact]
+  public async Task Estorno_de_remessa_nao_invalida_a_marca()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNoLocalAsync(c, 2m, 2m);
+    var qualidade = c.Como(c.Qualidade);
+    var remessa = await qualidade.PostAsJsonAsync("/api/remessas",
+        new { itens = new[] { new { estruturaItemId = peca, quantidade = 1m } } });
+    await Garantir(remessa);
+    await Garantir(await Embalar(c, c.Qualidade, peca, new { embalado = true }));
+    Assert.True((await EmbalagemNoGetAsync(c, peca)).GetProperty("vale").GetBoolean());
+
+    var remessaId = (await CorpoAsync(remessa)).GetProperty("remessa").GetProperty("id").GetInt32();
+    await Garantir(await qualidade.PostAsync($"/api/remessas/{remessaId}/estorno", null));
+
+    Assert.True((await EmbalagemNoGetAsync(c, peca)).GetProperty("vale").GetBoolean());
+  }
+
   [Theory]
   [InlineData("Operador")]
   [InlineData("Movimentador")]

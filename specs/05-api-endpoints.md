@@ -1563,6 +1563,26 @@ autenticado, sem `Roles` (C16). Um controller só, `PanoramaController`, no cont
 - `embalagem.vale` e `embalagem.podeMarcar` são os da regra 40; `emProducao` é o "faltam N" das sete posições de
   produção, **sem** o local de expedição.
 - Sem erro de negócio próprio: a resposta é `200`, e `401` sem sessão.
+- `POST /estrutura/{id}/embalagem` *(Qualidade, PCP, Administrador — C17)* — corpo `{ "embalado": true }` marca e
+  `{ "embalado": false }` desmarca; **`204`** em sucesso, sem corpo. Grava uma linha em `dbo.Embalagem` (só de inclusão), na
+  transação da execução. Os outros perfis recebem o `403` do `[Authorize(Roles)]`, sem corpo. A pausa do Pedido **não**
+  recusa. Recusas, nesta ordem, no contrato `{ erro, mensagem }` da Execução (o `404` sem corpo):
+  - `400 CorpoInvalido` — `embalado` ausente ou nulo;
+  - `404` — nó inexistente;
+  - `409 PedidoFechado` — Pedido `Concluido` ou `Cancelado` (checado antes do Item, como nas escritas da expedição);
+  - `400 NaoEhPeca` — o nó é um Item: «{nome} é um Item: só a Peça é embalada.»;
+  - ao marcar, `409 ProducaoNaoTerminou` — a condição de C18 não vale (há unidade nas sete posições de produção, ou
+    nenhuma no local de expedição). **O `faltam` da spec não é campo do corpo: é a própria frase da `mensagem`**,
+    «Faltam {N} em produção.» (decisão P1), com `N` a quantidade nas sete posições de produção;
+  - ao marcar, `409 JaEmbalado` — o "Embalado" já **vale** (regra 40): «Esta Peça já está embalada.» Se a última linha é
+    `Marcar` mas deixou de valer, marcar de novo é permitido;
+  - ao desmarcar, `409 NaoEmbalado` — o "Embalado" não vale agora (inclusive quando a marca sumiu sozinha): «Esta Peça não
+    está embalada.»
+
+```jsonc
+// POST /estrutura/812/embalagem   { "embalado": true }   → 409 se faltar produção
+{ "erro": "ProducaoNaoTerminou", "mensagem": "Faltam 3 em produção." }
+```
 
 ## KPIs
 

@@ -36,3 +36,6 @@ public sealed record PecaDoPanoramaDto(
     AfericaoDoPanoramaDto Afericao, EmbalagemDaPecaDto Embalagem);
 
 public sealed record PanoramaDto(IReadOnlyList<PecaDoPanoramaDto> Pecas);
+
+/// <summary>O corpo do POST do "Embalado": `true` marca, `false` desmarca. Nulo (campo ausente) e recusado pelo caso de uso.</summary>
+public sealed record NovaEmbalagemDto(bool? Embalado);

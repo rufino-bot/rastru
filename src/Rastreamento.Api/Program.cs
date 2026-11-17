@@ -177,6 +177,7 @@ builder.Services.AddScoped<LiberacaoUseCase>();
 builder.Services.AddScoped<RemessaUseCase>();
 builder.Services.AddScoped<ConsultaDaExpedicaoUseCase>();
 builder.Services.AddScoped<ConsultaDoPanoramaUseCase>();
+builder.Services.AddScoped<EmbalagemUseCase>();
 builder.Services.AddScoped<EstornoDaExpedicaoUseCase>();
 builder.Services.AddScoped<BaixaUseCase>();
 builder.Services.AddScoped<ConsultaDeBaixasUseCase>();

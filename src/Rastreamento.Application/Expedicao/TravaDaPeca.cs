@@ -12,12 +12,14 @@ internal sealed record PecaTravada(EstruturaItem No, IReadOnlyList<int> Pedidos)
 /// O comeco comum das escritas da expedicao, dentro da transacao da execucao: trava o no; 404 se nao existe;
 /// trava o Pedido dele (so a Peca, e so quando `travarPedido`) ANTES da primeira leitura do Pedido, que a trava
 /// converteria de S para U e deadlockaria (`PK_Pedido`); recusa Pedido fechado; recusa Item (so a Peca chega ao
-/// local de expedicao, regra 29). A trava da Peca e o que serializa as escritas do mesmo fim do caminho.
+/// local de expedicao, regra 29; `oQueSoAPecaFaz` completa a frase dessa recusa para quem trava por outro motivo,
+/// como o "Embalado"). A trava da Peca e o que serializa as escritas do mesmo fim do caminho.
 /// </summary>
 internal static class TravaDaPeca
 {
   public static async Task<(PecaTravada? Peca, Result<T>? Recusa)> TravarAsync<T>(
-      IExecucaoRepository execucao, LeitorDeEstado leitor, int pecaId, bool travarPedido, CancellationToken ct)
+      IExecucaoRepository execucao, LeitorDeEstado leitor, int pecaId, bool travarPedido, CancellationToken ct,
+      string oQueSoAPecaFaz = "chega ao local de expedição")
   {
     var no = (await execucao.TravarNosAsync([pecaId], ct)).SingleOrDefault();
     if (no is null) return (null, Falhas.NaoEncontrado<T>());
@@ -30,7 +32,7 @@ internal static class TravaDaPeca
     {
       var nome = (await leitor.CarregarAsync([no], ct)).Nome(pecaId);
       return (null, Falhas.Validacao<T>(CodigosDaExpedicao.NaoEhPeca,
-          $"{nome} é um Item: só a Peça chega ao local de expedição."));
+          $"{nome} é um Item: só a Peça {oQueSoAPecaFaz}."));
     }
     return (new PecaTravada(no, pedidos), null);
   }

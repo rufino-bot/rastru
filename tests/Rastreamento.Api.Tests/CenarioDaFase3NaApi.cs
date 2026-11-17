@@ -232,6 +232,9 @@ internal sealed class CenarioDaFase3NaApi : IAsyncDisposable
           $"DELETE FROM dbo.RelatorioDimensional WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.Montagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
+      // O "Embalado" (Panorama) aponta o no por FK: sai antes da arvore.
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"DELETE FROM dbo.Embalagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
       // O livro de separacao tambem e so de inclusao: estornos primeiro (EstornoDeId nao nulo), depois o resto.
       await db.Database.ExecuteSqlInterpolatedAsync(
           $"DELETE FROM dbo.MaterialSeparacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
