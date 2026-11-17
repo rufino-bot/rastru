@@ -678,6 +678,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica, e essa ordem é
   o **prazo de entrega** do Pedido do nó, o mais próximo primeiro, com o `Id` do nó desempatando (decisão do usuário,
   2026-11-10); quem a aplica é o servidor, e o front não reordena item.
+- **Exibir a miniatura do sólido usa `MiniaturaDoSolido`** (`web/src/components/`, com teste próprio), nunca
+  `<img src="/api/...">`: o `<img>` não manda o token, e a rota exige login. A primitiva recebe o `caminho`
+  (`caminhoDaMiniatura(id)` ou `caminhoDaMiniaturaPendente(id, registroId)`, sem o prefixo `/api`), a `versao` (o hash da
+  miniatura, `null` quando o Componente não tem) e o `alt`; busca pelo `apiFetch` e exibe por URL de `blob:`, com cache
+  de módulo por `caminho + versao` (a mesma versão não é buscada de novo; versão nova busca). Sem versão, enquanto
+  carrega e quando a busca falha, mostra o espaço neutro (`bg-fundo`, borda `borda`, proporção 4:3, `role="img"` com o
+  `alt`). Os testes zeram o cache com `limparCacheDeMiniaturas()`.
 - **Conteúdo que nasce recolhido usa `SecaoRecolhivel` ou `ListaRecolhivel`** (`web/src/components/`,
   com teste próprio), nunca um `<details>` escrito na tela. As duas são `<details>` nativo — abre no
   teclado e no leitor de tela sem código, e o `<summary>` é o nome do controle — e se separam pelo
