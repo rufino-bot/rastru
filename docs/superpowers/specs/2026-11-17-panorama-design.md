@@ -8,7 +8,8 @@ privada do usuário (`https://claude.ai/artifact/5C6xzuS4nzimnrZQ5HPqif`, versã
 (seção 2.1). As chamadas do desenho, que o usuário confere ao ler, são C1 a C20 (seção 2.2). O builder check (um revisor
 lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou quatro premissas falsas sobre o código
 (a ordem da `CalculadoraDeExecucao.Saldos`, o atraso calculado no cliente, o critério do `GET /expedicao` e os dois
-sentidos de "em produção") e um corpo de 403 que o projeto não manda; foram corrigidos em C2, C8, C18 e nas seções 5 e 6.
+sentidos de "em produção") e um corpo de 403 que o projeto não manda; foram corrigidos em C2, C8, C18 e nas seções 5 e 6. Duas perguntas voltaram ao usuário e viraram D13 e D14. O documento escrito foi **aprovado pelo
+usuário em 2026-11-17**.
 
 **Ponto de partida.** A Fase 5 está concluída. O próximo item do roadmap seria a 3C (push) ou a Fase 6 (KPIs), sem ordem
 decidida entre as duas. Este trabalho entra antes de ambas, logo depois da **miniatura isométrica do sólido**, que
