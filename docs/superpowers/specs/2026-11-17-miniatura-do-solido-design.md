@@ -4,8 +4,11 @@ Data: 2026-11-17. Branch: `claude/cool-cray-ijm0ib`, a mesma da spec do Panorama
 (`docs/superpowers/specs/2026-11-17-panorama-design.md`), a partir da `main` em `7d41e09`. O desenho foi conversado com
 o usuário em chat na mesma sessão de nuvem do Panorama. Os três estilos de imagem foram mostrados numa página privada do
 usuário (`https://claude.ai/artifact/QJnhQ7ERdEmnEskdsC3iWY`), desenhados com o three.js a partir de peças de exemplo.
-As decisões do usuário são D1 a D5 (seção 2.1). As chamadas do desenho, que o usuário confere ao ler, são C1 a C14
-(seção 2.2).
+As decisões do usuário são D1 a D5 (seção 2.1). As chamadas do desenho, que o usuário confere ao ler, são C1 a C15
+(seção 2.2). O builder check (um revisor lendo a spec como quem vai planejar, conferindo as premissas contra o código)
+não achou premissa falsa e levantou quatro pontos, todos resolvidos como chamada do desenho, sem decisão nova do usuário:
+a corrida do "Gerar miniatura" com a troca do sólido (C10 e C15), o significado da versão no import (C12), quem mede o
+tempo no Android (C14) e o reimport (C5).
 
 **Ponto de partida e ordem.** A miniatura nasceu da coluna "Desenho" do Panorama. O usuário decidiu que ela é um
 trabalho **separado**, que **executa antes do Panorama** (D6 e D14 da spec do Panorama), e as duas antes da 3C. O plano do
@@ -56,16 +59,17 @@ consumidor é o Panorama; o segundo é o detalhe do Componente, onde quem subiu 
 | C2 | **A câmera:** ortográfica, isométrica, olhando de `(1, 1, 1)` para o centro do sólido, com o eixo Y para cima, **sem girar o STL**, como o `VisualizadorDeSolido` já o lê. Enquadramento pela esfera envolvente com 8% de folga, para nenhuma Peça encostar na borda. |
 | C3 | **O estilo C em números** (os da página de estilos, ajustáveis pelo builder sem mudar o aspecto): `MeshLambertMaterial` cinza claro (`#C9D3D1`), luz ambiente 0,55 e uma direcional 0,6 vinda de cima e da frente, arestas por `EdgesGeometry` com limiar de 20° em `#2F3A38`, e `polygonOffset` na malha para a aresta não brigar com a face. |
 | C4 | **Onde mora:** `dbo.ArquivoDeComponente`, a mesma tabela do sólido, com FK nova `Componente.ArquivoMiniaturaId` (nula). Trocar o sólido troca a miniatura; a anterior continua na tabela sem ninguém apontando, a mesma política do sólido ("não existe remoção", `SolidoDoComponenteUseCase`). |
-| C5 | **No import do BOM:** coluna nova `ImportacaoDeEstruturaComponente.ArquivoMiniaturaPendenteId`, ao lado do `ArquivoSolidoPendenteId`, com o mesmo ciclo: nasce com o STL pendente, o pendente anterior é apagado quando o novo é ligado, a confirmação a passa para o Componente junto com o sólido, e descartar o rascunho apaga as duas. |
+| C5 | **No import do BOM:** coluna nova `ImportacaoDeEstruturaComponente.ArquivoMiniaturaPendenteId`, ao lado do `ArquivoSolidoPendenteId`, com o mesmo ciclo: nasce com o STL pendente, o pendente anterior é apagado quando o novo é ligado, a confirmação a passa para o Componente junto com o sólido, e descartar o rascunho apaga as duas. O **reimport**, que hoje apaga o STL pendente dos registros que saem do arquivo, apaga a miniatura pendente deles também. |
 | C6 | **Sólido trocado sem miniatura** (o navegador não conseguiu desenhar): a FK da miniatura vai para **nula** na mesma transação. Nunca fica a miniatura do sólido antigo ao lado do sólido novo. |
 | C7 | **Validação no servidor** da miniatura, num validador puro como o `ValidadorDeArquivoStl`: assinatura PNG, cabeçalho `IHDR` com exatamente 320 × 240, e no máximo 512 KiB. Fora disso, 400 com frase própria. O servidor não redesenha nem recomprime. |
 | C8 | **Ordem de validação** no envio conjunto: o STL é validado primeiro, como hoje; uma miniatura inválida recusa a requisição inteira (400), em vez de gravar o sólido sem ela, porque miniatura inválida vinda do próprio front é defeito, não falta de WebGL. |
 | C9 | **Quem envia:** os mesmos perfis do sólido (PCP e Administrador). O "Gerar miniatura" avulso também. |
-| C10 | **"Gerar miniatura"** no detalhe do Componente, só quando há sólido e não há miniatura: baixa o STL pela rota de sempre, desenha e envia pela rota avulsa (seção 5.2). Serve aos sólidos antigos e ao celular que não desenhou. Não aparece com miniatura presente: regerar é trocar o sólido. |
-| C11 | **Leitura:** `GET /componentes/{id}/miniatura`, autenticada como as outras. Como o `<img src>` não manda o token, a tela busca pelo `apiFetch` e guarda a imagem em memória (URL de `blob:`), chaveada pela **versão** (o id do `ArquivoDeComponente`). A recarga de 30 s do Panorama não baixa de novo; só baixa quando a versão muda. Deixar a imagem sem login foi descartado: exporia o desenho das peças dos clientes. |
-| C12 | **Os DTOs ganham** `miniaturaVersao` (o id do arquivo, ou nulo), no `ComponenteDto` da lista (que já traz `temSolido`), no detalhe e no registro da conferência do import. É o que o Panorama usa no lugar do `temMiniatura` provisório da spec dele. |
+| C10 | **"Gerar miniatura"** no detalhe do Componente, só quando há sólido e não há miniatura: baixa o STL pela rota de sempre, calcula o SHA-256 dos bytes baixados (`crypto.subtle.digest`), desenha e envia pela rota avulsa (seção 5.2) com esse hash, para o servidor recusar se o sólido mudou no meio (C15). Serve aos sólidos antigos e ao celular que não desenhou. Não aparece com miniatura presente: regerar é trocar o sólido. |
+| C11 | **Leitura:** `GET /componentes/{id}/miniatura`, autenticada como as outras. Como o `<img src>` não manda o token, a tela busca pelo `apiFetch` e guarda a imagem em memória (URL de `blob:`), chaveada pela **versão** (C12). A recarga de 30 s do Panorama não baixa de novo; só baixa quando a versão muda. Deixar a imagem sem login foi descartado: exporia o desenho das peças dos clientes. |
+| C12 | **Os DTOs ganham** `miniaturaVersao`: o `Sha256` da miniatura em hexadecimal (a coluna calculada que a tabela já tem), ou nulo sem miniatura. **Não** é o id do arquivo: o `ComponenteDto` evita expor id de arquivo de propósito (o comentário dele: abriria um segundo caminho para o mesmo recurso), e o hash é só versão, não endereço. Entra no `ComponenteDto` da lista (que já traz `temSolido`), no detalhe e no registro da conferência do import. **No import**, segue a regra que o `NomeDoSolido` já segue: com STL pendente, é a versão da miniatura **pendente** (nula se o pendente veio sem miniatura, C6 aplicado antes da confirmação); sem STL pendente, a do catálogo. O registro ganha `miniaturaPendente` (booleano) para a tela saber qual rota de leitura chamar. É o `miniaturaVersao` que o Panorama usa no lugar do `temMiniatura` provisório da spec dele. |
 | C13 | **Falha ao desenhar não trava o upload:** sem WebGL, STL que o `STLLoader` não lê, ou erro no desenho, o sólido sobe sozinho (C6) e a tela diz, sem tom de erro, "O sólido foi enviado, mas a miniatura não pôde ser gerada neste aparelho." |
-| C14 | **Tempo de desenho:** o desenho roda antes do envio, depois de a pessoa escolher o arquivo. O botão de envio mostra "Gerando miniatura…" e depois "Enviando…". Um STL de 16 MiB (o teto) tem centenas de milhares de triângulos; o builder mede o tempo no PC e num Android médio, e se passar de alguns segundos, o desenho reduz o trabalho das arestas antes de abrir mão delas. |
+| C14 | **Tempo de desenho:** o desenho roda antes do envio, depois de a pessoa escolher o arquivo. O botão de envio mostra "Gerando miniatura…" e depois "Enviando…". Um STL de 16 MiB (o teto) tem centenas de milhares de triângulos. O plano mede no PC (por agente) e tem uma **task de conferência do usuário no navegador**, que inclui subir um STL grande pelo **celular Android dele**; pela regra do `CLAUDE.md`, ela vem antes da review de branch. O teto aceitável é **5 s** para desenhar no Android. Reduzir o trabalho das arestas **não** entra de antemão: só se a medição passar do teto, e aí volta ao usuário antes de virar código. |
+| C15 | **A rota avulsa confere o sólido:** `POST /componentes/{id}/miniatura` recebe o `solidoSha256` do STL de que a imagem foi desenhada e recusa com 409 `SolidoMudou` quando ele não é o `Sha256` do sólido atual. Fecha a corrida em que alguém troca o sólido entre o "Gerar miniatura" baixar o STL e enviar a imagem, que ligaria a imagem velha ao sólido novo (contra C6). O envio conjunto (5.1) não precisa disso: STL e imagem chegam na mesma requisição. |
 
 ## 3. Domínio
 
@@ -95,9 +99,10 @@ de corpo do endpoint sobe pela margem da miniatura (512 KiB), e o `specs/05` reg
 
 ### 5.2 O envio avulso
 
-`POST /componentes/{id}/miniatura` *(PCP, Administrador)*: `multipart/form-data` com `miniatura`. Responde 204.
-Recusas: 404 se o Componente não existe; 409 `SemSolido` se ele não tem sólido (não há do que ser miniatura); 400 da
-miniatura inválida. Grava e liga, substituindo a anterior se houver (a tela só oferece o botão sem miniatura, mas a
+`POST /componentes/{id}/miniatura` *(PCP, Administrador)*: `multipart/form-data` com `miniatura` e o campo
+`solidoSha256` (C15). Responde 204. Recusas: 404 se o Componente não existe; 409 `SemSolido` se ele não tem sólido (não
+há do que ser miniatura); 409 `SolidoMudou` se o hash não é o do sólido atual; 400 da miniatura inválida ou do hash
+ausente ou malformado. Grava e liga, substituindo a anterior se houver (a tela só oferece o botão sem miniatura, mas a
 rota não precisa recusar). Não há rota avulsa no import: lá a miniatura só nasce com o STL pendente.
 
 ### 5.3 A leitura
@@ -110,10 +115,11 @@ ganha `GET /importacoes/{id}/componentes/{cid}/miniatura` para a miniatura pende
 ### 5.4 Testes
 
 - Application, com fakes: o validador da miniatura (assinatura, dimensões, tamanho, cada recusa); o envio conjunto com e
-  sem miniatura (C6: a FK vai a nula); a miniatura inválida que recusa o STL junto (C8); o avulso com e sem sólido.
+  sem miniatura (C6: a FK vai a nula); a miniatura inválida que recusa o STL junto (C8); o avulso com e sem sólido, e com
+  o hash de um sólido que já foi trocado (C15); a `miniaturaVersao` do import nos três casos de C12.
 - Infrastructure: o mapeamento das duas colunas; a transação que liga sólido e miniatura juntos.
 - Api: as rotas ponta a ponta, o gating, o `ETag`, e o ciclo do import (pendente → confirmação → Componente; descarte
-  apaga as duas; o pendente anterior apagado ao trocar).
+  e reimport apagam as duas; o pendente anterior apagado ao trocar).
 
 ## 6. Front
 
@@ -154,6 +160,9 @@ E, antes delas, **no navegador contra no servidor** (D1): no servidor exigiria u
 - **Arestas demais em superfície curva mal tesselada:** o limiar de 20° pode marcar facetas de um cilindro grosseiro.
   Aceito; o builder pode ajustar o limiar se a massa de teste mostrar.
 - **Arquivos órfãos** crescem a cada troca de sólido, como já acontece com o sólido (C4).
+- **`crypto.subtle` só existe em contexto seguro** (HTTPS ou `localhost`). O HML é HTTPS e o desenvolvimento é
+  `localhost`; acessar o dev pelo IP da máquina na rede (do celular, por exemplo) deixa o "Gerar miniatura" sem hash. O
+  envio conjunto não depende dele.
 
 ## 9. Ajustes de documentação (na mesma branch)
 
