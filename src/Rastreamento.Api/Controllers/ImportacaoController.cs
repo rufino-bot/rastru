@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Common;
 using Rastreamento.Application.Importacao;
@@ -79,24 +80,34 @@ public class ImportacaoController : ControllerBase
 
   /// <summary>
   /// Solido pendente de um registro. Multipart com o arquivo e o campo <c>versao</c> (decisao P14 do plano
-  /// do import). O limite do corpo e o do solido do Componente mais a mesma margem multipart, pelo mesmo
-  /// motivo: <c>[RequestSizeLimit]</c> mede o corpo inteiro, e um STL de exatos 16 MiB, que o validador
-  /// aceita, nao pode ser recusado antes de chegar a ele.
+  /// do import). O limite do corpo e o do solido do Componente (o STL mais a miniatura) mais a mesma margem
+  /// multipart, pelo mesmo motivo: <c>[RequestSizeLimit]</c> mede o corpo inteiro, e um STL de exatos 16 MiB,
+  /// que o validador aceita, nao pode ser recusado antes de chegar a ele. A segunda parte, <c>miniatura</c>, e
+  /// OPCIONAL e e o PNG que o navegador desenhou do STL; sem ela, o registro fica sem miniatura pendente (C6),
+  /// e miniatura invalida recusa o envio inteiro com 400 (C8).
   /// </summary>
   [HttpPost("importacoes/{id:int}/componentes/{registroId:int}/solido")]
   [Authorize(Roles = PerfisDeEscrita)]
-  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
+  [RequestSizeLimit(
+      ValidadorDeArquivoStl.TamanhoMaximoEmBytes
+      + ValidadorDeMiniatura.TamanhoMaximoEmBytes
+      + MargemDoCorpoMultipartEmBytes)]
   public async Task<IActionResult> EnviarSolido(
-      int id, int registroId, [FromForm] string versao, IFormFile arquivo, CancellationToken ct)
+      int id, int registroId, [FromForm] string versao, IFormFile arquivo, IFormFile? miniatura, CancellationToken ct)
   {
     var usuarioId = UsuarioDaSessao();
     if (usuarioId is null) return Unauthorized();
 
+    return Traduzir(await _importacao.EnviarSolidoPendente(
+        id, registroId, versao, arquivo.FileName, await LerAsync(arquivo, ct),
+        miniatura is null ? null : await LerAsync(miniatura, ct), usuarioId.Value, ct));
+  }
+
+  private static async Task<byte[]> LerAsync(IFormFile arquivo, CancellationToken ct)
+  {
     using var memoria = new MemoryStream();
     await arquivo.CopyToAsync(memoria, ct);
-
-    return Traduzir(await _importacao.EnviarSolidoPendente(
-        id, registroId, versao, arquivo.FileName, memoria.ToArray(), usuarioId.Value, ct));
+    return memoria.ToArray();
   }
 
   /// <summary>Leitura: sem <c>Roles</c>, como o <c>GET</c> do solido do Componente. Serve o download e o visualizador.</summary>
@@ -106,6 +117,22 @@ public class ImportacaoController : ControllerBase
     var r = await _importacao.ObterSolidoPendente(id, registroId, ct);
     if (!r.Sucesso) return NotFound();
     return File(r.Valor!.Conteudo, "application/octet-stream", r.Valor.NomeOriginal);
+  }
+
+  /// <summary>
+  /// A miniatura pendente do registro (<c>image/png</c>), para qualquer autenticado, como o solido pendente.
+  /// 404 sem corpo para rascunho ou registro inexistente e registro sem miniatura pendente. <c>ETag</c> e
+  /// <c>Cache-Control</c> como a miniatura do Componente.
+  /// </summary>
+  [HttpGet("importacoes/{id:int}/componentes/{registroId:int}/miniatura")]
+  public async Task<IActionResult> ObterMiniatura(int id, int registroId, CancellationToken ct)
+  {
+    var r = await _importacao.ObterMiniaturaPendente(id, registroId, ct);
+    if (!r.Sucesso) return NotFound();
+
+    Response.Headers.CacheControl = "private, no-cache";
+    return File(
+        r.Valor!.Conteudo, "image/png", lastModified: null, entityTag: new EntityTagHeaderValue($"\"{r.Valor.Versao}\""));
   }
 
   /// <summary>Reimporta: o arquivo novo no lugar do lido, mais o campo <c>versao</c>. Limite do arquivo do BOM.</summary>

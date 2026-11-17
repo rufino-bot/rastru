@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -12,7 +13,7 @@ namespace Rastreamento.Application.Importacao;
 /// O catalogo que a avaliacao le. <see cref="Componentes"/> tem de cobrir
 /// <see cref="AvaliadorDeImportacao.IdsAlcancaveis"/>; <see cref="CodigosExistentes"/> compara com
 /// <c>OrdinalIgnoreCase</c>, como o banco; <see cref="Solidos"/> e chaveado pelo Id do
-/// <c>ArquivoDeComponente</c> e cobre o solido do catalogo e o pendente do rascunho.
+/// <c>ArquivoDeComponente</c> e cobre o solido do catalogo e o pendente do rascunho, e a miniatura de cada um.
 /// </summary>
 public sealed record CatalogoParaAvaliacao(
     ReceitaDoCatalogo Receita,
@@ -243,6 +244,12 @@ public static class AvaliadorDeImportacao
     var arquivo = registro.ArquivoSolidoPendenteId ?? componente?.ArquivoSolidoId;
     var solido = arquivo is int a ? c.Solidos.GetValueOrDefault(a) : null;
     var diverge = s.Diverge(registro);
+    // C12: a miniatura acompanha o solido. O solido pendente substitui o do catalogo, e a miniatura do
+    // catalogo era do solido antigo, entao com solido pendente so vale a miniatura pendente.
+    var arquivoDaMiniatura = registro.ArquivoSolidoPendenteId is not null
+        ? registro.ArquivoMiniaturaPendenteId
+        : componente?.ArquivoMiniaturaId;
+    var miniatura = arquivoDaMiniatura is int m ? c.Solidos.GetValueOrDefault(m) : null;
 
     return new SituacaoDoComponenteDto(
         RegistroId: registro.Id,
@@ -264,7 +271,9 @@ public static class AvaliadorDeImportacao
         EscolhaDeReceita: registro.EscolhaDeReceita,
         Comparativo: diverge ? Comparativo(registro, s, c) : [],
         EfeitoDeManterCatalogo: diverge ? Efeito(registro, s, c) : null,
-        NaArvoreFinal: s.EstaNaArvore(SobreposicaoDaImportacao.IdDe(registro)));
+        NaArvoreFinal: s.EstaNaArvore(SobreposicaoDaImportacao.IdDe(registro)),
+        MiniaturaVersao: miniatura is null ? null : VersaoDeArquivo.VersaoDe(miniatura.Sha256),
+        MiniaturaPendente: registro.ArquivoSolidoPendenteId is not null && registro.ArquivoMiniaturaPendenteId is not null);
   }
 
   /// <summary>

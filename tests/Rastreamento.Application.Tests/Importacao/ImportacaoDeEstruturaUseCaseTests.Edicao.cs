@@ -451,9 +451,10 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   // ---------------------------------------------------------------- solido pendente
 
   private static Task<Result<ImportacaoDto>> EnviarSolido(
-      Montagem m, ImportacaoDeEstruturaComponente registro, string nome = "peca.stl", byte[]? conteudo = null, string? versao = null) =>
+      Montagem m, ImportacaoDeEstruturaComponente registro, string nome = "peca.stl", byte[]? conteudo = null,
+      string? versao = null, byte[]? miniatura = null) =>
       m.UseCase.EnviarSolidoPendente(
-          m.Unica.Id, registro.Id, versao ?? Versao(m.Unica), nome, conteudo ?? StlDeTeste.CuboBinario(), UsuarioId,
+          m.Unica.Id, registro.Id, versao ?? Versao(m.Unica), nome, conteudo ?? StlDeTeste.CuboBinario(), miniatura, UsuarioId,
           CancellationToken.None);
 
   [Fact]
@@ -525,12 +526,101 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   }
 
   [Fact]
+  public async Task Solido_pendente_com_miniatura_grava_os_dois()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    var png = PngDeTeste.Png(320, 240);
+
+    var r = await EnviarSolido(m, z, miniatura: png);
+
+    Assert.True(r.Sucesso);
+    Assert.NotNull(z.ArquivoSolidoPendenteId);
+    var miniatura = m.Importacoes.ArquivosGravados[z.ArquivoMiniaturaPendenteId!.Value];
+    Assert.Equal(("miniatura.png", UsuarioId, png), (miniatura.NomeOriginal, miniatura.CriadoPorUsuarioId, miniatura.Conteudo));
+    var situacao = r.Valor!.Componentes.Single(c => c.RegistroId == z.Id);
+    Assert.True(situacao.MiniaturaPendente);
+    Assert.NotNull(situacao.MiniaturaVersao);
+  }
+
+  [Fact]
+  public async Task Miniatura_invalida_recusa_o_envio_inteiro_sem_gravar_nada()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    var invalida = new byte[] { 1, 2, 3 };
+
+    var r = await EnviarSolido(m, z, miniatura: invalida);
+
+    Assert.Equal(TipoDeErro.Validacao, r.TipoDoErro);
+    Assert.Equal(ValidadorDeMiniatura.Validar(invalida), r.Erro);
+    Assert.Null(z.ArquivoSolidoPendenteId);
+    Assert.Null(z.ArquivoMiniaturaPendenteId);
+    Assert.Empty(m.Importacoes.ArquivosGravados);
+  }
+
+  [Fact]
+  public async Task Trocar_solido_pendente_apaga_solido_e_miniatura_anteriores()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    await EnviarSolido(m, z, "primeiro.stl", miniatura: PngDeTeste.Png(320, 240));
+    var solido = z.ArquivoSolidoPendenteId!.Value;
+    var miniatura = z.ArquivoMiniaturaPendenteId!.Value;
+
+    // O novo envio vem sem miniatura: a miniatura antiga era do solido antigo, e some com ele.
+    var r = await EnviarSolido(m, z, "segundo.stl");
+
+    Assert.True(r.Sucesso);
+    Assert.Equal([solido, miniatura], m.Importacoes.ArquivosExcluidos.Order());
+    Assert.Null(z.ArquivoMiniaturaPendenteId);
+    Assert.NotEqual(solido, z.ArquivoSolidoPendenteId);
+  }
+
+  [Fact]
+  public async Task Corrida_perdida_apaga_solido_e_miniatura_novos()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    await EnviarSolido(m, z, "primeiro.stl", miniatura: PngDeTeste.Png(320, 240));
+    var solido = z.ArquivoSolidoPendenteId!.Value;
+    var miniatura = z.ArquivoMiniaturaPendenteId!.Value;
+    m.Importacoes.PerderACorridaNoSalvamento = true;
+
+    var r = await EnviarSolido(m, z, "segundo.stl", miniatura: PngDeTeste.Png(320, 240));
+
+    Assert.Equal(ImportacaoDeEstruturaUseCase.ErroDeImportacaoDesatualizada, r.Erro);
+    Assert.Equal([solido, miniatura], m.Importacoes.ArquivosGravados.Keys.Order());
+    Assert.Equal((solido, miniatura), (z.ArquivoSolidoPendenteId, z.ArquivoMiniaturaPendenteId));
+  }
+
+  [Fact]
+  public async Task Obter_miniatura_pendente_devolve_o_png_e_a_versao_e_sem_miniatura_e_NaoEncontrado()
+  {
+    var m = await ComUmCasado();
+    var z = m.Registro("Z-1");
+    var png = PngDeTeste.Png(320, 240);
+
+    await EnviarSolido(m, z);
+    var sem = await m.UseCase.ObterMiniaturaPendente(m.Unica.Id, z.Id, CancellationToken.None);
+    await EnviarSolido(m, z, miniatura: png);
+    var com = await m.UseCase.ObterMiniaturaPendente(m.Unica.Id, z.Id, CancellationToken.None);
+    var deOutro = await m.UseCase.ObterMiniaturaPendente(m.Unica.Id, 99999, CancellationToken.None);
+
+    Assert.Equal(TipoDeErro.NaoEncontrado, sem.TipoDoErro);
+    Assert.True(com.Sucesso);
+    Assert.Equal(png, com.Valor!.Conteudo);
+    Assert.Equal(VersaoDeArquivo.VersaoDe(System.Security.Cryptography.SHA256.HashData(png)), com.Valor.Versao);
+    Assert.Equal(TipoDeErro.NaoEncontrado, deOutro.TipoDoErro);
+  }
+
+  [Fact]
   public async Task Solido_pendente_de_registro_inexistente_e_NaoEncontrado_e_nao_grava_arquivo()
   {
     var m = await ComUmCasado();
 
     var r = await m.UseCase.EnviarSolidoPendente(
-        m.Unica.Id, 99999, Versao(m.Unica), "peca.stl", StlDeTeste.CuboBinario(), UsuarioId, CancellationToken.None);
+        m.Unica.Id, 99999, Versao(m.Unica), "peca.stl", StlDeTeste.CuboBinario(), null, UsuarioId, CancellationToken.None);
 
     Assert.Equal(TipoDeErro.NaoEncontrado, r.TipoDoErro);
     Assert.Empty(m.Importacoes.ArquivosGravados);
@@ -764,6 +854,26 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   }
 
   [Fact]
+  public async Task Reimport_apaga_solido_e_miniatura_pendentes_do_registro_que_saiu()
+  {
+    var m = new Montagem();
+    await m.Criar("conjunto.csv", L(2, "1", "A-1", "Peca A", "1"), L(3, "2", "B-1", "Peca B", "1"));
+    var a = m.Registro("A-1");
+    var b = m.Registro("B-1");
+    await EnviarSolido(m, a, "a.stl", miniatura: PngDeTeste.Png(320, 240));
+    await EnviarSolido(m, b, "b.stl", miniatura: PngDeTeste.Png(320, 240));
+    var deA = new[] { a.ArquivoSolidoPendenteId!.Value, a.ArquivoMiniaturaPendenteId!.Value };
+    var deB = new[] { b.ArquivoSolidoPendenteId!.Value, b.ArquivoMiniaturaPendenteId!.Value };
+
+    var r = await Reimportar(m, "conjunto.csv", L(2, "1", "A-1", "Peca A", "1"));
+
+    Assert.True(r.Sucesso);
+    Assert.Equal(deB.Order(), m.Importacoes.ArquivosExcluidos.Order());
+    Assert.Equal(deA.Order(), m.Importacoes.ArquivosGravados.Keys.Order());
+    Assert.Equal(deA[1], m.Registro("A-1").ArquivoMiniaturaPendenteId);
+  }
+
+  [Fact]
   public async Task Reimport_mantem_a_raiz()
   {
     var m = await ComUmDivergente();
@@ -947,7 +1057,7 @@ public partial class ImportacaoDeEstruturaUseCaseTests
     m.Importacoes.AposSalvar = cts.Cancel;
 
     var r = await m.UseCase.EnviarSolidoPendente(
-        m.Unica.Id, z.Id, Versao(m.Unica), "segundo.stl", StlDeTeste.CuboBinario(), UsuarioId, cts.Token);
+        m.Unica.Id, z.Id, Versao(m.Unica), "segundo.stl", StlDeTeste.CuboBinario(), null, UsuarioId, cts.Token);
 
     Assert.True(r.Sucesso);
     Assert.Equal([primeiro], m.Importacoes.ArquivosExcluidos);

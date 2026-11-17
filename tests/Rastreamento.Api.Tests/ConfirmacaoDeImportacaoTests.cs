@@ -35,6 +35,7 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
   private readonly List<string> _codigosNovos = [];
   private readonly List<int> _materiaisCriados = [];
   private readonly List<int> _setoresCriados = [];
+  private readonly List<int> _arquivosAvulsos = [];
 
   public ConfirmacaoDeImportacaoTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
@@ -80,7 +81,8 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
 
     // Componente antes de ArquivoDeComponente: quem tem a FK e o Componente.
     var componentes = await db.Componentes.Where(c => ids.Contains(c.Id)).ToListAsync();
-    var arquivoIds = componentes.Where(c => c.ArquivoSolidoId is not null).Select(c => c.ArquivoSolidoId!.Value).ToList();
+    var arquivoIds = componentes.SelectMany(c => new[] { c.ArquivoSolidoId, c.ArquivoMiniaturaId })
+        .Where(a => a is not null).Select(a => a!.Value).Concat(_arquivosAvulsos).ToList();
     db.Componentes.RemoveRange(componentes);
     await db.SaveChangesAsync();
     db.ArquivosDeComponente.RemoveRange(await db.ArquivosDeComponente.Where(a => arquivoIds.Contains(a.Id)).ToListAsync());
@@ -124,7 +126,8 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
   }
 
   /// <summary>Um Componente de catalogo, com solido (todo nao-Bruto da arvore final precisa de um).</summary>
-  private async Task<(int Id, string Codigo)> NovoComponente(string tipo = "Fabricado", bool comSolido = true)
+  private async Task<(int Id, string Codigo)> NovoComponente(
+      string tipo = "Fabricado", bool comSolido = true, bool comMiniatura = false)
   {
     using var escopo = _factory.Services.CreateScope();
     var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
@@ -139,6 +142,17 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
       await db.SaveChangesAsync();
       arquivoId = arquivo.Id;
     }
+    int? miniaturaId = null;
+    if (comMiniatura)
+    {
+      var miniatura = new ArquivoDeComponente
+      {
+        NomeOriginal = "miniatura.png", Conteudo = PngDeTesteDaApi.Png(320, 240), CriadoPorUsuarioId = 1,
+      };
+      db.ArquivosDeComponente.Add(miniatura);
+      await db.SaveChangesAsync();
+      miniaturaId = miniatura.Id;
+    }
     var c = new Componente
     {
       Codigo = $"CAT-{Guid.NewGuid():N}"[..16].ToUpperInvariant(),
@@ -146,6 +160,7 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
       Tipo = tipo,
       Ativo = true,
       ArquivoSolidoId = arquivoId,
+      ArquivoMiniaturaId = miniaturaId,
     };
     db.Componentes.Add(c);
     await db.SaveChangesAsync();
@@ -244,13 +259,20 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
           $"/api/importacoes/{IdDe(rascunho)}",
           new { versao = VersaoDe(rascunho), quantidadeDaPeca = quantidade, requerRelatorioDimensional = true });
 
-  private static async Task<HttpResponseMessage> EnviarSolido(HttpClient cliente, JsonElement rascunho, int registroId)
+  private static async Task<HttpResponseMessage> EnviarSolido(
+      HttpClient cliente, JsonElement rascunho, int registroId, byte[]? miniatura = null)
   {
     using var corpo = new MultipartFormDataContent();
     corpo.Add(new StringContent(VersaoDe(rascunho)), "versao");
     var arquivo = new ByteArrayContent(StlDeTesteDaApi.CuboBinario());
     arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
     corpo.Add(arquivo, "arquivo", "peca.stl");
+    if (miniatura is not null)
+    {
+      var png = new ByteArrayContent(miniatura);
+      png.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+      corpo.Add(png, "miniatura", "miniatura.png");
+    }
     return await cliente.PostAsync($"/api/importacoes/{IdDe(rascunho)}/componentes/{registroId}/solido", corpo);
   }
 
@@ -316,6 +338,71 @@ public class ConfirmacaoDeImportacaoTests : IClassFixture<WebApplicationFactory<
   }
 
   // ---------------------------------------------------------------- testes
+
+  [Fact]
+  public async Task Confirmar_liga_solido_e_miniatura_pendentes_ao_Componente_novo()
+  {
+    var cliente = ClienteComo("PCP");
+    var pedidoId = await NovoPedido(cliente);
+    var agrupamentoId = await NovoAgrupamento(cliente, pedidoId, "AG-01");
+    var novo = CodigoNovo("NM");
+    var raiz = CodigoNovo("RM");
+    var png = PngDeTesteDaApi.Png(320, 240, marcador: 9);
+    var r = await NovoRascunho(cliente, agrupamentoId, Csv($"1;{novo};Peca com miniatura;1"));
+    r = await Ok(PutComponente(cliente, r, RegistroDe(r, null), null, codigoNovo: raiz));
+    r = await Ok(EnviarSolido(cliente, r, RegistroDe(r, null)));
+    r = await Ok(EnviarSolido(cliente, r, RegistroDe(r, novo), png));
+    r = await Ok(PutPeca(cliente, r, 1m));
+    var registros = r.GetProperty("componentes").EnumerateArray().Select(c => c.GetProperty("registroId").GetInt32()).ToList();
+
+    var resposta = await Confirmar(cliente, r);
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var comMiniatura = await db.Componentes.AsNoTracking().SingleAsync(c => c.Codigo == novo);
+    Assert.NotNull(comMiniatura.ArquivoSolidoId);
+    var miniatura = await db.ArquivosDeComponente.AsNoTracking().SingleAsync(a => a.Id == comMiniatura.ArquivoMiniaturaId);
+    Assert.Equal(png, miniatura.Conteudo);
+    // O que nao tinha miniatura pendente fica sem miniatura (C6).
+    Assert.Null((await db.Componentes.AsNoTracking().SingleAsync(c => c.Codigo == raiz)).ArquivoMiniaturaId);
+    // O rascunho se foi, e a miniatura ligada sobreviveu a exclusao dele: deixou de ser pendente.
+    Assert.False(await db.ImportacoesDeEstruturaComponentes.AnyAsync(c => registros.Contains(c.Id)));
+  }
+
+  [Fact]
+  public async Task Casado_com_solido_pendente_sem_miniatura_confirma_sem_miniatura()
+  {
+    var cliente = ClienteComo("PCP");
+    var pedidoId = await NovoPedido(cliente);
+    var agrupamentoId = await NovoAgrupamento(cliente, pedidoId, "AG-01");
+    var (id, codigo) = await NovoComponente(comMiniatura: true);
+    int antiga;
+    using (var escopo = _factory.Services.CreateScope())
+      antiga = (await escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>().Componentes
+          .AsNoTracking().SingleAsync(c => c.Id == id)).ArquivoMiniaturaId!.Value;
+    _arquivosAvulsos.Add(antiga);
+    var raiz = CodigoNovo("RC");
+    var r = await NovoRascunho(cliente, agrupamentoId, Csv($"1;{codigo};Peca casada;1"));
+    r = await Ok(PutComponente(cliente, r, RegistroDe(r, null), null, codigoNovo: raiz));
+    r = await Ok(EnviarSolido(cliente, r, RegistroDe(r, null)));
+    // O solido pendente vem sem miniatura: ele substitui o do catalogo, e a miniatura dele sai junto.
+    r = await Ok(EnviarSolido(cliente, r, RegistroDe(r, codigo)));
+    r = await Ok(PutPeca(cliente, r, 1m));
+    var situacao = r.GetProperty("componentes").EnumerateArray()
+        .Single(c => c.GetProperty("codigoLido").GetString() == codigo);
+    Assert.Equal(JsonValueKind.Null, situacao.GetProperty("miniaturaVersao").ValueKind);
+    Assert.False(situacao.GetProperty("miniaturaPendente").GetBoolean());
+
+    var resposta = await Confirmar(cliente, r);
+
+    Assert.Equal(HttpStatusCode.Created, resposta.StatusCode);
+    using var escopo2 = _factory.Services.CreateScope();
+    var c = await escopo2.ServiceProvider.GetRequiredService<RastreamentoDbContext>().Componentes
+        .AsNoTracking().SingleAsync(c => c.Id == id);
+    Assert.NotNull(c.ArquivoSolidoId);
+    Assert.Null(c.ArquivoMiniaturaId);
+  }
 
   [Fact]
   public async Task Confirmar_import_em_Pedido_Concluido_da_409_PedidoFechado()

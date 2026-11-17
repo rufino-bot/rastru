@@ -3,12 +3,13 @@ using Rastreamento.Domain.Entities;
 namespace Rastreamento.Domain.Abstractions;
 
 /// <summary>
-/// Nome e tamanho do solido de um Componente, SEM o <c>Conteudo</c> -- para telas que precisam
+/// Nome, tamanho e <c>Sha256</c> de um arquivo (o solido de um Componente; no import do BOM, tambem a miniatura,
+/// de que so o <c>Sha256</c> importa: ele e a versao), SEM o <c>Conteudo</c> -- para telas que precisam
 /// mostrar "ja existe X, N bytes" sem tocar no <c>VARBINARY(MAX)</c> (§5.2/§7.1 da spec de Fase
 /// 2B). Vive junto da interface porque so ela produz este tipo, mesmo padrao de
 /// <see cref="FiltroDeComponente"/> em <see cref="IComponenteRepository"/>.
 /// </summary>
-public sealed record MetadadoDeSolido(string NomeOriginal, int TamanhoEmBytes);
+public sealed record MetadadoDeSolido(string NomeOriginal, int TamanhoEmBytes, byte[] Sha256);
 
 /// <summary>
 /// Desfecho da miniatura avulsa (C15 da spec da miniatura do solido). Vive junto da interface

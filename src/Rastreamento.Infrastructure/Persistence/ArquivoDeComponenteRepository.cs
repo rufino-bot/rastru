@@ -124,7 +124,7 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
     // provedor de consulta chance nenhuma de pedir a coluna.
     return await _db.ArquivosDeComponente.AsNoTracking()
         .Where(a => a.Id == arquivoId.Value)
-        .Select(a => new MetadadoDeSolido(a.NomeOriginal, a.TamanhoEmBytes))
+        .Select(a => new MetadadoDeSolido(a.NomeOriginal, a.TamanhoEmBytes, a.Sha256))
         .SingleOrDefaultAsync(ct);
   }
 

@@ -256,7 +256,8 @@ public class ImportacaoDeEstruturaRepositoryTests : TesteComBanco
 
       var unico = Assert.Single(metadados);
       Assert.Equal(id, unico.Key);
-      Assert.Equal(new MetadadoDeSolido("metadado.stl", 1234), unico.Value);
+      Assert.Equal(("metadado.stl", 1234), (unico.Value.NomeOriginal, unico.Value.TamanhoEmBytes));
+      Assert.Equal(System.Security.Cryptography.SHA256.HashData(new byte[1234]), unico.Value.Sha256);
       Assert.Empty(await repo.ObterMetadadosAsync([], CancellationToken.None));
 
       var arquivo = await repo.ObterArquivoAsync(id, CancellationToken.None);

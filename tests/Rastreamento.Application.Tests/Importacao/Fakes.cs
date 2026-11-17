@@ -143,7 +143,8 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
   {
     Exclusoes++;
     foreach (var arquivo in Importacoes.Where(i => i.Id == id).SelectMany(i => i.Componentes)
-                 .Where(c => c.ArquivoSolidoPendenteId is not null).Select(c => c.ArquivoSolidoPendenteId!.Value))
+                 .SelectMany(c => new[] { c.ArquivoSolidoPendenteId, c.ArquivoMiniaturaPendenteId })
+                 .Where(a => a is not null).Select(a => a!.Value).ToList())
     {
       ArquivosExcluidos.Add(arquivo);
       ArquivosGravados.Remove(arquivo);
@@ -160,7 +161,10 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
   {
     Desligamentos.Add([.. registroIds]);
     foreach (var registro in Importacoes.SelectMany(i => i.Componentes).Where(c => registroIds.Contains(c.Id)))
+    {
       registro.ArquivoSolidoPendenteId = null;
+      registro.ArquivoMiniaturaPendenteId = null;
+    }
     return Task.CompletedTask;
   }
 
@@ -182,8 +186,11 @@ public class FakeImportacaoRepo : IImportacaoDeEstruturaRepository
   public Task<int> GravarArquivoPendenteAsync(ArquivoDeComponente arquivo, CancellationToken ct)
   {
     arquivo.Id = _proximoId++;
+    // O banco calcula o Sha256 (coluna computed); o fake faz a mesma conta.
+    arquivo.Sha256 = System.Security.Cryptography.SHA256.HashData(arquivo.Conteudo);
     ArquivosGravados[arquivo.Id] = arquivo;
-    Arquivos[arquivo.Id] = new MetadadoDeSolido(arquivo.NomeOriginal, arquivo.Conteudo.Length);
+    Arquivos[arquivo.Id] = new MetadadoDeSolido(
+        arquivo.NomeOriginal, arquivo.Conteudo.Length, System.Security.Cryptography.SHA256.HashData(arquivo.Conteudo));
     return Task.FromResult(arquivo.Id);
   }
 

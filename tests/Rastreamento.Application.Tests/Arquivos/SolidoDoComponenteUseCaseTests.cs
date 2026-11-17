@@ -100,7 +100,7 @@ public class FakeArquivoDeComponenteRepo : IArquivoDeComponenteRepository
   public Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(
       int componenteId, CancellationToken ct) =>
       Task.FromResult(SolidoPorComponente.TryGetValue(componenteId, out var a)
-          ? new MetadadoDeSolido(a.NomeOriginal, a.Conteudo.Length)
+          ? new MetadadoDeSolido(a.NomeOriginal, a.Conteudo.Length, new byte[32])
           : null);
 }
 

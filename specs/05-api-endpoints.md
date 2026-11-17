@@ -498,10 +498,21 @@ aninhadas sob Agrupamento, as de rascunho são de topo.)*
   registro: `multipart/form-data` com `arquivo` e o campo de formulário `versao`. As mesmas validações de
   `POST /componentes/{id}/solido` (16 MiB, estrutura de STL, mesmas frases). O arquivo vive em
   `dbo.ArquivoDeComponente` sem nenhum Componente apontando para ele até a confirmação; um pendente anterior
-  do mesmo registro é apagado depois que o novo estiver ligado. → 200 `ImportacaoDto`
+  do mesmo registro é apagado depois que o novo estiver ligado. → 200 `ImportacaoDto`. Aceita, **opcional**, o
+  campo `miniatura`: o PNG isométrico de 320 × 240 que o navegador desenhou do STL (spec
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, C5, C6, C8 e 5.3), com as mesmas
+  validações e frases de `POST /componentes/{id}/solido`. O STL é validado primeiro e a miniatura depois, e
+  **miniatura inválida recusa o envio inteiro** com 400 (nada é gravado). **Sem o campo, o registro fica sem
+  miniatura pendente**: a anterior era do sólido anterior, e o pendente e a miniatura dele, quando trocados,
+  são apagados juntos depois que o novo estiver ligado. O limite do corpo é o do `POST /componentes/{id}/solido`
+  (16 MiB do STL mais 512 KiB da miniatura mais a margem de 4 KiB do multipart)
 - `GET /importacoes/{id}/componentes/{cid}/solido` — o STL pendente (`application/octet-stream`), para o
   visualizador e o download. **404** sem corpo para rascunho, registro ou pendente que não existe — o cliente
   não distingue os três
+- `GET /importacoes/{id}/componentes/{cid}/miniatura` — a miniatura **pendente** do registro (`image/png`), com o
+  mesmo `ETag` (o SHA-256 do PNG em hexadecimal minúsculo, entre aspas) e `Cache-Control: private, no-cache` de
+  `GET /componentes/{id}/miniatura`. Qualquer perfil autenticado. **404** para rascunho inexistente, registro
+  inexistente e registro sem miniatura pendente — o cliente não distingue os três
 - `POST /importacoes/{id}/arquivo` *(PCP, Administrador)* — **reimporta**: `multipart/form-data` com `arquivo`
   e `versao`. Lê o arquivo exatamente como a criação (mesmos erros, mesmo limite) e substitui as receitas
   lidas; preserva, **por código** que continua no arquivo, o sólido pendente, o casamento manual e os dados do
@@ -567,6 +578,7 @@ NoDaImportacaoDto { registroId: number|null, componenteId: number|null, filhoId:
 SituacaoDoComponenteDto { registroId, codigoLido, descricaoLida, componenteId, codigoDoCatalogo,
                     descricaoDoCatalogo, tipo, ativo, temSolido, temSolidoPendente,
                     nomeDoSolido, tamanhoDoSolidoEmBytes,
+                    miniaturaVersao: string|null, miniaturaPendente,
                     codigoNovo, descricaoNova, tipoNovo, divergente, escolhaDeReceita: "Catalogo"|"Importada"|null,
                     comparativo: { codigo, descricao, noCatalogo: number|null, noBom: number|null,
                                    situacao: "Igual"|"QuantidadeMuda"|"Entra"|"Sai" }[],
@@ -590,6 +602,14 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
   filhos ou não; é aí que `comparativo`
   (um nível) e `efeitoDeManterCatalogo` (quantos nós saem e quantos entram se a escolha for `Catalogo`)
   vêm preenchidos. Descrição de casado vale a **do catálogo**; a lida fica ao lado.
+- **`miniaturaVersao`** e **`miniaturaPendente`** seguem o sólido (C12 da spec da miniatura do sólido).
+  **Com sólido pendente**, `miniaturaVersao` é a versão (o `Sha256` do PNG em hexadecimal minúsculo) da
+  miniatura pendente, ou `null` quando o sólido pendente veio sem ela — **mesmo que o Componente casado tenha
+  miniatura no catálogo**, porque o sólido novo substitui o antigo e a miniatura antiga sai com ele —, e
+  `miniaturaPendente` é verdadeiro quando ela existe. **Sem sólido pendente**, é a versão da miniatura do
+  Componente casado (ou `null`) e `miniaturaPendente` é falso. Na confirmação, todo registro com sólido
+  pendente grava `ArquivoMiniaturaId` no Componente (a miniatura pendente ou `null`); o registro sem sólido
+  pendente deixa a miniatura do Componente como está.
 - **`bloqueios[].tipo`**, em português com acento na `mensagem`, que é texto de tela: `QuantidadeDaPecaAusente`,
   `SemSolido`, `DivergenciaSemEscolha`, `CodigoVazio`, `CodigoJaExiste` (código do "criar novo" que já existe
   no catálogo **ou** que se repete em outro "criar novo" do mesmo rascunho), `QuantidadeForaDaFaixa` (a
