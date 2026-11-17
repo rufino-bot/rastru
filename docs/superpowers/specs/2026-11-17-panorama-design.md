@@ -5,7 +5,10 @@ rufino-bot/rastru#38). O desenho foi conversado com o usuário em chat numa sess
 parte por texto, parte por uma captura da planilha que a Gestão usa hoje e parte por dois áudios que explicam as cores da
 planilha, transcritos na sessão com o Whisper (`medium`, pelo `faster-whisper`). Os mockups da conversa são uma página
 privada do usuário (`https://claude.ai/artifact/5C6xzuS4nzimnrZQ5HPqif`, versão 3). As decisões do usuário são D1 a D12
-(seção 2.1). As chamadas do desenho, que o usuário confere ao ler, são C1 a C20 (seção 2.2).
+(seção 2.1). As chamadas do desenho, que o usuário confere ao ler, são C1 a C20 (seção 2.2). O builder check (um revisor
+lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou quatro premissas falsas sobre o código
+(a ordem da `CalculadoraDeExecucao.Saldos`, o atraso calculado no cliente, o critério do `GET /expedicao` e os dois
+sentidos de "em produção") e um corpo de 403 que o projeto não manda; foram corrigidos em C2, C8, C18 e nas seções 5 e 6.
 
 **Ponto de partida.** A Fase 5 está concluída. O próximo item do roadmap seria a 3C (push) ou a Fase 6 (KPIs), sem ordem
 decidida entre as duas. Este trabalho entra antes de ambas, logo depois da **miniatura isométrica do sólido**, que
@@ -79,13 +82,13 @@ o chão de fábrica já registra. A única escrita nova é a marca **"Embalado"*
 | # | Chamada |
 |---|---|
 | C1 | Nome **"Panorama"**, primeira entrada da barra do `AppShell`, como link direto (não grupo), antes de Produção. Rota `/panorama`. |
-| C2 | **Quais Peças aparecem:** toda Peça (nó sem pai) de Pedido **não encerrado** (nem `Concluido` nem `Cancelado`), inclusive Pedido `Aberto` que ninguém começou e Pedido de Retrabalho, enquanto ela tiver alguma unidade que não foi expedida nem baixada. Peça toda expedida ou baixada sai da lista (o mesmo critério do `GET /expedicao`). |
+| C2 | **Quais Peças aparecem:** toda Peça (nó sem pai) de Pedido **não encerrado** (nem `Concluido` nem `Cancelado`), inclusive Pedido `Aberto` que ninguém começou e Pedido de Retrabalho, enquanto ela tiver alguma unidade que não foi expedida nem baixada. Peça toda expedida ou baixada sai da lista. O critério é **mais largo** que o do `GET /expedicao` (que só lista Peça com unidade no local de expedição ou em conserto), então a consulta da expedição não serve como está; a fonte que serve é a de `ListarNosEmProducaoAsync`, filtrada aos nós sem pai, que já inclui Pedido `Aberto`, exclui `Concluido` e `Cancelado` e traz a pausa aberta com o `Motivo`. |
 | C3 | Sub-Itens não têm linha. A Peça com filhos mostra a própria distribuição; enquanto os Itens são feitos, ela aparece "a iniciar". Ver a seção 7 (risco aceito, a confirmar). |
 | C4 | **Colunas** (PC): Desenho · OS · Código · Descrição · Qtd · Prazo · Onde está · Aferição · Embalado. "Qtd" é a quantidade da Peça no Pedido (`EstruturaItem.Quantidade`). |
 | C5 | Solda/Usinagem/Dobra, Observações e Localização saem: o Roteiro e a distribuição dizem o mesmo sem digitação. |
 | C6 | Cor só para estado, nas regras de hoje: atraso `atraso` (roxo), pausa `atencao` (âmbar, com o motivo), aferição como na expedição ("Conforme" `positivo`, "Não conforme" `negativo`, o resto neutro). Setor e posição em pílula/segmento **neutro**. |
 | C7 | O "vermelho de atenção" da planilha vira duas coisas que o Rastru já tem: o **atraso** do Pedido e a **pausa** do Pedido, mostrada com o motivo ("Pausado: alteração de projeto"). A pausa é do Pedido inteiro, não de uma Peça (seção 7). |
-| C8 | **Distribuição** ("Onde está"): os saldos da Peça na ordem da API de posições (`AIniciar`, depois por passo do Roteiro, conserto, local de expedição), com o local de expedição somado num segmento "Expedição" e, por último, **expedidas** e **baixadas** num traço diferente (já saíram da fábrica, mas contam para o "Embalado"). |
+| C8 | **Distribuição** ("Onde está"), na **ordem do Roteiro**, montada pelo servidor (a `CalculadoraDeExecucao.Saldos` ordena primeiro pelo tipo de posição, depois pelo passo, e por isso não serve como está): primeiro `AIniciar`; depois **um segmento por passo** do Roteiro, na ordem do passo, com o Setor e a soma de `NoSetor` e `AguardandoColeta` daquele passo ("3 Solda"), e o aguardando coleta como detalhe dentro do segmento ("3 Solda, 1 aguardando coleta"); um Setor que aparece duas vezes no Roteiro (retorno ao setor) dá dois segmentos; depois o **conserto**, um segmento por Setor de conserto ("1 em conserto na Solda", as três posições do conserto somadas); depois o **local de expedição**, as cinco posições somadas num segmento "Expedição"; por último, **expedidas** e **baixadas**, num traço diferente (já saíram da fábrica, mas contam para o "Embalado"). Segmento com zero não aparece. |
 | C9 | **Ordem original da tela:** prazo de entrega (mais próximo primeiro), depois número do Pedido, depois código da Peça, e o `Id` do nó por último. Aplicada pelo servidor; a tela só reordena quando um cabeçalho manda. |
 | C10 | **Colunas que ordenam:** OS, Código, Descrição, Qtd e Prazo. **Não ordenam:** Desenho; Onde está (a Peça está em vários lugares ao mesmo tempo, não há um valor só para comparar); Aferição e Embalado (já têm filtro). Uma coluna ordena por vez; clicar noutra começa o ciclo dela. Empate numa ordenação escolhida cai na ordem original. |
 | C11 | **Filtros** (`FiltroDeDemanda`, no cliente): Pedido, Setor (Peças com alguma unidade naquele Setor, em trabalho, aguardando coleta ou em conserto), Situação (Atrasado, Pausado, No prazo), Relatório (Exige relatório, Sem relatório), Embalado (Embalado, Pode embalar, Em produção). Mais uma busca por texto (OS, código, descrição) e o **intervalo de prazo**. |
@@ -95,7 +98,7 @@ o chão de fábrica já registra. A única escrita nova é a marca **"Embalado"*
 | C15 | **Recarga automática** pelo `useCargaPeriodica`, no `INTERVALO_DA_EXECUCAO_MS` (hoje 30 s), com "Atualizado às HH:MM" no topo. A recarga mantém filtros, ordenação e rolagem. |
 | C16 | **Leitura é de todos** os perfis (regra "gating vai na ação, não no link"). A regra da Fase 6, "só a Gestão vê", **não** se aplica: o Panorama não é KPI. |
 | C17 | **Quem marca e desmarca o "Embalado":** Qualidade, PCP e Administrador (chave nova `embalagem` em `permissoes.ts`, espelhando o `[Authorize(Roles)]`). Desmarcar não exige ser o autor. A Gestão vê o estado, sem a caixa. |
-| C18 | Conta do "Embalado" (D4 em números): **pode marcar** quando a Peça tem **zero** em produção (`AIniciar`, `NoSetor`, `AguardandoColeta`, `AguardandoMontagem`, `AguardandoConserto`, `EmConserto`, `ConsertoPronto`) e **ao menos uma** unidade no local de expedição. Equivale a `local de expedição + Expedido + Perdido = Quantidade`. Toda posição do local de expedição conta (inclusive `NaoConforme` e `AguardandoLiberacao`: embalar é físico, a aferição é outro assunto e aparece na linha). |
+| C18 | Conta do "Embalado" (D4 em números): **pode marcar** quando a Peça tem **zero** em produção (`AIniciar`, `NoSetor`, `AguardandoColeta`, `AguardandoMontagem`, `AguardandoConserto`, `EmConserto`, `ConsertoPronto`) e **ao menos uma** unidade no local de expedição. Equivale a `local de expedição + Expedido + Perdido = Quantidade`, e por isso a Peça com parte já expedida pode ser marcada (proposto na conversa, sem objeção do usuário; D4 não citava as expedidas). As sete posições são um **conjunto próprio** do Panorama: **não** é o `CalculadoraDeExecucao.EmProducao`, que segue o sentido da regra 9 e conta o local de expedição como em produção (com ele, nenhuma Peça seria marcável). Toda posição do local de expedição conta (inclusive `NaoConforme` e `AguardandoLiberacao`: embalar é físico, a aferição é outro assunto e aparece na linha). |
 | C19 | **"Some sozinho"** é calculado, nunca gravado (seção 3.2): nenhum caso de uso existente (conserto, baixa, remessa, estornos, reposição) ganha código para desmarcar. |
 | C20 | O código da Peça na linha é link para a página do Agrupamento da Peça, onde estão a árvore, as posições, o histórico e (pelo Componente) o visualizador 3D. |
 
@@ -204,11 +207,11 @@ Forma proposta (o builder ajusta nomes ao padrão dos DTOs vizinhos):
     {
       "estruturaItemId": 812,
       "agrupamentoId": 77,
-      "pedido": { "id": 41, "numero": "293146", "dataEntrega": "2026-11-06", "retrabalho": false,
+      "pedido": { "id": 41, "numero": "293146", "dataEntrega": "2026-11-06", "atrasado": true, "retrabalho": false,
                   "pausa": { "motivo": "Alteração de projeto" } },   // null sem pausa aberta
       "componente": { "id": 300, "codigo": "038190-C", "descricao": "…", "temMiniatura": true },
       "quantidade": 5,
-      "saldos": [ /* SaldoDto[], na ordem da API de posições, como em GET /agrupamentos/{id}/posicoes */ ],
+      "distribuicao": [ /* segmentos já na ordem de C8 */ ],
       "afericao": { /* o resumo que a expedição já mostra para a Peça: exige relatório, situação, conforme/não conforme */ },
       "embalagem": {
         "vale": false,
@@ -221,12 +224,15 @@ Forma proposta (o builder ajusta nomes ao padrão dos DTOs vizinhos):
 }
 ```
 
-- **Saldos:** reaproveitar o cálculo da Execução (`CalculadoraDeExecucao.Saldos`, o mesmo de
-  `GET /agrupamentos/{id}/posicoes`), que já devolve na ordem que a primitiva `ResumoDePosicoes` mostra. O agrupamento em
-  "Expedição" (soma das cinco posições do local) e o traço das saídas (C8) são da tela.
+- **Saldos:** os saldos vêm do cálculo da Execução (`CalculadoraDeExecucao.Saldos`, o mesmo de
+  `GET /agrupamentos/{id}/posicoes`), mas a **ordem e os segmentos de C8 são montados no servidor**, numa função pura
+  com teste próprio: a ordem daquela calculadora é por tipo de posição, não por passo. O DTO troca `saldos` por
+  `distribuicao`, uma lista de segmentos já na ordem de C8 (tipo do segmento, Setor e passo quando houver, quantidade e,
+  no segmento de passo, o aguardando coleta à parte). A tela só desenha.
 - **Aferição:** reaproveitar o que `GET /expedicao` calcula para a Peça. O que importa na linha é: exige relatório ou
   não, e a situação (a medir, conforme, não conforme, liberada), com as cores de C6.
-- **Atraso:** a tela calcula a partir de `dataEntrega`, como `LinhaDePedido` já faz; o servidor não manda "atrasado".
+- **Atraso:** o servidor manda `atrasado` no Pedido, como `GET /expedicao` e `GET /pedidos` já fazem (regra 33: data de
+  Brasília e status do Pedido). A tela não recalcula.
 - **Custo:** a lista inteira percorre o livro das Peças abertas. O builder mede com a massa de demonstração e, se a
   consulta pesar, lê os saldos de uma vez para todas as Peças (como a Fila e a Expedição já fazem), não Peça a Peça.
 
@@ -234,7 +240,8 @@ Forma proposta (o builder ajusta nomes ao padrão dos DTOs vizinhos):
 
 Corpo `{ "embalado": true }` para marcar e `{ "embalado": false }` para desmarcar. Responde 204. Recusas da seção 3.3,
 no contrato de erro do projeto (código de erro e mensagem em português), com `faltam` no corpo do
-`ProducaoNaoTerminou`. 403 `Proibido` para os outros perfis. O `specs/05-api-endpoints.md` ganha a seção «Panorama» com
+`ProducaoNaoTerminou`. Os outros perfis recebem o 403 do `[Authorize(Roles)]`, sem corpo, como as outras rotas de
+escrita. O `specs/05-api-endpoints.md` ganha a seção «Panorama» com
 as duas rotas e o contrato de erro.
 
 ### 5.3 Testes
@@ -270,12 +277,16 @@ as duas rotas e o contrato de erro.
 - **Distribuição:** reaproveitar `ResumoDePosicoes` se ele aceitar o agrupamento de "Expedição" e o traço das saídas sem
   virar outro componente; senão, um componente do módulo que usa as mesmas funções de rótulo (`rotuloDoSaldo`). Fica a
   critério do builder, com a regra de C6 (tudo neutro).
-- **"Embalado":** `CampoDeCaixa` (a caixa com texto visível) com o texto "Embalado". **Travada**, com "faltam N em
+- **"Embalado":** `CampoDeCaixa` (a caixa com texto visível) com o texto "Embalado". Hoje a caixa dele é `size-4` sem
+  área de toque de 44 px, ao contrário da `CaixaDeLote`; como a Qualidade marca pelo celular, o `CampoDeCaixa` ganha a
+  área mínima de 44 × 44 px (com teste), o que também melhora os usos dele na baixa. **Travada**, com "faltam N em
   produção" ao lado. **Marcada**, com quem e quando. Para quem não pode marcar, uma `Pilula` neutra "Embalado" e a data,
   sem caixa. A escrita trava o segundo toque (o `ref` do `useEscritaDoPainel`, ou o mesmo mecanismo) e recarrega a lista;
   a recusa do servidor aparece junto da linha, sem derrubar a tela.
-- **Desenho:** a miniatura da spec da miniatura (D6), pela rota que aquela spec definir, com um espaço neutro quando a
-  Peça não tem miniatura. A coluna existe desde o primeiro commit do Panorama.
+- **Desenho:** a miniatura da spec da miniatura (D6), pela rota e pelo campo do DTO que aquela spec definir (o
+  `temMiniatura` da seção 5.1 é provisório), com um espaço neutro quando a Peça não tem miniatura. **O plano do Panorama
+  só é escrito depois de a spec da miniatura ser aprovada**, e usa o contrato dela; como a miniatura executa antes, a
+  coluna existe desde o primeiro commit do Panorama.
 - **Os três estados** (carregando, vazio, erro), cada um com teste que morre se sumir. O vazio distingue "Nenhuma Peça
   em aberto." de "Nenhuma Peça casa com o filtro.".
 - **Recarga:** `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS` (C15). A falha numa recarga segue o que o
