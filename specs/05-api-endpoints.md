@@ -142,8 +142,9 @@ reenvia e a sessão morre no primeiro refresh.
   `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, seções C9, C10 e C15 e 5.2).
   `multipart/form-data`, campo `miniatura` (o PNG de 320 × 240) e o campo `solidoSha256`: o SHA-256 do
   sólido de que o navegador a desenhou, em 64 dígitos hexadecimais **minúsculos**. O servidor compara o
-  hash com o do sólido atual **dentro da mesma transação** em que grava, e só grava se forem iguais:
-  um sólido trocado entre o desenho e a gravação não fica com a miniatura do antigo. A miniatura anterior
+  hash com o do sólido atual **dentro da mesma transação** em que grava, e a ligação é condicional ao
+  sólido conferido (`UPDATE … WHERE ArquivoSolidoId = <o conferido>`): um sólido trocado entre o desenho
+  e a gravação, até no meio da própria requisição, dá `409` e não deixa nada gravado. A miniatura anterior
   continua na tabela sem ninguém apontando. Resposta **204**, sem corpo. Falhas: `400` (hash ausente ou
   que não seja hexadecimal de 64 caracteres minúsculos, «Informe o hash do solido de que a miniatura foi
   desenhada.»; ou miniatura inválida, com as mesmas frases do envio do sólido), `404` (Componente

@@ -54,30 +54,44 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
   }
 
   /// <summary>
-  /// A leitura do Componente e do <c>Sha256</c> do solido e a gravacao vao na MESMA transacao (C15).
-  /// READ COMMITTED, como <see cref="GravarEVincularComoSolidoAsync"/>: o que se fecha aqui e a
-  /// comparacao contra o solido que ja esta gravado, nao uma disputa por linha; um solido trocado
-  /// por outro escritor DEPOIS da leitura e o mesmo ultimo-escritor-vence daquele metodo.
+  /// A leitura do Componente e do <c>Sha256</c> do solido e a gravacao vao na MESMA transacao, e a
+  /// ligacao e CONDICIONAL (C15): <c>UPDATE Componente SET ArquivoMiniaturaId = ... WHERE Id = ...
+  /// AND ArquivoSolidoId = &lt;o id do solido cujo hash foi conferido&gt;</c>. Sob READ COMMITTED um
+  /// <see cref="GravarEVincularComoSolidoAsync"/> concorrente pode confirmar entre a leitura do hash
+  /// e a ligacao; como ele troca o <c>ArquivoSolidoId</c>, o <c>WHERE</c> deixa de casar, nenhuma
+  /// linha e afetada, a transacao e desfeita (o arquivo da miniatura recem-inserido NAO sobrevive) e
+  /// o resultado e <see cref="ResultadoDaMiniaturaAvulsa.SolidoMudou"/>. Escolhido em vez de
+  /// <c>UPDLOCK</c> na leitura porque nao segura lock entre as duas idas ao banco e o teste consegue
+  /// provar o caminho deterministicamente.
   /// </summary>
   public async Task<ResultadoDaMiniaturaAvulsa> GravarMiniaturaAvulsaAsync(
       int componenteId, ArquivoDeComponente miniatura, byte[] sha256DoSolido, CancellationToken ct)
   {
     await using var transacao = await _db.Database.BeginTransactionAsync(ct);
 
-    var componente = await _db.Componentes.SingleOrDefaultAsync(c => c.Id == componenteId, ct);
-    if (componente is null) return ResultadoDaMiniaturaAvulsa.ComponenteInexistente;
-    if (componente.ArquivoSolidoId is not { } solidoId) return ResultadoDaMiniaturaAvulsa.SemSolido;
+    var solidoId = await _db.Componentes.AsNoTracking()
+        .Where(c => c.Id == componenteId)
+        .Select(c => new { c.ArquivoSolidoId })
+        .SingleOrDefaultAsync(ct);
+    if (solidoId is null) return ResultadoDaMiniaturaAvulsa.ComponenteInexistente;
+    if (solidoId.ArquivoSolidoId is not { } idDoSolido) return ResultadoDaMiniaturaAvulsa.SemSolido;
 
     // So o Sha256 (coluna calculada), nunca o blob.
     var atual = await _db.ArquivosDeComponente.AsNoTracking()
-        .Where(a => a.Id == solidoId).Select(a => a.Sha256).SingleAsync(ct);
+        .Where(a => a.Id == idDoSolido).Select(a => a.Sha256).SingleAsync(ct);
     if (!atual.AsSpan().SequenceEqual(sha256DoSolido)) return ResultadoDaMiniaturaAvulsa.SolidoMudou;
 
     _db.ArquivosDeComponente.Add(miniatura);
     await _db.SaveChangesAsync(ct);
 
-    componente.ArquivoMiniaturaId = miniatura.Id;
-    await _db.SaveChangesAsync(ct);
+    var ligadas = await _db.Componentes
+        .Where(c => c.Id == componenteId && c.ArquivoSolidoId == idDoSolido)
+        .ExecuteUpdateAsync(s => s.SetProperty(c => c.ArquivoMiniaturaId, miniatura.Id), ct);
+    if (ligadas == 0)
+    {
+      await transacao.RollbackAsync(ct);
+      return ResultadoDaMiniaturaAvulsa.SolidoMudou;
+    }
 
     await transacao.CommitAsync(ct);
     return ResultadoDaMiniaturaAvulsa.Gravada;
