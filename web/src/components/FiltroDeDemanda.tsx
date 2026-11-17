@@ -44,7 +44,7 @@ export function contarFiltrosAtivos(selecao: Selecao): number {
 }
 
 // Busca sem caixa nem acento: quem digita no celular não acentua ("solda" acha "Sôlda").
-function normalizar(texto: string): string {
+export function normalizarParaBusca(texto: string): string {
   return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 }
 
@@ -156,9 +156,9 @@ export function FiltroDeDemanda({ facetas, selecao, aoMudar }: Props) {
           {facetas.map((faceta) => {
             const opcoes = opcoesExibidas(faceta)
             const busca = buscas[faceta.chave] ?? ''
-            const consulta = normalizar(busca.trim())
+            const consulta = normalizarParaBusca(busca.trim())
             const visiveis = consulta
-              ? opcoes.filter((o) => normalizar(`${o.rotulo} ${o.detalhe ?? ''}`).includes(consulta))
+              ? opcoes.filter((o) => normalizarParaBusca(`${o.rotulo} ${o.detalhe ?? ''}`).includes(consulta))
               : opcoes
             return (
               <fieldset key={faceta.chave} className="flex flex-col gap-2">
