@@ -9,7 +9,10 @@ import { usePermissoesDaEmbalagem } from './usePermissoesDaEmbalagem'
 
 interface Props {
   peca: PecaDoPanoramaDto
-  /** A marca foi gravada, ou a recusa disse que a tela estava velha: a tela recarrega. */
+  /**
+   * Chamado depois que a escrita dá certo: a tela recarrega. Na recusa, a mensagem aparece ao lado da caixa e a
+   * tela não recarrega (a recarga periódica da página cobre a tela velha).
+   */
   aoGravar: () => void
 }
 
