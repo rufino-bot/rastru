@@ -126,4 +126,51 @@ public class EmbalagemRepositoryTests : TesteComBanco
 
     Assert.True((await LerAsync(pecaId)).VoltouAProducaoDepois);
   });
+
+  [Fact]
+  public Task Varias_pecas_pedidas_juntas_cada_uma_traz_a_propria_resposta_e_a_nao_pedida_fica_de_fora() =>
+      NoCenarioAsync(async (arvore, pecaA, setorId) =>
+      {
+        int pecaB, pecaC;
+        await using (var db = NovoContexto())
+        {
+          pecaB = await arvore.NovaPecaAsync(db, 2m);
+          pecaC = await arvore.NovaPecaAsync(db, 2m);
+        }
+
+        // A: marca antiga, marca nova, e movimento para a producao depois da nova.
+        await GravarEmbalagemAsync(arvore, pecaA, TiposDeEmbalagem.Desmarcar, Base.AddMinutes(-10));
+        await GravarEmbalagemAsync(arvore, pecaA, TiposDeEmbalagem.Marcar, Base);
+        await GravarMovimentoAsync(arvore, pecaA, "Entrega", "AguardandoConserto", setorId, null,
+            "EmConserto", setorId, null, Base.AddMinutes(5));
+        // B: so a marca, sem movimento nenhum.
+        await GravarEmbalagemAsync(arvore, pecaB, TiposDeEmbalagem.Marcar, Base.AddMinutes(1));
+        // C: tem linha, mas nao e pedida.
+        await GravarEmbalagemAsync(arvore, pecaC, TiposDeEmbalagem.Marcar, Base);
+
+        await using var leitura = NovoContexto();
+        var lidas = await new EmbalagemRepository(leitura).ListarUltimasAsync(
+            [pecaA, pecaB], CalculoDaEmbalagem.PosicoesDeProducao, CancellationToken.None);
+
+        Assert.Equal(2, lidas.Count);
+        Assert.DoesNotContain(lidas, l => l.EstruturaItemId == pecaC);
+        var a = Assert.Single(lidas, l => l.EstruturaItemId == pecaA);
+        var b = Assert.Single(lidas, l => l.EstruturaItemId == pecaB);
+        Assert.Equal(TiposDeEmbalagem.Marcar, a.Tipo);
+        Assert.Equal(Base, a.DataHora, TimeSpan.FromSeconds(1));
+        Assert.True(a.VoltouAProducaoDepois);
+        Assert.Equal(Base.AddMinutes(1), b.DataHora, TimeSpan.FromSeconds(1));
+        Assert.False(b.VoltouAProducaoDepois);
+      });
+
+  [Fact]
+  public Task Movimento_na_mesma_DataHora_da_marca_nao_conta_porque_o_posterior_e_estrito() =>
+      NoCenarioAsync(async (arvore, pecaId, setorId) =>
+      {
+        await GravarEmbalagemAsync(arvore, pecaId, TiposDeEmbalagem.Marcar, Base);
+        await GravarMovimentoAsync(arvore, pecaId, "Entrega", "AguardandoConserto", setorId, null,
+            "EmConserto", setorId, null, Base);
+
+        Assert.False((await LerAsync(pecaId)).VoltouAProducaoDepois);
+      });
 }
