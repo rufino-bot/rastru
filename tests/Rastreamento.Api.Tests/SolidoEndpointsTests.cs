@@ -328,6 +328,38 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     Assert.False(itens[semSolido]);
   }
 
+  /// <summary>
+  /// `miniaturaVersao` de ponta a ponta: a listagem e o detalhe devolvem a MESMA versao que o
+  /// `ETag` de `GET .../miniatura` (o hexa do `Sha256` gravado pelo banco), e `null` para o
+  /// Componente sem miniatura. Escopado pelo prefixo dos codigos.
+  /// </summary>
+  [Fact]
+  public async Task Listagem_e_detalhe_trazem_a_miniaturaVersao_igual_ao_ETag()
+  {
+    var cliente = ClienteComo("Administrador");
+    var prefixo = $"MV{Guid.NewGuid():N}"[..10];
+    var com = await NovoComponenteComCodigo($"{prefixo}-C");
+    var sem = await NovoComponenteComCodigo($"{prefixo}-S");
+    Assert.Equal(
+        HttpStatusCode.NoContent,
+        (await EnviarSolido(cliente, com, StlDeTesteDaApi.CuboBinario(), miniatura: MiniaturaValida())).StatusCode);
+    await AnotarArquivosDoComponente(com);
+    var etag = (await cliente.GetAsync($"/api/componentes/{com}/miniatura")).Headers.ETag!.Tag.Trim('"');
+
+    var pagina = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&tamanho=100")).RootElement;
+    var versoes = pagina.GetProperty("itens").EnumerateArray().ToDictionary(
+        i => i.GetProperty("id").GetInt32(),
+        i => i.GetProperty("miniaturaVersao").GetString());
+    var detalhe = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes/{com}")).RootElement;
+
+    Assert.Equal(2, versoes.Count);
+    Assert.Equal(etag, versoes[com]);
+    Assert.Null(versoes[sem]);
+    Assert.Equal(etag, detalhe.GetProperty("miniaturaVersao").GetString());
+  }
+
   private async Task<int> NovoComponenteComCodigo(string codigo)
   {
     using var escopo = _factory.Services.CreateScope();

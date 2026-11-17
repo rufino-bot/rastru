@@ -91,4 +91,12 @@ public interface IArquivoDeComponenteRepository
   /// </summary>
   Task<ResultadoDaMiniaturaAvulsa> GravarMiniaturaAvulsaAsync(
       int componenteId, ArquivoDeComponente miniatura, byte[] sha256DoSolido, CancellationToken ct);
+
+  /// <summary>
+  /// O <c>Sha256</c> de cada arquivo pedido, numa UNICA consulta e SEM o <c>Conteudo</c> (projecao
+  /// da coluna calculada). Id inexistente nao aparece no dicionario. Serve a versao da miniatura
+  /// na listagem de Componentes (uma consulta por pagina) e, depois, ao Panorama.
+  /// </summary>
+  Task<IReadOnlyDictionary<int, byte[]>> ObterSha256Async(
+      IReadOnlyCollection<int> arquivoIds, CancellationToken ct);
 }

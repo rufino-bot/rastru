@@ -653,4 +653,38 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
       await LimparAsync(componenteId, solido.Id, primeira.Id, segunda.Id);
     }
   }
+
+  [Fact]
+  public async Task ObterSha256_devolve_o_hash_de_cada_arquivo_e_omite_o_inexistente()
+  {
+    int usuarioId;
+    await using (var setup = NovoContexto())
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+    var a = NovoArquivo(usuarioId, "a.png", ConteudoDeTeste(0x31));
+    var b = NovoArquivo(usuarioId, "b.png", ConteudoDeTeste(0x32));
+    await using (var db = NovoContexto())
+    {
+      db.ArquivosDeComponente.AddRange(a, b);
+      await db.SaveChangesAsync();
+    }
+
+    try
+    {
+      await using var leitura = NovoContexto();
+      var hashes = await new ArquivoDeComponenteRepository(leitura).ObterSha256Async(
+          [a.Id, b.Id, -1], CancellationToken.None);
+
+      Assert.Equal(2, hashes.Count);
+      Assert.Equal(SHA256.HashData(ConteudoDeTeste(0x31)), hashes[a.Id]);
+      Assert.Equal(SHA256.HashData(ConteudoDeTeste(0x32)), hashes[b.Id]);
+      Assert.False(hashes.ContainsKey(-1));
+    }
+    finally
+    {
+      await using var limpeza = NovoContexto();
+      limpeza.ArquivosDeComponente.RemoveRange(
+          await limpeza.ArquivosDeComponente.Where(x => x.Id == a.Id || x.Id == b.Id).ToListAsync());
+      await limpeza.SaveChangesAsync();
+    }
+  }
 }

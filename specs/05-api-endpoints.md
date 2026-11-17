@@ -95,10 +95,15 @@ reenvia e a sessão morre no primeiro refresh.
     `?ordem=codigo`.
   **Este documento não detalha os campos de cada item de `itens`** (nem detalhava antes da Fase
   2B) — só o envelope da paginação; por isso `temSolido`, que o item de listagem carrega desde a
-  Fase 2B, não ganha bullet próprio aqui.
+  Fase 2B, não ganha bullet próprio aqui. O mesmo vale para **`miniaturaVersao`**, que o item da
+  listagem e o detalhe carregam desde a miniatura do sólido: o `Sha256` da miniatura em
+  hexadecimal minúsculo (64 dígitos), ou `null` quando o Componente não tem miniatura. É versão,
+  não endereço (serve de cache-busting, igual ao `ETag` de `GET /componentes/{id}/miniatura`); a
+  listagem a calcula com **uma** consulta de hashes por página.
 - `GET /componentes/{id}` *(qualquer perfil autenticado)* — detalhe do Componente:
-  `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes }`
-  (os três últimos entraram na Fase 2B; antes só havia os cinco primeiros). `nomeDoSolido` e
+  `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes,
+  miniaturaVersao }` (os três antes do último entraram na Fase 2B; antes só havia os cinco
+  primeiros; `miniaturaVersao`, acima, é nulo sem miniatura). `nomeDoSolido` e
   `tamanhoDoSolidoEmBytes` são nulos **juntos** quando o Componente não tem sólido enviado, e
   preenchidos **juntos** quando tem — nunca um só. `404` se o Componente não existir.
 - `POST /componentes` *(Administrador, PCP)* — `{ codigo, descricao, tipo }`, `tipo` em

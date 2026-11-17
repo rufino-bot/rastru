@@ -144,6 +144,19 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
         .SingleOrDefaultAsync(a => a.Id == arquivoId.Value, ct);
   }
 
+  public async Task<IReadOnlyDictionary<int, byte[]>> ObterSha256Async(
+      IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
+  {
+    if (arquivoIds.Count == 0) return new Dictionary<int, byte[]>();
+
+    // Projecao so de Id e Sha256 (coluna calculada): o Conteudo nunca sai do SQL Server.
+    var linhas = await _db.ArquivosDeComponente.AsNoTracking()
+        .Where(a => arquivoIds.Contains(a.Id))
+        .Select(a => new { a.Id, a.Sha256 })
+        .ToListAsync(ct);
+    return linhas.ToDictionary(l => l.Id, l => l.Sha256);
+  }
+
   // Duas consultas em vez de um JOIN com navegacao: a navegacao e justamente o que nao existe,
   // por desenho. Este SELECT le SO o id -- nao toca no blob nem no nome -- e serve
   // ObterSolidoDoComponenteAsync (que traz o blob) e ObterMetadadoDoSolidoAsync (que traz so o

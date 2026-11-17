@@ -80,6 +80,21 @@ public class FakeArquivoDeComponenteRepo : IArquivoDeComponenteRepository
     return Task.FromResult(ResultadoDaMiniaturaAvulsa.Gravada);
   }
 
+  /// <summary>Quantas vezes <see cref="ObterSha256Async"/> foi chamado: prova que a listagem
+  /// pergunta os hashes UMA vez por pagina, nao uma por item.</summary>
+  public int ConsultasDeSha256 { get; private set; }
+
+  public Task<IReadOnlyDictionary<int, byte[]>> ObterSha256Async(
+      IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
+  {
+    ConsultasDeSha256++;
+    // Id inexistente nao aparece, como no repositorio real.
+    IReadOnlyDictionary<int, byte[]> achados = Gravados
+        .Where(a => arquivoIds.Contains(a.Id))
+        .ToDictionary(a => a.Id, a => a.Sha256);
+    return Task.FromResult(achados);
+  }
+
   // Terceiro metodo da interface, nascido da emenda (B). A Task 3 NAO o consome -- quem consome e
   // a Task 4, no ComponenteDetalheDto -- mas o fake tem de implementa-lo para compilar.
   public Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(

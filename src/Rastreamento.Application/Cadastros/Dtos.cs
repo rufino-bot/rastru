@@ -175,10 +175,13 @@ public sealed record NovoAgrupamentoDto(
 /// `TemSolido` e booleano, e nao o id do arquivo, de proposito: a tela nao precisa do id — a rota
 /// do binario e `GET componentes/{id}/solido`, pelo id do COMPONENTE — e expor um id de arquivo
 /// abriria um segundo caminho para o mesmo recurso. `ArquivoFoto` continua de fora: a foto esta
-/// fora do escopo da Fase 2B.
+/// fora do escopo da Fase 2B. `MiniaturaVersao` e o hash da miniatura em hexadecimal, ou null sem
+/// miniatura: e versao (cache-busting), nao endereco, e por isso nao contraria a regra de nao
+/// expor id de arquivo.
 /// </remarks>
 public sealed record ComponenteDto(
-    int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido);
+    int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido,
+    string? MiniaturaVersao);
 
 /// <remarks>
 /// Projecao PROPRIA, e nao um campo a mais em <c>ComponenteDto</c>: a listagem nao tem de onde
@@ -191,7 +194,7 @@ public sealed record ComponenteDto(
 /// </remarks>
 public sealed record ComponenteDetalheDto(
     int Id, string Codigo, string Descricao, string Tipo, bool Ativo, bool TemSolido,
-    string? NomeDoSolido, int? TamanhoDoSolidoEmBytes);
+    string? NomeDoSolido, int? TamanhoDoSolidoEmBytes, string? MiniaturaVersao);
 
 /// <remarks>
 /// Os `MaxLength` espelham `dbo.Componente`: NVARCHAR(50), (200) e (20). Mesma regra de alvo do
