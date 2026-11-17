@@ -53,6 +53,36 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
     return solido.Id;
   }
 
+  /// <summary>
+  /// A leitura do Componente e do <c>Sha256</c> do solido e a gravacao vao na MESMA transacao (C15).
+  /// READ COMMITTED, como <see cref="GravarEVincularComoSolidoAsync"/>: o que se fecha aqui e a
+  /// comparacao contra o solido que ja esta gravado, nao uma disputa por linha; um solido trocado
+  /// por outro escritor DEPOIS da leitura e o mesmo ultimo-escritor-vence daquele metodo.
+  /// </summary>
+  public async Task<ResultadoDaMiniaturaAvulsa> GravarMiniaturaAvulsaAsync(
+      int componenteId, ArquivoDeComponente miniatura, byte[] sha256DoSolido, CancellationToken ct)
+  {
+    await using var transacao = await _db.Database.BeginTransactionAsync(ct);
+
+    var componente = await _db.Componentes.SingleOrDefaultAsync(c => c.Id == componenteId, ct);
+    if (componente is null) return ResultadoDaMiniaturaAvulsa.ComponenteInexistente;
+    if (componente.ArquivoSolidoId is not { } solidoId) return ResultadoDaMiniaturaAvulsa.SemSolido;
+
+    // So o Sha256 (coluna calculada), nunca o blob.
+    var atual = await _db.ArquivosDeComponente.AsNoTracking()
+        .Where(a => a.Id == solidoId).Select(a => a.Sha256).SingleAsync(ct);
+    if (!atual.AsSpan().SequenceEqual(sha256DoSolido)) return ResultadoDaMiniaturaAvulsa.SolidoMudou;
+
+    _db.ArquivosDeComponente.Add(miniatura);
+    await _db.SaveChangesAsync(ct);
+
+    componente.ArquivoMiniaturaId = miniatura.Id;
+    await _db.SaveChangesAsync(ct);
+
+    await transacao.CommitAsync(ct);
+    return ResultadoDaMiniaturaAvulsa.Gravada;
+  }
+
   public async Task<ArquivoDeComponente?> ObterSolidoDoComponenteAsync(
       int componenteId, CancellationToken ct)
   {

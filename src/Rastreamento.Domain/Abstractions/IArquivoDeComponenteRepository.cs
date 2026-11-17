@@ -10,6 +10,19 @@ namespace Rastreamento.Domain.Abstractions;
 /// </summary>
 public sealed record MetadadoDeSolido(string NomeOriginal, int TamanhoEmBytes);
 
+/// <summary>
+/// Desfecho da miniatura avulsa (C15 da spec da miniatura do solido). Vive junto da interface
+/// porque so ela o produz, no mesmo padrao de <see cref="MetadadoDeSolido"/>.
+/// </summary>
+public enum ResultadoDaMiniaturaAvulsa
+{
+  Gravada,
+  ComponenteInexistente,
+  SemSolido,
+  /// <summary>O <c>Sha256</c> do solido atual difere do de que a miniatura foi desenhada.</summary>
+  SolidoMudou,
+}
+
 public interface IArquivoDeComponenteRepository
 {
   /// <summary>
@@ -68,4 +81,14 @@ public interface IArquivoDeComponenteRepository
   /// tem miniatura.
   /// </summary>
   Task<ArquivoDeComponente?> ObterMiniaturaDoComponenteAsync(int componenteId, CancellationToken ct);
+
+  /// <summary>
+  /// Grava a miniatura SEM tocar no solido e aponta <c>Componente.ArquivoMiniaturaId</c> para ela
+  /// (C9). Na MESMA transacao le o Componente e o <c>Sha256</c> do solido atual e o compara com
+  /// <paramref name="sha256DoSolido"/>: so grava se forem iguais, o que fecha a corrida de C15 (um
+  /// solido novo enviado entre o desenho e a gravacao ficaria com a miniatura do antigo). A
+  /// miniatura anterior deixa de ser referenciada e PERMANECE na tabela.
+  /// </summary>
+  Task<ResultadoDaMiniaturaAvulsa> GravarMiniaturaAvulsaAsync(
+      int componenteId, ArquivoDeComponente miniatura, byte[] sha256DoSolido, CancellationToken ct);
 }

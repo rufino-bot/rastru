@@ -18,6 +18,12 @@ public sealed class SolidoDoComponenteUseCase
 
   private const string ErroDeMiniaturaNaoEncontrada = "Este Componente nao tem miniatura.";
 
+  private const string ErroDeHashDoSolido = "Informe o hash do solido de que a miniatura foi desenhada.";
+
+  private const string ErroDeMiniaturaSemSolido = "Este Componente nao tem solido para gerar a miniatura.";
+
+  private const string ErroDeSolidoMudou = "O solido mudou depois que a miniatura foi desenhada. Gere de novo.";
+
   /// <summary>O navegador manda o PNG sem nome que importe; o nome gravado e sempre este.</summary>
   private const string NomeDaMiniatura = "miniatura.png";
 
@@ -78,6 +84,45 @@ public sealed class SolidoDoComponenteUseCase
 
     return Result.Ok();
   }
+
+  /// <summary>
+  /// "Gerar miniatura" (C9, C10, C15): grava so a miniatura de um solido que ja existe. O
+  /// <paramref name="solidoSha256"/> e o hash do solido de que o navegador a desenhou; o
+  /// repositorio o compara com o solido atual dentro da transacao, e a miniatura de um solido
+  /// que mudou nesse meio tempo e recusada.
+  /// </summary>
+  public async Task<Result> EnviarMiniatura(
+      int componenteId, byte[] miniatura, string solidoSha256, int usuarioId, CancellationToken ct)
+  {
+    if (!HashHexaValido(solidoSha256))
+      return Result.Falha(ErroDeHashDoSolido, TipoDeErro.Validacao);
+
+    if (ValidadorDeMiniatura.Validar(miniatura) is { } invalida)
+      return Result.Falha(invalida, TipoDeErro.Validacao);
+
+    var arquivo = new ArquivoDeComponente
+    {
+      NomeOriginal = NomeDaMiniatura,
+      Conteudo = miniatura,
+      CriadoPorUsuarioId = usuarioId,
+    };
+    var resultado = await _arquivos.GravarMiniaturaAvulsaAsync(
+        componenteId, arquivo, Convert.FromHexString(solidoSha256), ct);
+
+    return resultado switch
+    {
+      ResultadoDaMiniaturaAvulsa.Gravada => Result.Ok(),
+      ResultadoDaMiniaturaAvulsa.ComponenteInexistente =>
+          Result.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado),
+      ResultadoDaMiniaturaAvulsa.SemSolido =>
+          Result.Falha(ErroDeMiniaturaSemSolido, TipoDeErro.Conflito),
+      _ => Result.Falha(ErroDeSolidoMudou, TipoDeErro.Conflito),
+    };
+  }
+
+  /// <summary>64 digitos hexadecimais MINUSCULOS: a mesma forma da versao que a API devolve.</summary>
+  private static bool HashHexaValido(string? hash) =>
+      hash is { Length: 64 } && hash.All(c => c is (>= '0' and <= '9') or (>= 'a' and <= 'f'));
 
   /// <summary>
   /// Componente inexistente e componente sem solido respondem o MESMO NaoEncontrado: a diferenca

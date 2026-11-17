@@ -1,3 +1,4 @@
+using Rastreamento.Domain.Abstractions;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Rastreamento.Domain.Entities;
@@ -447,5 +448,111 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
     await using var db = NovoContexto();
     Assert.Null(await new ArquivoDeComponenteRepository(db)
         .ObterMiniaturaDoComponenteAsync(idInexistente, CancellationToken.None));
+  }
+
+  // ---------------------------------------------------------------- MINIATURA AVULSA
+
+  [Fact]
+  public async Task Miniatura_avulsa_com_o_hash_do_solido_atual_grava_e_liga_sem_tocar_no_solido()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+    var solido = NovoArquivo(usuarioId, "peca.stl", ConteudoDeTeste());
+    await using (var db = NovoContexto())
+      await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+          componenteId, solido, null, CancellationToken.None);
+    var miniatura = NovoArquivo(usuarioId, "miniatura.png", MiniaturaDeTeste());
+
+    try
+    {
+      ResultadoDaMiniaturaAvulsa resultado;
+      await using (var db = NovoContexto())
+        resultado = await new ArquivoDeComponenteRepository(db).GravarMiniaturaAvulsaAsync(
+            componenteId, miniatura, SHA256.HashData(ConteudoDeTeste()), CancellationToken.None);
+
+      Assert.Equal(ResultadoDaMiniaturaAvulsa.Gravada, resultado);
+      await using var leitura = NovoContexto();
+      var componente = await leitura.Componentes.AsNoTracking().SingleAsync(c => c.Id == componenteId);
+      Assert.Equal(solido.Id, componente.ArquivoSolidoId);
+      Assert.Equal(miniatura.Id, componente.ArquivoMiniaturaId);
+    }
+    finally
+    {
+      await LimparAsync(componenteId, solido.Id, miniatura.Id);
+    }
+  }
+
+  [Fact]
+  public async Task Miniatura_avulsa_com_hash_de_outro_solido_e_SolidoMudou_e_nao_grava()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+    var solido = NovoArquivo(usuarioId, "peca.stl", ConteudoDeTeste());
+    await using (var db = NovoContexto())
+      await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+          componenteId, solido, null, CancellationToken.None);
+    // Nome unico: a conferencia de "nada gravado" nunca conta a tabela inteira.
+    var nome = $"avulsa-{Guid.NewGuid():N}.png";
+    var miniatura = NovoArquivo(usuarioId, nome, MiniaturaDeTeste());
+
+    try
+    {
+      ResultadoDaMiniaturaAvulsa resultado;
+      await using (var db = NovoContexto())
+        resultado = await new ArquivoDeComponenteRepository(db).GravarMiniaturaAvulsaAsync(
+            componenteId, miniatura, SHA256.HashData(ConteudoDeTeste(0x09)), CancellationToken.None);
+
+      Assert.Equal(ResultadoDaMiniaturaAvulsa.SolidoMudou, resultado);
+      Assert.Empty(await IdsDeArquivoDoUsuarioComNomeAsync(nome));
+      await using var leitura = NovoContexto();
+      Assert.Null((await leitura.Componentes.AsNoTracking().SingleAsync(c => c.Id == componenteId))
+          .ArquivoMiniaturaId);
+    }
+    finally
+    {
+      await LimparAsync(componenteId, solido.Id);
+    }
+  }
+
+  [Fact]
+  public async Task Miniatura_avulsa_sem_solido_e_de_componente_inexistente_nao_gravam()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+    var idInexistente = await IdDeComponenteQueNaoExisteAsync();
+    var nome = $"avulsa-{Guid.NewGuid():N}.png";
+
+    try
+    {
+      await using var db = NovoContexto();
+      var repo = new ArquivoDeComponenteRepository(db);
+      Assert.Equal(
+          ResultadoDaMiniaturaAvulsa.SemSolido,
+          await repo.GravarMiniaturaAvulsaAsync(
+              componenteId, NovoArquivo(usuarioId, nome, MiniaturaDeTeste()), new byte[32],
+              CancellationToken.None));
+      Assert.Equal(
+          ResultadoDaMiniaturaAvulsa.ComponenteInexistente,
+          await repo.GravarMiniaturaAvulsaAsync(
+              idInexistente, NovoArquivo(usuarioId, nome, MiniaturaDeTeste()), new byte[32],
+              CancellationToken.None));
+      Assert.Empty(await IdsDeArquivoDoUsuarioComNomeAsync(nome));
+    }
+    finally
+    {
+      await LimparAsync(componenteId);
+    }
   }
 }

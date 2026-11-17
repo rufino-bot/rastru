@@ -201,6 +201,27 @@ public class ComponentesController : CadastroControllerBase
     return TraduzirResultado(resultado);
   }
 
+  /// <summary>
+  /// "Gerar miniatura" (C9, C10 e C15 da spec da miniatura): grava so a miniatura de um solido que
+  /// ja existe. `multipart` com `miniatura` e `solidoSha256`, o hash (64 digitos hexadecimais
+  /// minusculos) do solido de que o navegador a desenhou; o servidor so a grava se ele ainda for o
+  /// solido atual. O limite e o da miniatura mais a margem do multipart.
+  /// </summary>
+  [HttpPost("{id:int}/miniatura")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  [RequestSizeLimit(ValidadorDeMiniatura.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
+  public async Task<IActionResult> EnviarMiniatura(
+      int id, IFormFile miniatura, [FromForm] string? solidoSha256, CancellationToken ct)
+  {
+    var usuarioId = UsuarioDaSessao();
+    if (usuarioId is null) return Unauthorized();
+
+    var resultado = await _solido.EnviarMiniatura(
+        id, await LerAsync(miniatura, ct), solidoSha256 ?? "", usuarioId.Value, ct);
+
+    return TraduzirResultado(resultado);
+  }
+
   private static async Task<byte[]> LerAsync(IFormFile arquivo, CancellationToken ct)
   {
     using var memoria = new MemoryStream();

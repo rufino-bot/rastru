@@ -58,6 +58,28 @@ public class FakeArquivoDeComponenteRepo : IArquivoDeComponenteRepository
       int componenteId, CancellationToken ct) =>
       Task.FromResult(SolidoPorComponente.GetValueOrDefault(componenteId));
 
+  /// <summary>Ids de Componente que o fake trata como inexistentes na miniatura avulsa.</summary>
+  public HashSet<int> Inexistentes { get; } = [];
+
+  public Task<ResultadoDaMiniaturaAvulsa> GravarMiniaturaAvulsaAsync(
+      int componenteId, ArquivoDeComponente miniatura, byte[] sha256DoSolido, CancellationToken ct)
+  {
+    if (Inexistentes.Contains(componenteId))
+      return Task.FromResult(ResultadoDaMiniaturaAvulsa.ComponenteInexistente);
+    if (!SolidoPorComponente.TryGetValue(componenteId, out var solido))
+      return Task.FromResult(ResultadoDaMiniaturaAvulsa.SemSolido);
+    // O banco calcula o Sha256 do solido (coluna PERSISTED); o fake faz a mesma conta.
+    var atual = System.Security.Cryptography.SHA256.HashData(solido.Conteudo);
+    if (!atual.AsSpan().SequenceEqual(sha256DoSolido))
+      return Task.FromResult(ResultadoDaMiniaturaAvulsa.SolidoMudou);
+
+    miniatura.Id = _proximoId++;
+    miniatura.Sha256 = System.Security.Cryptography.SHA256.HashData(miniatura.Conteudo);
+    Gravados.Add(miniatura);
+    ArquivoMiniaturaIdPorComponente[componenteId] = miniatura.Id;
+    return Task.FromResult(ResultadoDaMiniaturaAvulsa.Gravada);
+  }
+
   // Terceiro metodo da interface, nascido da emenda (B). A Task 3 NAO o consome -- quem consome e
   // a Task 4, no ComponenteDetalheDto -- mas o fake tem de implementa-lo para compilar.
   public Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(
@@ -289,5 +311,118 @@ public class SolidoDoComponenteUseCaseTests
 
     Assert.False(resultado.Sucesso);
     Assert.Equal(TipoDeErro.NaoEncontrado, resultado.TipoDoErro);
+  }
+
+  // ---------------------------------------------------------------- MINIATURA AVULSA
+
+  private static string HashDoSolido(byte[] stl) =>
+      Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(stl));
+
+  private static async Task EnviarSolidoAsync(SolidoDoComponenteUseCase useCase, int id, byte[]? miniatura = null) =>
+      Assert.True((await useCase.Enviar(
+          id, "cubo.stl", StlDeTeste.CuboBinario(), miniatura, UsuarioId, CancellationToken.None)).Sucesso);
+
+  [Fact]
+  public async Task Miniatura_avulsa_grava_e_liga()
+  {
+    var (useCase, _, arquivos) = Montar(ComponenteDeCatalogo(10));
+    await EnviarSolidoAsync(useCase, 10);
+    Assert.Null(arquivos.ArquivoMiniaturaIdPorComponente[10]);
+    var miniatura = MiniaturaValida();
+
+    var resultado = await useCase.EnviarMiniatura(
+        10, miniatura, HashDoSolido(StlDeTeste.CuboBinario()), UsuarioId, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    var gravada = arquivos.Gravados.Single(a => a.Id == arquivos.ArquivoMiniaturaIdPorComponente[10]);
+    Assert.Equal("miniatura.png", gravada.NomeOriginal);
+    Assert.Equal(miniatura, gravada.Conteudo);
+    Assert.Equal(UsuarioId, gravada.CriadoPorUsuarioId);
+    var lida = await useCase.ObterMiniatura(10, CancellationToken.None);
+    Assert.True(lida.Sucesso);
+  }
+
+  [Fact]
+  public async Task Miniatura_avulsa_sem_solido_e_conflito()
+  {
+    var (useCase, _, arquivos) = Montar(ComponenteDeCatalogo(10));
+
+    var resultado = await useCase.EnviarMiniatura(
+        10, MiniaturaValida(), HashDoSolido(StlDeTeste.CuboBinario()), UsuarioId, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
+    Assert.Equal("Este Componente nao tem solido para gerar a miniatura.", resultado.Erro);
+    Assert.Empty(arquivos.Gravados);
+  }
+
+  [Fact]
+  public async Task Miniatura_avulsa_de_solido_trocado_e_recusada()
+  {
+    var (useCase, _, arquivos) = Montar(ComponenteDeCatalogo(10));
+    await EnviarSolidoAsync(useCase, 10);
+
+    var resultado = await useCase.EnviarMiniatura(
+        10, MiniaturaValida(), new string('a', 64), UsuarioId, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Conflito, resultado.TipoDoErro);
+    Assert.Equal("O solido mudou depois que a miniatura foi desenhada. Gere de novo.", resultado.Erro);
+    Assert.Single(arquivos.Gravados);   // so o solido
+    Assert.Null(arquivos.ArquivoMiniaturaIdPorComponente[10]);
+  }
+
+  [Theory]
+  [InlineData("")]
+  [InlineData("   ")]
+  [InlineData("abc")]
+  [InlineData("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ")]
+  [InlineData("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
+  public async Task Miniatura_avulsa_com_hash_malformado_e_400(string hash)
+  {
+    var (useCase, _, arquivos) = Montar(ComponenteDeCatalogo(10));
+    await EnviarSolidoAsync(useCase, 10);
+
+    var resultado = await useCase.EnviarMiniatura(
+        10, MiniaturaValida(), hash, UsuarioId, CancellationToken.None);
+
+    Assert.False(resultado.Sucesso);
+    Assert.Equal(TipoDeErro.Validacao, resultado.TipoDoErro);
+    Assert.Equal("Informe o hash do solido de que a miniatura foi desenhada.", resultado.Erro);
+    Assert.Single(arquivos.Gravados);
+  }
+
+  [Fact]
+  public async Task Miniatura_avulsa_substitui_a_existente()
+  {
+    var (useCase, _, arquivos) = Montar(ComponenteDeCatalogo(10));
+    await EnviarSolidoAsync(useCase, 10, MiniaturaValida());
+    var anterior = arquivos.ArquivoMiniaturaIdPorComponente[10];
+    var nova = PngDeTeste.Png(ValidadorDeMiniatura.Largura, ValidadorDeMiniatura.Altura, bytesExtras: 3);
+
+    var resultado = await useCase.EnviarMiniatura(
+        10, nova, HashDoSolido(StlDeTeste.CuboBinario()), UsuarioId, CancellationToken.None);
+
+    Assert.True(resultado.Sucesso);
+    Assert.NotEqual(anterior, arquivos.ArquivoMiniaturaIdPorComponente[10]);
+    var lida = await useCase.ObterMiniatura(10, CancellationToken.None);
+    Assert.Equal(nova, lida.Valor!.Conteudo);
+    // A anterior continua gravada, sem ninguem apontando (politica do solido).
+    Assert.Contains(arquivos.Gravados, a => a.Id == anterior);
+  }
+
+  [Fact]
+  public async Task Miniatura_avulsa_invalida_e_400_e_componente_inexistente_e_404()
+  {
+    var (useCase, _, arquivos) = Montar(ComponenteDeCatalogo(10));
+    await EnviarSolidoAsync(useCase, 10);
+    var hash = HashDoSolido(StlDeTeste.CuboBinario());
+
+    var invalida = await useCase.EnviarMiniatura(10, [1, 2, 3], hash, UsuarioId, CancellationToken.None);
+    Assert.Equal(TipoDeErro.Validacao, invalida.TipoDoErro);
+
+    arquivos.Inexistentes.Add(99);
+    var inexistente = await useCase.EnviarMiniatura(99, MiniaturaValida(), hash, UsuarioId, CancellationToken.None);
+    Assert.Equal(TipoDeErro.NaoEncontrado, inexistente.TipoDoErro);
   }
 }

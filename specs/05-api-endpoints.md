@@ -137,6 +137,19 @@ reenvia e a sessão morre no primeiro refresh.
   (64 dígitos), e `Cache-Control: private, no-cache`. Com `If-None-Match` igual ao `ETag`, responde
   **304** sem corpo. `404` quando o Componente não existe **ou** quando existe mas não tem miniatura
   (o sólido foi enviado sem ela).
+- `POST /componentes/{id}/miniatura` *(Administrador, PCP)* — "Gerar miniatura": grava **só** a miniatura de um
+  Componente que já tem sólido, sem tocar no sólido (spec
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, seções C9, C10 e C15 e 5.2).
+  `multipart/form-data`, campo `miniatura` (o PNG de 320 × 240) e o campo `solidoSha256`: o SHA-256 do
+  sólido de que o navegador a desenhou, em 64 dígitos hexadecimais **minúsculos**. O servidor compara o
+  hash com o do sólido atual **dentro da mesma transação** em que grava, e só grava se forem iguais:
+  um sólido trocado entre o desenho e a gravação não fica com a miniatura do antigo. A miniatura anterior
+  continua na tabela sem ninguém apontando. Resposta **204**, sem corpo. Falhas: `400` (hash ausente ou
+  que não seja hexadecimal de 64 caracteres minúsculos, «Informe o hash do solido de que a miniatura foi
+  desenhada.»; ou miniatura inválida, com as mesmas frases do envio do sólido), `404` (Componente
+  inexistente), `409` (sem sólido, «Este Componente nao tem solido para gerar a miniatura.», ou sólido
+  trocado, «O solido mudou depois que a miniatura foi desenhada. Gere de novo.»), `403` (perfil sem
+  escrita). O limite do corpo é o da miniatura (512 KiB) mais a margem de 4 KiB do multipart.
 - `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
   Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
   quantidadePadrao }[]`
