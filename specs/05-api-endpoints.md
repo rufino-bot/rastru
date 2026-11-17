@@ -500,7 +500,7 @@ aninhadas sob Agrupamento, as de rascunho são de topo.)*
   `dbo.ArquivoDeComponente` sem nenhum Componente apontando para ele até a confirmação; um pendente anterior
   do mesmo registro é apagado depois que o novo estiver ligado. → 200 `ImportacaoDto`. Aceita, **opcional**, o
   campo `miniatura`: o PNG isométrico de 320 × 240 que o navegador desenhou do STL (spec
-  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, C5, C6, C8 e 5.3), com as mesmas
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, C5, C6, C8 e 5.1), com as mesmas
   validações e frases de `POST /componentes/{id}/solido`. O STL é validado primeiro e a miniatura depois, e
   **miniatura inválida recusa o envio inteiro** com 400 (nada é gravado). **Sem o campo, o registro fica sem
   miniatura pendente**: a anterior era do sólido anterior, e o pendente e a miniatura dele, quando trocados,
