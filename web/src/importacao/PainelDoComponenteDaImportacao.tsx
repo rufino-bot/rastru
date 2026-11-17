@@ -290,7 +290,9 @@ export function PainelDoComponenteDaImportacao({
                     tipo: situacao.tipo ?? '',
                     ativo: situacao.ativo ?? true,
                     temSolido: situacao.temSolido,
-                    miniaturaVersao: situacao.miniaturaVersao,
+                    // O valor representa o Componente do catálogo, e o seletor não lê a miniatura: a
+                    // versão da situação, com STL pendente, seria a da miniatura pendente.
+                    miniaturaVersao: null,
                   } : null}
                   aoSelecionar={(c) => casarCom(situacao, c)}
                   desabilitado={desabilitado}

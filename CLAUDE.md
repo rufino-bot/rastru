@@ -553,10 +553,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   inventar telas paralelas. O sólido do Componente usa `UploadDeSolido` e `VisualizadorDeSolido`, que
   recebem o **`caminho`** do binário, sem o prefixo `/api` (`caminhoDoSolido(id)` para o do catálogo,
   `caminhoDoSolidoPendente(id, registroId)` para o enviado na conferência), em vez do id do Componente; o
-  upload recebe também `enviar`, a função que faz o envio (ele só confere o tamanho), e `desabilitado`.
-  Hoje são **3** usos do upload e **2** do visualizador, em 2 arquivos cada (`ComponenteDetalhePage` e
+  upload recebe também `enviar`, a função que faz o envio, e `desabilitado`. O upload confere o tamanho e, antes de
+  enviar, lê o arquivo e desenha a miniatura (`desenharMiniatura`): o `enviar` recebe `(arquivo, miniatura)`, com a
+  miniatura `null` quando o aparelho não a desenhou, e o `aoMudarEnviando` avisa a tela quando o envio começa e
+  termina. Hoje são **3** usos do upload e **2** do visualizador, em 2 arquivos cada (`ComponenteDetalhePage` e
   `PainelDoComponenteDaImportacao`; medido em 2026-10-03 com
-  `grep -rn "<UploadDeSolido\|<VisualizadorDeSolido" web/src --include=*.tsx | grep -v "\.test\."`). A
+  `grep -rn "<UploadDeSolido\|<VisualizadorDeSolido" web/src --include=*.tsx | grep -v "\.test\."` e remedido em
+  2026-11-17, depois da miniatura, com o mesmo comando: 5 linhas, as mesmas 3 do upload e 2 do visualizador, sem mudança). A
   árvore da conferência é **própria**, `ArvoreDaImportacao`, e não a `ArvoreDeEstrutura`: o contrato
   daquela é o nó real, com ações, posições e Roteiro que o rascunho não tem. De `lg` para cima a tela tem
   duas colunas, a faixa da Peça e a árvore à esquerda e o painel do Componente selecionado à direita, fixo
