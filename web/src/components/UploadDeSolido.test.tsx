@@ -409,6 +409,27 @@ describe('UploadDeSolido', () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe('/api/importacoes/5/componentes/9/solido')
   })
 
+  it('aoMudarEnviando avisa quando o envio começa e quando termina', async () => {
+    const avisos: boolean[] = []
+    let concluir: () => void = () => {}
+    render(
+      <UploadDeSolido
+        caminho="/componentes/7/solido"
+        enviar={() => new Promise<void>((resolver) => { concluir = resolver })}
+        temSolido={false}
+        nomeDoSolido={null}
+        tamanhoDoSolidoEmBytes={null}
+        aoEnviar={() => {}}
+        aoMudarEnviando={(e) => avisos.push(e)}
+      />,
+    )
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivoStl()] } })
+
+    await waitFor(() => expect(avisos.at(-1)).toBe(true))
+    concluir()
+    await waitFor(() => expect(avisos.at(-1)).toBe(false))
+  })
+
   it('desabilitado trava o campo de arquivo', () => {
     render(
       <UploadDeSolido

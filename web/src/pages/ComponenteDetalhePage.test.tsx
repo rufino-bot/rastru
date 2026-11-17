@@ -1000,7 +1000,7 @@ describe('ComponenteDetalhePage — miniatura', () => {
   })
 
   it('gerar miniatura com solido trocado mostra a recusa', async () => {
-    const frase = 'O solido mudou depois que a miniatura foi desenhada. Gere de novo.'
+    const frase = 'O sólido mudou enquanto a miniatura era gerada. Gere de novo.'
     vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
       const caminho = String(url).split('?')[0]
       if (caminho === '/api/componentes/7/miniatura' && init?.method === 'POST') {
@@ -1018,6 +1018,60 @@ describe('ComponenteDetalhePage — miniatura', () => {
 
     expect((await screen.findByRole('alert')).textContent).toContain(frase)
     expect((screen.getByRole('button', { name: 'Gerar miniatura' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('gerar miniatura trava o upload do solido enquanto roda', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido') return new Promise<Response>(() => {})
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+    const campo = await screen.findByLabelText(/Sólido \(\.stl\)/) as HTMLInputElement
+    expect(campo.disabled).toBe(false)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    await waitFor(() => expect(campo.disabled).toBe(true))
+  })
+
+  it('o upload do solido trava o gerar miniatura enquanto roda', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido' && init?.method === 'POST') return new Promise<Response>(() => {})
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+    const botao = await screen.findByRole('button', { name: 'Gerar miniatura' }) as HTMLButtonElement
+    expect(botao.disabled).toBe(false)
+
+    fireEvent.change(screen.getByLabelText(/Sólido \(\.stl\)/), {
+      target: { files: [new File(['solid x'], 'novo.stl')] },
+    })
+
+    await waitFor(() => expect(botao.disabled).toBe(true))
+  })
+
+  it('gerar miniatura com o download do solido recusado mostra a frase propria', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido') return Promise.resolve(respostaJson({ erro: 'x' }, 500))
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Não foi possível baixar o sólido.')
   })
 
   it('gerar miniatura sem webgl avisa', async () => {

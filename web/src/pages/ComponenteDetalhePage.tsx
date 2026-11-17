@@ -10,7 +10,7 @@ import {
   type FilhoPadraoDto, type MaterialPadraoDto, type RoteiroPadraoDto,
   type LinhaDeFilho, type LinhaDeMaterial, type LinhaDeRoteiro,
 } from '../api/receitaPadrao'
-import { mensagemDeErro } from '../api/erros'
+import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -252,6 +252,9 @@ export function ComponenteDetalhePage() {
   const [gerandoMiniatura, setGerandoMiniatura] = useState(false)
   const [erroDaMiniatura, setErroDaMiniatura] = useState<string | null>(null)
   const gerandoRef = useRef(false)
+  // O upload do sólido em voo: o "Gerar miniatura" e o upload não andam juntos (um troca o sólido
+  // que o outro desenha).
+  const [enviandoSolido, setEnviandoSolido] = useState(false)
 
   async function gerarMiniatura() {
     if (gerandoRef.current) return
@@ -260,7 +263,10 @@ export function ComponenteDetalhePage() {
     setErroDaMiniatura(null)
     try {
       const resposta = await apiFetch(caminhoDoSolido(componenteId))
-      if (!resposta.ok) throw new Error('Não foi possível baixar o sólido.')
+      if (!resposta.ok) {
+        setErroDaMiniatura('Não foi possível baixar o sólido.')
+        return
+      }
       const stl = await resposta.arrayBuffer()
       const hash = await sha256Hex(stl)
       if (hash === null) {
@@ -275,7 +281,12 @@ export function ComponenteDetalhePage() {
       await enviarMiniatura(componenteId, png, hash)
       recarregarComponente()
     } catch (e) {
-      setErroDaMiniatura(mensagemDeErro(e, 'Não foi possível gerar a miniatura.'))
+      // O 409 (sólido trocado ou ausente, C15) tem a frase aqui, com acento: a do servidor é ASCII.
+      setErroDaMiniatura(
+        e instanceof ErroDeApi && e.status === 409
+          ? 'O sólido mudou enquanto a miniatura era gerada. Gere de novo.'
+          : mensagemDeErro(e, 'Não foi possível gerar a miniatura.'),
+      )
     } finally {
       gerandoRef.current = false
       setGerandoMiniatura(false)
@@ -450,6 +461,8 @@ export function ComponenteDetalhePage() {
         <UploadDeSolido
           caminho={caminhoDoSolido(componenteId)}
           enviar={(arquivo, miniatura) => enviarSolido(componenteId, arquivo, miniatura)}
+          desabilitado={gerandoMiniatura}
+          aoMudarEnviando={setEnviandoSolido}
           temSolido={componente.temSolido}
           nomeDoSolido={componente.nomeDoSolido}
           tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
@@ -457,7 +470,7 @@ export function ComponenteDetalhePage() {
         />
       )}
 
-      {/* A miniatura (spec C13) é leitura de qualquer perfil; o "Gerar miniatura" é escrita e só
+      {/* A miniatura (spec C11) é leitura de qualquer perfil; o "Gerar miniatura" é escrita e só
           aparece sob `podeEscrever` quando o sólido ainda não tem miniatura. */}
       {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
@@ -469,7 +482,7 @@ export function ComponenteDetalhePage() {
           />
           {podeEscrever && componente.miniaturaVersao === null && (
             <div className="flex flex-col gap-2">
-              <Botao variante="secundario" onClick={() => { void gerarMiniatura() }} disabled={gerandoMiniatura}>
+              <Botao variante="secundario" onClick={() => { void gerarMiniatura() }} disabled={gerandoMiniatura || enviandoSolido}>
                 {gerandoMiniatura ? 'Gerando…' : 'Gerar miniatura'}
               </Botao>
               <BannerDeErro mensagem={erroDaMiniatura} />

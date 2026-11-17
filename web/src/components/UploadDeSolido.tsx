@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { apiFetch } from '../api/client'
 import { TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES } from '../api/cadastros'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
@@ -22,6 +22,9 @@ interface Props {
   /** Chamado depois de um envio com sucesso — a tela precisa reler o componente, senão
       `temSolido`/nome/tamanho continuam velhos e a interface mente. */
   aoEnviar: () => void
+  /** Avisa quando o envio começa (a leitura e o desenho da miniatura já contam) e quando termina,
+      para a tela travar o que não pode andar junto, como o "Gerar miniatura". */
+  aoMudarEnviando?: (enviando: boolean) => void
 }
 
 /** "16 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
@@ -43,6 +46,7 @@ const FALLBACK_DO_ENVIO = `Não foi possível enviar o sólido. Envie um arquivo
  */
 export function UploadDeSolido({
   caminho, enviar, desabilitado = false, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes, aoEnviar,
+  aoMudarEnviando,
 }: Props) {
   const [enviando, setEnviando] = useState(false)
   const [fase, setFase] = useState<'gerando' | 'enviando'>('enviando')
@@ -51,6 +55,7 @@ export function UploadDeSolido({
   // antes de enviar, e a falha da requisição, traduzida por `mensagemDeErro` —, e as duas saem pelo
   // mesmo banner.
   const [erroEnvio, setErroEnvio] = useState<string | null>(null)
+  useEffect(() => { aoMudarEnviando?.(enviando) }, [enviando, aoMudarEnviando])
   const [baixando, setBaixando] = useState(false)
   const [erroDownload, setErroDownload] = useState<unknown>(null)
 
