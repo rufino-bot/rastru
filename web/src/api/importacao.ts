@@ -288,7 +288,7 @@ export function caminhoDoSolidoPendente(id: number, registroId: number): string 
   return `/importacoes/${id}/componentes/${registroId}/solido`
 }
 
-/** O caminho da miniatura do registro (a pendente, ou a do catálogo), SEM o prefixo `/api`. */
+/** O caminho da miniatura pendente do registro, SEM o prefixo `/api` (ver `caminhoDoSolido`). */
 export function caminhoDaMiniaturaPendente(id: number, registroId: number): string {
   return `/importacoes/${id}/componentes/${registroId}/miniatura`
 }

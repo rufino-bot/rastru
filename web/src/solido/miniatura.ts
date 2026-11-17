@@ -15,7 +15,7 @@ export const COR_DA_ARESTA = 0x2f3a38
 export const INTENSIDADE_DA_LUZ_AMBIENTE = 0.55
 export const INTENSIDADE_DA_LUZ_DIRECIONAL = 0.6
 /** A luz direcional vem de cima e da frente (relativa ao centro, em raios). */
-export const DIRECAO_DA_LUZ_DIRECIONAL: [number, number, number] = [0.3, 1, 0.8]
+export const DIRECAO_DA_LUZ_DIRECIONAL: [number, number, number] = [0.6, 1.4, 1.0]
 export const LIMIAR_DA_ARESTA_EM_GRAUS = 20
 export const POLYGON_OFFSET_FACTOR = 1
 export const POLYGON_OFFSET_UNITS = 1
@@ -71,9 +71,11 @@ export async function desenharMiniatura(stl: ArrayBuffer): Promise<Blob | null> 
       polygonOffsetFactor: POLYGON_OFFSET_FACTOR,
       polygonOffsetUnits: POLYGON_OFFSET_UNITS,
     })
+    descartaveis.push(material)
     const arestas = new THREE.EdgesGeometry(geometria, LIMIAR_DA_ARESTA_EM_GRAUS)
+    descartaveis.push(arestas)
     const materialDaAresta = new THREE.LineBasicMaterial({ color: COR_DA_ARESTA })
-    descartaveis.push(material, arestas, materialDaAresta)
+    descartaveis.push(materialDaAresta)
 
     const cena = new THREE.Scene()
     cena.add(new THREE.Mesh(geometria, material))
@@ -104,6 +106,9 @@ export async function desenharMiniatura(stl: ArrayBuffer): Promise<Blob | null> 
     return null
   } finally {
     for (const d of descartaveis) d.dispose()
-    renderer?.dispose()
+    if (renderer) {
+      renderer.forceContextLoss()
+      renderer.dispose()
+    }
   }
 }

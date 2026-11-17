@@ -30,8 +30,23 @@ describe('cameraIsometrica', () => {
   })
 })
 
+/** STL binário mínimo e válido: cabeçalho de 80 bytes, 1 triângulo (134 bytes). */
+function stlDeUmTriangulo(): ArrayBuffer {
+  const buf = new ArrayBuffer(134)
+  const v = new DataView(buf)
+  v.setUint32(80, 1, true)
+  const pontos = [0, 0, 0, 10, 0, 0, 0, 10, 0]
+  pontos.forEach((n, i) => v.setFloat32(96 + i * 4, n, true))
+  return buf
+}
+
 describe('desenharMiniatura', () => {
   it('devolve null quando o WebGL nao existe', async () => {
+    // Sólido válido e não vazio: o null vem do WebGLRenderer, que lança no jsdom.
+    expect(await desenharMiniatura(stlDeUmTriangulo())).toBeNull()
+  })
+
+  it('devolve null para STL sem triangulos', async () => {
     expect(await desenharMiniatura(new ArrayBuffer(84))).toBeNull()
   })
 })
