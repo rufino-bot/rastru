@@ -159,6 +159,7 @@ builder.Services.AddScoped<IExpedicaoRepository, ExpedicaoRepository>();
 builder.Services.AddScoped<IBaixaRepository, BaixaRepository>();
 // Reposicao (Fase 5B-2): a reclamacao do cliente. Sem `Salvar` proprio, pelo mesmo motivo.
 builder.Services.AddScoped<IReposicaoRepository, ReposicaoRepository>();
+builder.Services.AddScoped<IEmbalagemRepository, EmbalagemRepository>();
 
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 builder.Services.AddScoped<ApontamentoUseCase>();
