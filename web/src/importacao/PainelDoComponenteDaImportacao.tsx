@@ -290,6 +290,7 @@ export function PainelDoComponenteDaImportacao({
                     tipo: situacao.tipo ?? '',
                     ativo: situacao.ativo ?? true,
                     temSolido: situacao.temSolido,
+                    miniaturaVersao: situacao.miniaturaVersao,
                   } : null}
                   aoSelecionar={(c) => casarCom(situacao, c)}
                   desabilitado={desabilitado}

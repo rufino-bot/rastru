@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   criarImportacao, listarImportacoes, obterImportacao, alterarPeca, alterarComponente, alterarFilho,
-  enviarSolidoPendente, caminhoDoSolidoPendente, reimportar, descartarImportacao, confirmarImportacao,
+  enviarSolidoPendente, caminhoDoSolidoPendente, caminhoDaMiniaturaPendente, reimportar, descartarImportacao, confirmarImportacao,
   ErroDeBom, TAMANHO_MAXIMO_DO_BOM_EM_BYTES,
 } from './importacao'
 import { inicializar, _resetParaTeste } from './client'
@@ -148,6 +148,20 @@ describe('api/importacao', () => {
 
   it('caminhoDoSolidoPendente não leva o prefixo /api', () => {
     expect(caminhoDoSolidoPendente(5, 8)).toBe('/importacoes/5/componentes/8/solido')
+  })
+
+  it('enviarSolidoPendente manda miniatura so quando ha blob', async () => {
+    const mock = simular(respostaJson(IMPORTACAO))
+    await enviarSolidoPendente(5, 8, 'v1', new File(['solid'], 'peca.stl'))
+    expect((chamada(mock)[1].body as FormData).has('miniatura')).toBe(false)
+
+    const mock2 = simular(respostaJson(IMPORTACAO))
+    await enviarSolidoPendente(5, 8, 'v1', new File(['solid'], 'peca.stl'), new Blob(['png'], { type: 'image/png' }))
+    expect(((chamada(mock2)[1].body as FormData).get('miniatura') as File).name).toBe('miniatura.png')
+  })
+
+  it('caminhoDaMiniaturaPendente não leva o prefixo /api', () => {
+    expect(caminhoDaMiniaturaPendente(5, 8)).toBe('/importacoes/5/componentes/8/miniatura')
   })
 
   it('reimportar manda arquivo e versao, e o 400 BomInvalido vira ErroDeBom', async () => {

@@ -37,7 +37,7 @@ function situacao(parcial: Partial<SituacaoDoComponenteDto> & Pick<SituacaoDoCom
   return {
     codigoLido: null, descricaoLida: '', componenteId: null, codigoDoCatalogo: null, descricaoDoCatalogo: null,
     tipo: null, ativo: null, temSolido: false, temSolidoPendente: false, nomeDoSolido: null,
-    tamanhoDoSolidoEmBytes: null, codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: false,
+    tamanhoDoSolidoEmBytes: null, miniaturaVersao: null, miniaturaPendente: false, codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: false,
     escolhaDeReceita: null, comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true, ...parcial,
   }
 }

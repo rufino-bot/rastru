@@ -6,6 +6,7 @@ import {
   obterResumoDePedidos, listarMateriaisDosPedidos,
   listarAgrupamentos, criarAgrupamento, excluirAgrupamento, obterAgrupamento,
   listarComponentes, criarComponente, definirAtivoComponente, obterComponente,
+  enviarSolido, enviarMiniatura, caminhoDaMiniatura,
   type ConflitoDeCadastro, type FiltroDePedidos,
 } from './cadastros'
 import { inicializar, _resetParaTeste } from './client'
@@ -19,6 +20,39 @@ describe('cadastros', () => {
   })
 
   afterEach(() => { vi.unstubAllGlobals() })
+
+  it('enviarSolido manda miniatura no FormData so quando ha blob', async () => {
+    const mock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', mock)
+    await enviarSolido(7, new File(['solid'], 'peca.stl'))
+    expect((mock.mock.calls[0][1].body as FormData).has('miniatura')).toBe(false)
+
+    await enviarSolido(7, new File(['solid'], 'peca.stl'), new Blob(['png'], { type: 'image/png' }))
+    const corpo = mock.mock.calls[1][1].body as FormData
+    expect((corpo.get('arquivo') as File).name).toBe('peca.stl')
+    expect((corpo.get('miniatura') as File).name).toBe('miniatura.png')
+  })
+
+  it('enviarMiniatura manda miniatura e solidoSha256 para /componentes/{id}/miniatura', async () => {
+    const mock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', mock)
+    await enviarMiniatura(7, new Blob(['png'], { type: 'image/png' }), 'ab'.repeat(32))
+    const [url, init] = mock.mock.calls[0]
+    expect(url).toBe('/api/componentes/7/miniatura')
+    expect(init.method).toBe('POST')
+    const corpo = init.body as FormData
+    expect((corpo.get('miniatura') as File).name).toBe('miniatura.png')
+    expect(corpo.get('solidoSha256')).toBe('ab'.repeat(32))
+  })
+
+  it('enviarMiniatura falha com ErroDeApi quando o servidor recusa', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 409 })))
+    await expect(enviarMiniatura(7, new Blob(['x']), 'ab'.repeat(32))).rejects.toBeInstanceOf(ErroDeApi)
+  })
+
+  it('caminhoDaMiniatura nao leva o prefixo /api', () => {
+    expect(caminhoDaMiniatura(7)).toBe('/componentes/7/miniatura')
+  })
 
   it('lista setores ativos por padrao', async () => {
     const fetchMock = vi.fn().mockResolvedValue(

@@ -622,7 +622,7 @@ describe('ConferenciaDeImportacaoPage', () => {
     const situacao = (registroId: number, escolhaDeReceita: 'Catalogo' | 'Importada' | null): SituacaoDoComponenteDto => ({
       registroId, codigoLido: null, descricaoLida: '', componenteId: null,
       codigoDoCatalogo: null, descricaoDoCatalogo: null, tipo: null, ativo: null,
-      temSolido: true, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+      temSolido: true, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null, miniaturaVersao: null, miniaturaPendente: false,
       codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: true, escolhaDeReceita,
       comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true,
     })
@@ -677,7 +677,7 @@ describe('ConferenciaDeImportacaoPage', () => {
     const DIVERGENTE: SituacaoDoComponenteDto = {
       registroId: 2, codigoLido: 'SU-200', descricaoLida: 'Suporte', componenteId: 200,
       codigoDoCatalogo: 'SU-200', descricaoDoCatalogo: 'Suporte', tipo: 'Montagem', ativo: true,
-      temSolido: true, temSolidoPendente: false, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684,
+      temSolido: true, temSolidoPendente: false, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684, miniaturaVersao: null, miniaturaPendente: false,
       codigoNovo: null, descricaoNova: null, tipoNovo: null, divergente: true, escolhaDeReceita: null,
       comparativo: [{ codigo: 'PA-300', descricao: 'Parafuso', noCatalogo: 4, noBom: 8, situacao: 'QuantidadeMuda' }],
       efeitoDeManterCatalogo: { retira: 1, traz: 0 }, naArvoreFinal: true,
@@ -734,7 +734,7 @@ describe('ConferenciaDeImportacaoPage', () => {
     const NOVO: SituacaoDoComponenteDto = {
       registroId: 3, codigoLido: 'PA-300', descricaoLida: 'Parafuso', componenteId: null,
       codigoDoCatalogo: null, descricaoDoCatalogo: null, tipo: null, ativo: null,
-      temSolido: false, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+      temSolido: false, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null, miniaturaVersao: null, miniaturaPendente: false,
       codigoNovo: 'PA-300', descricaoNova: 'Parafuso', tipoNovo: 'Fabricado', divergente: false,
       escolhaDeReceita: null, comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true,
     }
@@ -854,7 +854,7 @@ describe('ConferenciaDeImportacaoPage', () => {
     const NOVO: SituacaoDoComponenteDto = {
       registroId: 3, codigoLido: 'PA-300', descricaoLida: 'Parafuso', componenteId: null,
       codigoDoCatalogo: null, descricaoDoCatalogo: null, tipo: null, ativo: null,
-      temSolido: false, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null,
+      temSolido: false, temSolidoPendente: false, nomeDoSolido: null, tamanhoDoSolidoEmBytes: null, miniaturaVersao: null, miniaturaPendente: false,
       codigoNovo: 'PA-300', descricaoNova: 'Parafuso', tipoNovo: 'Fabricado', divergente: false,
       escolhaDeReceita: null, comparativo: [], efeitoDeManterCatalogo: null, naArvoreFinal: true,
     }

@@ -43,10 +43,10 @@ const PECA: NoDaEstrutura = {
 // `temSolido: true` preserva a intenção original da fixture: com `exigirSolido` ligado no
 // formulário de criar Peça, um `temSolido` indefinido contaria como "sem sólido" e bloquearia
 // `CH-100` em todo teste que cria Peça por este seletor.
-const COMPONENTE_BUSCA: ComponenteDto = { id: 10, codigo: 'CH-100', descricao: 'Chassi', tipo: 'Fabricado', ativo: true, temSolido: true }
+const COMPONENTE_BUSCA: ComponenteDto = { id: 10, codigo: 'CH-100', descricao: 'Chassi', tipo: 'Fabricado', ativo: true, temSolido: true, miniaturaVersao: null }
 
 /** Só para os dois testes de `exigirSolido` — os demais continuam usando `COMPONENTE_BUSCA`. */
-const COMPONENTE_SEM_SOLIDO_BUSCA: ComponenteDto = { id: 20, codigo: 'SF-050', descricao: 'Suporte sem sólido', tipo: 'Fabricado', ativo: true, temSolido: false }
+const COMPONENTE_SEM_SOLIDO_BUSCA: ComponenteDto = { id: 20, codigo: 'SF-050', descricao: 'Suporte sem sólido', tipo: 'Fabricado', ativo: true, temSolido: false, miniaturaVersao: null }
 
 /** `AgrupamentoDto` que `GET /agrupamentos/21` devolve — Task 8b, o cabeçalho da tela. */
 const AGRUPAMENTO: AgrupamentoDto = {
