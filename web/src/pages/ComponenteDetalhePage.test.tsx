@@ -927,11 +927,12 @@ describe('ComponenteDetalhePage — miniatura', () => {
     vi.mocked(sha256Hex).mockResolvedValue('ab'.repeat(32))
   })
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
   it('mostra a miniatura quando o componente tem', async () => {
-    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:miniatura' }))
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:miniatura')
     vi.stubGlobal('fetch', fetchPorRota({
       ...LEITURAS,
       '/api/componentes/7': () => respostaJson({ ...COM_SOLIDO, miniaturaVersao: 'v1' }),

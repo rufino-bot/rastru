@@ -246,12 +246,6 @@ export function ComponenteDetalhePage() {
     obterComponente(componenteId).then(setComponente).catch(() => {})
   }
 
-  // `versaoDoSolido` é a `key` do `VisualizadorDeSolido`. Substituir o sólido não muda `temSolido`
-  // (continua `true`), então sem a `key` o viewer aberto seguiria mostrando a geometria ANTIGA ao
-  // lado do nome do arquivo novo. Trocar a `key` desmonta o viewer velho — a limpeza dele libera os
-  // recursos de GPU — e monta um novo no estado inicial, que busca o arquivo novo no próximo clique
-  // em "Visualizar". Contador, e não nome/tamanho do arquivo: dois STL diferentes podem ter o mesmo
-  // nome e o mesmo tamanho.
   // "Gerar miniatura" (C9, C10): baixa o sólido gravado, calcula o hash dele, desenha e envia. O
   // hash é do arquivo BAIXADO, que é o que o desenho viu — o servidor o confere contra o sólido
   // gravado e recusa com 409 se ele mudou no meio (C15). Cada falha local tem frase própria.
@@ -288,6 +282,12 @@ export function ComponenteDetalhePage() {
     }
   }
 
+  // `versaoDoSolido` é a `key` do `VisualizadorDeSolido`. Substituir o sólido não muda `temSolido`
+  // (continua `true`), então sem a `key` o viewer aberto seguiria mostrando a geometria ANTIGA ao
+  // lado do nome do arquivo novo. Trocar a `key` desmonta o viewer velho — a limpeza dele libera os
+  // recursos de GPU — e monta um novo no estado inicial, que busca o arquivo novo no próximo clique
+  // em "Visualizar". Contador, e não nome/tamanho do arquivo: dois STL diferentes podem ter o mesmo
+  // nome e o mesmo tamanho.
   function aoEnviarSolido() {
     setVersaoDoSolido((versao) => versao + 1)
     recarregarComponente()
@@ -465,7 +465,7 @@ export function ComponenteDetalhePage() {
             caminho={caminhoDaMiniatura(componenteId)}
             versao={componente.miniaturaVersao}
             alt={`${componente.codigo} — ${componente.descricao}`}
-            className="block w-full sm:w-48"
+            className="block w-48 max-w-full"
           />
           {podeEscrever && componente.miniaturaVersao === null && (
             <div className="flex flex-col gap-2">
