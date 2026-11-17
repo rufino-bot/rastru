@@ -93,8 +93,8 @@ mesma sobra, a recusa `PaiComConjuntoAEspera` e a guarda `PaiJaIniciado` definit
 e o pai sem nada a iniciar fora de "Aguardando montagem", com a sobra em montagem por Setor) **não são da 5C** e vieram
 no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte, por decisão do usuário de 2026-11-17 (mais uma exceção
 declarada em `06-roadmap-mvp.md`), é a **miniatura isométrica do sólido** (spec
-`docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`) executa primeiro e o **Panorama** (spec
-`docs/superpowers/specs/2026-11-17-panorama-design.md`) em seguida, os dois **antes da 3C**; depois deles vêm a **3C** e a
+`docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`), seguida do **Panorama** (spec
+`docs/superpowers/specs/2026-11-17-panorama-design.md`); os dois **antes da 3C**; depois deles vêm a **3C** e a
 **Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
