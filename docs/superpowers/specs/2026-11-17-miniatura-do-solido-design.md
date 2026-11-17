@@ -71,6 +71,14 @@ consumidor é o Panorama; o segundo é o detalhe do Componente, onde quem subiu 
 | C14 | **Tempo de desenho:** o desenho roda antes do envio, depois de a pessoa escolher o arquivo. O botão de envio mostra "Gerando miniatura…" e depois "Enviando…". Um STL de 16 MiB (o teto) tem centenas de milhares de triângulos. O plano mede no PC (por agente) e tem uma **task de conferência do usuário no navegador**, que inclui subir um STL grande pelo **celular Android dele**; pela regra do `CLAUDE.md`, ela vem antes da review de branch. O teto aceitável é **5 s** para desenhar no Android. Reduzir o trabalho das arestas **não** entra de antemão: só se a medição passar do teto, e aí volta ao usuário antes de virar código. |
 | C15 | **A rota avulsa confere o sólido:** `POST /componentes/{id}/miniatura` recebe o `solidoSha256` do STL de que a imagem foi desenhada e recusa com 409 `SolidoMudou` quando ele não é o `Sha256` do sólido atual. Fecha a corrida em que alguém troca o sólido entre o "Gerar miniatura" baixar o STL e enviar a imagem, que ligaria a imagem velha ao sólido novo (contra C6). O envio conjunto (5.1) não precisa disso: STL e imagem chegam na mesma requisição. |
 
+**Nota de emenda à C14 (2026-11-17, na review de branch).** (a) Não há "botão de envio": o `UploadDeSolido` envia no
+`change` do campo, e "Gerando miniatura…" e "Enviando…" são um status (`<p role="status">`) que a tela mostra enquanto
+trabalha. O comportamento é o que a C14 queria; só a frase falava de botão. (b) A medição no PC foi feita na review de
+branch, em Node (o mesmo V8 do Chrome), sobre o `toro-grande.stl` (16.000.084 B, 320 mil triângulos): `STLLoader.parse`,
+9 a 24 ms; normais e esfera envolvente, 41 a 57 ms; `EdgesGeometry(geo, 20)`, 1.176 a 1.449 ms. O teste no Android
+**continua pendente** e nenhum corte foi decidido: pela C14, ele só volta ao usuário se a medição no celular passar dos
+5 s.
+
 ## 3. Domínio
 
 Não há regra de negócio nova. A regra 18 (o sólido é obrigação de toda Peça de Pedido) não muda, e a miniatura **não** é
