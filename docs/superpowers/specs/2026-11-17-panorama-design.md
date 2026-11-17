@@ -212,7 +212,7 @@ Forma proposta (o builder ajusta nomes ao padrão dos DTOs vizinhos):
       "agrupamentoId": 77,
       "pedido": { "id": 41, "numero": "293146", "dataEntrega": "2026-11-06", "atrasado": true, "retrabalho": false,
                   "pausa": { "motivo": "Alteração de projeto" } },   // null sem pausa aberta
-      "componente": { "id": 300, "codigo": "038190-C", "descricao": "…", "temMiniatura": true },
+      "componente": { "id": 300, "codigo": "038190-C", "descricao": "…", "miniaturaVersao": "9f2c…" },   // C12 da spec da miniatura; null sem miniatura
       "quantidade": 5,
       "itensEm": [ { "setorId": 3, "nome": "Corte" } ],   // C3; vazio sem descendente em Setor
       "distribuicao": [ /* segmentos já na ordem de C8 */ ],
@@ -289,8 +289,9 @@ as duas rotas e o contrato de erro.
   produção" ao lado. **Marcada**, com quem e quando. Para quem não pode marcar, uma `Pilula` neutra "Embalado" e a data,
   sem caixa. A escrita trava o segundo toque (o `ref` do `useEscritaDoPainel`, ou o mesmo mecanismo) e recarrega a lista;
   a recusa do servidor aparece junto da linha, sem derrubar a tela.
-- **Desenho:** a miniatura da spec da miniatura (D6), pela rota e pelo campo do DTO que aquela spec definir (o
-  `temMiniatura` da seção 5.1 é provisório), com um espaço neutro quando a Peça não tem miniatura. **O plano do Panorama
+- **Desenho:** a miniatura da spec da miniatura (D6), pela primitiva `MiniaturaDoSolido` e pelo
+  `miniaturaVersao` que aquela spec define (C11 e C12 dela; até a aprovação dela, a seção 5.1 trazia um `temMiniatura`
+  provisório), com um espaço neutro quando a Peça não tem miniatura. **O plano do Panorama
   só é escrito depois de a spec da miniatura ser aprovada**, e usa o contrato dela; como a miniatura executa antes, a
   coluna existe desde o primeiro commit do Panorama.
 - **Os três estados** (carregando, vazio, erro), cada um com teste que morre se sumir. O vazio distingue "Nenhuma Peça

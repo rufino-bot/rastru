@@ -8,7 +8,7 @@ As decisões do usuário são D1 a D5 (seção 2.1). As chamadas do desenho, que
 (seção 2.2). O builder check (um revisor lendo a spec como quem vai planejar, conferindo as premissas contra o código)
 não achou premissa falsa e levantou quatro pontos, todos resolvidos como chamada do desenho, sem decisão nova do usuário:
 a corrida do "Gerar miniatura" com a troca do sólido (C10 e C15), o significado da versão no import (C12), quem mede o
-tempo no Android (C14) e o reimport (C5).
+tempo no Android (C14) e o reimport (C5). O documento escrito foi **aprovado pelo usuário em 2026-11-17**.
 
 **Ponto de partida e ordem.** A miniatura nasceu da coluna "Desenho" do Panorama. O usuário decidiu que ela é um
 trabalho **separado**, que **executa antes do Panorama** (D6 e D14 da spec do Panorama), e as duas antes da 3C. O plano do
@@ -173,8 +173,8 @@ E, antes delas, **no navegador contra no servidor** (D1): no servidor exigiria u
   depois do Panorama.
 - `CLAUDE.md`: a primitiva `MiniaturaDoSolido` na «Interface», a contagem de usos do `UploadDeSolido` e do
   `VisualizadorDeSolido` se mudar, e o `db/alter-miniatura.sql` em «Comandos».
-- `docs/superpowers/specs/2026-11-17-panorama-design.md`: o `temMiniatura` provisório aponta para o `miniaturaVersao`
-  de C12 (feito junto com a aprovação desta spec).
+- `docs/superpowers/specs/2026-11-17-panorama-design.md`: o `temMiniatura` provisório virou o `miniaturaVersao` de C12
+  (feito junto com a aprovação desta spec, em 2026-11-17).
 
 ## 10. Fora do escopo
 
