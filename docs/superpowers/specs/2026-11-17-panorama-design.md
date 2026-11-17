@@ -4,7 +4,7 @@ Data: 2026-11-17. Branch: `claude/cool-cray-ijm0ib`, a partir da `main` em `7d41
 rufino-bot/rastru#38). O desenho foi conversado com o usuário em chat numa sessão de nuvem entre 2026-11-16 e 2026-11-17,
 parte por texto, parte por uma captura da planilha que a Gestão usa hoje e parte por dois áudios que explicam as cores da
 planilha, transcritos na sessão com o Whisper (`medium`, pelo `faster-whisper`). Os mockups da conversa são uma página
-privada do usuário (`https://claude.ai/artifact/5C6xzuS4nzimnrZQ5HPqif`, versão 3). As decisões do usuário são D1 a D12
+privada do usuário (`https://claude.ai/artifact/5C6xzuS4nzimnrZQ5HPqif`, versão 3). As decisões do usuário são D1 a D14
 (seção 2.1). As chamadas do desenho, que o usuário confere ao ler, são C1 a C20 (seção 2.2). O builder check (um revisor
 lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou quatro premissas falsas sobre o código
 (a ordem da `CalculadoraDeExecucao.Saldos`, o atraso calculado no cliente, o critério do `GET /expedicao` e os dois
@@ -76,6 +76,8 @@ o chão de fábrica já registra. A única escrita nova é a marca **"Embalado"*
 | D10 | **Cabeçalhos de coluna ordenam**: 1 clique crescente, 2 decrescente, 3 volta à ordem original da tela. Só as colunas em que ordenar faz sentido. |
 | D11 | Persistência do "Embalado": **tabela de registro só de inclusão, com a validade calculada na leitura** (forma 1 de três; seção 8). |
 | D12 | A tabela do "Embalado" pode crescer por ação de má-fé (marcar e desmarcar sem parar). Fica **pendente para a manutenção do banco** uma rotina que limpa a tabela a partir de uma data, **sem perder o último registro de cada Peça** (o último diz quando ela deixou de ser mexida e, muitas vezes, quando foi expedida). Seção 3.5. |
+| D13 | A Peça montada a partir de Itens mostra **por onde andam os Itens, só por nome de Setor** (`5 a iniciar · Itens em: Corte, Dobra`), e o filtro por Setor acha a Peça quando ela ou algum Item dela está naquele Setor (opção b de três: deixar como está; Setores dos Itens sem número; a distribuição de cada Item com número). Resposta ao builder check (C3). |
+| D14 | **Posição no roadmap:** miniatura → Panorama, **antes da 3C**. A posição em relação à Fase 6 não foi dita (e a ordem entre a 3C e a Fase 6 continua não decidida). A renomeação do push (sair do nome "3C" e virar fase própria, ideia do usuário de 2026-11-16) continua pendente e não entra aqui. |
 
 ### 2.2 Do desenho (o usuário confere)
 
@@ -83,7 +85,7 @@ o chão de fábrica já registra. A única escrita nova é a marca **"Embalado"*
 |---|---|
 | C1 | Nome **"Panorama"**, primeira entrada da barra do `AppShell`, como link direto (não grupo), antes de Produção. Rota `/panorama`. |
 | C2 | **Quais Peças aparecem:** toda Peça (nó sem pai) de Pedido **não encerrado** (nem `Concluido` nem `Cancelado`), inclusive Pedido `Aberto` que ninguém começou e Pedido de Retrabalho, enquanto ela tiver alguma unidade que não foi expedida nem baixada. Peça toda expedida ou baixada sai da lista. O critério é **mais largo** que o do `GET /expedicao` (que só lista Peça com unidade no local de expedição ou em conserto), então a consulta da expedição não serve como está; a fonte que serve é a de `ListarNosEmProducaoAsync`, filtrada aos nós sem pai, que já inclui Pedido `Aberto`, exclui `Concluido` e `Cancelado` e traz a pausa aberta com o `Motivo`. |
-| C3 | Sub-Itens não têm linha. A Peça com filhos mostra a própria distribuição; enquanto os Itens são feitos, ela aparece "a iniciar". Ver a seção 7 (risco aceito, a confirmar). |
+| C3 | Sub-Itens não têm linha. A Peça com filhos mostra a própria distribuição e, ao lado, **"Itens em: {Setores}"** (D13): os Setores, sem repetir e em ordem alfabética, em que algum descendente da Peça (qualquer nível) tem quantidade em `NoSetor`, `AguardandoColeta`, `AguardandoMontagem` ou numa posição de conserto. Sem número, porque somar unidades de Itens diferentes não quer dizer nada. Item "a iniciar" não entra (não está em Setor nenhum); sem descendente em Setor, o trecho não aparece. O "Embalado" olha só a própria Peça. |
 | C4 | **Colunas** (PC): Desenho · OS · Código · Descrição · Qtd · Prazo · Onde está · Aferição · Embalado. "Qtd" é a quantidade da Peça no Pedido (`EstruturaItem.Quantidade`). |
 | C5 | Solda/Usinagem/Dobra, Observações e Localização saem: o Roteiro e a distribuição dizem o mesmo sem digitação. |
 | C6 | Cor só para estado, nas regras de hoje: atraso `atraso` (roxo), pausa `atencao` (âmbar, com o motivo), aferição como na expedição ("Conforme" `positivo`, "Não conforme" `negativo`, o resto neutro). Setor e posição em pílula/segmento **neutro**. |
@@ -91,7 +93,7 @@ o chão de fábrica já registra. A única escrita nova é a marca **"Embalado"*
 | C8 | **Distribuição** ("Onde está"), na **ordem do Roteiro**, montada pelo servidor (a `CalculadoraDeExecucao.Saldos` ordena primeiro pelo tipo de posição, depois pelo passo, e por isso não serve como está): primeiro `AIniciar`; depois **um segmento por passo** do Roteiro, na ordem do passo, com o Setor e a soma de `NoSetor` e `AguardandoColeta` daquele passo ("3 Solda"), e o aguardando coleta como detalhe dentro do segmento ("3 Solda, 1 aguardando coleta"); um Setor que aparece duas vezes no Roteiro (retorno ao setor) dá dois segmentos; depois o **conserto**, um segmento por Setor de conserto ("1 em conserto na Solda", as três posições do conserto somadas); depois o **local de expedição**, as cinco posições somadas num segmento "Expedição"; por último, **expedidas** e **baixadas**, num traço diferente (já saíram da fábrica, mas contam para o "Embalado"). Segmento com zero não aparece. |
 | C9 | **Ordem original da tela:** prazo de entrega (mais próximo primeiro), depois número do Pedido, depois código da Peça, e o `Id` do nó por último. Aplicada pelo servidor; a tela só reordena quando um cabeçalho manda. |
 | C10 | **Colunas que ordenam:** OS, Código, Descrição, Qtd e Prazo. **Não ordenam:** Desenho; Onde está (a Peça está em vários lugares ao mesmo tempo, não há um valor só para comparar); Aferição e Embalado (já têm filtro). Uma coluna ordena por vez; clicar noutra começa o ciclo dela. Empate numa ordenação escolhida cai na ordem original. |
-| C11 | **Filtros** (`FiltroDeDemanda`, no cliente): Pedido, Setor (Peças com alguma unidade naquele Setor, em trabalho, aguardando coleta ou em conserto), Situação (Atrasado, Pausado, No prazo), Relatório (Exige relatório, Sem relatório), Embalado (Embalado, Pode embalar, Em produção). Mais uma busca por texto (OS, código, descrição) e o **intervalo de prazo**. |
+| C11 | **Filtros** (`FiltroDeDemanda`, no cliente): Pedido, Setor (Peças com alguma unidade naquele Setor, em trabalho, aguardando coleta ou em conserto, **ou com algum Item nele**, pelo "Itens em" de C3), Situação (Atrasado, Pausado, No prazo), Relatório (Exige relatório, Sem relatório), Embalado (Embalado, Pode embalar, Em produção). Mais uma busca por texto (OS, código, descrição) e o **intervalo de prazo**. |
 | C12 | **Intervalo de datas**: primitiva nova, dois campos de data nativos ("de" e "até") num componente só, com "limpar"; qualquer lado pode ficar vazio; os limites são inclusivos. Nativo porque no Android cada campo abre o calendário do próprio celular. |
 | C13 | Filtros, busca, intervalo e ordenação vão para a **URL** (como na `PedidosPage`), com `replace`, para F5 e link mantendo a vista. A ordem original não é escrita na URL. |
 | C14 | **Celular:** uma Peça por cartão, os mesmos filtros, e a ordenação por um `SeletorDeOrdem` ("Ordem da tela", "Prazo (mais próximo)", "Prazo (mais distante)", "OS (crescente/decrescente)", "Código (A→Z/Z→A)", "Descrição (A→Z/Z→A)", "Qtd (maior/menor)"). A tabela a partir de `lg`; o cartão abaixo. A tela usa `<Pagina largura="ampla">`. |
@@ -211,6 +213,7 @@ Forma proposta (o builder ajusta nomes ao padrão dos DTOs vizinhos):
                   "pausa": { "motivo": "Alteração de projeto" } },   // null sem pausa aberta
       "componente": { "id": 300, "codigo": "038190-C", "descricao": "…", "temMiniatura": true },
       "quantidade": 5,
+      "itensEm": [ { "setorId": 3, "nome": "Corte" } ],   // C3; vazio sem descendente em Setor
       "distribuicao": [ /* segmentos já na ordem de C8 */ ],
       "afericao": { /* o resumo que a expedição já mostra para a Peça: exige relatório, situação, conforme/não conforme */ },
       "embalagem": {
@@ -233,7 +236,8 @@ Forma proposta (o builder ajusta nomes ao padrão dos DTOs vizinhos):
   não, e a situação (a medir, conforme, não conforme, liberada), com as cores de C6.
 - **Atraso:** o servidor manda `atrasado` no Pedido, como `GET /expedicao` e `GET /pedidos` já fazem (regra 33: data de
   Brasília e status do Pedido). A tela não recalcula.
-- **Custo:** a lista inteira percorre o livro das Peças abertas. O builder mede com a massa de demonstração e, se a
+- **"Itens em":** a leitura percorre também os descendentes de cada Peça (C3), não só a Peça.
+- **Custo:** a lista inteira percorre o livro das Peças abertas e dos descendentes delas. O builder mede com a massa de demonstração e, se a
   consulta pesar, lê os saldos de uma vez para todas as Peças (como a Fila e a Expedição já fazem), não Peça a Peça.
 
 ### 5.2 `POST /estrutura/{id}/embalagem` *(Qualidade, PCP, Administrador)*
@@ -253,7 +257,8 @@ as duas rotas e o contrato de erro.
 - Infrastructure: mapeamento de `dbo.Embalagem` e o índice. Respeitar as regras de `[Collection]` e de asserção escopada
   do `CLAUDE.md` (nada de contagem global de tabela compartilhada).
 - Api: as duas rotas ponta a ponta, o gating por perfil (incluindo a Gestão recebendo 403 no `POST`) e a forma do
-  `GET /panorama` com uma Peça dividida, uma pausada, uma de Retrabalho e uma toda expedida (que não aparece).
+  `GET /panorama` com uma Peça dividida, uma pausada, uma de Retrabalho, uma toda expedida (que não aparece) e uma com
+  Itens em dois Setores e em dois níveis (o "Itens em" sem repetição).
 
 ## 6. Front
 
@@ -299,8 +304,8 @@ as duas rotas e o contrato de erro.
 
 - **A pausa é do Pedido inteiro.** Se a alteração de projeto costuma pegar uma Peça e deixar as outras do Pedido
   seguirem, a pausa marca demais. Não há marca de atenção por Peça neste trabalho.
-- **Peça com filhos aparece "a iniciar"** enquanto os Itens são feitos (C3). A planilha também não mostrava os Itens,
-  mas lá a pessoa escrevia "Solda 28/10" mesmo quando era um Item que estava na solda.
+- **"Itens em" não tem número** (D13): a Gestão vê que há Itens no Corte, não quantos nem quais. O detalhe está na página
+  do Agrupamento (C20).
 - **Recarga a cada 30 s com a lista inteira.** Com centenas de Peças abertas, é uma consulta pesada a cada meio minuto
   por tela aberta. Medir (seção 5.1); se pesar, alongar o intervalo do Panorama antes de paginar.
 - **A tabela do "Embalado" cresce** até a limpeza da seção 3.5 existir.
@@ -338,8 +343,8 @@ lugar.
 - `docs/superpowers/specs/2026-10-02-hml-cicd-e-manutencao-do-banco-design.md`, seção 8: nota apontando a limpeza
   pendente da seção 3.5.
 
-**Posição no roadmap:** miniatura → Panorama, **antes** da 3C e da Fase 6. *(A confirmar com o usuário: ver a pergunta
-que acompanha a entrega desta spec.)*
+**Posição no roadmap (D14):** miniatura → Panorama, antes da 3C. A seção do roadmap registra que a posição em relação à
+Fase 6 não foi dita. A renomeação do push não entra nesta edição.
 
 ## 10. Fora do escopo
 
