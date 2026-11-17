@@ -18,9 +18,21 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
   /// mesmo Componente terminam em ultimo-escritor-vence -- o arquivo de quem perdeu fica gravado
   /// sem ninguem apontar para ele, o mesmo estado em que toda substituicao ja deixa o arquivo
   /// anterior, por desenho (ver o XML doc da interface) -- e por isso nao e uma corrida a fechar.
+  ///
+  /// <para>
+  /// A miniatura entra no MESMO par de <c>SaveChanges</c>: os dois arquivos sao inseridos no
+  /// primeiro, e as duas FKs do Componente (<c>ArquivoSolidoId</c> e <c>ArquivoMiniaturaId</c>)
+  /// saem no mesmo UPDATE do segundo. Ultimo-escritor-vence continua valendo para o PAR: o UPDATE
+  /// e um so, entao nao existe o estado "solido de um envio com a miniatura de outro". Isso so
+  /// vale porque a coluna da miniatura e FORCADA no UPDATE: o Componente e lido rastreado, e se ele
+  /// estava sem miniatura e o envio vem sem, a atribuicao seria de null para null e o EF omitiria
+  /// a coluna -- um "Gerar miniatura" confirmado no meio deixaria a miniatura do solido antigo ao
+  /// lado do novo.
+  /// </para>
   /// </summary>
   public async Task<int?> GravarEVincularComoSolidoAsync(
-      int componenteId, ArquivoDeComponente arquivo, CancellationToken ct)
+      int componenteId, ArquivoDeComponente solido, ArquivoDeComponente? miniatura,
+      CancellationToken ct)
   {
     await using var transacao = await _db.Database.BeginTransactionAsync(ct);
 
@@ -32,20 +44,69 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
     var componente = await _db.Componentes.SingleOrDefaultAsync(c => c.Id == componenteId, ct);
     if (componente is null) return null;
 
-    _db.ArquivosDeComponente.Add(arquivo);
+    _db.ArquivosDeComponente.Add(solido);
+    if (miniatura is not null) _db.ArquivosDeComponente.Add(miniatura);
     await _db.SaveChangesAsync(ct);
 
-    componente.ArquivoSolidoId = arquivo.Id;
+    componente.ArquivoSolidoId = solido.Id;
+    // Sem miniatura a FK vai a null (C6): a anterior era do solido que acabou de ser trocado.
+    componente.ArquivoMiniaturaId = miniatura?.Id;
+    // Forca a coluna no UPDATE mesmo quando o valor nao mudou (null para null): ver o XML doc.
+    _db.Entry(componente).Property(c => c.ArquivoMiniaturaId).IsModified = true;
     await _db.SaveChangesAsync(ct);
 
     await transacao.CommitAsync(ct);
-    return arquivo.Id;
+    return solido.Id;
+  }
+
+  /// <summary>
+  /// A leitura do Componente e do <c>Sha256</c> do solido e a gravacao vao na MESMA transacao, e a
+  /// ligacao e CONDICIONAL (C15): <c>UPDATE Componente SET ArquivoMiniaturaId = ... WHERE Id = ...
+  /// AND ArquivoSolidoId = &lt;o id do solido cujo hash foi conferido&gt;</c>. Sob READ COMMITTED um
+  /// <see cref="GravarEVincularComoSolidoAsync"/> concorrente pode confirmar entre a leitura do hash
+  /// e a ligacao; como ele troca o <c>ArquivoSolidoId</c>, o <c>WHERE</c> deixa de casar, nenhuma
+  /// linha e afetada, a transacao e desfeita (o arquivo da miniatura recem-inserido NAO sobrevive) e
+  /// o resultado e <see cref="ResultadoDaMiniaturaAvulsa.SolidoMudou"/>. Escolhido em vez de
+  /// <c>UPDLOCK</c> na leitura porque nao segura lock entre as duas idas ao banco e o teste consegue
+  /// provar o caminho deterministicamente.
+  /// </summary>
+  public async Task<ResultadoDaMiniaturaAvulsa> GravarMiniaturaAvulsaAsync(
+      int componenteId, ArquivoDeComponente miniatura, byte[] sha256DoSolido, CancellationToken ct)
+  {
+    await using var transacao = await _db.Database.BeginTransactionAsync(ct);
+
+    var solidoId = await _db.Componentes.AsNoTracking()
+        .Where(c => c.Id == componenteId)
+        .Select(c => new { c.ArquivoSolidoId })
+        .SingleOrDefaultAsync(ct);
+    if (solidoId is null) return ResultadoDaMiniaturaAvulsa.ComponenteInexistente;
+    if (solidoId.ArquivoSolidoId is not { } idDoSolido) return ResultadoDaMiniaturaAvulsa.SemSolido;
+
+    // So o Sha256 (coluna calculada), nunca o blob.
+    var atual = await _db.ArquivosDeComponente.AsNoTracking()
+        .Where(a => a.Id == idDoSolido).Select(a => a.Sha256).SingleAsync(ct);
+    if (!atual.AsSpan().SequenceEqual(sha256DoSolido)) return ResultadoDaMiniaturaAvulsa.SolidoMudou;
+
+    _db.ArquivosDeComponente.Add(miniatura);
+    await _db.SaveChangesAsync(ct);
+
+    var ligadas = await _db.Componentes
+        .Where(c => c.Id == componenteId && c.ArquivoSolidoId == idDoSolido)
+        .ExecuteUpdateAsync(s => s.SetProperty(c => c.ArquivoMiniaturaId, miniatura.Id), ct);
+    if (ligadas == 0)
+    {
+      await transacao.RollbackAsync(ct);
+      return ResultadoDaMiniaturaAvulsa.SolidoMudou;
+    }
+
+    await transacao.CommitAsync(ct);
+    return ResultadoDaMiniaturaAvulsa.Gravada;
   }
 
   public async Task<ArquivoDeComponente?> ObterSolidoDoComponenteAsync(
       int componenteId, CancellationToken ct)
   {
-    var arquivoId = await ObterArquivoIdAsync(componenteId, ct);
+    var arquivoId = await ObterArquivoSolidoIdAsync(componenteId, ct);
     // Colapsa "componente inexistente" e "componente sem solido" no mesmo null -- declarado no
     // XML doc da interface, e aqui esta o mecanismo: default(int?) devolvido por
     // SingleOrDefaultAsync (sem linha) coincide com o ArquivoSolidoId NULL de uma linha que
@@ -59,7 +120,7 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
   public async Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(
       int componenteId, CancellationToken ct)
   {
-    var arquivoId = await ObterArquivoIdAsync(componenteId, ct);
+    var arquivoId = await ObterArquivoSolidoIdAsync(componenteId, ct);
     // Mesmo colapso de ObterSolidoDoComponenteAsync -- ver o comentario la.
     if (arquivoId is null) return null;
 
@@ -69,15 +130,44 @@ public class ArquivoDeComponenteRepository : IArquivoDeComponenteRepository
     // provedor de consulta chance nenhuma de pedir a coluna.
     return await _db.ArquivosDeComponente.AsNoTracking()
         .Where(a => a.Id == arquivoId.Value)
-        .Select(a => new MetadadoDeSolido(a.NomeOriginal, a.TamanhoEmBytes))
+        .Select(a => new MetadadoDeSolido(a.NomeOriginal, a.TamanhoEmBytes, a.Sha256))
         .SingleOrDefaultAsync(ct);
+  }
+
+  public async Task<ArquivoDeComponente?> ObterMiniaturaDoComponenteAsync(
+      int componenteId, CancellationToken ct)
+  {
+    // Le SO o id da miniatura, como ObterArquivoSolidoIdAsync le o do solido, e com o mesmo
+    // colapso de ObterSolidoDoComponenteAsync: componente inexistente e componente sem miniatura
+    // dao o mesmo null.
+    var arquivoId = await _db.Componentes.AsNoTracking()
+        .Where(c => c.Id == componenteId)
+        .Select(c => c.ArquivoMiniaturaId)
+        .SingleOrDefaultAsync(ct);
+    if (arquivoId is null) return null;
+
+    return await _db.ArquivosDeComponente.AsNoTracking()
+        .SingleOrDefaultAsync(a => a.Id == arquivoId.Value, ct);
+  }
+
+  public async Task<IReadOnlyDictionary<int, byte[]>> ObterSha256Async(
+      IReadOnlyCollection<int> arquivoIds, CancellationToken ct)
+  {
+    if (arquivoIds.Count == 0) return new Dictionary<int, byte[]>();
+
+    // Projecao so de Id e Sha256 (coluna calculada): o Conteudo nunca sai do SQL Server.
+    var linhas = await _db.ArquivosDeComponente.AsNoTracking()
+        .Where(a => arquivoIds.Contains(a.Id))
+        .Select(a => new { a.Id, a.Sha256 })
+        .ToListAsync(ct);
+    return linhas.ToDictionary(l => l.Id, l => l.Sha256);
   }
 
   // Duas consultas em vez de um JOIN com navegacao: a navegacao e justamente o que nao existe,
   // por desenho. Este SELECT le SO o id -- nao toca no blob nem no nome -- e serve
   // ObterSolidoDoComponenteAsync (que traz o blob) e ObterMetadadoDoSolidoAsync (que traz so o
   // metadado).
-  private async Task<int?> ObterArquivoIdAsync(int componenteId, CancellationToken ct) =>
+  private async Task<int?> ObterArquivoSolidoIdAsync(int componenteId, CancellationToken ct) =>
       await _db.Componentes.AsNoTracking()
           .Where(c => c.Id == componenteId)
           .Select(c => c.ArquivoSolidoId)

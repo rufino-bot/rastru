@@ -112,7 +112,7 @@ public sealed partial class ImportacaoDeEstruturaUseCase
           ErroDeReceitaDoCatalogoMudou, TipoDeErro.Conflito,
           $"A receita de catalogo de {string.Join(", ", codigos)} mudou depois da escolha: confira de novo.");
 
-    // 4. Os Componentes novos da arvore final, ja com o solido pendente; o mapa Id provisorio -> Id real.
+    // 4. Os Componentes novos da arvore final, ja com o solido pendente e a miniatura dele; o mapa Id provisorio -> Id real.
     var reais = new Dictionary<int, Componente>();
     foreach (var novo in gravacao.Novos)
     {
@@ -120,13 +120,15 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       {
         Codigo = novo.Codigo, Descricao = novo.Descricao, Tipo = novo.Tipo, Ativo = true,
         ArquivoSolidoId = novo.ArquivoSolidoId,
+        ArquivoMiniaturaId = novo.ArquivoMiniaturaId,
       };
       await _componentes.AdicionarAsync(componente, ct);
       reais[novo.IdProvisorio] = componente;
     }
 
-    // 5. Os casados: reativa o inativo e liga o solido pendente. O arquivo antigo de quem ja tinha solido
-    // fica sem ninguem apontar, como numa troca de solido pelo cadastro.
+    // 5. Os casados: reativa o inativo e liga o solido pendente, com a miniatura dele ou nenhuma (C12).
+    // O arquivo antigo de quem ja tinha solido (e a miniatura) fica sem ninguem apontar, como numa troca de
+    // solido pelo cadastro.
     foreach (var casado in gravacao.Casados)
     {
       var componente = await _componentes.ObterPorIdAsync(casado.ComponenteId, ct)
@@ -134,7 +136,11 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       if (casado.Reativar)
         componente.Ativo = true;
       if (casado.ArquivoSolidoId is int arquivo)
+      {
         componente.ArquivoSolidoId = arquivo;
+        // C12: o solido pendente traz a miniatura dele, ou nenhuma, e a antiga era do solido que saiu (C6).
+        componente.ArquivoMiniaturaId = casado.ArquivoMiniaturaId;
+      }
     }
     await _componentes.SalvarAlteracoesAsync(ct);
 
@@ -233,16 +239,19 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       IReadOnlyList<PlanoDeGravacao.Casado> Casados,
       IReadOnlyList<PlanoDeGravacao.Receita> Receitas)
   {
-    /// <summary>Os registros cujo solido pendente vira o solido de um Componente (novo ou casado).</summary>
+    /// <summary>
+    /// Os registros cujo solido pendente vira o solido de um Componente (novo ou casado). A miniatura pendente,
+    /// quando ha, vai com ele, e os dois deixam de ser pendentes juntos (o desligamento zera as duas colunas).
+    /// </summary>
     public IReadOnlyList<int> RegistrosComSolidoLigado { get; } =
         [.. Novos.Where(n => n.ArquivoSolidoId is not null).Select(n => n.RegistroId),
          .. Casados.Where(c => c.ArquivoSolidoId is not null).Select(c => c.RegistroId)];
 
     public sealed record Escolha(int RegistroId, int ComponenteId, string Codigo, byte[]? Impressao);
 
-    public sealed record Novo(int RegistroId, int IdProvisorio, string Codigo, string Descricao, string Tipo, int? ArquivoSolidoId);
+    public sealed record Novo(int RegistroId, int IdProvisorio, string Codigo, string Descricao, string Tipo, int? ArquivoSolidoId, int? ArquivoMiniaturaId);
 
-    public sealed record Casado(int RegistroId, int ComponenteId, bool Reativar, int? ArquivoSolidoId);
+    public sealed record Casado(int RegistroId, int ComponenteId, bool Reativar, int? ArquivoSolidoId, int? ArquivoMiniaturaId);
 
     /// <summary>A receita lida de um Id da sobreposicao, uma linha por filho (os repetidos somados, como a divergencia os compara).</summary>
     public sealed record Receita(int PaiId, IReadOnlyList<(int FilhoId, decimal Quantidade)> Filhos);
@@ -264,12 +273,12 @@ public sealed partial class ImportacaoDeEstruturaUseCase
 
         if (id < 0)
           novos.Add(new Novo(registro.Id, id, registro.CodigoNovo!.Trim(), DescricaoDoNovo(registro), TipoDoNovo(registro),
-              registro.ArquivoSolidoPendenteId));
+              registro.ArquivoSolidoPendenteId, registro.ArquivoMiniaturaPendenteId));
         else
         {
           var reativar = !catalogo.Componentes[id].Ativo;
           if (reativar || registro.ArquivoSolidoPendenteId is not null)
-            casados.Add(new Casado(registro.Id, id, reativar, registro.ArquivoSolidoPendenteId));
+            casados.Add(new Casado(registro.Id, id, reativar, registro.ArquivoSolidoPendenteId, registro.ArquivoMiniaturaPendenteId));
         }
 
         // Escolha so conta onde ainda ha divergencia: num codigo que deixou de divergir ela e inerte, e a

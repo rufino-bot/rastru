@@ -95,10 +95,15 @@ reenvia e a sessão morre no primeiro refresh.
     `?ordem=codigo`.
   **Este documento não detalha os campos de cada item de `itens`** (nem detalhava antes da Fase
   2B) — só o envelope da paginação; por isso `temSolido`, que o item de listagem carrega desde a
-  Fase 2B, não ganha bullet próprio aqui.
+  Fase 2B, não ganha bullet próprio aqui. O mesmo vale para **`miniaturaVersao`**, que o item da
+  listagem e o detalhe carregam desde a miniatura do sólido: o `Sha256` da miniatura em
+  hexadecimal minúsculo (64 dígitos), ou `null` quando o Componente não tem miniatura. É versão,
+  não endereço (serve de cache-busting, igual ao `ETag` de `GET /componentes/{id}/miniatura`); a
+  listagem a calcula com **uma** consulta de hashes por página.
 - `GET /componentes/{id}` *(qualquer perfil autenticado)* — detalhe do Componente:
-  `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes }`
-  (os três últimos entraram na Fase 2B; antes só havia os cinco primeiros). `nomeDoSolido` e
+  `{ id, codigo, descricao, tipo, ativo, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes,
+  miniaturaVersao }` (os três antes do último entraram na Fase 2B; antes só havia os cinco
+  primeiros; `miniaturaVersao`, acima, é nulo sem miniatura). `nomeDoSolido` e
   `tamanhoDoSolidoEmBytes` são nulos **juntos** quando o Componente não tem sólido enviado, e
   preenchidos **juntos** quando tem — nunca um só. `404` se o Componente não existir.
 - `POST /componentes` *(Administrador, PCP)* — `{ codigo, descricao, tipo }`, `tipo` em
@@ -107,11 +112,21 @@ reenvia e a sessão morre no primeiro refresh.
 - `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
   Não existe `DELETE`: catálogo se inativa, não se exclui.
 - `POST /componentes/{id}/solido` *(Administrador, PCP)* — envia (ou **substitui**) o sólido 3D do
-  Componente. `multipart/form-data`, campo `arquivo`. Resposta **204**, sem corpo — o front busca
+  Componente. `multipart/form-data`, campo `arquivo` e, **opcional**, o campo `miniatura`: o PNG
+  isométrico de 320 × 240 que o navegador desenhou do STL (spec
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, seção 5.1). Os dois são gravados
+  na mesma transação. **Sem o campo `miniatura`, o Componente fica sem miniatura**, mesmo que o
+  sólido anterior tivesse uma: nunca fica a miniatura do sólido antigo ao lado do sólido novo. A
+  miniatura anterior, como o sólido anterior, continua na tabela sem ninguém apontando. Resposta
+  **204**, sem corpo — o front busca
   o detalhe de novo via `GET /componentes/{id}` para mostrar nome e tamanho. Falhas: `400`
   (arquivo inválido — extensão, tamanho acima de 16 MiB ou estrutura de STL inválida; ver §5.1 de
-  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md`), `404` (Componente
-  inexistente), `403` (perfil sem escrita). **Corpo acima do limite do endpoint** (16 MiB mais uma
+  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md`), `400` da miniatura inválida,
+  com frase própria no `{ erro }` («A miniatura esta vazia.», «A miniatura passa de 512 KiB.», «A
+  miniatura nao e um PNG.» ou «A miniatura precisa ter 320 x 240 pixels.»), `404` (Componente
+  inexistente), `403` (perfil sem escrita). O STL é validado primeiro, e a miniatura inválida
+  **recusa o envio inteiro**: o sólido também não é gravado. **Corpo acima do limite do endpoint**
+  (16 MiB do STL mais 512 KiB da miniatura mais uma
   margem de 4 KiB para o overhead do multipart) **não tem uma resposta garantida**: o servidor
   recusa, mas o que chega depende do cliente — com `curl` chega um 400 (medido em 2026-09-13); com
   o `fetch` do Chromium e o `HttpClient` do .NET a conexão cai com o corpo ainda subindo e não
@@ -122,6 +137,25 @@ reenvia e a sessão morre no primeiro refresh.
   `Content-Disposition` carregando o nome original do arquivo enviado. Serve o download **e** o
   viewer 3D — um endpoint, dois consumidores. `404` quando o Componente não existe **ou** quando
   existe mas não tem sólido enviado.
+- `GET /componentes/{id}/miniatura` *(qualquer perfil autenticado)* — a miniatura do sólido,
+  `image/png`. Traz `ETag: "<versão>"`, em que a versão é o SHA-256 do PNG em hexadecimal minúsculo
+  (64 dígitos), e `Cache-Control: private, no-cache`. Com `If-None-Match` igual ao `ETag`, responde
+  **304** sem corpo. `404` quando o Componente não existe **ou** quando existe mas não tem miniatura
+  (o sólido foi enviado sem ela).
+- `POST /componentes/{id}/miniatura` *(Administrador, PCP)* — "Gerar miniatura": grava **só** a miniatura de um
+  Componente que já tem sólido, sem tocar no sólido (spec
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, seções C9, C10 e C15 e 5.2).
+  `multipart/form-data`, campo `miniatura` (o PNG de 320 × 240) e o campo `solidoSha256`: o SHA-256 do
+  sólido de que o navegador a desenhou, em 64 dígitos hexadecimais **minúsculos**. O servidor compara o
+  hash com o do sólido atual **dentro da mesma transação** em que grava, e a ligação é condicional ao
+  sólido conferido (`UPDATE … WHERE ArquivoSolidoId = <o conferido>`): um sólido trocado entre o desenho
+  e a gravação, até no meio da própria requisição, dá `409` e não deixa nada gravado. A miniatura anterior
+  continua na tabela sem ninguém apontando. Resposta **204**, sem corpo. Falhas: `400` (hash ausente ou
+  que não seja hexadecimal de 64 caracteres minúsculos, «Informe o hash do solido de que a miniatura foi
+  desenhada.»; ou miniatura inválida, com as mesmas frases do envio do sólido), `404` (Componente
+  inexistente), `409` (sem sólido, «Este Componente nao tem solido para gerar a miniatura.», ou sólido
+  trocado, «O solido mudou depois que a miniatura foi desenhada. Gere de novo.»), `403` (perfil sem
+  escrita). O limite do corpo é o da miniatura (512 KiB) mais a margem de 4 KiB do multipart.
 - `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
   Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
   quantidadePadrao }[]`
@@ -464,10 +498,21 @@ aninhadas sob Agrupamento, as de rascunho são de topo.)*
   registro: `multipart/form-data` com `arquivo` e o campo de formulário `versao`. As mesmas validações de
   `POST /componentes/{id}/solido` (16 MiB, estrutura de STL, mesmas frases). O arquivo vive em
   `dbo.ArquivoDeComponente` sem nenhum Componente apontando para ele até a confirmação; um pendente anterior
-  do mesmo registro é apagado depois que o novo estiver ligado. → 200 `ImportacaoDto`
+  do mesmo registro é apagado depois que o novo estiver ligado. → 200 `ImportacaoDto`. Aceita, **opcional**, o
+  campo `miniatura`: o PNG isométrico de 320 × 240 que o navegador desenhou do STL (spec
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, C5, C6, C8 e 5.1), com as mesmas
+  validações e frases de `POST /componentes/{id}/solido`. O STL é validado primeiro e a miniatura depois, e
+  **miniatura inválida recusa o envio inteiro** com 400 (nada é gravado). **Sem o campo, o registro fica sem
+  miniatura pendente**: a anterior era do sólido anterior, e o pendente e a miniatura dele, quando trocados,
+  são apagados juntos depois que o novo estiver ligado. O limite do corpo é o do `POST /componentes/{id}/solido`
+  (16 MiB do STL mais 512 KiB da miniatura mais a margem de 4 KiB do multipart)
 - `GET /importacoes/{id}/componentes/{cid}/solido` — o STL pendente (`application/octet-stream`), para o
   visualizador e o download. **404** sem corpo para rascunho, registro ou pendente que não existe — o cliente
   não distingue os três
+- `GET /importacoes/{id}/componentes/{cid}/miniatura` — a miniatura **pendente** do registro (`image/png`), com o
+  mesmo `ETag` (o SHA-256 do PNG em hexadecimal minúsculo, entre aspas) e `Cache-Control: private, no-cache` de
+  `GET /componentes/{id}/miniatura`. Qualquer perfil autenticado. **404** para rascunho inexistente, registro
+  inexistente e registro sem miniatura pendente — o cliente não distingue os três
 - `POST /importacoes/{id}/arquivo` *(PCP, Administrador)* — **reimporta**: `multipart/form-data` com `arquivo`
   e `versao`. Lê o arquivo exatamente como a criação (mesmos erros, mesmo limite) e substitui as receitas
   lidas; preserva, **por código** que continua no arquivo, o sólido pendente, o casamento manual e os dados do
@@ -533,6 +578,7 @@ NoDaImportacaoDto { registroId: number|null, componenteId: number|null, filhoId:
 SituacaoDoComponenteDto { registroId, codigoLido, descricaoLida, componenteId, codigoDoCatalogo,
                     descricaoDoCatalogo, tipo, ativo, temSolido, temSolidoPendente,
                     nomeDoSolido, tamanhoDoSolidoEmBytes,
+                    miniaturaVersao: string|null, miniaturaPendente,
                     codigoNovo, descricaoNova, tipoNovo, divergente, escolhaDeReceita: "Catalogo"|"Importada"|null,
                     comparativo: { codigo, descricao, noCatalogo: number|null, noBom: number|null,
                                    situacao: "Igual"|"QuantidadeMuda"|"Entra"|"Sai" }[],
@@ -556,6 +602,14 @@ ResumoDeImportacaoDto { id, nomeDoArquivo, criadoPor, criadoEm, atualizadoEm }
   filhos ou não; é aí que `comparativo`
   (um nível) e `efeitoDeManterCatalogo` (quantos nós saem e quantos entram se a escolha for `Catalogo`)
   vêm preenchidos. Descrição de casado vale a **do catálogo**; a lida fica ao lado.
+- **`miniaturaVersao`** e **`miniaturaPendente`** seguem o sólido (C12 da spec da miniatura do sólido).
+  **Com sólido pendente**, `miniaturaVersao` é a versão (o `Sha256` do PNG em hexadecimal minúsculo) da
+  miniatura pendente, ou `null` quando o sólido pendente veio sem ela — **mesmo que o Componente casado tenha
+  miniatura no catálogo**, porque o sólido novo substitui o antigo e a miniatura antiga sai com ele —, e
+  `miniaturaPendente` é verdadeiro quando ela existe. **Sem sólido pendente**, é a versão da miniatura do
+  Componente casado (ou `null`) e `miniaturaPendente` é falso. Na confirmação, todo registro com sólido
+  pendente grava `ArquivoMiniaturaId` no Componente (a miniatura pendente ou `null`); o registro sem sólido
+  pendente deixa a miniatura do Componente como está.
 - **`bloqueios[].tipo`**, em português com acento na `mensagem`, que é texto de tela: `QuantidadeDaPecaAusente`,
   `SemSolido`, `DivergenciaSemEscolha`, `CodigoVazio`, `CodigoJaExiste` (código do "criar novo" que já existe
   no catálogo **ou** que se repete em outro "criar novo" do mesmo rascunho), `QuantidadeForaDaFaixa` (a

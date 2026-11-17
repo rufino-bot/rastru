@@ -141,6 +141,8 @@ public class PerfisDeEscritaDeclaradosTests
     // O GET nao entra: leitura e de qualquer autenticado, sem `Roles` (mesmo criterio das rotas de
     // receita padrao logo abaixo).
     ["POST componentes/{id:int}/solido"] = ["Administrador", "PCP"],
+    // Miniatura avulsa ("Gerar miniatura", spec da miniatura do solido, C9): mesmos perfis do solido.
+    ["POST componentes/{id:int}/miniatura"] = ["Administrador", "PCP"],
 
     // Receita padrao (Fase 1C): mesmos perfis do proprio Componente. Os tres GET nao entram —
     // leitura e de qualquer autenticado, e endpoint sem `Roles` nao e assunto desta tabela.

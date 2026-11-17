@@ -30,6 +30,9 @@ public sealed record EfeitoDto(int Retira, int Traz);
 /// <summary>
 /// A situacao de um registro do rascunho (um por codigo distinto). <c>Tipo</c>, <c>Ativo</c>,
 /// <c>CodigoDoCatalogo</c> e <c>DescricaoDoCatalogo</c> sao do Componente casado, e nulos para o novo.
+/// <c>MiniaturaVersao</c> e <c>MiniaturaPendente</c> seguem o solido (C12 da spec da miniatura do solido):
+/// com solido pendente, valem a miniatura pendente (ou nenhuma, e a confirmacao grava o Componente sem
+/// miniatura); sem solido pendente, a do catalogo, e <c>MiniaturaPendente</c> e falso.
 /// </summary>
 public sealed record SituacaoDoComponenteDto(
     int RegistroId,
@@ -51,7 +54,9 @@ public sealed record SituacaoDoComponenteDto(
     string? EscolhaDeReceita,
     IReadOnlyList<LinhaDoComparativoDto> Comparativo,
     EfeitoDto? EfeitoDeManterCatalogo,
-    bool NaArvoreFinal);
+    bool NaArvoreFinal,
+    string? MiniaturaVersao,
+    bool MiniaturaPendente);
 
 /// <summary>Um motivo que impede a confirmacao (secao 5.4 da spec do import). A mensagem e texto de tela.</summary>
 public sealed record BloqueioDto(string Tipo, int? RegistroId, int? ComponenteId, string Mensagem);

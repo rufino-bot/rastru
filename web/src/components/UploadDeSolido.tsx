@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { apiFetch } from '../api/client'
 import { TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES } from '../api/cadastros'
 import { ErroDeApi, mensagemDeErro } from '../api/erros'
@@ -6,12 +6,14 @@ import { BannerDeErro } from './BannerDeErro'
 import { Botao } from './Botao'
 import { Campo, CLASSES_DE_CONTROLE } from './Campo'
 import { formatarTamanho } from './tamanhoDeArquivo'
+import { desenharMiniatura } from '../solido/miniatura'
 
 interface Props {
   /** Caminho do binário a baixar, SEM o prefixo `/api` (ex.: `caminhoDoSolido(id)`). */
   caminho: string
-  /** Faz o envio do arquivo; rejeitar mostra o erro no banner. O componente só valida o tamanho. */
-  enviar: (arquivo: File) => Promise<void>
+  /** Faz o envio do arquivo e da miniatura (`null` quando não foi possível desenhá-la); rejeitar mostra
+      o erro no banner. O componente valida o tamanho e desenha a miniatura. */
+  enviar: (arquivo: File, miniatura: Blob | null) => Promise<void>
   /** Trava o campo de arquivo (quem chama tem uma escrita em voo, ou o alvo não aceita upload). */
   desabilitado?: boolean
   temSolido: boolean
@@ -20,6 +22,9 @@ interface Props {
   /** Chamado depois de um envio com sucesso — a tela precisa reler o componente, senão
       `temSolido`/nome/tamanho continuam velhos e a interface mente. */
   aoEnviar: () => void
+  /** Avisa quando o envio começa (a leitura e o desenho da miniatura já contam) e quando termina,
+      para a tela travar o que não pode andar junto, como o "Gerar miniatura". */
+  aoMudarEnviando?: (enviando: boolean) => void
 }
 
 /** "16 MiB", derivado da constante — o número do limite não é escrito à mão em nenhum texto da tela. */
@@ -28,6 +33,9 @@ const LIMITE_LEGIVEL = `${TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES / (1024 * 1024)} MiB
 const MENSAGEM_DE_ARQUIVO_GRANDE_DEMAIS =
   `O arquivo passa do limite de ${LIMITE_LEGIVEL} do sólido. Exporte o STL com uma malha menos `
   + 'detalhada e envie de novo.'
+
+/** C13: a miniatura é acessório; sem ela o sólido segue enviado, e o aviso é neutro. */
+const AVISO_SEM_MINIATURA = 'O sólido foi enviado, mas a miniatura não pôde ser gerada neste aparelho.'
 
 const FALLBACK_DO_ENVIO = `Não foi possível enviar o sólido. Envie um arquivo .stl de até ${LIMITE_LEGIVEL}.`
 
@@ -38,12 +46,16 @@ const FALLBACK_DO_ENVIO = `Não foi possível enviar o sólido. Envie um arquivo
  */
 export function UploadDeSolido({
   caminho, enviar, desabilitado = false, temSolido, nomeDoSolido, tamanhoDoSolidoEmBytes, aoEnviar,
+  aoMudarEnviando,
 }: Props) {
   const [enviando, setEnviando] = useState(false)
+  const [fase, setFase] = useState<'gerando' | 'enviando'>('enviando')
+  const [semMiniatura, setSemMiniatura] = useState(false)
   // A frase pronta, e não o erro cru: o envio tem duas origens de recusa — o tamanho, checado aqui
   // antes de enviar, e a falha da requisição, traduzida por `mensagemDeErro` —, e as duas saem pelo
   // mesmo banner.
   const [erroEnvio, setErroEnvio] = useState<string | null>(null)
+  useEffect(() => { aoMudarEnviando?.(enviando) }, [enviando, aoMudarEnviando])
   const [baixando, setBaixando] = useState(false)
   const [erroDownload, setErroDownload] = useState<unknown>(null)
 
@@ -63,8 +75,19 @@ export function UploadDeSolido({
 
     setEnviando(true)
     setErroEnvio(null)
+    setSemMiniatura(false)
     try {
-      await enviar(arquivo)
+      setFase('gerando')
+      // C13: ler e desenhar são acessório — qualquer falha aqui vira "sem miniatura" e o sólido segue.
+      let miniatura: Blob | null = null
+      try {
+        miniatura = await desenharMiniatura(await arquivo.arrayBuffer())
+      } catch {
+        miniatura = null
+      }
+      setFase('enviando')
+      await enviar(arquivo, miniatura)
+      if (miniatura === null) setSemMiniatura(true)
       aoEnviar()
     } catch (erro) {
       setErroEnvio(mensagemDeErro(erro, FALLBACK_DO_ENVIO))
@@ -115,7 +138,10 @@ export function UploadDeSolido({
         )}
       </Campo>
 
-      {enviando && <p role="status" className="text-tinta-fraca">Enviando…</p>}
+      {enviando && (
+        <p role="status" className="text-tinta-fraca">{fase === 'gerando' ? 'Gerando miniatura…' : 'Enviando…'}</p>
+      )}
+      {!enviando && semMiniatura && <p role="status" className="text-tinta-fraca">{AVISO_SEM_MINIATURA}</p>}
       <BannerDeErro mensagem={erroEnvio} />
 
       {!temSolido && <p className="text-tinta-fraca">Sem sólido.</p>}

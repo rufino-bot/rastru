@@ -29,6 +29,13 @@ public class Componente
   /// </summary>
   public int? ArquivoSolidoId { get; set; }
 
+  /// <summary>
+  /// Miniatura isometrica do solido (PNG), em <see cref="ArquivoDeComponente"/>. Opcional e nunca
+  /// condicao de nada (spec da miniatura, C4). Escalar, SEM navegacao, pelo mesmo motivo do
+  /// <see cref="ArquivoSolidoId"/>: nenhum <c>Include</c> arrasta o blob para uma listagem.
+  /// </summary>
+  public int? ArquivoMiniaturaId { get; set; }
+
   // ArquivoFoto existe em dbo.Componente e NAO e mapeada aqui: a foto esta fora do escopo da Fase
   // 2B (decisao do usuario). Coluna nullable, entao o INSERT do EF sem ela e valido.
 }

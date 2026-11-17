@@ -175,9 +175,10 @@ public sealed partial class ImportacaoDeEstruturaUseCase
         ? []
         : (await _componentes.ListarPorCodigosAsync(codigosNovos, ct)).Select(c => c.Codigo);
 
-    // Chaveado pelo Id do ArquivoDeComponente: o solido do catalogo e o pendente do rascunho vem juntos.
-    var arquivoIds = componentes.Values.Where(c => c.ArquivoSolidoId is not null).Select(c => c.ArquivoSolidoId!.Value)
-        .Concat(r.Componentes.Where(c => c.ArquivoSolidoPendenteId is not null).Select(c => c.ArquivoSolidoPendenteId!.Value))
+    // Chaveado pelo Id do ArquivoDeComponente: o solido e a miniatura, do catalogo e do rascunho, vem juntos.
+    var arquivoIds = componentes.Values.SelectMany(c => new[] { c.ArquivoSolidoId, c.ArquivoMiniaturaId })
+        .Concat(r.Componentes.SelectMany(c => new[] { c.ArquivoSolidoPendenteId, c.ArquivoMiniaturaPendenteId }))
+        .Where(a => a is not null).Select(a => a!.Value)
         .Distinct()
         .ToList();
     var solidos = arquivoIds.Count == 0

@@ -371,13 +371,20 @@ public class ImportacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
           });
 
   private static async Task<HttpResponseMessage> EnviarSolidoPendente(
-      HttpClient cliente, JsonElement rascunho, int registroId, byte[] conteudo, string nome = "peca.stl")
+      HttpClient cliente, JsonElement rascunho, int registroId, byte[] conteudo, string nome = "peca.stl",
+      byte[]? miniatura = null)
   {
     using var corpo = new MultipartFormDataContent();
     corpo.Add(new StringContent(VersaoDe(rascunho)), "versao");
     var arquivo = new ByteArrayContent(conteudo);
     arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
     corpo.Add(arquivo, "arquivo", nome);
+    if (miniatura is not null)
+    {
+      var png = new ByteArrayContent(miniatura);
+      png.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+      corpo.Add(png, "miniatura", "miniatura.png");
+    }
     return await cliente.PostAsync($"/api/importacoes/{IdDe(rascunho)}/componentes/{registroId}/solido", corpo);
   }
 
@@ -537,6 +544,122 @@ public class ImportacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
     Assert.Equal(cubo, await baixado.Content.ReadAsByteArrayAsync());
   }
 
+  private async Task<(int? Solido, int? Miniatura)> PendentesDe(int registroId)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var registro = await db.ImportacoesDeEstruturaComponentes.AsNoTracking().SingleAsync(c => c.Id == registroId);
+    return (registro.ArquivoSolidoPendenteId, registro.ArquivoMiniaturaPendenteId);
+  }
+
+  [Fact]
+  public async Task Post_solido_pendente_com_miniatura_serve_o_png_com_etag_e_a_versao_na_projecao()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("MIN");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    var png = PngDeTesteDaApi.Png(320, 240, marcador: 7);
+    var url = $"/api/importacoes/{IdDe(rascunho)}/componentes/{registroId}/miniatura";
+
+    var enviado = await EnviarSolidoPendente(cliente, rascunho, registroId, StlDeTesteDaApi.CuboBinario(), miniatura: png);
+
+    Assert.Equal(HttpStatusCode.OK, enviado.StatusCode);
+    var versao = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(png));
+    var situacao = (await Json(enviado)).GetProperty("componentes").EnumerateArray()
+        .Single(c => c.GetProperty("registroId").GetInt32() == registroId);
+    Assert.True(situacao.GetProperty("miniaturaPendente").GetBoolean());
+    Assert.Equal(versao, situacao.GetProperty("miniaturaVersao").GetString());
+    var lida = await cliente.GetAsync(url);
+    Assert.Equal(HttpStatusCode.OK, lida.StatusCode);
+    Assert.Equal("image/png", lida.Content.Headers.ContentType!.MediaType);
+    Assert.Equal($"\"{versao}\"", lida.Headers.ETag!.Tag);
+    Assert.True(lida.Headers.CacheControl!.NoCache);
+    Assert.True(lida.Headers.CacheControl.Private);
+    Assert.Equal(png, await lida.Content.ReadAsByteArrayAsync());
+  }
+
+  [Fact]
+  public async Task Post_solido_pendente_com_miniatura_invalida_responde_400_e_nao_grava_o_solido()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("MIV");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    var invalida = new byte[] { 1, 2, 3 };
+
+    var resposta = await EnviarSolidoPendente(
+        cliente, rascunho, registroId, StlDeTesteDaApi.CuboBinario(), miniatura: invalida);
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    Assert.Equal(ValidadorDeMiniatura.Validar(invalida), (await Json(resposta)).GetProperty("erro").GetString());
+    Assert.Equal((null, null), await PendentesDe(registroId));
+  }
+
+  [Fact]
+  public async Task Descartar_rascunho_apaga_a_miniatura_pendente()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("DMI");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    await EnviarSolidoPendente(
+        cliente, rascunho, registroId, StlDeTesteDaApi.CuboBinario(), miniatura: PngDeTesteDaApi.Png(320, 240));
+    var (solido, miniatura) = await PendentesDe(registroId);
+    Assert.NotNull(miniatura);
+
+    var descartado = await cliente.DeleteAsync($"/api/importacoes/{IdDe(rascunho)}");
+
+    Assert.Equal(HttpStatusCode.NoContent, descartado.StatusCode);
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.False(await db.ArquivosDeComponente.AnyAsync(a => a.Id == solido || a.Id == miniatura));
+  }
+
+  [Fact]
+  public async Task Trocar_o_solido_pendente_sem_miniatura_apaga_a_miniatura_anterior_do_banco()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("TMI");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    var primeiro = await Json(await EnviarSolidoPendente(
+        cliente, rascunho, registroId, StlDeTesteDaApi.CuboBinario(), miniatura: PngDeTesteDaApi.Png(320, 240)));
+    var (_, miniaturaAntiga) = await PendentesDe(registroId);
+
+    var segundo = await EnviarSolidoPendente(cliente, primeiro, registroId, StlDeTesteDaApi.CuboBinario());
+
+    Assert.Equal(HttpStatusCode.OK, segundo.StatusCode);
+    Assert.Null((await PendentesDe(registroId)).Miniatura);
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    Assert.False(await db.ArquivosDeComponente.AnyAsync(a => a.Id == miniaturaAntiga));
+  }
+
+  [Fact]
+  public async Task Get_miniatura_pendente_inexistente_e_404_sem_corpo()
+  {
+    var cliente = ClienteComo("PCP");
+    var codigo = CodigoUnico("G404");
+    var rascunho = await NovoRascunho(cliente, $"1;{codigo};Peca;1");
+    var registroId = RegistroDe(rascunho, codigo);
+    // O registro tem solido pendente, mas nao miniatura.
+    await EnviarSolidoPendente(cliente, rascunho, registroId, StlDeTesteDaApi.CuboBinario());
+    var id = IdDe(rascunho);
+
+    var semMiniatura = await cliente.GetAsync($"/api/importacoes/{id}/componentes/{registroId}/miniatura");
+    var registroDeOutro = await cliente.GetAsync($"/api/importacoes/{id}/componentes/999999/miniatura");
+    var rascunhoInexistente = await cliente.GetAsync($"/api/importacoes/999999/componentes/{registroId}/miniatura");
+
+    foreach (var resposta in new[] { semMiniatura, registroDeOutro, rascunhoInexistente })
+    {
+      // Sem imagem e sem mensagem de dominio: o `NotFound()` do controller, como o do solido pendente.
+      Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+      Assert.NotEqual("image/png", resposta.Content.Headers.ContentType?.MediaType);
+      Assert.Null(resposta.Headers.ETag);
+    }
+  }
+
   [Fact]
   public async Task Post_solido_pendente_que_substitui_apaga_o_arquivo_anterior_do_banco()
   {
@@ -607,7 +730,8 @@ public class ImportacaoEndpointsTests : IClassFixture<WebApplicationFactory<Prog
 
     // 4096 espelha `ImportacaoController.MargemDoCorpoMultipartEmBytes` (privada); acompanha se ela mudar.
     Assert.Equal(
-        ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 4096, LimiteDe("importacoes/{id:int}/componentes/{registroId:int}/solido"));
+        ValidadorDeArquivoStl.TamanhoMaximoEmBytes + ValidadorDeMiniatura.TamanhoMaximoEmBytes + 4096,
+        LimiteDe("importacoes/{id:int}/componentes/{registroId:int}/solido"));
     Assert.Equal(LeitorDeBom.TamanhoMaximoEmBytes + 4096, LimiteDe("importacoes/{id:int}/arquivo"));
   }
 

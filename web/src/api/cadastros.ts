@@ -383,6 +383,8 @@ export interface ComponenteDto {
   tipo: string
   ativo: boolean
   temSolido: boolean
+  /** Versão da miniatura (muda quando a imagem muda); nula sem miniatura. */
+  miniaturaVersao: string | null
 }
 
 /**
@@ -508,9 +510,33 @@ export const TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES = 16 * 1024 * 1024
  * acento ("extensao", "esta vazio"), e mostrá-las na tela poria português errado na interface —
  * quem explica o 400 ao usuário é o fallback de `UploadDeSolido`, não o servidor.
  */
-export async function enviarSolido(componenteId: number, arquivo: File): Promise<void> {
+export async function enviarSolido(
+  componenteId: number,
+  arquivo: File,
+  miniatura: Blob | null = null,
+): Promise<void> {
   const corpo = new FormData()
   corpo.append('arquivo', arquivo)
+  if (miniatura) corpo.append('miniatura', miniatura, 'miniatura.png')
   const resp = await apiFetch(caminhoDoSolido(componenteId), { method: 'POST', body: corpo })
   if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao enviar o sólido (${resp.status}).`)
+}
+
+/** O caminho da miniatura PNG do Componente, SEM o prefixo `/api` (ver `caminhoDoSolido`). */
+export function caminhoDaMiniatura(componenteId: number): string {
+  return `/componentes/${componenteId}/miniatura`
+}
+
+/**
+ * Liga uma miniatura a um sólido já gravado. `solidoSha256` (hexa minúsculo) é o do sólido que o
+ * desenho usou: o servidor recusa se o sólido mudou no meio do caminho.
+ */
+export async function enviarMiniatura(componenteId: number, miniatura: Blob, solidoSha256: string): Promise<void> {
+  const corpo = new FormData()
+  corpo.append('miniatura', miniatura, 'miniatura.png')
+  corpo.append('solidoSha256', solidoSha256)
+  const resp = await apiFetch(caminhoDaMiniatura(componenteId), { method: 'POST', body: corpo })
+  // Sem `detalhe`, pelo mesmo motivo de `enviarSolido`: as frases do servidor são ASCII sem
+  // acento. O 409 (sólido trocado ou ausente, C15) é traduzido pela tela, que tem a frase com acento.
+  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao enviar a miniatura (${resp.status}).`)
 }

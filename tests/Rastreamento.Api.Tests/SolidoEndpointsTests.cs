@@ -31,6 +31,12 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
   private readonly WebApplicationFactory<Program> _factory;
   private readonly List<int> _componentesCriados = [];
 
+  /// <summary>Arquivos que uma TROCA deixou sem ninguem apontando (o solido e a miniatura
+  /// anteriores permanecem na tabela, por desenho): o <see cref="DisposeAsync"/> nao os acharia
+  /// pelas FKs do Componente, entao o teste que troca os anota com
+  /// <see cref="AnotarArquivosDoComponente"/> antes de trocar.</summary>
+  private readonly List<int> _arquivosAnotados = [];
+
   public SolidoEndpointsTests(WebApplicationFactory<Program> factory) => _factory = factory;
 
   public Task InitializeAsync() => Task.CompletedTask;
@@ -50,8 +56,10 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     var componentes = await db.Componentes
         .Where(c => _componentesCriados.Contains(c.Id)).ToListAsync();
     var arquivoIds = componentes
-        .Where(c => c.ArquivoSolidoId is not null)
-        .Select(c => c.ArquivoSolidoId!.Value)
+        .SelectMany(c => new[] { c.ArquivoSolidoId, c.ArquivoMiniaturaId })
+        .Where(id => id is not null)
+        .Select(id => id!.Value)
+        .Concat(_arquivosAnotados)
         .ToList();
 
     db.Componentes.RemoveRange(componentes);
@@ -87,8 +95,28 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     return c.Id;
   }
 
+  private async Task<(int? SolidoId, int? MiniaturaId)> ArquivosDoComponente(int componenteId)
+  {
+    using var escopo = _factory.Services.CreateScope();
+    var db = escopo.ServiceProvider.GetRequiredService<RastreamentoDbContext>();
+    var c = await db.Componentes.AsNoTracking().SingleAsync(x => x.Id == componenteId);
+    return (c.ArquivoSolidoId, c.ArquivoMiniaturaId);
+  }
+
+  private async Task<(int? SolidoId, int? MiniaturaId)> AnotarArquivosDoComponente(int componenteId)
+  {
+    var ids = await ArquivosDoComponente(componenteId);
+    if (ids.SolidoId is { } solido) _arquivosAnotados.Add(solido);
+    if (ids.MiniaturaId is { } miniatura) _arquivosAnotados.Add(miniatura);
+    return ids;
+  }
+
+  private static byte[] MiniaturaValida(byte marcador = 0) =>
+      PngDeTesteDaApi.Png(ValidadorDeMiniatura.Largura, ValidadorDeMiniatura.Altura, marcador);
+
   private static async Task<HttpResponseMessage> EnviarSolido(
-      HttpClient cliente, int componenteId, byte[] conteudo, string nomeArquivo = "cubo.stl")
+      HttpClient cliente, int componenteId, byte[] conteudo, string nomeArquivo = "cubo.stl",
+      byte[]? miniatura = null)
   {
     // `await` DENTRO do `using`, nao so retornar a Task: o `MultipartFormDataContent` precisa
     // continuar vivo enquanto o corpo e lido durante o envio -- devolver a Task direto descartaria
@@ -98,7 +126,25 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     var arquivo = new ByteArrayContent(conteudo);
     arquivo.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
     corpo.Add(arquivo, "arquivo", nomeArquivo);
+    if (miniatura is not null)
+    {
+      var imagem = new ByteArrayContent(miniatura);
+      imagem.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+      // O nome que o cliente manda nao importa: o servidor grava sempre "miniatura.png".
+      corpo.Add(imagem, "miniatura", "qualquer-nome.png");
+    }
     return await cliente.PostAsync($"/api/componentes/{componenteId}/solido", corpo);
+  }
+
+  private static async Task<HttpResponseMessage> EnviarMiniaturaAvulsa(
+      HttpClient cliente, int componenteId, byte[] miniatura, string? solidoSha256)
+  {
+    using var corpo = new MultipartFormDataContent();
+    var imagem = new ByteArrayContent(miniatura);
+    imagem.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+    corpo.Add(imagem, "miniatura", "qualquer-nome.png");
+    if (solidoSha256 is not null) corpo.Add(new StringContent(solidoSha256), "solidoSha256");
+    return await cliente.PostAsync($"/api/componentes/{componenteId}/miniatura", corpo);
   }
 
   // ---------------------------------------------------------------- POST
@@ -245,7 +291,10 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     Assert.NotNull(limite);
     // 4096 espelha `ComponentesController.MargemDoCorpoMultipartEmBytes` (privada -- ver o
     // comentario dela para a conta do overhead medido). Precisa acompanhar se a margem mudar.
-    Assert.Equal(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + 4096, limite!.MaxRequestBodySize);
+    // Desde a miniatura do solido o corpo leva DUAS partes, e o limite soma o teto das duas.
+    Assert.Equal(
+        ValidadorDeArquivoStl.TamanhoMaximoEmBytes + ValidadorDeMiniatura.TamanhoMaximoEmBytes + 4096,
+        limite!.MaxRequestBodySize);
   }
 
   // ---------------------------------------------------------------- LISTAGEM
@@ -277,6 +326,38 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     Assert.Equal(2, itens.Count);
     Assert.True(itens[comSolido]);
     Assert.False(itens[semSolido]);
+  }
+
+  /// <summary>
+  /// `miniaturaVersao` de ponta a ponta: a listagem e o detalhe devolvem a MESMA versao que o
+  /// `ETag` de `GET .../miniatura` (o hexa do `Sha256` gravado pelo banco), e `null` para o
+  /// Componente sem miniatura. Escopado pelo prefixo dos codigos.
+  /// </summary>
+  [Fact]
+  public async Task Listagem_e_detalhe_trazem_a_miniaturaVersao_igual_ao_ETag()
+  {
+    var cliente = ClienteComo("Administrador");
+    var prefixo = $"MV{Guid.NewGuid():N}"[..10];
+    var com = await NovoComponenteComCodigo($"{prefixo}-C");
+    var sem = await NovoComponenteComCodigo($"{prefixo}-S");
+    Assert.Equal(
+        HttpStatusCode.NoContent,
+        (await EnviarSolido(cliente, com, StlDeTesteDaApi.CuboBinario(), miniatura: MiniaturaValida())).StatusCode);
+    await AnotarArquivosDoComponente(com);
+    var etag = (await cliente.GetAsync($"/api/componentes/{com}/miniatura")).Headers.ETag!.Tag.Trim('"');
+
+    var pagina = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes?busca={prefixo}&tamanho=100")).RootElement;
+    var versoes = pagina.GetProperty("itens").EnumerateArray().ToDictionary(
+        i => i.GetProperty("id").GetInt32(),
+        i => i.GetProperty("miniaturaVersao").GetString());
+    var detalhe = JsonDocument.Parse(
+        await cliente.GetStringAsync($"/api/componentes/{com}")).RootElement;
+
+    Assert.Equal(2, versoes.Count);
+    Assert.Equal(etag, versoes[com]);
+    Assert.Null(versoes[sem]);
+    Assert.Equal(etag, detalhe.GetProperty("miniaturaVersao").GetString());
   }
 
   private async Task<int> NovoComponenteComCodigo(string codigo)
@@ -342,5 +423,169 @@ public class SolidoEndpointsTests : IClassFixture<WebApplicationFactory<Program>
     var resposta = await ClienteComo("Operador").GetAsync($"/api/componentes/{componenteId}/solido");
 
     Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+  }
+
+  // ---------------------------------------------------------------- MINIATURA
+
+  private static string VersaoDe(byte[] conteudo) =>
+      Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(conteudo));
+
+  [Fact]
+  public async Task Post_solido_com_miniatura_e_Get_miniatura_devolve_o_png_com_ETag()
+  {
+    var cliente = ClienteComo("Administrador");
+    var componenteId = await NovoComponente();
+    var miniatura = MiniaturaValida();
+
+    var envio = await EnviarSolido(
+        cliente, componenteId, StlDeTesteDaApi.CuboBinario(), miniatura: miniatura);
+    Assert.Equal(HttpStatusCode.NoContent, envio.StatusCode);
+
+    // Leitura e de qualquer autenticado, como a do solido: quem le aqui e o Operador.
+    var resposta = await ClienteComo("Operador")
+        .GetAsync($"/api/componentes/{componenteId}/miniatura");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Equal("image/png", resposta.Content.Headers.ContentType?.MediaType);
+    Assert.Equal(miniatura, await resposta.Content.ReadAsByteArrayAsync());
+    Assert.Equal($"\"{VersaoDe(miniatura)}\"", resposta.Headers.ETag?.ToString());
+    Assert.True(resposta.Headers.CacheControl?.Private);
+    Assert.True(resposta.Headers.CacheControl?.NoCache);
+    // O solido continua sendo o STL: a imagem nao tomou o lugar dele.
+    Assert.Equal(
+        StlDeTesteDaApi.CuboBinario(),
+        await cliente.GetByteArrayAsync($"/api/componentes/{componenteId}/solido"));
+  }
+
+  [Fact]
+  public async Task Get_miniatura_com_If_None_Match_igual_devolve_304()
+  {
+    var cliente = ClienteComo("Administrador");
+    var componenteId = await NovoComponente();
+    var miniatura = MiniaturaValida();
+    await EnviarSolido(cliente, componenteId, StlDeTesteDaApi.CuboBinario(), miniatura: miniatura);
+
+    var igual = new HttpRequestMessage(HttpMethod.Get, $"/api/componentes/{componenteId}/miniatura");
+    igual.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{VersaoDe(miniatura)}\""));
+    var resposta = await cliente.SendAsync(igual);
+
+    Assert.Equal(HttpStatusCode.NotModified, resposta.StatusCode);
+    Assert.Empty(await resposta.Content.ReadAsByteArrayAsync());
+    Assert.Equal($"\"{VersaoDe(miniatura)}\"", resposta.Headers.ETag?.ToString());
+    Assert.True(resposta.Headers.CacheControl?.NoCache);
+
+    // O par: outra versao no If-None-Match baixa de novo. Sem ele, um 304 incondicional passaria.
+    var outra = new HttpRequestMessage(HttpMethod.Get, $"/api/componentes/{componenteId}/miniatura");
+    outra.Headers.IfNoneMatch.Add(new EntityTagHeaderValue($"\"{VersaoDe(MiniaturaValida(7))}\""));
+    var respostaDaOutra = await cliente.SendAsync(outra);
+
+    Assert.Equal(HttpStatusCode.OK, respostaDaOutra.StatusCode);
+    Assert.Equal(miniatura, await respostaDaOutra.Content.ReadAsByteArrayAsync());
+  }
+
+  [Fact]
+  public async Task Post_solido_sem_miniatura_apaga_a_ligacao_da_anterior()
+  {
+    var cliente = ClienteComo("Administrador");
+    var componenteId = await NovoComponente();
+    await EnviarSolido(cliente, componenteId, StlDeTesteDaApi.CuboBinario(), miniatura: MiniaturaValida());
+    var antes = await AnotarArquivosDoComponente(componenteId);
+    Assert.NotNull(antes.MiniaturaId);
+
+    var troca = await EnviarSolido(cliente, componenteId, StlDeTesteDaApi.CuboBinario(), "novo.stl");
+
+    Assert.Equal(HttpStatusCode.NoContent, troca.StatusCode);
+    var depois = await ArquivosDoComponente(componenteId);
+    Assert.NotEqual(antes.SolidoId, depois.SolidoId);
+    Assert.Null(depois.MiniaturaId);
+    Assert.Equal(
+        HttpStatusCode.NotFound,
+        (await cliente.GetAsync($"/api/componentes/{componenteId}/miniatura")).StatusCode);
+  }
+
+  [Fact]
+  public async Task Post_solido_com_miniatura_de_outra_dimensao_e_400_e_nao_troca_o_solido()
+  {
+    var cliente = ClienteComo("Administrador");
+    var componenteId = await NovoComponente();
+    var miniatura = MiniaturaValida();
+    await EnviarSolido(cliente, componenteId, StlDeTesteDaApi.CuboBinario(), "antigo.stl", miniatura);
+    var antes = await ArquivosDoComponente(componenteId);
+
+    var resposta = await EnviarSolido(
+        cliente, componenteId, StlDeTesteDaApi.CuboBinario(), "novo.stl",
+        PngDeTesteDaApi.Png(ValidadorDeMiniatura.Largura * 2, ValidadorDeMiniatura.Altura * 2));
+
+    Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+    Assert.Equal(
+        "A miniatura precisa ter 320 x 240 pixels.",
+        JsonDocument.Parse(await resposta.Content.ReadAsStringAsync())
+            .RootElement.GetProperty("erro").GetString());
+    // Nem o solido nem a miniatura mudaram: a recusa e do envio inteiro (C8).
+    Assert.Equal(antes, await ArquivosDoComponente(componenteId));
+    var solido = await cliente.GetAsync($"/api/componentes/{componenteId}/solido");
+    Assert.Contains("antigo.stl", solido.Content.Headers.ContentDisposition?.ToString() ?? string.Empty);
+  }
+
+  [Fact]
+  public async Task Get_miniatura_de_componente_sem_miniatura_ou_inexistente_da_404()
+  {
+    var cliente = ClienteComo("Administrador");
+    var componenteId = await NovoComponente();
+    await EnviarSolido(cliente, componenteId, StlDeTesteDaApi.CuboBinario());
+
+    Assert.Equal(
+        HttpStatusCode.NotFound,
+        (await cliente.GetAsync($"/api/componentes/{componenteId}/miniatura")).StatusCode);
+    Assert.Equal(
+        HttpStatusCode.NotFound,
+        (await cliente.GetAsync("/api/componentes/999999/miniatura")).StatusCode);
+  }
+
+  [Fact]
+  public async Task Get_miniatura_sem_autenticacao_nenhuma_da_401()
+  {
+    var resposta = await _factory.CreateClient().GetAsync("/api/componentes/999999/miniatura");
+
+    Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
+  }
+
+  // ---------------------------------------------------------------- MINIATURA AVULSA
+
+  [Fact]
+  public async Task Post_miniatura_avulsa_com_hash_certo_e_204()
+  {
+    var cliente = ClienteComo("PCP");
+    var componenteId = await NovoComponente();
+    var stl = StlDeTesteDaApi.CuboBinario();
+    Assert.Equal(HttpStatusCode.NoContent, (await EnviarSolido(cliente, componenteId, stl)).StatusCode);
+    var miniatura = MiniaturaValida(7);
+
+    var resposta = await EnviarMiniaturaAvulsa(cliente, componenteId, miniatura, VersaoDe(stl));
+
+    Assert.Equal(HttpStatusCode.NoContent, resposta.StatusCode);
+    await AnotarArquivosDoComponente(componenteId);
+    var lida = await cliente.GetAsync($"/api/componentes/{componenteId}/miniatura");
+    Assert.Equal(miniatura, await lida.Content.ReadAsByteArrayAsync());
+    // O solido nao mudou.
+    Assert.Equal(stl, await cliente.GetByteArrayAsync($"/api/componentes/{componenteId}/solido"));
+
+    // Hash de outro solido: 409, e a miniatura gravada continua a mesma.
+    var trocado = await EnviarMiniaturaAvulsa(cliente, componenteId, MiniaturaValida(8), new string('0', 64));
+    Assert.Equal(HttpStatusCode.Conflict, trocado.StatusCode);
+    // Hash ausente: 400.
+    var ausente = await EnviarMiniaturaAvulsa(cliente, componenteId, MiniaturaValida(9), null);
+    Assert.Equal(HttpStatusCode.BadRequest, ausente.StatusCode);
+    var depois = await cliente.GetAsync($"/api/componentes/{componenteId}/miniatura");
+    Assert.Equal(miniatura, await depois.Content.ReadAsByteArrayAsync());
+  }
+
+  [Fact]
+  public async Task Post_miniatura_avulsa_por_operador_e_403()
+  {
+    var resposta = await EnviarMiniaturaAvulsa(
+        ClienteComo("Operador"), 999999, MiniaturaValida(), new string('0', 64));
+
+    Assert.Equal(HttpStatusCode.Forbidden, resposta.StatusCode);
   }
 }

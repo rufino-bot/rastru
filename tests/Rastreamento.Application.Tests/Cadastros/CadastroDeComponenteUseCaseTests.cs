@@ -295,6 +295,65 @@ public class CadastroDeComponenteUseCaseTests
     Assert.Null(resultado.Valor.TamanhoDoSolidoEmBytes);
   }
 
+  /// <summary>Um Componente com miniatura gravada no fake de arquivos; devolve o Sha256 dela.</summary>
+  private static byte[] ComMiniatura(
+      Componente componente, FakeArquivoDeComponenteRepo arquivos, int arquivoId, byte semente)
+  {
+    var sha = Enumerable.Repeat(semente, 32).ToArray();
+    arquivos.Gravados.Add(new ArquivoDeComponente
+    {
+      Id = arquivoId, NomeOriginal = "m.png", Conteudo = [1], Sha256 = sha, CriadoPorUsuarioId = 1,
+    });
+    componente.ArquivoMiniaturaId = arquivoId;
+    return sha;
+  }
+
+  [Fact]
+  public async Task Listar_traz_a_versao_da_miniatura_de_quem_tem()
+  {
+    var com = Linha(1, "COM-001");
+    var sem = Linha(2, "SEM-001");
+    var arquivos = new FakeArquivoDeComponenteRepo();
+    var sha = ComMiniatura(com, arquivos, 801, 0xAB);
+    var useCase = Montar(new FakeComponenteRepo(com, sem), arquivos);
+
+    var resultado = await useCase.Listar(null, false, "codigo", 1, 20, CancellationToken.None);
+
+    var itens = resultado.Valor!.Itens;
+    Assert.Equal(Convert.ToHexStringLower(sha), itens.Single(i => i.Codigo == "COM-001").MiniaturaVersao);
+    Assert.Null(itens.Single(i => i.Codigo == "SEM-001").MiniaturaVersao);
+  }
+
+  [Fact]
+  public async Task Detalhe_traz_a_versao_da_miniatura()
+  {
+    var com = Linha(1, "COM-001");
+    var arquivos = new FakeArquivoDeComponenteRepo();
+    var sha = ComMiniatura(com, arquivos, 802, 0xCD);
+    var useCase = Montar(new FakeComponenteRepo(com, Linha(2, "SEM-001")), arquivos);
+
+    var comMiniatura = await useCase.Obter(1, CancellationToken.None);
+    var semMiniatura = await useCase.Obter(2, CancellationToken.None);
+
+    Assert.Equal(Convert.ToHexStringLower(sha), comMiniatura.Valor!.MiniaturaVersao);
+    Assert.Null(semMiniatura.Valor!.MiniaturaVersao);
+  }
+
+  [Fact]
+  public async Task Listar_consulta_os_hashes_uma_vez_por_pagina()
+  {
+    var a = Linha(1, "A-001");
+    var b = Linha(2, "B-001");
+    var arquivos = new FakeArquivoDeComponenteRepo();
+    ComMiniatura(a, arquivos, 803, 0x01);
+    ComMiniatura(b, arquivos, 804, 0x02);
+    var useCase = Montar(new FakeComponenteRepo(a, b, Linha(3, "C-001")), arquivos);
+
+    await useCase.Listar(null, false, null, 1, 20, CancellationToken.None);
+
+    Assert.Equal(1, arquivos.ConsultasDeSha256);
+  }
+
   [Fact]
   public async Task Obter_componente_inexistente_e_nao_encontrado()
   {

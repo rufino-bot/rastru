@@ -115,4 +115,45 @@ public class ArquivoDeComponenteMapeamentoTests : TesteComBanco
       await dbLimpeza.SaveChangesAsync();
     }
   }
+
+  [Fact]
+  public async Task Componente_grava_e_le_ArquivoMiniaturaId()
+  {
+    await using var db = NovoContexto();
+    var usuarioId = await db.Usuarios.Select(u => u.Id).FirstAsync();
+
+    var arquivo = NovoArquivo(usuarioId);
+    db.Set<ArquivoDeComponente>().Add(arquivo);
+    await db.SaveChangesAsync();
+
+    var componente = new Componente
+    {
+      Codigo = $"MIN-{Guid.NewGuid():N}"[..12],
+      Descricao = "Componente do teste de miniatura",
+      Tipo = "Fabricado",
+      Ativo = true,
+      ArquivoMiniaturaId = arquivo.Id,
+    };
+    db.Componentes.Add(componente);
+    await db.SaveChangesAsync();
+
+    try
+    {
+      await using var outro = NovoContexto();
+      // Escopado pelo proprio id: Api.Tests escreve em dbo.Componente em outro processo.
+      var lido = await outro.Componentes.AsNoTracking().SingleAsync(c => c.Id == componente.Id);
+      Assert.Equal(arquivo.Id, lido.ArquivoMiniaturaId);
+      Assert.Null(lido.ArquivoSolidoId);
+    }
+    finally
+    {
+      await using var dbLimpeza = NovoContexto();
+      dbLimpeza.Componentes.Remove(
+          await dbLimpeza.Componentes.SingleAsync(c => c.Id == componente.Id));
+      await dbLimpeza.SaveChangesAsync();
+      dbLimpeza.Set<ArquivoDeComponente>().Remove(
+          await dbLimpeza.Set<ArquivoDeComponente>().SingleAsync(a => a.Id == arquivo.Id));
+      await dbLimpeza.SaveChangesAsync();
+    }
+  }
 }

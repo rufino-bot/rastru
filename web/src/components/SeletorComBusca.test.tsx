@@ -19,9 +19,9 @@ beforeEach(() => {
 /** Três componentes, o suficiente para navegar com o teclado e provar a seleção. */
 const PAGINA = {
   itens: [
-    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false },
-    { id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Fabricado', ativo: true, temSolido: false },
-    { id: 3, codigo: 'PA-010', descricao: 'Parafuso M8', tipo: 'Bruto', ativo: true, temSolido: false },
+    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false, miniaturaVersao: null },
+    { id: 2, codigo: 'CH-200', descricao: 'Chapa frontal', tipo: 'Fabricado', ativo: true, temSolido: false, miniaturaVersao: null },
+    { id: 3, codigo: 'PA-010', descricao: 'Parafuso M8', tipo: 'Bruto', ativo: true, temSolido: false, miniaturaVersao: null },
   ],
   total: 3,
   pagina: 1,
@@ -31,8 +31,8 @@ const PAGINA = {
 /** Página com um item COM sólido, só para os testes de `exigirSolido` (regra 18). */
 const PAGINA_COM_SOLIDO = {
   itens: [
-    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false },
-    { id: 4, codigo: 'CH-300', descricao: 'Chapa traseira', tipo: 'Fabricado', ativo: true, temSolido: true },
+    { id: 1, codigo: 'CH-100', descricao: 'Chapa lateral', tipo: 'Fabricado', ativo: true, temSolido: false, miniaturaVersao: null },
+    { id: 4, codigo: 'CH-300', descricao: 'Chapa traseira', tipo: 'Fabricado', ativo: true, temSolido: true, miniaturaVersao: null },
   ],
   total: 2,
   pagina: 1,

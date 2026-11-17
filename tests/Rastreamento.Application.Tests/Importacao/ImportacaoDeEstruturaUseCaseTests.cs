@@ -357,8 +357,8 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   {
     var m = new Montagem();
     m.Componente(10, "AB-01", solido: 70);
-    m.Importacoes.Arquivos[70] = new MetadadoDeSolido("catalogo.stl", 1234);
-    m.Importacoes.Arquivos[71] = new MetadadoDeSolido("pendente.stl", 5678);
+    m.Importacoes.Arquivos[70] = new MetadadoDeSolido("catalogo.stl", 1234, new byte[32]);
+    m.Importacoes.Arquivos[71] = new MetadadoDeSolido("pendente.stl", 5678, new byte[32]);
     var rascunho = Rascunho(
         Registro(1, null, "Raiz", pendente: 71),
         Registro(2, "AB-01", "Peca", componenteId: 10));
@@ -459,7 +459,7 @@ public partial class ImportacaoDeEstruturaUseCaseTests
   /// <summary>Um solido pendente que o fake de metadados conhece (o avaliador so pergunta se existe).</summary>
   private static int Pendente(Montagem m, int arquivoId, string nome)
   {
-    m.Importacoes.Arquivos[arquivoId] = new MetadadoDeSolido(nome, 684);
+    m.Importacoes.Arquivos[arquivoId] = new MetadadoDeSolido(nome, 684, new byte[32]);
     return arquivoId;
   }
 

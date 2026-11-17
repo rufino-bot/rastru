@@ -42,7 +42,7 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são quatro. A
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e são várias (as que seguem). A
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
@@ -91,8 +91,12 @@ mesma sobra, a recusa `PaiComConjuntoAEspera` e a guarda `PaiJaIniciado` definit
 `specs/01`), sem mudança de schema. A conferência do usuário no navegador e a review de branch inteira foram feitas em
 2026-11-16. Os três ajustes da conferência (F1 a F3: o "faltam N" da linha do filho na Fila, o código na prévia da baixa
 e o pai sem nada a iniciar fora de "Aguardando montagem", com a sobra em montagem por Setor) **não são da 5C** e vieram
-no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte é a **3C** ou a **Fase 6**: a
-posição de uma em relação à outra **não está decidida**. O "Descartar Peça ou Item
+no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte, por decisão do usuário de 2026-11-17 (mais uma exceção
+declarada em `06-roadmap-mvp.md`), é a **miniatura isométrica do sólido** (spec
+`docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`), seguida do **Panorama** (spec
+`docs/superpowers/specs/2026-11-17-panorama-design.md`); os dois **antes da 3C**; depois deles vêm a **3C** e a
+**Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
 
@@ -549,10 +553,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   inventar telas paralelas. O sólido do Componente usa `UploadDeSolido` e `VisualizadorDeSolido`, que
   recebem o **`caminho`** do binário, sem o prefixo `/api` (`caminhoDoSolido(id)` para o do catálogo,
   `caminhoDoSolidoPendente(id, registroId)` para o enviado na conferência), em vez do id do Componente; o
-  upload recebe também `enviar`, a função que faz o envio (ele só confere o tamanho), e `desabilitado`.
-  Hoje são **3** usos do upload e **2** do visualizador, em 2 arquivos cada (`ComponenteDetalhePage` e
+  upload recebe também `enviar`, a função que faz o envio, e `desabilitado`. O upload confere o tamanho e, antes de
+  enviar, lê o arquivo e desenha a miniatura (`desenharMiniatura`): o `enviar` recebe `(arquivo, miniatura)`, com a
+  miniatura `null` quando o aparelho não a desenhou, e o `aoMudarEnviando` avisa a tela quando o envio começa e
+  termina. Hoje são **3** usos do upload e **2** do visualizador, em 2 arquivos cada (`ComponenteDetalhePage` e
   `PainelDoComponenteDaImportacao`; medido em 2026-10-03 com
-  `grep -rn "<UploadDeSolido\|<VisualizadorDeSolido" web/src --include=*.tsx | grep -v "\.test\."`). A
+  `grep -rn "<UploadDeSolido\|<VisualizadorDeSolido" web/src --include=*.tsx | grep -v "\.test\."` e remedido em
+  2026-11-17, depois da miniatura, com o mesmo comando: 5 linhas, as mesmas 3 do upload e 2 do visualizador, sem mudança). A
   árvore da conferência é **própria**, `ArvoreDaImportacao`, e não a `ArvoreDeEstrutura`: o contrato
   daquela é o nó real, com ações, posições e Roteiro que o rascunho não tem. De `lg` para cima a tela tem
   duas colunas, a faixa da Peça e a árvore à esquerda e o painel do Componente selecionado à direita, fixo
@@ -674,6 +681,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica, e essa ordem é
   o **prazo de entrega** do Pedido do nó, o mais próximo primeiro, com o `Id` do nó desempatando (decisão do usuário,
   2026-11-10); quem a aplica é o servidor, e o front não reordena item.
+- **Exibir a miniatura do sólido usa `MiniaturaDoSolido`** (`web/src/components/`, com teste próprio), nunca
+  `<img src="/api/...">`: o `<img>` não manda o token, e a rota exige login. A primitiva recebe o `caminho`
+  (`caminhoDaMiniatura(id)` ou `caminhoDaMiniaturaPendente(id, registroId)`, sem o prefixo `/api`), a `versao` (o hash da
+  miniatura, `null` quando o Componente não tem) e o `alt`; busca pelo `apiFetch` e exibe por URL de `blob:`, com cache
+  de módulo por `caminho + versao` (a mesma versão não é buscada de novo; versão nova busca). Sem versão, enquanto
+  carrega e quando a busca falha, mostra o espaço neutro (`bg-fundo`, borda `borda`, proporção 4:3, `role="img"` com o
+  `alt`). Os testes zeram o cache com `limparCacheDeMiniaturas()`.
 - **Conteúdo que nasce recolhido usa `SecaoRecolhivel` ou `ListaRecolhivel`** (`web/src/components/`,
   com teste próprio), nunca um `<details>` escrito na tela. As duas são `<details>` nativo — abre no
   teclado e no leitor de tela sem código, e o `<summary>` é o nome do controle — e se separam pelo
@@ -1483,6 +1497,17 @@ nenhuma tabela antiga muda de forma, então não há aborto nem `DROP TABLE`, e 
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-fase-5b2.sql sqlserver:/tmp/alter-fase-5b2.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-fase-5b2.sql
+```
+
+**Miniatura do sólido — `db/alter-miniatura.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um
+banco anterior até o `02-modelo-de-dados.sql`: as colunas `Componente.ArquivoMiniaturaId` e
+`ImportacaoDeEstruturaComponente.ArquivoMiniaturaPendenteId` (`INT NULL`), cada uma com a FK para
+`dbo.ArquivoDeComponente(Id)`, um bloco por coluna e por FK, só se faltam. Não muda dado e não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-miniatura.sql sqlserver:/tmp/alter-miniatura.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-miniatura.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

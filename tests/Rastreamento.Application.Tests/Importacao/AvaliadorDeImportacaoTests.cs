@@ -1,3 +1,4 @@
+using Rastreamento.Application.Arquivos;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -95,7 +96,7 @@ public class AvaliadorDeImportacaoTests
       };
       _componentes[id] = c;
       if (solido is int s && !_solidos.ContainsKey(s))
-        _solidos[s] = new MetadadoDeSolido($"{codigo}.stl", 1000 + id);
+        _solidos[s] = new MetadadoDeSolido($"{codigo}.stl", 1000 + id, Sha(s));
       return c;
     }
 
@@ -103,7 +104,10 @@ public class AvaliadorDeImportacaoTests
 
     public void MaterialDoCatalogo(int componente, int material, decimal qtd) => _materiais.Add((componente, material, qtd));
 
-    public void Solido(int arquivoId, string nome, int tamanho) => _solidos[arquivoId] = new MetadadoDeSolido(nome, tamanho);
+    public void Solido(int arquivoId, string nome, int tamanho) => _solidos[arquivoId] = new MetadadoDeSolido(nome, tamanho, Sha(arquivoId));
+
+    /// <summary>O Sha256 de teste de um arquivo: o Id nos primeiros bytes, para versoes distintas por arquivo.</summary>
+    public static byte[] Sha(int arquivoId) => [.. BitConverter.GetBytes(arquivoId), .. new byte[28]];
 
     public HashSet<string> CodigosExistentes { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -192,6 +196,58 @@ public class AvaliadorDeImportacaoTests
   }
 
   // ---------------------------------------------------------------- P2: receita efetiva e divergencia
+
+  // ---------------------------------------------------------------- versao da miniatura (C12)
+
+  [Fact]
+  public void Versao_da_miniatura_pendente_quando_ha_solido_pendente()
+  {
+    var c = new Cenario();
+    c.Componente(10, "AB-10", "Montagem", solido: 110).ArquivoMiniaturaId = 610;
+    c.Solido(610, "miniatura.png", 100);
+    c.Solido(500, "novo.stl", 50);
+    c.Solido(501, "miniatura.png", 60);
+    var a10 = c.Casado("AB-10", "Lida 10", 10, pendente: 500);
+    a10.ArquivoMiniaturaPendenteId = 501;
+    c.Filho(c.Raiz, a10, 1m);
+
+    var s = Situacao(c.Avaliar(), a10);
+
+    Assert.Equal(VersaoDeArquivo.VersaoDe(Cenario.Sha(501)), s.MiniaturaVersao);
+    Assert.True(s.MiniaturaPendente);
+  }
+
+  [Fact]
+  public void Sem_versao_quando_o_solido_pendente_veio_sem_miniatura()
+  {
+    var c = new Cenario();
+    // O catalogo tem miniatura, mas o solido pendente vai substituir o solido (e a miniatura dele): C12.
+    c.Componente(10, "AB-10", "Montagem", solido: 110).ArquivoMiniaturaId = 610;
+    c.Solido(610, "miniatura.png", 100);
+    c.Solido(500, "novo.stl", 50);
+    var a10 = c.Casado("AB-10", "Lida 10", 10, pendente: 500);
+    c.Filho(c.Raiz, a10, 1m);
+
+    var s = Situacao(c.Avaliar(), a10);
+
+    Assert.Null(s.MiniaturaVersao);
+    Assert.False(s.MiniaturaPendente);
+  }
+
+  [Fact]
+  public void Versao_do_catalogo_sem_solido_pendente()
+  {
+    var c = new Cenario();
+    c.Componente(10, "AB-10", "Montagem", solido: 110).ArquivoMiniaturaId = 610;
+    c.Solido(610, "miniatura.png", 100);
+    var a10 = c.Casado("AB-10", "Lida 10", 10);
+    c.Filho(c.Raiz, a10, 1m);
+
+    var s = Situacao(c.Avaliar(), a10);
+
+    Assert.Equal(VersaoDeArquivo.VersaoDe(Cenario.Sha(610)), s.MiniaturaVersao);
+    Assert.False(s.MiniaturaPendente);
+  }
 
   [Fact]
   public void Casado_sem_receita_nao_diverge_e_usa_a_lida()

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
 using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Cadastros;
 
@@ -166,23 +167,66 @@ public class ComponentesController : CadastroControllerBase
   /// explica o tamanho ao usuario e a checagem que o front faz antes de enviar
   /// (`TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES`, em `web/src/api/cadastros.ts`).
   /// </para>
+  ///
+  /// <para>
+  /// Desde a miniatura do solido o corpo aceita uma segunda parte, OPCIONAL: `miniatura`, o PNG
+  /// isometrico que o navegador desenhou do STL. O limite soma o teto das duas partes
+  /// (`ValidadorDeArquivoStl.TamanhoMaximoEmBytes` e `ValidadorDeMiniatura.TamanhoMaximoEmBytes`)
+  /// mais a mesma margem, que NAO foi remedida para o corpo de duas partes: os 558 bytes medidos
+  /// sao de uma parte so, e dobra-los ainda cabe com folga nos 4096. Sem o campo, o envio grava o
+  /// solido e deixa o Componente SEM miniatura, mesmo que o solido anterior tivesse uma (C6 da
+  /// spec da miniatura); com miniatura invalida, recusa o envio inteiro com 400 (C8).
+  /// </para>
   /// </summary>
   [HttpPost("{id:int}/solido")]
   [Authorize(Roles = PerfisDeEscrita)]
-  [RequestSizeLimit(ValidadorDeArquivoStl.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
+  [RequestSizeLimit(
+      ValidadorDeArquivoStl.TamanhoMaximoEmBytes
+      + ValidadorDeMiniatura.TamanhoMaximoEmBytes
+      + MargemDoCorpoMultipartEmBytes)]
   public async Task<IActionResult> EnviarSolido(
-      int id, IFormFile arquivo, CancellationToken ct)
+      int id, IFormFile arquivo, IFormFile? miniatura, CancellationToken ct)
   {
     var usuarioId = UsuarioDaSessao();
     if (usuarioId is null) return Unauthorized();
 
-    using var memoria = new MemoryStream();
-    await arquivo.CopyToAsync(memoria, ct);
-
     var resultado = await _solido.Enviar(
-        id, arquivo.FileName, memoria.ToArray(), usuarioId.Value, ct);
+        id,
+        arquivo.FileName,
+        await LerAsync(arquivo, ct),
+        miniatura is null ? null : await LerAsync(miniatura, ct),
+        usuarioId.Value,
+        ct);
 
     return TraduzirResultado(resultado);
+  }
+
+  /// <summary>
+  /// "Gerar miniatura" (C9, C10 e C15 da spec da miniatura): grava so a miniatura de um solido que
+  /// ja existe. `multipart` com `miniatura` e `solidoSha256`, o hash (64 digitos hexadecimais
+  /// minusculos) do solido de que o navegador a desenhou; o servidor so a grava se ele ainda for o
+  /// solido atual. O limite e o da miniatura mais a margem do multipart.
+  /// </summary>
+  [HttpPost("{id:int}/miniatura")]
+  [Authorize(Roles = PerfisDeEscrita)]
+  [RequestSizeLimit(ValidadorDeMiniatura.TamanhoMaximoEmBytes + MargemDoCorpoMultipartEmBytes)]
+  public async Task<IActionResult> EnviarMiniatura(
+      int id, IFormFile miniatura, [FromForm] string? solidoSha256, CancellationToken ct)
+  {
+    var usuarioId = UsuarioDaSessao();
+    if (usuarioId is null) return Unauthorized();
+
+    var resultado = await _solido.EnviarMiniatura(
+        id, await LerAsync(miniatura, ct), solidoSha256 ?? "", usuarioId.Value, ct);
+
+    return TraduzirResultado(resultado);
+  }
+
+  private static async Task<byte[]> LerAsync(IFormFile arquivo, CancellationToken ct)
+  {
+    using var memoria = new MemoryStream();
+    await arquivo.CopyToAsync(memoria, ct);
+    return memoria.ToArray();
   }
 
   /// <summary>
@@ -197,6 +241,28 @@ public class ComponentesController : CadastroControllerBase
 
     return File(
         resultado.Valor!.Conteudo, "application/octet-stream", resultado.Valor!.NomeOriginal);
+  }
+
+  /// <summary>
+  /// A miniatura do solido (`image/png`), para qualquer autenticado, como `ObterSolido`. 404 sem
+  /// miniatura ou sem Componente. O `ETag` e a versao (o `Sha256` do PNG em hexadecimal) entre
+  /// aspas, e `Cache-Control: private, no-cache` manda o navegador guardar e REVALIDAR sempre:
+  /// com `If-None-Match` igual, quem responde 304 sem corpo e o proprio `File(...)`, a partir do
+  /// `entityTag`. `private` porque a rota e autenticada: o desenho das pecas nao vai para cache
+  /// compartilhado.
+  /// </summary>
+  [HttpGet("{id:int}/miniatura")]
+  public async Task<IActionResult> ObterMiniatura(int id, CancellationToken ct)
+  {
+    var resultado = await _solido.ObterMiniatura(id, ct);
+    if (!resultado.Sucesso) return NotFound();
+
+    Response.Headers.CacheControl = "private, no-cache";
+    return File(
+        resultado.Valor!.Conteudo,
+        "image/png",
+        lastModified: null,
+        entityTag: new EntityTagHeaderValue($"\"{resultado.Valor!.Versao}\""));
   }
 
   /// <summary>Como Componente pergunta pelo duplicado: por codigo (UQ_Componente_Codigo).</summary>

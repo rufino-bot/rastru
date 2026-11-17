@@ -31,6 +31,12 @@ public class ImportacaoDeEstruturaComponente
   /// </summary>
   public int? ArquivoSolidoPendenteId { get; set; }
 
+  /// <summary>
+  /// A miniatura (PNG) pendente do solido acima, em <c>ArquivoDeComponente</c>, com o mesmo ciclo do
+  /// <see cref="ArquivoSolidoPendenteId"/> (spec da miniatura, C5).
+  /// </summary>
+  public int? ArquivoMiniaturaPendenteId { get; set; }
+
   /// <summary>As linhas em que este registro e o PAI: a receita lida, um nivel.</summary>
   public List<ImportacaoDeEstruturaFilho> Filhos { get; set; } = [];
 }

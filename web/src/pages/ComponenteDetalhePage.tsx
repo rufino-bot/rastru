@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  caminhoDoSolido, enviarSolido, obterComponente, listarMateriais, listarSetores,
+  caminhoDaMiniatura, caminhoDoSolido, enviarMiniatura, enviarSolido, obterComponente, listarMateriais, listarSetores,
   type ComponenteDto, type ComponenteDetalheDto, type MaterialDto, type SetorDto,
 } from '../api/cadastros'
 import {
@@ -10,7 +10,7 @@ import {
   type FilhoPadraoDto, type MaterialPadraoDto, type RoteiroPadraoDto,
   type LinhaDeFilho, type LinhaDeMaterial, type LinhaDeRoteiro,
 } from '../api/receitaPadrao'
-import { mensagemDeErro } from '../api/erros'
+import { ErroDeApi, mensagemDeErro } from '../api/erros'
 import { usePodeEscrever } from '../auth/usePermissao'
 import { Pagina } from '../components/Pagina'
 import { BannerDeErro } from '../components/BannerDeErro'
@@ -21,6 +21,10 @@ import { EstadoCarregando } from '../components/EstadoCarregando'
 import { SeletorComBusca } from '../components/SeletorComBusca'
 import { Botao } from '../components/Botao'
 import { Campo, CLASSES_DE_CONTROLE } from '../components/Campo'
+import { MiniaturaDoSolido } from '../components/MiniaturaDoSolido'
+import { apiFetch } from '../api/client'
+import { desenharMiniatura } from '../solido/miniatura'
+import { sha256Hex } from '../solido/hash'
 import { UploadDeSolido } from '../components/UploadDeSolido'
 import { VisualizadorDeSolido } from '../components/VisualizadorDeSolido'
 
@@ -242,6 +246,53 @@ export function ComponenteDetalhePage() {
     obterComponente(componenteId).then(setComponente).catch(() => {})
   }
 
+  // "Gerar miniatura" (C9, C10): baixa o sólido gravado, calcula o hash dele, desenha e envia. O
+  // hash é do arquivo BAIXADO, que é o que o desenho viu — o servidor o confere contra o sólido
+  // gravado e recusa com 409 se ele mudou no meio (C15). Cada falha local tem frase própria.
+  const [gerandoMiniatura, setGerandoMiniatura] = useState(false)
+  const [erroDaMiniatura, setErroDaMiniatura] = useState<string | null>(null)
+  const gerandoRef = useRef(false)
+  // O upload do sólido em voo: o "Gerar miniatura" e o upload não andam juntos (um troca o sólido
+  // que o outro desenha).
+  const [enviandoSolido, setEnviandoSolido] = useState(false)
+
+  async function gerarMiniatura() {
+    if (gerandoRef.current) return
+    gerandoRef.current = true
+    setGerandoMiniatura(true)
+    setErroDaMiniatura(null)
+    try {
+      const resposta = await apiFetch(caminhoDoSolido(componenteId))
+      if (!resposta.ok) {
+        setErroDaMiniatura('Não foi possível baixar o sólido.')
+        return
+      }
+      const stl = await resposta.arrayBuffer()
+      const hash = await sha256Hex(stl)
+      if (hash === null) {
+        setErroDaMiniatura('Este endereço não permite gerar a miniatura. Use o endereço com HTTPS.')
+        return
+      }
+      const png = await desenharMiniatura(stl)
+      if (png === null) {
+        setErroDaMiniatura('A miniatura não pôde ser gerada neste aparelho.')
+        return
+      }
+      await enviarMiniatura(componenteId, png, hash)
+      recarregarComponente()
+    } catch (e) {
+      // O 409 (sólido trocado ou ausente, C15) tem a frase aqui, com acento: a do servidor é ASCII.
+      setErroDaMiniatura(
+        e instanceof ErroDeApi && e.status === 409
+          ? 'O sólido mudou enquanto a miniatura era gerada. Gere de novo.'
+          : mensagemDeErro(e, 'Não foi possível gerar a miniatura.'),
+      )
+    } finally {
+      gerandoRef.current = false
+      setGerandoMiniatura(false)
+    }
+  }
+
   // `versaoDoSolido` é a `key` do `VisualizadorDeSolido`. Substituir o sólido não muda `temSolido`
   // (continua `true`), então sem a `key` o viewer aberto seguiria mostrando a geometria ANTIGA ao
   // lado do nome do arquivo novo. Trocar a `key` desmonta o viewer velho — a limpeza dele libera os
@@ -409,12 +460,35 @@ export function ComponenteDetalhePage() {
       {podeEscrever && !carregandoComponente && erroComponente === null && componente && (
         <UploadDeSolido
           caminho={caminhoDoSolido(componenteId)}
-          enviar={(arquivo) => enviarSolido(componenteId, arquivo)}
+          enviar={(arquivo, miniatura) => enviarSolido(componenteId, arquivo, miniatura)}
+          desabilitado={gerandoMiniatura}
+          aoMudarEnviando={setEnviandoSolido}
           temSolido={componente.temSolido}
           nomeDoSolido={componente.nomeDoSolido}
           tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
           aoEnviar={aoEnviarSolido}
         />
+      )}
+
+      {/* A miniatura (spec C11) é leitura de qualquer perfil; o "Gerar miniatura" é escrita e só
+          aparece sob `podeEscrever` quando o sólido ainda não tem miniatura. */}
+      {!carregandoComponente && erroComponente === null && componente && componente.temSolido && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <MiniaturaDoSolido
+            caminho={caminhoDaMiniatura(componenteId)}
+            versao={componente.miniaturaVersao}
+            alt={`${componente.codigo} — ${componente.descricao}`}
+            className="block w-48 max-w-full"
+          />
+          {podeEscrever && componente.miniaturaVersao === null && (
+            <div className="flex flex-col gap-2">
+              <Botao variante="secundario" onClick={() => { void gerarMiniatura() }} disabled={gerandoMiniatura || enviandoSolido}>
+                {gerandoMiniatura ? 'Gerando…' : 'Gerar miniatura'}
+              </Botao>
+              <BannerDeErro mensagem={erroDaMiniatura} />
+            </div>
+          )}
+        </div>
       )}
 
       {/* FORA da guarda `podeEscrever` de propósito: o `GET /componentes/{id}/solido` que o

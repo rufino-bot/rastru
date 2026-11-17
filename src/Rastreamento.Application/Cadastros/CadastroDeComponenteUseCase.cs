@@ -1,3 +1,4 @@
+using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Common;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
@@ -73,7 +74,8 @@ public sealed class CadastroDeComponenteUseCase
     await _repositorio.AdicionarAsync(componente, ct);
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<ComponenteDto>.Ok(Projetar(componente));
+    // Componente recem-criado nao tem miniatura: sem consulta de hash.
+    return Result<ComponenteDto>.Ok(Projetar(componente, null));
   }
 
   public async Task<Result<ComponenteDto>> Editar(
@@ -97,7 +99,8 @@ public sealed class CadastroDeComponenteUseCase
     componente.Tipo = tipo;
     await _repositorio.SalvarAlteracoesAsync(ct);
 
-    return Result<ComponenteDto>.Ok(Projetar(componente));
+    var versoes = await VersoesDasMiniaturas([componente], ct);
+    return Result<ComponenteDto>.Ok(Projetar(componente, versoes));
   }
 
   /// <summary>
@@ -122,8 +125,10 @@ public sealed class CadastroDeComponenteUseCase
     var (itens, total) = await _repositorio.ListarAsync(
         new FiltroDeComponente(busca, incluirInativos, pagina, tamanho, ordemDaConsulta), ct);
 
-    return Result<PaginaDto<ComponenteDto>>.Ok(
-        new PaginaDto<ComponenteDto>(itens.Select(Projetar).ToList(), total, pagina, tamanho));
+    // UMA consulta de hashes para a pagina inteira, nunca uma por item.
+    var versoes = await VersoesDasMiniaturas(itens, ct);
+    return Result<PaginaDto<ComponenteDto>>.Ok(new PaginaDto<ComponenteDto>(
+        itens.Select(c => Projetar(c, versoes)).ToList(), total, pagina, tamanho));
   }
 
   /// <summary>
@@ -155,7 +160,8 @@ public sealed class CadastroDeComponenteUseCase
 
     return Result<ComponenteDetalheDto>.Ok(new ComponenteDetalheDto(
         componente.Id, componente.Codigo, componente.Descricao, componente.Tipo, componente.Ativo,
-        componente.ArquivoSolidoId is not null, metadado?.NomeOriginal, metadado?.TamanhoEmBytes));
+        componente.ArquivoSolidoId is not null, metadado?.NomeOriginal, metadado?.TamanhoEmBytes,
+        (await VersoesDasMiniaturas([componente], ct)).GetValueOrDefault(componente.Id)));
   }
 
   /// <summary>Cobre inativar e reativar — o mesmo endpoint `PATCH /componentes/{id}/ativo`.</summary>
@@ -206,6 +212,24 @@ public sealed class CadastroDeComponenteUseCase
   /// </summary>
   private static string Normalizar(string? valor) => valor?.Trim() ?? string.Empty;
 
-  private static ComponenteDto Projetar(Componente c) =>
-      new(c.Id, c.Codigo, c.Descricao, c.Tipo, c.Ativo, c.ArquivoSolidoId is not null);
+  /// <summary>
+  /// A versao da miniatura (ver <see cref="VersaoDeArquivo.VersaoDe"/>) de cada Componente que a
+  /// tem, por id do COMPONENTE. Uma unica consulta de hashes; sem miniatura na lista, nenhuma.
+  /// </summary>
+  private async Task<IReadOnlyDictionary<int, string>> VersoesDasMiniaturas(
+      IReadOnlyCollection<Componente> componentes, CancellationToken ct)
+  {
+    var comMiniatura = componentes.Where(c => c.ArquivoMiniaturaId is not null).ToList();
+    if (comMiniatura.Count == 0) return new Dictionary<int, string>();
+
+    var hashes = await _arquivos.ObterSha256Async(
+        comMiniatura.Select(c => c.ArquivoMiniaturaId!.Value).Distinct().ToList(), ct);
+    return comMiniatura
+        .Where(c => hashes.ContainsKey(c.ArquivoMiniaturaId!.Value))
+        .ToDictionary(c => c.Id, c => VersaoDeArquivo.VersaoDe(hashes[c.ArquivoMiniaturaId!.Value]));
+  }
+
+  private static ComponenteDto Projetar(Componente c, IReadOnlyDictionary<int, string>? versoes) =>
+      new(c.Id, c.Codigo, c.Descricao, c.Tipo, c.Ativo, c.ArquivoSolidoId is not null,
+          versoes?.GetValueOrDefault(c.Id));
 }

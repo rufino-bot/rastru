@@ -20,6 +20,10 @@ public sealed partial class ImportacaoDeEstruturaUseCase
   private const string ErroDeVersaoInvalida = "Versao do rascunho invalida.";
   private const string ErroDeComponenteJaCasado = "Este componente ja esta casado com outro registro do rascunho.";
   private const string ErroDeSolidoPendenteNaoEncontrado = "Este registro nao tem solido pendente.";
+  private const string ErroDeMiniaturaPendenteNaoEncontrada = "Este registro nao tem miniatura pendente.";
+
+  /// <summary>O navegador manda o PNG sem nome que importe; o nome gravado e sempre este (como no solido do Componente).</summary>
+  private const string NomeDaMiniatura = "miniatura.png";
   private const string ErroDeEscolhaComTrocaDeCasamento =
       "Escolha a receita depois de conferir o novo casamento.";
   private const string ErroDeEscolhaSemDivergencia =
@@ -117,7 +121,8 @@ public sealed partial class ImportacaoDeEstruturaUseCase
       });
 
   public async Task<Result<ImportacaoDto>> EnviarSolidoPendente(
-      int id, int registroId, string versao, string nomeOriginal, byte[] conteudo, int usuarioId, CancellationToken ct)
+      int id, int registroId, string versao, string nomeOriginal, byte[] conteudo, byte[]? miniatura, int usuarioId,
+      CancellationToken ct)
   {
     var nome = SoONome(nomeOriginal);
     if (ExcessoDeTexto(nome, NomeDoArquivoMaximo, "O nome do arquivo") is { } longo)
@@ -125,9 +130,15 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     // Mesma recusa e mesma mensagem do solido do Componente: o validador e puro, e o pendente vira solido dele.
     if (ValidadorDeArquivoStl.Validar(nome, conteudo) is { } invalido)
       return Result<ImportacaoDto>.Falha(invalido, TipoDeErro.Validacao);
+    // O STL primeiro, a miniatura depois (C8 da spec da miniatura): como no solido do Componente, miniatura
+    // invalida recusa o envio inteiro, sem gravar o solido sem ela.
+    if (miniatura is not null && ValidadorDeMiniatura.Validar(miniatura) is { } miniaturaInvalida)
+      return Result<ImportacaoDto>.Falha(miniaturaInvalida, TipoDeErro.Validacao);
 
     int? anterior = null;
     int? gravado = null;
+    int? miniaturaAnterior = null;
+    int? miniaturaGravada = null;
     ImportacaoDeEstruturaComponente? alvo = null;
     return await Escrever(id, versao, ct, aplicar: async r =>
     {
@@ -137,9 +148,16 @@ public sealed partial class ImportacaoDeEstruturaUseCase
 
       alvo = registro;
       anterior = registro.ArquivoSolidoPendenteId;
+      miniaturaAnterior = registro.ArquivoMiniaturaPendenteId;
       gravado = await _importacoes.GravarArquivoPendenteAsync(
           new ArquivoDeComponente { NomeOriginal = nome, Conteudo = conteudo, CriadoPorUsuarioId = usuarioId }, ct);
       registro.ArquivoSolidoPendenteId = gravado;
+      // Sem miniatura no envio, o registro fica sem a pendente (C6): a antiga era do solido antigo.
+      miniaturaGravada = miniatura is null
+          ? null
+          : await _importacoes.GravarArquivoPendenteAsync(
+              new ArquivoDeComponente { NomeOriginal = NomeDaMiniatura, Conteudo = miniatura, CriadoPorUsuarioId = usuarioId }, ct);
+      registro.ArquivoMiniaturaPendenteId = miniaturaGravada;
       return null;
     },
     // O anterior so some depois de o novo estar ligado ao registro: se o salvamento falha, ele continua valendo.
@@ -147,14 +165,17 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     // desconexao agora deixaria arquivos orfaos ou transformaria a escrita feita numa excecao.
     aposSalvar: async () =>
     {
-      if (anterior is int velho)
-        await _importacoes.ExcluirArquivosAsync([velho], CancellationToken.None);
+      var velhos = Ids(anterior, miniaturaAnterior);
+      if (velhos.Count > 0)
+        await _importacoes.ExcluirArquivosAsync(velhos, CancellationToken.None);
     },
     aoPerderACorrida: async () =>
     {
       alvo!.ArquivoSolidoPendenteId = anterior;
-      if (gravado is int novo)
-        await _importacoes.ExcluirArquivosAsync([novo], CancellationToken.None);
+      alvo.ArquivoMiniaturaPendenteId = miniaturaAnterior;
+      var novos = Ids(gravado, miniaturaGravada);
+      if (novos.Count > 0)
+        await _importacoes.ExcluirArquivosAsync(novos, CancellationToken.None);
     });
   }
 
@@ -171,6 +192,24 @@ public sealed partial class ImportacaoDeEstruturaUseCase
         ? Result<ArquivoDeSolidoDto>.Falha(ErroDeSolidoPendenteNaoEncontrado, TipoDeErro.NaoEncontrado)
         : Result<ArquivoDeSolidoDto>.Ok(new ArquivoDeSolidoDto(arquivo.NomeOriginal, arquivo.Conteudo));
   }
+
+  /// <summary>
+  /// A miniatura pendente do registro, com a versao (o <c>Sha256</c> do PNG). Os mesmos tres casos do solido
+  /// pendente respondem o mesmo <c>NaoEncontrado</c>: registro de outro rascunho, registro sem miniatura
+  /// pendente e arquivo que sumiu.
+  /// </summary>
+  public async Task<Result<ArquivoDeMiniaturaDto>> ObterMiniaturaPendente(int id, int registroId, CancellationToken ct)
+  {
+    var r = await _importacoes.ObterAsync(id, ct);
+    var arquivoId = r?.Componentes.FirstOrDefault(c => c.Id == registroId)?.ArquivoMiniaturaPendenteId;
+    var arquivo = arquivoId is int a ? await _importacoes.ObterArquivoAsync(a, ct) : null;
+    return arquivo is null
+        ? Result<ArquivoDeMiniaturaDto>.Falha(ErroDeMiniaturaPendenteNaoEncontrada, TipoDeErro.NaoEncontrado)
+        : Result<ArquivoDeMiniaturaDto>.Ok(new ArquivoDeMiniaturaDto(arquivo.Conteudo, VersaoDeArquivo.VersaoDe(arquivo.Sha256)));
+  }
+
+  /// <summary>Os ids que existem, de uma lista de ids opcionais.</summary>
+  private static List<int> Ids(params int?[] ids) => [.. ids.Where(i => i is not null).Select(i => i!.Value)];
 
   /// <summary>
   /// Troca as receitas lidas pelas do arquivo novo (ver <see cref="TransferenciaDoReimport"/> para o que
@@ -198,7 +237,7 @@ public sealed partial class ImportacaoDeEstruturaUseCase
     aposSalvar: async () =>
     {
       var arquivos = plano!.RegistrosRemovidos
-          .Where(c => c.ArquivoSolidoPendenteId is not null).Select(c => c.ArquivoSolidoPendenteId!.Value).ToList();
+          .SelectMany(c => Ids(c.ArquivoSolidoPendenteId, c.ArquivoMiniaturaPendenteId)).ToList();
       if (arquivos.Count > 0)
         await _importacoes.ExcluirArquivosAsync(arquivos, CancellationToken.None);
     });

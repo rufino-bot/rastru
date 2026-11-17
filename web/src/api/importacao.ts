@@ -52,6 +52,8 @@ export interface SituacaoDoComponenteDto {
   temSolidoPendente: boolean
   nomeDoSolido: string | null
   tamanhoDoSolidoEmBytes: number | null
+  miniaturaVersao: string | null
+  miniaturaPendente: boolean
   codigoNovo: string | null
   descricaoNova: string | null
   tipoNovo: string | null
@@ -199,9 +201,10 @@ function corpoJson(corpo: unknown): RequestInit {
 }
 
 /** `FormData` sem `Content-Type`: quem põe o boundary é o browser (ver `enviarSolido`). */
-function corpoMultipart(arquivo: File, versao?: string): FormData {
+function corpoMultipart(arquivo: File, versao?: string, miniatura: Blob | null = null): FormData {
   const corpo = new FormData()
   corpo.append('arquivo', arquivo)
+  if (miniatura) corpo.append('miniatura', miniatura, 'miniatura.png')
   if (versao !== undefined) corpo.append('versao', versao)
   return corpo
 }
@@ -271,10 +274,11 @@ export async function enviarSolidoPendente(
   registroId: number,
   versao: string,
   arquivo: File,
+  miniatura: Blob | null = null,
 ): Promise<ImportacaoDto> {
   const resp = await apiFetch(`/importacoes/${id}/componentes/${registroId}/solido`, {
     method: 'POST',
-    body: corpoMultipart(arquivo, versao),
+    body: corpoMultipart(arquivo, versao, miniatura),
   })
   return lerEscrita(resp, 'Falha ao enviar o sólido')
 }
@@ -282,6 +286,11 @@ export async function enviarSolidoPendente(
 /** O caminho do binário do sólido pendente, SEM o prefixo `/api` (ver `caminhoDoSolido`). */
 export function caminhoDoSolidoPendente(id: number, registroId: number): string {
   return `/importacoes/${id}/componentes/${registroId}/solido`
+}
+
+/** O caminho da miniatura pendente do registro, SEM o prefixo `/api` (ver `caminhoDoSolido`). */
+export function caminhoDaMiniaturaPendente(id: number, registroId: number): string {
+  return `/importacoes/${id}/componentes/${registroId}/miniatura`
 }
 
 /** Troca o arquivo do BOM mantendo o que já foi decidido. 400 `BomInvalido` vira `ErroDeBom`. */

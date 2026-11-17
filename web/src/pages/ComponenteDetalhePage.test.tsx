@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, within, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { ComponenteDetalhePage } from './ComponenteDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
+import { desenharMiniatura } from '../solido/miniatura'
+import { sha256Hex } from '../solido/hash'
+import { limparCacheDeMiniaturas } from '../components/MiniaturaDoSolido'
 import { respostaBinaria, respostaJson, fetchPorRota } from '../testes/api'
 
 afterEach(cleanup)
+
+vi.mock('../solido/miniatura', () => ({
+  desenharMiniatura: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
+}))
+vi.mock('../solido/hash', () => ({
+  sha256Hex: vi.fn(async () => 'ab'.repeat(32)),
+}))
 
 // Dublês mínimos do three.js e dos três módulos de exemplo que o `VisualizadorDeSolido` importa
 // sob demanda — só o bastante para o viewer chegar ao estado pronto dentro da página (o jsdom não
@@ -687,7 +697,7 @@ describe('ComponenteDetalhePage — escrita', () => {
    */
   it('relê o componente depois de um upload de sólido com sucesso', async () => {
     let chamadasComponente = 0
-    vi.stubGlobal('fetch', fetchPorRota({
+    const fetchMock = fetchPorRota({
       ...LEITURAS,
       '/api/componentes/7': () => {
         chamadasComponente += 1
@@ -696,7 +706,8 @@ describe('ComponenteDetalhePage — escrita', () => {
           : respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte-novo.stl', tamanhoDoSolidoEmBytes: 2048 })
       },
       '/api/componentes/7/solido': () => respostaJson({}),
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
     renderizarNaRota('/componentes/7')
     await screen.findByText('PA-010')
     expect(screen.getByText(/sem sólido/i)).toBeTruthy()
@@ -706,6 +717,27 @@ describe('ComponenteDetalhePage — escrita', () => {
 
     expect(await screen.findByText(/suporte-novo\.stl/)).toBeTruthy()
     expect(chamadasComponente).toBeGreaterThanOrEqual(2)
+  })
+
+  /** A miniatura desenhada sai junto do sólido, na parte `miniatura` do mesmo POST. */
+  it('envia a miniatura junto do sólido', async () => {
+    const posts: RequestInit[] = []
+    const base = fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson(COMPONENTE) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      if (String(url) === '/api/componentes/7/solido' && init?.method === 'POST') {
+        posts.push(init)
+        return Promise.resolve(respostaJson({}))
+      }
+      return base(url, init)
+    }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+
+    const arquivo = new File([new Uint8Array(10)], 'novo.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivo] } })
+
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect((posts[0].body as FormData).get('miniatura')).toBeInstanceOf(Blob)
   })
 
   /**
@@ -881,5 +913,192 @@ describe('ComponenteDetalhePage — escrita', () => {
     expect(within(listaRoteiro).getByRole('button', { name: 'Remover 1. Corte' })).toBeTruthy()
     expect(within(listaRoteiro).getByRole('button', { name: 'Remover 2. Corte' })).toBeTruthy()
     expect(within(listaRoteiro).getByRole('button', { name: 'Remover 3. Solda' })).toBeTruthy()
+  })
+})
+
+
+describe('ComponenteDetalhePage — miniatura', () => {
+  const COM_SOLIDO = { ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte.stl', tamanhoDoSolidoEmBytes: 684 }
+  const SEM_MINIATURA = { ...COM_SOLIDO, miniaturaVersao: null }
+
+  beforeEach(() => {
+    limparCacheDeMiniaturas()
+    vi.mocked(desenharMiniatura).mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+    vi.mocked(sha256Hex).mockResolvedValue('ab'.repeat(32))
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('mostra a miniatura quando o componente tem', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:miniatura')
+    vi.stubGlobal('fetch', fetchPorRota({
+      ...LEITURAS,
+      '/api/componentes/7': () => respostaJson({ ...COM_SOLIDO, miniaturaVersao: 'v1' }),
+      '/api/componentes/7/miniatura': () => new Response(new Uint8Array([1, 2]), { headers: { 'Content-Type': 'image/png' } }),
+    }))
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    await waitFor(() => {
+      const img = screen.getByRole('img', { name: 'CH-100 — Chapa lateral' })
+      expect(img.tagName).toBe('IMG')
+    })
+  })
+
+  it('oferece gerar miniatura a quem escreve quando falta', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson(SEM_MINIATURA) }))
+    renderizarNaRota('/componentes/7')
+
+    expect(await screen.findByRole('button', { name: 'Gerar miniatura' })).toBeTruthy()
+  })
+
+  it('nao oferece gerar miniatura a quem so le', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson(SEM_MINIATURA) }))
+    renderizarNaRota('/componentes/7', 'Operador')
+
+    await screen.findByText('PA-010')
+    expect(screen.queryByRole('button', { name: 'Gerar miniatura' })).toBeNull()
+  })
+
+  it('nao oferece gerar miniatura quando ela ja existe', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson({ ...COM_SOLIDO, miniaturaVersao: 'v1' }) }))
+    renderizarNaRota('/componentes/7')
+
+    await screen.findByText('PA-010')
+    expect(screen.queryByRole('button', { name: 'Gerar miniatura' })).toBeNull()
+  })
+
+  it('gerar miniatura envia o hash do solido baixado e recarrega', async () => {
+    let leituras = 0
+    const posts: { caminho: string; corpo: unknown }[] = []
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/miniatura' && init?.method === 'POST') {
+        posts.push({ caminho, corpo: init.body })
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (caminho === '/api/componentes/7/solido') return Promise.resolve(respostaBinaria(new Uint8Array(8)))
+      if (caminho === '/api/componentes/7') {
+        leituras += 1
+        return Promise.resolve(respostaJson(leituras === 1 ? SEM_MINIATURA : { ...COM_SOLIDO, miniaturaVersao: 'v1' }))
+      }
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    await waitFor(() => expect(posts).toHaveLength(1))
+    const corpo = posts[0].corpo as FormData
+    expect(corpo.get('solidoSha256')).toBe('ab'.repeat(32))
+    expect(corpo.get('miniatura')).toBeTruthy()
+    expect(vi.mocked(sha256Hex)).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('button', { name: /gerar miniatura/i })).toBeNull())
+  })
+
+  it('gerar miniatura com solido trocado mostra a recusa', async () => {
+    const frase = 'O sólido mudou enquanto a miniatura era gerada. Gere de novo.'
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/miniatura' && init?.method === 'POST') {
+        return Promise.resolve(respostaJson({ erro: frase }, 409))
+      }
+      if (caminho === '/api/componentes/7/solido') return Promise.resolve(respostaBinaria(new Uint8Array(8)))
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain(frase)
+    expect((screen.getByRole('button', { name: 'Gerar miniatura' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('gerar miniatura trava o upload do solido enquanto roda', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido') return new Promise<Response>(() => {})
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+    const campo = await screen.findByLabelText(/Sólido \(\.stl\)/) as HTMLInputElement
+    expect(campo.disabled).toBe(false)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    await waitFor(() => expect(campo.disabled).toBe(true))
+  })
+
+  it('o upload do solido trava o gerar miniatura enquanto roda', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido' && init?.method === 'POST') return new Promise<Response>(() => {})
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+    const botao = await screen.findByRole('button', { name: 'Gerar miniatura' }) as HTMLButtonElement
+    expect(botao.disabled).toBe(false)
+
+    fireEvent.change(screen.getByLabelText(/Sólido \(\.stl\)/), {
+      target: { files: [new File(['solid x'], 'novo.stl')] },
+    })
+
+    await waitFor(() => expect(botao.disabled).toBe(true))
+  })
+
+  it('gerar miniatura com o download do solido recusado mostra a frase propria', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string | URL) => {
+      const caminho = String(url).split('?')[0]
+      if (caminho === '/api/componentes/7/solido') return Promise.resolve(respostaJson({ erro: 'x' }, 500))
+      if (caminho === '/api/componentes/7') return Promise.resolve(respostaJson(SEM_MINIATURA))
+      const entrada = LEITURAS[caminho]
+      if (!entrada) return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
+      return Promise.resolve(entrada())
+    }))
+    renderizarNaRota('/componentes/7')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Não foi possível baixar o sólido.')
+  })
+
+  it('gerar miniatura sem webgl avisa', async () => {
+    vi.mocked(desenharMiniatura).mockResolvedValue(null)
+    vi.stubGlobal('fetch', fetchPorRota({
+      ...LEITURAS,
+      '/api/componentes/7': () => respostaJson(SEM_MINIATURA),
+      '/api/componentes/7/solido': () => respostaBinaria(new Uint8Array(8)),
+    }))
+    renderizarNaRota('/componentes/7')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('A miniatura não pôde ser gerada neste aparelho.')
+  })
+
+  it('gerar miniatura sem hash pede o endereco com HTTPS', async () => {
+    vi.mocked(sha256Hex).mockResolvedValue(null)
+    vi.stubGlobal('fetch', fetchPorRota({
+      ...LEITURAS,
+      '/api/componentes/7': () => respostaJson(SEM_MINIATURA),
+      '/api/componentes/7/solido': () => respostaBinaria(new Uint8Array(8)),
+    }))
+    renderizarNaRota('/componentes/7')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Gerar miniatura' }))
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Este endereço não permite gerar a miniatura. Use o endereço com HTTPS.')
   })
 })

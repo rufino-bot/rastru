@@ -96,10 +96,14 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
   {
     await using var propria = await TransacaoPropriaAsync(ct);
 
-    var arquivoIds = await _db.ImportacoesDeEstruturaComponentes.AsNoTracking()
-        .Where(c => c.ImportacaoId == id && c.ArquivoSolidoPendenteId != null)
-        .Select(c => c.ArquivoSolidoPendenteId!.Value)
+    var pendentes = await _db.ImportacoesDeEstruturaComponentes.AsNoTracking()
+        .Where(c => c.ImportacaoId == id && (c.ArquivoSolidoPendenteId != null || c.ArquivoMiniaturaPendenteId != null))
+        .Select(c => new { c.ArquivoSolidoPendenteId, c.ArquivoMiniaturaPendenteId })
         .ToListAsync(ct);
+    // O solido e a miniatura pendentes: os dois sao `ArquivoDeComponente` e nenhum e apagado em cascata.
+    var arquivoIds = pendentes
+        .SelectMany(p => new[] { p.ArquivoSolidoPendenteId, p.ArquivoMiniaturaPendenteId })
+        .Where(a => a is not null).Select(a => a!.Value).ToList();
 
     // A ordem e a de decisao P6 do plano do import: o schema nao tem ON DELETE CASCADE.
     await _db.ImportacoesDeEstruturaFilhos
@@ -140,7 +144,7 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
     if (arquivoIds.Count == 0) return new Dictionary<int, MetadadoDeSolido>();
     return await _db.ArquivosDeComponente.AsNoTracking()
         .Where(a => arquivoIds.Contains(a.Id))
-        .Select(a => new { a.Id, Metadado = new MetadadoDeSolido(a.NomeOriginal, a.TamanhoEmBytes) })
+        .Select(a => new { a.Id, Metadado = new MetadadoDeSolido(a.NomeOriginal, a.TamanhoEmBytes, a.Sha256) })
         .ToDictionaryAsync(x => x.Id, x => x.Metadado, ct);
   }
 
@@ -158,6 +162,8 @@ public class ImportacaoDeEstruturaRepository : IImportacaoDeEstruturaRepository
   {
     if (registroIds.Count == 0) return;
     await _db.ImportacoesDeEstruturaComponentes.Where(c => registroIds.Contains(c.Id))
-        .ExecuteUpdateAsync(s => s.SetProperty(c => c.ArquivoSolidoPendenteId, (int?)null), ct);
+        .ExecuteUpdateAsync(
+            s => s.SetProperty(c => c.ArquivoSolidoPendenteId, (int?)null)
+                  .SetProperty(c => c.ArquivoMiniaturaPendenteId, (int?)null), ct);
   }
 }

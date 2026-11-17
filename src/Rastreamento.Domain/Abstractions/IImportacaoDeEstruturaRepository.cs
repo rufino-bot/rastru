@@ -64,14 +64,14 @@ public interface IImportacaoDeEstruturaRepository
 
   /// <summary>
   /// Apaga o rascunho numa transacao, na ordem filhos -> <c>RaizId = NULL</c> -> registros ->
-  /// cabecalho -> <c>ArquivoDeComponente</c> pendentes (decisao P6 do plano do import: o schema nao
+  /// cabecalho -> <c>ArquivoDeComponente</c> pendentes, os do solido e os da miniatura (decisao P6 do plano do import: o schema nao
   /// tem <c>ON DELETE CASCADE</c>). Id inexistente nao e erro. A transacao e a do chamador quando ja
   /// ha uma aberta (a confirmacao apaga o rascunho dentro da dela).
   /// </summary>
   Task ExcluirAsync(int id, CancellationToken ct);
 
   /// <summary>
-  /// Zera <c>ArquivoSolidoPendenteId</c> dos registros dados, por chave e por comando (sem passar pelo
+  /// Zera <c>ArquivoSolidoPendenteId</c> e <c>ArquivoMiniaturaPendenteId</c> dos registros dados, por chave e por comando (sem passar pelo
   /// rastreamento): o arquivo deixa de ser pendente do rascunho e o <see cref="ExcluirAsync"/> seguinte
   /// nao o apaga. E o que a confirmacao faz com o solido que acabou de ligar a um Componente.
   /// </summary>
@@ -91,9 +91,9 @@ public interface IImportacaoDeEstruturaRepository
   Task<ArquivoDeComponente?> ObterArquivoAsync(int arquivoId, CancellationToken ct);
 
   /// <summary>
-  /// Nome e tamanho dos arquivos, chaveados pelo Id do <c>ArquivoDeComponente</c>, SEM carregar o
-  /// <c>Conteudo</c> (projecao explicita). Serve ao solido do catalogo e ao pendente com uma consulta
-  /// so. Id inexistente simplesmente nao aparece no dicionario.
+  /// Nome, tamanho e <c>Sha256</c> dos arquivos, chaveados pelo Id do <c>ArquivoDeComponente</c>, SEM carregar o
+  /// <c>Conteudo</c> (projecao explicita). Serve ao solido do catalogo e ao pendente, e a miniatura de um e do
+  /// outro (a versao dela e o <c>Sha256</c>), com uma consulta so. Id inexistente simplesmente nao aparece no dicionario.
   /// </summary>
   Task<IReadOnlyDictionary<int, MetadadoDeSolido>> ObterMetadadosAsync(
       IReadOnlyCollection<int> arquivoIds, CancellationToken ct);

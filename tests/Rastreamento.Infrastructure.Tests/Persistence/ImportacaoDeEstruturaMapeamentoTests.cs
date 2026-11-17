@@ -77,6 +77,29 @@ public class ImportacaoDeEstruturaMapeamentoTests : TesteComBanco
   });
 
   [Fact]
+  public Task Registro_da_importacao_grava_e_le_ArquivoMiniaturaPendenteId() => NaArvoreAsync(async a =>
+  {
+    await using var escrita = NovoContexto();
+    var arquivo = new ArquivoDeComponente
+    {
+      NomeOriginal = "miniatura.png", Conteudo = [0x01, 0x02], CriadoPorUsuarioId = a.AutorId,
+    };
+    escrita.Set<ArquivoDeComponente>().Add(arquivo);
+    await escrita.SaveChangesAsync();
+
+    var raiz = Registro(null, "Raiz");
+    var filho = Registro($"{a.AgrupamentoId}-MIN", "Com miniatura");
+    filho.ArquivoMiniaturaPendenteId = arquivo.Id;
+    Aresta(raiz, filho, 1m);
+    await AdicionarAsync(Montar(a, "miniatura.xlsx", raiz, filho));
+
+    await using var db = NovoContexto();
+    var lido = await db.ImportacoesDeEstruturaComponentes.AsNoTracking().SingleAsync(c => c.Id == filho.Id);
+    Assert.Equal(arquivo.Id, lido.ArquivoMiniaturaPendenteId);
+    Assert.Null(lido.ArquivoSolidoPendenteId);
+  });
+
+  [Fact]
   public Task Dois_registros_sem_codigo_coexistem_no_mesmo_rascunho() => NaArvoreAsync(async a =>
   {
     var raiz = Registro(null, "Raiz sem codigo");
