@@ -164,6 +164,9 @@ internal sealed class ArvoreDeTesteNoBanco
         .Where(m => m.RemessaId != null && db.Estruturas.Any(e => e.Id == m.EstruturaItemId && e.AgrupamentoId == ag))
         .Select(m => m.RemessaId!.Value).Distinct().ToListAsync();
     remessas.AddRange(RemessaIds);
+    // A marca de embalagem aponta o no por FK e nao e apontada por ninguem: sai antes dos nos.
+    await db.Database.ExecuteSqlInterpolatedAsync(
+        $"DELETE FROM dbo.Embalagem WHERE EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(
         $"DELETE FROM dbo.Movimentacao WHERE EstornoDeId IS NOT NULL AND EstruturaItemId IN (SELECT Id FROM dbo.EstruturaItem WHERE AgrupamentoId = {ag})");
     await db.Database.ExecuteSqlInterpolatedAsync(

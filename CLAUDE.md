@@ -1517,6 +1517,16 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-miniatura.sql
 ```
 
+**Panorama — `db/alter-panorama.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql`: a tabela `dbo.Embalagem` (o registro do "Embalado", regra 40, só de inclusão)
+com as FKs, o `CK_Embalagem_Tipo` e o índice `IX_Embalagem_EstruturaItem`, um bloco por objeto, só se faltam. Não muda
+tabela existente, não muda dado e não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-panorama.sql sqlserver:/tmp/alter-panorama.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-panorama.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 

@@ -414,6 +414,11 @@ O Express **não tem SQL Agent**: o `cron` do usuário `deploy` chama `deploy/hm
 
 O teste de restauração é o que transforma "temos backup" em "**o backup de fora da VPS restaura**".
 
+**Pendente: a limpeza de `dbo.Embalagem`.** O registro do "Embalado" (regra 40) é só de inclusão e cresce se alguém marca
+e desmarca sem parar. A spec do Panorama (`docs/superpowers/specs/2026-11-17-panorama-design.md`, seção 3.5) registra a
+rotina pedida: apagar as linhas anteriores a uma data X, preservando a última linha de cada Peça. O valor de X, a
+frequência e se ela entra no agendamento desta seção ficam em aberto; esta spec não os decide.
+
 ### 8.4 Saber que falhou
 
 Backup que falha em silêncio é igual a não ter backup.

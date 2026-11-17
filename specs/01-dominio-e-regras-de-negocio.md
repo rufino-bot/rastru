@@ -35,6 +35,7 @@
 | **A iniciar** | Estado da quantidade de um nó que ainda não entrou em nenhum Setor. Todo nó nasce assim, com a quantidade inteira. Conta como **em produção** (regra 9). Sai daqui pela primeira entrada, registrada pelo operador do primeiro Setor do Roteiro quando ele pega o material para trabalhar (regra 28). |
 | **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição. Desde a Fase 5A a quantidade ali se reparte em cinco posições do livro — `NaExpedicao` (o significado depende da aferição da Peça, regra 37), `Conforme`, `NaoConforme`, `AguardandoLiberacao` e `Liberada` —, e o que sai numa remessa vai a `Expedido` (regras 9 e 16). |
 | **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado − perdido de "a iniciar" do pai) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 38 e 30). Não é perda até o `Descarte` ser registrado. |
+| **Embalado** | A marca de que a Peça inteira está embalada, registrada em `dbo.Embalagem` (só de inclusão) e **calculada na leitura**: vale quando a última linha é `Marcar`, nada da Peça está em produção, há ao menos uma unidade no local de expedição e nenhuma movimentação posterior à marca voltou à produção. Some sozinha se uma unidade voltar. Não é posição do livro, não mexe em quantidade e não trava a remessa (regra 40). |
 
 ## Regras de negócio
 
@@ -942,6 +943,39 @@ desenho, C1 a C20), e é implementada no backend da 5B-2.*
       estorna mais; a abertura não se desfaz; e o Retrabalho cobre o alvo inteiro mesmo que o PCP diminua a quantidade.
       A estrutura alterada no meio da produção não tem tratamento próprio: a guarda `PaiJaIniciado` é definitiva e o
       caminho é o da regra 24 (D1 a D3 da spec da Fase 5C).
+
+40. **O "Embalado": a marca de que a Peça inteira está embalada, só de inclusão e calculada na leitura.** Cada marcar
+    ou desmarcar grava uma linha em `dbo.Embalagem` (`EstruturaItemId` da Peça, `Tipo` `Marcar` ou `Desmarcar`,
+    `DataHora` em UTC e `UsuarioId`), com o índice `IX_Embalagem_EstruturaItem` em `(EstruturaItemId, Id DESC)`, porque
+    toda leitura quer a última linha de cada Peça. Só Peça (nó sem pai) recebe linha: a aplicação recusa Item. Nenhum
+    código da aplicação edita nem apaga uma linha; a única exceção é a rotina de limpeza da manutenção do banco (abaixo).
+    - **Quando vale.** O "Embalado" de uma Peça **vale** quando as três coisas são verdade, calculadas na leitura: (1) a
+      última linha da Peça é `Marcar`; (2) agora não há nada em produção (`AIniciar`, `NoSetor`, `AguardandoColeta`,
+      `AguardandoMontagem`, `AguardandoConserto`, `EmConserto` e `ConsertoPronto`: um conjunto próprio, que **não** é o
+      "em produção" da regra 9, porque este conta o local de expedição) e há ao menos uma unidade no local de expedição
+      (as cinco posições dele, incluindo `NaoConforme` e `AguardandoLiberacao`: embalar é físico, a aferição é outro
+      assunto); e (3) nenhuma linha do livro da Peça com `DataHora` posterior à da marca tem destino numa das sete
+      posições de produção. O item 3 é o que faz a marca sumir de vez: sem ele, a unidade que vai ao conserto e volta à
+      expedição faria a marca ressuscitar sem ninguém ter embalado de novo; e fecha o caso da quantidade que aumenta
+      depois da marca (a unidade nova começa em `AIniciar` e o `Inicio` tem destino `NoSetor`). Aferir, contar, liberar,
+      recusar, expedir, dar baixa e os estornos cujo destino fica fora da produção não invalidam; os estornos que
+      devolvem à produção invalidam, e é o certo, porque a unidade voltou. Para valer de novo, alguém marca outra vez.
+    - **Marcar e desmarcar.** Marcar recusa: nó inexistente (404), Item (400 `NaoEhPeca`), Pedido `Concluido` ou
+      `Cancelado` (409 `PedidoFechado`), produção não terminada (409 `ProducaoNaoTerminou`, com a quantidade que falta
+      em produção) e "Embalado" que já vale (409 `JaEmbalado`; se a última linha é `Marcar` mas deixou de valer, marcar
+      de novo é permitido). Desmarcar recusa 404, 400 e 409 `NaoEmbalado` quando o "Embalado" não vale agora, inclusive
+      quando a marca sumiu sozinha. A pausa do Pedido **não** recusa marcar nem desmarcar (a pausa recusa só o início,
+      regra 31). As duas escritas correm na transação da execução, porque a condição lê o livro.
+    - **O que não é.** Não é posição do livro e não mexe em quantidade: a conservação (regra 9) não muda. Não trava nem
+      condiciona a remessa: expedir uma Peça não embalada continua possível, no espírito da regra 37. Não é por
+      quantidade: é a Peça inteira, de uma vez. Nenhum caso de uso existente ganha código para desmarcar: a marca some
+      sozinha pelo item 3.
+    - **Pendente, para a manutenção do banco.** Marcar e desmarcar sem parar faz `dbo.Embalagem` crescer sem limite (as
+      recusas `JaEmbalado` e `NaoEmbalado` impedem duas linhas iguais seguidas, mas não alternar). A rotina prevista
+      apaga as linhas anteriores a uma data X, preservando a última linha de cada Peça, o que não muda nenhum "Embalado"
+      porque a validade lê só a última linha. É a única exceção ao "só de inclusão" e vale só para a manutenção, nunca
+      para o código da aplicação. O valor de X, a frequência e o agendamento estão em aberto (spec do Panorama, seção
+      3.5).
 
 ## Pontos ainda em aberto
 
