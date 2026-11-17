@@ -536,5 +536,15 @@ export async function enviarMiniatura(componenteId: number, miniatura: Blob, sol
   corpo.append('miniatura', miniatura, 'miniatura.png')
   corpo.append('solidoSha256', solidoSha256)
   const resp = await apiFetch(caminhoDaMiniatura(componenteId), { method: 'POST', body: corpo })
-  if (!resp.ok) throw new ErroDeApi(resp.status, `Falha ao enviar a miniatura (${resp.status}).`)
+  if (!resp.ok) {
+    // O 409 do sólido trocado (C15) traz a frase pronta no campo `erro`, e a tela a mostra como está.
+    let detalhe: string | undefined
+    if (resp.status === 409) {
+      try {
+        const erro = (await resp.json() as { erro?: unknown }).erro
+        if (typeof erro === 'string') detalhe = erro
+      } catch { /* corpo vazio ou não-JSON: sem detalhe */ }
+    }
+    throw new ErroDeApi(resp.status, `Falha ao enviar a miniatura (${resp.status}).`, detalhe)
+  }
 }

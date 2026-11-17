@@ -50,6 +50,11 @@ describe('cadastros', () => {
     await expect(enviarMiniatura(7, new Blob(['x']), 'ab'.repeat(32))).rejects.toBeInstanceOf(ErroDeApi)
   })
 
+  it('enviarMiniatura leva a frase do 409 no detalhe', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respostaJson({ erro: 'Gere de novo.' }, 409)))
+    await expect(enviarMiniatura(7, new Blob(['x']), 'ab'.repeat(32))).rejects.toMatchObject({ status: 409, detalhe: 'Gere de novo.' })
+  })
+
   it('caminhoDaMiniatura nao leva o prefixo /api', () => {
     expect(caminhoDaMiniatura(7)).toBe('/componentes/7/miniatura')
   })
