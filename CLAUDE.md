@@ -42,7 +42,7 @@ Seguir as fases de `06-roadmap-mvp.md` em sequência (Fase 0 → 6). Não implem
 funcionalidade de uma fase mais avançada antes da anterior estar concluída, mesmo que
 pareça simples — a ordem existe para manter escopo fechado por etapa.
 
-As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e hoje são quatro. A
+As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e são várias (as que seguem). A
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
@@ -91,12 +91,12 @@ mesma sobra, a recusa `PaiComConjuntoAEspera` e a guarda `PaiJaIniciado` definit
 `specs/01`), sem mudança de schema. A conferência do usuário no navegador e a review de branch inteira foram feitas em
 2026-11-16. Os três ajustes da conferência (F1 a F3: o "faltam N" da linha do filho na Fila, o código na prévia da baixa
 e o pai sem nada a iniciar fora de "Aguardando montagem", com a sobra em montagem por Setor) **não são da 5C** e vieram
-no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte é a **3C** ou a **Fase 6**: a
-posição de uma em relação à outra **não está decidida**. Decisão do usuário de 2026-11-17, mais uma exceção
-declarada em `06-roadmap-mvp.md`: a **miniatura isométrica do sólido** (spec
+no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte, por decisão do usuário de 2026-11-17 (mais uma exceção
+declarada em `06-roadmap-mvp.md`), é a **miniatura isométrica do sólido** (spec
 `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`) executa primeiro e o **Panorama** (spec
-`docs/superpowers/specs/2026-11-17-panorama-design.md`) em seguida, os dois **antes da 3C**; a miniatura no chão de
-fábrica (Fila, Tarefas, Separação e Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
+`docs/superpowers/specs/2026-11-17-panorama-design.md`) em seguida, os dois **antes da 3C**; depois deles vêm a **3C** e a
+**Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
 
