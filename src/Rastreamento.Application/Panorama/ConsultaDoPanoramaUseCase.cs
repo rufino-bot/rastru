@@ -92,7 +92,7 @@ public sealed class ConsultaDoPanoramaUseCase
               PrazoDeEntrega.EstaAtrasado(x.PedidoDataEntrega, x.PedidoStatus, hoje), x.PedidoOrigemId is not null,
               PausaResumoDto.De(x.Pausa)),
           new ComponenteDoPanoramaDto(
-              componente?.Id ?? 0, estado.Codigos.GetValueOrDefault(id) ?? string.Empty, componente?.Descricao ?? estado.Nome(id),
+              componente?.Id ?? 0, estado.Codigos.GetValueOrDefault(id) ?? string.Empty, estado.Nome(id),
               componente is null ? null : versoes.GetValueOrDefault(componente.Id)),
           x.No.Quantidade,
           itensEm[id].Select(s => new SetorResumoDto(s, NomeDoSetor(s))).OrderBy(s => s.Nome, StringComparer.Ordinal).ToList(),

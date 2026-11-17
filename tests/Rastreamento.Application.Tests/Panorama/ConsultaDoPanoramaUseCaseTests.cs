@@ -93,6 +93,20 @@ public class ConsultaDoPanoramaUseCaseTests
   }
 
   [Fact]
+  public async Task Descricao_e_a_do_no_antes_da_do_Componente()
+  {
+    var m = Montar();
+    No(m.Cenario, Peca1, 2m);
+    m.Cenario.Estruturas.Itens.Single(i => i.Id == Peca1).Descricao = "Descrição própria do nó";
+    No(m.Cenario, Peca2, 2m);
+
+    var lista = await ListaAsync(m);
+
+    Assert.Equal("Descrição própria do nó", lista.Pecas.Single(p => p.EstruturaItemId == Peca1).Componente.Descricao);
+    Assert.Equal("Componente 2", lista.Pecas.Single(p => p.EstruturaItemId == Peca2).Componente.Descricao);
+  }
+
+  [Fact]
   public async Task Peca_toda_expedida_ou_baixada_nao_aparece()
   {
     var m = Montar();
