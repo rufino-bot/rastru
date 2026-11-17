@@ -12,7 +12,7 @@ namespace Rastreamento.Domain.Abstractions;
 public sealed record ContextoDoNo(
     EstruturaItem No, int PedidoId, string PedidoNumero, string PedidoCliente, int AgrupamentoId,
     string AgrupamentoCodigo, string AgrupamentoTipo, PausaAberta? Pausa, IReadOnlyList<MaterialDoNo> Materiais,
-    DateOnly PedidoDataEntrega = default, string PedidoStatus = "Aberto");
+    DateOnly PedidoDataEntrega = default, string PedidoStatus = "Aberto", int? PedidoOrigemId = null);
 
 /// <summary>Um material gravado no no: o que o filtro da fila e das tarefas oferece e casa.</summary>
 public sealed record MaterialDoNo(int Id, string Codigo, string Descricao);

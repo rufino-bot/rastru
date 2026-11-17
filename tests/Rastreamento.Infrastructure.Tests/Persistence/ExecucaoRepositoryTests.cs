@@ -445,6 +445,30 @@ public class ExecucaoRepositoryTests : TesteComBanco
   });
 
   [Fact]
+  public Task Nos_em_producao_trazem_o_Pedido_original_so_do_Pedido_de_Retrabalho() => NoCenarioAsync(async c =>
+  {
+    await using var db = NovoContexto();
+    var original = await ArvoreDeTesteNoBanco.CriarAsync(db, "exec-orig");
+    try
+    {
+      var noDoOriginal = await original.NovaPecaAsync(db, 1m);
+      await db.Database.ExecuteSqlInterpolatedAsync(
+          $"UPDATE dbo.Pedido SET PedidoOrigemId = {original.PedidoId} WHERE Id = {c.Arvore.PedidoId}");
+
+      var contexto = (await new ExecucaoRepository(NovoContexto()).ListarNosEmProducaoAsync(ct: CancellationToken.None))
+          .Where(x => c.Nos.Contains(x.No.Id) || x.No.Id == noDoOriginal).ToList();
+
+      Assert.All(contexto.Where(x => c.Nos.Contains(x.No.Id)), x => Assert.Equal(original.PedidoId, x.PedidoOrigemId));
+      Assert.Null(Assert.Single(contexto, x => x.No.Id == noDoOriginal).PedidoOrigemId);
+    }
+    finally
+    {
+      await db.Database.ExecuteSqlInterpolatedAsync($"UPDATE dbo.Pedido SET PedidoOrigemId = NULL WHERE Id = {c.Arvore.PedidoId}");
+      await original.LimparAsync(NovoContexto);
+    }
+  });
+
+  [Fact]
   public Task Nos_em_producao_trazem_o_cliente_e_os_materiais_do_proprio_no() => NoCenarioAsync(async c =>
   {
     await using var escrita = NovoContexto();
