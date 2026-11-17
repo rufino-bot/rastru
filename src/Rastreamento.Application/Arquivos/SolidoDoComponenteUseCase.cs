@@ -7,13 +7,19 @@ namespace Rastreamento.Application.Arquivos;
 /// <summary>
 /// Envio e leitura do solido 3D de um Componente (regra 18, Fase 2B). Substitui em vez de
 /// versionar do ponto de vista do Componente: o arquivo anterior continua na tabela, mas ninguem
-/// aponta para ele. NAO existe remocao — ver a spec da fase.
+/// aponta para ele. NAO existe remocao — ver a spec da fase. A miniatura (o PNG isometrico que o
+/// navegador desenha do STL) sobe junto e segue a mesma politica.
 /// </summary>
 public sealed class SolidoDoComponenteUseCase
 {
   private const string ErroDeComponenteNaoEncontrado = "Componente nao encontrado.";
 
   private const string ErroDeSolidoNaoEncontrado = "Este Componente nao tem solido.";
+
+  private const string ErroDeMiniaturaNaoEncontrada = "Este Componente nao tem miniatura.";
+
+  /// <summary>O navegador manda o PNG sem nome que importe; o nome gravado e sempre este.</summary>
+  private const string NomeDaMiniatura = "miniatura.png";
 
   private readonly IComponenteRepository _componentes;
   private readonly IArquivoDeComponenteRepository _arquivos;
@@ -26,7 +32,8 @@ public sealed class SolidoDoComponenteUseCase
   }
 
   public async Task<Result> Enviar(
-      int componenteId, string nomeOriginal, byte[] conteudo, int usuarioId, CancellationToken ct)
+      int componenteId, string nomeOriginal, byte[] conteudo, byte[]? miniatura, int usuarioId,
+      CancellationToken ct)
   {
     // Valida o arquivo ANTES de ler o componente. A ordem nao protege sigilo nenhum: o catalogo e
     // legivel por qualquer autenticado (`GET componentes`, `GET componentes/{id}`), entao o tipo do
@@ -34,6 +41,12 @@ public sealed class SolidoDoComponenteUseCase
     // arquivo invalido sem ida ao banco — o validador e puro.
     var invalido = ValidadorDeArquivoStl.Validar(nomeOriginal, conteudo);
     if (invalido is not null) return Result.Falha(invalido, TipoDeErro.Validacao);
+
+    // O STL primeiro, a miniatura depois (C8 da spec da miniatura do solido). Miniatura invalida
+    // recusa o envio INTEIRO em vez de gravar o solido sem ela: quem a desenha e o proprio front,
+    // entao imagem errada e defeito, nao falta de WebGL -- para essa o front manda sem o campo.
+    if (miniatura is not null && ValidadorDeMiniatura.Validar(miniatura) is { } miniaturaInvalida)
+      return Result.Falha(miniaturaInvalida, TipoDeErro.Validacao);
 
     if (await _componentes.ObterPorIdAsync(componenteId, ct) is null)
       return Result.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
@@ -44,6 +57,14 @@ public sealed class SolidoDoComponenteUseCase
       Conteudo = conteudo,
       CriadoPorUsuarioId = usuarioId,
     };
+    var arquivoDaMiniatura = miniatura is null
+        ? null
+        : new ArquivoDeComponente
+        {
+          NomeOriginal = NomeDaMiniatura,
+          Conteudo = miniatura,
+          CriadoPorUsuarioId = usuarioId,
+        };
     // O null do repositorio tambem e "componente nao existe" -- checagem que a Task 2 passou a
     // fazer dentro da transacao, ANTES do primeiro SaveChanges. Aqui ele e defesa em profundidade:
     // a checagem de existencia do componente, via _componentes.ObterPorIdAsync, ja descartou esse
@@ -52,7 +73,7 @@ public sealed class SolidoDoComponenteUseCase
     // Componente, nunca apaga (nao existe `DELETE /componentes/{id}`, e nenhum codigo de `src/`
     // remove Componente), entao o cenario nao e alcancavel sem injetar falha. Ignorar o retorno e
     // que seria errado: devolveria Ok() sem ter gravado.
-    if (await _arquivos.GravarEVincularComoSolidoAsync(componenteId, arquivo, ct) is null)
+    if (await _arquivos.GravarEVincularComoSolidoAsync(componenteId, arquivo, arquivoDaMiniatura, ct) is null)
       return Result.Falha(ErroDeComponenteNaoEncontrado, TipoDeErro.NaoEncontrado);
 
     return Result.Ok();
@@ -68,5 +89,18 @@ public sealed class SolidoDoComponenteUseCase
     return arquivo is null
         ? Result<ArquivoDeSolidoDto>.Falha(ErroDeSolidoNaoEncontrado, TipoDeErro.NaoEncontrado)
         : Result<ArquivoDeSolidoDto>.Ok(new ArquivoDeSolidoDto(arquivo.NomeOriginal, arquivo.Conteudo));
+  }
+
+  /// <summary>
+  /// Mesmo colapso de <see cref="Obter"/>: Componente inexistente e Componente sem miniatura
+  /// respondem o MESMO NaoEncontrado.
+  /// </summary>
+  public async Task<Result<ArquivoDeMiniaturaDto>> ObterMiniatura(int componenteId, CancellationToken ct)
+  {
+    var arquivo = await _arquivos.ObterMiniaturaDoComponenteAsync(componenteId, ct);
+    return arquivo is null
+        ? Result<ArquivoDeMiniaturaDto>.Falha(ErroDeMiniaturaNaoEncontrada, TipoDeErro.NaoEncontrado)
+        : Result<ArquivoDeMiniaturaDto>.Ok(
+            new ArquivoDeMiniaturaDto(arquivo.Conteudo, VersaoDeArquivo.VersaoDe(arquivo.Sha256)));
   }
 }

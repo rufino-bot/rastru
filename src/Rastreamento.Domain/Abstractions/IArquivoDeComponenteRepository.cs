@@ -34,9 +34,18 @@ public interface IArquivoDeComponenteRepository
   /// existe remocao de solido (a spec registra por que), e apagar o antigo aqui perderia o unico
   /// registro de que a peca teve outra geometria.
   /// </para>
+  ///
+  /// <para>
+  /// Miniatura (C4 e C6 da spec da miniatura do solido): <paramref name="miniatura"/>, quando vem,
+  /// e gravada na MESMA transacao e <c>Componente.ArquivoMiniaturaId</c> passa a apontar para ela;
+  /// quando nao vem, <c>ArquivoMiniaturaId</c> vai a <c>null</c>, tambem na mesma transacao --
+  /// nunca fica a miniatura do solido antigo ao lado do solido novo. A miniatura anterior segue a
+  /// politica do solido: deixa de ser referenciada e PERMANECE na tabela.
+  /// </para>
   /// </summary>
   Task<int?> GravarEVincularComoSolidoAsync(
-      int componenteId, ArquivoDeComponente arquivo, CancellationToken ct);
+      int componenteId, ArquivoDeComponente solido, ArquivoDeComponente? miniatura,
+      CancellationToken ct);
 
   /// <summary>
   /// O solido do Componente, COM o blob. Null quando o componente nao existe ou nao tem solido —
@@ -52,4 +61,11 @@ public interface IArquivoDeComponenteRepository
   /// tem solido.
   /// </summary>
   Task<MetadadoDeSolido?> ObterMetadadoDoSolidoAsync(int componenteId, CancellationToken ct);
+
+  /// <summary>
+  /// A miniatura do Componente, COM o blob e o <c>Sha256</c> (a versao). Mesmo colapso de
+  /// <see cref="ObterSolidoDoComponenteAsync"/>: <c>null</c> quando o componente nao existe OU nao
+  /// tem miniatura.
+  /// </summary>
+  Task<ArquivoDeComponente?> ObterMiniaturaDoComponenteAsync(int componenteId, CancellationToken ct);
 }

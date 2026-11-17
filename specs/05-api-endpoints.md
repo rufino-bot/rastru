@@ -107,11 +107,21 @@ reenvia e a sessão morre no primeiro refresh.
 - `PATCH /componentes/{id}/ativo` *(Administrador, PCP)* — `{ ativo }`
   Não existe `DELETE`: catálogo se inativa, não se exclui.
 - `POST /componentes/{id}/solido` *(Administrador, PCP)* — envia (ou **substitui**) o sólido 3D do
-  Componente. `multipart/form-data`, campo `arquivo`. Resposta **204**, sem corpo — o front busca
+  Componente. `multipart/form-data`, campo `arquivo` e, **opcional**, o campo `miniatura`: o PNG
+  isométrico de 320 × 240 que o navegador desenhou do STL (spec
+  `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`, seção 5.1). Os dois são gravados
+  na mesma transação. **Sem o campo `miniatura`, o Componente fica sem miniatura**, mesmo que o
+  sólido anterior tivesse uma: nunca fica a miniatura do sólido antigo ao lado do sólido novo. A
+  miniatura anterior, como o sólido anterior, continua na tabela sem ninguém apontando. Resposta
+  **204**, sem corpo — o front busca
   o detalhe de novo via `GET /componentes/{id}` para mostrar nome e tamanho. Falhas: `400`
   (arquivo inválido — extensão, tamanho acima de 16 MiB ou estrutura de STL inválida; ver §5.1 de
-  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md`), `404` (Componente
-  inexistente), `403` (perfil sem escrita). **Corpo acima do limite do endpoint** (16 MiB mais uma
+  `docs/superpowers/specs/2026-09-12-fase-2b-solido-3d-design.md`), `400` da miniatura inválida,
+  com frase própria no `{ erro }` («A miniatura esta vazia.», «A miniatura passa de 512 KiB.», «A
+  miniatura nao e um PNG.» ou «A miniatura precisa ter 320 x 240 pixels.»), `404` (Componente
+  inexistente), `403` (perfil sem escrita). O STL é validado primeiro, e a miniatura inválida
+  **recusa o envio inteiro**: o sólido também não é gravado. **Corpo acima do limite do endpoint**
+  (16 MiB do STL mais 512 KiB da miniatura mais uma
   margem de 4 KiB para o overhead do multipart) **não tem uma resposta garantida**: o servidor
   recusa, mas o que chega depende do cliente — com `curl` chega um 400 (medido em 2026-09-13); com
   o `fetch` do Chromium e o `HttpClient` do .NET a conexão cai com o corpo ainda subindo e não
@@ -122,6 +132,11 @@ reenvia e a sessão morre no primeiro refresh.
   `Content-Disposition` carregando o nome original do arquivo enviado. Serve o download **e** o
   viewer 3D — um endpoint, dois consumidores. `404` quando o Componente não existe **ou** quando
   existe mas não tem sólido enviado.
+- `GET /componentes/{id}/miniatura` *(qualquer perfil autenticado)* — a miniatura do sólido,
+  `image/png`. Traz `ETag: "<versão>"`, em que a versão é o SHA-256 do PNG em hexadecimal minúsculo
+  (64 dígitos), e `Cache-Control: private, no-cache`. Com `If-None-Match` igual ao `ETag`, responde
+  **304** sem corpo. `404` quando o Componente não existe **ou** quando existe mas não tem miniatura
+  (o sólido foi enviado sem ela).
 - `GET /componentes/{id}/filhos-padrao` *(qualquer perfil autenticado)* — filhos padrão do
   Componente, com dados do Componente filho: `{ id, componenteFilhoId, codigo, descricao,
   quantidadePadrao }[]`

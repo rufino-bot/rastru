@@ -92,7 +92,7 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
     {
       var repo = new ArquivoDeComponenteRepository(db);
       arquivoId = await repo.GravarEVincularComoSolidoAsync(
-          componenteId, NovoArquivo(usuarioId, "peca.stl", conteudo), CancellationToken.None);
+          componenteId, NovoArquivo(usuarioId, "peca.stl", conteudo), null, CancellationToken.None);
     }
 
     try
@@ -172,7 +172,7 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
       resultado = await repo.GravarEVincularComoSolidoAsync(
           idInexistente,
           NovoArquivo(usuarioId, nomeMarcador, ConteudoDeTeste()),
-          CancellationToken.None);
+          null, CancellationToken.None);
     }
 
     Assert.Null(resultado);
@@ -200,7 +200,7 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
       primeiroId = await repo.GravarEVincularComoSolidoAsync(
           componenteId,
           NovoArquivo(usuarioId, "v1.stl", ConteudoDeTeste(0x01)),
-          CancellationToken.None);
+          null, CancellationToken.None);
     }
     await using (var db = NovoContexto())
     {
@@ -208,7 +208,7 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
       segundoId = await repo.GravarEVincularComoSolidoAsync(
           componenteId,
           NovoArquivo(usuarioId, "v2.stl", ConteudoDeTeste(0x09)),
-          CancellationToken.None);
+          null, CancellationToken.None);
     }
 
     try
@@ -248,7 +248,7 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
     {
       var repo = new ArquivoDeComponenteRepository(db);
       arquivoId = await repo.GravarEVincularComoSolidoAsync(
-          componenteId, NovoArquivo(usuarioId, "metadado.stl", conteudo), CancellationToken.None);
+          componenteId, NovoArquivo(usuarioId, "metadado.stl", conteudo), null, CancellationToken.None);
     }
 
     try
@@ -292,5 +292,160 @@ public class ArquivoDeComponenteRepositoryTests : TesteComBanco
     {
       await LimparAsync(componenteId);
     }
+  }
+
+  // ---------------------------------------------------------------- MINIATURA
+
+  /// <summary>
+  /// O repositorio nao valida PNG (quem valida e o caso de uso, com o <c>ValidadorDeMiniatura</c>):
+  /// aqui bastam bytes distintos dos do solido, para uma FK trocada pela outra nao passar.
+  /// </summary>
+  private static byte[] MiniaturaDeTeste(byte marcador = 0xA1) => [0x89, 0x50, 0x4E, 0x47, marcador];
+
+  private static async Task<int[]> IdsDeArquivoDoUsuarioComNomeAsync(string nome)
+  {
+    await using var db = NovoContexto();
+    return await db.ArquivosDeComponente.AsNoTracking()
+        .Where(a => a.NomeOriginal == nome).Select(a => a.Id).ToArrayAsync();
+  }
+
+  [Fact]
+  public async Task Gravar_solido_com_miniatura_liga_as_duas_FKs_na_mesma_transacao()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+
+    var solido = NovoArquivo(usuarioId, "peca.stl", ConteudoDeTeste());
+    var miniatura = NovoArquivo(usuarioId, "miniatura.png", MiniaturaDeTeste());
+    int? solidoId;
+    await using (var db = NovoContexto())
+    {
+      solidoId = await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+          componenteId, solido, miniatura, CancellationToken.None);
+    }
+
+    try
+    {
+      Assert.Equal(solido.Id, solidoId);
+      Assert.NotEqual(0, miniatura.Id);
+      Assert.NotEqual(solido.Id, miniatura.Id);
+
+      await using var dbLeitura = NovoContexto();
+      var componente = await dbLeitura.Componentes.AsNoTracking().SingleAsync(c => c.Id == componenteId);
+      Assert.Equal(solido.Id, componente.ArquivoSolidoId);
+      Assert.Equal(miniatura.Id, componente.ArquivoMiniaturaId);
+
+      var repo = new ArquivoDeComponenteRepository(dbLeitura);
+      var lida = await repo.ObterMiniaturaDoComponenteAsync(componenteId, CancellationToken.None);
+      Assert.NotNull(lida);
+      Assert.Equal(MiniaturaDeTeste(), lida!.Conteudo);
+      Assert.Equal("miniatura.png", lida.NomeOriginal);
+      // A versao que a API expoe sai desta coluna calculada.
+      Assert.Equal(SHA256.HashData(MiniaturaDeTeste()), lida.Sha256);
+
+      // E o solido continua sendo o STL: as duas leituras nao se cruzam.
+      var solidoLido = await repo.ObterSolidoDoComponenteAsync(componenteId, CancellationToken.None);
+      Assert.Equal(ConteudoDeTeste(), solidoLido!.Conteudo);
+    }
+    finally
+    {
+      await LimparAsync(componenteId, solido.Id, miniatura.Id);
+    }
+  }
+
+  /// <summary>
+  /// "Na mesma transacao" pelo lado da falha: a miniatura aponta um usuario que nao existe, o
+  /// INSERT dela viola <c>FK_ArquivoDeComponente_CriadoPorUsuario</c>, e nem o solido fica gravado
+  /// nem o Componente muda. Escopado pelo NOME unico do solido, nunca por contagem da tabela.
+  /// </summary>
+  [Fact]
+  public async Task Miniatura_que_falha_ao_gravar_desfaz_tambem_o_solido()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+    var nomeDoSolido = $"falha-{Guid.NewGuid():N}.stl";
+
+    try
+    {
+      await using (var db = NovoContexto())
+      {
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+                componenteId,
+                NovoArquivo(usuarioId, nomeDoSolido, ConteudoDeTeste()),
+                NovoArquivo(int.MaxValue, "miniatura.png", MiniaturaDeTeste()),
+                CancellationToken.None));
+      }
+
+      Assert.Empty(await IdsDeArquivoDoUsuarioComNomeAsync(nomeDoSolido));
+      await using var dbLeitura = NovoContexto();
+      var componente = await dbLeitura.Componentes.AsNoTracking().SingleAsync(c => c.Id == componenteId);
+      Assert.Null(componente.ArquivoSolidoId);
+      Assert.Null(componente.ArquivoMiniaturaId);
+    }
+    finally
+    {
+      await LimparAsync(componenteId, await IdsDeArquivoDoUsuarioComNomeAsync(nomeDoSolido));
+    }
+  }
+
+  [Fact]
+  public async Task Gravar_solido_sem_miniatura_zera_a_FK_e_mantem_a_miniatura_anterior_na_tabela()
+  {
+    int usuarioId, componenteId;
+    await using (var setup = NovoContexto())
+    {
+      usuarioId = await setup.Usuarios.Select(u => u.Id).FirstAsync();
+      componenteId = await NovoComponenteAsync(setup);
+    }
+
+    var primeiro = NovoArquivo(usuarioId, "v1.stl", ConteudoDeTeste(0x01));
+    var miniatura = NovoArquivo(usuarioId, "miniatura.png", MiniaturaDeTeste());
+    var segundo = NovoArquivo(usuarioId, "v2.stl", ConteudoDeTeste(0x09));
+    await using (var db = NovoContexto())
+    {
+      await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+          componenteId, primeiro, miniatura, CancellationToken.None);
+    }
+    await using (var db = NovoContexto())
+    {
+      await new ArquivoDeComponenteRepository(db).GravarEVincularComoSolidoAsync(
+          componenteId, segundo, null, CancellationToken.None);
+    }
+
+    try
+    {
+      await using var dbLeitura = NovoContexto();
+      var componente = await dbLeitura.Componentes.AsNoTracking().SingleAsync(c => c.Id == componenteId);
+      Assert.Equal(segundo.Id, componente.ArquivoSolidoId);
+      Assert.Null(componente.ArquivoMiniaturaId);
+      Assert.Null(await new ArquivoDeComponenteRepository(dbLeitura)
+          .ObterMiniaturaDoComponenteAsync(componenteId, CancellationToken.None));
+
+      // A miniatura anterior PERMANECE na tabela, como o solido anterior (C4 da spec da miniatura).
+      Assert.True(await dbLeitura.ArquivosDeComponente.AnyAsync(a => a.Id == miniatura.Id));
+    }
+    finally
+    {
+      await LimparAsync(componenteId, primeiro.Id, miniatura.Id, segundo.Id);
+    }
+  }
+
+  [Fact]
+  public async Task ObterMiniaturaDoComponenteAsync_devolve_null_para_componente_inexistente()
+  {
+    var idInexistente = await IdDeComponenteQueNaoExisteAsync();
+
+    await using var db = NovoContexto();
+    Assert.Null(await new ArquivoDeComponenteRepository(db)
+        .ObterMiniaturaDoComponenteAsync(idInexistente, CancellationToken.None));
   }
 }
