@@ -189,10 +189,10 @@ export function PainelDoComponenteDaImportacao({
   }
 
   /** O envio do STL: a falha volta ao `UploadDeSolido`, que a mostra no próprio campo. */
-  async function enviarSolido(id: number, arquivo: File) {
+  async function enviarSolido(id: number, arquivo: File, miniatura: Blob | null) {
     setRecusa(null)
     try {
-      await escrever((atual) => enviarSolidoPendente(atual.id, id, atual.versao, arquivo), true)
+      await escrever((atual) => enviarSolidoPendente(atual.id, id, atual.versao, arquivo, miniatura), true)
     } catch (e) {
       throw ehImportacaoDesatualizada(e)
         ? new ErroDeApi(409, AVISO_IMPORTACAO_DESATUALIZADA, AVISO_IMPORTACAO_DESATUALIZADA)
@@ -245,7 +245,7 @@ export function PainelDoComponenteDaImportacao({
                 <UploadDeSolido
                   key={registroId}
                   caminho={caminhoDoSolidoMostrado ?? ''}
-                  enviar={(arquivo) => enviarSolido(registroId, arquivo)}
+                  enviar={(arquivo, miniatura) => enviarSolido(registroId, arquivo, miniatura)}
                   desabilitado={desabilitado}
                   temSolido={temSolido}
                   nomeDoSolido={nomeDoSolido}

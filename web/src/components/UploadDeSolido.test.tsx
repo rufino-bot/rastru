@@ -1,14 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { caminhoDoSolido, enviarSolido } from '../api/cadastros'
+import { caminhoDoSolido, enviarSolido, TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES } from '../api/cadastros'
 import { UploadDeSolido } from './UploadDeSolido'
 import { respostaBinaria, respostaJson } from '../testes/api'
 import { inicializar, _resetParaTeste } from '../api/client'
+import { desenharMiniatura } from '../solido/miniatura'
+
+vi.mock('../solido/miniatura', () => ({ desenharMiniatura: vi.fn() }))
 
 // `apiFetch` exige `inicializar()` — sem isto toda chamada estoura "client nao inicializado".
 // Molde de `SeletorComBusca.test.tsx`.
 beforeEach(() => {
+  vi.mocked(desenharMiniatura).mockReset()
+  vi.mocked(desenharMiniatura).mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
   _resetParaTeste()
   inicializar({ getToken: () => 'token', setToken: () => {}, onSessionLost: () => {} })
 })
@@ -395,7 +400,7 @@ describe('UploadDeSolido', () => {
     fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivo] } })
 
     await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
-    expect(enviar).toHaveBeenCalledWith(arquivo)
+    expect(enviar).toHaveBeenCalledWith(arquivo, expect.any(Blob))
     // Quem envia é `enviar`: o componente não faz requisição de envio por conta própria.
     expect(fetchMock).not.toHaveBeenCalled()
 
@@ -417,5 +422,75 @@ describe('UploadDeSolido', () => {
       />,
     )
     expect((screen.getByLabelText(/sólido/i) as HTMLInputElement).disabled).toBe(true)
+  })
+  describe('miniatura', () => {
+    function montar(enviar: (a: File, m: Blob | null) => Promise<void>, aoEnviar = () => {}) {
+      render(
+        <UploadDeSolido
+          caminho={caminhoDoSolido(7)}
+          enviar={enviar}
+          temSolido={false}
+          nomeDoSolido={null}
+          tamanhoDoSolidoEmBytes={null}
+          aoEnviar={aoEnviar}
+        />,
+      )
+      return screen.getByLabelText(/sólido/i) as HTMLInputElement
+    }
+
+    it('desenha e envia o solido com a miniatura', async () => {
+      const png = new Blob(['png'], { type: 'image/png' })
+      vi.mocked(desenharMiniatura).mockResolvedValue(png)
+      const enviar = vi.fn().mockResolvedValue(undefined)
+      const aoEnviar = vi.fn()
+      const arquivo = arquivoStl()
+      fireEvent.change(montar(enviar, aoEnviar), { target: { files: [arquivo] } })
+
+      await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+      expect(desenharMiniatura).toHaveBeenCalledTimes(1)
+      expect(enviar).toHaveBeenCalledWith(arquivo, png)
+      expect(screen.queryByText(/a miniatura não pôde ser gerada/i)).toBeNull()
+    })
+
+    it('mostra gerando miniatura e depois enviando', async () => {
+      let soltarDesenho!: (b: Blob | null) => void
+      vi.mocked(desenharMiniatura).mockReturnValue(new Promise((r) => { soltarDesenho = r }))
+      let soltarEnvio!: () => void
+      const enviar = vi.fn(() => new Promise<void>((r) => { soltarEnvio = r }))
+      fireEvent.change(montar(enviar), { target: { files: [arquivoStl()] } })
+
+      expect((await screen.findByRole('status')).textContent).toBe('Gerando miniatura…')
+      expect(enviar).not.toHaveBeenCalled()
+      soltarDesenho(new Blob(['png']))
+      await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Enviando…'))
+      soltarEnvio()
+      await waitFor(() => expect(screen.queryByText('Enviando…')).toBeNull())
+    })
+
+    it('sem miniatura envia so o solido e avisa sem tom de erro', async () => {
+      vi.mocked(desenharMiniatura).mockResolvedValue(null)
+      const enviar = vi.fn().mockResolvedValue(undefined)
+      const aoEnviar = vi.fn()
+      const arquivo = arquivoStl()
+      fireEvent.change(montar(enviar, aoEnviar), { target: { files: [arquivo] } })
+
+      await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+      expect(enviar).toHaveBeenCalledWith(arquivo, null)
+      const aviso = await screen.findByText('O sólido foi enviado, mas a miniatura não pôde ser gerada neste aparelho.')
+      expect(aviso.getAttribute('role')).toBe('status')
+      expect(aviso.className).not.toMatch(/negativo|atencao/)
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('arquivo grande demais nao chega a desenhar', async () => {
+      const enviar = vi.fn()
+      const grande = new File([new Uint8Array(1)], 'grande.stl')
+      Object.defineProperty(grande, 'size', { value: TAMANHO_MAXIMO_DO_SOLIDO_EM_BYTES + 1 })
+      fireEvent.change(montar(enviar), { target: { files: [grande] } })
+
+      await screen.findByRole('alert')
+      expect(desenharMiniatura).not.toHaveBeenCalled()
+      expect(enviar).not.toHaveBeenCalled()
+    })
   })
 })

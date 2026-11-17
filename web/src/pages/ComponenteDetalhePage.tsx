@@ -409,7 +409,7 @@ export function ComponenteDetalhePage() {
       {podeEscrever && !carregandoComponente && erroComponente === null && componente && (
         <UploadDeSolido
           caminho={caminhoDoSolido(componenteId)}
-          enviar={(arquivo) => enviarSolido(componenteId, arquivo)}
+          enviar={(arquivo, miniatura) => enviarSolido(componenteId, arquivo, miniatura)}
           temSolido={componente.temSolido}
           nomeDoSolido={componente.nomeDoSolido}
           tamanhoDoSolidoEmBytes={componente.tamanhoDoSolidoEmBytes}
