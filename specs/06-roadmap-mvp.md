@@ -643,6 +643,9 @@ Spec: `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md` (aprovad
 (PNG) gerada do STL, gravada em `dbo.ArquivoDeComponente` e apontada por `Componente.ArquivoMiniaturaId`; opcional e
 nunca condição de nada. O schema entra por `db/alter-miniatura.sql`.
 
+**Concluída e mesclada em 2026-11-17** (rufino-bot/rastru#39). A conferência do usuário no navegador foi feita só no
+PC; o teste no Android, com o teto de 5 s da C14, ficou pendente, e nenhum corte de desempenho foi decidido.
+
 - Ordem decidida pelo usuário: **miniatura → Panorama, antes da 3C**.
 - **Miniatura no chão de fábrica** (Fila do Setor, Tarefas, Separação, Expedição): **depois do Panorama**, fora da
   primeira entrega.
@@ -884,6 +887,8 @@ no mesmo PR, mas **não são da 5C**, e vieram junto por decisão do usuário: o
 no cartão de montagem da Fila, o código do componente na sobra e na caixa do topo da prévia da baixa, e o pai sem nada a
 iniciar fora de "Aguardando montagem", com a linha de sobra em montagem mostrando a parte de cada Setor. Com a 5C, **a
 Fase 5 está concluída**; a seguinte é a 3C ou a Fase 6, cuja ordem entre si não está decidida (seção «Fase 3C»).
+(2026-11-17: antes delas entram a miniatura do sólido e o Panorama; ver as seções «Miniatura isométrica do sólido» e
+«Panorama».)
 
 - **O Kit com perda e com espera desalinhada** (D5 da spec da Fase 3B; regras 25 e 30 de `01`): os conjuntos à espera
   passam a ser os **completos** (o menor, entre os filhos que contam, de ⌊espera ÷ razão⌋, mais os conjuntos em

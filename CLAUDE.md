@@ -93,8 +93,15 @@ mesma sobra, a recusa `PaiComConjuntoAEspera` e a guarda `PaiJaIniciado` definit
 e o pai sem nada a iniciar fora de "Aguardando montagem", com a sobra em montagem por Setor) **não são da 5C** e vieram
 no mesmo PR por decisão do usuário. Com ela, **a Fase 5 está concluída**. A seguinte, por decisão do usuário de 2026-11-17 (mais uma exceção
 declarada em `06-roadmap-mvp.md`), é a **miniatura isométrica do sólido** (spec
-`docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`), seguida do **Panorama** (spec
-`docs/superpowers/specs/2026-11-17-panorama-design.md`); os dois **antes da 3C**; depois deles vêm a **3C** e a
+`docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md`; plano
+`docs/superpowers/plans/2026-11-17-miniatura-do-solido.md`), **concluída e mesclada em 2026-11-17**
+(rufino-bot/rastru#39): a miniatura PNG desenhada no navegador e enviada com o STL, o "Gerar miniatura" para o
+Componente que já tinha sólido, a miniatura pendente no import do BOM e o `miniaturaVersao` nos DTOs, com o
+`db/alter-miniatura.sql`. A conferência do usuário no navegador foi feita **só no PC**, em 2026-11-17; o teste no
+**Android** (o teto de 5 s da C14) ficou **pendente** por decisão dele, e nenhum corte de desempenho foi decidido
+(nota de emenda na C14 da spec). A seguinte é o **Panorama** (spec
+`docs/superpowers/specs/2026-11-17-panorama-design.md`, aprovada; o plano ainda não foi escrito); a miniatura e o
+Panorama vêm **antes da 3C**; depois deles vêm a **3C** e a
 **Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
