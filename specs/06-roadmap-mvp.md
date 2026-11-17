@@ -637,6 +637,21 @@ segundo pai é `8984ce9`, o último commit da branch `fase-3b`). Spec:
   sistema recusa conjunto incompleto, entrada além do que o nó precisa receber e o filho
   acrescentado a nó já iniciado; a tarefa Kit pronto aparece e some quando o Kit é levado.
 
+## Miniatura isométrica do sólido (decidido em 2026-11-17; executa antes do Panorama e da 3C)
+
+Spec: `docs/superpowers/specs/2026-11-17-miniatura-do-solido-design.md` (aprovada em 2026-11-17). Imagem isométrica
+(PNG) gerada do STL, gravada em `dbo.ArquivoDeComponente` e apontada por `Componente.ArquivoMiniaturaId`; opcional e
+nunca condição de nada. O schema entra por `db/alter-miniatura.sql`.
+
+- Ordem decidida pelo usuário: **miniatura → Panorama, antes da 3C**.
+- **Miniatura no chão de fábrica** (Fila do Setor, Tarefas, Separação, Expedição): **depois do Panorama**, fora da
+  primeira entrega.
+
+## Panorama (decidido em 2026-11-17; executa depois da miniatura e antes da 3C)
+
+Spec: `docs/superpowers/specs/2026-11-17-panorama-design.md` (aprovada em 2026-11-17). Usa o `miniaturaVersao` da spec
+da miniatura.
+
 ## Fase 3C — Notificação push
 
 > **Executada depois da Fase 5**, fora da ordem das letras: o fluxo ponta a ponta vem primeiro, e o

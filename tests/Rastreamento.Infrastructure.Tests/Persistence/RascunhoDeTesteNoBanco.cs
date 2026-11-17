@@ -47,6 +47,10 @@ internal static class RascunhoDeTesteNoBanco
             SELECT c.ArquivoSolidoPendenteId AS [Value] FROM dbo.ImportacaoDeEstruturaComponente c
             JOIN dbo.ImportacaoDeEstrutura i ON i.Id = c.ImportacaoId
             WHERE i.AgrupamentoId = {agrupamentoId} AND c.ArquivoSolidoPendenteId IS NOT NULL
+            UNION
+            SELECT c.ArquivoMiniaturaPendenteId AS [Value] FROM dbo.ImportacaoDeEstruturaComponente c
+            JOIN dbo.ImportacaoDeEstrutura i ON i.Id = c.ImportacaoId
+            WHERE i.AgrupamentoId = {agrupamentoId} AND c.ArquivoMiniaturaPendenteId IS NOT NULL
             """)
         .ToListAsync();
     await db.Database.ExecuteSqlInterpolatedAsync($"""

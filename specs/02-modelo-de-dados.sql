@@ -95,7 +95,8 @@ GO
 /* Blob do arquivo de Componente. Tabela SEPARADA de dbo.Componente de proposito: o catalogo e
    listado paginado, e VARBINARY(MAX) na mesma linha convidaria a arrastar megabytes numa
    listagem. Serve as DUAS colunas de arquivo de Componente -- hoje so o solido tem consumidor
-   (Fase 2B); a foto entra depois com uma FK nova e um validador diferente, sem mudar esta tabela. */
+   (Fase 2B); a miniatura isometrica do solido entrou por FK propria (Componente.ArquivoMiniaturaId) e a
+   foto continua por vir, com uma FK nova e um validador diferente, sem mudar esta tabela. */
 CREATE TABLE dbo.ArquivoDeComponente (
     Id                  INT IDENTITY(1,1)   NOT NULL,
     NomeOriginal        NVARCHAR(260)       NOT NULL, -- o nome que o usuario subiu: exibicao na tela e Content-Disposition do download
@@ -150,12 +151,15 @@ CREATE TABLE dbo.Componente (
     -- sustentou: a API recebe IFormFile do mesmo jeito nos dois desenhos. O que muda e o destino
     -- de dois metodos de repositorio, nao a forma do endpoint.
     ArquivoSolidoId INT                 NULL,
+    ArquivoMiniaturaId INT              NULL,     -- miniatura isometrica (PNG) do solido, OPCIONAL e nunca condicao de nada; mesma tabela do solido
     ArquivoFoto     NVARCHAR(260)       NULL,     -- foto de referencia, OPCIONAL: ajuda o operador a reconhecer a peca. Nao substitui o solido
     Ativo           BIT                 NOT NULL CONSTRAINT DF_Componente_Ativo DEFAULT (1),
     CONSTRAINT PK_Componente PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT UQ_Componente_Codigo UNIQUE (Codigo),
     CONSTRAINT CK_Componente_Tipo CHECK (Tipo IN ('Bruto', 'Fabricado', 'Montagem')),
     CONSTRAINT FK_Componente_ArquivoSolido FOREIGN KEY (ArquivoSolidoId)
+        REFERENCES dbo.ArquivoDeComponente(Id),
+    CONSTRAINT FK_Componente_ArquivoMiniatura FOREIGN KEY (ArquivoMiniaturaId)
         REFERENCES dbo.ArquivoDeComponente(Id)
 );
 
@@ -322,10 +326,12 @@ CREATE TABLE dbo.ImportacaoDeEstruturaComponente (
     EscolhaDeReceita                NVARCHAR(10)        NULL, -- Catalogo | Importada | nulo = nao decidido
     ImpressaoDaReceitaDoCatalogo    BINARY(32)          NULL, -- hash da receita de catalogo vista na escolha
     ArquivoSolidoPendenteId         INT                 NULL, -- STL pendente em dbo.ArquivoDeComponente, sem Componente apontando ate a confirmacao
+    ArquivoMiniaturaPendenteId      INT                 NULL, -- miniatura (PNG) pendente do STL acima, mesmo ciclo dele
     CONSTRAINT PK_ImportacaoDeEstruturaComponente PRIMARY KEY CLUSTERED (Id),
     CONSTRAINT FK_ImportacaoDeEstruturaComponente_Importacao FOREIGN KEY (ImportacaoId) REFERENCES dbo.ImportacaoDeEstrutura (Id),
     CONSTRAINT FK_ImportacaoDeEstruturaComponente_Componente FOREIGN KEY (ComponenteId) REFERENCES dbo.Componente (Id),
     CONSTRAINT FK_ImportacaoDeEstruturaComponente_ArquivoSolidoPendente FOREIGN KEY (ArquivoSolidoPendenteId) REFERENCES dbo.ArquivoDeComponente (Id),
+    CONSTRAINT FK_ImportacaoDeEstruturaComponente_ArquivoMiniaturaPendente FOREIGN KEY (ArquivoMiniaturaPendenteId) REFERENCES dbo.ArquivoDeComponente (Id),
     -- Casado e "criar novo" sao mutuamente exclusivos.
     CONSTRAINT CK_ImportacaoDeEstruturaComponente_CasadoOuNovo
         CHECK (ComponenteId IS NULL OR (CodigoNovo IS NULL AND DescricaoNova IS NULL AND TipoNovo IS NULL)),
