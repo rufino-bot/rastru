@@ -423,6 +423,7 @@ describe('UploadDeSolido', () => {
     )
     expect((screen.getByLabelText(/sólido/i) as HTMLInputElement).disabled).toBe(true)
   })
+
   describe('miniatura', () => {
     function montar(enviar: (a: File, m: Blob | null) => Promise<void>, aoEnviar = () => {}) {
       render(
@@ -479,6 +480,19 @@ describe('UploadDeSolido', () => {
       const aviso = await screen.findByText('O sólido foi enviado, mas a miniatura não pôde ser gerada neste aparelho.')
       expect(aviso.getAttribute('role')).toBe('status')
       expect(aviso.className).not.toMatch(/negativo|atencao/)
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('falha ao ler ou desenhar nao impede o envio do solido', async () => {
+      vi.mocked(desenharMiniatura).mockRejectedValue(new Error('boom'))
+      const enviar = vi.fn().mockResolvedValue(undefined)
+      const aoEnviar = vi.fn()
+      const arquivo = arquivoStl()
+      fireEvent.change(montar(enviar, aoEnviar), { target: { files: [arquivo] } })
+
+      await waitFor(() => expect(aoEnviar).toHaveBeenCalled())
+      expect(enviar).toHaveBeenCalledWith(arquivo, null)
+      expect(await screen.findByText('O sólido foi enviado, mas a miniatura não pôde ser gerada neste aparelho.')).toBeTruthy()
       expect(screen.queryByRole('alert')).toBeNull()
     })
 

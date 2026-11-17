@@ -9,6 +9,11 @@ import type { ImportacaoDto, NoDaImportacaoDto, BloqueioDto, SituacaoDoComponent
 
 afterEach(cleanup)
 
+// jsdom não tem WebGL: o desenho real devolveria null e só faria barulho.
+vi.mock('../solido/miniatura', () => ({
+  desenharMiniatura: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
+}))
+
 // Molde de AgrupamentoDetalhePage.test.tsx: o perfil governa o gating de escrita.
 let perfil = 'PCP'
 vi.mock('../auth/AuthContext', () => ({

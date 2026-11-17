@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, within, cleanup, fireEvent } from '@testing-library/react'
+import { render, screen, within, cleanup, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom'
 import { ComponenteDetalhePage } from './ComponenteDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaBinaria, respostaJson, fetchPorRota } from '../testes/api'
 
 afterEach(cleanup)
+
+vi.mock('../solido/miniatura', () => ({
+  desenharMiniatura: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
+}))
 
 // Dublês mínimos do three.js e dos três módulos de exemplo que o `VisualizadorDeSolido` importa
 // sob demanda — só o bastante para o viewer chegar ao estado pronto dentro da página (o jsdom não
@@ -687,7 +691,7 @@ describe('ComponenteDetalhePage — escrita', () => {
    */
   it('relê o componente depois de um upload de sólido com sucesso', async () => {
     let chamadasComponente = 0
-    vi.stubGlobal('fetch', fetchPorRota({
+    const fetchMock = fetchPorRota({
       ...LEITURAS,
       '/api/componentes/7': () => {
         chamadasComponente += 1
@@ -696,7 +700,8 @@ describe('ComponenteDetalhePage — escrita', () => {
           : respostaJson({ ...COMPONENTE, temSolido: true, nomeDoSolido: 'suporte-novo.stl', tamanhoDoSolidoEmBytes: 2048 })
       },
       '/api/componentes/7/solido': () => respostaJson({}),
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
     renderizarNaRota('/componentes/7')
     await screen.findByText('PA-010')
     expect(screen.getByText(/sem sólido/i)).toBeTruthy()
@@ -706,6 +711,27 @@ describe('ComponenteDetalhePage — escrita', () => {
 
     expect(await screen.findByText(/suporte-novo\.stl/)).toBeTruthy()
     expect(chamadasComponente).toBeGreaterThanOrEqual(2)
+  })
+
+  /** A miniatura desenhada sai junto do sólido, na parte `miniatura` do mesmo POST. */
+  it('envia a miniatura junto do sólido', async () => {
+    const posts: RequestInit[] = []
+    const base = fetchPorRota({ ...LEITURAS, '/api/componentes/7': () => respostaJson(COMPONENTE) })
+    vi.stubGlobal('fetch', vi.fn((url: string | URL, init?: RequestInit) => {
+      if (String(url) === '/api/componentes/7/solido' && init?.method === 'POST') {
+        posts.push(init)
+        return Promise.resolve(respostaJson({}))
+      }
+      return base(url, init)
+    }))
+    renderizarNaRota('/componentes/7')
+    await screen.findByText('PA-010')
+
+    const arquivo = new File([new Uint8Array(10)], 'novo.stl', { type: 'application/octet-stream' })
+    fireEvent.change(screen.getByLabelText(/sólido/i), { target: { files: [arquivo] } })
+
+    await waitFor(() => expect(posts).toHaveLength(1))
+    expect((posts[0].body as FormData).get('miniatura')).toBeInstanceOf(Blob)
   })
 
   /**

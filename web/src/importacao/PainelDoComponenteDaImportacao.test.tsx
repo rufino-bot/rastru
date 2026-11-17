@@ -6,6 +6,10 @@ import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaBinaria, respostaJson } from '../testes/api'
 import type { ImportacaoDto, NoDaImportacaoDto, SituacaoDoComponenteDto } from '../api/importacao'
 
+vi.mock('../solido/miniatura', () => ({
+  desenharMiniatura: vi.fn(async () => new Blob(['png'], { type: 'image/png' })),
+}))
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -260,6 +264,8 @@ describe('PainelDoComponenteDaImportacao', () => {
     const corpo = init?.body as FormData
     expect(corpo.get('versao')).toBe('AAAAAAAAB9E=')
     expect((corpo.get('arquivo') as File).name).toBe('parafuso.stl')
+    // A miniatura desenhada vai junto, na parte `miniatura` do mesmo envio.
+    expect(corpo.get('miniatura')).toBeInstanceOf(Blob)
     // A resposta passa pelo `escrever` da página: é ele quem a põe no estado e trata o 409.
     expect(escrever).toHaveBeenCalledTimes(1)
   })

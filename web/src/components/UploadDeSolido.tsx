@@ -73,7 +73,13 @@ export function UploadDeSolido({
     setSemMiniatura(false)
     try {
       setFase('gerando')
-      const miniatura = await desenharMiniatura(await arquivo.arrayBuffer())
+      // C13: ler e desenhar são acessório — qualquer falha aqui vira "sem miniatura" e o sólido segue.
+      let miniatura: Blob | null = null
+      try {
+        miniatura = await desenharMiniatura(await arquivo.arrayBuffer())
+      } catch {
+        miniatura = null
+      }
       setFase('enviando')
       await enviar(arquivo, miniatura)
       if (miniatura === null) setSemMiniatura(true)
