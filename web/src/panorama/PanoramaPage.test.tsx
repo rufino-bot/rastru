@@ -267,6 +267,27 @@ describe('PanoramaPage — recarga periódica', () => {
     expect(urlAtual()).toBe('?de=2026-11-19&ordem=codigo-desc')
   })
 
+  it('a recarga que resolve troca os dados e mantém o mesmo nó da lista, sem passar pelo carregando', async () => {
+    vi.useFakeTimers()
+    let chamadas = 0
+    vi.stubGlobal('fetch', vi.fn(() => {
+      chamadas += 1
+      return Promise.resolve(respostaJson({ pecas: chamadas === 1 ? TRES : [...TRES, peca(4, 'Z-09')] }))
+    }))
+    renderizar('/panorama')
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    const antes = within(tabela()).getByRole('link', { name: 'B-02' })
+    const tabelaAntes = tabela()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
+
+    expect(chamadas).toBe(2)
+    expect(codigosDaTabela()).toContain('Z-09')
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(tabela()).toBe(tabelaAntes)
+    expect(within(tabela()).getByRole('link', { name: 'B-02' })).toBe(antes)
+  })
+
   it('a resposta da recarga troca os dados e o filtro continua valendo', async () => {
     vi.useFakeTimers()
     let chamadas = 0

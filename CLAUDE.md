@@ -578,7 +578,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`sticky`) e com rolagem própria, para a árvore continuar à vista (decisão do usuário, 2026-10-07); abaixo
   de `lg` o painel é um bloco comum no topo (D16 da spec: é tela de PC). Para caber, a tela usa
   `<Pagina largura="ampla">`: a largura vem da primitiva, não de container próprio, e a `ampla` é para tela
-  de duas colunas, não para lista nem cadastro. A linha da árvore é `isolate`, que prende o `z-index` do
+  de PC que precisa de largura (as duas colunas desta conferência, a tabela do Panorama), não para lista comum nem cadastro. A linha da árvore é `isolate`, que prende o `z-index` do
   campo de quantidade dentro da linha, acima do overlay do seletor.
   A faixa da Peça traz o "Reimportar" ao lado de Confirmar e Descartar: ele abre o `PainelDoArquivoDoBom` (ver
   o bullet do `PainelDeEscrita`), e a escrita passa pela mesma `escrever` da tela, com a falha devolvida ao
