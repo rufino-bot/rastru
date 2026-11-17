@@ -13,20 +13,21 @@ interface Props {
 /**
  * Uma caixa de marcar com o texto ao lado, dentro de um formulário: "Dar baixa também delas". É o `Campo` das
  * escolhas de sim ou não. Diferente da `CaixaDeLote`, que põe uma linha de lista no lote e tem só o nome
- * acessível, aqui o texto é visível e faz parte da pergunta.
+ * acessível, aqui o texto é visível e faz parte da pergunta. O `<label>` é a área de toque, com pelo menos 44 px de
+ * altura (`min-h-11`), no molde da `CaixaDeLote`: estas caixas ficam abertas no Android da fábrica.
  */
 export function CampoDeCaixa({ marcado, aoMudar, desabilitado = false, dica, children }: Props) {
   const idDaDica = useId()
   return (
     <div className="flex flex-col gap-1">
-      <label className="flex items-start gap-2 text-sm text-tinta">
+      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-tinta">
         <input
           type="checkbox"
           checked={marcado}
           onChange={(e) => aoMudar(e.target.checked)}
           disabled={desabilitado}
           aria-describedby={dica ? idDaDica : undefined}
-          className="mt-0.5 size-4 accent-acao"
+          className="size-4 shrink-0 accent-acao"
         />
         <span>{children}</span>
       </label>

@@ -347,7 +347,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **13 linhas em 4 arquivos**
   (`AppShell`, `ArvoreDeEstrutura`, `ArvoreDaImportacao` e `Botao`), e a linha **não** é a unidade de uso:
   **6 são o elemento cru** — 4 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
-  o `<button>` da própria primitiva `Botao`, e 6 são comentário que cita a tag. Somando, são **seis**
+  o `<button>` da própria primitiva `Botao`, e 6 são comentário que cita a tag. **Remedido em 2026-11-17**, com o
+  mesmo comando, depois do `CabecalhoOrdenavel`: **15 linhas em 5 arquivos**, e a conta por tipo é a mesma, com uma
+  primitiva a mais — **6 são o elemento cru** (4 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao`,
+  **sem mudança**), **2 são `<button>` de primitiva** (o da `Botao` e o do `CabecalhoOrdenavel`, que **não** é exceção
+  de chrome) e 7 são comentário que cita a tag. Somando, são **seis**
   `<button>` crus, e "cinco" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
   são o mesmo controle em dois breakpoints, e o `BotaoDoGrupo` é um elemento só, usado na barra e na gaveta.)
   Decisão do usuário (2026-08-29, na review da Task 7 da Fase
@@ -632,10 +636,11 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   página (preferência de exibição) nem nos `filtros`, que são de fora do hook: quem os zera é a
   tela, no mesmo handler.
 - **Filtrar demanda por facetas usa `FiltroDeDemanda`** (`web/src/components/`, com teste próprio),
-  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São quatro primitivas de consulta
-  para quatro gatilhos, e não se substituem: **escolher um item de catálogo paginado** é
+  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São cinco primitivas de consulta
+  para cinco gatilhos, e não se substituem: **escolher um item de catálogo paginado** é
   `SeletorComBusca`; **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **ordenar uma
-  lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **restringir uma lista de demanda
+  lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **ordenar uma tabela por coluna** é
+  `CabecalhoOrdenavel` (ver o bullet dele); **restringir uma lista de demanda
   por Material, Pedido, Status…** é `FiltroDeDemanda`, seja a lista filtrada **no cliente** (a fila
   do Setor, as Tarefas, a lista de separação e a da expedição, que chegam inteiras: as opções e a contagem saem da própria resposta, e
   `casaComFiltro`, exportada pelo módulo do componente, é a única implementação da regra — OU dentro
@@ -654,8 +659,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   histórico) e a vírgula sai codificada (`?material=3%2C5`), embora o hook leia as duas formas.
 - **Ordenar uma lista de cadastro usa `SeletorDeOrdem`** (`web/src/components/`, com teste
   próprio): um `Campo` "Ordenar por" com um `<select>` da lista fechada de ordens da tela, com a
-  direção dentro do rótulo da opção ("Código (A→Z)"). É a quarta primitiva de consulta, ao lado das
-  três que o bullet do `FiltroDeDemanda` enumera, e o mesmo contrato controlado dele: recebe
+  direção dentro do rótulo da opção ("Código (A→Z)"). É uma das cinco primitivas de consulta, ao lado das
+  outras quatro que o bullet do `FiltroDeDemanda` enumera, e o mesmo contrato controlado dele: recebe
   `opcoes` e `valor`, devolve o **valor** escolhido por `aoMudar`; não busca nada, não ordena nada e
   não sabe de URL. Quem ordena é o servidor em `ComponentesPage` e `PedidosPage` (`?ordem=` de
   `GET /componentes` e `GET /pedidos`, que entra no `useBuscaPaginada` pelos `filtros`: trocar a
@@ -688,6 +693,25 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica, e essa ordem é
   o **prazo de entrega** do Pedido do nó, o mais próximo primeiro, com o `Id` do nó desempatando (decisão do usuário,
   2026-11-10); quem a aplica é o servidor, e o front não reordena item.
+- **Ordenar uma tabela por coluna usa `CabecalhoOrdenavel`** (`web/src/components/`, com teste próprio), D10 e C10
+  da spec do Panorama (`docs/superpowers/specs/2026-11-17-panorama-design.md`): o `<th scope="col">` com
+  `aria-sort` (`ascending`, `descending` ou `none`) e um `<button>` com o rótulo e a seta, que cicla **crescente,
+  decrescente e de volta à ordem original** (`proximaOrdem`, função pura exportada: clicar numa coluna que não é a
+  ativa começa em crescente). É a quinta primitiva de consulta, ao lado das quatro que o bullet do
+  `FiltroDeDemanda` enumera, e o gatilho dela é "ordenar uma **tabela** por coluna"; o `SeletorDeOrdem`
+  continua sendo o da lista de cadastro, e é o que o Panorama usa no celular (C14). Controlada, como as outras:
+  recebe a `coluna`, o `rotulo` e a `ordem` atual (de qualquer coluna, ou `null`), devolve a próxima por
+  `aoMudar`, e não ordena nada nem sabe de URL. O `<button>` é **da primitiva**, como o da `Botao`, e **não** é
+  exceção de "botão de chrome" (ver o bullet dela, com a recontagem de 2026-11-17). Só leva a primitiva a coluna
+  em que ordenar faz sentido. Ainda sem tela consumidora: a do Panorama a usa na tabela de Peças.
+- **Filtrar por intervalo de datas usa `IntervaloDeDatas`** (`web/src/components/`, com teste próprio), C12 da
+  spec do Panorama: dois `<input type="date">` nativos (no Android cada campo abre o calendário do próprio
+  celular), com nome acessível "{rótulo}: de" e "{rótulo}: até", e o `Botao` "Limpar" (variante `secundario`),
+  que só aparece com algum lado preenchido. Controlado: recebe `de` e `ate` (ISO `aaaa-mm-dd` ou vazio) e devolve
+  os dois por `aoMudar`; não busca nada e não sabe de URL. Qualquer lado pode ficar vazio e os limites são
+  inclusivos, mas quem filtra é a tela. Se `de` passar de `ate`, a primitiva **não troca** os dois: devolve como
+  foi digitado, e a tela mostra que nenhuma linha casa. Não é primitiva de consulta no sentido do bullet do
+  `FiltroDeDemanda`: ela só colhe o intervalo. Ainda sem tela consumidora: a do Panorama a usa no prazo de entrega.
 - **Exibir a miniatura do sólido usa `MiniaturaDoSolido`** (`web/src/components/`, com teste próprio), nunca
   `<img src="/api/...">`: o `<img>` não manda o token, e a rota exige login. A primitiva recebe o `caminho`
   (`caminhoDaMiniatura(id)` ou `caminhoDaMiniaturaPendente(id, registroId)`, sem o prefixo `/api`), a `versao` (o hash da
@@ -791,7 +815,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   o `usePreviaDaBaixa` e a `PreviaDaBaixa`, o `useDescarteDisponivel`, a lógica pura `posicoesDaBaixa` (de onde uma baixa
   pode tirar, cópia de `Posicoes.DeOndeSeDaBaixa`, do Domain, que o `CalculoDaBaixa` consulta) e o
   `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de marcar com o texto visível, diferente da
-  `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
+  `CaixaDeLote`) mora em `web/src/components/`, com teste próprio, e o `<label>` dela é a área de toque, com
+  pelo menos 44 px de altura (`min-h-11`), no molde da `CaixaDeLote` (o Panorama a usa no "Embalado"). O
   `PainelDeBaixa` aceita `motivoFixo`, `origemFixa`, `maximo`, `titulo` e `aviso`, que são o que as duas baixas "de
   atalho" decidem por conta própria: o "Matar" do cartão da expedição (`PainelDeMatar`, em `web/src/expedicao/`, motivo
   `MortaEmProcesso`, origem `NaoConforme`, teto as não conformes aguardando decisão, visível com `naoConforme > 0`) e o

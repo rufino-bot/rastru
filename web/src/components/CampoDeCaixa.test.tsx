@@ -35,3 +35,12 @@ describe('CampoDeCaixa', () => {
     expect(screen.getByText('Só 2 ainda estão a iniciar.')).toBeTruthy()
   })
 })
+
+describe('CampoDeCaixa area de toque', () => {
+  it('o label tem a altura minima de 44 px', () => {
+    render(<CampoDeCaixa marcado={false} aoMudar={() => {}}>Embalado</CampoDeCaixa>)
+
+    const label = screen.getByRole('checkbox').closest('label')!
+    expect(label.className).toContain('min-h-11')
+  })
+})
