@@ -267,7 +267,7 @@ describe('PanoramaPage — recarga periódica', () => {
     expect(urlAtual()).toBe('?de=2026-11-19&ordem=codigo-desc')
   })
 
-  it('a recarga que resolve troca os dados e mantém o mesmo nó da lista, sem passar pelo carregando', async () => {
+  it('a recarga com dados novos não remonta a tabela nem a lista de cartões', async () => {
     vi.useFakeTimers()
     let chamadas = 0
     vi.stubGlobal('fetch', vi.fn(() => {
@@ -278,6 +278,7 @@ describe('PanoramaPage — recarga periódica', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     const antes = within(tabela()).getByRole('link', { name: 'B-02' })
     const tabelaAntes = tabela()
+    const listaAntes = screen.getByRole('list', { name: 'Peças em aberto' })
 
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVALO_DA_EXECUCAO_MS) })
 
@@ -285,6 +286,7 @@ describe('PanoramaPage — recarga periódica', () => {
     expect(codigosDaTabela()).toContain('Z-09')
     expect(screen.queryByRole('status')).toBeNull()
     expect(tabela()).toBe(tabelaAntes)
+    expect(screen.getByRole('list', { name: 'Peças em aberto' })).toBe(listaAntes)
     expect(within(tabela()).getByRole('link', { name: 'B-02' })).toBe(antes)
   })
 
