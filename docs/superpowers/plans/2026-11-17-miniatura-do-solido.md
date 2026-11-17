@@ -42,6 +42,13 @@ C1–C15 e D1–D5 abaixo são dessa spec; leia as seções 2.2, 5 e 6 antes de 
   testes de tela, `web/src/testes/api.ts` para mockar a API. Chamada nova passa o caminho **sem** `/api`.
 - Comentário cita o alvo **pelo nome**, nunca por `arquivo:linha` (`CLAUDE.md`, «Convenção de citação»).
 
+## Modelo por task (decisão do usuário, 2026-11-17)
+
+O implementer das tasks de **código mais pesado** roda no modelo **`fable`**: Tasks **3, 4 e 6** (backend: transação,
+corrida e o ciclo do import) e **7, 9 e 10** (front: desenho com three.js, fluxo do upload e o "Gerar miniatura"). As Tasks
+1, 2, 5 e 8 usam o modelo padrão da sessão. As reviews de task seguem o fluxo da skill, e a review de branch inteira
+roda no modelo mais capaz, como manda o `CLAUDE.md`.
+
 ## Review Focus
 
 1. **Sólido trocado por um celular sem WebGL** depois de já ter miniatura: a miniatura antiga tem de sumir (C6), senão o
