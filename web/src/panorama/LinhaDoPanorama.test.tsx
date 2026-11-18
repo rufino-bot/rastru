@@ -46,7 +46,31 @@ describe('LinhaDoPanorama', () => {
     } })
 
     expect(within(l).getByText('Atrasado').className.split(/\s+/)).toContain('text-atraso-texto')
-    expect(within(l).getByText('Pausado: alteração de projeto').className.split(/\s+/)).toContain('text-atencao-texto')
+    expect(within(l).getByText('Pausado').className.split(/\s+/)).toContain('text-atencao-texto')
+  })
+
+  it('o motivo da pausa fica fora da pílula, neutro, em duas linhas e inteiro no title', () => {
+    const base = pecaDeTeste()
+    const motivo = 'alteração de projeto pedida pelo cliente depois da liberação do desenho para a fábrica'
+    const l = linha({ ...base, pedido: {
+      ...base.pedido, pausa: { desde: 'x', porUsuarioNome: 'u', motivo },
+    } })
+
+    const texto = within(l).getByText(motivo)
+    const classes = texto.className.split(/\s+/)
+    expect(texto.getAttribute('title')).toBe(motivo)
+    expect(classes).toContain('line-clamp-2')
+    expect(classes).toContain('text-tinta-fraca')
+    expect(classes.some((c) => /atencao|atraso|positivo|negativo/.test(c))).toBe(false)
+    expect(within(l).getByText('Pausado').textContent).toBe('Pausado')
+  })
+
+  it('pausa sem motivo é só a pílula', () => {
+    const base = pecaDeTeste()
+    const l = linha({ ...base, pedido: { ...base.pedido, pausa: { desde: 'x', porUsuarioNome: 'u', motivo: null } } })
+
+    expect(within(l).getByText('Pausado')).toBeTruthy()
+    expect(l.querySelector('[title]')).toBeNull()
   })
 
   it('sem atraso nem pausa não há pílula de prazo', () => {
