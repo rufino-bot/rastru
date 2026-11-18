@@ -1,6 +1,6 @@
 import type { PecaDoPanoramaDto } from '../api/panorama'
 
-export type ColunaDoPanorama = 'pedido' |'codigo' | 'descricao' | 'qtd' | 'prazo'
+export type ColunaDoPanorama = 'pedido' | 'codigo' | 'descricao' | 'qtd' | 'prazo'
 
 /** `null` é a ordem original, a do servidor. */
 export type OrdemDoPanorama = { coluna: ColunaDoPanorama; direcao: 'asc' | 'desc' } | null

@@ -356,4 +356,6 @@ Fase 6 não foi dita. A renomeação do push não entra nesta edição.
 - Marca de atenção por Peça (seção 7).
 - Exportar o Panorama para planilha.
 
-**Emenda de 2026-11-18 (conferência no navegador).** A coluna "OS" virou "Pedido" (D7, C4, C10, C11 e C14): a OS pode ser numeração interna da fábrica, que não bate com o número do Pedido do Rastru. A chave da ordem passou de `os` para `pedido` (`?ordem=pedido-asc`); o antigo `?ordem=os-asc` vale a ordem da tela, como qualquer valor desconhecido. Na mesma conferência, o cabeçalho da tabela passou a ficar fixo no topo da janela.
+## 11. Emendas da conferência (2026-11-18)
+
+**Emenda de 2026-11-18 (conferência no navegador).** A coluna "OS" virou "Pedido" (D7, C4, C10, C11 e C14): a OS pode ser numeração interna da fábrica, que não bate com o número do Pedido do Rastru. A chave da ordem passou de `os` para `pedido` (`?ordem=pedido-asc`); o antigo `?ordem=os-asc` vale a ordem da tela, como qualquer valor desconhecido. Na mesma conferência, o usuário pediu que o cabeçalho da tabela ficasse fixo ao rolar, o que esta spec não registrava até esta emenda (o código já faz).
