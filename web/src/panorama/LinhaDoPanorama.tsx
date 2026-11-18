@@ -9,7 +9,7 @@ import { AfericaoDaPeca, PrazoDaPeca } from './pilulasDaPeca'
 
 interface Props {
   peca: PecaDoPanoramaDto
-  aoGravar: () => void
+  aoGravar: () => Promise<void>
 }
 
 /** Uma Peça na tabela do Panorama, com as colunas de C4. A tela escreve o `<thead>`. */

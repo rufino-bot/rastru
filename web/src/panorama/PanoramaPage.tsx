@@ -154,7 +154,7 @@ export function PanoramaPage() {
               <thead className="sticky top-0 z-10 bg-fundo">
                 <tr className="border-b border-borda">
                   <th scope="col" className={CLASSES_DE_COLUNA}>Desenho</th>
-                  <CabecalhoOrdenavel coluna="pedido" rotulo="Pedido"ordem={ordem} aoMudar={mudarOrdem} />
+                  <CabecalhoOrdenavel coluna="pedido" rotulo="Pedido" ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="codigo" rotulo="Código" ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="descricao" rotulo="Descrição" ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="qtd" rotulo="Qtd" ordem={ordem} aoMudar={mudarOrdem} />
@@ -166,14 +166,14 @@ export function PanoramaPage() {
               </thead>
               <tbody>
                 {visiveis.map((peca) => (
-                  <LinhaDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={() => { void recarregar() }} />
+                  <LinhaDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={recarregar} />
                 ))}
               </tbody>
             </table>
           </div>
           <ul aria-label="Peças em aberto" className="flex flex-col gap-3 lg:hidden">
             {visiveis.map((peca) => (
-              <CartaoDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={() => { void recarregar() }} />
+              <CartaoDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={recarregar} />
             ))}
           </ul>
         </>

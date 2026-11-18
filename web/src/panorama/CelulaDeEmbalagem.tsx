@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { formatarData, formatarDataHora } from '../api/cadastros'
 import { mensagemDeErro } from '../api/erros'
+import { ehConflito } from '../api/execucao'
 import { registrarEmbalagem, type PecaDoPanoramaDto } from '../api/panorama'
 import { CampoDeCaixa } from '../components/CampoDeCaixa'
 import { Pilula } from '../components/Pilula'
@@ -10,10 +11,11 @@ import { usePermissoesDaEmbalagem } from './usePermissoesDaEmbalagem'
 interface Props {
   peca: PecaDoPanoramaDto
   /**
-   * Chamado depois que a escrita dá certo: a tela recarrega. Na recusa, a mensagem aparece ao lado da caixa e a
-   * tela não recarrega (a recarga periódica da página cobre a tela velha).
+   * Recarrega a tela e resolve quando os dados novos chegaram. Chamado depois que a escrita dá certo e também no
+   * 409 (a tela estava velha), como o `useEscritaDoPainel`; é aguardado, e a caixa fica travada até lá. Nas outras
+   * recusas a mensagem aparece ao lado da caixa e a tela não recarrega.
    */
-  aoGravar: () => void
+  aoGravar: () => Promise<void>
 }
 
 /**
@@ -29,6 +31,9 @@ export function CelulaDeEmbalagem({ peca, aoGravar }: Props) {
   const [erro, setErro] = useState<string | null>(null)
   const enviandoRef = useRef(false)
 
+  // A mensagem nasceu de uma tela velha: quando a Peça chega com outra embalagem, ela não vale mais.
+  useEffect(() => { setErro(null) }, [vale, ultima?.dataHora])
+
   async function gravar(embalado: boolean) {
     if (enviandoRef.current) return
     enviandoRef.current = true
@@ -36,9 +41,10 @@ export function CelulaDeEmbalagem({ peca, aoGravar }: Props) {
     setErro(null)
     try {
       await registrarEmbalagem(peca.estruturaItemId, embalado)
-      aoGravar()
+      await aoGravar()
     } catch (falha) {
       setErro(mensagemDeErro(falha, 'Não foi possível gravar o "Embalado".'))
+      if (ehConflito(falha)) await aoGravar()
     } finally {
       enviandoRef.current = false
       setEnviando(false)

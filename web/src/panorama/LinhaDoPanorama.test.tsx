@@ -19,7 +19,7 @@ afterEach(cleanup)
 function linha(peca = pecaDeTeste()) {
   render(
     <MemoryRouter>
-      <table><tbody><LinhaDoPanorama peca={peca} aoGravar={() => {}} /></tbody></table>
+      <table><tbody><LinhaDoPanorama peca={peca} aoGravar={async () => {}} /></tbody></table>
     </MemoryRouter>,
   )
   return screen.getByRole('row')

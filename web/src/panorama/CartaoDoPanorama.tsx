@@ -9,7 +9,7 @@ import { AfericaoDaPeca, PrazoDaPeca } from './pilulasDaPeca'
 
 interface Props {
   peca: PecaDoPanoramaDto
-  aoGravar: () => void
+  aoGravar: () => Promise<void>
 }
 
 /** A mesma Peça da `LinhaDoPanorama`, num cartão, para abaixo de `lg` (C14). */

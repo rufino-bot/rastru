@@ -26,7 +26,7 @@ describe('CartaoDoPanorama', () => {
     render(
       <MemoryRouter>
         <ul>
-          <CartaoDoPanorama aoGravar={() => {}} peca={{
+          <CartaoDoPanorama aoGravar={async () => {}} peca={{
             ...base, pedido: { ...base.pedido, atrasado: true, pausa: { desde: 'x', porUsuarioNome: 'u', motivo: 'projeto' } },
           }} />
         </ul>
