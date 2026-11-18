@@ -64,6 +64,25 @@ que o que sobrou não é a coluna).
 - [ ] Implementar; mutação registrada (tirar o `sticky` → teste vermelho).
 - [ ] Suíte inteira do front e `npm run build`. Commit `fix(panorama): cabecalho fixo da tabela e Pedido no lugar de OS`.
 
+### Task A3: o motivo da pausa fora da pílula (F5)
+
+**O achado (2026-11-18, ao olhar os ajustes A1 e A2).** A pílula âmbar "Pausado: {motivo}" do `PrazoDaPeca`
+(`web/src/panorama/pilulasDaPeca.tsx`) vira um balão de várias linhas quando o motivo é comprido. As outras telas (Fila,
+Tarefas, Separação, Expedição, Pedido) mostram só "Pausado" na pílula.
+
+**Decisão do usuário (2026-11-18), a recomendação do controlador:** a pílula `atencao` diz só **"Pausado"**; o motivo,
+quando houver, vem logo abaixo dela, em texto pequeno e **neutro** (`text-sm text-tinta-fraca`), cortado em **2 linhas**
+(`line-clamp-2`), com o motivo inteiro no `title` do elemento. Vale para a linha e o cartão (os dois usam o
+`PrazoDaPeca`). Sem motivo, só a pílula.
+
+- [ ] Testes que falham: a pílula diz exatamente "Pausado" (com o tom `atencao`); o motivo aparece fora da pílula, com
+  `line-clamp-2` e `title` igual ao motivo; o motivo não usa cor de estado; sem motivo não há o texto.
+- [ ] Implementar; mutação registrada (devolver o motivo para dentro da pílula → teste vermelho).
+- [ ] Prosa: na spec do Panorama, a seção "11. Emendas da conferência (2026-11-18)" ganha uma frase sobre a pausa (C7
+  continua verdadeiro: o motivo é mostrado, agora fora da pílula); no plano do Panorama, a descrição da coluna Prazo na
+  Task 8 ("Pausado: {motivo}") ganha a nota da emenda.
+- [ ] Suíte inteira do front e `npm run build`. Commit `fix(panorama): o motivo da pausa fora da pilula, em duas linhas`.
+
 ---
 
 ## Depois das tasks
