@@ -29,7 +29,7 @@ export function CartaoDoPanorama({ peca, aoGravar }: Props) {
             {componente.codigo}
           </Link>
           <span className="text-sm text-tinta">{componente.descricao}</span>
-          <span className="text-sm text-tinta-fraca">{`OS ${pedido.numero} · Qtd ${formatarQuantidade(peca.quantidade)}`}</span>
+          <span className="text-sm text-tinta-fraca">{`Pedido ${pedido.numero} · Qtd ${formatarQuantidade(peca.quantidade)}`}</span>
         </div>
       </div>
       <div className="text-sm"><PrazoDaPeca pedido={pedido} /></div>

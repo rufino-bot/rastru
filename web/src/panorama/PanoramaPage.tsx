@@ -25,8 +25,8 @@ const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<string>[] = [
   { valor: ORIGINAL, rotulo: 'Ordem da tela' },
   { valor: 'prazo-asc', rotulo: 'Prazo (mais próximo)' },
   { valor: 'prazo-desc', rotulo: 'Prazo (mais distante)' },
-  { valor: 'os-asc', rotulo: 'OS (crescente)' },
-  { valor: 'os-desc', rotulo: 'OS (decrescente)' },
+  { valor: 'pedido-asc', rotulo: 'Pedido (crescente)' },
+  { valor: 'pedido-desc', rotulo: 'Pedido (decrescente)' },
   { valor: 'codigo-asc', rotulo: 'Código (A→Z)' },
   { valor: 'codigo-desc', rotulo: 'Código (Z→A)' },
   { valor: 'descricao-asc', rotulo: 'Descrição (A→Z)' },
@@ -42,7 +42,7 @@ function horaDe(momento: Date): string {
 }
 
 /**
- * `/panorama` — toda Peça em aberto, uma por linha: Desenho, OS, código, descrição, quantidade, prazo, onde está,
+ * `/panorama` — toda Peça em aberto, uma por linha: Desenho, Pedido, código, descrição, quantidade, prazo, onde está,
  * aferição e "Embalado". Tabela a partir de `lg`, cartões abaixo, com o mesmo dado e o mesmo filtro.
  *
  * A lista chega inteira, na ordem do servidor, e tudo se aplica no cliente: as facetas (`FiltroDeDemanda`), a
@@ -144,12 +144,17 @@ export function PanoramaPage() {
       )}
       {visiveis.length > 0 && (
         <>
-          <div className="hidden overflow-x-auto lg:block">
+          {/*
+            Sem `overflow` aqui, de propósito: um ancestral com `overflow` vira o contêiner do `sticky` e o prende a
+            ele, e o cabeçalho deixaria de acompanhar a rolagem da página. A largura vem da `Pagina` ampla. O fundo
+            é o da página, para as linhas não aparecerem por baixo, e o `z-10` fica acima da miniatura e das pílulas.
+          */}
+          <div className="hidden lg:block">
             <table className="w-full border-collapse text-left">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-fundo">
                 <tr className="border-b border-borda">
                   <th scope="col" className={CLASSES_DE_COLUNA}>Desenho</th>
-                  <CabecalhoOrdenavel coluna="os" rotulo="OS" ordem={ordem} aoMudar={mudarOrdem} />
+                  <CabecalhoOrdenavel coluna="pedido" rotulo="Pedido"ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="codigo" rotulo="Código" ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="descricao" rotulo="Descrição" ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="qtd" rotulo="Qtd" ordem={ordem} aoMudar={mudarOrdem} />

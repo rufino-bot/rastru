@@ -133,6 +133,24 @@ describe('PanoramaPage — os três estados', () => {
   })
 })
 
+describe('PanoramaPage — cabeçalho fixo', () => {
+  it('o thead fica fixo no topo, com fundo e z-index, e nenhum ancestral da tabela rola na horizontal', async () => {
+    vi.stubGlobal('fetch', fetchPorRota(rotas(TRES)))
+    renderizar()
+    await screen.findByRole('table')
+
+    // jsdom não calcula layout: o que se afirma são as classes, e a posição fixa é medida no navegador.
+    const thead = tabela().querySelector('thead') as HTMLElement
+    for (const classe of ['sticky', 'top-0', 'z-10', 'bg-fundo']) {
+      expect(thead.classList.contains(classe), classe).toBe(true)
+    }
+    // Um ancestral com overflow vira o contêiner do sticky e o prende a ele em vez de à janela.
+    for (let no = tabela().parentElement; no && no !== document.body; no = no.parentElement) {
+      expect(no.className, no.className).not.toMatch(/overflow-/)
+    }
+  })
+})
+
 describe('PanoramaPage — ordem', () => {
   it('a ordem original é a que o servidor mandou, e não escreve nada na URL', async () => {
     vi.stubGlobal('fetch', fetchPorRota(rotas(TRES)))
@@ -173,7 +191,7 @@ describe('PanoramaPage — ordem', () => {
     await screen.findByRole('table')
     const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
     expect([...seletor.options].map((o) => o.textContent)).toEqual([
-      'Ordem da tela', 'Prazo (mais próximo)', 'Prazo (mais distante)', 'OS (crescente)', 'OS (decrescente)',
+      'Ordem da tela', 'Prazo (mais próximo)', 'Prazo (mais distante)', 'Pedido (crescente)', 'Pedido (decrescente)',
       'Código (A→Z)', 'Código (Z→A)', 'Descrição (A→Z)', 'Descrição (Z→A)', 'Qtd (maior)', 'Qtd (menor)',
     ])
 
@@ -189,6 +207,41 @@ describe('PanoramaPage — ordem', () => {
 
     expect(codigosDaTabela()).toEqual(['B-02', 'C-03', 'A-01'])
     expect(urlAtual()).toBe('')
+  })
+
+  it('o cabeçalho "Pedido" ordena pelo número do Pedido, e não pelo texto', async () => {
+    vi.stubGlobal('fetch', fetchPorRota(rotas([
+      peca(1, 'B-02', {}, '2026-11-20', '10'),
+      peca(2, 'C-03', {}, '2026-11-20', '9'),
+      peca(3, 'A-01', {}, '2026-11-20', '100'),
+    ])))
+    renderizar()
+    await screen.findByRole('table')
+
+    fireEvent.click(within(tabela()).getByRole('button', { name: 'Pedido' }))
+
+    expect(codigosDaTabela()).toEqual(['C-03', 'B-02', 'A-01'])
+    expect(cabecalho('Pedido').getAttribute('aria-sort')).toBe('ascending')
+    expect(urlAtual()).toBe('?ordem=pedido-asc')
+  })
+
+  it('?ordem=pedido-desc mantém a ordem, e o antigo ?ordem=os-asc cai na original', async () => {
+    const lista = [
+      peca(1, 'B-02', {}, '2026-11-20', '10'),
+      peca(2, 'C-03', {}, '2026-11-20', '9'),
+      peca(3, 'A-01', {}, '2026-11-20', '100'),
+    ]
+    vi.stubGlobal('fetch', fetchPorRota(rotas(lista)))
+
+    renderizar('/panorama?ordem=pedido-desc')
+    await screen.findByRole('table')
+    expect(codigosDaTabela()).toEqual(['A-01', 'B-02', 'C-03'])
+    expect(cabecalho('Pedido').getAttribute('aria-sort')).toBe('descending')
+
+    cleanup()
+    renderizar('/panorama?ordem=os-asc')
+    await screen.findByRole('table')
+    expect(codigosDaTabela()).toEqual(['B-02', 'C-03', 'A-01'])
   })
 
   it('uma ordem desconhecida na URL vale a original', async () => {

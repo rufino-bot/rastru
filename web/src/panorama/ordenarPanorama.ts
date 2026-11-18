@@ -1,15 +1,15 @@
 import type { PecaDoPanoramaDto } from '../api/panorama'
 
-export type ColunaDoPanorama = 'os' | 'codigo' | 'descricao' | 'qtd' | 'prazo'
+export type ColunaDoPanorama = 'pedido' |'codigo' | 'descricao' | 'qtd' | 'prazo'
 
 /** `null` é a ordem original, a do servidor. */
 export type OrdemDoPanorama = { coluna: ColunaDoPanorama; direcao: 'asc' | 'desc' } | null
 
-const COLUNAS: readonly ColunaDoPanorama[] = ['os', 'codigo', 'descricao', 'qtd', 'prazo']
+const COLUNAS: readonly ColunaDoPanorama[] = ['pedido', 'codigo', 'descricao', 'qtd', 'prazo']
 
 const comparar = (coluna: ColunaDoPanorama, a: PecaDoPanoramaDto, b: PecaDoPanoramaDto): number => {
   switch (coluna) {
-    case 'os': return a.pedido.numero.localeCompare(b.pedido.numero, 'pt-BR', { numeric: true })
+    case 'pedido': return a.pedido.numero.localeCompare(b.pedido.numero, 'pt-BR', { numeric: true })
     case 'codigo': return a.componente.codigo.localeCompare(b.componente.codigo, 'pt-BR', { numeric: true })
     case 'descricao': return a.componente.descricao.localeCompare(b.componente.descricao, 'pt-BR')
     case 'qtd': return a.quantidade - b.quantidade

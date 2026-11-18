@@ -35,7 +35,7 @@ describe('CartaoDoPanorama', () => {
 
     expect(screen.getByRole('link', { name: 'SUP-01' }).getAttribute('href')).toBe('/agrupamentos/4')
     expect(screen.getByText('Suporte lateral')).toBeTruthy()
-    expect(screen.getByText('OS 293 · Qtd 5')).toBeTruthy()
+    expect(screen.getByText('Pedido 293 · Qtd 5')).toBeTruthy()
     expect(screen.getByText('20/11/2026')).toBeTruthy()
     expect(screen.getByText('Atrasado')).toBeTruthy()
     expect(screen.getByText('Pausado: projeto')).toBeTruthy()

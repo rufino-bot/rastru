@@ -711,7 +711,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   recebe a `coluna`, o `rotulo` e a `ordem` atual (de qualquer coluna, ou `null`), devolve a próxima por
   `aoMudar`, e não ordena nada nem sabe de URL. O `<button>` é **da primitiva**, como o da `Botao`, e **não** é
   exceção de "botão de chrome" (ver o bullet dela, com a recontagem de 2026-11-17). Só leva a primitiva a coluna
-  em que ordenar faz sentido (no Panorama, OS, Código, Descrição, Qtd e Prazo; Desenho, Onde está, Aferição e
+  em que ordenar faz sentido (no Panorama, Pedido, Código, Descrição, Qtd e Prazo; Desenho, Onde está, Aferição e
   Embalado são `<th>` simples). Um consumidor, a `PanoramaPage`, com **5 linhas** de uso (medido em 2026-11-17 com
   `grep -rn "<CabecalhoOrdenavel" web/src --include=*.tsx | grep -v "\.test\."`; a métrica é **linhas**, uma por coluna).
 - **Filtrar por intervalo de datas usa `IntervaloDeDatas`** (`web/src/components/`, com teste próprio), C12 da

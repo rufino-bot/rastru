@@ -25,7 +25,7 @@ describe('ordenarPanorama', () => {
   })
 
   const casos: [ColunaDoPanorama, PecaDoPanoramaDto[], number[]][] = [
-    ['os', [peca(1, { os: '10' }), peca(2, { os: '9' }), peca(3, { os: '100' })], [2, 1, 3]],
+    ['pedido', [peca(1, { os: '10' }), peca(2, { os: '9' }), peca(3, { os: '100' })], [2, 1, 3]],
     ['codigo', [peca(1, { codigo: 'B-10' }), peca(2, { codigo: 'B-9' }), peca(3, { codigo: 'A-1' })], [3, 2, 1]],
     ['descricao', [peca(1, { descricao: 'Zinco' }), peca(2, { descricao: 'árvore' }), peca(3, { descricao: 'Barra' })], [2, 3, 1]],
     ['qtd', [peca(1, { qtd: 10 }), peca(2, { qtd: 2 }), peca(3, { qtd: 5 })], [2, 3, 1]],
