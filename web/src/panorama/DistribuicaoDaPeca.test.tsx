@@ -17,7 +17,7 @@ describe('DistribuicaoDaPeca', () => {
       seg('Expedicao', 4),
     ]} />)
 
-    expect(textos()).toEqual(['2 a iniciar', '3 Solda', '1 em conserto na Solda', '4 Expedição'])
+    expect(textos()).toEqual(['2 a iniciar', '3 Solda', '1 em conserto (Solda)', '4 Expedição'])
   })
 
   it('o aguardando coleta fica dentro do segmento do passo', () => {

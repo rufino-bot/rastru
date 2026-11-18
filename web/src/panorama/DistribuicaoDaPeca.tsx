@@ -19,7 +19,7 @@ function textoDoSegmento(s: SegmentoDto): string {
       const base = `${q} ${s.setorNome}`
       return s.aguardandoColeta > 0 ? `${base}, ${formatarQuantidade(s.aguardandoColeta)} aguardando coleta` : base
     }
-    case 'Conserto': return `${q} em conserto na ${s.setorNome}`
+    case 'Conserto': return `${q} em conserto (${s.setorNome})`
     case 'Expedicao': return `${q} Expedição`
     case 'Expedido': return quantidadeConcordada(s.quantidade, 'expedida', 'expedidas')
     case 'Perdido': return quantidadeConcordada(s.quantidade, 'baixada', 'baixadas')

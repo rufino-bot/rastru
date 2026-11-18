@@ -20,7 +20,7 @@ export function CampoDeCaixa({ marcado, aoMudar, desabilitado = false, dica, chi
   const idDaDica = useId()
   return (
     <div className="flex flex-col gap-1">
-      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-tinta">
+      <label className={`flex min-h-11 items-center gap-2 text-sm text-tinta ${desabilitado ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
         <input
           type="checkbox"
           checked={marcado}
