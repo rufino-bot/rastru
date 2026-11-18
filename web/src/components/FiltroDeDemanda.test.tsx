@@ -5,6 +5,7 @@ import {
   casaComFiltro,
   contarFiltrosAtivos,
   FiltroDeDemanda,
+  LIMITE_DA_LISTA_CURTA_NA_FACETA,
   ROTULO_DE_OPCAO_AUSENTE,
   type Faceta,
 } from './FiltroDeDemanda'
@@ -227,6 +228,82 @@ describe('FiltroDeDemanda', () => {
     fireEvent.change(busca, { target: { value: 'CHAPA' } })
     expect(within(grupo).getAllByRole('checkbox')).toHaveLength(1)
     expect(within(grupo).getByRole('checkbox', { name: 'Chapa fina' })).toBeTruthy()
+  })
+
+  describe('faceta longa', () => {
+    const opcoes = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ valor: String(i + 1), rotulo: `Pedido ${i + 1}` }))
+    const grupoPedido = () => screen.getByRole('group', { name: 'Pedido' })
+
+    it('sem busca nem marcacao mostra so as primeiras e o botao de mostrar todos', () => {
+      render(<FiltroDeDemanda facetas={facetas({ pedido: opcoes(12) })} selecao={{}} aoMudar={vi.fn()} />)
+      abrir()
+      const grupo = grupoPedido()
+      expect(within(grupo).getAllByRole('checkbox')).toHaveLength(LIMITE_DA_LISTA_CURTA_NA_FACETA)
+      expect(LIMITE_DA_LISTA_CURTA_NA_FACETA).toBe(5)
+      expect(within(grupo).getByRole('button', { name: 'Mostrar todos os 12' })).toBeTruthy()
+    })
+
+    it('as marcadas fora das primeiras continuam a vista', () => {
+      render(
+        <FiltroDeDemanda facetas={facetas({ pedido: opcoes(12) })} selecao={{ pedido: ['9', '11'] }} aoMudar={vi.fn()} />,
+      )
+      abrir()
+      const grupo = grupoPedido()
+      expect(within(grupo).getAllByRole('checkbox')).toHaveLength(7)
+      expect(within(grupo).getByRole('checkbox', { name: 'Pedido 9' })).toBeTruthy()
+      expect(within(grupo).getByRole('checkbox', { name: 'Pedido 11' })).toBeTruthy()
+    })
+
+    it('marcada entre as primeiras nao conta duas vezes', () => {
+      render(
+        <FiltroDeDemanda facetas={facetas({ pedido: opcoes(12) })} selecao={{ pedido: ['2'] }} aoMudar={vi.fn()} />,
+      )
+      abrir()
+      expect(within(grupoPedido()).getAllByRole('checkbox')).toHaveLength(5)
+    })
+
+    it('mostrar todos lista tudo e vira mostrar menos', () => {
+      render(<FiltroDeDemanda facetas={facetas({ pedido: opcoes(12) })} selecao={{}} aoMudar={vi.fn()} />)
+      abrir()
+      const grupo = grupoPedido()
+      const botao = within(grupo).getByRole('button', { name: 'Mostrar todos os 12' })
+      expect(botao.getAttribute('aria-expanded')).toBe('false')
+      fireEvent.click(botao)
+      expect(within(grupo).getAllByRole('checkbox')).toHaveLength(12)
+      const menos = within(grupo).getByRole('button', { name: 'Mostrar menos' })
+      expect(menos.getAttribute('aria-expanded')).toBe('true')
+      fireEvent.click(menos)
+      expect(within(grupo).getAllByRole('checkbox')).toHaveLength(5)
+    })
+
+    it('busca digitada mostra a filtrada inteira e some com o botao', () => {
+      render(<FiltroDeDemanda facetas={facetas({ pedido: opcoes(12) })} selecao={{}} aoMudar={vi.fn()} />)
+      abrir()
+      const grupo = grupoPedido()
+      fireEvent.change(within(grupo).getByRole('searchbox', { name: 'Buscar em Pedido' }), {
+        target: { value: 'Pedido 1' },
+      })
+      // Pedido 1, 10, 11 e 12: a busca acha as que a lista curta escondia.
+      expect(within(grupo).getAllByRole('checkbox')).toHaveLength(4)
+      expect(within(grupo).queryByRole('button', { name: /Mostrar/ })).toBeNull()
+    })
+
+    it('faceta com ate o limite da busca mostra tudo, sem botao', () => {
+      render(<FiltroDeDemanda facetas={facetas({ pedido: opcoes(8) })} selecao={{}} aoMudar={vi.fn()} />)
+      abrir()
+      const grupo = grupoPedido()
+      expect(within(grupo).getAllByRole('checkbox')).toHaveLength(8)
+      expect(within(grupo).queryByRole('button', { name: /Mostrar/ })).toBeNull()
+    })
+
+    it('o botao nao usa cor de estado', () => {
+      const { container } = render(
+        <FiltroDeDemanda facetas={facetas({ pedido: opcoes(12) })} selecao={{}} aoMudar={vi.fn()} />,
+      )
+      abrir()
+      expect(container.innerHTML).not.toMatch(/positivo|negativo|atencao|atraso/)
+    })
   })
 
   it('pilula de filtro nao usa cor de estado', () => {

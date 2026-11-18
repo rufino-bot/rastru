@@ -648,7 +648,9 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   da faceta, E entre facetas, faceta vazia não restringe; nenhuma página a reescreve) ou **no
   servidor** (a `PedidosPage`, cujos filtros vão como parâmetros de `GET /pedidos` por
   `useBuscaPaginada`). O componente é controlado: recebe `facetas` e `selecao` e devolve a seleção
-  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **seis** telas consumidoras, cada uma
+  por `aoMudar`; não busca nada e não sabe de URL. A faceta com mais de `LIMITE_PARA_BUSCA_NA_FACETA` opções,
+  sem busca digitada, mostra só as marcadas e as `LIMITE_DA_LISTA_CURTA_NA_FACETA` (5) primeiras, com o `Botao`
+  "Mostrar todos os {N}" / "Mostrar menos"; com busca digitada a lista é a filtrada inteira. Hoje tem **seis** telas consumidoras, cada uma
   com um uso (medido em 2026-09-29 com
   `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`, com três, remedido em
   2026-10-17 com o mesmo comando: quatro linhas, uma por tela, porque a `SeparacaoPage` entrou, de novo em
