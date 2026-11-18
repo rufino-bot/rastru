@@ -1525,8 +1525,11 @@ autenticado, sem `Roles` (C16). Um controller só, `PanoramaController`, no cont
 
 - `GET /panorama` — `PanoramaDto`: toda Peça (nó sem pai) de Pedido **não encerrado** (nem `Concluido` nem `Cancelado`,
   inclusive `Aberto` que ninguém começou e Retrabalho) que ainda tenha unidade nem expedida nem baixada (C2). Chega
-  **inteira**, na ordem de C9 (`dataEntrega` do Pedido, `numero` do Pedido, código do Componente, `id` do nó, as três
-  comparações de texto ordinais), e a tela filtra e ordena no cliente. Item não tem linha. A leitura é em lote: os
+  **inteira**, na ordem de C9 (`dataEntrega` do Pedido, `numero` do Pedido, código do Componente, `id` do nó, as duas
+  comparações de texto ordinais, o número e o código), e a tela filtra e ordena no cliente. **A ordem original compara o
+  número do Pedido e o código como texto ordinal**, como as outras listas do servidor (o Pedido "1000" vem antes do
+  "293"), enquanto o cabeçalho "Pedido" da tela ordena **numericamente**; no empate de prazo as duas podem divergir, e
+  é deliberado (decisão de 2026-11-18, na review de branch). Item não tem linha. A leitura é em lote: os
   saldos de todas as Peças e dos descendentes delas, as aferições, as últimas linhas da embalagem, os nomes e as
   versões das miniaturas saem de uma consulta cada, nunca uma por Peça.
 

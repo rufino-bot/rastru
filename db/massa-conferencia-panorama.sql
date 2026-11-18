@@ -14,7 +14,8 @@
 --
 --   CONF-PAN-PAUSA (EmProducao, com pausa aberta, motivo "Alteração de projeto"):
 --       CH-2110  Peca, 6      Roteiro: Corte(1)
---       ANTES: "2 a iniciar · 3 Corte, 1 aguardando coleta", pilula "Pausado: Alteração de projeto" (ambar).
+--       ANTES: "2 a iniciar · 3 Corte, 1 aguardando coleta", pilula "Pausado" (ambar), com o motivo
+--       "Alteração de projeto" logo abaixo, em texto pequeno, fora da pilula.
 --       A pausa e do Pedido inteiro. O Pedido nao e atrasado.
 --
 --   CONF-PAN-EXP (AguardandoExpedicao): duas Pecas prontas para o "Embalado", ambas no Roteiro Corte(1).
