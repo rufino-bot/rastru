@@ -921,9 +921,17 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   A `SecaoOndeEstaTravando` ("Onde está travando") fica na `PedidoDetalhePage` entre o cabeçalho e os Agrupamentos, só com o
   Pedido fora de `Concluido` e `Cancelado`, e recarrega pela mesma `versaoDoSaldo` das baixas e das reclamações. Tem os três
   estados (carregando, erro com "Tentar de novo" e "Nada parado neste Pedido.") e os três números em cartões ("Aberto há",
-  "Esperou para começar" ou "Ainda não começou", "Em produção há" com "dos quais … pausado"). A `TrilhaDoNo` é recursiva: um
-  `<ol>` de blocos na ordem do servidor (`Atual` com quantidade, idade e "coleta {q} · há N"; `Passado` com "passou · {duração}
-  no Setor"; `Futuro` tracejado, "ainda não chegou"), as complicações em texto abaixo e os Itens numa `ListaRecolhivel`
+  "Esperou para começar" ou "Ainda não começou", "Em produção há" com "dos quais … pausado"). A `TrilhaDoNo` é recursiva e recebe o `nivel` (`Peca` no topo, `Item` na recursão): o título é
+  `{código} · {descrição} · {Peça|Item} · qtd {q}`, com o código em `font-mono` e o resto em `text-tinta-fraca`. De `md` para
+  cima, a `LinhaDoRoteiro` (um ponto por bloco `Passo` e a Expedição por último, na largura inteira do cartão, cada ponto `flex-1`;
+  `Passado` cheio `bg-tinta-fraca`, `Atual` cheio `bg-tinta` com anel, `Futuro` vazio com `border-borda-campo`; sem passo não há linha),
+  e embaixo a lista "Onde está agora" (um item por bloco `Atual`, com o texto de `textoDoBloco`) e, numa linha, "Já passaram: …"
+  com a permanência de cada passo. **O rótulo do ponto vai pela largura dele**, por container query (`@container` no `<li>`): com
+  7 rem ou mais, o nome do Setor; abaixo disso, o número e o nome; abaixo de 4,5 rem, só o número, e o ponto `Atual` mantém o
+  nome; o nome inteiro está sempre no `aria-label` e no `title`. Montagem, conserto e "a iniciar" **não** viram ponto: só aparecem
+  na lista. Abaixo de `md` há uma lista vertical única (`gruposDoCelular`: passados consecutivos numa linha, cada `Atual` com o
+  detalhe e futuros consecutivos numa linha), e as duas formas ficam no DOM, com o CSS escondendo uma. Depois vêm as complicações
+  em texto e os Itens numa `ListaRecolhivel`
   "Itens (N)" que abre sozinha (`temAcao`) quando o `maisParado` está entre eles (C10). A idade vem do `agora` do servidor,
   por `idadeDesde` e `duracaoLegivel` de `web/src/panorama/idade.ts` (a duração do servidor vem em segundos, e a função pede
   milissegundos); a tela nunca usa `Date.now()` (C12). **A regra de cor** (C9): nada da seção usa `positivo`, `negativo`,

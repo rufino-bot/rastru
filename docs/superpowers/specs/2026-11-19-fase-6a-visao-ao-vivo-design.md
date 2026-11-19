@@ -279,3 +279,9 @@ parada (seria da 3C); idade por usuário (seção 1.2).
   `CacheDasIdades` (singleton) guarda as linhas por nó e o maior `Id` lido; a cada chamada lê só as linhas novas,
   relendo as últimas 1.000 posições de `Id` para pegar o commit fora de ordem, e refaz o pareamento só dos nós
   tocados. A cada 10 min ele lê tudo de novo. Sai o `IMemoryCache`.
+- **F1 — a trilha vira uma linha do Roteiro.** O usuário achou o cartão de blocos poluído e escolheu, entre três
+  desenhos, a linha do Roteiro: um ponto por passo e a Expedição por último, ocupando sempre a largura do cartão, com o
+  rótulo encolhendo pela largura de cada ponto (nome, número e nome, só número; o ponto atual mantém o nome), e embaixo
+  só o que tem peça agora, por extenso, com os passos já passados numa linha. No celular, vertical, com passados e
+  futuros consecutivos agrupados. Montagem e conserto continuam blocos da trilha (C10), mas aparecem só na lista, não
+  na linha. A borda tracejada do passo futuro de C10 vira o ponto vazio.

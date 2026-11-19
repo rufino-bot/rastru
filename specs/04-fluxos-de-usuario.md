@@ -628,10 +628,12 @@ qualquer perfil autenticado; os itens abaixo são da 6B (histórico), de Gestão
 2. Três números: **"Aberto há …"**, **"Esperou para começar …"** (ou "Ainda não começou", antes da primeira produção) e
    **"Em produção há …"**, com "dos quais … pausado" quando o Pedido ficou pausado depois de começar. As durações seguem o
    formato "menos de 1 h", "N h", "N d".
-3. Para cada Peça em aberto, a **trilha** do Roteiro: um bloco por passo (e o "a iniciar", a montagem, o conserto e a
-   expedição onde houver). O bloco onde há quantidade mostra quanto e há quanto tempo (e a coleta, quando há); o que já
-   passou mostra "passou · … no Setor"; o que ainda não chegou fica tracejado, "ainda não chegou". O bloco **mais parado** do
-   Pedido ganha uma borda mais grossa e o texto "mais parado". Nada disso usa cor de estado.
+3. Para cada Peça em aberto, a **trilha** do Roteiro: uma linha com um ponto por passo e a Expedição por último (cheio onde
+   já passou, com anel onde há peça agora, vazio onde ainda não chegou), e embaixo, por extenso, só o que tem peça agora
+   (quantidade, há quanto tempo e a coleta, quando há; o "a iniciar", a montagem e o conserto aparecem só aqui) e, numa
+   linha, "Já passaram: …" com o tempo em cada Setor. No celular a trilha é uma lista vertical, com os passos já passados e
+   os que ainda não chegaram agrupados. O bloco **mais parado** do Pedido ganha uma borda mais grossa e o texto "mais
+   parado". Nada disso usa cor de estado.
 4. Os Itens da Peça ficam numa lista "Itens (N)", recolhida, que abre sozinha quando o mais parado está entre eles. As
    complicações da Peça e dos descendentes aparecem em texto abaixo da trilha.
 5. Sem nenhuma Peça em aberto, a seção diz "Nada parado neste Pedido.".

@@ -77,7 +77,7 @@ export function SecaoOndeEstaTravando({ pedidoId, versao }: Props) {
             <div className="flex flex-col gap-4">
               {dados.pecas.map((p) => (
                 <div key={p.estruturaItemId} className="rounded-lg border border-borda bg-superficie p-3">
-                  <TrilhaDoNo no={p} agora={dados.agora} maisParado={dados.maisParado} />
+                  <TrilhaDoNo no={p} agora={dados.agora} maisParado={dados.maisParado} nivel="Peca" />
                 </div>
               ))}
             </div>
