@@ -409,9 +409,18 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));
 
-  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Movimentacao>>(
-          Movimentacoes.Where(m => estruturaItemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToList());
+  /// <summary>Quantas vezes o livro foi lido em lote para a idade (a leitura que o cache do Panorama evita).</summary>
+  public int LeiturasDoLivroParaIdade { get; private set; }
+
+  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  {
+    LeiturasDoLivroParaIdade++;
+    return Task.FromResult<IReadOnlyList<Movimentacao>>(
+        Movimentacoes.Where(m => estruturaItemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToList());
+  }
+
+  public Task<int> MaiorIdDoLivroAsync(CancellationToken ct) =>
+      Task.FromResult(Movimentacoes.Count == 0 ? 0 : Movimentacoes.Max(m => m.Id));
 
   /// <summary>AgrupamentoId -> `CriadoEm`. Arranjo do teste; Agrupamento que o teste nao diz nao entra na leitura.</summary>
   public Dictionary<int, DateTime> CriacaoDosAgrupamentos { get; } = new();

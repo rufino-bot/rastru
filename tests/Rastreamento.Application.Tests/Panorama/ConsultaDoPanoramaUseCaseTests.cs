@@ -6,6 +6,7 @@ using Rastreamento.Application.Tests.Execucao;
 using Rastreamento.Application.Tests.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
+using Microsoft.Extensions.Caching.Memory;
 using Xunit;
 using static Rastreamento.Application.Tests.Execucao.CenarioDeExecucao;
 
@@ -51,12 +52,13 @@ public class ConsultaDoPanoramaUseCaseTests
     });
   }
 
-  private static async Task<PanoramaDto> ListaAsync(Montagem m)
+  private static async Task<PanoramaDto> ListaAsync(Montagem m, IMemoryCache? cache = null, DateTimeOffset? agora = null)
   {
     var uc = new ConsultaDoPanoramaUseCase(
         m.Cenario.Execucao, m.Cenario.Expedicao, m.Cenario.Estruturas, m.Cenario.Catalogo, m.Embalagem, m.Arquivos,
         m.Cenario.Separacao, FakeReposicaoRepo.ConsultaVazia(m.Cenario.Execucao, m.Cenario.Estruturas),
-        new RelogioFixo(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)));
+        new RelogioFixo(agora ?? new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)),
+        cache ?? new MemoryCache(new MemoryCacheOptions()));
     var r = await uc.Lista(Ct);
     Assert.True(r.Sucesso, r.Detalhe);
     return r.Valor!;
@@ -297,5 +299,71 @@ public class ConsultaDoPanoramaUseCaseTests
     Assert.Null(lista.Pecas[2].Componente.MiniaturaVersao);
     Assert.Equal(1, m.Arquivos.ConsultasDeSha256);
     Assert.Equal(1, m.Embalagem.ConsultasDeUltimas);
+  }
+
+  /// <summary>Uma Peca com uma entrega a meio caminho: o livro tem linhas, e a idade sai delas.</summary>
+  private static Montagem ComLivro()
+  {
+    var m = Montar();
+    No(m.Cenario, Peca1, 5m);
+    m.Cenario.Mover(Peca1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 3m);
+    return m;
+  }
+
+  [Fact]
+  public async Task Cache_reusa_as_idades_sem_linha_nova()
+  {
+    var m = ComLivro();
+    using var cache = new MemoryCache(new MemoryCacheOptions());
+
+    var primeira = await ListaAsync(m, cache);
+    var lidasDepoisDaPrimeira = m.Cenario.Execucao.LeiturasDoLivroParaIdade;
+    var segunda = await ListaAsync(m, cache);
+
+    Assert.Equal(1, lidasDepoisDaPrimeira);
+    Assert.Equal(1, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+    Assert.Equal(primeira.Pecas[0].ParadoDesde, segunda.Pecas[0].ParadoDesde);
+  }
+
+  [Fact]
+  public async Task Linha_nova_no_livro_refaz_as_idades()
+  {
+    var m = ComLivro();
+    using var cache = new MemoryCache(new MemoryCacheOptions());
+    await ListaAsync(m, cache);
+
+    m.Cenario.Mover(Peca1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 1m);
+    await ListaAsync(m, cache);
+
+    Assert.Equal(2, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+  }
+
+  [Fact]
+  public async Task Quantidade_alterada_refaz_as_idades()
+  {
+    var m = ComLivro();
+    using var cache = new MemoryCache(new MemoryCacheOptions());
+    await ListaAsync(m, cache);
+
+    m.Cenario.Estruturas.Itens.Single(i => i.Id == Peca1).Quantidade = 9m;
+    await ListaAsync(m, cache);
+
+    Assert.Equal(2, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+  }
+
+  [Fact]
+  public async Task Cache_nao_congela_o_agora()
+  {
+    var m = ComLivro();
+    using var cache = new MemoryCache(new MemoryCacheOptions());
+    var antes = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+    var depois = antes.AddHours(5);
+
+    var primeira = await ListaAsync(m, cache, antes);
+    var segunda = await ListaAsync(m, cache, depois);
+
+    Assert.Equal(1, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+    Assert.Equal(antes.UtcDateTime, primeira.Agora);
+    Assert.Equal(depois.UtcDateTime, segunda.Agora);
   }
 }

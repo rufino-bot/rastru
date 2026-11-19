@@ -173,6 +173,9 @@ public interface IExecucaoRepository
   /// </summary>
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
 
+  /// <summary>O maior `Id` do livro (0 com o livro vazio): a chave que diz se alguma linha nasceu desde a ultima leitura.</summary>
+  Task<int> MaiorIdDoLivroAsync(CancellationToken ct);
+
   /// <summary>O `CriadoEm` de cada Agrupamento pedido, numa consulta; Agrupamento inexistente nao entra.</summary>
   Task<IReadOnlyDictionary<int, DateTime>> ListarCriacaoDosAgrupamentosAsync(IReadOnlyCollection<int> agrupamentoIds, CancellationToken ct);
 

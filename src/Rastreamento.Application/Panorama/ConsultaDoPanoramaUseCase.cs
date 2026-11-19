@@ -8,6 +8,7 @@ using Rastreamento.Application.Retrabalho;
 using Rastreamento.Application.Separacao;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Rastreamento.Application.Panorama;
 
@@ -29,12 +30,14 @@ public sealed class ConsultaDoPanoramaUseCase
   private readonly ISeparacaoRepository _separacao;
   private readonly ConsultaDeReposicao _reposicao;
   private readonly TimeProvider _relogio;
+  private readonly IMemoryCache _cache;
   private readonly LeitorDeEstado _leitor;
 
   public ConsultaDoPanoramaUseCase(
       IExecucaoRepository execucao, IExpedicaoRepository expedicao, IEstruturaRepository estruturas,
       IReceitaPadraoRepository catalogo, IEmbalagemRepository embalagem, IArquivoDeComponenteRepository arquivos,
-      ISeparacaoRepository separacao, ConsultaDeReposicao reposicao, TimeProvider relogio)
+      ISeparacaoRepository separacao, ConsultaDeReposicao reposicao, TimeProvider relogio,
+      IMemoryCache cache)
   {
     _execucao = execucao;
     _expedicao = expedicao;
@@ -44,6 +47,7 @@ public sealed class ConsultaDoPanoramaUseCase
     _separacao = separacao;
     _reposicao = reposicao;
     _relogio = relogio;
+    _cache = cache;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
   }
 
@@ -157,17 +161,34 @@ public sealed class ConsultaDoPanoramaUseCase
 
   /// <summary>
   /// A idade das partes dos nos das Pecas abertas: o livro desses nos e a criacao dos Agrupamentos, cada um lido numa
-  /// consulta so, e pareados por <see cref="CalculoDaIdade"/>.
+  /// consulta so, e pareados por <see cref="CalculoDaIdade"/>. O resultado do pareamento (o custo novo da 6A) fica em
+  /// cache (D7): a chave e o maior `Id` do livro mais a lista de `(Id, Quantidade)` dos nos, que e tudo de que a idade
+  /// depende (o `Agrupamento.CriadoEm` nao muda), de modo que escrita fora do livro nao invalida nada. O `agora` nao
+  /// entra: ele e refeito a cada requisicao, e a idade e a conta dele contra as datas guardadas.
   /// </summary>
   private async Task<IdadesDoLivro> IdadesAsync(
       IReadOnlyList<ContextoDoNo> todos, Dictionary<int, HashSet<int>> nosDaPeca, CancellationToken ct)
   {
     var pedidos = nosDaPeca.Values.SelectMany(n => n).ToHashSet();
     var nos = todos.Where(x => pedidos.Contains(x.No.Id)).ToList();
+    var chave = ChaveDasIdades(await _execucao.MaiorIdDoLivroAsync(ct), nos);
+    if (_cache.TryGetValue(chave, out IdadesDoLivro? guardadas) && guardadas is not null) return guardadas;
+
     var criacoes = await _execucao.ListarCriacaoDosAgrupamentosAsync(nos.Select(x => x.AgrupamentoId).Distinct().ToList(), ct);
     var linhas = await _execucao.ListarMovimentacoesAsync(nos.Select(x => x.No.Id).ToList(), ct);
-    return CalculoDaIdade.Calcular(
+    var idades = CalculoDaIdade.Calcular(
         nos.Select(x => new NoDaIdade(x.No.Id, x.No.Quantidade, criacoes.GetValueOrDefault(x.AgrupamentoId))).ToList(), linhas);
+    _cache.Set(chave, idades, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(10) });
+    return idades;
+  }
+
+  private static string ChaveDasIdades(int maiorIdDoLivro, IReadOnlyList<ContextoDoNo> nos)
+  {
+    var texto = new System.Text.StringBuilder().Append(maiorIdDoLivro);
+    foreach (var x in nos.OrderBy(x => x.No.Id))
+      texto.Append('|').Append(x.No.Id).Append(':').Append(x.No.Quantidade.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture));
+    var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(texto.ToString()));
+    return "panorama-idades:" + Convert.ToHexString(hash);
   }
 
   /// <summary>C5, C6: a menor chegada entre as partes que contam da Peca e dos descendentes.</summary>

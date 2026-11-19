@@ -526,6 +526,9 @@ public class ExecucaoRepository : IExecucaoRepository
         .Where(m => lista.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToListAsync(ct);
   }
 
+  public async Task<int> MaiorIdDoLivroAsync(CancellationToken ct) =>
+      await _db.Movimentacoes.AsNoTracking().MaxAsync(m => (int?)m.Id, ct) ?? 0;
+
   public async Task<IReadOnlyDictionary<int, DateTime>> ListarCriacaoDosAgrupamentosAsync(
       IReadOnlyCollection<int> agrupamentoIds, CancellationToken ct)
   {
