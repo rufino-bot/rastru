@@ -132,24 +132,23 @@ public class CalculoDaIdadeTests
   [Fact]
   public void Mesmo_DataHora_desempata_pelo_Id()
   {
-    var a = Chega(1, 5m, Dia(1), id: 7);
-    var b = Chega(1, 5m, Dia(1), id: 8);
-    var saida = Termina(1, 5m, Dia(2), id: 9);
+    // Tres linhas no mesmo instante: chegadas de 3 (Id 7) e de 5 (Id 8) e uma saida de 3 (Id 9). Pelo Id, a saida vem
+    // depois das duas chegadas e consome a de 3: sobra so a de 5. Fora dessa ordem a saida seria ignorada (ou
+    // consumiria a de 5) e o resultado mudaria.
+    var tres = Chega(1, 3m, Dia(2), id: 7);
+    var cinco = Chega(1, 5m, Dia(2), id: 8);
+    var saida = Termina(1, 3m, Dia(2), id: 9);
 
-    foreach (var ordem in new[] { new[] { a, b, saida }, new[] { saida, b, a }, new[] { b, saida, a } })
+    foreach (var ordem in new[]
+             {
+               new[] { tres, cinco, saida }, new[] { saida, cinco, tres }, new[] { cinco, saida, tres },
+               new[] { saida, tres, cinco }, new[] { cinco, tres, saida }, new[] { tres, saida, cinco },
+             })
     {
       var r = CalculoDaIdade.Calcular([No(1)], ordem);
       Assert.Equal(5m, Assert.Single(NoSetor(r, 1)).Quantidade);
+      Assert.Equal(3m, Assert.Single(r.Partes(1), p => p.Local == Local.AguardandoColeta(Corte, 1)).Quantidade);
     }
-
-    // Com a saida consumindo so a primeira (Id 7), sobra a de Id 8: distinguimos pelas datas.
-    var x = Chega(1, 5m, Dia(1), id: 7);
-    var y = Chega(1, 5m, Dia(1), id: 8);
-    var s = Mov(1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 5m, Dia(2), id: 9);
-    var r2 = CalculoDaIdade.Calcular([No(1)], [s, y, x]);
-    var coleta = Assert.Single(r2.Partes(1), p => p.Local == Local.AguardandoColeta(Corte, 1));
-    Assert.Equal(Dia(2), coleta.Chegada);
-    Assert.Equal(Dia(1), Assert.Single(NoSetor(r2, 1)).Chegada);
   }
 
   [Fact]
