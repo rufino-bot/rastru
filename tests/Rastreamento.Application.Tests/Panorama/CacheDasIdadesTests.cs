@@ -134,6 +134,24 @@ public class CacheDasIdadesTests
   }
 
   [Fact]
+  public async Task No_que_sai_e_volta_da_o_mesmo_que_do_zero()
+  {
+    var b = new Banca(NoA, NoB);
+    b.Inicio(NoA, 4m, T0);
+    b.Inicio(NoB, 6m, T0);
+    b.Termino(NoB, 2m, T0.AddMinutes(10));
+    await b.ObterAsync();
+
+    var noB = b.Nos.Single(n => n.Id == NoB);
+    b.Nos.Remove(noB);
+    b.Inicio(NoA, 1m, T0.AddMinutes(20));
+    await b.ObterAsync();
+
+    b.Nos.Add(noB);
+    b.ConfereComODoZero(await b.ObterAsync());
+  }
+
+  [Fact]
   public async Task Estorno_novo_refaz_o_no()
   {
     var b = new Banca(NoA);

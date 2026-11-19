@@ -23,7 +23,7 @@ public sealed class CacheDasIdades
 
   private sealed record Retrato(
       int AteId, DateTime FeitoEm, IReadOnlyDictionary<int, NoDaIdade> Nos,
-      IReadOnlyDictionary<int, List<Movimentacao>> LinhasPorNo, IReadOnlySet<int> IdsLidos, IdadesDoLivro Idades);
+      IReadOnlyDictionary<int, List<Movimentacao>> LinhasPorNo, IdadesDoLivro Idades);
 
   private readonly SemaphoreSlim _trava = new(1, 1);
   private readonly TimeProvider _relogio;
@@ -57,7 +57,7 @@ public sealed class CacheDasIdades
     var linhas = await execucao.ListarMovimentacoesAteAsync(nos.Select(n => n.Id).ToList(), ateId, ct);
     var porNo = linhas.GroupBy(m => m.EstruturaItemId).ToDictionary(g => g.Key, g => g.ToList());
     return new Retrato(
-        ateId, agora, nos.ToDictionary(n => n.Id), porNo, linhas.Select(m => m.Id).ToHashSet(),
+        ateId, agora, nos.ToDictionary(n => n.Id), porNo,
         CalculoDaIdade.Calcular(nos, linhas));
   }
 
@@ -66,7 +66,9 @@ public sealed class CacheDasIdades
   {
     var vivos = nos.ToDictionary(n => n.Id);
     var porNo = anterior.LinhasPorNo.Where(kv => vivos.ContainsKey(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
-    var ids = new HashSet<int>(anterior.IdsLidos);
+    // So os `Id` das linhas que o retrato ainda guarda: o no que sai perde as linhas, e o `Id` delas tem de sair junto,
+    // senao o no que volta as relia e o `Acrescentar` as recusaria como ja lidas.
+    var ids = porNo.Values.SelectMany(l => l).Select(m => m.Id).ToHashSet();
     var refeitos = new HashSet<int>();
 
     // No que entrou: as linhas dele inteiras. No cuja quantidade (ou criacao) mudou: refeito com as linhas que ja tem.
@@ -92,7 +94,7 @@ public sealed class CacheDasIdades
                 refeitos.SelectMany(id => porNo.GetValueOrDefault(id) ?? []).ToList()),
             refeitos,
             vivos.Keys.ToHashSet());
-    return new Retrato(Math.Max(ateId, anterior.AteId), anterior.FeitoEm, vivos, porNo, ids, idades);
+    return new Retrato(Math.Max(ateId, anterior.AteId), anterior.FeitoEm, vivos, porNo, idades);
 
     bool Acrescentar(Movimentacao m)
     {
