@@ -163,7 +163,9 @@ public class LivroMapeamentoTests : TesteComBanco
   public Task Tipo_fora_da_lista_e_recusado_pelo_tipo_ou_pela_transicao() => NoCenarioAsync(c =>
   {
     var m = Inicio(c);
-    m.Tipo = "Pronto";   // tipo da Fase 5B, ainda nao existe
+    // Um nome que nunca foi tipo e nao e plano de ser. Antes o teste usava "Pronto", entao futuro,
+    // e ele ficou vermelho quando a Fase 5B-2 o pos na lista: tipo "que ainda nao existe" envelhece.
+    m.Tipo = "NuncaFoiTipo";   // cabe em NVARCHAR(20): a recusa tem de vir do CHECK, nao do tamanho
     return AfirmarRecusaAsync(m, "CK_Movimentacao_Tipo", "CK_Movimentacao_Transicao");
   });
 
