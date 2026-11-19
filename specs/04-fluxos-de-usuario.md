@@ -582,7 +582,8 @@ sem «não repor». O servidor conta as unidades de Peça (`aRepor`) e a tela s�
 
 ## 7. Consulta de KPIs (gestão)
 
-*Perfil: Gestão*
+*Perfil: Gestão. Partida em 6A e 6B (ver Fase 6 em `06-roadmap-mvp.md`): a visão ao vivo (6A) está nas seções 8 e 9 e é de
+qualquer perfil autenticado; os itens abaixo são da 6B (histórico), de Gestão, Qualidade, PCP e Administrador (D4).*
 
 1. Tempo médio de liberação por Setor (sobre o livro de movimentações, pareando entradas e saídas
    de cada Setor por ordem de chegada — ver Fase 6 em `06-roadmap-mvp.md`).
@@ -617,3 +618,20 @@ sem «não repor». O servidor conta as unidades de Peça (`aRepor`) e a tela s�
    menos uma unidade no local de expedição; antes disso fica travada, com "faltam N em produção". Marcada, mostra quem e
    quando. Quem não pode marcar (a Gestão, por exemplo) vê a pílula "Embalado" e a data, sem caixa. Se a Peça volta a
    andar depois da marca, o "Embalado" deixa de valer sozinho, sem ninguém desmarcar.
+
+## 9. Onde está travando (Fase 6A)
+
+*Perfil: qualquer perfil autenticado lê. Spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`; rota `GET /pedidos/{id}/andamento` na seção «Panorama» de `05-api-endpoints.md`.*
+
+1. Na tela do Pedido, entre o cabeçalho e os Agrupamentos, a seção **"Onde está travando"** aparece enquanto o Pedido não
+   está concluído nem cancelado, e recarrega junto com as baixas e as reclamações.
+2. Três números: **"Aberto há …"**, **"Esperou para começar …"** (ou "Ainda não começou", antes da primeira produção) e
+   **"Em produção há …"**, com "dos quais … pausado" quando o Pedido ficou pausado depois de começar. As durações seguem o
+   formato "menos de 1 h", "N h", "N d".
+3. Para cada Peça em aberto, a **trilha** do Roteiro: um bloco por passo (e o "a iniciar", a montagem, o conserto e a
+   expedição onde houver). O bloco onde há quantidade mostra quanto e há quanto tempo (e a coleta, quando há); o que já
+   passou mostra "passou · … no Setor"; o que ainda não chegou fica tracejado, "ainda não chegou". O bloco **mais parado** do
+   Pedido ganha uma borda mais grossa e o texto "mais parado". Nada disso usa cor de estado.
+4. Os Itens da Peça ficam numa lista "Itens (N)", recolhida, que abre sozinha quando o mais parado está entre eles. As
+   complicações da Peça e dos descendentes aparecem em texto abaixo da trilha.
+5. Sem nenhuma Peça em aberto, a seção diz "Nada parado neste Pedido.".

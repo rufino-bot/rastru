@@ -108,7 +108,7 @@ usuário no navegador foi feita **só no PC**, em 2026-11-18; o **celular** (os 
 o toque na caixa) e o painel "Dar baixa" com o `CampoDeCaixa` ficaram **não conferidos**, e o tempo do `GET /panorama`
 falta medir com a fábrica carregada antes do primeiro uso real. O ajuste da faceta longa do `FiltroDeDemanda`
 ("Mostrar todos os N") veio no mesmo PR e vale para as seis telas que o usam. A miniatura e o Panorama vieram
-**antes da 3C**; agora vêm a **3C** e a **Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+**antes da 3C**. Por decisão do usuário de 2026-11-19 (D1 da spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`), a **Fase 6** vem **antes da 3C** e se parte em **6A** (visão ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios. A **6A está em execução e não foi mesclada**: o backend e o Panorama com idade estão na branch, a seção «Onde está travando» da tela do Pedido acaba de entrar, e a conferência do usuário no navegador e a review de branch ainda não aconteceram. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -915,6 +915,22 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`atraso`), a pausa (`atencao`), "Conforme" (`positivo`) e "Não conforme" (`negativo`) usam tom; Setor, posição,
   "Embalado" e os controles de filtro e ordenação são neutros, porque estar em produção, embalado ou ordenado não é
   aprovado nem reprovado.
+- **O andamento** (Fase 6A, spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`; **em execução, não mesclada**)
+  mora em `web/src/andamento/`, e o cliente HTTP dele é `web/src/api/andamento.ts` (`buscarAndamento`, `GET /pedidos/{id}/andamento`).
+  A `SecaoOndeEstaTravando` ("Onde está travando") fica na `PedidoDetalhePage` entre o cabeçalho e os Agrupamentos, só com o
+  Pedido fora de `Concluido` e `Cancelado`, e recarrega pela mesma `versaoDoSaldo` das baixas e das reclamações. Tem os três
+  estados (carregando, erro com "Tentar de novo" e "Nada parado neste Pedido.") e os três números em cartões ("Aberto há",
+  "Esperou para começar" ou "Ainda não começou", "Em produção há" com "dos quais … pausado"). A `TrilhaDoNo` é recursiva: um
+  `<ol>` de blocos na ordem do servidor (`Atual` com quantidade, idade e "coleta {q} · há N"; `Passado` com "passou · {duração}
+  no Setor"; `Futuro` tracejado, "ainda não chegou"), as complicações em texto abaixo e os Itens numa `ListaRecolhivel`
+  "Itens (N)" que abre sozinha (`temAcao`) quando o `maisParado` está entre eles (C10). A idade vem do `agora` do servidor,
+  por `idadeDesde` e `duracaoLegivel` de `web/src/panorama/idade.ts` (a duração do servidor vem em segundos, e a função pede
+  milissegundos); a tela nunca usa `Date.now()` (C12). **A regra de cor** (C9): nada da seção usa `positivo`, `negativo`,
+  `atencao` nem `atraso`; o bloco mais parado se marca pela borda de 2 px `border-tinta` e pelo texto "mais parado". A
+  leitura é de todo perfil autenticado (C13): nenhuma entrada em `permissoes.ts`. A `ListaRecolhivel` passou a **7** linhas de
+  uso somadas às da `SecaoRecolhivel` (medido em 2026-11-19 com
+  `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."`, antes eram 6; a métrica é
+  **linhas**, e a nova é a da `TrilhaDoNo`).
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**

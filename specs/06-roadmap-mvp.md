@@ -660,14 +660,13 @@ da miniatura. Plano: `docs/superpowers/plans/2026-11-17-panorama.md`. O fluxo de
 `db/alter-panorama.sql`). A conferência do usuário no navegador foi feita só no PC; o celular e o painel "Dar baixa"
 com o `CampoDeCaixa` ficaram não conferidos, e o tempo do `GET /panorama` falta medir com a fábrica carregada antes do
 primeiro uso real. Os ajustes da conferência (plano `docs/superpowers/plans/2026-11-18-panorama-ajustes-da-conferencia.md`)
-entraram no mesmo PR; o da faceta longa do `FiltroDeDemanda` vale para as seis telas que o usam. A seguinte é a 3C ou
-a Fase 6, cuja ordem entre si não está decidida; a miniatura no chão de fábrica vem depois do Panorama.
+entraram no mesmo PR; o da faceta longa do `FiltroDeDemanda` vale para as seis telas que o usam. A seguinte é a Fase 6 (6A e 6B), antes da 3C (decisão de 2026-11-19, D1 da spec da 6A); a miniatura no chão de fábrica vem depois do Panorama.
 
 ## Fase 3C — Notificação push
 
 > **Executada depois da Fase 5**, fora da ordem das letras: o fluxo ponta a ponta vem primeiro, e o
 > push é reforço de uma lista que já funciona (a tela Tarefas). Fica numerada como 3C por tema. A
-> posição em relação à **Fase 6** não está decidida.
+> posição em relação à **Fase 6** está decidida: a Fase 6 vem antes (2026-11-19, D1 da spec da 6A).
 
 - PWA **mínimo**: manifesto, ícones e service worker **sem cache de API** — não reabre a decisão
   "PWA/offline" de `03-arquitetura-tecnica.md`.
@@ -894,7 +893,7 @@ Os três ajustes da conferência (plano `docs/superpowers/plans/2026-11-16-fase-
 no mesmo PR, mas **não são da 5C**, e vieram junto por decisão do usuário: o "faltam N" (ou "falta 1") da linha do filho
 no cartão de montagem da Fila, o código do componente na sobra e na caixa do topo da prévia da baixa, e o pai sem nada a
 iniciar fora de "Aguardando montagem", com a linha de sobra em montagem mostrando a parte de cada Setor. Com a 5C, **a
-Fase 5 está concluída**; a seguinte é a 3C ou a Fase 6, cuja ordem entre si não está decidida (seção «Fase 3C»).
+Fase 5 está concluída**; a seguinte é a Fase 6, antes da 3C (decisão de 2026-11-19; seção «Fase 6»).
 (2026-11-17: antes delas entram a miniatura do sólido e o Panorama; ver as seções «Miniatura isométrica do sólido» e
 «Panorama».)
 
@@ -918,14 +917,33 @@ Fase 5 está concluída**; a seguinte é a 3C ou a Fase 6, cuja ordem entre si n
   montado, com o resto aparecendo como sobra, e a estrutura errada descoberta no meio da produção tem tratamento
   definido (D1 a D3).
 
-## Fase 6 — KPIs
+## Fase 6 — KPIs (partida em 6A e 6B, decidido em 2026-11-19; executa antes da 3C)
+
+Spec da 6A: `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md` (D1 a D4). A Fase 6 vem **antes da 3C** (D1)
+e se parte em **6A** (ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios, como a Fase 5 (D2).
+A posição da 3C em relação à Fase 6, que estava em aberto, fica decidida por D1. Os fluxos estão nas seções 7 e 8 de
+`04-fluxos-de-usuario.md`.
+
+**Acesso (D4):** a 6A é leitura de **todo perfil autenticado**, como o Panorama; a 6B será de **Gestão, Qualidade, PCP e
+Administrador**. Isto emenda o "Perfil Gestão tem acesso a essas telas; demais perfis não" que a Fase 6 trazia.
+
+### Fase 6A — Visão ao vivo
+
+- A idade das partes e o "Parado há" no Panorama, com as complicações (material pendente, aguardando liberação,
+  aguardando decisão, em conserto, montagem incompleta e a repor) e a faceta delas.
+- `GET /pedidos/{id}/andamento` e a seção **"Onde está travando"** na tela do Pedido: os três números do Pedido (aberto
+  há, esperou para começar, em produção há com o pausado) e a trilha do Roteiro de cada Peça, com o bloco mais parado
+  marcado.
+- Sem mudança de schema. Em execução; **não mesclada**, e a conferência do usuário no navegador ainda não foi feita.
+
+### Fase 6B — Histórico
 
 - Endpoint e tela de tempo médio por setor, calculado sobre o livro de movimentações
   (`dbo.Movimentacao`), pareando entradas e saídas de cada Setor por ordem de chegada. Separar fila
   de execução dentro do Setor exigiria uma posição a mais no livro — decidir nesta fase, se o
   negócio pedir.
 - Endpoint e tela de tempo total/fila/produção por pedido.
-- Perfil Gestão tem acesso a essas telas; demais perfis não.
+- Gestão, Qualidade, PCP e Administrador têm acesso a essas telas (D4).
 
 ## Fora das fases — decidir por spike: busca de peça por foto
 
