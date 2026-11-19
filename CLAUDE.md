@@ -1320,11 +1320,11 @@ com a Peça ainda não iniciada (o Item é a parte mais parada), com ela iniciad
 estorno, perda, aferição, liberação, expedição nem reposição. Cria os próprios Setores (`CARGA-6A …`) e Componentes
 (`CARGA-6A-C01` a `10`) por nome/código, sem depender do `seed-demo.sql`, e usa o `admin` do `db/seed.sql`. É idempotente: o
 que já existe não é recriado, e o livro só é gerado para os Pedidos criados na execução, tudo numa transação.
-**Carregue-o com `-b -f 65001`**, por `docker compose cp` + `-i`, como os `alter-*.sql`. **Com a massa carregada a
-`Api.Tests` fica lenta (cerca de 10 min; sem a massa não foi medido de novo), porque cada teste que lista Pedidos, Peças ou o
-Panorama passa a ler as 3.000 linhas dela; a suíte continua verde porque as asserções são escopadas ao que o próprio teste
-criou, e nenhuma afirma sobre a contagem global** (medido em 2026-11-19, a suíte inteira verde com ela carregada). O banco de
-dev é descartável: quem quer a suíte rápida o regenera sem a massa.
+**Carregue-o com `-b -f 65001`**, por `docker compose cp` + `-i`, como os `alter-*.sql`. **O que foi medido, e só isso:** em
+2026-11-19, com a massa carregada, uma execução de `dotnet test Rastreamento.slnx -m:1` passou inteira (Api 606,
+Application 1.324, Infrastructure 365) e a `Api.Tests` levou cerca de 10 min. O tempo da `Api.Tests` sem a massa não foi
+medido de novo, então não se sabe quanto da demora vem dela. *Hipótese não verificada:* que a lentidão seja de testes que
+leem listas globais de Pedidos ou Peças. O banco de dev é descartável: quem quer a suíte sem a massa o regenera sem ela.
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
