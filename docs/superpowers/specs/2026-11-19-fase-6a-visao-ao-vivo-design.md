@@ -203,6 +203,11 @@ resposta do Panorama **sem o `agora`**, que é refeito a cada requisição (sen�
 separação, a edição de estrutura) também tem de invalidar, e o builder lista essas escritas no plano antes de escolher
 entre chave composta e invalidação explícita.
 
+**Emenda do plano (2026-11-19).** O plano fecha a escolha que este parágrafo deixava: o cache guarda **só o resultado do
+`CalculoDaIdade`**, com chave no maior `Movimentacao.Id` e na lista de `(Id, Quantidade)` dos nós, e não a resposta
+inteira. As idades só dependem do livro, das quantidades e do `Agrupamento.CriadoEm`; então nenhuma escrita fora do livro
+precisa invalidar o cache, e o resto do Panorama segue lido a cada requisição, como antes da 6A.
+
 ### 5.5 Testes de API
 
 Panorama: `desde`, `paradoDesde` e uma complicação de cada tipo num cenário real; estorno que devolve a parte com a data
