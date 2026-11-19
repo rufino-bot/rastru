@@ -759,12 +759,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   Origem: D7 e as emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da Fase 3B
   (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). Hoje a `SecaoRecolhivel` tem
   **dois** usos, ambos na `TarefasPage` (os "Kits incompletos" e o grupo "Em {Setor}", este controlado), e a
-  `ListaRecolhivel` tem **quatro**, em três arquivos (os dois cartões de Kit,
-  em `CartaoDeKit`, o cartão de "Aguardando montagem" da `FilaDoSetorPage` e o "Histórico" do cartão da Peça da
-  expedição, em `HistoricoDaExpedicao`, que passa o `rotulo` e busca ao abrir); medido em 2026-10-14 com
+  `ListaRecolhivel` tem **cinco**, em quatro arquivos (os dois cartões de Kit,
+  em `CartaoDeKit`, o cartão de "Aguardando montagem" da `FilaDoSetorPage`, o "Histórico" do cartão da Peça da
+  expedição, em `HistoricoDaExpedicao`, que passa o `rotulo` e busca ao abrir, e os "Itens" da `TrilhaDoNo`, do andamento); medido em 2026-10-14 com
   `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas) e
   remedido em 2026-10-22 com o mesmo comando (5 linhas, porque o `HistoricoDaExpedicao` entrou) e em
-  2026-11-10 (6 linhas, porque o grupo "Em {Setor}" entrou), e o `<details>` cru
+  2026-11-10 (6 linhas, porque o grupo "Em {Setor}" entrou) e em 2026-11-19 (7 linhas, porque a `TrilhaDoNo` entrou: 5 de
+  `ListaRecolhivel` e 2 de `SecaoRecolhivel`; a métrica é **linhas**), e o `<details>` cru
   só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
   grep -v "\.test\."` devolve duas linhas de elemento e três de comentário que citam a tag, uma delas no
   `HistoricoDaExpedicao`).
@@ -927,10 +928,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   por `idadeDesde` e `duracaoLegivel` de `web/src/panorama/idade.ts` (a duração do servidor vem em segundos, e a função pede
   milissegundos); a tela nunca usa `Date.now()` (C12). **A regra de cor** (C9): nada da seção usa `positivo`, `negativo`,
   `atencao` nem `atraso`; o bloco mais parado se marca pela borda de 2 px `border-tinta` e pelo texto "mais parado". A
-  leitura é de todo perfil autenticado (C13): nenhuma entrada em `permissoes.ts`. A `ListaRecolhivel` passou a **7** linhas de
-  uso somadas às da `SecaoRecolhivel` (medido em 2026-11-19 com
-  `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."`, antes eram 6; a métrica é
-  **linhas**, e a nova é a da `TrilhaDoNo`).
+  leitura é de todo perfil autenticado (C13): nenhuma entrada em `permissoes.ts`. Os "Itens" da `TrilhaDoNo` são um uso novo da `ListaRecolhivel`; a contagem está no bullet «Conteúdo que nasce recolhido».
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
