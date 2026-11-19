@@ -148,3 +148,10 @@
   --color-fundo: #F7FAF9;
   --color-superficie: #FFFFFF;
 }
+
+/* O fundo da página mora no <html> também: o do body não cobre a área que sobra quando a página rola de lado. */
+@layer base {
+  html {
+    background-color: var(--color-fundo);
+  }
+}

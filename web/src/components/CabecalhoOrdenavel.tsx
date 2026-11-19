@@ -32,7 +32,7 @@ const SETA = { asc: '▲', desc: '▼' } as const
 export function CabecalhoOrdenavel<C extends string>({ coluna, rotulo, ordem, aoMudar }: Props<C>) {
   const ativa = ordem?.coluna === coluna ? ordem.direcao : null
   return (
-    <th scope="col" aria-sort={ativa ? ARIA_SORT[ativa] : 'none'} className="px-3 py-2 text-left font-medium text-tinta">
+    <th scope="col" aria-sort={ativa ? ARIA_SORT[ativa] : 'none'} className="px-2 py-2 text-left text-sm font-medium text-tinta">
       <button
         type="button"
         onClick={() => aoMudar(proximaOrdem(coluna, ordem))}

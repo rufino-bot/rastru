@@ -34,6 +34,15 @@ describe('CabecalhoOrdenavel', () => {
     expect(sortDe('Código')).toBe('none')
   })
 
+  it('cabecalho_compacto: o th usa espacamento lateral de 8 px e texto de 14 px', () => {
+    render(<Tabela />)
+
+    const th = screen.getByRole('columnheader', { name: /Código/ })
+    expect(th.className).toContain('px-2')
+    expect(th.className).toContain('text-sm')
+    expect(th.className).not.toContain('px-3')
+  })
+
   it('cicla asc, desc e volta ao original, com aria-sort em cada passo', () => {
     render(<Tabela />)
     const botao = () => screen.getByRole('button', { name: /Código/ })

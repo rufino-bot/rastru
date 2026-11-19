@@ -901,7 +901,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `?ordem=parado-asc` e `parado-desc`, e as duas opções do `SeletorDeOrdem` do celular) e a coluna **"Complicação"** (o
   `texto` de cada uma, um por linha, `text-tinta`), ambas em `CelulasDeAndamento` e também no cartão. A faceta
   **Complicação** (chave `complicacao`) tem como valores os `codigo` da Peça, `Pausado` quando o Pedido está pausado, e
-  `Nenhuma` quando não há nem um nem outro. Idade, "Parado há" e complicações são **neutros** (C9). Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
+  `Nenhuma` quando não há nem um nem outro. Idade, "Parado há" e complicações são **neutros** (C9). A tabela tem largura mínima de cerca de 956 px (cabeçalhos `px-2 text-sm`, células `px-1.5`, desenho de 72 px, "Complicação" e "Embalado" até 92 px) para caber em 1024 px, e o `<html>` tem o fundo da página (`fundoDaPagina.test.ts` guarda a regra), para a rolagem lateral, se vier, não mostrar faixa branca. Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
   primeira carga mostra o `EstadoCarregando`, e a recarga troca os dados sem desmontar a lista, para o filtro e a
   rolagem ficarem. A vista inteira mora na URL, com `replace` — as facetas (`useSelecaoNaUrl`), `busca`, `de`, `ate` e
   `ordem`, cada um apagado quando vazio — e o vazio distingue "Nenhuma Peça em aberto." de "Nenhuma Peça casa com o

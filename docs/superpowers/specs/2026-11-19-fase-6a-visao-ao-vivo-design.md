@@ -287,3 +287,9 @@ parada (seria da 3C); idade por usuário (seção 1.2).
   na linha. A borda tracejada do passo futuro de C10 vira o ponto vazio.
   As frases concordam em número ("1 pronta", "Já passou", "já passou", "ainda não chegou") e, no celular, a lista
   termina em "Expedição · ainda não chegou" quando a trilha não tem bloco de Expedição.
+- **F3 — a tabela do Panorama volta a caber em 1024 px.** As duas colunas da 6A levaram a largura mínima da tabela a
+  1.056 px num espaço de 961, e a página rolava de lado mostrando o `<html>` sem fundo. Cabeçalhos com 14 px e
+  espaçamento lateral de 8 px, células com 6 px, a coluna do desenho com 72 px e o conteúdo de "Complicação" e
+  "Embalado" até 92 px: mínimo de 956 px, medido no navegador com a massa de C14. O `<html>` ganha o fundo da página,
+  para uma tabela que estoure no futuro mostrar rolagem e não faixa branca. A folga é pequena (5 px): o mínimo é ditado
+  pelo texto que não quebra, como o número do Pedido.

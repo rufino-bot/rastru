@@ -37,7 +37,7 @@ const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<string>[] = [
   { valor: 'qtd-asc', rotulo: 'Qtd (menor)' },
 ]
 
-const CLASSES_DE_COLUNA = 'px-3 py-2 text-left font-medium text-tinta'
+const CLASSES_DE_COLUNA = 'px-2 py-2 text-left text-sm font-medium text-tinta'
 
 function horaDe(momento: Date): string {
   return momento.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
