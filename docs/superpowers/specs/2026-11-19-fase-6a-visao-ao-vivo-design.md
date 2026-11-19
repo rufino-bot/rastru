@@ -72,7 +72,7 @@ em dois lugares que a Gestão já usa (D5):
 | D4 | **Perfis:** a 6A é leitura de **todo perfil autenticado**, como o Panorama. A 6B será de **Gestão, Qualidade, PCP e Administrador** (emenda o "Perfil Gestão tem acesso a essas telas; demais perfis não" de `specs/06`). |
 | D5 | **Forma:** mockups **B e C juntos**: a idade entra no Panorama (no "Onde está", na coluna "Parado há" e na faceta "Complicação") e na tela do Pedido (a seção "Onde está travando"). **Sem** tela própria. |
 | D6 | **Cálculo:** pareamento por ordem de chegada (a primeira parte que chegou é a primeira que sai), **no C#**, num cálculo puro sobre as linhas do livro, reusável pela 6B. |
-| D7 | **Desempenho:** medir o `GET /panorama` com massa carregada **antes do merge**. Passou do limite: primeiro um **cache em memória** (`IMemoryCache`) válido enquanto o maior `Id` da `Movimentacao` não muda; só depois, se ainda faltar, o pareamento no SQL. **Redis**, só quando houver mais de uma instância da API. |
+| D7 | **Desempenho:** medir o `GET /panorama` com massa carregada **antes do merge**. Passou do limite: primeiro um **cache em memória** (`IMemoryCache`) válido enquanto o maior `Id` da `Movimentacao` não muda (até a emenda F2, seção 11); só depois, se ainda faltar, o pareamento no SQL. **Redis**, só quando houver mais de uma instância da API. |
 | D8 | Para a 6B: a **pontualidade conta pela última remessa**, que é a data em que o Pedido conclui (`Pedido.DataConclusao`). Registrado aqui para a 6B não reabrir. |
 
 ### 2.2 Do desenho (o usuário confere)
@@ -198,13 +198,13 @@ bloco com as duas coisas ou dois campos no mesmo bloco; a tela mostra as duas.
 ### 5.4 Desempenho (C14, D7)
 
 O builder escreve a massa de carga, mede o `GET /panorama` antes e depois da 6A, e registra os números no ledger do plano.
-Passou do limite, o cache de D7: chave pelo maior `Movimentacao.Id` (uma consulta `MAX(Id)` por requisição), guardando a
+Passou do limite, o cache de D7 (até a emenda F2, seção 11): chave pelo maior `Movimentacao.Id` (uma consulta `MAX(Id)` por requisição), guardando a
 resposta do Panorama **sem o `agora`**, que é refeito a cada requisição (senão a idade congelaria entre escritas); qualquer escrita que não passa pelo livro e muda o Panorama (a embalagem, a pausa, a
 separação, a edição de estrutura) também tem de invalidar, e o builder lista essas escritas no plano antes de escolher
 entre chave composta e invalidação explícita.
 
 **Emenda do plano (2026-11-19).** O plano fecha a escolha que este parágrafo deixava: o cache guarda **só o resultado do
-`CalculoDaIdade`**, com chave no maior `Movimentacao.Id` e na lista de `(Id, Quantidade)` dos nós, e não a resposta
+`CalculoDaIdade`**, com chave no maior `Movimentacao.Id` e na lista de `(Id, Quantidade)` dos nós (até a emenda F2, seção 11), e não a resposta
 inteira. As idades só dependem do livro, das quantidades e do `Agrupamento.CriadoEm`; então nenhuma escrita fora do livro
 precisa invalidar o cache, e o resto do Panorama segue lido a cada requisição, como antes da 6A.
 
@@ -271,3 +271,11 @@ Cache em memória, e só se a medição pedir.
 
 Tudo da 6B (seção 1.1); o "comecei" do operador; campo de motivo de atraso; tempo útil por turno; notificação de Peça
 parada (seria da 3C); idade por usuário (seção 1.2).
+
+## 11. Emendas da conferência (2026-11-19)
+
+- **F2 — o cache de D7 passa a ser incremental.** Medido na conferência: com a chave no maior `Id` global do livro,
+  qualquer apontamento invalidava o cache inteiro, e a chamada sem cache levava 1,01 s contra 0,68 s da `main`. O
+  `CacheDasIdades` (singleton) guarda as linhas por nó e o maior `Id` lido; a cada chamada lê só as linhas novas,
+  relendo as últimas 1.000 posições de `Id` para pegar o commit fora de ordem, e refaz o pareamento só dos nós
+  tocados. A cada 10 min ele lê tudo de novo. Sai o `IMemoryCache`.
