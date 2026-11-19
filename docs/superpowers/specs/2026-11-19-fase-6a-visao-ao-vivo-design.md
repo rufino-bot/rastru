@@ -7,7 +7,8 @@ sessão de nuvem em 2026-11-19. Os mockups da conversa são uma página privada 
 do Pedido); o usuário escolheu **B e C juntas**. As decisões do usuário são D1 a D8 (seção 2.1). As chamadas do desenho,
 que o usuário confere ao ler, são C1 a C18 (seção 2.2). O builder check (um revisor lendo a spec como quem vai planejar,
 conferindo as premissas contra o código) não achou premissa falsa que derrube o desenho; achou lacunas em C3, C8, C10 e
-C11 e leituras que o Panorama ainda não faz, e elas foram fechadas em C3, C8, C10, C17, C18 e na seção 5.
+C11 e leituras que o Panorama ainda não faz, e elas foram fechadas em C3, C8, C10, C17, C18 e na seção 5. A escala da massa de C14 veio do usuário. O documento
+escrito foi **aprovado pelo usuário em 2026-11-19**.
 
 **Ponto de partida.** O Panorama está mesclado. Do roadmap restavam a 3C (push) e a Fase 6 (KPIs), sem ordem decidida;
 o usuário escolheu a **Fase 6 antes da 3C** (D1) e a partiu em **6A** (esta, ao vivo) e **6B** (histórico) (D2).
