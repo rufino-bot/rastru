@@ -1310,6 +1310,17 @@ container): a acentuação dos nomes de setor é `NVARCHAR` e, se a codepage se 
 dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que sobreviveu não é
 olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
 
+**`db/massa-carga-6a.sql` é opcional, como o `seed-demo.sql`, e a suíte também o ignora** (`grep -rn "massa-carga-6a"`
+em `src/` e `tests/` devolve zero). É a massa de carga do Panorama da Fase 6A (C14): 50 Pedidos abertos `CARGA-6A-001` a
+`050`, um Agrupamento Avulso, 10 Peças e 5 Itens por Peça (3.000 nós), Roteiro de 4 passos e cerca de 58 mil linhas do livro
+(uma média de ~20 por nó), só com `Inicio`, `Termino` e `Entrega` válidos, em lotes parciais, com `DataHora` espalhada pelos
+últimos dias. Serve para medir o `GET /panorama` com a fábrica carregada (ver o ledger da Fase 6A). Cria os próprios Setores
+(`CARGA-6A …`) e Componentes (`CARGA-6A-C01` a `10`) por nome/código, sem depender do `seed-demo.sql`, e usa o `admin` do
+`db/seed.sql`. É idempotente: o que já existe não é recriado, e o livro só é gerado para os Pedidos criados na execução,
+tudo numa transação. **Carregue-o com `-b -f 65001`**, por `docker compose cp` + `-i`, como os `alter-*.sql`. A suíte passou inteira com a massa carregada
+(2026-11-19), mas a `Api.Tests` ficou bem mais lenta (cerca de 10 min); o banco de dev é descartável, e quem quiser a suíte
+rápida a regenera sem ela.
+
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
 verdade: `dbo.Componente` não tinha `ArquivoSolido`/`ArquivoFoto`, que nasceram no schema depois
