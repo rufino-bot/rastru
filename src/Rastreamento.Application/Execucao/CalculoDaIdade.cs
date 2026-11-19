@@ -27,6 +27,23 @@ public sealed class IdadesDoLivro
     _permanencias = permanencias;
   }
 
+  /// <summary>
+  /// As idades de `anteriores` para os nos vivos que nao foram refeitos, mais todas as de `refeitas`: o cache
+  /// incremental refaz so os nos tocados, e o pareamento e por no (cada linha e cada estorno ficam no proprio no).
+  /// </summary>
+  internal static IdadesDoLivro Substituir(
+      IdadesDoLivro anteriores, IdadesDoLivro refeitas, IReadOnlySet<int> nosRefeitos, IReadOnlySet<int> nosVivos)
+  {
+    bool Mantem(int no) => nosVivos.Contains(no) && !nosRefeitos.Contains(no);
+    var partes = anteriores._partes.Where(kv => Mantem(kv.Key))
+        .Concat(refeitas._partes)
+        .ToDictionary(kv => kv.Key, kv => kv.Value);
+    var permanencias = anteriores._permanencias.Where(kv => Mantem(kv.Key.No))
+        .Concat(refeitas._permanencias)
+        .ToDictionary(kv => kv.Key, kv => kv.Value);
+    return new IdadesDoLivro(partes, permanencias);
+  }
+
   /// <summary>As partes vivas do no, em ordem de chegada.</summary>
   public IReadOnlyList<ParteViva> Partes(int noId) => _partes.TryGetValue(noId, out var p) ? p : SemPartes;
 

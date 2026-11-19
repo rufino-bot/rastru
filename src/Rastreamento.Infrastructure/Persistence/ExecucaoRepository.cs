@@ -526,6 +526,20 @@ public class ExecucaoRepository : IExecucaoRepository
         .Where(m => lista.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToListAsync(ct);
   }
 
+  public async Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAteAsync(
+      IReadOnlyCollection<int> estruturaItemIds, int ateId, CancellationToken ct)
+  {
+    if (estruturaItemIds.Count == 0) return [];
+    var lista = estruturaItemIds.ToList();
+    return await _db.Movimentacoes.AsNoTracking()
+        .Where(m => m.Id <= ateId && lista.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToListAsync(ct);
+  }
+
+  public async Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoIntervaloAsync(
+      int depoisDeId, int ateId, CancellationToken ct) =>
+      await _db.Movimentacoes.AsNoTracking()
+          .Where(m => m.Id > depoisDeId && m.Id <= ateId).OrderBy(m => m.Id).ToListAsync(ct);
+
   public async Task<int> MaiorIdDoLivroAsync(CancellationToken ct) =>
       await _db.Movimentacoes.AsNoTracking().MaxAsync(m => (int?)m.Id, ct) ?? 0;
 

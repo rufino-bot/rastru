@@ -409,18 +409,42 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));
 
-  /// <summary>Quantas vezes o livro foi lido em lote para a idade (a leitura que o cache do Panorama evita).</summary>
+  /// <summary>Quantas vezes o livro foi lido por inteiro para a idade (a leitura que o cache do Panorama evita).</summary>
   public int LeiturasDoLivroParaIdade { get; private set; }
 
-  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  /// <summary>Quantas vezes o livro foi lido por intervalo de `Id` (a leitura incremental do cache das idades).</summary>
+  public int LeiturasDoIntervalo { get; private set; }
+
+  /// <summary>Os nos pedidos na ultima `ListarMovimentacoesAteAsync`.</summary>
+  public IReadOnlyCollection<int> NosDaUltimaLeituraDoLivro { get; private set; } = [];
+
+  /// <summary>Linhas que nenhuma leitura do livro enxerga, nem o `MaiorIdDoLivroAsync`: simulam um commit atrasado.</summary>
+  public HashSet<int> Ocultas { get; } = new();
+
+  private IEnumerable<Movimentacao> Visiveis => Movimentacoes.Where(m => !Ocultas.Contains(m.Id));
+
+  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Movimentacao>>(
+          Movimentacoes.Where(m => estruturaItemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToList());
+
+  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAteAsync(
+      IReadOnlyCollection<int> estruturaItemIds, int ateId, CancellationToken ct)
   {
     LeiturasDoLivroParaIdade++;
+    NosDaUltimaLeituraDoLivro = estruturaItemIds.ToList();
     return Task.FromResult<IReadOnlyList<Movimentacao>>(
-        Movimentacoes.Where(m => estruturaItemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToList());
+        Visiveis.Where(m => m.Id <= ateId && estruturaItemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToList());
+  }
+
+  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoIntervaloAsync(int depoisDeId, int ateId, CancellationToken ct)
+  {
+    LeiturasDoIntervalo++;
+    return Task.FromResult<IReadOnlyList<Movimentacao>>(
+        Visiveis.Where(m => m.Id > depoisDeId && m.Id <= ateId).OrderBy(m => m.Id).ToList());
   }
 
   public Task<int> MaiorIdDoLivroAsync(CancellationToken ct) =>
-      Task.FromResult(Movimentacoes.Count == 0 ? 0 : Movimentacoes.Max(m => m.Id));
+      Task.FromResult(Visiveis.Select(m => m.Id).DefaultIfEmpty(0).Max());
 
   /// <summary>AgrupamentoId -> `CriadoEm`. Arranjo do teste; Agrupamento que o teste nao diz nao entra na leitura.</summary>
   public Dictionary<int, DateTime> CriacaoDosAgrupamentos { get; } = new();

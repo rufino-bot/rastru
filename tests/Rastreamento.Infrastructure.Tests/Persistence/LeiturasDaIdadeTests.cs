@@ -72,6 +72,55 @@ public class LeiturasDaIdadeTests : TesteComBanco
   });
 
   [Fact]
+  public Task Linhas_ate_um_id_param_no_id_e_filtram_os_nos() => NaArvoreAsync(async a =>
+  {
+    int noA, noB, noC, setor;
+    await using (var db = NovoContexto())
+    {
+      setor = await a.NovoSetorAsync(db);
+      noA = await a.NovaPecaAsync(db, 10m);
+      noB = await a.NovaPecaAsync(db, 10m);
+      noC = await a.NovaPecaAsync(db, 10m);
+    }
+    var l1 = await GravarAsync(Linha(a, noA, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 1m));
+    var l2 = await GravarAsync(Linha(a, noB, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 2m));
+    var l3 = await GravarAsync(Linha(a, noA, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 3m));
+    await GravarAsync(Linha(a, noC, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 4m));
+
+    await using var leitura = NovoContexto();
+    var linhas = await new ExecucaoRepository(leitura).ListarMovimentacoesAteAsync([noA, noB], l2, CancellationToken.None);
+
+    Assert.Equal([l1, l2], linhas.Select(l => l.Id).ToList());
+    Assert.DoesNotContain(l3, linhas.Select(l => l.Id));
+    Assert.Empty(await new ExecucaoRepository(leitura).ListarMovimentacoesAteAsync([], l3, CancellationToken.None));
+  });
+
+  [Fact]
+  public Task Intervalo_de_ids_traz_qualquer_no_e_respeita_os_dois_limites() => NaArvoreAsync(async a =>
+  {
+    int noA, noB, noC, noD, setor;
+    await using (var db = NovoContexto())
+    {
+      setor = await a.NovoSetorAsync(db);
+      noA = await a.NovaPecaAsync(db, 10m);
+      noB = await a.NovaPecaAsync(db, 10m);
+      noC = await a.NovaPecaAsync(db, 10m);
+      noD = await a.NovaPecaAsync(db, 10m);
+    }
+    var l1 = await GravarAsync(Linha(a, noA, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 1m));
+    var l2 = await GravarAsync(Linha(a, noB, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 1m));
+    var l3 = await GravarAsync(Linha(a, noC, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 1m));
+    var l4 = await GravarAsync(Linha(a, noD, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(setor, 1), 1m));
+
+    await using var leitura = NovoContexto();
+    var linhas = await new ExecucaoRepository(leitura).ListarMovimentacoesDoIntervaloAsync(l1, l3, CancellationToken.None);
+
+    var doTeste = new[] { l1, l2, l3, l4 };
+    Assert.Equal([l2, l3], linhas.Select(l => l.Id).Where(doTeste.Contains).ToList());
+    Assert.Equal(linhas.Select(l => l.Id).OrderBy(i => i).ToList(), linhas.Select(l => l.Id).ToList());
+  });
+
+  [Fact]
   public Task Criacao_dos_agrupamentos() => NaArvoreAsync(async a =>
   {
     await using var db = NovoContexto();
