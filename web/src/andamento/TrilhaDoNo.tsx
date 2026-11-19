@@ -73,7 +73,7 @@ export function TrilhaDoNo({ no, agora, maisParado, nivel }: Props) {
         )}
         {passados.length > 0 && (
           <p className="text-sm text-tinta-fraca">
-            {`Já passaram: ${passados
+            {`${passados.length === 1 ? 'Já passou' : 'Já passaram'}: ${passados
               .map((b) => (b.permanenciaMediaSegundos !== null
                 ? `${nomeNaTrilha(b)} (${duracaoLegivel(b.permanenciaMediaSegundos * 1000)})`
                 : nomeNaTrilha(b)))
@@ -85,13 +85,19 @@ export function TrilhaDoNo({ no, agora, maisParado, nivel }: Props) {
         {gruposDoCelular(no.trilha).map((g) => {
           if (g.tipo === 'atual') return linha(g.bloco)
           const faixa = faixaDeOrdens(g.blocos)
-          const depois = g.tipo === 'passados' ? `${g.blocos.map(nomeNaTrilha).join(', ')} · já passaram` : 'ainda não chegaram'
+          const varios = g.blocos.length > 1
+          const depois = g.tipo === 'passados'
+            ? `${g.blocos.map(nomeNaTrilha).join(', ')} · ${varios ? 'já passaram' : 'já passou'}`
+            : varios ? 'ainda não chegaram' : 'ainda não chegou'
           return (
             <li key={g.blocos[0].chave} className="px-2 text-sm text-tinta-fraca">
               {faixa ? `${faixa} · ${depois}` : depois}
             </li>
           )
         })}
+        {!no.trilha.some((b) => b.tipo === 'Expedicao') && (
+          <li className="px-2 text-sm text-tinta-fraca">Expedição · ainda não chegou</li>
+        )}
       </ol>
       {no.complicacoes.length > 0 && (
         <ul className="flex flex-col gap-0.5 text-sm text-tinta">

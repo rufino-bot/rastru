@@ -35,7 +35,7 @@ describe('TrilhaDoNo', () => {
     }))
     const itens = within(agora()).getAllByRole('listitem')
     expect(itens).toHaveLength(1)
-    expect(itens[0].textContent).toBe('Dobra — 4 no Setor · há 6 h · 1 prontas, esperando coleta · há 6 h')
+    expect(itens[0].textContent).toBe('Dobra — 4 no Setor · há 6 h · 1 pronta, esperando coleta · há 6 h')
   })
 
   it('passados_numa_linha_com_permanencia_de_cada_um', () => {
@@ -47,6 +47,13 @@ describe('TrilhaDoNo', () => {
       ],
     }))
     expect(screen.getByText('Já passaram: Corte (menos de 1 h), Dobra (2 d), Solda')).toBeTruthy()
+  })
+
+  it('um_passo_passado_concorda_no_singular', () => {
+    montar(no({
+      trilha: [bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', situacao: 'Passado', permanenciaMediaSegundos: 60 })],
+    }))
+    expect(screen.getByText('Já passou: Corte (menos de 1 h)')).toBeTruthy()
   })
 
   it('mais_parado_marcado_sem_cor_de_estado', () => {
@@ -91,6 +98,39 @@ describe('TrilhaDoNo', () => {
       '1–2 · Corte laser, Rebarbação · já passaram',
       'Dobra — 2 no Setor · há 6 h',
       '4–5 · ainda não chegaram',
+      'Expedição · ainda não chegou',
     ])
+  })
+
+  it('celular_concorda_no_singular_com_um_bloco_so', () => {
+    montar(no({
+      trilha: [
+        bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', situacao: 'Passado' }),
+        bloco({ chave: 'Passo:2', ordem: 2, setor: 'Dobra', ...ATUAL }),
+        bloco({ chave: 'Passo:3', ordem: 3, setor: 'Solda', situacao: 'Futuro' }),
+      ],
+    }))
+    const itens = within(celular()).getAllByRole('listitem').map((i) => i.textContent)
+    expect(itens[0]).toBe('1 · Corte · já passou')
+    expect(itens[2]).toBe('3 · ainda não chegou')
+  })
+
+  it('celular_termina_na_expedicao_vazia_sem_bloco_de_expedicao', () => {
+    montar(no({ trilha: [bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', ...ATUAL })] }))
+    const itens = within(celular()).getAllByRole('listitem')
+    const ultimo = itens[itens.length - 1]
+    expect(ultimo.textContent).toBe('Expedição · ainda não chegou')
+    expect(ultimo.className).toContain('text-tinta-fraca')
+  })
+
+  it('celular_com_bloco_de_expedicao_nao_repete_a_expedicao', () => {
+    montar(no({
+      trilha: [
+        bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', situacao: 'Passado' }),
+        bloco({ tipo: 'Expedicao', chave: 'Expedicao', ordem: null, setor: null, ...ATUAL, quantidade: 5 }),
+      ],
+    }))
+    const itens = within(celular()).getAllByRole('listitem').map((i) => i.textContent)
+    expect(itens).toEqual(['1 · Corte · já passou', 'Expedição — 5 · há 6 h'])
   })
 })

@@ -26,7 +26,7 @@ export function textoDoBloco(b: BlocoDaTrilhaDto, agora: string): string {
       const partes: string[] = []
       if (b.quantidade > 0) partes.push(comIdade(`${formatarQuantidade(b.quantidade)} no Setor`, b.desde, agora))
       if (b.aguardandoColeta > 0) {
-        partes.push(comIdade(`${formatarQuantidade(b.aguardandoColeta)} prontas, esperando coleta`, b.aguardandoColetaDesde, agora))
+        partes.push(comIdade(`${formatarQuantidade(b.aguardandoColeta)} ${b.aguardandoColeta === 1 ? 'pronta' : 'prontas'}, esperando coleta`, b.aguardandoColetaDesde, agora))
       }
       return `${b.setor ?? 'Passo'} — ${partes.join(' · ')}`
     }

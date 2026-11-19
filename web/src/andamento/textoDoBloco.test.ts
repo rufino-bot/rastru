@@ -15,6 +15,11 @@ describe('textoDoBloco', () => {
     })
     expect(textoDoBloco(as2, AGORA_DO_ANDAMENTO)).toBe('Solda — 4 no Setor · há 2 d · 20 prontas, esperando coleta · há 9 d')
 
+    const uma = bloco({ setor: 'Solda', situacao: 'Atual', quantidade: 0, aguardandoColeta: 1, aguardandoColetaDesde: '2026-11-10T12:00:00-03:00' })
+    expect(textoDoBloco(uma, AGORA_DO_ANDAMENTO)).toBe('Solda — 1 pronta, esperando coleta · há 9 d')
+    const meia = bloco({ setor: 'Solda', situacao: 'Atual', quantidade: 0, aguardandoColeta: 1.5, aguardandoColetaDesde: '2026-11-10T12:00:00-03:00' })
+    expect(textoDoBloco(meia, AGORA_DO_ANDAMENTO)).toBe('Solda — 1,5 prontas, esperando coleta · há 9 d')
+
     const soSetor = bloco({ setor: 'Corte', situacao: 'Atual', quantidade: 4, desde: '2026-11-19T06:00:00-03:00' })
     expect(textoDoBloco(soSetor, AGORA_DO_ANDAMENTO)).toBe('Corte — 4 no Setor · há 6 h')
   })

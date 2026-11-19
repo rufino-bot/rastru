@@ -285,3 +285,5 @@ parada (seria da 3C); idade por usuário (seção 1.2).
   só o que tem peça agora, por extenso, com os passos já passados numa linha. No celular, vertical, com passados e
   futuros consecutivos agrupados. Montagem e conserto continuam blocos da trilha (C10), mas aparecem só na lista, não
   na linha. A borda tracejada do passo futuro de C10 vira o ponto vazio.
+  As frases concordam em número ("1 pronta", "Já passou", "já passou", "ainda não chegou") e, no celular, a lista
+  termina em "Expedição · ainda não chegou" quando a trilha não tem bloco de Expedição.

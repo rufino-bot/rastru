@@ -930,7 +930,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   7 rem ou mais, o nome do Setor; abaixo disso, o número e o nome; abaixo de 4,5 rem, só o número, e o ponto `Atual` mantém o
   nome; o nome inteiro está sempre no `aria-label` e no `title`. Montagem, conserto e "a iniciar" **não** viram ponto: só aparecem
   na lista. Abaixo de `md` há uma lista vertical única (`gruposDoCelular`: passados consecutivos numa linha, cada `Atual` com o
-  detalhe e futuros consecutivos numa linha), e as duas formas ficam no DOM, com o CSS escondendo uma. Depois vêm as complicações
+  detalhe e futuros consecutivos numa linha, e a Expedição "ainda não chegou" por último quando a trilha não tem o bloco; as frases concordam no singular), e as duas formas ficam no DOM, com o CSS escondendo uma. Depois vêm as complicações
   em texto e os Itens numa `ListaRecolhivel`
   "Itens (N)" que abre sozinha (`temAcao`) quando o `maisParado` está entre eles (C10). A idade vem do `agora` do servidor,
   por `idadeDesde` e `duracaoLegivel` de `web/src/panorama/idade.ts` (a duração do servidor vem em segundos, e a função pede
