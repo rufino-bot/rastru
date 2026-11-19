@@ -1311,15 +1311,20 @@ dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que so
 olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
 
 **`db/massa-carga-6a.sql` é opcional, como o `seed-demo.sql`, e a suíte também o ignora** (`grep -rn "massa-carga-6a"`
-em `src/` e `tests/` devolve zero). É a massa de carga do Panorama da Fase 6A (C14): 50 Pedidos abertos `CARGA-6A-001` a
-`050`, um Agrupamento Avulso, 10 Peças e 5 Itens por Peça (3.000 nós), Roteiro de 4 passos e cerca de 58 mil linhas do livro
-(uma média de ~20 por nó), só com `Inicio`, `Termino` e `Entrega` válidos, em lotes parciais, com `DataHora` espalhada pelos
-últimos dias. Serve para medir o `GET /panorama` com a fábrica carregada (ver o ledger da Fase 6A). Cria os próprios Setores
-(`CARGA-6A …`) e Componentes (`CARGA-6A-C01` a `10`) por nome/código, sem depender do `seed-demo.sql`, e usa o `admin` do
-`db/seed.sql`. É idempotente: o que já existe não é recriado, e o livro só é gerado para os Pedidos criados na execução,
-tudo numa transação. **Carregue-o com `-b -f 65001`**, por `docker compose cp` + `-i`, como os `alter-*.sql`. A suíte passou inteira com a massa carregada
-(2026-11-19), mas a `Api.Tests` ficou bem mais lenta (cerca de 10 min); o banco de dev é descartável, e quem quiser a suíte
-rápida a regenera sem ela.
+em `src/` e `tests/` devolve zero). É a massa de carga do Panorama da Fase 6A (C14), e serve também à conferência visual da
+Peça com filhos (C5): 50 Pedidos abertos `CARGA-6A-001` a `050`, um Agrupamento Avulso, 10 Peças e 5 Itens por Peça (3.000
+nós), Roteiro de 4 passos e cerca de 66 mil linhas do livro, só com `Inicio`, `Termino`, `Entrega` e `Montagem` válidos, em
+lotes parciais. **Segue a regra de montagem:** os Itens correm o Roteiro e esperam em `AguardandoMontagem` do Corte, e a Peça
+só inicia um lote por uma `Montagem` (a linha de `dbo.Montagem`, a baixa de cada Item e o `Inicio` apontando-a); há Pedidos
+com a Peça ainda não iniciada (o Item é a parte mais parada), com ela iniciada em parte dos lotes e em todos. Não tem
+estorno, perda, aferição, liberação, expedição nem reposição. Cria os próprios Setores (`CARGA-6A …`) e Componentes
+(`CARGA-6A-C01` a `10`) por nome/código, sem depender do `seed-demo.sql`, e usa o `admin` do `db/seed.sql`. É idempotente: o
+que já existe não é recriado, e o livro só é gerado para os Pedidos criados na execução, tudo numa transação.
+**Carregue-o com `-b -f 65001`**, por `docker compose cp` + `-i`, como os `alter-*.sql`. **Com a massa carregada a
+`Api.Tests` fica lenta (cerca de 10 min; sem a massa não foi medido de novo), porque cada teste que lista Pedidos, Peças ou o
+Panorama passa a ler as 3.000 linhas dela; a suíte continua verde porque as asserções são escopadas ao que o próprio teste
+criou, e nenhuma afirma sobre a contagem global** (medido em 2026-11-19, a suíte inteira verde com ela carregada). O banco de
+dev é descartável: quem quer a suíte rápida o regenera sem a massa.
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
