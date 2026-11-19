@@ -26,7 +26,7 @@ describe('CartaoDoPanorama', () => {
     render(
       <MemoryRouter>
         <ul>
-          <CartaoDoPanorama aoGravar={async () => {}} peca={{
+          <CartaoDoPanorama agora="2026-11-19T15:00:00-03:00" aoGravar={async () => {}} peca={{
             ...base, pedido: { ...base.pedido, atrasado: true, pausa: { desde: 'x', porUsuarioNome: 'u', motivo: 'projeto' } },
           }} />
         </ul>
@@ -44,5 +44,21 @@ describe('CartaoDoPanorama', () => {
     expect(screen.getByText('Conforme')).toBeTruthy()
     expect(screen.getByRole('img', { name: 'Desenho de SUP-01' })).toBeTruthy()
     expect(screen.getByText('faltam 3 em produção')).toBeTruthy()
+  })
+
+  it('mostra "Parado há" e as complicações', () => {
+    render(
+      <MemoryRouter>
+        <ul>
+          <CartaoDoPanorama agora="2026-11-19T15:00:00-03:00" aoGravar={async () => {}} peca={pecaDeTeste({
+            paradoDesde: '2026-11-17T09:00:00-03:00',
+            complicacoes: [{ codigo: 'AguardandoDecisao', texto: '1 aguardando decisão' }],
+          })} />
+        </ul>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'Parado há 2 d')).toBeTruthy()
+    expect(screen.getByText('1 aguardando decisão')).toBeTruthy()
   })
 })

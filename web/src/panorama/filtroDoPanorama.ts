@@ -2,7 +2,7 @@ import type { PecaDoPanoramaDto } from '../api/panorama'
 import { casaComFiltro, normalizarParaBusca, type Faceta, type Selecao } from '../components/FiltroDeDemanda'
 
 /** As chaves da query string (`?pedido=2&embalado=PodeEmbalar`), que também são as chaves das facetas. */
-export const CHAVES_DO_PANORAMA = ['pedido', 'setor', 'situacao', 'relatorio', 'embalado'] as const
+export const CHAVES_DO_PANORAMA = ['pedido', 'setor', 'situacao', 'relatorio', 'embalado', 'complicacao'] as const
 
 type EstadoDoEmbalado = 'Embalado' | 'PodeEmbalar' | 'EmProducao'
 
@@ -10,6 +10,12 @@ const ROTULOS_DA_SITUACAO: Record<string, string> = { Atrasado: 'Atrasado', NoPr
 const ROTULOS_DO_RELATORIO: Record<string, string> = { ExigeRelatorio: 'Exige relatório', SemRelatorio: 'Sem relatório' }
 const ROTULOS_DO_EMBALADO: Record<EstadoDoEmbalado, string> = {
   Embalado: 'Embalado', PodeEmbalar: 'Pode embalar', EmProducao: 'Em produção',
+}
+
+/** Na ordem do servidor (C8); `Pausado` e `Nenhuma` fecham a faceta. */
+const ROTULOS_DA_COMPLICACAO: Record<string, string> = {
+  MaterialPendente: 'Material pendente', AguardandoLiberacao: 'Aguardando liberação', AguardandoDecisao: 'Aguardando decisão',
+  EmConserto: 'Em conserto', MontagemIncompleta: 'Montagem incompleta', ARepor: 'A repor', Pausado: 'Pausado', Nenhuma: 'Nenhuma',
 }
 
 const porTexto = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { numeric: true })
@@ -35,12 +41,20 @@ function estadoDoEmbalado(peca: PecaDoPanoramaDto): EstadoDoEmbalado {
   return peca.embalagem.podeMarcar ? 'PodeEmbalar' : 'EmProducao'
 }
 
+/** Os códigos de complicação da Peça, mais `Pausado` com o Pedido pausado, ou `Nenhuma` quando não há nem um nem outro. */
+function complicacoesDaPeca(peca: PecaDoPanoramaDto): string[] {
+  const valores: string[] = peca.complicacoes.map((c) => c.codigo)
+  if (peca.pedido.pausa) valores.push('Pausado')
+  return valores.length > 0 ? valores : ['Nenhuma']
+}
+
 const valoresDaPeca = (peca: PecaDoPanoramaDto): Record<string, string[]> => ({
   pedido: [String(peca.pedido.id)],
   setor: [...setoresDaPeca(peca).keys()].map(String),
   situacao: situacoesDaPeca(peca),
   relatorio: [peca.afericao.exigeRelatorio ? 'ExigeRelatorio' : 'SemRelatorio'],
   embalado: [estadoDoEmbalado(peca)],
+  complicacao: complicacoesDaPeca(peca),
 })
 
 /**
@@ -83,6 +97,7 @@ export function facetasDoPanorama(pecas: PecaDoPanoramaDto[], selecao: Selecao =
     { chave: 'situacao', titulo: 'Situação', opcoes: fixas('situacao', ROTULOS_DA_SITUACAO) },
     { chave: 'relatorio', titulo: 'Relatório', opcoes: fixas('relatorio', ROTULOS_DO_RELATORIO) },
     { chave: 'embalado', titulo: 'Embalado', opcoes: fixas('embalado', ROTULOS_DO_EMBALADO) },
+    { chave: 'complicacao', titulo: 'Complicação', opcoes: fixas('complicacao', ROTULOS_DA_COMPLICACAO) },
   ]
 }
 

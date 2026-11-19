@@ -10,10 +10,12 @@ export function pecaDeTeste(sobre: Partial<PecaDoPanoramaDto> = {}): PecaDoPanor
     distribuicao: [],
     afericao: { exigeRelatorio: false, situacao: 'SemRelatorio' },
     embalagem: { vale: false, podeMarcar: false, emProducao: 0, ultima: null },
+    paradoDesde: null,
+    complicacoes: [],
     ...sobre,
   }
 }
 
 export const seg = (tipo: SegmentoDto['tipo'], quantidade: number, o: Partial<SegmentoDto> = {}): SegmentoDto => ({
-  tipo, setorId: null, setorNome: null, ordem: null, quantidade, aguardandoColeta: 0, ...o,
+  tipo, setorId: null, setorNome: null, ordem: null, quantidade, aguardandoColeta: 0, desde: null, aguardandoColetaDesde: null, ...o,
 })

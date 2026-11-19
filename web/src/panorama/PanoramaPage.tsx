@@ -31,6 +31,8 @@ const OPCOES_DE_ORDEM: readonly OpcaoDeOrdem<string>[] = [
   { valor: 'codigo-desc', rotulo: 'Código (Z→A)' },
   { valor: 'descricao-asc', rotulo: 'Descrição (A→Z)' },
   { valor: 'descricao-desc', rotulo: 'Descrição (Z→A)' },
+  { valor: 'parado-asc', rotulo: 'Parado há (mais parado primeiro)' },
+  { valor: 'parado-desc', rotulo: 'Parado há (menos parado primeiro)' },
   { valor: 'qtd-desc', rotulo: 'Qtd (maior)' },
   { valor: 'qtd-asc', rotulo: 'Qtd (menor)' },
 ]
@@ -91,6 +93,7 @@ export function PanoramaPage() {
   }
 
   const pecas = dados?.pecas ?? null
+  const agora = dados?.agora ?? ''
   const facetas = useMemo(() => (pecas ? facetasDoPanorama(pecas, selecao) : []), [pecas, selecao])
   const visiveis = useMemo(
     () => (pecas ? ordenarPanorama(filtrarPanorama(pecas, { selecao, busca, de, ate }), ordem) : []),
@@ -160,20 +163,22 @@ export function PanoramaPage() {
                   <CabecalhoOrdenavel coluna="qtd" rotulo="Qtd" ordem={ordem} aoMudar={mudarOrdem} />
                   <CabecalhoOrdenavel coluna="prazo" rotulo="Prazo" ordem={ordem} aoMudar={mudarOrdem} />
                   <th scope="col" className={CLASSES_DE_COLUNA}>Onde está</th>
+                  <CabecalhoOrdenavel coluna="parado" rotulo="Parado há" ordem={ordem} aoMudar={mudarOrdem} />
+                  <th scope="col" className={CLASSES_DE_COLUNA}>Complicação</th>
                   <th scope="col" className={CLASSES_DE_COLUNA}>Aferição</th>
                   <th scope="col" className={CLASSES_DE_COLUNA}>Embalado</th>
                 </tr>
               </thead>
               <tbody>
                 {visiveis.map((peca) => (
-                  <LinhaDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={recarregar} />
+                  <LinhaDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={recarregar} agora={agora} />
                 ))}
               </tbody>
             </table>
           </div>
           <ul aria-label="Peças em aberto" className="flex flex-col gap-3 lg:hidden">
             {visiveis.map((peca) => (
-              <CartaoDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={recarregar} />
+              <CartaoDoPanorama key={peca.estruturaItemId} peca={peca} aoGravar={recarregar} agora={agora} />
             ))}
           </ul>
         </>

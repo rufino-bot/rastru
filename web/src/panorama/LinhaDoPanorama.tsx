@@ -4,16 +4,19 @@ import type { PecaDoPanoramaDto } from '../api/panorama'
 import { MiniaturaDoSolido } from '../components/MiniaturaDoSolido'
 import { formatarQuantidade } from '../execucao/formatacao'
 import { CelulaDeEmbalagem } from './CelulaDeEmbalagem'
+import { ComplicacoesDaPeca, ParadoHa } from './CelulasDeAndamento'
 import { DistribuicaoDaPeca } from './DistribuicaoDaPeca'
 import { AfericaoDaPeca, PrazoDaPeca } from './pilulasDaPeca'
 
 interface Props {
   peca: PecaDoPanoramaDto
   aoGravar: () => Promise<void>
+  /** O `agora` do servidor (C12). */
+  agora: string
 }
 
 /** Uma Peça na tabela do Panorama, com as colunas de C4. A tela escreve o `<thead>`. */
-export function LinhaDoPanorama({ peca, aoGravar }: Props) {
+export function LinhaDoPanorama({ peca, aoGravar, agora }: Props) {
   const { componente, pedido } = peca
   return (
     <tr className="border-b border-borda align-top">
@@ -33,7 +36,9 @@ export function LinhaDoPanorama({ peca, aoGravar }: Props) {
       <td className="p-2 text-sm">{componente.descricao}</td>
       <td className="p-2 text-sm">{formatarQuantidade(peca.quantidade)}</td>
       <td className="p-2 text-sm"><PrazoDaPeca pedido={pedido} /></td>
-      <td className="p-2"><DistribuicaoDaPeca segmentos={peca.distribuicao} itensEm={peca.itensEm} /></td>
+      <td className="p-2"><DistribuicaoDaPeca segmentos={peca.distribuicao} itensEm={peca.itensEm} agora={agora} /></td>
+      <td className="p-2 text-sm"><ParadoHa peca={peca} agora={agora} /></td>
+      <td className="p-2"><ComplicacoesDaPeca peca={peca} /></td>
       <td className="p-2"><AfericaoDaPeca afericao={peca.afericao} /></td>
       <td className="p-2"><CelulaDeEmbalagem peca={peca} aoGravar={aoGravar} /></td>
     </tr>

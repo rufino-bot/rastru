@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import type { PecaDoPanoramaDto, SegmentoDto } from '../api/panorama'
+import type { CodigoDeComplicacao, PecaDoPanoramaDto, SegmentoDto } from '../api/panorama'
 import { CHAVES_DO_PANORAMA, facetasDoPanorama, filtrarPanorama } from './filtroDoPanorama'
 
 interface Opcoes {
   pedidoId?: number; numero?: string; prazo?: string; atrasado?: boolean; pausa?: boolean
   codigo?: string; descricao?: string; itensEm?: [number, string][]; segmentos?: SegmentoDto[]
-  exige?: boolean; vale?: boolean; podeMarcar?: boolean
+  exige?: boolean; vale?: boolean; podeMarcar?: boolean; complicacoes?: CodigoDeComplicacao[]
 }
 const passo = (setorId: number, nome: string): SegmentoDto =>
-  ({ tipo: 'Passo', setorId, setorNome: nome, ordem: 1, quantidade: 1, aguardandoColeta: 0 })
+  ({ tipo: 'Passo', setorId, setorNome: nome, ordem: 1, quantidade: 1, aguardandoColeta: 0, desde: null, aguardandoColetaDesde: null })
 
 function peca(id: number, o: Opcoes = {}): PecaDoPanoramaDto {
   return {
@@ -22,6 +22,8 @@ function peca(id: number, o: Opcoes = {}): PecaDoPanoramaDto {
     distribuicao: o.segmentos ?? [],
     afericao: { exigeRelatorio: o.exige ?? false, situacao: 'SemRelatorio' },
     embalagem: { vale: o.vale ?? false, podeMarcar: o.podeMarcar ?? false, emProducao: 0, ultima: null },
+    paradoDesde: null,
+    complicacoes: (o.complicacoes ?? []).map((codigo) => ({ codigo, texto: codigo })),
   }
 }
 const ids = (l: PecaDoPanoramaDto[]) => l.map((p) => p.estruturaItemId)
@@ -33,9 +35,29 @@ const contagens = (f: Facetas, chave: string) =>
 const vazio = { selecao: {}, busca: '', de: '', ate: '' }
 
 describe('CHAVES_DO_PANORAMA', () => {
-  it('são as cinco facetas, na ordem', () => {
-    expect([...CHAVES_DO_PANORAMA]).toEqual(['pedido', 'setor', 'situacao', 'relatorio', 'embalado'])
+  it('são as seis facetas, na ordem', () => {
+    expect([...CHAVES_DO_PANORAMA]).toEqual(['pedido', 'setor', 'situacao', 'relatorio', 'embalado', 'complicacao'])
     expect(facetasDoPanorama([peca(1)], {}).map((f) => f.chave)).toEqual([...CHAVES_DO_PANORAMA])
+  })
+})
+
+describe('facetas do Panorama — complicação', () => {
+  it('faceta_complicacao_com_pausado_e_nenhuma', () => {
+    const pecas = [
+      peca(1, { complicacoes: ['MaterialPendente', 'ARepor'] }),
+      peca(2, { pausa: true }),
+      peca(3, { pausa: true, complicacoes: ['EmConserto'] }),
+      peca(4),
+    ]
+    const f = facetasDoPanorama(pecas)
+    expect(faceta(f, 'complicacao').titulo).toBe('Complicação')
+    expect(faceta(f, 'complicacao').opcoes.map((o) => [o.valor, o.rotulo])).toEqual([
+      ['MaterialPendente', 'Material pendente'], ['EmConserto', 'Em conserto'], ['ARepor', 'A repor'],
+      ['Pausado', 'Pausado'], ['Nenhuma', 'Nenhuma'],
+    ])
+    expect(contagens(f, 'complicacao')).toEqual({ MaterialPendente: 1, EmConserto: 1, ARepor: 1, Pausado: 2, Nenhuma: 1 })
+    expect(ids(filtrarPanorama(pecas, { ...vazio, selecao: { complicacao: ['Nenhuma'] } }))).toEqual([4])
+    expect(ids(filtrarPanorama(pecas, { ...vazio, selecao: { complicacao: ['Pausado', 'ARepor'] } }))).toEqual([1, 2, 3])
   })
 })
 
@@ -48,7 +70,7 @@ describe('facetas do Panorama', () => {
 
   it('setor: passo e conserto da Peça mais os de Itens em, sem contar a Peça duas vezes', () => {
     const conserto: SegmentoDto =
-      { tipo: 'Conserto', setorId: 4, setorNome: 'Solda', ordem: null, quantidade: 1, aguardandoColeta: 0 }
+      { tipo: 'Conserto', setorId: 4, setorNome: 'Solda', ordem: null, quantidade: 1, aguardandoColeta: 0, desde: null, aguardandoColetaDesde: null }
     const p = peca(1, { segmentos: [passo(3, 'Corte'), conserto], itensEm: [[4, 'Solda'], [5, 'Pintura']] })
     const f = facetasDoPanorama([p, peca(2, { itensEm: [[5, 'Pintura']] })])
     expect(contagens(f, 'setor')).toEqual({ 3: 1, 4: 1, 5: 2 })

@@ -4,16 +4,19 @@ import type { PecaDoPanoramaDto } from '../api/panorama'
 import { MiniaturaDoSolido } from '../components/MiniaturaDoSolido'
 import { formatarQuantidade } from '../execucao/formatacao'
 import { CelulaDeEmbalagem } from './CelulaDeEmbalagem'
+import { ComplicacoesDaPeca, ParadoHa } from './CelulasDeAndamento'
 import { DistribuicaoDaPeca } from './DistribuicaoDaPeca'
 import { AfericaoDaPeca, PrazoDaPeca } from './pilulasDaPeca'
 
 interface Props {
   peca: PecaDoPanoramaDto
   aoGravar: () => Promise<void>
+  /** O `agora` do servidor (C12). */
+  agora: string
 }
 
 /** A mesma Peça da `LinhaDoPanorama`, num cartão, para abaixo de `lg` (C14). */
-export function CartaoDoPanorama({ peca, aoGravar }: Props) {
+export function CartaoDoPanorama({ peca, aoGravar, agora }: Props) {
   const { componente, pedido } = peca
   return (
     <li className="flex flex-col gap-3 rounded-lg border border-borda bg-superficie p-4">
@@ -33,7 +36,11 @@ export function CartaoDoPanorama({ peca, aoGravar }: Props) {
         </div>
       </div>
       <div className="text-sm"><PrazoDaPeca pedido={pedido} /></div>
-      <DistribuicaoDaPeca segmentos={peca.distribuicao} itensEm={peca.itensEm} />
+      <DistribuicaoDaPeca segmentos={peca.distribuicao} itensEm={peca.itensEm} agora={agora} />
+      {peca.paradoDesde && (
+        <p className="text-sm text-tinta">Parado há <ParadoHa peca={peca} agora={agora} /></p>
+      )}
+      <ComplicacoesDaPeca peca={peca} />
       <AfericaoDaPeca afericao={peca.afericao} />
       <CelulaDeEmbalagem peca={peca} aoGravar={aoGravar} />
     </li>

@@ -4,7 +4,7 @@ import { ordenarPanorama, ordemDaUrl, ordemParaUrl, type ColunaDoPanorama } from
 
 function peca(
   id: number,
-  o: { os?: string; codigo?: string; descricao?: string; qtd?: number; prazo?: string } = {},
+  o: { os?: string; codigo?: string; descricao?: string; qtd?: number; prazo?: string; parado?: string | null } = {},
 ): PecaDoPanoramaDto {
   return {
     estruturaItemId: id, agrupamentoId: 1, quantidade: o.qtd ?? 1, itensEm: [], distribuicao: [],
@@ -14,9 +14,33 @@ function peca(
     componente: { id, codigo: o.codigo ?? 'A', descricao: o.descricao ?? 'a', miniaturaVersao: null },
     afericao: { exigeRelatorio: false, situacao: 'SemRelatorio' },
     embalagem: { vale: false, podeMarcar: false, emProducao: 0, ultima: null },
+    paradoDesde: o.parado ?? null, complicacoes: [],
   }
 }
 const ids = (l: PecaDoPanoramaDto[]) => l.map((p) => p.estruturaItemId)
+
+describe('ordenarPanorama — parado há', () => {
+  const antigo = '2026-11-01T08:00:00-03:00'
+  const meio = '2026-11-10T08:00:00-03:00'
+  const novo = '2026-11-18T08:00:00-03:00'
+
+  it('parado_crescente_poe_o_mais_antigo_primeiro', () => {
+    const lista = [peca(1, { parado: meio }), peca(2, { parado: novo }), peca(3, { parado: antigo })]
+    expect(ids(ordenarPanorama(lista, { coluna: 'parado', direcao: 'asc' }))).toEqual([3, 1, 2])
+    expect(ids(ordenarPanorama(lista, { coluna: 'parado', direcao: 'desc' }))).toEqual([2, 1, 3])
+  })
+
+  it('sem_parado_vai_para_o_fim_nos_dois_sentidos', () => {
+    const lista = [peca(1), peca(2, { parado: novo }), peca(3, { parado: antigo }), peca(4)]
+    expect(ids(ordenarPanorama(lista, { coluna: 'parado', direcao: 'asc' }))).toEqual([3, 2, 1, 4])
+    expect(ids(ordenarPanorama(lista, { coluna: 'parado', direcao: 'desc' }))).toEqual([2, 3, 1, 4])
+  })
+
+  it('a URL aceita parado-asc e parado-desc', () => {
+    expect(ordemDaUrl('parado-asc')).toEqual({ coluna: 'parado', direcao: 'asc' })
+    expect(ordemParaUrl({ coluna: 'parado', direcao: 'desc' })).toBe('parado-desc')
+  })
+})
 
 describe('ordenarPanorama', () => {
   it('null devolve a lista como veio', () => {

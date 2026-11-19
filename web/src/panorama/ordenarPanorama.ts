@@ -1,11 +1,11 @@
 import type { PecaDoPanoramaDto } from '../api/panorama'
 
-export type ColunaDoPanorama = 'pedido' | 'codigo' | 'descricao' | 'qtd' | 'prazo'
+export type ColunaDoPanorama = 'pedido' | 'codigo' | 'descricao' | 'qtd' | 'prazo' | 'parado'
 
 /** `null` é a ordem original, a do servidor. */
 export type OrdemDoPanorama = { coluna: ColunaDoPanorama; direcao: 'asc' | 'desc' } | null
 
-const COLUNAS: readonly ColunaDoPanorama[] = ['pedido', 'codigo', 'descricao', 'qtd', 'prazo']
+const COLUNAS: readonly ColunaDoPanorama[] = ['pedido', 'codigo', 'descricao', 'qtd', 'prazo', 'parado']
 
 const comparar = (coluna: ColunaDoPanorama, a: PecaDoPanoramaDto, b: PecaDoPanoramaDto): number => {
   switch (coluna) {
@@ -13,6 +13,7 @@ const comparar = (coluna: ColunaDoPanorama, a: PecaDoPanoramaDto, b: PecaDoPanor
     case 'codigo': return a.componente.codigo.localeCompare(b.componente.codigo, 'pt-BR', { numeric: true })
     case 'descricao': return a.componente.descricao.localeCompare(b.componente.descricao, 'pt-BR')
     case 'qtd': return a.quantidade - b.quantidade
+    case 'parado': return Date.parse(a.paradoDesde ?? '') - Date.parse(b.paradoDesde ?? '')
     case 'prazo': return a.pedido.dataEntrega < b.pedido.dataEntrega ? -1 : a.pedido.dataEntrega > b.pedido.dataEntrega ? 1 : 0
   }
 }
@@ -24,9 +25,17 @@ const comparar = (coluna: ColunaDoPanorama, a: PecaDoPanoramaDto, b: PecaDoPanor
 export function ordenarPanorama(pecas: PecaDoPanoramaDto[], ordem: OrdemDoPanorama): PecaDoPanoramaDto[] {
   if (ordem === null) return pecas
   const sinal = ordem.direcao === 'asc' ? 1 : -1
+  // Na coluna "Parado há" quem não tem `paradoDesde` vai para o fim nos dois sentidos, e crescente é o mais antigo primeiro.
+  const semParado = (p: PecaDoPanoramaDto) => ordem.coluna === 'parado' && !p.paradoDesde
   return pecas
     .map((peca, indice) => ({ peca, indice }))
-    .sort((a, b) => sinal * comparar(ordem.coluna, a.peca, b.peca) || a.indice - b.indice)
+    .sort((a, b) => {
+      const ausenteA = semParado(a.peca)
+      const ausenteB = semParado(b.peca)
+      if (ausenteA !== ausenteB) return ausenteA ? 1 : -1
+      if (ausenteA) return a.indice - b.indice
+      return sinal * comparar(ordem.coluna, a.peca, b.peca) || a.indice - b.indice
+    })
     .map(({ peca }) => peca)
 }
 

@@ -717,9 +717,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   recebe a `coluna`, o `rotulo` e a `ordem` atual (de qualquer coluna, ou `null`), devolve a próxima por
   `aoMudar`, e não ordena nada nem sabe de URL. O `<button>` é **da primitiva**, como o da `Botao`, e **não** é
   exceção de "botão de chrome" (ver o bullet dela, com a recontagem de 2026-11-17). Só leva a primitiva a coluna
-  em que ordenar faz sentido (no Panorama, Pedido, Código, Descrição, Qtd e Prazo; Desenho, Onde está, Aferição e
-  Embalado são `<th>` simples). Um consumidor, a `PanoramaPage`, com **5 linhas** de uso (medido em 2026-11-17 com
-  `grep -rn "<CabecalhoOrdenavel" web/src --include=*.tsx | grep -v "\.test\."`; a métrica é **linhas**, uma por coluna).
+  em que ordenar faz sentido (no Panorama, Pedido, Código, Descrição, Qtd, Prazo e, desde a Fase 6A, Parado há; Desenho, Onde está,
+  Complicação, Aferição e Embalado são `<th>` simples). Um consumidor, a `PanoramaPage`, com **6 linhas** de uso (medido em
+  2026-11-17 com `grep -rn "<CabecalhoOrdenavel" web/src --include=*.tsx | grep -v "\.test\."`, com 5, e remedido em 2026-11-19 com
+  o mesmo comando: 6, porque o "Parado há" entrou; a métrica é **linhas**, uma por coluna).
 - **Filtrar por intervalo de datas usa `IntervaloDeDatas`** (`web/src/components/`, com teste próprio), C12 da
   spec do Panorama: dois `<input type="date">` nativos (no Android cada campo abre o calendário do próprio
   celular), com nome acessível "{rótulo}: de" e "{rótulo}: até", e o `Botao` "Limpar" (variante `secundario`),
@@ -885,9 +886,21 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `docs/superpowers/plans/2026-11-17-panorama.md`) mora em `web/src/panorama/`, no molde da expedição e da separação, e o
   cliente HTTP dele é `web/src/api/panorama.ts` (`buscarPanorama` e `registrarEmbalagem`). A `PanoramaPage` (`/panorama`,
   "Panorama" é a primeira entrada da barra, link direto) recebe toda Peça em aberto, inteira e na ordem do servidor, e
-  filtra e ordena no cliente: o `filtroDoPanorama` (as facetas Pedido, Setor, Situação, Relatório e Embalado, com a busca
-  e o intervalo do prazo; `casaComFiltro` é a regra, não se reescreve) e o `ordenarPanorama` (uma coluna só, com a
-  posição original como desempate). Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
+  filtra e ordena no cliente: o `filtroDoPanorama` (as facetas Pedido, Setor, Situação, Relatório, Embalado e, desde a Fase 6A,
+  Complicação, com a busca e o intervalo do prazo; `casaComFiltro` é a regra, não se reescreve) e o `ordenarPanorama` (uma coluna só, com a
+  posição original como desempate).
+
+  **A idade e as duas colunas da Fase 6A** (spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`): o
+  servidor manda as datas (`desde` e `aguardandoColetaDesde` por segmento, `paradoDesde` por Peça) e o `agora` dele, e quem
+  formata é `web/src/panorama/idade.ts` (`msDesde`, `duracaoLegivel`, `idadeDesde`; C7: "menos de 1 h", "N h", "N d" em dias
+  inteiros para baixo, e `agora` antes de `desde` vale zero) — o cliente **nunca** usa `Date.now()` para a idade (C12). O "Onde
+  está" ganha "· há N" depois da quantidade de cada segmento com `desde` e "coleta {q} · há N" no aguardando coleta do passo.
+  Depois dele vêm a coluna **"Parado há"** (`CabecalhoOrdenavel`, coluna `parado`; a duração em negrito, vazia sem
+  `paradoDesde`; **crescente é o mais antigo primeiro**, e quem não tem `paradoDesde` vai para o fim nos dois sentidos;
+  `?ordem=parado-asc` e `parado-desc`, e as duas opções do `SeletorDeOrdem` do celular) e a coluna **"Complicação"** (o
+  `texto` de cada uma, um por linha, `text-tinta`), ambas em `CelulasDeAndamento` e também no cartão. A faceta
+  **Complicação** (chave `complicacao`) tem como valores os `codigo` da Peça, `Pausado` quando o Pedido está pausado, e
+  `Nenhuma` quando não há nem um nem outro. Idade, "Parado há" e complicações são **neutros** (C9). Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
   primeira carga mostra o `EstadoCarregando`, e a recarga troca os dados sem desmontar a lista, para o filtro e a
   rolagem ficarem. A vista inteira mora na URL, com `replace` — as facetas (`useSelecaoNaUrl`), `busca`, `de`, `ate` e
   `ordem`, cada um apagado quando vazio — e o vazio distingue "Nenhuma Peça em aberto." de "Nenhuma Peça casa com o
