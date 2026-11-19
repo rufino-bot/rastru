@@ -21,6 +21,7 @@ export type Recurso =
   | 'reaproveitamento'
   | 'reclamacao'
   | 'dispensa'
+  | 'embalagem'
 
 /**
  * Espelho dos `[Authorize(Roles = …)]` do backend, conferidos no disco em 2026-10-21.
@@ -101,6 +102,9 @@ const ESCRITA: Readonly<Record<Recurso, readonly string[]>> = {
   reclamacao: ['Qualidade', 'PCP', 'Administrador'],
   // "Não repor" e desfazê-lo (`DispensaController`): só o PCP e o Administrador.
   dispensa: ['PCP', 'Administrador'],
+  // Panorama — marcar e desmarcar o "Embalado" (`PanoramaController`, o POST; o GET do Panorama é de todo perfil
+  // autenticado). A Qualidade, o PCP e o Administrador; a Gestão lê e não marca.
+  embalagem: ['Qualidade', 'PCP', 'Administrador'],
 }
 
 export function podeEscrever(perfil: string, recurso: Recurso): boolean {

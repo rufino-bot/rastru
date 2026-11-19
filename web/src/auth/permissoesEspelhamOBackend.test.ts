@@ -56,6 +56,7 @@ const CONTROLLERS_POR_RECURSO: Record<Recurso, readonly string[]> = {
   reaproveitamento: ['ReaproveitamentoController.cs'],
   reclamacao: ['ReclamacaoController.cs'],
   dispensa: ['DispensaController.cs'],
+  embalagem: ['PanoramaController.cs'],
 }
 
 /**

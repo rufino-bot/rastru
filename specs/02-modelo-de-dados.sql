@@ -776,6 +776,21 @@ CREATE TABLE dbo.MaterialSeparacao (
 CREATE UNIQUE INDEX UX_MaterialSeparacao_EstornoDe ON dbo.MaterialSeparacao (EstornoDeId) WHERE EstornoDeId IS NOT NULL;
 CREATE INDEX IX_MaterialSeparacao_EstruturaItem ON dbo.MaterialSeparacao (EstruturaItemId);
 
+-- Registro do "Embalado" da Peca (regra 40, spec do Panorama): SO INCLUSAO, como dbo.MaterialSeparacao.
+-- Cada linha e um marcar ou um desmarcar; se o "Embalado" VALE e calculado na leitura (ultima linha
+-- Marcar, producao zerada e nenhuma volta a producao depois da marca), nunca uma coluna. So Peca (no sem
+-- pai): a aplicacao recusa Item. Nenhum codigo da aplicacao edita nem apaga uma linha; so a rotina de
+-- manutencao do banco poda as antigas, preservando a ultima de cada Peca.
+CREATE TABLE dbo.Embalagem (
+    Id              INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_Embalagem PRIMARY KEY,
+    EstruturaItemId INT           NOT NULL CONSTRAINT FK_Embalagem_EstruturaItem REFERENCES dbo.EstruturaItem (Id),
+    Tipo            NVARCHAR(10)  NOT NULL CONSTRAINT CK_Embalagem_Tipo CHECK (Tipo IN (N'Marcar', N'Desmarcar')),
+    DataHora        DATETIME2     NOT NULL CONSTRAINT DF_Embalagem_DataHora DEFAULT (SYSUTCDATETIME()),
+    UsuarioId       INT           NOT NULL CONSTRAINT FK_Embalagem_Usuario REFERENCES dbo.Usuario (Id)
+);
+-- Toda leitura quer a ultima linha de cada Peca.
+CREATE INDEX IX_Embalagem_EstruturaItem ON dbo.Embalagem (EstruturaItemId, Id DESC);
+
 /* ---------------------------------------------------------------------
    DIMENSIONAL / QUALIDADE
    --------------------------------------------------------------------- */

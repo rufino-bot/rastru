@@ -9,9 +9,9 @@ interface Props {
   /** Ação principal da tela, alinhada ao título (ex.: "Novo pedido"). */
   acao?: ReactNode
   /**
-   * `padrao` (768px) para toda tela de lista e cadastro; `ampla` (1280px) só para a tela que põe duas
-   * colunas lado a lado em tela de PC, como a conferência da importação (a árvore e o painel do
-   * Componente). A largura vem daqui, e não de um container da tela.
+   * `padrao` (768px) para toda tela de lista e cadastro; `ampla` (1280px) só para tela de PC que
+   * precisa de largura: as duas colunas da conferência da importação (a árvore e o painel do
+   * Componente) e a tabela do Panorama. A largura vem daqui, e não de um container da tela.
    */
   largura?: 'padrao' | 'ampla'
   children: ReactNode

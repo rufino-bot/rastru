@@ -22,6 +22,16 @@ describe('CampoDeCaixa', () => {
     expect(aoMudar).toHaveBeenCalledWith(false)
   })
 
+  it('o cursor de mão só aparece com a caixa habilitada', () => {
+    const { rerender } = render(<CampoDeCaixa marcado={false} aoMudar={() => {}}>Texto</CampoDeCaixa>)
+    expect(screen.getByRole('checkbox').closest('label')?.className).toContain('cursor-pointer')
+
+    rerender(<CampoDeCaixa marcado={false} aoMudar={() => {}} desabilitado>Texto</CampoDeCaixa>)
+    const classes = screen.getByRole('checkbox').closest('label')?.className ?? ''
+    expect(classes).toContain('cursor-not-allowed')
+    expect(classes).not.toContain('cursor-pointer')
+  })
+
   it('desabilitada não aceita o toque', () => {
     render(<CampoDeCaixa marcado={false} aoMudar={() => {}} desabilitado>Texto</CampoDeCaixa>)
 
@@ -33,5 +43,14 @@ describe('CampoDeCaixa', () => {
 
     expect(screen.getByRole('checkbox', { description: 'Só 2 ainda estão a iniciar.' })).toBeTruthy()
     expect(screen.getByText('Só 2 ainda estão a iniciar.')).toBeTruthy()
+  })
+})
+
+describe('CampoDeCaixa area de toque', () => {
+  it('o label tem a altura minima de 44 px', () => {
+    render(<CampoDeCaixa marcado={false} aoMudar={() => {}}>Embalado</CampoDeCaixa>)
+
+    const label = screen.getByRole('checkbox').closest('label')!
+    expect(label.className).toContain('min-h-11')
   })
 })

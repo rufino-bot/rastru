@@ -138,7 +138,7 @@ describe('Pagina', () => {
     expect(classes).not.toContain('max-w-md')
   })
 
-  it('a largura ampla é opção de quem precisa de duas colunas, e não muda a padrão', () => {
+  it('a largura ampla é opção de tela de PC que precisa de largura, e não muda a padrão', () => {
     const { container, rerender } = render(<Pagina titulo="Conferência" largura="ampla"><p>c</p></Pagina>)
 
     const ampla = container.firstElementChild!.className.split(/\s+/)

@@ -1518,6 +1518,75 @@ abertura e o «não repor» do mesmo alvo, em paralelo, deixam só um dos dois (
 alvo depois, decisão P5); e o «Usar a sobra» e o descarte da mesma sobra dão um 201 e um 409, seja qual vier primeiro
 (decisão P6): `AlemDaSobra` se o descarte chega antes, `SaldoInsuficiente` se o descarte chega depois.
 
+## Panorama
+
+*(Spec `docs/superpowers/specs/2026-11-17-panorama-design.md`, seção 5.1. Leitura liberada a qualquer perfil
+autenticado, sem `Roles` (C16). Um controller só, `PanoramaController`, no contrato de erro da Execução.)*
+
+- `GET /panorama` — `PanoramaDto`: toda Peça (nó sem pai) de Pedido **não encerrado** (nem `Concluido` nem `Cancelado`,
+  inclusive `Aberto` que ninguém começou e Retrabalho) que ainda tenha unidade nem expedida nem baixada (C2). Chega
+  **inteira**, na ordem de C9 (`dataEntrega` do Pedido, `numero` do Pedido, código do Componente, `id` do nó, as duas
+  comparações de texto ordinais, o número e o código), e a tela filtra e ordena no cliente. **A ordem original compara o
+  número do Pedido e o código como texto ordinal**, como as outras listas do servidor (o Pedido "1000" vem antes do
+  "293"), enquanto o cabeçalho "Pedido" da tela ordena **numericamente**; no empate de prazo as duas podem divergir, e
+  é deliberado (decisão de 2026-11-18, na review de branch). Item não tem linha. A leitura é em lote: os
+  saldos de todas as Peças e dos descendentes delas, as aferições, as últimas linhas da embalagem, os nomes e as
+  versões das miniaturas saem de uma consulta cada, nunca uma por Peça.
+
+```jsonc
+// GET /panorama  → PanoramaDto
+{
+  "pecas": [
+    {
+      "estruturaItemId": 812, "agrupamentoId": 77, "quantidade": 5,
+      "pedido": { "id": 41, "numero": "293146", "dataEntrega": "2026-11-06", "atrasado": true, "retrabalho": false,
+                  "pausa": { "desde": "…", "porUsuarioNome": "…", "motivo": "Alteração de projeto" } },   // pausa: null sem pausa aberta
+      "componente": { "id": 300, "codigo": "038190-C", "descricao": "…", "miniaturaVersao": "9f2c…" },     // null sem miniatura
+      "itensEm": [ { "setorId": 3, "nome": "Corte" } ],   // C3/D13: Setores dos descendentes, sem repetir, por nome; [] sem nenhum
+      "distribuicao": [                                   // C8, já na ordem do Roteiro; segmento com zero não vem
+        { "tipo": "AIniciar",  "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 2, "aguardandoColeta": 0 },
+        { "tipo": "Passo",     "setorId": 3,    "setorNome": "Solda", "ordem": 2,    "quantidade": 3, "aguardandoColeta": 1 },
+        { "tipo": "Conserto",  "setorId": 3,    "setorNome": "Solda", "ordem": null, "quantidade": 1, "aguardandoColeta": 0 },
+        { "tipo": "Expedicao", "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 1, "aguardandoColeta": 0 },
+        { "tipo": "Expedido",  "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 1, "aguardandoColeta": 0 }
+      ],                                                  // tipos: AIniciar, Passo, Conserto, Expedicao, Expedido, Perdido
+      "afericao": { "exigeRelatorio": true, "situacao": "Conforme" },   // SemRelatorio | Pendente | Conforme | NaoConforme (a da expedição)
+      "embalagem": { "vale": false, "podeMarcar": false, "emProducao": 3,
+                     "ultima": { "tipo": "Marcar", "dataHora": "…", "usuario": "qualidade" } }   // ultima: null sem registro
+    }
+  ]
+}
+```
+
+- `pedido.atrasado` e `pedido.pausa` vêm do servidor, como em `GET /expedicao` (regra 33: dia de Brasília e status do
+  Pedido); `pedido.retrabalho` é `true` quando o Pedido é de Retrabalho.
+- `distribuicao`: um `Passo` por passo do Roteiro, na ordem do passo, com a soma de `NoSetor` e `AguardandoColeta`
+  dele (`aguardandoColeta` à parte); um Setor que aparece duas vezes no Roteiro dá dois segmentos. `Conserto` é um por
+  Setor, com as três posições do conserto somadas; `Expedicao` soma as cinco posições do local de expedição.
+- `embalagem.vale` e `embalagem.podeMarcar` são os da regra 40; `emProducao` é o "faltam N" das sete posições de
+  produção, **sem** o local de expedição.
+- Sem erro de negócio próprio: a resposta é `200`, e `401` sem sessão.
+- `POST /estrutura/{id}/embalagem` *(Qualidade, PCP, Administrador — C17)* — corpo `{ "embalado": true }` marca e
+  `{ "embalado": false }` desmarca; **`204`** em sucesso, sem corpo. Grava uma linha em `dbo.Embalagem` (só de inclusão), na
+  transação da execução. Os outros perfis recebem o `403` do `[Authorize(Roles)]`, sem corpo. A pausa do Pedido **não**
+  recusa. Recusas, nesta ordem, no contrato `{ erro, mensagem }` da Execução (o `404` sem corpo):
+  - `400 CorpoInvalido` — `embalado` ausente ou nulo;
+  - `404` — nó inexistente;
+  - `409 PedidoFechado` — Pedido `Concluido` ou `Cancelado` (checado antes do Item, como nas escritas da expedição);
+  - `400 NaoEhPeca` — o nó é um Item: «{nome} é um Item: só a Peça é embalada.»;
+  - ao marcar, `409 ProducaoNaoTerminou` — a condição de C18 não vale (há unidade nas sete posições de produção, ou
+    nenhuma no local de expedição). **O `faltam` da spec não é campo do corpo: é a própria frase da `mensagem`**,
+    «Faltam {N} em produção.» (decisão P1), com `N` a quantidade nas sete posições de produção;
+  - ao marcar, `409 JaEmbalado` — o "Embalado" já **vale** (regra 40): «Esta Peça já está embalada.» Se a última linha é
+    `Marcar` mas deixou de valer, marcar de novo é permitido;
+  - ao desmarcar, `409 NaoEmbalado` — o "Embalado" não vale agora (inclusive quando a marca sumiu sozinha): «Esta Peça não
+    está embalada.»
+
+```jsonc
+// POST /estrutura/812/embalagem   { "embalado": true }   → 409 se faltar produção
+{ "erro": "ProducaoNaoTerminou", "mensagem": "Faltam 3 em produção." }
+```
+
 ## KPIs
 
 - `GET /kpis/tempo-por-setor?de=&ate=`

@@ -15,6 +15,7 @@ using Rastreamento.Application.Cadastros;
 using Rastreamento.Application.Estrutura;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Expedicao;
+using Rastreamento.Application.Panorama;
 using Rastreamento.Application.Retrabalho;
 using Rastreamento.Application.Importacao;
 using Rastreamento.Application.Separacao;
@@ -159,6 +160,7 @@ builder.Services.AddScoped<IExpedicaoRepository, ExpedicaoRepository>();
 builder.Services.AddScoped<IBaixaRepository, BaixaRepository>();
 // Reposicao (Fase 5B-2): a reclamacao do cliente. Sem `Salvar` proprio, pelo mesmo motivo.
 builder.Services.AddScoped<IReposicaoRepository, ReposicaoRepository>();
+builder.Services.AddScoped<IEmbalagemRepository, EmbalagemRepository>();
 
 builder.Services.AddScoped<MontagemDeEstruturaUseCase>();
 builder.Services.AddScoped<ApontamentoUseCase>();
@@ -174,6 +176,8 @@ builder.Services.AddScoped<AfericaoUseCase>();
 builder.Services.AddScoped<LiberacaoUseCase>();
 builder.Services.AddScoped<RemessaUseCase>();
 builder.Services.AddScoped<ConsultaDaExpedicaoUseCase>();
+builder.Services.AddScoped<ConsultaDoPanoramaUseCase>();
+builder.Services.AddScoped<EmbalagemUseCase>();
 builder.Services.AddScoped<EstornoDaExpedicaoUseCase>();
 builder.Services.AddScoped<BaixaUseCase>();
 builder.Services.AddScoped<ConsultaDeBaixasUseCase>();

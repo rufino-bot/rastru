@@ -100,7 +100,7 @@ Componente que já tinha sólido, a miniatura pendente no import do BOM e o `min
 `db/alter-miniatura.sql`. A conferência do usuário no navegador foi feita **só no PC**, em 2026-11-17; o teste no
 **Android** (o teto de 5 s da C14) ficou **pendente** por decisão dele, e nenhum corte de desempenho foi decidido
 (nota de emenda na C14 da spec). A seguinte é o **Panorama** (spec
-`docs/superpowers/specs/2026-11-17-panorama-design.md`, aprovada; o plano ainda não foi escrito); a miniatura e o
+`docs/superpowers/specs/2026-11-17-panorama-design.md`, aprovada; plano `docs/superpowers/plans/2026-11-17-panorama.md`, em execução na branch `panorama`); a miniatura e o
 Panorama vêm **antes da 3C**; depois deles vêm a **3C** e a
 **Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
@@ -347,7 +347,12 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `grep -rn "<button" web/src --include=*.tsx | grep -v "\.test\."` devolve **13 linhas em 4 arquivos**
   (`AppShell`, `ArvoreDeEstrutura`, `ArvoreDaImportacao` e `Botao`), e a linha **não** é a unidade de uso:
   **6 são o elemento cru** — 4 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao` —, 1 é
-  o `<button>` da própria primitiva `Botao`, e 6 são comentário que cita a tag. Somando, são **seis**
+  o `<button>` da própria primitiva `Botao`, e 6 são comentário que cita a tag. **Remedido em 2026-11-17**, com o
+  mesmo comando, depois do `CabecalhoOrdenavel`: **15 linhas em 5 arquivos**, e a conta por tipo é a mesma, com uma
+  primitiva a mais — **6 são o elemento cru** (4 no `AppShell`, 1 na `ArvoreDeEstrutura` e 1 na `ArvoreDaImportacao`,
+  **sem mudança**), **2 são `<button>` de primitiva** (o da `Botao` e o do `CabecalhoOrdenavel`, que **não** é exceção
+  de chrome) e 7 são comentário que cita a tag; **remedido em 2026-11-17, depois da `PanoramaPage`, com o mesmo comando: as
+  mesmas 15 linhas em 5 arquivos, sem mudança** (a tela usa só primitivas). Somando, são **seis**
   `<button>` crus, e "cinco" só é exato contando controles — o "Sair" do cabeçalho e o do rodapé da gaveta
   são o mesmo controle em dois breakpoints, e o `BotaoDoGrupo` é um elemento só, usado na barra e na gaveta.)
   Decisão do usuário (2026-08-29, na review da Task 7 da Fase
@@ -573,7 +578,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`sticky`) e com rolagem própria, para a árvore continuar à vista (decisão do usuário, 2026-10-07); abaixo
   de `lg` o painel é um bloco comum no topo (D16 da spec: é tela de PC). Para caber, a tela usa
   `<Pagina largura="ampla">`: a largura vem da primitiva, não de container próprio, e a `ampla` é para tela
-  de duas colunas, não para lista nem cadastro. A linha da árvore é `isolate`, que prende o `z-index` do
+  de PC que precisa de largura (as duas colunas desta conferência, a tabela do Panorama), não para lista comum nem cadastro. A linha da árvore é `isolate`, que prende o `z-index` do
   campo de quantidade dentro da linha, acima do overlay do seletor.
   A faixa da Peça traz o "Reimportar" ao lado de Confirmar e Descartar: ele abre o `PainelDoArquivoDoBom` (ver
   o bullet do `PainelDeEscrita`), e a escrita passa pela mesma `escrever` da tela, com a falha devolvida ao
@@ -632,30 +637,35 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   página (preferência de exibição) nem nos `filtros`, que são de fora do hook: quem os zera é a
   tela, no mesmo handler.
 - **Filtrar demanda por facetas usa `FiltroDeDemanda`** (`web/src/components/`, com teste próprio),
-  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São quatro primitivas de consulta
-  para quatro gatilhos, e não se substituem: **escolher um item de catálogo paginado** é
+  com a seleção na URL por `useSelecaoNaUrl` (`web/src/hooks/`). São cinco primitivas de consulta
+  para cinco gatilhos, e não se substituem: **escolher um item de catálogo paginado** é
   `SeletorComBusca`; **buscar numa lista paginada no servidor** é `useBuscaPaginada`; **ordenar uma
-  lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **restringir uma lista de demanda
+  lista de cadastro** é `SeletorDeOrdem` (ver o bullet dele); **ordenar uma tabela por coluna** é
+  `CabecalhoOrdenavel` (ver o bullet dele); **restringir uma lista de demanda
   por Material, Pedido, Status…** é `FiltroDeDemanda`, seja a lista filtrada **no cliente** (a fila
-  do Setor, as Tarefas, a lista de separação e a da expedição, que chegam inteiras: as opções e a contagem saem da própria resposta, e
+  do Setor, as Tarefas, a lista de separação, a da expedição e a do Panorama, que chegam inteiras: as opções e a contagem saem da própria resposta, e
   `casaComFiltro`, exportada pelo módulo do componente, é a única implementação da regra — OU dentro
   da faceta, E entre facetas, faceta vazia não restringe; nenhuma página a reescreve) ou **no
   servidor** (a `PedidosPage`, cujos filtros vão como parâmetros de `GET /pedidos` por
   `useBuscaPaginada`). O componente é controlado: recebe `facetas` e `selecao` e devolve a seleção
-  por `aoMudar`; não busca nada e não sabe de URL. Hoje tem **cinco** telas consumidoras, cada uma
+  por `aoMudar`; não busca nada e não sabe de URL. A faceta com mais de `LIMITE_PARA_BUSCA_NA_FACETA` opções,
+  sem busca digitada, mostra só as marcadas e as `LIMITE_DA_LISTA_CURTA_NA_FACETA` (5) primeiras, com o `Botao`
+  "Mostrar todos os {N}" / "Mostrar menos"; com busca digitada a lista é a filtrada inteira. Hoje tem **seis** telas consumidoras, cada uma
   com um uso (medido em 2026-09-29 com
   `grep -rn "<FiltroDeDemanda" web/src --include=*.tsx | grep -v "\.test\."`, com três, remedido em
-  2026-10-17 com o mesmo comando: quatro linhas, uma por tela, porque a `SeparacaoPage` entrou, e de novo em
-  2026-10-22: cinco, porque a `ExpedicaoPage` entrou, com as facetas Pedido e Aferição):
-  `FilaDoSetorPage`, `TarefasPage`, `PedidosPage`, `SeparacaoPage` e `ExpedicaoPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
+  2026-10-17 com o mesmo comando: quatro linhas, uma por tela, porque a `SeparacaoPage` entrou, de novo em
+  2026-10-22: cinco, porque a `ExpedicaoPage` entrou, com as facetas Pedido e Aferição, e de novo em 2026-11-17:
+  seis, porque a `PanoramaPage` entrou, com as facetas Pedido, Setor, Situação, Relatório e Embalado; a métrica é
+  **linhas**):
+  `FilaDoSetorPage`, `TarefasPage`, `PedidosPage`, `SeparacaoPage`, `ExpedicaoPage` e `PanoramaPage`. **A pílula de filtro ativo e a contagem de opção não usam cor de
   estado** (`positivo`, `negativo`, `atencao`, `atraso`): filtro ativo não é estado de negócio, então a
   pílula é o `Botao` de variante `secundario`, e o teste *"pilula de filtro nao usa cor de estado"*
   morre se isso mudar. A seleção vai para a URL com `replace` (marcar uma caixa não cria entrada de
   histórico) e a vírgula sai codificada (`?material=3%2C5`), embora o hook leia as duas formas.
 - **Ordenar uma lista de cadastro usa `SeletorDeOrdem`** (`web/src/components/`, com teste
   próprio): um `Campo` "Ordenar por" com um `<select>` da lista fechada de ordens da tela, com a
-  direção dentro do rótulo da opção ("Código (A→Z)"). É a quarta primitiva de consulta, ao lado das
-  três que o bullet do `FiltroDeDemanda` enumera, e o mesmo contrato controlado dele: recebe
+  direção dentro do rótulo da opção ("Código (A→Z)"). É uma das cinco primitivas de consulta, ao lado das
+  outras quatro que o bullet do `FiltroDeDemanda` enumera, e o mesmo contrato controlado dele: recebe
   `opcoes` e `valor`, devolve o **valor** escolhido por `aoMudar`; não busca nada, não ordena nada e
   não sabe de URL. Quem ordena é o servidor em `ComponentesPage` e `PedidosPage` (`?ordem=` de
   `GET /componentes` e `GET /pedidos`, que entra no `useBuscaPaginada` pelos `filtros`: trocar a
@@ -679,15 +689,41 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   sucesso conta como salvar; **editar** um setor, não — a edição recarrega mantendo ordem e inativos,
   porque o item editado já estava na tela.
 
-  A ordem vai para a URL **só** em `PedidosPage`, e a padrão não é escrita lá (`/pedidos` limpa é
-  "Prazo de entrega"); valor desconhecido lido da URL cai na padrão e não é enviado ao servidor, onde
-  seria 400. Ordenar é leitura: o seletor aparece para todo perfil. Hoje tem **quatro** telas
-  consumidoras, cada uma com um uso (medido em 2026-10-01 com
-  `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`): `SetoresPage`,
-  `MateriaisPage`, `ComponentesPage` e `PedidosPage`. A Fila do Setor e as Tarefas **não** ordenam
+  A ordem vai para a URL em `PedidosPage` e na `PanoramaPage`, e a padrão não é escrita em nenhuma das duas
+  (`/pedidos` limpa é "Prazo de entrega"; no Panorama a "Ordem da tela" é a do servidor, e o valor do seletor é
+  `original`, que vira `null` e apaga o `?ordem=`); valor desconhecido lido da URL cai na padrão e, em Pedidos,
+  não é enviado ao servidor, onde seria 400. Ordenar é leitura: o seletor aparece para todo perfil. Hoje tem
+  **cinco** telas consumidoras, cada uma com um uso (medido em 2026-10-01 com
+  `grep -rn "<SeletorDeOrdem" web/src --include=*.tsx | grep -v "\.test\."`, com quatro, e remedido em
+  2026-11-17 com o mesmo comando: cinco linhas, porque a `PanoramaPage` entrou, que o usa abaixo de `lg`, no lugar
+  dos cabeçalhos da tabela, e ordena no cliente; a métrica é **linhas**): `SetoresPage`,
+  `MateriaisPage`, `ComponentesPage`, `PedidosPage` e `PanoramaPage`. A Fila do Setor e as Tarefas **não** ordenam
   por escolha do usuário, por decisão da spec da 1F: lá a ordem serve ao trabalho do chão de fábrica, e essa ordem é
   o **prazo de entrega** do Pedido do nó, o mais próximo primeiro, com o `Id` do nó desempatando (decisão do usuário,
   2026-11-10); quem a aplica é o servidor, e o front não reordena item.
+- **Ordenar uma tabela por coluna usa `CabecalhoOrdenavel`** (`web/src/components/`, com teste próprio), D10 e C10
+  da spec do Panorama (`docs/superpowers/specs/2026-11-17-panorama-design.md`): o `<th scope="col">` com
+  `aria-sort` (`ascending`, `descending` ou `none`) e um `<button>` com o rótulo e a seta, que cicla **crescente,
+  decrescente e de volta à ordem original** (`proximaOrdem`, função pura exportada: clicar numa coluna que não é a
+  ativa começa em crescente). É a quinta primitiva de consulta, ao lado das quatro que o bullet do
+  `FiltroDeDemanda` enumera, e o gatilho dela é "ordenar uma **tabela** por coluna"; o `SeletorDeOrdem`
+  continua sendo o da lista de cadastro, e é o que o Panorama usa no celular (C14). Controlada, como as outras:
+  recebe a `coluna`, o `rotulo` e a `ordem` atual (de qualquer coluna, ou `null`), devolve a próxima por
+  `aoMudar`, e não ordena nada nem sabe de URL. O `<button>` é **da primitiva**, como o da `Botao`, e **não** é
+  exceção de "botão de chrome" (ver o bullet dela, com a recontagem de 2026-11-17). Só leva a primitiva a coluna
+  em que ordenar faz sentido (no Panorama, Pedido, Código, Descrição, Qtd e Prazo; Desenho, Onde está, Aferição e
+  Embalado são `<th>` simples). Um consumidor, a `PanoramaPage`, com **5 linhas** de uso (medido em 2026-11-17 com
+  `grep -rn "<CabecalhoOrdenavel" web/src --include=*.tsx | grep -v "\.test\."`; a métrica é **linhas**, uma por coluna).
+- **Filtrar por intervalo de datas usa `IntervaloDeDatas`** (`web/src/components/`, com teste próprio), C12 da
+  spec do Panorama: dois `<input type="date">` nativos (no Android cada campo abre o calendário do próprio
+  celular), com nome acessível "{rótulo}: de" e "{rótulo}: até", e o `Botao` "Limpar" (variante `secundario`),
+  que só aparece com algum lado preenchido. Controlado: recebe `de` e `ate` (ISO `aaaa-mm-dd` ou vazio) e devolve
+  os dois por `aoMudar`; não busca nada e não sabe de URL. Qualquer lado pode ficar vazio e os limites são
+  inclusivos, mas quem filtra é a tela. Se `de` passar de `ate`, a primitiva **não troca** os dois: devolve como
+  foi digitado, e a tela mostra que nenhuma linha casa. Não é primitiva de consulta no sentido do bullet do
+  `FiltroDeDemanda`: ela só colhe o intervalo. Um consumidor, a `PanoramaPage`, com **1 linha** de uso, no "Prazo de
+  entrega" (medido em 2026-11-17 com `grep -rn "<IntervaloDeDatas" web/src --include=*.tsx | grep -v "\.test\."`; a
+  métrica é **linhas**); o intervalo mora na URL como `?de=` e `?ate=`, apagados quando vazios.
 - **Exibir a miniatura do sólido usa `MiniaturaDoSolido`** (`web/src/components/`, com teste próprio), nunca
   `<img src="/api/...">`: o `<img>` não manda o token, e a rota exige login. A primitiva recebe o `caminho`
   (`caminhoDaMiniatura(id)` ou `caminhoDaMiniaturaPendente(id, registroId)`, sem o prefixo `/api`), a `versao` (o hash da
@@ -791,7 +827,8 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   o `usePreviaDaBaixa` e a `PreviaDaBaixa`, o `useDescarteDisponivel`, a lógica pura `posicoesDaBaixa` (de onde uma baixa
   pode tirar, cópia de `Posicoes.DeOndeSeDaBaixa`, do Domain, que o `CalculoDaBaixa` consulta) e o
   `usePermissoesDaBaixa`; a primitiva `CampoDeCaixa` (a caixa de marcar com o texto visível, diferente da
-  `CaixaDeLote`) mora em `web/src/components/`, com teste próprio. O
+  `CaixaDeLote`) mora em `web/src/components/`, com teste próprio, e o `<label>` dela é a área de toque, com
+  pelo menos 44 px de altura (`min-h-11`), no molde da `CaixaDeLote` (o Panorama a usa no "Embalado"). O
   `PainelDeBaixa` aceita `motivoFixo`, `origemFixa`, `maximo`, `titulo` e `aviso`, que são o que as duas baixas "de
   atalho" decidem por conta própria: o "Matar" do cartão da expedição (`PainelDeMatar`, em `web/src/expedicao/`, motivo
   `MortaEmProcesso`, origem `NaoConforme`, teto as não conformes aguardando decisão, visível com `naoConforme > 0`) e o
@@ -838,6 +875,27 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   de cada posição como valor inicial e "Nada da sobra serve a este retrabalho." quando vem vazia, caso em que o painel
   não oferece o enviar. O "Usar a sobra" só aparece no Retrabalho `Aberto`. A regra de cor é a do bullet «Cor de
   identidade nunca significa estado».
+- **O Panorama** (spec `docs/superpowers/specs/2026-11-17-panorama-design.md`, seção 6; plano
+  `docs/superpowers/plans/2026-11-17-panorama.md`) mora em `web/src/panorama/`, no molde da expedição e da separação, e o
+  cliente HTTP dele é `web/src/api/panorama.ts` (`buscarPanorama` e `registrarEmbalagem`). A `PanoramaPage` (`/panorama`,
+  "Panorama" é a primeira entrada da barra, link direto) recebe toda Peça em aberto, inteira e na ordem do servidor, e
+  filtra e ordena no cliente: o `filtroDoPanorama` (as facetas Pedido, Setor, Situação, Relatório e Embalado, com a busca
+  e o intervalo do prazo; `casaComFiltro` é a regra, não se reescreve) e o `ordenarPanorama` (uma coluna só, com a
+  posição original como desempate). Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
+  primeira carga mostra o `EstadoCarregando`, e a recarga troca os dados sem desmontar a lista, para o filtro e a
+  rolagem ficarem. A vista inteira mora na URL, com `replace` — as facetas (`useSelecaoNaUrl`), `busca`, `de`, `ate` e
+  `ordem`, cada um apagado quando vazio — e o vazio distingue "Nenhuma Peça em aberto." de "Nenhuma Peça casa com o
+  filtro.", este por **o que sobrou depois do filtro** e não por a faceta ainda listar a opção marcada. Tabela a
+  partir de `lg` (`LinhaDoPanorama`, com o `<thead>` na página) e cartões abaixo (`CartaoDoPanorama`, com o
+  `SeletorDeOrdem` no lugar dos cabeçalhos); as duas listas existem juntas no DOM e o CSS esconde uma, então o teste
+  procura dentro da `table` ou da `list`. As células: a `DistribuicaoDaPeca` ("Onde está"), as pílulas de
+  `pilulasDaPeca` (o prazo e a aferição) e a `CelulaDeEmbalagem`, de onde sai a escrita do "Embalado", que recarrega a
+  tela. O `usePermissoesDaEmbalagem` diz se a sessão marca o "Embalado" (chave `embalagem` de `permissoes.ts`: Qualidade,
+  PCP e Administrador) e é o **único lugar que lê `permissoes.ts` para ele**; a tela e a célula não chamam
+  `usePodeEscrever` direto, e quem só lê vê a pílula e a data, sem caixa. **A regra de cor** (C6): só o atraso
+  (`atraso`), a pausa (`atencao`), "Conforme" (`positivo`) e "Não conforme" (`negativo`) usam tom; Setor, posição,
+  "Embalado" e os controles de filtro e ordenação são neutros, porque estar em produção, embalado ou ordenado não é
+  aprovado nem reprovado.
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -1515,6 +1573,18 @@ banco anterior até o `02-modelo-de-dados.sql`: as colunas `Componente.ArquivoMi
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-miniatura.sql sqlserver:/tmp/alter-miniatura.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-miniatura.sql
+```
+
+**Panorama — `db/alter-panorama.sql`.** Mesmo formato dos anteriores (idempotente, `-b -f 65001`). Leva um banco
+anterior até o `02-modelo-de-dados.sql`: a tabela `dbo.Embalagem` (o registro do "Embalado", regra 40, só de inclusão)
+e, dentro do `CREATE TABLE`, as FKs e o `CK_Embalagem_Tipo`, num bloco só; o índice `IX_Embalagem_EstruturaItem` é o
+segundo bloco, e cada um só roda se falta (uma tabela já existente mas incompleta não é completada). Não muda
+tabela existente, não muda dado e não precisa regenerar o banco.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/alter-panorama.sql sqlserver:/tmp/alter-panorama.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-panorama.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database

@@ -48,7 +48,8 @@ type EntradaDoMenu =
  * registrada). A saída é a que este comentário previa lá em cima e a Fase 3 trocou pela troca barra → gaveta:
  * agrupar. Produção (Fila, Tarefas, Separação), Expedição (Expedição, Liberações) e Cadastros (Componentes,
  * Materiais, Setores) são grupos que abrem e fecham; Pedidos fica como link direto. A barra passa a ter quatro
- * entradas, e não nove. A largura que o cabeçalho pede com as quatro **não foi medida** com instrumento: o
+ * entradas, e não nove (o Panorama, link direto e primeiro, fez dela cinco). A largura que o cabeçalho pede com as
+ * quatro **não foi medida** com instrumento: o
  * usuário conferiu o menu no navegador e o aprovou (2026-11-03), com o contador "Tarefas N" (que aparece no botão
  * "Produção" com o grupo fechado).
  *
@@ -57,7 +58,9 @@ type EntradaDoMenu =
  * rota.
  */
 const ITENS: EntradaDoMenu[] = [
-  // Produção primeiro: Fila, Tarefas e Separação são as telas do chão de fábrica, abertas o dia inteiro no
+  // Panorama primeiro: é a vista de toda a fábrica, a primeira tela de quem consulta (C1 da spec do Panorama). Link direto.
+  { tipo: 'link', item: { para: '/panorama', rotulo: 'Panorama' } },
+  // Produção logo depois do Panorama: Fila, Tarefas e Separação são as telas do chão de fábrica, abertas o dia inteiro no
   // celular — os cadastros são do escritório.
   {
     tipo: 'grupo',

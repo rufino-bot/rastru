@@ -240,6 +240,8 @@ public class PerfisDeEscritaDeclaradosTests
     // A previa e leitura, mas exige perfil: a tela so a mostra a quem pode usar a sobra.
     ["GET pedidos/{id:int}/sobra-reaproveitavel"] = ["PCP", "Administrador"],
     ["POST pedidos/{id:int}/sobra-reaproveitada"] = ["PCP", "Administrador"],
+    // O "Embalado" do Panorama (C17 da spec do Panorama): marcar e desmarcar, `PanoramaController`.
+    ["POST estrutura/{id:int}/embalagem"] = ["Qualidade", "PCP", "Administrador"],
   };
 
   /// <summary>

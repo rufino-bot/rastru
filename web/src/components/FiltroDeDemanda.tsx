@@ -24,6 +24,12 @@ export interface Faceta {
 /** Acima disto a faceta ganha um campo de busca; até isto, a lista inteira cabe na tela. */
 export const LIMITE_PARA_BUSCA_NA_FACETA = 8
 
+/**
+ * Faceta com mais opções que o limite da busca, sem busca digitada e recolhida, mostra as marcadas
+ * e só estas primeiras: a lista longa não empurra as outras facetas para fora da vista.
+ */
+export const LIMITE_DA_LISTA_CURTA_NA_FACETA = 5
+
 /** Rótulo do valor marcado (vindo da URL, por exemplo) que a tela nunca chegou a ver. */
 export const ROTULO_DE_OPCAO_AUSENTE = 'Não está mais na lista'
 
@@ -44,7 +50,7 @@ export function contarFiltrosAtivos(selecao: Selecao): number {
 }
 
 // Busca sem caixa nem acento: quem digita no celular não acentua ("solda" acha "Sôlda").
-function normalizar(texto: string): string {
+export function normalizarParaBusca(texto: string): string {
   return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 }
 
@@ -87,6 +93,7 @@ export function FiltroDeDemanda({ facetas, selecao, aoMudar }: Props) {
   const idDoPainel = useId()
   const [aberto, setAberto] = useState(false)
   const [buscas, setBuscas] = useState<Record<string, string>>({})
+  const [expandidas, setExpandidas] = useState<Record<string, boolean>>({})
   const lembrados = useRef(new Map<string, RotuloLembrado>())
 
   // Atualizada a cada render com o que está presente: é o que a opção lembra quando sair da lista.
@@ -156,14 +163,20 @@ export function FiltroDeDemanda({ facetas, selecao, aoMudar }: Props) {
           {facetas.map((faceta) => {
             const opcoes = opcoesExibidas(faceta)
             const busca = buscas[faceta.chave] ?? ''
-            const consulta = normalizar(busca.trim())
+            const consulta = normalizarParaBusca(busca.trim())
+            const longa = opcoes.length > LIMITE_PARA_BUSCA_NA_FACETA
+            const expandida = expandidas[faceta.chave] ?? false
+            const recolhida = longa && !consulta && !expandida
             const visiveis = consulta
-              ? opcoes.filter((o) => normalizar(`${o.rotulo} ${o.detalhe ?? ''}`).includes(consulta))
-              : opcoes
+              ? opcoes.filter((o) => normalizarParaBusca(`${o.rotulo} ${o.detalhe ?? ''}`).includes(consulta))
+              : recolhida
+                ? opcoes.filter((o, i) => o.marcada || i < LIMITE_DA_LISTA_CURTA_NA_FACETA)
+                : opcoes
+            const idDaLista = `${idDoPainel}-${faceta.chave}-lista`
             return (
               <fieldset key={faceta.chave} className="flex flex-col gap-2">
                 <legend className="mb-1 text-sm font-semibold text-tinta">{faceta.titulo}</legend>
-                {opcoes.length > LIMITE_PARA_BUSCA_NA_FACETA && (
+                {longa && (
                   <Campo rotulo={`Buscar em ${faceta.titulo}`}>
                     {(id) => (
                       <input
@@ -181,6 +194,7 @@ export function FiltroDeDemanda({ facetas, selecao, aoMudar }: Props) {
                     {opcoes.length === 0 ? 'Nada para filtrar aqui.' : 'Nenhuma opção encontrada.'}
                   </p>
                 )}
+                <div id={idDaLista} className="flex flex-col gap-2">
                 {visiveis.map((opcao) => {
                   const idBase = `${idDoPainel}-${faceta.chave}-${opcao.valor}`
                   return (
@@ -209,6 +223,18 @@ export function FiltroDeDemanda({ facetas, selecao, aoMudar }: Props) {
                     </div>
                   )
                 })}
+                </div>
+                {longa && !consulta && (
+                  <Botao
+                    variante="secundario"
+                    aria-expanded={expandida}
+                    aria-controls={idDaLista}
+                    onClick={() => setExpandidas((e) => ({ ...e, [faceta.chave]: !expandida }))}
+                    className="self-start"
+                  >
+                    {expandida ? 'Mostrar menos' : `Mostrar todos os ${opcoes.length}`}
+                  </Botao>
+                )}
               </fieldset>
             )
           })}

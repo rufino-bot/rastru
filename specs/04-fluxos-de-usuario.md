@@ -588,3 +588,26 @@ sem «não repor». O servidor conta as unidades de Peça (`aRepor`) e a tela s�
    de cada Setor por ordem de chegada — ver Fase 6 em `06-roadmap-mvp.md`).
 2. Tempo total, tempo em fila e tempo de produção por Pedido (ver query de exemplo em
    `02-modelo-de-dados.sql`).
+
+## 8. Panorama
+
+*Perfil: qualquer perfil autenticado lê (a Gestão é quem mais consulta); Qualidade, PCP e Administrador marcam o "Embalado". Spec `docs/superpowers/specs/2026-11-17-panorama-design.md`; regra 40 de `01-dominio-e-regras-de-negocio.md`; rotas na seção «Panorama» de `05-api-endpoints.md`.*
+
+1. A entrada **"Panorama"** é a primeira da barra, link direto, e abre `/panorama`: toda Peça em aberto, uma por linha, na
+   ordem do servidor (prazo de entrega, número do Pedido, código, Id do nó). A tela se atualiza sozinha a cada 30
+   segundos, sem piscar nem perder filtro, ordem ou rolagem, e diz "Atualizado às HH:MM" no topo.
+2. Cada Peça mostra o **Desenho** (a miniatura do sólido, ou um espaço neutro), o **Pedido** (o número dele), o código
+   (link para o Agrupamento), a descrição, a quantidade, o **prazo** (com "Atrasado" ou "Pausado" quando for o caso), o
+   **Onde está** (quantas unidades em cada Setor, a iniciar, no local de expedição, expedidas e perdidas), a
+   **Aferição** (conforme, não conforme, pendente ou sem relatório) e o **Embalado**. No celular, os mesmos dados vêm em
+   cartões.
+3. **Filtrar:** por Pedido, Setor, Situação, Relatório e Embalado (as caixas do `FiltroDeDemanda`), por busca de texto
+   (Pedido, código ou descrição, sem caixa nem acento) e por intervalo do **prazo de entrega**. Tudo vai para a URL, e o F5 mantém a
+   vista. Sem nenhuma Peça casando, a tela diz "Nenhuma Peça casa com o filtro." e oferece "Limpar filtros"; sem nenhuma
+   Peça em aberto, diz "Nenhuma Peça em aberto.".
+4. **Ordenar:** na tabela, clicar no cabeçalho de Pedido, Código, Descrição, Qtd ou Prazo ordena em ordem crescente, a
+   segunda vez em decrescente e a terceira volta à ordem original; no celular, o campo "Ordenar por" faz o mesmo.
+5. **Marcar o "Embalado"** (Qualidade, PCP e Administrador): a caixa só liga quando nada da Peça está em produção e há ao
+   menos uma unidade no local de expedição; antes disso fica travada, com "faltam N em produção". Marcada, mostra quem e
+   quando. Quem não pode marcar (a Gestão, por exemplo) vê a pílula "Embalado" e a data, sem caixa. Se a Peça volta a
+   andar depois da marca, o "Embalado" deixa de valer sozinho, sem ninguém desmarcar.

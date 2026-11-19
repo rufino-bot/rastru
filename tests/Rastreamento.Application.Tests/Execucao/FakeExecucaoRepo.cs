@@ -75,6 +75,9 @@ public class FakeExecucaoRepo : IExecucaoRepository
   /// <summary>PedidoId -> data de entrega. Arranjo do teste; pedido sem entrada volta com a data padrao (0001-01-01).</summary>
   public Dictionary<int, DateOnly> DataDeEntregaDoPedido { get; } = new();
 
+  /// <summary>PedidoId -> Pedido original, quando o Pedido e de Retrabalho. Arranjo do teste; sem entrada, nao e de Retrabalho.</summary>
+  public Dictionary<int, int> PedidoOrigemDoPedido { get; } = new();
+
   /// <summary>MaterialId -> (Codigo, Descricao). Lido junto de `Materiais` do <see cref="FakeEstruturaRepo"/>.</summary>
   public Dictionary<int, (string Codigo, string Descricao)> CatalogoDeMateriais { get; } = new();
   public Dictionary<int, string> Usuarios { get; } = new();
@@ -234,7 +237,8 @@ public class FakeExecucaoRepo : IExecucaoRepository
           .OrderBy(m => m.Codigo, StringComparer.Ordinal).ToList();
       lista.Add(new ContextoDoNo(item, ag.PedidoId, ag.PedidoNumero, ClienteDoPedido.GetValueOrDefault(ag.PedidoId, ""),
           item.AgrupamentoId, ag.Codigo, AgrupamentosKit.Contains(item.AgrupamentoId) ? "Kit" : "Avulso",
-          PausaDoPedido(ag.PedidoId), materiais, DataDeEntregaDoPedido.GetValueOrDefault(ag.PedidoId), status));
+          PausaDoPedido(ag.PedidoId), materiais, DataDeEntregaDoPedido.GetValueOrDefault(ag.PedidoId), status,
+          PedidoOrigemDoPedido.TryGetValue(ag.PedidoId, out var origem) ? origem : null));
     }
     return Task.FromResult<IReadOnlyList<ContextoDoNo>>(lista);
   }
