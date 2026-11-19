@@ -169,7 +169,7 @@ public interface IExecucaoRepository
 
   /// <summary>
   /// Todas as linhas do livro (estornos inclusive) dos nos pedidos, numa consulta, por `Id` — o que a idade
-  /// (Fase 6A) pareia no cliente do servidor, sem uma leitura por no.
+  /// (Fase 6A) e o andamento pareiam em memoria, sem uma leitura por no.
   /// </summary>
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
 

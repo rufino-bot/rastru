@@ -409,7 +409,7 @@ public class FakeExecucaoRepo : IExecucaoRepository
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));
 
-  /// <summary>Quantas vezes o livro foi lido por inteiro para a idade (a leitura que o cache do Panorama evita).</summary>
+  /// <summary>Quantas vezes o livro foi lido por inteiro para a idade (a leitura que o cache do Panorama evita), contando tambem a leitura dos nos que entram no retrato.</summary>
   public int LeiturasDoLivroParaIdade { get; private set; }
 
   /// <summary>Quantas vezes o livro foi lido por intervalo de `Id` (a leitura incremental do cache das idades).</summary>

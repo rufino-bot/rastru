@@ -165,6 +165,7 @@ public class AndamentoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     var no = Peca(await AndamentoAsync(c), peca);
 
     // O Corte e passado E atual ao mesmo tempo (2 ainda esperam coleta): um bloco so, com a permanencia de 2 dias.
+    // `quantidade` e o total do passo (no Setor + coleta), como o segmento do Panorama: aqui nada ficou no Setor.
     var corte = Bloco(no, "Passo:1");
     Assert.Equal(("Atual", 2m, 2m), (
         corte.GetProperty("situacao").GetString(), corte.GetProperty("quantidade").GetDecimal(),
@@ -172,6 +173,26 @@ public class AndamentoEndpointsTests : IClassFixture<WebApplicationFactory<Progr
     var segundos = corte.GetProperty("permanenciaMediaSegundos").GetInt64();
     Assert.InRange(segundos, 2 * 86400, 2 * 86400 + 300);
     Assert.Equal(JsonValueKind.Null, Bloco(no, "Passo:2").GetProperty("permanenciaMediaSegundos").ValueKind);
+  }
+
+  [Fact]
+  public async Task Remessa_parcial_traz_o_expedido_do_no()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNovaAsync(c, 4m, c.Corte);
+    await IniciarAsync(c, peca, c.Corte, 4m);
+    await TerminarAsync(c, peca, c.Corte, 1, 4m);
+    await EntregarAsync(c, peca, c.Corte, 1, 4m);
+    var sem = Peca(await AndamentoAsync(c), peca);
+    Assert.Equal(0m, sem.GetProperty("expedido").GetDecimal());
+
+    await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync("/api/remessas",
+        new { itens = new[] { new { estruturaItemId = peca, quantidade = 1m } } }));
+
+    var no = Peca(await AndamentoAsync(c), peca);
+    Assert.Equal(1m, no.GetProperty("expedido").GetDecimal());
+    // As 3 que sobraram continuam no local de expedicao: o bloco `Expedicao` segue com elas.
+    Assert.Equal(3m, Bloco(no, "Expedicao").GetProperty("quantidade").GetDecimal());
   }
 
   [Fact]

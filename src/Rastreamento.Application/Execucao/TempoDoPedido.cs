@@ -21,7 +21,6 @@ public static class TempoDoPedido
     {
       if (l.Tipo != TiposDeMovimentacao.Inicio && l.Tipo != TiposDeMovimentacao.Devolucao) continue;
       if (estornadas.Contains(l.Id)) continue;
-      
       if (menor is null || l.DataHora < menor) menor = l.DataHora;
     }
     return menor;

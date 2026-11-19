@@ -34,10 +34,14 @@ public sealed record BlocoDaTrilhaDto(
     string Tipo, string Chave, int? Ordem, int? SetorId, string? Setor, string Situacao, decimal Quantidade, DateTime? Desde,
     decimal AguardandoColeta, DateTime? AguardandoColetaDesde, long? PermanenciaMediaSegundos);
 
-/// <summary>Um no (Peca ou Item) com a trilha dele, as complicacoes (C8) sobre ele e os descendentes, e os Itens filhos.</summary>
+/// <summary>
+/// Um no (Peca ou Item) com a trilha dele, as complicacoes (C8) sobre ele e os descendentes, e os Itens filhos.
+/// `Expedido` e quanto do no ja saiu da fabrica (o saldo na posicao `Expedido`): a expedicao so vira bloco da trilha
+/// enquanto ha peca no local de expedicao, e e por ele que a tela diz "ja sairam N".
+/// </summary>
 public sealed record AndamentoDoNoDto(
-    int EstruturaItemId, string Codigo, string Descricao, decimal Quantidade, IReadOnlyList<BlocoDaTrilhaDto> Trilha,
-    IReadOnlyList<ComplicacaoDto> Complicacoes, IReadOnlyList<AndamentoDoNoDto> Itens);
+    int EstruturaItemId, string Codigo, string Descricao, decimal Quantidade, decimal Expedido,
+    IReadOnlyList<BlocoDaTrilhaDto> Trilha, IReadOnlyList<ComplicacaoDto> Complicacoes, IReadOnlyList<AndamentoDoNoDto> Itens);
 
 /// <summary>
 /// O andamento de um Pedido (secao 5.3 da spec da Fase 6A). `Agora` e o relogio do servidor, contra o qual o cliente

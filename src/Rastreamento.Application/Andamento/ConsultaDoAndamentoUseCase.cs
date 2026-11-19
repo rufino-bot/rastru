@@ -141,8 +141,10 @@ public sealed class ConsultaDoAndamentoUseCase
           subarvore, _calc, dados.Resumos.Where(r => subarvore.Contains(r.EstruturaItemId)).ToList(), dados.Descricoes,
           ehPeca ? dados.ARepor.GetValueOrDefault(id) : 0m, estado.Nome);
 
+      var expedido = _calc.Saldos(id).Where(s => s.Local.Posicao == Posicoes.Expedido && s.Quantidade > 0m).Sum(s => s.Quantidade);
       return new AndamentoDoNoDto(
-          id, estado.Codigos.GetValueOrDefault(id) ?? string.Empty, estado.Nome(id), _calc.No(id).Quantidade, trilha, complicacoes, itens);
+          id, estado.Codigos.GetValueOrDefault(id) ?? string.Empty, estado.Nome(id), _calc.No(id).Quantidade, expedido, trilha,
+          complicacoes, itens);
     }
 
     private HashSet<int> Subarvore(int id)
@@ -199,7 +201,7 @@ public sealed class ConsultaDoAndamentoUseCase
                    .Select(s => s.Local.SetorId!.Value).Distinct().Order())
         blocos.Add(new BlocoDaTrilhaDto(
             TiposDeBloco.Montagem, $"Montagem:{setorId}", null, setorId, Nome(setorId), SituacoesDoBloco.Atual,
-            Soma(l => l.Posicao == Posicoes.AguardandoMontagem && l.SetorId == setorId), 
+            Soma(l => l.Posicao == Posicoes.AguardandoMontagem && l.SetorId == setorId),
             MaisAntiga(l => l.Posicao == Posicoes.AguardandoMontagem && l.SetorId == setorId), 0m, null, null));
 
       foreach (var setorId in saldos.Where(s => Posicoes.DoConserto.Contains(s.Local.Posicao) && s.Quantidade > 0m)
