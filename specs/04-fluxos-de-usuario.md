@@ -607,7 +607,8 @@ qualquer perfil autenticado; os itens abaixo são da 6B (histórico), de Gestão
    vista. Sem nenhuma Peça casando, a tela diz "Nenhuma Peça casa com o filtro." e oferece "Limpar filtros"; sem nenhuma
    Peça em aberto, diz "Nenhuma Peça em aberto.".
 4. **Idade e "Parado há" (Fase 6A):** cada pedaço do **Onde está** diz há quanto tempo a parte mais antiga dele está ali
-   ("Solda 4 · há 6 d", "coleta 3 · há 2 d"), e a coluna **"Parado há"** mostra a maior idade entre as partes da Peça e
+   ("7 Solda · há 6 d, coleta 3 · há 2 d": o total do passo, com a idade das partes que estão no Setor, e a
+   coleta com a dela), e a coluna **"Parado há"** mostra a maior idade entre as partes da Peça e
    dos descendentes dela que estão paradas (o "a iniciar" de uma Peça com filhos não conta: quem espera são os filhos). A
    idade é contada contra o relógio do servidor (o `agora` da resposta), em tempo de calendário, e é neutra, sem cor.
    Cada Peça lista as **complicações** que o Rastru sabe (material não separado, aguardando liberação, não conformes
@@ -631,7 +632,8 @@ qualquer perfil autenticado; os itens abaixo são da 6B (histórico), de Gestão
 3. Para cada Peça em aberto, a **trilha** do Roteiro: uma linha com um ponto por passo e a Expedição por último (cheio onde
    já passou, com anel onde há peça agora, vazio onde ainda não chegou), e embaixo, por extenso, só o que tem peça agora
    (quantidade, há quanto tempo e a coleta, quando há; o "a iniciar", a montagem e o conserto aparecem só aqui) e, numa
-   linha, "Já passaram: …" com o tempo em cada Setor. No celular a trilha é uma lista vertical, com os passos já passados e
+   linha, "Já passaram: …" com o tempo em cada Setor (o passo em que a Peça está também diz quanto ficaram as que já
+   passaram). A Expedição, quando já saiu peça e não há mais nenhuma no local, vira ponto cheio com "já saíram N". No celular a trilha é uma lista vertical, com os passos já passados e
    os que ainda não chegaram agrupados. O bloco **mais parado** do Pedido ganha uma borda mais grossa e o texto "mais
    parado". Nada disso usa cor de estado.
 4. Os Itens da Peça ficam numa lista "Itens (N)", recolhida, que abre sozinha quando o mais parado está entre eles. As

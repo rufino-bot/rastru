@@ -23,7 +23,7 @@ nem o que a está segurando.
 **O que se quer.** Responder, sem ir até o Setor, a "**onde travou, desde quando, e o que o Rastru sabe que complica**",
 em dois lugares que a Gestão já usa (D5):
 
-- **no Panorama**, para a fábrica inteira: a idade de cada parte da Peça ("Solda 4 · há 6 d"), uma coluna **"Parado há"**
+- **no Panorama**, para a fábrica inteira: a idade de cada parte da Peça ("7 Solda · há 6 d, coleta 3 · há 2 d"), uma coluna **"Parado há"**
   que se ordena, e uma faceta **"Complicação"**;
 - **na tela do Pedido**, para um Pedido: a seção **"Onde está travando"**, com a trilha do Roteiro de cada Peça (quanto
   tempo passou em cada Setor e onde está parada agora) e três números do Pedido (aberto há, esperou para começar, em
@@ -84,7 +84,7 @@ em dois lugares que a Gestão já usa (D5):
 | C3 | **Estornos.** Uma linha estornada e o estorno dela saem **os dois** do pareamento, e o pareamento é refeito sobre o livro líquido, **como se o movimento estornado nunca tivesse existido**. Consequência aceita: uma saída que aconteceu entre o movimento e o estorno dele passa a consumir outra parte (a mais antiga viva sem o estornado), e a idade de uma parte pode mudar depois de um estorno. Como o lote não tem identidade (regra 9, sem serial), não há "a unidade que de fato saiu": a ordem de chegada sobre o livro líquido é a única leitura coerente. Teste com esse caso. |
 | C4 | **"A iniciar" não tem linha de chegada** (a quantidade nasce no nó). A data de chegada dele é o `Agrupamento.CriadoEm` do nó, que é a data mais antiga em que a Peça pode ter existido (o `EstruturaItem` não tem data própria). O aumento de quantidade depois disso herda a mesma data: aproximação aceita (seção 7). |
 | C5 | **O que conta como parado.** Toda posição que não é terminal: ficam de fora `Montado`, `Expedido` e `Perdido`. **Exceção:** o "a iniciar" de um nó **com filhos** não conta, porque ele espera a montagem, e quem está parado são os filhos (que contam). O local de expedição, o conserto e o aguardando montagem contam. |
-| C6 | **No Panorama.** Cada segmento do "Onde está" (os de `DistribuicaoDaPeca`) ganha a idade da **parte mais antiga** dele; o segmento de passo, que já separa o aguardando coleta, ganha duas ("Solda 4 · há 6 d", "coleta 3 · há 2 d"). A coluna **"Parado há"** é a maior idade entre as partes que contam (C5) da Peça **e dos descendentes dela**; ela se ordena pelo `CabecalhoOrdenavel` (e entra no `SeletorDeOrdem` do celular). Os descendentes continuam sem número próprio no "Itens em" (D13 do Panorama): a idade deles aparece só no "Parado há" e na tela do Pedido. Peça sem parte que conta (tudo expedido ou perdido não entra no Panorama; tudo montado também não): "Parado há" vazio. |
+| C6 | **No Panorama.** Cada segmento do "Onde está" (os de `DistribuicaoDaPeca`) ganha a idade da **parte mais antiga** dele; o segmento de passo, que já separa o aguardando coleta, ganha duas ("7 Solda · há 6 d, coleta 3 · há 2 d": o total do passo, com a idade das partes no Setor, e a coleta com a dela). A coluna **"Parado há"** é a maior idade entre as partes que contam (C5) da Peça **e dos descendentes dela**; ela se ordena pelo `CabecalhoOrdenavel` (e entra no `SeletorDeOrdem` do celular). Os descendentes continuam sem número próprio no "Itens em" (D13 do Panorama): a idade deles aparece só no "Parado há" e na tela do Pedido. Peça sem parte que conta (tudo expedido ou perdido não entra no Panorama; tudo montado também não): "Parado há" vazio. |
 | C7 | **Formato da idade.** Menos de 1 h: "há menos de 1 h"; menos de 24 h: "há N h"; daí em diante, "há N d", em dias inteiros arredondados para baixo. Mesma função no Panorama e no Pedido, com teste. A ordenação usa a idade exata, não o texto. |
 | C8 | **As complicações** (o que o Rastru sabe), calculadas no servidor por Peça, olhando a Peça e os descendentes: **material pendente** (algum nó com "a iniciar" > 0 e `ResumoDoMaterial.Pendencia` > 0, a mesma regra 34 do `CalculoDaSeparacao`), **aguardando liberação** (saldo em `AguardandoLiberacao`), **aguardando decisão** (saldo em `NaoConforme`), **em conserto** (saldo nas três posições do conserto), **montagem incompleta** (filho em `AguardandoMontagem` enquanto o pai não pode iniciar por falta de outro filho, o mesmo "faltam N" que a Fila já calcula) e **a repor** (unidades a repor da 5B-2, pelas mesmas contas de `ConsultaDeReposicao.UnidadesARepor`). **Montagem incompleta**, precisamente: um filho do nó tem saldo em `AguardandoMontagem` no Setor do passo do pai, e o pai não inicia ali porque algum filho tem `FilhoNaMontagem.FaltaParaProxima` > 0 (o "faltam N" que a Fila mostra), para Kit e Avulso, pela mesma `CalculadoraDeExecucao`; o texto é "Montagem: faltam N de {filho}". **A repor**, precisamente: marca a Peça quando uma baixa ou reclamação com unidades a repor aponta para ela ou para um descendente; a baixa de escopo Agrupamento ou Pedido (o "Descartar tudo") marca as Peças do escopo. Não marca todas as Peças do Pedido só porque o Pedido tem algo a repor. **Material pendente**, precisamente: vale para qualquer nó com "a iniciar" > 0, inclusive o pai com filhos (a exclusão de C5 é da idade, não do material, porque o pai também precisa do material dele para iniciar); o texto nomeia o primeiro material pendente e "e mais N" quando houver outros. A **pausa** continua onde está (na célula do prazo) e também é opção da faceta. Cada uma vem com um código estável e um texto curto ("Material não separado: Chapa 3 mm"). |
 | C9 | **Cor.** Idade, "Parado há", complicações e a marca do mais parado são **neutros** (`tinta`, `tinta-fraca`, `Pilula` neutra, peso de fonte e borda). Ficar parado não é aprovado nem reprovado, e material faltando já é neutro pela regra da separação. Só o que já tem tom continua com ele: "Atrasado" (`atraso`), "Pausado" (`atencao`), "Conforme" e "Não conforme" da aferição. |
@@ -253,7 +253,8 @@ mostra o que está parado na fábrica toda, e o Pedido mostra onde e desde quand
 3. **Primeira ou última entrada na posição**, sem parear. Barato, mas mente com lote dividido (seção 1.2). Descartado.
 
 **Para o cache** (D7): Redis contra cache em memória. O Rastru é uma instância numa VPS; o livro só de inclusão dá uma
-chave exata (o maior `Id`), sem defasagem de TTL; e o custo cresce com o número de cálculos, não de pessoas olhando.
+chave exata (o maior `Id`), sem defasagem de TTL (até a emenda F2 da seção 11: desde ela, um commit atrasado além da
+janela de 1.000 `Id` pode ficar até 10 min fora do retrato); e o custo cresce com o número de cálculos, não de pessoas olhando.
 Cache em memória, e só se a medição pedir.
 
 ## 9. Ajustes de documentação (na mesma branch)
@@ -290,6 +291,23 @@ parada (seria da 3C); idade por usuário (seção 1.2).
 - **F3 — a tabela do Panorama volta a caber em 1024 px.** As duas colunas da 6A levaram a largura mínima da tabela a
   1.056 px num espaço de 961, e a página rolava de lado mostrando o `<html>` sem fundo. Cabeçalhos com 14 px e
   espaçamento lateral de 8 px, células com 6 px, a coluna do desenho com 72 px e o conteúdo de "Complicação" e
-  "Embalado" até 92 px: mínimo de 956 px, medido no navegador com a massa de C14. O `<html>` ganha o fundo da página,
-  para uma tabela que estoure no futuro mostrar rolagem e não faixa branca. A folga é pequena (5 px): o mínimo é ditado
+  "Embalado" até 92 px: mínimo de 956 px no protótipo, medido no navegador com a massa de C14; o número final, medido depois dos ajustes, é
+  **952 px, com folga de 9 px** sobre os 961 de espaço. O `<html>` ganha o fundo da página,
+  para uma tabela que estoure no futuro mostrar rolagem e não faixa branca. A folga é pequena (9 px no número final; 5 px no do protótipo): o mínimo é ditado
   pelo texto que não quebra, como o número do Pedido.
+
+### Emendas da review de branch (2026-11-19)
+
+- **I1 — o "no Setor" do passo atual é o total menos a coleta (decisão do usuário).** O DTO não muda: `quantidade` do
+  bloco `Passo` é o total do passo, no Setor mais esperando coleta, igual ao segmento do Panorama. A tela escrevia a
+  `quantidade` como "no Setor" e, à parte, a coleta, e contava duas vezes o que esperava coleta. Agora o "no Setor" é
+  `quantidade - aguardandoColeta`, e só aparece quando é maior que zero; o passo atual que só tem coleta mostra só a
+  coleta.
+- **I2 — o passo atual mostra a permanência das que já passaram (decisão do controlador, pela seção 5.3: "a tela mostra
+  as duas").** O bloco `Passo` `Atual` com `permanenciaMediaSegundos` ganha, ao fim do texto, "as que passaram ficaram
+  {duração}", com a mesma duração da linha "Já passaram". A lista "Onde está agora" e o celular usam o mesmo texto.
+- **I3 — a Expedição que já despachou peças não "ainda não chegou" (decisão do usuário, opção b).** O nó do andamento
+  ganha o campo `expedido`: o saldo na posição `Expedido`, somado do que o `Montador` já tem, sem consulta nova. A linha
+  do Roteiro põe o ponto da Expedição como `Atual` com bloco `Expedicao`; sem bloco, como `Passado` ("Expedição: já
+  saíram N", "já saiu 1" no singular) quando `expedido > 0`, e `Futuro` ("ainda não chegou") quando não. No celular, a
+  linha final diz "Expedição · já saíram N" nas mesmas condições.

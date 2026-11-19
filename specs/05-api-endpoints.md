@@ -273,6 +273,7 @@ mesmo status HTTP para coisas diferentes.
     "pecas": [
       {
         "estruturaItemId": 812, "codigo": "BASE-200", "descricao": "…", "quantidade": 10,
+        "expedido": 0,                       // quanto do nó já saiu da fábrica (o saldo `Expedido`)
         "trilha": [
           { "tipo": "AIniciar", "chave": "AIniciar", "ordem": null, "setorId": null, "setor": null, "situacao": "Atual",
             "quantidade": 3, "desde": "…", "aguardandoColeta": 0, "aguardandoColetaDesde": null, "permanenciaMediaSegundos": null },
@@ -288,6 +289,11 @@ mesmo status HTTP para coisas diferentes.
     ]
   }
   ```
+
+  `expedido` é o saldo do nó na posição `Expedido` (zero sem remessa): a Expedição só vira bloco da trilha enquanto há peça
+  no local de expedição, e é por `expedido` que a tela diz "já saíram N" depois que o resto saiu. A `quantidade` de um
+  bloco `Passo` é o **total do passo**, no Setor mais esperando coleta (`aguardandoColeta` é a parte do total que espera
+  coleta), como o segmento do Panorama.
 
   `tipo` é `AIniciar`, `Passo`, `Montagem`, `Conserto` ou `Expedicao`, e `chave` (a mesma string de
   `maisParado.bloco`) é `AIniciar`, `Passo:{ordem}`, `Montagem:{setorId}`, `Conserto:{setorId}` ou `Expedicao`. A trilha

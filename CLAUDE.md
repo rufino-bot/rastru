@@ -108,7 +108,7 @@ usuário no navegador foi feita **só no PC**, em 2026-11-18; o **celular** (os 
 o toque na caixa) e o painel "Dar baixa" com o `CampoDeCaixa` ficaram **não conferidos**, e o tempo do `GET /panorama`
 falta medir com a fábrica carregada antes do primeiro uso real. O ajuste da faceta longa do `FiltroDeDemanda`
 ("Mostrar todos os N") veio no mesmo PR e vale para as seis telas que o usam. A miniatura e o Panorama vieram
-**antes da 3C**. Por decisão do usuário de 2026-11-19 (D1 da spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`), a **Fase 6** vem **antes da 3C** e se parte em **6A** (visão ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios. A **6A está em execução e não foi mesclada**: o backend e o Panorama com idade estão na branch, a seção «Onde está travando» da tela do Pedido acaba de entrar, e a conferência do usuário no navegador e a review de branch ainda não aconteceram. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+**antes da 3C**. Por decisão do usuário de 2026-11-19 (D1 da spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`), a **Fase 6** vem **antes da 3C** e se parte em **6A** (visão ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios. A **6A está em execução e não foi mesclada**: o backend e o Panorama com idade estão na branch, a seção «Onde está travando» da tela do Pedido entrou, a conferência do usuário no navegador foi feita em 2026-11-19, no PC e no celular (o Panorama, a seção «Onde está travando», o Pedido concluído e o perfil `operador`), e gerou os ajustes F1 a F3 (seção 11 da spec), e a review de branch inteira foi feita no mesmo dia, com o fix wave dela na branch. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -924,13 +924,16 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   "Esperou para começar" ou "Ainda não começou", "Em produção há" com "dos quais … pausado"). A `TrilhaDoNo` é recursiva e recebe o `nivel` (`Peca` no topo, `Item` na recursão): o título é
   `{código} · {descrição} · {Peça|Item} · qtd {q}`, com o código em `font-mono` e o resto em `text-tinta-fraca`. De `md` para
   cima, a `LinhaDoRoteiro` (um ponto por bloco `Passo` e a Expedição por último, na largura inteira do cartão, cada ponto `flex-1`;
-  `Passado` cheio `bg-tinta-fraca`, `Atual` cheio `bg-tinta` com anel, `Futuro` vazio com `border-borda-campo`; sem passo não há linha),
+  `Passado` cheio `bg-tinta-fraca`, `Atual` cheio `bg-tinta` com anel, `Futuro` vazio com `border-borda-campo`; sem passo não há linha;
+  o ponto da Expedição é `Atual` com o bloco `Expedicao`, `Passado` com "Expedição: já saíram N" ("já saiu 1") quando o nó tem `expedido > 0`
+  sem o bloco, e `Futuro` sem nenhum dos dois),
   e embaixo a lista "Onde está agora" (um item por bloco `Atual`, com o texto de `textoDoBloco`) e, numa linha, "Já passaram: …"
-  com a permanência de cada passo. **O rótulo do ponto vai pela largura dele**, por container query (`@container` no `<li>`): com
+  com a permanência de cada passo (o `textoDoBloco` do passo `Atual` que também tem permanência acrescenta "as que passaram
+  ficaram {duração}"; o "no Setor" dele é `quantidade - aguardandoColeta`, porque a `quantidade` do bloco `Passo` é o total do passo). **O rótulo do ponto vai pela largura dele**, por container query (`@container` no `<li>`): com
   7 rem ou mais, o nome do Setor; abaixo disso, o número e o nome; abaixo de 4,5 rem, só o número, e o ponto `Atual` mantém o
   nome; o nome inteiro está sempre no `aria-label` e no `title`. Montagem, conserto e "a iniciar" **não** viram ponto: só aparecem
   na lista. Abaixo de `md` há uma lista vertical única (`gruposDoCelular`: passados consecutivos numa linha, cada `Atual` com o
-  detalhe e futuros consecutivos numa linha, e a Expedição "ainda não chegou" por último quando a trilha não tem o bloco; as frases concordam no singular), e as duas formas ficam no DOM, com o CSS escondendo uma. Depois vêm as complicações
+  detalhe e futuros consecutivos numa linha, e a Expedição por último quando a trilha não tem o bloco, "já saíram N" com `expedido > 0` e "ainda não chegou" sem; as frases concordam no singular), e as duas formas ficam no DOM, com o CSS escondendo uma. Depois vêm as complicações
   em texto e os Itens numa `ListaRecolhivel`
   "Itens (N)" que abre sozinha (`temAcao`) quando o `maisParado` está entre eles (C10). A idade vem do `agora` do servidor,
   por `idadeDesde` e `duracaoLegivel` de `web/src/panorama/idade.ts` (a duração do servidor vem em segundos, e a função pede
