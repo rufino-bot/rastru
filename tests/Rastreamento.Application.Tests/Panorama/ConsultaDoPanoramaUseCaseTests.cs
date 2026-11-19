@@ -3,6 +3,7 @@ using Rastreamento.Application.Panorama;
 using Rastreamento.Application.Tests.Arquivos;
 using Rastreamento.Application.Tests.Common;
 using Rastreamento.Application.Tests.Execucao;
+using Rastreamento.Application.Tests.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using Xunit;
@@ -54,6 +55,7 @@ public class ConsultaDoPanoramaUseCaseTests
   {
     var uc = new ConsultaDoPanoramaUseCase(
         m.Cenario.Execucao, m.Cenario.Expedicao, m.Cenario.Estruturas, m.Cenario.Catalogo, m.Embalagem, m.Arquivos,
+        m.Cenario.Separacao, FakeReposicaoRepo.ConsultaVazia(m.Cenario.Execucao, m.Cenario.Estruturas),
         new RelogioFixo(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)));
     var r = await uc.Lista(Ct);
     Assert.True(r.Sucesso, r.Detalhe);

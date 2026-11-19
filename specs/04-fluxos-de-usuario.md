@@ -605,9 +605,15 @@ sem «não repor». O servidor conta as unidades de Peça (`aRepor`) e a tela s�
    (Pedido, código ou descrição, sem caixa nem acento) e por intervalo do **prazo de entrega**. Tudo vai para a URL, e o F5 mantém a
    vista. Sem nenhuma Peça casando, a tela diz "Nenhuma Peça casa com o filtro." e oferece "Limpar filtros"; sem nenhuma
    Peça em aberto, diz "Nenhuma Peça em aberto.".
-4. **Ordenar:** na tabela, clicar no cabeçalho de Pedido, Código, Descrição, Qtd ou Prazo ordena em ordem crescente, a
+4. **Idade e "Parado há" (Fase 6A):** cada pedaço do **Onde está** diz há quanto tempo a parte mais antiga dele está ali
+   ("Solda 4 · há 6 d", "coleta 3 · há 2 d"), e a coluna **"Parado há"** mostra a maior idade entre as partes da Peça e
+   dos descendentes dela que estão paradas (o "a iniciar" de uma Peça com filhos não conta: quem espera são os filhos). A
+   idade é contada contra o relógio do servidor (o `agora` da resposta), em tempo de calendário, e é neutra, sem cor.
+   Cada Peça lista as **complicações** que o Rastru sabe (material não separado, aguardando liberação, não conformes
+   aguardando decisão, em conserto, montagem incompleta, a repor), e a faceta de complicações filtra por elas.
+5. **Ordenar:** na tabela, clicar no cabeçalho de Pedido, Código, Descrição, Qtd, Prazo ou "Parado há" ordena em ordem crescente, a
    segunda vez em decrescente e a terceira volta à ordem original; no celular, o campo "Ordenar por" faz o mesmo.
-5. **Marcar o "Embalado"** (Qualidade, PCP e Administrador): a caixa só liga quando nada da Peça está em produção e há ao
+6. **Marcar o "Embalado"** (Qualidade, PCP e Administrador): a caixa só liga quando nada da Peça está em produção e há ao
    menos uma unidade no local de expedição; antes disso fica travada, com "faltam N em produção". Marcada, mostra quem e
    quando. Quem não pode marcar (a Gestão, por exemplo) vê a pílula "Embalado" e a data, sem caixa. Se a Peça volta a
    andar depois da marca, o "Embalado" deixa de valer sozinho, sem ninguém desmarcar.

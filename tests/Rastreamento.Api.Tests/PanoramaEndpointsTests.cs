@@ -326,4 +326,190 @@ public class PanoramaEndpointsTests : IClassFixture<WebApplicationFactory<Progra
 
     Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
   }
+
+  // ------------------------------------------------------------ a idade e as complicacoes (Fase 6A, secao 5.2)
+
+  private static async Task<JsonElement> PecaNoGetAsync(CenarioDaFase3NaApi c, int peca) =>
+      (await CorpoAsync(await c.Como(c.Qualidade).GetAsync("/api/panorama"))).GetProperty("pecas").EnumerateArray()
+          .Single(p => p.GetProperty("estruturaItemId").GetInt32() == peca);
+
+  private static DateTimeOffset Data(JsonElement e) => DateTimeOffset.Parse(e.GetString()!);
+
+  private static JsonElement Segmento(JsonElement peca, string tipo) =>
+      peca.GetProperty("distribuicao").EnumerateArray().Single(s => s.GetProperty("tipo").GetString() == tipo);
+
+  private static async Task<int> EsperarAsync(int ms)
+  {
+    await Task.Delay(ms);
+    return ms;
+  }
+
+  [Fact]
+  public async Task Panorama_traz_agora_e_desde_de_cada_segmento()
+  {
+    await using var c = await CriarAsync(_factory);
+    // A: filhos e so a iniciar. Solta: sem filhos, a iniciar. D: dois passos, com parte esperando coleta, e a F no local.
+    var solta = await PecaNovaAsync(c, 3m, c.Corte);
+    var d = await PecaNovaAsync(c, 6m, c.Corte, c.Dobra);
+    await IniciarAsync(c, d, c.Corte, 6m);
+    await TerminarAsync(c, d, c.Corte, 1, 3m);
+    await EntregarAsync(c, d, c.Corte, 1, 2m);
+    var f = await PecaNoLocalAsync(c, 4m, 4m);
+
+    var corpo = await CorpoAsync(await c.Como(c.Qualidade).GetAsync("/api/panorama"));
+    var agora = Data(corpo.GetProperty("agora"));
+    var todas = corpo.GetProperty("pecas").EnumerateArray().ToList();
+    JsonElement Da(int id) => todas.Single(p => p.GetProperty("estruturaItemId").GetInt32() == id);
+
+    Assert.True(Math.Abs((DateTimeOffset.UtcNow - agora).TotalMinutes) < 5, "agora e o relogio do servidor");
+
+    // C5: o "a iniciar" de A, que tem filhos, nao tem data; o da Peca solta, sim (a criacao do Agrupamento).
+    Assert.Equal(JsonValueKind.Null, Segmento(Da(c.A), "AIniciar").GetProperty("desde").ValueKind);
+    var criacao = Data(Segmento(Da(solta), "AIniciar").GetProperty("desde"));
+    Assert.True(criacao <= agora);
+
+    // D: o passo da Corte tem as duas datas (a parte no Setor e a que espera coleta), a da Dobra so a do Setor.
+    var corte = Da(d).GetProperty("distribuicao").EnumerateArray().Single(s => s.GetProperty("ordem").ValueKind == JsonValueKind.Number && s.GetProperty("ordem").GetInt32() == 1);
+    var dobra = Da(d).GetProperty("distribuicao").EnumerateArray().Single(s => s.GetProperty("ordem").ValueKind == JsonValueKind.Number && s.GetProperty("ordem").GetInt32() == 2);
+    var noCorte = Data(corte.GetProperty("desde"));
+    var coletaDaCorte = Data(corte.GetProperty("aguardandoColetaDesde"));
+    var noDobra = Data(dobra.GetProperty("desde"));
+    Assert.True(criacao <= noCorte && noCorte <= coletaDaCorte && coletaDaCorte <= agora);
+    Assert.True(noDobra >= coletaDaCorte && noDobra <= agora);
+    Assert.Equal(JsonValueKind.Null, dobra.GetProperty("aguardandoColetaDesde").ValueKind);
+
+    // O local de expedicao tem a data; Expedido e Perdido nunca (nao existem nestas Pecas).
+    Assert.True(Data(Segmento(Da(f), "Expedicao").GetProperty("desde")) <= agora);
+  }
+
+  [Fact]
+  public async Task Parado_desde_e_a_parte_mais_antiga_que_conta()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNovaAsync(c, 6m, c.Corte);
+    await IniciarAsync(c, peca, c.Corte, 3m);
+    await EsperarAsync(30);
+    await IniciarAsync(c, peca, c.Corte, 3m);
+    await EsperarAsync(30);
+    await TerminarAsync(c, peca, c.Corte, 1, 3m);
+
+    var no = await PecaNoGetAsync(c, peca);
+
+    // O Termino tira a parte mais antiga (a do primeiro Inicio): sobram a segunda no Setor e a que espera coleta.
+    var passo = Segmento(no, "Passo");
+    var noSetor = Data(passo.GetProperty("desde"));
+    var coleta = Data(passo.GetProperty("aguardandoColetaDesde"));
+    Assert.True(noSetor < coleta);
+    Assert.Equal(noSetor, Data(no.GetProperty("paradoDesde")));
+  }
+
+  [Fact]
+  public async Task Peca_com_filhos_so_a_iniciar_tem_parado_desde_dos_filhos()
+  {
+    // Review Focus (C5): o "a iniciar" de A nao conta porque A tem filhos; quem esta parado sao B e C.
+    await using var c = await CriarAsync(_factory);
+    var solta = await PecaNovaAsync(c, 3m, c.Corte);
+    var criacao = Data(Segmento(await PecaNoGetAsync(c, solta), "AIniciar").GetProperty("desde"));
+    await EsperarAsync(30);
+    await IniciarAsync(c, c.B, c.Corte, 20m);
+    await IniciarAsync(c, c.C, c.Dobra, 10m);
+
+    var a = await PecaNoGetAsync(c, c.A);
+
+    // Sem a regra, o "a iniciar" de A (que e a criacao do Agrupamento) seria o mais antigo.
+    Assert.Equal(JsonValueKind.Null, Segmento(a, "AIniciar").GetProperty("desde").ValueKind);
+    Assert.True(Data(a.GetProperty("paradoDesde")) > criacao);
+  }
+
+  [Fact]
+  public async Task Estorno_devolve_a_parte_com_a_data_original()
+  {
+    await using var c = await CriarAsync(_factory);
+    var peca = await PecaNovaAsync(c, 4m, c.Corte);
+    await IniciarAsync(c, peca, c.Corte, 4m);
+    var antes = Data(Segmento(await PecaNoGetAsync(c, peca), "Passo").GetProperty("desde"));
+    await EsperarAsync(30);
+    var termino = await CorpoAsync(await c.Como(c.Operador).PostAsJsonAsync(
+        $"/api/estrutura/{peca}/terminos", new { setorId = c.Corte, ordem = 1, quantidade = 4m }));
+    var depoisDoTermino = await PecaNoGetAsync(c, peca);
+    Assert.True(Data(Segmento(depoisDoTermino, "Passo").GetProperty("aguardandoColetaDesde")) > antes);
+
+    await Garantir(await c.Como(c.Operador).PostAsync($"/api/movimentacoes/{termino.GetProperty("id").GetInt32()}/estorno", null));
+
+    var passo = Segmento(await PecaNoGetAsync(c, peca), "Passo");
+    Assert.Equal(antes, Data(passo.GetProperty("desde")));
+    Assert.Equal(JsonValueKind.Null, passo.GetProperty("aguardandoColetaDesde").ValueKind);
+  }
+
+  [Fact]
+  public async Task Complicacao_de_material_pendente()
+  {
+    await using var c = await CriarAsync(_factory);
+    var parafuso = await c.CriarMaterialAsync("PAR");
+    await Garantir(await c.Como(c.Pcp).PutAsJsonAsync($"/api/estrutura/{c.A}/materiais",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 10m } } }));
+
+    var a = await PecaNoGetAsync(c, c.A);
+
+    var complicacao = Assert.Single(a.GetProperty("complicacoes").EnumerateArray());
+    Assert.Equal(("MaterialPendente", "Material não separado: Material PAR"), (
+        complicacao.GetProperty("codigo").GetString(), complicacao.GetProperty("texto").GetString()));
+
+    await Garantir(await c.Como(c.Separador).PostAsJsonAsync($"/api/estrutura/{c.A}/separacoes",
+        new { linhas = new[] { new { materialId = parafuso, quantidade = 10m } } }));
+    Assert.Empty((await PecaNoGetAsync(c, c.A)).GetProperty("complicacoes").EnumerateArray());
+  }
+
+  [Fact]
+  public async Task Complicacao_de_aguardando_liberacao()
+  {
+    await using var c = await CriarAsync(_factory);
+    var pcp = c.Como(c.Pcp);
+    var criada = await pcp.PostAsJsonAsync($"/api/agrupamentos/{c.AgrupamentoId}/estrutura",
+        new { componenteId = c.ComponenteId, quantidade = 6m, requerRelatorioDimensional = true });
+    await Garantir(criada);
+    var peca = (await CorpoAsync(criada)).GetProperty("id").GetInt32();
+    await Garantir(await pcp.PutAsJsonAsync($"/api/estrutura/{peca}/roteiro", new { passos = new[] { c.Corte } }));
+    await IniciarAsync(c, peca, c.Corte, 6m);
+    await TerminarAsync(c, peca, c.Corte, 1, 6m);
+    await EntregarAsync(c, peca, c.Corte, 1, 6m);
+    var qualidade = c.Como(c.Qualidade);
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/afericoes", new { resultado = "NaoConforme" }));
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/contagens", new { conformes = 4m, naoConformes = 2m }));
+
+    var antes = (await PecaNoGetAsync(c, peca)).GetProperty("complicacoes").EnumerateArray()
+        .Select(x => (x.GetProperty("codigo").GetString()!, x.GetProperty("texto").GetString()!)).ToArray();
+    Assert.Equal(new[] { ("AguardandoDecisao", "Não conformes aguardando decisão (2)") }, antes);
+
+    await Garantir(await qualidade.PostAsJsonAsync($"/api/estrutura/{peca}/pedidos-de-liberacao",
+        new { quantidade = 2m, justificativa = "Aba fora de medida; o cliente aceita." }));
+
+    var depois = (await PecaNoGetAsync(c, peca)).GetProperty("complicacoes").EnumerateArray()
+        .Select(x => (x.GetProperty("codigo").GetString()!, x.GetProperty("texto").GetString()!)).ToArray();
+    Assert.Equal(new[] { ("AguardandoLiberacao", "Aguardando liberação da Gestão (2)") }, depois);
+  }
+
+  [Fact]
+  public async Task Complicacao_a_repor_so_na_peca_da_baixa()
+  {
+    await using var c = await CriarAsync(_factory);
+    var perdida = await PecaNovaAsync(c, 6m, c.Corte);
+    var intacta = await PecaNovaAsync(c, 6m, c.Corte);
+    await IniciarAsync(c, perdida, c.Corte, 6m);
+    await IniciarAsync(c, intacta, c.Corte, 6m);
+    await Garantir(await c.Como(c.Qualidade).PostAsJsonAsync($"/api/estrutura/{perdida}/baixas", new
+    {
+      motivo = "MortaEmProcesso", observacao = (string?)null, tudo = false,
+      origens = new[] { new { posicao = "NoSetor", setorId = (int?)c.Corte, ordem = (int?)1, quantidade = 2m } },
+      incluirTopo = false,
+    }));
+
+    var daBaixa = (await PecaNoGetAsync(c, perdida)).GetProperty("complicacoes").EnumerateArray()
+        .Select(x => (x.GetProperty("codigo").GetString()!, x.GetProperty("texto").GetString()!)).ToArray();
+    Assert.Equal(new[] { ("ARepor", "2 a repor") }, daBaixa);
+    // Nem a Peca irma, do mesmo Pedido, nem a A: o Pedido ter algo a repor nao marca as outras.
+    Assert.Empty((await PecaNoGetAsync(c, intacta)).GetProperty("complicacoes").EnumerateArray());
+    Assert.DoesNotContain((await PecaNoGetAsync(c, c.A)).GetProperty("complicacoes").EnumerateArray(),
+        x => x.GetProperty("codigo").GetString() == "ARepor");
+  }
 }

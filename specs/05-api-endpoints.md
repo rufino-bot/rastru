@@ -1536,6 +1536,7 @@ autenticado, sem `Roles` (C16). Um controller só, `PanoramaController`, no cont
 ```jsonc
 // GET /panorama  → PanoramaDto
 {
+  "agora": "2026-11-19T15:00:00-03:00",   // o relógio do servidor; o cliente calcula a idade contra ele, nunca contra o próprio (C12 da Fase 6A)
   "pecas": [
     {
       "estruturaItemId": 812, "agrupamentoId": 77, "quantidade": 5,
@@ -1544,15 +1545,17 @@ autenticado, sem `Roles` (C16). Um controller só, `PanoramaController`, no cont
       "componente": { "id": 300, "codigo": "038190-C", "descricao": "…", "miniaturaVersao": "9f2c…" },     // null sem miniatura
       "itensEm": [ { "setorId": 3, "nome": "Corte" } ],   // C3/D13: Setores dos descendentes, sem repetir, por nome; [] sem nenhum
       "distribuicao": [                                   // C8, já na ordem do Roteiro; segmento com zero não vem
-        { "tipo": "AIniciar",  "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 2, "aguardandoColeta": 0 },
-        { "tipo": "Passo",     "setorId": 3,    "setorNome": "Solda", "ordem": 2,    "quantidade": 3, "aguardandoColeta": 1 },
-        { "tipo": "Conserto",  "setorId": 3,    "setorNome": "Solda", "ordem": null, "quantidade": 1, "aguardandoColeta": 0 },
-        { "tipo": "Expedicao", "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 1, "aguardandoColeta": 0 },
-        { "tipo": "Expedido",  "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 1, "aguardandoColeta": 0 }
+        { "tipo": "AIniciar",  "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 2, "aguardandoColeta": 0, "desde": "…", "aguardandoColetaDesde": null },
+        { "tipo": "Passo",     "setorId": 3,    "setorNome": "Solda", "ordem": 2,    "quantidade": 3, "aguardandoColeta": 1, "desde": "…", "aguardandoColetaDesde": "…" },
+        { "tipo": "Conserto",  "setorId": 3,    "setorNome": "Solda", "ordem": null, "quantidade": 1, "aguardandoColeta": 0, "desde": "…", "aguardandoColetaDesde": null },
+        { "tipo": "Expedicao", "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 1, "aguardandoColeta": 0, "desde": "…", "aguardandoColetaDesde": null },
+        { "tipo": "Expedido",  "setorId": null, "setorNome": null,    "ordem": null, "quantidade": 1, "aguardandoColeta": 0, "desde": null, "aguardandoColetaDesde": null }
       ],                                                  // tipos: AIniciar, Passo, Conserto, Expedicao, Expedido, Perdido
       "afericao": { "exigeRelatorio": true, "situacao": "Conforme" },   // SemRelatorio | Pendente | Conforme | NaoConforme (a da expedição)
       "embalagem": { "vale": false, "podeMarcar": false, "emProducao": 3,
-                     "ultima": { "tipo": "Marcar", "dataHora": "…", "usuario": "qualidade" } }   // ultima: null sem registro
+                     "ultima": { "tipo": "Marcar", "dataHora": "…", "usuario": "qualidade" } },   // ultima: null sem registro
+      "paradoDesde": "2026-11-05T10:00:00-03:00",   // null quando nenhuma parte conta (C5, C6)
+      "complicacoes": [ { "codigo": "MaterialPendente", "texto": "Material não separado: Chapa 3 mm" } ]   // [] sem nenhuma
     }
   ]
 }
@@ -1563,6 +1566,18 @@ autenticado, sem `Roles` (C16). Um controller só, `PanoramaController`, no cont
 - `distribuicao`: um `Passo` por passo do Roteiro, na ordem do passo, com a soma de `NoSetor` e `AguardandoColeta`
   dele (`aguardandoColeta` à parte); um Setor que aparece duas vezes no Roteiro dá dois segmentos. `Conserto` é um por
   Setor, com as três posições do conserto somadas; `Expedicao` soma as cinco posições do local de expedição.
+- **A idade (Fase 6A, spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`).** O servidor manda
+  **datas** e o `agora`; quem formata "há N d" é o cliente. `desde` de um segmento é a chegada da parte mais antiga dele
+  (tempo de calendário, a pausa não se desconta): `AIniciar` é a criação do Agrupamento (e **`null` quando a Peça tem
+  filhos**, C5: quem espera são os filhos), `Passo` é só o `NoSetor` daquele passo (`aguardandoColetaDesde`, só o
+  `AguardandoColeta`), `Conserto` as três posições do Setor, `Expedicao` as cinco do local de expedição; `Expedido` e
+  `Perdido` não têm. Um estorno devolve a parte com a data original. `paradoDesde` é a menor chegada entre as partes que
+  contam (C5: tudo menos `Montado`, `Expedido`, `Perdido` e o "a iniciar" de nó com filhos) da Peça **e dos descendentes
+  dela**. O livro, as criações dos Agrupamentos, o planejado, o separado, os materiais e o "a repor" por Peça saem de
+  uma consulta cada para todas as Peças.
+- `complicacoes` (C8), no máximo uma por código, nesta ordem: `MaterialPendente`, `AguardandoLiberacao`,
+  `AguardandoDecisao`, `EmConserto`, `MontagemIncompleta`, `ARepor`; o `texto` é curto e pronto para exibir. Peça sem
+  nenhuma traz `[]`. O "a repor" marca só a Peça da baixa ou da reclamação, não as irmãs do Pedido.
 - `embalagem.vale` e `embalagem.podeMarcar` são os da regra 40; `emProducao` é o "faltam N" das sete posições de
   produção, **sem** o local de expedição.
 - Sem erro de negócio próprio: a resposta é `200`, e `401` sem sessão.
