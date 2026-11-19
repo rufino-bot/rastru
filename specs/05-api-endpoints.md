@@ -258,6 +258,48 @@ mesmo status HTTP para coisas diferentes.
   5B-2**; o contrato (corpo, portas, erros) está na seção «Reposição» abaixo. *(O corpo antigo desta rota, com
   `relatorioDimensionalAvaliacaoId`, saiu: `RelatorioDimensionalAvaliacao` deixou de existir na Fase 5A, regras 10 e 12
   de `01`.)*
+- `GET /pedidos/{id}/andamento` *(qualquer perfil autenticado, sem `Roles`)* — a trilha do Roteiro de cada Peça em
+  aberto do Pedido, com a idade das partes e as complicações (Fase 6A, C10 e C12). 404 sem corpo para Pedido
+  inexistente. Pedido `Concluido` ou `Cancelado` devolve os números (`agora`, `abertura`, `inicioReal`,
+  `pausadoDepoisDoInicioSegundos`), `maisParado: null` e `pecas: []`. Datas no formato de Brasília e durações em
+  **segundos inteiros**; o cliente calcula a idade contra o `agora` da resposta (C12).
+
+  ```jsonc
+  {
+    "agora": "…", "abertura": "…",
+    "inicioReal": "…",                     // null: ainda não começou (regra 14: a menor linha Inicio/Devolucao não estornada)
+    "pausadoDepoisDoInicioSegundos": 0,    // só a pausa que veio depois do início real; 0 sem início
+    "maisParado": { "estruturaItemId": 812, "bloco": "Passo:2" },   // null: nada conta, ou Pedido encerrado
+    "pecas": [
+      {
+        "estruturaItemId": 812, "codigo": "BASE-200", "descricao": "…", "quantidade": 10,
+        "trilha": [
+          { "tipo": "AIniciar", "chave": "AIniciar", "ordem": null, "setorId": null, "setor": null, "situacao": "Atual",
+            "quantidade": 3, "desde": "…", "aguardandoColeta": 0, "aguardandoColetaDesde": null, "permanenciaMediaSegundos": null },
+          { "tipo": "Passo", "chave": "Passo:1", "ordem": 1, "setorId": 4, "setor": "Corte", "situacao": "Passado",
+            "quantidade": 0, "desde": null, "aguardandoColeta": 0, "aguardandoColetaDesde": null, "permanenciaMediaSegundos": 86400 },
+          { "tipo": "Passo", "chave": "Passo:2", "ordem": 2, "setorId": 5, "setor": "Solda", "situacao": "Atual",
+            "quantidade": 4, "desde": "…", "aguardandoColeta": 1, "aguardandoColetaDesde": "…", "permanenciaMediaSegundos": null },
+          { "tipo": "Passo", "chave": "Passo:3", "ordem": 3, "setorId": 6, "setor": "Pintura", "situacao": "Futuro", … }
+        ],
+        "complicacoes": [ { "codigo": "MaterialPendente", "texto": "…" } ],
+        "itens": [ /* a mesma forma, recursiva */ ]
+      }
+    ]
+  }
+  ```
+
+  `tipo` é `AIniciar`, `Passo`, `Montagem`, `Conserto` ou `Expedicao`, e `chave` (a mesma string de
+  `maisParado.bloco`) é `AIniciar`, `Passo:{ordem}`, `Montagem:{setorId}`, `Conserto:{setorId}` ou `Expedicao`. A trilha
+  vem na ordem: `AIniciar` (só quando conta, C5: o "a iniciar" de um nó com filhos não conta), os passos do Roteiro na
+  ordem, a montagem por Setor, o conserto por Setor e o local de expedição. `situacao`: `Atual` (há quantidade ali agora;
+  `permanenciaMediaSegundos` também vem quando parte já passou), `Passado` (nada ali, mas há permanência) ou `Futuro`
+  (nem um nem outro; só o passo). Bloco sem nada não aparece, exceto o passo `Futuro`: um nó **sem Roteiro** tem só os
+  blocos que existem. A permanência é a média, ponderada pela quantidade, do tempo de cada parte que saiu do passo pelo
+  `Termino` (a espera de coleta não entra). `pecas` são as Peças com algo que conta; `itens`, recursivo, só os Itens com
+  algo que conta, algum passo `Passado` ou algum filho nessa situação. As `complicacoes` de um nó olham o nó e os
+  descendentes dele (as da Peça são as do Panorama; o "a repor" é só da Peça). `maisParado` é o bloco com a menor
+  `desde` (ou `aguardandoColetaDesde`) entre os blocos que contam de todo o Pedido, o menor Id do nó desempatando.
 - `GET /pedidos/{id}/agrupamentos` *(qualquer perfil autenticado)*
 - `POST /pedidos/{id}/agrupamentos` *(PCP, Administrador)* — `{ codigo, tipo }`,
   `tipo ∈ Kit | Avulso`

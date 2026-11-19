@@ -27,8 +27,7 @@ public sealed class ConsultaDoPanoramaUseCase
   private readonly IReceitaPadraoRepository _catalogo;
   private readonly IEmbalagemRepository _embalagem;
   private readonly IArquivoDeComponenteRepository _arquivos;
-  private readonly ISeparacaoRepository _separacao;
-  private readonly ConsultaDeReposicao _reposicao;
+  private readonly LeitorDeComplicacoes _complicacoes;
   private readonly TimeProvider _relogio;
   private readonly IMemoryCache _cache;
   private readonly LeitorDeEstado _leitor;
@@ -44,8 +43,7 @@ public sealed class ConsultaDoPanoramaUseCase
     _catalogo = catalogo;
     _embalagem = embalagem;
     _arquivos = arquivos;
-    _separacao = separacao;
-    _reposicao = reposicao;
+    _complicacoes = new LeitorDeComplicacoes(separacao, reposicao);
     _relogio = relogio;
     _cache = cache;
     _leitor = new LeitorDeEstado(execucao, estruturas, catalogo);
@@ -71,7 +69,7 @@ public sealed class ConsultaDoPanoramaUseCase
     if (abertas.Count == 0) return Result<PanoramaDto>.Ok(new PanoramaDto(agora, []));
 
     var pecaIds = abertas.Select(x => x.No.Id).ToList();
-    var nosDaPeca = NosDeCadaPeca(todos, pecaIds);
+    var nosDaPeca = PartesQueContam.NosDeCadaPeca(todos, pecaIds);
     var idades = await IdadesAsync(todos, nosDaPeca, ct);
     var complicacoes = await ComplicacoesAsync(abertas, nosDaPeca, estado, ct);
     var itensEm = SetoresDosDescendentes(todos, estado, pecaIds);
@@ -82,8 +80,7 @@ public sealed class ConsultaDoPanoramaUseCase
     var autores = await _execucao.ListarNomesDeUsuariosAsync(ultimas.Values.Select(u => u.UsuarioId).Distinct().ToList(), ct);
 
     // C5: o "a iniciar" de um no com filhos nao tem idade (quem espera sao os filhos), nem em segmento nem no parado.
-    DateTime? MaisAntiga(int id, Func<Local, bool> onde) =>
-        estado.Calc.TemFilhos(id) && onde(Local.AIniciar) ? null : idades.MaisAntiga(id, onde);
+    DateTime? MaisAntiga(int id, Func<Local, bool> onde) => PartesQueContam.MaisAntiga(estado.Calc, idades, id, onde);
     var distribuicoes = abertas.ToDictionary(
         x => x.No.Id, x => DistribuicaoDaPeca.Montar(estado.Calc.Saldos(x.No.Id), onde => MaisAntiga(x.No.Id, onde)));
     var setorIds = distribuicoes.Values.SelectMany(d => d).Where(s => s.SetorId is not null).Select(s => s.SetorId!.Value)
@@ -129,7 +126,7 @@ public sealed class ConsultaDoPanoramaUseCase
               ultima is null
                   ? null
                   : new UltimaEmbalagemDto(ultima.Tipo, ultima.DataHora, autores.GetValueOrDefault(ultima.UsuarioId, string.Empty))),
-          ParadoDesde(nosDaPeca[id], idades, estado.Calc),
+          PartesQueContam.ParadoDesde(nosDaPeca[id], idades, estado.Calc),
           complicacoes.GetValueOrDefault(id) ?? []);
     }
 
@@ -141,22 +138,6 @@ public sealed class ConsultaDoPanoramaUseCase
         .Select(Peca)
         .ToList();
     return Result<PanoramaDto>.Ok(new PanoramaDto(agora, pecas));
-  }
-
-  /// <summary>Os nos de cada Peca pedida (ela e todos os descendentes), pela raiz de cada no, numa passada so.</summary>
-  private static Dictionary<int, HashSet<int>> NosDeCadaPeca(IReadOnlyList<ContextoDoNo> todos, IReadOnlyCollection<int> pecaIds)
-  {
-    var pai = todos.ToDictionary(x => x.No.Id, x => x.No.EstruturaPaiId);
-    int Raiz(int id)
-    {
-      while (pai.TryGetValue(id, out var p) && p is int acima) id = acima;
-      return id;
-    }
-
-    var porPeca = pecaIds.ToDictionary(id => id, id => new HashSet<int> { id });
-    foreach (var x in todos)
-      if (x.No.EstruturaPaiId is not null && porPeca.TryGetValue(Raiz(x.No.Id), out var nos)) nos.Add(x.No.Id);
-    return porPeca;
   }
 
   /// <summary>
@@ -191,22 +172,6 @@ public sealed class ConsultaDoPanoramaUseCase
     return "panorama-idades:" + Convert.ToHexString(hash);
   }
 
-  /// <summary>C5, C6: a menor chegada entre as partes que contam da Peca e dos descendentes.</summary>
-  private static DateTime? ParadoDesde(HashSet<int> nos, IdadesDoLivro idades, CalculadoraDeExecucao calc)
-  {
-    DateTime? menor = null;
-    foreach (var id in nos)
-    {
-      var comFilhos = calc.TemFilhos(id);
-      foreach (var parte in idades.Partes(id))
-      {
-        if (comFilhos && parte.Local.Posicao == Posicoes.AIniciar) continue;
-        if (menor is null || parte.Chegada < menor) menor = parte.Chegada;
-      }
-    }
-    return menor;
-  }
-
   /// <summary>
   /// As complicacoes de C8 por Peca (so as que tem alguma entram): o planejado, o separado e os materiais lidos uma vez
   /// para todos os nos, o "a repor" por Peca de uma consulta so, e a conta pura de <see cref="ComplicacoesDaPeca"/>.
@@ -217,31 +182,17 @@ public sealed class ConsultaDoPanoramaUseCase
     var todosOsNos = nosDaPeca.Values.SelectMany(n => n).ToList();
     var raizDoNo = nosDaPeca.SelectMany(kv => kv.Value.Select(n => (No: n, Peca: kv.Key))).ToDictionary(x => x.No, x => x.Peca);
 
-    var planejado = await _separacao.ListarPlanejadoAsync(todosOsNos, ct);
-    var resumos = new Dictionary<int, List<ResumoDoMaterial>>();
-    var descricoes = new Dictionary<int, string>();
-    if (planejado.Count > 0)
-    {
-      var linhas = await _separacao.ListarLinhasAsync(todosOsNos, ct);
-      var materiais = await _separacao.ListarMateriaisAsync(
-          planejado.Select(p => p.MaterialId).Concat(linhas.Select(l => l.MaterialId)).Distinct().ToList(), ct);
-      var doAlmoxarifado = materiais.Where(m => m.SetorDeEstoqueId is null).Select(m => m.Id).ToHashSet();
-      descricoes = materiais.ToDictionary(m => m.Id, m => m.Descricao);
-      foreach (var r in CalculoDaSeparacao.Resumir(planejado, linhas, doAlmoxarifado))
-        if (raizDoNo.TryGetValue(r.EstruturaItemId, out var peca))
-        {
-          if (!resumos.TryGetValue(peca, out var lista)) resumos[peca] = lista = [];
-          lista.Add(r);
-        }
-    }
-
-    var aRepor = await _reposicao.AReporPorPeca(abertas.Select(x => x.PedidoId).Distinct().ToList(), ct);
+    var dados = await _complicacoes.LerAsync(todosOsNos, abertas.Select(x => x.PedidoId).Distinct().ToList(), ct);
+    var resumos = dados.Resumos
+        .Where(r => raizDoNo.ContainsKey(r.EstruturaItemId))
+        .GroupBy(r => raizDoNo[r.EstruturaItemId])
+        .ToDictionary(g => g.Key, g => (IReadOnlyList<ResumoDoMaterial>)g.ToList());
 
     var porPeca = new Dictionary<int, IReadOnlyList<ComplicacaoDto>>();
     foreach (var (peca, nos) in nosDaPeca)
     {
       var lista = ComplicacoesDaPeca.Calcular(
-          nos, estado.Calc, resumos.GetValueOrDefault(peca) ?? [], descricoes, aRepor.GetValueOrDefault(peca), estado.Nome);
+          nos, estado.Calc, resumos.GetValueOrDefault(peca) ?? [], dados.Descricoes, dados.ARepor.GetValueOrDefault(peca), estado.Nome);
       if (lista.Count > 0) porPeca[peca] = lista;
     }
     return porPeca;
