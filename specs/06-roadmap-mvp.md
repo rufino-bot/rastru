@@ -656,6 +656,13 @@ Spec: `docs/superpowers/specs/2026-11-17-panorama-design.md` (aprovada em 2026-1
 da miniatura. Plano: `docs/superpowers/plans/2026-11-17-panorama.md`. O fluxo de usuário está na seção 8 de
 `04-fluxos-de-usuario.md`.
 
+**Concluído e mesclado em 2026-11-19** (rufino-bot/rastru#40), com o "Embalado" (regra 40 de `01`, `dbo.Embalagem`,
+`db/alter-panorama.sql`). A conferência do usuário no navegador foi feita só no PC; o celular e o painel "Dar baixa"
+com o `CampoDeCaixa` ficaram não conferidos, e o tempo do `GET /panorama` falta medir com a fábrica carregada antes do
+primeiro uso real. Os ajustes da conferência (plano `docs/superpowers/plans/2026-11-18-panorama-ajustes-da-conferencia.md`)
+entraram no mesmo PR; o da faceta longa do `FiltroDeDemanda` vale para as seis telas que o usam. A seguinte é a 3C ou
+a Fase 6, cuja ordem entre si não está decidida; a miniatura no chão de fábrica vem depois do Panorama.
+
 ## Fase 3C — Notificação push
 
 > **Executada depois da Fase 5**, fora da ordem das letras: o fluxo ponta a ponta vem primeiro, e o

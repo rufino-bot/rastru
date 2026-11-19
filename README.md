@@ -28,7 +28,7 @@ local de expedição ou em conserto) + o que já foi montado dentro do pai + exp
 | `tests/` | Suíte de testes (xUnit) — um projeto de teste por camada |
 | `web/` | Frontend React + TypeScript (Vite) |
 | `specs/` | Fonte da verdade do domínio, regras de negócio, modelo de dados e roadmap |
-| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql`, `alter-fase-5a.sql`, `alter-fase-5b1.sql`, `alter-fase-5b2.sql` e `alter-miniatura.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4, da Fase 5A, da Fase 5B-1, da Fase 5B-2 ou da miniatura do sólido até o schema atual |
+| `db/` | Scripts de banco — `seed.sql` (perfis + usuários de desenvolvimento) e `seed-demo.sql` (massa de demonstração, opcional); `alter-fase-3.sql`, `alter-fase-3d.sql`, `alter-importacao-bom.sql`, `alter-data-entrega.sql`, `alter-fase-3b.sql`, `alter-fase-4.sql`, `alter-fase-5a.sql`, `alter-fase-5b1.sql`, `alter-fase-5b2.sql`, `alter-miniatura.sql` e `alter-panorama.sql`, que levam um banco criado antes da Fase 3, da Fase 3D, do import do BOM, da data de entrega do Pedido, da Fase 3B, da Fase 4, da Fase 5A, da Fase 5B-1, da Fase 5B-2, da miniatura do sólido ou do Panorama até o schema atual; e `massa-conferencia-panorama.sql`, massa opcional para a conferência manual do Panorama |
 | `docs/` | Documentação de processo (specs de design e planos de implementação) |
 
 > `specs/02-modelo-de-dados.sql` é a **fonte da verdade do schema**. O EF Core mapeia a
@@ -109,7 +109,7 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
 roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, 5A a 5C dentro da Fase 5, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
 A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D**, o **import
-do BOM** e a **data de entrega do Pedido** rodaram antes da 3B; a **miniatura do sólido** e o **Panorama** rodam depois
+do BOM** e a **data de entrega do Pedido** rodaram antes da 3B; a **miniatura do sólido** e o **Panorama** rodaram depois
 da Fase 5 e antes da 3C; e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6
 não está decidida.
 
@@ -213,9 +213,14 @@ Concluídas até aqui:
   Componente na confirmação. A conferência do usuário no navegador foi feita no PC, em 2026-11-17; o teste no Android,
   com o teto de 5 s entre escolher o arquivo e o envio, ficou pendente. Mesclada na `main` pelo PR #39, em 2026-11-17.
 
-**A Fase 5 está concluída, e a miniatura também.** O próximo é o Panorama (spec
-`docs/superpowers/specs/2026-11-17-panorama-design.md`), antes da Fase 3C (notificação push); a ordem entre a 3C e a
-Fase 6 (os KPIs de tempo por setor e por pedido) ainda não está decidida.
+- **Panorama** (spec `docs/superpowers/specs/2026-11-17-panorama-design.md`). Uma tela com toda Peça em aberto: onde
+  ela está, o prazo, a aferição e o «Embalado», um registro novo e só de inclusão que a Qualidade marca quando a Peça
+  está toda no local de expedição. A tela filtra e ordena no cliente, guarda a vista na URL e se atualiza sozinha. A
+  conferência do usuário no navegador foi feita no PC, em 2026-11-18; o celular ficou sem conferir. Mesclado na `main`
+  pelo PR #40, em 2026-11-19.
+
+**A Fase 5 está concluída, e a miniatura e o Panorama também.** O próximo é a Fase 3C (notificação push) ou a Fase 6
+(os KPIs de tempo por setor e por pedido), e a ordem entre as duas ainda não está decidida.
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).

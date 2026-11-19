@@ -99,10 +99,16 @@ declarada em `06-roadmap-mvp.md`), é a **miniatura isométrica do sólido** (sp
 Componente que já tinha sólido, a miniatura pendente no import do BOM e o `miniaturaVersao` nos DTOs, com o
 `db/alter-miniatura.sql`. A conferência do usuário no navegador foi feita **só no PC**, em 2026-11-17; o teste no
 **Android** (o teto de 5 s da C14) ficou **pendente** por decisão dele, e nenhum corte de desempenho foi decidido
-(nota de emenda na C14 da spec). A seguinte é o **Panorama** (spec
-`docs/superpowers/specs/2026-11-17-panorama-design.md`, aprovada; plano `docs/superpowers/plans/2026-11-17-panorama.md`, em execução na branch `panorama`); a miniatura e o
-Panorama vêm **antes da 3C**; depois deles vêm a **3C** e a
-**Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+(nota de emenda na C14 da spec). A seguinte foi o **Panorama** (spec
+`docs/superpowers/specs/2026-11-17-panorama-design.md`; planos `docs/superpowers/plans/2026-11-17-panorama.md` e
+`…-panorama-ajustes-da-conferencia.md`), **concluído e mesclado em 2026-11-19** (rufino-bot/rastru#40): a tela
+`/panorama`, o `GET /panorama`, o "Embalado" (regra 40 de `specs/01`, `dbo.Embalagem` só de inclusão) com o
+`db/alter-panorama.sql`, e as primitivas `CabecalhoOrdenavel`, `IntervaloDeDatas` e `CampoDeCaixa`. A conferência do
+usuário no navegador foi feita **só no PC**, em 2026-11-18; o **celular** (os cartões, o seletor de ordem, o calendário,
+o toque na caixa) e o painel "Dar baixa" com o `CampoDeCaixa` ficaram **não conferidos**, e o tempo do `GET /panorama`
+falta medir com a fábrica carregada antes do primeiro uso real. O ajuste da faceta longa do `FiltroDeDemanda`
+("Mostrar todos os N") veio no mesmo PR e vale para as seis telas que o usam. A miniatura e o Panorama vieram
+**antes da 3C**; agora vêm a **3C** e a **Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
