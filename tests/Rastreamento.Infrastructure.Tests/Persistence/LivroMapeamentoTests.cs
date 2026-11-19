@@ -163,10 +163,14 @@ public class LivroMapeamentoTests : TesteComBanco
   public Task Tipo_fora_da_lista_e_recusado_pelo_tipo_ou_pela_transicao() => NoCenarioAsync(c =>
   {
     var m = Inicio(c);
-    // Um nome que nunca foi tipo e nao e plano de ser. Antes o teste usava "Pronto", entao futuro,
-    // e ele ficou vermelho quando a Fase 5B-2 o pos na lista: tipo "que ainda nao existe" envelhece.
-    m.Tipo = "NuncaFoiTipo";   // cabe em NVARCHAR(20): a recusa tem de vir do CHECK, nao do tamanho
-    return AfirmarRecusaAsync(m, "CK_Movimentacao_Tipo", "CK_Movimentacao_Transicao");
+    // Um nome que nunca foi tipo e nao e plano de ser: o teste usava "Pronto", entao futuro, e tipo
+    // "que ainda nao existe" envelhece (a Fase 5B-2 o pos na lista). Cabe em NVARCHAR(20), para a
+    // recusa vir de um CHECK e nao do tamanho. Tres CHECKs fecham a lista de tipos — a do tipo, a da
+    // transicao e, desde a Fase 5A, a do registro (o ultimo ramo dela enumera os tipos sem registro) —,
+    // e o SQL Server nomeia so uma das violadas, sem ordem garantida: qualquer das tres serve.
+    m.Tipo = "NuncaFoiTipo";
+    return AfirmarRecusaAsync(m, "CK_Movimentacao_Tipo", "CK_Movimentacao_Transicao",
+        "CK_Movimentacao_RegistroCoerente");
   });
 
   [Fact]
