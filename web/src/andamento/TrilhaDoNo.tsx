@@ -1,9 +1,8 @@
 import { ListaRecolhivel } from '../components/ListaRecolhivel'
 import type { AndamentoDoNoDto, BlocoDaTrilhaDto, MaisParadoDto } from '../api/andamento'
-import { duracaoLegivel } from '../panorama/idade'
 import { formatarQuantidade } from '../execucao/formatacao'
 import { LinhaDoRoteiro } from './LinhaDoRoteiro'
-import { gruposDoCelular, textoDoBloco } from './textoDoBloco'
+import { gruposDoCelular, permanenciaLegivel, textoDoBloco, textoDoExpedido } from './textoDoBloco'
 
 interface Props {
   no: AndamentoDoNoDto
@@ -65,7 +64,7 @@ export function TrilhaDoNo({ no, agora, maisParado, nivel }: Props) {
         <span className="text-tinta-fraca">{`${nivel === 'Peca' ? 'Peça' : 'Item'} · qtd ${formatarQuantidade(no.quantidade)}`}</span>
       </p>
       <div className="hidden flex-col gap-2 md:flex">
-        <LinhaDoRoteiro trilha={no.trilha} />
+        <LinhaDoRoteiro trilha={no.trilha} expedido={no.expedido} />
         {atuais.length > 0 && (
           <ul aria-label="Onde está agora" className="flex flex-col gap-1">
             {atuais.map(linha)}
@@ -75,7 +74,7 @@ export function TrilhaDoNo({ no, agora, maisParado, nivel }: Props) {
           <p className="text-sm text-tinta-fraca">
             {`${passados.length === 1 ? 'Já passou' : 'Já passaram'}: ${passados
               .map((b) => (b.permanenciaMediaSegundos !== null
-                ? `${nomeNaTrilha(b)} (${duracaoLegivel(b.permanenciaMediaSegundos * 1000)})`
+                ? `${nomeNaTrilha(b)} (${permanenciaLegivel(b.permanenciaMediaSegundos)})`
                 : nomeNaTrilha(b)))
               .join(', ')}`}
           </p>
@@ -96,7 +95,7 @@ export function TrilhaDoNo({ no, agora, maisParado, nivel }: Props) {
           )
         })}
         {!no.trilha.some((b) => b.tipo === 'Expedicao') && (
-          <li className="px-2 text-sm text-tinta-fraca">Expedição · ainda não chegou</li>
+          <li className="px-2 text-sm text-tinta-fraca">{`Expedição · ${no.expedido > 0 ? textoDoExpedido(no.expedido) : 'ainda não chegou'}`}</li>
         )}
       </ol>
       {no.complicacoes.length > 0 && (

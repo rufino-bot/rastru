@@ -18,6 +18,7 @@ export interface BlocoDaTrilhaDto {
   setorId: number | null
   setor: string | null
   situacao: SituacaoDoBloco
+  /** O total do passo, no Setor mais esperando coleta (igual ao segmento do Panorama). */
   quantidade: number
   /** A chegada mais antiga (C6); `null` sem idade. */
   desde: string | null
@@ -32,6 +33,8 @@ export interface AndamentoDoNoDto {
   codigo: string
   descricao: string
   quantidade: number
+  /** Quanto do nó já saiu da fábrica (o saldo `Expedido`); a Expedição só vira bloco enquanto há peça no local. */
+  expedido: number
   trilha: BlocoDaTrilhaDto[]
   complicacoes: ComplicacaoDto[]
   itens: AndamentoDoNoDto[]

@@ -1,4 +1,5 @@
 import type { BlocoDaTrilhaDto, SituacaoDoBloco } from '../api/andamento'
+import { textoDoExpedido } from './textoDoBloco'
 
 const SITUACAO: Record<SituacaoDoBloco, string> = { Passado: 'já passou', Atual: 'tem peça agora', Futuro: 'ainda não chegou' }
 
@@ -13,6 +14,8 @@ interface Ponto {
   ordem: number | null
   nome: string
   situacao: SituacaoDoBloco
+  /** Substitui o texto da situação quando ela não diz tudo (a Expedição que já despachou peças). */
+  texto?: string
 }
 
 /**
@@ -21,18 +24,21 @@ interface Ponto {
  * disso, só o número abaixo de 4,5 rem — o ponto atual mantém o nome. Montagem, conserto e "a iniciar" não são passos
  * do Roteiro e ficam só na lista de baixo. Sem nenhum passo não há linha.
  */
-export function LinhaDoRoteiro({ trilha }: { trilha: BlocoDaTrilhaDto[] }) {
+export function LinhaDoRoteiro({ trilha, expedido }: { trilha: BlocoDaTrilhaDto[]; expedido: number }) {
   const passos = trilha.filter((b) => b.tipo === 'Passo')
   if (passos.length === 0) return null
   const pontos: Ponto[] = passos.map((b) => ({ chave: b.chave, ordem: b.ordem, nome: b.setor ?? 'Passo', situacao: b.situacao }))
-  pontos.push({
-    chave: 'Expedicao', ordem: null, nome: 'Expedição',
-    situacao: trilha.some((b) => b.tipo === 'Expedicao') ? 'Atual' : 'Futuro',
-  })
+  // Com peça no local de expedição a Expedição é o ponto atual; sem ela, passada se já saiu algo, futura se não.
+  const naExpedicao = trilha.some((b) => b.tipo === 'Expedicao')
+  pontos.push(naExpedicao
+    ? { chave: 'Expedicao', ordem: null, nome: 'Expedição', situacao: 'Atual' }
+    : expedido > 0
+      ? { chave: 'Expedicao', ordem: null, nome: 'Expedição', situacao: 'Passado', texto: textoDoExpedido(expedido) }
+      : { chave: 'Expedicao', ordem: null, nome: 'Expedição', situacao: 'Futuro' })
   return (
     <ol aria-label="Roteiro" className="flex w-full">
       {pontos.map((p, i) => {
-        const rotulo = `${p.ordem !== null ? `${p.ordem} · ` : ''}${p.nome}: ${SITUACAO[p.situacao]}`
+        const rotulo = `${p.ordem !== null ? `${p.ordem} · ` : ''}${p.nome}: ${p.texto ?? SITUACAO[p.situacao]}`
         const atual = p.situacao === 'Atual'
         const ligacao = `absolute top-1.5 h-px bg-borda-campo ${i === 0 ? 'left-1/2' : 'left-0'} ${i === pontos.length - 1 ? 'right-1/2' : 'right-0'}`
         return (

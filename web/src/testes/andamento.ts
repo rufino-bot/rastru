@@ -3,6 +3,7 @@ import type { AndamentoDoNoDto, AndamentoDoPedidoDto, BlocoDaTrilhaDto } from '.
 /** Fábricas dos DTOs do andamento, para os testes das telas e dos componentes dele. */
 export const AGORA_DO_ANDAMENTO = '2026-11-19T12:00:00-03:00'
 
+/** `quantidade` é o total do passo (no Setor + esperando coleta), como o servidor manda. */
 export function bloco(parcial: Partial<BlocoDaTrilhaDto> = {}): BlocoDaTrilhaDto {
   return {
     tipo: 'Passo', chave: 'Passo:1', ordem: 1, setorId: 4, setor: 'Corte', situacao: 'Futuro', quantidade: 0,
@@ -12,7 +13,7 @@ export function bloco(parcial: Partial<BlocoDaTrilhaDto> = {}): BlocoDaTrilhaDto
 
 export function no(parcial: Partial<AndamentoDoNoDto> = {}): AndamentoDoNoDto {
   return {
-    estruturaItemId: 812, codigo: 'BASE-200', descricao: 'Base', quantidade: 10, trilha: [], complicacoes: [], itens: [],
+    estruturaItemId: 812, codigo: 'BASE-200', descricao: 'Base', quantidade: 10, expedido: 0, trilha: [], complicacoes: [], itens: [],
     ...parcial,
   }
 }

@@ -29,7 +29,7 @@ describe('TrilhaDoNo', () => {
     montar(no({
       trilha: [
         bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', situacao: 'Passado' }),
-        bloco({ chave: 'Passo:2', ordem: 2, setor: 'Dobra', ...ATUAL, quantidade: 4, aguardandoColeta: 1, aguardandoColetaDesde: '2026-11-19T06:00:00-03:00' }),
+        bloco({ chave: 'Passo:2', ordem: 2, setor: 'Dobra', ...ATUAL, quantidade: 5, aguardandoColeta: 1, aguardandoColetaDesde: '2026-11-19T06:00:00-03:00' }),
         bloco({ chave: 'Passo:3', ordem: 3, setor: 'Solda', situacao: 'Futuro' }),
       ],
     }))
@@ -121,6 +121,24 @@ describe('TrilhaDoNo', () => {
     const ultimo = itens[itens.length - 1]
     expect(ultimo.textContent).toBe('Expedição · ainda não chegou')
     expect(ultimo.className).toContain('text-tinta-fraca')
+  })
+
+  it('celular_diz_quanto_ja_saiu_quando_ha_expedido', () => {
+    montar(no({ expedido: 5, trilha: [bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', ...ATUAL })] }))
+    const itens = within(celular()).getAllByRole('listitem')
+    expect(itens[itens.length - 1].textContent).toBe('Expedição · já saíram 5')
+    cleanup()
+    montar(no({ expedido: 1, trilha: [bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', ...ATUAL })] }))
+    const outros = within(celular()).getAllByRole('listitem')
+    expect(outros[outros.length - 1].textContent).toBe('Expedição · já saiu 1')
+  })
+
+  it('bloco_atual_com_permanencia_mostra_o_trecho_na_lista_do_agora', () => {
+    montar(no({
+      trilha: [bloco({ chave: 'Passo:1', ordem: 1, setor: 'Corte', ...ATUAL, permanenciaMediaSegundos: 86400 * 2 })],
+    }))
+    expect(within(agora()).getAllByRole('listitem')[0].textContent).toBe('Corte — 2 no Setor · há 6 h · as que passaram ficaram 2 d')
+    expect(within(celular()).getAllByRole('listitem')[0].textContent).toBe('Corte — 2 no Setor · há 6 h · as que passaram ficaram 2 d')
   })
 
   it('celular_com_bloco_de_expedicao_nao_repete_a_expedicao', () => {
