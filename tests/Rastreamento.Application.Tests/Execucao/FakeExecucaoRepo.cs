@@ -224,14 +224,21 @@ public class FakeExecucaoRepo : IExecucaoRepository
     return Task.FromResult<IReadOnlyList<int>>(ids);
   }
 
-  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default)
+  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default) =>
+      Contextos(_ => true, incluirConcluidos, ct);
+
+  public Task<IReadOnlyList<ContextoDoNo>> ListarNosDoPedidoAsync(int pedidoId, CancellationToken ct) =>
+      Contextos(p => p == pedidoId, true, ct, incluirCancelados: true);
+
+  private Task<IReadOnlyList<ContextoDoNo>> Contextos(
+      Func<int, bool> pedidoCasa, bool incluirConcluidos, CancellationToken ct, bool incluirCancelados = false)
   {
     var lista = new List<ContextoDoNo>();
     foreach (var item in _estruturas.Itens.OrderBy(i => i.Id))
     {
-      if (!Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag)) continue;
+      if (!Agrupamentos.TryGetValue(item.AgrupamentoId, out var ag) || !pedidoCasa(ag.PedidoId)) continue;
       var status = StatusDoPedido[ag.PedidoId];
-      if (status == "Cancelado" || (status == "Concluido" && !incluirConcluidos)) continue;
+      if ((status == "Cancelado" && !incluirCancelados) || (status == "Concluido" && !incluirConcluidos)) continue;
       var materiais = _estruturas.Materiais.Where(m => m.EstruturaItemId == item.Id)
           .Select(m => new MaterialDoNo(m.MaterialId, CatalogoDeMateriais[m.MaterialId].Codigo, CatalogoDeMateriais[m.MaterialId].Descricao))
           .OrderBy(m => m.Codigo, StringComparer.Ordinal).ToList();
@@ -401,6 +408,22 @@ public class FakeExecucaoRepo : IExecucaoRepository
 
   public Task<Movimentacao?> ObterMovimentacaoAsync(int id, CancellationToken ct) =>
       Task.FromResult(Movimentacoes.SingleOrDefault(m => m.Id == id));
+
+  public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<Movimentacao>>(
+          Movimentacoes.Where(m => estruturaItemIds.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToList());
+
+  /// <summary>AgrupamentoId -> `CriadoEm`. Arranjo do teste; Agrupamento que o teste nao diz nao entra na leitura.</summary>
+  public Dictionary<int, DateTime> CriacaoDosAgrupamentos { get; } = new();
+
+  public Task<IReadOnlyDictionary<int, DateTime>> ListarCriacaoDosAgrupamentosAsync(
+      IReadOnlyCollection<int> agrupamentoIds, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyDictionary<int, DateTime>>(
+          CriacaoDosAgrupamentos.Where(kv => agrupamentoIds.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value));
+
+  public Task<IReadOnlyList<PedidoPausa>> ListarPausasDoPedidoAsync(int pedidoId, CancellationToken ct) =>
+      Task.FromResult<IReadOnlyList<PedidoPausa>>(
+          Pausas.Where(p => p.PedidoId == pedidoId).OrderBy(p => p.PausadoEm).ThenBy(p => p.Id).ToList());
 
   public Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct) =>
       Task.FromResult<IReadOnlyList<Movimentacao>>(

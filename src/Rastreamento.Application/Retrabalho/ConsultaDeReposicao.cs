@@ -69,8 +69,57 @@ public sealed class ConsultaDeReposicao
     var resultado = pedidoIds.Distinct().ToDictionary(id => id, _ => 0m);
     if (resultado.Count == 0) return resultado;
 
-    var perdas = await _reposicao.ListarPerdasSemRetrabalhoAsync(resultado.Keys.ToList(), ct);
-    var reclamacoes = await _reposicao.ListarReclamacoesSemRetrabalhoAsync(resultado.Keys.ToList(), ct);
+    var leitura = await LerParaContarAsync(resultado.Keys.ToList(), ct);
+    var baixasParaContar = leitura.Perdas.Select(p =>
+        ParaContar(p, leitura.Linhas, leitura.Nos, leitura.PerdasDispensadas.Contains(p.Id)));
+    var reclamacoesParaContar = leitura.Reclamacoes.Select(r =>
+        new ReclamacaoParaContar(r.PedidoId, r.Quantidade, false, false, leitura.ReclamacoesDispensadas.Contains(r.Id)));
+    foreach (var (pedidoId, total) in ContarPorPedido(baixasParaContar, reclamacoesParaContar)) resultado[pedidoId] = total;
+    return resultado;
+  }
+
+  /// <summary>
+  /// O mesmo "a repor" de <see cref="ARepor"/>, aberto por Peca (chave: Id da Peca, o no sem pai), para a lista de
+  /// complicacoes da Fase 6A. Cada linha `Perda` de no sem pai conta na Peca dela — a unidade de Peca, como
+  /// <see cref="ParaContar"/> —, e a reclamacao conta na `EstruturaItemId` dela. As regras sao as de
+  /// <see cref="UnidadesARepor(BaixaParaContar)"/> e <see cref="UnidadesARepor(ReclamacaoParaContar)"/>, entao a soma
+  /// das Pecas de um Pedido e o `ARepor` dele. So as Pecas com algo a repor entram no dicionario.
+  /// </summary>
+  public async Task<IReadOnlyDictionary<int, decimal>> AReporPorPeca(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    var porPeca = new Dictionary<int, decimal>();
+    var ids = pedidoIds.Distinct().ToList();
+    if (ids.Count == 0) return porPeca;
+
+    var leitura = await LerParaContarAsync(ids, ct);
+    foreach (var p in leitura.Perdas)
+    {
+      var daBaixa = leitura.Linhas.Where(l => l.PerdaId == p.Id).ToList();
+      var estornada = daBaixa.Any(l => l.Tipo == TiposDeMovimentacao.Estorno);
+      // Unidade 1 so para perguntar a regra se a baixa conta; a quantidade de cada Peca vem das linhas dela.
+      var conta = UnidadesARepor(new BaixaParaContar(
+          p.PedidoId, p.Motivo, 1m, estornada, p.PedidoRetrabalhoId is not null, leitura.PerdasDispensadas.Contains(p.Id))) > 0m;
+      if (!conta) continue;
+      foreach (var l in daBaixa.Where(l => l.Tipo == TiposDeMovimentacao.Perda
+                                           && leitura.Nos.TryGetValue(l.EstruturaItemId, out var no) && no.EstruturaPaiId is null))
+        porPeca[l.EstruturaItemId] = porPeca.GetValueOrDefault(l.EstruturaItemId) + l.Quantidade;
+    }
+    foreach (var r in leitura.Reclamacoes)
+    {
+      var quantidade = UnidadesARepor(new ReclamacaoParaContar(
+          r.PedidoId, r.Quantidade, false, false, leitura.ReclamacoesDispensadas.Contains(r.Id)));
+      if (quantidade > 0m) porPeca[r.EstruturaItemId] = porPeca.GetValueOrDefault(r.EstruturaItemId) + quantidade;
+    }
+    return porPeca.Where(kv => kv.Value > 0m).ToDictionary(kv => kv.Key, kv => kv.Value);
+  }
+
+  /// <summary>As leituras que o "a repor" de um Pedido e o de uma Peca dividem: seis consultas no maximo.</summary>
+  private async Task<(IReadOnlyList<Perda> Perdas, IReadOnlyList<Reclamacao> Reclamacoes, IReadOnlyList<Movimentacao> Linhas,
+      IReadOnlyDictionary<int, EstruturaItem> Nos, HashSet<int> PerdasDispensadas, HashSet<int> ReclamacoesDispensadas)>
+      LerParaContarAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct)
+  {
+    var perdas = await _reposicao.ListarPerdasSemRetrabalhoAsync(pedidoIds, ct);
+    var reclamacoes = await _reposicao.ListarReclamacoesSemRetrabalhoAsync(pedidoIds, ct);
     var dispensas = await _reposicao.ListarDispensasVigentesAsync(
         perdas.Select(p => p.Id).ToList(), reclamacoes.Select(r => r.Id).ToList(), ct);
     var perdasDispensadas = dispensas.Where(d => d.PerdaId is not null).Select(d => d.PerdaId!.Value).ToHashSet();
@@ -79,12 +128,7 @@ public sealed class ConsultaDeReposicao
     IReadOnlyList<Movimentacao> linhas =
         perdas.Count == 0 ? [] : await _baixas.ListarLinhasDasPerdasAsync(perdas.Select(p => p.Id).ToList(), ct);
     var nos = await NosDasLinhasAsync(linhas, ct);
-
-    var baixasParaContar = perdas.Select(p => ParaContar(p, linhas, nos, perdasDispensadas.Contains(p.Id)));
-    var reclamacoesParaContar = reclamacoes.Select(r =>
-        new ReclamacaoParaContar(r.PedidoId, r.Quantidade, false, false, reclamacoesDispensadas.Contains(r.Id)));
-    foreach (var (pedidoId, total) in ContarPorPedido(baixasParaContar, reclamacoesParaContar)) resultado[pedidoId] = total;
-    return resultado;
+    return (perdas, reclamacoes, linhas, nos, perdasDispensadas, reclamacoesDispensadas);
   }
 
   /// <summary>

@@ -41,11 +41,17 @@ public sealed class FakeReposicaoRepo : IReposicaoRepository
   public Task<IReadOnlyDictionary<int, string>> ListarNumerosDePedidosAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
       Task.FromResult<IReadOnlyDictionary<int, string>>(new Dictionary<int, string>());
 
+  /// <summary>Arranjo do teste do "a repor": as baixas sem Retrabalho. Vazio para quem nao trata da reposicao.</summary>
+  public List<Perda> PerdasSemRetrabalho { get; } = new();
+
+  /// <summary>Arranjo do teste do "a repor": as reclamacoes sem Retrabalho. Vazio para quem nao trata da reposicao.</summary>
+  public List<Reclamacao> ReclamacoesSemRetrabalho { get; } = new();
+
   public Task<IReadOnlyList<Perda>> ListarPerdasSemRetrabalhoAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Perda>>([]);
+      Task.FromResult<IReadOnlyList<Perda>>(PerdasSemRetrabalho.Where(p => pedidoIds.Contains(p.PedidoId)).ToList());
 
   public Task<IReadOnlyList<Reclamacao>> ListarReclamacoesSemRetrabalhoAsync(IReadOnlyCollection<int> pedidoIds, CancellationToken ct) =>
-      Task.FromResult<IReadOnlyList<Reclamacao>>([]);
+      Task.FromResult<IReadOnlyList<Reclamacao>>(ReclamacoesSemRetrabalho.Where(r => pedidoIds.Contains(r.PedidoId)).ToList());
 
   public void Adicionar(DispensaDeReposicao dispensa) => throw new NotSupportedException();
 

@@ -167,6 +167,24 @@ public interface IExecucaoRepository
 
   Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct);
 
+  /// <summary>
+  /// Todas as linhas do livro (estornos inclusive) dos nos pedidos, numa consulta, por `Id` — o que a idade
+  /// (Fase 6A) pareia no cliente do servidor, sem uma leitura por no.
+  /// </summary>
+  Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct);
+
+  /// <summary>O `CriadoEm` de cada Agrupamento pedido, numa consulta; Agrupamento inexistente nao entra.</summary>
+  Task<IReadOnlyDictionary<int, DateTime>> ListarCriacaoDosAgrupamentosAsync(IReadOnlyCollection<int> agrupamentoIds, CancellationToken ct);
+
+  /// <summary>Todas as pausas do Pedido, abertas e fechadas, por `PausadoEm` e `Id`.</summary>
+  Task<IReadOnlyList<PedidoPausa>> ListarPausasDoPedidoAsync(int pedidoId, CancellationToken ct);
+
+  /// <summary>
+  /// A mesma forma de <see cref="ListarNosEmProducaoAsync"/>, so com os nos do Pedido e em qualquer status (Concluido
+  /// e Cancelado inclusive): a pagina do Pedido mostra o tempo de um Pedido ja fechado.
+  /// </summary>
+  Task<IReadOnlyList<ContextoDoNo>> ListarNosDoPedidoAsync(int pedidoId, CancellationToken ct);
+
   /// <summary>Dos movimentos pedidos, os que ja tem um Estorno apontando para eles.</summary>
   Task<IReadOnlySet<int>> ListarEstornadasAsync(IReadOnlyCollection<int> movimentacaoIds, CancellationToken ct);
 
