@@ -5,6 +5,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { PedidoDetalhePage } from './PedidoDetalhePage'
 import { inicializar, _resetParaTeste } from '../api/client'
 import { respostaJson, fetchPorRota } from '../testes/api'
+import { andamento } from '../testes/andamento'
 
 afterEach(cleanup)
 
@@ -62,6 +63,7 @@ function apiComPut(put: () => Response | Promise<Response>) {
     if (caminho === '/api/pedidos/7') return Promise.resolve(init?.method === 'PUT' ? put() : respostaJson(PEDIDO))
     if (caminho === '/api/pedidos/7/agrupamentos') return Promise.resolve(respostaJson([AGRUPAMENTO]))
     if (caminho === '/api/pedidos/7/baixas') return Promise.resolve(respostaJson([]))
+    if (caminho === '/api/pedidos/7/andamento') return Promise.resolve(respostaJson(andamento()))
     return Promise.reject(new Error(`fetch não esperado no teste: ${url}`))
   })
 }
@@ -90,6 +92,30 @@ describe('PedidoDetalhePage', () => {
     const daPagina = screen.getAllByRole('status').filter((i) => !secoes.some((s) => s.contains(i)))
     expect(daPagina).toHaveLength(1)
     expect(daPagina[0].textContent).toBe('Carregando…')
+  })
+
+  it('mostra_onde_esta_travando_em_pedido_aberto', async () => {
+    vi.stubGlobal('fetch', fetchPorRota({
+      '/api/pedidos/7': () => respostaJson(PEDIDO),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      '/api/pedidos/7/andamento': () => respostaJson(andamento()),
+    }))
+    renderizarDetalhe()
+    const secao = await screen.findByRole('region', { name: 'Onde está travando' })
+    expect(await within(secao).findByText('Aberto há 5 d')).toBeTruthy()
+  })
+
+  it.each(['Concluido', 'Cancelado'])('nao_mostra_em_pedido_%s', async (status) => {
+    const fetchMock = fetchPorRota({
+      '/api/pedidos/7': () => respostaJson({ ...PEDIDO, status }),
+      '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
+      '/api/pedidos/7/andamento': () => respostaJson(andamento()),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderizarDetalhe()
+    await screen.findByText('AGR-01')
+    expect(screen.queryByRole('region', { name: 'Onde está travando' })).toBeNull()
+    expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/andamento'))).toBe(false)
   })
 
   it('mostra o cabeçalho do pedido e os agrupamentos dele', async () => {
@@ -753,6 +779,7 @@ describe('PedidoDetalhePage', () => {
         '/api/pedidos/7': () => respostaJson(PEDIDO),
         '/api/pedidos/7/agrupamentos': () => respostaJson([AGRUPAMENTO]),
         '/api/pedidos/7/baixas': () => respostaJson([]),
+        '/api/pedidos/7/andamento': () => respostaJson(andamento()),
         '/api/pedidos/7/reclamacoes': () => respostaJson([]),
         '/api/pedidos/7/retrabalhos': () => respostaJson(SEM_RETRABALHOS),
         [PREVIA]: previa,

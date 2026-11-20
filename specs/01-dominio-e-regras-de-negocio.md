@@ -36,6 +36,7 @@
 | **Local de expedição** | O lugar da fábrica para onde o Movimentador leva a Peça que terminou o Roteiro, e de onde as cargas são expedidas (regra 29). Não é um Setor: não fabrica, não entra em Roteiro nem nos KPIs de tempo por Setor. Conta como **em produção** até a expedição. Desde a Fase 5A a quantidade ali se reparte em cinco posições do livro — `NaExpedicao` (o significado depende da aferição da Peça, regra 37), `Conforme`, `NaoConforme`, `AguardandoLiberacao` e `Liberada` —, e o que sai numa remessa vai a `Expedido` (regras 9 e 16). |
 | **Sobra** | Quantidade de um Item que terminou o Roteiro, ou foi entregue para a montagem, além do que o pai ainda precisa — e o que o pai precisa é `(quantidade do pai − total montado − perdido de "a iniciar" do pai) × QuantidadePorPai`. É identificada pelo estado e não vira tarefa de ninguém; se não for usada, sai como perda de motivo `Descarte` (regras 38 e 30). Não é perda até o `Descarte` ser registrado. |
 | **Embalado** | A marca de que a Peça inteira está embalada, registrada em `dbo.Embalagem` (só de inclusão) e **calculada na leitura**: vale quando a última linha é `Marcar`, nada da Peça está em produção, há ao menos uma unidade no local de expedição e nenhuma movimentação posterior à marca voltou à produção. Some sozinha se uma unidade voltar. Não é posição do livro, não mexe em quantidade e não trava a remessa (regra 40). |
+| **Parado há** | A idade da parte mais antiga de uma Peça (e dos descendentes dela) que está numa posição não terminal, em tempo de calendário: `agora − data de chegada` da parte, sem descontar noite, fim de semana nem pausa (regra 41). Mostrada no Panorama e na tela do Pedido; é leitura calculada, nunca gravada. |
 
 ## Regras de negócio
 
@@ -976,6 +977,29 @@ desenho, C1 a C20), e é implementada no backend da 5B-2.*
       porque a validade lê só a última linha. É a única exceção ao "só de inclusão" e vale só para a manutenção, nunca
       para o código da aplicação. O valor de X, a frequência e o agendamento estão em aberto (spec do Panorama, seção
       3.5).
+
+41. **A idade de uma parte do saldo: pareamento por ordem de chegada, calculado na leitura.** O livro não tem
+    identidade de unidade (regra 9), então a idade de "o que está num lugar" se define por uma convenção: a primeira
+    quantidade que chegou é a primeira que sai. Nada disso é gravado; o `CalculoDaIdade` (Application) refaz a conta
+    sobre as linhas do livro, sem ler banco.
+    - **Chegada e saída.** Para cada nó e cada lugar (o `Local` da execução: posição, Setor e passo), uma linha cujo
+      destino é o lugar é uma **chegada** e uma cuja origem é o lugar é uma **saída**, na ordem de `DataHora` e, no
+      empate, de `Id`. Uma saída de `q` consome `q` das chegadas mais antigas ainda vivas daquele lugar, dividindo uma
+      chegada quando preciso. O que não foi consumido são as **partes vivas**, cada uma com a quantidade e a data da
+      chegada de que veio. Saída maior que as chegadas vivas consome o que houver e não quebra a leitura.
+    - **A iniciar.** Não tem linha de chegada: a quantidade nasce no nó. A chegada implícita é a quantidade do nó na
+      data `Agrupamento.CriadoEm`, a data mais antiga em que a Peça pode ter existido; o aumento de quantidade depois
+      disso herda a mesma data (aproximação aceita).
+    - **Estornos.** A linha estornada e o estorno dela saem os dois do pareamento, que é refeito sobre o livro
+      líquido, como se o movimento estornado nunca tivesse existido. Uma saída que aconteceu entre o movimento e o
+      estorno dele passa a consumir outra parte, e a idade de uma parte pode mudar depois de um estorno.
+    - **Terminais.** `Montado`, `Expedido` e `Perdido` não guardam partes: o que chega lá deixa de ter idade.
+    - **Invariante.** Para todo nó e lugar não terminal, a soma das partes vivas é o saldo da `CalculadoraDeExecucao`.
+    - **Permanência num passo.** Cada parte que sai de `NoSetor` pelo `Termino` registra a permanência
+      `DataHora do Termino − data de chegada da parte`, no Setor e no passo da origem. A média por passo é ponderada
+      pela quantidade. A parte que sai do passo por outro caminho (baixa, montagem do pai no mesmo Setor) não entra:
+      não terminou ali.
+    - **Tempo de calendário.** A idade não desconta noite, fim de semana nem a pausa do Pedido.
 
 ## Pontos ainda em aberto
 

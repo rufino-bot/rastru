@@ -14,18 +14,28 @@ public static class TiposDeSegmento
   public const string Perdido = "Perdido";
 }
 
-/// <summary>Um segmento do "Onde esta" (C8). `AguardandoColeta` so no segmento de passo; zero nos outros.</summary>
-public sealed record Segmento(string Tipo, int? SetorId, int? Ordem, decimal Quantidade, decimal AguardandoColeta);
+/// <summary>
+/// Um segmento do "Onde esta" (C8). `AguardandoColeta` so no segmento de passo; zero nos outros. `Desde` e
+/// `AguardandoColetaDesde` sao as chegadas mais antigas (C6 da spec da Fase 6A), nulas sem `maisAntiga`.
+/// </summary>
+public sealed record Segmento(
+    string Tipo, int? SetorId, int? Ordem, decimal Quantidade, decimal AguardandoColeta,
+    DateTime? Desde = null, DateTime? AguardandoColetaDesde = null);
 
 public static class DistribuicaoDaPeca
 {
   /// <summary>
   /// Os saldos da Peca (os de `CalculadoraDeExecucao.Saldos`) na ordem de C8, sem segmento com zero. A ordem daquela
   /// calculadora e por tipo de posicao, nao por passo, entao e montada aqui. `AguardandoMontagem` e `Montado` nao
-  /// ocorrem numa Peca (so filho vai a montagem) e sao ignoradas.
+  /// ocorrem numa Peca (so filho vai a montagem) e sao ignoradas. `maisAntiga` devolve a chegada da parte mais antiga
+  /// dos lugares que satisfazem o filtro (nulo sem nenhuma, e nulo para o "a iniciar" de no com filhos, C5): sem ela,
+  /// as datas saem nulas.
   /// </summary>
-  public static IReadOnlyList<Segmento> Montar(IReadOnlyList<(Local Local, decimal Quantidade)> saldos)
+  public static IReadOnlyList<Segmento> Montar(
+      IReadOnlyList<(Local Local, decimal Quantidade)> saldos, Func<Func<Local, bool>, DateTime?>? maisAntiga = null)
   {
+    DateTime? Desde(Func<Local, bool> onde) => maisAntiga?.Invoke(onde);
+
     var r = new List<Segmento>();
 
     void Acrescentar(Segmento s)
@@ -33,7 +43,8 @@ public static class DistribuicaoDaPeca
       if (s.Quantidade != 0) r.Add(s);
     }
 
-    Acrescentar(new(TiposDeSegmento.AIniciar, null, null, Soma(saldos, l => l.Posicao == Posicoes.AIniciar), 0m));
+    Acrescentar(new(TiposDeSegmento.AIniciar, null, null, Soma(saldos, l => l.Posicao == Posicoes.AIniciar), 0m,
+        Desde(l => l.Posicao == Posicoes.AIniciar)));
 
     var passos = saldos
         .Where(s => s.Local.Posicao is Posicoes.NoSetor or Posicoes.AguardandoColeta)
@@ -42,7 +53,11 @@ public static class DistribuicaoDaPeca
     foreach (var g in passos)
     {
       var aguardando = g.Where(s => s.Local.Posicao == Posicoes.AguardandoColeta).Sum(s => s.Quantidade);
-      Acrescentar(new(TiposDeSegmento.Passo, g.Key.SetorId, g.Key.Ordem, g.Sum(s => s.Quantidade), aguardando));
+      var (setorId, ordem) = g.Key;
+      Acrescentar(new(
+          TiposDeSegmento.Passo, setorId, ordem, g.Sum(s => s.Quantidade), aguardando,
+          Desde(l => l.Posicao == Posicoes.NoSetor && l.SetorId == setorId && l.Ordem == ordem),
+          Desde(l => l.Posicao == Posicoes.AguardandoColeta && l.SetorId == setorId && l.Ordem == ordem)));
     }
 
     var consertos = saldos
@@ -50,9 +65,12 @@ public static class DistribuicaoDaPeca
         .GroupBy(s => s.Local.SetorId!.Value)
         .OrderBy(g => g.Key);
     foreach (var g in consertos)
-      Acrescentar(new(TiposDeSegmento.Conserto, g.Key, null, g.Sum(s => s.Quantidade), 0m));
+      Acrescentar(new(
+          TiposDeSegmento.Conserto, g.Key, null, g.Sum(s => s.Quantidade), 0m,
+          Desde(l => Posicoes.DoConserto.Contains(l.Posicao) && l.SetorId == g.Key)));
 
-    Acrescentar(new(TiposDeSegmento.Expedicao, null, null, Soma(saldos, l => Posicoes.NoLocalDeExpedicao.Contains(l.Posicao)), 0m));
+    Acrescentar(new(TiposDeSegmento.Expedicao, null, null, Soma(saldos, l => Posicoes.NoLocalDeExpedicao.Contains(l.Posicao)), 0m,
+        Desde(l => Posicoes.NoLocalDeExpedicao.Contains(l.Posicao))));
     Acrescentar(new(TiposDeSegmento.Expedido, null, null, Soma(saldos, l => l.Posicao == Posicoes.Expedido), 0m));
     Acrescentar(new(TiposDeSegmento.Perdido, null, null, Soma(saldos, l => l.Posicao == Posicoes.Perdido), 0m));
     return r;

@@ -194,12 +194,18 @@ public class ExecucaoRepository : IExecucaoRepository
     return ids;
   }
 
-  public async Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default)
+  public Task<IReadOnlyList<ContextoDoNo>> ListarNosEmProducaoAsync(bool incluirConcluidos = false, CancellationToken ct = default) =>
+      ContextosAsync(p => (incluirConcluidos || p.Status != StatusConcluido) && p.Status != StatusCancelado, ct);
+
+  public Task<IReadOnlyList<ContextoDoNo>> ListarNosDoPedidoAsync(int pedidoId, CancellationToken ct) =>
+      ContextosAsync(p => p.Id == pedidoId, ct);
+
+  private async Task<IReadOnlyList<ContextoDoNo>> ContextosAsync(
+      System.Linq.Expressions.Expression<Func<Pedido, bool>> filtroDoPedido, CancellationToken ct)
   {
     var linhas = await (from e in _db.Estruturas.AsNoTracking()
                         join a in _db.Agrupamentos.AsNoTracking() on e.AgrupamentoId equals a.Id
-                        join p in _db.Pedidos.AsNoTracking() on a.PedidoId equals p.Id
-                        where (incluirConcluidos || p.Status != StatusConcluido) && p.Status != StatusCancelado
+                        join p in _db.Pedidos.AsNoTracking().Where(filtroDoPedido) on a.PedidoId equals p.Id
                         orderby e.Id
                         select new
                         {
@@ -510,6 +516,45 @@ public class ExecucaoRepository : IExecucaoRepository
   public async Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoNoAsync(int estruturaItemId, CancellationToken ct) =>
       await _db.Movimentacoes.AsNoTracking()
           .Where(m => m.EstruturaItemId == estruturaItemId).OrderBy(m => m.Id).ToListAsync(ct);
+
+  public async Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAsync(
+      IReadOnlyCollection<int> estruturaItemIds, CancellationToken ct)
+  {
+    if (estruturaItemIds.Count == 0) return [];
+    var lista = estruturaItemIds.ToList();
+    return await _db.Movimentacoes.AsNoTracking()
+        .Where(m => lista.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToListAsync(ct);
+  }
+
+  public async Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesAteAsync(
+      IReadOnlyCollection<int> estruturaItemIds, int ateId, CancellationToken ct)
+  {
+    if (estruturaItemIds.Count == 0) return [];
+    var lista = estruturaItemIds.ToList();
+    return await _db.Movimentacoes.AsNoTracking()
+        .Where(m => m.Id <= ateId && lista.Contains(m.EstruturaItemId)).OrderBy(m => m.Id).ToListAsync(ct);
+  }
+
+  public async Task<IReadOnlyList<Movimentacao>> ListarMovimentacoesDoIntervaloAsync(
+      int depoisDeId, int ateId, CancellationToken ct) =>
+      await _db.Movimentacoes.AsNoTracking()
+          .Where(m => m.Id > depoisDeId && m.Id <= ateId).OrderBy(m => m.Id).ToListAsync(ct);
+
+  public async Task<int> MaiorIdDoLivroAsync(CancellationToken ct) =>
+      await _db.Movimentacoes.AsNoTracking().MaxAsync(m => (int?)m.Id, ct) ?? 0;
+
+  public async Task<IReadOnlyDictionary<int, DateTime>> ListarCriacaoDosAgrupamentosAsync(
+      IReadOnlyCollection<int> agrupamentoIds, CancellationToken ct)
+  {
+    if (agrupamentoIds.Count == 0) return new Dictionary<int, DateTime>();
+    var lista = agrupamentoIds.ToList();
+    return await _db.Agrupamentos.AsNoTracking()
+        .Where(a => lista.Contains(a.Id)).Select(a => new { a.Id, a.CriadoEm }).ToDictionaryAsync(a => a.Id, a => a.CriadoEm, ct);
+  }
+
+  public async Task<IReadOnlyList<PedidoPausa>> ListarPausasDoPedidoAsync(int pedidoId, CancellationToken ct) =>
+      await _db.PedidoPausas.AsNoTracking()
+          .Where(p => p.PedidoId == pedidoId).OrderBy(p => p.PausadoEm).ThenBy(p => p.Id).ToListAsync(ct);
 
   public async Task<IReadOnlySet<int>> ListarEstornadasAsync(IReadOnlyCollection<int> movimentacaoIds, CancellationToken ct)
   {

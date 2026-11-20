@@ -1,3 +1,4 @@
+using Rastreamento.Domain.Entities;
 using Rastreamento.Application.Execucao;
 using Rastreamento.Application.Panorama;
 using Xunit;
@@ -102,5 +103,38 @@ public class DistribuicaoDaPecaTests
     var r = DistribuicaoDaPeca.Montar(Saldos((Local.AguardandoMontagem(Corte), 2m), (Local.Montado, 3m), (Local.AIniciar, 1m)));
 
     Assert.Equal([TiposDeSegmento.AIniciar], r.Select(s => s.Tipo));
+  }
+
+  [Fact]
+  public void Desde_de_cada_segmento_vem_do_filtro_do_lugar_e_o_passo_separa_a_coleta()
+  {
+    var t = new DateTime(2026, 11, 1, 8, 0, 0, DateTimeKind.Utc);
+    var chegadas = new Dictionary<string, DateTime>
+    {
+      [Posicoes.AIniciar] = t, [Posicoes.NoSetor] = t.AddDays(1), [Posicoes.AguardandoColeta] = t.AddDays(2),
+      [Posicoes.NaExpedicao] = t.AddDays(3),
+    };
+    DateTime? MaisAntiga(Func<Local, bool> onde) =>
+        chegadas.Where(kv => onde(new Local(kv.Key, kv.Key == Posicoes.AIniciar || kv.Key == Posicoes.NaExpedicao ? null : Corte,
+            kv.Key == Posicoes.AIniciar || kv.Key == Posicoes.NaExpedicao ? null : 1)))
+            .Select(kv => (DateTime?)kv.Value).OrderBy(d => d).FirstOrDefault();
+
+    var r = DistribuicaoDaPeca.Montar(
+        Saldos((Local.AIniciar, 1m), (Local.NoSetor(Corte, 1), 3m), (Local.AguardandoColeta(Corte, 1), 1m), (Local.NaExpedicao, 2m)),
+        MaisAntiga);
+
+    Assert.Equal(t, r.Single(s => s.Tipo == TiposDeSegmento.AIniciar).Desde);
+    var passo = r.Single(s => s.Tipo == TiposDeSegmento.Passo);
+    Assert.Equal((t.AddDays(1), (DateTime?)t.AddDays(2)), (passo.Desde, passo.AguardandoColetaDesde));
+    Assert.Equal(t.AddDays(3), r.Single(s => s.Tipo == TiposDeSegmento.Expedicao).Desde);
+  }
+
+  [Fact]
+  public void Sem_a_funcao_de_idade_as_datas_saem_nulas()
+  {
+    var r = DistribuicaoDaPeca.Montar(Saldos((Local.NoSetor(Corte, 1), 3m), (Local.AguardandoColeta(Corte, 1), 1m)));
+
+    var passo = Assert.Single(r);
+    Assert.Equal((null, null), (passo.Desde, passo.AguardandoColetaDesde));
   }
 }

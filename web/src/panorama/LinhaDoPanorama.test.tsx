@@ -16,10 +16,12 @@ const { LinhaDoPanorama } = await import('./LinhaDoPanorama')
 
 afterEach(cleanup)
 
+const AGORA = '2026-11-19T15:00:00-03:00'
+
 function linha(peca = pecaDeTeste()) {
   render(
     <MemoryRouter>
-      <table><tbody><LinhaDoPanorama peca={peca} aoGravar={async () => {}} /></tbody></table>
+      <table><tbody><LinhaDoPanorama agora={AGORA} peca={peca} aoGravar={async () => {}} /></tbody></table>
     </MemoryRouter>,
   )
   return screen.getByRole('row')
@@ -30,7 +32,7 @@ describe('LinhaDoPanorama', () => {
     const l = linha(pecaDeTeste({ distribuicao: [seg('AIniciar', 2)] }))
     const celulas = within(l).getAllByRole('cell')
 
-    expect(celulas).toHaveLength(9)
+    expect(celulas).toHaveLength(11)
     expect(celulas[1].textContent).toBe('293')
     expect(within(l).getByRole('link', { name: 'SUP-01' }).getAttribute('href')).toBe('/agrupamentos/4')
     expect(celulas[3].textContent).toBe('Suporte lateral')
@@ -104,5 +106,51 @@ describe('LinhaDoPanorama', () => {
     const l = linha()
 
     expect(within(l).queryByText(/Exige relatório|Aferição pendente|Conforme/)).toBeNull()
+  })
+
+  it('mostra_idade_do_segmento_e_da_coleta', () => {
+    const l = linha(pecaDeTeste({ distribuicao: [
+      seg('Passo', 3, {
+        setorId: 1, setorNome: 'Solda', ordem: 1, aguardandoColeta: 1,
+        desde: '2026-11-18T10:00:00-03:00', aguardandoColetaDesde: '2026-11-19T10:00:00-03:00',
+      }),
+    ] }))
+
+    expect(within(l).getByText('3 Solda · há 1 d, coleta 1 · há 5 h')).toBeTruthy()
+  })
+
+  it('parado_ha_e_complicacao', () => {
+    const l = linha(pecaDeTeste({
+      paradoDesde: '2026-11-16T09:00:00-03:00',
+      complicacoes: [
+        { codigo: 'MaterialPendente', texto: 'Material não separado: Chapa 3 mm' },
+        { codigo: 'ARepor', texto: '2 a repor' },
+      ],
+    }))
+    const celulas = within(l).getAllByRole('cell')
+
+    expect(celulas[7].textContent).toBe('3 d')
+    expect(celulas[7].querySelector('strong, .font-bold, .font-semibold')).toBeTruthy()
+    expect(within(celulas[8]).getAllByRole('listitem').map((i) => i.textContent)).toEqual([
+      'Material não separado: Chapa 3 mm', '2 a repor',
+    ])
+  })
+
+  it('sem parado nem complicação as duas células ficam vazias', () => {
+    const celulas = within(linha()).getAllByRole('cell')
+    expect(celulas[7].textContent).toBe('')
+    expect(celulas[8].textContent).toBe('')
+  })
+
+  it('complicacao_nao_usa_cor_de_estado', () => {
+    const l = linha(pecaDeTeste({
+      paradoDesde: '2026-11-16T09:00:00-03:00',
+      complicacoes: [{ codigo: 'EmConserto', texto: 'Em conserto: 1 na Solda' }],
+    }))
+    const celulas = within(l).getAllByRole('cell')
+    for (const celula of [celulas[7], celulas[8]]) {
+      const html = [celula, ...celula.querySelectorAll('*')].map((e) => e.className).join(' ')
+      expect(html).not.toMatch(/positivo|negativo|atencao|atraso/)
+    }
   })
 })

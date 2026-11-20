@@ -108,7 +108,7 @@ usuário no navegador foi feita **só no PC**, em 2026-11-18; o **celular** (os 
 o toque na caixa) e o painel "Dar baixa" com o `CampoDeCaixa` ficaram **não conferidos**, e o tempo do `GET /panorama`
 falta medir com a fábrica carregada antes do primeiro uso real. O ajuste da faceta longa do `FiltroDeDemanda`
 ("Mostrar todos os N") veio no mesmo PR e vale para as seis telas que o usam. A miniatura e o Panorama vieram
-**antes da 3C**; agora vêm a **3C** e a **Fase 6**, cuja ordem entre si **não está decidida**. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+**antes da 3C**. Por decisão do usuário de 2026-11-19 (D1 da spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`), a **Fase 6** vem **antes da 3C** e se parte em **6A** (visão ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios. A **6A está em execução e não foi mesclada**: o backend e o Panorama com idade estão na branch, a seção «Onde está travando» da tela do Pedido entrou, a conferência do usuário no navegador foi feita em 2026-11-19, no PC e no celular (o Panorama, a seção «Onde está travando», o Pedido concluído e o perfil `operador`), e gerou os ajustes F1 a F3 (seção 11 da spec), e a review de branch inteira foi feita no mesmo dia, com o fix wave dela na branch. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -717,9 +717,10 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   recebe a `coluna`, o `rotulo` e a `ordem` atual (de qualquer coluna, ou `null`), devolve a próxima por
   `aoMudar`, e não ordena nada nem sabe de URL. O `<button>` é **da primitiva**, como o da `Botao`, e **não** é
   exceção de "botão de chrome" (ver o bullet dela, com a recontagem de 2026-11-17). Só leva a primitiva a coluna
-  em que ordenar faz sentido (no Panorama, Pedido, Código, Descrição, Qtd e Prazo; Desenho, Onde está, Aferição e
-  Embalado são `<th>` simples). Um consumidor, a `PanoramaPage`, com **5 linhas** de uso (medido em 2026-11-17 com
-  `grep -rn "<CabecalhoOrdenavel" web/src --include=*.tsx | grep -v "\.test\."`; a métrica é **linhas**, uma por coluna).
+  em que ordenar faz sentido (no Panorama, Pedido, Código, Descrição, Qtd, Prazo e, desde a Fase 6A, Parado há; Desenho, Onde está,
+  Complicação, Aferição e Embalado são `<th>` simples). Um consumidor, a `PanoramaPage`, com **6 linhas** de uso (medido em
+  2026-11-17 com `grep -rn "<CabecalhoOrdenavel" web/src --include=*.tsx | grep -v "\.test\."`, com 5, e remedido em 2026-11-19 com
+  o mesmo comando: 6, porque o "Parado há" entrou; a métrica é **linhas**, uma por coluna).
 - **Filtrar por intervalo de datas usa `IntervaloDeDatas`** (`web/src/components/`, com teste próprio), C12 da
   spec do Panorama: dois `<input type="date">` nativos (no Android cada campo abre o calendário do próprio
   celular), com nome acessível "{rótulo}: de" e "{rótulo}: até", e o `Botao` "Limpar" (variante `secundario`),
@@ -758,12 +759,13 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   Origem: D7 e as emendas de 2026-10-11 das seções 5.1 e 5.2 da spec da Fase 3B
   (`docs/superpowers/specs/2026-10-09-fase-3b-kit-e-montagem-design.md`). Hoje a `SecaoRecolhivel` tem
   **dois** usos, ambos na `TarefasPage` (os "Kits incompletos" e o grupo "Em {Setor}", este controlado), e a
-  `ListaRecolhivel` tem **quatro**, em três arquivos (os dois cartões de Kit,
-  em `CartaoDeKit`, o cartão de "Aguardando montagem" da `FilaDoSetorPage` e o "Histórico" do cartão da Peça da
-  expedição, em `HistoricoDaExpedicao`, que passa o `rotulo` e busca ao abrir); medido em 2026-10-14 com
+  `ListaRecolhivel` tem **cinco**, em quatro arquivos (os dois cartões de Kit,
+  em `CartaoDeKit`, o cartão de "Aguardando montagem" da `FilaDoSetorPage`, o "Histórico" do cartão da Peça da
+  expedição, em `HistoricoDaExpedicao`, que passa o `rotulo` e busca ao abrir, e os "Itens" da `TrilhaDoNo`, do andamento); medido em 2026-10-14 com
   `grep -rn "<SecaoRecolhivel\|<ListaRecolhivel" web/src --include=*.tsx | grep -v "\.test\."` (4 linhas) e
   remedido em 2026-10-22 com o mesmo comando (5 linhas, porque o `HistoricoDaExpedicao` entrou) e em
-  2026-11-10 (6 linhas, porque o grupo "Em {Setor}" entrou), e o `<details>` cru
+  2026-11-10 (6 linhas, porque o grupo "Em {Setor}" entrou) e em 2026-11-19 (7 linhas, porque a `TrilhaDoNo` entrou: 5 de
+  `ListaRecolhivel` e 2 de `SecaoRecolhivel`; a métrica é **linhas**), e o `<details>` cru
   só aparece dentro das duas primitivas (`grep -rn "<details" web/src --include=*.tsx |
   grep -v "\.test\."` devolve duas linhas de elemento e três de comentário que citam a tag, uma delas no
   `HistoricoDaExpedicao`).
@@ -885,9 +887,21 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `docs/superpowers/plans/2026-11-17-panorama.md`) mora em `web/src/panorama/`, no molde da expedição e da separação, e o
   cliente HTTP dele é `web/src/api/panorama.ts` (`buscarPanorama` e `registrarEmbalagem`). A `PanoramaPage` (`/panorama`,
   "Panorama" é a primeira entrada da barra, link direto) recebe toda Peça em aberto, inteira e na ordem do servidor, e
-  filtra e ordena no cliente: o `filtroDoPanorama` (as facetas Pedido, Setor, Situação, Relatório e Embalado, com a busca
-  e o intervalo do prazo; `casaComFiltro` é a regra, não se reescreve) e o `ordenarPanorama` (uma coluna só, com a
-  posição original como desempate). Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
+  filtra e ordena no cliente: o `filtroDoPanorama` (as facetas Pedido, Setor, Situação, Relatório, Embalado e, desde a Fase 6A,
+  Complicação, com a busca e o intervalo do prazo; `casaComFiltro` é a regra, não se reescreve) e o `ordenarPanorama` (uma coluna só, com a
+  posição original como desempate).
+
+  **A idade e as duas colunas da Fase 6A** (spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`): o
+  servidor manda as datas (`desde` e `aguardandoColetaDesde` por segmento, `paradoDesde` por Peça) e o `agora` dele, e quem
+  formata é `web/src/panorama/idade.ts` (`msDesde`, `duracaoLegivel`, `idadeDesde`; C7: "menos de 1 h", "N h", "N d" em dias
+  inteiros para baixo, e `agora` antes de `desde` vale zero) — o cliente **nunca** usa `Date.now()` para a idade (C12). O "Onde
+  está" ganha "· há N" depois da quantidade de cada segmento com `desde` e "coleta {q} · há N" no aguardando coleta do passo.
+  Depois dele vêm a coluna **"Parado há"** (`CabecalhoOrdenavel`, coluna `parado`; a duração em negrito, vazia sem
+  `paradoDesde`; **crescente é o mais antigo primeiro**, e quem não tem `paradoDesde` vai para o fim nos dois sentidos;
+  `?ordem=parado-asc` e `parado-desc`, e as duas opções do `SeletorDeOrdem` do celular) e a coluna **"Complicação"** (o
+  `texto` de cada uma, um por linha, `text-tinta`), ambas em `CelulasDeAndamento` e também no cartão. A faceta
+  **Complicação** (chave `complicacao`) tem como valores os `codigo` da Peça, `Pausado` quando o Pedido está pausado, e
+  `Nenhuma` quando não há nem um nem outro. Idade, "Parado há" e complicações são **neutros** (C9). A tabela tem largura mínima de cerca de 956 px (cabeçalhos `px-2 text-sm`, células `px-1.5`, desenho de 72 px, "Complicação" e "Embalado" até 92 px) para caber em 1024 px, e o `<html>` tem o fundo da página (`fundoDaPagina.test.ts` guarda a regra), para a rolagem lateral, se vier, não mostrar faixa branca. Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
   primeira carga mostra o `EstadoCarregando`, e a recarga troca os dados sem desmontar a lista, para o filtro e a
   rolagem ficarem. A vista inteira mora na URL, com `replace` — as facetas (`useSelecaoNaUrl`), `busca`, `de`, `ate` e
   `ordem`, cada um apagado quando vazio — e o vazio distingue "Nenhuma Peça em aberto." de "Nenhuma Peça casa com o
@@ -902,6 +916,30 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`atraso`), a pausa (`atencao`), "Conforme" (`positivo`) e "Não conforme" (`negativo`) usam tom; Setor, posição,
   "Embalado" e os controles de filtro e ordenação são neutros, porque estar em produção, embalado ou ordenado não é
   aprovado nem reprovado.
+- **O andamento** (Fase 6A, spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`; **em execução, não mesclada**)
+  mora em `web/src/andamento/`, e o cliente HTTP dele é `web/src/api/andamento.ts` (`buscarAndamento`, `GET /pedidos/{id}/andamento`).
+  A `SecaoOndeEstaTravando` ("Onde está travando") fica na `PedidoDetalhePage` entre o cabeçalho e os Agrupamentos, só com o
+  Pedido fora de `Concluido` e `Cancelado`, e recarrega pela mesma `versaoDoSaldo` das baixas e das reclamações. Tem os três
+  estados (carregando, erro com "Tentar de novo" e "Nada parado neste Pedido.") e os três números em cartões ("Aberto há",
+  "Esperou para começar" ou "Ainda não começou", "Em produção há" com "dos quais … pausado"). A `TrilhaDoNo` é recursiva e recebe o `nivel` (`Peca` no topo, `Item` na recursão): o título é
+  `{código} · {descrição} · {Peça|Item} · qtd {q}`, com o código em `font-mono` e o resto em `text-tinta-fraca`. De `md` para
+  cima, a `LinhaDoRoteiro` (um ponto por bloco `Passo` e a Expedição por último, na largura inteira do cartão, cada ponto `flex-1`;
+  `Passado` cheio `bg-tinta-fraca`, `Atual` cheio `bg-tinta` com anel, `Futuro` vazio com `border-borda-campo`; sem passo não há linha;
+  o ponto da Expedição é `Atual` com o bloco `Expedicao`, `Passado` com "Expedição: já saíram N" ("já saiu 1") quando o nó tem `expedido > 0`
+  sem o bloco, e `Futuro` sem nenhum dos dois),
+  e embaixo a lista "Onde está agora" (um item por bloco `Atual`, com o texto de `textoDoBloco`) e, numa linha, "Já passaram: …"
+  com a permanência de cada passo (o `textoDoBloco` do passo `Atual` que também tem permanência acrescenta "as que passaram
+  ficaram {duração}"; o "no Setor" dele é `quantidade - aguardandoColeta`, porque a `quantidade` do bloco `Passo` é o total do passo). **O rótulo do ponto vai pela largura dele**, por container query (`@container` no `<li>`): com
+  7 rem ou mais, o nome do Setor; abaixo disso, o número e o nome; abaixo de 4,5 rem, só o número, e o ponto `Atual` mantém o
+  nome; o nome inteiro está sempre no `aria-label` e no `title`. Montagem, conserto e "a iniciar" **não** viram ponto: só aparecem
+  na lista. Abaixo de `md` há uma lista vertical única (`gruposDoCelular`: passados consecutivos numa linha, cada `Atual` com o
+  detalhe e futuros consecutivos numa linha, e a Expedição por último quando a trilha não tem o bloco, "já saíram N" com `expedido > 0` e "ainda não chegou" sem; as frases concordam no singular), e as duas formas ficam no DOM, com o CSS escondendo uma. Depois vêm as complicações
+  em texto e os Itens numa `ListaRecolhivel`
+  "Itens (N)" que abre sozinha (`temAcao`) quando o `maisParado` está entre eles (C10). A idade vem do `agora` do servidor,
+  por `idadeDesde` e `duracaoLegivel` de `web/src/panorama/idade.ts` (a duração do servidor vem em segundos, e a função pede
+  milissegundos); a tela nunca usa `Date.now()` (C12). **A regra de cor** (C9): nada da seção usa `positivo`, `negativo`,
+  `atencao` nem `atraso`; o bloco mais parado se marca pela borda de 2 px `border-tinta` e pelo texto "mais parado". A
+  leitura é de todo perfil autenticado (C13): nenhuma entrada em `permissoes.ts`. Os "Itens" da `TrilhaDoNo` são um uso novo da `ListaRecolhivel`; a contagem está no bullet «Conteúdo que nasce recolhido».
 - **Gating de perfil vai na AÇÃO, não no link.** `usePodeEscrever(recurso)` esconde formulário e
   botões de escrita; o link continua visível porque leitura é de todos. **A tabela
   `web/src/auth/permissoes.ts` espelha os `[Authorize(Roles)]` do backend — mudou lá, muda aqui.**
@@ -1309,6 +1347,22 @@ código/nome — nunca por Id), então rodá-lo de novo num banco que já o tem 
 container): a acentuação dos nomes de setor é `NVARCHAR` e, se a codepage se perder na carga, os
 dados entram corrompidos **e o banco fica verde assim mesmo**. O teste de que sobreviveu não é
 olhar: é medir o code point (`Rebarbação` tem `LEN = 10`; lido como Latin-1 daria 12).
+
+**`db/massa-carga-6a.sql` é opcional, como o `seed-demo.sql`, e a suíte também o ignora** (`grep -rn "massa-carga-6a"`
+em `src/` e `tests/` devolve zero). É a massa de carga do Panorama da Fase 6A (C14), e serve também à conferência visual da
+Peça com filhos (C5): 50 Pedidos abertos `CARGA-6A-001` a `050`, um Agrupamento Avulso, 10 Peças e 5 Itens por Peça (3.000
+nós), Roteiro de 4 passos e cerca de 66 mil linhas do livro, só com `Inicio`, `Termino`, `Entrega` e `Montagem` válidos, em
+lotes parciais. **Segue a regra de montagem:** os Itens correm o Roteiro e esperam em `AguardandoMontagem` do Corte, e a Peça
+só inicia um lote por uma `Montagem` (a linha de `dbo.Montagem`, a baixa de cada Item e o `Inicio` apontando-a); há Pedidos
+com a Peça ainda não iniciada (o Item é a parte mais parada), com ela iniciada em parte dos lotes e em todos. Não tem
+estorno, perda, aferição, liberação, expedição nem reposição. Cria os próprios Setores (`CARGA-6A …`) e Componentes
+(`CARGA-6A-C01` a `10`) por nome/código, sem depender do `seed-demo.sql`, e usa o `admin` do `db/seed.sql`. É idempotente: o
+que já existe não é recriado, e o livro só é gerado para os Pedidos criados na execução, tudo numa transação.
+**Carregue-o com `-b -f 65001`**, por `docker compose cp` + `-i`, como os `alter-*.sql`. **O que foi medido, e só isso:** em
+2026-11-19, com a massa carregada, uma execução de `dotnet test Rastreamento.slnx -m:1` passou inteira (Api 606,
+Application 1.324, Infrastructure 365) e a `Api.Tests` levou cerca de 10 min. O tempo da `Api.Tests` sem a massa não foi
+medido de novo, então não se sabe quanto da demora vem dela. *Hipótese não verificada:* que a lentidão seja de testes que
+leem listas globais de Pedidos ou Peças. O banco de dev é descartável: quem quer a suíte sem a massa o regenera sem ela.
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de

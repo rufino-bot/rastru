@@ -44,6 +44,10 @@ export interface SegmentoDto {
   ordem: number | null
   quantidade: number
   aguardandoColeta: number
+  /** A chegada da parte mais antiga do segmento (ISO 8601 com offset); `null` onde não há idade (C6 da Fase 6A). */
+  desde: string | null
+  /** A da parte mais antiga que espera coleta no passo; `null` sem coleta. */
+  aguardandoColetaDesde: string | null
 }
 
 export interface AfericaoDoPanoramaDto {
@@ -67,6 +71,15 @@ export interface EmbalagemDaPecaDto {
   ultima: UltimaEmbalagemDto | null
 }
 
+export type CodigoDeComplicacao =
+  | 'MaterialPendente' | 'AguardandoLiberacao' | 'AguardandoDecisao' | 'EmConserto' | 'MontagemIncompleta' | 'ARepor'
+
+/** Uma complicação da Peça (C8): o `texto` já vem pronto para exibir. */
+export interface ComplicacaoDto {
+  codigo: CodigoDeComplicacao
+  texto: string
+}
+
 export interface PecaDoPanoramaDto {
   estruturaItemId: number
   agrupamentoId: number
@@ -77,9 +90,14 @@ export interface PecaDoPanoramaDto {
   distribuicao: SegmentoDto[]
   afericao: AfericaoDoPanoramaDto
   embalagem: EmbalagemDaPecaDto
+  /** A menor chegada entre as partes que contam (C5); `null` quando nenhuma conta. */
+  paradoDesde: string | null
+  complicacoes: ComplicacaoDto[]
 }
 
 export interface PanoramaDto {
+  /** O relógio do servidor: a idade se calcula contra ele, nunca contra o do aparelho (C12). */
+  agora: string
   pecas: PecaDoPanoramaDto[]
 }
 

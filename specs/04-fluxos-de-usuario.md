@@ -582,7 +582,8 @@ sem «não repor». O servidor conta as unidades de Peça (`aRepor`) e a tela s�
 
 ## 7. Consulta de KPIs (gestão)
 
-*Perfil: Gestão*
+*Perfil: Gestão. Partida em 6A e 6B (ver Fase 6 em `06-roadmap-mvp.md`): a visão ao vivo (6A) está nas seções 8 e 9 e é de
+qualquer perfil autenticado; os itens abaixo são da 6B (histórico), de Gestão, Qualidade, PCP e Administrador (D4).*
 
 1. Tempo médio de liberação por Setor (sobre o livro de movimentações, pareando entradas e saídas
    de cada Setor por ordem de chegada — ver Fase 6 em `06-roadmap-mvp.md`).
@@ -605,9 +606,36 @@ sem «não repor». O servidor conta as unidades de Peça (`aRepor`) e a tela s�
    (Pedido, código ou descrição, sem caixa nem acento) e por intervalo do **prazo de entrega**. Tudo vai para a URL, e o F5 mantém a
    vista. Sem nenhuma Peça casando, a tela diz "Nenhuma Peça casa com o filtro." e oferece "Limpar filtros"; sem nenhuma
    Peça em aberto, diz "Nenhuma Peça em aberto.".
-4. **Ordenar:** na tabela, clicar no cabeçalho de Pedido, Código, Descrição, Qtd ou Prazo ordena em ordem crescente, a
+4. **Idade e "Parado há" (Fase 6A):** cada pedaço do **Onde está** diz há quanto tempo a parte mais antiga dele está ali
+   ("7 Solda · há 6 d, coleta 3 · há 2 d": o total do passo, com a idade das partes que estão no Setor, e a
+   coleta com a dela), e a coluna **"Parado há"** mostra a maior idade entre as partes da Peça e
+   dos descendentes dela que estão paradas (o "a iniciar" de uma Peça com filhos não conta: quem espera são os filhos). A
+   idade é contada contra o relógio do servidor (o `agora` da resposta), em tempo de calendário, e é neutra, sem cor.
+   Cada Peça lista as **complicações** que o Rastru sabe (material não separado, aguardando liberação, não conformes
+   aguardando decisão, em conserto, montagem incompleta, a repor), e a faceta de complicações filtra por elas.
+5. **Ordenar:** na tabela, clicar no cabeçalho de Pedido, Código, Descrição, Qtd, Prazo ou "Parado há" ordena em ordem crescente, a
    segunda vez em decrescente e a terceira volta à ordem original; no celular, o campo "Ordenar por" faz o mesmo.
-5. **Marcar o "Embalado"** (Qualidade, PCP e Administrador): a caixa só liga quando nada da Peça está em produção e há ao
+6. **Marcar o "Embalado"** (Qualidade, PCP e Administrador): a caixa só liga quando nada da Peça está em produção e há ao
    menos uma unidade no local de expedição; antes disso fica travada, com "faltam N em produção". Marcada, mostra quem e
    quando. Quem não pode marcar (a Gestão, por exemplo) vê a pílula "Embalado" e a data, sem caixa. Se a Peça volta a
    andar depois da marca, o "Embalado" deixa de valer sozinho, sem ninguém desmarcar.
+
+## 9. Onde está travando (Fase 6A)
+
+*Perfil: qualquer perfil autenticado lê. Spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`; rota `GET /pedidos/{id}/andamento` na seção «Panorama» de `05-api-endpoints.md`.*
+
+1. Na tela do Pedido, entre o cabeçalho e os Agrupamentos, a seção **"Onde está travando"** aparece enquanto o Pedido não
+   está concluído nem cancelado, e recarrega junto com as baixas e as reclamações.
+2. Três números: **"Aberto há …"**, **"Esperou para começar …"** (ou "Ainda não começou", antes da primeira produção) e
+   **"Em produção há …"**, com "dos quais … pausado" quando o Pedido ficou pausado depois de começar. As durações seguem o
+   formato "menos de 1 h", "N h", "N d".
+3. Para cada Peça em aberto, a **trilha** do Roteiro: uma linha com um ponto por passo e a Expedição por último (cheio onde
+   já passou, com anel onde há peça agora, vazio onde ainda não chegou), e embaixo, por extenso, só o que tem peça agora
+   (quantidade, há quanto tempo e a coleta, quando há; o "a iniciar", a montagem e o conserto aparecem só aqui) e, numa
+   linha, "Já passaram: …" com o tempo em cada Setor (o passo em que a Peça está também diz quanto ficaram as que já
+   passaram). A Expedição, quando já saiu peça e não há mais nenhuma no local, vira ponto cheio com "já saíram N". No celular a trilha é uma lista vertical, com os passos já passados e
+   os que ainda não chegaram agrupados. O bloco **mais parado** do Pedido ganha uma borda mais grossa e o texto "mais
+   parado". Nada disso usa cor de estado.
+4. Os Itens da Peça ficam numa lista "Itens (N)", recolhida, que abre sozinha quando o mais parado está entre eles. As
+   complicações da Peça e dos descendentes aparecem em texto abaixo da trilha.
+5. Sem nenhuma Peça em aberto, a seção diz "Nada parado neste Pedido.".

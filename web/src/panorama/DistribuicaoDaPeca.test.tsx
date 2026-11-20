@@ -6,11 +6,13 @@ import { seg } from './pecaDeTeste'
 
 afterEach(cleanup)
 
+const AGORA = '2026-11-19T15:00:00-03:00'
+
 const textos = () => within(screen.getByRole('list', { name: 'Onde está' })).getAllByRole('listitem').map((l) => l.textContent)
 
 describe('DistribuicaoDaPeca', () => {
   it('mostra os segmentos na ordem em que vêm', () => {
-    render(<DistribuicaoDaPeca itensEm={[]} segmentos={[
+    render(<DistribuicaoDaPeca agora={AGORA} itensEm={[]} segmentos={[
       seg('AIniciar', 2),
       seg('Passo', 3, { setorId: 1, setorNome: 'Solda', ordem: 1 }),
       seg('Conserto', 1, { setorId: 1, setorNome: 'Solda' }),
@@ -21,15 +23,30 @@ describe('DistribuicaoDaPeca', () => {
   })
 
   it('o aguardando coleta fica dentro do segmento do passo', () => {
-    render(<DistribuicaoDaPeca itensEm={[]} segmentos={[
+    render(<DistribuicaoDaPeca agora={AGORA} itensEm={[]} segmentos={[
       seg('Passo', 3, { setorId: 1, setorNome: 'Solda', ordem: 1, aguardandoColeta: 1 }),
     ]} />)
 
-    expect(textos()).toEqual(['3 Solda, 1 aguardando coleta'])
+    expect(textos()).toEqual(['3 Solda, coleta 1'])
+  })
+
+  it('mostra_idade_do_segmento_e_da_coleta', () => {
+    render(<DistribuicaoDaPeca agora={AGORA} itensEm={[]} segmentos={[
+      seg('AIniciar', 2, { desde: '2026-11-19T14:30:00-03:00' }),
+      seg('Passo', 3, {
+        setorId: 1, setorNome: 'Solda', ordem: 1, aguardandoColeta: 1,
+        desde: '2026-11-19T12:00:00-03:00', aguardandoColetaDesde: '2026-11-16T12:00:00-03:00',
+      }),
+      seg('Expedicao', 4, { desde: '2026-11-19T15:00:00-03:00' }),
+    ]} />)
+
+    expect(textos()).toEqual([
+      '2 a iniciar · há menos de 1 h', '3 Solda · há 3 h, coleta 1 · há 3 d', '4 Expedição · há menos de 1 h',
+    ])
   })
 
   it('expedidas e baixadas levam o traço das saídas, e o resto não', () => {
-    render(<DistribuicaoDaPeca itensEm={[]} segmentos={[
+    render(<DistribuicaoDaPeca agora={AGORA} itensEm={[]} segmentos={[
       seg('Expedicao', 4), seg('Expedido', 2), seg('Perdido', 1),
     ]} />)
 
@@ -41,16 +58,16 @@ describe('DistribuicaoDaPeca', () => {
   })
 
   it('"Itens em" só aparece com itens', () => {
-    const { rerender } = render(<DistribuicaoDaPeca segmentos={[seg('AIniciar', 1)]} itensEm={[]} />)
+    const { rerender } = render(<DistribuicaoDaPeca agora={AGORA} segmentos={[seg('AIniciar', 1)]} itensEm={[]} />)
     expect(screen.queryByText(/Itens em/)).toBeNull()
 
-    rerender(<DistribuicaoDaPeca segmentos={[seg('AIniciar', 1)]}
+    rerender(<DistribuicaoDaPeca agora={AGORA} segmentos={[seg('AIniciar', 1)]}
       itensEm={[{ setorId: 1, nome: 'Corte' }, { setorId: 2, nome: 'Dobra' }]} />)
     expect(screen.getByText('Itens em: Corte, Dobra')).toBeTruthy()
   })
 
   it('segmento nao usa cor de estado', () => {
-    render(<DistribuicaoDaPeca itensEm={[{ setorId: 1, nome: 'Corte' }]} segmentos={[
+    render(<DistribuicaoDaPeca agora={AGORA} itensEm={[{ setorId: 1, nome: 'Corte' }]} segmentos={[
       seg('AIniciar', 1), seg('Passo', 1, { setorNome: 'Solda', ordem: 1 }), seg('Conserto', 1, { setorNome: 'Solda' }),
       seg('Expedicao', 1), seg('Expedido', 1), seg('Perdido', 1),
     ]} />)

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rastreamento.Application.Andamento;
 using Rastreamento.Application.Cadastros;
 
 namespace Rastreamento.Api.Controllers;
@@ -10,8 +11,13 @@ namespace Rastreamento.Api.Controllers;
 public class PedidosController : CadastroControllerBase
 {
   private readonly CadastroDePedidoUseCase _cadastro;
+  private readonly ConsultaDoAndamentoUseCase _andamento;
 
-  public PedidosController(CadastroDePedidoUseCase cadastro) => _cadastro = cadastro;
+  public PedidosController(CadastroDePedidoUseCase cadastro, ConsultaDoAndamentoUseCase andamento)
+  {
+    _cadastro = cadastro;
+    _andamento = andamento;
+  }
 
   /// <summary>
   /// Pagina do filtro. `status` e `material` sao listas separadas por virgula; `ordem` e `entrega`
@@ -49,6 +55,17 @@ public class PedidosController : CadastroControllerBase
   public async Task<IActionResult> Obter(int id, CancellationToken ct)
   {
     var resultado = await _cadastro.Obter(id, ct);
+    return resultado.Sucesso ? Ok(resultado.Valor) : NotFound();
+  }
+
+  /// <summary>
+  /// A trilha do Roteiro de cada Peca em aberto do Pedido, com a idade das partes e as complicacoes (secao 5.3 da spec da
+  /// Fase 6A). Leitura de qualquer perfil autenticado, sem `Roles`; 404 para Pedido inexistente.
+  /// </summary>
+  [HttpGet("{id:int}/andamento")]
+  public async Task<IActionResult> Andamento(int id, CancellationToken ct)
+  {
+    var resultado = await _andamento.Obter(id, ct);
     return resultado.Sucesso ? Ok(resultado.Valor) : NotFound();
   }
 

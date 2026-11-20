@@ -27,6 +27,7 @@ import { PainelDeReaproveitamento } from '../retrabalho/PainelDeReaproveitamento
 import { PainelDeAbertura, type PortaDoRetrabalho } from '../retrabalho/PainelDeAbertura'
 import { SecaoDeRetrabalhos } from '../retrabalho/SecaoDeRetrabalhos'
 import { PainelDeReclamacao } from '../retrabalho/PainelDeReclamacao'
+import { SecaoOndeEstaTravando } from '../andamento/SecaoOndeEstaTravando'
 import { SecaoDeReclamacoes } from '../retrabalho/SecaoDeReclamacoes'
 import { usePermissoesDaReposicao } from '../retrabalho/usePermissoesDaReposicao'
 import { formatarQuantidade } from '../execucao/formatacao'
@@ -372,6 +373,10 @@ export function PedidoDetalhePage() {
           )}
           <ControleDePausa pedido={pedido} aoMudar={() => carregar(pedidoId)} />
         </div>
+      )}
+
+      {pedido && pedido.status !== 'Concluido' && pedido.status !== 'Cancelado' && (
+        <SecaoOndeEstaTravando key={`andamento-${pedidoId}`} pedidoId={pedidoId} versao={versaoDoSaldo} />
       )}
 
       <h2 className="text-lg font-medium text-tinta">Agrupamentos</h2>

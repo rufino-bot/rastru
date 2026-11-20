@@ -3,6 +3,7 @@ using Rastreamento.Application.Panorama;
 using Rastreamento.Application.Tests.Arquivos;
 using Rastreamento.Application.Tests.Common;
 using Rastreamento.Application.Tests.Execucao;
+using Rastreamento.Application.Tests.Retrabalho;
 using Rastreamento.Domain.Abstractions;
 using Rastreamento.Domain.Entities;
 using Xunit;
@@ -50,11 +51,15 @@ public class ConsultaDoPanoramaUseCaseTests
     });
   }
 
-  private static async Task<PanoramaDto> ListaAsync(Montagem m)
+  private static CacheDasIdades NovoCache() => new(new RelogioFixo(new DateTimeOffset(T0)));
+
+  private static async Task<PanoramaDto> ListaAsync(Montagem m, CacheDasIdades? cache = null, DateTimeOffset? agora = null)
   {
     var uc = new ConsultaDoPanoramaUseCase(
         m.Cenario.Execucao, m.Cenario.Expedicao, m.Cenario.Estruturas, m.Cenario.Catalogo, m.Embalagem, m.Arquivos,
-        new RelogioFixo(new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)));
+        m.Cenario.Separacao, FakeReposicaoRepo.ConsultaVazia(m.Cenario.Execucao, m.Cenario.Estruturas),
+        new RelogioFixo(agora ?? new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero)),
+        cache ?? NovoCache());
     var r = await uc.Lista(Ct);
     Assert.True(r.Sucesso, r.Detalhe);
     return r.Valor!;
@@ -295,5 +300,75 @@ public class ConsultaDoPanoramaUseCaseTests
     Assert.Null(lista.Pecas[2].Componente.MiniaturaVersao);
     Assert.Equal(1, m.Arquivos.ConsultasDeSha256);
     Assert.Equal(1, m.Embalagem.ConsultasDeUltimas);
+  }
+
+  /// <summary>Uma Peca com uma entrega a meio caminho: o livro tem linhas, e a idade sai delas.</summary>
+  private static Montagem ComLivro()
+  {
+    var m = Montar();
+    No(m.Cenario, Peca1, 5m);
+    m.Cenario.Mover(Peca1, TiposDeMovimentacao.Inicio, Local.AIniciar, Local.NoSetor(Corte, 1), 3m);
+    return m;
+  }
+
+  [Fact]
+  public async Task Cache_reusa_as_idades_sem_linha_nova()
+  {
+    var m = ComLivro();
+    var cache = NovoCache();
+
+    var primeira = await ListaAsync(m, cache);
+    var lidasDepoisDaPrimeira = m.Cenario.Execucao.LeiturasDoLivroParaIdade;
+    var segunda = await ListaAsync(m, cache);
+
+    Assert.Equal(1, lidasDepoisDaPrimeira);
+    Assert.Equal(1, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+    Assert.Equal(primeira.Pecas[0].ParadoDesde, segunda.Pecas[0].ParadoDesde);
+  }
+
+  [Fact]
+  public async Task Linha_nova_no_livro_entra_sem_leitura_completa()
+  {
+    var m = ComLivro();
+    var cache = NovoCache();
+    var antes = await ListaAsync(m, cache);
+
+    m.Cenario.Mover(Peca1, TiposDeMovimentacao.Termino, Local.NoSetor(Corte, 1), Local.AguardandoColeta(Corte, 1), 1m);
+    var depois = await ListaAsync(m, cache);
+
+    Assert.Equal(1, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+    Assert.DoesNotContain(antes.Pecas[0].Distribuicao, x => x.AguardandoColetaDesde is not null);
+    Assert.Contains(depois.Pecas[0].Distribuicao, x => x.AguardandoColetaDesde is not null);
+  }
+
+  [Fact]
+  public async Task Quantidade_alterada_refaz_as_idades()
+  {
+    var m = ComLivro();
+    var cache = NovoCache();
+    var antes = await ListaAsync(m, cache);
+
+    m.Cenario.Estruturas.Itens.Single(i => i.Id == Peca1).Quantidade = 9m;
+    var depois = await ListaAsync(m, cache);
+
+    Assert.Equal(1, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+    Assert.Equal(2m, antes.Pecas[0].Distribuicao.Single(x => x.Tipo == TiposDeSegmento.AIniciar).Quantidade);
+    Assert.Equal(6m, depois.Pecas[0].Distribuicao.Single(x => x.Tipo == TiposDeSegmento.AIniciar).Quantidade);
+  }
+
+  [Fact]
+  public async Task Cache_nao_congela_o_agora()
+  {
+    var m = ComLivro();
+    var cache = NovoCache();
+    var antes = new DateTimeOffset(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+    var depois = antes.AddHours(5);
+
+    var primeira = await ListaAsync(m, cache, antes);
+    var segunda = await ListaAsync(m, cache, depois);
+
+    Assert.Equal(1, m.Cenario.Execucao.LeiturasDoLivroParaIdade);
+    Assert.Equal(antes.UtcDateTime, primeira.Agora);
+    Assert.Equal(depois.UtcDateTime, segunda.Agora);
   }
 }

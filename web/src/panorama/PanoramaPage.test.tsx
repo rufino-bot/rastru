@@ -55,7 +55,7 @@ const TRES = [
   peca(3, 'A-01', { quantidade: 5 }, '2026-11-25'),
 ]
 
-const rotas = (pecas: PecaDoPanoramaDto[]) => ({ '/api/panorama': () => respostaJson({ pecas }) })
+const rotas = (pecas: PecaDoPanoramaDto[]) => ({ '/api/panorama': () => respostaJson({ agora: '2026-11-19T15:00:00-03:00', pecas }) })
 
 const tabela = () => screen.getByRole('table')
 const codigosDaTabela = () =>
@@ -185,6 +185,24 @@ describe('PanoramaPage — ordem', () => {
     expect(urlAtual()).toBe('')
   })
 
+  it('ordenar_por_parado_ha_vai_para_a_url', async () => {
+    const pecas = [
+      peca(1, 'B-02', { paradoDesde: '2026-11-15T10:00:00-03:00' }),
+      peca(2, 'C-03'),
+      peca(3, 'A-01', { paradoDesde: '2026-11-10T10:00:00-03:00' }),
+    ]
+    vi.stubGlobal('fetch', fetchPorRota(rotas(pecas)))
+    renderizar()
+    await screen.findByRole('table')
+
+    fireEvent.click(within(tabela()).getByRole('button', { name: 'Parado há' }))
+
+    expect(codigosDaTabela()).toEqual(['A-01', 'B-02', 'C-03'])
+    expect(cabecalho('Parado há').getAttribute('aria-sort')).toBe('ascending')
+    expect(urlAtual()).toBe('?ordem=parado-asc')
+    expect(within(tabela()).getByText('9 d')).toBeTruthy()
+  })
+
   it('o seletor dos cartões muda a mesma ordem, e "Ordem da tela" a desfaz', async () => {
     vi.stubGlobal('fetch', fetchPorRota(rotas(TRES)))
     renderizar()
@@ -192,7 +210,7 @@ describe('PanoramaPage — ordem', () => {
     const seletor = screen.getByLabelText('Ordenar por') as HTMLSelectElement
     expect([...seletor.options].map((o) => o.textContent)).toEqual([
       'Ordem da tela', 'Prazo (mais próximo)', 'Prazo (mais distante)', 'Pedido (crescente)', 'Pedido (decrescente)',
-      'Código (A→Z)', 'Código (Z→A)', 'Descrição (A→Z)', 'Descrição (Z→A)', 'Qtd (maior)', 'Qtd (menor)',
+      'Código (A→Z)', 'Código (Z→A)', 'Descrição (A→Z)', 'Descrição (Z→A)', 'Parado há (mais parado primeiro)', 'Parado há (menos parado primeiro)', 'Qtd (maior)', 'Qtd (menor)',
     ])
 
     fireEvent.change(seletor, { target: { value: 'qtd-desc' } })
