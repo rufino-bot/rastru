@@ -107,11 +107,11 @@ aplicação ao subir, em vez de deixar passar uma chave fraca em silêncio.
 ## Roadmap
 
 O desenvolvimento segue as fases de `specs/06-roadmap-mvp.md` em sequência, da Fase 0 à Fase 6. O
-roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, 5A a 5C dentro da Fase 5, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
+roadmap desdobra parte delas: 1A a 1C dentro da Fase 1, 5A a 5C dentro da Fase 5, 6A e 6B dentro da Fase 6, e 1D, 1E, 1F, 2B, 3B, 3C e 3D como fases próprias.
 A sequência admite as exceções que aquele arquivo declara por escrito: a **Fase 3D**, o **import
 do BOM** e a **data de entrega do Pedido** rodaram antes da 3B; a **miniatura do sólido** e o **Panorama** rodaram depois
-da Fase 5 e antes da 3C; e a **Fase 3C** (notificação push) roda depois da Fase 5 — a posição dela em relação à Fase 6
-não está decidida.
+da Fase 5 e antes da 3C; e a **Fase 3C** (notificação push) roda depois da Fase 5 e, desde 2026-11-19, também depois
+da Fase 6, que se parte em 6A (visão ao vivo) e 6B (histórico).
 
 Concluídas até aqui:
 
@@ -218,9 +218,15 @@ Concluídas até aqui:
   está toda no local de expedição. A tela filtra e ordena no cliente, guarda a vista na URL e se atualiza sozinha. A
   conferência do usuário no navegador foi feita no PC, em 2026-11-18; o celular ficou sem conferir. Mesclado na `main`
   pelo PR #40, em 2026-11-19.
+- **Fase 6A — visão ao vivo do atraso** (spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`). Há
+  quanto tempo cada parte do lote está onde está, calculado do livro de movimentações sem digitação nova: o "Parado há"
+  e as complicações no Panorama, e a seção «Onde está travando» na tela do Pedido, com a trilha do Roteiro de cada Peça
+  e o ponto mais parado. A conferência do usuário no navegador foi feita no PC e no celular, em 2026-11-19, e cobriu
+  também o Panorama no celular. Mesclada na `main` pelo PR #41, em 2026-11-19. Ficaram pendentes a trilha com Roteiro
+  de 8 passos ou mais, que não foi vista na tela, e o tempo do Panorama com a fábrica real, medido só na máquina de dev.
 
-**A Fase 5 está concluída, e a miniatura e o Panorama também.** O próximo é a Fase 3C (notificação push) ou a Fase 6
-(os KPIs de tempo por setor e por pedido), e a ordem entre as duas ainda não está decidida.
+**A Fase 5 está concluída, e a miniatura, o Panorama e a Fase 6A também.** O próximo é a Fase 6B (o histórico: tempo
+médio por setor e por pedido), e depois a Fase 3C (notificação push).
 
 Para entender o domínio, as regras e as decisões já tomadas, comece por `specs/`
 (`00-visao-geral.md` → `06-roadmap-mvp.md`).

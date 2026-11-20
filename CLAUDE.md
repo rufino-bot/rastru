@@ -46,7 +46,8 @@ As exceções são as que o próprio `06-roadmap-mvp.md` declara por escrito, e 
 **Fase 3D — Ajustes pós-verificação da Fase 3** é executada **antes da 3B** (decisão de
 2026-09-28). A **Fase 3C — Notificação push** é executada **depois da Fase 5**, porque o fluxo ponta
 a ponta vem primeiro e o push é reforço de uma lista de tarefas que precisa existir antes. A posição
-da 3C em relação à Fase 6 **não está decidida**. Depois da 3D, a ordem é: filtros da demanda (a fila
+da 3C em relação à Fase 6 ficou em aberto até 2026-11-19, quando a Fase 6 passou a vir **antes** dela (ver o
+fim desta seção). Depois da 3D, a ordem é: filtros da demanda (a fila
 do Setor, as Tarefas e a lista de Pedidos, mais a ação em lote) → Fase 1F → Fase 3B (decisão de
 2026-09-28, oficializada em 2026-09-29; ver a nota "Ordem depois da 3D" na seção "Fase 3D" e a seção
 "Filtros da demanda e ação em lote" de `06-roadmap-mvp.md`). A terceira: o **import da estrutura a
@@ -108,7 +109,7 @@ usuário no navegador foi feita **só no PC**, em 2026-11-18; o **celular** (os 
 o toque na caixa) e o painel "Dar baixa" com o `CampoDeCaixa` ficaram **não conferidos**, e o tempo do `GET /panorama`
 falta medir com a fábrica carregada antes do primeiro uso real. O ajuste da faceta longa do `FiltroDeDemanda`
 ("Mostrar todos os N") veio no mesmo PR e vale para as seis telas que o usam. A miniatura e o Panorama vieram
-**antes da 3C**. Por decisão do usuário de 2026-11-19 (D1 da spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`), a **Fase 6** vem **antes da 3C** e se parte em **6A** (visão ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios. A **6A está em execução e não foi mesclada**: o backend e o Panorama com idade estão na branch, a seção «Onde está travando» da tela do Pedido entrou, a conferência do usuário no navegador foi feita em 2026-11-19, no PC e no celular (o Panorama, a seção «Onde está travando», o Pedido concluído e o perfil `operador`), e gerou os ajustes F1 a F3 (seção 11 da spec), e a review de branch inteira foi feita no mesmo dia, com o fix wave dela na branch. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
+**antes da 3C**. Por decisão do usuário de 2026-11-19 (D1 da spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`), a **Fase 6** vem **antes da 3C** e se parte em **6A** (visão ao vivo) e **6B** (histórico), nesta ordem, cada uma com spec, plano e PR próprios. A **6A foi concluída e mesclada em 2026-11-19** (rufino-bot/rastru#41; planos `docs/superpowers/plans/2026-11-19-fase-6a.md` e `…-fase-6a-ajustes-da-conferencia.md`): a idade das partes do lote, o "Parado há" e as complicações no Panorama, com o cache incremental `CacheDasIdades`, e a rota `GET /pedidos/{id}/andamento` com a seção «Onde está travando» da tela do Pedido, sem mudança de schema. A conferência do usuário no navegador foi feita em 2026-11-19, no PC e no celular (o Panorama, a seção «Onde está travando», o Pedido concluído e o perfil `operador`), e gerou os ajustes F1 a F3 (seção 11 da spec); a review de branch inteira foi feita no mesmo dia, e o fix wave dela entrou no mesmo PR. Ficaram **pendentes**: a trilha com Roteiro de 8 passos ou mais, que não foi vista na tela, e o tempo do `GET /panorama` com a fábrica real (medido só na máquina de dev). A seguinte é a **6B** (histórico), antes da 3C. A miniatura no chão de fábrica (Fila, Tarefas, Separação e
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
@@ -901,7 +902,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   `?ordem=parado-asc` e `parado-desc`, e as duas opções do `SeletorDeOrdem` do celular) e a coluna **"Complicação"** (o
   `texto` de cada uma, um por linha, `text-tinta`), ambas em `CelulasDeAndamento` e também no cartão. A faceta
   **Complicação** (chave `complicacao`) tem como valores os `codigo` da Peça, `Pausado` quando o Pedido está pausado, e
-  `Nenhuma` quando não há nem um nem outro. Idade, "Parado há" e complicações são **neutros** (C9). A tabela tem largura mínima de cerca de 956 px (cabeçalhos `px-2 text-sm`, células `px-1.5`, desenho de 72 px, "Complicação" e "Embalado" até 92 px) para caber em 1024 px, e o `<html>` tem o fundo da página (`fundoDaPagina.test.ts` guarda a regra), para a rolagem lateral, se vier, não mostrar faixa branca. Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
+  `Nenhuma` quando não há nem um nem outro. Idade, "Parado há" e complicações são **neutros** (C9). A tabela tem largura mínima de 952 px (medida no navegador em 2026-11-19, com a massa de carga) (cabeçalhos `px-2 text-sm`, células `px-1.5`, desenho de 72 px, "Complicação" e "Embalado" até 92 px) para caber em 1024 px, e o `<html>` tem o fundo da página (`fundoDaPagina.test.ts` guarda a regra), para a rolagem lateral, se vier, não mostrar faixa branca. Ela se atualiza por `useCargaPeriodica` com `INTERVALO_DA_EXECUCAO_MS`: só a
   primeira carga mostra o `EstadoCarregando`, e a recarga troca os dados sem desmontar a lista, para o filtro e a
   rolagem ficarem. A vista inteira mora na URL, com `replace` — as facetas (`useSelecaoNaUrl`), `busca`, `de`, `ate` e
   `ordem`, cada um apagado quando vazio — e o vazio distingue "Nenhuma Peça em aberto." de "Nenhuma Peça casa com o
@@ -916,7 +917,7 @@ O padrão visual e de interação nasceu na Fase 1D e vale para **toda tela nova
   (`atraso`), a pausa (`atencao`), "Conforme" (`positivo`) e "Não conforme" (`negativo`) usam tom; Setor, posição,
   "Embalado" e os controles de filtro e ordenação são neutros, porque estar em produção, embalado ou ordenado não é
   aprovado nem reprovado.
-- **O andamento** (Fase 6A, spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`; **em execução, não mesclada**)
+- **O andamento** (Fase 6A, spec `docs/superpowers/specs/2026-11-19-fase-6a-visao-ao-vivo-design.md`; mesclada em 2026-11-19, rufino-bot/rastru#41)
   mora em `web/src/andamento/`, e o cliente HTTP dele é `web/src/api/andamento.ts` (`buscarAndamento`, `GET /pedidos/{id}/andamento`).
   A `SecaoOndeEstaTravando` ("Onde está travando") fica na `PedidoDetalhePage` entre o cabeçalho e os Agrupamentos, só com o
   Pedido fora de `Concluido` e `Cancelado`, e recarrega pela mesma `versaoDoSaldo` das baixas e das reclamações. Tem os três

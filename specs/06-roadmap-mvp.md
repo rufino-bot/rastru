@@ -934,9 +934,11 @@ Administrador**. Isto emenda o "Perfil Gestão tem acesso a essas telas; demais 
 - `GET /pedidos/{id}/andamento` e a seção **"Onde está travando"** na tela do Pedido: os três números do Pedido (aberto
   há, esperou para começar, em produção há com o pausado) e a trilha do Roteiro de cada Peça, com o bloco mais parado
   marcado.
-- Sem mudança de schema. **Não mesclada.** A conferência do usuário no navegador foi feita em 2026-11-19, no PC e no
-  celular (o Panorama, a seção «Onde está travando», o Pedido concluído e o perfil `operador`), e gerou os ajustes F1 a F3
-  (seção 11 da spec). A review de branch inteira foi feita no mesmo dia, e o fix wave dela entrou na branch.
+- Sem mudança de schema. **Concluída e mesclada em 2026-11-19** (rufino-bot/rastru#41). A conferência do usuário no
+  navegador foi feita em 2026-11-19, no PC e no celular (o Panorama, a seção «Onde está travando», o Pedido concluído e o
+  perfil `operador`), e gerou os ajustes F1 a F3 (seção 11 da spec). A review de branch inteira foi feita no mesmo dia, e
+  o fix wave dela entrou no mesmo PR. Pendentes: a trilha com Roteiro de 8 passos ou mais, que não foi vista na tela, e o
+  tempo do `GET /panorama` com a fábrica real (medido só na máquina de dev). A seguinte é a **6B**.
 
 ### Fase 6B — Histórico
 
