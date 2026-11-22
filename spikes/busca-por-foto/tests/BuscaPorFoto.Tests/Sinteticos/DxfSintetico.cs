@@ -33,12 +33,13 @@ public sealed class DxfSintetico
         return this;
     }
 
-    public DxfSintetico Circulo(double cx, double cy, double raio, string camada = "0")
+    public DxfSintetico Circulo(double cx, double cy, double raio, string camada = "0", double extrusaoZ = 1)
     {
         Par(_entidades, 0, "CIRCLE");
         Par(_entidades, 8, camada);
         Par(_entidades, 10, cx); Par(_entidades, 20, cy);
         Par(_entidades, 40, raio);
+        if (extrusaoZ != 1) { Par(_entidades, 210, 0.0); Par(_entidades, 220, 0.0); Par(_entidades, 230, extrusaoZ); }
         return this;
     }
 

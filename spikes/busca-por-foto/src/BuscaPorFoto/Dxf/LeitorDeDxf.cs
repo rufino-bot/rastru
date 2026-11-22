@@ -44,7 +44,9 @@ public static class LeitorDeDxf
 
         avisos.AddRange(avisosDeBloco);
         foreach (var (tipo, n) in naoLidos)
-            avisos.Add($"{n} entidade(s) {tipo} não lida(s)");
+            avisos.Add(tipo == ChaveDeExtrusao
+                ? $"{n} entidade(s) com extrusão não suportada"
+                : $"{n} entidade(s) {tipo} não lida(s)");
         return new DesenhoDxf(trechos, avisos);
     }
 
@@ -124,6 +126,8 @@ public static class LeitorDeDxf
 
     // ---- entidades brutas ----
 
+    private enum TipoDeExtrusao { Normal, Espelhada, Outra }
+
     private sealed class Bruta(string tipo)
     {
         public string Tipo { get; } = tipo;
@@ -134,6 +138,15 @@ public static class LeitorDeDxf
             foreach (var g in Grupos)
                 if (g.Codigo == codigo) return LeitorDeDxf.Num(g.Valor);
             return padrao;
+        }
+
+        /// <summary>Extrusão (210/220/230) das entidades 2D: +Z é o normal; −Z espelha o x do OCS.</summary>
+        public TipoDeExtrusao Extrusao()
+        {
+            double x = Num(210), y = Num(220), z = Num(230, 1);
+            if (Math.Abs(x) > 1e-9 || Math.Abs(y) > 1e-9) return TipoDeExtrusao.Outra;
+            if (Math.Abs(z - 1) < 1e-9) return TipoDeExtrusao.Normal;
+            return Math.Abs(z + 1) < 1e-9 ? TipoDeExtrusao.Espelhada : TipoDeExtrusao.Outra;
         }
 
         public string Txt(int codigo, string padrao)
@@ -162,11 +175,13 @@ public static class LeitorDeDxf
 
     // ---- itens: traços já em segmentos, inserções e o que não se lê ----
 
+    private const string ChaveDeExtrusao = "@extrusao";
+
     private readonly record struct Seg(double X1, double Y1, double X2, double Y2);
 
     private abstract record Item;
     private sealed record Tracos(string Camada, List<Seg> Segmentos) : Item;
-    private sealed record Insercao(string Nome, double X, double Y, double EscalaX, double EscalaY, double RotacaoGraus) : Item;
+    private sealed record Insercao(string Nome, double X, double Y, double EscalaX, double EscalaY, double RotacaoGraus, bool Espelhada) : Item;
     private sealed record NaoLido(string Tipo) : Item;
 
     private sealed record Bloco(double BaseX, double BaseY, List<Item> Itens);
@@ -190,6 +205,21 @@ public static class LeitorDeDxf
     {
         var itens = new List<Item>();
         var n = brutas.Count;
+
+        // Entidade 2D com extrusão (0,0,−1): as coordenadas estão no OCS, e o x do WCS é o oposto.
+        void AdicionarTracos(Bruta b, string camada, List<Seg> segs)
+        {
+            switch (b.Extrusao())
+            {
+                case TipoDeExtrusao.Outra: itens.Add(new NaoLido(ChaveDeExtrusao)); return;
+                case TipoDeExtrusao.Espelhada:
+                    for (var k = 0; k < segs.Count; k++)
+                        segs[k] = new Seg(-segs[k].X1, segs[k].Y1, -segs[k].X2, segs[k].Y2);
+                    break;
+            }
+            itens.Add(new Tracos(camada, segs));
+        }
+
         for (var i = 0; i < n; i++)
         {
             var b = brutas[i];
@@ -207,7 +237,7 @@ public static class LeitorDeDxf
                     if (r <= 0) { itens.Add(new NaoLido("CIRCLE")); break; }
                     var segs = new List<Seg>();
                     AdicionarArco(segs, b.Num(10), b.Num(20), r, 0, 2 * Math.PI, erro, fechado: true);
-                    itens.Add(new Tracos(camada, segs));
+                    AdicionarTracos(b, camada, segs);
                     break;
                 }
                 case "ARC":
@@ -219,11 +249,11 @@ public static class LeitorDeDxf
                     while (delta <= 0) delta += 2 * Math.PI;
                     var segs = new List<Seg>();
                     AdicionarArco(segs, b.Num(10), b.Num(20), r, a0, delta, erro, fechado: false);
-                    itens.Add(new Tracos(camada, segs));
+                    AdicionarTracos(b, camada, segs);
                     break;
                 }
                 case "LWPOLYLINE":
-                    itens.Add(new Tracos(camada, PolilinhaLeve(b, erro)));
+                    AdicionarTracos(b, camada, PolilinhaLeve(b, erro));
                     break;
                 case "POLYLINE":
                 {
@@ -233,12 +263,16 @@ public static class LeitorDeDxf
                     var bandeiras = (int)b.Num(70);
                     if ((bandeiras & (16 | 64)) != 0) { itens.Add(new NaoLido("POLYLINE")); break; }
                     var pontos = vertices.Select(v => (v.Num(10), v.Num(20), v.Num(42))).ToList();
-                    itens.Add(new Tracos(camada, SegmentosDeVertices(pontos, (bandeiras & 1) != 0, erro)));
+                    AdicionarTracos(b, camada, SegmentosDeVertices(pontos, (bandeiras & 1) != 0, erro));
                     break;
                 }
                 case "INSERT":
-                    itens.Add(new Insercao(b.Txt(2, ""), b.Num(10), b.Num(20), b.Num(41, 1), b.Num(42, 1), b.Num(50)));
+                {
+                    var ext = b.Extrusao();
+                    if (ext == TipoDeExtrusao.Outra) itens.Add(new NaoLido(ChaveDeExtrusao));
+                    else itens.Add(new Insercao(b.Txt(2, ""), b.Num(10), b.Num(20), b.Num(41, 1), b.Num(42, 1), b.Num(50), ext == TipoDeExtrusao.Espelhada));
                     break;
+                }
                 default:
                     itens.Add(new NaoLido(b.Tipo));
                     break;
@@ -371,7 +405,7 @@ public static class LeitorDeDxf
                     else if (profundidade >= ProfundidadeMaximaDeBloco)
                         AvisarUmaVez(avisos, $"blocos aninhados além de {ProfundidadeMaximaDeBloco} níveis: INSERT de {ins.Nome} ignorado");
                     else
-                        Expandir(bloco.Itens, Afim.Compor(t, Afim.DeInsercao(ins, bloco)), profundidade + 1, blocos, fator, saida, naoLidos, avisos);
+                        Expandir(bloco.Itens, Afim.Compor(t, ins.Espelhada ? Afim.Compor(new Afim(-1, 0, 0, 1, 0, 0), Afim.DeInsercao(ins, bloco)) : Afim.DeInsercao(ins, bloco)), profundidade + 1, blocos, fator, saida, naoLidos, avisos);
                     break;
                 case NaoLido nl:
                     naoLidos[nl.Tipo] = naoLidos.GetValueOrDefault(nl.Tipo) + 1;

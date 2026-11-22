@@ -7,6 +7,9 @@ namespace BuscaPorFoto.Dxf;
 
 public sealed record PecaDoNesting(int Numero, Mascara Silhueta, int Furos, Rect2d CaixaMm, AssinaturaGeometrica Assinatura);
 
+/// <summary>Auto: o único contorno externo com duas ou mais filhas é a borda da chapa; Sim/Nao forçam a leitura.</summary>
+public enum BordaDaChapa { Auto, Sim, Nao }
+
 public sealed record NestingSeparado(IReadOnlyList<PecaDoNesting> Pecas, IReadOnlyList<string> Avisos);
 
 /// <summary>
@@ -22,13 +25,13 @@ public static class SeparadorDeNesting
     private const int MargemPx = 2;
     private const double EmpateDaNumeracaoMm = 1.0;
 
-    public static NestingSeparado Separar(DesenhoDxf desenho, IReadOnlySet<string> camadasIgnoradas)
+    public static NestingSeparado Separar(DesenhoDxf desenho, IReadOnlySet<string> camadasIgnoradas, BordaDaChapa borda = BordaDaChapa.Auto)
     {
         var avisos = new List<string>(desenho.Avisos);
         var trechos = desenho.Trechos.Where(t => !camadasIgnoradas.Contains(t.Camada)).ToList();
 
         var contornos = ContornosFechados(trechos, avisos);
-        var profundidade = Aninhar(contornos, avisos);
+        var profundidade = Aninhar(contornos, avisos, borda);
 
         var pecas = new List<(Contorno Borda, List<Contorno> Furos)>();
         var n = contornos.Count;
@@ -45,17 +48,17 @@ public static class SeparadorDeNesting
         var ordenadas = Numerar(pecas);
         var resultado = new List<PecaDoNesting>();
         var numero = 0;
-        foreach (var (borda, furos) in ordenadas)
+        foreach (var (externo, furos) in ordenadas)
         {
-            var mascara = Rasterizar(borda, furos);
+            var mascara = Rasterizar(externo, furos);
             if (mascara is null)
             {
                 avisos.Add("peça menor que um pixel ignorada");
                 continue;
             }
             numero++;
-            var caixa = new Rect2d(borda.MinX, borda.MinY, borda.MaxX - borda.MinX, borda.MaxY - borda.MinY);
-            resultado.Add(new PecaDoNesting(numero, mascara, furos.Count, caixa, Assinar(borda, furos)));
+            var caixa = new Rect2d(externo.MinX, externo.MinY, externo.MaxX - externo.MinX, externo.MaxY - externo.MinY);
+            resultado.Add(new PecaDoNesting(numero, mascara, furos.Count, caixa, Assinar(externo, furos)));
         }
         return new NestingSeparado(resultado, avisos);
     }
@@ -229,7 +232,7 @@ public static class SeparadorDeNesting
     /// com um furo e uma peça menor dentro dele), e a geometria sozinha não distingue isso de uma
     /// chapa com uma peça só.
     /// </summary>
-    private static int[] Aninhar(List<Contorno> contornos, List<string> avisos)
+    private static int[] Aninhar(List<Contorno> contornos, List<string> avisos, BordaDaChapa modo)
     {
         var n = contornos.Count;
         var contem = new bool[n, n];
@@ -242,22 +245,37 @@ public static class SeparadorDeNesting
             profundidade[i]++;
         }
 
+        // Contornos de profundidade 0 que contêm algum outro: só com UM deles a borda da chapa é questão.
+        var envolventes = new List<int>();
         for (var j = 0; j < n; j++)
         {
-            if (profundidade[j] != 0 || n < 2) continue;
-            var contemTodos = true;
-            var filhasDiretas = 0;
+            if (profundidade[j] != 0) continue;
             for (var i = 0; i < n; i++)
-            {
-                if (i == j) continue;
-                if (!contem[j, i]) { contemTodos = false; break; }
-                if (profundidade[i] == 1) filhasDiretas++;
-            }
-            if (!contemTodos || filhasDiretas < 2) continue;
+                if (contem[j, i]) { envolventes.Add(j); break; }
+        }
+        if (envolventes.Count != 1 || modo == BordaDaChapa.Nao) return profundidade;
 
-            for (var i = 0; i < n; i++) profundidade[i]--; // j vira −1; os demais descem 1
-            avisos.Add("borda da chapa removida");
-            break;
+        var e = envolventes[0];
+        var contemTodos = true;
+        var filhasDiretas = 0;
+        for (var i = 0; i < n; i++)
+        {
+            if (i == e) continue;
+            if (!contem[e, i]) contemTodos = false;
+            else if (profundidade[i] == 1) filhasDiretas++;
+        }
+
+        var remover = contemTodos && (modo == BordaDaChapa.Sim || (modo == BordaDaChapa.Auto && filhasDiretas >= 2));
+        if (remover)
+        {
+            for (var i = 0; i < n; i++) profundidade[i]--; // e vira −1; os demais descem 1
+            avisos.Add(modo == BordaDaChapa.Sim
+                ? "borda da chapa removida (a pedido: borda 'sim')"
+                : "borda da chapa removida; se o arquivo for uma peça só, use a borda 'nao'");
+        }
+        else
+        {
+            avisos.Add("o contorno externo foi lido como peça com furo(s), não como borda da chapa; se for a borda da chapa, use a borda 'sim'");
         }
         return profundidade;
     }

@@ -9,6 +9,9 @@ public class DxfTests
     private static NestingSeparado Separar(DxfSintetico dxf, params string[] camadasIgnoradas) =>
         SeparadorDeNesting.Separar(LeitorDeDxf.Ler(dxf.Gerar()), camadasIgnoradas.ToHashSet());
 
+    private static NestingSeparado Separar(DxfSintetico dxf, BordaDaChapa borda) =>
+        SeparadorDeNesting.Separar(LeitorDeDxf.Ler(dxf.Gerar()), new HashSet<string>(), borda);
+
     private static double AreaMm2(PecaDoNesting peca)
     {
         var mm = peca.Silhueta.MmPorPixel ?? throw new InvalidOperationException("Silhueta sem escala.");
@@ -177,6 +180,8 @@ public class DxfTests
         Assert.Equal(2, nesting.Pecas.Count);
         foreach (var p in nesting.Pecas) AssertArea(4350, p);
         var girada = nesting.Pecas.Single(p => p.CaixaMm.Width < 100);
+        var espelhada = nesting.Pecas.Single(p => p.CaixaMm.Width > 100);
+        Assert.Equal(-120, espelhada.CaixaMm.X, 0.5); // sem o espelho seria 0
         Assert.Equal(70, girada.CaixaMm.Width, 0.01);
         Assert.Equal(120, girada.CaixaMm.Height, 0.01);
         var (a, b) = (nesting.Pecas[0].Assinatura, nesting.Pecas[1].Assinatura);
@@ -280,5 +285,133 @@ public class DxfTests
             var py = ImagemNumerada.Margem + (int)Math.Round((maxY - (p.CaixaMm.Y + p.CaixaMm.Height / 2)) * escala);
             Assert.NotEqual(new Vec3b(255, 255, 255), imagem.At<Vec3b>(py, px));
         }
+    }
+
+    private static void AssertCaixa(double x, double y, double largura, double altura, PecaDoNesting p)
+    {
+        Assert.Equal(x, p.CaixaMm.X, 0.5);
+        Assert.Equal(y, p.CaixaMm.Y, 0.5);
+        Assert.Equal(largura, p.CaixaMm.Width, 0.5);
+        Assert.Equal(altura, p.CaixaMm.Height, 0.5);
+    }
+
+    [Fact]
+    public void Insert_respeita_o_ponto_base_do_bloco()
+    {
+        // Bloco (10,5)-(60,35) com base (10,5), inserido em (100,200): vai a (100,200)-(150,230).
+        // Ignorar a base o deixaria em x = 110, y = 205.
+        var dxf = new DxfSintetico()
+            .Bloco("B", b => b.Polilinha(DxfSintetico.Retangulo(10, 5, 50, 30), fechada: true), baseX: 10, baseY: 5)
+            .Insert("B", 100, 200);
+
+        AssertCaixa(100, 200, 50, 30, Assert.Single(Separar(dxf).Pecas));
+    }
+
+    [Fact]
+    public void Insert_aninhado_compoe_as_transformacoes()
+    {
+        // R = 30x20 na origem. W põe R em (100,0): x 100..130, y 0..20. INSERT de W em (0,0) girado 90°:
+        // (x, y) -> (-y, x), logo x -20..0, y 100..130: caixa (-20, 100, 20, 30).
+        var dxf = new DxfSintetico()
+            .Bloco("R", b => b.Polilinha(DxfSintetico.Retangulo(0, 0, 30, 20), fechada: true))
+            .Bloco("W", b => b.Insert("R", 100, 0))
+            .Insert("W", 0, 0, rotacaoGraus: 90);
+
+        AssertCaixa(-20, 100, 20, 30, Assert.Single(Separar(dxf).Pecas));
+    }
+
+    [Fact]
+    public void Insert_com_escala_nao_uniforme_e_rotacao_escala_antes_de_girar()
+    {
+        // R 30x20, escala (2,1) -> x 0..60, y 0..20; depois 90°: (x, y) -> (-y, x): caixa (-20, 0, 20, 60).
+        // Girar antes de escalar daria (-40, 0, 40, 30); girar -90° daria (0, -60, 20, 60).
+        var dxf = new DxfSintetico()
+            .Bloco("R", b => b.Polilinha(DxfSintetico.Retangulo(0, 0, 30, 20), fechada: true))
+            .Insert("R", 0, 0, escalaX: 2, escalaY: 1, rotacaoGraus: 90);
+
+        AssertCaixa(-20, 0, 20, 60, Assert.Single(Separar(dxf).Pecas));
+    }
+
+    [Fact]
+    public void Circulo_com_extrusao_menos_z_tem_o_x_espelhado()
+    {
+        // No OCS o centro é (-50, 25); no WCS é (50, 25), dentro do retângulo: é furo.
+        var peca = Assert.Single(Separar(Retangulo100x50().Circulo(-50, 25, 10, extrusaoZ: -1)).Pecas);
+
+        Assert.Equal(1, peca.Furos);
+    }
+
+    [Fact]
+    public void Extrusao_que_nao_e_mais_ou_menos_z_e_avisada()
+    {
+        var nesting = Separar(Retangulo100x50().Circulo(50, 25, 10, extrusaoZ: 0.5));
+
+        Assert.Contains(nesting.Avisos, a => a.Contains("extrusão não suportada"));
+        Assert.Equal(0, Assert.Single(nesting.Pecas).Furos);
+    }
+
+    [Fact]
+    public void Peca_unica_com_dois_furos_sob_Nao_continua_peca()
+    {
+        var dxf = Retangulo100x50().Circulo(25, 25, 8).Circulo(75, 25, 8);
+
+        var peca = Assert.Single(Separar(dxf, BordaDaChapa.Nao).Pecas);
+
+        Assert.Equal(2, peca.Furos);
+    }
+
+    [Fact]
+    public void Peca_unica_com_dois_furos_sob_Auto_perde_a_borda_e_avisa_da_alternativa()
+    {
+        var dxf = Retangulo100x50().Circulo(25, 25, 8).Circulo(75, 25, 8);
+
+        var nesting = Separar(dxf, BordaDaChapa.Auto);
+
+        Assert.Equal(2, nesting.Pecas.Count);
+        Assert.Contains(nesting.Avisos, a => a.Contains("borda da chapa") && a.Contains("'nao'"));
+    }
+
+    private static DxfSintetico ChapaComUmaPeca() =>
+        new DxfSintetico()
+            .Polilinha(DxfSintetico.Retangulo(0, 0, 1000, 500), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(100, 100, 100, 50), fechada: true)
+            .Circulo(150, 125, 10);
+
+    [Fact]
+    public void Chapa_com_uma_peca_so_sob_Sim_tira_a_borda()
+    {
+        var nesting = Separar(ChapaComUmaPeca(), BordaDaChapa.Sim);
+
+        var peca = Assert.Single(nesting.Pecas);
+        Assert.Equal(1, peca.Furos);
+        AssertArea(5000 - Math.PI * 100, peca);
+        Assert.Contains(nesting.Avisos, a => a.Contains("borda da chapa"));
+    }
+
+    [Fact]
+    public void Chapa_com_uma_peca_so_sob_Auto_e_lida_como_peca_com_furo_e_avisa_da_alternativa()
+    {
+        var nesting = Separar(ChapaComUmaPeca(), BordaDaChapa.Auto);
+
+        var peca = Assert.Single(nesting.Pecas, p => p.CaixaMm.Width > 500);
+        Assert.Equal(1, peca.Furos);
+        Assert.Contains(nesting.Avisos, a => a.Contains("borda da chapa") && a.Contains("'sim'"));
+    }
+
+    [Fact]
+    public void Assinatura_do_retangulo_com_furo_central_tem_os_valores_analiticos()
+    {
+        var peca = Assert.Single(Separar(Retangulo100x50().Circulo(50, 25, 10)).Pecas);
+
+        var v = peca.Assinatura.Valores;
+        Assert.Equal(1, peca.Assinatura.Furos);
+        Assert.Equal(5, v.Length);
+        // Analítico: área 5000 − 100π; perímetro 300 + 20π; furos 100π; momentos do retângulo menos
+        // πr⁴/4 do furo (4.166.667 − 7.854 e 1.041.667 − 7.854). O polígono do círculo dá ~0,5% menos.
+        Assert.InRange(v[0], 4687.9 * 0.995, 4687.9 * 1.005);
+        Assert.InRange(v[1], 362.7 * 0.995, 362.7 * 1.005);
+        Assert.InRange(v[2], 312.1 * 0.995, 312.1 * 1.005);
+        Assert.InRange(v[3], 4158813 * 0.995, 4158813 * 1.005);
+        Assert.InRange(v[4], 1033813 * 0.995, 1033813 * 1.005);
     }
 }
