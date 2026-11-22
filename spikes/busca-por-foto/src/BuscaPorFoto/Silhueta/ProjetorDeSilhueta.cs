@@ -1,4 +1,5 @@
 using System.Numerics;
+using BuscaPorFoto.Comparacao;
 using BuscaPorFoto.Stl;
 using OpenCvSharp;
 
@@ -19,7 +20,7 @@ public static class ProjetorDeSilhueta
         if (malha.Count == 0)
             throw new ArgumentException("Malha vazia.", nameof(malha));
 
-        var (centro, eixos) = EixosPrincipais(malha);
+        var (centro, eixos, _) = EixosPrincipais(malha);
         return new[]
         {
             Vista(malha, centro, eixos[0], eixos[1]),
@@ -34,7 +35,7 @@ public static class ProjetorDeSilhueta
     /// vértices ponderados: estes dependem da triangulação — numa caixa com a diagonal de cada face
     /// escolhida de um lado só, os eixos saíam girados 16°.
     /// </summary>
-    private static (Vector3 Centro, Vector3[] Eixos) EixosPrincipais(IReadOnlyList<Triangulo> malha)
+    private static (Vector3 Centro, Vector3[] Eixos, double[] Autovalores) EixosPrincipais(IReadOnlyList<Triangulo> malha)
     {
         double areaTotal = 0, cx = 0, cy = 0, cz = 0;
         foreach (var t in malha)
@@ -67,7 +68,29 @@ public static class ProjetorDeSilhueta
         var eixos = ordem
             .Select(i => Vector3.Normalize(new Vector3((float)vetores[0, i], (float)vetores[1, i], (float)vetores[2, i])))
             .ToArray();
-        return (new Vector3((float)cx, (float)cy, (float)cz), eixos);
+        return (new Vector3((float)cx, (float)cy, (float)cz), eixos, ordem.Select(i => valores[i]).ToArray());
+    }
+
+    /// <summary>
+    /// Assinatura da malha, invariante a rotação e translação: [área de superfície, λ1, λ2, λ3,
+    /// extensão nos três eixos principais], com λ1 ≥ λ2 ≥ λ3 os autovalores do mesmo tensor de
+    /// segundo momento da superfície que dá os eixos das vistas, e as extensões medidas ao longo
+    /// desses eixos (max − min da projeção dos vértices). Sem furos contados: <c>Furos = 0</c>.
+    /// </summary>
+    public static AssinaturaGeometrica Assinatura(IReadOnlyList<Triangulo> malha)
+    {
+        if (malha.Count == 0)
+            throw new ArgumentException("Malha vazia.", nameof(malha));
+
+        var (centro, eixos, autovalores) = EixosPrincipais(malha);
+        var vertices = malha.SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
+        var extensoes = eixos.Select(e =>
+        {
+            var proj = vertices.Select(v => (double)Vector3.Dot(v - centro, e)).ToList();
+            return proj.Max() - proj.Min();
+        });
+        var area = malha.Sum(t => (double)Area(t));
+        return new AssinaturaGeometrica(0, [area, .. autovalores, .. extensoes]);
     }
 
     private static double Area(Triangulo t) => Vector3.Cross(t.B - t.A, t.C - t.A).Length() / 2;
