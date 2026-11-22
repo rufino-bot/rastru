@@ -1,6 +1,6 @@
 # Spike — busca de peça por foto
 
-**Data:** 2026-09-14 · **Revisada:** 2026-11-22 · **Status:** revisão escrita, aguardando aprovação do usuário
+**Data:** 2026-09-14 · **Revisada:** 2026-11-22 · **Status:** revisão escrita e conferida por revisor, aguardando aprovação do usuário
 **Branch:** a da sessão de 2026-11-22, a partir da `main` em `722a09d` (merge da Fase 6A). A spec e o plano de
 2026-09-14 nasceram na branch `spike-busca-por-foto`, a partir de `f2ee813`, e foram trazidos para cá sem mudança
 antes desta revisão.
@@ -30,8 +30,10 @@ roadmap chegando ao fim, o usuário retomou o spike, e a revisão, toda decidida
 7. **As seis escolhas que o plano tinha feito sem passar pelo usuário** foram confirmadas, com três acréscimos
    (§8, §10).
 8. **Onde roda:** o desenvolvimento e o ensaio público na nuvem (Linux); a execução com dados reais na máquina
-   Windows do usuário (§10.2).
+   Windows do usuário, pelo agente via Remote Control (§10.2).
 9. A peça dobrada passa a gerar três vistas, como a soldada (§5.2).
+10. **A peça vai no centro da foto**, sem sair da pilha, e o recorte fica com o contorno do centro (§4.2, §5.4).
+11. **O candidato é a peça, não o contorno**: cópias idênticas de um nesting viram um candidato só (§7).
 
 ## 1. Por que existe
 
@@ -135,7 +137,9 @@ par esquerdo/direito. Um conjunto só de peças fáceis aprova no escuro.
 
 Por peça, **duas fotos**: uma **sem marcador** e uma **com o marcador** ArUco impresso, no mesmo plano da peça. As
 duas no celular, **na condição real da coleta**: onde a peça espera (a pilha do Corte, a bancada, o palete), sem
-arrumar fundo nem luz. De cima, aproximadamente perpendicular, com a peça inteira no quadro. São ≈ (20 + 20 + 5) × 2
+arrumar fundo nem luz. De cima, aproximadamente perpendicular, com a peça inteira no quadro, **no centro e
+ocupando a maior parte dele**. A peça não precisa sair da pilha: outras chapas podem aparecer nas bordas (decisão do
+usuário, 2026-11-22). São ≈ (20 + 20 + 5) × 2
 = **90 fotos**.
 
 O marcador existe para **medir** se é necessário: dá escala (separa chapas de mesmo contorno e tamanhos diferentes)
@@ -225,8 +229,9 @@ O contorno do DXF já é a vista de cima da chapa: não há PCA nem escolha de v
 ### 5.4 Lado da foto
 
 1. **Com marcador:** detecta o ArUco, corrige a perspectiva por homografia e normaliza para 1 px = 1 mm.
-2. **Recorte da peça**, a etapa de maior risco: limiar automático (Otsu) com limpeza morfológica, ficando com o maior
-   contorno. Se mais de 1/3 dos recortes de um cenário sair falho, aquele cenário passa ao GrabCut inicializado pelo
+2. **Recorte da peça**, a etapa de maior risco: limiar automático (Otsu) com limpeza morfológica, ficando com o
+   **contorno que contém o centro do quadro**, e não com o maior. Numa pilha, o maior pode ser a chapa de baixo. Se
+   nenhum contorno contém o centro, o recorte é falho. Se mais de 1/3 dos recortes de um cenário sair falho, aquele cenário passa ao GrabCut inicializado pelo
    centro do quadro (§8.3). A chapa cortada sobre uma pilha de chapas (metal sobre metal) é o pior caso esperado.
 3. Grava a **máscara sobreposta à foto**, uma imagem por foto, na pasta de saída local. É o que permite classificar
    cada erro como **"recorte falhou"** ou **"recortou bem e comparou errado"**.
@@ -434,6 +439,12 @@ nenhum. O 8 espera só o download; o 9, as fotos.
 - **Entregáveis 1 a 8 na nuvem (Linux).** O 9, **na máquina Windows do usuário**, porque STL, DXF e fotos de
   cliente não sobem para a nuvem (decisão 6 do plano, revista com o usuário em 2026-11-22: era "só Windows"). O
   projeto restaura o runtime do OpenCvSharp do sistema em que roda.
+- **Quem roda o 9 é o agente, pelo Remote Control** (decisão do usuário, 2026-11-22), seguindo um roteiro escrito no
+  plano, com o usuário acompanhando. O agente vê a saída do programa, que só traz códigos anonimizados. Ele **não**
+  abre as sobreposições, as imagens numeradas, as fotos nem a tabela de códigos reais, e não copia nada da pasta de
+  dados para a nuvem. Classificar os recortes e escrever o `alvos.txt` é do usuário. O relatório anonimizado vai para
+  o repositório pela mesma sessão, depois de uma varredura contra a tabela de códigos reais (positivo conhecido
+  antes), feita **na máquina do usuário**.
 - A branch é a da sessão. A antiga `spike-busca-por-foto` fica como está, só com a spec e o plano de setembro.
 
 ### 10.3 Gate de review
@@ -457,6 +468,7 @@ Os artefatos do fluxo ficam no ledger com nome escopado pelo spike (`spike-foto-
 - Tirar as ≈ 90 fotos na condição real (§4.2).
 - Escrever o `alvos.txt` a partir das imagens numeradas.
 - Classificar os recortes, antes de ver o ranking.
+- Conectar a máquina Windows à sessão pelo Remote Control para o entregável 9.
 
 ## 11. Limites que sobrevivem, mesmo dando certo
 
