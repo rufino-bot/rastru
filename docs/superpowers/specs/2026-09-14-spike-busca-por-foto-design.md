@@ -204,7 +204,9 @@ DXF. A vista do lado oposto de um eixo não entra: é o espelho da primeira, e a
 
 ### 5.3 Referência do cenário A — DXF do nesting → silhuetas
 
-1. **Lê o DXF**: `LINE`, `ARC`, `CIRCLE`, `LWPOLYLINE` e `POLYLINE` (com o arco do *bulge*). A unidade vem do
+1. **Lê o DXF**: `LINE`, `ARC`, `CIRCLE`, `LWPOLYLINE` e `POLYLINE` (com o arco do *bulge*), e expande os blocos
+   (`INSERT`), com posição, rotação, escala e espelho. O bloco entrou na escrita do plano (2026-11-22): software de
+   nesting costuma exportar cada peça como bloco, e sem ele o nesting inteiro sumiria. A unidade vem do
    `$INSUNITS` do cabeçalho; sem ele, assume milímetro e **avisa**.
 2. **Entidade que o leitor não sabe ler é avisada, nunca descartada em silêncio**: um contorno perdido viraria uma
    silhueta errada sem ninguém notar. `SPLINE` está nesse caso até o ensaio público mostrar que precisa ser lida
@@ -239,7 +241,11 @@ O contorno do DXF já é a vista de cima da chapa: não há PCA nem escolha de v
 ### 5.5 Comparação — dois pontuadores lado a lado
 
 - **Momentos de Hu** sobre o contorno externo: linha de base. Invariante a rotação e escala, cego aos furos.
-- **Sobreposição de máscaras (IoU)**, com busca de rotação em passos de 5° e **também espelhada**. Os furos contam.
+- **Sobreposição de máscaras (IoU)**, com busca de rotação em passos de 5°, **refinada em passos de 0,5° em volta do
+  melhor ângulo**, e **também espelhada**, numa grade de 256 células. Os furos contam. O refino e a grade entraram na
+  escrita do plano (2026-11-22), por medição: uma tira de 300 × 8 mm comparada com ela mesma girada caía a 0,48 de
+  sobreposição, porque meio passo de 5° desloca as pontas mais do que a largura dela; com o refino e a grade de 256, o
+  pior caso subiu a 0,875.
   **Sem marcador**, as duas máscaras são normalizadas para a mesma área; **com marcador**, cada uma fica no tamanho
   real, e diferença de tamanho derruba a pontuação por si.
 
@@ -290,9 +296,12 @@ ranking. O ranking é **pessimista**: empate de pontuação conta contra a peça
 
 **O candidato é a peça, não o contorno** (escolha do controlador, na revisão de 2026-11-22). Um nesting costuma
 repetir a mesma peça várias vezes na chapa, e a lista de Tarefas mostra uma linha por peça, não por cópia. Antes do
-ranking, as referências **geometricamente idênticas** — tamanho real, sobreposição acima de um limite alto que o
-implementador fixa e escreve no relatório antes da execução — se juntam num candidato só, e a pontuação dele é a da
-melhor referência do grupo. Sem isso, um alvo com cinco cópias na chapa cairia fora do top-3 por construção, e uma
+ranking, as referências **geometricamente idênticas** se juntam num candidato só, e a pontuação dele é a da melhor
+referência do grupo. A identidade é dada pelos **invariantes da geometria exata** de cada referência (área,
+perímetro, furos e momentos principais do polígono do DXF; área de superfície, momentos e extensões da malha do STL),
+iguais dentro de 0,5%, e não pela sobreposição das máscaras: medido na escrita do plano, cópias idênticas e giradas
+dão sobreposição de 0,90 a 0,95, e um retângulo 4% maior dá 0,93, então nenhum limite de sobreposição separa
+"idêntica" de "quase igual". Sem isso, um alvo com cinco cópias na chapa cairia fora do top-3 por construção, e uma
 peça errada repetida empurraria a certa várias posições para baixo. O agrupamento olha só as referências, nunca a
 foto nem o código, então não é vazamento (§5.6). Acerto é a foto cair no grupo que contém a referência do alvo.
 Duas peças de códigos **diferentes** e geometria idêntica (a mesma nervura cadastrada duas vezes) caem no mesmo
@@ -300,7 +309,9 @@ grupo; o relatório as lista à parte, como o par espelhado, porque na tela elas
 separa.
 
 **O par esquerdo/direito fica no denominador.** "Contado à parte" quer dizer listado no relatório, não excluído da
-decisão. Com o ranking pessimista, a peça certa empata com o espelho e fica em segundo, ainda dentro do top-3.
+decisão. Os invariantes não mudam com o espelho, então o par cai no mesmo grupo, a foto acerta o grupo, e o relatório
+o lista entre os grupos de mais de uma referência. (Na versão escrita antes do plano, a peça certa empatava com o
+espelho e ficava em segundo; o resultado na decisão é o mesmo, dentro do top-3.)
 
 O relatório cruza, por cenário:
 
