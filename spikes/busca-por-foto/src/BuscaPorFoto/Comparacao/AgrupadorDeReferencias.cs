@@ -28,7 +28,8 @@ public static class AgrupadorDeReferencias
         for (var i = 0; i < a.Valores.Length; i++)
         {
             double x = a.Valores[i], y = b.Valores[i];
-            if (Math.Abs(x - y) > ToleranciaRelativa * Math.Max(Math.Abs(x), Math.Abs(y))) return false;
+            // Forma negada de propósito: NaN em qualquer lado dá falso no <= e separa.
+            if (!(Math.Abs(x - y) <= ToleranciaRelativa * Math.Max(Math.Abs(x), Math.Abs(y)))) return false;
         }
         return true;
     }

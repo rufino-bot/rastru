@@ -54,6 +54,18 @@ public class PontuadoresTests
     }
 
     [Fact]
+    public void IoU_reconhece_a_tira_quiral_espelhada_e_girada_meio_passo()
+    {
+        // Tira de 300 × 8 mm com uma aba de um lado só: não coincide com nenhuma rotação do espelho.
+        // O espelho girado 2,5° está fora da grade de 5°: só o refino NO RAMO ESPELHADO a acha.
+        (double, double)[] tira = [(0, 0), (300, 0), (300, 8), (60, 8), (60, 30), (40, 30), (40, 8), (0, 8)];
+        using var a = Poligono(tira);
+        using var b = Poligono(tira, anguloGraus: 2.5, espelhar: true);
+
+        Assert.True(PontuadorIoU.Pontuar(a, b, usarEscala: true) >= 0.8);
+    }
+
+    [Fact]
     public void IoU_reconhece_a_mesma_forma_espelhada()
     {
         using var a = Poligono(Ele());

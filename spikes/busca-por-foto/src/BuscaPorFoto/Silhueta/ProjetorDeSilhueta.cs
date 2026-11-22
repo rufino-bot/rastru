@@ -73,25 +73,29 @@ public static class ProjetorDeSilhueta
 
     /// <summary>
     /// Assinatura da malha, invariante a rotação e translação: [área de superfície, λ1, λ2, λ3,
-    /// extensão nos três eixos principais], com λ1 ≥ λ2 ≥ λ3 os autovalores do mesmo tensor de
-    /// segundo momento da superfície que dá os eixos das vistas, e as extensões medidas ao longo
-    /// desses eixos (max − min da projeção dos vértices). Sem furos contados: <c>Furos = 0</c>.
+    /// |volume|], com λ1 ≥ λ2 ≥ λ3 os autovalores do mesmo tensor de segundo momento da superfície
+    /// que dá os eixos das vistas. As extensões ao longo dos eixos principais NÃO entram: com um λ
+    /// duplo (chapa quadrada, barra quadrada ou redonda, disco) os autovetores são arbitrários e a
+    /// extensão muda com a rotação. O volume (teorema da divergência, Σ (A−O)·((B−O)×(C−O))/6 com O
+    /// o centróide da superfície, em módulo) não depende de eixo algum. Sem furos contados: <c>Furos = 0</c>.
     /// </summary>
     public static AssinaturaGeometrica Assinatura(IReadOnlyList<Triangulo> malha)
     {
         if (malha.Count == 0)
             throw new ArgumentException("Malha vazia.", nameof(malha));
 
-        var (centro, eixos, autovalores) = EixosPrincipais(malha);
-        var vertices = malha.SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
-        var extensoes = eixos.Select(e =>
+        var (centro, _, autovalores) = EixosPrincipais(malha);
+        double volume = 0;
+        foreach (var t in malha)
         {
-            var proj = vertices.Select(v => (double)Vector3.Dot(v - centro, e)).ToList();
-            return proj.Max() - proj.Min();
-        });
+            var a = Vetor(t.A - centro); var b = Vetor(t.B - centro); var c = Vetor(t.C - centro);
+            volume += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+        }
         var area = malha.Sum(t => (double)Area(t));
-        return new AssinaturaGeometrica(0, [area, .. autovalores, .. extensoes]);
+        return new AssinaturaGeometrica(0, [area, .. autovalores, Math.Abs(volume)]);
     }
+
+    private static double[] Vetor(Vector3 v) => [v.X, v.Y, v.Z];
 
     private static double Area(Triangulo t) => Vector3.Cross(t.B - t.A, t.C - t.A).Length() / 2;
 

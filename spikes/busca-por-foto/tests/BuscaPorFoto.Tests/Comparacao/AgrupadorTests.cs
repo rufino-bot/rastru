@@ -89,4 +89,48 @@ public class AgrupadorTests
 
         Assert.Equal(2, AgrupadorDeReferencias.Agrupar([a, b]).Count);
     }
+
+    private static void AssertGiradaIgual(List<BuscaPorFoto.Stl.Triangulo> malha)
+    {
+        var girada = MalhaSintetica.Transformar(malha, Matrix4x4.CreateFromYawPitchRoll(0.3f, 0.7f, 1.1f));
+        Assert.True(AgrupadorDeReferencias.Identicas(ProjetorDeSilhueta.Assinatura(malha), ProjetorDeSilhueta.Assinatura(girada)));
+    }
+
+    [Fact]
+    public void Chapa_quadrada_girada_tem_a_mesma_assinatura() =>
+        AssertGiradaIgual(MalhaSintetica.ChapaComFuro(100, 100, 3, 20));
+
+    [Fact]
+    public void Barra_quadrada_girada_tem_a_mesma_assinatura() =>
+        AssertGiradaIgual(MalhaSintetica.Caixa(40, 40, 200));
+
+    [Fact]
+    public void Diferenca_so_no_ultimo_valor_separa()
+    {
+        var grupos = Grupos(
+            Ref("K0001", 1, 5000, 400, 300, 1e6, 2e5),
+            Ref("K0002", 1, 5000, 400, 300, 1e6, 2e5 * 1.01));
+
+        Assert.Equal(2, grupos.Length);
+    }
+
+    [Fact]
+    public void Tolerancia_e_relativa_ao_maior_dos_dois()
+    {
+        // 100 vs 100,502: diferença 0,502. Pelo maior (100,502) o limite é 0,005 · 100,502 = 0,50251,
+        // então são iguais; pelo menor (100) o limite seria 0,5, e seriam diferentes.
+        var a = Ref("K0001", 0, 100.0);
+        var b = Ref("K0002", 0, 100.502);
+
+        Assert.True(AgrupadorDeReferencias.Identicas(a.Assinatura, b.Assinatura));
+        Assert.Single(Grupos(a, b));
+    }
+
+    [Fact]
+    public void NaN_nao_e_igual_a_nada()
+    {
+        var grupos = Grupos(Ref("K0001", 0, double.NaN, 1), Ref("K0002", 0, 5, 1));
+
+        Assert.Equal(2, grupos.Length);
+    }
 }
