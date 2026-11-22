@@ -1,0 +1,10 @@
+# Dados de cliente (STL, DXF, fotos), os dados públicos do ensaio e a saída do spike NUNCA entram
+# neste repositório, que é público. As pastas ficam fora dele; estas linhas só pegam o engano de
+# apontá-las para cá.
+dados/
+saida/
+*.stl
+*.dxf
+*.jpg
+*.jpeg
+*.png
