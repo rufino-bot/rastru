@@ -2,6 +2,7 @@ using BuscaPorFoto.Dxf;
 using BuscaPorFoto.Execucao;
 using BuscaPorFoto.Foto;
 using BuscaPorFoto.Marcador;
+using BuscaPorFoto.Relatorio;
 using OpenCvSharp;
 
 namespace BuscaPorFoto.Cli;
@@ -19,6 +20,7 @@ public static class ComandoDaCli
           BuscaPorFoto.Cli nesting <dados> <saida> [--ignorar-camada <nome>]... [--borda auto|sim|nao]
           BuscaPorFoto.Cli executar <dados> <saida> corte [--recorte otsu|grabcut] [--ignorar-camada <nome>]... [--borda auto|sim|nao]
           BuscaPorFoto.Cli executar <dados> <saida> forma-final|intermediarias [--recorte otsu|grabcut]
+          BuscaPorFoto.Cli relatorio <saida>
         """;
 
     private sealed record OpcoesDoComando(MetodoDeRecorte Recorte, HashSet<string> Camadas, BordaDaChapa Borda);
@@ -64,6 +66,22 @@ public static class ComandoDaCli
                     saida.WriteLine($"Classifique o recorte em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeClassificacao))} olhando {Path.GetFullPath(Path.Combine(pasta, Executor.PastaDeSobreposicoes))}.");
                     return 0;
                 }
+
+                case ["relatorio", var pasta]:
+                {
+                    pastaDeSaida = pasta;
+                    var cenario = LerDaExecucao(pasta, "cenario", v => CenarioExtensoes.DaPasta(v));
+                    var metodo = LerDaExecucao(pasta, "recorte", v => Enum.TryParse<MetodoDeRecorte>(v, ignoreCase: true, out var m) ? m : (MetodoDeRecorte?)null);
+                    var linhas = ArquivoDeResultados.Ler(Path.Combine(pasta, Executor.ArquivoDeResultadosCsv));
+                    var pontuacoes = ArquivoDePontuacoes.Ler(Path.Combine(pasta, Executor.ArquivoDePontuacoesCsv));
+                    var classificacao = ArquivoDeClassificacaoDoRecorte.Ler(Path.Combine(pasta, Executor.ArquivoDeClassificacao));
+                    var caminho = Path.GetFullPath(Path.Combine(pasta, "relatorio.md"));
+                    File.WriteAllText(caminho, GeradorDeRelatorio.Gerar(cenario, linhas, pontuacoes, classificacao, metodo));
+                    // Só o caminho e a palavra do veredito: nada dos dados vai para o terminal.
+                    saida.WriteLine($"Relatório em {caminho}");
+                    saida.WriteLine($"{cenario.NomeDaPasta()}: {(GeradorDeRelatorio.VereditoDoCenario(cenario, linhas) is { } v ? v.ToString() : "sem veredito (só informativo ou sem alvo)")}");
+                    return 0;
+                }
             }
         }
         catch (DadosIncompletosException ex)
@@ -102,6 +120,17 @@ public static class ComandoDaCli
         var temporario = Path.Combine(Directory.CreateTempSubdirectory("busca-por-foto-").FullName, nome);
         File.WriteAllText(temporario, texto);
         return temporario;
+    }
+
+    /// <summary>Lê uma chave de <c>execucao.txt</c>; o valor inválido é erro inesperado (a mensagem vai para o erro.txt).</summary>
+    private static T LerDaExecucao<T>(string pasta, string chave, Func<string, T?> converter) where T : struct
+    {
+        var prefixo = chave + "=";
+        var valor = File.ReadAllLines(Path.Combine(pasta, Executor.ArquivoDeExecucao))
+            .FirstOrDefault(l => l.StartsWith(prefixo, StringComparison.Ordinal))?[prefixo.Length..].Trim();
+        return valor is not null && converter(valor) is { } resultado
+            ? resultado
+            : throw new InvalidDataException($"{Executor.ArquivoDeExecucao} sem uma chave '{chave}' válida.");
     }
 
     private static OpcoesDoComando? LerOpcoes(string[] args, bool aceitaRecorte, bool aceitaCamadaEBorda)
