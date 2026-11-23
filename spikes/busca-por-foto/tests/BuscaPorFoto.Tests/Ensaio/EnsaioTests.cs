@@ -198,4 +198,38 @@ public class EnsaioTests
         Assert.All(linhas.Where(l => l.Condicao == Condicao.SemMarcador),
             l => { Assert.Null(l.Falha); Assert.NotNull(l.Posicao); });
     }
+
+    [Fact]
+    public void A_foto_deformada_nao_e_a_propria_referencia()
+    {
+        // Medido: 0,968 a 0,976 com a deformação inteira; só com rotação e espelho passa de 0,99.
+        using var forma = Retangulo(100, 50);
+        var iou = Enumerable.Range(0, 6).Average(i =>
+        {
+            using var foto = Deformador.Deformar(forma, Condicao.ComMarcador, ParametrosDeDeformacao.Padrao, i);
+            return PontuadorIoU.Pontuar(foto, forma, usarEscala: true);
+        });
+
+        Assert.InRange(iou, 0.90, 0.985);
+    }
+
+    [Fact]
+    public void Sem_marcador_a_inclinacao_muda_a_area_bem_mais_que_com_marcador()
+    {
+        // Só a inclinação: sem serrilhado nem desfoque relevantes, a área muda pelo cosseno do ângulo sorteado.
+        // Medido, em 20 índices: 0,0006 com marcador (3°) e 0,011 sem (15°).
+        using var forma = Retangulo(100, 50);
+        var soInclinacao = ParametrosDeDeformacao.Padrao with { FatorDeSerrilhado = 1.0, SigmaDoDesfoqueMm = 0.01 };
+        double DesvioMedio(Condicao c) => Enumerable.Range(0, 20).Average(i =>
+        {
+            using var foto = Deformador.Deformar(forma, c, soInclinacao, i);
+            return Math.Abs(1 - Cv2.CountNonZero(foto.Pixels) / (double)Cv2.CountNonZero(forma.Pixels));
+        });
+
+        var com = DesvioMedio(Condicao.ComMarcador);
+        var sem = DesvioMedio(Condicao.SemMarcador);
+
+        Assert.True(sem > 0.005, $"sem marcador: {sem}");
+        Assert.True(sem > 5 * com, $"sem {sem}, com {com}");
+    }
 }

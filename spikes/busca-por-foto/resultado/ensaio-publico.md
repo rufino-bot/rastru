@@ -44,6 +44,9 @@ Ressalvas do teto da forma final: a biblioteca tem 100 peças, não as 150 a 200
 peças parecidas como as da fábrica. Por isso o número é um teto otimista do método, e a falta de um cenário de peças
 parecidas não é coberta. Nenhum cenário deu **para**.
 
+Outra limitação: a "foto" do teto é uma projeção da própria referência (uma das três vistas dela), deformada de propósito.
+Um objeto real, em pose qualquer, não é exercitado; o número vale como teto do método, não como estimativa de acerto com fotos.
+
 ## Medição 3: fotos de terceiros (informativa)
 
 20 fotos reais de objetos impressos em 3D (uma por objeto, sem marcador), contra os 100 STL, cenário forma final, recorte
