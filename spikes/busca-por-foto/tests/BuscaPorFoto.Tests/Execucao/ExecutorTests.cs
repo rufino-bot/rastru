@@ -199,7 +199,7 @@ public class ExecutorTests
         Assert.All(linhas, l =>
         {
             Assert.Null(l.Posicao);
-            Assert.Equal("referência não separada do nesting", l.Falha);
+            Assert.Equal(Executor.FalhaReferenciaNaoSeparada, l.Falha);
             Assert.Equal(0, l.ReferenciasNoGrupoDaCerta);
         });
     }
@@ -260,8 +260,27 @@ public class ExecutorTests
 
         var com = linhas.Where(l => l.Condicao == Condicao.ComMarcador).ToList();
         Assert.Equal(2, com.Count);
-        Assert.All(com, l => { Assert.Null(l.Posicao); Assert.Equal("marcador não detectado", l.Falha); });
+        Assert.All(com, l => { Assert.Null(l.Posicao); Assert.Equal(Executor.FalhaMarcadorNaoDetectado, l.Falha); });
         Assert.All(linhas.Where(l => l.Condicao == Condicao.SemMarcador), l => Assert.NotNull(l.Posicao));
+    }
+
+    [Fact]
+    public void Modelo_de_classificacao_so_tem_as_consultas_que_geraram_sobreposicao()
+    {
+        using var dados = new PastaTemporaria();
+        using var saida = new PastaTemporaria();
+        ConjuntoSintetico.MontarFormaFinal(dados.Caminho, Alvos.Take(1), Distratores, marcadorNaFotoComMarcador: false);
+
+        RodarFormaFinal(dados.Caminho, saida.Caminho);
+
+        var classificacao = ArquivoDeClassificacaoDoRecorte.Ler(Path.Combine(saida.Caminho, Executor.ArquivoDeClassificacao));
+        var unica = Assert.Single(classificacao);
+        Assert.Equal(Condicao.SemMarcador, unica.Condicao);
+        Assert.True(Executor.TemSobreposicao(null));
+        Assert.True(Executor.TemSobreposicao(Executor.FalhaRecorteVazio));
+        Assert.False(Executor.TemSobreposicao(Executor.FalhaMarcadorNaoDetectado));
+        Assert.False(Executor.TemSobreposicao(Executor.FalhaFotoIlegivel));
+        Assert.False(Executor.TemSobreposicao(Executor.FalhaReferenciaNaoSeparada));
     }
 
     [Fact]

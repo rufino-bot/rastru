@@ -20,6 +20,10 @@ public class CriterioDeDecisaoTests
     [InlineData(16, 21, Veredito.ZonaCinza)]
     [InlineData(13, 21, Veredito.ZonaCinza)]
     [InlineData(12, 21, Veredito.Reprova)]
+    [InlineData(11, 17, Veredito.ZonaCinza)]
+    [InlineData(10, 17, Veredito.Reprova)]
+    [InlineData(12, 19, Veredito.ZonaCinza)]
+    [InlineData(11, 19, Veredito.Reprova)]
     public void Aplica_os_limites_da_spec(int acertos, int total, Veredito esperado)
     {
         Assert.Equal(esperado, CriterioDeDecisao.Avaliar(acertos, total));
@@ -34,7 +38,7 @@ public class CriterioDeDecisaoTests
 
 public class GeradorDeRelatorioTests
 {
-    private const string NaoSeparada = "referência não separada do nesting";
+    private const string NaoSeparada = Executor.FalhaReferenciaNaoSeparada;
 
     private static string Id(int indice) => $"A{indice + 1:D2}";
 
@@ -153,7 +157,7 @@ public class GeradorDeRelatorioTests
     [Fact]
     public void Outra_falha_conta_como_erro()
     {
-        var md = Gerar(Cenario.Corte, Corte(20, 0, 15, comFalha: 4, falha: "recorte vazio"));
+        var md = Gerar(Cenario.Corte, Corte(20, 0, 15, comFalha: 4, falha: Executor.FalhaRecorteVazio));
 
         Assert.Contains("Com marcador: **15 de 20**", md);
         Assert.Contains("**Veredito: ZonaCinza.**", md);
@@ -165,9 +169,10 @@ public class GeradorDeRelatorioTests
     {
         var linhas = Bloco(Cenario.Intermediarias, TipoDePeca.Dobrada, 0, 5, 3, 3);
 
-        var md = Gerar(Cenario.Intermediarias, linhas);
+        var md = Gerar(Cenario.Intermediarias, linhas, pontuacoes: Pontuacoes(alvos: 5, grupos: 40, posicaoDaCerta: 1));
 
         Assert.DoesNotContain("Veredito", md);
+        Assert.DoesNotContain("Pilhas menores", md);
         Assert.Contains("Só informativo (spec §3): 5 fotos não medem taxa de acerto.", md);
     }
 
@@ -296,5 +301,104 @@ public class GeradorDeRelatorioTests
         Assert.Contains("**Veredito: Reprova.**", md);
         Assert.DoesNotContain("Gatilho do plano B", md);
         Assert.DoesNotContain("Plano B **não** se aplica", md);
+    }
+
+    [Fact]
+    public void Empate_entre_condicoes_com_as_linhas_de_ComMarcador_primeiro_fica_com_sem_marcador()
+    {
+        var linhas = Corte(20, 14, 14).OrderByDescending(l => l.Condicao).ToList();
+        Assert.Equal(Condicao.ComMarcador, linhas[0].Condicao);
+
+        var md = Gerar(Cenario.Corte, linhas);
+
+        Assert.Contains("Melhor condição: **SemMarcador**", md);
+    }
+
+    [Fact]
+    public void Exatamente_um_terco_de_recorte_falho_ainda_deixa_a_execucao_Otsu_decidir()
+    {
+        // 12 de 36 = 1/3 exato.
+        var md = Gerar(Cenario.Corte, Corte(18, 14, 14),
+            classificacao: Classificacao(18, (i, c) => !(i < 12 && c == Condicao.SemMarcador)));
+
+        Assert.Contains("Recortes falhos: **12 de 36**", md);
+        Assert.Contains("esta execução Otsu é a que decide", md);
+    }
+
+    [Fact]
+    public void Plano_B_conta_recorte_vazio_como_erro_de_recorte()
+    {
+        // 12 acertos (zona cinza) e 8 erros: 3 notas ruins e 5 recortes vazios, estes classificados falho.
+        var md = Gerar(Cenario.Corte, Corte(20, acertosSem: 12, acertosCom: 0, comFalha: 5, falha: Executor.FalhaRecorteVazio),
+            MetodoDeRecorte.GrabCut, Classificacao(20, (i, c) => !(c == Condicao.SemMarcador && i >= 15)));
+
+        Assert.Contains("dos quais **5** de recorte", md);
+        Assert.Contains("**Gatilho do plano B", md);
+    }
+
+    [Fact]
+    public void Marcador_nao_detectado_nao_e_erro_de_recorte_nem_pesa_na_classificacao()
+    {
+        // ComMarcador é a melhor: 12 acertos (A01..A12). Erros: A13..A15 recorte falho (3), A16..A18 nota ruim,
+        // A19..A20 marcador não detectado (o usuário escreveu falho nelas, e isso não conta).
+        var linhas = Corte(20, acertosSem: 0, acertosCom: 12, comFalha: 2, falha: Executor.FalhaMarcadorNaoDetectado);
+        var md = Gerar(Cenario.Corte, linhas, MetodoDeRecorte.GrabCut,
+            Classificacao(20, (i, c) => c == Condicao.ComMarcador ? i is >= 12 and <= 14 or >= 18 ? false : true : true));
+
+        Assert.Contains("Melhor condição: **ComMarcador**", md);
+        Assert.Contains("Erros na melhor condição: **8**, dos quais **3** de recorte", md);
+        Assert.Contains("Plano B **não** se aplica", md);
+    }
+
+    [Fact]
+    public void Consulta_sem_sobreposicao_fica_fora_da_classificacao_e_da_regra_do_GrabCut()
+    {
+        // 8 de 20 alvos sem marcador detectado: 16 consultas sem sobreposição; as outras 24 estão ok.
+        var linhas = Corte(20, 12, 12, comFalha: 8, falha: Executor.FalhaMarcadorNaoDetectado);
+
+        var comoFalho = Gerar(Cenario.Corte, linhas, classificacao: Classificacao(20, (i, _) => i < 12));
+        var emBranco = Gerar(Cenario.Corte, linhas, classificacao: Classificacao(20, (i, _) => i < 12 ? true : null));
+
+        Assert.Contains("Recortes falhos: **0 de 24**", comoFalho);
+        Assert.Contains("esta execução Otsu é a que decide", comoFalho);
+        Assert.DoesNotContain("Classificação incompleta", emBranco);
+        Assert.Contains("Recortes falhos: **0 de 24**", emBranco);
+    }
+
+    [Fact]
+    public void Aprova_nao_fala_de_plano_B()
+    {
+        var md = Gerar(Cenario.Corte, Corte(20, 16, 16),
+            classificacao: Classificacao(20, (i, c) => i >= 16 ? false : true));
+
+        Assert.Contains("**Veredito: Aprova.**", md);
+        Assert.DoesNotContain("Gatilho do plano B", md);
+        Assert.DoesNotContain("Plano B **não** se aplica", md);
+    }
+
+    [Fact]
+    public void A_tabela_de_acertos_escreve_N_de_M_e_nao_percentual()
+    {
+        var md = Gerar(Cenario.Corte, Corte(20, 0, 16));
+
+        Assert.Contains("| Chapa | ComMarcador | IoU | 0 de 20 | 16 de 20 | 20 de 20 |", md);
+        Assert.DoesNotContain("%", md);
+    }
+
+    [Fact]
+    public void Pilha_com_a_certa_em_4o_nao_acerta_em_3o_acerta_sempre_e_o_empate_conta_contra()
+    {
+        int[] dez = [10];
+        double Medio(IReadOnlyList<LinhaDePontuacao> p) =>
+            Assert.Single(PilhasMenores.Simular(p, Condicao.ComMarcador, dez, 50, 1)).AcertosMedios;
+
+        Assert.Equal(0.0, Medio(Pontuacoes(alvos: 3, grupos: 10, posicaoDaCerta: 4)));
+        Assert.Equal(3.0, Medio(Pontuacoes(alvos: 3, grupos: 10, posicaoDaCerta: 3)));
+
+        // A certa (0,9) empata com um errado e tem dois à frente: o empate conta contra, 4º.
+        double[] erradas = [0.95, 0.94, 0.9, 0.3, 0.2, 0.1, 0.05, 0.04, 0.03];
+        var empate = new List<LinhaDePontuacao> { new("A01", Condicao.ComMarcador, NomeDoPontuador.IoU, "G0001", 0.9, true) };
+        empate.AddRange(erradas.Select((v, i) => new LinhaDePontuacao("A01", Condicao.ComMarcador, NomeDoPontuador.IoU, $"G{i + 2:D4}", v, false)));
+        Assert.Equal(0.0, Medio(empate));
     }
 }

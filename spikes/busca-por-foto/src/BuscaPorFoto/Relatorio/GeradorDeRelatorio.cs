@@ -10,10 +10,6 @@ public static class GeradorDeRelatorio
     /// <summary>Acima desta fração de recortes falhos numa execução Otsu, a regra manda reexecutar com GrabCut.</summary>
     public const double FracaoDeRecorteFalhoQueAcionaGrabCut = 1.0 / 3;
 
-    /// <summary>A falha que o executor grava quando o alvo do Corte não saiu separado do nesting. Não entra no denominador.</summary>
-    private const string FalhaDeReferenciaNaoSeparada = "referência não separada do nesting";
-    private const string FalhaDeRecorteVazio = "recorte vazio";
-
     private static readonly Condicao[] Condicoes = [Condicao.SemMarcador, Condicao.ComMarcador];
 
     private sealed record Decisao(
@@ -35,7 +31,7 @@ public static class GeradorDeRelatorio
     {
         var ids = linhas.Select(l => l.Id).Distinct().Order(StringComparer.Ordinal).ToList();
         var naoSeparados = ids
-            .Where(id => linhas.Any(l => l.Id == id && l.Falha == FalhaDeReferenciaNaoSeparada))
+            .Where(id => linhas.Any(l => l.Id == id && l.Falha == Executor.FalhaReferenciaNaoSeparada))
             .ToList();
         var denominador = ids.Except(naoSeparados).ToList();
 
@@ -120,9 +116,12 @@ public static class GeradorDeRelatorio
             }
         }
 
-        // Recorte e plano B.
-        var naoClassificadas = ids.SelectMany(id => Condicoes.Select(c => (id, c)))
-            .Count(k => !recorte.TryGetValue(k, out var r) || r.RecorteOk is null);
+        // Recorte e plano B. Só as consultas que produziram sobreposição têm o que classificar: "marcador não
+        // detectado", "foto ilegível" e "referência não separada" não entram em nenhuma conta do recorte (spec §8.3).
+        var comSobreposicao = linhas
+            .Where(l => l.Pontuador == NomeDoPontuador.IoU && Executor.TemSobreposicao(l.Falha))
+            .Select(l => (l.Id, l.Condicao)).Distinct().ToList();
+        var naoClassificadas = comSobreposicao.Count(k => !recorte.TryGetValue(k, out var r) || r.RecorteOk is null);
         L("## Recorte");
         L();
         if (naoClassificadas > 0)
@@ -131,9 +130,9 @@ public static class GeradorDeRelatorio
         }
         else
         {
-            var falhos = classificacao.Count(c => c.RecorteOk == false);
-            var total = classificacao.Count;
-            L($"Recortes falhos: **{falhos} de {total}**.");
+            var falhos = comSobreposicao.Count(k => recorte[k].RecorteOk == false);
+            var total = comSobreposicao.Count;
+            L($"Recortes falhos: **{falhos} de {total}** consultas com sobreposição.");
             if (metodo == MetodoDeRecorte.Otsu)
             {
                 var aciona = falhos > FracaoDeRecorteFalhoQueAcionaGrabCut * total;
@@ -149,7 +148,10 @@ public static class GeradorDeRelatorio
                     .SelectMany(id => linhas.Where(l => l.Id == id && l.Condicao == decisao.Melhor
                                                         && l.Pontuador == NomeDoPontuador.IoU && l.Posicao is not <= 3))
                     .ToList();
-                var deRecorte = erros.Count(l => l.Falha == FalhaDeRecorteVazio || recorte[(l.Id, l.Condicao)].RecorteOk == false);
+                // Erro de recorte: recorte vazio, ou foto recortada e classificada como falha.
+                // Marcador não detectado e foto ilegível são erro, mas não de recorte.
+                var deRecorte = erros.Count(l => l.Falha == Executor.FalhaRecorteVazio
+                                                 || (l.Falha is null && recorte[(l.Id, l.Condicao)].RecorteOk == false));
                 L();
                 L($"Erros na melhor condição: **{erros.Count}**, dos quais **{deRecorte}** de recorte.");
                 L(deRecorte * 2 > erros.Count
@@ -191,7 +193,7 @@ public static class GeradorDeRelatorio
         {
             L("## Pilhas menores (informativo: não entra na decisão)");
             L();
-            var grupos = pontuacoes.Where(p => p.Condicao == decisao.Melhor).GroupBy(p => p.Id).Select(g => g.Count()).DefaultIfEmpty(0).Max();
+            var grupos = pontuacoes.Where(p => p.Condicao == decisao.Melhor && p.Pontuador == NomeDoPontuador.IoU).GroupBy(p => p.Id).Select(g => g.Count()).DefaultIfEmpty(0).Max();
             var tamanhos = PilhasMenores.Tamanhos.Where(t => t < grupos).ToList();
             if (tamanhos.Count == 0)
             {

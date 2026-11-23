@@ -49,7 +49,9 @@ spikes/busca-por-foto/src/BuscaPorFoto.Cli -- …`.
 2. Abra as imagens e escreva o `alvos.txt` com o número da peça de cada código.
 3. `executar <dados> <saida-corte> corte` (Otsu por padrão).
 4. Abra `<saida-corte>/sobreposicoes/` e preencha `<saida-corte>/classificacao-do-recorte.csv`: coluna `recorte`
-   com `ok` (o verde cobre a peça e só ela, furos inclusos) ou `falho`.
+   com `ok` (o verde cobre a peça e só ela, furos inclusos) ou `falho`. O arquivo só lista as consultas que
+   têm sobreposição: as que falharam por foto ilegível, marcador não detectado ou referência não separada do
+   nesting não aparecem, não têm o que olhar e não entram na regra do GrabCut nem no plano B.
 5. `relatorio <saida-corte>` grava `<saida-corte>/relatorio.md` e imprime só o caminho e a palavra do veredito.
 
 **Forma final** e **intermediárias**: o mesmo, sem o `nesting` e o `alvos.txt` — `executar <dados> <saida> forma-final`

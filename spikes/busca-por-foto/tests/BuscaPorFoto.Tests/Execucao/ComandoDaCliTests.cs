@@ -53,6 +53,29 @@ public class ComandoDaCliTests
     }
 
     [Fact]
+    public void Relatorio_imprime_so_o_caminho_e_o_veredito()
+    {
+        using var saida = new PastaTemporaria();
+        File.WriteAllLines(Path.Combine(saida.Caminho, Executor.ArquivoDeExecucao), ["cenario=corte", "recorte=otsu"]);
+        ArquivoDeResultados.Escrever(Path.Combine(saida.Caminho, Executor.ArquivoDeResultadosCsv),
+        [
+            new LinhaDeResultado("A01", Cenario.Corte, TipoDePeca.Chapa, Condicao.SemMarcador, NomeDoPontuador.IoU, 1, null, 0.9, 0.5, 1, 40, 3),
+            new LinhaDeResultado("A01", Cenario.Corte, TipoDePeca.Chapa, Condicao.ComMarcador, NomeDoPontuador.IoU, null, Executor.FalhaMarcadorNaoDetectado, null, null, 1, 40, 0),
+        ]);
+        ArquivoDePontuacoes.Escrever(Path.Combine(saida.Caminho, Executor.ArquivoDePontuacoesCsv), []);
+        File.WriteAllLines(Path.Combine(saida.Caminho, Executor.ArquivoDeClassificacao),
+            [ArquivoDeClassificacaoDoRecorte.Cabecalho, "A01;SemMarcador;ok"]);
+
+        var (codigo, textoDaSaida, textoDoErro) = Rodar("relatorio", saida.Caminho);
+
+        Assert.Equal(0, codigo);
+        Assert.Equal("", textoDoErro);
+        var relatorio = Path.GetFullPath(Path.Combine(saida.Caminho, "relatorio.md"));
+        Assert.Equal($"Relatório em {relatorio}{Environment.NewLine}corte: Aprova{Environment.NewLine}", textoDaSaida);
+        Assert.True(File.Exists(relatorio));
+    }
+
+    [Fact]
     public void Uso_errado_devolve_2()
     {
         using var dados = new PastaTemporaria();

@@ -29,6 +29,18 @@ public static class Executor
     public const string ArquivoDeMapaDeNestings = "mapa-de-nestings.csv";
     public const string ArquivoDeResultadosCsv = "resultados.csv";
     public const string ArquivoDePontuacoesCsv = "pontuacoes.csv";
+    /// <summary>Os textos de <see cref="LinhaDeResultado.Falha"/>: o relatório e os testes usam estas constantes, não literais.</summary>
+    public const string FalhaReferenciaNaoSeparada = "referência não separada do nesting";
+    public const string FalhaFotoIlegivel = "foto ilegível";
+    public const string FalhaMarcadorNaoDetectado = "marcador não detectado";
+    public const string FalhaRecorteVazio = "recorte vazio";
+
+    /// <summary>
+    /// Se a consulta com esta falha (a da linha de IoU) produziu uma sobreposição para o humano classificar:
+    /// só quando a foto foi recortada, isto é, sem falha ou com recorte vazio.
+    /// </summary>
+    public static bool TemSobreposicao(string? falha) => falha is null or FalhaRecorteVazio;
+
     public const string ArquivoDeClassificacao = "classificacao-do-recorte.csv";
     public const string ArquivoDeExecucao = "execucao.txt";
     public const string ArquivoDeFaltas = "faltando.txt";
@@ -277,7 +289,7 @@ public static class Executor
                 {
                     foreach (var pontuador in new[] { NomeDoPontuador.Hu, NomeDoPontuador.IoU })
                     {
-                        var falha = alvo.ChaveDaCerta is null ? "referência não separada do nesting" : falhaDaFoto;
+                        var falha = alvo.ChaveDaCerta is null ? FalhaReferenciaNaoSeparada : falhaDaFoto;
                         if (falha is not null || mascara is null)
                         {
                             var noGrupo = alvo.ChaveDaCerta is { } k ? alvo.Universo.GrupoDe(k).Chaves.Count : 0;
@@ -309,7 +321,7 @@ public static class Executor
 
         ArquivoDeResultados.Escrever(Path.Combine(saida, ArquivoDeResultadosCsv), linhas);
         ArquivoDePontuacoes.Escrever(Path.Combine(saida, ArquivoDePontuacoesCsv), pontuacoes);
-        EscreverModeloDeClassificacao(Path.Combine(saida, ArquivoDeClassificacao), alvos.Select(a => a.Id).ToList());
+        EscreverModeloDeClassificacao(Path.Combine(saida, ArquivoDeClassificacao), linhas);
         return linhas;
     }
 
@@ -331,7 +343,7 @@ public static class Executor
         string caminho, Condicao condicao, MetodoDeRecorte metodo, string caminhoDaSobreposicao)
     {
         using var foto = ImagensEmDisco.Ler(caminho);
-        if (foto.Empty()) return (null, "foto ilegível");
+        if (foto.Empty()) return (null, FalhaFotoIlegivel);
 
         FotoRetificada? retificada = null;
         Mat? reduzida = null;
@@ -344,7 +356,7 @@ public static class Executor
             if (condicao == Condicao.ComMarcador)
             {
                 retificada = Retificador.Retificar(foto);
-                if (retificada is null) return (null, "marcador não detectado");
+                if (retificada is null) return (null, FalhaMarcadorNaoDetectado);
                 imagem = retificada.Imagem;
                 centro = retificada.CentroDaFoto;
                 cantos = retificada.CantosDoMarcador;
@@ -364,7 +376,7 @@ public static class Executor
                 ImagensEmDisco.Gravar(caminhoDaSobreposicao, sobreposicao);
 
             using var mascara = Mascara.DeMascaraCheia(cheia, mmPorPixel);
-            return mascara is null ? (null, "recorte vazio") : (mascara.ReduzidaAte(LadoMaximoDaMascara), null);
+            return mascara is null ? (null, FalhaRecorteVazio) : (mascara.ReduzidaAte(LadoMaximoDaMascara), null);
         }
         finally
         {
@@ -374,13 +386,16 @@ public static class Executor
     }
 
     /// <summary>
-    /// Modelo que o humano preenche olhando as sobreposições. Não sobrescreve um que já exista —
-    /// ele pode estar preenchido.
+    /// Modelo que o humano preenche olhando as sobreposições: só as consultas que produziram uma (as outras,
+    /// sem foto legível, sem marcador ou sem referência, não têm o que classificar). Não sobrescreve um que
+    /// já exista — ele pode estar preenchido.
     /// </summary>
-    private static void EscreverModeloDeClassificacao(string caminho, IReadOnlyList<string> ids)
+    private static void EscreverModeloDeClassificacao(string caminho, IReadOnlyList<LinhaDeResultado> linhas)
     {
         if (File.Exists(caminho)) return;
-        var linhas = ids.SelectMany(id => new[] { Condicao.SemMarcador, Condicao.ComMarcador }.Select(c => $"{id};{c};"));
-        File.WriteAllLines(caminho, linhas.Prepend(ArquivoDeClassificacaoDoRecorte.Cabecalho));
+        var consultas = linhas
+            .Where(l => l.Pontuador == NomeDoPontuador.IoU && TemSobreposicao(l.Falha))
+            .Select(l => $"{l.Id};{l.Condicao};");
+        File.WriteAllLines(caminho, consultas.Prepend(ArquivoDeClassificacaoDoRecorte.Cabecalho));
     }
 }
