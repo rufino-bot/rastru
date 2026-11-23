@@ -1,4 +1,7 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
 using BuscaPorFoto.Dxf;
+using BuscaPorFoto.Ensaios;
 using BuscaPorFoto.Execucao;
 using BuscaPorFoto.Foto;
 using BuscaPorFoto.Marcador;
@@ -21,6 +24,9 @@ public static class ComandoDaCli
           BuscaPorFoto.Cli executar <dados> <saida> corte [--recorte otsu|grabcut] [--ignorar-camada <nome>]... [--borda auto|sim|nao]
           BuscaPorFoto.Cli executar <dados> <saida> forma-final|intermediarias [--recorte otsu|grabcut]
           BuscaPorFoto.Cli relatorio <saida>
+          BuscaPorFoto.Cli ensaio leitores <pasta>
+          BuscaPorFoto.Cli ensaio teto <pasta> <saida> [--alvos 20]
+          BuscaPorFoto.Cli ensaio fotos <pasta> <saida>
         """;
 
     private sealed record OpcoesDoComando(MetodoDeRecorte Recorte, HashSet<string> Camadas, BordaDaChapa Borda);
@@ -64,6 +70,54 @@ public static class ComandoDaCli
                     };
                     saida.WriteLine($"{linhas.Count} linhas em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeResultadosCsv))}");
                     saida.WriteLine($"Classifique o recorte em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeClassificacao))} olhando {Path.GetFullPath(Path.Combine(pasta, Executor.PastaDeSobreposicoes))}.");
+                    return 0;
+                }
+
+                case ["ensaio", "leitores", var pasta]:
+                {
+                    ImprimirLeitores(Ensaio.LerTudo(pasta), saida);
+                    return 0;
+                }
+
+                case ["ensaio", "teto", var pasta, var pastaTeto, .. var resto]:
+                {
+                    if (LerAlvosDoTeto(resto) is not { } alvos) break;
+                    pastaDeSaida = pastaTeto;
+                    var p = ParametrosDeDeformacao.Padrao;
+                    var biblioteca = Ensaio.CarregarBiblioteca(pasta, Ensaio.LimiteDaBiblioteca, p.Semente);
+                    try
+                    {
+                        var linhas = new List<string>
+                        {
+                            $"biblioteca: {biblioteca.Referencias.Count} referência(s) de {biblioteca.Arquivos} arquivo(s) aberto(s), {biblioteca.Recusados} recusado(s)",
+                        };
+                        if (biblioteca.Referencias.Count < alvos)
+                        {
+                            erro.WriteLine(linhas[0]);
+                            erro.WriteLine($"a biblioteca tem menos referências que os {alvos} alvos pedidos");
+                            return 1;
+                        }
+                        var teto = Ensaio.MedirTeto(biblioteca.Referencias, alvos, p);
+                        linhas.Add($"grupos candidatos: {teto.Grupos}");
+                        linhas.Add($"com marcador: {teto.AcertosComMarcador} de {teto.Alvos} no top-3");
+                        linhas.Add($"sem marcador: {teto.AcertosSemMarcador} de {teto.Alvos} no top-3");
+                        linhas.Add($"limite: {Relatorio.CriterioDeDecisao.MinimoParaAprovar(teto.Alvos)} de {teto.Alvos} na melhor condição");
+                        linhas.Add(teto.Segue ? "segue" : "para");
+                        Directory.CreateDirectory(pastaTeto);
+                        File.WriteAllLines(Path.Combine(pastaTeto, "teto.txt"), linhas);
+                        foreach (var l in linhas) saida.WriteLine(l);
+                        return 0;
+                    }
+                    finally { foreach (var r in biblioteca.Referencias) foreach (var v in r.Vistas) v.Dispose(); }
+                }
+
+                case ["ensaio", "fotos", var pasta, var pastaFotos]:
+                {
+                    pastaDeSaida = pastaFotos;
+                    var linhas = Executor.ExecutarComStl(Ensaio.LerFotosDeTerceiros(pasta), Cenario.FormaFinal, pastaFotos, MetodoDeRecorte.Otsu, saida);
+                    var iouSem = linhas.Where(l => l.Pontuador == NomeDoPontuador.IoU && l.Condicao == Condicao.SemMarcador).ToList();
+                    saida.WriteLine($"{linhas.Count} linhas em {Path.GetFullPath(Path.Combine(pastaFotos, Executor.ArquivoDeResultadosCsv))}");
+                    saida.WriteLine($"informativo, sem marcador, IoU: {iouSem.Count(l => l.Posicao <= 3)} de {iouSem.Count} no top-3; {iouSem.Count(l => l.Falha is not null)} com falha");
                     return 0;
                 }
 
@@ -132,6 +186,39 @@ public static class ComandoDaCli
             ? resultado
             : throw new InvalidDataException($"{Executor.ArquivoDeExecucao} sem uma chave '{chave}' válida.");
     }
+
+    private static readonly Regex EntidadeNaoLida = new(@"^\d+ entidade\(s\) (.+) não lida\(s\)$", RegexOptions.Singleline);
+
+    /// <summary>Só contagens: por situação, por tipo de aviso e por entidade não lida. Nome de arquivo não vai ao terminal.</summary>
+    private static void ImprimirLeitores(IReadOnlyList<LeituraDeArquivo> lidos, TextWriter saida)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        saida.WriteLine($"{lidos.Count} arquivo(s)");
+        foreach (var formato in new[] { ".dxf", ".stl" })
+        {
+            var doFormato = lidos.Where(l => string.Equals(Path.GetExtension(l.Arquivo), formato, StringComparison.OrdinalIgnoreCase)).ToList();
+            saida.WriteLine($"{formato.ToUpperInvariant()[1..]}: {doFormato.Count}");
+            foreach (var g in doFormato.GroupBy(l => l.Situacao).OrderBy(g => g.Key, StringComparer.Ordinal))
+                saida.WriteLine($"  {g.Count()}x {g.Key}");
+            foreach (var g in doFormato.SelectMany(l => l.Avisos.Select(Executor.TipoDoAviso).Distinct()).GroupBy(t => t).OrderBy(g => g.Key, StringComparer.Ordinal))
+                saida.WriteLine($"  aviso em {g.Count()} arquivo(s): {g.Key}");
+            foreach (var g in doFormato.SelectMany(l => l.Avisos.Select(a => EntidadeNaoLida.Match(a)).Where(m => m.Success).Select(m => m.Groups[1].Value).Distinct())
+                         .GroupBy(t => t).OrderBy(g => g.Key, StringComparer.Ordinal))
+                saida.WriteLine($"  entidade não lida {g.Key}: {g.Count()} arquivo(s)");
+            if (formato == ".dxf" && doFormato.Count > 0)
+            {
+                var comSpline = doFormato.Count(l => l.Avisos.Any(a => EntidadeNaoLida.Match(a) is { Success: true } m && m.Groups[1].Value == "SPLINE"));
+                saida.WriteLine(string.Create(inv, $"  com SPLINE: {comSpline} de {doFormato.Count} ({100.0 * comSpline / doFormato.Count:F1}%)"));
+            }
+        }
+    }
+
+    private static int? LerAlvosDoTeto(string[] resto) => resto switch
+    {
+        [] => 20,
+        ["--alvos", var n] when int.TryParse(n, NumberStyles.None, CultureInfo.InvariantCulture, out var v) && v >= 1 => v,
+        _ => null,
+    };
 
     private static OpcoesDoComando? LerOpcoes(string[] args, bool aceitaRecorte, bool aceitaCamadaEBorda)
     {

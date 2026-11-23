@@ -34,6 +34,8 @@ public static class Executor
     public const string FalhaFotoIlegivel = "foto ilegível";
     public const string FalhaMarcadorNaoDetectado = "marcador não detectado";
     public const string FalhaRecorteVazio = "recorte vazio";
+    /// <summary>O alvo não trouxe foto com marcador (as fotos de terceiros do ensaio): a consulta nem tenta abrir arquivo.</summary>
+    public const string FalhaSemFotoComMarcador = "sem foto com marcador";
 
     /// <summary>
     /// Se a consulta com esta falha (a da linha de IoU) produziu uma sobreposição para o humano classificar:
@@ -283,8 +285,9 @@ public static class Executor
             {
                 log.WriteLine($"Consultando {alvo.Id} {condicao}");
                 var caminho = condicao == Condicao.SemMarcador ? alvo.CaminhoSemMarcador : alvo.CaminhoComMarcador;
-                var (mascara, falhaDaFoto) = PrepararFoto(caminho, condicao, metodo,
-                    Path.Combine(saida, PastaDeSobreposicoes, $"{alvo.Id}-{condicao}.png"));
+                var (mascara, falhaDaFoto) = caminho.Length == 0 && condicao == Condicao.ComMarcador
+                    ? (null, FalhaSemFotoComMarcador)
+                    : PrepararFoto(caminho, condicao, metodo, Path.Combine(saida, PastaDeSobreposicoes, $"{alvo.Id}-{condicao}.png"));
                 try
                 {
                     foreach (var pontuador in new[] { NomeDoPontuador.Hu, NomeDoPontuador.IoU })
