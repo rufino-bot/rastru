@@ -2706,7 +2706,7 @@ Se algum cenário deu **para**, avise o usuário com o número e **não** comece
 **Pré-condições, conferidas antes de começar:**
 - a Task 9 não parou o cenário (um cenário que parou não roda aqui, salvo decisão do usuário);
 - a pasta de dados está no formato do README, fora do repositório (spec §4.3, §10.4);
-- o marcador foi impresso e **medido com régua** em 100 mm.
+- o marcador foi impresso e **medido com régua** (o quadrado preto, borda inclusa; devia dar 100 mm). **A medida entra na execução** (spec §4.2): anote o valor, em mm, e passe-o em `--lado-do-marcador <mm>` (aceita `98,5`) em **todo** `executar` desta task; sem a opção vale 100. O valor fica no `execucao.txt` de cada saída. Se a medida estiver longe de 100, diga ao usuário e decida com ele se reimprime, antes de seguir.
 
 - [ ] **Step 1: Conectar a máquina do usuário**
 
@@ -2718,15 +2718,26 @@ Na máquina do usuário: `git fetch origin <branch>` e `git checkout <branch>`; 
 
 - [ ] **Step 3: Imagens numeradas — o usuário escreve o `alvos.txt`**
 
-Run: `dotnet run -c Release --project spikes/busca-por-foto/src/BuscaPorFoto.Cli -- nesting <dados> <saida-nesting>`
-Peça ao usuário para abrir `<saida-nesting>/nestings/` e escrever o `corte/alvos.txt` (o nome do nesting e o número, ou `-` para a peça que a imagem não separou). Confira com ele a contagem de peças por nesting que o CLI imprimiu.
+Run: `dotnet run -c Release --project spikes/busca-por-foto/src/BuscaPorFoto.Cli -- nesting <dados> <saida-nesting> [--borda auto|sim|nao] [--ignorar-camada <nome>]...`
+Sem opção a primeira rodada é `--borda auto`, sem camada ignorada. **Anote as opções que usar** (o Step 4 as repete) — o comando grava `<saida-nesting>/nesting.txt` com as opções e a contagem de peças por nesting, e o `executar` confere.
+
+**Este passo é uma parada: nenhum `executar` antes dela.** O leitor de DXF nunca viu um nesting real (o ensaio público não teve DXF). Com o usuário, confira o que o CLI imprimiu:
+- por nesting, `N0k: n peça(s), m aviso(s)` e, embaixo, `Nx <tipo do aviso>` (entidade não lida, trecho aberto, corte em linha comum, borda da chapa): os tipos e as contagens fazem sentido para o desenho dele? A contagem de peças bate com o que ele conta na chapa?
+- o aviso "N contorno(s) externo(s) com dois ou mais contornos dentro foram lidos como peças com furos" aparece sempre que há peça com dois furos ou mais; é esperado, mas o usuário olha a imagem do nesting em que ele aparece e diz se a **borda da chapa virou peça** (então: `--borda sim`, ou `--ignorar-camada` da camada da borda; os nomes de camada são dele). O aviso "borda 'sim' não aplicada" diz o motivo.
+- se os avisos ou as contagens não baterem, **pare**: é defeito do leitor (Task 3), e se resolve antes de qualquer `executar`. Com opção nova, rode o `nesting` de novo e confira de novo.
+
+Só então: peça ao usuário para abrir `<saida-nesting>/nestings/` e escrever o `corte/alvos.txt` (**separado por espaço**: `codigo arquivo-do-nesting número`, ou `-` no lugar do número para a peça que a imagem não separou).
 
 - [ ] **Step 4: Executar cada cenário**
 
 Para `corte`, `forma-final` e `intermediarias`, nessa ordem, cada um numa saída própria:
 
-Run: `dotnet run -c Release --project spikes/busca-por-foto/src/BuscaPorFoto.Cli -- executar <dados> <saida-cenario-otsu> <cenario>`
-Se faltar arquivo, a execução para antes de projetar e imprime só a contagem; o usuário abre o `faltando.txt` e corrige. Anote do log o total de candidatos e de grupos, e confira com o que o usuário disse ter entregado.
+Run, no Corte (**as mesmas** `--borda` e `--ignorar-camada` do Step 3, e a pasta do `nesting` em `--conferir-nesting`):
+`dotnet run -c Release --project spikes/busca-por-foto/src/BuscaPorFoto.Cli -- executar <dados> <saida-corte-otsu> corte --conferir-nesting <saida-nesting> [--borda …] [--ignorar-camada …]... --lado-do-marcador <mm>`
+
+Nos outros cenários: `… -- executar <dados> <saida-cenario-otsu> <cenario> --lado-do-marcador <mm>` (a `forma-final` e depois as `intermediarias`).
+
+O `executar corte` imprime as mesmas linhas `N0k: n peça(s)` do Step 3: compare-as com as que você anotou. Se as opções ou a contagem por nesting divergirem do `nesting.txt`, ele se recusa a rodar, sem gravar nada, e imprime só `N ausente(s); a lista está em …`; o usuário abre o `faltando.txt` (que diz qual opção ou qual `N0k` mudou) e se refaz o Step 3. Se faltar arquivo, a execução também para antes de projetar e imprime só a contagem; o usuário abre o `faltando.txt` e corrige. Anote do log o total de candidatos e de grupos, e confira com o que o usuário disse ter entregado.
 
 - [ ] **Step 5: Classificação do recorte — pelo usuário, antes de ver o ranking**
 
@@ -2739,16 +2750,18 @@ Se o relatório mandar reexecutar com GrabCut, repita os Steps 4 a 6 **daquele c
 
 - [ ] **Step 7: Conferir a anonimização na máquina do usuário**
 
-Para cada relatório que decide, no Git Bash da máquina do usuário:
+Para cada relatório que decide, no Git Bash da máquina do usuário, **dentro da pasta de saída do cenário** (o `codigos.txt` fica nela, que está fora do repositório; o `.gitignore` do spike o ignora de qualquer jeito):
 
 ```bash
-cut -d';' -f2 <saida>/mapa-de-codigos.csv | tail -n +2 > <saida>/codigos.txt
-cut -d';' -f2 <saida>/mapa-de-nestings.csv | tail -n +2 >> <saida>/codigos.txt   # só no Corte
-grep -c -F -f <saida>/codigos.txt <saida>/mapa-de-codigos.csv
-grep -c -F -f <saida>/codigos.txt <saida>/relatorio.md
+cd <saida>
+cut -d';' -f2 mapa-de-codigos.csv | tail -n +2 | tr -d '\r' | grep -v '^$' > codigos.txt
+cut -d';' -f2 mapa-de-nestings.csv | tail -n +2 | tr -d '\r' | grep -v '^$' >> codigos.txt   # só no Corte
+{ cat relatorio.md; echo "x $(head -1 codigos.txt | tr -d '\r') y"; } | grep -c -F -f codigos.txt
+grep -c -F -f codigos.txt relatorio.md
+rm codigos.txt
 ```
 
-Expected: o primeiro `grep` conta **todos** os códigos (positivo conhecido: prova que a varredura casa), e o segundo imprime **0**. Um zero no primeiro significa que a varredura está quebrada, não que o relatório está limpo. Os dois comandos imprimem só números.
+Expected: o primeiro `grep` imprime um número **≥ 1**, e o segundo imprime **0**. O primeiro é o positivo plantado: ele roda sobre o próprio relatório, com o primeiro código acrescentado no meio de uma linha **limpo de `\r`** (o `tr` dentro do `echo`, independente do que está no `codigos.txt`), que é como um código vazado apareceria no relatório. Ele prova que a varredura casa neste relatório. Se o `codigos.txt` tiver `\r` no fim das linhas (o `cut` do Git Bash no Windows o deixa, e o `tr -d '\r'` da primeira linha o tira), o código plantado limpo não casa e o primeiro `grep` imprime 0. Um 0 no primeiro, **ou nenhuma saída** (o `grep` com um `codigos.txt` vazio não imprime nada), significa que a varredura está quebrada, não que o relatório está limpo, e o resultado do segundo não vale: pare. (O positivo antigo rodava contra o próprio mapa, que tem o mesmo final de linha do `codigos.txt` e casa mesmo com a varredura quebrada; medido com um mapa em CRLF e um código no meio de uma linha do relatório, ele dava 2 e a varredura dava 0.) Os comandos imprimem só números; o `rm` não imprime nada. Se parar antes do `rm`, o `codigos.txt` fica na pasta de saída: peça ao usuário que o apague.
 
 - [ ] **Step 8: Trazer os relatórios para o repositório**
 
