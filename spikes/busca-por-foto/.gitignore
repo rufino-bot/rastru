@@ -6,6 +6,11 @@
 # extensão sai em classes de caractere, e os formatos de celular (HEIC, HEIF, WEBP, TIFF) entram.
 dados/
 saida/
+# Listas locais com código de peça e nome de arquivo, que o programa grava na saída (ou no temporário).
+erro.txt
+faltando.txt
+mapa-de-*.csv
+avisos-do-dxf.txt
 *.[sS][tT][lL]
 *.[dD][xX][fF]
 *.[jJ][pP][gG]

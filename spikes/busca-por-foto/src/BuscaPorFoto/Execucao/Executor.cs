@@ -119,7 +119,7 @@ public static class Executor
             foreach (var n in nestings.Where(n => n.Separado.Pecas.Count > 0))
             {
                 using var imagem = ImagemNumerada.Gerar(n.Separado);
-                Cv2.ImWrite(Path.Combine(saida, PastaDeNestings, $"{n.Id}.png"), imagem);
+                ImagensEmDisco.Gravar(Path.Combine(saida, PastaDeNestings, $"{n.Id}.png"), imagem);
             }
             return nestings.Count;
         }
@@ -240,7 +240,7 @@ public static class Executor
         string Id, TipoDePeca? Tipo, string CaminhoSemMarcador, string CaminhoComMarcador, string? ChaveDaCerta, Universo Universo);
 
     /// <summary>As referências de uma consulta e os grupos de geometria idêntica entre elas (ids <c>G0001</c>…).</summary>
-    private sealed class Universo
+    internal sealed class Universo
     {
         public IReadOnlyList<Referencia> Referencias { get; }
         public IReadOnlyList<(string Id, IReadOnlyList<string> Chaves)> Grupos { get; }
@@ -317,7 +317,7 @@ public static class Executor
     /// Pontuação de cada GRUPO: a melhor das referências e vistas dele. Recebe só a máscara da foto e o
     /// universo — não sabe qual é o alvo.
     /// </summary>
-    private static Dictionary<string, double> PontuarGrupos(Universo universo, Mascara foto, NomeDoPontuador pontuador, bool usarEscala)
+    internal static Dictionary<string, double> PontuarGrupos(Universo universo, Mascara foto, NomeDoPontuador pontuador, bool usarEscala)
     {
         var porChave = universo.Referencias.ToDictionary(
             r => r.Chave,
@@ -330,7 +330,7 @@ public static class Executor
     private static (Mascara? Mascara, string? Falha) PrepararFoto(
         string caminho, Condicao condicao, MetodoDeRecorte metodo, string caminhoDaSobreposicao)
     {
-        using var foto = Cv2.ImRead(caminho, ImreadModes.Color);
+        using var foto = ImagensEmDisco.Ler(caminho);
         if (foto.Empty()) return (null, "foto ilegível");
 
         FotoRetificada? retificada = null;
@@ -361,7 +361,7 @@ public static class Executor
 
             using var cheia = Recortador.Recortar(imagem, centro, cantos, metodo);
             using (var sobreposicao = Sobreposicao.Gerar(imagem, cheia))
-                Cv2.ImWrite(caminhoDaSobreposicao, sobreposicao);
+                ImagensEmDisco.Gravar(caminhoDaSobreposicao, sobreposicao);
 
             using var mascara = Mascara.DeMascaraCheia(cheia, mmPorPixel);
             return mascara is null ? (null, "recorte vazio") : (mascara.ReduzidaAte(LadoMaximoDaMascara), null);

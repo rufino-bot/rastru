@@ -36,8 +36,16 @@ public static class ConjuntoSintetico
             EscreverFotos(Path.Combine(corte, "alvos", alvo.Codigo), alvo, i, marcadorNaFotoComMarcador);
     }
 
+    /// <summary>Mais um nesting na pasta do corte, sem mexer no <c>alvos.txt</c>.</summary>
+    public static void MontarNestingExtra(string pasta, string arquivoDoNesting, IReadOnlyList<PecaDoDxf> pecas)
+    {
+        var dir = Directory.CreateDirectory(Path.Combine(pasta, "corte", "nestings")).FullName;
+        File.WriteAllText(Path.Combine(dir, arquivoDoNesting), DxfDoNesting(pecas));
+    }
+
+    /// <param name="stls">Sólido de um alvo que não é a chapa da foto (por código).</param>
     public static void MontarFormaFinal(string pasta, IEnumerable<ChapaSintetica> alvos, IEnumerable<(string Nome, byte[] Stl)> distratores,
-        bool marcadorNaFotoComMarcador = true)
+        bool marcadorNaFotoComMarcador = true, IReadOnlyDictionary<string, byte[]>? stls = null)
     {
         var raiz = Directory.CreateDirectory(Path.Combine(pasta, "forma-final")).FullName;
         var lista = alvos.ToList();
@@ -45,7 +53,7 @@ public static class ConjuntoSintetico
         {
             var dir = Path.Combine(raiz, "alvos", chapa.Codigo);
             EscreverFotos(dir, chapa, i, marcadorNaFotoComMarcador);
-            File.WriteAllBytes(Path.Combine(dir, "solido.stl"), StlDaChapa(chapa));
+            File.WriteAllBytes(Path.Combine(dir, "solido.stl"), stls is not null && stls.TryGetValue(chapa.Codigo, out var stl) ? stl : StlDaChapa(chapa));
         }
         File.WriteAllLines(Path.Combine(raiz, "tipos.txt"),
             lista.Select((c, i) => $"{c.Codigo} {TiposEmRodizio[i % TiposEmRodizio.Length]}"));

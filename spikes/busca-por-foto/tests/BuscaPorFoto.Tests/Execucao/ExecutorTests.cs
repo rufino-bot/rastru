@@ -1,6 +1,8 @@
+using BuscaPorFoto.Comparacao;
 using BuscaPorFoto.Execucao;
 using BuscaPorFoto.Foto;
 using BuscaPorFoto.Tests.Sinteticos;
+using OpenCvSharp;
 
 namespace BuscaPorFoto.Tests.Execucao;
 
@@ -398,6 +400,86 @@ public class ExecutorTests
         Assert.Contains(erro.Faltando, f => f.Contains("tipos.txt"));
         Assert.Equal("3 arquivo(s) ou pasta(s) ausente(s) ou inválido(s)", erro.Message);
         Assert.DoesNotContain("X-SECRETO", erro.Message);
+    }
+
+    [Fact]
+    public void Foto_que_so_casa_com_uma_vista_que_nao_e_a_primeira_ainda_acha_o_alvo()
+    {
+        // Três alvos com o MESMO sólido (uma caixa 100x80x60, um grupo só) e fotos de faces diferentes:
+        // cada foto casa com uma vista, e só uma delas é a primeira. A pontuação do grupo é a da melhor vista.
+        using var dados = new PastaTemporaria();
+        using var saida = new PastaTemporaria();
+        var caixa = MalhaSintetica.StlBinario(MalhaSintetica.Caixa(100, 80, 60));
+        ChapaSintetica[] alvos = [new("C1", 100, 80, 0), new("C2", 100, 60, 0), new("C3", 80, 60, 0)];
+        ConjuntoSintetico.MontarFormaFinal(dados.Caminho, alvos,
+            [("quadrada.stl", Distratores[1].Item2), ("barra.stl", MalhaSintetica.StlBinario(MalhaSintetica.Caixa(200, 20, 20)))],
+            stls: alvos.ToDictionary(a => a.Codigo, _ => caixa));
+
+        var linhas = RodarFormaFinal(dados.Caminho, saida.Caminho);
+
+        var comMarcador = linhas.Where(l => l.Condicao == Condicao.ComMarcador && l.Pontuador == NomeDoPontuador.IoU).ToList();
+        Assert.Equal(3, comMarcador.Count);
+        Assert.All(comMarcador, l => Assert.Equal(1, l.Posicao));
+        Assert.All(comMarcador, l => Assert.Equal(3, l.ReferenciasNoGrupoDaCerta));
+    }
+
+    private static Mascara Retangulo(int largura, int altura)
+    {
+        var mat = new Mat(altura, largura, MatType.CV_8UC1, Scalar.All(255));
+        return new Mascara(mat, 0.5);
+    }
+
+    [Fact]
+    public void A_pontuacao_do_grupo_e_a_da_melhor_referencia_e_da_melhor_vista()
+    {
+        var assinatura = new AssinaturaGeometrica(0, [1, 2, 3, 4, 5]);
+        using var foto = Retangulo(100, 50);
+        using var ruim = Retangulo(20, 200);
+        using var igual = Retangulo(100, 50);
+        using var outraIgual = Retangulo(100, 50);
+        using var outraRuim = Retangulo(20, 200);
+        // K0001 (a primeira do grupo) só tem vistas ruins; K0002 tem uma ruim e depois a boa; K0003 é de outro grupo.
+        var universo = Executor.Universo.De([
+            new Referencia("K0001", [ruim], assinatura),
+            new Referencia("K0002", [outraRuim, igual], assinatura),
+            new Referencia("K0003", [outraIgual], new AssinaturaGeometrica(0, [9, 9, 9, 9, 9])),
+        ]);
+        Assert.Equal(2, universo.Grupos.Count);
+
+        var pontuacoes = Executor.PontuarGrupos(universo, foto, NomeDoPontuador.IoU, usarEscala: false);
+
+        Assert.True(pontuacoes["G0001"] > 0.99, $"o grupo vale {pontuacoes["G0001"]}: tem de ser o da melhor vista da melhor referência");
+        Assert.True(pontuacoes["G0002"] > 0.99);
+    }
+
+    [Fact]
+    public void Corte_com_dois_nestings_forma_um_universo_so_e_o_mapa_segue_a_ordem_ordinal()
+    {
+        using var dados = new PastaTemporaria();
+        using var saida = new PastaTemporaria();
+        var alvo = Alvos[0];
+        // O alvo está no SEGUNDO nesting; no primeiro há uma quase-gêmea (furo 22 em vez de 20).
+        ConjuntoSintetico.MontarCorte(dados.Caminho, "b-segundo.dxf", [PecaDoDxf.De(alvo), new(100, 80, 0)], [(alvo, 1)]);
+        ConjuntoSintetico.MontarNestingExtra(dados.Caminho, "a-primeiro.dxf", [new(100, 50, 22), new(120, 120, 30)]);
+
+        var linhas = RodarCorte(dados.Caminho, saida.Caminho);
+
+        Assert.All(linhas, l => Assert.Equal(4, l.Grupos));
+        Assert.Equal(["id;arquivo", "N01;a-primeiro.dxf", "N02;b-segundo.dxf"],
+            File.ReadAllLines(Path.Combine(saida.Caminho, Executor.ArquivoDeMapaDeNestings)));
+    }
+
+    [Fact]
+    public void Imagem_ilegivel_ou_que_nao_grava_falha_sem_dizer_o_caminho()
+    {
+        using var pasta = new PastaTemporaria();
+        var ausente = Path.Combine(pasta.Caminho, "X-SECRETO.png");
+        using (var lida = ImagensEmDisco.Ler(ausente)) Assert.True(lida.Empty());
+
+        using var vazia = new Mat();
+        var ex = Assert.ThrowsAny<Exception>(() => ImagensEmDisco.Gravar(Path.Combine(pasta.Caminho, "x.png"), vazia));
+        Assert.False(File.Exists(Path.Combine(pasta.Caminho, "x.png")));
+        Assert.DoesNotContain("X-SECRETO", ex.Message);
     }
 
     private static string CopiaDeFoto()

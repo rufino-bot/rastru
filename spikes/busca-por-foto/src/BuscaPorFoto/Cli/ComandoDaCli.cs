@@ -2,6 +2,7 @@ using BuscaPorFoto.Dxf;
 using BuscaPorFoto.Execucao;
 using BuscaPorFoto.Foto;
 using BuscaPorFoto.Marcador;
+using OpenCvSharp;
 
 namespace BuscaPorFoto.Cli;
 
@@ -27,6 +28,8 @@ public static class ComandoDaCli
         string? pastaDeSaida = null;
         try
         {
+            // O log nativo do OpenCV escreve caminhos de arquivo (com código de peça) no stderr.
+            Cv2.SetLogLevel(LogLevel.SILENT);
             switch (args)
             {
                 case ["marcador", var pdf]:
@@ -80,7 +83,11 @@ public static class ComandoDaCli
         return 2;
     }
 
-    /// <summary>Grava em <paramref name="pasta"/> (ou no diretório atual, se o comando não tem saída ou ela não abre) e devolve o caminho completo.</summary>
+    /// <summary>
+    /// Grava em <paramref name="pasta"/> e devolve o caminho completo. Se o comando não tem saída ou ela não
+    /// abre, grava numa pasta nova do diretório temporário — nunca no diretório atual, que pode estar dentro
+    /// do repositório (público), e o arquivo leva código de peça.
+    /// </summary>
     private static string Gravar(string? pasta, string nome, string texto)
     {
         if (pasta is not null)
@@ -92,9 +99,9 @@ public static class ComandoDaCli
                 return caminho;
             }
             catch (Exception) { /* cai no diretório atual */ }
-        var aqui = Path.GetFullPath(nome);
-        File.WriteAllText(aqui, texto);
-        return aqui;
+        var temporario = Path.Combine(Directory.CreateTempSubdirectory("busca-por-foto-").FullName, nome);
+        File.WriteAllText(temporario, texto);
+        return temporario;
     }
 
     private static OpcoesDoComando? LerOpcoes(string[] args, bool aceitaRecorte, bool aceitaCamadaEBorda)

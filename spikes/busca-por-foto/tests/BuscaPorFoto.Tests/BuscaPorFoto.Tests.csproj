@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BuscaPorFoto\BuscaPorFoto.csproj" />
+    <!-- Só para o build gerar o executável que o teste de processo filho roda. -->
+    <ProjectReference Include="..\..\src\BuscaPorFoto.Cli\BuscaPorFoto.Cli.csproj" />
   </ItemGroup>
 
 </Project>
