@@ -9,15 +9,32 @@ public class RetificadorTests
     private static readonly Scalar Fundo = Scalar.All(200);
     private const double PxPorMmDaCena = 4;
 
-    private static Mat Cena(bool comMarcador)
+    private static Mat Cena(bool comMarcador, double ladoDoMarcadorMm = 100)
     {
         var cena = new Mat((int)(300 * PxPorMmDaCena), (int)(400 * PxPorMmDaCena), MatType.CV_8UC3, Fundo);
         if (comMarcador)
-            CenaSintetica.DesenharMarcador(cena, new Point2d(20, 20), PxPorMmDaCena);
+            CenaSintetica.DesenharMarcador(cena, new Point2d(20, 20), PxPorMmDaCena, ladoDoMarcadorMm);
         CenaSintetica.DesenharChapa(cena, new Point2d(260, 180), 160, 80, 0, anguloGraus: 0,
             PxPorMmDaCena, Scalar.All(40), Fundo);
         using (cena)
             return CenaSintetica.EmPerspectiva(cena, Fundo);
+    }
+
+    /// <summary>Maior lado, em mm, da chapa (o maior contorno escuro fora da caixa do marcador) na foto retificada.</summary>
+    private static double MaiorLadoDaChapaMm(FotoRetificada retificada)
+    {
+        using var cinza = new Mat();
+        Cv2.CvtColor(retificada.Imagem, cinza, ColorConversionCodes.BGR2GRAY);
+        using var escura = new Mat();
+        Cv2.Threshold(cinza, escura, 100, 255, ThresholdTypes.BinaryInv);
+        Cv2.FindContours(escura, out var contornos, out _, RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+        var caixaDoMarcador = Cv2.BoundingRect(retificada.CantosDoMarcador.Select(p => new Point(p.X, p.Y)));
+        var chapa = contornos
+            .Where(c => (Cv2.BoundingRect(c) & caixaDoMarcador).Width == 0)
+            .MaxBy(c => Cv2.ContourArea(c))!;
+        var retangulo = Cv2.MinAreaRect(chapa);
+        return Math.Max(retangulo.Size.Width, retangulo.Size.Height) * retificada.MmPorPixel;
     }
 
     [Fact]
@@ -45,6 +62,35 @@ public class RetificadorTests
 
         Assert.InRange(maiorMm, 160 * 0.97, 160 * 1.03);
         Assert.InRange(menorMm, 80 * 0.97, 80 * 1.03);
+    }
+
+    [Fact]
+    public void O_lado_medido_do_marcador_e_a_escala_da_foto()
+    {
+        // Um marcador que saiu da impressora com 98 mm. Com o lado medido, a chapa de 160 mm sai com 160 mm;
+        // com o nominal (100), sai ~2% maior — o erro que a medida na régua existe para evitar (spec §4.2).
+        using var foto = Cena(comMarcador: true, ladoDoMarcadorMm: 98);
+
+        using var comAMedida = Retificador.Retificar(foto, 98)!;
+        using var comONominal = Retificador.Retificar(foto)!;
+
+        var medido = MaiorLadoDaChapaMm(comAMedida);
+        var nominal = MaiorLadoDaChapaMm(comONominal);
+        Assert.InRange(medido, 160 * 0.99, 160 * 1.01);
+        Assert.InRange(nominal, 160 * 100.0 / 98 * 0.99, 160 * 100.0 / 98 * 1.01);
+        Assert.True(nominal > 160 * 1.015, $"com 100 a chapa sai com {nominal:F1} mm: devia sobrar ~2%");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void Lado_do_marcador_que_nao_e_positivo_e_recusado(double lado)
+    {
+        using var foto = Cena(comMarcador: true);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => Retificador.Retificar(foto, lado));
     }
 
     [Fact]

@@ -22,14 +22,19 @@ public static class ComandoDaCli
           BuscaPorFoto.Cli marcador <arquivo.pdf>
           BuscaPorFoto.Cli nesting <dados> <saida> [--ignorar-camada <nome>]... [--borda auto|sim|nao]
           BuscaPorFoto.Cli executar <dados> <saida> corte [--recorte otsu|grabcut] [--ignorar-camada <nome>]... [--borda auto|sim|nao]
-          BuscaPorFoto.Cli executar <dados> <saida> forma-final|intermediarias [--recorte otsu|grabcut]
+                [--conferir-nesting <saida-do-nesting>] [--lado-do-marcador <mm>]
+          BuscaPorFoto.Cli executar <dados> <saida> forma-final|intermediarias [--recorte otsu|grabcut] [--lado-do-marcador <mm>]
           BuscaPorFoto.Cli relatorio <saida>
           BuscaPorFoto.Cli ensaio leitores <pasta>
           BuscaPorFoto.Cli ensaio teto <pasta> <saida> [--alvos 20]
           BuscaPorFoto.Cli ensaio fotos <pasta> <saida>
         """;
 
-    private sealed record OpcoesDoComando(MetodoDeRecorte Recorte, HashSet<string> Camadas, BordaDaChapa Borda);
+        private sealed record OpcoesDoComando(
+        MetodoDeRecorte Recorte, HashSet<string> Camadas, BordaDaChapa Borda, double LadoDoMarcadorMm, string? ConferirNesting);
+
+    [Flags]
+    private enum Aceita { Nada = 0, Recorte = 1, CamadaEBorda = 2, LadoDoMarcador = 4, ConferirNesting = 8 }
 
     public static int Rodar(string[] args, TextWriter saida, TextWriter erro)
     {
@@ -47,11 +52,12 @@ public static class ComandoDaCli
 
                 case ["nesting", var dados, var pasta, .. var resto]:
                 {
-                    if (LerOpcoes(resto, aceitaRecorte: false, aceitaCamadaEBorda: true) is not { } o) break;
+                    if (LerOpcoes(resto, Aceita.CamadaEBorda) is not { } o) break;
                     pastaDeSaida = pasta;
                     var n = Executor.GerarImagensNumeradas(ConjuntoDeDados.LerNestings(dados), pasta, o.Camadas, saida, o.Borda);
                     saida.WriteLine($"{n} nesting(s); imagens em {Path.GetFullPath(Path.Combine(pasta, Executor.PastaDeNestings))}");
-                    saida.WriteLine($"Abra as imagens e escreva o alvos.txt (codigo, arquivo do nesting, numero), com a lista em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeMapaDeNestings))}");
+                    saida.WriteLine($"Abra as imagens e escreva o alvos.txt (uma linha por alvo, separada por espaço: codigo arquivo-do-nesting numero), com a lista em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeMapaDeNestings))}");
+                    saida.WriteLine($"No executar corte, repita as mesmas opções (--borda, --ignorar-camada) e passe --conferir-nesting {Path.GetFullPath(pasta)}: o número do alvos.txt só vale com a mesma separação.");
                     return 0;
                 }
 
@@ -59,14 +65,14 @@ public static class ComandoDaCli
                 {
                     if (CenarioExtensoes.DaPasta(nome) is not { } cenario) break;
                     var corte = cenario == Cenario.Corte;
-                    if (LerOpcoes(resto, aceitaRecorte: true, aceitaCamadaEBorda: corte) is not { } o) break;
+                    if (LerOpcoes(resto, corte ? Aceita.Recorte | Aceita.LadoDoMarcador | Aceita.CamadaEBorda | Aceita.ConferirNesting : Aceita.Recorte | Aceita.LadoDoMarcador) is not { } o) break;
                     pastaDeSaida = pasta;
 
                     var linhas = cenario switch
                     {
-                        Cenario.Corte => Executor.ExecutarCorte(ConjuntoDeDados.LerCorte(dados), pasta, o.Recorte, o.Camadas, saida, o.Borda),
-                        Cenario.FormaFinal => Executor.ExecutarComStl(ConjuntoDeDados.LerFormaFinal(dados), cenario, pasta, o.Recorte, saida),
-                        _ => Executor.ExecutarComStl(ConjuntoDeDados.LerIntermediarias(dados), cenario, pasta, o.Recorte, saida),
+                        Cenario.Corte => Executor.ExecutarCorte(ConjuntoDeDados.LerCorte(dados), pasta, o.Recorte, o.Camadas, saida, o.Borda, o.LadoDoMarcadorMm, o.ConferirNesting),
+                        Cenario.FormaFinal => Executor.ExecutarComStl(ConjuntoDeDados.LerFormaFinal(dados), cenario, pasta, o.Recorte, saida, o.LadoDoMarcadorMm),
+                        _ => Executor.ExecutarComStl(ConjuntoDeDados.LerIntermediarias(dados), cenario, pasta, o.Recorte, saida, o.LadoDoMarcadorMm),
                     };
                     saida.WriteLine($"{linhas.Count} linhas em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeResultadosCsv))}");
                     saida.WriteLine($"Classifique o recorte em {Path.GetFullPath(Path.Combine(pasta, Executor.ArquivoDeClassificacao))} olhando {Path.GetFullPath(Path.Combine(pasta, Executor.PastaDeSobreposicoes))}.");
@@ -104,7 +110,7 @@ public static class ComandoDaCli
                         linhas.Add($"limite: {Relatorio.CriterioDeDecisao.MinimoParaAprovar(teto.Alvos)} de {teto.Alvos} na melhor condição");
                         linhas.Add(teto.Segue ? "segue" : "para");
                         Directory.CreateDirectory(pastaTeto);
-                        File.WriteAllLines(Path.Combine(pastaTeto, "teto.txt"), linhas);
+                        TextoEmDisco.GravarLinhas(Path.Combine(pastaTeto, "teto.txt"), linhas);
                         foreach (var l in linhas) saida.WriteLine(l);
                         return 0;
                     }
@@ -129,8 +135,10 @@ public static class ComandoDaCli
                     var linhas = ArquivoDeResultados.Ler(Path.Combine(pasta, Executor.ArquivoDeResultadosCsv));
                     var pontuacoes = ArquivoDePontuacoes.Ler(Path.Combine(pasta, Executor.ArquivoDePontuacoesCsv));
                     var classificacao = ArquivoDeClassificacaoDoRecorte.Ler(Path.Combine(pasta, Executor.ArquivoDeClassificacao));
+                    var arquivoDeAvisos = Path.Combine(pasta, Executor.ArquivoDeAvisosPorTipoCsv);
+                    var avisosDoDxf = File.Exists(arquivoDeAvisos) ? ArquivoDeAvisosPorTipo.Ler(arquivoDeAvisos) : null;
                     var caminho = Path.GetFullPath(Path.Combine(pasta, "relatorio.md"));
-                    File.WriteAllText(caminho, GeradorDeRelatorio.Gerar(cenario, linhas, pontuacoes, classificacao, metodo));
+                    TextoEmDisco.Gravar(caminho, GeradorDeRelatorio.Gerar(cenario, linhas, pontuacoes, classificacao, metodo, avisosDoDxf));
                     // Só o caminho e a palavra do veredito: nada dos dados vai para o terminal.
                     saida.WriteLine($"Relatório em {caminho}");
                     saida.WriteLine($"{cenario.NomeDaPasta()}: {(GeradorDeRelatorio.VereditoDoCenario(cenario, linhas) is { } v ? v.ToString() : "sem veredito (só informativo ou sem alvo)")}");
@@ -140,13 +148,13 @@ public static class ComandoDaCli
         }
         catch (DadosIncompletosException ex)
         {
-            var caminho = Gravar(pastaDeSaida, Executor.ArquivoDeFaltas, string.Join(Environment.NewLine, ex.Faltando));
+            var caminho = Gravar(pastaDeSaida, Executor.ArquivoDeFaltas, string.Join('\n', ex.Faltando));
             erro.WriteLine($"{ex.Faltando.Count} ausente(s); a lista está em {caminho}");
             return 1;
         }
         catch (Exception ex)
         {
-            var caminho = Gravar(pastaDeSaida, Executor.ArquivoDeErro, $"{ex.GetType().FullName}{Environment.NewLine}{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            var caminho = Gravar(pastaDeSaida, Executor.ArquivoDeErro, $"{ex.GetType().FullName}\n{ex.Message}\n{ex.StackTrace}");
             erro.WriteLine($"erro: {ex.GetType().Name}; detalhes em {caminho}");
             return 1;
         }
@@ -167,12 +175,12 @@ public static class ComandoDaCli
             {
                 Directory.CreateDirectory(pasta);
                 var caminho = Path.GetFullPath(Path.Combine(pasta, nome));
-                File.WriteAllText(caminho, texto);
+                TextoEmDisco.Gravar(caminho, texto);
                 return caminho;
             }
-            catch (Exception) { /* cai no diretório atual */ }
+            catch (Exception) { /* a pasta não abre: cai no diretório temporário, abaixo */ }
         var temporario = Path.Combine(Directory.CreateTempSubdirectory("busca-por-foto-").FullName, nome);
-        File.WriteAllText(temporario, texto);
+        TextoEmDisco.Gravar(temporario, texto);
         return temporario;
     }
 
@@ -220,35 +228,45 @@ public static class ComandoDaCli
         _ => null,
     };
 
-    private static OpcoesDoComando? LerOpcoes(string[] args, bool aceitaRecorte, bool aceitaCamadaEBorda)
+    private static OpcoesDoComando? LerOpcoes(string[] args, Aceita aceita)
     {
         var recorte = MetodoDeRecorte.Otsu;
         var camadas = new HashSet<string>(StringComparer.Ordinal);
         var borda = BordaDaChapa.Auto;
+        var lado = Executor.LadoPadraoDoMarcadorMm;
+        string? conferirNesting = null;
         for (var i = 0; i < args.Length; i += 2)
         {
             if (i + 1 >= args.Length) return null;
             var valor = args[i + 1];
             switch (args[i])
             {
-                case "--recorte" when aceitaRecorte:
+                case "--recorte" when aceita.HasFlag(Aceita.Recorte):
                     if (valor == "otsu") recorte = MetodoDeRecorte.Otsu;
                     else if (valor == "grabcut") recorte = MetodoDeRecorte.GrabCut;
                     else return null;
                     break;
-                case "--ignorar-camada" when aceitaCamadaEBorda:
+                case "--ignorar-camada" when aceita.HasFlag(Aceita.CamadaEBorda):
                     camadas.Add(valor);
                     break;
-                case "--borda" when aceitaCamadaEBorda:
+                case "--borda" when aceita.HasFlag(Aceita.CamadaEBorda):
                     if (valor == "auto") borda = BordaDaChapa.Auto;
                     else if (valor == "sim") borda = BordaDaChapa.Sim;
                     else if (valor == "nao") borda = BordaDaChapa.Nao;
                     else return null;
                     break;
+                case "--lado-do-marcador" when aceita.HasFlag(Aceita.LadoDoMarcador):
+                    // Vírgula decimal aceita: quem mede com a régua escreve "98,5".
+                    if (!double.TryParse(valor.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out lado)
+                        || !double.IsFinite(lado) || lado <= 0) return null;
+                    break;
+                case "--conferir-nesting" when aceita.HasFlag(Aceita.ConferirNesting):
+                    conferirNesting = valor;
+                    break;
                 default:
                     return null;
             }
         }
-        return new OpcoesDoComando(recorte, camadas, borda);
+        return new OpcoesDoComando(recorte, camadas, borda, lado, conferirNesting);
     }
 }

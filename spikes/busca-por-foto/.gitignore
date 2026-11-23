@@ -11,6 +11,8 @@ erro.txt
 faltando.txt
 mapa-de-*.csv
 avisos-do-dxf.txt
+# Os códigos reais, um por linha, que a varredura de anonimização da Task 10 extrai dos mapas.
+codigos.txt
 *.[sS][tT][lL]
 *.[dD][xX][fF]
 *.[jJ][pP][gG]

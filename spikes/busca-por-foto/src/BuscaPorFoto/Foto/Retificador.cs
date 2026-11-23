@@ -23,9 +23,15 @@ public static class Retificador
     /// </summary>
     public const double AlcanceMaximoMm = 1500;
 
-    /// <summary>Corrige a perspectiva pelo marcador; nulo quando o marcador não é detectado.</summary>
-    public static FotoRetificada? Retificar(Mat fotoBgr)
+    /// <summary>
+    /// Corrige a perspectiva pelo marcador; nulo quando o marcador não é detectado.
+    /// </summary>
+    /// <param name="ladoDoMarcadorMm">O lado do quadrado preto impresso, MEDIDO com régua (spec §4.2): é a escala de toda a foto.</param>
+    public static FotoRetificada? Retificar(Mat fotoBgr, double ladoDoMarcadorMm = MarcadorAruco.LadoMm)
     {
+        if (!double.IsFinite(ladoDoMarcadorMm) || ladoDoMarcadorMm <= 0)
+            throw new ArgumentOutOfRangeException(nameof(ladoDoMarcadorMm), "O lado do marcador tem de ser um número positivo, em mm.");
+
         using var cinza = Imagens.ParaCinza(fotoBgr);
 
         using var dicionario = CvAruco.GetPredefinedDictionary(MarcadorAruco.Dicionario);
@@ -33,7 +39,7 @@ public static class Retificador
         var indice = Array.IndexOf(ids, MarcadorAruco.Id);
         if (indice < 0) return null;
 
-        var ladoPx = (float)(MarcadorAruco.LadoMm * PixelsPorMm);
+        var ladoPx = (float)(ladoDoMarcadorMm * PixelsPorMm);
         var marcadorNaOrigem = new[] { new Point2f(0, 0), new Point2f(ladoPx, 0), new Point2f(ladoPx, ladoPx), new Point2f(0, ladoPx) };
         using var paraOrigem = Cv2.GetPerspectiveTransform(cantos[indice], marcadorNaOrigem);
 

@@ -53,7 +53,8 @@ public static class GeradorDeRelatorio
         IReadOnlyList<LinhaDeResultado> linhas,
         IReadOnlyList<LinhaDePontuacao> pontuacoes,
         IReadOnlyList<ClassificacaoDoRecorte> classificacao,
-        MetodoDeRecorte metodo)
+        MetodoDeRecorte metodo,
+        IReadOnlyList<LinhaDeAvisoPorTipo>? avisosDoDxf = null)
     {
         var s = new StringBuilder();
         void L(string texto = "") => s.Append(texto).Append('\n');
@@ -114,6 +115,8 @@ public static class GeradorDeRelatorio
                 foreach (var id in decisao.NaoSeparados) L($"- {id}");
                 L();
             }
+
+            if (cenario == Cenario.Corte) AvisosDoDxf(L, avisosDoDxf);
         }
 
         // Recorte e plano B. Só as consultas que produziram sobreposição têm o que classificar: "marcador não
@@ -121,7 +124,15 @@ public static class GeradorDeRelatorio
         var comSobreposicao = linhas
             .Where(l => l.Pontuador == NomeDoPontuador.IoU && Executor.TemSobreposicao(l.Falha))
             .Select(l => (l.Id, l.Condicao)).Distinct().ToList();
-        var naoClassificadas = comSobreposicao.Count(k => !recorte.TryGetValue(k, out var r) || r.RecorteOk is null);
+        // Recorte vazio é falho por definição: não há o que o usuário olhar, e a classificação dele, ok ou em
+        // branco, não muda isso (a mesma conta do plano B, mais abaixo).
+        var vazios = linhas
+            .Where(l => l.Pontuador == NomeDoPontuador.IoU && l.Falha == Executor.FalhaRecorteVazio)
+            .Select(l => (l.Id, l.Condicao)).ToHashSet();
+        // Verdadeiro: ok; falso: falho; nulo: o usuário ainda não classificou.
+        bool? Classe((string Id, Condicao Condicao) k) =>
+            vazios.Contains(k) ? false : recorte.TryGetValue(k, out var r) ? r.RecorteOk : null;
+        var naoClassificadas = comSobreposicao.Count(k => Classe(k) is null);
         L("## Recorte");
         L();
         if (naoClassificadas > 0)
@@ -130,9 +141,11 @@ public static class GeradorDeRelatorio
         }
         else
         {
-            var falhos = comSobreposicao.Count(k => recorte[k].RecorteOk == false);
+            var falhos = comSobreposicao.Count(k => Classe(k) == false);
             var total = comSobreposicao.Count;
-            L($"Recortes falhos: **{falhos} de {total}** consultas com sobreposição.");
+            L($"Recortes falhos: **{falhos} de {total}** consultas com sobreposição."
+              + (vazios.Count > 0 ? $" Recorte vazio conta como falho, sem classificar ({vazios.Count} nesta execução)." : ""));
+            if (decide) AcertosPorRecorte(L, linhas, comSobreposicao, Classe);
             if (metodo == MetodoDeRecorte.Otsu)
             {
                 var aciona = falhos > FracaoDeRecorteFalhoQueAcionaGrabCut * total;
@@ -212,6 +225,54 @@ public static class GeradorDeRelatorio
         }
 
         return s.ToString();
+    }
+
+    /// <summary>
+    /// O cruzamento "recorte: ok / falho" da spec §7: o top-3 do IoU, por condição, nas consultas que
+    /// produziram sobreposição, separado pela classificação do usuário.
+    /// </summary>
+    private static void AcertosPorRecorte(
+        Action<string> L, IReadOnlyList<LinhaDeResultado> linhas,
+        IReadOnlyList<(string Id, Condicao Condicao)> comSobreposicao, Func<(string Id, Condicao Condicao), bool?> classe)
+    {
+        var iou = linhas.Where(l => l.Pontuador == NomeDoPontuador.IoU).ToDictionary(l => (l.Id, l.Condicao));
+        L("");
+        L("Top-3 (IoU) pelo recorte, nas consultas com sobreposição:");
+        L("");
+        L("| Condição | Recorte ok | Recorte falho |");
+        L("|---|---|---|");
+        foreach (var condicao in Condicoes)
+        {
+            string Celula(bool ok)
+            {
+                var consultas = comSobreposicao.Where(k => k.Condicao == condicao && classe(k) == ok).ToList();
+                return $"{consultas.Count(k => iou[k].Posicao is <= 3)} de {consultas.Count}";
+            }
+            L($"| {condicao} | {Celula(true)} | {Celula(false)} |");
+        }
+        L("");
+    }
+
+    /// <summary>
+    /// Os avisos da leitura do DXF por tipo e por nesting (spec §10.3): entidade não lida, contorno aberto, corte em
+    /// linha comum. Só ids e tipos sem nome de bloco nem de camada; o texto inteiro fica na máquina do usuário.
+    /// </summary>
+    private static void AvisosDoDxf(Action<string> L, IReadOnlyList<LinhaDeAvisoPorTipo>? avisos)
+    {
+        L("## Avisos da leitura do DXF");
+        L("");
+        if (avisos is null)
+            L($"Esta pasta não tem o {Executor.ArquivoDeAvisosPorTipoCsv}: a contagem de avisos não está disponível.");
+        else if (avisos.Count == 0)
+            L("Nenhum aviso.");
+        else
+        {
+            L("| Nesting | Aviso | Quantos |");
+            L("|---|---|---|");
+            foreach (var a in avisos.OrderBy(a => a.Nesting, StringComparer.Ordinal).ThenBy(a => a.Tipo, StringComparer.Ordinal))
+                L($"| {a.Nesting} | {a.Tipo} | {a.N} |");
+        }
+        L("");
     }
 
     private static string Top(IReadOnlyList<LinhaDeResultado> grupo, int n) =>

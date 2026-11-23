@@ -401,4 +401,91 @@ public class GeradorDeRelatorioTests
         empate.AddRange(erradas.Select((v, i) => new LinhaDePontuacao("A01", Condicao.ComMarcador, NomeDoPontuador.IoU, $"G{i + 2:D4}", v, false)));
         Assert.Equal(0.0, Medio(empate));
     }
+
+    [Fact]
+    public void Recorte_vazio_conta_como_falho_para_a_regra_do_GrabCut_mesmo_classificado_ok_ou_em_branco()
+    {
+        // 8 de 20 alvos com recorte vazio nas duas condições: 16 de 40 consultas (40% > 1/3), e o usuário os
+        // marcou ok (ou nem os marcou). Não há o que olhar numa sobreposição vazia.
+        var linhas = Corte(20, 12, 12, comFalha: 8, falha: Executor.FalhaRecorteVazio);
+
+        var marcadoOk = Gerar(Cenario.Corte, linhas, classificacao: Classificacao(20, (_, _) => true));
+        var emBranco = Gerar(Cenario.Corte, linhas, classificacao: Classificacao(20, (i, _) => i < 12 ? true : null));
+
+        foreach (var md in new[] { marcadoOk, emBranco })
+        {
+            Assert.Contains("Recortes falhos: **16 de 40**", md);
+            Assert.Contains("Recorte vazio conta como falho, sem classificar (16 nesta execução)", md);
+            Assert.Contains("reexecute com `--recorte grabcut`", md);
+        }
+        Assert.DoesNotContain("Classificação incompleta", emBranco);
+    }
+
+    [Fact]
+    public void Recorte_vazio_e_as_demais_consultas_se_somam_nos_falhos()
+    {
+        // 2 alvos com recorte vazio (4 consultas) + 3 consultas classificadas falho entre as 36 restantes.
+        var linhas = Corte(20, 16, 16, comFalha: 2, falha: Executor.FalhaRecorteVazio);
+
+        var md = Gerar(Cenario.Corte, linhas, classificacao: Classificacao(20, (i, c) => !(i < 3 && c == Condicao.SemMarcador)));
+
+        Assert.Contains("Recortes falhos: **7 de 40**", md);
+    }
+
+    [Fact]
+    public void O_top_3_se_separa_pelo_recorte_ok_e_falho_quando_a_classificacao_esta_completa()
+    {
+        // 16 acertos em cada condição (os 16 primeiros alvos). Os 4 primeiros têm o recorte falho: acertam os 4
+        // (4 de 4); dos 16 com recorte ok, 12 acertam.
+        var md = Gerar(Cenario.Corte, Corte(20, 16, 16), classificacao: Classificacao(20, (i, _) => i >= 4));
+
+        Assert.Contains("Top-3 (IoU) pelo recorte, nas consultas com sobreposição:", md);
+        Assert.Contains("| Condição | Recorte ok | Recorte falho |", md);
+        Assert.Contains("| SemMarcador | 12 de 16 | 4 de 4 |", md);
+        Assert.Contains("| ComMarcador | 12 de 16 | 4 de 4 |", md);
+    }
+
+    [Fact]
+    public void O_cruzamento_por_recorte_nao_aparece_com_classificacao_incompleta_nem_nas_intermediarias()
+    {
+        var incompleta = Gerar(Cenario.Corte, Corte(20, 16, 16), classificacao: Classificacao(20, (i, _) => i == 0 ? null : true));
+        var intermediarias = Gerar(Cenario.Intermediarias, Bloco(Cenario.Intermediarias, TipoDePeca.Dobrada, 0, 5, 3, 3));
+
+        Assert.DoesNotContain("pelo recorte", incompleta);
+        Assert.DoesNotContain("pelo recorte", intermediarias);
+    }
+
+    private static string GerarComAvisos(Cenario cenario, IReadOnlyList<LinhaDeAvisoPorTipo>? avisos) =>
+        GeradorDeRelatorio.Gerar(cenario, Corte(20, 16, 16), [], Classificacao(20, (_, _) => true), MetodoDeRecorte.Otsu, avisos);
+
+    [Fact]
+    public void O_relatorio_do_Corte_traz_os_avisos_do_DXF_por_tipo_e_por_nesting()
+    {
+        var md = GerarComAvisos(Cenario.Corte,
+        [
+            new("N02", "entidade(s) de um tipo não lida(s)", 1),
+            new("N01", "# trecho(s) aberto(s) ignorado(s)", 2),
+        ]);
+
+        Assert.Contains("## Avisos da leitura do DXF", md);
+        Assert.Contains("| N01 | # trecho(s) aberto(s) ignorado(s) | 2 |", md);
+        Assert.Contains("| N02 | entidade(s) de um tipo não lida(s) | 1 |", md);
+        Assert.True(md.IndexOf("| N01 |", StringComparison.Ordinal) < md.IndexOf("| N02 |", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Sem_aviso_o_relatorio_do_Corte_diz_que_nao_houve_e_sem_o_arquivo_diz_que_nao_ha_contagem()
+    {
+        Assert.Contains("Nenhum aviso.", GerarComAvisos(Cenario.Corte, []));
+        Assert.Contains("não está disponível", GerarComAvisos(Cenario.Corte, null));
+    }
+
+    [Fact]
+    public void Os_outros_cenarios_nao_tem_secao_de_avisos_do_DXF()
+    {
+        var md = GeradorDeRelatorio.Gerar(Cenario.FormaFinal, Bloco(Cenario.FormaFinal, TipoDePeca.Dobrada, 0, 20, 16, 16), [],
+            Classificacao(20, (_, _) => true), MetodoDeRecorte.Otsu, [new("N01", "x", 1)]);
+
+        Assert.DoesNotContain("Avisos da leitura do DXF", md);
+    }
 }

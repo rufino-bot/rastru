@@ -36,7 +36,7 @@ public static class ArquivoDeResultados
             Inteiro(l.ReferenciasNoGrupoDaCerta),
             Inteiro(l.Grupos),
             Inteiro(l.Milissegundos)));
-        File.WriteAllLines(caminho, texto.Prepend(Cabecalho));
+        TextoEmDisco.GravarLinhas(caminho, texto.Prepend(Cabecalho));
     }
 
     public static IReadOnlyList<LinhaDeResultado> Ler(string caminho)

@@ -4,8 +4,9 @@ using OpenCvSharp.Aruco;
 namespace BuscaPorFoto.Marcador;
 
 /// <summary>
-/// O único marcador do spike: dicionário 4x4_50, id 0, impresso com lado de 100 mm.
-/// Quem gera o PDF e quem detecta na foto leem as mesmas constantes daqui.
+/// O único marcador do spike: dicionário 4x4_50, id 0, impresso com lado NOMINAL de 100 mm.
+/// Quem gera o PDF e quem detecta na foto leem as mesmas constantes daqui. O lado que a régua mede na folha
+/// impressa é o que vale na execução (<c>--lado-do-marcador</c>, spec §4.2); o nominal é o do PDF e o padrão.
 /// </summary>
 public static class MarcadorAruco
 {

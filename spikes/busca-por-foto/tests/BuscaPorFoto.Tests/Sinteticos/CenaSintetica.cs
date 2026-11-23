@@ -6,11 +6,14 @@ namespace BuscaPorFoto.Tests.Sinteticos;
 /// <summary>Desenha cenas sintéticas em milímetros sobre uma imagem, numa escala conhecida.</summary>
 public static partial class CenaSintetica
 {
-    /// <summary>Desenha o marcador com o canto superior esquerdo em <paramref name="origemMm"/>.</summary>
-    public static void DesenharMarcador(Mat imagem, Point2d origemMm, double pixelsPorMm)
+    /// <summary>
+    /// Desenha o marcador com o canto superior esquerdo em <paramref name="origemMm"/>; <paramref name="ladoMm"/> é o
+    /// lado que a régua mediria (a impressão que saiu de 98 mm, por exemplo).
+    /// </summary>
+    public static void DesenharMarcador(Mat imagem, Point2d origemMm, double pixelsPorMm, double ladoMm = MarcadorAruco.LadoMm)
     {
         var grade = MarcadorAruco.Grade();
-        var celulaPx = MarcadorAruco.LadoMm / MarcadorAruco.CelulasPorLado * pixelsPorMm;
+        var celulaPx = ladoMm / MarcadorAruco.CelulasPorLado * pixelsPorMm;
         var x0 = origemMm.X * pixelsPorMm;
         var y0 = origemMm.Y * pixelsPorMm;
         for (var linha = 0; linha < MarcadorAruco.CelulasPorLado; linha++)

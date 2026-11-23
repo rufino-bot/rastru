@@ -253,30 +253,73 @@ public static class SeparadorDeNesting
             for (var i = 0; i < n; i++)
                 if (contem[j, i]) { envolventes.Add(j); break; }
         }
-        if (envolventes.Count != 1 || modo == BordaDaChapa.Nao) return profundidade;
-
-        var e = envolventes[0];
-        var contemTodos = true;
-        var filhasDiretas = 0;
-        for (var i = 0; i < n; i++)
+        // Candidatos a borda da chapa, medidos ANTES de tirar a borda: contorno externo com dois ou mais
+        // contornos diretamente dentro. Se ele não sair, a borda vira "peça" e as peças dela viram furos —
+        // e o resto do programa não tem como saber.
+        var candidatas = new List<int>();
+        for (var j = 0; j < n; j++)
         {
-            if (i == e) continue;
-            if (!contem[e, i]) contemTodos = false;
-            else if (profundidade[i] == 1) filhasDiretas++;
+            if (profundidade[j] != 0) continue;
+            var filhas = 0;
+            for (var i = 0; i < n; i++)
+                if (contem[j, i] && profundidade[i] == 1) filhas++;
+            if (filhas >= 2) candidatas.Add(j);
         }
 
-        var remover = contemTodos && (modo == BordaDaChapa.Sim || (modo == BordaDaChapa.Auto && filhasDiretas >= 2));
-        if (remover)
+        var removida = -1;
+        string? motivoDaSim = null;
+        string? avisoDoUnico = null;
+        if (modo == BordaDaChapa.Nao)
         {
-            for (var i = 0; i < n; i++) profundidade[i]--; // e vira −1; os demais descem 1
-            avisos.Add(modo == BordaDaChapa.Sim
-                ? "borda da chapa removida (a pedido: borda 'sim')"
-                : "borda da chapa removida; se o arquivo for uma peça só, use a borda 'nao'");
+            // Escolha explícita do usuário: só o aviso geral, abaixo.
+        }
+        else if (envolventes.Count != 1)
+        {
+            // Sob Auto não há o que dizer aqui: só o aviso geral, abaixo, quando algum contorno externo tem peças dentro.
+            if (modo == BordaDaChapa.Sim)
+                motivoDaSim = envolventes.Count == 0
+                    ? "nenhum contorno externo tem outro dentro"
+                    : $"{envolventes.Count} contornos externos têm outros dentro, e a borda só sai quando há exatamente um";
         }
         else
         {
-            avisos.Add("o contorno externo foi lido como peça com furo(s), não como borda da chapa; se for a borda da chapa, use a borda 'sim'");
+            var e = envolventes[0];
+            var contemTodos = true;
+            var filhasDiretas = 0;
+            for (var i = 0; i < n; i++)
+            {
+                if (i == e) continue;
+                if (!contem[e, i]) contemTodos = false;
+                else if (profundidade[i] == 1) filhasDiretas++;
+            }
+
+            if (contemTodos && (modo == BordaDaChapa.Sim || filhasDiretas >= 2))
+            {
+                for (var i = 0; i < n; i++) profundidade[i]--; // e vira −1; os demais descem 1
+                removida = e;
+                avisos.Add(modo == BordaDaChapa.Sim
+                    ? "borda da chapa removida (a pedido: borda 'sim')"
+                    : "borda da chapa removida; se o arquivo for uma peça só, use a borda 'nao'");
+            }
+            else if (modo == BordaDaChapa.Sim)
+                motivoDaSim = "o contorno externo não contém todos os demais";
+            else
+                avisoDoUnico = contemTodos
+                    ? "o contorno externo foi lido como peça com furo(s), não como borda da chapa; se for a borda da chapa, use a borda 'sim'"
+                    : "o contorno externo foi lido como peça com furo(s), não como borda da chapa: ele não contém todos os demais contornos";
         }
+
+        if (motivoDaSim is not null)
+            avisos.Add($"borda 'sim' não aplicada: {motivoDaSim}");
+
+        var mantidas = candidatas.Count(j => j != removida);
+        if (mantidas > 0)
+            avisos.Add($"{mantidas} contorno(s) externo(s) com dois ou mais contornos dentro foram lidos como peças com furos, não como borda da chapa; "
+                       + (modo == BordaDaChapa.Sim
+                           ? "se algum for a borda da chapa, ignore a camada dela (--ignorar-camada)"
+                           : "se algum for a borda da chapa, use a borda 'sim' ou ignore a camada dela (--ignorar-camada)"));
+        else if (avisoDoUnico is not null)
+            avisos.Add(avisoDoUnico);
         return profundidade;
     }
 

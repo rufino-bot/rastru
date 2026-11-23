@@ -164,33 +164,89 @@ public class ComandoDaCliTests
     }
 
     [Fact]
+    public void Os_avisos_do_DXF_chegam_ao_relatorio_do_Corte_sem_nome_de_bloco()
+    {
+        // I3 da review de branch (spec §10.3): o aviso aparece no relatório, anonimizado, e não só no terminal.
+        using var dados = new PastaTemporaria();
+        using var saida = new PastaTemporaria();
+        ConjuntoSintetico.MontarCorte(dados.Caminho, NestingSecreto, [.. AlvosDoCorte.Select(PecaDoDxf.De), new(120, 120, 30)],
+            AlvosDoCorte.Select((a, i) => (a, (int?)(i + 1))).ToList(), blocoAusente: "BLOCO-RESERVADO");
+        Assert.Equal(0, Rodar("executar", dados.Caminho, saida.Caminho, "corte").Codigo);
+
+        var porTipo = File.ReadAllLines(Path.Combine(saida.Caminho, Executor.ArquivoDeAvisosPorTipoCsv));
+        Assert.Equal(["nesting;tipo;n", "N01;bloco não encontrado: INSERT ignorado;1"], porTipo);
+
+        var (codigo, _, _) = Rodar("relatorio", saida.Caminho);
+
+        Assert.Equal(0, codigo);
+        var md = File.ReadAllText(Path.Combine(saida.Caminho, "relatorio.md"));
+        Assert.Contains("## Avisos da leitura do DXF", md);
+        Assert.Contains("| N01 | bloco não encontrado: INSERT ignorado | 1 |", md);
+        foreach (var proibido in new[] { "BLOCO-RESERVADO", "A-100", "B-200", NestingSecreto, "SECRETA" })
+            Assert.DoesNotContain(proibido, md);
+    }
+
+    [Fact]
     public async Task Foto_ilegivel_no_executavel_de_verdade_nao_vaza_o_codigo_pelo_log_do_OpenCV()
     {
         // O OpenCV escreve o caminho do arquivo no stderr nativo quando não abre a foto: só um processo
-        // filho, com o executável real, vê isso.
+        // filho, com o executável real, vê isso. Duas fotos ilegíveis, de dois jeitos:
+        //  - sem-marcador: bytes que não são imagem. Funciona em qualquer sistema, mas SOZINHO não prova nada
+        //    sobre o log: medido com OpenCvSharp 4.13 no Linux, o ImRead de um arquivo que existe e não é imagem
+        //    não escreve o caminho. Só o arquivo que não abre escreve;
+        //  - com-marcador: um arquivo que o spike acha na pasta e não consegue abrir. Fora do Windows, um link
+        //    simbólico quebrado (criar link no Windows pede privilégio ou o Modo de Desenvolvedor); no Windows, um
+        //    arquivo aberto sem compartilhamento por este processo, que o ImRead do filho também não abriria.
         using var dados = new PastaTemporaria();
         using var saida = new PastaTemporaria();
         ConjuntoSintetico.MontarFormaFinal(dados.Caminho, [new ChapaSintetica("X-SECRETO", 100, 50, 20)], []);
-        var foto = Path.Combine(dados.Caminho, "forma-final", "alvos", "X-SECRETO", "sem-marcador.png");
-        File.Delete(foto);
-        File.CreateSymbolicLink(foto, Path.Combine(dados.Caminho, "nao-existe.png")); // link quebrado
+        var pastaDoAlvo = Path.Combine(dados.Caminho, "forma-final", "alvos", "X-SECRETO");
+        File.WriteAllBytes(Path.Combine(pastaDoAlvo, "sem-marcador.png"), "isto não é uma imagem"u8.ToArray());
+        var comMarcador = Path.Combine(pastaDoAlvo, "com-marcador.png");
+        File.Delete(comMarcador);
+        FileStream? trava = null;
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllBytes(comMarcador, "isto não é uma imagem"u8.ToArray());
+            trava = new FileStream(comMarcador, FileMode.Open, FileAccess.Read, FileShare.None);
+        }
+        else
+            File.CreateSymbolicLink(comMarcador, Path.Combine(dados.Caminho, "nao-existe.png")); // link quebrado
 
-        var dir = AppContext.BaseDirectory.TrimEnd('/');
-        var cli = Path.GetFullPath(Path.Combine(dir, "../../../../..", "src/BuscaPorFoto.Cli/bin",
-            Path.GetFileName(Path.GetDirectoryName(dir))!, Path.GetFileName(dir), "BuscaPorFoto.Cli.dll"));
-        Assert.True(File.Exists(cli), cli);
-        var info = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var a in new[] { cli, "executar", dados.Caminho, saida.Caminho, "forma-final" }) info.ArgumentList.Add(a);
-        using var processo = Process.Start(info)!;
-        var lerSaida = processo.StandardOutput.ReadToEndAsync();
-        var lerErro = processo.StandardError.ReadToEndAsync();
-        await processo.WaitForExitAsync();
+        string textoDaSaida, textoDoErro;
+        try
+        {
+            var info = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (var a in new[] { CaminhoDoExecutavel(), "executar", dados.Caminho, saida.Caminho, "forma-final" }) info.ArgumentList.Add(a);
+            using var processo = Process.Start(info)!;
+            var lerSaida = processo.StandardOutput.ReadToEndAsync();
+            var lerErro = processo.StandardError.ReadToEndAsync();
+            await processo.WaitForExitAsync();
+            textoDaSaida = await lerSaida;
+            textoDoErro = await lerErro;
+        }
+        finally { trava?.Dispose(); }
 
-        var textoDaSaida = await lerSaida;
-        var textoDoErro = await lerErro;
         Assert.Contains("Consultando B01", textoDaSaida); // positivo conhecido: rodou de verdade
         Assert.DoesNotContain("X-SECRETO", textoDaSaida);
         Assert.DoesNotContain("X-SECRETO", textoDoErro);
+        var linhas = ArquivoDeResultados.Ler(Path.Combine(saida.Caminho, Executor.ArquivoDeResultadosCsv));
+        Assert.All(linhas.Where(l => l.Condicao == Condicao.ComMarcador), l => Assert.Equal(Executor.FalhaFotoIlegivel, l.Falha));
+        Assert.All(linhas.Where(l => l.Condicao == Condicao.SemMarcador), l => Assert.Equal(Executor.FalhaFotoIlegivel, l.Falha));
+    }
+
+    /// <summary>O .dll do CLI no mesmo perfil e framework deste teste, achado subindo até a pasta do spike.</summary>
+    private static string CaminhoDoExecutavel()
+    {
+        var dir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var framework = Path.GetFileName(dir);
+        var perfil = Path.GetFileName(Path.GetDirectoryName(dir))!;
+        for (var cima = new DirectoryInfo(dir); cima is not null; cima = cima.Parent)
+        {
+            var cli = Path.Combine(cima.FullName, "src", "BuscaPorFoto.Cli", "bin", perfil, framework, "BuscaPorFoto.Cli.dll");
+            if (File.Exists(cli)) return cli;
+        }
+        throw new FileNotFoundException("Não achei o BuscaPorFoto.Cli.dll de " + perfil + "/" + framework + " (o build do teste o gera).");
     }
 
     [Fact]

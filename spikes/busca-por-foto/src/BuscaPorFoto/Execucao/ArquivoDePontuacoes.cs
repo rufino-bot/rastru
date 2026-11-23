@@ -20,7 +20,7 @@ public static class ArquivoDePontuacoes
             l.Id, l.Condicao, l.Pontuador, l.Grupo,
             l.Pontuacao.ToString("R", CultureInfo.InvariantCulture),
             l.Certo ? "1" : "0"));
-        File.WriteAllLines(caminho, texto.Prepend(Cabecalho));
+        TextoEmDisco.GravarLinhas(caminho, texto.Prepend(Cabecalho));
     }
 
     public static IReadOnlyList<LinhaDePontuacao> Ler(string caminho)

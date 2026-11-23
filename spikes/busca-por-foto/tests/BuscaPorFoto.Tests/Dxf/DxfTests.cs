@@ -398,6 +398,109 @@ public class DxfTests
         Assert.Contains(nesting.Avisos, a => a.Contains("borda da chapa") && a.Contains("'sim'"));
     }
 
+    // ---- a borda da chapa nunca cala (I4 da review de branch) ----
+
+    private static DxfSintetico ChapaComDuasPecas(double x) =>
+        new DxfSintetico()
+            .Polilinha(DxfSintetico.Retangulo(x, 0, 500, 300), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(x + 20, 20, 100, 50), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(x + 200, 20, 100, 50), fechada: true);
+
+    /// <summary>Duas chapas no mesmo arquivo (cada uma com duas peças): nenhuma é "a" borda.</summary>
+    private static DxfSintetico DuasChapas() =>
+        new DxfSintetico()
+            .Polilinha(DxfSintetico.Retangulo(0, 0, 500, 300), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(20, 20, 100, 50), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(200, 20, 100, 50), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(1000, 0, 500, 300), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(1020, 20, 100, 50), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(1200, 20, 100, 50), fechada: true);
+
+    [Fact]
+    public void Dois_contornos_externos_com_pecas_dentro_sob_Auto_avisam_a_contagem()
+    {
+        var nesting = Separar(DuasChapas(), BordaDaChapa.Auto);
+
+        // Nenhuma borda sai (são duas): as duas chapas viram "peças" e as quatro peças viram furos.
+        Assert.Equal(2, nesting.Pecas.Count);
+        Assert.Contains(nesting.Avisos, a => a.StartsWith("2 contorno(s) externo(s) com dois ou mais contornos dentro", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Contorno_externo_com_duas_filhas_sob_Nao_avisa()
+    {
+        var nesting = Separar(Retangulo100x50().Circulo(25, 25, 8).Circulo(75, 25, 8), BordaDaChapa.Nao);
+
+        Assert.Contains(nesting.Avisos, a => a.StartsWith("1 contorno(s) externo(s) com dois ou mais contornos dentro", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Contorno_externo_com_uma_filha_so_sob_Nao_nao_avisa_nada()
+    {
+        var nesting = Separar(Retangulo100x50().Circulo(50, 25, 8), BordaDaChapa.Nao);
+
+        Assert.Empty(nesting.Avisos);
+    }
+
+    [Fact]
+    public void Borda_removida_nao_deixa_aviso_de_borda_mantida_nem_pelas_pecas_que_ficaram_com_dois_furos()
+    {
+        // A chapa sai; as peças dela têm dois furos cada, mas já não são contornos externos do arquivo.
+        var dxf = new DxfSintetico()
+            .Polilinha(DxfSintetico.Retangulo(0, 0, 500, 300), fechada: true)
+            .Polilinha(DxfSintetico.Retangulo(20, 20, 100, 100), fechada: true).Circulo(50, 70, 8).Circulo(90, 70, 8)
+            .Polilinha(DxfSintetico.Retangulo(250, 20, 100, 100), fechada: true).Circulo(280, 70, 8).Circulo(320, 70, 8);
+
+        var nesting = Separar(dxf, BordaDaChapa.Auto);
+
+        Assert.Equal(2, nesting.Pecas.Count);
+        Assert.All(nesting.Pecas, p => Assert.Equal(2, p.Furos));
+        Assert.Contains(nesting.Avisos, a => a.Contains("borda da chapa removida"));
+        Assert.DoesNotContain(nesting.Avisos, a => a.Contains("dois ou mais contornos dentro"));
+    }
+
+    [Fact]
+    public void Sim_com_duas_chapas_diz_que_nao_aplicou_e_por_que()
+    {
+        var nesting = Separar(DuasChapas(), BordaDaChapa.Sim);
+
+        Assert.Contains(nesting.Avisos, a => a == "borda 'sim' não aplicada: 2 contornos externos têm outros dentro, e a borda só sai quando há exatamente um");
+        Assert.Equal(2, nesting.Pecas.Count);
+    }
+
+    [Fact]
+    public void Sim_sem_contorno_com_peca_dentro_diz_que_nao_aplicou()
+    {
+        var nesting = Separar(Retangulo100x50(), BordaDaChapa.Sim);
+
+        Assert.Contains(nesting.Avisos, a => a == "borda 'sim' não aplicada: nenhum contorno externo tem outro dentro");
+        Assert.Single(nesting.Pecas);
+    }
+
+    [Fact]
+    public void Sim_com_um_retalho_fora_da_borda_diz_que_ela_nao_contem_todos_e_nao_sugere_a_borda_sim()
+    {
+        var dxf = ChapaComDuasPecas(0).Polilinha(DxfSintetico.Retangulo(2000, 0, 50, 50), fechada: true);
+
+        var nesting = Separar(dxf, BordaDaChapa.Sim);
+
+        Assert.Contains(nesting.Avisos, a => a == "borda 'sim' não aplicada: o contorno externo não contém todos os demais");
+        // A chapa ficou como "peça" com dois furos: o aviso geral vem, e sem a sugestão que já está em uso.
+        var geral = Assert.Single(nesting.Avisos, a => a.Contains("dois ou mais contornos dentro"));
+        Assert.DoesNotContain("use a borda 'sim'", geral);
+        Assert.Contains("--ignorar-camada", geral);
+    }
+
+    [Fact]
+    public void Auto_com_a_chapa_e_um_retalho_fora_da_borda_avisa_em_vez_de_calar()
+    {
+        var dxf = ChapaComDuasPecas(0).Polilinha(DxfSintetico.Retangulo(2000, 0, 50, 50), fechada: true);
+
+        var nesting = Separar(dxf, BordaDaChapa.Auto);
+
+        Assert.Contains(nesting.Avisos, a => a.StartsWith("1 contorno(s) externo(s) com dois ou mais contornos dentro", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Assinatura_do_retangulo_com_furo_central_tem_os_valores_analiticos()
     {

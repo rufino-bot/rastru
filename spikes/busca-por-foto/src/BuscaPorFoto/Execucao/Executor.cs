@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using BuscaPorFoto.Comparacao;
 using BuscaPorFoto.Dxf;
 using BuscaPorFoto.Foto;
+using BuscaPorFoto.Marcador;
 using BuscaPorFoto.Silhueta;
 using BuscaPorFoto.Stl;
 using OpenCvSharp;
@@ -24,6 +25,9 @@ public static class Executor
 
     /// <summary>Maior lado da foto sem marcador antes do recorte (sem escala, reduzir não perde nada).</summary>
     public const int LadoMaximoDaFotoSemMarcador = 2000;
+
+    /// <summary>O lado do marcador quando o usuário não passa o medido: o nominal, do PDF.</summary>
+    public const double LadoPadraoDoMarcadorMm = MarcadorAruco.LadoMm;
 
     public const string ArquivoDeMapa = "mapa-de-codigos.csv";
     public const string ArquivoDeMapaDeNestings = "mapa-de-nestings.csv";
@@ -49,6 +53,8 @@ public static class Executor
     public const string ArquivoDeErro = "erro.txt";
     /// <summary>Os avisos inteiros do DXF (com nomes de bloco). Local: o terminal só os conta por tipo.</summary>
     public const string ArquivoDeAvisosDoDxf = "avisos-do-dxf.txt";
+    /// <summary>A contagem dos avisos do DXF por tipo e por id de nesting: anonimizada, é o que o relatório do Corte traz (spec §10.3).</summary>
+    public const string ArquivoDeAvisosPorTipoCsv = "avisos-por-tipo.csv";
     public const string PastaDeSobreposicoes = "sobreposicoes";
     public const string PastaDeNestings = "nestings";
 
@@ -56,13 +62,19 @@ public static class Executor
 
     public static IReadOnlyList<LinhaDeResultado> ExecutarCorte(
         DadosDoCorte dados, string saida, MetodoDeRecorte metodo, IReadOnlySet<string> camadasIgnoradas, TextWriter log,
-        BordaDaChapa borda = BordaDaChapa.Auto)
+        BordaDaChapa borda = BordaDaChapa.Auto, double ladoDoMarcadorMm = LadoPadraoDoMarcadorMm, string? conferirNesting = null)
     {
+        ValidarLado(ladoDoMarcadorMm);
         var nestings = SepararNestings(dados.Nestings, camadasIgnoradas, borda, log);
         var alvos = dados.Alvos.OrderBy(a => a.Codigo, StringComparer.Ordinal).ToList();
 
         // Erro de dados: o alvo aponta um número que o nesting não tem. Para antes de gravar ou consultar qualquer coisa.
         var problemas = new List<string>();
+        // A numeração do alvos.txt veio da imagem do comando "nesting": se as opções ou a contagem de peças
+        // mudaram desde então, o número aponta outra peça (ou nenhuma) sem que nada avise.
+        if (conferirNesting is not null)
+            problemas.AddRange(ConferenciaDoNesting.Divergencias(
+                conferirNesting, borda, camadasIgnoradas, nestings.Select(n => (n.Id, n.Separado.Pecas.Count))));
         foreach (var alvo in alvos.Where(a => a.Numero is not null))
         {
             var nesting = nestings.FirstOrDefault(n => n.Nome == alvo.Nesting);
@@ -83,14 +95,15 @@ public static class Executor
             Directory.CreateDirectory(saida);
             EscreverMapaDeNestings(saida, nestings);
             EscreverAvisos(saida, nestings);
-            File.WriteAllLines(Path.Combine(saida, ArquivoDeMapa),
+            TextoEmDisco.GravarLinhas(Path.Combine(saida, ArquivoDeMapa),
                 alvos.Select((a, i) => $"{IdDoAlvo(Cenario.Corte, i)};{a.Codigo}").Prepend("id;codigo"));
-            File.WriteAllLines(Path.Combine(saida, ArquivoDeExecucao),
+            TextoEmDisco.GravarLinhas(Path.Combine(saida, ArquivoDeExecucao),
             [
                 $"cenario={Cenario.Corte.NomeDaPasta()}",
                 $"recorte={metodo.ToString().ToLowerInvariant()}",
                 $"camadas-ignoradas={string.Join(',', camadasIgnoradas.Order(StringComparer.Ordinal))}",
                 $"borda={borda.ToString().ToLowerInvariant()}",
+                $"lado-do-marcador={LadoComoTexto(ladoDoMarcadorMm)}",
             ]);
 
             // Referências: toda peça de todo nesting, chave K0001… pela ordem ordinal de (arquivo, número).
@@ -111,7 +124,7 @@ public static class Executor
                 IdDoAlvo(Cenario.Corte, i), TipoDePeca.Chapa, a.CaminhoSemMarcador, a.CaminhoComMarcador,
                 a.Numero is { } n ? chavePorPeca[(a.Nesting, n)] : null,
                 universo)).ToList();
-            return Consultar(Cenario.Corte, paraConsultar, saida, metodo, log);
+            return Consultar(Cenario.Corte, paraConsultar, saida, metodo, log, ladoDoMarcadorMm);
         }
         finally
         {
@@ -130,6 +143,8 @@ public static class Executor
             Directory.CreateDirectory(Path.Combine(saida, PastaDeNestings));
             EscreverMapaDeNestings(saida, nestings);
             EscreverAvisos(saida, nestings);
+            TextoEmDisco.GravarLinhas(Path.Combine(saida, ConferenciaDoNesting.Arquivo),
+                ConferenciaDoNesting.Linhas(borda, camadasIgnoradas, nestings.Select(n => (n.Id, n.Separado.Pecas.Count))));
             foreach (var n in nestings.Where(n => n.Separado.Pecas.Count > 0))
             {
                 using var imagem = ImagemNumerada.Gerar(n.Separado);
@@ -168,12 +183,18 @@ public static class Executor
     }
 
     private static void EscreverMapaDeNestings(string saida, IEnumerable<NestingLido> nestings) =>
-        File.WriteAllLines(Path.Combine(saida, ArquivoDeMapaDeNestings),
+        TextoEmDisco.GravarLinhas(Path.Combine(saida, ArquivoDeMapaDeNestings),
             nestings.Select(n => $"{n.Id};{n.Nome}").Prepend("id;arquivo"));
 
-    private static void EscreverAvisos(string saida, IEnumerable<NestingLido> nestings) =>
-        File.WriteAllLines(Path.Combine(saida, ArquivoDeAvisosDoDxf),
+    private static void EscreverAvisos(string saida, IReadOnlyList<NestingLido> nestings)
+    {
+        TextoEmDisco.GravarLinhas(Path.Combine(saida, ArquivoDeAvisosDoDxf),
             nestings.SelectMany(n => n.Separado.Avisos.Select(a => $"{n.Id}: {a}")));
+        // O que vai ao relatório: o tipo do aviso (sem nome de bloco nem número) e quantos, por id de nesting.
+        ArquivoDeAvisosPorTipo.Escrever(Path.Combine(saida, ArquivoDeAvisosPorTipoCsv),
+            nestings.SelectMany(n => n.Separado.Avisos.GroupBy(TipoDoAviso)
+                .Select(g => new LinhaDeAvisoPorTipo(n.Id, g.Key, g.Count()))));
+    }
 
     // Os avisos do DXF trazem, às vezes, nome de bloco (e o tipo da entidade). O TIPO do aviso é o texto
     // sem a parte variável: os três modelos que citam nome viram um texto fixo, e dos demais só os números
@@ -198,22 +219,25 @@ public static class Executor
     // ---------------------------------------------------- forma final e intermediárias
 
     public static IReadOnlyList<LinhaDeResultado> ExecutarComStl(
-        DadosComStl dados, Cenario cenario, string saida, MetodoDeRecorte metodo, TextWriter log)
+        DadosComStl dados, Cenario cenario, string saida, MetodoDeRecorte metodo, TextWriter log,
+        double ladoDoMarcadorMm = LadoPadraoDoMarcadorMm)
     {
         if (cenario == Cenario.Corte)
             throw new ArgumentException("O corte não tem STL; use ExecutarCorte.", nameof(cenario));
+        ValidarLado(ladoDoMarcadorMm);
 
         var alvos = dados.Alvos.OrderBy(a => a.Codigo, StringComparer.Ordinal).ToList();
         var referencias = new List<Referencia>();
         try
         {
             Directory.CreateDirectory(saida);
-            File.WriteAllLines(Path.Combine(saida, ArquivoDeMapa),
+            TextoEmDisco.GravarLinhas(Path.Combine(saida, ArquivoDeMapa),
                 alvos.Select((a, i) => $"{IdDoAlvo(cenario, i)};{a.Codigo}").Prepend("id;codigo"));
-            File.WriteAllLines(Path.Combine(saida, ArquivoDeExecucao),
+            TextoEmDisco.GravarLinhas(Path.Combine(saida, ArquivoDeExecucao),
             [
                 $"cenario={cenario.NomeDaPasta()}",
                 $"recorte={metodo.ToString().ToLowerInvariant()}",
+                $"lado-do-marcador={LadoComoTexto(ladoDoMarcadorMm)}",
             ]);
 
             // Os alvos primeiro, depois os outros candidatos; a chave é só o índice.
@@ -235,7 +259,7 @@ public static class Executor
             var paraConsultar = alvos.Select((a, i) => new AlvoParaConsultar(
                 IdDoAlvo(cenario, i), a.Tipo, a.CaminhoSemMarcador, a.CaminhoComMarcador, ChaveDe(i),
                 universoUnico ?? Universo.De(doB.Append(referencias[i]).ToList()))).ToList();
-            return Consultar(cenario, paraConsultar, saida, metodo, log);
+            return Consultar(cenario, paraConsultar, saida, metodo, log, ladoDoMarcadorMm);
         }
         finally
         {
@@ -244,6 +268,15 @@ public static class Executor
     }
 
     // ---------------------------------------------------------------- comum
+
+    private static void ValidarLado(double ladoDoMarcadorMm)
+    {
+        if (!double.IsFinite(ladoDoMarcadorMm) || ladoDoMarcadorMm <= 0)
+            throw new ArgumentOutOfRangeException(nameof(ladoDoMarcadorMm), "O lado do marcador tem de ser um número positivo, em mm.");
+    }
+
+    /// <summary>O lado como vai ao <c>execucao.txt</c>: sem cultura, "100" ou "98.5".</summary>
+    internal static string LadoComoTexto(double ladoDoMarcadorMm) => ladoDoMarcadorMm.ToString("R", CultureInfo.InvariantCulture);
 
     private static string ChaveDe(int indice) => $"K{indice + 1:D4}";
 
@@ -274,7 +307,8 @@ public static class Executor
     }
 
     private static IReadOnlyList<LinhaDeResultado> Consultar(
-        Cenario cenario, IReadOnlyList<AlvoParaConsultar> alvos, string saida, MetodoDeRecorte metodo, TextWriter log)
+        Cenario cenario, IReadOnlyList<AlvoParaConsultar> alvos, string saida, MetodoDeRecorte metodo, TextWriter log,
+        double ladoDoMarcadorMm)
     {
         Directory.CreateDirectory(Path.Combine(saida, PastaDeSobreposicoes));
         var linhas = new List<LinhaDeResultado>();
@@ -287,7 +321,7 @@ public static class Executor
                 var caminho = condicao == Condicao.SemMarcador ? alvo.CaminhoSemMarcador : alvo.CaminhoComMarcador;
                 var (mascara, falhaDaFoto) = caminho.Length == 0 && condicao == Condicao.ComMarcador
                     ? (null, FalhaSemFotoComMarcador)
-                    : PrepararFoto(caminho, condicao, metodo, Path.Combine(saida, PastaDeSobreposicoes, $"{alvo.Id}-{condicao}.png"));
+                    : PrepararFoto(caminho, condicao, metodo, Path.Combine(saida, PastaDeSobreposicoes, $"{alvo.Id}-{condicao}.png"), ladoDoMarcadorMm);
                 try
                 {
                     foreach (var pontuador in new[] { NomeDoPontuador.Hu, NomeDoPontuador.IoU })
@@ -343,7 +377,7 @@ public static class Executor
     }
 
     private static (Mascara? Mascara, string? Falha) PrepararFoto(
-        string caminho, Condicao condicao, MetodoDeRecorte metodo, string caminhoDaSobreposicao)
+        string caminho, Condicao condicao, MetodoDeRecorte metodo, string caminhoDaSobreposicao, double ladoDoMarcadorMm)
     {
         using var foto = ImagensEmDisco.Ler(caminho);
         if (foto.Empty()) return (null, FalhaFotoIlegivel);
@@ -358,7 +392,7 @@ public static class Executor
             double? mmPorPixel = null;
             if (condicao == Condicao.ComMarcador)
             {
-                retificada = Retificador.Retificar(foto);
+                retificada = Retificador.Retificar(foto, ladoDoMarcadorMm);
                 if (retificada is null) return (null, FalhaMarcadorNaoDetectado);
                 imagem = retificada.Imagem;
                 centro = retificada.CentroDaFoto;
@@ -399,6 +433,6 @@ public static class Executor
         var consultas = linhas
             .Where(l => l.Pontuador == NomeDoPontuador.IoU && TemSobreposicao(l.Falha))
             .Select(l => $"{l.Id};{l.Condicao};");
-        File.WriteAllLines(caminho, consultas.Prepend(ArquivoDeClassificacaoDoRecorte.Cabecalho));
+        TextoEmDisco.GravarLinhas(caminho, consultas.Prepend(ArquivoDeClassificacaoDoRecorte.Cabecalho));
     }
 }
