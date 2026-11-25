@@ -2,7 +2,10 @@
 
 Data: 2026-11-25. Branch: `claude/sweet-cannon-jo9k4m`, a partir da `main` em `722a09d` (pós-merge da Fase 6A,
 rufino-bot/rastru#41). Conversado com o usuário em chat numa sessão de nuvem em 2026-11-25. As decisões do usuário são
-D1 a D10 (seção 2.1); as chamadas do desenho, que o usuário confere ao ler, são C1 a C24 (seção 2.2).
+D1 a D11 (seção 2.1); as chamadas do desenho, que o usuário confere ao ler, são C1 a C24 (seção 2.2). O builder check (um
+revisor lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou a C13 sem valor de prova, o
+backup da HML faltando, uma premissa falsa sobre a conexão dos testes e a massa da vitrine vazia de Pedidos; os três
+primeiros foram emendados como chamada do desenho (C13, seção 6.1, seção 4), e a massa virou a D11.
 
 ## 1. O que se quer
 
@@ -59,6 +62,11 @@ pressupõe uma só), deploy sem nenhum segundo de indisponibilidade, monitoramen
 - **D9.** **Sem Copilot** por enquanto (nem review de PR nem agente); os créditos ficam guardados.
 - **D10.** Começar enxuto onde a vitrine permite (backup e rollback simples na HML), sem abrir mão de TLS e de senhas fora
   do repositório.
+- **D11.** A HML nasce com uma **massa de vitrine nova**, `db/massa-vitrine.sql`: o catálogo do `db/seed-demo.sql` mais
+  uns 6 a 8 Pedidos com nomes, clientes e prazos plausíveis, cobrindo os estágios que as telas mostram — um atrasado, um
+  pausado, um no meio da produção (com Peças divididas entre Setores e algo aguardando coleta), um com Kit na Solda, um
+  aguardando expedição (com aferição), e ao menos um com perda/reposição. Não as `db/massa-conferencia-*.sql`, que têm cara
+  de teste (`CONF-*`, entrega em 2099) e não foram feitas para rodar juntas.
 
 ### 2.2 Chamadas do desenho (C) — conferir ao ler
 
@@ -86,7 +94,7 @@ pressupõe uma só), deploy sem nenhum segundo de indisponibilidade, monitoramen
   **e** um script em `db/migracoes/`. Os `db/alter-*.sql` existentes ficam (servem a bancos de dev antigos) e não viram
   migração: um banco novo nasce do `02`, que já os contém. A seção «Comandos» do `CLAUDE.md` ganha a regra.
 - **C11. Banco novo** (HML na criação, HML recriada, PRD na primeira vez): `02` + perfis + usuários com senha de segredo
-  + (só HML) `db/seed-demo.sql`, e **todas** as migrações existentes anotadas como aplicadas (o `02` já as contém).
+  + (só HML) `db/seed-demo.sql` e `db/massa-vitrine.sql` (D11), e **todas** as migrações existentes anotadas como aplicadas (o `02` já as contém).
 - **C12. Usuários com senha de segredo.** Os nomes da HML são os mesmos do `db/seed.sql` (`admin`, `pcp`, `operador`,
   `movimentador`, `separador`, `qualidade`, `gestao`), para a conferência por perfil funcionar igual; as senhas vêm de
   segredos do ambiente e o hash é gerado com o `BCryptPasswordHasher` de produção (seção 6.3). O `db/seed.sql` continua
@@ -193,9 +201,10 @@ que mostre os dois modos.
 
 ### 5.3 Dockerfile
 
-Na raiz, multi-stage (C7). `.dockerignore` deixa fora `.superpowers/`, `node_modules`, `bin/obj`, `tests/` e `db/massa-*`.
+Na raiz, multi-stage (C7). `.dockerignore` deixa fora `.superpowers/`, `node_modules`, `bin/obj`, `tests/` e `db/massa-*` **exceto**
+`db/massa-vitrine.sql`.
 A imagem roda como usuário não-root e expõe só a porta HTTP interna (o Caddy termina o TLS). A imagem leva também
-`specs/02-modelo-de-dados.sql`, `db/seed.sql`, `db/seed-demo.sql` e `db/migracoes/` — o deploy usa os scripts **da
+`specs/02-modelo-de-dados.sql`, `db/seed.sql`, `db/seed-demo.sql`, `db/massa-vitrine.sql` e `db/migracoes/` — o deploy usa os scripts **da
 versão que está subindo**, não os de outra.
 
 ## 6. Banco: criar, migrar, usuários
@@ -219,7 +228,7 @@ versão que está subindo**, não os de outra.
 ### 6.2 Banco novo (C11)
 
 Se o banco do ambiente não existe: `CREATE DATABASE`; aplica o `02`; aplica a parte de perfis do seed; cria o login SQL
-do ambiente (C17); cria os usuários (6.3); na HML, aplica `db/seed-demo.sql`; anota **todas** as migrações de
+do ambiente (C17); cria os usuários (6.3); na HML, aplica `db/seed-demo.sql` e depois `db/massa-vitrine.sql`; anota **todas** as migrações de
 `db/migracoes/` como aplicadas.
 
 **Ao builder:** como aplicar só os perfis sem duplicar a lista (ex.: separar `db/seed.sql` em `db/seed-perfis.sql` +
@@ -267,7 +276,8 @@ Caddy só consegue o certificado depois disso; o `LEIAME` põe esse passo antes 
 
 1. **CI** — `ci.yml` e a regra de flakiness. Não depende de nada. Pronto: um PR aberto mostra os dois jobs verdes.
 2. **A aplicação pronta para container** — Dockerfile, SPA servido (5.1), saúde, `ForwardedHeaders`, comando de senha,
-   `db/migracoes/` + `dbo.MigracaoAplicada` + migrador + criação de banco novo, `deploy/compose.yaml` e `Caddyfile`.
+   `db/migracoes/` + `dbo.MigracaoAplicada` + migrador + criação de banco novo, `db/massa-vitrine.sql` (D11),
+   `deploy/compose.yaml` e `Caddyfile`.
    Verificável sem VPS: o Compose sobe localmente (com Caddy em modo local) e passa a C13.
 3. **HML no ar** — `deploy.yml` (HML, recriar, rollback), `deploy/preparar-vps.sh`, `deploy/LEIAME.md`. Depende de o
    usuário contratar a VPS, rodar o preparo, apontar o DNS e cadastrar os segredos. **Conferência do usuário no navegador**
@@ -296,6 +306,10 @@ Já desenhado: o ambiente `prd` com aprovação, a promoção da mesma imagem, o
   não medido aqui.
 - **Let's Encrypt** tem limite de emissões: o Caddy guarda o certificado em volume, para não pedir de novo a cada deploy.
 - **Indisponibilidade no deploy:** alguns segundos na troca do container; aceito (não-objetivo).
+- **A massa de vitrine (D11) segue as regras do livro:** só movimentos válidos (o que a API faria), idempotente, chaveada
+  por número de Pedido e nome, carregada com `-b -f 65001`, no molde do `db/massa-carga-6a.sql` — com a conservação de
+  quantidade (regra 9) fechando em todo nó. Quando o schema mudar, ela muda junto (só roda em banco novo, mas roda a cada
+  "recriar a HML"); o CI a carrega num banco limpo para ela não apodrecer em silêncio.
 - **Ao builder:** a forma exata dos workflows, nomes de segredos, o formato do `.env`, o `Caddyfile`, os testes do
   fallback do SPA, e o migrador (shell com `sqlcmd` do container do SQL Server, ou comando .NET na imagem), desde que as
   regras das seções 5 a 7 valham.
