@@ -5,7 +5,8 @@ rufino-bot/rastru#41). Conversado com o usuário em chat numa sessão de nuvem e
 D1 a D11 (seção 2.1); as chamadas do desenho, que o usuário confere ao ler, são C1 a C24 (seção 2.2). O builder check (um
 revisor lendo a spec como quem vai planejar, conferindo as premissas contra o código) achou a C13 sem valor de prova, o
 backup da HML faltando, uma premissa falsa sobre a conexão dos testes e a massa da vitrine vazia de Pedidos; os três
-primeiros foram emendados como chamada do desenho (C13, seção 6.1, seção 4), e a massa virou a D11.
+primeiros foram emendados como chamada do desenho (C13, seção 6.1, seção 4), e a massa virou a D11. O documento
+escrito foi **aprovado pelo usuário em 2026-11-25**.
 
 ## 1. O que se quer
 
