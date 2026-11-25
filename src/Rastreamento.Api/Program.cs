@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -51,6 +52,11 @@ builder.Services.AddOptions<RateLimitOptions>()
     .Bind(builder.Configuration.GetSection("RateLimit"))
     .ValidateOnStart();
 
+builder.Services.AddSingleton<IValidateOptions<ProxyReversoOptions>, ProxyReversoOptionsValidator>();
+builder.Services.AddOptions<ProxyReversoOptions>()
+    .Bind(builder.Configuration.GetSection("ProxyReverso"))
+    .ValidateOnStart();
+
 // Teto grosso POR IP contra forca bruta de login. Complementa o lockout (trava fina, por conta):
 // um barra o flood de uma origem, o outro protege a conta especifica; nenhum substitui o outro.
 // Escopo deliberado: so o /auth/login. O /auth/refresh fica de fora — e legitimo e frequente, e o
@@ -63,8 +69,9 @@ builder.Services.AddRateLimiter(rateLimiter =>
   {
     var politica = http.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
 
-    // Particao por IP. Atras de proxy reverso isto vira o IP do proxy e o limite passa a ser
-    // global — quando houver proxy, configurar ForwardedHeaders (anotado no CLAUDE.md).
+    // Particao por IP. Atras de proxy reverso isto seria o IP do proxy e o limite viraria global;
+    // por isso o ForwardedHeaders (primeiro middleware, abaixo) reescreve o RemoteIpAddress com o
+    // do cliente, mas so quando ProxyReverso:Rede esta preenchida e o pedido veio dessa rede.
     return RateLimitPartition.GetFixedWindowLimiter(
           partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "sem-ip",
           factory: _ => new FixedWindowRateLimiterOptions
@@ -222,6 +229,26 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 
 const string PrefixoDaApi = "/api";
+
+// PRIMEIRO middleware, antes do SPA e da guarda do /api: o que vem depois (rate limit, log de
+// auth) tem de ler o IP do cliente, e nao o do proxy. Confia SO na rede configurada; cabecalho que
+// chega de outro IP e ignorado. ForwardLimit = 1: o proxy e um so (o Caddy do Compose), e o
+// padrao do middleware ja limita assim, mas fica escrito. Sem Rede o middleware nem e registrado.
+// Nao limpar KnownProxies/KnownNetworks nem usar ASPNETCORE_FORWARDEDHEADERS_ENABLED: os dois
+// aceitam cabecalho de qualquer origem e tornam o rate limit burlavel (ver CLAUDE.md).
+var redeDoProxy = app.Services.GetRequiredService<IOptions<ProxyReversoOptions>>().Value.Rede;
+if (!string.IsNullOrWhiteSpace(redeDoProxy))
+{
+  var opcoesDeEncaminhamento = new ForwardedHeadersOptions
+  {
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1,
+  };
+  opcoesDeEncaminhamento.KnownIPNetworks.Clear();
+  opcoesDeEncaminhamento.KnownProxies.Clear();
+  opcoesDeEncaminhamento.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(redeDoProxy.Trim()));
+  app.UseForwardedHeaders(opcoesDeEncaminhamento);
+}
 
 // A guarda que faz o prefixo valer: sem ela a API atenderia tambem nos caminhos nus, e esses sao
 // exatamente os das rotas do SPA. Vem ANTES do UsePathBase de proposito, e testa o Path — nao o

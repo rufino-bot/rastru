@@ -76,6 +76,21 @@ public class ConfiguracaoDeStartupTests
     Assert.Contains("RateLimit", validacao.Message, StringComparison.OrdinalIgnoreCase);
   }
 
+  [Theory]
+  [InlineData("nao-e-cidr")]
+  [InlineData("172.30.0.0/99")]
+  // Prefixo zero confiaria em todo mundo: e a "lista limpa" de KnownProxies/KnownNetworks por outro
+  // caminho, e o rate limit por IP voltaria a ser burlavel com um cabecalho forjado.
+  [InlineData("0.0.0.0/0")]
+  [InlineData("::/0")]
+  public void Aplicacao_nao_sobe_com_rede_do_proxy_invalida(string rede)
+  {
+    var excecao = Record.Exception(() => SubirApi(new() { ["ProxyReverso:Rede"] = rede }));
+
+    var validacao = Assert.IsType<OptionsValidationException>(excecao);
+    Assert.Contains("ProxyReverso", validacao.Message, StringComparison.OrdinalIgnoreCase);
+  }
+
   [Fact]
   public void Aplicacao_sobe_com_a_configuracao_do_repositorio()
   {

@@ -1769,19 +1769,20 @@ Nos três casos o usuário é deslogado de todos os dispositivos e precisa logar
 aceito da detecção de reuso no MVP — não existe janela de graça (ex.: permitir o token antigo por
 alguns segundos após a rotação) porque isso reabriria a mesma corrida que o `RowVersion` fecha.
 
-**Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
-frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
-o limite vira global por acidente. Com a hospedagem decidida como VPS pública (2026-09-12,
-`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), o proxy reverso deixa de ser hipotético
-**no caminho container + proxy** (nginx), um dos dois que aquela seção ainda admite — o outro é
-IIS. Nesse caminho, `ForwardedHeaders` está registrado como dívida com gatilho **"obrigatório antes
-do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo. Sob IIS com hosting
-out-of-process, a integração do IIS já liga esse middleware, restrito ao proxy local (documentação
-do ASP.NET Core; não medido aqui). Ligar `ForwardedHeaders` **não** fica burlável com os padrões:
-`KnownProxies` e `KnownNetworks` só aceitam loopback, e cabeçalho vindo de outro IP é ignorado. O
-risco nasce ao limpar essas listas — o exemplo da própria documentação para proxy que não é IIS faz
-isso — ou ao usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a documentação, não restringe
-de quais IPs os cabeçalhos são aceitos.
+**Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`, e atrás de um proxy ele seria o IP do proxy:
+o limite viraria global. **Resolvido na aplicação (parte 2 do CI/CD, 2026-11-25):** a seção de configuração
+`ProxyReverso`, chave `Rede` (CIDR, variável `ProxyReverso__Rede`), registra o `UseForwardedHeaders` como **primeiro**
+middleware, antes do SPA e da guarda do `/api`, com `XForwardedFor | XForwardedProto`, `ForwardLimit = 1` e só essa rede em
+`KnownIPNetworks` (o `KnownProxies` e o loopback padrão são limpos: só a rede configurada é confiável). `Rede` vazia ou
+ausente: o middleware **não é registrado** e o cabeçalho é ignorado, como em desenvolvimento. O `ProxyReversoOptionsValidator`
+derruba a aplicação no startup com rede que não é CIDR ou com prefixo zero (`0.0.0.0/0`, `::/0`), que confiaria em todo
+mundo. A sub-rede vem do Compose (Task 9 do plano da parte 2), e o Caddy manda `X-Forwarded-For` e `X-Forwarded-Proto`.
+Os testes são `ProxyReversoTests` (três) e `Aplicacao_nao_sobe_com_rede_do_proxy_invalida`. O risco que continua valendo
+para quem mexer nisso: **não** deixar `KnownProxies` e `KnownNetworks` limpos sem uma rede por cima (o exemplo da
+documentação para proxy que não é IIS faz isso) nem usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a
+documentação, não restringe de quais IPs os cabeçalhos são aceitos: nos dois casos qualquer cliente forja o
+`X-Forwarded-For` e escolhe a própria partição do rate limit. Sob IIS com hosting out-of-process, a integração do IIS já
+liga o middleware, restrito ao proxy local (documentação do ASP.NET Core; não medido aqui).
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
 `RefreshToken` expiradas. (A mensagem dedicada de 429 no front deixou de estar em aberto em 2026-11-10: o login

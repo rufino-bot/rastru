@@ -187,10 +187,13 @@ sem ser endurecimento: é condição para o upload de sólido funcionar atrás d
    `web/vite.config.ts`). Um domínio próprio numa VPS não tem essa isenção: sem TLS ali, o login
    funciona e o refresh **nunca**: a sessão morre em 15 minutos sem renovar, e o sintoma não aponta
    para a causa. `UseHttpsRedirection` não existe em `src/`.
-2. **`ForwardedHeaders` não está configurado.** Com um proxy reverso na frente (nginx/Caddy), o
-   rate limit por IP do `/auth/login` vira global — todos os clientes passam a compartilhar o IP
-   do proxy — e o log de auth grava o IP do proxy em vez do cliente. As duas defesas continuam de
-   pé, mas passam a medir a coisa errada.
+2. **`ForwardedHeaders` — resolvido na aplicação (2026-11-25).** Sem ele, atrás do proxy reverso o rate limit por IP
+   do `/auth/login` seria global e o log de auth gravaria o IP do proxy. A seção `ProxyReverso`, chave `Rede` (CIDR,
+   `ProxyReverso__Rede`), liga o `UseForwardedHeaders` como primeiro middleware, só para essa rede, com
+   `X-Forwarded-For` e `X-Forwarded-Proto` e `ForwardLimit = 1`; vazia, o middleware não é registrado, e CIDR inválido
+   ou prefixo zero derruba a aplicação no startup. **O que falta é deploy:** o Compose (Task 9) fornece a sub-rede e a
+   preenche, e o Caddy manda os dois cabeçalhos. O gatilho "obrigatório antes do primeiro deploy público" deste item
+   passa a ser só preencher `ProxyReverso__Rede` no ambiente.
 3. **A `SigningKey` já tem o procedimento de validação certo — falta o de deploy.** O
    `JwtOptionsValidator` já recusa, no startup (`.ValidateOnStart()`), o valor de placeholder
    commitado e exige no mínimo 32 bytes: esquecer de trocá-la **derruba a aplicação ao subir**, não
