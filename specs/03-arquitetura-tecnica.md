@@ -135,15 +135,15 @@ próprio.
 
 - Backend: IIS (hosting model padrão .NET) ou container Docker + reverse proxy
   (ex.: nginx), a definir conforme o que a VPS oferecer.
-- Frontend: build estático (Vite build) servido pelo próprio IIS/nginx, ou embutido como
-  arquivos estáticos servidos pela API ASP.NET Core — mais simples para deploy numa VPS
-  com uma única aplicação publicada. **Atenção de ordem de pipeline se for este o caminho:**
-  `UseStaticFiles` / `MapFallbackToFile` precisam ser registrados **antes** da guarda do prefixo
-  `/api` (ver abaixo e `Program.cs`) — ela é um 404 cego para tudo que não começa com `/api`, e
-  registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA. Numa VPS de
-  origem única (SPA e API na mesma aplicação publicada) esse caminho fica **mais** provável do
-  que quando a infraestrutura era decidida pela empresa. Hoje não se aplica: não há
-  `UseStaticFiles` em `src/`.
+- Frontend: **decidido (2026-11-25, parte 2 do CI/CD): a API serve o build do Vite.** O build vai
+  para o `wwwroot` da imagem e, quando o `wwwroot` tem `index.html`, `SpaDaApi.UsarSpa` registra o
+  ramo do SPA **antes** da guarda do prefixo `/api` (ela é um 404 cego para tudo que não começa
+  com `/api`, e registrada antes dos estáticos mataria `index.html`, os assets e toda rota do SPA).
+  Sem `index.html` a API fica só-API, como antes. Arquivo que existe é servido (sob `/assets/`
+  com cache de um ano e `immutable`, o resto com `no-cache`); caminho sem extensão que não é
+  arquivo devolve o `index.html` (o F5 numa rota do SPA); caminho com extensão que não existe é
+  404; outro método fora de `/api` é 404; `/API/x`, só na caixa, continua 404. Ver a seção
+  «Prefixo `/api`» do `CLAUDE.md`.
 - **Se o SPA e a API ficarem na mesma origem** (o segundo caso acima, e o mais provável: o cookie
   de refresh é `SameSite=Strict`, que inviabiliza cross-site), era obrigatório que os caminhos nus
   da API tivessem parado de responder antes do deploy — senão a colisão entre rota de SPA e rota

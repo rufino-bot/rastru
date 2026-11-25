@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
+using Rastreamento.Api.Spa;
 using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Andamento;
 using Rastreamento.Application.Auth;
@@ -240,11 +241,14 @@ const string PrefixoDaApi = "/api";
 // /api/auth/refresh em minuscula, porque matching de Path de cookie e case-sensitive (RFC 6265
 // Sec5.1.4). A sessao morreria no primeiro refresh, em silencio. Preferimos o 404 alto.
 //
-// Restricao de ordem de pipeline: esta guarda e um 404 cego para tudo que nao comeca com /api. Se
-// o SPA vier a ser servido como estaticos pela propria API (UseStaticFiles / MapFallbackToFile —
-// ver hospedagem em specs/03-arquitetura-tecnica.md), o registro deles tem que vir ANTES desta
-// guarda, senao ela devolve 404 para index.html, os assets e toda rota do SPA. Hoje nao se
-// aplica: nao ha UseStaticFiles neste projeto.
+// Ordem de pipeline: esta guarda e um 404 cego para tudo que nao comeca com /api, entao o SPA
+// (estaticos e index.html) tem de vir ANTES dela, senao ela devolve 404 para o index, os assets e
+// toda rota do SPA. E o que acontece logo abaixo: com wwwroot/index.html presente (a imagem do
+// container poe o build do Vite ali) o ramo do SPA atende o que NAO comeca com /api e nunca chega
+// aqui; o que comeca com /api segue para esta guarda e para o resto da API. Sem index.html a API
+// fica so-API, e a guarda responde 404 a tudo fora de /api, como antes. Ver SpaDaApi.
+if (SpaDaApi.Disponivel(app.Environment)) app.UsarSpa();
+
 app.Use(async (contexto, proximo) =>
 {
   if (!contexto.Request.Path.StartsWithSegments(PrefixoDaApi, StringComparison.Ordinal))

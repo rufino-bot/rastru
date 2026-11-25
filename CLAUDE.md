@@ -1045,11 +1045,26 @@ testes de endpoint foram reescritas junto. O `Path` do cookie de refresh acompan
 (`/api/auth`) em vez de ser literal, para o cookie ser gravado sob o mesmo prefixo em que o refresh
 atende. Coberto por `AuthEndpointsTests.PrefixoDeApi.cs`.
 
-**Restrição de ordem de pipeline:** a guarda é um 404 cego para tudo que não começa com `/api`. Se
-o SPA vier a ser servido como estáticos pela própria API (`UseStaticFiles` / `MapFallbackToFile` —
-ver hospedagem em `specs/03-arquitetura-tecnica.md`), o registro deles tem que vir **antes** da
-guarda, senão ela devolve 404 para `index.html`, os assets e toda rota do SPA, com sintoma de "o
-build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `src/`.
+**Restrição de ordem de pipeline — cumprida assim (2026-11-25).** A guarda é um 404 cego para tudo que
+não começa com `/api`, então o SPA tem de vir **antes** dela, senão ela devolve 404 para `index.html`, os
+assets e toda rota do SPA, com sintoma de "o build do front não subiu". Em `Program.cs`, logo acima da guarda,
+`if (SpaDaApi.Disponivel(app.Environment)) app.UsarSpa();` registra um ramo (`MapWhen`) que atende o que **não**
+começa com `/api` (comparação ordinal), com `UseStaticFiles` e um terminal que serve o `index.html`. A API tem
+**dois modos**: com `wwwroot/index.html` (a imagem do container põe o build do Vite ali) ela serve o SPA; sem
+ele fica só-API, exatamente como antes, e a guarda responde 404 a tudo fora de `/api`. No modo SPA, o que
+começa com `/api` segue para a guarda e a API, como sempre. O resto, uma frase por caso:
+
+- `GET`/`HEAD` de arquivo que existe em `wwwroot` devolve o arquivo, com `Cache-Control: public,
+  max-age=31536000, immutable` sob `/assets/` (nome com hash) e `no-cache` fora dele.
+- `GET`/`HEAD` de caminho cujo último segmento não tem extensão e não é arquivo devolve o `index.html`, com
+  `no-cache` (é o F5 numa rota do SPA, como `/pedidos/5`).
+- `GET`/`HEAD` de caminho **com extensão** que não existe responde **404**, e não o `index.html`: o cliente
+  aberto antes de um deploy pede `/assets/index-velho.js`, e receber HTML com 200 no lugar do script deixaria a
+  tela branca sem erro útil; o 404 aparece no console.
+- `/API/x` (só na caixa) continua 404, pelo mesmo motivo do cookie de refresh descrito acima.
+- Qualquer outro método fora de `/api` (`POST /pedidos`, `POST /auth/login`) responde 404.
+
+Coberto pelos testes `Spa_*` e `Sem_wwwroot_a_raiz_responde_404` de `AuthEndpointsTests.PrefixoDeApi.cs`.
 
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
