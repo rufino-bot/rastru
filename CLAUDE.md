@@ -19,7 +19,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
 - **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3, e o Separador é o Almoxarifado renomeado na Fase 4)
-- **CI/CD**: nenhum ainda — deploy manual no MVP, direto na VPS
+- **CI/CD**: CI no GitHub Actions (`.github/workflows/ci.yml`) desde 2026-11-25; CD em desenho — ver `docs/superpowers/specs/2026-11-25-ci-cd-design.md`
 
 ## Mapa da pasta `specs/`
 
@@ -113,6 +113,12 @@ falta medir com a fábrica carregada antes do primeiro uso real. O ajuste da fac
 Expedição) fica para **depois do Panorama**. O "Descartar Peça ou Item
 em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cumprido pelo merge da **5B-1** (a baixa
 `tudo` de `Descarte` e o "Descartar tudo").
+
+Mais uma exceção, por decisão do usuário de 2026-11-25 (D3 da spec
+`docs/superpowers/specs/2026-11-25-ci-cd-design.md`): o **CI e o CD vêm antes da 6B**, em quatro partes, cada uma com
+plano e PR próprios e nesta ordem — **CI**; **aplicação pronta para container**; **HML no ar**; **PRD** (esta só quando o
+usuário decidir). A **6B continua depois** delas. A decisão reabre o "CI/CD fora do MVP" que a seção «CI/CD» de
+`specs/03-arquitetura-tecnica.md` trazia, e a exceção também está escrita em `specs/06-roadmap-mvp.md`.
 
 ## Como este projeto executa plano — o gate de review não é opcional
 
@@ -1096,7 +1102,8 @@ coisas, nesta ordem:
    sem elas: a regra do gate de review exige a skill invocada.
 3. **O backend, quando a tarefa toca `src/` ou `tests/`:** rode `bash scripts/backend-na-nuvem`. O
    container nasce sem `dotnet` e com o Docker parado; o script instala o SDK se faltar, sobe o
-   `dockerd`, o SQL Server do `docker compose` e cria o banco com schema e seed. É idempotente. Medido
+   `dockerd` e chama o `scripts/banco-de-teste`, que sobe o SQL Server do `docker compose` e cria o
+   banco com schema e seed (o mesmo script que o CI usa, sem root). É idempotente. Medido
    em 2026-09-26, em `44b1d54` (merge da Fase 3 backend): depois dele, `dotnet build -warnaserror` sai
    com 0 warnings e `dotnet test Rastreamento.slnx -m:1` passa 785 de 785 (403 Application, 115
    Infrastructure, 267 Api). Rode a suíte sempre com esse comando (ver "Processos de teste também
@@ -1194,6 +1201,28 @@ dotnet test tests/Rastreamento.Api.Tests              # ponta a ponta (a maior p
 ```
 
 Frontend: ainda não criado (Fase 1 em diante).
+
+### CI
+
+O workflow `.github/workflows/ci.yml` (nome `CI`, desde 2026-11-25; spec
+`docs/superpowers/specs/2026-11-25-ci-cd-design.md`, seção 4) roda em todo PR para a `main` e em todo push na `main`,
+com dois jobs em paralelo e sem segredo algum:
+
+- **`backend`**: instala o .NET 10, prepara o banco com `bash scripts/banco-de-teste` (o mesmo script que o
+  `scripts/backend-na-nuvem` chama: sobe o `sqlserver` do `docker-compose.yml`, cria o banco `Rastreamento` e aplica o
+  `specs/02-modelo-de-dados.sql` e o `db/seed.sql`, só se o banco ainda não tem `dbo.Usuario`), roda
+  `dotnet build Rastreamento.slnx -warnaserror` e `dotnet test Rastreamento.slnx -m:1`, e publica os `.trx` como o
+  artefato `resultados-do-backend`.
+- **`front`**: em `web/`, `npm ci`, `npm test -- --run --maxWorkers=2` e `npm run build` (Node 22).
+
+Os dois jobs, `backend` e `front`, são para ser **check obrigatório da `main`**. Isso é configuração do repositório que o
+**usuário** faz, em Settings → Rules/Branches, e **ainda não foi feito**: até lá o CI avisa, mas não impede o merge.
+Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+
+**CI vermelho que passa ao rodar de novo é registrado, não só re-rodado**: o nome do teste e o link da execução vão
+para o ledger da fase em curso (seção 4 da spec). Há um flaky conhecido no front (`lembra o Setor cuja fila
+carregou`, descrito na seção «Pré-requisito externo dos testes») e um histórico de deadlock na suíte de Api, já
+mitigado; re-rodar sem anotar apagaria a evidência de que um deles voltou, ou de que apareceu um terceiro.
 
 ### Pré-requisito externo dos testes
 

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Prepara o banco de teste: sobe o SQL Server do `docker-compose.yml`, espera aceitar conexão, cria o
+# banco `Rastreamento` e aplica o schema e o seed. Não exige root, não instala nada e não sobe o `dockerd`:
+# o Docker já tem de estar respondendo.
+#
+# É usado por dois lados, e por isso mora num script próprio: o `scripts/backend-na-nuvem` (sessão de
+# nuvem, que antes faz o SDK e o Docker) e o CI do GitHub Actions (onde o runner já traz os dois).
+#
+#   bash scripts/banco-de-teste              # idempotente, pode rodar de novo
+#
+# Medido em 2026-09-25, num container Ubuntu 24.04:
+#   - a imagem `mcr.microsoft.com/mssql/server:2022-latest` baixa pelo proxy; o servidor aceita
+#     conexão ~5s depois de o container subir.
+#
+# O que ele deliberadamente NÃO faz: não carrega `db/seed-demo.sql` (a suíte ignora que ele existe —
+# ver CLAUDE.md) e não recria banco que já existe (o schema só é aplicado quando `dbo.Usuario` falta).
+# Sai com código diferente de zero, com mensagem em português, se o Docker não responde ou se o SQL
+# Server não aceita conexão em ~120 s.
+
+set -euo pipefail
+
+RAIZ=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$RAIZ"
+
+SENHA='Your_strong_Pass123'
+SQLCMD=(docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$SENHA" -C -I -b)
+
+if ! docker info >/dev/null 2>&1; then
+  echo "banco-de-teste: o Docker não responde." >&2
+  exit 1
+fi
+
+# --- 1. SQL Server ----------------------------------------------------------------------------------
+docker compose up -d sqlserver
+echo "== esperando o SQL Server aceitar conexão"
+for _ in $(seq 1 60); do
+  "${SQLCMD[@]}" -Q "SELECT 1" >/dev/null 2>&1 && break
+  sleep 2
+done
+if ! "${SQLCMD[@]}" -Q "SELECT 1" >/dev/null 2>&1; then
+  echo "banco-de-teste: o SQL Server não aceitou conexão em 120 s (ver: docker compose logs sqlserver)." >&2
+  exit 1
+fi
+
+# --- 2. Banco ---------------------------------------------------------------------------------------
+"${SQLCMD[@]}" -Q "IF DB_ID('Rastreamento') IS NULL CREATE DATABASE Rastreamento;"
+tem_schema=$("${SQLCMD[@]}" -d Rastreamento -h -1 -W -Q "SET NOCOUNT ON; SELECT CASE WHEN OBJECT_ID('dbo.Usuario') IS NULL THEN 0 ELSE 1 END")
+if [ "$(echo "$tem_schema" | tr -d '[:space:]')" = "0" ]; then
+  echo "== aplicando specs/02-modelo-de-dados.sql e db/seed.sql"
+  # `-f 65001` e cópia para dentro do container: sem isso a acentuação dos NVARCHAR se perde e o
+  # banco fica verde assim mesmo (ver CLAUDE.md, seção do seed-demo).
+  for arq in specs/02-modelo-de-dados.sql db/seed.sql; do
+    docker compose cp "$arq" "sqlserver:/tmp/$(basename "$arq")"
+    "${SQLCMD[@]}" -d Rastreamento -f 65001 -i "/tmp/$(basename "$arq")" >/dev/null
+  done
+fi
+echo "banco    : Rastreamento pronto em localhost:1433"

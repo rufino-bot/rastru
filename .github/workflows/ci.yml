@@ -1,0 +1,85 @@
+# CI do Rastru: build e suítes do backend e do front em todo PR para a main e em todo push na main.
+# Os dois jobs, `backend` e `front`, são os que vão ser marcados como check obrigatório da `main` (a
+# configuração é do usuário e ainda não foi feita) — renomear um deles quebraria essa proteção em
+# silêncio, então o nome só muda junto com ela.
+#
+# Sem segredo e sem gatilho que rode código de PR com token de escrita: o PR de fora roda com o token
+# só de leitura, e o banco de teste usa a senha de dev do `docker-compose.yml`, que já é pública no
+# repositório.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Só o PR cancela a execução anterior (um push novo no mesmo PR torna a antiga inútil). O push na `main`
+# tem grupo próprio por commit e nunca é cancelado: o deploy da HML depende do CI verde do mesmo commit
+# e o rollback é por SHA (C22 e C20 da spec do CI/CD).
+concurrency:
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      # As actions abaixo são todas oficiais do GitHub, num repositório de projeto: a versão maior
+      # basta, sem fixar SHA.
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          # Não há `packages.lock.json` no repositório: a chave do cache vem dos `.csproj`.
+          cache-dependency-path: '**/*.csproj'
+
+      # Sobe o SQL Server do `docker-compose.yml`, cria o banco e aplica o schema e o seed.
+      - name: Banco de teste
+        run: bash scripts/banco-de-teste
+
+      - name: Build
+        run: dotnet build Rastreamento.slnx -warnaserror
+
+      # O `-m:1` é obrigatório: dois projetos de teste em paralelo disputam o mesmo banco (deadlock).
+      - name: Testes
+        run: dotnet test Rastreamento.slnx -m:1 --no-build --logger trx --results-directory TestResults
+
+      - name: Resultados dos testes
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: resultados-do-backend
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  front:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Dependências
+        run: npm ci
+
+      - name: Testes
+        run: npm test -- --run --maxWorkers=2
+
+      # O Vitest não faz typecheck: o build é quem pega erro de tipo em `.test.tsx`.
+      - name: Build
+        run: npm run build

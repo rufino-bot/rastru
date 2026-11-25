@@ -21,7 +21,8 @@ O caso que motivou a regra: o import da estrutura a partir do CAD.
 - Implementar login (`POST /auth/login`) com emissão de JWT e claim de Perfil.
 - Criar projeto React + TypeScript (Vite), estrutura de pastas inicial, tela de login,
   chamada de exemplo à API autenticada.
-- Deploy manual (sem CI/CD por enquanto) — documentar passo a passo de publicação.
+- Deploy manual (sem CI/CD por enquanto) — documentar passo a passo de publicação. *Emenda de 2026-11-25: o CI existe
+  desde essa data e o CD está em desenho; ver a seção «CI e CD».*
 
 ## Fase 1 — Cadastros básicos (CRUD)
 
@@ -939,6 +940,21 @@ Administrador**. Isto emenda o "Perfil Gestão tem acesso a essas telas; demais 
   perfil `operador`), e gerou os ajustes F1 a F3 (seção 11 da spec). A review de branch inteira foi feita no mesmo dia, e
   o fix wave dela entrou no mesmo PR. Pendentes: a trilha com Roteiro de 8 passos ou mais, que não foi vista na tela, e o
   tempo do `GET /panorama` com a fábrica real (medido só na máquina de dev). A seguinte é a **6B**.
+
+### CI e CD (decidido em 2026-11-25; executa depois da 6A e antes da 6B)
+
+Spec: `docs/superpowers/specs/2026-11-25-ci-cd-design.md` (D3, C22, C23 e a seção 8). É mais uma exceção declarada à
+ordem das fases, por decisão do usuário: reabre o "CI/CD fora do MVP" de `03-arquitetura-tecnica.md` e passa **na frente
+da 6B**, que continua depois. Quatro partes, cada uma com plano e PR próprios, nesta ordem:
+
+1. **CI** — `ci.yml` e a regra de flakiness. Pronto quando um PR aberto mostra os dois jobs verdes.
+2. **A aplicação pronta para container** — Dockerfile, SPA servido pela API, saúde, `ForwardedHeaders`, migrações
+   versionadas, a massa de vitrine e o Compose; verificável sem VPS.
+3. **HML no ar** — `deploy.yml`, o preparo da VPS e o `deploy/LEIAME.md`; depende de o usuário contratar a VPS e apontar
+   o DNS, e leva a conferência dele no navegador antes da review de branch.
+4. **PRD** — só quando o usuário decidir.
+
+A parte 1 está **implementada na branch e verificada no GitHub**, e fica concluída no merge do PR dela. Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
 
 ### Fase 6B — Histórico
 
