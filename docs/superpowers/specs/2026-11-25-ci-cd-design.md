@@ -163,6 +163,8 @@ Aplica `specs/02-modelo-de-dados.sql` e `db/seed.sql` com `sqlcmd -b -f 65001` (
 faz), depois `dotnet build Rastreamento.slnx -warnaserror` e `dotnet test Rastreamento.slnx -m:1` (o `-m:1` é obrigatório;
 ver «Processos de teste também competem pelo banco» no `CLAUDE.md`). Publica os `.trx` como artefato.
 
+*Emenda de 2026-11-25, na execução da parte 1:* o SQL Server do CI sobe pelo `scripts/banco-de-teste`, com `docker compose` (mesma imagem, mesma porta e mesma senha), e não por um container de serviço (`services:`) do workflow; o script é o mesmo que o `scripts/backend-na-nuvem` chama. A decisão acima não muda, só o mecanismo.
+
 **Front.** Em `web/`: `npm ci`, `npm test -- --run --maxWorkers=2`, `npm run build` (o build faz parte do ciclo porque o
 Vitest não faz typecheck).
 
@@ -302,9 +304,9 @@ Já desenhado: o ambiente `prd` com aprovação, a promoção da mesma imagem, o
 ## 10. Riscos e o que fica com o builder
 
 - **Tempo do CI:** a suíte de Api levou de ~1 min a ~10 min conforme a massa no banco; no CI o banco nasce limpo. Não
-  medido no runner do GitHub.
+  medido no runner do GitHub. *Emenda de 2026-11-25: medido na primeira execução (PR rufino-bot/rastru#42, `44d209e`, run 45679448031): job `backend` em 7 min 01 s, dos quais 5 min 7 s na `Api.Tests`; job `front` em 2 min 23 s.*
 - **SQL Server no runner:** o container de serviço do SQL Server 2022 em runner `ubuntu-latest` é caminho conhecido, mas
-  não medido aqui.
+  não medido aqui. *Emenda de 2026-11-25: o banco subiu pelo `docker compose` do `scripts/banco-de-teste` no runner `ubuntu-24.04`, e a suíte do backend passou inteira (execução acima).*
 - **Let's Encrypt** tem limite de emissões: o Caddy guarda o certificado em volume, para não pedir de novo a cada deploy.
 - **Indisponibilidade no deploy:** alguns segundos na troca do container; aceito (não-objetivo).
 - **A massa de vitrine (D11) segue as regras do livro:** só movimentos válidos (o que a API faria), idempotente, chaveada

@@ -31,7 +31,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 # --- 1. SQL Server ----------------------------------------------------------------------------------
-docker compose up -d
+docker compose up -d sqlserver
 echo "== esperando o SQL Server aceitar conexão"
 for _ in $(seq 1 60); do
   "${SQLCMD[@]}" -Q "SELECT 1" >/dev/null 2>&1 && break

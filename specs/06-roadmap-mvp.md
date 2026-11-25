@@ -954,7 +954,7 @@ da 6B**, que continua depois. Quatro partes, cada uma com plano e PR próprios, 
    o DNS, e leva a conferência dele no navegador antes da review de branch.
 4. **PRD** — só quando o usuário decidir.
 
-A parte 1 está **implementada na branch, sem ter rodado no GitHub**; a conferência é o PR dela.
+A parte 1 está **implementada na branch e verificada no GitHub**, e fica concluída no merge do PR dela. Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
 
 ### Fase 6B — Histórico
 

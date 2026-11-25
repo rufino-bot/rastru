@@ -1213,11 +1213,11 @@ com dois jobs em paralelo e sem segredo algum:
   `specs/02-modelo-de-dados.sql` e o `db/seed.sql`, só se o banco ainda não tem `dbo.Usuario`), roda
   `dotnet build Rastreamento.slnx -warnaserror` e `dotnet test Rastreamento.slnx -m:1`, e publica os `.trx` como o
   artefato `resultados-do-backend`.
-- **`front`**: em `web/`, `npm ci`, `npm test` e `npm run build` (Node 22).
+- **`front`**: em `web/`, `npm ci`, `npm test -- --run --maxWorkers=2` e `npm run build` (Node 22).
 
 Os dois jobs, `backend` e `front`, são para ser **check obrigatório da `main`**. Isso é configuração do repositório que o
 **usuário** faz, em Settings → Rules/Branches, e **ainda não foi feito**: até lá o CI avisa, mas não impede o merge.
-Também não foi observado rodando no GitHub: o workflow nasceu na parte 1 do CI/CD e a primeira execução é a do PR dela.
+Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
 
 **CI vermelho que passa ao rodar de novo é registrado, não só re-rodado**: o nome do teste e o link da execução vão
 para o ledger da fase em curso (seção 4 da spec). Há um flaky conhecido no front (`lembra o Setor cuja fila

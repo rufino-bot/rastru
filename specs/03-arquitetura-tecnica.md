@@ -156,8 +156,8 @@ próprio.
 
 - **O CI existe** (desde 2026-11-25): o workflow `.github/workflows/ci.yml`, no GitHub Actions, roda em todo PR para a
   `main` e em todo push na `main`. O job `backend` sobe o SQL Server pelo `scripts/banco-de-teste` e roda
-  `dotnet build -warnaserror` e `dotnet test -m:1`; o job `front` roda, em `web/`, `npm ci`, `npm test` e
-  `npm run build`. O workflow ainda não foi observado rodando no GitHub: a primeira execução é a do PR da parte 1.
+  `dotnet build -warnaserror` e `dotnet test -m:1`; o job `front` roda, em `web/`, `npm ci`, `npm test -- --run --maxWorkers=2` e
+  `npm run build`. Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
   Tornar os dois jobs check obrigatório da `main` é configuração do repositório, a cargo do usuário, e
   ainda não foi feita.
 - **O CD está desenhado, não construído.** A abordagem escolhida (A) é: o GitHub Actions gera a imagem, publica no
