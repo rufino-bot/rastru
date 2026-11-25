@@ -154,9 +154,19 @@ próprio.
 
 ## CI/CD
 
-- **Não existe pipeline hoje.** Deploy inicial será manual — publicar build do backend
-  (IIS ou container) e do frontend direto na VPS. Automatizar (Azure DevOps, GitHub
-  Actions self-hosted, etc.) fica como melhoria futura, fora do MVP.
+- **O CI existe** (desde 2026-11-25): o workflow `.github/workflows/ci.yml`, no GitHub Actions, roda em todo PR para a
+  `main` e em todo push na `main`. O job `backend` sobe o SQL Server pelo `scripts/banco-de-teste` e roda
+  `dotnet build -warnaserror` e `dotnet test -m:1`; o job `front` roda, em `web/`, `npm ci`, `npm test` e
+  `npm run build`. Tornar os dois jobs check obrigatório da `main` é configuração do repositório, a cargo do usuário, e
+  ainda não foi feita.
+- **O CD está desenhado, não construído.** A abordagem escolhida (A) é: o GitHub Actions gera a imagem, publica no
+  GHCR e entra na VPS por SSH para baixar, migrar, trocar a versão e conferir; HML e PRD na mesma VPS, com Caddy na
+  frente. Detalhes e partição em `docs/superpowers/specs/2026-11-25-ci-cd-design.md`. Até a HML existir, o deploy
+  continua manual.
+
+> **Emenda de 2026-11-25.** Esta seção dizia "Não existe pipeline hoje" e deixava automatizar como melhoria futura,
+> "fora do MVP". O usuário **reabriu** essa decisão em 2026-11-25 (D3 da spec de CI/CD), e o trabalho passa na frente
+> da Fase 6B. A seção «Hospedagem» **não** mudou nesta parte: ela muda na parte 2 ou 3.
 
 ## Pontos em aberto
 
