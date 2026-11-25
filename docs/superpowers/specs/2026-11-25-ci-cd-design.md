@@ -92,8 +92,13 @@ pressupõe uma só), deploy sem nenhum segundo de indisponibilidade, monitoramen
   segredos do ambiente e o hash é gerado com o `BCryptPasswordHasher` de produção (seção 6.3). O `db/seed.sql` continua
   igual para dev.
 - **C13. Verificação depois do deploy** (o pipeline falha se qualquer uma falhar): `GET /api/saude` responde 200; `GET /`
-  devolve o `index.html`; `GET /pedidos` (rota do SPA, como F5) devolve o `index.html`; e **login com `admin/Admin@123`
-  devolve 401** — a guarda executável do anti-objetivo 1.
+  devolve o `index.html`; `GET /pedidos` (rota do SPA, como F5) devolve o `index.html`; e **nenhum dos sete usuários do
+  `db/seed.sql` tem no banco do ambiente a senha do seed** — a guarda executável do anti-objetivo 1. Essa última é um
+  comando da imagem, irmão do `definir-senha` (6.3), que lê os hashes do banco e os confere com o `BCryptPasswordHasher`
+  contra as senhas do seed, **sem passar pelo login**. *Emenda do builder check:* a versão anterior desta chamada
+  testava o login `admin/Admin@123` esperando 401, e isso não prova nada — `AutenticarUsuarioUseCase` responde 401 a conta
+  trancada antes de conferir a senha, e cinco deploys seguidos, cada um contando uma falha, trancariam o `admin`; além
+  disso, só olhava um dos sete.
 - **C14. Rota de saúde** `GET /api/saude`, anônima, que confere a conexão com o banco (sem detalhe do erro no corpo).
 - **C15. `ForwardedHeaders`** ligado com `KnownNetworks` **só** a sub-rede fixa da rede Docker do Compose (onde o Caddy
   mora) — nunca listas limpas nem `ASPNETCORE_FORWARDEDHEADERS_ENABLED` (o `CLAUDE.md` registra por quê). Fecha o item 2
@@ -140,8 +145,11 @@ container" nem o botão de promover com aprovação — perde o que D6 pede.
 Arquivo `.github/workflows/ci.yml`, em `pull_request` para `main` e `push` em `main`. Dois jobs em paralelo, runners
 hospedados do GitHub (gratuitos em repo público).
 
-**Backend.** Serviço `mcr.microsoft.com/mssql/server:2022-latest` na porta 1433, com a senha que as suítes já esperam
-(`appsettings` de teste: `sa` / `Your_strong_Pass123` — é a de dev, já pública, e o banco do CI é descartável).
+**Backend.** Serviço `mcr.microsoft.com/mssql/server:2022-latest` na porta 1433, com o banco **`Rastreamento`** e a senha
+que as suítes já esperam (`sa` / `Your_strong_Pass123` — a de dev, já pública; o banco do CI é descartável). Não há
+`appsettings` de teste: a conexão está fixa em `TesteComBanco` e em `ArquivoDeComponenteRepositoryTests`, e a `Api.Tests`
+usa o `appsettings.json` da API — então nome do banco, host e porta têm de ser exatamente esses, e variável de ambiente
+não os muda.
 Aplica `specs/02-modelo-de-dados.sql` e `db/seed.sql` com `sqlcmd -b -f 65001` (o mesmo que o `scripts/backend-na-nuvem`
 faz), depois `dotnet build Rastreamento.slnx -warnaserror` e `dotnet test Rastreamento.slnx -m:1` (o `-m:1` é obrigatório;
 ver «Processos de teste também competem pelo banco» no `CLAUDE.md`). Publica os `.trx` como artefato.
@@ -201,6 +209,12 @@ versão que está subindo**, não os de outra.
   `sqlcmd -b -f 65001`, anotando o nome **na mesma transação** do script quando o script permitir; se um falha, o deploy
   para antes de trocar o container.
 - Hoje a pasta nasce **vazia** (ou só com o script da própria tabela): todo o schema atual está no `02`.
+- **Backup antes de migrar, também na HML** (chamada do desenho, do builder check): quando há migração pendente, o
+  deploy faz um `BACKUP DATABASE` local do banco do ambiente antes da primeira, e guarda os **3 últimos** no volume do SQL
+  Server. Motivo: os scripts têm vários lotes `GO`, não rodam inteiros numa transação, e uma migração que falhe no meio
+  deixaria a HML meio migrada — o que D6 (os dados dos operadores sobrevivem) não aceita. O Express não comprime backup;
+  com a massa de vitrine o tamanho é pequeno. Restaurar é manual, pelo `LEIAME`. Na PRD vale o mesmo, **mais** o backup
+  fora da VPS da seção 9.
 
 ### 6.2 Banco novo (C11)
 
