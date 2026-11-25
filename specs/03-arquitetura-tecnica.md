@@ -157,7 +157,8 @@ próprio.
 - **O CI existe** (desde 2026-11-25): o workflow `.github/workflows/ci.yml`, no GitHub Actions, roda em todo PR para a
   `main` e em todo push na `main`. O job `backend` sobe o SQL Server pelo `scripts/banco-de-teste` e roda
   `dotnet build -warnaserror` e `dotnet test -m:1`; o job `front` roda, em `web/`, `npm ci`, `npm test` e
-  `npm run build`. Tornar os dois jobs check obrigatório da `main` é configuração do repositório, a cargo do usuário, e
+  `npm run build`. O workflow ainda não foi observado rodando no GitHub: a primeira execução é a do PR da parte 1.
+  Tornar os dois jobs check obrigatório da `main` é configuração do repositório, a cargo do usuário, e
   ainda não foi feita.
 - **O CD está desenhado, não construído.** A abordagem escolhida (A) é: o GitHub Actions gera a imagem, publica no
   GHCR e entra na VPS por SSH para baixar, migrar, trocar a versão e conferir; HML e PRD na mesma VPS, com Caddy na
