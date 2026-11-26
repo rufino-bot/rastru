@@ -859,3 +859,15 @@ GO
 --   * tempo de liberação por setor: da chegada (destino NoSetor) à saída (origem AguardandoColeta);
 --   * tempo total, em fila e em produção por pedido: o início real é o MIN(DataHora) dos
 --     movimentos Inicio dos nós do Pedido (regra 14).
+
+/* =====================================================================
+   MIGRAÇÕES APLICADAS (CI/CD, C9)
+   Uma linha por arquivo de db/migracoes/. Banco novo nasce deste script e o `banco preparar`
+   anota todas as migrações como aplicadas (C11); banco existente recebe a tabela pela 0001.
+   ===================================================================== */
+IF OBJECT_ID('dbo.MigracaoAplicada') IS NULL
+    CREATE TABLE dbo.MigracaoAplicada (
+        Nome        NVARCHAR(200) NOT NULL,
+        AplicadaEm  DATETIME2     NOT NULL CONSTRAINT DF_MigracaoAplicada_AplicadaEm DEFAULT SYSUTCDATETIME(),
+        CONSTRAINT PK_MigracaoAplicada PRIMARY KEY (Nome)
+    );

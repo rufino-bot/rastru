@@ -207,8 +207,12 @@ Core é *Database First*: o schema nasce no `.sql`, não em migrations do EF. Se
 tarefa exigir mudança de schema:
 
 1. Alterar `02-modelo-de-dados.sql` primeiro.
-2. Atualizar o mapeamento EF Core a partir do novo schema.
-3. Refletir a mudança em `01-dominio-e-regras-de-negocio.md` se for regra de negócio.
+2. Acrescentar um script idempotente `db/migracoes/NNNN-descricao.sql` (C10 da spec
+   `docs/superpowers/specs/2026-11-25-ci-cd-design.md`): número de quatro dígitos, minúsculas e hífens, **sem `GO`** (o
+   migrador o roda numa transação e anota o nome em `dbo.MigracaoAplicada`). Os `db/alter-*.sql` existentes ficam como
+   estão; as mudanças de schema daqui em diante vão para `db/migracoes/`.
+3. Atualizar o mapeamento EF Core a partir do novo schema.
+4. Refletir a mudança em `01-dominio-e-regras-de-negocio.md` se for regra de negócio.
 
 Nunca deixe o EF Core criar/alterar tabelas por conta própria via `Add-Migration` a
 partir do zero.
@@ -1690,6 +1694,19 @@ tabela existente, não muda dado e não precisa regenerar o banco.
 MSYS_NO_PATHCONV=1 docker compose cp db/alter-panorama.sql sqlserver:/tmp/alter-panorama.sql
 MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-panorama.sql
+```
+
+**Migrações versionadas — `db/migracoes/0001-migracao-aplicada.sql`.** A partir da parte 2 do CI/CD, mudança de schema
+também vira um script em `db/migracoes/` (ver «Banco de dados — regra importante»), aplicado pelo `MigradorDeBanco` em
+ordem de nome, uma transação por script, com um backup antes da primeira pendente. A 0001 cria `dbo.MigracaoAplicada`
+(`Nome` PK, `AplicadaEm`); é a que um banco de dev **anterior** a ela precisa, no mesmo formato dos `alter-*.sql`. O banco
+que o `scripts/banco-de-teste` cria nasce do `02-modelo-de-dados.sql` e **já tem a tabela, vazia** — a suíte não depende
+dela estar preenchida, e o `banco preparar` (Task 6 do plano) é quem anota as migrações de um banco novo.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/migracoes/0001-migracao-aplicada.sql sqlserver:/tmp/0001-migracao-aplicada.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/0001-migracao-aplicada.sql
 ```
 
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
