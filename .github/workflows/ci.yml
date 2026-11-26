@@ -1,7 +1,8 @@
-# CI do Rastru: build e suítes do backend e do front em todo PR para a main e em todo push na main.
-# Os dois jobs, `backend` e `front`, são os que vão ser marcados como check obrigatório da `main` (a
-# configuração é do usuário e ainda não foi feita) — renomear um deles quebraria essa proteção em
-# silêncio, então o nome só muda junto com ela.
+# CI do Rastru: build e suítes do backend e do front em todo PR para a main e em todo push na main, e o
+# job `imagem`, que constrói a imagem e sobe o Compose local. Os três rodam em paralelo.
+# Só `backend` e `front` são os candidatos a check obrigatório da `main` (a configuração é do usuário e
+# ainda não foi feita) — renomear um deles quebraria essa proteção em silêncio, então o nome só muda junto
+# com ela. O `imagem` não é obrigatório; tornar é decisão do usuário.
 #
 # Sem segredo e sem gatilho que rode código de PR com token de escrita: o PR de fora roda com o token
 # só de leitura, e o banco de teste usa a senha de dev do `docker-compose.yml`, que já é pública no
@@ -83,3 +84,37 @@ jobs:
       # O Vitest não faz typecheck: o build é quem pega erro de tipo em `.test.tsx`.
       - name: Build
         run: npm run build
+
+  # Prova que a imagem constrói, que o banco novo nasce com a vitrine e que a verificação C13 passa contra
+  # o Compose de verdade (API + SQL Server + Caddy). Os segredos nascem aleatórios no `subir-local.sh`,
+  # em `deploy/local/`, e somem com o `--derrubar`: nada vem do repositório nem do GitHub.
+  imagem:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      # O Docker Hub responde 429 de vez em quando, e o `up` do `subir-local.sh` não tenta de novo: as duas
+      # imagens de terceiros do Compose são baixadas antes, com algumas tentativas e pausa.
+      - name: Imagens de terceiros
+        run: |
+          for imagem in mcr.microsoft.com/mssql/server:2022-latest caddy:2; do
+            for tentativa in 1 2 3 4 5; do
+              docker pull "$imagem" && break
+              [ "$tentativa" -lt 5 ] || { echo "Não consegui baixar $imagem." >&2; exit 1; }
+              sleep $((tentativa * 15))
+            done
+          done
+
+      - name: Sobe o Compose e verifica
+        run: bash deploy/subir-local.sh
+
+      - name: Logs do Compose
+        if: failure()
+        run: docker compose -f deploy/compose.yaml logs
+
+      - name: Derruba tudo
+        if: always()
+        run: bash deploy/subir-local.sh --derrubar

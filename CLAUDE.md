@@ -19,7 +19,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
 - **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3, e o Separador é o Almoxarifado renomeado na Fase 4)
-- **CI/CD**: CI no GitHub Actions (`.github/workflows/ci.yml`) desde 2026-11-25; CD em desenho — ver `docs/superpowers/specs/2026-11-25-ci-cd-design.md`
+- **CI/CD**: CI no GitHub Actions (`.github/workflows/ci.yml`) desde 2026-11-25; imagem única de container e Compose com Caddy (parte 2, `Dockerfile` e `deploy/`) verificados no job `imagem` do CI; CD (HML e PRD) em desenho — ver `docs/superpowers/specs/2026-11-25-ci-cd-design.md`
 
 ## Mapa da pasta `specs/`
 
@@ -1227,7 +1227,7 @@ Frontend: ainda não criado (Fase 1 em diante).
 
 O workflow `.github/workflows/ci.yml` (nome `CI`, desde 2026-11-25; spec
 `docs/superpowers/specs/2026-11-25-ci-cd-design.md`, seção 4) roda em todo PR para a `main` e em todo push na `main`,
-com dois jobs em paralelo e sem segredo algum:
+com três jobs em paralelo e sem segredo algum:
 
 - **`backend`**: instala o .NET 10, prepara o banco com `bash scripts/banco-de-teste` (o mesmo script que o
   `scripts/backend-na-nuvem` chama: sobe o `sqlserver` do `docker-compose.yml`, cria o banco `Rastreamento` e aplica o
@@ -1235,10 +1235,21 @@ com dois jobs em paralelo e sem segredo algum:
   `dotnet build Rastreamento.slnx -warnaserror` e `dotnet test Rastreamento.slnx -m:1`, e publica os `.trx` como o
   artefato `resultados-do-backend`.
 - **`front`**: em `web/`, `npm ci`, `npm test -- --run --maxWorkers=2` e `npm run build` (Node 22).
+- **`imagem`** (parte 2 do CI/CD; `ubuntu-24.04`, 30 min, `permissions: contents: read`, sem segredo): baixa antes, com até
+  cinco tentativas e pausa crescente, as duas imagens de terceiros do Compose (`mcr.microsoft.com/mssql/server:2022-latest` e
+  `caddy:2`), porque o Docker Hub responde 429 de vez em quando e o `up` do `subir-local.sh` não tenta de novo; depois roda
+  `bash deploy/subir-local.sh`, que constrói a imagem do `Dockerfile`, sobe o SQL Server, prepara o banco novo da HML **com
+  a massa de vitrine** (`banco preparar`, `Banco__Vitrine=true`), sobe a API e o Caddy com TLS local e roda a verificação
+  C13 (`deploy/verificar.sh`). Em falha, imprime `docker compose -f deploy/compose.yaml logs`, e **sempre** termina com
+  `bash deploy/subir-local.sh --derrubar` (contêineres, volumes e `deploy/local/`). Prova, portanto, que a imagem constrói,
+  que o banco novo nasce com a vitrine e que a C13 passa contra o Compose de verdade. O tempo medido na primeira execução
+  entra aqui quando houver uma.
 
-Os dois jobs, `backend` e `front`, são para ser **check obrigatório da `main`**. Isso é configuração do repositório que o
+Os dois jobs `backend` e `front` são para ser **check obrigatório da `main`**; o `imagem` roda junto, mas **não** é
+candidato por ora (tornar é decisão do usuário). Isso é configuração do repositório que o
 **usuário** faz, em Settings → Rules/Branches, e **ainda não foi feito**: até lá o CI avisa, mas não impede o merge.
-Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok). Essa execução é anterior ao job `imagem`, que ainda **não rodou no GitHub**: a
+primeira será a do PR da parte 2.
 
 **CI vermelho que passa ao rodar de novo é registrado, não só re-rodado**: o nome do teste e o link da execução vão
 para o ledger da fase em curso (seção 4 da spec). Há um flaky conhecido no front (`lembra o Setor cuja fila

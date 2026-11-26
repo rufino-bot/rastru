@@ -949,12 +949,17 @@ da 6B**, que continua depois. Quatro partes, cada uma com plano e PR próprios, 
 
 1. **CI** — `ci.yml` e a regra de flakiness. Pronto quando um PR aberto mostra os dois jobs verdes.
 2. **A aplicação pronta para container** — Dockerfile, SPA servido pela API, saúde, `ForwardedHeaders`, migrações
-   versionadas, a massa de vitrine e o Compose; verificável sem VPS.
+   versionadas, o comando de senha (`definir-senha` e `conferir-senhas`), a massa de vitrine, o Compose e o `Caddyfile`;
+   verificável sem VPS, pelo `deploy/subir-local.sh` e pelo job `imagem` do CI.
 3. **HML no ar** — `deploy.yml`, o preparo da VPS e o `deploy/LEIAME.md`; depende de o usuário contratar a VPS e apontar
    o DNS, e leva a conferência dele no navegador antes da review de branch.
 4. **PRD** — só quando o usuário decidir.
 
 A parte 1 está **implementada na branch e verificada no GitHub**, e fica concluída no merge do PR dela. Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+
+A parte 2 está **implementada na branch** (Tasks 1 a 10 do plano), com o job `imagem` no `ci.yml`, e fica concluída no
+merge do PR dela. O job `imagem` ainda **não rodou no GitHub**: a primeira execução é a do PR; o que vale até lá é a
+verificação local do `deploy/subir-local.sh`. Resta, da parte 2, a review de branch inteira.
 
 ### Fase 6B — Histórico
 

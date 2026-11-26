@@ -73,6 +73,9 @@ const ISENTOS: Record<string, string> = {
   'AuthController.cs':
     'rotas de sessão (login/refresh/logout), anônimas por contrato — não há perfil a espelhar, e ' +
     'o par de backend delas é `IsentosDeAutenticacaoPorDesenho` em PerfisDeEscritaDeclaradosTests.',
+  'SaudeController.cs':
+    '`GET /saude` é `[AllowAnonymous]` por contrato — é a sonda do container e da verificação do Compose, ' +
+    'que não tem sessão. Não há perfil a espelhar, e a rota só lê o banco.',
   'MeController.cs':
     'o gate é `[Authorize]` de classe, SEM `Roles`: leitura da própria sessão é de qualquer ' +
     'autenticado. `permissoes.ts` só fala de ESCRITA por perfil, então não há entrada a fazer.',
