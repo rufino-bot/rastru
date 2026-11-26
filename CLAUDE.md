@@ -1240,7 +1240,7 @@ com três jobs em paralelo e sem segredo algum:
   `caddy:2`), porque o Docker Hub responde 429 de vez em quando e o `up` do `subir-local.sh` não tenta de novo; depois roda
   `bash deploy/subir-local.sh`, que constrói a imagem do `Dockerfile`, sobe o SQL Server, prepara o banco novo da HML **com
   a massa de vitrine** (`banco preparar`, `Banco__Vitrine=true`), sobe a API e o Caddy com TLS local e roda a verificação
-  C13 (`deploy/verificar.sh`). Em falha, imprime `docker compose -f deploy/compose.yaml logs`, e **sempre** termina com
+  C13 (`deploy/verificar.sh`). Em falha, chama `bash deploy/subir-local.sh --logs`, e **sempre** termina com
   `bash deploy/subir-local.sh --derrubar` (contêineres, volumes e `deploy/local/`). Prova, portanto, que a imagem constrói,
   que o banco novo nasce com a vitrine e que a C13 passa contra o Compose de verdade. O tempo medido na primeira execução
   entra aqui quando houver uma.
@@ -1248,8 +1248,7 @@ com três jobs em paralelo e sem segredo algum:
 Os dois jobs `backend` e `front` são para ser **check obrigatório da `main`**; o `imagem` roda junto, mas **não** é
 candidato por ora (tornar é decisão do usuário). Isso é configuração do repositório que o
 **usuário** faz, em Settings → Rules/Branches, e **ainda não foi feito**: até lá o CI avisa, mas não impede o merge.
-Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok). Essa execução é anterior ao job `imagem`, que ainda **não rodou no GitHub**: a
-primeira será a do PR da parte 2.
+Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok). Essa execução é anterior ao job `imagem`. Primeira execução do `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo).
 
 **CI vermelho que passa ao rodar de novo é registrado, não só re-rodado**: o nome do teste e o link da execução vão
 para o ledger da fase em curso (seção 4 da spec). Há um flaky conhecido no front (`lembra o Setor cuja fila
@@ -1736,7 +1735,7 @@ também vira um script em `db/migracoes/` (ver «Banco de dados — regra import
 ordem de nome, uma transação por script, com um backup antes da primeira pendente. A 0001 cria `dbo.MigracaoAplicada`
 (`Nome` PK, `AplicadaEm`); é a que um banco de dev **anterior** a ela precisa, no mesmo formato dos `alter-*.sql`. O banco
 que o `scripts/banco-de-teste` cria nasce do `02-modelo-de-dados.sql` e **já tem a tabela, vazia** — a suíte não depende
-dela estar preenchida, e o `banco preparar` (Task 6 do plano) é quem anota as migrações de um banco novo.
+dela estar preenchida, e o `banco preparar` é quem anota as migrações de um banco novo.
 
 ```bash
 MSYS_NO_PATHCONV=1 docker compose cp db/migracoes/0001-migracao-aplicada.sql sqlserver:/tmp/0001-migracao-aplicada.sql
@@ -1828,7 +1827,7 @@ middleware, antes do SPA e da guarda do `/api`, com `XForwardedFor | XForwardedP
 `KnownIPNetworks` (o `KnownProxies` e o loopback padrão são limpos: só a rede configurada é confiável). `Rede` vazia ou
 ausente: o middleware **não é registrado** e o cabeçalho é ignorado, como em desenvolvimento. O `ProxyReversoOptionsValidator`
 derruba a aplicação no startup com rede que não é CIDR ou com prefixo zero (`0.0.0.0/0`, `::/0`), que confiaria em todo
-mundo. A sub-rede vem do Compose (Task 9 do plano da parte 2), e o Caddy manda `X-Forwarded-For` e `X-Forwarded-Proto`.
+mundo. A sub-rede vem do `deploy/compose.yaml`, e o Caddy manda `X-Forwarded-For` e `X-Forwarded-Proto`.
 Os testes são `ProxyReversoTests` (três) e `Aplicacao_nao_sobe_com_rede_do_proxy_invalida`. O risco que continua valendo
 para quem mexer nisso: **não** deixar `KnownProxies` e `KnownNetworks` limpos sem uma rede por cima (o exemplo da
 documentação para proxy que não é IIS faz isso) nem usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a

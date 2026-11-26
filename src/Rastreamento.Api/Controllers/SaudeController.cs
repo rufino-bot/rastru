@@ -24,6 +24,9 @@ public class SaudeController(RastreamentoDbContext db, ILogger<SaudeController> 
     {
       if (await db.Database.CanConnectAsync(ct))
         return Ok(new { status = "ok" });
+
+      // O EF devolve false, sem lancar, para "login failed" e "banco inexistente": o caso mais provavel.
+      logger.LogWarning("A conferencia de saude nao alcancou o banco (login recusado ou banco inexistente).");
     }
     catch (Exception ex) when (ex is not OperationCanceledException)
     {

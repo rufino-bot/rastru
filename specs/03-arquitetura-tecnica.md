@@ -162,7 +162,7 @@ próprio.
   `main` e em todo push na `main`. O job `backend` sobe o SQL Server pelo `scripts/banco-de-teste` e roda
   `dotnet build -warnaserror` e `dotnet test -m:1`; o job `front` roda, em `web/`, `npm ci`, `npm test -- --run --maxWorkers=2` e
   `npm run build`; o job `imagem` (parte 2) constrói a imagem, sobe o Compose local (`bash deploy/subir-local.sh`) e roda
-  a verificação C13, e **não** é check obrigatório. Primeira execução dos dois primeiros: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+  a verificação C13, e **não** é check obrigatório. Primeira execução dos dois primeiros: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok). Primeira execução do `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo).
   Tornar `backend` e `front` check obrigatório da `main` é configuração do repositório, a cargo do usuário, e
   ainda não foi feita.
 - **O CD está desenhado, não construído.** A abordagem escolhida (A) é: o GitHub Actions gera a imagem, publica no
@@ -177,9 +177,7 @@ próprio.
 ## Pontos em aberto
 
 Biblioteca de componentes React (ver a seção "Frontend — React + TypeScript") e estratégia de auth
-(ver a seção "Autenticação e Autorização") já resolvidas. O hosting exato (IIS vs. container)
-dentro da VPS pode ser decidido no deploy sem bloquear o desenvolvimento — mas não é mais o único
-ponto em aberto: a escolha da VPS pública (ver a seção "Hospedagem") torna exigíveis três itens de
+(ver a seção "Autenticação e Autorização") já resolvidas. O hosting está decidido (container e Caddy, na seção "Hospedagem"); a escolha da VPS pública (ver a seção "Hospedagem") torna exigíveis três itens de
 dívida de endurecimento — os dois primeiros porque é a **exposição pública** que os cria, o
 terceiro porque é um **deploy real** que o cobra, com ou sem exposição —, e os três carregam o
 mesmo gatilho, **obrigatório antes do primeiro deploy público**. O item 4 carrega o mesmo gatilho
@@ -197,18 +195,15 @@ sem ser endurecimento: é condição para o upload de sólido funcionar atrás d
    do `/auth/login` seria global e o log de auth gravaria o IP do proxy. A seção `ProxyReverso`, chave `Rede` (CIDR,
    `ProxyReverso__Rede`), liga o `UseForwardedHeaders` como primeiro middleware, só para essa rede, com
    `X-Forwarded-For` e `X-Forwarded-Proto` e `ForwardLimit = 1`; vazia, o middleware não é registrado, e CIDR inválido
-   ou prefixo zero derruba a aplicação no startup. **O que falta é deploy:** o Compose (Task 9) fornece a sub-rede e a
-   preenche, e o Caddy manda os dois cabeçalhos. O gatilho "obrigatório antes do primeiro deploy público" deste item
-   passa a ser só preencher `ProxyReverso__Rede` no ambiente.
-3. **A `SigningKey` já tem o procedimento de validação certo — o de deploy está pronto no Compose (2026-11-25).** O
-   `deploy/compose.yaml` lê a `Jwt__SigningKey` de um `env_file` que o `subir-local.sh` gera aleatória; na VPS é o mesmo
-   arquivo, preenchido no preparo da parte 3, e sem ele a aplicação não sobe.
-   *Texto anterior, ainda válido:* O
-   `JwtOptionsValidator` já recusa, no startup (`.ValidateOnStart()`), o valor de placeholder
-   commitado e exige no mínimo 32 bytes: esquecer de trocá-la **derruba a aplicação ao subir**, não
-   fica como chave fraca em silêncio — o requisito de fornecê-la por variável de ambiente na VPS
-   continua valendo, com o mesmo gatilho de TLS e `ForwardedHeaders`; o que muda é o risco de
-   esquecer, não a obrigação.
+   ou prefixo zero derruba a aplicação no startup. O `deploy/compose.yaml` fornece a sub-rede e preenche a `ProxyReverso__Rede`, e o Caddy manda os dois
+   cabeçalhos. **Risco para a parte 3:** a rede do Compose não tem IPv6, então cliente IPv6 chegaria ao Caddy pelo
+   gateway `172.30.0.1` e todos dividiriam uma partição só do rate limit; e o gateway, como qualquer processo do host,
+   está dentro do `/24` confiável e pode forjar `X-Forwarded-For` direto na API. Opções: IPv6 na rede ou registro sem
+   AAAA; confiar só no IP fixo do Caddy, como `/32`.
+3. **A `SigningKey` tem validação e procedimento de deploy (2026-11-25).** O `JwtOptionsValidator` recusa, no startup
+   (`.ValidateOnStart()`), o valor de placeholder commitado e exige no mínimo 32 bytes: esquecê-la **derruba a aplicação
+   ao subir**, não deixa chave fraca em silêncio. O `deploy/compose.yaml` lê a `Jwt__SigningKey` de um `env_file` que o
+   `subir-local.sh` gera aleatória; na VPS é o mesmo arquivo, preenchido no preparo da parte 3.
 4. **O limite de corpo do proxy barra o upload de sólido** — *resolvido no desenho (2026-11-25): o proxy é o Caddy, que
    não impõe limite de corpo por padrão, e o `deploy/Caddyfile` não põe nenhum; o texto abaixo, sobre nginx e IIS,
    fica como histórico.* Se o caminho for container + nginx, o

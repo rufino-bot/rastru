@@ -30,7 +30,8 @@ services:
     # Sem "ports": a 1433 não sai da rede do Compose.
     networks: [rastru]
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      # A senha vai por SQLCMDPASSWORD, que o sqlcmd lê: no "-P" ela ficaria na linha de comando, legível por ps.
+      test: ["CMD-SHELL", "SQLCMDPASSWORD=\"$$MSSQL_SA_PASSWORD\" /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -Q 'SELECT 1' -b -o /dev/null"]
       interval: 5s
       timeout: 5s
       retries: 30

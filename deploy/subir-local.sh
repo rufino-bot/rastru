@@ -2,7 +2,7 @@
 # Sobe o Rastru do zero na máquina local, com segredos aleatórios, e roda a verificação.
 #   bash deploy/subir-local.sh              sobe e verifica
 #   bash deploy/subir-local.sh --derrubar   derruba tudo, apaga os volumes e deploy/local/
-#   bash deploy/subir-local.sh --logs       mostra os logs de todos os serviços (inclusive o banco-hml)
+#   bash deploy/subir-local.sh --logs       mostra os logs dos serviços que ficam de pé (o banco-hml é `run --rm`: a saída dele está no log do passo "Preparando o banco")
 set -euo pipefail
 
 aqui="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +10,8 @@ raiz="$(cd "$aqui/.." && pwd)"
 local_dir="$aqui/local"
 compose=(docker compose -f "$aqui/compose.yaml")
 
+# RASTRU_IMAGEM passada pelo ambiente vale como está (nada é construído); sem ela, sempre se constrói.
+imagem_do_ambiente="${RASTRU_IMAGEM:-}"
 export RASTRU_IMAGEM="${RASTRU_IMAGEM:-rastru:local}"
 export RASTRU_DOMINIO_HML="hml.localhost"
 export RASTRU_SEGREDOS="$local_dir"
@@ -38,6 +40,11 @@ fi
 senha() { echo "Ra1-$(openssl rand -hex 16)"; }
 
 mkdir -p "$local_dir"
+faltam=0
+for f in sqlserver hml banco-hml; do [ -f "$local_dir/$f.env" ] || faltam=$((faltam + 1)); done
+if [ "$faltam" -gt 0 ] && [ "$faltam" -lt 3 ]; then
+  echo "AVISO: só parte dos segredos de deploy/local/ existia; todos foram regenerados. Um volume mssql antigo guarda a senha sa velha: rode --derrubar antes se o SQL Server não ficar saudável." >&2
+fi
 if [ ! -f "$local_dir/sqlserver.env" ] || [ ! -f "$local_dir/hml.env" ] || [ ! -f "$local_dir/banco-hml.env" ]; then
   sa="$(senha)"
   login="$(senha)"
@@ -58,8 +65,8 @@ else
   echo "Segredos de deploy/local/ já existem: mantidos."
 fi
 
-if ! docker image inspect "$RASTRU_IMAGEM" >/dev/null 2>&1; then
-  echo "Imagem $RASTRU_IMAGEM não existe: construindo."
+if [ -z "$imagem_do_ambiente" ]; then
+  echo "Construindo a imagem $RASTRU_IMAGEM (usa o cache)."
   docker build -t "$RASTRU_IMAGEM" "$raiz"
 fi
 

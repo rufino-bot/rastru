@@ -4,10 +4,11 @@
 -- NAO confundir com db/seed.sql, que e o MINIMO para o sistema funcionar
 -- (perfis + usuarios) e continua sendo o unico obrigatorio.
 --
--- NENHUM teste automatizado pode depender deste arquivo. Api.Tests e
--- Infrastructure.Tests criam a propria massa, e e isso que os torna
--- deterministicos numa maquina qualquer. A dependencia e de mao unica:
--- a verificacao MANUAL usa este demo, a suite ignora que ele existe.
+-- A suite nunca carrega este arquivo no banco compartilhado (Rastreamento):
+-- Api.Tests e Infrastructure.Tests criam a propria massa, e e isso que os torna
+-- deterministicos numa maquina qualquer. O CriadorDeBanco o carrega no banco novo
+-- da vitrine (HML) e o MassaDaVitrineTests, num banco descartavel proprio; nenhum
+-- teste depende dele estar no banco compartilhado. A verificacao MANUAL usa este demo.
 --
 -- Idempotente: rodar duas vezes nao duplica linha.
 -- =====================================================================

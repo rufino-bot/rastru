@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Verificação do que subiu (C13): bash deploy/verificar.sh <url-base> <servico-do-banco>
-# Para no primeiro item que falha. Respeita CURL_CA_BUNDLE (CA local) e RASTRU_SEGREDOS/RASTRU_IMAGEM do Compose.
+# Para no primeiro item que falha. Respeita CURL_CA_BUNDLE (CA local) e RASTRU_SEGREDOS, RASTRU_IMAGEM e
+# RASTRU_DOMINIO_HML do Compose (este o exige mesmo para rodar só o banco-hml).
 set -u
 
 if [ $# -ne 2 ]; then
@@ -46,7 +47,9 @@ codigo="$(status "$base/API/setores")"
 [ "$codigo" = "404" ] || falhar "GET /API/setores respondeu $codigo, esperado 404."
 echo "  ok: GET /API/setores 404"
 
-if ! docker compose -f "$aqui/compose.yaml" --profile ferramentas run --rm -T "$servico" conferir-senhas >/dev/null 2>&1; then
+# A saída do comando nunca tem segredo (nomeia os usuários e a exceção): calada no sucesso, mostrada na falha.
+if ! saida="$(docker compose -f "$aqui/compose.yaml" --profile ferramentas run --rm -T "$servico" conferir-senhas 2>&1)"; then
+  printf '%s\n' "$saida" >&2
   falhar "conferir-senhas não saiu 0: algum usuário ainda tem a senha pública do repositório (ou o comando falhou)."
 fi
 echo "  ok: nenhum dos sete usuários tem a senha do repositório"
