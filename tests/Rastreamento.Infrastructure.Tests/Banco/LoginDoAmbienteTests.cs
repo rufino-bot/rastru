@@ -62,6 +62,7 @@ public class LoginDoAmbienteTests : IAsyncLifetime
   [Theory]
   [InlineData("x]; DROP")]
   [InlineData("Rastru")]
+  [InlineData("sa")]
   public async Task Nome_de_login_invalido_lanca(string nome)
   {
     await Assert.ThrowsAsync<ArgumentException>(() => new LoginDoAmbiente().GarantirAsync(

@@ -20,6 +20,7 @@ public sealed class PreparadorDeBanco(CriadorDeBanco criador, MigradorDeBanco mi
       throw new InvalidOperationException("Banco:Nome não configurado.");
     if (string.IsNullOrWhiteSpace(opcoes.Login) || string.IsNullOrEmpty(opcoes.SenhaDoLogin))
       throw new InvalidOperationException("Banco:Login e Banco:SenhaDoLogin não configurados.");
+    LoginDoAmbiente.Validar(opcoes.Login, opcoes.SenhaDoLogin);
 
     var scripts = new ScriptsDoBanco(opcoes.RaizDosScripts);
 

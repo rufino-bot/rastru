@@ -16,15 +16,26 @@ public sealed partial class LoginDoAmbiente
   [GeneratedRegex("^[a-z_][a-z0-9_]*$")]
   private static partial Regex NomeValido();
 
-  public async Task GarantirAsync(
-      string conexaoAdministrativa, string banco, string login, string senha, CancellationToken ct)
+  // Logins de servidor que o ambiente nunca pode assumir: mexer na senha deles é mexer no administrador (C17).
+  private static readonly string[] Reservados = ["sa"];
+
+  /// <summary>Confere nome e senha sem tocar no servidor; o preparador a chama antes de criar qualquer coisa.</summary>
+  public static void Validar(string login, string senha)
   {
     if (string.IsNullOrEmpty(login) || login.Length > LimiteDoQuotename || !NomeValido().IsMatch(login))
       throw new ArgumentException("Nome de login inválido: use minúsculas, dígitos e sublinhado.", nameof(login));
+    if (Reservados.Contains(login))
+      throw new ArgumentException($"O login '{login}' é reservado: o ambiente tem login próprio, e o sa só cria banco e migra.", nameof(login));
     if (string.IsNullOrEmpty(senha))
       throw new ArgumentException("A senha do login não pode ser vazia.", nameof(senha));
     if (senha.Length > LimiteDoQuotename)
       throw new ArgumentException($"A senha do login passa de {LimiteDoQuotename} caracteres.", nameof(senha));
+  }
+
+  public async Task GarantirAsync(
+      string conexaoAdministrativa, string banco, string login, string senha, CancellationToken ct)
+  {
+    Validar(login, senha);
 
     await using (var master = new SqlConnection(conexaoAdministrativa))
     {

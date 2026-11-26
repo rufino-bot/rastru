@@ -35,6 +35,28 @@ public class PreparadorDeBancoTests : IAsyncLifetime
   private static Dictionary<string, string> Senhas() =>
       SenhasDoSeed.Todas.ToDictionary(s => s.Usuario, s => $"Forte-{s.Usuario}-{Guid.NewGuid():N}-Aa1!");
 
+  [Theory]
+  [InlineData("sa", "Forte-Aa1!-senha-boa")]
+  [InlineData("Rastru", "Forte-Aa1!-senha-boa")]
+  [InlineData("rastru_ok", "x")]
+  public async Task Login_invalido_aborta_antes_de_criar_o_banco(string login, string senha)
+  {
+    if (senha == "x") senha = new string('a', 129);
+    var opcoes = Opcoes(BancoDescartavel.RaizDoRepositorio(), senha);
+    opcoes.Login = login;
+
+    await Assert.ThrowsAsync<ArgumentException>(() =>
+        Preparador().PrepararAsync(opcoes, Senhas(), CancellationToken.None));
+
+    await using var master = new SqlConnection(_banco.ConexaoAdministrativa);
+    await master.OpenAsync();
+    await using var cmd = new SqlCommand(
+        "SELECT COUNT(*) FROM sys.databases WHERE name IN (@n, @c)", master);
+    cmd.Parameters.AddWithValue("@n", _banco.Nome);
+    cmd.Parameters.AddWithValue("@c", _banco.Nome + "_criando");
+    Assert.Equal(0, (int)(await cmd.ExecuteScalarAsync())!);
+  }
+
   [Fact]
   public async Task Banco_inexistente_e_criado_e_o_login_garantido()
   {
