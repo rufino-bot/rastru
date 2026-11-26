@@ -113,7 +113,7 @@ jobs:
 
       - name: Logs do Compose
         if: failure()
-        run: docker compose -f deploy/compose.yaml logs
+        run: bash deploy/subir-local.sh --logs
 
       - name: Derruba tudo
         if: always()

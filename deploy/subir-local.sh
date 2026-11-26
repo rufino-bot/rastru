@@ -2,6 +2,7 @@
 # Sobe o Rastru do zero na máquina local, com segredos aleatórios, e roda a verificação.
 #   bash deploy/subir-local.sh              sobe e verifica
 #   bash deploy/subir-local.sh --derrubar   derruba tudo, apaga os volumes e deploy/local/
+#   bash deploy/subir-local.sh --logs       mostra os logs de todos os serviços (inclusive o banco-hml)
 set -euo pipefail
 
 aqui="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,6 +23,13 @@ if [ "${1:-}" = "--derrubar" ]; then
   "${compose[@]}" --profile ferramentas down -v --remove-orphans
   rm -rf "$local_dir"
   echo "Tudo derrubado: contêineres, volumes e deploy/local/ removidos."
+  exit 0
+fi
+
+if [ "${1:-}" = "--logs" ]; then
+  mkdir -p "$local_dir"
+  for f in sqlserver hml banco-hml; do [ -f "$local_dir/$f.env" ] || : > "$local_dir/$f.env"; done
+  "${compose[@]}" --profile ferramentas logs --no-color
   exit 0
 fi
 
