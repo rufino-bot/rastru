@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Rastreamento.Api.Comandos;
 using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
 using Rastreamento.Api.Spa;
@@ -26,6 +27,9 @@ using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Importacao;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
+
+// Os verbos de linha de comando (definir-senha, conferir-senhas, banco) rodam e saem sem subir o servidor.
+if (LinhaDeComando.EhComando(args)) return await LinhaDeComando.ExecutarAsync(args);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -301,6 +305,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+return 0;
 
 // Torna a classe gerada pelos top-level statements visivel para WebApplicationFactory<Program>.
 public partial class Program { }

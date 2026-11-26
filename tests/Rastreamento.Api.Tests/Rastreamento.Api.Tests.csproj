@@ -20,6 +20,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Um arquivo, dois projetos: o banco descartável da Infrastructure.Tests também serve a estes testes. -->
+    <Compile Include="..\Rastreamento.Infrastructure.Tests\Banco\BancoDescartavel.cs" Link="Apoio\BancoDescartavel.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rastreamento.Api\Rastreamento.Api.csproj" />
   </ItemGroup>
 
