@@ -11,7 +11,7 @@ public class SenhasDosUsuariosTests
   [Fact]
   public async Task A_lista_do_seed_bate_com_o_seed()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     await using var conexao = await AbrirAsync(banco);
 
     var com = await new SenhasDosUsuarios(Hasher).ComSenhaDoSeedAsync(conexao, CancellationToken.None);
@@ -23,7 +23,7 @@ public class SenhasDosUsuariosTests
   [Fact]
   public async Task Definir_troca_o_hash_e_tira_o_usuario_da_lista()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     await using var conexao = await AbrirAsync(banco);
     var senhas = new SenhasDosUsuarios(Hasher);
 
@@ -38,7 +38,7 @@ public class SenhasDosUsuariosTests
   [Fact]
   public async Task Definir_zera_a_trava()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     await using var conexao = await AbrirAsync(banco);
     await using (var trava = new SqlCommand(
         "UPDATE dbo.Usuario SET FalhasConsecutivas = 5, BloqueadoAte = DATEADD(HOUR, 1, SYSUTCDATETIME()) " +
@@ -61,7 +61,7 @@ public class SenhasDosUsuariosTests
   [InlineData("   ")]
   public async Task Definir_recusa_a_senha_do_seed_e_a_vazia(string senha)
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     await using var conexao = await AbrirAsync(banco);
 
     await Assert.ThrowsAsync<ArgumentException>(() =>
@@ -71,22 +71,11 @@ public class SenhasDosUsuariosTests
   [Fact]
   public async Task Definir_usuario_inexistente_lanca()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     await using var conexao = await AbrirAsync(banco);
 
     await Assert.ThrowsAsync<InvalidOperationException>(() =>
         new SenhasDosUsuarios(Hasher).DefinirAsync(conexao, null, "ninguem", "Outra-Senha-forte-1", CancellationToken.None));
-  }
-
-  private static async Task<BancoDescartavel> BancoComSeedAsync()
-  {
-    var banco = await BancoDescartavel.CriarAsync();
-    var scripts = new ScriptsDoBanco(RaizDoRepositorio());
-    await using var conexao = await AbrirAsync(banco);
-    foreach (var arquivo in new[] { scripts.Modelo, scripts.Seed })
-      await ExecutorDeSql.ExecutarAsync(
-          conexao, null, await File.ReadAllTextAsync(arquivo, System.Text.Encoding.UTF8), CancellationToken.None);
-    return banco;
   }
 
   private static async Task<SqlConnection> AbrirAsync(BancoDescartavel banco)
@@ -101,13 +90,5 @@ public class SenhasDosUsuariosTests
     await using var cmd = new SqlCommand("SELECT SenhaHash FROM dbo.Usuario WHERE NomeUsuario = @u", conexao);
     cmd.Parameters.AddWithValue("@u", usuario);
     return (string)(await cmd.ExecuteScalarAsync())!;
-  }
-
-  private static string RaizDoRepositorio()
-  {
-    var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Rastreamento.slnx")))
-      dir = dir.Parent;
-    return dir?.FullName ?? throw new InvalidOperationException("Raiz do repositório não encontrada.");
   }
 }

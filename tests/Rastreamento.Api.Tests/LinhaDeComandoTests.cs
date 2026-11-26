@@ -39,7 +39,7 @@ public class LinhaDeComandoTests
   [Fact]
   public async Task Definir_sem_a_senha_configurada_sai_1()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
 
     var (codigo, saida, erro) = await Rodar(
         ["definir-senha", "admin"], new() { ["ConnectionStrings:Rastreamento"] = banco.ConexaoDoBanco });
@@ -52,7 +52,7 @@ public class LinhaDeComandoTests
   [Fact]
   public async Task Definir_e_depois_conferir()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     var config = new Dictionary<string, string?> { ["ConnectionStrings:Rastreamento"] = banco.ConexaoDoBanco };
     var todas = new System.Text.StringBuilder();
 
@@ -75,7 +75,7 @@ public class LinhaDeComandoTests
   [Fact]
   public async Task Saida_nunca_tem_a_senha_nem_a_conexao()
   {
-    await using var banco = await BancoComSeedAsync();
+    await using var banco = await BancoDescartavel.CriarComSeedAsync();
     var config = new Dictionary<string, string?>
     {
       ["ConnectionStrings:Rastreamento"] = banco.ConexaoDoBanco,
@@ -96,6 +96,50 @@ public class LinhaDeComandoTests
     SemSegredos(saida + erro);
   }
 
+  [Fact]
+  public async Task Banco_preparar_cria_e_conferir_passa()
+  {
+    await using var banco = await BancoDescartavel.ReservarNomeAsync();
+    var login = $"rastru_teste_{Guid.NewGuid():N}";
+    var senhaDoLogin = $"Forte-{Guid.NewGuid():N}-Aa1!";
+    try
+    {
+      var config = new Dictionary<string, string?>
+      {
+        ["Banco:ConexaoAdministrativa"] = banco.ConexaoAdministrativa,
+        ["Banco:Nome"] = banco.Nome,
+        ["Banco:Login"] = login,
+        ["Banco:SenhaDoLogin"] = senhaDoLogin,
+        ["Banco:Vitrine"] = "false",
+        ["Banco:RaizDosScripts"] = BancoDescartavel.RaizDoRepositorio(),
+        ["ConnectionStrings:Rastreamento"] = new SqlConnectionStringBuilder(banco.ConexaoDoBanco)
+        { UserID = login, Password = senhaDoLogin }.ConnectionString,
+      };
+      foreach (var nome in Sete) config[$"Senhas:{nome}"] = $"Forte-{nome}-{Guid.NewGuid():N}-Aa1!";
+
+      var (codigo, saida, erro) = await Rodar(["banco", "preparar"], config);
+      Assert.Equal(0, codigo);
+      Assert.Contains("banco novo criado", saida);
+      Assert.Contains($"login {login} garantido", saida);
+      SemSegredos(saida + erro);
+      Assert.DoesNotContain(senhaDoLogin, saida + erro);
+
+      var (c2, s2, e2) = await Rodar(["conferir-senhas"], config);
+      Assert.Equal(0, c2);
+      SemSegredos(s2 + e2);
+
+      var (c3, s3, e3) = await Rodar(["banco", "preparar"], config);
+      Assert.Equal(0, c3);
+      Assert.Contains("nada a migrar", s3);
+      SemSegredos(s3 + e3);
+    }
+    finally
+    {
+      await banco.DisposeAsync();
+      await BancoDescartavel.ApagarLoginAsync(login);
+    }
+  }
+
   private static void SemSegredos(string texto)
   {
     Assert.DoesNotContain("Password=", texto, StringComparison.OrdinalIgnoreCase);
@@ -111,25 +155,5 @@ public class LinhaDeComandoTests
     var erro = new StringWriter();
     var codigo = await LinhaDeComando.ExecutarAsync(args, configuracao, saida, erro);
     return (codigo, saida.ToString(), erro.ToString());
-  }
-
-  private static async Task<BancoDescartavel> BancoComSeedAsync()
-  {
-    var banco = await BancoDescartavel.CriarAsync();
-    var scripts = new ScriptsDoBanco(RaizDoRepositorio());
-    await using var conexao = new SqlConnection(banco.ConexaoDoBanco);
-    await conexao.OpenAsync();
-    foreach (var arquivo in new[] { scripts.Modelo, scripts.Seed })
-      await ExecutorDeSql.ExecutarAsync(
-          conexao, null, await File.ReadAllTextAsync(arquivo, System.Text.Encoding.UTF8), CancellationToken.None);
-    return banco;
-  }
-
-  private static string RaizDoRepositorio()
-  {
-    var dir = new DirectoryInfo(AppContext.BaseDirectory);
-    while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Rastreamento.slnx")))
-      dir = dir.Parent;
-    return dir?.FullName ?? throw new InvalidOperationException("Raiz do repositório não encontrada.");
   }
 }

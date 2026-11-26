@@ -6,7 +6,7 @@ using Rastreamento.Infrastructure.Security;
 namespace Rastreamento.Api.Comandos;
 
 /// <summary>
-/// Os verbos de linha de comando do binário da API (<c>definir-senha</c>, <c>conferir-senhas</c> e, na Task 6,
+/// Os verbos de linha de comando do binário da API (<c>definir-senha</c>, <c>conferir-senhas</c> e
 /// <c>banco preparar</c>): rodam antes do <c>CreateBuilder</c>, sem subir o servidor. Códigos de saída: 0 sucesso,
 /// 1 falha, 2 uso errado. A saída nunca traz senha, hash nem a cadeia de conexão.
 /// </summary>
@@ -42,15 +42,54 @@ public static class LinhaDeComando
     {
       "definir-senha" => await DefinirSenhaAsync(args, configuracao, saida, erro),
       "conferir-senhas" => await ConferirSenhasAsync(args, configuracao, saida, erro),
+      "banco" when args.Length == 2 && args[1] == "preparar" => await BancoPrepararAsync(configuracao, saida, erro),
       _ => await SubcomandoDesconhecidoAsync(args, erro),
     };
   }
 
   private static async Task<int> SubcomandoDesconhecidoAsync(string[] args, TextWriter erro)
   {
-    // O "banco preparar" entra na Task 6; até lá todo "banco ..." é subcomando desconhecido.
-    await erro.WriteLineAsync($"Uso: subcomando desconhecido para '{args[0]}'.");
+    await erro.WriteLineAsync($"Uso: subcomando desconhecido para '{args[0]}' (existe: banco preparar).");
     return 2;
+  }
+
+  private static async Task<int> BancoPrepararAsync(IConfiguration configuracao, TextWriter saida, TextWriter erro)
+  {
+    var opcoes = configuracao.GetSection("Banco").Get<OpcoesDoBanco>() ?? new OpcoesDoBanco();
+    var senhas = configuracao.GetSection("Senhas").GetChildren()
+        .Where(c => !string.IsNullOrEmpty(c.Value))
+        .ToDictionary(c => c.Key, c => c.Value!, StringComparer.OrdinalIgnoreCase);
+
+    ResultadoDoPreparo resultado;
+    try
+    {
+      var hasher = new BCryptPasswordHasher();
+      resultado = await new PreparadorDeBanco(
+              new CriadorDeBanco(new SenhasDosUsuarios(hasher)),
+              new MigradorDeBanco(new BackupDoBanco()),
+              new LoginDoAmbiente())
+          .PrepararAsync(opcoes, senhas, CancellationToken.None);
+    }
+    catch (Exception e)
+    {
+      // A mensagem pode ser do driver: tira dela qualquer segredo e a cadeia de conexão antes de imprimir.
+      var segredos = senhas.Values.Append(opcoes.SenhaDoLogin).Append(opcoes.ConexaoAdministrativa);
+      var mensagem = e.Message;
+      foreach (var segredo in segredos.Where(s => !string.IsNullOrEmpty(s)))
+        mensagem = mensagem.Replace(segredo, "***");
+      await erro.WriteLineAsync($"Falha ao preparar o banco ({e.GetType().Name}): {mensagem}");
+      return 1;
+    }
+
+    if (resultado.BancoNovo)
+      await saida.WriteLineAsync("banco novo criado");
+    else if (resultado.MigracoesAplicadas.Count > 0)
+      await saida.WriteLineAsync(
+          $"{resultado.MigracoesAplicadas.Count} migração(ões) aplicada(s); backup em {resultado.Backup}");
+    else
+      await saida.WriteLineAsync("nada a migrar");
+    await saida.WriteLineAsync($"login {opcoes.Login} garantido");
+    return 0;
   }
 
   private static async Task<int> DefinirSenhaAsync(
