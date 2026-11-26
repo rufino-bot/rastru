@@ -1386,11 +1386,15 @@ docker compose up -d
 #   db/seed-demo.sql               (OPCIONAL — massa de demonstração, Fase 1C)
 ```
 
-**`db/seed-demo.sql` é opcional e não obrigatório** — a suíte **ignora que ele existe**, e é isso que
-a torna determinística numa máquina qualquer (`grep -rn "seed-demo"` em `src/` e `tests/` devolve
-zero). Mas quem regenerar o banco **sem** ele perde a massa de verificação manual (54 Componentes,
-17 Materiais, 10 Setores, 3 receitas completas) e vai achar que a tela está quebrada quando ela só
-está vazia. A dependência é de **mão única**: a verificação manual usa o demo, a suíte não.
+**`db/seed-demo.sql` é opcional e não obrigatório** — a suíte **nunca o carrega** no banco compartilhado
+(`Rastreamento`), e é isso que a torna determinística numa máquina qualquer. Desde a parte 2 do CI/CD
+(2026-11-26) a suíte não o ignora mais ao pé da letra: o `CriadorDeBanco` o carrega no banco novo com
+`vitrine = true` (o da HML), e os testes `MassaDaVitrineTests` e
+`Criacao_interrompida_nao_deixa_banco_com_o_nome_final` o carregam num banco descartável **próprio**, que nasce e
+é apagado no teste; nenhum teste depende de ele estar no banco compartilhado. Mas quem regenerar o banco **sem** ele
+perde a massa de verificação manual (54 Componentes, 17 Materiais, 10 Setores, 3 receitas completas) e vai achar
+que a tela está quebrada quando ela só está vazia. A dependência continua de **mão única**: a verificação manual e a
+vitrine usam o demo, e a suíte não depende dele no banco compartilhado.
 
 É idempotente (`MERGE` no catálogo, `INSERT…WHERE NOT EXISTS` nas receitas, sempre chaveado por
 código/nome — nunca por Id), então rodá-lo de novo num banco que já o tem não duplica nada.
@@ -1414,6 +1418,24 @@ que já existe não é recriado, e o livro só é gerado para os Pedidos criados
 Application 1.324, Infrastructure 365) e a `Api.Tests` levou cerca de 10 min. O tempo da `Api.Tests` sem a massa não foi
 medido de novo, então não se sabe quanto da demora vem dela. *Hipótese não verificada:* que a lentidão seja de testes que
 leem listas globais de Pedidos ou Peças. O banco de dev é descartável: quem quer a suíte sem a massa o regenera sem ela.
+
+**`db/massa-vitrine.sql` é a massa de vitrine da HML** (D11 da spec `docs/superpowers/specs/2026-11-25-ci-cd-design.md`):
+o `CriadorDeBanco` a carrega logo depois do `seed-demo.sql`, só no banco **novo** criado com `vitrine = true`, para quem abre
+a HML ver cada tela com algo dentro. São oito Pedidos de fabricação, números e clientes fictícios, cada um num estágio:
+`PED-1041` atrasado (entrega há 6 dias, Peças no Corte a Laser e na Dobra), `PED-1042` pausado (pausa aberta há 2 dias),
+`PED-1043` no meio da produção (a Peça em 4 Setores, com lotes aguardando coleta de 2 a 9 dias), `PED-1044` com o Kit na
+Solda (um conjunto montado, outro à espera de montagem e, no Corte a Laser, filhos prontos que não fecham conjunto),
+`PED-1045` aguardando expedição (uma Peça aferida `Conforme`, outra `NaoConforme` com a contagem, e uma remessa parcial),
+`PED-1046` com uma baixa de `MortaEmProcesso` e o Retrabalho `PED-1046-R1` que a repõe, `PED-1047` recém-aberto e
+`PED-1048` concluído em duas remessas. Cada linha é a que a API gravaria para a ação (os CHECKs do livro e as regras 9 e
+22 a 40 de `specs/01`), e as datas são relativas à carga. Não tem estorno, liberação, conserto, reclamação, separação,
+embalagem nem "Usar a sobra". Usa os Setores e Componentes do `seed-demo.sql` por nome e código (aborta se faltarem), marca a
+Solda com `UtilizaKit = 1` e usa o `admin`. É idempotente por número de Pedido: o que já existe não é recriado, e o livro só
+é gerado para os Pedidos criados na execução, tudo numa transação. **Carregue-a com `-b -f 65001`**, por `docker compose
+cp` e `-i`, depois do `seed-demo.sql`; o teste de que a acentuação sobreviveu é medir: `LEN(Cliente)` do `PED-1041`
+(`Mineração Serra Alta`) é **20**, e lido como Latin-1 daria 22. A cobertura é o `MassaDaVitrineTests`, num banco
+descartável próprio: a suíte nunca a carrega no banco compartilhado. Medido em 2026-11-26: carregada à mão no banco de dev
+depois do `seed-demo.sql`, `LEN(Cliente)` deu 20, e a segunda carga não criou nada.
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
