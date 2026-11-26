@@ -208,8 +208,10 @@ tarefa exigir mudança de schema:
 
 1. Alterar `02-modelo-de-dados.sql` primeiro.
 2. Acrescentar um script idempotente `db/migracoes/NNNN-descricao.sql` (C10 da spec
-   `docs/superpowers/specs/2026-11-25-ci-cd-design.md`): número de quatro dígitos, minúsculas e hífens, **sem `GO`** (o
-   migrador o roda numa transação e anota o nome em `dbo.MigracaoAplicada`). Os `db/alter-*.sql` existentes ficam como
+   `docs/superpowers/specs/2026-11-25-ci-cd-design.md`): número de quatro dígitos, minúsculas e hífens. `GO` é
+   permitido (o migrador separa os lotes, e o script inteiro roda numa **única transação**, com o nome anotado em
+   `dbo.MigracaoAplicada` na mesma transação). Não é suportado script que não roda em transação (`ALTER DATABASE`,
+   `BEGIN`/`COMMIT` próprios) nem `GO <n>`. A 0001 é a exceção sem `GO`. Os `db/alter-*.sql` existentes ficam como
    estão; as mudanças de schema daqui em diante vão para `db/migracoes/`.
 3. Atualizar o mapeamento EF Core a partir do novo schema.
 4. Refletir a mudança em `01-dominio-e-regras-de-negocio.md` se for regra de negócio.

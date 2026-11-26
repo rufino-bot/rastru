@@ -18,7 +18,9 @@ public sealed record ScriptsDoBanco(string Raiz)
   /// <summary>Nomes de arquivo das migrações, em ordem ordinal. Arquivo <c>.sql</c> fora do padrão lança.</summary>
   public IReadOnlyList<string> Migracoes()
   {
-    if (!Directory.Exists(PastaDeMigracoes)) return [];
+    // Pasta ausente é raiz errada ou COPY quebrado, nunca "nada pendente": falha alta, antes de qualquer backup.
+    if (!Directory.Exists(PastaDeMigracoes))
+      throw new DirectoryNotFoundException($"Pasta de migrações não encontrada: {PastaDeMigracoes}.");
     var nomes = Directory.EnumerateFiles(PastaDeMigracoes, "*.sql")
         .Select(Path.GetFileName)
         .OfType<string>()

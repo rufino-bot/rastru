@@ -92,6 +92,16 @@ public class MigradorDeBancoTests : IDisposable
   }
 
   [Fact]
+  public void Pasta_de_migracoes_ausente_lanca()
+  {
+    var scripts = new ScriptsDoBanco(Path.Combine(_raiz, "inexistente"));
+
+    var erro = Assert.Throws<DirectoryNotFoundException>(() => scripts.Migracoes());
+
+    Assert.Contains("migracoes", erro.Message);
+  }
+
+  [Fact]
   public async Task O_modelo_tem_a_tabela_de_migracoes()
   {
     await using var banco = await BancoDescartavel.CriarAsync();
