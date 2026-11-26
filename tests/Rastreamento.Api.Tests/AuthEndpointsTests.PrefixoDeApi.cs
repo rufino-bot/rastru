@@ -157,4 +157,142 @@ public partial class AuthEndpointsTests
 
     Assert.Equal(HttpStatusCode.OK, refresh.StatusCode);
   }
+
+  // ---- Modo SPA: a API serve o build do Vite de wwwroot quando ele tem index.html ----
+
+  /// <summary>
+  /// Fabrica com um <c>wwwroot</c> temporario (index.html, um asset com hash e um favicon), o que
+  /// liga o modo SPA. Descartar a fabrica apaga a pasta.
+  /// </summary>
+  private sealed class FabricaComSpaDescartavel : IDisposable
+  {
+    private readonly string _pasta =
+        Path.Combine(Path.GetTempPath(), "rastru-spa-" + Guid.NewGuid().ToString("N"));
+
+    public WebApplicationFactory<Program> Fabrica { get; }
+
+    public FabricaComSpaDescartavel(WebApplicationFactory<Program> baseDaFabrica)
+    {
+      Directory.CreateDirectory(Path.Combine(_pasta, "assets"));
+      File.WriteAllText(Path.Combine(_pasta, "index.html"),
+          "<div id=\"root\"></div><!--spa-de-teste-->");
+      File.WriteAllText(Path.Combine(_pasta, "assets", "index-abc123.js"), "console.log(1);");
+      File.WriteAllText(Path.Combine(_pasta, "favicon.svg"), "<svg xmlns=\"http://www.w3.org/2000/svg\"/>");
+      Fabrica = baseDaFabrica.WithWebHostBuilder(host => host.UseWebRoot(_pasta));
+    }
+
+    public void Dispose()
+    {
+      Fabrica.Dispose();
+      try { Directory.Delete(_pasta, recursive: true); } catch (IOException) { }
+    }
+  }
+
+  [Fact]
+  public async Task Spa_GET_da_raiz_devolve_o_index_sem_cache()
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient().GetAsync("/");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Equal("text/html", resposta.Content.Headers.ContentType?.MediaType);
+    Assert.Contains("spa-de-teste", await resposta.Content.ReadAsStringAsync());
+    Assert.Contains("no-cache", resposta.Headers.CacheControl?.ToString());
+  }
+
+  /// <summary>O F5 numa rota do SPA: sem extensao e sem arquivo, vira o index.</summary>
+  [Theory]
+  [InlineData("/pedidos")]
+  [InlineData("/pedidos/5")]
+  [InlineData("/setores")]
+  public async Task Spa_rota_do_spa_devolve_o_index(string caminho)
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient().GetAsync(caminho);
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Contains("spa-de-teste", await resposta.Content.ReadAsStringAsync());
+  }
+
+  [Fact]
+  public async Task Spa_HEAD_da_rota_responde_200()
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient()
+        .SendAsync(new HttpRequestMessage(HttpMethod.Head, "/pedidos"));
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Spa_asset_com_hash_tem_cache_longo()
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient().GetAsync("/assets/index-abc123.js");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    var cache = resposta.Headers.CacheControl?.ToString();
+    Assert.Contains("max-age=31536000", cache);
+    Assert.Contains("immutable", cache);
+  }
+
+  [Fact]
+  public async Task Spa_arquivo_fora_de_assets_nao_tem_cache_longo()
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient().GetAsync("/favicon.svg");
+
+    Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
+    Assert.Contains("no-cache", resposta.Headers.CacheControl?.ToString());
+  }
+
+  /// <summary>
+  /// O cliente aberto antes do deploy pede um asset que nao existe mais. Devolver o index com 200
+  /// entregaria HTML como script e a tela ficaria branca sem erro util; 404 e o que aparece.
+  /// </summary>
+  [Fact]
+  public async Task Spa_asset_inexistente_responde_404()
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient().GetAsync("/assets/index-velho.js");
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  [Fact]
+  public async Task Spa_prefixo_em_maiuscula_continua_404()
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+    var cliente = spa.Fabrica.CreateClient();
+
+    Assert.Equal(HttpStatusCode.NotFound, (await cliente.GetAsync("/API/setores")).StatusCode);
+    Assert.Equal(HttpStatusCode.Unauthorized, (await cliente.GetAsync("/api/setores")).StatusCode);
+  }
+
+  [Theory]
+  [InlineData("/pedidos")]
+  [InlineData("/auth/login")]
+  public async Task Spa_POST_fora_do_api_responde_404(string caminho)
+  {
+    using var spa = new FabricaComSpaDescartavel(_factory);
+
+    var resposta = await spa.Fabrica.CreateClient().PostAsync(caminho, content: null);
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
+
+  /// <summary>O modo so-API fica como era: sem index.html no wwwroot, a raiz e 404.</summary>
+  [Fact]
+  public async Task Sem_wwwroot_a_raiz_responde_404()
+  {
+    var resposta = await _factory.CreateClient().GetAsync("/");
+
+    Assert.Equal(HttpStatusCode.NotFound, resposta.StatusCode);
+  }
 }

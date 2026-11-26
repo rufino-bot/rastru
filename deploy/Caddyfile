@@ -1,0 +1,6 @@
+# TLS automático (Let's Encrypt; com *.localhost o Caddy usa a CA interna dele). Sem limite de corpo:
+# o upload do sólido e do BOM é limitado pela própria API.
+{$RASTRU_DOMINIO_HML} {
+	encode zstd gzip
+	reverse_proxy api-hml:8080
+}

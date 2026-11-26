@@ -43,6 +43,11 @@ reenvia e a sessão morre no primeiro refresh.
   (ver `CLAUDE.md`, seção de defesas de autenticação). Consequência que essa isenção carrega, ainda
   **em aberto e pendente de decisão** (não resolvida por este documento): é a premissa que
   permitiria a quem roubasse um refresh token válido rodar a rotação em loop sem limite de taxa.
+- `GET /saude` — **anônima**, sem rate limit. Confere que o banco responde: **200** `{"status":"ok"}`
+  com o banco alcançável; **503** `{"status":"indisponivel"}` quando não é, ou quando a conferência
+  lança. O corpo **nunca** traz detalhe (nome de servidor, exceção, string de conexão): quem chama
+  sem sessão não tem de aprender nada sobre a infraestrutura, e o detalhe vai só para o log. Quem a
+  chama é o orquestrador e a verificação do deploy (Compose), que não têm sessão.
 - `GET/POST /usuarios` *(Administrador)*
 - `GET/POST /perfis` *(Administrador)*
 

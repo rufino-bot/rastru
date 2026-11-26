@@ -19,7 +19,7 @@ re-decida algo que já está resolvido lá sem perguntar antes.
 - **Frontend**: React + TypeScript (Vite), responsivo/mobile-first (uso em Android via navegador, sem PWA offline no MVP — o PWA mínimo para notificação push, sem cache de API, é a Fase 3C de `specs/06-roadmap-mvp.md`)
 - **Banco**: SQL Server, numa VPS paga com domínio próprio
 - **Auth**: login próprio (usuário/senha) + JWT, com perfis (Operador, Separador, Movimentador, PCP, Qualidade, Gestão, Administrador — o Movimentador passa a existir na Fase 3, e o Separador é o Almoxarifado renomeado na Fase 4)
-- **CI/CD**: CI no GitHub Actions (`.github/workflows/ci.yml`) desde 2026-11-25; CD em desenho — ver `docs/superpowers/specs/2026-11-25-ci-cd-design.md`
+- **CI/CD**: CI no GitHub Actions (`.github/workflows/ci.yml`) desde 2026-11-25; imagem única de container e Compose com Caddy (parte 2, `Dockerfile` e `deploy/`) verificados no job `imagem` do CI; CD (HML e PRD) em desenho — ver `docs/superpowers/specs/2026-11-25-ci-cd-design.md`
 
 ## Mapa da pasta `specs/`
 
@@ -207,8 +207,14 @@ Core é *Database First*: o schema nasce no `.sql`, não em migrations do EF. Se
 tarefa exigir mudança de schema:
 
 1. Alterar `02-modelo-de-dados.sql` primeiro.
-2. Atualizar o mapeamento EF Core a partir do novo schema.
-3. Refletir a mudança em `01-dominio-e-regras-de-negocio.md` se for regra de negócio.
+2. Acrescentar um script idempotente `db/migracoes/NNNN-descricao.sql` (C10 da spec
+   `docs/superpowers/specs/2026-11-25-ci-cd-design.md`): número de quatro dígitos, minúsculas e hífens. `GO` é
+   permitido (o migrador separa os lotes, e o script inteiro roda numa **única transação**, com o nome anotado em
+   `dbo.MigracaoAplicada` na mesma transação). Não é suportado script que não roda em transação (`ALTER DATABASE`,
+   `BEGIN`/`COMMIT` próprios) nem `GO <n>`. A 0001 é a exceção sem `GO`. Os `db/alter-*.sql` existentes ficam como
+   estão; as mudanças de schema daqui em diante vão para `db/migracoes/`.
+3. Atualizar o mapeamento EF Core a partir do novo schema.
+4. Refletir a mudança em `01-dominio-e-regras-de-negocio.md` se for regra de negócio.
 
 Nunca deixe o EF Core criar/alterar tabelas por conta própria via `Add-Migration` a
 partir do zero.
@@ -1045,11 +1051,26 @@ testes de endpoint foram reescritas junto. O `Path` do cookie de refresh acompan
 (`/api/auth`) em vez de ser literal, para o cookie ser gravado sob o mesmo prefixo em que o refresh
 atende. Coberto por `AuthEndpointsTests.PrefixoDeApi.cs`.
 
-**Restrição de ordem de pipeline:** a guarda é um 404 cego para tudo que não começa com `/api`. Se
-o SPA vier a ser servido como estáticos pela própria API (`UseStaticFiles` / `MapFallbackToFile` —
-ver hospedagem em `specs/03-arquitetura-tecnica.md`), o registro deles tem que vir **antes** da
-guarda, senão ela devolve 404 para `index.html`, os assets e toda rota do SPA, com sintoma de "o
-build do front não subiu". Hoje não se aplica: não há `UseStaticFiles` em `src/`.
+**Restrição de ordem de pipeline — cumprida assim (2026-11-25).** A guarda é um 404 cego para tudo que
+não começa com `/api`, então o SPA tem de vir **antes** dela, senão ela devolve 404 para `index.html`, os
+assets e toda rota do SPA, com sintoma de "o build do front não subiu". Em `Program.cs`, logo acima da guarda,
+`if (SpaDaApi.Disponivel(app.Environment)) app.UsarSpa();` registra um ramo (`MapWhen`) que atende o que **não**
+começa com `/api` (comparação ordinal), com `UseStaticFiles` e um terminal que serve o `index.html`. A API tem
+**dois modos**: com `wwwroot/index.html` (a imagem do container põe o build do Vite ali) ela serve o SPA; sem
+ele fica só-API, exatamente como antes, e a guarda responde 404 a tudo fora de `/api`. No modo SPA, o que
+começa com `/api` segue para a guarda e a API, como sempre. O resto, uma frase por caso:
+
+- `GET`/`HEAD` de arquivo que existe em `wwwroot` devolve o arquivo, com `Cache-Control: public,
+  max-age=31536000, immutable` sob `/assets/` (nome com hash) e `no-cache` fora dele.
+- `GET`/`HEAD` de caminho cujo último segmento não tem extensão e não é arquivo devolve o `index.html`, com
+  `no-cache` (é o F5 numa rota do SPA, como `/pedidos/5`).
+- `GET`/`HEAD` de caminho **com extensão** que não existe responde **404**, e não o `index.html`: o cliente
+  aberto antes de um deploy pede `/assets/index-velho.js`, e receber HTML com 200 no lugar do script deixaria a
+  tela branca sem erro útil; o 404 aparece no console.
+- `/API/x` (só na caixa) continua 404, pelo mesmo motivo do cookie de refresh descrito acima.
+- Qualquer outro método fora de `/api` (`POST /pedidos`, `POST /auth/login`) responde 404.
+
+Coberto pelos testes `Spa_*` e `Sem_wwwroot_a_raiz_responde_404` de `AuthEndpointsTests.PrefixoDeApi.cs`.
 
 ## O que evitar (decisões já descartadas — não reabrir sem justificativa nova)
 
@@ -1206,7 +1227,7 @@ Frontend: ainda não criado (Fase 1 em diante).
 
 O workflow `.github/workflows/ci.yml` (nome `CI`, desde 2026-11-25; spec
 `docs/superpowers/specs/2026-11-25-ci-cd-design.md`, seção 4) roda em todo PR para a `main` e em todo push na `main`,
-com dois jobs em paralelo e sem segredo algum:
+com três jobs em paralelo e sem segredo algum:
 
 - **`backend`**: instala o .NET 10, prepara o banco com `bash scripts/banco-de-teste` (o mesmo script que o
   `scripts/backend-na-nuvem` chama: sobe o `sqlserver` do `docker-compose.yml`, cria o banco `Rastreamento` e aplica o
@@ -1214,10 +1235,20 @@ com dois jobs em paralelo e sem segredo algum:
   `dotnet build Rastreamento.slnx -warnaserror` e `dotnet test Rastreamento.slnx -m:1`, e publica os `.trx` como o
   artefato `resultados-do-backend`.
 - **`front`**: em `web/`, `npm ci`, `npm test -- --run --maxWorkers=2` e `npm run build` (Node 22).
+- **`imagem`** (parte 2 do CI/CD; `ubuntu-24.04`, 30 min, `permissions: contents: read`, sem segredo): baixa antes, com até
+  cinco tentativas e pausa crescente, as duas imagens de terceiros do Compose (`mcr.microsoft.com/mssql/server:2022-latest` e
+  `caddy:2`), porque o Docker Hub responde 429 de vez em quando e o `up` do `subir-local.sh` não tenta de novo; depois roda
+  `bash deploy/subir-local.sh`, que constrói a imagem do `Dockerfile`, sobe o SQL Server, prepara o banco novo da HML **com
+  a massa de vitrine** (`banco preparar`, `Banco__Vitrine=true`), sobe a API e o Caddy com TLS local e roda a verificação
+  C13 (`deploy/verificar.sh`). Em falha, chama `bash deploy/subir-local.sh --logs`, e **sempre** termina com
+  `bash deploy/subir-local.sh --derrubar` (contêineres, volumes e `deploy/local/`). Prova, portanto, que a imagem constrói,
+  que o banco novo nasce com a vitrine e que a C13 passa contra o Compose de verdade. O tempo medido na primeira execução
+  entra aqui quando houver uma.
 
-Os dois jobs, `backend` e `front`, são para ser **check obrigatório da `main`**. Isso é configuração do repositório que o
+Os dois jobs `backend` e `front` são para ser **check obrigatório da `main`**; o `imagem` roda junto, mas **não** é
+candidato por ora (tornar é decisão do usuário). Isso é configuração do repositório que o
 **usuário** faz, em Settings → Rules/Branches, e **ainda não foi feito**: até lá o CI avisa, mas não impede o merge.
-Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok). Essa execução é anterior ao job `imagem`. Primeira execução do `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo).
 
 **CI vermelho que passa ao rodar de novo é registrado, não só re-rodado**: o nome do teste e o link da execução vão
 para o ledger da fase em curso (seção 4 da spec). Há um flaky conhecido no front (`lembra o Setor cuja fila
@@ -1365,11 +1396,15 @@ docker compose up -d
 #   db/seed-demo.sql               (OPCIONAL — massa de demonstração, Fase 1C)
 ```
 
-**`db/seed-demo.sql` é opcional e não obrigatório** — a suíte **ignora que ele existe**, e é isso que
-a torna determinística numa máquina qualquer (`grep -rn "seed-demo"` em `src/` e `tests/` devolve
-zero). Mas quem regenerar o banco **sem** ele perde a massa de verificação manual (54 Componentes,
-17 Materiais, 10 Setores, 3 receitas completas) e vai achar que a tela está quebrada quando ela só
-está vazia. A dependência é de **mão única**: a verificação manual usa o demo, a suíte não.
+**`db/seed-demo.sql` é opcional e não obrigatório** — a suíte **nunca o carrega** no banco compartilhado
+(`Rastreamento`), e é isso que a torna determinística numa máquina qualquer. Desde a parte 2 do CI/CD
+(2026-11-26) a suíte não o ignora mais ao pé da letra: o `CriadorDeBanco` o carrega no banco novo com
+`vitrine = true` (o da HML), e os testes `MassaDaVitrineTests` e
+`Criacao_interrompida_nao_deixa_banco_com_o_nome_final` o carregam num banco descartável **próprio**, que nasce e
+é apagado no teste; nenhum teste depende de ele estar no banco compartilhado. Mas quem regenerar o banco **sem** ele
+perde a massa de verificação manual (54 Componentes, 17 Materiais, 10 Setores, 3 receitas completas) e vai achar
+que a tela está quebrada quando ela só está vazia. A dependência continua de **mão única**: a verificação manual e a
+vitrine usam o demo, e a suíte não depende dele no banco compartilhado.
 
 É idempotente (`MERGE` no catálogo, `INSERT…WHERE NOT EXISTS` nas receitas, sempre chaveado por
 código/nome — nunca por Id), então rodá-lo de novo num banco que já o tem não duplica nada.
@@ -1393,6 +1428,24 @@ que já existe não é recriado, e o livro só é gerado para os Pedidos criados
 Application 1.324, Infrastructure 365) e a `Api.Tests` levou cerca de 10 min. O tempo da `Api.Tests` sem a massa não foi
 medido de novo, então não se sabe quanto da demora vem dela. *Hipótese não verificada:* que a lentidão seja de testes que
 leem listas globais de Pedidos ou Peças. O banco de dev é descartável: quem quer a suíte sem a massa o regenera sem ela.
+
+**`db/massa-vitrine.sql` é a massa de vitrine da HML** (D11 da spec `docs/superpowers/specs/2026-11-25-ci-cd-design.md`):
+o `CriadorDeBanco` a carrega logo depois do `seed-demo.sql`, só no banco **novo** criado com `vitrine = true`, para quem abre
+a HML ver cada tela com algo dentro. São oito Pedidos de fabricação, números e clientes fictícios, cada um num estágio:
+`PED-1041` atrasado (entrega há 6 dias, Peças no Corte a Laser e na Dobra), `PED-1042` pausado (pausa aberta há 2 dias),
+`PED-1043` no meio da produção (a Peça em 4 Setores, com lotes aguardando coleta de 2 a 9 dias), `PED-1044` com o Kit na
+Solda (um conjunto montado, outro à espera de montagem e, no Corte a Laser, filhos prontos que não fecham conjunto),
+`PED-1045` aguardando expedição (uma Peça aferida `Conforme`, outra `NaoConforme` com a contagem, e uma remessa parcial),
+`PED-1046` com uma baixa de `MortaEmProcesso` e o Retrabalho `PED-1046-R1` que a repõe, `PED-1047` recém-aberto e
+`PED-1048` concluído em duas remessas. Cada linha é a que a API gravaria para a ação (os CHECKs do livro e as regras 9 e
+22 a 40 de `specs/01`), e as datas são relativas à carga. Não tem estorno, liberação, conserto, reclamação, separação,
+embalagem nem "Usar a sobra". Usa os Setores e Componentes do `seed-demo.sql` por nome e código (aborta se faltarem), marca a
+Solda com `UtilizaKit = 1` e usa o `admin`. É idempotente por número de Pedido: o que já existe não é recriado, e o livro só
+é gerado para os Pedidos criados na execução, tudo numa transação. **Carregue-a com `-b -f 65001`**, por `docker compose
+cp` e `-i`, depois do `seed-demo.sql`; o teste de que a acentuação sobreviveu é medir: `LEN(Cliente)` do `PED-1041`
+(`Mineração Serra Alta`) é **20**, e lido como Latin-1 daria 22. A cobertura é o `MassaDaVitrineTests`, num banco
+descartável próprio: a suíte nunca a carrega no banco compartilhado. Medido em 2026-11-26: carregada à mão no banco de dev
+depois do `seed-demo.sql`, `LEN(Cliente)` deu 20, e a segunda carga não criou nada.
 
 **Banco regenerado em 2026-08-04.** Ele foi recriado do zero (`DROP DATABASE` +
 `specs/02-modelo-de-dados.sql` + `db/seed.sql`) porque estava em desacordo com a fonte de
@@ -1677,6 +1730,19 @@ MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcm
   -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/alter-panorama.sql
 ```
 
+**Migrações versionadas — `db/migracoes/0001-migracao-aplicada.sql`.** A partir da parte 2 do CI/CD, mudança de schema
+também vira um script em `db/migracoes/` (ver «Banco de dados — regra importante»), aplicado pelo `MigradorDeBanco` em
+ordem de nome, uma transação por script, com um backup antes da primeira pendente. A 0001 cria `dbo.MigracaoAplicada`
+(`Nome` PK, `AplicadaEm`); é a que um banco de dev **anterior** a ela precisa, no mesmo formato dos `alter-*.sql`. O banco
+que o `scripts/banco-de-teste` cria nasce do `02-modelo-de-dados.sql` e **já tem a tabela, vazia** — a suíte não depende
+dela estar preenchida, e o `banco preparar` é quem anota as migrações de um banco novo.
+
+```bash
+MSYS_NO_PATHCONV=1 docker compose cp db/migracoes/0001-migracao-aplicada.sql sqlserver:/tmp/0001-migracao-aplicada.sql
+MSYS_NO_PATHCONV=1 docker compose exec -T sqlserver /opt/mssql-tools18/bin/sqlcmd \
+  -S localhost -U sa -P 'Your_strong_Pass123' -C -I -b -f 65001 -d Rastreamento -i /tmp/0001-migracao-aplicada.sql
+```
+
 O schema **não** é criado pelo EF (nada de `Add-Migration`/`EnsureCreated`): é Database
 First, o `.sql` é a fonte de verdade.
 
@@ -1754,19 +1820,20 @@ Nos três casos o usuário é deslogado de todos os dispositivos e precisa logar
 aceito da detecção de reuso no MVP — não existe janela de graça (ex.: permitir o token antigo por
 alguns segundos após a rotação) porque isso reabriria a mesma corrida que o `RowVersion` fecha.
 
-**Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`. Se entrar um proxy na
-frente da API, configurar `ForwardedHeaders` — senão todos os clientes compartilham o IP do proxy e
-o limite vira global por acidente. Com a hospedagem decidida como VPS pública (2026-09-12,
-`specs/03-arquitetura-tecnica.md`, seção "Hospedagem"), o proxy reverso deixa de ser hipotético
-**no caminho container + proxy** (nginx), um dos dois que aquela seção ainda admite — o outro é
-IIS. Nesse caminho, `ForwardedHeaders` está registrado como dívida com gatilho **"obrigatório antes
-do primeiro deploy público"** na seção "Pontos em aberto" do mesmo arquivo. Sob IIS com hosting
-out-of-process, a integração do IIS já liga esse middleware, restrito ao proxy local (documentação
-do ASP.NET Core; não medido aqui). Ligar `ForwardedHeaders` **não** fica burlável com os padrões:
-`KnownProxies` e `KnownNetworks` só aceitam loopback, e cabeçalho vindo de outro IP é ignorado. O
-risco nasce ao limpar essas listas — o exemplo da própria documentação para proxy que não é IIS faz
-isso — ou ao usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a documentação, não restringe
-de quais IPs os cabeçalhos são aceitos.
+**Rate limit atrás de proxy reverso.** A partição usa `RemoteIpAddress`, e atrás de um proxy ele seria o IP do proxy:
+o limite viraria global. **Resolvido na aplicação (parte 2 do CI/CD, 2026-11-25):** a seção de configuração
+`ProxyReverso`, chave `Rede` (CIDR, variável `ProxyReverso__Rede`), registra o `UseForwardedHeaders` como **primeiro**
+middleware, antes do SPA e da guarda do `/api`, com `XForwardedFor | XForwardedProto`, `ForwardLimit = 1` e só essa rede em
+`KnownIPNetworks` (o `KnownProxies` e o loopback padrão são limpos: só a rede configurada é confiável). `Rede` vazia ou
+ausente: o middleware **não é registrado** e o cabeçalho é ignorado, como em desenvolvimento. O `ProxyReversoOptionsValidator`
+derruba a aplicação no startup com rede que não é CIDR ou com prefixo zero (`0.0.0.0/0`, `::/0`), que confiaria em todo
+mundo. A sub-rede vem do `deploy/compose.yaml`, e o Caddy manda `X-Forwarded-For` e `X-Forwarded-Proto`.
+Os testes são `ProxyReversoTests` (três) e `Aplicacao_nao_sobe_com_rede_do_proxy_invalida`. O risco que continua valendo
+para quem mexer nisso: **não** deixar `KnownProxies` e `KnownNetworks` limpos sem uma rede por cima (o exemplo da
+documentação para proxy que não é IIS faz isso) nem usar `ASPNETCORE_FORWARDEDHEADERS_ENABLED`, que, segundo a
+documentação, não restringe de quais IPs os cabeçalhos são aceitos: nos dois casos qualquer cliente forja o
+`X-Forwarded-For` e escolhe a própria partição do rate limit. Sob IIS com hosting out-of-process, a integração do IIS já
+liga o middleware, restrito ao proxy local (documentação do ASP.NET Core; não medido aqui).
 
 **Ainda em aberto (deferido de propósito):** tabela de auditoria persistente; limpeza de linhas
 `RefreshToken` expiradas. (A mensagem dedicada de 429 no front deixou de estar em aberto em 2026-11-10: o login

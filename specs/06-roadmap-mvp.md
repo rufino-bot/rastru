@@ -949,12 +949,16 @@ da 6B**, que continua depois. Quatro partes, cada uma com plano e PR próprios, 
 
 1. **CI** — `ci.yml` e a regra de flakiness. Pronto quando um PR aberto mostra os dois jobs verdes.
 2. **A aplicação pronta para container** — Dockerfile, SPA servido pela API, saúde, `ForwardedHeaders`, migrações
-   versionadas, a massa de vitrine e o Compose; verificável sem VPS.
+   versionadas, o comando de senha (`definir-senha` e `conferir-senhas`), a massa de vitrine, o Compose e o `Caddyfile`;
+   verificável sem VPS, pelo `deploy/subir-local.sh` e pelo job `imagem` do CI.
 3. **HML no ar** — `deploy.yml`, o preparo da VPS e o `deploy/LEIAME.md`; depende de o usuário contratar a VPS e apontar
    o DNS, e leva a conferência dele no navegador antes da review de branch.
 4. **PRD** — só quando o usuário decidir.
 
 A parte 1 está **implementada na branch e verificada no GitHub**, e fica concluída no merge do PR dela. Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+
+A parte 2 está **implementada na branch** (Tasks 1 a 10 do plano), com o job `imagem` no `ci.yml`, e fica concluída no
+merge do PR dela. Primeira execução do job `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo). Resta, da parte 2, o fix wave da review de branch inteira.
 
 ### Fase 6B — Histórico
 

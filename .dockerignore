@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.superpowers
+.vs
+**/node_modules
+**/bin
+**/obj
+web/dist
+TestResults
+**/TestResults
+deploy/local
+tests
+db/massa-*
+!db/massa-vitrine.sql

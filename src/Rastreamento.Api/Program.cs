@@ -2,12 +2,15 @@ using System.Globalization;
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Rastreamento.Api.Comandos;
 using Rastreamento.Api.Configuration;
 using Rastreamento.Api.Serialization;
+using Rastreamento.Api.Spa;
 using Rastreamento.Application.Arquivos;
 using Rastreamento.Application.Andamento;
 using Rastreamento.Application.Auth;
@@ -24,6 +27,9 @@ using Rastreamento.Domain.Abstractions;
 using Rastreamento.Infrastructure.Importacao;
 using Rastreamento.Infrastructure.Persistence;
 using Rastreamento.Infrastructure.Security;
+
+// Os verbos de linha de comando (definir-senha, conferir-senhas, banco) rodam e saem sem subir o servidor.
+if (LinhaDeComando.EhComando(args)) return await LinhaDeComando.ExecutarAsync(args);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +56,11 @@ builder.Services.AddOptions<RateLimitOptions>()
     .Bind(builder.Configuration.GetSection("RateLimit"))
     .ValidateOnStart();
 
+builder.Services.AddSingleton<IValidateOptions<ProxyReversoOptions>, ProxyReversoOptionsValidator>();
+builder.Services.AddOptions<ProxyReversoOptions>()
+    .Bind(builder.Configuration.GetSection("ProxyReverso"))
+    .ValidateOnStart();
+
 // Teto grosso POR IP contra forca bruta de login. Complementa o lockout (trava fina, por conta):
 // um barra o flood de uma origem, o outro protege a conta especifica; nenhum substitui o outro.
 // Escopo deliberado: so o /auth/login. O /auth/refresh fica de fora — e legitimo e frequente, e o
@@ -62,8 +73,9 @@ builder.Services.AddRateLimiter(rateLimiter =>
   {
     var politica = http.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
 
-    // Particao por IP. Atras de proxy reverso isto vira o IP do proxy e o limite passa a ser
-    // global — quando houver proxy, configurar ForwardedHeaders (anotado no CLAUDE.md).
+    // Particao por IP. Atras de proxy reverso isto seria o IP do proxy e o limite viraria global;
+    // por isso o ForwardedHeaders (primeiro middleware, abaixo) reescreve o RemoteIpAddress com o
+    // do cliente, mas so quando ProxyReverso:Rede esta preenchida e o pedido veio dessa rede.
     return RateLimitPartition.GetFixedWindowLimiter(
           partitionKey: http.Connection.RemoteIpAddress?.ToString() ?? "sem-ip",
           factory: _ => new FixedWindowRateLimiterOptions
@@ -222,6 +234,26 @@ var app = builder.Build();
 
 const string PrefixoDaApi = "/api";
 
+// PRIMEIRO middleware, antes do SPA e da guarda do /api: o que vem depois (rate limit, log de
+// auth) tem de ler o IP do cliente, e nao o do proxy. Confia SO na rede configurada; cabecalho que
+// chega de outro IP e ignorado. ForwardLimit = 1: o proxy e um so (o Caddy do Compose), e o
+// padrao do middleware ja limita assim, mas fica escrito. Sem Rede o middleware nem e registrado.
+// Nao limpar KnownProxies/KnownNetworks nem usar ASPNETCORE_FORWARDEDHEADERS_ENABLED: os dois
+// aceitam cabecalho de qualquer origem e tornam o rate limit burlavel (ver CLAUDE.md).
+var redeDoProxy = app.Services.GetRequiredService<IOptions<ProxyReversoOptions>>().Value.Rede;
+if (!string.IsNullOrWhiteSpace(redeDoProxy))
+{
+  var opcoesDeEncaminhamento = new ForwardedHeadersOptions
+  {
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1,
+  };
+  opcoesDeEncaminhamento.KnownIPNetworks.Clear();
+  opcoesDeEncaminhamento.KnownProxies.Clear();
+  opcoesDeEncaminhamento.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(redeDoProxy.Trim()));
+  app.UseForwardedHeaders(opcoesDeEncaminhamento);
+}
+
 // A guarda que faz o prefixo valer: sem ela a API atenderia tambem nos caminhos nus, e esses sao
 // exatamente os das rotas do SPA. Vem ANTES do UsePathBase de proposito, e testa o Path — nao o
 // PathBase. Testar PathBase seria so um proxy: ele e vazio "quando nao veio de /api" apenas se o
@@ -240,11 +272,14 @@ const string PrefixoDaApi = "/api";
 // /api/auth/refresh em minuscula, porque matching de Path de cookie e case-sensitive (RFC 6265
 // Sec5.1.4). A sessao morreria no primeiro refresh, em silencio. Preferimos o 404 alto.
 //
-// Restricao de ordem de pipeline: esta guarda e um 404 cego para tudo que nao comeca com /api. Se
-// o SPA vier a ser servido como estaticos pela propria API (UseStaticFiles / MapFallbackToFile —
-// ver hospedagem em specs/03-arquitetura-tecnica.md), o registro deles tem que vir ANTES desta
-// guarda, senao ela devolve 404 para index.html, os assets e toda rota do SPA. Hoje nao se
-// aplica: nao ha UseStaticFiles neste projeto.
+// Ordem de pipeline: esta guarda e um 404 cego para tudo que nao comeca com /api, entao o SPA
+// (estaticos e index.html) tem de vir ANTES dela, senao ela devolve 404 para o index, os assets e
+// toda rota do SPA. E o que acontece logo abaixo: com wwwroot/index.html presente (a imagem do
+// container poe o build do Vite ali) o ramo do SPA atende o que NAO comeca com /api e nunca chega
+// aqui; o que comeca com /api segue para esta guarda e para o resto da API. Sem index.html a API
+// fica so-API, e a guarda responde 404 a tudo fora de /api, como antes. Ver SpaDaApi.
+if (SpaDaApi.Disponivel(app.Environment)) app.UsarSpa();
+
 app.Use(async (contexto, proximo) =>
 {
   if (!contexto.Request.Path.StartsWithSegments(PrefixoDaApi, StringComparison.Ordinal))
@@ -270,6 +305,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+return 0;
 
 // Torna a classe gerada pelos top-level statements visivel para WebApplicationFactory<Program>.
 public partial class Program { }

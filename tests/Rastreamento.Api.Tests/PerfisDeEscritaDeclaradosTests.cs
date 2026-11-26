@@ -311,6 +311,8 @@ public class PerfisDeEscritaDeclaradosTests
     ["POST auth/logout"] =
         "revoga o refresh token do cookie; exigir access token valido impediria deslogar depois " +
         "de ele expirar, que e quando mais se quer revogar.",
+    ["GET saude"] =
+        "o orquestrador e a verificacao do deploy chamam sem sessao; nao le nem devolve dado.",
   };
 
   /// <summary>Verbos que escrevem — os que exigem gate de perfil.</summary>
