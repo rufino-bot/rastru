@@ -1,8 +1,7 @@
 # CI do Rastru: build e suítes do backend e do front em todo PR para a main e em todo push na main, e o
 # job `imagem`, que constrói a imagem e sobe o Compose local. Os três rodam em paralelo.
-# Só `backend` e `front` são os candidatos a check obrigatório da `main` (a configuração é do usuário e
-# ainda não foi feita) — renomear um deles quebraria essa proteção em silêncio, então o nome só muda junto
-# com ela. O `imagem` não é obrigatório; tornar é decisão do usuário.
+# Os três são check obrigatório da `main` (configurado pelo usuário em 2026-11-26) — renomear um deles
+# quebraria essa proteção em silêncio, então o nome só muda junto com ela.
 #
 # Sem segredo e sem gatilho que rode código de PR com token de escrita: o PR de fora roda com o token
 # só de leitura, e o banco de teste usa a senha de dev do `docker-compose.yml`, que já é pública no

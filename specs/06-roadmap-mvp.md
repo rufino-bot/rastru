@@ -955,10 +955,11 @@ da 6B**, que continua depois. Quatro partes, cada uma com plano e PR próprios, 
    o DNS, e leva a conferência dele no navegador antes da review de branch.
 4. **PRD** — só quando o usuário decidir.
 
-A parte 1 está **implementada na branch e verificada no GitHub**, e fica concluída no merge do PR dela. Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
+A parte 1 foi **concluída e mesclada em 2026-11-25** (rufino-bot/rastru#42). Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok).
 
-A parte 2 está **implementada na branch** (Tasks 1 a 10 do plano), com o job `imagem` no `ci.yml`, e fica concluída no
-merge do PR dela. Primeira execução do job `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo). Resta, da parte 2, o fix wave da review de branch inteira.
+A parte 2 foi **concluída e mesclada em 2026-11-26** (rufino-bot/rastru#43; Tasks 1 a 10 do plano
+`docs/superpowers/plans/2026-11-25-cicd-parte-2-container.md`, review de branch e fix wave), com o job `imagem` no `ci.yml`.
+Os três jobs, `backend`, `front` e `imagem`, são check obrigatório da `main` desde 2026-11-26. Primeira execução do job `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo). A seguinte é a parte 3 (HML no ar).
 
 ### Fase 6B — Histórico
 

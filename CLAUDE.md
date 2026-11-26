@@ -117,7 +117,11 @@ em Pedido rodando", marcado **obrigatório antes do primeiro uso real**, foi cum
 Mais uma exceção, por decisão do usuário de 2026-11-25 (D3 da spec
 `docs/superpowers/specs/2026-11-25-ci-cd-design.md`): o **CI e o CD vêm antes da 6B**, em quatro partes, cada uma com
 plano e PR próprios e nesta ordem — **CI**; **aplicação pronta para container**; **HML no ar**; **PRD** (esta só quando o
-usuário decidir). A **6B continua depois** delas. A decisão reabre o "CI/CD fora do MVP" que a seção «CI/CD» de
+usuário decidir). A **parte 1 (CI)** foi concluída e mesclada em 2026-11-25 (rufino-bot/rastru#42), e a **parte 2 (aplicação
+pronta para container)** em 2026-11-26 (rufino-bot/rastru#43; plano `docs/superpowers/plans/2026-11-25-cicd-parte-2-container.md`):
+o `Dockerfile`, o SPA servido pela API, o `GET /api/saude`, o `ForwardedHeaders`, as migrações versionadas, o `banco preparar`
+e os comandos de senha, a massa de vitrine, o `deploy/` e o job `imagem`. A seguinte é a **parte 3 (HML no ar)**, que depende
+de o usuário contratar a VPS. A **6B continua depois** delas. A decisão reabre o "CI/CD fora do MVP" que a seção «CI/CD» de
 `specs/03-arquitetura-tecnica.md` trazia, e a exceção também está escrita em `specs/06-roadmap-mvp.md`.
 
 ## Como este projeto executa plano — o gate de review não é opcional
@@ -1242,12 +1246,10 @@ com três jobs em paralelo e sem segredo algum:
   a massa de vitrine** (`banco preparar`, `Banco__Vitrine=true`), sobe a API e o Caddy com TLS local e roda a verificação
   C13 (`deploy/verificar.sh`). Em falha, chama `bash deploy/subir-local.sh --logs`, e **sempre** termina com
   `bash deploy/subir-local.sh --derrubar` (contêineres, volumes e `deploy/local/`). Prova, portanto, que a imagem constrói,
-  que o banco novo nasce com a vitrine e que a C13 passa contra o Compose de verdade. O tempo medido na primeira execução
-  entra aqui quando houver uma.
+  que o banco novo nasce com a vitrine e que a C13 passa contra o Compose de verdade.
 
-Os dois jobs `backend` e `front` são para ser **check obrigatório da `main`**; o `imagem` roda junto, mas **não** é
-candidato por ora (tornar é decisão do usuário). Isso é configuração do repositório que o
-**usuário** faz, em Settings → Rules/Branches, e **ainda não foi feito**: até lá o CI avisa, mas não impede o merge.
+Os três jobs, `backend`, `front` e `imagem`, são **check obrigatório da `main`** desde 2026-11-26, configurados pelo
+usuário em Settings → Rules/Branches depois do merge do PR rufino-bot/rastru#43. Renomear um job quebra essa proteção em silêncio, então o nome só muda junto com a regra.
 Primeira execução: PR rufino-bot/rastru#42, em `44d209e` (2026-11-25), run https://github.com/rufino-bot/rastru/actions/runs/45679448031. O job `backend` ficou verde em 7 min 01 s (build com 0 avisos; Api 617, Application 1.335, Infrastructure 367, 0 falhas; a `Api.Tests` levou 5 min 7 s; artefato `resultados-do-backend` publicado) e o job `front`, verde em 2 min 23 s (2.425 testes em 147 arquivos; `npm run build` ok). Essa execução é anterior ao job `imagem`. Primeira execução do `imagem`: PR rufino-bot/rastru#43, em `36b6b9b` (2026-11-26), run https://github.com/rufino-bot/rastru/actions/runs/45811611394: os três jobs ficaram verdes, `backend` em 7 min 19 s, `front` em 1 min 54 s e `imagem` em 1 min 26 s (constrói a imagem do zero num `ubuntu-24.04` limpo, cria o banco novo, garante o login `rastru_hml`, passa os seis itens da C13 e o `--derrubar` limpa tudo).
 
 **CI vermelho que passa ao rodar de novo é registrado, não só re-rodado**: o nome do teste e o link da execução vão
